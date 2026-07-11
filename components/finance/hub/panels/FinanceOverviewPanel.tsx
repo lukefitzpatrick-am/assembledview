@@ -41,7 +41,12 @@ import {
 import { formatMoney } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { useFinanceStore, type FinanceHubTab } from "@/lib/finance/useFinanceStore"
-import { billingMonthsInAustralianFinancialYear } from "@/lib/finance/months"
+import {
+  australianFyStartYearForDate,
+  billingMonthsInAustralianFinancialYear,
+  fyDisplayLabel,
+  referenceDateForFyStartYear,
+} from "@/lib/finance/months"
 import { sumPayableRecordsAgencyExpected } from "@/lib/finance/aggregatePayablesPublisherGroups"
 
 const RECEIVABLE_TYPES: BillingType[] = ["media", "sow", "retainer"]
@@ -122,17 +127,6 @@ function buildTreemapFromMonthlyPublisher(
   return arr
 }
 
-/** Australian FY: July fyStart → June fyStart+1. Returns calendar year of July that starts the FY containing `date`. */
-function australianFyStartYearForDate(d: Date): number {
-  const y = d.getFullYear()
-  const m = d.getMonth() + 1
-  return m >= 7 ? y : y - 1
-}
-
-function fyDisplayLabel(fyStartYear: number): string {
-  return `${fyStartYear}–${String(fyStartYear + 1).slice(-2)}`
-}
-
 type AttentionItem = {
   id: string
   kind: "receivable_overdue" | "payable_dispute" | "accrual_large" | "draft_stale"
@@ -203,8 +197,12 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
   const [currentMonthPayablesRecords, setCurrentMonthPayablesRecords] = useState<BillingRecord[]>([])
 
   const currentMonth = format(new Date(), "yyyy-MM")
-  const fyStart = useMemo(() => australianFyStartYearForDate(new Date()), [])
-  const fyMonthSet = useMemo(() => new Set(billingMonthsInAustralianFinancialYear()), [])
+  const fyStart = filters.financialYear
+  const currentFyStart = useMemo(() => australianFyStartYearForDate(new Date()), [])
+  const fyMonthSet = useMemo(
+    () => new Set(billingMonthsInAustralianFinancialYear(referenceDateForFyStartYear(fyStart))),
+    [fyStart]
+  )
 
   useEffect(() => {
     void (async () => {
@@ -219,51 +217,8 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
     void (async () => {
-      setChartsLoading(true)
       try {
-        const [monthlyPubResp, monthlyClientResp] = await Promise.all([
-          fetch("/api/dashboard/global-monthly-publisher-spend"),
-          fetch("/api/dashboard/global-monthly-client-spend"),
-        ])
-        const monthlyPub = monthlyPubResp.ok ? await monthlyPubResp.json() : []
-        const monthlyClient = monthlyClientResp.ok ? await monthlyClientResp.json() : null
-
-        if (cancelled) return
-        setMonthlyPublisherSpend(Array.isArray(monthlyPub) ? monthlyPub : [])
-        setMonthlyClientSpend(
-          monthlyClient && typeof monthlyClient === "object" && Array.isArray(monthlyClient.data)
-            ? monthlyClient.data
-            : []
-        )
-        const colours =
-          monthlyClient &&
-          typeof monthlyClient === "object" &&
-          monthlyClient.clientColors &&
-          typeof monthlyClient.clientColors === "object" &&
-          !Array.isArray(monthlyClient.clientColors)
-            ? (monthlyClient.clientColors as Record<string, string>)
-            : {}
-        setClientProfileColors(colours)
-      } catch {
-        if (!cancelled) {
-          setMonthlyPublisherSpend([])
-          setMonthlyClientSpend([])
-          setClientProfileColors({})
-        }
-      } finally {
-        if (!cancelled) setChartsLoading(false)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const res = await fetch("/api/finance/hub-schedule-ytd", { cache: "no-store" })
+        const res = await fetch(`/api/finance/hub-schedule-ytd?fy=${fyStart}`, { cache: "no-store" })
         if (!res.ok) return
         const body = (await res.json()) as {
           billingScheduleYtd?: number
@@ -281,7 +236,7 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [fyStart])
 
   useEffect(() => {
     let cancelled = false
@@ -329,17 +284,66 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
     [receivables, payablesRecords, filters.monthRange, reconcileMap]
   )
 
-  const fyMonthsToDate = useMemo(
-    () => billingMonthsInAustralianFinancialYear().filter((m) => m <= currentMonth),
-    [currentMonth]
-  )
+  const fyMonthsToDate = useMemo(() => {
+    const months = billingMonthsInAustralianFinancialYear(referenceDateForFyStartYear(fyStart))
+    if (fyStart < currentFyStart) return months
+    if (fyStart > currentFyStart) return []
+    return months.filter((m) => m <= currentMonth)
+  }, [fyStart, currentFyStart, currentMonth])
 
   const fytdMonthRange = useMemo(() => {
-    if (fyMonthsToDate.length === 0) return { from: currentMonth, to: currentMonth }
+    if (fyMonthsToDate.length === 0) {
+      const months = billingMonthsInAustralianFinancialYear(referenceDateForFyStartYear(fyStart))
+      if (months.length === 0) return { from: currentMonth, to: currentMonth }
+      return { from: months[0]!, to: months[months.length - 1]! }
+    }
     const from = fyMonthsToDate[0]!
     const to = fyMonthsToDate[fyMonthsToDate.length - 1]!
     return { from, to }
-  }, [fyMonthsToDate, currentMonth])
+  }, [fyMonthsToDate, currentMonth, fyStart])
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      setChartsLoading(true)
+      try {
+        const [monthlyPubResp, monthlyClientResp] = await Promise.all([
+          fetch("/api/dashboard/global-monthly-publisher-spend"),
+          fetch("/api/dashboard/global-monthly-client-spend"),
+        ])
+        const monthlyPub = monthlyPubResp.ok ? await monthlyPubResp.json() : []
+        const monthlyClient = monthlyClientResp.ok ? await monthlyClientResp.json() : null
+
+        if (cancelled) return
+        setMonthlyPublisherSpend(Array.isArray(monthlyPub) ? monthlyPub : [])
+        setMonthlyClientSpend(
+          monthlyClient && typeof monthlyClient === "object" && Array.isArray(monthlyClient.data)
+            ? monthlyClient.data
+            : []
+        )
+        const colours =
+          monthlyClient &&
+          typeof monthlyClient === "object" &&
+          monthlyClient.clientColors &&
+          typeof monthlyClient.clientColors === "object" &&
+          !Array.isArray(monthlyClient.clientColors)
+            ? (monthlyClient.clientColors as Record<string, string>)
+            : {}
+        setClientProfileColors(colours)
+      } catch {
+        if (!cancelled) {
+          setMonthlyPublisherSpend([])
+          setMonthlyClientSpend([])
+          setClientProfileColors({})
+        }
+      } finally {
+        if (!cancelled) setChartsLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const accrualRowsFytd = useMemo(
     () => computeAccrualByClient(receivables, payablesRecords, fytdMonthRange, reconcileMap),

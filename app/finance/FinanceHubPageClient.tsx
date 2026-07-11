@@ -46,6 +46,18 @@ import {
   type FinanceHubFetchError,
   type FinanceHubTab,
 } from "@/lib/finance/useFinanceStore"
+import {
+  fyDisplayLabel,
+  fyMonthRange,
+  fySelectOptions,
+} from "@/lib/finance/months"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 const financeHubEffectDepPrev = new Map<string, unknown[]>()
 
@@ -118,13 +130,6 @@ function writeSavedViews(views: HubSavedView[]) {
   localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(views))
 }
 
-function australianFyStartYearForDate(d: Date): number {
-  const y = d.getFullYear()
-  const m = d.getMonth() + 1
-  return m >= 7 ? y : y - 1
-}
-
-
 function financeErrorCopyBlock(err: FinanceHubFetchError): string {
   return [`Status: ${err.status ?? "unknown"}`, `URL: ${err.requestUrl ?? "unknown"}`, `Message: ${err.error}`].join(
     "\n"
@@ -134,6 +139,7 @@ function financeErrorCopyBlock(err: FinanceHubFetchError): string {
 function buildSearchParams(activeTab: FinanceHubTab, filters: FinanceFilters) {
   const params = new URLSearchParams()
   params.set("tab", activeTab)
+  params.set("fy", String(filters.financialYear))
   params.set("from", filters.monthRange.from)
   params.set("to", filters.monthRange.to)
   if (filters.selectedClients.length) params.set("clients", filters.selectedClients.join(","))
@@ -152,10 +158,12 @@ export default function FinanceHubPageClient() {
   const filters = useFinanceStore((s) => s.filters)
   const monthFromKey = filters.monthRange.from
   const monthToKey = filters.monthRange.to
+  const financialYearKey = filters.financialYear
   const clientsCsvKey = filters.selectedClients.join(",")
   const publishersCsvKey = filters.selectedPublishers.join(",")
   const searchQueryKey = filters.searchQuery
   const includeDraftsKey = filters.includeDrafts ? "1" : "0"
+  const fyOptions = useMemo(() => fySelectOptions(), [])
   const hubFetchClientsKey = useMemo(() => filters.selectedClients.join(","), [filters.selectedClients])
   const hubFetchPublishersKey = useMemo(() => filters.selectedPublishers.join(","), [filters.selectedPublishers])
   const hubFetchBillingTypesKey = useMemo(
@@ -184,6 +192,16 @@ export default function FinanceHubPageClient() {
   const billingLoading = useFinanceStore((s) => s.billingLoading)
   const billingError = useFinanceStore((s) => s.billingError)
   const payablesError = useFinanceStore((s) => s.payablesError)
+
+  const applyFinancialYear = useCallback(
+    (fy: number) => {
+      setFilters({
+        financialYear: fy,
+        monthRange: fyMonthRange(fy),
+      })
+    },
+    [setFilters]
+  )
 
   const [savedViewNames, setSavedViewNames] = useState<string[]>(() =>
     readSavedViews().map((v) => v.name)
@@ -256,6 +274,17 @@ export default function FinanceHubPageClient() {
     if (tabParam !== curTab) applyTab(tabParam)
 
     const partial: Partial<FinanceFilters> = {}
+    const fyRaw = sp.get("fy")
+    if (fyRaw) {
+      const fy = Number.parseInt(fyRaw, 10)
+      if (Number.isFinite(fy) && fy >= 2000 && fy <= 2100 && fy !== cur.financialYear) {
+        partial.financialYear = fy
+        // Deep-link FY also scopes the month toolbar to that FY unless from/to override.
+        if (!sp.get("from")) {
+          partial.monthRange = fyMonthRange(fy)
+        }
+      }
+    }
     const from = sp.get("from")
     const to = sp.get("to")
     if (from) {
@@ -297,6 +326,7 @@ export default function FinanceHubPageClient() {
     window.history.replaceState(null, "", newUrl)
   }, [
     activeTab,
+    financialYearKey,
     monthFromKey,
     monthToKey,
     clientsCsvKey,
@@ -362,7 +392,16 @@ export default function FinanceHubPageClient() {
     const views = readSavedViews()
     const view = views.find((v) => v.name === name)
     if (!view) return
-    setFilters(view.filters)
+    const f = view.filters
+    const fy =
+      typeof f.financialYear === "number" && Number.isFinite(f.financialYear)
+        ? f.financialYear
+        : useFinanceStore.getState().filters.financialYear
+    setFilters({
+      ...f,
+      financialYear: fy,
+      monthRange: f.monthRange ?? fyMonthRange(fy),
+    })
   }, [setFilters])
 
   const monthLabel = useMemo(
@@ -408,7 +447,7 @@ export default function FinanceHubPageClient() {
             : `Accrual_${filters.monthRange.from}_${filters.monthRange.to}`
         await exportAccrualWorkbook(rows, `${stem}.xlsx`)
       } else if (activeTab === "forecast") {
-        const fyStart = australianFyStartYearForDate(new Date())
+        const fyStart = useFinanceStore.getState().filters.financialYear
         const res = await fetch(`/api/finance/forecast?fy=${fyStart}&scenario=confirmed`, {
           cache: "no-store",
         })
@@ -442,6 +481,7 @@ export default function FinanceHubPageClient() {
   }, [
     activeTab,
     billingRecords,
+    filters.financialYear,
     filters.monthRange,
     filters.searchQuery,
     filters.selectedClients,
@@ -578,6 +618,25 @@ export default function FinanceHubPageClient() {
               </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2 pb-2">
+              <div className="flex items-center gap-2">
+                <span className="hidden text-xs font-medium text-muted-foreground sm:inline">FY</span>
+                <Select
+                  value={String(filters.financialYear)}
+                  onValueChange={(v) => applyFinancialYear(Number.parseInt(v, 10))}
+                >
+                  <SelectTrigger className="h-9 w-[8.5rem]" aria-label="Financial year">
+                    <SelectValue placeholder="Financial year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fyOptions.map((y) => (
+                      <SelectItem key={y} value={String(y)}>
+                        FY {fyDisplayLabel(y)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm">

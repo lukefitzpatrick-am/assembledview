@@ -26,6 +26,8 @@ import {
 } from "@/lib/finance/forecast/exportFinanceForecast"
 import { workbookToXlsxBuffer } from "@/lib/finance/excelFinanceExport"
 import { formatCurrencyFull } from "@/lib/format/currency"
+import { fyDisplayLabel, fyMonthRange, fySelectOptions } from "@/lib/finance/months"
+import { useFinanceStore } from "@/lib/finance/useFinanceStore"
 import { cn } from "@/lib/utils"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
@@ -64,12 +66,6 @@ const money = (n: number) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
-
-function defaultFyStartYear(): number {
-  const d = new Date()
-  const y = d.getFullYear()
-  return d.getMonth() >= 6 ? y : y - 1
-}
 
 function monthColumnLabel(key: FinanceForecastMonthKey, fyStart: number): string {
   const calMonth: Record<FinanceForecastMonthKey, number> = {
@@ -189,7 +185,8 @@ const SCENARIO_COPY: Record<
 }
 
 export default function FinanceForecastPanel() {
-  const [fyStart, setFyStart] = useState(() => defaultFyStartYear())
+  const fyStart = useFinanceStore((s) => s.filters.financialYear)
+  const setFilters = useFinanceStore((s) => s.setFilters)
   const [scenario, setScenario] = useState<FinanceForecastScenario>("confirmed")
   const [clientFilter, setClientFilter] = useState<string>("")
   const [searchInput, setSearchInput] = useState("")
@@ -228,14 +225,19 @@ export default function FinanceForecastPanel() {
   const loadAbortRef = useRef<AbortController | null>(null)
   const requestSeqRef = useRef(0)
 
-  const fyOptions = useMemo(() => {
-    const y = new Date().getFullYear()
-    const out: number[] = []
-    for (let i = y - 8; i <= y + 1; i++) out.push(i)
-    return out.reverse()
-  }, [])
+  const fyOptions = useMemo(() => fySelectOptions(), [])
 
-  const fyLabel = (start: number) => `${start}–${String(start + 1).slice(-2)}`
+  const setFyStart = useCallback(
+    (y: number) => {
+      setFilters({
+        financialYear: y,
+        monthRange: fyMonthRange(y),
+      })
+    },
+    [setFilters]
+  )
+
+  const fyLabel = (start: number) => fyDisplayLabel(start)
 
   const loadForecast = useCallback(async () => {
     const requestSeq = ++requestSeqRef.current

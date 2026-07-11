@@ -115,6 +115,11 @@ export interface FinanceFilters {
   selectedPublishers: number[]
   /** When false, downstream APIs may omit draft rows where supported. */
   includeDrafts: boolean
+  /**
+   * Australian financial year start calendar year (1 July).
+   * E.g. `2026` → FY 2026–27. Drives hub FY-scoped queries and default month range.
+   */
+  financialYear: number
   monthRange: { from: string; to: string }
   billingTypes: BillingType[]
   statuses: BillingStatus[]
