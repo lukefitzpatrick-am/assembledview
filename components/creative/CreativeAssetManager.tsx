@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { ArrowLeft, Loader2 } from "lucide-react"
 
 import { CreativeAssetTable } from "@/components/creative/CreativeAssetTable"
@@ -18,9 +19,20 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useToast } from "@/components/ui/use-toast"
+import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
+import type { PageContext } from "@/lib/ava/types"
 import { getClientDisplayName } from "@/lib/clients/slug"
 import { flattenLineItemOptions, type LineItemOption } from "@/lib/creative/lineItemOptions"
 import type { CreativeAsset } from "@/lib/creative/types"
+
+const AVA_LIST_CAP = 20
+const AVA_TEXT_CAP = 200
+
+function avaTruncate(value: unknown, max = AVA_TEXT_CAP): string {
+  const s = value == null ? "" : String(value)
+  if (s.length <= max) return s
+  return `${s.slice(0, max - 1)}…`
+}
 
 type CreativeAssetManagerProps = {
   mbaNumber: string
@@ -62,6 +74,7 @@ export function CreativeAssetManager({
   showPageHeader = false,
   metaPageId: metaPageIdProp,
 }: CreativeAssetManagerProps) {
+  const pathname = usePathname()
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [assets, setAssets] = useState<CreativeAsset[]>([])
@@ -206,6 +219,60 @@ export function CreativeAssetManager({
       })
       .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
   }, [assets, nameFilter, statusFilter])
+
+  const getPageContext = useCallback((): PageContext => {
+    const visible = filteredAssets.slice(0, AVA_LIST_CAP).map((asset) => ({
+      id: asset.id,
+      name: avaTruncate(asset.asset_name || asset.original_filename),
+      mime: asset.mime_type,
+      width_px: asset.width_px,
+      height_px: asset.height_px,
+      line_item_id: asset.line_item_id || "",
+      status: asset.status,
+    }))
+    const missingLineItemLink = filteredAssets.filter((a) => !String(a.line_item_id || "").trim()).length
+
+    return {
+      route: { pathname: pathname || "/creative", mbaSlug: mbaNumber },
+      generatedAt: new Date().toISOString(),
+      entities: {
+        mbaNumber,
+        clientName: clientName || undefined,
+        campaignName: campaignName || undefined,
+      },
+      pageText: {
+        title: "Creative assets",
+        breadcrumbs: ["Creative", mbaNumber],
+      },
+      state: {
+        surface: "creative",
+        statusFilter,
+        nameFilter: avaTruncate(nameFilter, 80),
+        assetCount: filteredAssets.length,
+        assetCountTruncated: Math.max(0, filteredAssets.length - AVA_LIST_CAP),
+        missingLineItemLinkCount: missingLineItemLink,
+        assets: visible,
+      },
+    }
+  }, [
+    campaignName,
+    clientName,
+    filteredAssets,
+    mbaNumber,
+    nameFilter,
+    pathname,
+    statusFilter,
+  ])
+
+  useEffect(() => {
+    setAssistantContext({ pageContext: getPageContext() })
+  }, [getPageContext])
+
+  useEffect(() => {
+    return () => {
+      clearAssistantContext()
+    }
+  }, [])
 
   const patchAsset = useCallback(
     async (id: number, body: Record<string, unknown>, successMessage: string) => {

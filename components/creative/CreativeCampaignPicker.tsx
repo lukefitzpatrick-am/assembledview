@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { usePathname } from "next/navigation"
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react"
 
 import { CreativeAssetManager } from "@/components/creative/CreativeAssetManager"
@@ -10,6 +11,8 @@ import { Combobox } from "@/components/ui/combobox"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
+import type { PageContext } from "@/lib/ava/types"
 import { getClientDisplayName } from "@/lib/clients/slug"
 import { cn } from "@/lib/utils"
 
@@ -81,6 +84,7 @@ function sortCampaigns(a: MediaPlanRow, b: MediaPlanRow): number {
 }
 
 export function CreativeCampaignPicker({ lockedClientName }: CreativeCampaignPickerProps) {
+  const pathname = usePathname()
   const clientLocked = Boolean(lockedClientName?.trim())
   const [clientName, setClientName] = useState(() => lockedClientName?.trim() ?? "")
   const [mbaNumber, setMbaNumber] = useState("")
@@ -197,6 +201,40 @@ export function CreativeCampaignPicker({ lockedClientName }: CreativeCampaignPic
     setMbaNumber("")
     setCampaignOpen(false)
   }
+
+  // Cascade-only snapshot while no MBA is selected; CreativeAssetManager owns context once mounted.
+  const getCascadePageContext = useCallback((): PageContext => {
+    return {
+      route: { pathname: pathname || "/creative" },
+      generatedAt: new Date().toISOString(),
+      entities: {
+        clientName: clientName || undefined,
+      },
+      pageText: {
+        title: "Creative",
+        breadcrumbs: ["Creative"],
+      },
+      state: {
+        surface: "creative",
+        cascade: {
+          clientName: clientName || null,
+          mbaNumber: null,
+          campaignCountForClient: clientCampaigns.length,
+        },
+      },
+    }
+  }, [clientCampaigns.length, clientName, pathname])
+
+  useEffect(() => {
+    if (mbaNumber) return
+    setAssistantContext({ pageContext: getCascadePageContext() })
+  }, [getCascadePageContext, mbaNumber])
+
+  useEffect(() => {
+    return () => {
+      clearAssistantContext()
+    }
+  }, [])
 
   return (
     <div className="space-y-6">
