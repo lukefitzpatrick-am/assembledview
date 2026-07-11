@@ -6,6 +6,7 @@ import {
   countSuppressedCells,
   reachPct,
   sumAudienceWc,
+  sumUnweightedN,
 } from "../compute.js"
 import type { AudienceAggregateRow, PlanningChannelMeta } from "../types.js"
 
@@ -37,6 +38,7 @@ function agg(
   return {
     selection_wc: 0,
     selection_null_count: 0,
+    selection_unweighted: 0,
     base_wc: 0,
     ...over,
   }
@@ -49,6 +51,15 @@ test("sumAudienceWc reads POPULATION selection_wc only", () => {
   ]
   assert.equal(sumAudienceWc(rows), 250.5)
   assert.equal(sumAudienceWc([]), 0)
+})
+
+test("sumUnweightedN reads POPULATION selection_unweighted only", () => {
+  const rows = [
+    agg({ channel_id: "tv_fta", selection_unweighted: 999 }),
+    agg({ channel_id: "POPULATION", selection_unweighted: 142 }),
+  ]
+  assert.equal(sumUnweightedN(rows), 142)
+  assert.equal(sumUnweightedN([]), 0)
 })
 
 test("countSuppressedCells sums null counts excluding POPULATION", () => {
@@ -80,6 +91,7 @@ test("computeAudienceResponse: affinity maths + age/gender fit = 1", () => {
     agg({
       channel_id: "POPULATION",
       selection_wc: 1000,
+      selection_unweighted: 318,
       base_wc: 5000,
     }),
     agg({
@@ -102,6 +114,8 @@ test("computeAudienceResponse: affinity maths + age/gender fit = 1", () => {
   assert.equal(out.wave_id, "MAR26E1_ASM")
   assert.equal(out.reach_basis, "addressable")
   assert.equal(out.audience_wc, 1000)
+  assert.equal(out.unweighted_n, 318)
+  assert.equal(out.universe_wc, 5000)
   assert.equal(out.suppressed_cells, 1)
   assert.equal(out.channels.length, 1)
 

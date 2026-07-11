@@ -88,6 +88,11 @@ export type AudienceAggregateRow = {
   selection_null_count: number
   /** Σ wc(basis) for segment=base, state=NAT, all genders/bands. */
   base_wc: number
+  /**
+   * Σ UNWEIGHTED over selected cells (POPULATION rows carry the sample n;
+   * media channels typically null → 0).
+   */
+  selection_unweighted: number
 }
 
 export type AudienceChannelResult = {
@@ -108,6 +113,16 @@ export type AudienceResponse = {
   wave_id: string
   reach_basis: ReachBasis
   audience_wc: number
+  /**
+   * Σ UNWEIGHTED over selected POPULATION cells (sample n for robustness banding).
+   * Banding is client-side: n < 75 bad / n < 200 warn / else ok.
+   */
+  unweighted_n: number
+  /**
+   * base/NAT/all-cells POPULATION wc (same basis) — denominator for % of 14+ universe.
+   * Surfaced from the base reference already computed in the aggregate query.
+   */
+  universe_wc: number
   suppressed_cells: number
   channels: AudienceChannelResult[]
 }

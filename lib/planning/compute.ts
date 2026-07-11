@@ -28,6 +28,12 @@ export function sumAudienceWc(aggregates: AudienceAggregateRow[]): number {
   return pop ? toFiniteNumber(pop.selection_wc) : 0
 }
 
+/** unweighted_n = Σ UNWEIGHTED over selected POPULATION cells. */
+export function sumUnweightedN(aggregates: AudienceAggregateRow[]): number {
+  const pop = aggregates.find((r) => r.channel_id === POPULATION_CHANNEL_ID)
+  return pop ? toFiniteNumber(pop.selection_unweighted) : 0
+}
+
 /** suppressed_cells = count of null wc(basis) among selected media-channel cells. */
 export function countSuppressedCells(aggregates: AudienceAggregateRow[]): number {
   let n = 0
@@ -68,10 +74,12 @@ export function computeAudienceResponse(input: ComputeAudienceInput): AudienceRe
   const { wave_id, segment_id, reach_basis, aggregates, channels } = input
 
   const audience_wc = sumAudienceWc(aggregates)
+  const unweighted_n = sumUnweightedN(aggregates)
   const suppressed_cells = countSuppressedCells(aggregates)
 
   const pop = aggregates.find((r) => r.channel_id === POPULATION_CHANNEL_ID)
-  const baseAudienceWc = pop ? toFiniteNumber(pop.base_wc) : 0
+  const universe_wc = pop ? toFiniteNumber(pop.base_wc) : 0
+  const baseAudienceWc = universe_wc
 
   const channelById = new Map(channels.map((c) => [c.channel_id, c]))
   const aggById = new Map(aggregates.map((r) => [r.channel_id, r]))
@@ -128,6 +136,8 @@ export function computeAudienceResponse(input: ComputeAudienceInput): AudienceRe
     wave_id,
     reach_basis,
     audience_wc,
+    unweighted_n,
+    universe_wc,
     suppressed_cells,
     channels: resultChannels,
   }

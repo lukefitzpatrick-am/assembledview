@@ -83,6 +83,7 @@ type FactAggRow = {
   CHANNEL_ID: string
   SELECTION_WC: unknown
   SELECTION_NULL_COUNT: unknown
+  SELECTION_UNWEIGHTED: unknown
   BASE_WC: unknown
 }
 
@@ -232,6 +233,16 @@ export async function getAudienceProfile(
       ) AS SELECTION_NULL_COUNT,
       SUM(
         CASE
+          WHEN f.SEGMENT_ID = ?
+            AND f.STATE IN (${statePh})
+            AND f.GENDER IN (${genderPh})
+            AND f.AGE_BAND IN (${agePh})
+          THEN f.UNWEIGHTED
+          ELSE NULL
+        END
+      ) AS SELECTION_UNWEIGHTED,
+      SUM(
+        CASE
           WHEN f.SEGMENT_ID = 'base'
             AND f.STATE = 'NAT'
           THEN IFF(? = 'addressable', f.WC_ADDRESSABLE, f.WC_TOTAL)
@@ -264,11 +275,20 @@ export async function getAudienceProfile(
     basis,
   ]
 
+  const selectionUnweightedBinds = [
+    params.segment_id,
+    ...states,
+    ...genders,
+    ...ageBands,
+  ]
+
   const binds = [
     // SELECTION_WC CASE
     ...selectionBinds,
     // SELECTION_NULL_COUNT CASE
     ...selectionBinds,
+    // SELECTION_UNWEIGHTED CASE (no basis — UNWEIGHTED is sample n)
+    ...selectionUnweightedBinds,
     // BASE_WC CASE (basis only)
     basis,
     // WHERE
@@ -289,6 +309,7 @@ export async function getAudienceProfile(
     channel_id: toStr(r.CHANNEL_ID),
     selection_wc: toNumber(r.SELECTION_WC, 0),
     selection_null_count: toNumber(r.SELECTION_NULL_COUNT, 0),
+    selection_unweighted: toNumber(r.SELECTION_UNWEIGHTED, 0),
     base_wc: toNumber(r.BASE_WC, 0),
   }))
 }

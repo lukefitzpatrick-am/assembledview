@@ -53,6 +53,10 @@ export type AdapterResult = {
   /** audience_wc in '000s → millions for MetricCards (÷ 1000). */
   audienceMillions: number
   audienceWc: number
+  /** Σ UNWEIGHTED over selected POPULATION cells. */
+  unweightedN: number
+  /** base/NAT POPULATION wc — % of 14+ universe denominator. */
+  universeWc: number
   suppressedCells: number
   /** Engine ids skipped because bench + defaults could not supply attn/B/D/cpm. */
   skippedEngineIds: string[]
@@ -195,6 +199,8 @@ export function adaptAudienceToEngine(opts: {
     reachProfile,
     audienceMillions: audience.audience_wc / 1000,
     audienceWc: audience.audience_wc,
+    unweightedN: audience.unweighted_n,
+    universeWc: audience.universe_wc,
     suppressedCells: audience.suppressed_cells,
     skippedEngineIds,
   }

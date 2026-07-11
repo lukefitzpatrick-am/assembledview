@@ -21,6 +21,8 @@ export interface Channel {
   genderMod: number;
   /** Real RM reach fraction 0..1. */
   reachPct: number;
+  /** Reach weighted count in '000s (from API). */
+  reachWc?: number;
   isRmMeasured: boolean;
   ageBase: number;
 }
