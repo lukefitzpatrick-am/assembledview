@@ -22,6 +22,8 @@ const nextConfig = {
     // Removed deprecated experimental features for Next.js 15
   },
   webpack: (config, { isServer, dev }) => {
+    config.resolve.extensionAlias = { ".js": [".js", ".ts", ".tsx"] }
+
     if (isServer) {
       config.externals = config.externals || []
       config.externals.push({
