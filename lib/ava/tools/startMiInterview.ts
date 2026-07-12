@@ -5,7 +5,7 @@ import {
 } from "@/lib/ava/chatInterviewQuestion"
 import { fetchAllMediaContainerLineItems } from "@/lib/api/media-containers"
 import { resolveMiPlan, type MiAnswer, type MiPlanInput } from "@/lib/specs/resolve"
-import { asRecord, asString, capList, jsonContent, MI_SCOPE_VERSION_QUESTION_ID, resolveMediaContainerScope, resolveMiVersionScope, resolveScopedMba } from "./helpers"
+import { asRecord, asString, jsonContent, MI_SCOPE_VERSION_QUESTION_ID, resolveMediaContainerScope, resolveMiVersionScope, resolveScopedMba } from "./helpers"
 
 type InterviewQuestion = {
   id: string
@@ -18,6 +18,24 @@ type InterviewQuestion = {
   line_item_id: string
   displayName: string
   appliesTo: string
+}
+
+export type MiInterviewToolPayload = {
+  summary: string
+  resolvedCount: number
+  openCount: number
+  derivedCount: number
+  /** Exactly the current open question, or null when the interview has no remaining asks. */
+  currentQuestion: InterviewQuestion | null
+  /** 1-based index of currentQuestion among baseline open questions (card echo). */
+  questionIndex?: number
+  /** Baseline open-question total for card echo (stable across the interview). */
+  questionTotal?: number
+  /**
+   * Full derived fills — only when openCount === 0 so the model can cite them in
+   * the confirm readback. Never exposed mid-interview (avoids invented questions).
+   */
+  derived?: ReturnType<typeof resolveMiPlan>["derived"]
 }
 
 function compactQuestion(question: ReturnType<typeof resolveMiPlan>["open_questions"][number]): InterviewQuestion {
@@ -35,38 +53,60 @@ function compactQuestion(question: ReturnType<typeof resolveMiPlan>["open_questi
   }
 }
 
+/**
+ * Tool-result payload for the model: summary counts + ONE current question.
+ * Remaining questions stay server-side until the next tool call after an answer.
+ * Derived fills are count-only mid-interview; full `derived` only when complete.
+ */
 export function buildMiInterviewPayload(
   plan: MiPlanInput,
   answers: MiAnswer[] = [],
-) {
+): MiInterviewToolPayload {
+  const baseline = resolveMiPlan(plan, undefined, [])
   const result = resolveMiPlan(plan, undefined, answers)
-  const capped = capList(result.open_questions.map(compactQuestion), 20)
-  return {
+  const current = result.open_questions[0]
+    ? compactQuestion(result.open_questions[0])
+    : null
+  const answeredCount = Math.max(0, baseline.summary.open - result.summary.open)
+  const questionTotal = Math.max(baseline.summary.open, 1)
+
+  const payload: MiInterviewToolPayload = {
     summary: `${result.summary.resolved} resolved, ${result.summary.open} open`,
     resolvedCount: result.summary.resolved,
     openCount: result.summary.open,
-    questions: capped.items,
-    derived: result.derived,
-    truncated: capped.truncated,
+    derivedCount: result.derived.length,
+    currentQuestion: current,
   }
+
+  if (current) {
+    payload.questionIndex = answeredCount + 1
+    payload.questionTotal = questionTotal
+  }
+
+  // Confirm readback only — never mid-interview (model must not ask about these).
+  if (result.summary.open === 0 && result.derived.length > 0) {
+    payload.derived = result.derived
+  }
+
+  return payload
 }
 
 /**
  * Side-channel card(s) for the current open question.
  * Index/total use resolver progress (baseline open − remaining open), not
  * priorAnswers.length — unmatched answer ids must not advance the counter.
+ * Exactly ONE card per turn; questions 2+ arrive only via the next tool call.
  */
 export function buildMiInterviewQuestionCards(
   plan: MiPlanInput,
   answers: MiAnswer[] = [],
 ) {
-  const baseline = buildMiInterviewPayload(plan, [])
   const payload = buildMiInterviewPayload(plan, answers)
-  const current = payload.questions[0]
-  if (!current) return undefined
+  const current = payload.currentQuestion
+  if (!current || payload.questionIndex == null || payload.questionTotal == null) {
+    return undefined
+  }
 
-  const answeredCount = Math.max(0, baseline.openCount - payload.openCount)
-  const total = Math.max(baseline.openCount, 1)
   return [
     toChatInterviewQuestion({
       id: current.id,
@@ -74,8 +114,8 @@ export function buildMiInterviewQuestionCards(
       type: current.type,
       options: current.options,
       selected: current.selected,
-      index: answeredCount + 1,
-      total,
+      index: payload.questionIndex,
+      total: payload.questionTotal,
     }),
   ]
 }
@@ -98,7 +138,7 @@ export const startMiInterviewTool: AvaTool = {
   definition: {
     name: "start_mi_interview",
     description:
-      "Resolve an MBA's material-instructions plan and return remaining interview questions plus any derived fills. The chat UI shows an interactive question card for the current question — keep your prose short (e.g. \"Question 1 of 3 — defaults pre-selected\") and echo the card's index/total; do not re-list options. Relay each question verbatim in tool order; present pre-selected proposals as defaults; never invent additional interview questions. Confirm summaries must cite derived answers with their source (e.g. from plan: bid_strategy). User Confirm messages look like \"[mi:questionId] answer\" — pass every such pair (plus any earlier ones) as answers when calling again. Does not save answers or generate a workbook.",
+      "Resolve an MBA's material-instructions plan and return the ONE current interview question (plus summary counts). The chat UI shows an interactive question card for that question — keep prose short (e.g. \"Question 1 of 3 — defaults pre-selected\"), echo questionIndex/questionTotal from the tool result, and do not re-list options. Never author, paraphrase, reorder, or renumber questions: if it is not the tool card / currentQuestion, it is not a question. Derived fills are already applied (derivedCount mid-interview; full derived only when openCount is 0 for the confirm readback) — never ask the user to confirm them, never present them as questions, never map bid_strategy to funnel objectives (Awareness/Consideration/Conversions). User Confirm messages look like \"[mi:questionId] answer\" — pass every such pair (plus any earlier ones) as answers when calling again to advance. Does not save answers or generate a workbook.",
     input_schema: {
       type: "object",
       properties: {
@@ -173,8 +213,8 @@ export const startMiInterviewTool: AvaTool = {
       const planAnswers = priorAnswers.filter(
         (answer) => answer.questionId !== MI_SCOPE_VERSION_QUESTION_ID,
       )
+      // Model payload: counts + current question only. Next question arrives after answers round-trip.
       const payload = buildMiInterviewPayload({ lineItems }, planAnswers)
-      // Side-channel: current question only (ONE per turn). Model still gets the full list in content.
       const questions = buildMiInterviewQuestionCards({ lineItems }, planAnswers)
 
       return {
