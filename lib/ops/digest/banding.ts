@@ -1,3 +1,8 @@
+import type { AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types"
+import type {
+  DirectCampaignGroup,
+  DirectLineItemRow,
+} from "@/lib/pacing/direct/types"
 import {
   computeCampaignDays,
   computeDaysPassed,
@@ -58,6 +63,36 @@ export function pillToDigestBand(
   return "no-data"
 }
 
+/**
+ * Direct fixed-cost status → digest band. Reuses existing alert semantics;
+ * does not invent delivered÷elapsed thresholds.
+ *
+ * `mixed` is resolved by callers via burst statuses + `worstBand` (see
+ * `bandForDirectLineItem`). This mapper returns `no-data` for bare `mixed`.
+ */
+export function directStatusToDigestBand(
+  status: DirectLineItemRow["lineItemStatus"],
+): DigestBand {
+  if (status === "completed_under") return "at-risk"
+  if (status === "completed_over") return "ahead"
+  if (status === "in_progress" || status === "completed") return "on"
+  if (status === "pending") return "no-data"
+  // mixed without burst context — row builders resolve via bursts.
+  return "no-data"
+}
+
+/**
+ * Ad-serving (CM360) rows can never be at-risk / ahead / behind — that is
+ * correct (zero-spend law; no spend pacing signal). Status is delivery
+ * presence only: serving → on, no-data → no-data.
+ */
+export function adServingStatusToDigestBand(
+  status: "serving" | "no-data",
+): DigestBand {
+  if (status === "serving") return "on"
+  return "no-data"
+}
+
 export function bandSortKey(band: DigestBand): number {
   switch (band) {
     case "at-risk":
@@ -77,6 +112,194 @@ export function bandSortKey(band: DigestBand): number {
 
 function worstBand(a: DigestBand, b: DigestBand): DigestBand {
   return bandSortKey(a) <= bandSortKey(b) ? a : b
+}
+
+function bandForDirectLineItem(line: DirectLineItemRow): DigestBand {
+  if (line.lineItemStatus !== "mixed") {
+    return directStatusToDigestBand(line.lineItemStatus)
+  }
+  if (line.bursts.length === 0) return "no-data"
+  let band = directStatusToDigestBand(line.bursts[0]!.status)
+  for (let i = 1; i < line.bursts.length; i++) {
+    band = worstBand(band, directStatusToDigestBand(line.bursts[i]!.status))
+  }
+  return band
+}
+
+function pickDirectLineDates(
+  line: DirectLineItemRow,
+  asOfDate: string,
+): { start: string | null; end: string | null } {
+  const current =
+    line.bursts.find((b) => b.status === "in_progress") ??
+    line.bursts.find((b) => b.startDate <= asOfDate && asOfDate <= b.endDate)
+  if (current) return { start: current.startDate, end: current.endDate }
+  if (line.bursts.length === 0) return { start: null, end: null }
+  const starts = line.bursts.map((b) => b.startDate).toSorted()
+  const ends = line.bursts.map((b) => b.endDate).toSorted()
+  return { start: starts[0] ?? null, end: ends[ends.length - 1] ?? null }
+}
+
+function timeMetricsFromDates(
+  start: string | null,
+  end: string | null,
+  asOfDate: string,
+): { timeElapsedPct: number | null; daysLeft: number | null } {
+  if (!start || !end) return { timeElapsedPct: null, daysLeft: null }
+  const campaignDays = computeCampaignDays(start, end)
+  const daysPassed = computeDaysPassed(start, end, asOfDate)
+  return {
+    timeElapsedPct: computeExpectedPct(daysPassed, campaignDays),
+    daysLeft: computeDaysRemaining(start, end, asOfDate),
+  }
+}
+
+function sortDigestRows(rows: DigestCampaignRow[]): DigestCampaignRow[] {
+  return rows.sort((a, b) => {
+    const bandDiff = bandSortKey(a.band) - bandSortKey(b.band)
+    if (bandDiff !== 0) return bandDiff
+    return (
+      a.clientName.localeCompare(b.clientName) ||
+      a.mbaNumber.localeCompare(b.mbaNumber)
+    )
+  })
+}
+
+/**
+ * Direct (fixed-cost) groups → campaign-grain digest rows.
+ * deliveredPct = platform actual ÷ budget (not finance-smoothed reported).
+ */
+export function buildDirectDigestCampaignRows(
+  groups: DirectCampaignGroup[],
+  asOfDate: string = getAsOfDate(),
+): DigestCampaignRow[] {
+  const rows: DigestCampaignRow[] = []
+
+  for (const group of groups) {
+    if (group.lineItems.length === 0) continue
+
+    let band = bandForDirectLineItem(group.lineItems[0]!)
+    let timeElapsedSum = 0
+    let timeElapsedN = 0
+    let daysLeftMin: number | null = null
+
+    for (const line of group.lineItems) {
+      band = worstBand(band, bandForDirectLineItem(line))
+      const { start, end } = pickDirectLineDates(line, asOfDate)
+      const metrics = timeMetricsFromDates(start, end, asOfDate)
+      if (metrics.timeElapsedPct != null) {
+        timeElapsedSum += metrics.timeElapsedPct
+        timeElapsedN += 1
+      }
+      if (metrics.daysLeft != null) {
+        daysLeftMin =
+          daysLeftMin == null
+            ? metrics.daysLeft
+            : Math.min(daysLeftMin, metrics.daysLeft)
+      }
+    }
+
+    rows.push({
+      clientName: group.clientName,
+      mbaNumber: group.mbaNumber,
+      campaignName: group.campaignName,
+      channel: "direct",
+      band,
+      deliveredPct:
+        group.totalBudget > 0 ? group.totalActual / group.totalBudget : null,
+      timeElapsedPct:
+        timeElapsedN > 0 ? timeElapsedSum / timeElapsedN : null,
+      daysLeft: daysLeftMin,
+      lineItemCount: group.lineItems.length,
+    })
+  }
+
+  return sortDigestRows(rows)
+}
+
+/**
+ * Ad-serving (CM360) line rows → campaign-grain digest rows.
+ * deliveredPct = average deliverableProgress over lines where non-null.
+ */
+export function buildAdServingDigestCampaignRows(
+  sources: AdServingPacingCampaignRow[],
+  asOfDate: string = getAsOfDate(),
+): DigestCampaignRow[] {
+  type Acc = {
+    clientName: string
+    mbaNumber: string
+    campaignName: string
+    band: DigestBand
+    progressSum: number
+    progressN: number
+    timeElapsedSum: number
+    timeElapsedN: number
+    daysLeftMin: number | null
+    lineItemCount: number
+  }
+
+  const map = new Map<string, Acc>()
+
+  for (const row of sources) {
+    const band = adServingStatusToDigestBand(row.lineItemStatus)
+    const start = row.currentBurst?.startDate ?? row.lineItemStartDate
+    const end = row.currentBurst?.endDate ?? row.lineItemEndDate
+    const metrics = timeMetricsFromDates(start, end, asOfDate)
+    const key = `${row.mbaNumber}::${row.campaignName}::ad-serving`.toLowerCase()
+
+    const existing = map.get(key)
+    if (!existing) {
+      map.set(key, {
+        clientName: row.clientName,
+        mbaNumber: row.mbaNumber,
+        campaignName: row.campaignName,
+        band,
+        progressSum: row.deliverableProgress ?? 0,
+        progressN: row.deliverableProgress != null ? 1 : 0,
+        timeElapsedSum: metrics.timeElapsedPct ?? 0,
+        timeElapsedN: metrics.timeElapsedPct != null ? 1 : 0,
+        daysLeftMin: metrics.daysLeft,
+        lineItemCount: 1,
+      })
+      continue
+    }
+
+    existing.band = worstBand(existing.band, band)
+    if (row.deliverableProgress != null) {
+      existing.progressSum += row.deliverableProgress
+      existing.progressN += 1
+    }
+    if (metrics.timeElapsedPct != null) {
+      existing.timeElapsedSum += metrics.timeElapsedPct
+      existing.timeElapsedN += 1
+    }
+    if (metrics.daysLeft != null) {
+      existing.daysLeftMin =
+        existing.daysLeftMin == null
+          ? metrics.daysLeft
+          : Math.min(existing.daysLeftMin, metrics.daysLeft)
+    }
+    existing.lineItemCount += 1
+  }
+
+  const rows: DigestCampaignRow[] = []
+  for (const acc of map.values()) {
+    rows.push({
+      clientName: acc.clientName,
+      mbaNumber: acc.mbaNumber,
+      campaignName: acc.campaignName,
+      channel: "ad-serving",
+      band: acc.band,
+      deliveredPct:
+        acc.progressN > 0 ? acc.progressSum / acc.progressN : null,
+      timeElapsedPct:
+        acc.timeElapsedN > 0 ? acc.timeElapsedSum / acc.timeElapsedN : null,
+      daysLeft: acc.daysLeftMin,
+      lineItemCount: acc.lineItemCount,
+    })
+  }
+
+  return sortDigestRows(rows)
 }
 
 export function metricsForSourceRow(

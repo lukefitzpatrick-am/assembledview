@@ -101,6 +101,9 @@ export function buildPacingDigestEmailHtml(payload: PacingDigestPayload): string
         ${section("on", groups.on)}
         ${section("ahead", groups.ahead)}
         ${section("no-data", groups["no-data"])}
+        <tr><td style="padding:0 24px 8px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#8c959f;">
+          Ad-serving: delivered % is deliverable progress (impressions/clicks vs plan); no spend pacing.
+        </td></tr>
         <tr><td style="padding:0 24px 20px;font-family:Arial,Helvetica,sans-serif;font-size:11px;color:#8c959f;">
           Internal ops email · bands from existing computeStatus / lineItemStatus (not 110/90/75 invent) · AssembledView cron
         </td></tr>

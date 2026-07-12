@@ -2,12 +2,17 @@ import "server-only"
 
 import { getAsOfDate } from "@/lib/pacing/maths"
 import {
+  getCachedAdServingPacingRows,
+  getCachedDirectPacingRows,
   getCachedProgrammaticPacingRows,
   getCachedSearchPacingRows,
   getCachedSocialPacingRows,
 } from "@/lib/pacing/campaigns/pacingRowsCache"
 import {
+  buildAdServingDigestCampaignRows,
   buildDigestCampaignRows,
+  buildDirectDigestCampaignRows,
+  bandSortKey,
   groupDigestByBand,
   type DigestCampaignRow,
   type DigestSourceRow,
@@ -74,12 +79,15 @@ export async function buildPacingDigest(now: Date = new Date()): Promise<PacingD
   const asOfDate = getAsOfDate(now)
   const allowedClientSlugs = null
 
-  // Ad-serving rows use a different status vocabulary (serving|no-data) and
-  // lack spend pacing fields — excluded so we don't invent banding.
-  const [search, social, programmatic] = await Promise.all([
+  // Direct + ad-serving use distinct status vocabularies; mapped into the
+  // existing DigestBand scheme (no new thresholds). Cached getters exist for
+  // both — same 4h pacingRowsCache as search/social/programmatic.
+  const [search, social, programmatic, direct, adServing] = await Promise.all([
     getCachedSearchPacingRows(asOfDate, allowedClientSlugs),
     getCachedSocialPacingRows(asOfDate, allowedClientSlugs),
     getCachedProgrammaticPacingRows(asOfDate, allowedClientSlugs),
+    getCachedDirectPacingRows(asOfDate, allowedClientSlugs, false),
+    getCachedAdServingPacingRows(asOfDate, allowedClientSlugs),
   ])
 
   const sources: DigestSourceRow[] = [
@@ -88,7 +96,18 @@ export async function buildPacingDigest(now: Date = new Date()): Promise<PacingD
     ...(programmatic ?? []).map((r) => asSource("programmatic", r)),
   ]
 
-  const rows = buildDigestCampaignRows(sources, asOfDate)
+  const rows = [
+    ...buildDigestCampaignRows(sources, asOfDate),
+    ...buildDirectDigestCampaignRows(direct ?? [], asOfDate),
+    ...buildAdServingDigestCampaignRows(adServing ?? [], asOfDate),
+  ].sort((a, b) => {
+    const bandDiff = bandSortKey(a.band) - bandSortKey(b.band)
+    if (bandDiff !== 0) return bandDiff
+    return (
+      a.clientName.localeCompare(b.clientName) ||
+      a.mbaNumber.localeCompare(b.mbaNumber)
+    )
+  })
   const groups = groupDigestByBand(rows)
   const atRisk = groups["at-risk"]
 
