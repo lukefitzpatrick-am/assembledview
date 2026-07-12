@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
+import { getCachedPublisherKpis } from "@/lib/api/publisherKpiCache"
 import {
   createPublisherKpi,
   deletePublisherKpi,
-  fetchAllPublisherKpis,
   fetchPublisherKpis,
   updatePublisherKpi,
 } from "@/lib/kpi/publisherKpi"
@@ -21,8 +21,10 @@ export async function GET(request: NextRequest) {
       const data = await fetchPublisherKpis(publisher)
       return NextResponse.json(data)
     }
-    const all = await fetchAllPublisherKpis()
-    return NextResponse.json(all)
+    const { data, stale } = await getCachedPublisherKpis()
+    const headers: Record<string, string> = {}
+    if (stale) headers["x-warning"] = "served-stale-after-upstream-failure"
+    return NextResponse.json(data, { headers })
   } catch (error) {
     console.error("GET /api/kpis/publisher:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })

@@ -52,3 +52,7 @@ export function setAssistantContext(next: AssistantContext) {
   }
 }
 
+export function clearAssistantContext() {
+  if (typeof window === "undefined") return
+  delete (window as any)[GLOBAL_KEY]
+}

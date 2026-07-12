@@ -2,13 +2,17 @@ import { NextResponse } from "next/server"
 import axios from "axios"
 import { xanoUrl } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import {
+  getCachedMediaContainerBestPractice,
+  invalidateMediaContainerBestPracticeCache,
+} from "@/lib/api/mediaContainerBestPracticeCache"
 
 export async function GET() {
   try {
-    const response = await axios.get(
-      xanoUrl("media_container_best_practice", "XANO_PUBLISHERS_BASE_URL"),
-    )
-    return NextResponse.json(response.data)
+    const { data, stale } = await getCachedMediaContainerBestPractice()
+    const headers: Record<string, string> = {}
+    if (stale) headers["x-warning"] = "served-stale-after-upstream-failure"
+    return NextResponse.json(data, { headers })
   } catch (error) {
     console.error("Failed to fetch media-container best practices:", error)
     return NextResponse.json(
@@ -29,6 +33,7 @@ export async function POST(req: Request) {
         _name: currentUser?.email ?? currentUser?.name ?? null,
       },
     )
+    invalidateMediaContainerBestPracticeCache()
     return NextResponse.json(response.data, { status: 201 })
   } catch (error) {
     console.error("Failed to create media-container best practice:", error)
