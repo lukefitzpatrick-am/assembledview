@@ -3866,11 +3866,22 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     const numericValue = parseFloat(rawValue.replace(/[^0-9.-]/g, "")) || 0;
     const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
     const formattedValue = formatter.format(numericValue);
+    let lineItemValueChanged = false
 
     // Handle line item changes (grid reads from month[0]; saved state may clone line items per month, so sync all)
     if (type === 'lineItem' && mediaKey && lineItemId && monthYear) {
       const monthIndex = copy.findIndex((m) => m.monthYear === monthYear);
       if (monthIndex >= 0) {
+        const liKeyForPrev = mediaKey as keyof NonNullable<BillingMonth["lineItems"]>
+        const prevAmount =
+          copy
+            .map((m) =>
+              (m.lineItems?.[liKeyForPrev] as BillingLineItemType[] | undefined)?.find(
+                (li) => li.id === lineItemId
+              )?.monthlyAmounts?.[monthYear]
+            )
+            .find((v) => typeof v === "number") ?? 0
+        if (prevAmount !== numericValue) lineItemValueChanged = true
         syncLineItemMonthlyAmountAcrossAllMonthRows(
           copy,
           mediaKey,
@@ -3987,7 +3998,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     copy[index].totalAmount = formatter.format(mediaTotal + feeTotal + adServingTotal + productionTotal);
 
     recalculateManualBillingTotals(copy, formatter)
-    setManualBillingMonths(copy)
+    const nextMonths =
+      type === "lineItem" && lineItemId && lineItemValueChanged
+        ? applyBillingLineMode(copy, lineItemId, "manual")
+        : copy
+    setManualBillingMonths(nextMonths)
   }
 
   const manualBillingMediaSections = useMemo(
@@ -4086,7 +4101,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     })
 
     recalculateManualBillingTotals(copy, formatter)
-    setManualBillingMonths(copy)
+    setManualBillingMonths(applyBillingLineMode(copy, lineItemId, "manual"))
   }
 
   function handleManualBillingCostPreBillToggle(costKey: "fee" | "adServing" | "production", nextChecked: boolean) {
