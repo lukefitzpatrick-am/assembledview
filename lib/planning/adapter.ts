@@ -49,10 +49,40 @@ export type ReachProfileRow = {
   isRmMeasured: boolean
 }
 
+/** Discriminator for Stage C taxonomy display vs BCS scoring. */
+export type TaxonomyRowType = "leaf" | "rollup" | "injected"
+
+/**
+ * Full RM catalogue row for Stage C (+ injected Search).
+ * POPULATION is never included — it remains universe base only.
+ */
+export type TaxonomyRow = {
+  rowType: TaxonomyRowType
+  channelId: string
+  engineChannelId: string | null
+  level1: string
+  label: string
+  sortOrder: number
+  reachPct: number
+  reachWc: number
+  ageBase: number
+  isRmMeasured: boolean
+  /** Engine inputs for leaf / injected rows; null for display-only rollups. */
+  engine: AdaptedChannel | null
+}
+
 export type AdapterResult = {
-  /** Leaf channels with engine_channel_id + Search, ready for computeBcs. */
+  /**
+   * Full taxonomy for Stage C (leaves + rollups + Search).
+   * Excludes POPULATION. Ordered by sort_order; Search appended last.
+   */
+  taxonomy: TaxonomyRow[]
+  /**
+   * Leaf channels with engine_channel_id + Search, ready for computeBcs.
+   * Always `scoreableChannels(taxonomy)` — single filter site for scoring/DFII/allocate.
+   */
   channels: AdaptedChannel[]
-  /** Level-total rows (no engine_channel_id) for the reach profile list. */
+  /** Level-total + leaf RM rows for the legacy reach profile list. */
   reachProfile: ReachProfileRow[]
   /** audience_wc in '000s → millions for MetricCards (÷ 1000). */
   audienceMillions: number
@@ -64,6 +94,17 @@ export type AdapterResult = {
   suppressedCells: number
   /** Engine ids skipped because bench + defaults could not supply attn/B/D/cpm. */
   skippedEngineIds: string[]
+}
+
+/** Leaves + injected Search only — BCS / DFII / allocate consumers. */
+export function scoreableChannels(taxonomy: TaxonomyRow[]): AdaptedChannel[] {
+  const out: AdaptedChannel[] = []
+  for (const row of taxonomy) {
+    if (row.rowType === "rollup") continue
+    if (!row.engine) continue
+    out.push(row.engine)
+  }
+  return out
 }
 
 function resolveBench(
@@ -98,13 +139,25 @@ function displayLabel(meta: PlanningChannelMeta | undefined, channelId: string):
   return channelId
 }
 
+function toReachProfileRow(row: TaxonomyRow): ReachProfileRow {
+  return {
+    channelId: row.channelId,
+    level1: row.level1,
+    label: row.label,
+    reachPct: row.reachPct,
+    reachWc: row.reachWc,
+    ageBase: row.ageBase,
+    isRmMeasured: row.isRmMeasured,
+  }
+}
+
 /**
- * Split audience channels into BCS leaves vs reach-profile rows,
- * merge Search as a client-side benchmark-only row, map benches → engine inputs.
+ * Build full taxonomy (leaves + rollups + Search), then scoreable subset for BCS.
  *
  * Leaf = meta.engine_channel_id is non-null (blueprint §8.2) → BCS mix.
- * Reach profile = all RM rows (level totals + leaves) so FTA wc is visible;
- * Search is mix-only (benchmark badge).
+ * Rollup = null engine_channel_id → Stage C display only (RM reach, not scored).
+ * Search = client-side injected benchmark row (modelled — not RM measured).
+ * POPULATION never enters taxonomy.
  */
 export function adaptAudienceToEngine(opts: {
   audience: AudienceResponse
@@ -114,12 +167,11 @@ export function adaptAudienceToEngine(opts: {
   const { audience, meta, segmentId } = opts
   const metaById = new Map(meta.channels.map((c) => [c.channel_id, c]))
 
-  const channels: AdaptedChannel[] = []
-  const reachProfile: ReachProfileRow[] = []
+  const taxonomy: TaxonomyRow[] = []
   const skippedEngineIds: string[] = []
   const seenEngineIds = new Set<string>()
 
-  // Preserve dim sort order for the profile list.
+  // Preserve dim sort order for taxonomy + scoreable leaves.
   const ordered = [...audience.channels].sort((a, b) => {
     const sa = metaById.get(a.channel_id)?.sort_order ?? 9999
     const sb = metaById.get(b.channel_id)?.sort_order ?? 9999
@@ -130,23 +182,46 @@ export function adaptAudienceToEngine(opts: {
     const metaRow = metaById.get(row.channel_id)
     const engineId = metaRow?.engine_channel_id?.trim() || null
     const isLeaf = engineId != null && engineId.length > 0
+    const level1 = metaRow?.level1 ?? "Other"
+    const label = displayLabel(metaRow, row.channel_id)
+    const sortOrder = metaRow?.sort_order ?? 9999
 
-    // Reach profile: every RM-measured row (totals + leaves). Skip pure bench rows.
-    if (row.is_rm_measured) {
-      reachProfile.push({
+    if (!isLeaf) {
+      // Display-only group rollup (video_total, audio_total, …).
+      taxonomy.push({
+        rowType: "rollup",
         channelId: row.channel_id,
-        level1: metaRow?.level1 ?? "Other",
-        label: displayLabel(metaRow, row.channel_id),
+        engineChannelId: null,
+        level1,
+        label,
+        sortOrder,
         reachPct: row.reach_pct,
         reachWc: row.reach_wc,
         ageBase: row.age_base,
         isRmMeasured: row.is_rm_measured,
+        engine: null,
       })
+      continue
     }
 
-    if (!isLeaf) continue
     if (engineId === SEARCH_ENGINE_CHANNEL_ID) continue
-    if (seenEngineIds.has(engineId)) continue
+    if (seenEngineIds.has(engineId)) {
+      // Duplicate engine mapping — keep RM row for profile/table; do not re-score.
+      taxonomy.push({
+        rowType: "leaf",
+        channelId: row.channel_id,
+        engineChannelId: engineId,
+        level1,
+        label,
+        sortOrder,
+        reachPct: row.reach_pct,
+        reachWc: row.reach_wc,
+        ageBase: row.age_base,
+        isRmMeasured: row.is_rm_measured,
+        engine: null,
+      })
+      continue
+    }
     seenEngineIds.add(engineId)
 
     const resolved = resolveBench(
@@ -156,10 +231,24 @@ export function adaptAudienceToEngine(opts: {
     )
     if (!resolved) {
       skippedEngineIds.push(engineId)
+      // Still carry RM reach for Stage C / reachProfile; exclude from scoring.
+      taxonomy.push({
+        rowType: "leaf",
+        channelId: row.channel_id,
+        engineChannelId: engineId,
+        level1,
+        label,
+        sortOrder,
+        reachPct: row.reach_pct,
+        reachWc: row.reach_wc,
+        ageBase: row.age_base,
+        isRmMeasured: row.is_rm_measured,
+        engine: null,
+      })
       continue
     }
 
-    channels.push({
+    const engine: AdaptedChannel = {
       id: engineId,
       name: resolved.name,
       attn: resolved.attn,
@@ -176,13 +265,27 @@ export function adaptAudienceToEngine(opts: {
       reachPctTotal: row.reach_pct_total,
       isRmMeasured: row.is_rm_measured,
       ageBase: row.age_base,
+    }
+
+    taxonomy.push({
+      rowType: "leaf",
+      channelId: row.channel_id,
+      engineChannelId: engineId,
+      level1,
+      label,
+      sortOrder,
+      reachPct: row.reach_pct,
+      reachWc: row.reach_wc,
+      ageBase: row.age_base,
+      isRmMeasured: row.is_rm_measured,
+      engine,
     })
   }
 
-  // Search — benchmark-only constant (affinity 100 neutral).
+  // Search — benchmark-only constant (affinity 100 neutral). Own group for Stage C.
   const searchDefaults = BENCHMARK_DEFAULTS[SEARCH_ENGINE_CHANNEL_ID]
   if (searchDefaults) {
-    channels.push({
+    const engine: AdaptedChannel = {
       id: SEARCH_ENGINE_CHANNEL_ID,
       name: searchDefaults.name,
       attn: searchDefaults.attn,
@@ -199,10 +302,29 @@ export function adaptAudienceToEngine(opts: {
       reachPctTotal: 0,
       isRmMeasured: false,
       ageBase: 14,
+    }
+    taxonomy.push({
+      rowType: "injected",
+      channelId: SEARCH_ENGINE_CHANNEL_ID,
+      engineChannelId: SEARCH_ENGINE_CHANNEL_ID,
+      level1: "Search",
+      label: searchDefaults.name,
+      sortOrder: 10_000,
+      reachPct: 0,
+      reachWc: 0,
+      ageBase: 14,
+      isRmMeasured: false,
+      engine,
     })
   }
 
+  const channels = scoreableChannels(taxonomy)
+  const reachProfile = taxonomy
+    .filter((r) => r.isRmMeasured)
+    .map(toReachProfileRow)
+
   return {
+    taxonomy,
     channels,
     reachProfile,
     audienceMillions: audience.audience_wc / 1000,

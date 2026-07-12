@@ -636,6 +636,11 @@ export function BehaviouralPlannerClient() {
       {state.stage === "diagnosis" ? (
         <StageDiagnosis
           diagnosis={state.diagnosis}
+          taxonomy={
+            results[state.activeAudienceId]?.adapted?.taxonomy ?? []
+          }
+          taxonomyLoading={Boolean(results[state.activeAudienceId]?.loading)}
+          taxonomyError={results[state.activeAudienceId]?.error ?? null}
           onPatch={(patch) => dispatch({ type: "PATCH_DIAGNOSIS", patch })}
           onBack={() => goTo("audiences")}
           onContinue={() => completeAndGo("diagnosis", "constraints")}

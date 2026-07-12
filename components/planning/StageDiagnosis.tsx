@@ -1,16 +1,157 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
+import type { TaxonomyRow } from "@/lib/planning/adapter"
 import { SALIENCE_OPTIONS, type SalienceLevel } from "./constants"
 import type { DiagnosisState } from "./store"
 
 type StageDiagnosisProps = {
   diagnosis: DiagnosisState
+  /** Active audience taxonomy (leaves + rollups + Search). Empty while loading. */
+  taxonomy: TaxonomyRow[]
+  taxonomyLoading?: boolean
+  taxonomyError?: string | null
   onPatch: (patch: Partial<DiagnosisState>) => void
   onContinue: () => void
   onBack: () => void
+}
+
+type TaxonomyGroup = {
+  level1: string
+  rows: TaxonomyRow[]
+}
+
+function groupTaxonomy(rows: TaxonomyRow[]): TaxonomyGroup[] {
+  const order: string[] = []
+  const byLevel = new Map<string, TaxonomyRow[]>()
+  for (const row of rows) {
+    const key = row.level1 || "Other"
+    if (!byLevel.has(key)) {
+      byLevel.set(key, [])
+      order.push(key)
+    }
+    byLevel.get(key)!.push(row)
+  }
+  for (const list of byLevel.values()) {
+    list.sort((a, b) => a.sortOrder - b.sortOrder)
+  }
+  return order.map((level1) => ({
+    level1,
+    rows: byLevel.get(level1)!,
+  }))
+}
+
+function statusBadge(row: TaxonomyRow) {
+  if (row.rowType === "rollup") {
+    return (
+      <Badge variant="outline" size="sm" className="font-normal text-muted-foreground">
+        not scored
+      </Badge>
+    )
+  }
+  if (row.rowType === "injected") {
+    return (
+      <Badge variant="outline" size="sm" className="font-normal text-muted-foreground">
+        modelled — not RM measured
+      </Badge>
+    )
+  }
+  if (!row.engine) {
+    return (
+      <Badge variant="outline" size="sm" className="font-normal text-muted-foreground">
+        not scored
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="info" size="sm" className="font-normal">
+      scored
+    </Badge>
+  )
+}
+
+function fmtReachPct(pct: number): string {
+  if (!(pct > 0)) return "—"
+  return `${Math.round(pct * 100)}%`
+}
+
+function ChannelTaxonomyTable({ rows }: { rows: TaxonomyRow[] }) {
+  const groups = groupTaxonomy(rows)
+  if (groups.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Compose an audience in Stage B to see channel reach.
+      </p>
+    )
+  }
+
+  return (
+    <div className="overflow-hidden rounded-card border border-border">
+      <table className="w-full caption-bottom text-sm">
+        <thead>
+          <tr className="border-b border-border bg-muted/40">
+            <th className="h-10 px-3 text-left align-middle text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Channel
+            </th>
+            <th className="h-10 px-3 text-right align-middle text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              RM reach
+            </th>
+            <th className="h-10 px-3 text-left align-middle text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Status
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {groups.map((group) => (
+            <GroupRows key={group.level1} group={group} />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function GroupRows({ group }: { group: TaxonomyGroup }) {
+  return (
+    <>
+      <tr className="border-b border-border bg-surface-panel">
+        <td
+          colSpan={3}
+          className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
+        >
+          {group.level1}
+        </td>
+      </tr>
+      {group.rows.map((row) => {
+        const isRollup = row.rowType === "rollup"
+        return (
+          <tr
+            key={row.channelId}
+            className={cn(
+              "border-b border-border last:border-0",
+              isRollup && "bg-muted/20 text-muted-foreground"
+            )}
+          >
+            <td
+              className={cn(
+                "px-3 py-2.5",
+                isRollup ? "pl-3 font-medium" : "pl-5 font-normal"
+              )}
+            >
+              {row.label}
+            </td>
+            <td className="px-3 py-2.5 text-right">
+              <span className="num tabular-nums">{fmtReachPct(row.reachPct)}</span>
+            </td>
+            <td className="px-3 py-2.5">{statusBadge(row)}</td>
+          </tr>
+        )
+      })}
+    </>
+  )
 }
 
 /**
@@ -18,10 +159,14 @@ type StageDiagnosisProps = {
  * - Create↔Capture slider → BCS `objective` (0=brand/create … 100=action/capture)
  * - Objective cards (Stage A) seed createCapture + A/T/E/C weight presets
  * - Penetration / target / salience nudge weights via deriveBcsParams in store.ts
+ * - Channel taxonomy table is display-only (rollups not scored; Search modelled)
  * - No engine/compose maths changes — only input derivation for computeBcs
  */
 export function StageDiagnosis({
   diagnosis,
+  taxonomy,
+  taxonomyLoading,
+  taxonomyError,
   onPatch,
   onContinue,
   onBack,
@@ -35,7 +180,7 @@ export function StageDiagnosis({
         <h2 className="text-base font-medium">Demand diagnosis</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Penetration, ambition, and Create↔Capture bias map onto existing BCS weights —
-          not a separate engine.
+          not a separate engine. Channel reach below is for context only.
         </p>
       </div>
 
@@ -133,6 +278,24 @@ export function StageDiagnosis({
             <span>Capture (action)</span>
           </div>
         </div>
+      </div>
+
+      <div className="rounded-card border border-border bg-card p-5 shadow-e1 space-y-3">
+        <div>
+          <h3 className="text-sm font-medium">Channel reach</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Full RM taxonomy for the active audience. Group totals show reach only and are
+            excluded from BCS, DFII, and allocation. Search is modelled, not Roy Morgan
+            measured.
+          </p>
+        </div>
+        {taxonomyLoading && taxonomy.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Loading channel reach…</p>
+        ) : taxonomyError && taxonomy.length === 0 ? (
+          <p className="text-sm text-status-critical-fg">{taxonomyError}</p>
+        ) : (
+          <ChannelTaxonomyTable rows={taxonomy} />
+        )}
       </div>
 
       <div className="flex justify-between">
