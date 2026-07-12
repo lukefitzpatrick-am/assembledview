@@ -69,6 +69,8 @@ export function useUnsavedChangesPrompt(enabled: boolean): UnsavedPrompt {
 
       // Ignore modified clicks or new tabs
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
+      // Ignore downloads / explicit new-tab links (e.g. file export cards)
+      if (anchor.hasAttribute("download") || anchor.target === "_blank") return
 
       const href = anchor.getAttribute("href")
       if (!href) return

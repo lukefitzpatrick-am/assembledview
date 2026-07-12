@@ -8,12 +8,16 @@ const adminCtx: AvaToolContext = {
   pageContext: undefined,
   clientSlug: undefined,
   mbaNumber: undefined,
+  versionNumber: undefined,
+  enabledMediaTypes: undefined,
   userSub: "u1",
   userEmail: "a@b.com",
   roles: ["admin"],
   clientSlugs: [],
   mbaNumbers: [],
   capturedPatch: null,
+  capturedAttachments: null,
+  capturedQuestions: null,
 }
 
 test("load_skill: returns body + learnings + chained decision rules", () => {

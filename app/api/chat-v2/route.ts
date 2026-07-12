@@ -115,7 +115,8 @@ export async function POST(req: NextRequest) {
     const safeMessages = sanitiseMessages(incomingMessages)
     const anthropicMessages = toAnthropicMessages(safeMessages)
 
-    const { clientSlug, mbaNumber } = deriveAvaIdentifiers(pageContext)
+    const { clientSlug, mbaNumber, versionNumber, enabledMediaTypes } =
+      deriveAvaIdentifiers(pageContext)
 
     const systemPrompt = buildAvaSystemPrompt(resolvedMode, pageContext, AVA_V2_APPENDIX)
 
@@ -124,12 +125,16 @@ export async function POST(req: NextRequest) {
       pageContext,
       clientSlug,
       mbaNumber,
+      versionNumber,
+      enabledMediaTypes,
       userSub: typeof user.sub === "string" ? user.sub : undefined,
       userEmail: typeof user.email === "string" ? user.email : undefined,
       roles,
       clientSlugs,
       mbaNumbers,
       capturedPatch: null,
+      capturedAttachments: null,
+      capturedQuestions: null,
     }
 
     const result = await runAvaAgent({
@@ -141,6 +146,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       replyText: result.replyText,
       patch: result.patch,
+      attachments: result.attachments,
+      questions: result.questions,
       meta: {
         engine: "claude",
         model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5",
@@ -166,25 +173,48 @@ class ValidationError extends Error {
   }
 }
 
-function deriveAvaIdentifiers(pageContext?: PageContext): { clientSlug?: string; mbaNumber?: string } {
+function deriveAvaIdentifiers(pageContext?: PageContext): {
+  clientSlug?: string
+  mbaNumber?: string
+  versionNumber?: number
+  enabledMediaTypes?: string[]
+} {
   const entities = pageContext?.entities
+  const versionRaw = entities?.versionNumber
+  const versionNumber =
+    typeof versionRaw === "number" && Number.isFinite(versionRaw) ? versionRaw : undefined
+  const enabledMediaTypes = Array.isArray(entities?.enabledMediaTypes)
+    ? entities.enabledMediaTypes.filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+    : undefined
   const fromEntities = {
     clientSlug: typeof entities?.clientSlug === "string" ? entities.clientSlug : undefined,
     mbaNumber: typeof entities?.mbaNumber === "string" ? entities.mbaNumber : undefined,
+    versionNumber,
+    enabledMediaTypes: enabledMediaTypes?.length ? enabledMediaTypes : undefined,
   }
 
   const route = pageContext?.route
   if (route && typeof route === "object") {
     const clientSlug = typeof (route as any).clientSlug === "string" ? (route as any).clientSlug : undefined
     const mbaNumber = typeof (route as any).mbaSlug === "string" ? (route as any).mbaSlug : undefined
-    return { clientSlug: clientSlug || fromEntities.clientSlug, mbaNumber: mbaNumber || fromEntities.mbaNumber }
+    return {
+      clientSlug: clientSlug || fromEntities.clientSlug,
+      mbaNumber: mbaNumber || fromEntities.mbaNumber,
+      versionNumber: fromEntities.versionNumber,
+      enabledMediaTypes: fromEntities.enabledMediaTypes,
+    }
   }
 
   if (typeof route === "string" && route) {
     const decoded = decodeURIComponent(route)
     const mbaMatch = decoded.match(/\/mba\/([^/?#]+)/i)
     const mbaNumber = mbaMatch?.[1] ? String(mbaMatch[1]).trim() : undefined
-    return { clientSlug: fromEntities.clientSlug, mbaNumber: mbaNumber || fromEntities.mbaNumber }
+    return {
+      clientSlug: fromEntities.clientSlug,
+      mbaNumber: mbaNumber || fromEntities.mbaNumber,
+      versionNumber: fromEntities.versionNumber,
+      enabledMediaTypes: fromEntities.enabledMediaTypes,
+    }
   }
 
   return fromEntities

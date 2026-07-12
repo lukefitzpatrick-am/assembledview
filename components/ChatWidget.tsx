@@ -6,9 +6,24 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { getAssistantContext, subscribeAvaChatOpen } from "@/lib/assistantBridge"
-import type { FormPatch, ModelChatReply, PageContext } from "@/lib/ava/types"
+import { coerceChatFileAttachments } from "@/lib/ava/chatFileAttachment"
+import {
+  coerceChatInterviewQuestions,
+  displayMiAnswerText,
+} from "@/lib/ava/chatInterviewQuestion"
+import type { ChatFileAttachment, FormPatch, ModelChatReply, PageContext } from "@/lib/ava/types"
 import type { ChatMode } from "@/src/ava/modes"
-import { ChevronDown, ChevronUp } from "lucide-react"
+import { ChatQuestionCard, type ChatQuestionCardState } from "@/components/ChatQuestionCard"
+import { ChevronDown, ChevronUp, FileSpreadsheet } from "lucide-react"
+
+type ChatUiMessage = {
+  role: "user" | "assistant"
+  content: string
+  /** Display-only; never sent back to /api/chat-v2. */
+  attachments?: ChatFileAttachment[]
+  /** Display-only interview cards; never sent back to /api/chat-v2. */
+  questions?: ChatQuestionCardState[]
+}
 
 type ChatWidgetProps = {
   getPageContext?: () => Promise<PageContext | undefined> | PageContext | undefined
@@ -37,6 +52,92 @@ const STARTER_CHIPS: Record<ChatMode, string[]> = {
   ],
 }
 
+function toUiMessages(messages: ChatCompletionMessageParam[]): ChatUiMessage[] {
+  const out: ChatUiMessage[] = []
+  for (const msg of messages) {
+    if (msg.role !== "user" && msg.role !== "assistant") continue
+    const content = typeof msg.content === "string" ? msg.content : ""
+    if (!content) continue
+    out.push({ role: msg.role, content })
+  }
+  return out
+}
+
+function toApiMessages(messages: ChatUiMessage[]): ChatCompletionMessageParam[] {
+  return messages.map((msg) => ({ role: msg.role, content: msg.content }))
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function ChatFileCard({ attachment }: { attachment: ChatFileAttachment }) {
+  const [isDownloading, setIsDownloading] = useState(false)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+  const sizeLabel =
+    typeof attachment.sizeBytes === "number" ? formatFileSize(attachment.sizeBytes) : null
+  const expiryHint =
+    typeof attachment.expiresInMinutes === "number" && attachment.expiresInMinutes > 0
+      ? `link expires in ~${Math.round(attachment.expiresInMinutes)} minutes`
+      : null
+
+  async function handleDownload() {
+    if (isDownloading) return
+    setDownloadError(null)
+    setIsDownloading(true)
+    try {
+      // Fetch-to-blob (not <a href>) so the MBA edit unsaved-changes guard
+      // never sees a same-origin navigation and the page stays mounted.
+      const response = await fetch(attachment.url, { credentials: "include" })
+      if (response.status === 401 || response.status === 403) {
+        throw new Error("Download expired or not authorised — ask Ava to export again.")
+      }
+      if (!response.ok) {
+        throw new Error("Download failed. Please try again.")
+      }
+      const blob = await response.blob()
+      const objectUrl = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = objectUrl
+      link.download = attachment.fileName
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : "Download failed")
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  return (
+    <div className="mr-auto flex w-full max-w-[90%] flex-col gap-1">
+      <div className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 shadow-sm">
+        <FileSpreadsheet className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-foreground">{attachment.fileName}</p>
+          <p className="text-xs text-muted-foreground">
+            {[sizeLabel, expiryHint].filter(Boolean).join(" · ") || "Download ready"}
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          disabled={isDownloading}
+          onClick={() => void handleDownload()}
+        >
+          {isDownloading ? "Downloading…" : "Download"}
+        </Button>
+      </div>
+      {downloadError ? <p className="text-xs text-destructive">{downloadError}</p> : null}
+    </div>
+  )
+}
+
 export function ChatWidget({
   getPageContext,
   pageContext,
@@ -49,7 +150,7 @@ export function ChatWidget({
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [input, setInput] = useState("")
-  const [messages, setMessages] = useState<ChatCompletionMessageParam[]>(initialMessages)
+  const [messages, setMessages] = useState<ChatUiMessage[]>(() => toUiMessages(initialMessages))
   const [error, setError] = useState<string | null>(null)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [dragState, setDragState] = useState<{ offsetX: number; offsetY: number } | null>(null)
@@ -63,7 +164,9 @@ export function ChatWidget({
 
   const toggle = useCallback(() => setIsOpen((v) => !v), [])
 
-  const sendMessageRef = useRef<(overrideText?: string) => Promise<void>>(async () => {})
+  const sendMessageRef = useRef<(overrideText?: string, baseMessages?: ChatUiMessage[]) => Promise<void>>(
+    async () => {},
+  )
 
   useEffect(() => {
     return subscribeAvaChatOpen(({ message }) => {
@@ -122,12 +225,13 @@ export function ChatWidget({
     }
   }, [dragState])
 
-  async function sendMessage(overrideText?: string) {
+  async function sendMessage(overrideText?: string, baseMessages?: ChatUiMessage[]) {
     const text = (overrideText ?? input).trim()
     if (!text) return
     setIsSending(true)
     setError(null)
-    const updatedMessages: ChatCompletionMessageParam[] = [...messages, { role: "user", content: text }]
+    const starting = baseMessages ?? messages
+    const updatedMessages: ChatUiMessage[] = [...starting, { role: "user", content: text }]
     setMessages(updatedMessages)
     setInput("")
 
@@ -136,7 +240,7 @@ export function ChatWidget({
         typeof getPageContext === "function" ? await getPageContext() : pageContext
 
       const payload = {
-        messages: updatedMessages,
+        messages: toApiMessages(updatedMessages),
         pageContext: resolvedPageContext,
         mode,
       }
@@ -161,8 +265,13 @@ export function ChatWidget({
       }
 
       const parsedReply = coerceModelChatReply(data)
-      const assistantContent = parsedReply.replyText
-      const assistantMessage: ChatCompletionMessageParam = { role: "assistant", content: assistantContent }
+      // Append a new assistant message (never mutate an earlier card in-session).
+      const assistantMessage: ChatUiMessage = {
+        role: "assistant",
+        content: parsedReply.replyText,
+        ...(parsedReply.attachments?.length ? { attachments: parsedReply.attachments } : {}),
+        ...(parsedReply.questions?.length ? { questions: parsedReply.questions } : {}),
+      }
       setMessages((prev) => [...prev, assistantMessage])
 
       const didApplyPatch = await maybeApplyPatch({
@@ -174,7 +283,7 @@ export function ChatWidget({
 
       // Legacy fallback (secondary): action JSON embedded in replyText, or response includes { action: ... }.
       if (!didApplyPatch) {
-        await maybeHandleAssistantAction(assistantContent, appendAssistantNote)
+        await maybeHandleAssistantAction(parsedReply.replyText, appendAssistantNote)
         await maybeHandleAssistantActionObject(data, appendAssistantNote)
       }
     } catch (err) {
@@ -184,6 +293,24 @@ export function ChatWidget({
     } finally {
       setIsSending(false)
     }
+  }
+
+  function confirmQuestion(messageIdx: number, questionId: string, answerText: string) {
+    const trimmed = answerText.trim()
+    if (!trimmed || isSending) return
+    const lockedMessages = messages.map((msg, idx) => {
+      if (idx !== messageIdx || !msg.questions?.length) return msg
+      return {
+        ...msg,
+        questions: msg.questions.map((question) =>
+          question.id === questionId
+            ? { ...question, confirmedAnswer: trimmed }
+            : question,
+        ),
+      }
+    })
+    setMessages(lockedMessages)
+    void sendMessage(trimmed, lockedMessages)
   }
 
   sendMessageRef.current = sendMessage
@@ -271,8 +398,24 @@ export function ChatWidget({
                         : "mr-auto border border-border bg-background text-foreground"
                     )}
                   >
-                    {msg.content as string}
+                    {msg.role === "user" ? displayMiAnswerText(msg.content) : msg.content}
                   </p>
+                  {msg.role === "assistant" &&
+                    msg.attachments?.map((attachment, attachmentIdx) => (
+                      <ChatFileCard
+                        key={`${idx}-${attachment.fileName}-${attachmentIdx}`}
+                        attachment={attachment}
+                      />
+                    ))}
+                  {msg.role === "assistant" &&
+                    msg.questions?.map((question) => (
+                      <ChatQuestionCard
+                        key={`${idx}-${question.id}`}
+                        question={question}
+                        disabled={isSending}
+                        onConfirm={(answerText) => confirmQuestion(idx, question.id, answerText)}
+                      />
+                    ))}
                 </div>
               ))}
 
@@ -309,6 +452,8 @@ function coerceModelChatReply(data: any): ModelChatReply {
     return {
       replyText: data.replyText,
       patch: isFormPatch(data.patch) ? data.patch : null,
+      attachments: coerceChatFileAttachments(data.attachments),
+      questions: coerceChatInterviewQuestions(data.questions),
     }
   }
 
@@ -320,6 +465,8 @@ function coerceModelChatReply(data: any): ModelChatReply {
         return {
           replyText: parsed.replyText,
           patch: isFormPatch(parsed.patch) ? parsed.patch : null,
+          attachments: coerceChatFileAttachments(parsed.attachments),
+          questions: coerceChatInterviewQuestions(parsed.questions),
         }
       }
     } catch {

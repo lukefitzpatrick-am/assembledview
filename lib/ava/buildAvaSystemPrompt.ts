@@ -57,6 +57,12 @@ function summarisePageContext(pageContext?: PageContext): string | undefined {
       Array.isArray(entities.mediaTypes) && entities.mediaTypes.length
         ? `- mediaTypes: ${entities.mediaTypes.join(", ")}`
         : undefined,
+      entities.versionNumber !== undefined && entities.versionNumber !== null
+        ? `- versionNumber: ${entities.versionNumber}`
+        : undefined,
+      Array.isArray(entities.enabledMediaTypes) && entities.enabledMediaTypes.length
+        ? `- enabledMediaTypes: ${entities.enabledMediaTypes.join(", ")}`
+        : undefined,
     ].filter(Boolean)
     if (lines.length) chunks.push(`Page entities:\n${lines.join("\n")}`)
   }
