@@ -1,8 +1,10 @@
 import {
   loadMiLibrary,
+  loadTemplateStructure,
   slugifyPublisher,
   type LoadedMiLibrary,
   type MiFormatRecord,
+  type MiFormatText,
   type MiPublisherRecord,
 } from "./library.js"
 
@@ -17,7 +19,10 @@ export type MiPlanLineItem = {
   liveDate?: string
   endDate?: string
   buyType?: string
+  bidStrategy?: string
   targeting?: string
+  buyingDemo?: string
+  budget?: number
   station?: string
   rawFields?: Record<string, string>
 }
@@ -34,9 +39,20 @@ export type MiOpenQuestion = {
   rowRef: { line_item_id: string; displayName: string }
   field: string
   question: string
-  type: "choice" | "dimensions" | "text"
+  type: "choice" | "dimensions" | "text" | "multichoice"
   options?: string[]
+  /** Pre-ticked / proposed defaults for AVA to present — never silently applied. */
+  selected?: string[]
+  source?: string
   appliesTo: string
+}
+
+export type MiDerivedAnswer = {
+  line_item_id: string
+  displayName: string
+  field: string
+  value: string
+  source: string
 }
 
 export type MiResolvedSpec = {
@@ -58,6 +74,7 @@ export type MiAnswer = { questionId: string; answer: string }
 export type MiResolveResult = {
   resolved: MiResolvedSpec[]
   open_questions: MiOpenQuestion[]
+  derived: MiDerivedAnswer[]
   summary: { resolved: number; open: number }
 }
 
@@ -67,9 +84,19 @@ const TAB_ORDER = [
 ]
 
 const FIELD_ORDER = [
-  "placeholder", "publisher", "format", "creative_type", "variants",
-  "dimensions", "custom_specs",
+  "placeholder", "publisher", "creative_type", "format", "targeting",
+  "variants", "dimensions", "custom_specs",
 ]
+
+/** Tabs that fill Objective (or Search Bid Strategy) from plan bid_strategy. */
+const BID_STRATEGY_FILL_TABS = new Set(["Search", "Social", "Programmatic"])
+
+/** AM columns without Format — Line Item gets " — {format_name}" so multi-format rows stay distinct. */
+const AM_WITHOUT_FORMAT = new Set(
+  Object.entries(loadTemplateStructure().tabs)
+    .filter(([, tab]) => !tab.AM.includes("Format"))
+    .map(([name]) => name),
+)
 
 const STANDARD_DIMENSIONS = new Set([
   "300x250", "728x90", "300x600", "320x50", "320x100", "970x250",
@@ -77,7 +104,10 @@ const STANDARD_DIMENSIONS = new Set([
   "320x480", "1080x1080", "1080x1920", "1920x1080", "300x50",
 ])
 
-const CREATIVE_TERMS = /\b(video|static|image|carousel|reel|story|stories|in-feed|in feed|shorts)\b/i
+const CREATIVE_TERMS_GLOBAL = /\b(video|static|image|carousel|reel|story|stories|in-feed|in feed|shorts)\b/gi
+const VIDEO_CLASS = /\b(video|reel|reels|shorts)\b/i
+const STATIC_CLASS = /\b(static|image|carousel)\b/i
+const PLACEMENT_SIGNAL = /\b(feed|stories|story|carousel|reels|reel|shorts|rsa|pmax|in-stream|instream|bumper|masthead)\b/gi
 const CUSTOM_DIRECT_TERMS = /\b(podcast|audio|edm|email|article|bespoke|sponsored|content)\b/i
 const DISPLAY_TERMS = /\b(banner|display|mpu|leaderboard)\b|\b\d{2,4}\s*x\s*\d{2,4}\b/i
 const DIMENSION_PATTERN = /\b(\d{2,4})\s*x\s*(\d{2,4})\b/gi
@@ -98,15 +128,56 @@ function firstString(record: Record<string, unknown>, keys: string[]): string {
   return ""
 }
 
-function firstBurstDate(record: Record<string, unknown>, keys: string[]): string {
-  const bursts = record.bursts
-  if (Array.isArray(bursts)) {
-    for (const burst of bursts) {
-      const date = firstString(asRecord(burst), keys)
-      if (date) return date
+function parseBurstList(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value.trim())
+      if (Array.isArray(parsed)) return parsed
+      if (parsed && typeof parsed === "object") return [parsed]
+    } catch {
+      return []
     }
   }
+  return []
+}
+
+/** Prefer `bursts`; when absent, parse `bursts_json` (array or JSON string). */
+function resolveBursts(record: Record<string, unknown>): unknown[] {
+  if (Array.isArray(record.bursts)) return record.bursts
+  if (record.bursts != null) return parseBurstList(record.bursts)
+  return parseBurstList(record.bursts_json)
+}
+
+function parseBurstBudget(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/[$,]/g, "").trim())
+    return Number.isFinite(parsed) ? parsed : 0
+  }
+  return 0
+}
+
+function firstBurstDate(record: Record<string, unknown>, keys: string[]): string {
+  for (const burst of resolveBursts(record)) {
+    const date = firstString(asRecord(burst), keys)
+    if (date) return date
+  }
   return firstString(record, keys)
+}
+
+function sumBurstBudgets(record: Record<string, unknown>): number | undefined {
+  const bursts = resolveBursts(record)
+  if (!bursts.length) return undefined
+  let total = 0
+  let sawBudget = false
+  for (const burst of bursts) {
+    const raw = asRecord(burst).budget
+    if (raw == null || raw === "") continue
+    sawBudget = true
+    total += parseBurstBudget(raw)
+  }
+  return sawBudget ? Math.round(total * 100) / 100 : undefined
 }
 
 /** Convert permissive AV media-plan line items into resolver inputs. */
@@ -121,13 +192,17 @@ export function flattenPlanLineItems(plan: MiPlanInput): MiPlanLineItem[] {
         "placement", "creative", "format", "oohFormat", "ooh_format", "size", "ad_size",
       ])
       const placement = firstString(row, ["placement"])
-      const targeting = firstString(row, ["targeting", "creativeTargeting"])
+      const targeting = firstString(row, ["targeting", "creativeTargeting", "creative_targeting"])
+      const buyingDemo = firstString(row, ["buyingDemo", "buying_demo"])
+      const bidStrategy = firstString(row, ["bidStrategy", "bid_strategy"])
+      const budget = sumBurstBudgets(row)
       const rawFields: Record<string, string> = {}
       for (const [field, keys] of Object.entries({
         publisher: ["publisher", "platform", "network", "site"],
         format: ["format", "creative", "oohFormat", "ooh_format", "size", "ad_size"],
         placement: ["placement"],
-        targeting: ["targeting", "creativeTargeting"],
+        targeting: ["targeting", "creativeTargeting", "creative_targeting"],
+        bidStrategy: ["bidStrategy", "bid_strategy"],
       })) {
         const raw = firstString(row, keys)
         if (raw) rawFields[field] = raw
@@ -145,7 +220,10 @@ export function flattenPlanLineItems(plan: MiPlanInput): MiPlanLineItem[] {
         liveDate: firstBurstDate(row, ["startDate", "start_date", "liveDate"]),
         endDate: firstBurstDate(row, ["endDate", "end_date"]),
         buyType: firstString(row, ["buyType", "buy_type"]),
+        bidStrategy,
         targeting,
+        buyingDemo,
+        ...(budget !== undefined ? { budget } : {}),
         station: firstString(row, ["station"]),
         rawFields,
       })
@@ -163,7 +241,8 @@ function containerFor(line: MiPlanLineItem): string {
   if (["progDisplay", "progVideo", "progAudio", "progOoh"].includes(channel)) return "Programmatic"
   if (["digitalDisplay", "digitalVideo", "digitalAudio", "integration"].includes(channel)) return "Direct Digital"
   if (["bvod", "progBvod"].includes(channel)) return "BVOD"
-  if (["ooh", "progOoh"].includes(channel)) return "OOH"
+  // progOoh is Programmatic only — do not also list it under OOH
+  if (channel === "ooh") return "OOH"
   if (["newspaper", "magazines"].includes(channel)) return "Print"
   if (channel === "cinema") return "Cinema"
   if (channel === "television") return "Television"
@@ -181,6 +260,8 @@ function question(
   type: MiOpenQuestion["type"],
   text: string,
   options?: string[],
+  selected?: string[],
+  source?: string,
 ): MiOpenQuestion {
   const appliesTo = `${field}:${line.line_item_id}`
   return {
@@ -190,8 +271,413 @@ function question(
     question: text,
     type,
     options,
+    ...(selected?.length ? { selected } : {}),
+    ...(source ? { source } : {}),
     appliesTo,
   }
+}
+
+/** Humanise bid_strategy labels only — no funnel remapping. */
+export function humanizeBidStrategy(value: string): string {
+  return value
+    .trim()
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((part) => {
+      if (/^(cpa|cpc|cpm|cpl|roas|pmax|cpa)$/i.test(part)) return part.toUpperCase()
+      return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase()
+    })
+    .join(" ")
+}
+
+function targetingPrefill(line: MiPlanLineItem): string {
+  const demo = line.buyingDemo?.trim() ?? ""
+  const targeting = line.targeting?.trim() ?? ""
+  if (demo && targeting) return `${demo} - ${targeting}`
+  return demo || targeting
+}
+
+function inferCreativeType(text: string): "video" | "static" | "both" | undefined {
+  const hasVideo = VIDEO_CLASS.test(text)
+  const hasStatic = STATIC_CLASS.test(text)
+  if (hasVideo && hasStatic) return "both"
+  if (hasVideo) return "video"
+  if (hasStatic) return "static"
+  return undefined
+}
+
+/** Normalise free-text creative_type answers; unrecognised → undefined (re-ask). */
+function normalizeCreativeTypeAnswer(answer: string): "video" | "static" | "both" | undefined {
+  const trimmed = answer.trim().toLowerCase()
+  if (!trimmed) return undefined
+  if (trimmed === "video" || trimmed === "static" || trimmed === "both") return trimmed
+  if (/\bboth\b/.test(trimmed)) return "both"
+  if (/\bvideo\b/.test(trimmed)) return "video"
+  if (/\b(static|image|carousel)\b/.test(trimmed)) return "static"
+  return undefined
+}
+
+function joinScalar(value: unknown): string {
+  if (value == null) return ""
+  if (Array.isArray(value)) return value.map(String).filter(Boolean).join(", ")
+  if (typeof value === "string") return value.trim()
+  if (typeof value === "number" || typeof value === "boolean") return String(value)
+  return ""
+}
+
+function firstFormatString(format: MiFormatRecord | null | undefined, keys: string[]): string {
+  if (!format) return ""
+  for (const key of keys) {
+    const joined = joinScalar(format[key])
+    if (joined) return joined
+  }
+  return ""
+}
+
+function textRecordValue(text: MiFormatText, key: string): string {
+  if (!text || typeof text === "string") return ""
+  const value = text[key]
+  return typeof value === "string" ? value.trim() : ""
+}
+
+function renderCharacterLimits(text: MiFormatText): string {
+  if (!text) return ""
+  if (typeof text === "string") return text.trim()
+  return Object.entries(text)
+    .filter(([, value]) => typeof value === "string" && value.trim())
+    .map(([key, value]) => `${key}: ${String(value).trim()}`)
+    .join("\n")
+}
+
+function renderRatioDimensions(format: MiFormatRecord | null): string {
+  if (!format) return ""
+  const ratios = [
+    ...asStringList(format.ratios_supported),
+    ...asStringList(format.ratios),
+    ...asStringList(format.ratio_supported),
+    ...(format.ratio ? [String(format.ratio)] : []),
+  ]
+  const uniqueRatios = [...new Set(ratios.map((item) => item.trim()).filter(Boolean))]
+  const recommended = firstFormatString(format, ["ratio_recommended"])
+  const dims = firstDimension(format)
+  const parts: string[] = []
+  if (uniqueRatios.length) {
+    parts.push(
+      recommended && !uniqueRatios.includes(recommended)
+        ? `${uniqueRatios.join(", ")} (recommended ${recommended})`
+        : recommended
+          ? `${uniqueRatios.join(", ")} (recommended ${recommended})`
+          : uniqueRatios.join(", "),
+    )
+  } else if (recommended) {
+    parts.push(`recommended ${recommended}`)
+  }
+  if (dims) parts.push(dims)
+  return parts.join("; ")
+}
+
+function asStringList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map(String).filter(Boolean)
+  if (typeof value === "string" && value.trim()) return [value.trim()]
+  return []
+}
+
+function renderDuration(format: MiFormatRecord | null): string {
+  if (!format) return ""
+  const recommended = firstFormatString(format, [
+    "duration_recommended", "video_duration_recommended", "duration", "video_duration",
+  ])
+  const max = firstFormatString(format, ["duration_max", "video_max_duration"])
+  if (recommended && max) return `${recommended} (max: ${max})`
+  return recommended || max
+}
+
+function renderRestrictions(value: unknown): string[] {
+  if (!value) return []
+  if (Array.isArray(value)) return value.map(String).map((item) => item.trim()).filter(Boolean)
+  if (typeof value === "string" && value.trim()) return [value.trim()]
+  return []
+}
+
+function renderBestPracticeNotes(
+  format: MiFormatRecord | null,
+  publisher: MiPublisherRecord | null,
+  customText?: string,
+  sourceNote?: string,
+): string {
+  if (customText?.trim()) return customText.trim()
+  const notes: string[] = []
+  if (format?.best_practice_notes?.length) notes.push(...format.best_practice_notes)
+  notes.push(...renderRestrictions(format?.restrictions))
+  const audio = firstFormatString(format, ["audio", "audio_spec", "audio_required"])
+  if (audio) notes.push(audio)
+  const publisherNotes = Array.isArray(publisher?.best_practice_notes)
+    ? publisher.best_practice_notes.filter((note): note is string => typeof note === "string")
+    : []
+  for (const note of publisherNotes) {
+    if (!notes.includes(note)) notes.push(note)
+  }
+  if (notes.length) return notes.join("; ")
+  return sourceNote?.trim() ?? ""
+}
+
+function publisherSource(record: MiPublisherRecord | null): string {
+  if (!record) return ""
+  const direct = joinScalar(record.source)
+  if (direct) return direct
+  return firstString(record as Record<string, unknown>, [
+    "source_url", "source_general", "source_topview", "video_source",
+  ])
+}
+
+function supplyDeadlineRule(
+  format: MiFormatRecord | null,
+  publisher: MiPublisherRecord | null,
+): string {
+  const fromFormat = firstFormatString(format, ["supply_deadline_rule"])
+  if (fromFormat) return fromFormat
+  if (!publisher) return ""
+  return firstString(publisher as Record<string, unknown>, [
+    "supply_deadline_rule",
+    "supply_deadline_general",
+    "supply_deadline_rule_default",
+  ])
+}
+
+function renderAssetGroup(label: string, group: unknown): string[] {
+  if (!group || typeof group !== "object" || Array.isArray(group)) {
+    if (typeof group === "string" && group.trim()) return [`${label}: ${group.trim()}`]
+    return []
+  }
+  const lines: string[] = []
+  for (const [key, value] of Object.entries(group as Record<string, unknown>)) {
+    if (key === "note" && typeof value === "string" && value.trim()) {
+      lines.push(`${label} note: ${value.trim()}`)
+      continue
+    }
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const detail = Object.entries(value as Record<string, unknown>)
+        .filter(([, entry]) => entry != null && entry !== "")
+        .map(([entryKey, entry]) => `${entryKey}: ${entry}`)
+        .join("; ")
+      lines.push(detail ? `${key}: ${detail}` : key)
+    } else if (value != null && value !== "") {
+      lines.push(`${key}: ${joinScalar(value)}`)
+    }
+  }
+  return lines
+}
+
+function renderAssetRequirements(format: MiFormatRecord | null): string {
+  if (!format) return ""
+  const lines = [
+    ...renderAssetGroup("Images", format.images),
+    ...renderAssetGroup("Videos", format.videos),
+    ...renderAssetGroup("Image requirements", format.image_requirements),
+    ...renderAssetGroup("Required assets", format.required_assets),
+  ]
+  const assetRequirement = firstFormatString(format, ["asset_requirement", "asset_requirements"])
+  if (assetRequirement) lines.push(assetRequirement)
+  return lines.join("\n")
+}
+
+function renderFileType(format: MiFormatRecord | null): string {
+  if (!format) return ""
+  const primary = firstFormatString(format, ["file_type"])
+  if (primary) return primary
+  const image = firstFormatString(format, ["file_type_image"])
+  const video = firstFormatString(format, ["file_type_video"])
+  return [image && `Image: ${image}`, video && `Video: ${video}`].filter(Boolean).join("; ")
+}
+
+function renderMaxFileSize(format: MiFormatRecord | null): string {
+  if (!format) return ""
+  const primary = firstFormatString(format, ["max_file_size"])
+  if (primary) return primary
+  const image = firstFormatString(format, ["max_file_size_image"])
+  const video = firstFormatString(format, ["max_file_size_video"])
+  return [image && `Image: ${image}`, video && `Video: ${video}`].filter(Boolean).join("; ")
+}
+
+function renderResolution(format: MiFormatRecord | null): string {
+  return firstFormatString(format, [
+    "resolution",
+    "resolution_recommended",
+    "min_resolution",
+    "resolution_min",
+    "resolution_first_party",
+  ])
+}
+
+function matchFormatByAnswer(
+  record: MiPublisherRecord,
+  name: string,
+): MiFormatRecord | undefined {
+  const needle = name.trim().toLowerCase()
+  if (!needle) return undefined
+  return (record.formats ?? []).find(
+    (format) => format.format_name.trim().toLowerCase() === needle,
+  )
+}
+
+function lineItemLabel(line: IndexedLine, format: MiFormatRecord | null): string {
+  if (!format?.format_name) return line.displayName
+  if (!AM_WITHOUT_FORMAT.has(line.container)) return line.displayName
+  const suffix = ` — ${format.format_name}`
+  if (line.displayName.endsWith(suffix)) return line.displayName
+  return `${line.displayName}${suffix}`
+}
+
+function buildSpecsFields(
+  line: IndexedLine,
+  publisher: { record: MiPublisherRecord | null },
+  format: MiFormatRecord | null,
+  customText?: string,
+  sourceNote?: string,
+): Record<string, string> {
+  const text = format?.text
+  const dimensions = firstDimension(format) || detectedDimensions(line.format)[0] || ""
+  const source = publisherSource(publisher.record)
+  const notes = renderBestPracticeNotes(format, publisher.record, customText, sourceNote)
+  const deadline = supplyDeadlineRule(format, publisher.record)
+  const fileType = renderFileType(format)
+  const ratioDimensions = renderRatioDimensions(format) || dimensions
+  const fields: Record<string, string> = {}
+
+  const put = (key: string, value: string) => {
+    if (value) fields[key] = value
+  }
+
+  // Search-specific SPECS columns
+  put("Headline Limits", textRecordValue(text, "headlines"))
+  put("Description Limits", textRecordValue(text, "descriptions"))
+  put(
+    "Display Path Limits",
+    textRecordValue(text, "display_path") || textRecordValue(text, "display_url_path"),
+  )
+  put("Asset Requirements", renderAssetRequirements(format))
+
+  // Shared / social-style SPECS columns
+  put("File Type", fileType)
+  put("Ratio / Dimensions", ratioDimensions)
+  put("Ad Dimensions", dimensions)
+  put("Pixel Dimensions", dimensions)
+  put("Dimensions", dimensions)
+  put("Resolution", renderResolution(format))
+  put("Max File Size", renderMaxFileSize(format))
+  put("File Size Limits", renderMaxFileSize(format))
+  put("File Size", renderMaxFileSize(format))
+  put("Duration", renderDuration(format))
+  put("Creative Duration", renderDuration(format))
+  put("Character Limits", renderCharacterLimits(text))
+  put(
+    "Character Limits (CTA / Headline)",
+    [
+      textRecordValue(text, "call_to_action") && `call_to_action: ${textRecordValue(text, "call_to_action")}`,
+      textRecordValue(text, "headline") && `headline: ${textRecordValue(text, "headline")}`,
+      textRecordValue(text, "cta_max") && `cta_max: ${textRecordValue(text, "cta_max")}`,
+      textRecordValue(text, "headline_max") && `headline_max: ${textRecordValue(text, "headline_max")}`,
+    ].filter(Boolean).join("\n") || renderCharacterLimits(text),
+  )
+  put("Naming Convention", firstFormatString(format, ["naming_convention"])
+    || joinScalar((publisher.record as { universal_specs?: { naming_convention?: unknown } } | null)
+      ?.universal_specs?.naming_convention))
+  put("Supply Deadline", deadline)
+  put("Best Practice Notes", notes)
+  put("Publisher-Specific Notes", customText?.trim() || notes)
+  put("Source", source)
+  put("Aspect Ratio", ratioDimensions)
+  put("Restrictions", renderRestrictions(format?.restrictions).join("; "))
+
+  return fields
+}
+
+function normalizePlacementSignal(value: string): string {
+  const lower = value.toLowerCase()
+  if (lower === "story") return "stories"
+  if (lower === "reel") return "reels"
+  if (lower === "instream") return "in-stream"
+  return lower
+}
+
+function placementSignals(source: string): string[] {
+  return [...new Set(
+    [...source.matchAll(PLACEMENT_SIGNAL)].map((match) => normalizePlacementSignal(match[1])),
+  )]
+}
+
+function creativeSignalCount(source: string): number {
+  return [...new Set(
+    [...source.matchAll(CREATIVE_TERMS_GLOBAL)].map((match) => match[1].toLowerCase()),
+  )].length
+}
+
+function impliesMultipleFormats(source: string): boolean {
+  return placementSignals(source).length > 1 || creativeSignalCount(source) > 1
+}
+
+function placementFamily(formatName: string): string {
+  const lower = formatName.toLowerCase()
+  if (/performance max/.test(lower)) return "pmax"
+  if (/responsive search|\(rsa\)/.test(lower)) return "rsa"
+  if (/carousel/.test(lower)) return "carousel"
+  if (/stories|story/.test(lower)) return "stories"
+  if (/reels/.test(lower)) return "reels"
+  if (/feed/.test(lower)) return "feed"
+  if (/shorts/.test(lower)) return "shorts"
+  if (/bumper/.test(lower)) return "bumper"
+  if (/masthead/.test(lower)) return "masthead"
+  if (/in-stream|instream/.test(lower)) return "in-stream"
+  return `other:${formatName}`
+}
+
+function preferFormat(left: MiFormatRecord, right: MiFormatRecord, source: string): MiFormatRecord {
+  const leftName = left.format_name.toLowerCase()
+  const rightName = right.format_name.toLowerCase()
+  const wantsVideo = VIDEO_CLASS.test(source)
+  if (wantsVideo) {
+    const leftVideo = /video/.test(leftName)
+    const rightVideo = /video/.test(rightName)
+    if (leftVideo !== rightVideo) return leftVideo ? left : right
+  }
+  if (/facebook/.test(leftName) !== /facebook/.test(rightName)) {
+    return /facebook/.test(leftName) ? left : right
+  }
+  return left.format_name.localeCompare(right.format_name) <= 0 ? left : right
+}
+
+function dedupeFormatCandidates(formats: MiFormatRecord[], source: string): MiFormatRecord[] {
+  const byFamily = new Map<string, MiFormatRecord>()
+  for (const format of formats) {
+    const family = placementFamily(format.format_name)
+    const existing = byFamily.get(family)
+    byFamily.set(family, existing ? preferFormat(existing, format, source) : format)
+  }
+  return [...byFamily.values()]
+}
+
+function aliasFormatCandidates(
+  source: string,
+  formats: MiFormatRecord[],
+  container: string,
+): MiFormatRecord[] {
+  const found: MiFormatRecord[] = []
+  const lower = source.toLowerCase()
+  if (/\bpmax\b/.test(lower) || /\bperformance\s*max\b/.test(lower)) {
+    const hit = formats.find((format) => /performance max/i.test(format.format_name))
+    if (hit) found.push(hit)
+  }
+  if (/\brsa\b/.test(lower) || (container === "Search" && /\btext\b/.test(lower))) {
+    const hit = formats.find((format) => /responsive search|\(rsa\)/i.test(format.format_name))
+    if (hit) found.push(hit)
+  }
+  return found
+}
+
+function sharesPlacementSignal(source: string, formatName: string): boolean {
+  const signals = placementSignals(source)
+  const lower = formatName.toLowerCase()
+  return signals.some((signal) => lower.includes(signal))
 }
 
 function nearestPublisherSlugs(value: string, library: LoadedMiLibrary): string[] {
@@ -272,29 +758,98 @@ function resolveFormat(
   record: MiPublisherRecord,
   answers: Map<string, string>,
   creativeType?: string,
-): { format: MiFormatRecord | null; question?: MiOpenQuestion; needsSpec: boolean; fallback: boolean } {
+): {
+  format: MiFormatRecord | null
+  formats?: MiFormatRecord[]
+  question?: MiOpenQuestion
+  needsSpec: boolean
+  fallback: boolean
+} {
   const appliesTo = `format:${line.line_item_id}`
   const answer = answerFor(answers, appliesTo)
   if (answer?.toLowerCase() === "none of these") {
     return { format: null, needsSpec: true, fallback: false }
   }
   if (answer) {
-    const selected = (record.formats ?? []).find((format) => format.format_name === answer)
-    return selected
-      ? { format: selected, needsSpec: false, fallback: false }
-      : { format: null, needsSpec: true, fallback: false }
+    const names = answer.split(",").map((part) => part.trim()).filter(Boolean)
+    const selected = names
+      .map((name) => matchFormatByAnswer(record, name))
+      .filter((format): format is MiFormatRecord => Boolean(format))
+    // Unmatched answers must re-open the question — never silently degrade to needs_spec.
+    if (selected.length === 0) {
+      return {
+        format: null,
+        needsSpec: false,
+        fallback: false,
+        question: question(
+          line,
+          "format",
+          "choice",
+          `Which ${record.publisher_name} format applies to this row?`,
+          [...formatNames(record), "none of these"],
+        ),
+      }
+    }
+    if (selected.length === 1) return { format: selected[0], needsSpec: false, fallback: false }
+    return { format: selected[0], formats: selected, needsSpec: false, fallback: false }
   }
 
-  const source = [line.format, line.placement, creativeType].filter(Boolean).join(" ").toLowerCase()
-  const ranked = (record.formats ?? [])
+  // Exact plan format/placement label wins over fuzzy multi-match (e.g. RSA vs Responsive Display).
+  for (const candidate of [line.format, line.placement]) {
+    if (!candidate?.trim()) continue
+    const exact = matchFormatByAnswer(record, candidate)
+    if (exact) return { format: exact, needsSpec: false, fallback: false }
+  }
+
+  const source = [line.format, line.placement, line.targeting, creativeType].filter(Boolean).join(" ")
+  const formats = record.formats ?? []
+  const ranked = formats
     .map((format) => ({ format, score: formatScore(source, format.format_name) }))
     .sort((a, b) => b.score - a.score)
-  if (ranked[0]?.score >= 2) {
-    return { format: ranked[0].format, needsSpec: false, fallback: false }
+  const high = ranked.filter((entry) => entry.score >= 2)
+  const aliases = aliasFormatCandidates(source, formats, line.container)
+  const signalMatches = ranked
+    .filter((entry) => entry.score >= 1 && sharesPlacementSignal(source, entry.format.format_name))
+    .map((entry) => entry.format)
+
+  const multi = impliesMultipleFormats(source) || high.length > 1 || (aliases.length + high.length > 1)
+  if (multi) {
+    const candidates = dedupeFormatCandidates(
+      [
+        ...high.map((entry) => entry.format),
+        ...signalMatches,
+        ...aliases,
+      ],
+      source,
+    )
+    if (candidates.length > 1) {
+      const selected = candidates.map((format) => format.format_name)
+      return {
+        format: null,
+        needsSpec: false,
+        fallback: false,
+        question: question(
+          line,
+          "format",
+          "multichoice",
+          `Which ${record.publisher_name} formats apply to this row? (multiple allowed)`,
+          [...formatNames(record), "none of these"],
+          selected,
+          "from plan: creative",
+        ),
+      }
+    }
+    if (candidates.length === 1) {
+      return { format: candidates[0], needsSpec: false, fallback: false }
+    }
+  }
+
+  if (high.length === 1) {
+    return { format: high[0].format, needsSpec: false, fallback: false }
   }
 
   if (containerFor(line) === "Direct Digital" && DISPLAY_TERMS.test(source)) {
-    const display = (record.formats ?? []).find((format) => /standard display/i.test(format.format_name))
+    const display = formats.find((format) => /standard display/i.test(format.format_name))
     if (display) return { format: display, needsSpec: false, fallback: true }
   }
   return {
@@ -337,6 +892,38 @@ function firstDimension(format: MiFormatRecord | null): string {
   return Object.values(format.dimensions).join(", ")
 }
 
+function amFieldsFromPlan(line: IndexedLine): {
+  fields: Record<string, string>
+  derived: MiDerivedAnswer[]
+} {
+  const fields: Record<string, string> = {}
+  const derived: MiDerivedAnswer[] = []
+  if (!BID_STRATEGY_FILL_TABS.has(line.container)) return { fields, derived }
+  const raw = line.bidStrategy?.trim()
+  if (!raw) return { fields, derived }
+  const label = humanizeBidStrategy(raw)
+  if (line.container === "Search") {
+    fields["Bid Strategy"] = label
+    derived.push({
+      line_item_id: line.line_item_id,
+      displayName: line.displayName,
+      field: "Bid Strategy",
+      value: label,
+      source: "from plan: bid_strategy",
+    })
+  } else {
+    fields.Objective = label
+    derived.push({
+      line_item_id: line.line_item_id,
+      displayName: line.displayName,
+      field: "Objective",
+      value: label,
+      source: "from plan: bid_strategy",
+    })
+  }
+  return { fields, derived }
+}
+
 function buildResolved(
   line: IndexedLine,
   publisher: { slug: string | null; record: MiPublisherRecord | null; needsSpec: boolean },
@@ -346,29 +933,26 @@ function buildResolved(
   sourceNote?: string,
   customText?: string,
 ): MiResolvedSpec {
-  const dimensions = firstDimension(format) || detectedDimensions(line.format)[0] || "NEEDS_SPEC"
-  const source = publisher.record?.source ?? "NEEDS_SPEC"
+  const planAm = amFieldsFromPlan(line).fields
+  const displayName = lineItemLabel(line, format)
+  const fields_specs = buildSpecsFields(line, publisher, format, customText, sourceNote)
+  const fields_am: Record<string, string> = {
+    "Line Item": displayName,
+    ...planAm,
+    ...(line.liveDate ? { "Live Date": line.liveDate } : {}),
+  }
   return {
     line_item_id: line.line_item_id,
-    displayName: line.displayName,
+    displayName,
     container_category: line.container,
     publisher_slug: publisher.slug,
-    format_name: format?.format_name ?? "NEEDS_SPEC",
+    format_name: format?.format_name ?? (confidence === "needs_spec" ? "NEEDS_SPEC" : null),
     confidence,
-    fields_am: {
-      Source: source,
-      "File Type": Array.isArray(format?.file_type)
-        ? format!.file_type.join(", ")
-        : format?.file_type ?? "NEEDS_SPEC",
-      Dimensions: dimensions,
-    },
-    fields_specs: {
-      Dimensions: dimensions,
-      "Publisher-Specific Notes": customText || sourceNote || "NEEDS_SPEC",
-    },
+    fields_am,
+    fields_specs,
     fields_client: {
-      Publisher: publisher.record?.publisher_name ?? (line.publisher || "NEEDS_SPEC"),
-      Format: format?.format_name ?? "NEEDS_SPEC",
+      Publisher: publisher.record?.publisher_name ?? (line.publisher || ""),
+      ...(format?.format_name ? { Format: format.format_name } : {}),
     },
     variant,
     sourceNote,
@@ -379,13 +963,15 @@ function resolveLine(
   line: IndexedLine,
   library: LoadedMiLibrary,
   answers: Map<string, string>,
-): { resolved: MiResolvedSpec[]; questions: MiOpenQuestion[] } {
+): { resolved: MiResolvedSpec[]; questions: MiOpenQuestion[]; derived: MiDerivedAnswer[] } {
   const questions: MiOpenQuestion[] = []
+  const derived = amFieldsFromPlan(line).derived
   const placeholder = answerFor(answers, `placeholder:${line.line_item_id}`)
-  if (placeholder?.toLowerCase() === "skip") return { resolved: [], questions }
+  if (placeholder?.toLowerCase() === "skip") return { resolved: [], questions, derived: [] }
   if (placeholderCount(line) >= 2 && !placeholder) {
     return {
       resolved: [],
+      derived: [],
       questions: [question(
         line, "placeholder", "choice",
         "Row looks like placeholder data — include in the MI or skip?",
@@ -395,9 +981,13 @@ function resolveLine(
   }
 
   const publisher = resolvePublisher(line, library, answers)
-  if (publisher.question) return { resolved: [], questions: [publisher.question] }
+  if (publisher.question) return { resolved: [], questions: [publisher.question], derived: [] }
   if (publisher.needsSpec) {
-    return { resolved: [buildResolved(line, publisher, null, "needs_spec", undefined, "Publisher not in MI library")], questions }
+    return {
+      resolved: [buildResolved(line, publisher, null, "needs_spec", undefined, "Publisher not in MI library")],
+      questions,
+      derived,
+    }
   }
 
   const customInput = [line.format, line.placement].filter(Boolean).join(" ")
@@ -406,6 +996,7 @@ function resolveLine(
     if (!customAnswer) {
       return {
         resolved: [],
+        derived: [],
         questions: [question(
           line, "custom_specs", "text",
           "Custom format — paste the publisher's specs, or answer 'per booking' to flag for manual entry.",
@@ -418,32 +1009,84 @@ function resolveLine(
         customAnswer.toLowerCase() === "per booking" ? "" : customAnswer,
       )],
       questions,
+      derived,
     }
   }
 
-  const needsCreative = (line.container === "Social" || line.container === "YouTube" || /\btiktok\b/i.test(line.publisher))
-    && !CREATIVE_TERMS.test(customInput)
-  const creativeAnswer = answerFor(answers, `creative_type:${line.line_item_id}`)
-  if (needsCreative && !creativeAnswer) {
+  const needsCreative = line.container === "Social"
+    || line.container === "YouTube"
+    || /\btiktok\b/i.test(line.publisher)
+  const creativeAnswerRaw = answerFor(answers, `creative_type:${line.line_item_id}`)
+  const creativeAnswer = creativeAnswerRaw
+    ? normalizeCreativeTypeAnswer(creativeAnswerRaw)
+    : undefined
+  const proposedCreative = needsCreative ? inferCreativeType(customInput) : undefined
+  const creativeTypeQuestion = question(
+    line, "creative_type", "choice",
+    "Is this video, static or both?",
+    ["video", "static", "both"],
+  )
+  // Unrecognised free-text answers re-open — never silently proceed.
+  if (needsCreative && creativeAnswerRaw && !creativeAnswer) {
     return {
       resolved: [],
-      questions: [question(
-        line, "creative_type", "choice",
-        "Is this video, static or both?",
-        ["video", "static", "both"],
-      )],
+      derived: [],
+      questions: [creativeTypeQuestion],
     }
   }
+  if (needsCreative && !creativeAnswer && !proposedCreative) {
+    return {
+      resolved: [],
+      derived: [],
+      questions: [creativeTypeQuestion],
+    }
+  }
+  if (needsCreative && !creativeAnswer && proposedCreative) {
+    questions.push(question(
+      line,
+      "creative_type",
+      "choice",
+      "Is this video, static or both?",
+      ["video", "static", "both"],
+      [proposedCreative],
+      "from plan: creative",
+    ))
+  }
+  const effectiveCreative = creativeAnswer ?? proposedCreative
 
   const format = resolveFormat(
     line,
     publisher.record!,
     answers,
-    creativeAnswer === "static" ? "image" : creativeAnswer === "both" ? "video" : creativeAnswer,
+    effectiveCreative === "static" ? "image" : effectiveCreative === "both" ? "video" : effectiveCreative,
   )
-  if (format.question) return { resolved: [], questions: [format.question] }
+  if (format.question) {
+    questions.push(format.question)
+    return {
+      resolved: [buildResolved(line, publisher, null, "needs_spec")],
+      questions,
+      derived,
+    }
+  }
   if (format.needsSpec) {
-    return { resolved: [buildResolved(line, publisher, null, "needs_spec", undefined, "Format is not in the MI library")], questions }
+    return {
+      resolved: [buildResolved(line, publisher, null, "needs_spec", undefined, "Format is not in the MI library")],
+      questions,
+      derived,
+    }
+  }
+
+  if (line.container === "YouTube" && !answerFor(answers, `targeting:${line.line_item_id}`)) {
+    const prefill = targetingPrefill(line)
+    questions.push(question(
+      line,
+      "targeting",
+      "text",
+      "Confirm or edit the targeting for this YouTube row.",
+      undefined,
+      prefill ? [prefill] : undefined,
+      prefill ? "from plan: creative_targeting + buying_demo" : undefined,
+    ))
   }
 
   if (isMixedFormat(customInput) && !answerFor(answers, `variants:${line.line_item_id}`)) {
@@ -466,10 +1109,14 @@ function resolveLine(
 
   const confidence: MiResolvedSpec["confidence"] = format.fallback ? "fallback" : "high"
   const note = format.fallback ? "Used Standard Display fallback for a display-consistent plan format." : undefined
-  const variants = creativeAnswer?.toLowerCase() === "both" ? ["video", "static"] : [undefined]
+  const formatList = format.formats?.length ? format.formats : format.format ? [format.format] : [null]
+  const variants = effectiveCreative?.toLowerCase() === "both" ? ["video", "static"] : [undefined]
   return {
-    resolved: variants.map((variant) => buildResolved(line, publisher, format.format, confidence, variant, note)),
+    resolved: formatList.flatMap((selectedFormat) =>
+      variants.map((variant) => buildResolved(line, publisher, selectedFormat, confidence, variant, note))
+    ),
     questions,
+    derived,
   }
 }
 
@@ -496,16 +1143,19 @@ export function resolveMiPlan(
     container: containerFor(line),
   }))
   const resolved: MiResolvedSpec[] = []
+  const derived: MiDerivedAnswer[] = []
   const questions: Array<MiOpenQuestion & { index: number; container: string }> = []
   for (const line of lines) {
     const result = resolveLine(line, library, answerMap)
     resolved.push(...result.resolved)
+    derived.push(...result.derived)
     for (const open of result.questions) questions.push({ ...open, index: line.index, container: line.container })
   }
   const open_questions = sortQuestions(questions)
   return {
     resolved,
     open_questions,
+    derived,
     summary: { resolved: resolved.length, open: open_questions.length },
   }
 }

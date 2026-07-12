@@ -1,5 +1,8 @@
 import type { AvaToolContext } from "./types"
+import type { ChatInterviewQuestion } from "@/lib/ava/types"
+import { toChatInterviewQuestion } from "@/lib/ava/chatInterviewQuestion"
 import { slugifyClientNameForUrl } from "@/lib/clients/slug"
+import { MEDIA_CONTAINER_ENDPOINTS } from "@/lib/api/media-containers"
 
 export const LIST_CAP = 50
 export const TEXT_CAP = 400
@@ -94,4 +97,78 @@ export function asNumber(value: unknown): number | undefined {
     if (Number.isFinite(n)) return n
   }
   return undefined
+}
+
+/** Resolve optional version + media-type filter from Ava tool context for container fetches. */
+export function resolveMediaContainerScope(context: AvaToolContext): {
+  versionNumber?: number
+  mediaTypeFilter?: Array<keyof typeof MEDIA_CONTAINER_ENDPOINTS>
+} {
+  const versionNumber = context.versionNumber
+  const raw = context.enabledMediaTypes
+  if (!raw?.length) return { versionNumber: versionNumber ?? undefined }
+
+  const valid = new Set(Object.keys(MEDIA_CONTAINER_ENDPOINTS))
+  const mediaTypeFilter = raw.filter(
+    (key): key is keyof typeof MEDIA_CONTAINER_ENDPOINTS => valid.has(key),
+  )
+  return {
+    versionNumber: versionNumber ?? undefined,
+    mediaTypeFilter: mediaTypeFilter.length ? mediaTypeFilter : undefined,
+  }
+}
+
+/** Question id for the version-scope gate when page context has no versionNumber. */
+export const MI_SCOPE_VERSION_QUESTION_ID = "mi_scope_version"
+
+export type MiVersionScopeResult =
+  | { ok: true; versionNumber?: number; mbaWide: boolean }
+  | { ok: false; payload: Record<string, unknown>; question: ChatInterviewQuestion }
+
+/**
+ * When PageContext has no versionNumber, refuse silent MBA-wide fallback and ask
+ * which version to use (MBA-wide is an explicit option). Unchanged when versionNumber
+ * is already present on context.
+ */
+export function resolveMiVersionScope(
+  context: AvaToolContext,
+  args: Record<string, unknown>,
+  priorAnswers: Array<{ questionId: string; answer: string }> = [],
+): MiVersionScopeResult {
+  if (context.versionNumber !== undefined && context.versionNumber !== null) {
+    return { ok: true, versionNumber: context.versionNumber, mbaWide: false }
+  }
+
+  const scopeAnswer = priorAnswers.find(
+    (answer) => answer.questionId === MI_SCOPE_VERSION_QUESTION_ID,
+  )
+  const rawAnswer = scopeAnswer?.answer?.trim() ?? ""
+  const scopeArg = asString(args.scope)?.toLowerCase()
+  const mbaWide = args.mbaWide === true
+    || scopeArg === "mba-wide"
+    || /^mba[- ]?wide$/i.test(rawAnswer)
+  const argVersion = asNumber(args.versionNumber)
+    ?? (!mbaWide && rawAnswer ? asNumber(rawAnswer) : undefined)
+
+  if (mbaWide) return { ok: true, versionNumber: undefined, mbaWide: true }
+  if (argVersion !== undefined) return { ok: true, versionNumber: argVersion, mbaWide: false }
+
+  return {
+    ok: false,
+    payload: {
+      blocked: true,
+      warning: "No media-plan version is in page context.",
+      message:
+        "Which version should this MI interview use? Enter a version number, or choose MBA-wide for all containers across versions.",
+      options: ["MBA-wide"],
+    },
+    question: toChatInterviewQuestion({
+      id: MI_SCOPE_VERSION_QUESTION_ID,
+      text: "No media-plan version is in page context. Which version should this interview use? Choose MBA-wide for all containers, or enter a version number.",
+      type: "text",
+      options: ["MBA-wide"],
+      index: 1,
+      total: 1,
+    }),
+  }
 }

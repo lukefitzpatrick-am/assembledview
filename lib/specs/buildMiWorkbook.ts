@@ -102,16 +102,25 @@ function valueForColumn(
 
   const aliases: Record<string, string[]> = {
     Campaign: [campaign.name],
-    "Line Item": [row.displayName],
+    "Line Item": [row.fields_am["Line Item"] ?? row.displayName],
     Publisher: [row.fields_client.Publisher ?? row.fields_am.Publisher ?? ""],
-    Format: [row.format_name ?? row.fields_am.Format ?? ""],
+    Format: [row.format_name && row.format_name !== "NEEDS_SPEC" ? row.format_name : (row.fields_am.Format ?? "")],
     Variant: [row.variant ?? ""],
     "Live Date": [row.fields_am["Live Date"] ?? ""],
-    "Ratio / Dimensions": [row.fields_specs.Dimensions ?? row.fields_am.Dimensions ?? ""],
-    "Ad Dimensions": [row.fields_specs.Dimensions ?? row.fields_am.Dimensions ?? ""],
-    "Pixel Dimensions": [row.fields_specs.Dimensions ?? row.fields_am.Dimensions ?? ""],
-    "Best Practice Notes": [row.fields_specs["Publisher-Specific Notes"] ?? row.sourceNote ?? ""],
+    "Ratio / Dimensions": [
+      row.fields_specs["Ratio / Dimensions"] ?? row.fields_specs.Dimensions ?? row.fields_am.Dimensions ?? "",
+    ],
+    "Ad Dimensions": [row.fields_specs["Ad Dimensions"] ?? row.fields_specs.Dimensions ?? ""],
+    "Pixel Dimensions": [row.fields_specs["Pixel Dimensions"] ?? row.fields_specs.Dimensions ?? ""],
+    "Best Practice Notes": [
+      row.fields_specs["Best Practice Notes"]
+        ?? row.fields_specs["Publisher-Specific Notes"]
+        ?? row.sourceNote
+        ?? "",
+    ],
     "Publisher / Broadcaster": [row.fields_client.Publisher ?? row.fields_am.Publisher ?? ""],
+    "File Type": [row.fields_specs["File Type"] ?? ""],
+    Source: [row.fields_specs.Source ?? ""],
   }
   return aliases[column]?.[0] ?? ""
 }
@@ -141,8 +150,8 @@ function styleCell(cell: ExcelJS.Cell, fill: string, banded: boolean): void {
   cell.border = THIN_BORDER
 }
 
-function writeMetaSheet(workbook: ExcelJS.Workbook, campaign: MiWorkbookCampaign): void {
-  const sheet = workbook.addWorksheet("Meta")
+function writeCoverSheet(workbook: ExcelJS.Workbook, campaign: MiWorkbookCampaign): void {
+  const sheet = workbook.addWorksheet("Cover")
   sheet.getColumn(1).width = 28
   sheet.getColumn(2).width = 72
   sheet.mergeCells("A1:B1")
@@ -251,7 +260,7 @@ export async function buildMiWorkbook(input: MiWorkbookInput): Promise<{
   const workbook = new ExcelJSMod.Workbook()
   workbook.creator = "AssembledView"
   workbook.created = new Date()
-  writeMetaSheet(workbook, input.campaign)
+  writeCoverSheet(workbook, input.campaign)
 
   const unanswered = (input.open_questions ?? []).filter(
     (question) => !isAnswered(question, input.answers ?? []),

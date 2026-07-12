@@ -36,6 +36,7 @@ test("builds tabs only for rows and materialises unanswered gaps", async () => {
       type: "text",
       rowRef: { line_item_id: "direct-1", displayName: "News Corp — Sponsored article" },
     }],
+    derived: [],
     summary: { resolved: 1, open: 1 },
   }
 
@@ -45,7 +46,7 @@ test("builds tabs only for rows and materialises unanswered gaps", async () => {
   )
   const { workbook, gapCount, sheetNames } = await buildMiWorkbook(input)
 
-  assert.deepEqual(sheetNames, ["Meta", "Social", "Direct Digital"])
+  assert.deepEqual(sheetNames, ["Cover", "Social", "Direct Digital"])
   assert.equal(workbook.getWorksheet("Programmatic"), undefined)
   assert.ok(gapCount > 0)
 
@@ -62,4 +63,31 @@ test("formats a slug-safe material instructions filename", () => {
     miWorkbookFilename("Acme & Co.", "Winter / Launch", new Date("2026-07-11T00:00:00Z")),
     "MI_acme-co_winter-launch_20260711.xlsx",
   )
+})
+
+test("golden: workbook writes RSA library SPECS into Search columns", async () => {
+  const { resolveMiPlan } = await import("../resolve.js")
+  const { loadMiLibrary } = await import("../library.js")
+  const library = loadMiLibrary()
+  const result = resolveMiPlan({
+    lineItems: {
+      search: [{
+        id: "rsa-wb",
+        publisher: "Google Ads",
+        creative: "Responsive Search Ads (RSA)",
+      }],
+    },
+  }, library)
+  const { workbook } = await buildMiWorkbook(
+    miPayloadFromResolve({ name: "Winter Launch", client: "Acme" }, result),
+  )
+  const sheet = workbook.getWorksheet("Search")
+  assert.ok(sheet)
+  const headers = sheet.getRow(2).values as Array<string | undefined>
+  const col = (name: string) => headers.findIndex((header) => header === name)
+  assert.equal(sheet.getCell(3, col("Headline Limits")).value, "Min 1, max 15. 30 characters each.")
+  assert.match(String(sheet.getCell(3, col("Best Practice Notes")).value), /Pin Headline 1/)
+  assert.match(String(sheet.getCell(3, col("Source")).value), /support\.google\.com/)
+  assert.match(String(sheet.getCell(3, col("Line Item")).value), /Responsive Search Ads \(RSA\)/)
+  assert.notEqual(sheet.getCell(3, col("Best Practice Notes")).value, "NEEDS_SPEC")
 })

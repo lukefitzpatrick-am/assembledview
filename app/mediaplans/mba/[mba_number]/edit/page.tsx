@@ -1197,6 +1197,30 @@ const MEDIA_TYPE_KEYS = [
 
 type MediaTypeKey = typeof MEDIA_TYPE_KEYS[number];
 
+/** Same flag → container fetchKey map as app/api/campaigns/[mba_number]/route.ts */
+const MEDIA_FLAG_TO_FETCH_KEY: Partial<Record<MediaTypeKey, string>> = {
+  mp_television: "television",
+  mp_radio: "radio",
+  mp_newspaper: "newspaper",
+  mp_magazines: "magazines",
+  mp_ooh: "ooh",
+  mp_cinema: "cinema",
+  mp_digidisplay: "digitalDisplay",
+  mp_digiaudio: "digitalAudio",
+  mp_digivideo: "digitalVideo",
+  mp_bvod: "bvod",
+  mp_integration: "integration",
+  mp_search: "search",
+  mp_socialmedia: "socialMedia",
+  mp_progdisplay: "progDisplay",
+  mp_progvideo: "progVideo",
+  mp_progbvod: "progBvod",
+  mp_progaudio: "progAudio",
+  mp_progooh: "progOoh",
+  mp_influencers: "influencers",
+  mp_production: "production",
+}
+
 // Create a type for the media fields
 type MediaFields = {
   [K in MediaTypeKey]: boolean;
@@ -1222,7 +1246,15 @@ type PageContext = {
   route: { pathname: string; clientSlug?: string; mbaSlug?: string };
   fields: PageField[];
   generatedAt: string;
-  entities?: { clientSlug?: string; clientName?: string; mbaNumber?: string; campaignName?: string; mediaTypes?: string[] };
+  entities?: {
+    clientSlug?: string
+    clientName?: string
+    mbaNumber?: string
+    campaignName?: string
+    mediaTypes?: string[]
+    versionNumber?: number
+    enabledMediaTypes?: string[]
+  };
   pageText?: { title?: string; headings?: string[]; breadcrumbs?: string[] };
 };
 
@@ -8129,9 +8161,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const getPageContext = useCallback((): PageContext => {
     const values = form.getValues();
     const clientSlug = values.mp_clientname ? clientNameToSlug(values.mp_clientname) : undefined;
-    const enabledMediaTypes = mediaTypes
+    const enabledMediaLabels = mediaTypes
       .filter((medium) => Boolean(values[medium.name as keyof MediaPlanFormValues]))
       .map((medium) => medium.label);
+    const enabledMediaTypes = MEDIA_TYPE_KEYS
+      .filter((key) => Boolean(values[key]))
+      .map((key) => MEDIA_FLAG_TO_FETCH_KEY[key])
+      .filter((key): key is string => Boolean(key));
+    const contextVersion =
+      selectedVersionNumber ??
+      (versionNumber != null && String(versionNumber).trim() !== ""
+        ? parseInt(String(versionNumber), 10)
+        : undefined);
+    const versionForContext =
+      contextVersion !== undefined && Number.isFinite(contextVersion) ? contextVersion : undefined;
 
     const baseFields: PageField[] = [
       {
@@ -8242,7 +8285,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         clientName: values.mp_clientname,
         mbaNumber,
         campaignName: values.mp_campaignname,
-        mediaTypes: enabledMediaTypes,
+        mediaTypes: enabledMediaLabels,
+        ...(versionForContext !== undefined ? { versionNumber: versionForContext } : {}),
+        ...(enabledMediaTypes.length ? { enabledMediaTypes } : {}),
       },
       pageText: {
         title: "Edit Campaign",
@@ -8250,7 +8295,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         breadcrumbs: ["Media Plans", "Edit"],
       },
     };
-  }, [clientNameToSlug, form, mbaNumber, pathname]);
+  }, [clientNameToSlug, form, mbaNumber, pathname, selectedVersionNumber, versionNumber]);
 
   const handleSetField = useCallback(
     async ({ fieldId, selector, value }: { fieldId?: string; selector?: string; value: any }) => {

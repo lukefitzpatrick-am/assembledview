@@ -7,6 +7,7 @@ import {
   asString,
   capList,
   jsonContent,
+  resolveMediaContainerScope,
   resolveScopedMba,
   truncateText,
 } from "./helpers"
@@ -48,9 +49,10 @@ export const getCampaignContextTool: AvaTool = {
     const clientSlug = asString(args.clientSlug) ?? context.clientSlug
 
     try {
+      const { versionNumber, mediaTypeFilter } = resolveMediaContainerScope(context)
       const [summary, byChannel] = await Promise.all([
         getAvaXanoSummary({ clientSlug, mbaNumber: mba }),
-        fetchAllMediaContainerLineItems(mba),
+        fetchAllMediaContainerLineItems(mba, versionNumber, mediaTypeFilter),
       ])
 
       const flat: ReturnType<typeof summariseLineItem>[] = []

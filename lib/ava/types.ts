@@ -42,6 +42,13 @@ export type PageContext = {
     mbaNumber?: string
     campaignName?: string
     mediaTypes?: string[]
+    /** Active plan version from the edit page (`?version=`). */
+    versionNumber?: number
+    /**
+     * Enabled media-container fetch keys (e.g. `television`, `socialMedia`).
+     * Populated from media-type switches on the edit page.
+     */
+    enabledMediaTypes?: string[]
   }
   pageText?: {
     title?: string
@@ -52,4 +59,39 @@ export type PageContext = {
 
 type FormPatchUpdate = { fieldId: string; value: unknown }
 export type FormPatch = { updates: FormPatchUpdate[] }
-export type ModelChatReply = { replyText: string; patch: FormPatch | null }
+
+/** Display-only file download for the chat UI (never round-tripped into the agent loop). */
+export type ChatFileAttachment = {
+  kind: "file"
+  fileName: string
+  url: string
+  contentType: string
+  sizeBytes?: number
+  /** Present only when the client already knows a TTL; omit otherwise. */
+  expiresInMinutes?: number
+}
+
+/**
+ * Display/input sugar for MI interview questions (never round-tripped into the agent loop).
+ * Confirm sends the selection as a plain-text user message.
+ */
+export type ChatInterviewQuestion = {
+  kind: "question"
+  id: string
+  text: string
+  type: "choice" | "multichoice" | "text"
+  options?: string[]
+  /** Proposed defaults pre-selected in the card. */
+  selected?: string[]
+  /** 1-based progress through the interview (answered + current). */
+  index: number
+  /** Original open-question count at interview start (stable denominator). */
+  total: number
+}
+
+export type ModelChatReply = {
+  replyText: string
+  patch: FormPatch | null
+  attachments?: ChatFileAttachment[]
+  questions?: ChatInterviewQuestion[]
+}
