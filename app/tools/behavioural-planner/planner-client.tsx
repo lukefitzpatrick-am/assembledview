@@ -385,17 +385,38 @@ export function BehaviouralPlannerClient() {
   )
 
   const constraintChannels = useMemo(() => {
-    const map = new Map<string, string>()
+    type Entry = { id: string; name: string; group: string; sortOrder: number }
+    const map = new Map<string, Entry>()
+    const groupFirstOrder = new Map<string, number>()
+
     for (const a of state.audiences) {
       const adapted = results[a.id]?.adapted
       if (!adapted) continue
-      for (const ch of adapted.channels) {
-        if (!map.has(ch.id)) map.set(ch.id, ch.name)
+      for (const row of adapted.taxonomy) {
+        if (row.rowType === "rollup" || !row.engine) continue
+        const prevGroupOrder = groupFirstOrder.get(row.level1)
+        if (prevGroupOrder == null || row.sortOrder < prevGroupOrder) {
+          groupFirstOrder.set(row.level1, row.sortOrder)
+        }
+        if (map.has(row.engine.id)) continue
+        map.set(row.engine.id, {
+          id: row.engine.id,
+          name: row.engine.name,
+          group: row.level1,
+          sortOrder: row.sortOrder,
+        })
       }
     }
-    return [...map.entries()]
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name))
+
+    return [...map.values()]
+      .sort((a, b) => {
+        const aGroup = groupFirstOrder.get(a.group) ?? a.sortOrder
+        const bGroup = groupFirstOrder.get(b.group) ?? b.sortOrder
+        if (aGroup !== bGroup) return aGroup - bGroup
+        if (a.group !== b.group) return a.group.localeCompare(b.group)
+        return a.sortOrder - b.sortOrder
+      })
+      .map(({ id, name, group }) => ({ id, name, group }))
   }, [state.audiences, results])
 
   const compareBundles: AudienceCompareBundle[] = useMemo(() => {
