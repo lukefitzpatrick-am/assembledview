@@ -2,15 +2,19 @@
 
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
+import { ImageOff } from "lucide-react"
 
-import type { CreativeAsset } from "@/lib/creative/types"
-import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import type { CreativeAsset } from "@/lib/creative/types"
+import { cn } from "@/lib/utils"
+import { useMediaObjectUrl } from "./useMediaObjectUrl"
 
 export function isImage(mime: string) {
   return mime.startsWith("image/")
@@ -117,18 +121,62 @@ function RawMedia({
   asset,
   fit,
   className,
+  objectUrl,
+  objectLoading,
+  objectError,
+  onRetry,
 }: {
   asset: CreativeAsset
   fit: MediaFit
   className?: string
+  /** Shared blob URL when parent already loaded the video. */
+  objectUrl?: string | null
+  objectLoading?: boolean
+  objectError?: string | null
+  onRetry?: () => void
 }) {
   const objectClass = fit === "contain" ? "object-contain" : "object-cover"
+  const fetched = useMediaObjectUrl(
+    isVideo(asset.mime_type) && objectUrl === undefined ? asset : null,
+  )
+  const videoSrc = objectUrl !== undefined ? objectUrl : fetched.url
+  const videoError = objectUrl !== undefined ? objectError ?? null : fetched.error
+  const videoLoading =
+    objectUrl !== undefined
+      ? Boolean(objectLoading) && !videoError
+      : fetched.loading
+  const retry = onRetry ?? fetched.retry
 
   if (isVideo(asset.mime_type)) {
+    if (videoError) {
+      return (
+        <div
+          className={cn(
+            "flex h-full w-full flex-col items-center justify-center gap-2 bg-muted px-4 text-center",
+            className,
+          )}
+          role="alert"
+        >
+          <ImageOff className="size-6 text-status-critical-fg" aria-hidden />
+          <p className="text-xs text-status-critical-fg">{videoError}</p>
+          <Button type="button" size="sm" variant="secondary" onClick={retry}>
+            Retry
+          </Button>
+        </div>
+      )
+    }
+    if (videoLoading || !videoSrc) {
+      return (
+        <Skeleton
+          className={cn("h-full w-full rounded-none", className)}
+          aria-label="Loading video preview"
+        />
+      )
+    }
     return (
       <video
         className={cn("h-full w-full", objectClass, className)}
-        src={mediaSrc(asset)}
+        src={videoSrc}
         muted
         autoPlay
         loop
@@ -142,7 +190,7 @@ function RawMedia({
       // eslint-disable-next-line @next/next/no-img-element -- trusted campaign asset via authenticated download route
       <img
         className={cn("h-full w-full", objectClass, className)}
-        src={mediaSrc(asset)}
+        src={`${mediaSrc(asset)}?inline=1`}
         alt={asset.asset_name}
       />
     )
@@ -204,6 +252,8 @@ export function StoryMedia({
   asset: CreativeAsset
   className?: string
 }) {
+  const sharedVideo = useMediaObjectUrl(isVideo(asset.mime_type) ? asset : null)
+
   if (isHtml5Zip(asset.mime_type)) {
     return <Html5Notice className={cn("absolute inset-0", className)} />
   }
@@ -211,13 +261,22 @@ export function StoryMedia({
     return <UnsupportedNotice className={cn("absolute inset-0", className)} />
   }
 
+  const videoProps = isVideo(asset.mime_type)
+    ? {
+        objectUrl: sharedVideo.url,
+        objectLoading: sharedVideo.loading,
+        objectError: sharedVideo.error,
+        onRetry: sharedVideo.retry,
+      }
+    : {}
+
   return (
     <div className={cn("absolute inset-0 overflow-hidden bg-foreground", className)}>
       <div className="absolute inset-0 scale-110 opacity-70 blur-2xl" aria-hidden>
-        <RawMedia asset={asset} fit="cover" />
+        <RawMedia asset={asset} fit="cover" {...videoProps} />
       </div>
       <div className="relative z-10 flex h-full w-full items-center justify-center">
-        <RawMedia asset={asset} fit="contain" />
+        <RawMedia asset={asset} fit="contain" {...videoProps} />
       </div>
     </div>
   )

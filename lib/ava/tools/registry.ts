@@ -11,10 +11,12 @@ import { getNamingRulesTool } from "./getNamingRules";
 import { getCreativeAssetsTool } from "./getCreativeAssets";
 import { getMethodologyTool } from "./getMethodology";
 import { getPacingSnapshotTool } from "./getPacingSnapshot";
+import { getDeliverySnapshotTool } from "./getDeliverySnapshot";
 import { getPlatformSpecsTool } from "./getPlatformSpecs";
 import { startMiInterviewTool } from "./startMiInterview";
 import { generateMiWorkbookTool } from "./generateMiWorkbook";
 import { loadSkillTool } from "./loadSkill";
+import { generatePerformanceReportTool } from "./generatePerformanceReport";
 
 const AVA_TOOLS: AvaTool[] = [
   getMediaPlanSummaryTool,
@@ -27,10 +29,12 @@ const AVA_TOOLS: AvaTool[] = [
   getCreativeAssetsTool,
   getMethodologyTool,
   getPacingSnapshotTool,
+  getDeliverySnapshotTool,
   getPlatformSpecsTool,
   startMiInterviewTool,
   generateMiWorkbookTool,
   loadSkillTool,
+  generatePerformanceReportTool,
 ];
 
 const registeredNames = AVA_TOOLS.map((t) => t.definition.name);

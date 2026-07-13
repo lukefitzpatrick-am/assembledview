@@ -39,7 +39,8 @@ export function AllChannelsCompareTable({ bundles }: AllChannelsCompareTableProp
         <h3 className="text-sm font-medium">All channels</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
           Full RM taxonomy per audience. Reach and index sit side by side — the gap is the
-          planning read. Group totals show reach only and are not scored. Search is modelled.
+          planning read. Group totals show reach only (no status badge) and are not scored.
+          Search is modelled.
         </p>
       </div>
       <div className="overflow-x-auto rounded-card border border-border bg-card shadow-e1">
@@ -104,7 +105,14 @@ export function AllChannelsCompareTable({ bundles }: AllChannelsCompareTableProp
                           isRollup ? "pl-3 font-medium" : "pl-5 font-normal"
                         )}
                       >
-                        {templateRow.label}
+                        <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                          <span>{templateRow.label}</span>
+                          {isRollup ? (
+                            <span className="text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
+                              Group total
+                            </span>
+                          ) : null}
+                        </span>
                       </td>
                       <td className="px-3 py-2.5">
                         <TaxonomyStatusBadge row={templateRow} />

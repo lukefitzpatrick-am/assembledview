@@ -54,6 +54,26 @@ function compactQuestion(question: ReturnType<typeof resolveMiPlan>["open_questi
 }
 
 /**
+ * Count answers that matched an open question and closed it.
+ * Unmatched ids (stale / invented) do not advance progress.
+ * Follow-up questions after dead-ends (e.g. specs_source) grow the total.
+ */
+function countConsumedAnswers(plan: MiPlanInput, answers: MiAnswer[]): number {
+  let consumed = 0
+  const applied: MiAnswer[] = []
+  for (const answer of answers) {
+    const before = resolveMiPlan(plan, undefined, applied)
+    const wasOpen = before.open_questions.some((question) => question.id === answer.questionId)
+    if (!wasOpen) continue
+    applied.push(answer)
+    const after = resolveMiPlan(plan, undefined, applied)
+    const stillOpen = after.open_questions.some((question) => question.id === answer.questionId)
+    if (!stillOpen) consumed += 1
+  }
+  return consumed
+}
+
+/**
  * Tool-result payload for the model: summary counts + ONE current question.
  * Remaining questions stay server-side until the next tool call after an answer.
  * Derived fills are count-only mid-interview; full `derived` only when complete.
@@ -67,8 +87,8 @@ export function buildMiInterviewPayload(
   const current = result.open_questions[0]
     ? compactQuestion(result.open_questions[0])
     : null
-  const answeredCount = Math.max(0, baseline.summary.open - result.summary.open)
-  const questionTotal = Math.max(baseline.summary.open, 1)
+  const answeredCount = countConsumedAnswers(plan, answers)
+  const questionTotal = Math.max(baseline.summary.open, answeredCount + result.summary.open, 1)
 
   const payload: MiInterviewToolPayload = {
     summary: `${result.summary.resolved} resolved, ${result.summary.open} open`,
@@ -93,9 +113,10 @@ export function buildMiInterviewPayload(
 
 /**
  * Side-channel card(s) for the current open question.
- * Index/total use resolver progress (baseline open − remaining open), not
- * priorAnswers.length — unmatched answer ids must not advance the counter.
- * Exactly ONE card per turn; questions 2+ arrive only via the next tool call.
+ * Index/total use consumed matched answers + remaining open (so follow-up
+ * questions after dead-ends grow questionTotal). Unmatched answer ids do not
+ * advance the counter. Exactly ONE card per turn; questions 2+ arrive only via
+ * the next tool call.
  */
 export function buildMiInterviewQuestionCards(
   plan: MiPlanInput,

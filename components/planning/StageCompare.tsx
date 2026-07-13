@@ -11,6 +11,8 @@ import type { AdapterResult } from "@/lib/planning/adapter"
 import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
 import { buildCreateCampaignHref } from "@/lib/mediaplan/createPrefill"
 import { cn } from "@/lib/utils"
+import { CompareAudienceInsight } from "./CompareAudienceInsight"
+import { ExportDeckButton } from "./ExportDeckButton"
 import { AllChannelsCompareTable } from "./AllChannelsCompareTable"
 import { OutcomeCharts, topDfiiLabel } from "./OutcomeCharts"
 import { RecommendedSplitBlock } from "./RecommendedSplitBlock"
@@ -22,6 +24,7 @@ import type {
   BriefState,
   DiagnosisState,
 } from "./store"
+import type { PlanningSegment } from "@/lib/planning/types"
 
 export type AudienceCompareBundle = {
   draft: AudienceDraft
@@ -51,6 +54,12 @@ type StageCompareProps = {
   bundles: AudienceCompareBundle[]
   savedAudiences: PlanningAudienceRow[]
   savedLoading: boolean
+  /** engineChannelId → display name for export constraints summary */
+  channelNamesById: Record<string, string>
+  /** Lookup shared insight cache entry for an audience draft id. */
+  insightFor: (draftId: string) => { cacheKey: string; cachedInsight: string | null }
+  onInsight: (cacheKey: string, text: string) => void
+  segments: PlanningSegment[]
   onOpenMethodology: (focusId?: string) => void
   onLoadSaved: (row: PlanningAudienceRow) => void
   onAudienceSaved: () => void
@@ -75,6 +84,10 @@ export function StageCompare({
   bundles,
   savedAudiences,
   savedLoading,
+  channelNamesById,
+  insightFor,
+  onInsight,
+  segments,
   onOpenMethodology,
   onLoadSaved,
   onAudienceSaved,
@@ -90,6 +103,9 @@ export function StageCompare({
   const [lastSavedName, setLastSavedName] = useState<string | null>(null)
 
   const canSave = Boolean(brief.clientId && brief.clientName.trim())
+  const insightByAudienceId = Object.fromEntries(
+    bundles.map((b) => [b.draft.id, insightFor(b.draft.id).cachedInsight])
+  )
 
   async function handleUseAudience(bundle: AudienceCompareBundle) {
     if (!brief.clientId) {
@@ -145,11 +161,27 @@ export function StageCompare({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-base font-medium">Compare & plan</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Per-audience mix side-by-side. Audiences are compared — never added together.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-medium">Compare & plan</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Per-audience mix side-by-side. Audiences are compared — never added together.
+          </p>
+        </div>
+        <ExportDeckButton
+          brief={brief}
+          diagnosis={diagnosis}
+          waveLabel={waveLabel}
+          reachBasis={reachBasis}
+          bundles={bundles}
+          excludedChannelIds={excludedChannelIds}
+          channelNamesById={channelNamesById}
+          insightByAudienceId={insightByAudienceId}
+          insightFor={insightFor}
+          onInsight={onInsight}
+          segments={segments}
+          showDollars={showDollars}
+        />
       </div>
 
       <div
@@ -216,6 +248,17 @@ export function StageCompare({
                   <span className="text-muted-foreground">Top DFII: </span>
                   {topDfiiLabel(b.scored) ?? "—"}
                 </div>
+                <CompareAudienceInsight
+                  draft={b.draft}
+                  adapted={b.adapted}
+                  scored={b.scored}
+                  brief={brief}
+                  waveLabel={waveLabel}
+                  segments={segments}
+                  cacheKey={insightFor(b.draft.id).cacheKey}
+                  cachedInsight={insightFor(b.draft.id).cachedInsight}
+                  onInsight={onInsight}
+                />
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"

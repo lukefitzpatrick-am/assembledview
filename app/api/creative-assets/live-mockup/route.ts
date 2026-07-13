@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
       {
         error: "provider_not_configured",
         message:
-          "Live page screenshots aren't configured yet. Add SCREENSHOTONE_ACCESS_KEY or use built-in templates.",
+          "Live page screenshots aren't configured yet. Add SCREENSHOT_ACCESS or use built-in templates.",
       },
       { status: 503, headers: HEADERS },
     )
@@ -141,13 +141,20 @@ export async function POST(request: NextRequest) {
 
   let injectScript: string | null = null
   let hint: string | undefined
+  const publicOrigin = resolvePublicOrigin(request)
+  const isLocalOrigin =
+    /localhost|127\.0\.0\.1/i.test(publicOrigin) || publicOrigin.startsWith("http://192.")
 
   if (mode === "inject" && creative) {
     if (creative.mime_type === "application/zip") {
       hint = "HTML5 creatives: use manual placement on a plain screenshot."
     } else if (supportsLiveInjection(creative.mime_type)) {
+      if (isLocalOrigin) {
+        hint =
+          "Creative injection needs a publicly reachable app URL — ScreenshotOne can't load localhost /frame links. Deploy or set APP_BASE_URL, or use manual placement."
+      }
       const frameUrl = mintFrameUrl({
-        origin: resolvePublicOrigin(request),
+        origin: publicOrigin,
         id: creative.id,
       })
       if (!frameUrl) {
@@ -159,6 +166,7 @@ export async function POST(request: NextRequest) {
           { status: 503, headers: HEADERS },
         )
       }
+      // Still inject on localhost so the empty-slot screenshot is useful for layout checks.
       injectScript = buildInjectScript(creative, frameUrl)
     }
   }

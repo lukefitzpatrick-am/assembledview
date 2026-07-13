@@ -162,31 +162,80 @@ export function exportCsv(rows: Record<string, unknown>[], filename = 'chart.csv
   triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8' }), filename);
 }
 
+export type CapturedPng = {
+  dataUrl: string
+  /** Pixel width of the rendered PNG. */
+  width: number
+  /** Pixel height of the rendered PNG. */
+  height: number
+}
+
+/**
+ * Render the first <svg> inside `el` to a PNG data URL (or html2canvas fallback).
+ * Works for Recharts / custom-SVG charts and HTML tables.
+ * Returns pixel dimensions so exporters can preserve aspect ratio.
+ */
+export async function captureNodePng(
+  el: HTMLElement | null,
+  scale = 2
+): Promise<CapturedPng | null> {
+  if (!el) return null
+
+  const svg = el.querySelector("svg")
+  if (svg) {
+    const clone = svg.cloneNode(true) as SVGSVGElement
+    const rect = svg.getBoundingClientRect()
+    const w = rect.width || 600
+    const h = rect.height || 400
+    clone.setAttribute("width", String(w))
+    clone.setAttribute("height", String(h))
+    const xml = new XMLSerializer().serializeToString(clone)
+    const img = new Image()
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(xml)
+    await new Promise<void>((res, rej) => {
+      img.onload = () => res()
+      img.onerror = () => rej(new Error("SVG image load failed"))
+    })
+    const canvas = document.createElement("canvas")
+    canvas.width = w * scale
+    canvas.height = h * scale
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return null
+    ctx.fillStyle = "#ffffff"
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.scale(scale, scale)
+    ctx.drawImage(img, 0, 0)
+    return {
+      dataUrl: canvas.toDataURL("image/png"),
+      width: canvas.width,
+      height: canvas.height,
+    }
+  }
+
+  const html2canvas = (await import("html2canvas")).default
+  const canvas = await html2canvas(el, {
+    scale,
+    backgroundColor: "#ffffff",
+    logging: false,
+    useCORS: true,
+  })
+  return {
+    dataUrl: canvas.toDataURL("image/png"),
+    width: canvas.width,
+    height: canvas.height,
+  }
+}
+
 /**
  * Render the first <svg> inside `el` to a PNG download.
  * Works for both the Recharts charts and the custom-SVG ones.
  */
-export async function exportPng(el: HTMLElement | null, filename = 'chart.png', scale = 2) {
-  if (!el) return;
-  const svg = el.querySelector('svg');
-  if (!svg) return;
-  const clone = svg.cloneNode(true) as SVGSVGElement;
-  const rect = svg.getBoundingClientRect();
-  const w = rect.width || 600, h = rect.height || 400;
-  clone.setAttribute('width', String(w));
-  clone.setAttribute('height', String(h));
-  const xml = new XMLSerializer().serializeToString(clone);
-  const img = new Image();
-  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
-  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; });
-  const canvas = document.createElement('canvas');
-  canvas.width = w * scale; canvas.height = h * scale;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.scale(scale, scale);
-  ctx.drawImage(img, 0, 0);
-  canvas.toBlob((blob) => blob && triggerDownload(blob, filename), 'image/png');
+export async function exportPng(el: HTMLElement | null, filename = "chart.png", scale = 2) {
+  const captured = await captureNodePng(el, scale)
+  if (!captured) return
+  const res = await fetch(captured.dataUrl)
+  const blob = await res.blob()
+  triggerDownload(blob, filename)
 }
 
 function triggerDownload(blob: Blob, filename: string) {

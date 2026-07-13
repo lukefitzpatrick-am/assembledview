@@ -231,6 +231,33 @@ test("unmatched prior answers do not advance card index or swap question identit
   assert.equal(stale.total, baseline.total)
 })
 
+test("specs_source follow-up after not-in-library grows questionTotal", () => {
+  const plan = {
+    lineItems: {
+      socialMedia: [
+        { line_item_id: "pub-dead", publisher: "Metha", placement: "Feed video" },
+      ],
+    },
+  }
+  const first = buildMiInterviewPayload(plan, [])
+  assert.equal(first.currentQuestion?.field, "publisher")
+  assert.equal(first.questionIndex, 1)
+  assert.equal(first.questionTotal, 1)
+
+  const afterDeadEnd = buildMiInterviewPayload(plan, [
+    { questionId: "publisher:pub-dead", answer: "not in library" },
+  ])
+  assert.equal(afterDeadEnd.currentQuestion?.field, "specs_source")
+  assert.equal(afterDeadEnd.questionIndex, 2)
+  assert.equal(afterDeadEnd.questionTotal, 2)
+
+  const cards = buildMiInterviewQuestionCards(plan, [
+    { questionId: "publisher:pub-dead", answer: "not in library" },
+  ])
+  assert.equal(cards![0].index, 2)
+  assert.equal(cards![0].total, 2)
+})
+
 test("start_mi_interview tool description enforces tool-driven question contract", () => {
   const description = startMiInterviewTool.definition.description ?? ""
   assert.match(description, /ONE current/i)

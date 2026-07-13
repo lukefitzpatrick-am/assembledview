@@ -257,7 +257,37 @@ export async function runAvaAgent(
         continue;
       }
 
+      if (stopReason === "max_tokens") {
+        const partial = extractAllTextBlocks(response.content);
+        console.error("[ava] stop", {
+          stopReason,
+          iter,
+          toolCallCount: toolCalls.length,
+          outputTokens: usage.outputTokens,
+        });
+        if (partial.length > 0) {
+          return finishTurn(
+            `${partial}\n\n[Reply hit the length limit — say "continue" for the rest.]`,
+            input.context,
+            toolCalls,
+            usage,
+          );
+        }
+        return finishTurn(
+          "That answer exceeded my reply limit before I could write anything. Ask me for a shorter cut (e.g. one section at a time).",
+          input.context,
+          toolCalls,
+          usage,
+        );
+      }
+
       const replyFromBlocks = extractAllTextBlocks(response.content);
+      console.error("[ava] stop", {
+        stopReason,
+        iter,
+        toolCallCount: toolCalls.length,
+        outputTokens: usage.outputTokens,
+      });
       const replyText =
         replyFromBlocks.length > 0 ? replyFromBlocks : FALLBACK_REPLY;
       return finishTurn(replyText, input.context, toolCalls, usage);

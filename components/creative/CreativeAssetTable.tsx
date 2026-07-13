@@ -62,6 +62,7 @@ type CreativeAssetTableProps = {
   defaultBrandName?: string
   clientName?: string
   campaignName?: string
+  mbaNumber?: string
   metaPageId?: string
   onRename: (id: number, assetName: string) => Promise<void>
   onLineItemChange: (
@@ -164,6 +165,7 @@ export function CreativeAssetTable({
   defaultBrandName = "Brand",
   clientName,
   campaignName,
+  mbaNumber,
   metaPageId,
   onRename,
   onLineItemChange,
@@ -173,6 +175,11 @@ export function CreativeAssetTable({
   const [deleteTarget, setDeleteTarget] = useState<CreativeAsset | null>(null)
   const [mockupTarget, setMockupTarget] = useState<CreativeAsset | null>(null)
   const [deleting, setDeleting] = useState(false)
+
+  const socialLineItems = useMemo(
+    () => lineItemOptions.filter((option) => option.source_table === "media_plan_social"),
+    [lineItemOptions],
+  )
 
   const optionsById = useMemo(() => {
     const map = new Map<string, LineItemOption>()
@@ -378,6 +385,8 @@ export function CreativeAssetTable({
         defaultBrandName={defaultBrandName}
         clientName={clientName ?? defaultBrandName}
         campaignName={campaignName}
+        mbaNumber={mbaNumber}
+        socialLineItems={socialLineItems}
         metaPageId={metaPageId}
       />
     </>

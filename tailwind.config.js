@@ -80,6 +80,11 @@ const semanticColors = {
     search: "var(--channel-search)",
     ooh: "var(--channel-ooh)",
   },
+  audience: {
+    1: "var(--audience-1)",
+    2: "var(--audience-2)",
+    3: "var(--audience-3)",
+  },
   primary: {
     DEFAULT: "hsl(var(--primary))",
     foreground: "hsl(var(--primary-foreground))",

@@ -30,6 +30,7 @@ import { PLANNING_STATES } from "@/lib/planning/types"
 import { cn } from "@/lib/utils"
 import { Info } from "lucide-react"
 import { AUDIENCE_ACCENTS, MAX_AUDIENCES } from "./constants"
+import { AudienceInsightBlock } from "./AudienceInsightBlock"
 import {
   formatAudienceWc,
   pctOfUniverse,
@@ -39,6 +40,7 @@ import {
   effectiveSegmentId,
   isBaseSegmentLens,
   type AudienceDraft,
+  type BriefState,
 } from "./store"
 
 type AudienceResult = {
@@ -52,6 +54,11 @@ type StageAudiencesProps = {
   activeAudienceId: string
   segments: PlanningSegment[]
   results: Record<string, AudienceResult>
+  brief: BriefState
+  waveLabel: string
+  insightCacheKey: string
+  cachedInsight: string | null
+  onInsight: (cacheKey: string, text: string) => void
   onSelect: (id: string) => void
   onAdd: () => void
   onRemove: (id: string) => void
@@ -138,10 +145,20 @@ function LivePanel({
   draft,
   result,
   segments,
+  brief,
+  waveLabel,
+  insightCacheKey,
+  cachedInsight,
+  onInsight,
 }: {
   draft: AudienceDraft
   result: AudienceResult | undefined
   segments: PlanningSegment[]
+  brief: BriefState
+  waveLabel: string
+  insightCacheKey: string
+  cachedInsight: string | null
+  onInsight: (cacheKey: string, text: string) => void
 }) {
   const lensId = effectiveSegmentId(draft.segmentId)
   const lensLabel = isBaseSegmentLens(draft.segmentId)
@@ -202,6 +219,17 @@ function LivePanel({
             <span className="ml-1.5 opacity-90">{rob.detail}</span>
           </div>
 
+          <AudienceInsightBlock
+            draft={draft}
+            adapted={adapted}
+            brief={brief}
+            waveLabel={waveLabel}
+            segments={segments}
+            cacheKey={insightCacheKey}
+            cachedInsight={cachedInsight}
+            onInsight={onInsight}
+          />
+
           <div className="flex flex-wrap gap-1.5">
             {adapted && adapted.suppressedCells > 0 ? (
               <Badge variant="outline" size="sm" className="font-normal">
@@ -248,6 +276,11 @@ export function StageAudiences({
   activeAudienceId,
   segments,
   results,
+  brief,
+  waveLabel,
+  insightCacheKey,
+  cachedInsight,
+  onInsight,
   onSelect,
   onAdd,
   onRemove,
@@ -459,7 +492,16 @@ export function StageAudiences({
           </div>
         </div>
 
-        <LivePanel draft={active} result={results[active.id]} segments={segments} />
+        <LivePanel
+          draft={active}
+          result={results[active.id]}
+          segments={segments}
+          brief={brief}
+          waveLabel={waveLabel}
+          insightCacheKey={insightCacheKey}
+          cachedInsight={cachedInsight}
+          onInsight={onInsight}
+        />
       </div>
 
       {/* Comparison strip — never sums audience_wc across audiences */}

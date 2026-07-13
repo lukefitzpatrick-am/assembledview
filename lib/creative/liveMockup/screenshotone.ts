@@ -19,8 +19,15 @@ function buildParams(req: LiveMockupRender, accessKey: string): URLSearchParams 
   params.set("viewport_width", String(req.viewportWidth))
   params.set("ip_country_code", req.countryCode)
   params.set("block_cookie_banners", "true")
+  // Keep ad slots — we inject into them. Never set block_ads=true.
   params.set("block_ads", "false")
+  // Capture rendered HTML even when the host returns non-2xx (common on deep AU pages).
+  params.set("ignore_host_errors", "true")
+  // Default wait_until=load — networkidle hangs on ad-heavy pages (trackers never idle).
+  // delay runs after load so GPT/slot injection has time without waiting for idle.
   params.set("delay", "3")
+  // Provider timeout (seconds) below our 55s AbortController so their error beats our abort.
+  params.set("timeout", "50")
   if (req.injectScript) {
     params.set("scripts", req.injectScript)
   }
@@ -55,15 +62,26 @@ export class ScreenshotOneProvider implements LiveMockupProvider {
 
       if (!response.ok) {
         const text = await response.text().catch(() => "")
+        let providerMessage = text.trim()
+        try {
+          const parsed = JSON.parse(text) as { error_message?: string; message?: string }
+          providerMessage =
+            parsed.error_message?.trim() || parsed.message?.trim() || providerMessage
+        } catch {
+          // keep raw text
+        }
         if (response.status === 401 || response.status === 403) {
-          throw new ProviderError("provider_blocked", "Screenshot provider rejected the request.")
+          throw new ProviderError(
+            "provider_blocked",
+            providerMessage || "Screenshot provider rejected the request.",
+          )
         }
         if (response.status === 408 || response.status === 504) {
           throw new ProviderError("provider_timeout", "Screenshot timed out — try again or use manual placement.")
         }
         throw new ProviderError(
           "provider_blocked",
-          text.slice(0, 200) || "Screenshot provider couldn't render this page.",
+          providerMessage || "Screenshot provider couldn't render this page.",
         )
       }
 

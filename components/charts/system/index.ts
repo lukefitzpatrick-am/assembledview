@@ -52,8 +52,9 @@ export {
 // Chart chrome — shell, toolbar, legend, export
 export {
   BaseChartCard, ChartExportToolbar, ToggleableLegend, ChartFilterLegend, useLegendToggle,
-  exportCsv, exportPng,
+  exportCsv, exportPng, captureNodePng,
   type BaseChartCardProps, type ChartExportToolbarProps, type LegendItem, type ToggleableLegendProps,
+  type CapturedPng,
 } from './chart-shell';
 
 // Theme + helpers

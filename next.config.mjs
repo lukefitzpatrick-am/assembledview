@@ -21,6 +21,11 @@ const nextConfig = {
   experimental: {
     // Removed deprecated experimental features for Next.js 15
   },
+  outputFileTracingIncludes: {
+    "/api/planning/export-deck": ["./lib/planning/export/assets/**"],
+    "/api/planning/insight": ["./lib/ava/skills/content/**"],
+    "/api/chat-v2": ["./lib/ava/skills/content/**"],
+  },
   webpack: (config, { isServer, dev }) => {
     config.resolve.extensionAlias = { ".js": [".js", ".ts", ".tsx"] }
 

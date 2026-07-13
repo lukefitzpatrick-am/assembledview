@@ -4,12 +4,22 @@ import { auth0 } from "@/lib/auth0"
 import { fetchAllMediaContainerLineItems } from "@/lib/api/media-containers"
 import { getUserRoles } from "@/lib/rbac"
 import {
+  applyClientPrefill,
+  type MiClientPrefill,
+} from "@/lib/specs/applyClientPrefill"
+import {
   buildMiWorkbook,
   miPayloadFromResolve,
   miWorkbookFilename,
   type MiWorkbookCampaign,
 } from "@/lib/specs/buildMiWorkbook"
-import { applyAnswers, resolveMiPlan, type MiAnswer, type MiPlanInput } from "@/lib/specs/resolve"
+import {
+  applyAnswers,
+  resolveMiPlan,
+  type MiAnswer,
+  type MiPlanInput,
+  type MiResolveResult,
+} from "@/lib/specs/resolve"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -19,6 +29,9 @@ export const maxDuration = 60
 type ExportBody = {
   answers?: MiAnswer[]
   prepared_by?: string
+  client_prefill?: MiClientPrefill[]
+  /** When true, return open_questions JSON instead of building the workbook. */
+  dry_run?: boolean
 }
 
 function text(value: unknown): string {
@@ -41,6 +54,22 @@ function campaignFromLineItems(
   }
 }
 
+function resolvePlan(
+  lineItems: Record<string, unknown[]>,
+  answers: MiAnswer[],
+  clientPrefill?: MiClientPrefill[],
+): MiResolveResult {
+  const plan: MiPlanInput = { lineItems }
+  const result = answers.length > 0
+    ? applyAnswers(plan, answers)
+    : resolveMiPlan(plan)
+
+  if (Array.isArray(clientPrefill) && clientPrefill.length > 0) {
+    result.resolved = applyClientPrefill(result.resolved, clientPrefill)
+  }
+  return result
+}
+
 async function exportWorkbook(
   request: NextRequest,
   mbaNumber: string,
@@ -56,17 +85,23 @@ async function exportWorkbook(
   }
 
   const lineItems = await fetchAllMediaContainerLineItems(mbaNumber)
-  const plan: MiPlanInput = { lineItems }
   const answers = Array.isArray(body.answers) ? body.answers : []
-  const result = answers.length > 0
-    ? applyAnswers(plan, answers)
-    : resolveMiPlan(plan)
+  const result = resolvePlan(lineItems, answers, body.client_prefill)
+
+  if (body.dry_run) {
+    return NextResponse.json({
+      open_questions: result.open_questions,
+      summary: result.summary,
+      derived: result.derived,
+    })
+  }
+
   const campaign = campaignFromLineItems(
     mbaNumber,
     lineItems,
     body.prepared_by || session.user.name || session.user.email || undefined,
   )
-  const { workbook } = await buildMiWorkbook({
+  const { workbook, gapCount } = await buildMiWorkbook({
     ...miPayloadFromResolve(campaign, result),
     answers,
   })
@@ -77,6 +112,7 @@ async function exportWorkbook(
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${filename}"`,
       "Cache-Control": "no-store",
+      "X-Mi-Gap-Count": String(gapCount),
     },
   })
 }

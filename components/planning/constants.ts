@@ -30,25 +30,25 @@ export type AudienceAccent = {
   label: string
 }
 
-/** Three audience accent colours — channel tokens only. */
+/** Three audience accent colours — brand purple/green palette (not channel-tv red). */
 export const AUDIENCE_ACCENTS: AudienceAccent[] = [
   {
-    bg: "bg-channel-tv",
-    text: "text-channel-tv",
-    cssVar: "var(--channel-tv)",
-    label: "Coral",
-  },
-  {
-    bg: "bg-channel-bvod",
-    text: "text-channel-bvod",
-    cssVar: "var(--channel-bvod)",
+    bg: "bg-audience-1",
+    text: "text-audience-1",
+    cssVar: "var(--audience-1)",
     label: "Purple",
   },
   {
-    bg: "bg-channel-social",
-    text: "text-channel-social-fg",
-    cssVar: "var(--channel-social)",
-    label: "Sky",
+    bg: "bg-audience-2",
+    text: "text-audience-2",
+    cssVar: "var(--audience-2)",
+    label: "Green",
+  },
+  {
+    bg: "bg-audience-3",
+    text: "text-audience-3",
+    cssVar: "var(--audience-3)",
+    label: "Deep purple",
   },
 ]
 

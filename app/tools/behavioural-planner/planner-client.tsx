@@ -16,7 +16,6 @@ import type {
   Weights as EngineWeights,
 } from "@/app/tools/behavioural-planner/lib/types"
 import { MethodologyPanel } from "@/components/planning/MethodologyPanel"
-import { AvaPlanningInsightAction } from "@/components/ava/AvaSkillActionSets"
 import { PlanningStepper } from "@/components/planning/PlanningStepper"
 import { robustnessFromN } from "@/components/planning/robustness"
 import { StageAudiences } from "@/components/planning/StageAudiences"
@@ -206,6 +205,7 @@ export function BehaviouralPlannerClient() {
   )
 
   const [results, setResults] = useState<Record<string, AudienceResult>>({})
+  const [insightByKey, setInsightByKey] = useState<Record<string, string>>({})
   const [savedAudiences, setSavedAudiences] = useState<PlanningAudienceRow[]>([])
   const [savedLoading, setSavedLoading] = useState(false)
   const [savedRefresh, setSavedRefresh] = useState(0)
@@ -311,6 +311,19 @@ export function BehaviouralPlannerClient() {
           meta: currentMeta,
           segmentId: effectiveSegmentId(draft.segmentId),
         })
+        if (process.env.NODE_ENV === "development") {
+          console.info("[planner] skippedEngineIds", next.skippedEngineIds)
+          console.info(
+            "[planner] leaf rows without engine",
+            next.taxonomy
+              .filter((r) => r.rowType === "leaf" && !r.engine)
+              .map((r) => ({
+                id: r.channelId,
+                engineId: r.engineChannelId,
+                label: r.label,
+              }))
+          )
+        }
         setResults((prev) => ({
           ...prev,
           [draft.id]: { adapted: next, loading: false, error: null },
@@ -372,17 +385,38 @@ export function BehaviouralPlannerClient() {
   )
 
   const constraintChannels = useMemo(() => {
-    const map = new Map<string, string>()
+    type Entry = { id: string; name: string; group: string; sortOrder: number }
+    const map = new Map<string, Entry>()
+    const groupFirstOrder = new Map<string, number>()
+
     for (const a of state.audiences) {
       const adapted = results[a.id]?.adapted
       if (!adapted) continue
-      for (const ch of adapted.channels) {
-        if (!map.has(ch.id)) map.set(ch.id, ch.name)
+      for (const row of adapted.taxonomy) {
+        if (row.rowType === "rollup" || !row.engine) continue
+        const prevGroupOrder = groupFirstOrder.get(row.level1)
+        if (prevGroupOrder == null || row.sortOrder < prevGroupOrder) {
+          groupFirstOrder.set(row.level1, row.sortOrder)
+        }
+        if (map.has(row.engine.id)) continue
+        map.set(row.engine.id, {
+          id: row.engine.id,
+          name: row.engine.name,
+          group: row.level1,
+          sortOrder: row.sortOrder,
+        })
       }
     }
-    return [...map.entries()]
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name))
+
+    return [...map.values()]
+      .sort((a, b) => {
+        const aGroup = groupFirstOrder.get(a.group) ?? a.sortOrder
+        const bGroup = groupFirstOrder.get(b.group) ?? b.sortOrder
+        if (aGroup !== bGroup) return aGroup - bGroup
+        if (a.group !== b.group) return a.group.localeCompare(b.group)
+        return a.sortOrder - b.sortOrder
+      })
+      .map(({ id, name, group }) => ({ id, name, group }))
   }, [state.audiences, results])
 
   const compareBundles: AudienceCompareBundle[] = useMemo(() => {
@@ -480,6 +514,15 @@ export function BehaviouralPlannerClient() {
     const audiences = state.audiences.slice(0, AVA_LIST_CAP).map((a) => {
       const adapted = results[a.id]?.adapted
       const rob = robustnessFromN(adapted?.unweightedN ?? 0)
+      const segmentId = effectiveSegmentId(a.segmentId)
+      const topIndexChannels = (adapted?.channels ?? [])
+        .map((ch) => ({
+          name: avaTruncate(ch.name, 80),
+          index: Math.round(ch.aff[segmentId] ?? 100),
+          reachPct: Math.round(ch.reachPct * 1000) / 10,
+        }))
+        .sort((x, y) => y.index - x.index)
+        .slice(0, 5)
       return {
         id: a.id,
         name: avaTruncate(a.name, 80),
@@ -489,6 +532,7 @@ export function BehaviouralPlannerClient() {
         unweightedN: rob.n,
         robustnessBand: rob.band,
         robustnessLabel: rob.label,
+        topIndexChannels,
       }
     })
     const active = state.audiences.find((a) => a.id === state.activeAudienceId)
@@ -536,7 +580,7 @@ export function BehaviouralPlannerClient() {
 
   if (metaLoading) {
     return (
-      <div className="container mx-auto max-w-5xl px-6 py-8">
+      <div className="container mx-auto max-w-5xl 2xl:max-w-7xl px-6 py-8">
         <p className="text-sm text-muted-foreground">Loading planning catalogue…</p>
       </div>
     )
@@ -544,7 +588,7 @@ export function BehaviouralPlannerClient() {
 
   if (metaError || !meta) {
     return (
-      <div className="container mx-auto max-w-5xl px-6 py-8">
+      <div className="container mx-auto max-w-5xl 2xl:max-w-7xl px-6 py-8">
         <div className="rounded-lg border border-status-critical-fg/30 bg-pacing-critical-bg px-4 py-6 text-sm text-status-critical-fg">
           <p className="font-medium">Could not load planning meta</p>
           <p className="mt-1 text-xs opacity-90">{metaError ?? "Unknown error"}</p>
@@ -558,11 +602,17 @@ export function BehaviouralPlannerClient() {
     state.waveId ||
     "—"
 
+  const activeAudience =
+    state.audiences.find((a) => a.id === state.activeAudienceId) ?? state.audiences[0]
+  const activeInsightKey = activeAudience
+    ? audienceKey(state.waveId, activeAudience)
+    : ""
+
   const reachBasisLabel =
     state.audiences[0]?.reachBasis === "total" ? "Total" : "Addressable"
 
   return (
-    <div className="container mx-auto max-w-5xl px-6 py-8">
+    <div className="container mx-auto max-w-5xl 2xl:max-w-7xl px-6 py-8">
       <div className="mb-6 flex items-baseline justify-between border-b border-border pb-3">
         <div>
           <h1 className="text-xl font-medium">
@@ -576,7 +626,6 @@ export function BehaviouralPlannerClient() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <AvaPlanningInsightAction />
           <MethodologyPanel
             rows={meta.methodology}
             open={methodologyOpen}
@@ -621,6 +670,13 @@ export function BehaviouralPlannerClient() {
           activeAudienceId={state.activeAudienceId}
           segments={meta.segments}
           results={results}
+          brief={state.brief}
+          waveLabel={waveLabel}
+          insightCacheKey={activeInsightKey}
+          cachedInsight={activeInsightKey ? insightByKey[activeInsightKey] ?? null : null}
+          onInsight={(key, text) =>
+            setInsightByKey((prev) => ({ ...prev, [key]: text }))
+          }
           onSelect={(id) => dispatch({ type: "SET_ACTIVE_AUDIENCE", id })}
           onAdd={() => dispatch({ type: "ADD_AUDIENCE" })}
           onRemove={(id) => dispatch({ type: "REMOVE_AUDIENCE", id })}
@@ -668,6 +724,21 @@ export function BehaviouralPlannerClient() {
           bundles={compareBundles}
           savedAudiences={savedAudiences}
           savedLoading={savedLoading}
+          channelNamesById={Object.fromEntries(
+            constraintChannels.map((c) => [c.id, c.name])
+          )}
+          insightFor={(draftId) => {
+            const draft = state.audiences.find((a) => a.id === draftId)
+            const key = draft ? audienceKey(state.waveId, draft) : draftId
+            return {
+              cacheKey: key,
+              cachedInsight: insightByKey[key] ?? null,
+            }
+          }}
+          onInsight={(key, text) =>
+            setInsightByKey((prev) => ({ ...prev, [key]: text }))
+          }
+          segments={meta.segments}
           onOpenMethodology={(focusId) => {
             setMethodologyFocusId(focusId ?? null)
             setMethodologyOpen(true)

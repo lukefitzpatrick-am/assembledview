@@ -23,7 +23,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
+import { AvaSkillAction } from "@/components/ava/AvaSkillAction"
 import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
+
+const REVIEW_AND_REPORT_MESSAGE =
+  "Review delivery for this campaign and prepare the client performance report."
 
 type XanoPublicFile = {
   access?: string
@@ -320,6 +324,12 @@ export default function CampaignActions({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <AvaSkillAction
+            label="Review & Report"
+            message={REVIEW_AND_REPORT_MESSAGE}
+            className="h-9 rounded-pill px-4"
+            size="default"
+          />
         </div>
       ) : null}
 
@@ -388,6 +398,15 @@ export default function CampaignActions({
         <ActionIcon action="billing" loading={isDownloadingBilling} icon={<Download className="h-4 w-4" />} />
         <span className="ml-2">Billing</span>
       </Button>
+      <AvaSkillAction
+        label="Review & Report"
+        message={REVIEW_AND_REPORT_MESSAGE}
+        className={cn(
+          "h-9 rounded-pill px-4",
+          showFloating ? "hidden md:inline-flex" : "inline-flex",
+        )}
+        size="default"
+      />
     </CampaignExportsSection>
   )
 }

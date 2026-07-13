@@ -14,7 +14,77 @@ import {
 import type { ChatFileAttachment, FormPatch, ModelChatReply, PageContext } from "@/lib/ava/types"
 import type { ChatMode } from "@/src/ava/modes"
 import { ChatQuestionCard, type ChatQuestionCardState } from "@/components/ChatQuestionCard"
-import { ChevronDown, ChevronUp, FileSpreadsheet } from "lucide-react"
+import {
+  ChevronDown,
+  ChevronUp,
+  FileSpreadsheet,
+  Maximize2,
+  PanelBottom,
+  PanelBottomClose,
+  X,
+} from "lucide-react"
+
+const SIZE_PRESETS = {
+  compact: { w: 384, h: 480 },
+  large: { w: 560, h: 640 },
+  max: { w: 0, h: 0 }, // resolved at apply time
+} as const
+
+type PanelSize = { w: number; h: number }
+type SizePresetKey = keyof typeof SIZE_PRESETS
+
+const MIN_W = 320
+const MIN_H = 380
+const PANEL_SIZE_KEY = "ava:panel-size"
+
+function clamp(n: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, n))
+}
+
+function resolveMaxPreset(): PanelSize {
+  if (typeof window === "undefined") return { w: 1100, h: 900 }
+  return {
+    w: Math.min(Math.floor(window.innerWidth * 0.9), 1100),
+    h: Math.min(Math.floor(window.innerHeight * 0.85), 900),
+  }
+}
+
+function clampPanelSize(size: PanelSize): PanelSize {
+  if (typeof window === "undefined") {
+    return {
+      w: clamp(size.w, MIN_W, 1100),
+      h: clamp(size.h, MIN_H, 900),
+    }
+  }
+  return {
+    w: clamp(size.w, MIN_W, window.innerWidth - 48),
+    h: clamp(size.h, MIN_H, window.innerHeight - 48),
+  }
+}
+
+function readStoredPanelSize(): PanelSize {
+  if (typeof window === "undefined") return SIZE_PRESETS.compact
+  try {
+    const raw = localStorage.getItem(PANEL_SIZE_KEY)
+    if (!raw) return SIZE_PRESETS.compact
+    const parsed = JSON.parse(raw) as Partial<PanelSize>
+    if (typeof parsed?.w !== "number" || typeof parsed?.h !== "number") {
+      return SIZE_PRESETS.compact
+    }
+    return clampPanelSize({ w: parsed.w, h: parsed.h })
+  } catch {
+    return SIZE_PRESETS.compact
+  }
+}
+
+function persistPanelSize(size: PanelSize) {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(PANEL_SIZE_KEY, JSON.stringify(size))
+  } catch {
+    // ignore quota / private mode
+  }
+}
 
 type ChatUiMessage = {
   role: "user" | "assistant"
@@ -156,6 +226,13 @@ export function ChatWidget({
   const [dragState, setDragState] = useState<{ offsetX: number; offsetY: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const dragMovedRef = useRef(false)
+  const [panelSize, setPanelSize] = useState<PanelSize>(() => readStoredPanelSize())
+  const [resizeState, setResizeState] = useState<{
+    startX: number
+    startY: number
+    startW: number
+    startH: number
+  } | null>(null)
 
   const appendAssistantNote = useCallback(
     (content: string) => setMessages((prev) => [...prev, { role: "assistant", content }]),
@@ -224,6 +301,57 @@ export function ChatWidget({
       window.removeEventListener("mouseup", handleMouseUp)
     }
   }, [dragState])
+
+  const startResize = useCallback(
+    (event: React.MouseEvent) => {
+      if (event.button !== 0) return
+      event.preventDefault()
+      event.stopPropagation()
+      setResizeState({
+        startX: event.clientX,
+        startY: event.clientY,
+        startW: panelSize.w,
+        startH: panelSize.h,
+      })
+    },
+    [panelSize.h, panelSize.w],
+  )
+
+  useEffect(() => {
+    if (!resizeState) return
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const next = clampPanelSize({
+        w: resizeState.startW + (resizeState.startX - event.clientX),
+        h: resizeState.startH + (resizeState.startY - event.clientY),
+      })
+      setPanelSize(next)
+    }
+
+    const handleMouseUp = () => {
+      setPanelSize((current) => {
+        const clamped = clampPanelSize(current)
+        persistPanelSize(clamped)
+        return clamped
+      })
+      setResizeState(null)
+    }
+
+    window.addEventListener("mousemove", handleMouseMove)
+    window.addEventListener("mouseup", handleMouseUp)
+
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove)
+      window.removeEventListener("mouseup", handleMouseUp)
+    }
+  }, [resizeState])
+
+  const applySizePreset = useCallback((key: SizePresetKey) => {
+    const next =
+      key === "max" ? clampPanelSize(resolveMaxPreset()) : clampPanelSize(SIZE_PRESETS[key])
+    setPanelSize(next)
+    persistPanelSize(next)
+  }, [])
 
   async function sendMessage(overrideText?: string, baseMessages?: ChatUiMessage[]) {
     const text = (overrideText ?? input).trim()
@@ -322,27 +450,48 @@ export function ChatWidget({
       className={cn("fixed bottom-6 right-6 z-50", className)}
       style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
     >
-      <Button
-        onMouseDown={startDrag}
-        onClick={handleToggleClick}
-        className={cn(
-          "rounded-full shadow-lg cursor-grab active:cursor-grabbing",
-          isDragging && "cursor-grabbing"
-        )}
-        size="lg"
-        variant={isOpen ? "secondary" : "default"}
-      >
-        {isOpen ? "Close Ava" : "Ask Ava"}
-      </Button>
+      {!isOpen && (
+        <Button
+          onMouseDown={startDrag}
+          onClick={handleToggleClick}
+          className={cn(
+            "rounded-full shadow-lg cursor-grab active:cursor-grabbing",
+            isDragging && "cursor-grabbing"
+          )}
+          size="lg"
+          variant="default"
+        >
+          Ask Ava
+        </Button>
+      )}
 
       {isOpen && (
         <div
           className={cn(
-            "mt-3 rounded-xl border border-border bg-card shadow-2xl",
-            isCollapsed ? "w-80" : "w-96"
+            "relative mt-3 flex flex-col rounded-xl border border-border bg-card shadow-2xl",
+            isCollapsed ? "w-80" : undefined,
           )}
+          style={
+            isCollapsed
+              ? undefined
+              : { width: panelSize.w, height: panelSize.h }
+          }
         >
-          <div className="flex items-center justify-between border-b px-4 py-3 gap-3">
+          {!isCollapsed && (
+            <button
+              type="button"
+              aria-label="Resize Ava chat"
+              title="Drag to resize"
+              className="absolute left-0 top-0 z-10 flex h-4 w-4 cursor-nwse-resize items-center justify-center rounded-tl-xl text-muted-foreground/50 hover:text-muted-foreground"
+              onMouseDown={startResize}
+            >
+              <span
+                className="pointer-events-none block h-2.5 w-2.5 border-l-2 border-t-2 border-current opacity-70"
+                aria-hidden
+              />
+            </button>
+          )}
+          <div className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
             <div
               className={cn(
                 "cursor-grab select-none",
@@ -355,23 +504,69 @@ export function ChatWidget({
                 <p className="text-xs text-muted-foreground">Ask about this page, plans, or delivery</p>
               </div>
             </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => setIsCollapsed((v) => !v)}
-              aria-label={isCollapsed ? "Expand Ava chat" : "Collapse Ava chat"}
-              title={isCollapsed ? "Expand" : "Collapse"}
-            >
-              {isCollapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
+            <div className="flex shrink-0 items-center gap-0.5">
+              {!isCollapsed && (
+                <>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => applySizePreset("compact")}
+                    aria-label="Compact size"
+                    title="Compact"
+                  >
+                    <PanelBottomClose className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => applySizePreset("large")}
+                    aria-label="Large size"
+                    title="Large"
+                  >
+                    <PanelBottom className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => applySizePreset("max")}
+                    aria-label="Max size"
+                    title="Max"
+                  >
+                    <Maximize2 className="h-4 w-4" />
+                  </Button>
+                </>
+              )}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsCollapsed((v) => !v)}
+                aria-label={isCollapsed ? "Expand Ava chat" : "Collapse Ava chat"}
+                title={isCollapsed ? "Expand" : "Collapse"}
+              >
+                {isCollapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsOpen(false)}
+                aria-label="Close Ava chat"
+                title="Close"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {!isCollapsed && (
-            <div className="flex h-80 flex-col gap-3 overflow-y-auto bg-muted/50 px-3 py-3">
+            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-muted/50 px-3 py-3">
               {messages.length === 0 && (
                 <div className="flex flex-col gap-3">
-                  <p className="text-sm text-muted-foreground">How can I help?</p>
+                  <p className="text-sm text-muted-foreground">{"G'day — what are we working on?"}</p>
                   <div className="flex flex-col gap-2">
                     {starterChips.map((chip) => (
                       <button
@@ -424,7 +619,7 @@ export function ChatWidget({
             </div>
           )}
 
-          <div className="flex items-center gap-2 border-t px-3 py-3">
+          <div className="flex shrink-0 items-center gap-2 border-t px-3 py-3">
             <Input
               placeholder="Ask a question"
               value={input}

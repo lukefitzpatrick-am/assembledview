@@ -1,8 +1,8 @@
 import "server-only"
 
-/** 10 ad-copy generations / min per session key. */
+/** 20 ad-copy / copy-chat turns / min per session key. */
 const WINDOW_MS = 60_000
-const MAX_HITS = 10
+const MAX_HITS = 20
 
 type Bucket = { timestamps: number[] }
 

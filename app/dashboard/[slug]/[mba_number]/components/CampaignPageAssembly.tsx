@@ -1,12 +1,22 @@
 "use client"
 
-import { Component, type ErrorInfo, type ReactNode, Suspense, useEffect, useMemo, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import {
+  Component,
+  type ErrorInfo,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+} from "react"
+import { usePathname, useSearchParams } from "next/navigation"
 import { format } from "date-fns"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import { getCampaignKPIs } from "@/lib/api/kpi"
 import { buildKPITargetsMap, type KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import { buildLineItemKpiTargetMap } from "@/lib/kpi/lineItemKpiTargets"
+import { clearAssistantContext, setAssistantContext } from "@/lib/assistantBridge"
+import type { PageContext } from "@/lib/ava/types"
 
 import CampaignHeroBanner from "@/components/dashboard/campaign/CampaignHeroBanner"
 import CampaignSummaryRow from "@/components/dashboard/campaign/CampaignSummaryRow"
@@ -29,6 +39,77 @@ import {
   recomputeTimeMetrics,
   type DateRange,
 } from "@/lib/dashboard/dateFilter"
+
+const CHANNEL_SNAPSHOT_CAP = 15
+
+function roundPct(n: number): number {
+  return Math.round(n * 10) / 10
+}
+
+function channelLinesFromSpend(spendByChannel: unknown): Array<{
+  name: string
+  channel: string
+  planned: number
+}> {
+  const lines: Array<{ name: string; channel: string; planned: number }> = []
+  if (Array.isArray(spendByChannel)) {
+    for (const entry of spendByChannel) {
+      if (!entry || typeof entry !== "object") continue
+      const name = String(
+        (entry as any).mediaType ??
+          (entry as any).channel ??
+          (entry as any).media_type ??
+          (entry as any).name ??
+          "",
+      ).trim()
+      if (!name) continue
+      const planned = Number((entry as any).amount ?? (entry as any).spend ?? 0)
+      lines.push({
+        name,
+        channel: name,
+        planned: Number.isFinite(planned) ? planned : 0,
+      })
+      if (lines.length >= CHANNEL_SNAPSHOT_CAP) break
+    }
+    return lines
+  }
+  if (spendByChannel && typeof spendByChannel === "object") {
+    for (const [name, amount] of Object.entries(spendByChannel as Record<string, unknown>)) {
+      const planned = Number(amount)
+      lines.push({
+        name,
+        channel: name,
+        planned: Number.isFinite(planned) ? planned : 0,
+      })
+      if (lines.length >= CHANNEL_SNAPSHOT_CAP) break
+    }
+  }
+  return lines
+}
+
+function kpiTargetsSnapshot(rows: CampaignKPI[]): Record<string, number | null> | undefined {
+  if (!rows.length) return undefined
+  let ctr: number | null = null
+  let cvr: number | null = null
+  let vtr: number | null = null
+  let frequency: number | null = null
+  for (const row of rows) {
+    if (ctr == null && row.ctr != null && Number.isFinite(Number(row.ctr))) ctr = Number(row.ctr)
+    if (cvr == null && row.conversion_rate != null && Number.isFinite(Number(row.conversion_rate))) {
+      cvr = Number(row.conversion_rate)
+    }
+    if (vtr == null && row.vtr != null && Number.isFinite(Number(row.vtr))) vtr = Number(row.vtr)
+    if (frequency == null && row.frequency != null && Number.isFinite(Number(row.frequency))) {
+      frequency = Number(row.frequency)
+    }
+  }
+  const out: Record<string, number | null> = {}
+  if (ctr != null) out.ctrTarget = ctr
+  if (cvr != null) out.cvrTarget = cvr
+  if (vtr != null) out.vtrTarget = vtr
+  if (frequency != null) out.frequencyTarget = frequency
+  return Object.keys(out).length ? out : undefined
+}
 type SectionBoundaryProps = {
   title: string
   children: ReactNode
@@ -128,6 +209,7 @@ function formatLocalYmd(d: Date): string {
 
 export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   const [detailsOpen, setDetailsOpen] = useState(false)
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const {
     slug,
@@ -352,6 +434,104 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
       startDate,
     ],
   )
+
+  const pageContext: PageContext | undefined = useMemo(() => {
+    if (!slug || !mbaNumber || !campaign) return undefined
+
+    const clientSlug = slug
+    const clientName = heroCampaign.clientName
+    const campaignName = heroCampaign.campaignName
+    const pacePct =
+      typeof expectedSpend === "number" &&
+      Number.isFinite(expectedSpend) &&
+      expectedSpend > 0 &&
+      typeof actualSpend === "number" &&
+      Number.isFinite(actualSpend)
+        ? roundPct((actualSpend / expectedSpend) * 100)
+        : undefined
+
+    const channels = channelLinesFromSpend(filteredSpendByChannel)
+    const kpis = kpiTargetsSnapshot(savedCampaignKPIs)
+
+    const state: Record<string, unknown> = {
+      surface: "campaign-dashboard",
+      version: currentVersion,
+      flightDates: {
+        start: campaignStartISO ?? startDate ?? null,
+        end: campaignEndISO ?? endDate ?? null,
+      },
+      spend: {
+        delivered: Number.isFinite(actualSpend) ? actualSpend : undefined,
+        plannedToDate: Number.isFinite(expectedSpend) ? expectedSpend : undefined,
+        ...(pacePct !== undefined ? { pacePct } : {}),
+      },
+      time: {
+        elapsedPct: filteredTimeMetrics.timeElapsedPct,
+        daysElapsed: filteredTimeMetrics.daysElapsed,
+        daysRemaining: filteredTimeMetrics.daysRemaining,
+      },
+    }
+
+    if (!isUnfiltered) {
+      state.selectedDateRange = {
+        start: progressStartYmd || null,
+        end: progressEndYmd || null,
+      }
+    }
+
+    if (kpis) state.kpis = kpis
+    if (channels.length) state.channels = channels
+
+    return {
+      route: {
+        pathname: pathname || `/dashboard/${clientSlug}/${mbaNumber}`,
+        clientSlug,
+        mbaSlug: mbaNumber,
+      },
+      entities: {
+        clientSlug,
+        clientName,
+        mbaNumber,
+        campaignName,
+        versionNumber: currentVersion,
+      },
+      generatedAt: new Date().toISOString(),
+      state,
+    }
+  }, [
+    actualSpend,
+    campaign,
+    campaignEndISO,
+    campaignStartISO,
+    currentVersion,
+    endDate,
+    expectedSpend,
+    filteredSpendByChannel,
+    filteredTimeMetrics.daysElapsed,
+    filteredTimeMetrics.daysRemaining,
+    filteredTimeMetrics.timeElapsedPct,
+    heroCampaign.campaignName,
+    heroCampaign.clientName,
+    isUnfiltered,
+    mbaNumber,
+    pathname,
+    progressEndYmd,
+    progressStartYmd,
+    savedCampaignKPIs,
+    slug,
+    startDate,
+  ])
+
+  useEffect(() => {
+    if (!pageContext) return
+    setAssistantContext({ pageContext })
+  }, [pageContext])
+
+  useEffect(() => {
+    return () => {
+      clearAssistantContext()
+    }
+  }, [])
 
   return (
     <div className="mx-auto w-full max-w-[1600px] space-y-6 rounded-none bg-surface-muted px-4 pb-24 max-[375px]:pb-32 md:space-y-8 md:rounded-3xl md:px-6 lg:px-8">

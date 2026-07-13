@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { get } from "@vercel/blob"
 import { auth0 } from "@/lib/auth0"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { getUserRoles } from "@/lib/rbac"
+import { getPrivateBlob } from "@/lib/creative/getPrivateBlob"
 import { getById, XanoCreativeAssetError } from "@/lib/creative/xanoCreativeAssets"
 
 export const runtime = "nodejs"
@@ -57,20 +57,30 @@ export async function GET(
       if (!access.ok) return access.response
     }
 
-    const blobResult = await get(row.blob_url, { access: "private" })
+    const blobResult = await getPrivateBlob(row.blob_url)
     if (!blobResult || blobResult.statusCode !== 200 || !blobResult.stream) {
       return NextResponse.json({ error: "Blob not found" }, { status: 404 })
     }
 
     const filename = escapeDispositionFilename(row.original_filename)
     const contentType = row.mime_type || blobResult.blob.contentType || "application/octet-stream"
+    const inlineParam = request.nextUrl.searchParams.get("inline") === "1"
+    const isPreviewable =
+      contentType.startsWith("image/") || contentType.startsWith("video/")
+    const disposition = inlineParam || isPreviewable ? "inline" : "attachment"
+
+    const headers: Record<string, string> = {
+      "Content-Type": contentType,
+      "Content-Disposition": `${disposition}; filename="${filename}"`,
+    }
+    const size = blobResult.blob.size
+    if (typeof size === "number" && Number.isFinite(size) && size >= 0) {
+      headers["Content-Length"] = String(size)
+    }
 
     return new NextResponse(blobResult.stream, {
       status: 200,
-      headers: {
-        "Content-Type": contentType,
-        "Content-Disposition": `attachment; filename="${filename}"`,
-      },
+      headers,
     })
   } catch (error) {
     return xanoErrorResponse(error)

@@ -6,6 +6,7 @@ import {
   summariseBestPractice,
   summariseClientDetails,
   summariseCreativeAsset,
+  summariseDeliverySnapshot,
   summariseLineItem,
   summariseMethodology,
   summariseNamingRules,
@@ -22,16 +23,25 @@ test("ava tool catalog: names unique and complete", () => {
   assert.ok(AVA_TOOL_NAMES.includes("get_creative_assets"))
   assert.ok(AVA_TOOL_NAMES.includes("get_methodology"))
   assert.ok(AVA_TOOL_NAMES.includes("get_pacing_snapshot"))
+  assert.ok(AVA_TOOL_NAMES.includes("get_delivery_snapshot"))
   assert.ok(AVA_TOOL_NAMES.includes("apply_form_patch"))
   assert.ok(AVA_TOOL_NAMES.includes("get_media_plan_summary"))
   assert.ok(AVA_TOOL_NAMES.includes("get_platform_specs"))
   assert.ok(AVA_TOOL_NAMES.includes("start_mi_interview"))
   assert.ok(AVA_TOOL_NAMES.includes("generate_mi_workbook"))
   assert.ok(AVA_TOOL_NAMES.includes("load_skill"))
-  assert.equal(AVA_TOOL_NAMES.length, 14)
+  assert.ok(AVA_TOOL_NAMES.includes("generate_performance_report"))
+  assert.equal(AVA_TOOL_NAMES.length, 16)
   assert.deepEqual(
-    AVA_TOOL_NAMES.slice(-4),
-    ["get_platform_specs", "start_mi_interview", "generate_mi_workbook", "load_skill"],
+    AVA_TOOL_NAMES.slice(-6),
+    [
+      "get_delivery_snapshot",
+      "get_platform_specs",
+      "start_mi_interview",
+      "generate_mi_workbook",
+      "load_skill",
+      "generate_performance_report",
+    ],
   )
 })
 
@@ -181,4 +191,64 @@ test("get_pacing_snapshot shape", () => {
   assert.equal(snap.rowCount, 1)
   assert.equal(snap.rows[0]?.lineItemId, "xSE1")
   assert.equal(snap.statusCounts["on-track"], 1)
+})
+
+test("get_delivery_snapshot shape", () => {
+  const snap = summariseDeliverySnapshot({
+    asOf: "2026-07-13",
+    window: { startDate: "2026-01-01", endDate: "2026-06-30" },
+    mbaNumber: "MBA1",
+    versionNumber: 14,
+    channels: [
+      {
+        group: "social_meta",
+        lines: [
+          {
+            lineItemId: "xSO1",
+            name: "Meta prospecting",
+            plannedBudget: 10000,
+            plannedUnits: null,
+            startDate: "2026-01-01",
+            endDate: "2026-06-30",
+            spendToDate: 36500,
+            impressions: 7260000,
+            clicks: 12000,
+            results: 100,
+            video3sViews: 5000,
+            cpm: 5.03,
+            ctr: 0.00165,
+            cpc: 3.04,
+            noDeliveryRows: false,
+          },
+        ],
+        totals: {
+          spendToDate: 36500,
+          impressions: 7260000,
+          clicks: 12000,
+          results: 100,
+          video3sViews: 5000,
+          plannedBudget: 10000,
+          cpm: 5.03,
+          ctr: 0.00165,
+          cpc: 3.04,
+        },
+      },
+    ],
+    planTotals: {
+      spendToDate: 36500,
+      impressions: 7260000,
+      clicks: 12000,
+      results: 100,
+      video3sViews: 5000,
+      plannedBudget: 10000,
+      cpm: 5.03,
+      ctr: 0.00165,
+      cpc: 3.04,
+    },
+  })
+  assert.equal(snap.mbaNumber, "MBA1")
+  assert.equal(snap.versionNumber, 14)
+  assert.equal(snap.channels[0]?.group, "social_meta")
+  assert.equal(snap.channels[0]?.lines[0]?.impressions, 7260000)
+  assert.equal(snap.planTotals.spendToDate, 36500)
 })

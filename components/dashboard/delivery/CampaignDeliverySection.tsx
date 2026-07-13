@@ -18,18 +18,10 @@ import { buildSearchSection } from "./channels/searchAdapter"
 import { buildSocialMetaSection } from "./channels/socialMetaAdapter"
 import { buildSocialTiktokSection } from "./channels/socialTiktokAdapter"
 import type { ChannelSectionData } from "./channels/types"
-
-function cleanPacingLineItemId(v: unknown): string | null {
-  const s = String(v ?? "").trim().toLowerCase()
-  if (!s || s === "undefined" || s === "null") return null
-  return s
-}
-
-function extractPacingLineItemIdFromItem(item: unknown): string | null {
-  const row = item as Record<string, unknown>
-  const id = row?.line_item_id ?? row?.lineItemId ?? row?.LINE_ITEM_ID
-  return cleanPacingLineItemId(id)
-}
+import {
+  cleanPacingLineItemId,
+  extractPacingLineItemIdFromItem,
+} from "@/lib/pacing/delivery/lineItemIds"
 
 function isMetaPlatformString(value: unknown) {
   return /\b(meta|facebook|instagram|ig)\b/i.test(String(value ?? ""))

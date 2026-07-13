@@ -112,6 +112,76 @@ test("asks for a matching publisher's format when no format resolves", () => {
   assert.ok(question?.options?.includes("none of these"))
 })
 
+test("offers specs_source after format none-of-these", () => {
+  const plan = planFor({ id: "format-none", publisher: "Meta", placement: "Mystery takeover unit" })
+  const afterNone = applyAnswers(
+    plan,
+    [
+      { questionId: "creative_type:format-none", answer: "static" },
+      { questionId: "format:format-none", answer: "none of these" },
+    ],
+    library,
+  )
+  const offer = afterNone.open_questions.find((item) => item.field === "specs_source")
+
+  assert.ok(offer)
+  assert.equal(offer?.type, "choice")
+  assert.equal(offer?.appliesTo, "specs_source:format-none")
+  assert.deepEqual(offer?.options, [
+    "upload document",
+    "paste text",
+    "per booking",
+    "skip",
+  ])
+  assert.match(offer!.question, /publisher's spec sheet/i)
+
+  const skipped = applyAnswers(
+    plan,
+    [
+      { questionId: "creative_type:format-none", answer: "static" },
+      { questionId: "format:format-none", answer: "none of these" },
+      { questionId: "specs_source:format-none", answer: "skip" },
+    ],
+    library,
+  )
+  assert.equal(skipped.open_questions.length, 0)
+  assert.equal(skipped.resolved[0]?.confidence, "needs_spec")
+  assert.equal(skipped.resolved[0]?.sourceNote, "Format is not in the MI library")
+})
+
+test("offers specs_source after publisher not-in-library", () => {
+  const plan = planFor(
+    { id: "publisher-none", publisher: "Metha", placement: "Feed video" },
+  )
+  const afterNotInLibrary = applyAnswers(
+    plan,
+    [{ questionId: "publisher:publisher-none", answer: "not in library" }],
+    library,
+  )
+  const offer = afterNotInLibrary.open_questions.find((item) => item.field === "specs_source")
+
+  assert.ok(offer)
+  assert.equal(offer?.appliesTo, "specs_source:publisher-none")
+  assert.deepEqual(offer?.options, [
+    "upload document",
+    "paste text",
+    "per booking",
+    "skip",
+  ])
+
+  const awaitingUpload = applyAnswers(
+    plan,
+    [
+      { questionId: "publisher:publisher-none", answer: "not in library" },
+      { questionId: "specs_source:publisher-none", answer: "upload document" },
+    ],
+    library,
+  )
+  assert.equal(awaitingUpload.open_questions.length, 0)
+  assert.equal(awaitingUpload.resolved[0]?.confidence, "needs_spec")
+  assert.equal(awaitingUpload.resolved[0]?.sourceNote, "Awaiting spec upload")
+})
+
 test("asks for a publisher choice when aliases cannot resolve it", () => {
   const [question] = questionsFor(
     { id: "publisher-1", publisher: "Metha", placement: "Feed video" },
@@ -124,25 +194,57 @@ test("asks for a publisher choice when aliases cannot resolve it", () => {
   assert.ok(question.options?.includes("not in library"))
 })
 
-test("keeps non-display direct digital formats out of display fallback", () => {
+test("offers specs_source for custom Direct Digital with paste and per-booking paths", () => {
   const plan = planFor(
     { id: "custom-1", publisher: "Quantcast", placement: "Sponsored podcast" },
     "digitalAudio",
   )
   const [question] = resolveMiPlan(plan, library).open_questions
 
-  assert.equal(question.field, "custom_specs")
-  assert.equal(question.type, "text")
-  assert.match(question.question, /Custom format/)
+  assert.equal(question.field, "specs_source")
+  assert.equal(question.type, "choice")
+  assert.deepEqual(question.options, [
+    "upload document",
+    "paste text",
+    "per booking",
+    "skip",
+  ])
+  assert.match(question.question, /publisher's spec sheet/i)
 
-  const answered = applyAnswers(
+  const perBooking = applyAnswers(
     plan,
     [{ questionId: question.id, answer: "per booking" }],
     library,
   )
-  assert.equal(answered.open_questions.length, 0)
-  assert.equal(answered.resolved[0].confidence, "needs_spec")
-  assert.equal(answered.resolved[0].format_name, "NEEDS_SPEC")
+  assert.equal(perBooking.open_questions.length, 0)
+  assert.equal(perBooking.resolved[0].confidence, "needs_spec")
+  assert.equal(perBooking.resolved[0].format_name, "NEEDS_SPEC")
+  assert.equal(perBooking.resolved[0].sourceNote, "Custom publisher format")
+
+  const pasteOffer = applyAnswers(
+    plan,
+    [{ questionId: "specs_source:custom-1", answer: "paste text" }],
+    library,
+  )
+  const pasteQuestion = pasteOffer.open_questions.find((item) => item.field === "specs_paste")
+  assert.ok(pasteQuestion)
+  assert.equal(pasteQuestion?.type, "text")
+  assert.equal(pasteQuestion?.appliesTo, "specs_paste:custom-1")
+
+  const pasted = applyAnswers(
+    plan,
+    [
+      { questionId: "specs_source:custom-1", answer: "paste text" },
+      { questionId: "specs_paste:custom-1", answer: "Max 30s WAV; supply 5 days prior" },
+    ],
+    library,
+  )
+  assert.equal(pasted.open_questions.length, 0)
+  assert.equal(pasted.resolved[0].confidence, "needs_spec")
+  assert.equal(
+    pasted.resolved[0].fields_specs["Publisher-Specific Notes"],
+    "Max 30s WAV; supply 5 days prior",
+  )
 })
 
 test("asks to confirm mixed format variants", () => {
@@ -210,7 +312,7 @@ test("golden: questions use template and field order then answers re-resolve ide
       "placeholder:placeholder",
       "dimensions:dimensions",
       "variants:mixed",
-      "custom_specs:custom",
+      "specs_source:custom",
     ],
   )
 
@@ -224,7 +326,7 @@ test("golden: questions use template and field order then answers re-resolve ide
           ? "meta"
           : question.field === "placeholder"
             ? "skip"
-            : question.field === "custom_specs"
+            : question.field === "specs_source"
               ? "per booking"
               : question.options![0],
   }))
