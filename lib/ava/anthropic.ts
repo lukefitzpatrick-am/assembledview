@@ -31,7 +31,9 @@ export function getAnthropicClient(): Anthropic {
 export const AVA_MODEL =
   process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5";
 
-export const AVA_MAX_TOKENS = 2048;
+export const AVA_MAX_TOKENS = Number(process.env.AVA_MAX_TOKENS ?? 8192);
 
 /** Safety cap on the agent tool-use loop. */
-export const AVA_MAX_TOOL_ITERATIONS = 6;
+export const AVA_MAX_TOOL_ITERATIONS = Number(
+  process.env.AVA_MAX_TOOL_ITERATIONS ?? 8,
+);
