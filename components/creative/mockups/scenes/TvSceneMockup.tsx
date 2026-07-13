@@ -122,11 +122,38 @@ export function TvSceneMockup({ asset }: TvSceneMockupProps) {
     if (!canvas) return
     paint()
     await new Promise((resolve) => requestAnimationFrame(resolve))
-    canvas.toBlob((blob) => {
-      if (!blob) return
-      const safeName = asset.asset_name.replace(/[^\w.-]+/g, "-").slice(0, 80)
-      saveAs(blob, `${safeName}-tv-lounge-${label.toLowerCase().replace(/\s+/g, "-")}.png`)
-    }, "image/png")
+    await new Promise<void>((resolve) => {
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const safeName = asset.asset_name.replace(/[^\w.-]+/g, "-").slice(0, 80)
+          saveAs(blob, `${safeName}-tv-lounge-${label.toLowerCase().replace(/\s+/g, "-")}.png`)
+        }
+        resolve()
+      }, "image/png")
+    })
+  }
+
+  /** Switch to a frame index and wait until the image is painted into frameImageRef. */
+  function selectFrameAndWait(index: number): Promise<void> {
+    return new Promise((resolve) => {
+      const src = frames[index]
+      if (!src) {
+        resolve()
+        return
+      }
+      setFrameIndex(index)
+      setFrameLoaded(false)
+      const img = new Image()
+      img.crossOrigin = "anonymous"
+      img.onload = () => {
+        frameImageRef.current = img
+        setFrameLoaded(true)
+        paint()
+        requestAnimationFrame(() => resolve())
+      }
+      img.onerror = () => resolve()
+      img.src = src
+    })
   }
 
   if (isHtml5Zip(asset.mime_type)) {
@@ -168,9 +195,6 @@ export function TvSceneMockup({ asset }: TvSceneMockupProps) {
                   className="mb-2 aspect-video w-full rounded-input object-cover"
                 />
                 <span className="font-medium text-foreground">{item.label}</span>
-                {item.qualityNote ? (
-                  <span className="mt-1 block text-muted-foreground">{item.qualityNote}</span>
-                ) : null}
               </button>
             ))}
           </div>
@@ -217,11 +241,12 @@ export function TvSceneMockup({ asset }: TvSceneMockupProps) {
                     className="w-full"
                     onClick={async () => {
                       const prev = frameIndex
+                      const endIndex = frames.length - 1
+                      await selectFrameAndWait(0)
                       await downloadFrame(labels[0])
-                      setFrameIndex(frames.length - 1)
-                      await new Promise((r) => setTimeout(r, 100))
-                      await downloadFrame(labels[frames.length - 1])
-                      setFrameIndex(prev)
+                      await selectFrameAndWait(endIndex)
+                      await downloadFrame(labels[endIndex])
+                      await selectFrameAndWait(prev)
                     }}
                   >
                     Download start &amp; end

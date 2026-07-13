@@ -4,6 +4,10 @@ import { auth0 } from "@/lib/auth0"
 import { fetchAllMediaContainerLineItems } from "@/lib/api/media-containers"
 import { getUserRoles } from "@/lib/rbac"
 import {
+  applyClientPrefill,
+  type MiClientPrefill,
+} from "@/lib/specs/applyClientPrefill"
+import {
   buildMiWorkbook,
   miPayloadFromResolve,
   miWorkbookFilename,
@@ -19,6 +23,7 @@ export const maxDuration = 60
 type ExportBody = {
   answers?: MiAnswer[]
   prepared_by?: string
+  client_prefill?: MiClientPrefill[]
 }
 
 function text(value: unknown): string {
@@ -61,6 +66,11 @@ async function exportWorkbook(
   const result = answers.length > 0
     ? applyAnswers(plan, answers)
     : resolveMiPlan(plan)
+
+  if (Array.isArray(body.client_prefill) && body.client_prefill.length > 0) {
+    result.resolved = applyClientPrefill(result.resolved, body.client_prefill)
+  }
+
   const campaign = campaignFromLineItems(
     mbaNumber,
     lineItems,

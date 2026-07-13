@@ -1,9 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Loader2, Sparkles } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
@@ -11,49 +9,23 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Segmented, SegmentedItem } from "@/components/ui/segmented"
-import { Textarea } from "@/components/ui/textarea"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { useToast } from "@/components/ui/use-toast"
+import type { LineItemOption } from "@/lib/creative/lineItemOptions"
 import type { CreativeAsset } from "@/lib/creative/types"
-import { cn } from "@/lib/utils"
+import {
+  CopyChatPanel,
+  SocialAdDetailsForm,
+  type AdCopyPlatform,
+} from "./copychat/CopyChatPanel"
 import { LivePageMockup } from "./LivePageMockup"
 import { MOCK_TEMPLATES, type MockTemplateId, getMockTemplate } from "./mockTemplates"
 import { TvSceneMockup } from "./scenes/TvSceneMockup"
-import { captureVideoFrameDataUrl } from "./scenes/useVideoFrames"
 import {
-  SOCIAL_CTA_OPTIONS,
   SocialMockFrames,
   createDefaultSocialAdCopy,
   type SocialAdCopy,
 } from "./SocialMockFrames"
-import { isHtml5Zip, isVideo } from "./social/shared"
-import type { SocialCtaLabel } from "./social/types"
 import { WebPageMockTemplates } from "./WebPageMockTemplates"
-
-type AdCopyPlatform = "facebook-feed" | "instagram-feed" | "instagram-story" | "tiktok"
-
-type AdCopyVariant = {
-  angle: string
-  primaryText: string
-  headline: string
-  description: string
-  cta: SocialCtaLabel
-}
 
 type MockupDialogProps = {
   asset: CreativeAsset | null
@@ -62,6 +34,8 @@ type MockupDialogProps = {
   defaultBrandName: string
   clientName?: string
   campaignName?: string
+  mbaNumber?: string
+  socialLineItems?: LineItemOption[]
   /** Client Meta page id (`idmeta`) for FB/IG avatars. */
   metaPageId?: string
 }
@@ -78,256 +52,6 @@ function socialPlatformFromTemplate(templateId: MockTemplateId): AdCopyPlatform 
   return null
 }
 
-function SocialAdForm({
-  copy,
-  onChange,
-  showDescription,
-  asset,
-  platform,
-  clientName,
-  campaignName,
-}: {
-  copy: SocialAdCopy
-  onChange: (next: SocialAdCopy) => void
-  showDescription: boolean
-  asset: CreativeAsset
-  platform: AdCopyPlatform
-  clientName?: string
-  campaignName?: string
-}) {
-  const { toast } = useToast()
-  const [generating, setGenerating] = useState(false)
-  const [variants, setVariants] = useState<AdCopyVariant[]>([])
-  const [activeVariant, setActiveVariant] = useState(0)
-
-  const patch = <K extends keyof SocialAdCopy>(key: K, value: SocialAdCopy[K]) => {
-    onChange({ ...copy, [key]: value })
-  }
-
-  async function generateCopy(regenerate: boolean) {
-    if (isHtml5Zip(asset.mime_type)) {
-      toast({
-        title: "Not supported",
-        description: "HTML5 zip creatives can't use AVA copy generation.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setGenerating(true)
-    try {
-      let videoFrameDataUrl: string | undefined
-      if (isVideo(asset.mime_type)) {
-        videoFrameDataUrl = await captureVideoFrameDataUrl(asset)
-      }
-
-      const response = await fetch("/api/creative-assets/ad-copy", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          assetId: asset.id,
-          platform,
-          brandName: copy.brandName,
-          clientName,
-          campaignName,
-          videoFrameDataUrl,
-          existingCopy: regenerate
-            ? {
-                primaryText: copy.primaryText,
-                headline: copy.headline,
-                description: copy.description,
-                ctaLabel: copy.ctaLabel,
-              }
-            : undefined,
-        }),
-      })
-
-      const data = (await response.json()) as {
-        variants?: AdCopyVariant[]
-        error?: string
-        message?: string
-      }
-
-      if (!response.ok) {
-        toast({
-          title: response.status === 429 ? "Rate limited" : "AVA couldn't write copy",
-          description: data.message ?? "Try again in a moment.",
-          variant: "destructive",
-        })
-        return
-      }
-
-      if (!data.variants?.length) {
-        toast({
-          title: "AVA couldn't write copy",
-          description: "No variants returned. Try again.",
-          variant: "destructive",
-        })
-        return
-      }
-
-      setVariants(data.variants)
-      setActiveVariant(0)
-      applyVariant(data.variants[0])
-    } catch {
-      toast({
-        title: "AVA couldn't write copy",
-        description: "Something went wrong. You can still edit the fields manually.",
-        variant: "destructive",
-      })
-    } finally {
-      setGenerating(false)
-    }
-  }
-
-  function applyVariant(variant: AdCopyVariant) {
-    onChange({
-      ...copy,
-      primaryText: variant.primaryText,
-      headline: variant.headline,
-      description: variant.description,
-      ctaLabel: variant.cta,
-    })
-  }
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          disabled={generating}
-          onClick={() => void generateCopy(variants.length > 0)}
-        >
-          {generating ? (
-            <>
-              <Loader2 className="mr-2 size-4 animate-spin" aria-hidden />
-              AVA is writing…
-            </>
-          ) : (
-            <>
-              <Sparkles className="mr-2 size-4" aria-hidden />
-              {variants.length > 0 ? "Regenerate with AVA" : "Generate with AVA"}
-            </>
-          )}
-        </Button>
-      </div>
-
-      {variants.length > 0 ? (
-        <TooltipProvider delayDuration={200}>
-          <div className="flex flex-wrap gap-2">
-            {variants.map((variant, index) => (
-              <Tooltip key={variant.angle + index}>
-                <TooltipTrigger asChild>
-                  <button
-                    type="button"
-                    className={cn(
-                      "interactive rounded-pill border border-border bg-card px-3 py-1 text-xs font-medium",
-                      index === activeVariant && "ring-2 ring-ring",
-                    )}
-                    onClick={() => {
-                      setActiveVariant(index)
-                      applyVariant(variant)
-                    }}
-                  >
-                    Angle {index + 1}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>{variant.angle}</TooltipContent>
-              </Tooltip>
-            ))}
-          </div>
-        </TooltipProvider>
-      ) : null}
-
-      <div className="space-y-1.5">
-        <Label htmlFor="mockup-brand">Page / brand name</Label>
-        <Input
-          id="mockup-brand"
-          value={copy.brandName}
-          onChange={(event) => patch("brandName", event.target.value)}
-          placeholder="Brand"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="mockup-primary">Primary text / caption</Label>
-        <Textarea
-          id="mockup-primary"
-          value={copy.primaryText}
-          onChange={(event) => patch("primaryText", event.target.value)}
-          placeholder="Write primary text…"
-          rows={4}
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="mockup-headline">Headline</Label>
-        <Input
-          id="mockup-headline"
-          value={copy.headline}
-          onChange={(event) => patch("headline", event.target.value)}
-          placeholder="Headline"
-        />
-      </div>
-
-      {showDescription ? (
-        <div className="space-y-1.5">
-          <Label htmlFor="mockup-description">Description</Label>
-          <Input
-            id="mockup-description"
-            value={copy.description}
-            onChange={(event) => patch("description", event.target.value)}
-            placeholder="Link description"
-          />
-        </div>
-      ) : null}
-
-      <div className="space-y-1.5">
-        <Label htmlFor="mockup-display-link">Display link</Label>
-        <Input
-          id="mockup-display-link"
-          value={copy.displayLink}
-          onChange={(event) => patch("displayLink", event.target.value)}
-          placeholder="assembledmedia.com.au"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="mockup-destination">Destination URL</Label>
-        <Input
-          id="mockup-destination"
-          value={copy.destinationUrl}
-          onChange={(event) => patch("destinationUrl", event.target.value)}
-          placeholder="https://…"
-        />
-        <p className="text-xs text-muted-foreground">Shown in tooltips only — mockups never navigate.</p>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="mockup-cta">CTA label</Label>
-        <Select
-          value={copy.ctaLabel}
-          onValueChange={(value) => patch("ctaLabel", value as SocialCtaLabel)}
-        >
-          <SelectTrigger id="mockup-cta">
-            <SelectValue placeholder="CTA" />
-          </SelectTrigger>
-          <SelectContent>
-            {SOCIAL_CTA_OPTIONS.map((option) => (
-              <SelectItem key={option} value={option}>
-                {option}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-    </div>
-  )
-}
-
 export function MockupDialog({
   asset,
   open,
@@ -335,6 +59,8 @@ export function MockupDialog({
   defaultBrandName,
   clientName,
   campaignName,
+  mbaNumber,
+  socialLineItems = [],
   metaPageId,
 }: MockupDialogProps) {
   const [templateId, setTemplateId] = useState<MockTemplateId>("facebook-feed")
@@ -348,6 +74,7 @@ export function MockupDialog({
   const isWebpage = template.kind === "webpage"
   const isScene = template.kind === "scene"
   const socialPlatform = socialPlatformFromTemplate(templateId)
+  const showSocialRail = Boolean(isSocial && asset && socialPlatform)
 
   return (
     <Dialog
@@ -392,21 +119,7 @@ export function MockupDialog({
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          {isSocial && asset && socialPlatform ? (
-            <aside className="shrink-0 overflow-y-auto border-b border-border bg-surface-panel px-4 py-4 lg:w-[320px] lg:border-b-0 lg:border-r">
-              <SocialAdForm
-                copy={adCopy}
-                onChange={setAdCopy}
-                showDescription={templateId === "facebook-feed"}
-                asset={asset}
-                platform={socialPlatform}
-                clientName={clientName}
-                campaignName={campaignName}
-              />
-            </aside>
-          ) : null}
-
-          <div className="min-h-0 flex-1 overflow-auto bg-background px-4 py-6 sm:px-8">
+          <div className="min-h-0 min-w-0 flex-1 overflow-auto bg-background px-4 py-6 sm:px-8 xl:min-w-[480px]">
             {asset ? (
               isLive ? (
                 <LivePageMockup
@@ -436,6 +149,35 @@ export function MockupDialog({
               ) : null
             ) : null}
           </div>
+
+          {showSocialRail && asset && socialPlatform ? (
+            <>
+              {/* xl+: Ad details as its own column */}
+              <aside className="hidden min-h-0 w-[300px] shrink-0 flex-col overflow-y-auto border-l border-border bg-surface-panel p-4 xl:flex">
+                <p className="mb-3 text-sm font-medium text-foreground">Ad details</p>
+                <SocialAdDetailsForm
+                  copy={adCopy}
+                  onChange={setAdCopy}
+                  showDescription={templateId === "facebook-feed"}
+                />
+              </aside>
+
+              {/* Below xl: accordion+chat stacked; xl+: workshop only (details column above) */}
+              <aside className="flex min-h-0 w-full shrink-0 flex-col border-t border-border bg-surface-panel lg:w-[400px] xl:w-[380px] xl:border-l xl:border-t-0">
+                <CopyChatPanel
+                  asset={asset}
+                  platform={socialPlatform}
+                  copy={adCopy}
+                  onChange={setAdCopy}
+                  showDescription={templateId === "facebook-feed"}
+                  clientName={clientName}
+                  campaignName={campaignName}
+                  mbaNumber={mbaNumber}
+                  socialLineItems={socialLineItems}
+                />
+              </aside>
+            </>
+          ) : null}
         </div>
       </DialogContent>
     </Dialog>

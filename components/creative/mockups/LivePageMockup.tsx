@@ -34,7 +34,7 @@ type LivePageMockupProps = {
 const ERROR_MESSAGES: Record<string, string> = {
   rate_limited: "Too many live-page screenshots. Try again in a minute.",
   provider_not_configured:
-    "Live page screenshots aren't configured yet. Add SCREENSHOTONE_ACCESS_KEY or use built-in templates.",
+    "Live page screenshots aren't configured yet. Add SCREENSHOT_ACCESS or use built-in templates.",
   provider_timeout: "Screenshot timed out — try again or use manual placement.",
   provider_blocked: "This page couldn't be captured. Try manual placement or a built-in template.",
   invalid_url: "That doesn't look like a valid https URL.",
@@ -151,7 +151,7 @@ export function LivePageMockup({ asset, onUseBuiltInTemplates }: LivePageMockupP
       setManualMode(false)
       setOverlay(null)
 
-      if (data.hint) {
+      if (data.hint?.includes("HTML5")) {
         setManualMode(true)
       }
     } catch {

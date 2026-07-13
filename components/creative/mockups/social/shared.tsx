@@ -3,14 +3,16 @@
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
 
-import type { CreativeAsset } from "@/lib/creative/types"
-import { cn } from "@/lib/utils"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import type { CreativeAsset } from "@/lib/creative/types"
+import { cn } from "@/lib/utils"
+import { useMediaObjectUrl } from "./useMediaObjectUrl"
 
 export function isImage(mime: string) {
   return mime.startsWith("image/")
@@ -117,18 +119,37 @@ function RawMedia({
   asset,
   fit,
   className,
+  objectUrl,
+  objectLoading,
 }: {
   asset: CreativeAsset
   fit: MediaFit
   className?: string
+  /** Shared blob URL when parent already loaded the video. */
+  objectUrl?: string | null
+  objectLoading?: boolean
 }) {
   const objectClass = fit === "contain" ? "object-contain" : "object-cover"
+  const fetched = useMediaObjectUrl(
+    isVideo(asset.mime_type) && objectUrl === undefined ? asset : null,
+  )
+  const videoSrc = objectUrl !== undefined ? objectUrl : fetched.url
+  const videoLoading =
+    objectUrl !== undefined ? Boolean(objectLoading) : fetched.loading || !fetched.url
 
   if (isVideo(asset.mime_type)) {
+    if (videoLoading || !videoSrc) {
+      return (
+        <Skeleton
+          className={cn("h-full w-full rounded-none", className)}
+          aria-label={fetched.error ?? "Loading video preview"}
+        />
+      )
+    }
     return (
       <video
         className={cn("h-full w-full", objectClass, className)}
-        src={mediaSrc(asset)}
+        src={videoSrc}
         muted
         autoPlay
         loop
@@ -142,7 +163,7 @@ function RawMedia({
       // eslint-disable-next-line @next/next/no-img-element -- trusted campaign asset via authenticated download route
       <img
         className={cn("h-full w-full", objectClass, className)}
-        src={mediaSrc(asset)}
+        src={`${mediaSrc(asset)}?inline=1`}
         alt={asset.asset_name}
       />
     )
@@ -204,6 +225,8 @@ export function StoryMedia({
   asset: CreativeAsset
   className?: string
 }) {
+  const sharedVideo = useMediaObjectUrl(isVideo(asset.mime_type) ? asset : null)
+
   if (isHtml5Zip(asset.mime_type)) {
     return <Html5Notice className={cn("absolute inset-0", className)} />
   }
@@ -211,13 +234,20 @@ export function StoryMedia({
     return <UnsupportedNotice className={cn("absolute inset-0", className)} />
   }
 
+  const videoProps = isVideo(asset.mime_type)
+    ? {
+        objectUrl: sharedVideo.url,
+        objectLoading: sharedVideo.loading || !sharedVideo.url,
+      }
+    : {}
+
   return (
     <div className={cn("absolute inset-0 overflow-hidden bg-foreground", className)}>
       <div className="absolute inset-0 scale-110 opacity-70 blur-2xl" aria-hidden>
-        <RawMedia asset={asset} fit="cover" />
+        <RawMedia asset={asset} fit="cover" {...videoProps} />
       </div>
       <div className="relative z-10 flex h-full w-full items-center justify-center">
-        <RawMedia asset={asset} fit="contain" />
+        <RawMedia asset={asset} fit="contain" {...videoProps} />
       </div>
     </div>
   )

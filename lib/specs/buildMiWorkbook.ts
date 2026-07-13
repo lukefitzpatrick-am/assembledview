@@ -58,7 +58,7 @@ export function miWorkbookFilename(
 }
 
 function questionContainer(question: MiOpenQuestion): string {
-  if (question.field === "custom_specs") return "Direct Digital"
+  if (question.field === "specs_source" || question.field === "specs_paste") return "Direct Digital"
   if (question.field === "creative_type") return "Social"
   if (question.field === "dimensions") return "Direct Digital"
   return "Direct Digital"
@@ -104,7 +104,12 @@ function valueForColumn(
     Campaign: [campaign.name],
     "Line Item": [row.fields_am["Line Item"] ?? row.displayName],
     Publisher: [row.fields_client.Publisher ?? row.fields_am.Publisher ?? ""],
-    Format: [row.format_name && row.format_name !== "NEEDS_SPEC" ? row.format_name : (row.fields_am.Format ?? "")],
+    Format: [
+      row.format_name && row.format_name !== "NEEDS_SPEC"
+        ? row.format_name
+        : (row.fields_am.Format
+          || (row.confidence === "needs_spec" ? NEEDS_SPEC : "")),
+    ],
     Variant: [row.variant ?? ""],
     "Live Date": [row.fields_am["Live Date"] ?? ""],
     "Ratio / Dimensions": [
@@ -237,6 +242,11 @@ function writeContainerSheet(
       for (const field of fields) {
         let value = valueForColumn(field, section, row, input.campaign)
         if (section === "SPECS" && rowQuestions.length > 0 && !value) value = NEEDS_SPEC
+        // Resolved needs_spec rows (skip / per booking / awaiting upload) still
+        // materialise empty SPECS cells as gaps — same as unanswered stubs.
+        if (section === "SPECS" && row.confidence === "needs_spec" && !value) {
+          value = NEEDS_SPEC
+        }
         const cell = sheet.getCell(excelRow, col)
         cell.value = value
         styleCell(cell, fill, index % 2 === 1)

@@ -7,32 +7,31 @@ export type TvScene = {
   label: string
   src: string
   screen: SceneQuad
-  /** Shown in picker when the source photo is low resolution. */
-  qualityNote?: string
 }
 
 export const TV_SCENES: TvScene[] = [
   {
     id: "tv-lounge-modern",
-    label: "Modern lounge (frontal)",
+    label: "Minimal white lounge (frontal)",
     src: "/mockups/tv-lounge-modern.jpg",
+    // Calibrated 13 Jul 2026 against shipped photo (5568×3712).
     screen: {
-      tl: [0.318, 0.042],
-      tr: [0.699, 0.043],
-      br: [0.698, 0.427],
-      bl: [0.318, 0.426],
+      tl: [0.3671, 0.2982],
+      tr: [0.7062, 0.2996],
+      br: [0.7076, 0.59],
+      bl: [0.3648, 0.587],
     },
   },
   {
     id: "tv-lounge-4k",
-    label: "Angled room (soft — low-res photo)",
+    label: "Netflix lounge (dark, cinematic)",
     src: "/mockups/tv-lounge-4k.jpg",
-    qualityNote: "Source photo is low resolution — export may look soft.",
+    // Calibrated 13 Jul 2026 against shipped photo (6217×4145).
     screen: {
-      tl: [0.115, 0.17],
-      tr: [0.516, 0.108],
-      br: [0.52, 0.5],
-      bl: [0.117, 0.56],
+      tl: [0.2496, 0.2166],
+      tr: [0.755, 0.2181],
+      br: [0.7502, 0.6434],
+      bl: [0.2545, 0.6432],
     },
   },
 ]

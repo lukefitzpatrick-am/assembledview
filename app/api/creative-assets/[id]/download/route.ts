@@ -64,13 +64,23 @@ export async function GET(
 
     const filename = escapeDispositionFilename(row.original_filename)
     const contentType = row.mime_type || blobResult.blob.contentType || "application/octet-stream"
+    const inlineParam = request.nextUrl.searchParams.get("inline") === "1"
+    const isPreviewable =
+      contentType.startsWith("image/") || contentType.startsWith("video/")
+    const disposition = inlineParam || isPreviewable ? "inline" : "attachment"
+
+    const headers: Record<string, string> = {
+      "Content-Type": contentType,
+      "Content-Disposition": `${disposition}; filename="${filename}"`,
+    }
+    const size = blobResult.blob.size
+    if (typeof size === "number" && Number.isFinite(size) && size >= 0) {
+      headers["Content-Length"] = String(size)
+    }
 
     return new NextResponse(blobResult.stream, {
       status: 200,
-      headers: {
-        "Content-Type": contentType,
-        "Content-Disposition": `attachment; filename="${filename}"`,
-      },
+      headers,
     })
   } catch (error) {
     return xanoErrorResponse(error)

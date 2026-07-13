@@ -85,8 +85,18 @@ const TAB_ORDER = [
 
 const FIELD_ORDER = [
   "placeholder", "publisher", "creative_type", "format", "targeting",
-  "variants", "dimensions", "custom_specs",
+  "variants", "dimensions", "specs_source", "specs_paste",
 ]
+
+const SPECS_SOURCE_OPTIONS = [
+  "upload document",
+  "paste text",
+  "per booking",
+  "skip",
+] as const
+
+const SPECS_SOURCE_PROMPT =
+  "No specs in the library for this row — do you have the publisher's spec sheet?"
 
 /** Tabs that fill Objective (or Search Bid Strategy) from plan bid_strategy. */
 const BID_STRATEGY_FILL_TABS = new Set(["Search", "Social", "Programmatic"])
@@ -959,6 +969,101 @@ function buildResolved(
   }
 }
 
+function normalizeSpecsSourceAnswer(
+  answer: string,
+): "upload document" | "paste text" | "per booking" | "skip" | undefined {
+  const trimmed = answer.trim().toLowerCase()
+  if (!trimmed) return undefined
+  if (trimmed === "upload document" || trimmed === "upload") return "upload document"
+  if (trimmed === "paste text" || trimmed === "paste") return "paste text"
+  if (trimmed === "per booking") return "per booking"
+  if (trimmed === "skip") return "skip"
+  return undefined
+}
+
+/**
+ * Shared offer after publisher/format dead-ends and custom Direct Digital rows.
+ * One choice card; paste text opens a follow-up; upload is a stub until B3–B5.
+ */
+function resolveSpecsSource(
+  line: IndexedLine,
+  publisher: { slug: string | null; record: MiPublisherRecord | null; needsSpec: boolean },
+  answers: Map<string, string>,
+  sourceNote: string,
+): { resolved: MiResolvedSpec[]; questions: MiOpenQuestion[] } {
+  const sourceAnswerRaw = answerFor(answers, `specs_source:${line.line_item_id}`)
+  if (!sourceAnswerRaw) {
+    return {
+      resolved: [],
+      questions: [question(
+        line,
+        "specs_source",
+        "choice",
+        SPECS_SOURCE_PROMPT,
+        [...SPECS_SOURCE_OPTIONS],
+      )],
+    }
+  }
+
+  const sourceAnswer = normalizeSpecsSourceAnswer(sourceAnswerRaw)
+  if (!sourceAnswer) {
+    return {
+      resolved: [],
+      questions: [question(
+        line,
+        "specs_source",
+        "choice",
+        SPECS_SOURCE_PROMPT,
+        [...SPECS_SOURCE_OPTIONS],
+      )],
+    }
+  }
+
+  if (sourceAnswer === "skip") {
+    return {
+      resolved: [buildResolved(line, publisher, null, "needs_spec", undefined, sourceNote)],
+      questions: [],
+    }
+  }
+
+  if (sourceAnswer === "per booking") {
+    return {
+      resolved: [buildResolved(line, publisher, null, "needs_spec", undefined, sourceNote, "")],
+      questions: [],
+    }
+  }
+
+  if (sourceAnswer === "upload document") {
+    return {
+      resolved: [buildResolved(
+        line, publisher, null, "needs_spec", undefined, "Awaiting spec upload",
+      )],
+      questions: [],
+    }
+  }
+
+  // paste text → follow-up free-text into customText / Publisher-Specific Notes
+  const pasteAnswer = answerFor(answers, `specs_paste:${line.line_item_id}`)
+  if (!pasteAnswer) {
+    return {
+      resolved: [],
+      questions: [question(
+        line,
+        "specs_paste",
+        "text",
+        "Paste the publisher's specs for this row.",
+      )],
+    }
+  }
+
+  return {
+    resolved: [buildResolved(
+      line, publisher, null, "needs_spec", undefined, sourceNote, pasteAnswer,
+    )],
+    questions: [],
+  }
+}
+
 function resolveLine(
   line: IndexedLine,
   library: LoadedMiLibrary,
@@ -983,34 +1088,18 @@ function resolveLine(
   const publisher = resolvePublisher(line, library, answers)
   if (publisher.question) return { resolved: [], questions: [publisher.question], derived: [] }
   if (publisher.needsSpec) {
-    return {
-      resolved: [buildResolved(line, publisher, null, "needs_spec", undefined, "Publisher not in MI library")],
-      questions,
-      derived,
-    }
+    const specs = resolveSpecsSource(
+      line, publisher, answers, "Publisher not in MI library",
+    )
+    return { resolved: specs.resolved, questions: specs.questions, derived }
   }
 
   const customInput = [line.format, line.placement].filter(Boolean).join(" ")
-  const customAnswer = answerFor(answers, `custom_specs:${line.line_item_id}`)
   if (line.container === "Direct Digital" && CUSTOM_DIRECT_TERMS.test(customInput)) {
-    if (!customAnswer) {
-      return {
-        resolved: [],
-        derived: [],
-        questions: [question(
-          line, "custom_specs", "text",
-          "Custom format — paste the publisher's specs, or answer 'per booking' to flag for manual entry.",
-        )],
-      }
-    }
-    return {
-      resolved: [buildResolved(
-        line, publisher, null, "needs_spec", undefined, "Custom publisher format",
-        customAnswer.toLowerCase() === "per booking" ? "" : customAnswer,
-      )],
-      questions,
-      derived,
-    }
+    const specs = resolveSpecsSource(
+      line, publisher, answers, "Custom publisher format",
+    )
+    return { resolved: specs.resolved, questions: specs.questions, derived }
   }
 
   const needsCreative = line.container === "Social"
@@ -1069,9 +1158,12 @@ function resolveLine(
     }
   }
   if (format.needsSpec) {
+    const specs = resolveSpecsSource(
+      line, publisher, answers, "Format is not in the MI library",
+    )
     return {
-      resolved: [buildResolved(line, publisher, null, "needs_spec", undefined, "Format is not in the MI library")],
-      questions,
+      resolved: specs.resolved,
+      questions: specs.questions,
       derived,
     }
   }

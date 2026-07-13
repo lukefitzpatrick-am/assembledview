@@ -475,6 +475,7 @@ export function CreativeAssetManager({
             defaultBrandName={clientName}
             clientName={clientName}
             campaignName={campaignName}
+            mbaNumber={mbaNumber}
             metaPageId={resolvedMetaPageId}
             onRename={handleRename}
             onLineItemChange={handleLineItemChange}
