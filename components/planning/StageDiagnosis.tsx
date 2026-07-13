@@ -216,7 +216,7 @@ export function StageDiagnosis({
               title="Create"
             />
             <div
-              className="h-full bg-channel-tv transition-[width]"
+              className="h-full bg-audience-1 transition-[width]"
               style={{ width: `${captureShare}%` }}
               title="Capture"
             />

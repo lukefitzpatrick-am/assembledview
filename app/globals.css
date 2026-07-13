@@ -149,6 +149,10 @@
     --channel-search: #008e5e;
     --channel-ooh: #008e5e;
 
+    --audience-1: #9801b5; /* brand purple */
+    --audience-2: #008e5e; /* brand green (success) */
+    --audience-3: #472477; /* brand dark purple */
+
     --text-secondary: #3c4b41;
     --text-tertiary: #6b7a70;
     --fill-track: #eef1ea;
@@ -256,6 +260,10 @@
     --status-critical-fg: #ef907f;
 
     --channel-bvod-bg: rgba(71, 36, 119, 0.12);
+
+    --audience-1: #9801b5; /* brand purple */
+    --audience-2: #008e5e; /* brand green (success) */
+    --audience-3: #472477; /* brand dark purple */
 
     --text-secondary: #e6ede7;
     --text-tertiary: #6b8273;
