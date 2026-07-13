@@ -371,7 +371,7 @@ export function ChatWidget({
             <div className="flex h-80 flex-col gap-3 overflow-y-auto bg-muted/50 px-3 py-3">
               {messages.length === 0 && (
                 <div className="flex flex-col gap-3">
-                  <p className="text-sm text-muted-foreground">How can I help?</p>
+                  <p className="text-sm text-muted-foreground">G'day — what are we working on?</p>
                   <div className="flex flex-col gap-2">
                     {starterChips.map((chip) => (
                       <button
