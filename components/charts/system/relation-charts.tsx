@@ -6,7 +6,7 @@
  */
 import * as React from 'react';
 import {
-  ScatterChart as RScatterChart, Scatter, ZAxis,
+  ScatterChart as RScatterChart, Scatter, ZAxis, ReferenceLine,
   RadarChart as RRadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   LineChart, Line, LabelList,
   CartesianGrid, XAxis, YAxis, Cell,
@@ -17,28 +17,104 @@ import { fmt, NEUTRAL } from '@/lib/chart-theme';
 const axisProps = { tickLine: false, axisLine: false, tick: { fontSize: 11, fill: NEUTRAL.axis } } as const;
 const colorAt = (i: number, c?: string) => c ?? `var(--av-chart-${(i % 8) + 1})`;
 
-export interface ScatterPoint { x: number; y: number; z?: number; label?: string; color?: string }
+export interface ScatterPoint { x: number; y: number; z?: number; label?: string; color?: string; id?: string }
+
+export type ScatterQuadrantLabels = {
+  /** High x, high y */
+  topRight: string;
+  /** Low x, high y */
+  topLeft: string;
+  /** High x, low y */
+  bottomRight: string;
+  /** Low x, low y */
+  bottomLeft: string;
+};
 
 /** Scatter / bubble — two metrics + optional size (CPA vs ROAS, bubble = spend). */
 export function ScatterChart({
   data, xLabel, yLabel, xFormat = 'compact', yFormat = 'compact', className,
+  xReference, yReference, quadrantLabels, onPointClick,
 }: {
-  data: ScatterPoint[]; xLabel?: string; yLabel?: string;
-  xFormat?: 'compact' | 'dollars' | 'percent'; yFormat?: 'compact' | 'dollars' | 'percent'; className?: string;
+  data: ScatterPoint[];
+  xLabel?: string;
+  yLabel?: string;
+  xFormat?: 'compact' | 'dollars' | 'percent' | 'number';
+  yFormat?: 'compact' | 'dollars' | 'percent' | 'number';
+  className?: string;
+  /** Vertical guide (e.g. median reach). */
+  xReference?: number;
+  /** Horizontal guide (e.g. index 100). */
+  yReference?: number;
+  /** Labels for the four quadrants formed by the reference guides. */
+  quadrantLabels?: ScatterQuadrantLabels;
+  onPointClick?: (point: ScatterPoint) => void;
 }) {
-  const vf = { compact: fmt.compact, dollars: fmt.currencyCompact, percent: (n: number) => fmt.percent(n / 100) };
+  const vf = {
+    compact: fmt.compact,
+    dollars: fmt.currencyCompact,
+    percent: (n: number) => fmt.percent(n / 100),
+    number: fmt.number,
+  };
+  const showQuadrants = quadrantLabels && xReference != null && yReference != null;
   return (
     <ChartContainer config={{ point: { label: 'Series' } }} className={className}>
-      <RScatterChart margin={{ top: 8, right: 14, left: 4, bottom: xLabel ? 18 : 4 }}>
+      <RScatterChart margin={{ top: showQuadrants ? 28 : 8, right: 14, left: 4, bottom: xLabel ? 18 : 4 }}>
         <CartesianGrid vertical={false} />
         <XAxis type="number" dataKey="x" tickFormatter={vf[xFormat]} {...axisProps}
           label={xLabel ? { value: xLabel, position: 'insideBottom', offset: -8, fontSize: 10, fill: NEUTRAL.axis } : undefined} />
         <YAxis type="number" dataKey="y" width={40} tickFormatter={vf[yFormat]} {...axisProps}
           label={yLabel ? { value: yLabel, angle: -90, position: 'insideLeft', fontSize: 10, fill: NEUTRAL.axis } : undefined} />
         <ZAxis type="number" dataKey="z" range={[40, 420]} />
+        {xReference != null ? (
+          <ReferenceLine
+            x={xReference}
+            stroke={NEUTRAL.axis}
+            strokeDasharray="4 4"
+          />
+        ) : null}
+        {yReference != null ? (
+          <ReferenceLine
+            y={yReference}
+            stroke={NEUTRAL.axis}
+            strokeDasharray="4 4"
+          />
+        ) : null}
+        {showQuadrants ? (
+          <>
+            <ReferenceLine
+              y={yReference}
+              stroke="transparent"
+              label={{ value: quadrantLabels.topLeft, position: 'insideTopLeft', fontSize: 10, fill: NEUTRAL.axis }}
+            />
+            <ReferenceLine
+              y={yReference}
+              stroke="transparent"
+              label={{ value: quadrantLabels.topRight, position: 'insideTopRight', fontSize: 10, fill: NEUTRAL.axis }}
+            />
+            <ReferenceLine
+              y={yReference}
+              stroke="transparent"
+              label={{ value: quadrantLabels.bottomLeft, position: 'insideBottomLeft', fontSize: 10, fill: NEUTRAL.axis }}
+            />
+            <ReferenceLine
+              y={yReference}
+              stroke="transparent"
+              label={{ value: quadrantLabels.bottomRight, position: 'insideBottomRight', fontSize: 10, fill: NEUTRAL.axis }}
+            />
+          </>
+        ) : null}
         <ChartTooltip cursor={{ strokeDasharray: '3 3' }} content={<ChartTooltipContent hideLabel />} />
-        <Scatter data={data} isAnimationActive={false}>
-          {data.map((p, i) => <Cell key={i} fill={colorAt(i, p.color)} fillOpacity={0.55} stroke={colorAt(i, p.color)} />)}
+        <Scatter
+          data={data}
+          isAnimationActive={false}
+          cursor={onPointClick ? 'pointer' : 'default'}
+          onClick={(state) => {
+            if (!onPointClick) return;
+            const payload = (state as { payload?: ScatterPoint })?.payload;
+            if (payload) onPointClick(payload);
+          }}
+        >
+          {data.map((p, i) => <Cell key={p.id ?? i} fill={colorAt(i, p.color)} fillOpacity={0.55} stroke={colorAt(i, p.color)} />)}
         </Scatter>
       </RScatterChart>
     </ChartContainer>
@@ -73,8 +149,8 @@ export function RadarChart({
 export function SlopeChart({
   data, leftLabel, rightLabel, className,
 }: { data: { label: string; left: number; right: number; color?: string }[]; leftLabel: string; rightLabel: string; className?: string }) {
-  const rows = [{ period: leftLabel } as any, { period: rightLabel } as any];
-  data.forEach((d) => { rows[0][d.label] = d.left; rows[1][d.label] = d.right; });
+  const rows = [{ period: leftLabel } as Record<string, string | number>, { period: rightLabel } as Record<string, string | number>];
+  data.forEach((d) => { rows[0]![d.label] = d.left; rows[1]![d.label] = d.right; });
   const cfg = data.reduce((a, d, i) => { a[d.label] = { label: d.label, color: colorAt(i, d.color) }; return a; }, {} as ChartConfig);
   return (
     <ChartContainer config={cfg} className={className}>
@@ -86,7 +162,7 @@ export function SlopeChart({
           <Line key={d.label} dataKey={d.label} stroke={cfg[d.label]?.color as string} strokeWidth={2.2}
             dot={{ r: 3 }} isAnimationActive={false}>
             <LabelList dataKey={d.label} position="right" fontSize={10} fill={NEUTRAL.label}
-              formatter={(v: number, _e: any, idx: number) => (idx === 1 ? d.label : '')} />
+              formatter={(v: number, _e: unknown, idx: number) => (idx === 1 ? d.label : '')} />
           </Line>
         ))}
       </LineChart>

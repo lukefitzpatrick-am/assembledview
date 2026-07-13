@@ -40,15 +40,43 @@ export interface MediaGanttProps {
   className?: string;
 }
 
+function wrapLabel(text: string, maxChars: number, maxLines: number): string[] {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= maxChars || !current) {
+      current = candidate;
+    } else {
+      lines.push(current);
+      current = word;
+      if (lines.length === maxLines - 1) break;
+    }
+  }
+  if (current && lines.length < maxLines) lines.push(current);
+  const joined = lines.join(" ");
+  if (joined.length < text.length && lines.length > 0) {
+    const last = lines[lines.length - 1];
+    lines[lines.length - 1] = last.length > maxChars - 1 ? `${last.slice(0, maxChars - 1)}…` : `${last}…`;
+  }
+  return lines;
+}
+
 export function MediaGanttChart({
   rows, weeks = 24, months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-  weeksPerMonth = 4, todayWeek = null, rowHeight = 38, className,
+  weeksPerMonth = 4, todayWeek = null, rowHeight = 56, className,
 }: MediaGanttProps) {
-  const W = 1180, headH = 44, padL = 160, x1 = W - 16;
+  const [tip, setTip] = React.useState<{ x: number; y: number; label: string; sub?: string } | null>(null);
+  const hostRef = React.useRef<HTMLDivElement>(null);
+  const gutterClipId = `gantt-gutter-clip-${React.useId().replace(/:/g, "")}`;
+  const W = 1180, headH = 44, padL = 230, x1 = W - 16;
   const H = headH + rows.length * rowHeight + 8;
   const weekW = (x1 - padL) / weeks;
   const wx = (w: number) => padL + weekW * w;
   const els: React.ReactNode[] = [];
+  const labelEls: React.ReactNode[] = [];
+  const hitEls: React.ReactNode[] = [];
 
   rows.forEach((_, ri) => {
     if (ri % 2 === 0) els.push(<rect key={`rb${ri}`} x={0} y={round(headH + ri * rowHeight)} width={W} height={rowHeight} fill="var(--av-subsurface)" />);
@@ -64,22 +92,73 @@ export function MediaGanttChart({
   rows.forEach((row, ri) => {
     const y = headH + ri * rowHeight;
     const color = row.color ?? CHANNEL_COLORS[(row.sub ?? '').toLowerCase()] ?? CHART_PALETTE[ri % CHART_PALETTE.length];
-    els.push(<rect key={`sw${ri}`} x={14} y={round(y + rowHeight / 2 - 7)} width={4} height={14} rx={2} fill={color} />);
-    els.push(<text key={`rl${ri}`} x={26} y={round(y + rowHeight / 2 - 1)} fontSize={12} fontWeight={700} fill={INK}>{row.label}</text>);
-    if (row.sub) els.push(<text key={`rs${ri}`} x={26} y={round(y + rowHeight / 2 + 12)} fontSize={9.5} fill={MUTED}>{row.sub}</text>);
+    const primaryLines = wrapLabel(row.label, 30, 2);
+    labelEls.push(<rect key={`sw${ri}`} x={14} y={round(y + rowHeight / 2 - 7)} width={4} height={14} rx={2} fill={color} />);
+    if (primaryLines.length === 1) {
+      labelEls.push(<text key={`rl${ri}-0`} x={26} y={round(y + rowHeight / 2 - 4)} fontSize={12} fontWeight={700} fill={INK}>{primaryLines[0]}</text>);
+      if (row.sub) labelEls.push(<text key={`rs${ri}`} x={26} y={round(y + rowHeight / 2 + 10)} fontSize={9.5} fill={MUTED}>{row.sub}</text>);
+    } else {
+      primaryLines.forEach((line, li) => {
+        const lineY = li === 0 ? y + rowHeight / 2 - 12 : y + rowHeight / 2 + 1;
+        labelEls.push(<text key={`rl${ri}-${li}`} x={26} y={round(lineY)} fontSize={12} fontWeight={700} fill={INK}>{line}</text>);
+      });
+      if (row.sub) labelEls.push(<text key={`rs${ri}`} x={26} y={round(y + rowHeight / 2 + 14)} fontSize={9.5} fill={MUTED}>{row.sub}</text>);
+    }
     row.bursts.forEach((b, bi) => {
       const bx = wx(b.startWeek), bw = weekW * (b.endWeek - b.startWeek) - 3, by = y + rowHeight / 2 - 9, bh = 18;
       els.push(<rect key={`bg${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={round(bw)} height={bh} rx={5} fill={color} fillOpacity={0.16} />);
       els.push(<rect key={`bf${ri}-${bi}`} x={round(bx + 1)} y={round(by)} width={round(bw)} height={bh} rx={5} fill={color} fillOpacity={(b.intensity ?? 0.85) * 0.92} />);
       if (bw > 48 && b.label) els.push(<text key={`bl${ri}-${bi}`} x={round(bx + 9)} y={round(by + 12.5)} fontSize={10} fontWeight={700} fill="#fff" style={TAB}>{b.label}</text>);
     });
+    hitEls.push(
+      <rect
+        key={`hit${ri}`}
+        x={0}
+        y={y}
+        width={padL}
+        height={rowHeight}
+        fill="transparent"
+        style={{ cursor: 'default' }}
+        onMouseMove={(e) => {
+          const host = hostRef.current?.getBoundingClientRect();
+          if (!host) return;
+          setTip({ x: e.clientX - host.left, y: e.clientY - host.top, label: row.label, sub: row.sub });
+        }}
+        onMouseLeave={() => setTip(null)}
+      />,
+    );
   });
   if (todayWeek != null) {
     els.push(<line key="tl" x1={round(wx(todayWeek))} x2={round(wx(todayWeek))} y1={headH - 12} y2={H - 6} stroke={INK} strokeWidth={1.5} strokeDasharray="3 3" />);
     els.push(<rect key="tb" x={round(wx(todayWeek) - 19)} y={headH - 24} width={38} height={14} rx={7} fill={INK} />);
     els.push(<text key="tt" x={round(wx(todayWeek))} y={headH - 14} textAnchor="middle" fontSize={8.5} fontWeight={700} fill="#fff">TODAY</text>);
   }
-  return <div className={className}><svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>{els}</svg></div>;
+  return (
+    <div className={className}>
+      <div ref={hostRef} className="relative">
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: 'block' }}>
+          <defs>
+            <clipPath id={gutterClipId}>
+              <rect x={0} y={0} width={padL - 10} height={H} />
+            </clipPath>
+          </defs>
+          {els}
+          <g clipPath={`url(#${gutterClipId})`}>{labelEls}</g>
+          {hitEls}
+        </svg>
+        {/* Class string mirrors CHART_TOOLTIP_CONTENT_CLASS in components/ui/chart.tsx — sync manually if that changes. */}
+        {tip && (
+          <div
+            className="pointer-events-none absolute z-50 grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-popover px-2.5 py-1.5 text-xs text-popover-foreground shadow-xl"
+            style={{ left: tip.x + 12, top: tip.y + 12 }}
+          >
+            <div className="font-medium">{tip.label}</div>
+            {tip.sub ? <span className="text-muted-foreground">{tip.sub}</span> : null}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ── Burst week-grid (expert editor) ─────────────────────────

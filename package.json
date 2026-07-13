@@ -24,7 +24,8 @@
     "snowflake:migrate:pacing": "tsx scripts/snowflake/run-pacing-migrations.ts",
     "pacing:backfill:search-mappings": "tsx scripts/pacing/backfill-search-mappings.ts",
     "test:kpi-resolve": "tsx --test lib/kpi/__tests__/resolve.test.ts",
-    "test:pacing-maths": "tsx --test lib/pacing/maths/__tests__/*.test.ts"
+    "test:pacing-maths": "tsx --test lib/pacing/maths/__tests__/*.test.ts",
+    "test:ava-tools": "tsx --test lib/ava/tools/__tests__/registry.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",
@@ -54,8 +55,10 @@
     "@sendgrid/mail": "^8.1.6",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.23",
+    "@vercel/blob": "^2.6.1",
     "autoprefixer": "^10.4.20",
     "axios": "^1.8.4",
+    "cheerio": "^1.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "1.0.4",
@@ -75,7 +78,7 @@
     "mammoth": "^1.6.0",
     "next": "^15.5.14",
     "next-themes": "^0.4.4",
-    "nodemailer": "^7.0.11",
+    "nodemailer": "^9.0.3",
     "openai": "^6.9.1",
     "pdf-parse": "^1.1.1",
     "react": "^18.3.1",
@@ -93,10 +96,13 @@
   },
   "overrides": {
     "@google-cloud/storage": {
-      "fast-xml-parser": "5.5.7"
+      "fast-xml-parser": "5.9.3"
     },
     "snowflake-sdk": {
-      "fast-xml-parser": "5.5.7"
+      "fast-xml-parser": "5.9.3"
+    },
+    "tsx": {
+      "esbuild": "0.28.1"
     },
     "@tootallnate/once": "3.0.1"
   },

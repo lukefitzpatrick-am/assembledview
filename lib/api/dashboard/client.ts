@@ -6,6 +6,7 @@ import {
 } from '@/lib/types/dashboard'
 import { parseXanoListPayload } from '@/lib/api/xano'
 import { getXanoClientsCollectionUrl, xanoMediaPlansUrl } from '@/lib/api/xanoClients'
+import { fetchAllXanoPages } from '@/lib/api/xanoPagination'
 import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slug'
 import { findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from '@/lib/spend/monthlyPlanCalendar'
@@ -135,10 +136,11 @@ export async function getClientBySlug(slug: string): Promise<Client | null> {
 }
 
 async function fetchMediaPlanVersionsArray(): Promise<any[]> {
+  // Full version history (paged). Needed by fetchVersionsForMba (version switcher).
+  // Do NOT use getCachedMediaPlanVersions / media_plan_versions_latest here.
   const url = xanoMediaPlansUrl('media_plan_versions')
   try {
-    const versionsResponse = await apiClient.get(url)
-    return parseXanoListPayload(versionsResponse.data)
+    return await fetchAllXanoPages(url, {}, 'DASHBOARD_client_media_plan_versions', 100, 50)
   } catch (error: any) {
     const msg = error?.message != null ? String(error.message) : String(error)
     console.error('[dashboard] fetchMediaPlanVersionsArray catch:', {
@@ -220,9 +222,17 @@ export function mapMbaCampaignResponseVersionsToListEntries(
   return entries
 }
 
-/** All workspace versions from Xano, filtered to one MBA (newest first). */
+/** All versions for one MBA from Xano (newest first). Paged + mba filter. */
 export async function fetchVersionsForMba(mbaNumber: string): Promise<MediaPlanVersionListEntry[]> {
-  const all = await fetchMediaPlanVersionsArray()
+  // Version history — do NOT use getCachedMediaPlanVersions / media_plan_versions_latest.
+  const url = xanoMediaPlansUrl('media_plan_versions')
+  const all = await fetchAllXanoPages(
+    url,
+    { mba_number: String(mbaNumber).trim() },
+    'DASHBOARD_versions_for_mba',
+    100,
+    20
+  )
   const normalisedMba = String(mbaNumber).trim()
   const out: MediaPlanVersionListEntry[] = []
   for (const raw of all) {

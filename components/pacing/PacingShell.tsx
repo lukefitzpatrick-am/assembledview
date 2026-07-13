@@ -5,12 +5,16 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { AvaPacingCommentaryAction } from "@/components/ava/AvaSkillActionSets"
 import { PacingFilterToolbar } from "@/components/pacing/PacingFilterToolbar"
 
 const baseTabs = [
   { href: "/pacing/overview", label: "Overview" },
   { href: "/pacing/search", label: "Search" },
   { href: "/pacing/social", label: "Social" },
+  { href: "/pacing/programmatic", label: "Programmatic" },
+  { href: "/pacing/ad-serving", label: "Ad Serving" },
+  { href: "/pacing/direct", label: "Direct" },
 ] as const
 
 interface PacingShellProps {
@@ -35,6 +39,7 @@ export function PacingShell({ children, isAdmin = false }: PacingShellProps) {
       <MediaPlanEditorHero
         title="Pacing"
         detail={<p>Portfolio pacing across all clients in your scope.</p>}
+        actions={<AvaPacingCommentaryAction />}
       />
 
       {/* Top tabs */}

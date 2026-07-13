@@ -1,5 +1,5 @@
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
 
 const CACHE_TTL_MS = 30_000
@@ -21,7 +21,9 @@ export async function getCachedClients(): Promise<any[]> {
 
   const promise = (async (): Promise<any[]> => {
     try {
-      const res = await axios.get(getXanoClientsCollectionUrl())
+      const res = await axios.get(getXanoClientsCollectionUrl(), {
+        headers: xanoAuthHeaderRecord(),
+      })
       const raw = res.data
       const data: any[] = Array.isArray(raw)
         ? raw
@@ -56,7 +58,9 @@ export async function getCachedPublishers(): Promise<any[]> {
   const promise = (async (): Promise<any[]> => {
     try {
       const res = await axios
-        .get(xanoUrl("get_publishers", "XANO_CLIENTS_BASE_URL"))
+        .get(xanoUrl("get_publishers", "XANO_CLIENTS_BASE_URL"), {
+          headers: xanoAuthHeaderRecord(),
+        })
         .catch(() => ({ data: [] as any[] }))
       const data = Array.isArray(res.data) ? res.data : []
       publishersCacheEntry = { expiresAt: Date.now() + CACHE_TTL_MS, value: data }

@@ -4,7 +4,7 @@ import axios from "axios"
 import { parseDateSafe as safeParseDate } from "@/lib/dates/parseDateSafe"
 import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
-import { getXanoBaseUrl, xanoUrl } from "@/lib/api/xano"
+import { getXanoBaseUrl, parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
 import { getCachedClients } from "@/lib/finance/xanoReferenceCache"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { roundMoney4 } from "@/lib/format/money"
@@ -13,6 +13,7 @@ import { writeScheduleDiffEdits } from "@/lib/finance/writeFinanceAuditEdits"
 import { extractBillingMonthStart } from "@/lib/spend/billingScheduleExpectedToDate"
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/monthlyPlanCalendar"
 import { getDraftReturnRejection } from "@/lib/mediaplan/campaignStatusGuard"
+import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -718,22 +719,54 @@ export async function GET(
 ) {
   try {
     const mediaPlansBaseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-    const { mba_number } = await params
+    const { mba_number: rawMbaNumber } = await params
+    const mba_number = parseMbaNumber(rawMbaNumber)
+    if (!mba_number) return invalidMbaNumberResponse()
 
     const access = await checkClientMbaAccess(request, mba_number)
     if (!access.ok) return access.response
 
     console.log(`[API] Received request for MBA number: "${mba_number}"`)
     console.log(`[API] MBA number type: ${typeof mba_number}, length: ${mba_number?.length}`)
-    
+
+    const requestUrl = new URL(request.url)
+    const requestedVersionParam = requestUrl.searchParams.get("version")
+    const requestedVersionNumber = requestedVersionParam ? parseInt(requestedVersionParam, 10) : null
+    const requestedStartDateParam = requestUrl.searchParams.get("startDate")
+    const requestedEndDateParam = requestUrl.searchParams.get("endDate")
+    const billingScheduleFullParam = requestUrl.searchParams.get("billingScheduleFull")
+    const billingScheduleFull =
+      billingScheduleFullParam === "1" ||
+      billingScheduleFullParam === "true" ||
+      billingScheduleFullParam === "yes"
+    const includeVersionsMeta =
+      requestUrl.searchParams.get("includeVersionsMeta") === "1" ||
+      requestUrl.searchParams.get("includeVersionsMeta") === "true"
+    const skipLineItems = requestUrl.searchParams.get("skipLineItems") === "true"
+
+    const timings: Record<string, number> = {}
+    const mark = (label: string, startedAt: number) => {
+      timings[label] = Date.now() - startedAt
+    }
+    const routeStartedAt = Date.now()
+
     // First, get the MediaPlanMaster by MBA number
     const masterQueryUrl = `${mediaPlansBaseUrl}/media_plan_master?mba_number=${encodeURIComponent(mba_number)}`
     console.log(`[API] Querying master with URL: ${masterQueryUrl}`)
-    console.log(`[API] Master API Database: ${mediaPlansBaseUrl}`)
-    console.log(`[API] Master Endpoint: media_plan_master`)
-    console.log(`[API] Requested MBA number: "${mba_number}" (type: ${typeof mba_number}, length: ${mba_number?.length})`)
-    
-    const masterResponse = await axios.get(masterQueryUrl, { timeout: XANO_TIMEOUT_MS })
+
+    const tMaster = Date.now()
+    // When version is known up-front, fetch master + version row in parallel.
+    const masterPromise = axios.get(masterQueryUrl, { timeout: XANO_TIMEOUT_MS })
+    const earlyVersionPromise =
+      requestedVersionNumber != null && !Number.isNaN(requestedVersionNumber)
+        ? axios.get(
+            `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}&version_number=${requestedVersionNumber}&page=1&per_page=50`,
+            { timeout: XANO_LONG_TIMEOUT_MS }
+          )
+        : null
+
+    const masterResponse = await masterPromise
+    mark("master", tMaster)
 
     // Log raw response to see what Xano is actually returning
     console.log(`[API] Raw Xano response:`, {
@@ -766,6 +799,7 @@ export async function GET(
     
     // Validate that we got the correct MBA number
     if (masterData && masterData.mba_number !== mba_number) {
+      earlyVersionPromise?.catch(() => {})
       console.error(`[API] MBA number mismatch! Requested: "${mba_number}", Got: "${masterData.mba_number}"`)
       return NextResponse.json(
         { 
@@ -778,6 +812,7 @@ export async function GET(
     }
     
     if (!masterData) {
+      earlyVersionPromise?.catch(() => {})
       console.error(`[API] Master not found for MBA: ${mba_number}`)
       return NextResponse.json(
         { error: `Media plan master not found for MBA number: ${mba_number}` },
@@ -789,6 +824,7 @@ export async function GET(
     
     // Ensure we have version_number from master (required field)
     if (!masterData.version_number && masterData.version_number !== 0) {
+      earlyVersionPromise?.catch(() => {})
       console.error(`[API] ERROR: masterData is missing version_number field!`, masterData)
       return NextResponse.json(
         { 
@@ -799,54 +835,64 @@ export async function GET(
       )
     }
 
-    // Parse requested version from query (optional)
-    const url = new URL(request.url)
-    const requestedVersionParam = url.searchParams.get('version')
-    const requestedVersionNumber = requestedVersionParam ? parseInt(requestedVersionParam, 10) : null
-    const requestedStartDateParam = url.searchParams.get("startDate")
-    const requestedEndDateParam = url.searchParams.get("endDate")
-    const billingScheduleFullParam = url.searchParams.get("billingScheduleFull")
-    const billingScheduleFull =
-      billingScheduleFullParam === "1" ||
-      billingScheduleFullParam === "true" ||
-      billingScheduleFullParam === "yes"
-    
-    // Lightweight version list for switcher metadata + latest/next derivation
-    const trimmedVersionsResponse = await axios.get(
-      `${mediaPlansBaseUrl}/media_plan_versions_trimmed?mba_number=${encodeURIComponent(mba_number)}`,
-      { timeout: XANO_TIMEOUT_MS }
-    )
+    // Latest/next from master by default — do NOT walk full version history on
+    // the critical path. History loads lazily via includeVersionsMeta=1.
+    let versionsMetadata: Array<{ id: any; version_number: number; created_at: any }> = []
+    let latestVersionNumber = parseVersion(masterData?.version_number) ?? 0
 
-    const trimmedVersionsForMBA = Array.isArray(trimmedVersionsResponse.data)
-      ? trimmedVersionsResponse.data
-      : []
-
-    const versionsMetadata = trimmedVersionsForMBA.map((v: any) => ({
-      id: v.id,
-      version_number: parseVersion(v.version_number) ?? 0,
-      created_at: v.created_at ?? v.createdAt ?? v.created ?? null
-    }))
-
-    const latestVersionNumber = versionsMetadata.length > 0
-      ? Math.max(...versionsMetadata.map(v => v.version_number || 0))
-      : parseVersion(masterData?.version_number) ?? 0
+    if (includeVersionsMeta) {
+      const tVersions = Date.now()
+      // Prefer paged media_plan_versions filtered by mba (trimmed is empty in some envs).
+      const historyRows = await fetchAllXanoPages(
+        `${mediaPlansBaseUrl}/media_plan_versions`,
+        { mba_number },
+        "MBA_versions_history",
+        100,
+        20
+      )
+      versionsMetadata = historyRows
+        .filter((v: any) => normalise(v?.mba_number) === requestedNormalized)
+        .map((v: any) => ({
+          id: v.id,
+          version_number: parseVersion(v.version_number) ?? 0,
+          created_at: v.created_at ?? v.createdAt ?? v.created ?? null,
+        }))
+      if (versionsMetadata.length > 0) {
+        latestVersionNumber = Math.max(
+          latestVersionNumber,
+          ...versionsMetadata.map((v) => v.version_number || 0)
+        )
+      }
+      mark("versionsMeta", tVersions)
+    }
 
     const nextVersionNumber = (latestVersionNumber || 0) + 1
 
-    // Choose target version: requested > latest available > master version > 1
-    // Default to the latest version when none is requested
-    let targetVersionNumber = requestedVersionNumber ?? latestVersionNumber ?? parseVersion(masterData?.version_number) ?? 1
+    // Choose target version: requested > master/latest > 1
+    let targetVersionNumber =
+      requestedVersionNumber ?? latestVersionNumber ?? parseVersion(masterData?.version_number) ?? 1
 
-    const scopedVersionResponse = await axios.get(
-      `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}&version_number=${targetVersionNumber}`,
-      { timeout: XANO_LONG_TIMEOUT_MS }
-    )
-
-    const scopedVersionsForMBA = Array.isArray(scopedVersionResponse.data)
-      ? scopedVersionResponse.data.filter((v: any) => normalise(v?.mba_number) === requestedNormalized)
-      : []
-
-    let versionData = scopedVersionsForMBA[0] || null
+    let versionData: any = null
+    if (earlyVersionPromise) {
+      const tVersionRow = Date.now()
+      const scopedVersionResponse = await earlyVersionPromise
+      mark("versionRow", tVersionRow)
+      const scopedVersionsForMBA = parseXanoListPayload(scopedVersionResponse.data).filter(
+        (v: any) => normalise(v?.mba_number) === requestedNormalized
+      )
+      versionData = scopedVersionsForMBA[0] || null
+    } else {
+      const tVersionRow = Date.now()
+      const scopedVersionResponse = await axios.get(
+        `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}&version_number=${targetVersionNumber}&page=1&per_page=50`,
+        { timeout: XANO_LONG_TIMEOUT_MS }
+      )
+      mark("versionRow", tVersionRow)
+      const scopedVersionsForMBA = parseXanoListPayload(scopedVersionResponse.data).filter(
+        (v: any) => normalise(v?.mba_number) === requestedNormalized
+      )
+      versionData = scopedVersionsForMBA[0] || null
+    }
 
     if (requestedVersionNumber !== null && !versionData) {
       console.error(`[API] Requested version ${requestedVersionNumber} not found for mba_number ${mba_number}`)
@@ -860,19 +906,23 @@ export async function GET(
       )
     }
 
-    // Fallback to latest if target missing
-    if (!versionData && versionsMetadata.length > 0) {
-      const fallbackVersionNumber = latestVersionNumber
-      const fallbackVersionResponse = await axios.get(
-        `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}&version_number=${fallbackVersionNumber}`,
-        { timeout: XANO_LONG_TIMEOUT_MS }
-      )
-      const fallbackVersionsForMBA = Array.isArray(fallbackVersionResponse.data)
-        ? fallbackVersionResponse.data.filter((v: any) => normalise(v?.mba_number) === requestedNormalized)
-        : []
-      versionData = fallbackVersionsForMBA[0] || null
-      targetVersionNumber = parseVersion(versionData?.version_number) || fallbackVersionNumber
-      console.warn(`[API] Target version missing, using latest version ${targetVersionNumber} for mba_number ${mba_number}`)
+    // Fallback to master version if target missing
+    if (!versionData) {
+      const fallbackVersionNumber = parseVersion(masterData?.version_number) ?? latestVersionNumber
+      if (fallbackVersionNumber && fallbackVersionNumber !== targetVersionNumber) {
+        const tFallback = Date.now()
+        const fallbackVersionResponse = await axios.get(
+          `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}&version_number=${fallbackVersionNumber}&page=1&per_page=50`,
+          { timeout: XANO_LONG_TIMEOUT_MS }
+        )
+        mark("versionRowFallback", tFallback)
+        const fallbackVersionsForMBA = parseXanoListPayload(fallbackVersionResponse.data).filter(
+          (v: any) => normalise(v?.mba_number) === requestedNormalized
+        )
+        versionData = fallbackVersionsForMBA[0] || null
+        targetVersionNumber = parseVersion(versionData?.version_number) || fallbackVersionNumber
+        console.warn(`[API] Target version missing, using latest version ${targetVersionNumber} for mba_number ${mba_number}`)
+      }
     }
     
     // Final validation
@@ -887,10 +937,6 @@ export async function GET(
     console.log(`[API] Using version ${targetVersionNumber} for mba_number: ${mba_number}`)
     
     console.log(`[API] Successfully found version data for mba_number: ${mba_number}`)
-
-    // Check if line items should be skipped for faster initial load
-    // Note: url was already parsed above for version parameter
-    const skipLineItems = url.searchParams.get("skipLineItems") === "true"
 
     let lineItemsData: MediaLineItems = createEmptyLineItems()
     const versionRecord = versionData || masterData || {}
@@ -1029,7 +1075,9 @@ export async function GET(
       masterData?.client_name ||
       null
 
+    const tBrand = Date.now()
     const clientBrandColour = await fetchClientBrandColour(clientName)
+    mark("clientBrandColour", tBrand)
 
     let effectiveStartDateObj: Date | null = null
     let effectiveEndDateObj: Date | null = null
@@ -1182,6 +1230,8 @@ export async function GET(
       versions: versionsMetadata.sort((a, b) => (a.version_number || 0) - (b.version_number || 0)),
       latestVersionNumber,
       nextVersionNumber,
+      // After spreads so versionData.id cannot shadow the master's primary key
+      media_plan_master_id: masterData.id,
     }
 
     if (clientBrandColour) {
@@ -1213,10 +1263,14 @@ export async function GET(
       billingScheduleLength: Array.isArray(combinedData.billingSchedule) ? combinedData.billingSchedule.length : 'N/A',
       lineItemsCount: Object.keys(lineItemsData).reduce((sum, key) => sum + (lineItemsData[key]?.length || 0), 0)
     })
+
+    mark("total", routeStartedAt)
+    console.log(`[API] MBA ${mba_number} upstream timings (ms):`, timings)
     
     const response = NextResponse.json(combinedData)
     // Ensure no caching
     response.headers.set("Cache-Control", "no-store, max-age=0")
+    response.headers.set("Server-Timing", Object.entries(timings).map(([k, v]) => `${k};dur=${v}`).join(", "))
     return response
   } catch (error) {
     console.error("Error fetching media plan by MBA:", error)
@@ -1261,12 +1315,18 @@ export async function GET(
 
 // PUT (update) a media plan by MBA number - creates new version for version control
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
     const mediaPlansBaseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-    const { mba_number } = await params
+    const { mba_number: rawMbaNumber } = await params
+    const mba_number = parseMbaNumber(rawMbaNumber)
+    if (!mba_number) return invalidMbaNumberResponse()
+
+    const access = await checkClientMbaAccess(request, mba_number)
+    if (!access.ok) return access.response
+
     const data = await request.json()
     
     console.log(`Creating new version for media plan with MBA: ${mba_number}`)
@@ -1303,16 +1363,17 @@ export async function PUT(
       )
     }
 
-    // Calculate next version number based on max existing version for this MBA
-    const versionsResponse = await axios
-      .get(`${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}`, {
-        timeout: XANO_LONG_TIMEOUT_MS,
-      })
-      .catch(() => ({ data: [] }))
-    
-    const allVersionsForMBA = Array.isArray(versionsResponse.data)
-      ? versionsResponse.data.filter((v: any) => normalise(v?.mba_number) === requestedNormalized)
-      : []
+    // Calculate next version number based on max existing version for this MBA.
+    // Version history for one MBA — do NOT use media_plan_versions_latest.
+    const allVersionsForMBA = (
+      await fetchAllXanoPages(
+        `${mediaPlansBaseUrl}/media_plan_versions`,
+        { mba_number },
+        "MBA_versions_for_put",
+        100,
+        20
+      )
+    ).filter((v: any) => normalise(v?.mba_number) === requestedNormalized)
     
     const parseVersion = (value: any): number => {
       const num = typeof value === 'string' ? parseInt(value, 10) : value
@@ -1509,12 +1570,18 @@ export async function PUT(
 
 // PATCH (update) media plan master by MBA number
 export async function PATCH(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
     const mediaPlansBaseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-    const { mba_number } = await params
+    const { mba_number: rawMbaNumber } = await params
+    const mba_number = parseMbaNumber(rawMbaNumber)
+    if (!mba_number) return invalidMbaNumberResponse()
+
+    const access = await checkClientMbaAccess(request, mba_number)
+    if (!access.ok) return access.response
+
     const data = await request.json()
     
     console.log(`[PATCH] Updating media plan master for MBA: "${mba_number}"`)

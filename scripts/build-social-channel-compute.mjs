@@ -34,7 +34,6 @@ const exportedMetricsType =
   "export type SocialLineMetrics = " +
   slice(110, 126)
     .replace(/^type LineItemMetrics = \{/m, "{\n  ")
-    .replace(/\n\}$/, "\n}")
 
 const utilsA = slice(131, 152)
 const mapCombined = slice(164, 179).replace("function mapCombinedRowToMeta", "export function mapCombinedRowToMeta")
@@ -66,7 +65,7 @@ const computeFn = `export function computeSocialLineMetricsForPlatform(input: {
     input
   const resolvedCampaignStart = campaignStart
   const resolvedCampaignEnd = campaignEnd
-${memoInner.replace(/^  /, "  ")}
+${memoInner.replace(/^    /gm, "  ")}
 }
 `
 

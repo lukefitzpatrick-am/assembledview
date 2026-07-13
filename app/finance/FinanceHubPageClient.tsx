@@ -1,12 +1,11 @@
-"use client"
+﻿"use client"
 
 import dynamic from "next/dynamic"
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { ToastAction } from "@/components/ui/toast"
 import { saveAs } from "file-saver"
 import { usePathname } from "next/navigation"
-import Link from "next/link"
-import { ArrowRight, Bookmark, ChevronDown, Download, Loader2, Sparkles } from "lucide-react"
+import { Bookmark, ChevronDown, Download, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -16,19 +15,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import { FinanceFilterToolbar } from "@/components/finance/FinanceFilterToolbar"
-import { FinanceOverviewHero, FinanceOverviewProvider } from "@/components/finance/tabs/OverviewTab"
+import { FinanceOverviewHero, FinanceOverviewProvider } from "@/components/finance/hub/panels/FinanceOverviewPanel"
+import {
+  ReceivablesPageClient,
+  type ReceivablesHubBridge,
+} from "@/app/finance/receivables/ReceivablesPageClient"
 import { toast } from "@/components/ui/use-toast"
-import type { BillingRecord, FinanceFilters } from "@/lib/types/financeBilling"
-import { clientInitials } from "@/lib/finance/cardHelpers"
-import { formatLineItemDescription } from "@/lib/finance/lineItemDescription"
-import { cn } from "@/lib/utils"
-import { formatAUD } from "@/lib/format/money"
-import { MediaPlanActionBar } from "@/components/finance/MediaPlanActionBar"
+import type { FinanceFilters } from "@/lib/types/financeBilling"
 import { buildFinanceHubWorkbook } from "@/lib/finance/excelFinanceExport"
 import { exportBillingRecordsCsv, exportPayablesDetailCsv } from "@/lib/finance/export"
 import { exportAccrualWorkbook } from "@/lib/finance/accrualExcel"
@@ -44,13 +38,7 @@ import {
   exportPayablesWorkbook,
   exportReceivablesWorkbook,
 } from "@/lib/finance/exportFinanceHub"
-import {
-  billingTypeBadgeClass,
-  isReceivableRecord,
-  receivableRecordSectionLabel,
-  useReceivablesData,
-  type MonthGroup,
-} from "@/lib/finance/useReceivablesData"
+import { isReceivableRecord } from "@/lib/finance/useReceivablesData"
 import {
   parseFinanceHubTabParam,
   scheduleFinanceFetchAll,
@@ -58,6 +46,18 @@ import {
   type FinanceHubFetchError,
   type FinanceHubTab,
 } from "@/lib/finance/useFinanceStore"
+import {
+  fyDisplayLabel,
+  fyMonthRange,
+  fySelectOptions,
+} from "@/lib/finance/months"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 const financeHubEffectDepPrev = new Map<string, unknown[]>()
 
@@ -110,6 +110,10 @@ const FinanceReportPanel = dynamic(
   () => import("@/components/finance/hub/panels/FinanceReportPanel"),
   { loading: () => <HubPanelFallback /> }
 )
+const FinanceXeroQueuePanel = dynamic(
+  () => import("@/components/finance/hub/panels/FinanceXeroQueuePanel"),
+  { loading: () => <HubPanelFallback /> }
+)
 
 function readSavedViews(): HubSavedView[] {
   try {
@@ -126,328 +130,6 @@ function writeSavedViews(views: HubSavedView[]) {
   localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(views))
 }
 
-function australianFyStartYearForDate(d: Date): number {
-  const y = d.getFullYear()
-  const m = d.getMonth() + 1
-  return m >= 7 ? y : y - 1
-}
-
-function invoiceStatusBadgeProps(status: string): {
-  variant: "ahead" | "on-track" | "critical" | "outline"
-  className?: string
-  label: string
-} {
-  const normalized = status.trim().toLowerCase()
-  if (normalized === "paid") return { variant: "ahead", label: "Paid" }
-  if (normalized === "sent" || normalized === "invoiced") return { variant: "on-track", label: status || "Sent" }
-  if (normalized === "overdue") return { variant: "critical", label: "Overdue" }
-  if (normalized === "draft") return { variant: "outline", className: "text-muted-foreground", label: "Draft" }
-  return { variant: "outline", className: "text-muted-foreground", label: status || "Draft" }
-}
-
-function HubReceivableRecordArticle({ rec }: { rec: BillingRecord }) {
-  const statusBadge = invoiceStatusBadgeProps(rec.status)
-
-  return (
-    <article className="overflow-hidden rounded-input border border-border">
-      <div className="flex items-start justify-between gap-3 bg-surface-panel px-3 py-2.5">
-        <div className="min-w-0">
-          <Badge
-            variant={statusBadge.variant}
-            size="sm"
-            className={cn("capitalize", statusBadge.className)}
-          >
-            {statusBadge.label}
-          </Badge>
-          {rec.invoice_date ? (
-            <p className="num mt-0.5 truncate text-[11px] text-muted-foreground">{rec.invoice_date}</p>
-          ) : null}
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-1">
-          <Badge
-            variant="secondary"
-            className={cn("text-[10px] font-semibold uppercase", billingTypeBadgeClass(rec.billing_type))}
-          >
-            {receivableRecordSectionLabel(rec.billing_type)}
-          </Badge>
-          <p className="num text-sm font-semibold">{formatAUD(rec.total)}</p>
-        </div>
-      </div>
-      <div className="px-3 py-1">
-        {(rec.line_items ?? []).length === 0 ? (
-          <p className="py-2 text-xs text-muted-foreground">No line items</p>
-        ) : (
-          [...(rec.line_items ?? [])]
-            .sort((a, b) => a.sort_order - b.sort_order)
-            .map((li, liIdx) => {
-              const { primary, channelLabel } = formatLineItemDescription(li)
-              return (
-                <div
-                  key={`li-${liIdx}-${li.sort_order}-${li.item_code}-${li.line_type}`}
-                  className="flex items-start justify-between gap-3 border-b border-border/40 py-2 last:border-0"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-xs text-foreground">{primary}</p>
-                    <p className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                      {channelLabel}
-                    </p>
-                  </div>
-                  <p className="num shrink-0 text-xs text-muted-foreground">{formatAUD(li.amount)}</p>
-                </div>
-              )
-            })
-        )}
-      </div>
-    </article>
-  )
-}
-
-/** Receivables list: months → client → media plans / scopes / retainers (matches hub billing card patterns). */
-function FinanceHubReceivablesSection({
-  visibleMonthGroups,
-  loading,
-  awaitingExplicitLoad,
-  loadError,
-  bumpReceivablesFetch,
-}: {
-  visibleMonthGroups: MonthGroup[]
-  loading: boolean
-  awaitingExplicitLoad: boolean
-  loadError: string | null
-  bumpReceivablesFetch: () => void
-}) {
-  return (
-    <div className="relative">
-      {loading ? (
-        <div className="pointer-events-none absolute inset-x-0 -top-1 h-0.5 overflow-hidden">
-          <div className="h-full w-1/3 animate-pulse bg-primary" />
-        </div>
-      ) : null}
-
-      {loading && visibleMonthGroups.length === 0 ? (
-        <LoadingState rows={5} />
-      ) : loadError && !loading ? (
-        <ErrorState title="Could not load receivables" message={loadError} onRetry={bumpReceivablesFetch} />
-      ) : !loading && awaitingExplicitLoad ? (
-        <EmptyState
-          title="Load receivables"
-          message="Use Load or Refresh in the filter bar above to fetch receivables for the current filters."
-        />
-      ) : !loading && visibleMonthGroups.length === 0 ? (
-        <EmptyState
-          title="No receivable billing rows"
-          message="No receivable billing rows for the current filters and billing months in view."
-        />
-      ) : (
-        <div className="space-y-8 pt-1">
-          {visibleMonthGroups.map((mg) => {
-            const invoiceCount = mg.clients.reduce((n, c) => {
-              const mediaN = c.mediaPlans.reduce((m, mp) => m + mp.records.length, 0)
-              const sowN = c.scopeOfWorks.reduce((m, mp) => m + mp.records.length, 0)
-              return n + mediaN + sowN + c.retainers.length
-            }, 0)
-            const clientNoun = mg.clients.length === 1 ? "client" : "clients"
-            const invoiceNoun = invoiceCount === 1 ? "invoice" : "invoices"
-
-            return (
-              <section key={mg.monthIso} className="space-y-4">
-                <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1 border-b border-border/50 pb-2">
-                  <p className="text-sm font-medium text-foreground">{mg.monthLabel}</p>
-                  <div className="flex flex-wrap items-end justify-end gap-x-4">
-                    <p className="text-xs text-muted-foreground">
-                      {mg.clients.length} {clientNoun} · {invoiceCount} {invoiceNoun}
-                    </p>
-                    <p className="num text-xs font-medium text-foreground">
-                      {formatAUD(mg.total)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  {mg.clients.map((client) => {
-                    const invCount =
-                      client.mediaPlans.reduce((n, mp) => n + mp.records.length, 0) +
-                      client.scopeOfWorks.reduce((n, mp) => n + mp.records.length, 0) +
-                      client.retainers.length
-                    const invNoun = invCount === 1 ? "invoice" : "invoices"
-                    return (
-                      <Collapsible key={`${mg.monthIso}-${client.clientsId}`} defaultOpen className="group/client">
-                        <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
-                          <CollapsibleTrigger asChild>
-                            <header className="flex w-full cursor-pointer items-center gap-3 border-b border-border bg-surface-panel px-4 py-3 text-left transition-colors hover:bg-table-row-hover">
-                              <Avatar className="h-9 w-9 rounded-pill border border-border shadow-e0">
-                                <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
-                                  {clientInitials(client.clientName)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-medium">{client.clientName}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {invCount} {invNoun} · {mg.monthLabel}
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                                  Subtotal
-                                </p>
-                                <p className="num text-base font-semibold">
-                                  {formatAUD(client.total)}
-                                </p>
-                              </div>
-                              <ChevronDown
-                                className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/client:-rotate-90"
-                                aria-hidden
-                              />
-                            </header>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent>
-                            <div className="space-y-4 p-4">
-                              {client.mediaPlans.length > 0 ? (
-                                <Collapsible defaultOpen className="group/mpsec">
-                                  <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-0 py-1 text-left hover:bg-muted/40">
-                                    <ChevronDown
-                                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/mpsec:-rotate-90"
-                                      aria-hidden
-                                    />
-                                    <span className="text-xs font-medium text-muted-foreground">Media plans</span>
-                                  </CollapsibleTrigger>
-                                  <CollapsibleContent className="mt-3 space-y-3">
-                                    <div className="grid gap-3 lg:grid-cols-2">
-                                      {client.mediaPlans.map((mp, mpIdx) => (
-                                        <div
-                                          key={`${mg.monthIso}-${client.clientsId}-mp-${mpIdx}-${mp.mbaNumber}`}
-                                          className="col-span-full space-y-3 lg:col-span-2"
-                                        >
-                                          <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border/50 pb-2">
-                                            <div className="min-w-0">
-                                              <p className="truncate text-sm font-medium">{mp.campaignName}</p>
-                                              {mp.mbaNumber ? (
-                                                <p className="truncate text-[11px] tabular-nums text-muted-foreground">
-                                                  {mp.mbaNumber}
-                                                </p>
-                                              ) : null}
-                                            </div>
-                                            <MediaPlanActionBar
-                                              mp={mp}
-                                              billingMonth={mg.monthIso}
-                                              onSaved={bumpReceivablesFetch}
-                                            />
-                                          </div>
-                                          <div className="grid gap-3 lg:grid-cols-2">
-                                            {mp.records.map((rec, recIdx) => (
-                                              <HubReceivableRecordArticle
-                                                key={`${mg.monthIso}-${client.clientsId}-${mp.mbaNumber}-${mpIdx}-${rec.billing_type}-${rec.id}-${recIdx}`}
-                                                rec={rec}
-                                              />
-                                            ))}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </CollapsibleContent>
-                                </Collapsible>
-                              ) : null}
-
-                              {client.scopeOfWorks.length > 0 ? (
-                                <Collapsible defaultOpen className="group/sowsec">
-                                  <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-0 py-1 text-left hover:bg-muted/40">
-                                    <ChevronDown
-                                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/sowsec:-rotate-90"
-                                      aria-hidden
-                                    />
-                                    <span className="text-xs font-medium text-muted-foreground">Scopes of work</span>
-                                  </CollapsibleTrigger>
-                                  <CollapsibleContent className="mt-3 space-y-3">
-                                    <div className="grid gap-3 lg:grid-cols-2">
-                                      {client.scopeOfWorks.map((mp, mpIdx) => {
-                                        const first = mp.records[0]
-                                        const scopeEditId =
-                                          first?.id != null && first.id > 0
-                                            ? String(first.id)
-                                            : (mp.mbaNumber || "").trim()
-                                        return (
-                                          <div
-                                            key={`${mg.monthIso}-${client.clientsId}-sow-${mpIdx}-${mp.mbaNumber}`}
-                                            className="col-span-full space-y-3 lg:col-span-2"
-                                          >
-                                            <div className="flex flex-wrap items-start justify-between gap-2 border-b border-border/50 pb-2">
-                                              <div className="min-w-0">
-                                                <p className="truncate text-sm font-medium">{mp.campaignName}</p>
-                                                {mp.mbaNumber ? (
-                                                  <p className="truncate text-[11px] tabular-nums text-muted-foreground">
-                                                    {mp.mbaNumber}
-                                                  </p>
-                                                ) : null}
-                                              </div>
-                                              {scopeEditId ? (
-                                                <Button variant="outline" size="sm" asChild className="shrink-0">
-                                                  <a
-                                                    href={`/scopes-of-work/${encodeURIComponent(scopeEditId)}/edit`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                  >
-                                                    Edit
-                                                  </a>
-                                                </Button>
-                                              ) : (
-                                                <Button variant="outline" size="sm" className="shrink-0" disabled>
-                                                  Edit
-                                                </Button>
-                                              )}
-                                            </div>
-                                            <div className="grid gap-3 lg:grid-cols-2">
-                                              {mp.records.map((rec, recIdx) => (
-                                                <HubReceivableRecordArticle
-                                                  key={`${mg.monthIso}-${client.clientsId}-sow-${mp.mbaNumber}-${mpIdx}-${rec.billing_type}-${rec.id}-${recIdx}`}
-                                                  rec={rec}
-                                                />
-                                              ))}
-                                            </div>
-                                          </div>
-                                        )
-                                      })}
-                                    </div>
-                                  </CollapsibleContent>
-                                </Collapsible>
-                              ) : null}
-
-                              {client.retainers.length > 0 ? (
-                                <Collapsible defaultOpen className="group/retsec">
-                                  <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-0 py-1 text-left hover:bg-muted/40">
-                                    <ChevronDown
-                                      className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/retsec:-rotate-90"
-                                      aria-hidden
-                                    />
-                                    <span className="text-xs font-medium text-muted-foreground">Retainers</span>
-                                  </CollapsibleTrigger>
-                                  <CollapsibleContent className="mt-3">
-                                    <div className="grid gap-3 lg:grid-cols-2">
-                                      {client.retainers.map((rec, recIdx) => (
-                                        <HubReceivableRecordArticle
-                                          key={`${mg.monthIso}-${client.clientsId}-ret-${rec.billing_type}-${rec.id}-${recIdx}`}
-                                          rec={rec}
-                                        />
-                                      ))}
-                                    </div>
-                                  </CollapsibleContent>
-                                </Collapsible>
-                              ) : null}
-                            </div>
-                          </CollapsibleContent>
-                        </div>
-                      </Collapsible>
-                    )
-                  })}
-                </div>
-              </section>
-            )
-          })}
-        </div>
-      )}
-    </div>
-  )
-}
-
 function financeErrorCopyBlock(err: FinanceHubFetchError): string {
   return [`Status: ${err.status ?? "unknown"}`, `URL: ${err.requestUrl ?? "unknown"}`, `Message: ${err.error}`].join(
     "\n"
@@ -457,6 +139,7 @@ function financeErrorCopyBlock(err: FinanceHubFetchError): string {
 function buildSearchParams(activeTab: FinanceHubTab, filters: FinanceFilters) {
   const params = new URLSearchParams()
   params.set("tab", activeTab)
+  params.set("fy", String(filters.financialYear))
   params.set("from", filters.monthRange.from)
   params.set("to", filters.monthRange.to)
   if (filters.selectedClients.length) params.set("clients", filters.selectedClients.join(","))
@@ -475,10 +158,12 @@ export default function FinanceHubPageClient() {
   const filters = useFinanceStore((s) => s.filters)
   const monthFromKey = filters.monthRange.from
   const monthToKey = filters.monthRange.to
+  const financialYearKey = filters.financialYear
   const clientsCsvKey = filters.selectedClients.join(",")
   const publishersCsvKey = filters.selectedPublishers.join(",")
   const searchQueryKey = filters.searchQuery
   const includeDraftsKey = filters.includeDrafts ? "1" : "0"
+  const fyOptions = useMemo(() => fySelectOptions(), [])
   const hubFetchClientsKey = useMemo(() => filters.selectedClients.join(","), [filters.selectedClients])
   const hubFetchPublishersKey = useMemo(() => filters.selectedPublishers.join(","), [filters.selectedPublishers])
   const hubFetchBillingTypesKey = useMemo(
@@ -486,15 +171,19 @@ export default function FinanceHubPageClient() {
     [filters.billingTypes]
   )
   const hubFetchStatusesKey = useMemo(() => [...filters.statuses].sort().join(","), [filters.statuses])
-  const {
-    loading: hubReceivablesLoading,
-    visibleMonthGroups,
-    loadedSignature: hubReceivablesLoadedSignature,
-    filterSig: hubReceivablesFilterSig,
-    loadError: hubReceivablesLoadError,
-    bumpReceivablesFetch,
-  } = useReceivablesData(activeTab)
-  const hubReceivablesSynced = hubReceivablesLoadedSignature === hubReceivablesFilterSig
+  const [receivablesBridge, setReceivablesBridge] = useState<ReceivablesHubBridge>({
+    synced: false,
+    loading: false,
+    bump: () => {},
+    visibleMonthGroups: [],
+  })
+  const handleReceivablesHubBridge = useCallback((bridge: ReceivablesHubBridge) => {
+    setReceivablesBridge(bridge)
+  }, [])
+  const visibleMonthGroups = receivablesBridge.visibleMonthGroups
+  const hubReceivablesLoading = receivablesBridge.loading
+  const hubReceivablesSynced = receivablesBridge.synced
+  const bumpReceivablesFetch = receivablesBridge.bump
   const [financeReportDownloading, setFinanceReportDownloading] = useState(false)
   const setFilters = useFinanceStore((s) => s.setFilters)
   const setActiveTab = useFinanceStore((s) => s.setActiveTab)
@@ -503,6 +192,16 @@ export default function FinanceHubPageClient() {
   const billingLoading = useFinanceStore((s) => s.billingLoading)
   const billingError = useFinanceStore((s) => s.billingError)
   const payablesError = useFinanceStore((s) => s.payablesError)
+
+  const applyFinancialYear = useCallback(
+    (fy: number) => {
+      setFilters({
+        financialYear: fy,
+        monthRange: fyMonthRange(fy),
+      })
+    },
+    [setFilters]
+  )
 
   const [savedViewNames, setSavedViewNames] = useState<string[]>(() =>
     readSavedViews().map((v) => v.name)
@@ -575,6 +274,17 @@ export default function FinanceHubPageClient() {
     if (tabParam !== curTab) applyTab(tabParam)
 
     const partial: Partial<FinanceFilters> = {}
+    const fyRaw = sp.get("fy")
+    if (fyRaw) {
+      const fy = Number.parseInt(fyRaw, 10)
+      if (Number.isFinite(fy) && fy >= 2000 && fy <= 2100 && fy !== cur.financialYear) {
+        partial.financialYear = fy
+        // Deep-link FY also scopes the month toolbar to that FY unless from/to override.
+        if (!sp.get("from")) {
+          partial.monthRange = fyMonthRange(fy)
+        }
+      }
+    }
     const from = sp.get("from")
     const to = sp.get("to")
     if (from) {
@@ -599,7 +309,7 @@ export default function FinanceHubPageClient() {
     const nextQ = sp.get("q") || ""
     if (nextQ !== cur.searchQuery) partial.searchQuery = nextQ
 
-    // Only sync drafts from URL when present — missing param keeps store default (excludes drafts).
+    // Only sync drafts from URL when present â€” missing param keeps store default (excludes drafts).
     if (sp.has("drafts")) {
       const nextIncludeDrafts = sp.get("drafts") !== "0"
       if (nextIncludeDrafts !== cur.includeDrafts) partial.includeDrafts = nextIncludeDrafts
@@ -616,6 +326,7 @@ export default function FinanceHubPageClient() {
     window.history.replaceState(null, "", newUrl)
   }, [
     activeTab,
+    financialYearKey,
     monthFromKey,
     monthToKey,
     clientsCsvKey,
@@ -674,14 +385,23 @@ export default function FinanceHubPageClient() {
     const merged = [next, ...prev]
     writeSavedViews(merged)
     setSavedViewNames(merged.map((v) => v.name))
-    toast({ title: "Saved", description: `View “${next.name}” stored in this browser.` })
+    toast({ title: "Saved", description: `View â€œ${next.name}â€ stored in this browser.` })
   }, [])
 
   const loadSavedView = useCallback((name: string) => {
     const views = readSavedViews()
     const view = views.find((v) => v.name === name)
     if (!view) return
-    setFilters(view.filters)
+    const f = view.filters
+    const fy =
+      typeof f.financialYear === "number" && Number.isFinite(f.financialYear)
+        ? f.financialYear
+        : useFinanceStore.getState().filters.financialYear
+    setFilters({
+      ...f,
+      financialYear: fy,
+      monthRange: f.monthRange ?? fyMonthRange(fy),
+    })
   }, [setFilters])
 
   const monthLabel = useMemo(
@@ -727,7 +447,7 @@ export default function FinanceHubPageClient() {
             : `Accrual_${filters.monthRange.from}_${filters.monthRange.to}`
         await exportAccrualWorkbook(rows, `${stem}.xlsx`)
       } else if (activeTab === "forecast") {
-        const fyStart = australianFyStartYearForDate(new Date())
+        const fyStart = useFinanceStore.getState().filters.financialYear
         const res = await fetch(`/api/finance/forecast?fy=${fyStart}&scenario=confirmed`, {
           cache: "no-store",
         })
@@ -761,6 +481,7 @@ export default function FinanceHubPageClient() {
   }, [
     activeTab,
     billingRecords,
+    filters.financialYear,
     filters.monthRange,
     filters.searchQuery,
     filters.selectedClients,
@@ -889,17 +610,33 @@ export default function FinanceHubPageClient() {
               >
                 Report
               </TabsTrigger>
+              <TabsTrigger
+                value="queue"
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+              >
+                Xero Queue
+              </TabsTrigger>
             </TabsList>
             <div className="flex items-center gap-2 pb-2">
-              {activeTab === "billing" ? (
-                <Button variant="ghost" size="sm" asChild className="text-muted-foreground">
-                  <Link href="/finance/receivables">
-                    <Sparkles className="mr-1.5 h-4 w-4" />
-                    Try the new receivables view
-                    <ArrowRight className="ml-1.5 h-3.5 w-3.5 opacity-70" />
-                  </Link>
-                </Button>
-              ) : null}
+              <div className="flex items-center gap-2">
+                <span className="hidden text-xs font-medium text-muted-foreground sm:inline">FY</span>
+                <Select
+                  value={String(filters.financialYear)}
+                  onValueChange={(v) => applyFinancialYear(Number.parseInt(v, 10))}
+                >
+                  <SelectTrigger className="h-9 w-[8.5rem]" aria-label="Financial year">
+                    <SelectValue placeholder="Financial year" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fyOptions.map((y) => (
+                      <SelectItem key={y} value={String(y)}>
+                        FY {fyDisplayLabel(y)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" size="sm">
@@ -971,13 +708,7 @@ export default function FinanceHubPageClient() {
               </Suspense>
             </TabsContent>
             <TabsContent value="billing" className="mt-0">
-              <FinanceHubReceivablesSection
-                loading={hubReceivablesLoading}
-                visibleMonthGroups={visibleMonthGroups}
-                awaitingExplicitLoad={!hubReceivablesSynced}
-                loadError={hubReceivablesLoadError}
-                bumpReceivablesFetch={bumpReceivablesFetch}
-              />
+              <ReceivablesPageClient embedded onHubBridge={handleReceivablesHubBridge} />
             </TabsContent>
             <TabsContent value="payables" className="mt-0">
               <Suspense fallback={<HubPanelFallback />}>
@@ -997,6 +728,11 @@ export default function FinanceHubPageClient() {
             <TabsContent value="report" className="mt-0">
               <Suspense fallback={<HubPanelFallback />}>
                 <FinanceReportPanel />
+              </Suspense>
+            </TabsContent>
+            <TabsContent value="queue" className="mt-0">
+              <Suspense fallback={<HubPanelFallback />}>
+                <FinanceXeroQueuePanel />
               </Suspense>
             </TabsContent>
           </div>

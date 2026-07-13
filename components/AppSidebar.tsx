@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { FileText, Users, Building2, LayoutDashboard, PlusCircle, ChevronDown, ChevronRight, UserCircle, DollarSign, BarChart3, ClipboardList, BookOpen, TrendingUp } from "lucide-react";
+import { FileText, Users, Building2, LayoutDashboard, PlusCircle, ChevronDown, ChevronRight, UserCircle, DollarSign, BarChart3, ClipboardList, BookOpen, TrendingUp, Images, Compass } from "lucide-react";
 import { UserMenu } from "@/components/UserMenu";
 import {
   Sidebar,
@@ -23,6 +23,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug";
+import { coalescedGetJson } from "@/lib/api/coalescedGetJson";
 import { cn } from "@/lib/utils";
 
 interface Client {
@@ -64,11 +65,7 @@ export function AppSidebar() {
 
   async function fetchClients() {
     try {
-      const response = await fetch("/api/clients");
-      if (!response.ok) {
-        throw new Error("Failed to fetch clients");
-      }
-      const data = await response.json();
+      const data = await coalescedGetJson<Client[]>("/api/clients");
       if (Array.isArray(data)) {
         setClients(data);
       }
@@ -85,8 +82,10 @@ export function AppSidebar() {
   const adminMenuItems = useMemo(() => ([
     { title: "Home", icon: LayoutDashboard, href: "/dashboard", exact: true as const },
     { title: "Campaigns", icon: FileText, href: "/mediaplans", exact: false as const, isActive: isCampaignsNavActive },
+    { title: "Creative", icon: Images, href: "/creative" },
     { title: "Scopes of Work", icon: ClipboardList, href: "/scopes-of-work" },
     { title: "Pacing", icon: TrendingUp, href: "/pacing" },
+    { title: "Planning", icon: Compass, href: "/tools/behavioural-planner" },
     { title: "Publishers", icon: Building2, href: "/publishers" },
     { title: "Client hub", icon: Users, href: "/client", exact: true as const },
     { title: "Finance", icon: DollarSign, href: "/finance", exact: false as const, isActive: isFinanceNavActive },

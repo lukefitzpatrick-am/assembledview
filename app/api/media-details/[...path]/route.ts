@@ -1,13 +1,21 @@
 import { NextResponse } from "next/server"
 import { xanoUrl } from "@/lib/api/xano"
+import { checkMediaDetailsProxyPath } from "@/lib/security/proxyAllowlist"
 
 type Params = { params: Promise<{ path: string[] }> }
 
 async function proxyRequest(request: Request, { params }: Params, method: string) {
   const { path: parts } = await params
-  const path = (parts || []).join("/")
+  const pathSegments = parts || []
+  const path = pathSegments.join("/")
   if (!path) {
     return NextResponse.json({ error: "Missing media detail path" }, { status: 400 })
+  }
+
+  const gate = checkMediaDetailsProxyPath(pathSegments, method)
+  if (!gate.allowed) {
+    console.warn(`[proxy-allowlist] blocked ${method} ${pathSegments.join("/")} (${gate.reason})`)
+    return NextResponse.json({ error: "forbidden" }, { status: 403 })
   }
 
   try {

@@ -1,0 +1,60 @@
+{
+  "publisher_slug": "ooh-media",
+  "publisher_name": "oOh!media",
+  "container_category_default": "OOH",
+  "category_note": "oOh!media operates large format roadside (LF), small format retail (SF), street furniture, fly transit, retail and place-based panels. Specs vary per panel format and per individual site. Always confirm exact pixel dimensions with oOh! account manager when booking.",
+  "last_refreshed": "2026-05-22",
+  "source": "STUB ENTRY — oOh! media publishes specs per booking. Download the specific spec sheet from oOh! when the line items are confirmed.",
+  "source_url": "https://oohmedia.com.au",
+  "stub_status": "incomplete",
+  "formats": [
+    {
+      "format_name": "large_format",
+      "container": "OOH",
+      "common_name": "Large Format Roadside (LF) Billboard",
+      "dimensions": "Varies per site — common sizes include 1400x400px, 1920x432px, 1440x912px. Confirm per site code with oOh! account manager.",
+      "file_type": "JPEG or PNG (digital), HTML5 on enquiry",
+      "resolution": "72 DPI",
+      "creative_type": "Static (10s slot rotation typical) or Animated subject to site capability",
+      "supply_deadline_rule": "5-10 working days before live date (confirm per booking)",
+      "aliases": ["large_format", "large format", "lf", "billboard roadside", "billboard", "roadside"],
+      "best_practice_notes": [
+        "Save at highest quality setting",
+        "Test legibility at viewing distance (large format = brief glance)",
+        "No more than 6-8 words on copy-led creative",
+        "Reserve high-contrast colours for legibility"
+      ]
+    },
+    {
+      "format_name": "retail",
+      "container": "OOH",
+      "common_name": "Retail Panels (SF) — small format",
+      "dimensions": "Varies per panel — common is 1080x1920 portrait. Confirm per site.",
+      "file_type": "JPEG or PNG (static), MP4 (animated where supported)",
+      "resolution": "72 DPI",
+      "creative_type": "Static or Animated",
+      "supply_deadline_rule": "5-10 working days before live date",
+      "aliases": ["retail panels", "sf"],
+      "best_practice_notes": [
+        "Retail context — shoppers in browsing mindset",
+        "Product-led or value-led creative typically outperforms brand awareness",
+        "Keep copy short, legible at close range"
+      ]
+    },
+    {
+      "format_name": "street_furniture",
+      "container": "OOH",
+      "common_name": "Street Furniture (bus shelters, kiosks)",
+      "dimensions": "Common: 1080x1920 portrait digital, 1185x1750 static",
+      "file_type": "JPEG or PNG (digital), CMYK print files for static",
+      "supply_deadline_rule": "Static requires longer lead time (10-14 working days for production and installation)",
+      "aliases": ["street furniture", "bus shelter", "kiosk"]
+    }
+  ],
+  "supply_deadline_general": "Digital: 5-10 working days before live. Static (street furniture, classic): 10-14 working days for printing and installation. Confirm per booking.",
+  "refresh_instructions": [
+    "Download the oOh! Creative Specifications PDF from the oOh! Hub or via account manager",
+    "Parse with pdftotext -layout",
+    "Use scripts/save_to_library.py to merge structured spec records"
+  ]
+}

@@ -1,0 +1,21 @@
+npm audit snapshot — 2026-07-03 (before Dependabot sweep)
+15 vulnerabilities (1 low, 11 moderate, 3 high)
+
+dompurify <=3.4.10 (moderate) — parent: jspdf
+esbuild 0.27.3–0.28.0 (low, dev) — parent: tsx
+fast-xml-parser <5.7.0 (moderate) — parents: snowflake-sdk, @aws-sdk/xml-builder, @azure/core-xml
+form-data 4.0.0–4.0.5 (high) — parent: axios
+js-yaml 4.0.0–4.1.1 (moderate) — parent: eslint → @eslint/eslintrc
+nodemailer <=9.0.0 (high, direct) — 6 advisories; fix: 9.0.3
+postcss <8.5.10 (moderate) — parent: next (nested postcss@8.4.31)
+tmp <0.2.6 (high) — parent: exceljs
+uuid <11.1.1 (moderate) — parents: exceljs, @azure/msal-node (via snowflake-sdk)
+
+After sweep: 4 moderate (accepted-risk / Luke's call)
+- postcss <8.5.10 — next@15 nested postcss; fix requires next@9 (--force)
+- uuid <11.1.1 — exceljs@4.4.0; fix requires exceljs@3.4.0 (--force)
+
+Fixed in commits:
+- nodemailer 7.0.13 → 9.0.3 (direct)
+- npm audit fix: dompurify, form-data, js-yaml, tmp, snowflake-sdk patch
+- overrides: fast-xml-parser 5.5.7 → 5.9.3, esbuild 0.27.4 → 0.28.1 (tsx dev)

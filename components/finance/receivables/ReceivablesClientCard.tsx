@@ -3,11 +3,13 @@
 import { ChevronDown } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import type { ClientGroup } from "@/lib/finance/useReceivablesData"
-import type { BillingRecord } from "@/lib/types/financeBilling"
+import type { InlineScheduleEditContext } from "@/lib/finance/commitInlineScheduleAmountEdit"
 import { clientInitials } from "@/lib/finance/cardHelpers"
 import { formatAUD } from "@/lib/format/money"
 import { BilledStatusPill } from "./BilledStatusPill"
+import { ReceivableNotesButton } from "./ReceivableNotesButton"
 import { ReceivablesMediaPlanSection } from "./ReceivablesMediaPlanSection"
 
 type ReceivablesClientCardProps = {
@@ -15,9 +17,26 @@ type ReceivablesClientCardProps = {
   monthLabel: string
   refetch: () => void
   onToggleBilled: (rec: BillingRecord, nextBilled: boolean) => Promise<void>
+  onNotesSaved?: (result: {
+    invoice_key: string
+    notes: string
+    persisted_record_id: number
+  }) => void
+  onLineAmountCommitted?: (
+    line: BillingLineItem,
+    next: { amount: number; billing_mode?: "auto" | "manual" | null },
+    ctx: InlineScheduleEditContext
+  ) => void
 }
 
-export function ReceivablesClientCard({ client, monthLabel, refetch, onToggleBilled }: ReceivablesClientCardProps) {
+export function ReceivablesClientCard({
+  client,
+  monthLabel,
+  refetch,
+  onToggleBilled,
+  onNotesSaved,
+  onLineAmountCommitted,
+}: ReceivablesClientCardProps) {
   const invCount =
     client.mediaPlans.reduce((n, mp) => n + mp.records.length, 0) +
     client.scopeOfWorks.reduce((n, mp) => n + mp.records.length, 0) +
@@ -60,6 +79,8 @@ export function ReceivablesClientCard({ client, monthLabel, refetch, onToggleBil
                 sectionLabel={mpIdx === 0 && client.mediaPlans.length ? "Media plans" : undefined}
                 refetch={refetch}
                 onToggleBilled={onToggleBilled}
+                onNotesSaved={onNotesSaved}
+                onLineAmountCommitted={onLineAmountCommitted}
               />
             ))}
             {client.scopeOfWorks.map((mp, mpIdx) => (
@@ -70,6 +91,8 @@ export function ReceivablesClientCard({ client, monthLabel, refetch, onToggleBil
                 sectionLabel="Fees"
                 refetch={refetch}
                 onToggleBilled={onToggleBilled}
+                onNotesSaved={onNotesSaved}
+                onLineAmountCommitted={onLineAmountCommitted}
               />
             ))}
             {client.retainers.length > 0 ? (
@@ -92,6 +115,7 @@ export function ReceivablesClientCard({ client, monthLabel, refetch, onToggleBil
                         onToggle={(next) => onToggleBilled(rec, next)}
                         disabled={!rec.invoice_key}
                       />
+                      <ReceivableNotesButton record={rec} onSaved={onNotesSaved} />
                       <p className="num text-sm font-semibold">{formatAUD(rec.total)}</p>
                     </div>
                   </div>

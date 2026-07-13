@@ -1,7 +1,7 @@
 import type AvaTool from "./types";
-import type { FormPatch } from "@/lib/openai";
+import type { FormPatch } from "@/lib/ava/types";
 
-type PageFields = NonNullable<import("@/lib/openai").PageContext["fields"]>;
+type PageFields = NonNullable<import("@/lib/ava/types").PageContext["fields"]>;
 
 function buildEditableFieldIdMap(fields: PageFields): Map<string, true> {
   const map = new Map<string, true>();

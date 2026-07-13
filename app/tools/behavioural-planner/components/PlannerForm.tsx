@@ -1,25 +1,39 @@
 "use client";
 
-import type { PlannerInputs, FlightId, Gender, GeoId, SegmentId, Weights } from "../lib/types";
+import type { FlightId, Gender, Weights } from "../lib/types";
+import type {
+  PlanningAgeBand,
+  PlanningSegment,
+  PlanningState,
+  ReachBasis,
+} from "@/lib/planning/types";
 import { BriefCard } from "./BriefCard";
 import { ObjectiveCard } from "./ObjectiveCard";
 import { AudienceCard } from "./AudienceCard";
 import { WeightsCard } from "./WeightsCard";
 
-// FormState extends PlannerInputs with the brief fields that don't affect
-// BCS calculation but are part of the planner record (campaign name, success
-// metric). Kept here so the form has one tidy state shape.
-export interface FormState extends PlannerInputs {
+export interface FormState {
   campaignName: string;
   successMetric: string;
+  objective: number;
+  weights: Weights;
+  flight: FlightId;
+  budget: number;
+  segmentId: string;
+  states: PlanningState[];
+  ageBands: PlanningAgeBand[];
+  gender: Gender;
+  reachBasis: ReachBasis;
+  waveId: string;
 }
 
 interface PlannerFormProps {
   state: FormState;
+  segments: PlanningSegment[];
   onChange: (next: FormState) => void;
 }
 
-export function PlannerForm({ state, onChange }: PlannerFormProps) {
+export function PlannerForm({ state, segments, onChange }: PlannerFormProps) {
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     onChange({ ...state, [key]: value });
   };
@@ -38,15 +52,17 @@ export function PlannerForm({ state, onChange }: PlannerFormProps) {
       />
       <ObjectiveCard objective={state.objective} onChange={(v) => update("objective", v)} />
       <AudienceCard
-        ageMin={state.ageMin}
-        ageMax={state.ageMax}
+        segments={segments}
+        segmentId={state.segmentId}
+        states={state.states}
         gender={state.gender}
-        geos={state.geos}
-        segments={state.segments}
-        onAgeChange={([lo, hi]) => onChange({ ...state, ageMin: lo, ageMax: hi })}
+        ageBands={state.ageBands}
+        reachBasis={state.reachBasis}
+        onSegmentChange={(id) => update("segmentId", id)}
+        onStatesChange={(next) => update("states", next)}
         onGenderChange={(g: Gender) => update("gender", g)}
-        onGeosChange={(nextGeos: GeoId[]) => update("geos", nextGeos)}
-        onSegmentsChange={(segs: SegmentId[]) => update("segments", segs)}
+        onAgeBandsChange={(bands) => update("ageBands", bands)}
+        onReachBasisChange={(basis) => update("reachBasis", basis)}
       />
       <WeightsCard weights={state.weights} onChange={(w: Weights) => update("weights", w)} />
     </div>

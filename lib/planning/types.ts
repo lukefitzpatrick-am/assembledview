@@ -1,0 +1,151 @@
+/** Shared planning API DTOs (blueprint §8.3 + P7-2 extensions). */
+
+export const PLANNING_STATES = [
+  "NAT",
+  "NSW",
+  "VIC",
+  "QLD",
+  "SA",
+  "WA",
+  "TAS",
+  "NT",
+] as const
+
+export type PlanningState = (typeof PLANNING_STATES)[number]
+
+export const PLANNING_AGE_BANDS = [
+  "14-24",
+  "25-34",
+  "35-49",
+  "50-64",
+  "65+",
+] as const
+
+export type PlanningAgeBand = (typeof PLANNING_AGE_BANDS)[number]
+
+export const PLANNING_GENDERS = ["male", "female"] as const
+
+export type PlanningGender = (typeof PLANNING_GENDERS)[number]
+
+export type ReachBasis = "addressable" | "total"
+
+export type PlanningBench = {
+  attn: number | null
+  brand_effect: number | null
+  direct_effect: number | null
+  cpm: number | null
+}
+
+export type PlanningWave = {
+  wave_id: string
+  label: string
+  loaded_at: string | null
+  source_files: string | null
+}
+
+export type PlanningSegment = {
+  segment_id: string
+  name: string
+  is_intersection: boolean
+  notes: string | null
+}
+
+export type PlanningChannelMeta = {
+  channel_id: string
+  level1: string | null
+  level2: string | null
+  sort_order: number
+  is_rm_measured: boolean
+  age_base: number
+  engine_channel_id: string | null
+  bench: PlanningBench
+}
+
+export type PlanningMethodologyRow = {
+  methodology_id: string
+  title: string
+  formula_text: string
+  description: string
+  data_source: string
+  sort_order: number
+  updated_at: string | null
+}
+
+export type PlanningMeta = {
+  waves: PlanningWave[]
+  segments: PlanningSegment[]
+  channels: PlanningChannelMeta[]
+  states: readonly PlanningState[]
+  age_bands: readonly PlanningAgeBand[]
+  genders: readonly PlanningGender[]
+  /** Ordered PLANNING_METHODOLOGY rows (empty if table missing/unseeded). */
+  methodology: PlanningMethodologyRow[]
+  /** PARAM_KEY → PARAM_VALUE from PLANNING_ENGINE_PARAMS (empty → code defaults). */
+  engine_params: Record<string, number>
+}
+
+export type AudienceRequest = {
+  wave_id: string
+  segment_id: string
+  states: PlanningState[]
+  genders: PlanningGender[]
+  age_bands: PlanningAgeBand[]
+  reach_basis: ReachBasis
+}
+
+/** Per-channel aggregates from PLANNING_FACT_REACH (one round-trip). */
+export type AudienceAggregateRow = {
+  channel_id: string
+  /** Σ wc(basis) over selected cells (null cells excluded from sum). */
+  selection_wc: number
+  /** Count of selected cells where wc(basis) IS NULL. */
+  selection_null_count: number
+  /** Σ wc(basis) for segment=base, state=NAT, all genders/bands. */
+  base_wc: number
+  /**
+   * Σ UNWEIGHTED over selected cells (POPULATION rows carry the sample n;
+   * media channels typically null → 0).
+   */
+  selection_unweighted: number
+  /** Always both bases — for addressable-vs-total gap charts. */
+  selection_wc_addressable: number
+  selection_wc_total: number
+  base_wc_addressable: number
+  base_wc_total: number
+}
+
+export type AudienceChannelResult = {
+  channel_id: string
+  engine_channel_id: string
+  reach_wc: number
+  reach_pct: number
+  /** Reach % on addressable wc (independent of request reach_basis). */
+  reach_pct_addressable: number
+  /** Reach % on total wc (independent of request reach_basis). */
+  reach_pct_total: number
+  affinity_by_segment: Record<string, number | null>
+  age_fit: number
+  gender_fit: number
+  is_rm_measured: boolean
+  age_base: number
+  bench: PlanningBench
+}
+
+/** Locked §8.3 shape + reach_basis + per-channel age_base (+ channel_id/reach_wc for compose/smoke). */
+export type AudienceResponse = {
+  wave_id: string
+  reach_basis: ReachBasis
+  audience_wc: number
+  /**
+   * Σ UNWEIGHTED over selected POPULATION cells (sample n for robustness banding).
+   * Banding is client-side: n < 75 bad / n < 200 warn / else ok.
+   */
+  unweighted_n: number
+  /**
+   * base/NAT/all-cells POPULATION wc (same basis) — denominator for % of 14+ universe.
+   * Surfaced from the base reference already computed in the aggregate query.
+   */
+  universe_wc: number
+  suppressed_cells: number
+  channels: AudienceChannelResult[]
+}

@@ -1,6 +1,9 @@
 import { getDeterministicColor, getMediaColor } from "@/lib/charts/registry"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import { clipDateRangeToCampaign, type DateRange } from "@/lib/dashboard/dateFilter"
+import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
+import { aggregateRatioTargetFromLineItems, getLineItemKpiRow } from "@/lib/kpi/lineItemKpiTargets"
+import type { CampaignKPI } from "@/lib/kpi/types"
 import type { SearchPacingLineItemSeries, SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
 import {
   aggregateDailyTotals,
@@ -99,6 +102,16 @@ function topShareFraction(value: number | null | undefined): number {
   return value > 1 ? value / 100 : value
 }
 
+function searchLineItemIdSources(searchLineItems: unknown[] | undefined): Array<{ line_item_id: string }> {
+  const items = Array.isArray(searchLineItems) ? searchLineItems : []
+  return items.flatMap((item) => {
+    const row = item as Record<string, unknown>
+    const lid = String(row?.line_item_id ?? row?.lineItemId ?? row?.LINE_ITEM_ID ?? "")
+      .trim()
+    return lid ? [{ line_item_id: lid }] : []
+  })
+}
+
 export function buildSearchSection(input: {
   title?: string
   searchLineItems: unknown[] | undefined
@@ -107,6 +120,9 @@ export function buildSearchSection(input: {
   campaignEnd: string
   filterRange: DateRange
   kpiTargets: KPITargetsMap | undefined
+  mbaNumber: string
+  kpiVersionNumber: number
+  lineItemTargets: Map<string, CampaignKPI> | undefined
   pacingWindow: {
     asAtISO: string
     campaignStartISO: string
@@ -123,6 +139,9 @@ export function buildSearchSection(input: {
     campaignEnd,
     filterRange,
     kpiTargets,
+    mbaNumber,
+    kpiVersionNumber,
+    lineItemTargets,
     pacingWindow,
     brandColour,
     lastSyncedAt,
@@ -205,6 +224,41 @@ export function buildSearchSection(input: {
 
   const topFrac = topShareFraction(totals.topImpressionPct)
 
+  const items = searchLineItemIdSources(searchLineItems)
+  const aggCtrRaw = aggregateRatioTargetFromLineItems(items, lineItemTargets, mbaNumber, kpiVersionNumber, "ctr")
+  const aggCvrRaw = aggregateRatioTargetFromLineItems(
+    items,
+    lineItemTargets,
+    mbaNumber,
+    kpiVersionNumber,
+    "conversion_rate",
+  )
+  const ctrTargetDec = aggCtrRaw != null && aggCtrRaw > 0 ? normaliseRatioTarget(aggCtrRaw) : null
+  const cvrTargetDec = aggCvrRaw != null && aggCvrRaw > 0 ? normaliseRatioTarget(aggCvrRaw) : null
+
+  const actualCtrDec = safeDiv(totals.clicks, totals.impressions)
+  const expectedConversions =
+    cvrTargetDec !== null
+      ? cvrTargetDec * totals.clicks
+      : totalDerived.expectedConversions
+  const expectedImpressions =
+    ctrTargetDec !== null && totalSchedule.clicksExpected > 0
+      ? totalSchedule.clicksExpected / ctrTargetDec
+      : totalDerived.expectedImpressions
+
+  const ctrTile: KpiTileProps = {
+    label: "CTR",
+    value: formatPercentAuto(actualCtrDec),
+    ...(ctrTargetDec !== null
+      ? {
+          expected: formatPercentAuto(ctrTargetDec),
+          status: compareHigherIsBetter(actualCtrDec ?? 0, ctrTargetDec),
+          progress: Math.max(0, Math.min(1, (actualCtrDec ?? 0) / ctrTargetDec)),
+        }
+      : {}),
+    accentColour: searchSeriesPalette.clicks,
+  }
+
   const kpiTiles: KpiTileProps[] = [
     {
       label: "CPC",
@@ -219,15 +273,15 @@ export function buildSearchSection(input: {
           : undefined,
       accentColour: searchSeriesPalette.clicks,
     },
+    ctrTile,
     {
       label: "Conversions",
       value: formatWholeNumber(totals.conversions),
-      expected:
-        totalDerived.expectedConversions !== null ? formatWholeNumber(totalDerived.expectedConversions) : undefined,
-      status: compareHigherIsBetter(totals.conversions, totalDerived.expectedConversions ?? undefined),
+      expected: expectedConversions !== null ? formatWholeNumber(expectedConversions) : undefined,
+      status: compareHigherIsBetter(totals.conversions, expectedConversions ?? undefined),
       progress:
-        totalDerived.expectedConversions !== null && totalDerived.expectedConversions > 0
-          ? Math.max(0, Math.min(1, totals.conversions / totalDerived.expectedConversions))
+        expectedConversions !== null && expectedConversions > 0
+          ? Math.max(0, Math.min(1, totals.conversions / expectedConversions))
           : undefined,
       accentColour: searchSeriesPalette.conversions,
     },
@@ -242,12 +296,11 @@ export function buildSearchSection(input: {
     {
       label: "Impressions",
       value: formatWholeNumber(totals.impressions),
-      expected:
-        totalDerived.expectedImpressions !== null ? formatWholeNumber(totalDerived.expectedImpressions) : undefined,
-      status: compareHigherIsBetter(totals.impressions, totalDerived.expectedImpressions ?? undefined),
+      expected: expectedImpressions !== null ? formatWholeNumber(expectedImpressions) : undefined,
+      status: compareHigherIsBetter(totals.impressions, expectedImpressions ?? undefined),
       progress:
-        totalDerived.expectedImpressions !== null && totalDerived.expectedImpressions > 0
-          ? Math.max(0, Math.min(1, totals.impressions / totalDerived.expectedImpressions))
+        expectedImpressions !== null && expectedImpressions > 0
+          ? Math.max(0, Math.min(1, totals.impressions / expectedImpressions))
           : undefined,
       accentColour,
     },
@@ -263,6 +316,9 @@ export function buildSearchSection(input: {
     campaignEnd,
     pacingWindow,
     kpiTargets,
+    mbaNumber,
+    kpiVersionNumber,
+    lineItemTargets,
     dailyFill: { fillStartISO, fillEndISO },
     accentColour,
     brandColour,
@@ -280,7 +336,7 @@ export function buildSearchSection(input: {
       progressCards: [spendCard, deliverableCard],
       kpiBand: {
         title: "Delivery KPIs",
-        subtitle: "CPC, conversions, impression share & volume",
+        subtitle: "CPC, CTR, conversions, impression share & volume",
         tiles: kpiTiles,
       },
       chart: {
@@ -320,6 +376,9 @@ function buildSearchLineItemBlocks(input: {
   campaignEnd: string
   pacingWindow: { asAtISO: string; campaignStartISO: string; campaignEndISO: string }
   kpiTargets: KPITargetsMap | undefined
+  mbaNumber: string
+  kpiVersionNumber: number
+  lineItemTargets: Map<string, CampaignKPI> | undefined
   dailyFill: { fillStartISO: string; fillEndISO: string }
   accentColour: string
   brandColour?: string
@@ -333,6 +392,9 @@ function buildSearchLineItemBlocks(input: {
     campaignEnd,
     pacingWindow,
     kpiTargets,
+    mbaNumber,
+    kpiVersionNumber,
+    lineItemTargets,
     dailyFill,
     accentColour,
     brandColour,
@@ -371,9 +433,26 @@ function buildSearchLineItemBlocks(input: {
       const liActualCpc = safeDiv(liTotals.cost, liTotals.clicks)
       const liBurstCpc = safeDiv(spendExpected, clicksExpected)
 
-      const liExpectedConversions = clicksExpected > 0 && liCvr !== null ? clicksExpected * liCvr : null
+      const kpiRow = getLineItemKpiRow(lineItemTargets, mbaNumber, kpiVersionNumber, id)
+      const ctrTargetDec =
+        kpiRow?.ctr != null && kpiRow.ctr > 0 ? normaliseRatioTarget(kpiRow.ctr) : null
+      const cvrTargetDec =
+        kpiRow?.conversion_rate != null && kpiRow.conversion_rate > 0
+          ? normaliseRatioTarget(kpiRow.conversion_rate)
+          : null
+
+      const liExpectedConversions =
+        cvrTargetDec !== null
+          ? cvrTargetDec * liTotals.clicks
+          : clicksExpected > 0 && liCvr !== null
+            ? clicksExpected * liCvr
+            : null
       const liExpectedImpressions =
-        clicksExpected > 0 && liCtr !== null && liCtr > 0 ? clicksExpected / liCtr : null
+        ctrTargetDec !== null && clicksExpected > 0
+          ? clicksExpected / ctrTargetDec
+          : clicksExpected > 0 && liCtr !== null && liCtr > 0
+            ? clicksExpected / liCtr
+            : null
 
       const TOP_SHARE_TARGET = 0.5
       const liTopFrac = topShareFraction(liTotals.topImpressionPct)
@@ -408,6 +487,19 @@ function buildSearchLineItemBlocks(input: {
       const dailyClicksByDate = buildDailyClicksMapFromSpendSeries(chartClicksSpend)
       const cumulativeActual = buildSearchCumulativeActualForCurve(targetCurve, dailyClicksByDate)
       const lineTrack = searchOnTrackStatus(targetCurve, cumulativeActual, defaultRefLineISO(pacingWindow.asAtISO))
+
+      const liCtrTile: KpiTileProps = {
+        label: "CTR",
+        value: formatPercentAuto(liCtr),
+        ...(ctrTargetDec !== null
+          ? {
+              expected: formatPercentAuto(ctrTargetDec),
+              status: compareHigherIsBetter(liCtr ?? 0, ctrTargetDec),
+              progress: Math.max(0, Math.min(1, (liCtr ?? 0) / ctrTargetDec)),
+            }
+          : {}),
+        accentColour: searchSeriesPalette.clicks,
+      }
 
       const block: LineItemBlockProps = {
         name: String(li.lineItemName ?? li.lineItemId),
@@ -448,6 +540,7 @@ function buildSearchLineItemBlocks(input: {
                   : undefined,
               accentColour: searchSeriesPalette.clicks,
             },
+            liCtrTile,
             {
               label: "Conversions",
               value: formatWholeNumber(liTotals.conversions),

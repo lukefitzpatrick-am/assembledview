@@ -2,14 +2,17 @@ import { NextResponse } from "next/server"
 import { generateBillingSchedulePDF } from "@/lib/generateBillingSchedulePDF"
 import { format } from 'date-fns'
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
+import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
-    const { mba_number } = await params
+    const { mba_number: rawMbaNumber } = await params
+    const mba_number = parseMbaNumber(rawMbaNumber)
+    if (!mba_number) return invalidMbaNumberResponse()
 
     // Fetch media plan version data
     const masterQueryUrl = `${xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${encodeURIComponent(mba_number)}`
@@ -32,19 +35,17 @@ export async function GET(
       )
     }
 
-    // Get the latest version
-    const versionQueryUrl = `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}`
+    // Get the latest version (paged endpoint)
+    const versionQueryUrl = `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}&page=1&per_page=50`
     const versionResponse = await axios.get(versionQueryUrl)
 
-    let versionData: any = null
-    if (Array.isArray(versionResponse.data)) {
-      versionData = versionResponse.data.find((item: any) =>
-        item.media_plan_master_id === masterData.id &&
-        item.version_number === masterData.version_number
-      )
-    } else {
-      versionData = versionResponse.data
-    }
+    const versionRows = parseXanoListPayload(versionResponse.data)
+    const versionData =
+      versionRows.find(
+        (item: any) =>
+          item.media_plan_master_id === masterData.id &&
+          item.version_number === masterData.version_number
+      ) ?? versionRows[0] ?? null
 
     if (!versionData) {
       return NextResponse.json(

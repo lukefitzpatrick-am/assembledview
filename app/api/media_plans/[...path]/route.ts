@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { xanoUrl } from "@/lib/api/xano"
+import { checkMediaPlansProxyPath } from "@/lib/security/proxyAllowlist"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -9,9 +10,16 @@ type Ctx = { params: Promise<{ path: string[] }> }
 
 async function proxy(request: Request, ctx: Ctx) {
   const { path: parts } = await ctx.params
-  const path = (parts || []).join("/")
+  const pathSegments = parts || []
+  const path = pathSegments.join("/")
   if (!path) {
     return NextResponse.json({ error: "Missing media plan path" }, { status: 400 })
+  }
+
+  const gate = checkMediaPlansProxyPath(pathSegments, request.method)
+  if (!gate.allowed) {
+    console.warn(`[proxy-allowlist] blocked ${request.method} ${pathSegments.join("/")} (${gate.reason})`)
+    return NextResponse.json({ error: "forbidden" }, { status: 403 })
   }
 
   const targetBase = xanoUrl(path, ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])

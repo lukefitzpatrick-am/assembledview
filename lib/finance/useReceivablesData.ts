@@ -86,6 +86,26 @@ export type HubReceivablesHubState = {
       persisted_record_id?: number | null
     }
   ) => void
+  updateNotesByInvoiceKey: (
+    invoiceKey: string,
+    fields: {
+      notes: string | null
+      persisted_record_id?: number | null
+    }
+  ) => void
+  updateReceivableLineAmount: (
+    match: {
+      mba_number: string | null
+      billing_month: string
+      schedule_line_item_id?: string | null
+      item_code?: string
+      line_type?: BillingRecord["line_items"][number]["line_type"]
+    },
+    fields: {
+      amount: number
+      billing_mode?: "auto" | "manual" | null
+    }
+  ) => void
 }
 
 export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubState {
@@ -134,6 +154,60 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
               }
             : r
         )
+      )
+    },
+    []
+  )
+
+  const updateNotesByInvoiceKey = useCallback<HubReceivablesHubState["updateNotesByInvoiceKey"]>(
+    (invoiceKey, fields) => {
+      if (!invoiceKey) return
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.invoice_key === invoiceKey
+            ? {
+                ...r,
+                notes: fields.notes,
+                persisted_record_id:
+                  fields.persisted_record_id ?? r.persisted_record_id ?? null,
+              }
+            : r
+        )
+      )
+    },
+    []
+  )
+
+  const updateReceivableLineAmount = useCallback<HubReceivablesHubState["updateReceivableLineAmount"]>(
+    (match, fields) => {
+      setRecords((prev) =>
+        prev.map((r) => {
+          if ((r.mba_number ?? "") !== (match.mba_number ?? "")) return r
+          if (r.billing_month !== match.billing_month) return r
+          let changed = false
+          const line_items = (r.line_items ?? []).map((li) => {
+            const idMatch =
+              match.schedule_line_item_id &&
+              li.schedule_line_item_id === match.schedule_line_item_id
+            const feeMatch =
+              !match.schedule_line_item_id &&
+              match.item_code &&
+              li.item_code === match.item_code &&
+              (!match.line_type || li.line_type === match.line_type)
+            if (!idMatch && !feeMatch) return li
+            changed = true
+            return {
+              ...li,
+              amount: fields.amount,
+              ...(fields.billing_mode !== undefined
+                ? { billing_mode: fields.billing_mode }
+                : {}),
+            }
+          })
+          if (!changed) return r
+          const total = Math.round(line_items.reduce((s, li) => s + li.amount, 0) * 100) / 100
+          return { ...r, line_items, total }
+        })
       )
     },
     []
@@ -327,6 +401,8 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
     loadError,
     bumpReceivablesFetch,
     updateBilledByInvoiceKey,
+    updateNotesByInvoiceKey,
+    updateReceivableLineAmount,
   }
 }
 

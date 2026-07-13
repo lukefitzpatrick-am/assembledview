@@ -501,12 +501,23 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const searchKeys = ["search", "paidSearch", "paid_search", "search_line_items", "searchLineItems"]
   const progDisplayKeys = ["progDisplay", "programmaticDisplay", "dv360Display", "programmatic_display"]
   const progVideoKeys = ["progVideo", "programmaticVideo", "dv360Video", "programmatic_video"]
-  
+  // CM360-scope digital channels (naming global rules) — feed Ad Serving verification block
+  const adServingKeys = [
+    "digitalDisplay",
+    "digiDisplay",
+    "digitalVideo",
+    "digiVideo",
+    "digitalAudio",
+    "digiAudio",
+    "bvod",
+  ]
+
   const socialItems = getLineItems(lineItemsMap, socialKeys)
   const searchItems = getLineItems(lineItemsMap, searchKeys)
   const searchItemsAllKeys = getAllLineItemsFromKeys(lineItemsMap, searchKeys)
   const progDisplayItems = getLineItems(lineItemsMap, progDisplayKeys)
   const progVideoItems = getLineItems(lineItemsMap, progVideoKeys)
+  const adServingItems = getAllLineItemsFromKeys(lineItemsMap, adServingKeys)
   
   // Track which keys were actually used (for debug logging)
   let socialKeyUsed: string | null = null
@@ -564,7 +575,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const searchItemsActive = searchItemsAllKeys.length > 0 ? searchItemsAllKeys : searchItems
   const progDisplayItemsActive = progDisplayItems
   const progVideoItemsActive = progVideoItems
-  
+  const adServingItemsActive = adServingItems
+
   // Build deliveryLineItemIds from active arrays (not running-only arrays)
   // Accept multiple id field variations
   const extractLineItemId = (item: any): string | null => {
@@ -583,7 +595,12 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
 
   const deliveryLineItemIds = Array.from(
     new Set(
-      [...socialItemsActive, ...progDisplayItemsActive, ...progVideoItemsActive]
+      [
+        ...socialItemsActive,
+        ...progDisplayItemsActive,
+        ...progVideoItemsActive,
+        ...adServingItemsActive,
+      ]
         .map(extractLineItemId)
         .filter((id): id is string => Boolean(id))
     )
@@ -725,7 +742,8 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     socialItemsActive.length > 0 ||
     (mpSearchEnabled && searchLineItemIds.length > 0 && hasPacingCampaignDates) ||
     progDisplayItemsActive.length > 0 ||
-    progVideoItemsActive.length > 0
+    progVideoItemsActive.length > 0 ||
+    adServingItemsActive.length > 0
 
   return (
     <CampaignPageAssembly
@@ -756,6 +774,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       mpSearchEnabled={mpSearchEnabled}
       progDisplayItemsActive={progDisplayItemsActive}
       progVideoItemsActive={progVideoItemsActive}
+      adServingItemsActive={adServingItemsActive}
       deliveryLineItemIds={deliveryLineItemIds}
       availableVersions={availableVersions}
       currentVersion={resolvedVersionNumber ?? versionNumberFromQuery ?? 1}

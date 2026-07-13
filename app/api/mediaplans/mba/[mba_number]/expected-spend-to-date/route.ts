@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
+import { internalMediaPlanByMbaUrl } from "@/lib/api/internalBaseUrl"
 import { normaliseLineItemsByType } from "@/lib/mediaplan/normalizeLineItem"
+import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 import { parseDateSafe } from "@/lib/dates/parseDateSafe"
 
 export const dynamic = "force-dynamic"
@@ -281,13 +283,15 @@ export async function GET(
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
-    const { mba_number } = await params
+    const { mba_number: rawMbaNumber } = await params
+    const mba_number = parseMbaNumber(rawMbaNumber)
+    if (!mba_number) return invalidMbaNumberResponse()
+
     const requestUrl = new URL(request.url)
     const campaignStartParam = requestUrl.searchParams.get("campaignStart")
     const campaignEndParam = requestUrl.searchParams.get("campaignEnd")
 
-    const baseUrl = `${requestUrl.protocol}//${requestUrl.host}`
-    const mediaPlanUrl = `${baseUrl}/api/mediaplans/mba/${encodeURIComponent(mba_number)}`
+    const mediaPlanUrl = internalMediaPlanByMbaUrl(mba_number)
 
     const response = await fetch(mediaPlanUrl, {
       cache: "no-store",

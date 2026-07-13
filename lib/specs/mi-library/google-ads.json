@@ -1,0 +1,160 @@
+{
+  "publisher_slug": "google-ads",
+  "publisher_name": "Google Ads",
+  "container_category_default": "Search",
+  "category_note": "Google Ads spans multiple containers: Search (RSAs), Programmatic (Responsive Display, Demand Gen), YouTube (video campaigns), and Apps. Map per format below.",
+  "last_refreshed": "2026-05-22",
+  "source": "https://support.google.com/google-ads/answer/13676244?hl=en-AU (current as of May 2026)",
+  "video_source": "https://support.google.com/google-ads/answer/13547298?hl=en-AU",
+  "formats": [
+    {
+      "format_name": "Responsive Search Ads (RSA)",
+      "container": "Search",
+      "campaign_type": "Search",
+      "text": {
+        "headlines": "Min 1, max 15. 30 characters each.",
+        "descriptions": "Min 1, max 4. 90 characters each.",
+        "final_url": "Max 2048 characters",
+        "display_path": "Max 2 paths, 15 characters each (under Performance Max — RSAs use Final URL only by default)"
+      },
+      "best_practice_notes": [
+        "Pin Headline 1 if including legal disclaimers",
+        "Use all 15 headline slots for max ad strength",
+        "Use all 4 description slots"
+      ]
+    },
+    {
+      "format_name": "Performance Max",
+      "container": "Search",
+      "campaign_type": "Performance Max",
+      "category_note": "Performance Max spans Search, Display, YouTube, Discover, Gmail, Maps in one campaign. Treat as Search container for MI purposes since it's text-asset-led.",
+      "text": {
+        "headlines": "Min 3, max 15. 30 characters each. Include at least 1 with 15 chars or less. Recommended 11+.",
+        "long_headline": "Min 1, max 5. 90 characters each. Try for at least 30 chars long. Recommended 2+.",
+        "descriptions": "Min 2, max 5. 90 characters each. Recommended 4+.",
+        "business_name": "25 characters. Must match domain or legally verified business name. No promotional text/symbols.",
+        "call_to_action": "Automated by default or select from list",
+        "final_url": "1 required",
+        "display_url_path": "Optional. Min 1, max 2. 15 characters each."
+      },
+      "images": {
+        "horizontal_1.91:1": {"recommended": "1200x628", "minimum": "600x314", "max_file_size": "5120KB", "count": "Add up to 20, recommended 4+", "required": true},
+        "square_1:1": {"recommended": "1200x1200", "minimum": "300x300", "max_file_size": "5120KB", "count": "Add up to 20, recommended 4+", "required": true},
+        "vertical_4:5": {"recommended": "960x1200", "minimum": "480x600", "count": "Add up to 20, recommended 2+", "required": false},
+        "square_logo_1:1": {"recommended": "1200x1200", "minimum": "128x128", "max_file_size": "5120KB", "count": "Add up to 5, recommended 1", "required": true},
+        "horizontal_logo_4:1": {"recommended": "1200x300", "minimum": "512x128", "max_file_size": "5120KB", "count": "Add up to 5, recommended 1", "required": false}
+      },
+      "videos": {
+        "horizontal_16:9": {"min_length": "10s", "count": "1-15"},
+        "square_1:1": {"min_length": "10s", "count": "1-15"},
+        "vertical_9:16": {"min_length": "10s", "count": "1-15"},
+        "note": "If no video supplied, Google may auto-generate from asset group. Use asset library to create one if you'd rather not."
+      },
+      "file_type": "JPG or PNG for images, max 5MB",
+      "best_practice_notes": [
+        "Logos with transparent background may render on white — upload as square image",
+        "Avoid predominantly white logo on transparent background",
+        "Each character in double-width languages (KO/JA/ZH) counts as 2"
+      ]
+    },
+    {
+      "format_name": "Responsive Display Ads",
+      "container": "Programmatic",
+      "campaign_type": "Display",
+      "text": {
+        "headlines": "Min 1, max 5. 30 characters each.",
+        "long_headline": "1. 90 characters.",
+        "descriptions": "Min 1, max 5. 90 characters each.",
+        "business_name": "25 characters",
+        "call_to_action": "Automated"
+      },
+      "images": {
+        "horizontal_1.91:1": {"recommended": "1200x628", "minimum": "600x314", "count": "1-15, recommended 5", "required": true},
+        "square_1:1": {"recommended": "600x600", "minimum": "300x300", "count": "1-15, recommended 5", "required": true},
+        "square_logo_1:1": {"recommended": "1200x1200", "minimum": "128x128", "count": "1-5, recommended 1", "required": false},
+        "horizontal_logo_4:1": {"recommended": "1200x300", "minimum": "512x128", "count": "1-5, recommended 1", "required": false}
+      },
+      "videos": {
+        "horizontal_16:9": {"preferred_length": "30s", "count": "1-5, recommended 2"},
+        "square_1:1": {"preferred_length": "30s", "count": "1-5, recommended 2"},
+        "vertical_2:3": {"preferred_length": "30s", "count": "1-5, recommended 2"}
+      },
+      "file_type": "JPG or PNG, max 5MB"
+    },
+    {
+      "format_name": "Demand Gen",
+      "container": "Programmatic",
+      "campaign_type": "Demand Gen",
+      "placements": "YouTube, Gmail Promotions and Social tabs, Discover",
+      "text": {
+        "final_url": "1 required, max 2048 chars",
+        "business_name": "25 characters",
+        "call_to_action": "Automated",
+        "headlines": "Min 1, max 5. 40 characters each. Recommended 5.",
+        "descriptions": "Min 1, max 5. 90 characters each. Recommended 3."
+      },
+      "images": {
+        "horizontal_1.91:1": {"recommended": "1200x628", "minimum": "600x314", "count": "1-20, recommended 3", "required": true},
+        "logo_1:1": {"recommended": "1200x1200", "minimum": "144x144", "count": "1-5, recommended 1", "required": true},
+        "square_1:1": {"recommended": "1200x1200", "minimum": "300x300", "count": "1-20, recommended 3", "required": true},
+        "vertical_4:5": {"recommended": "960x1200", "minimum": "480x600", "count": "1-20, recommended 3", "required": false}
+      },
+      "videos": {
+        "horizontal_16:9": {"length": "10-60s", "count": 3},
+        "vertical_9:16_or_4:5": {"length": "10-60s", "count": 3},
+        "square_1:1": {"length": "10-60s", "count": 3}
+      }
+    },
+    {
+      "format_name": "App Campaigns",
+      "container": "Programmatic",
+      "campaign_type": "App",
+      "placements": "Search, Google Play, YouTube, Discover, GDN",
+      "text": {
+        "headlines": "1-5, recommended 5. 30 characters each.",
+        "descriptions": "1-5, recommended 5. 90 characters each."
+      },
+      "images": {
+        "horizontal_1.91:1": {"recommended": "1200x628", "minimum": "600x314", "count": "1-20, recommended 1"},
+        "vertical_4:5": {"recommended": "1200x1500", "minimum": "320x400", "count": "1-20, recommended 1"},
+        "square_1:1": {"recommended": "1200x1200", "minimum": "200x200", "count": "1-20, recommended 1"}
+      },
+      "videos": {
+        "horizontal_16:9": {"length": "10-60s", "count": "1-20, recommended 3"},
+        "vertical_9:16": {"length": "10-60s", "count": "1-20, recommended 7"},
+        "square_1:1": {"length": "10-60s", "count": "1-20, recommended 2"}
+      },
+      "file_type": "JPG or PNG, max 5MB",
+      "video_note": "Videos must be uploaded to YouTube before they can be used"
+    },
+    {
+      "format_name": "Business Information (Search)",
+      "container": "Search",
+      "text": {"business_name": "25 characters"},
+      "images": {"logo_1:1": {"recommended": "1200x1200", "minimum": "128x128"}}
+    },
+    {
+      "format_name": "Search Assets (Sitelinks / Callouts)",
+      "container": "Search",
+      "text": {
+        "headlines_for_assets": "1-20, recommended 4. 25 characters each.",
+        "final_url": "1 required, max 2048 chars",
+        "descriptions": "1-5, recommended 4. 90 characters each.",
+        "call_to_action": "Automated"
+      },
+      "images": {
+        "square_1:1": {"recommended": "1200x1200", "minimum": "300x300", "count": "1-20, recommended 1"},
+        "horizontal_1.91:1": {"recommended": "1200x628", "minimum": "600x314", "count": "1-20"}
+      }
+    }
+  ],
+  "asset_extensions": [
+    {"type": "Sitelink", "headline_max": 25, "description_max_per_line": 35, "min_count": 2, "note": "Each sitelink must have unique URL"},
+    {"type": "Callout", "max_chars": 25, "min_count": 2},
+    {"type": "Structured Snippet", "max_chars_per_value": 25, "max_per_account": 10},
+    {"type": "Price Asset", "header_max": 25, "description_max": 25, "min": 1, "max": 8},
+    {"type": "Promotion", "item_descriptor_max": 20, "requires": "occasion, promo type (monetary/percent/up-to), URL, start/end dates"},
+    {"type": "Call Asset", "requires": "Phone number, days/times available"},
+    {"type": "Location Asset", "requires": "Linked Google My Business or affiliate locations"}
+  ]
+}

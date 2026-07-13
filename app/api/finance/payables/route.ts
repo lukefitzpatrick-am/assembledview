@@ -16,6 +16,7 @@ import {
 import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
 import { getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
 import type { BillingRecord } from "@/lib/types/financeBilling"
+import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
 
@@ -68,6 +69,9 @@ function buildPublisherIdMap(publishers: Record<string, unknown>[]): Map<number,
 }
 
 export async function GET(request: NextRequest) {
+  const gate = await requireFinanceAdmin(request)
+  if ("response" in gate) return gate.response
+
   const requestUrl = request.url
   const query = searchParamsRecord(request.nextUrl.searchParams)
 

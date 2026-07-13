@@ -1,7 +1,14 @@
 import { getMediaColor } from "@/lib/charts/registry"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
-import { kpiTargetKey } from "@/lib/kpi/deliveryTargets"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
+import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
+import {
+  aggregateRateTargetFromLineItems,
+  aggregateRatioTargetFromLineItems,
+  deriveRateTargetFromBursts,
+  getLineItemKpiRow,
+} from "@/lib/kpi/lineItemKpiTargets"
+import type { CampaignKPI } from "@/lib/kpi/types"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import {
   mapCombinedRowToMeta,
@@ -52,7 +59,6 @@ function isVideoBuySocial(lineItems: SocialLineItem[]): boolean {
   return lineItems.some((li) => /\bvideo\b/i.test(String(li.buy_type ?? "")))
 }
 
-/** Compare actual vs saved KPI target (same numeric scale as actual). */
 function compareRateStatus(actual: number, target: number | undefined, higherIsBetter: boolean): DeliveryStatus {
   if (target === undefined || target <= 0 || !Number.isFinite(actual)) return "no-data"
   const tol = 0.08
@@ -62,39 +68,97 @@ function compareRateStatus(actual: number, target: number | undefined, higherIsB
   return "on-track"
 }
 
-function resolveKpiTarget(kpiTargets: KPITargetsMap | undefined, publisher: string, bidStrategy: string) {
-  if (!kpiTargets?.size) return undefined
-  return kpiTargets.get(kpiTargetKey("socialmedia", publisher.toLowerCase().trim(), bidStrategy.toLowerCase().trim()))
+/** campaign_kpi ratio → 0–100 percentage points (same scale as summarizeActuals). */
+function ratioTargetPercentPoints(raw: number | null | undefined): number | undefined {
+  if (raw == null || raw <= 0) return undefined
+  return normaliseRatioTarget(raw) * 100
 }
 
-function buildAggregateKpiTiles(
-  kpis: ReturnType<typeof summarizeActuals>,
-  kpiTargets: KPITargetsMap | undefined,
-  publisher: string,
-  bidStrategy: string,
-  accentColour: string,
-  includeVideoMetrics: boolean,
-): KpiTileProps[] {
-  const tgt = resolveKpiTarget(kpiTargets, publisher, bidStrategy)
+function burstsForLineItem(lineItem: SocialLineItem): unknown {
+  return lineItem.bursts_json ?? lineItem.bursts ?? null
+}
+
+function buildKpiTiles(input: {
+  kpis: ReturnType<typeof summarizeActuals>
+  accentColour: string
+  includeVideoMetrics: boolean
+  mbaNumber: string
+  kpiVersionNumber: number
+  lineItemTargets: Map<string, CampaignKPI> | undefined
+  activeItems: SocialLineItem[]
+  lineItem?: SocialLineItem
+}): KpiTileProps[] {
+  const {
+    kpis,
+    accentColour,
+    includeVideoMetrics,
+    mbaNumber,
+    kpiVersionNumber,
+    lineItemTargets,
+    activeItems,
+    lineItem,
+  } = input
+
+  const isPerLine = Boolean(lineItem)
+  const kpiRow = lineItem
+    ? getLineItemKpiRow(lineItemTargets, mbaNumber, kpiVersionNumber, lineItem.line_item_id)
+    : undefined
+
+  const ctrRaw = isPerLine
+    ? kpiRow?.ctr
+    : aggregateRatioTargetFromLineItems(activeItems, lineItemTargets, mbaNumber, kpiVersionNumber, "ctr")
+  const cvrRaw = isPerLine
+    ? kpiRow?.conversion_rate
+    : aggregateRatioTargetFromLineItems(
+        activeItems,
+        lineItemTargets,
+        mbaNumber,
+        kpiVersionNumber,
+        "conversion_rate",
+      )
+  const vtrRaw = isPerLine
+    ? kpiRow?.vtr
+    : aggregateRatioTargetFromLineItems(activeItems, lineItemTargets, mbaNumber, kpiVersionNumber, "vtr")
+
+  const ctrTarget = ratioTargetPercentPoints(ctrRaw)
+  const cvrTarget = ratioTargetPercentPoints(cvrRaw)
+  const vtrTarget = ratioTargetPercentPoints(vtrRaw)
+
+  const cpmExpected = isPerLine
+    ? (() => {
+        const derived = deriveRateTargetFromBursts(burstsForLineItem(lineItem!), String(lineItem!.buy_type ?? ""))
+        return derived?.kind === "cpm" ? derived.value : undefined
+      })()
+    : (aggregateRateTargetFromLineItems(activeItems, "cpm") ?? undefined)
+
+  const cpvExpected = isPerLine
+    ? (() => {
+        const derived = deriveRateTargetFromBursts(burstsForLineItem(lineItem!), String(lineItem!.buy_type ?? ""))
+        return derived?.kind === "cpv" ? derived.value : undefined
+      })()
+    : (aggregateRateTargetFromLineItems(activeItems, "cpv") ?? undefined)
 
   const tiles: KpiTileProps[] = []
 
   tiles.push({
     label: "CPM",
     value: formatCurrency2dp(kpis.cpm),
+    expected: cpmExpected !== undefined ? formatCurrency2dp(cpmExpected) : undefined,
+    status: cpmExpected !== undefined ? compareRateStatus(kpis.cpm, cpmExpected, false) : undefined,
+    progress:
+      cpmExpected !== undefined && cpmExpected > 0
+        ? Math.max(0, Math.min(1, cpmExpected / kpis.cpm))
+        : undefined,
     accentColour,
   })
 
   tiles.push({
     label: "CTR",
     value: fmtPct(kpis.ctr),
-    expected: tgt && tgt.ctr != null && tgt.ctr > 0 ? fmtPct(tgt.ctr) : undefined,
-    status:
-      tgt && tgt.ctr != null && tgt.ctr > 0 ? compareRateStatus(kpis.ctr, tgt.ctr, true) : undefined,
+    expected: ctrTarget !== undefined ? fmtPct(ctrTarget) : undefined,
+    status: ctrTarget !== undefined ? compareRateStatus(kpis.ctr, ctrTarget, true) : undefined,
     progress:
-      tgt && tgt.ctr != null && tgt.ctr > 0
-        ? Math.max(0, Math.min(1, kpis.ctr / tgt.ctr))
-        : undefined,
+      ctrTarget !== undefined ? Math.max(0, Math.min(1, kpis.ctr / ctrTarget)) : undefined,
     accentColour,
   })
 
@@ -107,18 +171,10 @@ function buildAggregateKpiTiles(
   tiles.push({
     label: "CVR",
     value: fmtPct(kpis.cvr),
-    expected:
-      tgt && tgt.conversion_rate != null && tgt.conversion_rate > 0
-        ? fmtPct(tgt.conversion_rate)
-        : undefined,
-    status:
-      tgt && tgt.conversion_rate != null && tgt.conversion_rate > 0
-        ? compareRateStatus(kpis.cvr, tgt.conversion_rate, true)
-        : undefined,
+    expected: cvrTarget !== undefined ? fmtPct(cvrTarget) : undefined,
+    status: cvrTarget !== undefined ? compareRateStatus(kpis.cvr, cvrTarget, true) : undefined,
     progress:
-      tgt && tgt.conversion_rate != null && tgt.conversion_rate > 0
-        ? Math.max(0, Math.min(1, kpis.cvr / tgt.conversion_rate))
-        : undefined,
+      cvrTarget !== undefined ? Math.max(0, Math.min(1, kpis.cvr / cvrTarget)) : undefined,
     accentColour,
   })
 
@@ -132,16 +188,20 @@ function buildAggregateKpiTiles(
     tiles.push({
       label: "View rate",
       value: fmtPct(kpis.view_rate),
-      expected: tgt && tgt.vtr != null && tgt.vtr > 0 ? fmtPct(tgt.vtr) : undefined,
+      expected: vtrTarget !== undefined ? fmtPct(vtrTarget) : undefined,
       status:
-        tgt && tgt.vtr != null && tgt.vtr > 0
-          ? compareRateStatus(kpis.view_rate, tgt.vtr, true)
-          : undefined,
+        vtrTarget !== undefined ? compareRateStatus(kpis.view_rate, vtrTarget, true) : undefined,
       accentColour,
     })
     tiles.push({
       label: "CPV",
       value: formatCurrency2dp(kpis.cpv),
+      expected: cpvExpected !== undefined ? formatCurrency2dp(cpvExpected) : undefined,
+      status: cpvExpected !== undefined ? compareRateStatus(kpis.cpv, cpvExpected, false) : undefined,
+      progress:
+        cpvExpected !== undefined && cpvExpected > 0
+          ? Math.max(0, Math.min(1, cpvExpected / kpis.cpv))
+          : undefined,
       accentColour,
     })
   }
@@ -158,7 +218,9 @@ export function buildSocialChannelSectionForPlatform(input: {
   campaignStart: string
   campaignEnd: string
   mbaNumber: string
+  kpiVersionNumber: number
   kpiTargets: KPITargetsMap | undefined
+  lineItemTargets: Map<string, CampaignKPI> | undefined
   filterRange: DateRange
   brandColour?: string
   lastSyncedAt: Date | null
@@ -172,7 +234,9 @@ export function buildSocialChannelSectionForPlatform(input: {
     campaignStart,
     campaignEnd,
     mbaNumber,
+    kpiVersionNumber,
     kpiTargets,
+    lineItemTargets,
     filterRange,
     brandColour,
     lastSyncedAt,
@@ -217,8 +281,6 @@ export function buildSocialChannelSectionForPlatform(input: {
   const aggregateTrack = pacingPctToStatus(aggregatePacing.deliverable?.pacingPct)
 
   const kpisRaw = summarizeActuals(metrics.flatMap((m) => m.actualsDaily))
-  const pub = String(activeItems[0]?.platform ?? "meta")
-  const bid = String(activeItems[0]?.buy_type ?? "")
 
   const accentColour = brandColour ?? getMediaColor("socialmedia")
   const includeVideo = isVideoBuySocial(activeItems)
@@ -262,7 +324,15 @@ export function buildSocialChannelSectionForPlatform(input: {
     sparkline: aggregatePacing.series.map((p) => Number(p.actualDeliverable ?? 0)),
   }
 
-  const kpiTiles = buildAggregateKpiTiles(kpisRaw, kpiTargets, pub, bid, accentColour, includeVideo)
+  const kpiTiles = buildKpiTiles({
+    kpis: kpisRaw,
+    accentColour,
+    includeVideoMetrics: includeVideo,
+    mbaNumber,
+    kpiVersionNumber,
+    lineItemTargets,
+    activeItems,
+  })
 
   const accordionItems = metrics.map((m) => {
     const liKpis = summarizeActuals(m.actualsDaily)
@@ -301,14 +371,16 @@ export function buildSocialChannelSectionForPlatform(input: {
       ],
       kpiBand: {
         title: "Delivery KPIs",
-        tiles: buildAggregateKpiTiles(
-          liKpis,
-          kpiTargets,
-          String(m.lineItem.platform ?? "meta"),
-          String(m.lineItem.buy_type ?? ""),
+        tiles: buildKpiTiles({
+          kpis: liKpis,
           accentColour,
-          videoLi,
-        ),
+          includeVideoMetrics: videoLi,
+          mbaNumber,
+          kpiVersionNumber,
+          lineItemTargets,
+          activeItems,
+          lineItem: m.lineItem,
+        }),
       },
       chart: {
         kind: "daily-delivery",

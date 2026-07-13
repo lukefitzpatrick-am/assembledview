@@ -10,6 +10,7 @@ import type {
   FinanceForecastScenario,
 } from "@/lib/types/financeForecast"
 import { xanoUrl } from "@/lib/api/xano"
+import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { stabilizeFinanceForecastDataset } from "./stabilizeFinanceForecastDataset"
 import { redactForecastRowDebug } from "./redactForecastDebug"
 
@@ -117,21 +118,28 @@ async function fetchFinanceForecastRawFromXanoUncached(): Promise<{
   clients: FinanceForecastClientInput[]
   publishers: FinanceForecastPublisherInput[]
 }> {
+  // Full version history (paged) — forecast scenarios need non-latest rows.
+  // Do NOT use media_plan_versions_latest / dashboard cache.
   const versionsUrl = xanoUrl("media_plan_versions", MEDIA_BASE_KEYS as unknown as string[])
   const clientsUrl = xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL")
   const publishersUrl = xanoUrl("get_publishers", "XANO_PUBLISHERS_BASE_URL")
 
-  const [versionsRes, clientsRes, publishersRes] = await Promise.all([
-    axios.get(versionsUrl, { timeout: 30_000 }).catch(() => ({ data: [] })),
+  const [versions, clientsRes, publishersRes] = await Promise.all([
+    fetchAllXanoPages(versionsUrl, {}, "FINANCE_forecast_media_plan_versions", 100, 50).catch(
+      () => [] as any[]
+    ),
     axios.get(clientsUrl, { timeout: 15_000 }).catch(() => ({ data: [] })),
     axios.get(publishersUrl, { timeout: 15_000 }).catch(() => ({ data: [] })),
   ])
 
-  const versions = unwrapArray(versionsRes.data) as FinanceForecastMediaPlanVersionInput[]
   const clients = unwrapArray(clientsRes.data) as FinanceForecastClientInput[]
   const publishers = unwrapArray(publishersRes.data) as FinanceForecastPublisherInput[]
 
-  return { versions, clients, publishers }
+  return {
+    versions: versions as FinanceForecastMediaPlanVersionInput[],
+    clients,
+    publishers,
+  }
 }
 
 function datasetCacheKey(options: LoadFinanceForecastDatasetOptions): string {

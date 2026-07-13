@@ -6,12 +6,14 @@ import { format } from "date-fns"
 import type { CampaignKPI } from "@/lib/kpi/types"
 import { getCampaignKPIs } from "@/lib/api/kpi"
 import { buildKPITargetsMap, type KPITargetsMap } from "@/lib/kpi/deliveryTargets"
+import { buildLineItemKpiTargetMap } from "@/lib/kpi/lineItemKpiTargets"
 
 import CampaignHeroBanner from "@/components/dashboard/campaign/CampaignHeroBanner"
 import CampaignSummaryRow from "@/components/dashboard/campaign/CampaignSummaryRow"
 import SpendChartsRow from "@/components/dashboard/campaign/SpendChartsRow"
 import MediaPlanVizSection from "@/components/dashboard/campaign/MediaPlanVizSection"
 import CampaignDetailsModal from "@/components/dashboard/campaign/CampaignDetailsModal"
+import { PlannedAudienceSection } from "@/components/dashboard/campaign/PlannedAudienceSection"
 import { CampaignDeliverySection } from "@/components/dashboard/delivery/CampaignDeliverySection"
 import CampaignActions from "./CampaignActions"
 import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
@@ -114,6 +116,7 @@ type CampaignPageAssemblyProps = {
   mpSearchEnabled: boolean
   progDisplayItemsActive: any[]
   progVideoItemsActive: any[]
+  adServingItemsActive: any[]
   deliveryLineItemIds: string[]
   availableVersions: MediaPlanVersionListEntry[]
   currentVersion: number
@@ -155,6 +158,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     mpSearchEnabled,
     progDisplayItemsActive,
     progVideoItemsActive,
+    adServingItemsActive,
     deliveryLineItemIds,
     availableVersions,
     currentVersion,
@@ -255,6 +259,15 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     })
   }, [filterRange, isUnfiltered, progVideoItemsActive])
 
+  const filteredAdServing = useMemo(() => {
+    if (isUnfiltered) return adServingItemsActive
+    return adServingItemsActive.filter((item) => {
+      const bursts = Array.isArray(item?.bursts) ? item.bursts : []
+      if (bursts.length === 0) return true
+      return bursts.some((b: unknown) => burstOverlapsRange(b, filterRange))
+    })
+  }, [filterRange, isUnfiltered, adServingItemsActive])
+
   // --- KPI targets for delivery containers (Stage 3b) ---
   const [savedCampaignKPIs, setSavedCampaignKPIs] = useState<CampaignKPI[]>([])
   const kpiVersionNumber: number = (() => {
@@ -285,6 +298,10 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
   }, [mbaNumber, kpiVersionNumber])
 
   const kpiTargets: KPITargetsMap = buildKPITargetsMap(savedCampaignKPIs)
+  const lineItemTargets = useMemo(
+    () => buildLineItemKpiTargetMap(savedCampaignKPIs),
+    [savedCampaignKPIs],
+  )
 
   const heroCampaign = useMemo(
     () => ({
@@ -362,6 +379,14 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
       </SectionBoundary>
 
       <section className="mt-6">
+        <SectionBoundary title="Planned audience">
+          <div className="campaign-section-enter" style={{ animationDelay: "50ms" }}>
+            <PlannedAudienceSection mbaNumber={mbaNumber} />
+          </div>
+        </SectionBoundary>
+      </section>
+
+      <section className="mt-6">
         <SectionBoundary title="Progress summary">
           <Suspense fallback={<CampaignSummarySectionSkeleton />}>
             <div className="campaign-section-enter" style={{ animationDelay: "100ms" }}>
@@ -432,6 +457,8 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
                 filterRange={filterRange}
                 brandColour={brandColour}
                 kpiTargets={kpiTargets}
+                kpiVersionNumber={kpiVersionNumber}
+                lineItemTargets={lineItemTargets}
                 campaignStart={startDate ?? ""}
                 campaignEnd={endDate ?? ""}
                 socialLineItems={filteredSocialItems}
@@ -440,6 +467,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
                 mpSearchEnabled={mpSearchEnabled}
                 progDisplayLineItems={filteredProgDisplay}
                 progVideoLineItems={filteredProgVideo}
+                adServingLineItems={filteredAdServing}
               />
               </div>
             </Suspense>

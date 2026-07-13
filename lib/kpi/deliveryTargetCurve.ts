@@ -1,5 +1,6 @@
 import type { KPITargetsMap } from "./deliveryTargets"
 import { kpiTargetKey } from "./deliveryTargets"
+import { normaliseRatioTarget } from "./normaliseRatioTarget"
 
 /**
  * A minimal line-item shape the curve builder needs. Callers pass their
@@ -82,8 +83,12 @@ function rateForMetric(
   const key = kpiTargetKey(item.mediaType, item.publisher, item.bidStrategy)
   const t = kpiTargets.get(key)
   if (!t) return null
-  if (metric === "clicks") return t.ctr
-  if (metric === "views") return t.vtr
+  if (metric === "clicks") {
+    return t.ctr != null ? normaliseRatioTarget(t.ctr) : null
+  }
+  if (metric === "views") {
+    return t.vtr != null ? normaliseRatioTarget(t.vtr) : null
+  }
   return null
 }
 

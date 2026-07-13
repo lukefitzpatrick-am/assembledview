@@ -1,4 +1,4 @@
-import type { PageContext } from "@/lib/openai"
+import type { PageContext } from "@/lib/ava/types"
 
 type AssistantActionHandlers = {
   /**
@@ -6,12 +6,20 @@ type AssistantActionHandlers = {
    * Expected payload shape:
    * { action: "updateBurstBudget", mediaType: string, burstIndex: number, budget: number }
    */
-  updateBurstBudget?: (payload: { mediaType: string; burstIndex?: number; budget: number }) => Promise<string | void> | string | void
+  updateBurstBudget?: (payload: {
+    mediaType: string
+    burstIndex?: number
+    budget: number
+  }) => Promise<string | void> | string | void
   /**
    * Generic field setter using known ids or selectors.
    * Supports { fieldId, selector, value } (string/number/boolean).
    */
-  setField?: (payload: { fieldId?: string; selector?: string; value: any }) => Promise<string | void> | string | void
+  setField?: (payload: {
+    fieldId?: string
+    selector?: string
+    value: any
+  }) => Promise<string | void> | string | void
   /**
    * Generic click action by selector.
    */
@@ -19,11 +27,17 @@ type AssistantActionHandlers = {
   /**
    * Generic select option action by selector and value.
    */
-  select?: (payload: { selector: string; value: string }) => Promise<string | void> | string | void
+  select?: (payload: {
+    selector: string
+    value: string
+  }) => Promise<string | void> | string | void
   /**
    * Generic toggle (checkbox/switch) by selector.
    */
-  toggle?: (payload: { selector: string; value: boolean }) => Promise<string | void> | string | void
+  toggle?: (payload: {
+    selector: string
+    value: boolean
+  }) => Promise<string | void> | string | void
 }
 
 export type AssistantContext = {
@@ -33,6 +47,11 @@ export type AssistantContext = {
 }
 
 const GLOBAL_KEY = "__AV_ASSISTANT__"
+const OPEN_CHAT_EVENT = "ava:open-chat"
+
+export type OpenAvaChatDetail = {
+  message: string
+}
 
 export function getAssistantContext(): AssistantContext | undefined {
   if (typeof window === "undefined") return undefined
@@ -52,7 +71,37 @@ export function setAssistantContext(next: AssistantContext) {
   }
 }
 
+/** Clear bridge state when a provider page unmounts (avoids stale PageContext). */
 export function clearAssistantContext() {
   if (typeof window === "undefined") return
   delete (window as any)[GLOBAL_KEY]
+}
+
+/**
+ * Open the Ava chat widget and send a visible first user message.
+ * ChatWidget subscribes via `subscribeAvaChatOpen`.
+ */
+export function openAvaChat(detail: OpenAvaChatDetail) {
+  if (typeof window === "undefined") return
+  const message = detail?.message?.trim()
+  if (!message) return
+  window.dispatchEvent(
+    new CustomEvent(OPEN_CHAT_EVENT, {
+      detail: { message } satisfies OpenAvaChatDetail,
+    }),
+  )
+}
+
+export function subscribeAvaChatOpen(
+  handler: (detail: OpenAvaChatDetail) => void,
+): () => void {
+  if (typeof window === "undefined") return () => {}
+  const listener = (event: Event) => {
+    const custom = event as CustomEvent<OpenAvaChatDetail>
+    const message = custom.detail?.message?.trim()
+    if (!message) return
+    handler({ message })
+  }
+  window.addEventListener(OPEN_CHAT_EVENT, listener)
+  return () => window.removeEventListener(OPEN_CHAT_EVENT, listener)
 }

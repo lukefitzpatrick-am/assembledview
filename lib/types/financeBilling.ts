@@ -36,6 +36,13 @@ export interface BillingLineItem {
   format?: string | null
   bid_strategy?: string | null
   creative?: string | null
+  /**
+   * Stable id from billing schedule (`lineItemId`), used for inline schedule amount edits.
+   * Absent on fee/service synthetic lines and derived-only rows without a schedule join.
+   */
+  schedule_line_item_id?: string | null
+  /** Persisted schedule `billingMode` when known (media lines). */
+  billing_mode?: "auto" | "manual" | null
 }
 
 /** Accrual grid synthetic rows (month detail, per-client subtotal, grand total). */
@@ -108,6 +115,11 @@ export interface FinanceFilters {
   selectedPublishers: number[]
   /** When false, downstream APIs may omit draft rows where supported. */
   includeDrafts: boolean
+  /**
+   * Australian financial year start calendar year (1 July).
+   * E.g. `2026` → FY 2026–27. Drives hub FY-scoped queries and default month range.
+   */
+  financialYear: number
   monthRange: { from: string; to: string }
   billingTypes: BillingType[]
   statuses: BillingStatus[]

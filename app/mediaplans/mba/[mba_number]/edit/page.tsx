@@ -13,6 +13,7 @@ import {
   type SetStateAction,
 } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import Link from "next/link"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -32,6 +33,7 @@ import { cn } from "@/lib/utils"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
+import { AvaMediaplanEditActions } from "@/components/ava/AvaSkillActionSets"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -50,7 +52,7 @@ import {
   type PartialApprovalMetadata,
   type PartialMbaValues,
 } from "@/lib/mediaplan/partialMba"
-import { setAssistantContext } from "@/lib/assistantBridge"
+import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { getSearchBursts } from "@/components/media-containers/SearchContainer"
 import { getSocialMediaBursts } from "@/components/media-containers/SocialMediaContainer"
@@ -170,6 +172,8 @@ import {
 } from "@/lib/billing/validateAgencyFeeMonthTotalDrift"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import type { MediaContainerBestPractice, Publisher } from "@/lib/types/publisher"
+import { fetchMediaPlanMbaCoalesced } from "@/lib/mediaplan/fetchMediaPlanMbaCoalesced"
+import { coalescedGetJson } from "@/lib/api/coalescedGetJson"
 // --- KPI domain (Stage 2) ---
 import { KPISection } from "@/components/kpis/KPISection"
 import { createMediaPlanKpiHost } from "@/components/kpis/kpiHost"
@@ -1195,6 +1199,30 @@ const MEDIA_TYPE_KEYS = [
 
 type MediaTypeKey = typeof MEDIA_TYPE_KEYS[number];
 
+/** Same flag → container fetchKey map as app/api/campaigns/[mba_number]/route.ts */
+const MEDIA_FLAG_TO_FETCH_KEY: Partial<Record<MediaTypeKey, string>> = {
+  mp_television: "television",
+  mp_radio: "radio",
+  mp_newspaper: "newspaper",
+  mp_magazines: "magazines",
+  mp_ooh: "ooh",
+  mp_cinema: "cinema",
+  mp_digidisplay: "digitalDisplay",
+  mp_digiaudio: "digitalAudio",
+  mp_digivideo: "digitalVideo",
+  mp_bvod: "bvod",
+  mp_integration: "integration",
+  mp_search: "search",
+  mp_socialmedia: "socialMedia",
+  mp_progdisplay: "progDisplay",
+  mp_progvideo: "progVideo",
+  mp_progbvod: "progBvod",
+  mp_progaudio: "progAudio",
+  mp_progooh: "progOoh",
+  mp_influencers: "influencers",
+  mp_production: "production",
+}
+
 // Create a type for the media fields
 type MediaFields = {
   [K in MediaTypeKey]: boolean;
@@ -1220,7 +1248,15 @@ type PageContext = {
   route: { pathname: string; clientSlug?: string; mbaSlug?: string };
   fields: PageField[];
   generatedAt: string;
-  entities?: { clientSlug?: string; clientName?: string; mbaNumber?: string; campaignName?: string; mediaTypes?: string[] };
+  entities?: {
+    clientSlug?: string
+    clientName?: string
+    mbaNumber?: string
+    campaignName?: string
+    mediaTypes?: string[]
+    versionNumber?: number
+    enabledMediaTypes?: string[]
+  };
   pageText?: { title?: string; headings?: string[]; breadcrumbs?: string[] };
 };
 
@@ -1512,6 +1548,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   const [clients, setClients] = useState<Client[]>([])
   const [availableVersions, setAvailableVersions] = useState<Array<{ id?: number; version_number: number; created_at?: number | string | null }>>([])
+  const versionsMetaLoadedRef = useRef(false)
+  const versionsMetaInflightRef = useRef<Promise<void> | null>(null)
   const [latestVersionNumber, setLatestVersionNumber] = useState<number>(1)
   const [nextSaveVersionNumber, setNextSaveVersionNumber] = useState<number | null>(null)
   const [selectedVersionNumber, setSelectedVersionNumber] = useState<number | null>(null)
@@ -2063,44 +2101,35 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [containerBestPractice, setContainerBestPractice] = useState<MediaContainerBestPractice[]>([])
   useEffect(() => {
     let cancelled = false
-    fetch("/api/publishers")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((d) => {
-        if (!cancelled) setBillingPublishers(Array.isArray(d) ? d : [])
-      })
-      .catch(() => {
-        if (!cancelled) setBillingPublishers([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  useEffect(() => {
-    let cancelled = false
-    fetch("/api/media-container-best-practice")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((d) => {
-        if (!cancelled) setContainerBestPractice(Array.isArray(d) ? d : [])
-      })
-      .catch(() => {
-        if (!cancelled) setContainerBestPractice([])
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  // --- KPI: load publisher KPIs on mount (Stage 2) ---
-  useEffect(() => {
-    getPublisherKPIs()
-      .then((data) => {
-        setPublisherKPIs(data)
+    // Secondary data — parallel, does not block MBA bootstrap / first paint.
+    // coalescedGetJson / getPublisherKPIs share in-flight maps so Strict Mode
+    // remounts and other page callers (sidebar, containers) don't multiply hits.
+    void Promise.allSettled([
+      coalescedGetJson<Publisher[]>("/api/publishers"),
+      coalescedGetJson<MediaContainerBestPractice[]>("/api/media-container-best-practice"),
+      getPublisherKPIs(),
+    ]).then(([pubs, bp, kpis]) => {
+      if (cancelled) return
+      if (pubs.status === "fulfilled") {
+        setBillingPublishers(Array.isArray(pubs.value) ? pubs.value : [])
+      } else {
+        setBillingPublishers([])
+      }
+      if (bp.status === "fulfilled") {
+        setContainerBestPractice(Array.isArray(bp.value) ? bp.value : [])
+      } else {
+        setContainerBestPractice([])
+      }
+      if (kpis.status === "fulfilled") {
+        setPublisherKPIs(kpis.value)
         setKpiTrigger((t) => t + 1)
-      })
-      .catch((err) => {
-        console.error("[KPI] failed to load publisher KPIs:", err)
-      })
+      } else {
+        console.error("[KPI] failed to load publisher KPIs:", kpis.reason)
+      }
+    })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   /** True when any included line item maps to a publisher billing via Advertising Associates (same inputs as save-time AA upload check). */
@@ -2251,10 +2280,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [kpiClientNameWatch])
 
   // --- KPI: load saved campaign KPIs when MBA + version known (Stage 2, edit-specific) ---
+  // Prefer URL ?version= so this can run in parallel with the MBA bootstrap;
+  // fall back to selectedVersionNumber once MBA resolves (no-version URLs).
   useEffect(() => {
     if (!mbaNumber || mbaNumber.trim() === "") return
-    const version = selectedVersionNumber
-    if (version === null || version === undefined) return
+    const versionFromUrl =
+      versionNumber != null && String(versionNumber).trim() !== ""
+        ? parseInt(String(versionNumber), 10)
+        : NaN
+    const version = Number.isFinite(versionFromUrl)
+      ? versionFromUrl
+      : selectedVersionNumber
+    if (version === null || version === undefined || !Number.isFinite(version)) return
     setIsKPILoading(true)
     getCampaignKPIs(mbaNumber, version)
       .then((data) => {
@@ -2266,7 +2303,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         setSavedCampaignKPIs([])
       })
       .finally(() => setIsKPILoading(false))
-  }, [mbaNumber, selectedVersionNumber])
+  }, [mbaNumber, selectedVersionNumber, versionNumber])
+
+  // Prefetch search/social line items in parallel with MBA when version is
+  // already known from the URL. These endpoints only need mba_number + version;
+  // the later enabled-media loader hits the same URL via fetchLineItemsFromApi's
+  // 60s TTL cache (or shares in-flight if MBA is still loading).
+  useEffect(() => {
+    if (!mbaNumber || mbaNumber.trim() === "") return
+    if (versionNumber == null || String(versionNumber).trim() === "") return
+    const version = parseInt(String(versionNumber), 10)
+    if (!Number.isFinite(version)) return
+    void getSearchLineItemsByMBA(mbaNumber, version).catch(() => {})
+    void getSocialMediaLineItemsByMBA(mbaNumber, version).catch(() => {})
+  }, [mbaNumber, versionNumber])
 
   // --- KPI: sync ref with latest rows so merge can read it inside debounced rebuild (Stage 2) ---
   useEffect(() => {
@@ -2798,14 +2848,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       lastLineItemsLoadKeyRef.current = ""
 
       try {
-        // Add timestamp cache-busting parameter - load line items immediately
-        const timestamp = Date.now()
         // Include version parameter if available
         const versionParam = versionNumber ? `&version=${encodeURIComponent(versionNumber)}` : ''
-        const apiUrl = `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}?t=${timestamp}&skipLineItems=true&billingScheduleFull=1${versionParam}`
+        const apiUrl = `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}?skipLineItems=true&billingScheduleFull=1${versionParam}`
         console.log(`[FETCH] Calling API: ${apiUrl}`)
         
-        const response = await fetch(apiUrl, {
+        const response = await fetchMediaPlanMbaCoalesced(apiUrl, {
           cache: 'no-store',
           headers: {
             'Cache-Control': 'no-cache',
@@ -2976,14 +3024,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           ? (typeof versionNumber === 'string' ? parseInt(versionNumber, 10) : parseInt(versionNumber, 10))
           : null
         
-        // Track current and available versions for rollback/support
+        // Track current version; full history loads lazily when the version switcher opens.
         setSelectedVersionNumber(loadedVersionNumber)
         const versionsFromApi = Array.isArray(data.versions) ? data.versions.map((v: any) => ({
           id: v.id,
           version_number: typeof v.version_number === 'string' ? parseInt(v.version_number, 10) : v.version_number,
           created_at: v.created_at ?? null
         })) : []
-        setAvailableVersions(versionsFromApi)
+        if (versionsFromApi.length > 0) {
+          setAvailableVersions(versionsFromApi)
+          versionsMetaLoadedRef.current = true
+        } else {
+          setAvailableVersions([])
+          versionsMetaLoadedRef.current = false
+        }
 
         // Derive latest version robustly (even when loading an older version)
         const versionCandidates = [
@@ -3188,18 +3242,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return () => {
       isCancelled = true
     }
-  }, [applyClientFees, form, mbaNumber, updateLoadStatus, versionNumber, setContextMbaNumber])
+  }, [mbaNumber, versionNumber, setContextMbaNumber])
+  // Intentionally omit `form` / `applyClientFees` / `updateLoadStatus` from deps:
+  // those identities can churn and re-trigger a full MBA bootstrap. The fetch
+  // only needs mbaNumber + versionNumber.
 
-  // Fetch clients
+  // Fetch clients (coalesced with AppSidebar + Strict Mode remounts)
   useEffect(() => {
     const fetchClients = async () => {
       try {
-        const response = await fetch("/api/clients")
-        if (!response.ok) {
-          throw new Error("Failed to fetch clients")
-        }
-        const data = await response.json()
-        setClients(data)
+        const data = await coalescedGetJson<Client[]>("/api/clients")
+        setClients(Array.isArray(data) ? data : [])
       } catch (error) {
         console.error("Error fetching clients:", error)
       }
@@ -3864,11 +3917,22 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     const numericValue = parseFloat(rawValue.replace(/[^0-9.-]/g, "")) || 0;
     const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
     const formattedValue = formatter.format(numericValue);
+    let lineItemValueChanged = false
 
     // Handle line item changes (grid reads from month[0]; saved state may clone line items per month, so sync all)
     if (type === 'lineItem' && mediaKey && lineItemId && monthYear) {
       const monthIndex = copy.findIndex((m) => m.monthYear === monthYear);
       if (monthIndex >= 0) {
+        const liKeyForPrev = mediaKey as keyof NonNullable<BillingMonth["lineItems"]>
+        const prevAmount =
+          copy
+            .map((m) =>
+              (m.lineItems?.[liKeyForPrev] as BillingLineItemType[] | undefined)?.find(
+                (li) => li.id === lineItemId
+              )?.monthlyAmounts?.[monthYear]
+            )
+            .find((v) => typeof v === "number") ?? 0
+        if (prevAmount !== numericValue) lineItemValueChanged = true
         syncLineItemMonthlyAmountAcrossAllMonthRows(
           copy,
           mediaKey,
@@ -3985,7 +4049,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     copy[index].totalAmount = formatter.format(mediaTotal + feeTotal + adServingTotal + productionTotal);
 
     recalculateManualBillingTotals(copy, formatter)
-    setManualBillingMonths(copy)
+    const nextMonths =
+      type === "lineItem" && lineItemId && lineItemValueChanged
+        ? applyBillingLineMode(copy, lineItemId, "manual")
+        : copy
+    setManualBillingMonths(nextMonths)
   }
 
   const manualBillingMediaSections = useMemo(
@@ -4084,7 +4152,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     })
 
     recalculateManualBillingTotals(copy, formatter)
-    setManualBillingMonths(copy)
+    setManualBillingMonths(applyBillingLineMode(copy, lineItemId, "manual"))
   }
 
   function handleManualBillingCostPreBillToggle(costKey: "fee" | "adServing" | "production", nextChecked: boolean) {
@@ -6641,7 +6709,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       startDate: fv.mp_campaigndates_start,
       endDate: fv.mp_campaigndates_end,
       version: String(namingVersion ?? "1"),
-      publishers: billingPublishers,
+      publishers: await (async () => {
+        try {
+          const pubRes = await fetch("/api/publishers?full=1")
+          if (pubRes.ok) {
+            const full = await pubRes.json()
+            if (Array.isArray(full)) return full as Publisher[]
+          }
+        } catch {
+          // fall through to light list already in state
+        }
+        return billingPublishers
+      })(),
       containerBestPractice,
       mediaFlags,
       items: {
@@ -7548,12 +7627,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     if (campaignBudget > 0 && Math.abs(diff) > 2) {
       toast({
         title: "Saved with budget mismatch",
-        description: `Total differs from Campaign Budget by ${formatMoney(Math.abs(diff), {
-          locale: "en-US",
-          currency: "USD",
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })} (${diff > 0 ? "over" : "under"}).`,
+        description: `Total differs from Campaign Budget by ${formatAUD(Math.abs(diff))} (${diff > 0 ? "over" : "under"}).`,
       })
     }
 
@@ -8086,6 +8160,49 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return format(date, 'dd/MM/yyyy HH:mm')
   }, [])
 
+  const loadVersionsMeta = useCallback(async () => {
+    if (!mbaNumber || versionsMetaLoadedRef.current) return
+    if (versionsMetaInflightRef.current) return versionsMetaInflightRef.current
+
+    const versionParam = versionNumber ? `&version=${encodeURIComponent(String(versionNumber))}` : ""
+    const promise = (async () => {
+      try {
+        const res = await fetch(
+          `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}?skipLineItems=true&includeVersionsMeta=1${versionParam}`,
+          { cache: "no-store" }
+        )
+        if (!res.ok) return
+        const data = await res.json()
+        const versionsFromApi = Array.isArray(data.versions)
+          ? data.versions.map((v: any) => ({
+              id: v.id,
+              version_number:
+                typeof v.version_number === "string"
+                  ? parseInt(v.version_number, 10)
+                  : v.version_number,
+              created_at: v.created_at ?? null,
+            }))
+          : []
+        setAvailableVersions(versionsFromApi)
+        const latest =
+          typeof data.latestVersionNumber === "number"
+            ? data.latestVersionNumber
+            : versionsFromApi.length > 0
+              ? Math.max(...versionsFromApi.map((v: { version_number: number }) => v.version_number || 0))
+              : null
+        if (latest != null) setLatestVersionNumber(latest)
+        versionsMetaLoadedRef.current = true
+      } catch (err) {
+        console.warn("[versions] failed to load version history", err)
+      } finally {
+        versionsMetaInflightRef.current = null
+      }
+    })()
+
+    versionsMetaInflightRef.current = promise
+    return promise
+  }, [mbaNumber, versionNumber])
+
   const handleVersionSelect = useCallback((value: string) => {
     const numericVersion = parseInt(value, 10)
     if (!numericVersion || numericVersion === selectedVersionNumber) return
@@ -8117,9 +8234,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const getPageContext = useCallback((): PageContext => {
     const values = form.getValues();
     const clientSlug = values.mp_clientname ? clientNameToSlug(values.mp_clientname) : undefined;
-    const enabledMediaTypes = mediaTypes
+    const enabledMediaLabels = mediaTypes
       .filter((medium) => Boolean(values[medium.name as keyof MediaPlanFormValues]))
       .map((medium) => medium.label);
+    const enabledMediaTypes = MEDIA_TYPE_KEYS
+      .filter((key) => Boolean(values[key]))
+      .map((key) => MEDIA_FLAG_TO_FETCH_KEY[key])
+      .filter((key): key is string => Boolean(key));
+    const contextVersion =
+      selectedVersionNumber ??
+      (versionNumber != null && String(versionNumber).trim() !== ""
+        ? parseInt(String(versionNumber), 10)
+        : undefined);
+    const versionForContext =
+      contextVersion !== undefined && Number.isFinite(contextVersion) ? contextVersion : undefined;
 
     const baseFields: PageField[] = [
       {
@@ -8230,7 +8358,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         clientName: values.mp_clientname,
         mbaNumber,
         campaignName: values.mp_campaignname,
-        mediaTypes: enabledMediaTypes,
+        mediaTypes: enabledMediaLabels,
+        ...(versionForContext !== undefined ? { versionNumber: versionForContext } : {}),
+        ...(enabledMediaTypes.length ? { enabledMediaTypes } : {}),
       },
       pageText: {
         title: "Edit Campaign",
@@ -8238,7 +8368,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         breadcrumbs: ["Media Plans", "Edit"],
       },
     };
-  }, [clientNameToSlug, form, mbaNumber, pathname]);
+  }, [clientNameToSlug, form, mbaNumber, pathname, selectedVersionNumber, versionNumber]);
 
   const handleSetField = useCallback(
     async ({ fieldId, selector, value }: { fieldId?: string; selector?: string; value: any }) => {
@@ -8303,6 +8433,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       },
     })
   }, [getPageContext, handleClick, handleSelect, handleSetField, handleToggle])
+
+  useEffect(() => {
+    return () => {
+      clearAssistantContext()
+    }
+  }, [])
 
   const handleCopyPageContext = useCallback(async () => {
     try {
@@ -8714,15 +8850,24 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         title="Edit Campaign"
         subtitle={<p>Update campaign settings, media types, and line item details.</p>}
         heroActions={
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            className="text-xs"
-            onClick={handleCopyPageContext}
-          >
-            Copy Context
-          </Button>
+          <>
+            <Button variant="outline" size="sm" type="button" className="text-xs" asChild>
+              <Link href={`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/creative`}>Creative</Link>
+            </Button>
+            <Button variant="outline" size="sm" type="button" className="text-xs" asChild>
+              <Link href={`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/trafficking`}>Trafficking</Link>
+            </Button>
+            <AvaMediaplanEditActions />
+            <Button
+              variant="ghost"
+              size="sm"
+              type="button"
+              className="text-xs"
+              onClick={handleCopyPageContext}
+            >
+              Copy Context
+            </Button>
+          </>
         }
         steps={createCampaignSteps.map((step) => ({
           id: step.id,
@@ -8746,17 +8891,31 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <span>v{selectedVersionNumber ?? mediaPlan?.version_number ?? "—"}</span>
                 <span className="text-border">•</span>
                 <span>Next: v{nextSaveVersionNumber ?? (latestVersionNumber || 0) + 1}</span>
-                {latestVersionNumber > 1 && availableVersions.length > 0 && (
+                {latestVersionNumber > 1 && (
                   <Combobox
                     value={selectedVersionNumber ? String(selectedVersionNumber) : ""}
                     onValueChange={handleVersionSelect}
                     placeholder="Load version"
                     searchPlaceholder="Search versions..."
                     buttonClassName="h-7 w-28 text-xs"
-                    options={[...availableVersions].map((v) => ({
-                      value: String(v.version_number),
-                      label: `v${v.version_number}`,
-                    }))}
+                    onOpenChange={(open) => {
+                      if (open) void loadVersionsMeta()
+                    }}
+                    options={
+                      availableVersions.length > 0
+                        ? [...availableVersions].map((v) => ({
+                            value: String(v.version_number),
+                            label: `v${v.version_number}`,
+                          }))
+                        : selectedVersionNumber
+                          ? [
+                              {
+                                value: String(selectedVersionNumber),
+                                label: `v${selectedVersionNumber}`,
+                              },
+                            ]
+                          : []
+                    }
                   />
                 )}
               </div>
@@ -10464,26 +10623,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   <p className="font-bold">Budget mismatch (warning)</p>
                   <p className="text-sm">
                     Campaign Budget:{" "}
-                    {formatMoney(budgetForWarn, {
-                      locale: "en-US",
-                      currency: "USD",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    {formatAUD(budgetForWarn)}
                     . Total Investment:{" "}
-                    {formatMoney(totalInvestment, {
-                      locale: "en-US",
-                      currency: "USD",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+                    {formatAUD(totalInvestment)}
                     . Difference:{" "}
-                    {formatMoney(Math.abs(diff), {
-                      locale: "en-US",
-                      currency: "USD",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}{" "}
+                    {formatAUD(Math.abs(diff))}{" "}
                     {diff > 0 ? "over" : "under"}.
                   </p>
                 </div>
@@ -10533,12 +10677,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                         <div className="flex w-full items-center justify-between pr-4">
                           <span className="text-sm font-medium">{medium.label}</span>
                           <span className="text-sm">
-                            {formatMoney(partialMBAValues.mediaTotals[mediaKey] || 0, {
-                              locale: "en-US",
-                              currency: "USD",
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
+                            {formatAUD(partialMBAValues.mediaTotals[mediaKey] || 0)}
                           </span>
                         </div>
                       </AccordionTrigger>
@@ -10572,12 +10711,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                     </span>
                                   </label>
                                   <span className="shrink-0 tabular-nums">
-                                    {formatMoney(item.amount, {
-                                      locale: "en-US",
-                                      currency: "USD",
-                                      minimumFractionDigits: 2,
-                                      maximumFractionDigits: 2,
-                                    })}
+                                    {formatAUD(item.amount)}
                                   </span>
                                 </div>
                               )
@@ -10597,12 +10731,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <label className="text-sm font-medium">Gross Media Total</label>
                 <Input
                   className="text-right w-48 bg-muted"
-                  value={formatMoney(partialMBAValues.grossMedia, {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  value={formatAUD(partialMBAValues.grossMedia)}
                   readOnly // This field is calculated automatically
                 />
               </div>
@@ -10610,12 +10739,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <label className="text-sm font-medium">Assembled Fee</label>
                 <Input
                   className="text-right w-48"
-                  value={formatMoney(partialMBAValues.assembledFee, {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  value={formatAUD(partialMBAValues.assembledFee)}
                   onBlur={(e) => handlePartialMBAChange('assembledFee', e.target.value)}
                   onChange={(e) => setPartialMBAValues(p => ({...p, assembledFee: parseFloat(e.target.value.replace(/[^0-9.-]/g, '')) || 0}))}
                 />
@@ -10624,12 +10748,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <label className="text-sm font-medium">Ad Serving & Tech Fees</label>
                 <Input
                   className="text-right w-48"
-                  value={formatMoney(partialMBAValues.adServing, {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  value={formatAUD(partialMBAValues.adServing)}
                   onBlur={(e) => handlePartialMBAChange('adServing', e.target.value)}
                   onChange={(e) => setPartialMBAValues(p => ({...p, adServing: parseFloat(e.target.value.replace(/[^0-9.-]/g, '')) || 0}))}
                 />
@@ -10638,12 +10757,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <label className="text-sm font-medium">Production</label>
                 <Input
                   className="text-right w-48"
-                  value={formatMoney(partialMBAValues.production, {
-                    locale: "en-US",
-                    currency: "USD",
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+                  value={formatAUD(partialMBAValues.production)}
                   onBlur={(e) => handlePartialMBAChange('production', e.target.value)}
                   onChange={(e) => setPartialMBAValues(p => ({...p, production: parseFloat(e.target.value.replace(/[^0-9.-]/g, '')) || 0}))}
                 />
@@ -10651,17 +10765,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <div className="border-t pt-4 mt-4 flex items-center justify-between">
                 <label className="text-sm font-bold">Total Investment (ex GST)</label>
                 <div className="text-right w-48 font-bold p-2">
-                  {formatMoney(
+                  {formatAUD(
                     partialMBAValues.grossMedia +
                       partialMBAValues.assembledFee +
                       partialMBAValues.adServing +
-                      partialMBAValues.production,
-                    {
-                      locale: "en-US",
-                      currency: "USD",
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    }
+                      partialMBAValues.production
                   )}
                 </div>
               </div>

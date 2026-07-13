@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button"
 import { formatCurrencyAUD } from "@/lib/format/currency"
 import { cn } from "@/lib/utils"
 import AdminDateRangeSelector from "@/app/dashboard/[slug]/[mba_number]/components/AdminDateRangeSelector"
+import { AvaCampaignCommentaryAction } from "@/components/ava/AvaSkillActionSets"
 
 interface CampaignHeroBannerProps {
   campaign: {
@@ -163,6 +164,7 @@ export default function CampaignHeroBanner({
             <Download className="h-3.5 w-3.5" aria-hidden />
             Downloads
           </Button>
+          <AvaCampaignCommentaryAction />
         </div>
       </div>
     </PageHeroShell>

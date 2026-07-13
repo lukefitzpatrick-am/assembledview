@@ -4,6 +4,7 @@ import {
   xanoFinanceDelete,
   xanoFinancePatch,
 } from "@/lib/finance/xanoFinanceApi"
+import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
 
@@ -11,6 +12,9 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const gate = await requireFinanceAdmin(request)
+  if ("response" in gate) return gate.response
+
   try {
     const { id } = await context.params
     const body = (await request.json()) as Record<string, unknown>
@@ -25,9 +29,12 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
+  const gate = await requireFinanceAdmin(request)
+  if ("response" in gate) return gate.response
+
   try {
     const { id } = await context.params
     await xanoFinanceDelete(`${FINANCE_BILLING_LINE_ITEMS_PATH}/${id}`)

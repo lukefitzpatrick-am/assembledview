@@ -1,0 +1,170 @@
+{
+  "publisher_slug": "youtube",
+  "publisher_name": "YouTube (via Google Ads)",
+  "container_category_default": "YouTube",
+  "last_refreshed": "2026-05-22",
+  "source": "https://support.google.com/google-ads/answer/13547298?hl=en-AU + https://support.google.com/google-ads/answer/13676244?hl=en-AU (current as of May 2026)",
+  "platform_notes": [
+    "YouTube ads are bought through Google Ads — campaign type controls format",
+    "Videos must be uploaded to a YouTube channel before they can be used as ads (public or unlisted)",
+    "YouTube dynamically scales/letterboxes — don't manually resize, supply at the recommended resolution",
+    "Audio files (MP3, WAV, PCM) NOT accepted — must be video file"
+  ],
+  "universal_specs": {
+    "resolutions_recommended": {
+      "horizontal_16:9": "1920x1080 (Full HD)",
+      "vertical_9:16": "1080x1920",
+      "square_1:1": "1080x1080"
+    },
+    "resolutions_min_hd": {
+      "horizontal": "1280x720",
+      "vertical": "720x1280",
+      "square": "480x480"
+    },
+    "resolutions_min_sd": {
+      "horizontal": "640x480",
+      "vertical": "480x640",
+      "square": "480x480",
+      "note": "SD not recommended"
+    },
+    "aspect_ratios_accepted": ["16:9", "9:16", "1:1", "4:3 (SD)", "2:3 (vertical)", "4:5 (vertical)"],
+    "file_type_recommended": [".MPG (MPEG-2 or MPEG-4)"],
+    "file_type_accepted": [".WMV", ".AVI", ".MOV", ".FLV", ".MPEG-1", ".MP4", ".MPEGPS", "3GPP", "WebM", "DNxHR", "ProRes", "CineForm", "HEVC (h265)"],
+    "max_file_size": "256 GB",
+    "audio_only_files_not_accepted": true
+  },
+  "thumbnails": {
+    "ratio": "16:9",
+    "recommended_resolution": "1280x720",
+    "minimum_resolution": "1280x640",
+    "file_type": ["JPG", "GIF", "PNG"],
+    "max_file_size_videos": "<2MB",
+    "max_file_size_podcasts": "<10MB"
+  },
+  "companion_banners": {
+    "note": "Desktop only",
+    "dimensions": "300x60",
+    "ratio": "5:1",
+    "file_type": ["JPEG", "GIF", "PNG"],
+    "max_file_size": "150KB"
+  },
+  "safe_zones": {
+    "note": "Overlays, CTAs and buttons appear in different places by format, campaign type and screen. Keep key elements (logo, product, supers) within Google's published safe area templates.",
+    "templates_urls": [
+      "Horizontal: https://services.google.com/fh/files/blogs/ytsafezoneoverlay-horizontal.png",
+      "Vertical: https://services.google.com/fh/files/misc/youtubesafezoneoverlay_vertical_final.png",
+      "Square: https://services.google.com/fh/files/misc/youtubesafezoneoverlay-square.png"
+    ]
+  },
+  "formats": [
+    {
+      "format_name": "Skippable In-Stream",
+      "container": "YouTube",
+      "campaign_type": "Video Reach Campaign or Video Action Campaign",
+      "placement": "Before, during, or after YouTube videos (skippable after 5 seconds)",
+      "duration_min": "12 seconds",
+      "duration_max": "6 minutes",
+      "duration_recommended": "15 or 30 seconds",
+      "ratios_supported": ["16:9 (1920x1080)", "9:16 (1080x1920)", "1:1 (1080x1080)"]
+    },
+    {
+      "format_name": "Non-Skippable In-Stream",
+      "container": "YouTube",
+      "campaign_type": "Video Reach Campaign",
+      "placement": "Before, during, or after YouTube videos",
+      "duration": "15 seconds (exact)",
+      "ratios_supported": ["16:9 (1920x1080)", "9:16 (1080x1920)", "1:1 (1080x1080)"]
+    },
+    {
+      "format_name": "Bumper Ads",
+      "container": "YouTube",
+      "campaign_type": "Video Reach Campaign (Efficient Reach)",
+      "placement": "Before, during, or after YouTube videos",
+      "duration": "6 seconds (exact)",
+      "ratios_supported": ["16:9 (1920x1080)", "1:1 (1080x1080)"]
+    },
+    {
+      "format_name": "YouTube Shorts",
+      "container": "YouTube",
+      "campaign_type": "Video Reach Campaign or Video Action Campaign",
+      "placement": "Within YouTube Shorts feed",
+      "ratio": "9:16",
+      "resolution": "1080x1920",
+      "duration": "6-60 seconds",
+      "best_practice_notes": [
+        "Native vertical content style outperforms repurposed horizontal cuts",
+        "Audio matters — Shorts viewers have sound on more often than In-Stream"
+      ]
+    },
+    {
+      "format_name": "In-Feed Video Ads (formerly Discovery)",
+      "container": "YouTube",
+      "campaign_type": "Demand Gen or Video Reach Campaign",
+      "placement": "YouTube search results, YouTube watch-next, YouTube app Home feed",
+      "duration_recommended": "15 seconds",
+      "ratios": ["16:9 (1920x1080)", "9:16 (1080x1920)", "1:1 (1080x1080)"],
+      "text": {
+        "headlines": "2 lines, 40 characters per line",
+        "descriptions": "2 lines, 35 characters per line",
+        "note": "Headlines excluded from desktop and TV watch pages, may not show on mobile. Descriptions don't appear on desktop watch page or TV."
+      }
+    },
+    {
+      "format_name": "YouTube Masthead",
+      "container": "YouTube",
+      "campaign_type": "Reservation (contact Google rep)",
+      "placement": "Native video ad in YouTube Home feed, all devices",
+      "ratio": "16:9",
+      "resolution": "1920x1080",
+      "duration": "Any length",
+      "text": {
+        "headline": "≤40 characters",
+        "description": "≤60 characters",
+        "call_to_action": "≤15 characters",
+        "final_url": "Any"
+      },
+      "preview_tool": "https://www.youtube.com/videomasthead/"
+    },
+    {
+      "format_name": "Video Action Campaigns",
+      "container": "YouTube",
+      "campaign_type": "Video Action Campaign",
+      "duration_min": "10 seconds",
+      "ratios_supported": ["16:9 (1920x1080)", "9:16 (1080x1920)", "1:1 (1080x1080)"],
+      "text": {
+        "headline": "30 characters",
+        "long_headline": "90 characters",
+        "description": "90 characters",
+        "call_to_action": "10 characters",
+        "final_url": "Any"
+      }
+    },
+    {
+      "format_name": "Video Reach Campaigns (Efficient Reach)",
+      "container": "YouTube",
+      "campaign_type": "Video Reach Campaign",
+      "duration_by_format": {
+        "in_stream_skippable_or_in_feed": "15 seconds (16:9 or 1:1)",
+        "bumper": "6 seconds (16:9)",
+        "shorts": "6-60 seconds (9:16)"
+      },
+      "ratios_supported": ["16:9 (1920x1080)", "9:16 (1080x1920)", "1:1 (1080x1080)"]
+    }
+  ],
+  "video_upload_requirements": {
+    "platform": "YouTube channel (brand account)",
+    "visibility": "Public or unlisted (NOT private)",
+    "embedding": "Must allow embedding",
+    "url_format": "Full YouTube URL (not shortened)",
+    "true_streaming_allowed": false
+  },
+  "best_practice_notes": [
+    "Introduce brand or product from the start, maintain presence in first 5 seconds",
+    "Reinforce message with audio AND text — avoid competing elements",
+    "Keep visuals bright and high-contrast",
+    "Audio brand mentions supercharge onscreen brand visuals' performance",
+    "Avoid doing too much in one ad — keep messaging and language focused",
+    "Resize per YouTube's best practices before upload — don't rely on auto-scaling",
+    "Interaction elements (annotations, CTA overlays, info cards) auto-appear if enabled on the video — remove at upload if you don't want them on the ad"
+  ]
+}

@@ -1,4 +1,5 @@
-import type { KpiTargets, SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
+import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget";
+import type { SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
 
 /**
  * Status of a single KPI metric vs its target.
@@ -63,13 +64,14 @@ function statusForHigherIsBetter(target: number | null, actual: number | null): 
  * future media types (Social/Video) where the relevant actual will be sourced
  * from the appropriate Snowflake fact.
  *
- * Both kpiTargets and row actuals use decimal ratios (0.045 = 4.5%) — the same
- * convention as campaign_kpi elsewhere in the repo (see lib/kpi/__tests__/resolve.test.ts).
+ * Targets may be legacy percentage-points (>= 1); normalise to decimal ratios so
+ * they match Snowflake actuals (0.045 = 4.5%). Same helper as programmatic/social.
  */
 export function buildKpiComparisons(row: SearchPacingCampaignRow): KpiComparison[] {
   const targets = row.kpiTargets;
 
-  const targetCtr = targets?.ctr ?? null;
+  const rawCtr = targets?.ctr ?? null;
+  const targetCtr = rawCtr != null ? normaliseRatioTarget(rawCtr) : null;
   const actualCtr = row.ctr ?? null;
   const ctrComparison: KpiComparison = {
     metric: "ctr",
@@ -82,7 +84,8 @@ export function buildKpiComparisons(row: SearchPacingCampaignRow): KpiComparison
     status: statusForHigherIsBetter(targetCtr, actualCtr),
   };
 
-  const targetConvRate = targets?.conversionRate ?? null;
+  const rawConvRate = targets?.conversionRate ?? null;
+  const targetConvRate = rawConvRate != null ? normaliseRatioTarget(rawConvRate) : null;
   const actualConvRate =
     row.clicks > 0 && row.conversions !== null && row.conversions !== undefined
       ? row.conversions / row.clicks

@@ -12,6 +12,7 @@ type DeliveryDataProviderProps = {
   tiktokLineItemIds: string[]
   progDisplayLineItemIds: string[]
   progVideoLineItemIds: string[]
+  adServingLineItemIds: string[]
   campaignStart?: string
   campaignEnd?: string
   fromDate?: string
@@ -77,6 +78,7 @@ export default function DeliveryDataProvider({
   tiktokLineItemIds,
   progDisplayLineItemIds,
   progVideoLineItemIds,
+  adServingLineItemIds,
   campaignStart,
   campaignEnd,
   fromDate,
@@ -97,11 +99,12 @@ export default function DeliveryDataProvider({
         ...(tiktokLineItemIds ?? []),
         ...(progDisplayLineItemIds ?? []),
         ...(progVideoLineItemIds ?? []),
+        ...(adServingLineItemIds ?? []),
       ]
         .map((id) => cleanId(id))
         .filter(Boolean) as string[]
     )
-  }, [metaLineItemIds, tiktokLineItemIds, progDisplayLineItemIds, progVideoLineItemIds])
+  }, [metaLineItemIds, tiktokLineItemIds, progDisplayLineItemIds, progVideoLineItemIds, adServingLineItemIds])
 
   const allIdsKey = useMemo(() => {
     return [
@@ -109,8 +112,9 @@ export default function DeliveryDataProvider({
       `tiktok:${tiktokLineItemIds.join(",")}`,
       `pd:${progDisplayLineItemIds.join(",")}`,
       `pv:${progVideoLineItemIds.join(",")}`,
+      `as:${adServingLineItemIds.join(",")}`,
     ].join("|")
-  }, [metaLineItemIds, tiktokLineItemIds, progDisplayLineItemIds, progVideoLineItemIds])
+  }, [metaLineItemIds, tiktokLineItemIds, progDisplayLineItemIds, progVideoLineItemIds, adServingLineItemIds])
 
   const normalizedSearchLineItemIds = useMemo(() => {
     const ids = (searchLineItemIds ?? [])

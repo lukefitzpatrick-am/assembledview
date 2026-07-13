@@ -3,7 +3,7 @@ import axios from "axios";
 import { fetchAllXanoPages } from '@/lib/api/xanoPagination';
 import { lineItemPaginationParams } from '@/lib/api/mediaPlanLineItemQuery';
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper';
-import { xanoUrl } from '@/lib/api/xano';
+import { parseXanoListPayload, xanoUrl } from '@/lib/api/xano';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -143,18 +143,15 @@ export async function GET(request: Request) {
         if (masterData && masterData.version_number) {
           // Get the specific version data
           const versionResponse = await axios.get(
-            `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}`
+            `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}&page=1&per_page=50`
           );
           
-          let versionData: any = null;
-          if (Array.isArray(versionResponse.data)) {
-            versionData = versionResponse.data.find((item: any) => 
+          const versionRows = parseXanoListPayload(versionResponse.data);
+          const versionData =
+            versionRows.find((item: any) => 
               item.media_plan_master_id === masterData.id && 
               item.version_number === masterData.version_number
-            );
-          } else {
-            versionData = versionResponse.data;
-          }
+            ) ?? versionRows[0] ?? null;
           
           if (versionData && versionData.version_number) {
             versionNumber = String(versionData.version_number);

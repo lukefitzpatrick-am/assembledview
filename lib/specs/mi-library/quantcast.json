@@ -1,0 +1,66 @@
+{
+  "publisher_slug": "quantcast",
+  "publisher_name": "Quantcast",
+  "container_category_default": "Programmatic",
+  "category_note": "Quantcast operates a programmatic platform with high-impact display formats (rich media), standard display, and audience products. Specs largely follow IAB standard with some custom interactive units.",
+  "last_refreshed": "2026-05-22",
+  "source": "STUB ENTRY \u2014 Quantcast supplies spec sheets per campaign and per high-impact unit. Confirm with Quantcast account manager.",
+  "source_url": "https://www.quantcast.com",
+  "stub_status": "incomplete",
+  "formats": [
+    {
+      "format_name": "Standard Display",
+      "container": "Programmatic",
+      "ad_sizes": [
+        "300x250 (MREC)",
+        "728x90 (Leaderboard)",
+        "300x600 (Half Page)",
+        "320x50 (Mobile Banner)",
+        "970x250 (Billboard)",
+        "160x600 (Wide Sky)"
+      ],
+      "file_type": [
+        "HTML5 (.zip)",
+        "JPG",
+        "PNG",
+        "GIF"
+      ],
+      "max_file_size": {
+        "initial_load": "<100KB",
+        "polite_load": "<1MB"
+      },
+      "supply_deadline_rule": "5 working days before live",
+      "best_practice_notes": [
+        "Standard IAB display best practices apply"
+      ]
+    },
+    {
+      "format_name": "High Impact Interactive Display",
+      "container": "Programmatic",
+      "ad_sizes": [
+        "Custom \u2014 confirm dimensions with Quantcast"
+      ],
+      "file_type": "HTML5 (.zip), custom rich media",
+      "max_file_size": {
+        "initial_load": "<200KB",
+        "polite_load": "<2-5MB depending on unit"
+      },
+      "interactive_features": "Expanding, in-banner video, interactive elements supported",
+      "supply_deadline_rule": "10 working days before live (allows QA of interactive elements)",
+      "restrictions": [
+        "Interactive elements must be user-initiated",
+        "Audio must be user-initiated",
+        "Polite load required for assets above initial budget"
+      ],
+      "best_practice_notes": [
+        "Interactive units perform best with clear visual affordances (button hover states, animation cues)",
+        "Test interactive behaviour across browsers before submission",
+        "High-impact units typically require longer creative QA \u2014 build in extra time"
+      ]
+    }
+  ],
+  "refresh_instructions": [
+    "Request the Quantcast Creative Specifications PDF from your Quantcast account manager",
+    "High-impact unit specs are typically supplied per unit via individual builder docs"
+  ]
+}

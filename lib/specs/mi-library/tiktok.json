@@ -1,0 +1,153 @@
+{
+  "publisher_slug": "tiktok",
+  "publisher_name": "TikTok",
+  "container_category_default": "Social",
+  "last_refreshed": "2026-05-22",
+  "source_topview": "https://ads.tiktok.com/help/article/tiktok-reservation-topview (TikTok For Business, last updated Jan 2026)",
+  "source_general": "TikTok Ads Manager + AssembledMedia Material Instructions template v1.x (TikTok Details tab)",
+  "platform_notes": [
+    "TikTok ad placements split between auction (In-Feed Video, Spark Ads) and reservation (TopView, Brand Takeover, Branded Hashtag Challenge)",
+    "Reservation formats (TopView etc.) require pre-approval — consult TikTok sales rep before booking",
+    "Asset review takes up to 2 days — submit well ahead of campaign start",
+    "Reservation ad assets CANNOT be changed once preloaded or campaign goes live"
+  ],
+  "formats": [
+    {
+      "format_name": "In-Feed Video Ad (Auction)",
+      "container": "Social",
+      "placement": "TikTok For You feed",
+      "ratio": "9:16",
+      "min_resolution": "540x960",
+      "file_type": ["MP4", "MOV", "MPEG", "3GP", "AVI"],
+      "duration": "5-60 seconds (recommended 9-15s)",
+      "bitrate_min": "516kbps",
+      "max_file_size": "500MB",
+      "text": {
+        "ad_caption": "1-100 characters",
+        "restrictions": "No emojis, no '{' '}' or '#' in description. Punctuation and spaces count as characters."
+      },
+      "ctas_available": [
+        "Apply now", "Book now", "Contact us", "Download", "Experience now",
+        "Get quote", "Get showtimes", "Get tickets now", "Install now", "Interested",
+        "Learn more", "Listen now", "Order now", "Play game", "Pre-order now",
+        "Read more", "Shop now", "Sign up", "Subscribe", "View now", "Visit store",
+        "Watch now"
+      ],
+      "best_practice_notes": [
+        "Sound-on creative - TikTok users have audio enabled more than other platforms",
+        "Native organic feel beats commercial polish",
+        "First 3 seconds determine watch-through",
+        "9-15 second cuts perform best for awareness objectives"
+      ]
+    },
+    {
+      "format_name": "Spark Ads",
+      "container": "Social",
+      "placement": "TikTok For You feed",
+      "asset_type": "Existing organic TikTok post (URL not file)",
+      "asset_requirement": "Link to the ad on brand account or creator account (with creator's authorization)",
+      "spec_note": "No restrictions on video ratio, resolution, file type, duration, bitrate, or file size — TikTok takes the live organic post as-is",
+      "text": {
+        "ad_caption_pull": "Extracted directly from organic video caption, max 100 chars in display (no fixed character limit)",
+        "ad_caption_push": "1-100 characters, restrictions same as In-Feed",
+        "restrictions": "Spark Ads Push: no emojis, no '{' '}' or '#'. Spark Ads Pull: caption taken from organic post, blank caption supported."
+      },
+      "best_practice_notes": [
+        "Spark Ads typically outperform In-Feed Ads — leverage creator authenticity",
+        "Requires creator to enable 'ads' on the post (and authorize advertiser if it's not the brand account)"
+      ]
+    },
+    {
+      "format_name": "TopView (Reservation)",
+      "container": "Social",
+      "placement": "Shown on app open — initial 3-second zoom-in takeover, then transitions to in-feed",
+      "ad_type": "Reservation (requires pre-approval, contact TikTok sales)",
+      "asset_review_time": "2 days",
+      "ratio": "9:16",
+      "resolution_recommended": "1080x1920",
+      "min_resolution": "540x960",
+      "dimensions": "1080x1920 recommended (540x960 minimum)",
+      "file_type": ["MP4", "MOV", "MPEG", "3GP"],
+      "duration": "5-60 seconds (recommended 9-15s)",
+      "bitrate_min": "2500kbps",
+      "max_file_size": "500MB",
+      "text": {
+        "ad_caption": "Max 100 characters. Max 4 lines displayed before 'See more' (recommend keeping under 100 chars EN to avoid truncation).",
+        "restrictions": [
+          "No emojis except v11 (may not render on Android)",
+          "No '{' or '}'",
+          "No links in captions",
+          "@-mentions allowed (not clickable on Non-Spark, redirects to in-app account on Spark)",
+          "#-tags allowed only for commercial/sponsored/organic hashtag challenges"
+        ]
+      },
+      "profile_photo": {
+        "ratio": "1:1",
+        "dimensions": "98x98",
+        "file_type": ["JPG", "JPEG", "PNG"],
+        "max_file_size": "<50KB",
+        "safe_zone": "Centre 66x66 — keep key element here to avoid cropping"
+      },
+      "account_name": {
+        "max_chars_en": "20 characters (recommend 4-10)",
+        "max_chars_cjk": "10 characters (recommend 2-5)",
+        "no_emojis": true,
+        "no_braces": true
+      },
+      "safe_zones": "Two-stage: (1) initial 3-second open-screen takeover, (2) in-feed display. In-feed safe zone is more restrictive. Use TikTok Preview Tool before launch. Key elements must avoid: TikTok logo area, skip button, swipe-up link area, captions overlay area at bottom.",
+      "restrictions": [
+        "First 3 seconds cannot use plain white (TikTok logo loses visibility)",
+        "Horizontal/movie trailer content must stay vertical in first 3 seconds",
+        "Audio must be present (cannot be completely silent)",
+        "Avoid harsh sounds in first 3 seconds (explosions, alarms, phone rings)",
+        "Cannot repeat the same audio sentence more than twice in a row",
+        "No misleading UI visuals (fake stop/play buttons, fake call screens, fake SMS)",
+        "No contact info in ads (QR codes, phone numbers, addresses) — except for required disclaimers (gambling, healthcare)",
+        "Limited to 20 ads per ad group",
+        "Same creative cannot run as In-Feed on the same day",
+        "Same creative cannot run day before or after a 100% SOV TopView"
+      ],
+      "url_options": {
+        "tiktok_in_app": "Branded Hashtag Challenge, Video Page, Music Page, Account Page, Branded Effect, Branded Effect Shooting Page",
+        "webview": "Must be HTTPS, no auto-play, no left/right swipe interactions",
+        "app_download_link": "App Store or Google Play download links NOT supported",
+        "deeplinks": "External deeplinks NOT supported (schema, universal link, applink, redirect schemes, onelink)"
+      },
+      "ctas_available": [
+        "Apply now", "Book now", "Contact us", "Download", "Experience now",
+        "Get quote", "Get showtimes", "Get tickets now", "Install now", "Interested",
+        "Join this hashtag", "Learn more", "Listen now", "Order now", "Play game",
+        "Pre-order now", "Read more", "Shoot with this effect", "Shop now", "Sign up",
+        "Subscribe", "View now", "View video with this effect", "Visit store", "Watch now"
+      ],
+      "cta_note": "CTA background colour auto-matched to video — no custom colours. Required for non-video-view ads.",
+      "best_practice_notes": [
+        "Two-stage display: first 3-second open-screen takeover, then in-feed",
+        "In-feed safe zone is more restrictive — design for the harder constraint",
+        "Use TikTok Preview Tool to check across device models before launch",
+        "Reservation format — book via TikTok sales, allow 2 days for asset review",
+        "First 3 seconds determine watch-through; front-load brand and hook"
+      ]
+    },
+    {
+      "format_name": "Brand Takeover (Reservation)",
+      "container": "Social",
+      "placement": "Full-screen ad on app open (similar to TopView but static-led)",
+      "ad_type": "Reservation",
+      "note": "Specs broadly similar to TopView. Confirm with TikTok sales rep per booking."
+    },
+    {
+      "format_name": "Branded Hashtag Challenge",
+      "container": "Social",
+      "ad_type": "Reservation",
+      "note": "Custom build — confirm assets and timeline with TikTok sales rep. Generally requires hero video, hashtag page assets, and creator activations."
+    }
+  ],
+  "supply_deadline_general": "Submit at least 2 working days before campaign start for asset review. Reservation formats need longer lead times — confirm with TikTok sales rep.",
+  "best_practice_notes": [
+    "Sound-on creative — TikTok users have audio enabled more than other platforms",
+    "Native organic feel beats commercial polish",
+    "First 3 seconds determine watch-through",
+    "Use TikTok's Preview Tool to check across device models before launch"
+  ]
+}

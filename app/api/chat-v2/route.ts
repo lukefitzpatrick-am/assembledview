@@ -1,39 +1,69 @@
 /**
- * Canonical AVA chat API: OpenAI (GPT) when `engine: "openai"`, else Claude (when enabled).
- * Former `/api/chat` OpenAI logic lives in `@/lib/ava/openAvaGptHandler`.
+ * Canonical AVA chat API — Anthropic Claude agent loop only.
+ * Optional kill-switch: AVA_ENGINE=off → 503.
+ * Streaming is a later phase; maxDuration mitigates Vercel timeout risk for multi-tool turns.
  */
 
 import { NextRequest, NextResponse } from "next/server"
 import type { ChatCompletionMessageParam } from "openai/resources/index.mjs"
 import type Anthropic from "@anthropic-ai/sdk"
-import { getModeInstructions, type ChatMode } from "@/src/ava/modes"
+import { type ChatMode } from "@/src/ava/modes"
 import { auth0 } from "@/lib/auth0"
-import { getUserRoles } from "@/lib/rbac"
+import { getUserClientSlugs, getUserMbaNumbers, getUserRoles } from "@/lib/rbac"
+import type { PageContext } from "@/lib/ava/types"
+import { buildAvaSystemPrompt } from "@/lib/ava/buildAvaSystemPrompt"
 import {
-  buildSystemPrompt,
-  type FormPatch,
-  type PageContext,
-} from "@/lib/openai"
+  AVA_MI_INTERVIEW_GUIDANCE,
+  AVA_MI_TOOL_HINTS,
+} from "@/lib/ava/miInterviewGuidance"
+import {
+  AVA_SKILL_GUIDANCE,
+  AVA_SKILL_TOOL_HINTS,
+} from "@/lib/ava/skills/skillGuidance"
 import { runAvaAgent } from "@/lib/ava/agentLoop"
-import {
-  avaGptErrorResponse,
-  handleOpenAvaGptChat,
-  isAvaGptValidationError,
-} from "@/lib/ava/openAvaGptHandler"
 import type { AvaToolContext } from "@/lib/ava/tools/types"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+/** Multi-tool Claude turns can exceed the default serverless limit; streaming is a later phase. */
+export const maxDuration = 60
 
-const AVA_V2_APPENDIX =
-  "\n\nYou are AVA, the AssembledView AI assistant. You respond in Australian English with short, direct sentences. You can call tools to fetch data and apply form edits. Only call get_media_plan_summary if the user's question actually needs plan details. Only call apply_form_patch if the user explicitly asks you to change field values. When you call apply_form_patch, confirm the changes in your reply in plain English."
+const AVA_V2_APPENDIX = `
+You are AVA, the AssembledView AI assistant. Respond in Australian English with short, direct sentences.
+
+Tool choice — one tool call beats guessing. Chain at most 3 tool calls per turn (load_skill counts as one — then pair with data tools). Prefer get_campaign_context before asking the user for MBA/client ids the page context already carries. If a tool result is marked as an error (format: "Tool <name> failed: …"), translate it to plain English for the user (e.g. "I couldn't load the creative list just now") — never dump the raw failure string, and do not invent the missing data.
+
+Reach for this when:
+- get_campaign_context — need MBA master/version summary or compact line items; start here when page context already has client/MBA identifiers
+- get_media_plan_summary — lighter plan text summary when full line-item detail is not needed
+- get_client_details — client fees, brand colour, or whether platform IDs are populated
+- get_pacing_snapshot — pacing/delivery story for a client or MBA (cached channel rows)
+- get_creative_assets — creative files attached to an MBA
+- get_naming_rules — naming template order or a composed name preview
+- get_saved_audiences — saved planning audiences by client or MBA
+- get_best_practice — media-container best-practice copy by channel
+- get_methodology — planning methodology title/formula/source (e.g. affinity, DFII)
+${AVA_MI_TOOL_HINTS}
+${AVA_SKILL_TOOL_HINTS}
+- apply_form_patch — only when the user explicitly asks to change editable field values
+
+Page snapshot surfaces (state.surface) — use on-page state first; pair tools only when you need more than the snapshot:
+- creative — visible assets, filters, missing line-item links; pair with get_creative_assets for the full MBA library
+- trafficking — active platform, row/invalid counts, invalid samples, namesComplete; pair with get_naming_rules to explain compose patterns
+- planning — stage, brief, audience tabs (wc / n / robustness), reachBasis; pair with get_saved_audiences or get_methodology
+- finance — active tab, FY/month, aggregate KPIs only (never invent invoice rows); answer from aggregates; do not claim row-level detail
+
+${AVA_MI_INTERVIEW_GUIDANCE}
+
+${AVA_SKILL_GUIDANCE}
+
+Never return JSON reply contracts in prose. After apply_form_patch, confirm changes in plain English.
+`.trim()
 
 type ChatRequestBody = {
   messages?: ChatCompletionMessageParam[]
   pageContext?: PageContext
   mode?: ChatMode
-  /** `openai` = legacy GPT path; `claude` = Anthropic (default for backwards compat) */
-  engine?: "openai" | "claude"
 }
 
 export async function POST(req: NextRequest) {
@@ -43,6 +73,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Not authenticated" }, { status: 401 })
     }
     const roles = getUserRoles(session.user)
+    const clientSlugs = getUserClientSlugs(session.user)
+    const mbaNumbers = getUserMbaNumbers(session.user)
     if (!roles.includes("admin")) {
       console.warn("[AVA v2] /api/chat-v2 denied (not admin)", {
         sub: (session.user as any)?.sub,
@@ -52,35 +84,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "AVA is available to Admin users only." }, { status: 403 })
     }
 
-    const body = ((await req.json()) ?? {}) as ChatRequestBody
-    const engine = body.engine === "openai" ? "openai" : "claude"
-
-    if (engine === "openai") {
-      if (!Array.isArray(body.messages)) {
-        return NextResponse.json({ error: "'messages' must be an array" }, { status: 400 })
-      }
-      try {
-        return await handleOpenAvaGptChat(roles, {
-          messages: body.messages,
-          pageContext: body.pageContext,
-          mode: body.mode,
-        })
-      } catch (error) {
-        console.error("[AVA openai]", error)
-        if (isAvaGptValidationError(error)) {
-          return avaGptErrorResponse(error)
-        }
-        const message = error instanceof Error ? error.message : "Unknown error"
-        return NextResponse.json({ error: message }, { status: 500 })
-      }
-    }
-
-    if (process.env.AVA_ENGINE !== "claude") {
+    if (process.env.AVA_ENGINE === "off") {
       return NextResponse.json(
-        { error: "AVA Claude engine is not enabled on this deployment." },
+        {
+          error:
+            "AVA is temporarily disabled on this deployment. Ask an admin to re-enable it (unset AVA_ENGINE=off).",
+        },
         { status: 503 },
       )
     }
+
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return NextResponse.json(
+        {
+          error:
+            "ANTHROPIC_API_KEY is not configured. AVA cannot start. Ask an admin to set it in the deployment environment.",
+        },
+        { status: 503 },
+      )
+    }
+
+    const body = ((await req.json()) ?? {}) as ChatRequestBody
 
     if (!Array.isArray(body.messages)) {
       throw new ValidationError("'messages' must be an array")
@@ -91,23 +115,26 @@ export async function POST(req: NextRequest) {
     const safeMessages = sanitiseMessages(incomingMessages)
     const anthropicMessages = toAnthropicMessages(safeMessages)
 
-    const { clientSlug, mbaNumber } = deriveAvaIdentifiers(pageContext)
+    const { clientSlug, mbaNumber, versionNumber, enabledMediaTypes } =
+      deriveAvaIdentifiers(pageContext)
 
-    const customInstructions = getModeInstructions(resolvedMode, pageContext)
-    const systemPrompt =
-      buildSystemPrompt({
-        pageContext,
-        customInstructions,
-      }) + AVA_V2_APPENDIX
+    const systemPrompt = buildAvaSystemPrompt(resolvedMode, pageContext, AVA_V2_APPENDIX)
 
     const user = session.user as { sub?: string; email?: string }
     const context: AvaToolContext = {
       pageContext,
       clientSlug,
       mbaNumber,
+      versionNumber,
+      enabledMediaTypes,
       userSub: typeof user.sub === "string" ? user.sub : undefined,
       userEmail: typeof user.email === "string" ? user.email : undefined,
+      roles,
+      clientSlugs,
+      mbaNumbers,
       capturedPatch: null,
+      capturedAttachments: null,
+      capturedQuestions: null,
     }
 
     const result = await runAvaAgent({
@@ -119,6 +146,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       replyText: result.replyText,
       patch: result.patch,
+      attachments: result.attachments,
+      questions: result.questions,
       meta: {
         engine: "claude",
         model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5",
@@ -144,25 +173,48 @@ class ValidationError extends Error {
   }
 }
 
-function deriveAvaIdentifiers(pageContext?: PageContext): { clientSlug?: string; mbaNumber?: string } {
+function deriveAvaIdentifiers(pageContext?: PageContext): {
+  clientSlug?: string
+  mbaNumber?: string
+  versionNumber?: number
+  enabledMediaTypes?: string[]
+} {
   const entities = pageContext?.entities
+  const versionRaw = entities?.versionNumber
+  const versionNumber =
+    typeof versionRaw === "number" && Number.isFinite(versionRaw) ? versionRaw : undefined
+  const enabledMediaTypes = Array.isArray(entities?.enabledMediaTypes)
+    ? entities.enabledMediaTypes.filter((t): t is string => typeof t === "string" && t.trim().length > 0)
+    : undefined
   const fromEntities = {
     clientSlug: typeof entities?.clientSlug === "string" ? entities.clientSlug : undefined,
     mbaNumber: typeof entities?.mbaNumber === "string" ? entities.mbaNumber : undefined,
+    versionNumber,
+    enabledMediaTypes: enabledMediaTypes?.length ? enabledMediaTypes : undefined,
   }
 
   const route = pageContext?.route
   if (route && typeof route === "object") {
     const clientSlug = typeof (route as any).clientSlug === "string" ? (route as any).clientSlug : undefined
     const mbaNumber = typeof (route as any).mbaSlug === "string" ? (route as any).mbaSlug : undefined
-    return { clientSlug: clientSlug || fromEntities.clientSlug, mbaNumber: mbaNumber || fromEntities.mbaNumber }
+    return {
+      clientSlug: clientSlug || fromEntities.clientSlug,
+      mbaNumber: mbaNumber || fromEntities.mbaNumber,
+      versionNumber: fromEntities.versionNumber,
+      enabledMediaTypes: fromEntities.enabledMediaTypes,
+    }
   }
 
   if (typeof route === "string" && route) {
     const decoded = decodeURIComponent(route)
     const mbaMatch = decoded.match(/\/mba\/([^/?#]+)/i)
     const mbaNumber = mbaMatch?.[1] ? String(mbaMatch[1]).trim() : undefined
-    return { clientSlug: fromEntities.clientSlug, mbaNumber: mbaNumber || fromEntities.mbaNumber }
+    return {
+      clientSlug: fromEntities.clientSlug,
+      mbaNumber: mbaNumber || fromEntities.mbaNumber,
+      versionNumber: fromEntities.versionNumber,
+      enabledMediaTypes: fromEntities.enabledMediaTypes,
+    }
   }
 
   return fromEntities

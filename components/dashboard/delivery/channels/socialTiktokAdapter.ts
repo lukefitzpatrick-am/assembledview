@@ -2,6 +2,7 @@ import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-serv
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import type { SocialLineItem } from "@/lib/delivery/social/socialChannelCompute"
+import type { CampaignKPI } from "@/lib/kpi/types"
 import type { ChannelSectionData } from "./types"
 import { buildSocialChannelSectionForPlatform } from "./socialAdapterShared"
 
@@ -11,7 +12,9 @@ export function buildSocialTiktokSection(input: {
   campaignStart: string
   campaignEnd: string
   mbaNumber: string
+  kpiVersionNumber: number
   kpiTargets: KPITargetsMap | undefined
+  lineItemTargets: Map<string, CampaignKPI> | undefined
   filterRange: DateRange
   brandColour?: string
   lastSyncedAt: Date | null

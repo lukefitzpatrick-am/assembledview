@@ -11,6 +11,7 @@ export type ChannelKey =
   | "search"
   | "programmatic-display"
   | "programmatic-video"
+  | "ad-serving"
 
 /**
  * Connection pill rendered in the channel header. Indicates which platform

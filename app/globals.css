@@ -379,6 +379,18 @@
     background: linear-gradient(90deg, var(--pacing-behind) 0%, transparent 100%);
   }
 
+  /* Instagram-style avatar ring — channel tokens only, no raw hex */
+  .social-ig-ring {
+    background: conic-gradient(
+      from 210deg,
+      var(--channel-tv),
+      var(--channel-prog-display),
+      var(--channel-social),
+      var(--channel-bvod),
+      var(--channel-tv)
+    );
+  }
+
   .status-bar-critical {
     background: linear-gradient(90deg, var(--pacing-critical) 0%, transparent 100%);
   }

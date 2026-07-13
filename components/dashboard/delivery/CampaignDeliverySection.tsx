@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
+import type { CampaignKPI } from "@/lib/kpi/types"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { getPacingWindow } from "@/lib/pacing/pacingWindow"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
@@ -12,6 +13,7 @@ import DeliveryDataProvider from "./DeliveryDataProvider"
 import { DeliveryContainer } from "./DeliveryContainer"
 import { buildProgrammaticDisplaySection } from "./channels/programmaticDisplayAdapter"
 import { buildProgrammaticVideoSection } from "./channels/programmaticVideoAdapter"
+import { buildAdServingSection } from "./channels/adServingAdapter"
 import { buildSearchSection } from "./channels/searchAdapter"
 import { buildSocialMetaSection } from "./channels/socialMetaAdapter"
 import { buildSocialTiktokSection } from "./channels/socialTiktokAdapter"
@@ -60,6 +62,8 @@ export type CampaignDeliverySectionProps = {
   filterRange: DateRange
   brandColour?: string
   kpiTargets: KPITargetsMap
+  kpiVersionNumber: number
+  lineItemTargets: Map<string, CampaignKPI>
   campaignStart: string
   campaignEnd: string
   socialLineItems: SocialLineItem[]
@@ -68,6 +72,7 @@ export type CampaignDeliverySectionProps = {
   mpSearchEnabled: boolean
   progDisplayLineItems: unknown[]
   progVideoLineItems: unknown[]
+  adServingLineItems: unknown[]
 }
 
 type DeliveryBodyProps = {
@@ -81,6 +86,8 @@ type DeliveryBodyProps = {
   filterRange: DateRange
   brandColour?: string
   kpiTargets: KPITargetsMap
+  kpiVersionNumber: number
+  lineItemTargets: Map<string, CampaignKPI>
   pacingWindow: ReturnType<typeof getPacingWindow>
   metaItems: SocialLineItem[]
   tiktokItems: SocialLineItem[]
@@ -88,6 +95,7 @@ type DeliveryBodyProps = {
   includeSearch: boolean
   progDisplayLineItems: unknown[]
   progVideoLineItems: unknown[]
+  adServingLineItems: unknown[]
 }
 
 function CampaignDeliveryBody({
@@ -101,6 +109,8 @@ function CampaignDeliveryBody({
   filterRange,
   brandColour,
   kpiTargets,
+  kpiVersionNumber,
+  lineItemTargets,
   pacingWindow,
   metaItems,
   tiktokItems,
@@ -108,6 +118,7 @@ function CampaignDeliveryBody({
   includeSearch,
   progDisplayLineItems,
   progVideoLineItems,
+  adServingLineItems,
 }: DeliveryBodyProps) {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
 
@@ -126,7 +137,9 @@ function CampaignDeliveryBody({
           campaignStart,
           campaignEnd,
           mbaNumber,
+          kpiVersionNumber,
           kpiTargets,
+          lineItemTargets,
           filterRange,
           brandColour,
           lastSyncedAt,
@@ -142,7 +155,9 @@ function CampaignDeliveryBody({
           campaignStart,
           campaignEnd,
           mbaNumber,
+          kpiVersionNumber,
           kpiTargets,
+          lineItemTargets,
           filterRange,
           brandColour,
           lastSyncedAt,
@@ -158,6 +173,9 @@ function CampaignDeliveryBody({
         campaignEnd,
         filterRange,
         kpiTargets,
+        mbaNumber,
+        kpiVersionNumber,
+        lineItemTargets,
         pacingWindow,
         brandColour,
         lastSyncedAt,
@@ -171,8 +189,11 @@ function CampaignDeliveryBody({
         combinedRows: rows,
         campaignStart,
         campaignEnd,
+        mbaNumber,
         filterRange,
+        kpiVersionNumber,
         kpiTargets,
+        lineItemTargets,
         pacingWindow,
         brandColour,
         lastSyncedAt,
@@ -186,9 +207,28 @@ function CampaignDeliveryBody({
         combinedRows: rows,
         campaignStart,
         campaignEnd,
+        mbaNumber,
         filterRange,
+        kpiVersionNumber,
         kpiTargets,
+        lineItemTargets,
         pacingWindow,
+        brandColour,
+        lastSyncedAt,
+      })
+      if (s) out.push(s)
+    }
+
+    if (adServingLineItems.length > 0) {
+      const s = buildAdServingSection({
+        adServingLineItems,
+        combinedRows: rows,
+        campaignStart,
+        campaignEnd,
+        mbaNumber,
+        filterRange,
+        kpiVersionNumber,
+        lineItemTargets,
         brandColour,
         lastSyncedAt,
       })
@@ -204,11 +244,14 @@ function CampaignDeliveryBody({
     includeSearch,
     progDisplayLineItems,
     progVideoLineItems,
+    adServingLineItems,
     campaignStart,
     campaignEnd,
     filterRange,
     brandColour,
     kpiTargets,
+    kpiVersionNumber,
+    lineItemTargets,
     pacingWindow,
     mbaNumber,
     searchLineItems,
@@ -235,6 +278,8 @@ export function CampaignDeliverySection({
   filterRange,
   brandColour,
   kpiTargets,
+  kpiVersionNumber,
+  lineItemTargets,
   campaignStart,
   campaignEnd,
   socialLineItems,
@@ -243,6 +288,7 @@ export function CampaignDeliverySection({
   mpSearchEnabled,
   progDisplayLineItems,
   progVideoLineItems,
+  adServingLineItems,
 }: CampaignDeliverySectionProps) {
   const pacingWindow = useMemo(() => getPacingWindow(campaignStart, campaignEnd), [campaignStart, campaignEnd])
 
@@ -295,6 +341,13 @@ export function CampaignDeliverySection({
     return Array.from(new Set(ids)).sort()
   }, [progVideoLineItems, filterByPacingSet])
 
+  const adServingLineItemIds = useMemo(() => {
+    const ids = (adServingLineItems ?? [])
+      .map(extractPacingLineItemIdFromItem)
+      .filter(filterByPacingSet) as string[]
+    return Array.from(new Set(ids)).sort()
+  }, [adServingLineItems, filterByPacingSet])
+
   const normalizedSearchLineItemIds = useMemo(() => {
     const ids = (searchLineItemIds ?? [])
       .map((id) => cleanPacingLineItemId(id))
@@ -313,6 +366,7 @@ export function CampaignDeliverySection({
       tiktokLineItemIds={tiktokLineItemIds}
       progDisplayLineItemIds={progDisplayLineItemIds}
       progVideoLineItemIds={progVideoLineItemIds}
+      adServingLineItemIds={adServingLineItemIds}
       campaignStart={campaignStart}
       campaignEnd={campaignEnd}
       searchEnabled={includeSearch}
@@ -330,6 +384,8 @@ export function CampaignDeliverySection({
           filterRange={filterRange}
           brandColour={brandColour}
           kpiTargets={kpiTargets}
+          kpiVersionNumber={kpiVersionNumber}
+          lineItemTargets={lineItemTargets}
           pacingWindow={pacingWindow}
           metaItems={metaItems}
           tiktokItems={tiktokItems}
@@ -337,6 +393,7 @@ export function CampaignDeliverySection({
           includeSearch={includeSearch}
           progDisplayLineItems={progDisplayLineItems}
           progVideoLineItems={progVideoLineItems}
+          adServingLineItems={adServingLineItems}
         />
       )}
     </DeliveryDataProvider>

@@ -1,0 +1,215 @@
+{
+  "publisher_slug": "meta",
+  "publisher_name": "Meta (Facebook + Instagram)",
+  "container_category_default": "Social",
+  "last_refreshed": "2026-05-22",
+  "source": "https://www.facebook.com/business/ads-guide/ + cross-checked against industry spec sheets (2026 updates)",
+  "source_notes": "Meta's spec pages are robots.txt-disallowed for direct fetch; specs verified from multiple cross-referenced industry sources current as of May 2026. Refresh quarterly.",
+  "platform_notes": [
+    "Instagram Explore feed retired January 2026 — traffic flows to Reels",
+    "Reels reached ~33% of Instagram impressions Q1 2026 (Tinuiti) — favour 9:16 vertical creative",
+    "Meta's Andromeda delivery system reads creative quality as a first-class ranking signal; resolution choices now affect auction performance",
+    "20% text rule is officially gone, but heavy text overlays still deprioritised by delivery algorithm"
+  ],
+  "universal_constraints": {
+    "max_file_size_image": "30MB",
+    "max_file_size_video": "4GB",
+    "file_type_image": ["JPG", "PNG"],
+    "file_type_video": ["MP4", "MOV"],
+    "video_codec": "H.264",
+    "video_audio": "Stereo AAC, 128kbps+",
+    "min_resolution": "600px",
+    "frame_rate": "30fps minimum recommended"
+  },
+  "formats": [
+    {
+      "format_name": "Facebook Feed - Image",
+      "container": "Social",
+      "placement": "Feed",
+      "file_type": "JPG or PNG",
+      "ratios_supported": ["1:1", "4:5"],
+      "ratio_recommended": "4:5 (more screen space on mobile)",
+      "dimensions": {"1:1": "1080x1080", "4:5": "1080x1350"},
+      "max_file_size": "30MB",
+      "text": {
+        "primary_text": "125 characters (before truncation)",
+        "headline": "40 characters",
+        "description": "30 characters"
+      },
+      "best_practice_notes": [
+        "4:5 (1080x1350) takes more screen real estate on mobile",
+        "Heavy text overlays still deprioritised algorithmically",
+        "Primary text truncates after ~125 chars on most placements"
+      ]
+    },
+    {
+      "format_name": "Facebook Feed - Video",
+      "container": "Social",
+      "placement": "Feed",
+      "file_type": "MP4 or MOV",
+      "codec": "H.264",
+      "ratios_supported": ["1:1", "4:5"],
+      "ratio_recommended": "4:5",
+      "dimensions": {"1:1": "1080x1080", "4:5": "1080x1350"},
+      "max_file_size": "4GB",
+      "duration_max": "241 minutes (shorter performs better)",
+      "duration_recommended": "5-15 seconds",
+      "audio": "Stereo AAC at 128kbps+. Captions recommended (sound-off viewing common)",
+      "text": {
+        "primary_text": "125 characters",
+        "headline": "40 characters",
+        "description": "30 characters"
+      }
+    },
+    {
+      "format_name": "Instagram Feed - Image",
+      "container": "Social",
+      "placement": "Feed",
+      "file_type": "JPG or PNG",
+      "ratios_supported": ["1:1", "4:5"],
+      "ratio_recommended": "4:5",
+      "dimensions": {"1:1": "1080x1080", "4:5": "1080x1350"},
+      "max_file_size": "30MB",
+      "text": {
+        "primary_text": "125 characters",
+        "headline": "40 characters",
+        "description": "30 characters"
+      },
+      "best_practice_notes": [
+        "4:5 (1080x1350) takes more screen real estate on mobile - higher CTR than 1:1",
+        "Heavy text overlays still deprioritised algorithmically despite 20% rule officially gone",
+        "Front-load key visual element - feed scroll is fast"
+      ]
+    },
+    {
+      "format_name": "Instagram Feed - Video",
+      "container": "Social",
+      "placement": "Feed",
+      "file_type": "MP4 or MOV",
+      "codec": "H.264",
+      "ratios_supported": ["1:1", "4:5"],
+      "dimensions": {"1:1": "1080x1080", "4:5": "1080x1350"},
+      "max_file_size": "4GB",
+      "duration_max": "60 minutes",
+      "duration_recommended": "5-15 seconds",
+      "text": {
+        "primary_text": "125 characters",
+        "headline": "40 characters",
+        "description": "30 characters"
+      }
+    },
+    {
+      "format_name": "Facebook + Instagram Stories",
+      "container": "Social",
+      "placement": "Stories",
+      "file_type_image": ["JPG", "PNG"],
+      "file_type_video": ["MP4", "MOV"],
+      "ratio": "9:16",
+      "dimensions": "1080x1920",
+      "max_file_size_image": "30MB",
+      "max_file_size_video": "4GB",
+      "video_duration": "1 second to 60 seconds (5-15s recommended)",
+      "image_display_duration": "Up to 5 seconds by default",
+      "safe_zone": "Leave top 14% (~250px) and bottom 20% (~340px) free of key elements (profile icon top, CTA button bottom). Keep critical content in central 1080x1420 band (y=250 to y=1670).",
+      "text": {"primary_text": "125 characters"}
+    },
+    {
+      "format_name": "Facebook + Instagram Reels",
+      "container": "Social",
+      "placement": "Reels",
+      "file_type_image": ["JPG", "PNG"],
+      "file_type_video": ["MP4", "MOV"],
+      "ratio_supported": ["9:16", "1.91:1 to 9:16 range"],
+      "ratio_recommended": "9:16",
+      "dimensions": "1080x1920",
+      "min_resolution": "720px",
+      "min_frame_rate": "30fps",
+      "max_file_size_video": "4GB",
+      "video_max_duration": "90 seconds (1.5 minutes)",
+      "video_duration_recommended": "5-15 seconds",
+      "audio": "Required (Reels users watch with sound on more than Feed users)",
+      "safe_zone": "Leave top 14%, bottom 35%, and 6% on each side free from key elements. Native captions overlay bottom third — keep your text out of bottom 30%.",
+      "cover_photo_recommended": "420x654 (1:1.55)",
+      "text": {"primary_text": "125 characters"},
+      "best_practice_notes": [
+        "Front-load message in first 3 seconds",
+        "Native, organic-feeling content outperforms polished commercial cuts",
+        "Reels is the growing placement (33% of Instagram impressions Q1 2026)"
+      ]
+    },
+    {
+      "format_name": "Meta Carousel",
+      "container": "Social",
+      "placement": "Feed, Stories, Reels",
+      "file_type_image": "JPG or PNG",
+      "file_type_video": "MP4, MOV or GIF",
+      "ratio": "1:1",
+      "min_resolution": "1080x1080",
+      "cards": "2-10",
+      "max_file_size_image": "30MB per card",
+      "max_file_size_video": "4GB per card",
+      "video_duration": "1 second to 4 minutes (6 or 15 seconds recommended)",
+      "text": {
+        "primary_text": "125 characters",
+        "headline": "40 characters",
+        "description": "20 characters"
+      },
+      "best_practice_notes": [
+        "Description char limit is 20 (not 30 like single image) - easy miss",
+        "First card is most-viewed - lead with hero",
+        "Mix of product cards and value-prop cards typically outperforms product-only"
+      ]
+    },
+    {
+      "format_name": "Facebook In-Stream Video",
+      "container": "Social",
+      "placement": "In-stream (mid-roll on video content)",
+      "file_type": "MP4 or MOV",
+      "codec": "H.264",
+      "ratio": "16:9 (recommended) or 1:1",
+      "dimensions": {"16:9": "1920x1080", "1:1": "1080x1080"},
+      "max_file_size": "4GB",
+      "duration_recommended": "5-15 seconds",
+      "best_practice_notes": [
+        "Native to video viewing context — 16:9 feels appropriate here",
+        "Clear branding in first 3 seconds"
+      ]
+    },
+    {
+      "format_name": "Facebook Marketplace",
+      "container": "Social",
+      "placement": "Marketplace",
+      "file_type": "JPG or PNG",
+      "ratio": "1:1",
+      "dimensions": "1080x1080",
+      "max_file_size": "30MB",
+      "best_practice_notes": [
+        "High purchase intent — ads should look like organic listings",
+        "Clean product photography, minimal text overlay"
+      ]
+    },
+    {
+      "format_name": "Facebook Right Column",
+      "container": "Social",
+      "placement": "Right column (desktop)",
+      "file_type": "JPG or PNG",
+      "ratio": "1:1",
+      "dimensions": "1080x1080",
+      "max_file_size": "30MB"
+    },
+    {
+      "format_name": "Instagram Explore Home",
+      "container": "Social",
+      "placement": "Explore tab grid",
+      "note": "Standalone scrollable Explore feed was retired January 2026. Explore Home (grid-tile layout) is still live.",
+      "file_type": "JPG or PNG",
+      "ratio": "1:1",
+      "dimensions": "1080x1080"
+    }
+  ],
+  "compliance_notes": [
+    "Standard Meta advertising policies apply",
+    "Special Ad Categories (Housing, Employment, Credit, Social Issues/Elections/Politics) trigger restricted targeting and review",
+    "Heavy text overlays on images may reduce reach (algorithmic, not policy-enforced)"
+  ]
+}

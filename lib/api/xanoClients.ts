@@ -32,3 +32,25 @@ export function xanoMediaPlansUrl(path: string): string {
   const trimmed = path.replace(/^\//, "")
   return `${base}/${trimmed}`
 }
+
+/**
+ * Base URL for the Xano `dashboards` API group (`dashboard_monthly_*` endpoints).
+ * Requires `XANO_DASHBOARDS_BASE_URL`.
+ */
+export function getXanoDashboardsBaseUrl(): string {
+  const resolved = process.env.XANO_DASHBOARDS_BASE_URL?.trim()
+  if (!resolved) {
+    console.warn(
+      "[xanoClients] getXanoDashboardsBaseUrl: XANO_DASHBOARDS_BASE_URL is not set; dashboard spend calls will fail.",
+    )
+    throw new Error("Missing XANO_DASHBOARDS_BASE_URL for dashboard spend Xano requests")
+  }
+  return resolved.replace(/\/$/, "")
+}
+
+/** Full URL for a dashboards API path segment (e.g. `dashboard_monthly_publisher_spend`). */
+export function xanoDashboardsUrl(path: string): string {
+  const base = getXanoDashboardsBaseUrl()
+  const trimmed = path.replace(/^\//, "")
+  return `${base}/${trimmed}`
+}

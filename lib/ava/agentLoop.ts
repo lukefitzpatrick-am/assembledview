@@ -7,7 +7,7 @@ import {
 } from "./anthropic";
 import { AVA_TOOL_DEFINITIONS, getToolByName } from "./tools/registry";
 import type { AvaToolContext } from "./tools/types";
-import type { FormPatch, PageContext } from "@/lib/openai";
+import type { ChatFileAttachment, ChatInterviewQuestion, FormPatch } from "@/lib/ava/types";
 
 export type AvaAgentInput = {
   systemPrompt: string;
@@ -21,6 +21,10 @@ export type AvaAgentInput = {
 export type AvaAgentResult = {
   replyText: string;
   patch: FormPatch | null;
+  /** Display-only; never written into Anthropic message history. */
+  attachments: ChatFileAttachment[] | null;
+  /** Display-only; never written into Anthropic message history. */
+  questions: ChatInterviewQuestion[] | null;
   toolCalls: Array<{ name: string; input: unknown; resultPreview: string }>;
   usage: {
     inputTokens: number;
@@ -34,6 +38,16 @@ const FALLBACK_REPLY = "I did not produce a response. Please try again.";
 
 const TOOL_LIMIT_REPLY =
   "I hit the tool call limit before finishing. Please try a simpler request or ask me to continue.";
+
+/** Structured failure string for the model — never crash the turn on a tool throw/timeout. */
+function formatToolFailure(toolName: string, rawMessage: string): string {
+  const safe = rawMessage
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 240);
+  const message = safe.length > 0 ? safe : "unexpected error";
+  return `Tool ${toolName} failed: ${message}`;
+}
 
 function truncatePreview(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;
@@ -79,6 +93,26 @@ function accumulateUsage(
   acc.cacheReadInputTokens += Number(usage.cache_read_input_tokens) || 0;
 }
 
+function captureAttachments(
+  context: AvaToolContext,
+  attachments: ChatFileAttachment[] | undefined,
+): void {
+  if (!attachments?.length) return;
+  context.capturedAttachments = [
+    ...(context.capturedAttachments ?? []),
+    ...attachments,
+  ];
+}
+
+function captureQuestions(
+  context: AvaToolContext,
+  questions: ChatInterviewQuestion[] | undefined,
+): void {
+  if (!questions?.length) return;
+  // Latest interview call wins for this turn (one current question batch).
+  context.capturedQuestions = questions;
+}
+
 function finishTurn(
   replyText: string,
   context: AvaToolContext,
@@ -88,6 +122,12 @@ function finishTurn(
   return {
     replyText,
     patch: context.capturedPatch,
+    attachments: context.capturedAttachments?.length
+      ? context.capturedAttachments
+      : null,
+    questions: context.capturedQuestions?.length
+      ? context.capturedQuestions
+      : null,
     toolCalls,
     usage,
   };
@@ -177,16 +217,23 @@ export async function runAvaAgent(
 
           const tool = getToolByName(name);
           if (!tool) {
-            resultContent = `Unknown tool: ${name}`;
+            resultContent = formatToolFailure(name, `Unknown tool: ${name}`);
             resultIsError = true;
           } else {
             try {
               const executed = await tool.execute(toolInput, input.context);
               resultContent = executed.content;
               resultIsError = executed.isError ?? false;
+              if (!resultIsError) {
+                captureAttachments(input.context, executed.attachments);
+                captureQuestions(input.context, executed.questions);
+              }
+              if (resultIsError) {
+                resultContent = formatToolFailure(name, resultContent);
+              }
             } catch (err) {
               const msg = err instanceof Error ? err.message : String(err);
-              resultContent = msg;
+              resultContent = formatToolFailure(name, msg);
               resultIsError = true;
             }
           }

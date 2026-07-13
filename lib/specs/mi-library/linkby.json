@@ -1,0 +1,41 @@
+{
+  "publisher_slug": "linkby",
+  "publisher_name": "Linkby",
+  "container_category_default": "Direct Digital",
+  "category_note": "Linkby is a content syndication network that distributes branded articles across publisher whitelists. Specs are for article content, not banner ads.",
+  "last_refreshed": "2026-05-22",
+  "source": "STUB ENTRY — Linkby specs are typically supplied per campaign via the Linkby team.",
+  "source_url": "https://linkby.com",
+  "stub_status": "incomplete",
+  "formats": [
+    {
+      "format_name": "Content Article",
+      "container": "Direct Digital",
+      "common_name": "Branded content article (publisher syndication)",
+      "asset_type": "Article (text + hero image + supporting imagery)",
+      "text_requirements": {
+        "headline": "Recommended 60-80 characters (publisher-specific limits apply)",
+        "subheadline_or_dek": "Recommended 100-150 characters",
+        "body_copy": "Typically 400-800 words",
+        "byline": "Brand name or 'Brand Studio' attribution"
+      },
+      "image_requirements": {
+        "hero_image": "1200x800 or 1600x900 (16:9), JPG or PNG, <2MB",
+        "supporting_imagery": "Multiple images 1200x800 minimum",
+        "format": "JPG or PNG, RGB"
+      },
+      "cta_treatment": "Single CTA at article end + brand link in byline",
+      "supply_deadline_rule": "10-15 working days before live (allows for editorial review by publisher network)",
+      "best_practice_notes": [
+        "Article must add value to reader, not push hard sell",
+        "Editorial tone matched to host publisher's voice",
+        "Avoid superlative product claims that may fail publisher review",
+        "Disclose sponsored content per publisher requirements"
+      ]
+    }
+  ],
+  "refresh_instructions": [
+    "Request the latest Linkby content brief template from your Linkby account manager",
+    "Each campaign has campaign-specific publisher whitelist with their own editorial guidelines"
+  ]
+}

@@ -4,7 +4,9 @@ import {
   GlobalMonthlyClientSpend,
 } from '@/lib/types/dashboard'
 import { parseXanoListPayload } from '@/lib/api/xano'
-import { getXanoClientsCollectionUrl, xanoMediaPlansUrl } from '@/lib/api/xanoClients'
+import { xanoDashboardsUrl } from '@/lib/api/xanoClients'
+import { getCachedMediaPlanVersions } from '@/lib/api/mediaPlanVersionsCache'
+import { getCachedClients } from '@/lib/finance/xanoReferenceCache'
 import {
   apiClient,
   getAustralianFinancialYear,
@@ -23,8 +25,7 @@ import {
 export async function getGlobalMonthlySpend(): Promise<GlobalMonthlySpend[]> {
   const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
 
-  const versionsResponse = await apiClient.get(xanoMediaPlansUrl("media_plan_versions"))
-  const allVersions = parseXanoListPayload(versionsResponse.data)
+  const { data: allVersions } = await getCachedMediaPlanVersions()
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
     const mbaNumber = version?.mba_number
@@ -88,14 +89,13 @@ export async function getGlobalMonthlySpend(): Promise<GlobalMonthlySpend[]> {
 }
 
 /**
- * Global monthly spend split by publisher (header1), sourced from deliverySchedule on media_plan_versions
- * with billingSchedule as a fallback. Rules: booked/approved/completed, highest matching version per MBA, current AU FY (Jul–Jun).
+ * Legacy: fetch-all media_plan_versions + app-side aggregation.
+ * Kept for parity harness; remove after parity gate passes.
  */
-export async function getGlobalMonthlyPublisherSpend(): Promise<GlobalMonthlyPublisherSpend[]> {
+export async function getGlobalMonthlyPublisherSpendLegacy(): Promise<GlobalMonthlyPublisherSpend[]> {
   const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
 
-  const versionsResponse = await apiClient.get(xanoMediaPlansUrl("media_plan_versions"))
-  const allVersions = parseXanoListPayload(versionsResponse.data)
+  const { data: allVersions } = await getCachedMediaPlanVersions()
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
     const mbaNumber = version?.mba_number
@@ -163,22 +163,68 @@ export async function getGlobalMonthlyPublisherSpend(): Promise<GlobalMonthlyPub
   }))
 }
 
+function emptyPublisherSpendMonths(fyMonths: string[]): GlobalMonthlyPublisherSpend[] {
+  return fyMonths.map(month => ({ month, data: [] }))
+}
+
 /**
- * Global monthly spend split by client, sourced from deliverySchedule on media_plan_versions
- * with billingSchedule as fallback. Rules: booked/approved/completed, highest matching version per MBA,
- * current AU FY (Jul–Jun). Attempts to use client brand colours from Xano clients table when available.
+ * Global monthly spend split by publisher (header1).
+ * Pre-aggregated via Xano dashboards `dashboard_monthly_publisher_spend`; FY filter stays app-side.
+ * Non-OK upstream (currently 500 while Xano fix lands) soft-fails to empty months.
  */
-export async function getGlobalMonthlyClientSpend(): Promise<{
+export async function getGlobalMonthlyPublisherSpend(): Promise<GlobalMonthlyPublisherSpend[]> {
+  const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
+
+  let rows: any[] = []
+  try {
+    const rowsResp = await apiClient.get(xanoDashboardsUrl("dashboard_monthly_publisher_spend"))
+    rows = parseXanoListPayload(rowsResp.data)
+  } catch (err: any) {
+    const status = err?.response?.status
+    console.warn(
+      "[dashboard] dashboard_monthly_publisher_spend upstream non-OK; returning empty chart data",
+      status ?? err?.message ?? err,
+    )
+    return emptyPublisherSpendMonths(fyMonths)
+  }
+
+  const deliveryMonthlyMap: Record<string, Record<string, number>> = {}
+  fyMonths.forEach(month => { deliveryMonthlyMap[month] = {} })
+
+  for (const row of rows) {
+    const monthDate = parseMonthYear(row?.month)
+    if (!monthDate || monthDate < fyStart || monthDate > fyEnd) continue
+    const monthLabel = fyMonths[(monthDate.getMonth() + 12 - 6) % 12]
+    const publisher = typeof row?.publisher === 'string' && row.publisher.length > 0
+      ? row.publisher
+      : 'Unspecified'
+    const amount = Number(row?.amount)
+    if (!Number.isFinite(amount) || amount <= 0) continue
+    deliveryMonthlyMap[monthLabel][publisher] = (deliveryMonthlyMap[monthLabel][publisher] || 0) + amount
+  }
+
+  return fyMonths.map(month => ({
+    month,
+    data: Object.entries(deliveryMonthlyMap[month] || {})
+      .map(([publisher, amount]) => ({ publisher, amount }))
+      .filter(item => item.amount > 0)
+  }))
+}
+
+/**
+ * Legacy: fetch-all media_plan_versions + app-side aggregation.
+ * Kept for parity harness; remove after parity gate passes.
+ */
+export async function getGlobalMonthlyClientSpendLegacy(): Promise<{
   data: GlobalMonthlyClientSpend[]
   clientColors: Record<string, string>
 }> {
   const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
 
-  // Fetch client colors map
+  // Fetch client colors map (coalesced via finance reference cache)
   let clientColors: Record<string, string> = {}
   try {
-    const clientsResp = await apiClient.get(getXanoClientsCollectionUrl())
-    const clients = parseXanoListPayload(clientsResp.data)
+    const clients = await getCachedClients()
     clientColors = clients.reduce((acc: Record<string, string>, c: any) => {
       if (c.mp_client_name && c.brand_colour) {
         acc[c.mp_client_name] = c.brand_colour
@@ -189,8 +235,7 @@ export async function getGlobalMonthlyClientSpend(): Promise<{
     console.warn('Global monthly client spend: unable to fetch client colors', err)
   }
 
-  const versionsResponse = await apiClient.get(xanoMediaPlansUrl("media_plan_versions"))
-  const allVersions = parseXanoListPayload(versionsResponse.data)
+  const { data: allVersions } = await getCachedMediaPlanVersions()
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
     const mbaNumber = version?.mba_number
@@ -247,6 +292,74 @@ export async function getGlobalMonthlyClientSpend(): Promise<{
       })
     })
   })
+
+  const data: GlobalMonthlyClientSpend[] = fyMonths.map(month => ({
+    month,
+    data: Object.entries(deliveryMonthlyMap[month] || {})
+      .map(([client, amount]) => ({ client, amount }))
+      .filter(item => item.amount > 0)
+  }))
+
+  return { data, clientColors }
+}
+
+/**
+ * Global monthly spend split by client.
+ * Pre-aggregated via Xano dashboards `dashboard_monthly_client_spend`; FY filter stays app-side.
+ * Client brand colours still fetched from the clients collection.
+ * Non-OK upstream (currently 500 while Xano fix lands) soft-fails to empty months.
+ */
+export async function getGlobalMonthlyClientSpend(): Promise<{
+  data: GlobalMonthlyClientSpend[]
+  clientColors: Record<string, string>
+}> {
+  const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
+
+  // Fetch client colors via finance reference cache (clients API route uses
+  // lib/cache/clientsCache as a passive store only — no fetch helper there).
+  let clientColors: Record<string, string> = {}
+  try {
+    const clients = await getCachedClients()
+    clientColors = clients.reduce((acc: Record<string, string>, c: any) => {
+      if (c.mp_client_name && c.brand_colour) {
+        acc[c.mp_client_name] = c.brand_colour
+      }
+      return acc
+    }, {})
+  } catch (err) {
+    console.warn('Global monthly client spend: unable to fetch client colors', err)
+  }
+
+  let rows: any[] = []
+  try {
+    const rowsResp = await apiClient.get(xanoDashboardsUrl("dashboard_monthly_client_spend"))
+    rows = parseXanoListPayload(rowsResp.data)
+  } catch (err: any) {
+    const status = err?.response?.status
+    console.warn(
+      "[dashboard] dashboard_monthly_client_spend upstream non-OK; returning empty chart data",
+      status ?? err?.message ?? err,
+    )
+    return {
+      data: fyMonths.map(month => ({ month, data: [] })),
+      clientColors,
+    }
+  }
+
+  const deliveryMonthlyMap: Record<string, Record<string, number>> = {}
+  fyMonths.forEach(month => { deliveryMonthlyMap[month] = {} })
+
+  for (const row of rows) {
+    const monthDate = parseMonthYear(row?.month)
+    if (!monthDate || monthDate < fyStart || monthDate > fyEnd) continue
+    const monthLabel = fyMonths[(monthDate.getMonth() + 12 - 6) % 12]
+    const client = typeof row?.client === 'string' && row.client.length > 0
+      ? row.client
+      : 'Unspecified'
+    const amount = Number(row?.amount)
+    if (!Number.isFinite(amount) || amount <= 0) continue
+    deliveryMonthlyMap[monthLabel][client] = (deliveryMonthlyMap[monthLabel][client] || 0) + amount
+  }
 
   const data: GlobalMonthlyClientSpend[] = fyMonths.map(month => ({
     month,

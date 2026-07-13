@@ -1,8 +1,11 @@
-import { parseXanoListPayload } from '@/lib/api/xano'
 import { xanoMediaPlansUrl } from '@/lib/api/xanoClients'
-import { billingMonthsInAustralianFinancialYear } from '@/lib/finance/months'
+import { fetchAllXanoPages } from '@/lib/api/xanoPagination'
 import {
-  apiClient,
+  australianFyStartYearForDate,
+  billingMonthsInAustralianFinancialYear,
+  referenceDateForFyStartYear,
+} from '@/lib/finance/months'
+import {
   getTzParts,
   getAustralianFinancialYearWindow,
   isBookedApprovedCompleted,
@@ -13,32 +16,56 @@ import {
   sumDeliveryScheduleMonthAgencyMedia,
 } from './shared'
 
+export type FinanceHubScheduleFytdOptions = {
+  /** Calendar year of 1 July that starts the FY. Defaults to current Melbourne FY. */
+  financialYearStartYear?: number
+}
+
 /**
  * Finance hub FY-to-date totals from media plan **month rows** (not Xano finance_billing_records).
  * - **billingScheduleYtd**: sum of `sumLineItems` per month row on `billingSchedule` / `billing_schedule` only.
  * - **deliveryScheduleYtd**: same on `deliverySchedule` / `delivery_schedule` only (no fallback to the other);
  *   media line items with `clientPaysForMedia` / `client_pays_for_media` are excluded (aligned with payables).
  * Version per MBA: booked/approved/completed if present, else highest `version_number` (same as global monthly charts).
- * Months: Australian FY through current calendar month (Melbourne), inclusive.
+ * Months: Australian FY — past FY = full 12 months; current FY = through current calendar month (Melbourne);
+ * future FY = empty set (nothing “to date”).
  */
-export async function getFinanceHubScheduleFytdTotals(): Promise<{
+export async function getFinanceHubScheduleFytdTotals(
+  options: FinanceHubScheduleFytdOptions = {},
+): Promise<{
   billingScheduleYtd: number
   deliveryScheduleYtd: number
   currentMonthIso: string
+  financialYearStartYear: number
 }> {
-  const reference = new Date()
-  const parts = getTzParts(reference)
+  const now = new Date()
+  const parts = getTzParts(now)
   const currentMonthIso = `${parts.year}-${String(parts.month).padStart(2, '0')}`
   const melbourneCalendar = new Date(parts.year, parts.month - 1, parts.day)
+  const currentFyStart = australianFyStartYearForDate(melbourneCalendar)
+  const fyStartYear = options.financialYearStartYear ?? currentFyStart
 
-  const fyMonthAllowed = new Set(
-    billingMonthsInAustralianFinancialYear(melbourneCalendar).filter((m) => m <= currentMonthIso)
-  )
+  const reference = referenceDateForFyStartYear(fyStartYear)
+  const fyMonths = billingMonthsInAustralianFinancialYear(reference)
+
+  let fyMonthAllowed: Set<string>
+  if (fyStartYear < currentFyStart) {
+    fyMonthAllowed = new Set(fyMonths)
+  } else if (fyStartYear > currentFyStart) {
+    fyMonthAllowed = new Set()
+  } else {
+    fyMonthAllowed = new Set(fyMonths.filter((m) => m <= currentMonthIso))
+  }
 
   const { start: fyStart, end: fyEnd } = getAustralianFinancialYearWindow(reference)
 
-  const versionsResponse = await apiClient.get(xanoMediaPlansUrl('media_plan_versions'))
-  const allVersions = parseXanoListPayload(versionsResponse.data)
+  const allVersions = await fetchAllXanoPages(
+    xanoMediaPlansUrl('media_plan_versions'),
+    {},
+    'DASHBOARD_finance_hub_schedule_fytd',
+    100,
+    50
+  )
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
     const mbaNumber = version?.mba_number
@@ -94,5 +121,6 @@ export async function getFinanceHubScheduleFytdTotals(): Promise<{
     billingScheduleYtd: Math.round(billingScheduleYtd * 100) / 100,
     deliveryScheduleYtd: Math.round(deliveryScheduleYtd * 100) / 100,
     currentMonthIso,
+    financialYearStartYear: fyStartYear,
   }
 }

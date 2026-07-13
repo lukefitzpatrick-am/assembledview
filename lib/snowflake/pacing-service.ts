@@ -7,7 +7,7 @@ import {
   SOCIAL_PACING_TABLE,
 } from "@/lib/pacing/social-channels"
 
-type Channel = "meta" | "tiktok" | "programmatic-display" | "programmatic-video" | "search"
+type Channel = "meta" | "tiktok" | "programmatic-display" | "programmatic-video" | "ad-serving" | "search"
 
 export type PacingRow = {
   channel: Channel
@@ -49,7 +49,14 @@ const MAX_RANGE_DAYS = 180
 const MAX_IDS = 500
 const QUERY_ROW_LIMIT = 50000
 const DEBUG_PACING = process.env.NEXT_PUBLIC_DEBUG_PACING === "true"
-const ALLOWED_CHANNELS: Channel[] = ["meta", "tiktok", "programmatic-display", "programmatic-video", "search"]
+const ALLOWED_CHANNELS: Channel[] = [
+  "meta",
+  "tiktok",
+  "programmatic-display",
+  "programmatic-video",
+  "ad-serving",
+  "search",
+]
 
 type GetCampaignPacingDataOptions = {
   requestId?: string
@@ -166,6 +173,7 @@ export async function getCampaignPacingData(
       WHEN LOWER(CHANNEL) LIKE '%tiktok%' THEN 'tiktok'
       WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%' THEN 'programmatic-display'
       WHEN LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%video%' THEN 'programmatic-video'
+      WHEN LOWER(CHANNEL) LIKE '%ad serving%' THEN 'ad-serving'
       ELSE LOWER(CHANNEL)
     END AS CHANNEL,
     CAST(DATE_DAY AS DATE) AS DATE_DAY,
@@ -213,6 +221,7 @@ export async function getCampaignPacingData(
     AND (
       (LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%display%')
       OR (LOWER(CHANNEL) LIKE '%programmatic%' AND LOWER(CHANNEL) LIKE '%video%')
+      OR (LOWER(CHANNEL) LIKE '%ad serving%')
     )
     AND LOWER(LINE_ITEM_ID) IN (${placeholders})
   ORDER BY CAST(DATE_DAY AS DATE) DESC, CHANNEL ASC

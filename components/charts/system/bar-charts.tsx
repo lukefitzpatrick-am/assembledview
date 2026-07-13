@@ -8,7 +8,7 @@
 import * as React from 'react';
 import {
   BarChart as RBarChart, Bar, ComposedChart, Line, LabelList, Legend,
-  CartesianGrid, XAxis, YAxis, Cell,
+  CartesianGrid, XAxis, YAxis, Cell, ReferenceLine,
 } from 'recharts';
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent,
@@ -24,6 +24,15 @@ export type SeriesClickPayload = {
   seriesKey: string;
   category?: string;
   source: 'bar' | 'legend';
+};
+
+export type ChartReferenceLine = {
+  /** Value on the numeric axis (Y for vertical bars, X for horizontal). */
+  value: number;
+  label?: string;
+  strokeDasharray?: string;
+  /** Defaults to muted axis colour. */
+  color?: string;
 };
 
 const axisProps = { tickLine: false, axisLine: false, tick: { fontSize: 11, fill: NEUTRAL.axis } } as const;
@@ -53,6 +62,8 @@ export interface BarProps {
   /** Legend click filters (dashboard) instead of hiding series. */
   onSeriesClick?: (payload: SeriesClickPayload) => void;
   legendVerticalAlign?: 'top' | 'bottom';
+  /** Dashed guides on the numeric axis (e.g. DFII = 100). */
+  referenceLines?: ChartReferenceLine[];
 }
 
 type BarSegClick = { payload?: Datum; value?: number | [number, number] };
@@ -60,7 +71,7 @@ type BarSegClick = { payload?: Datum; value?: number | [number, number] };
 /** Vertical/horizontal bars, grouped / stacked / 100%-stacked. */
 export function BarChart({
   data, xKey, series, valueFormat = 'compact', layout = 'group', horizontal = false, showLegend, className,
-  plotHeight, onSeriesClick, legendVerticalAlign = 'top',
+  plotHeight, onSeriesClick, legendVerticalAlign = 'top', referenceLines,
 }: BarProps) {
   const cfg = withConfig(series);
   const vf = vfMap[valueFormat];
@@ -109,6 +120,15 @@ export function BarChart({
         ) : (showLegend ?? series.length > 1) ? (
           <ChartLegend content={<ChartLegendContent />} />
         ) : null}
+        {(referenceLines ?? []).map((rl) => (
+          <ReferenceLine
+            key={`${rl.value}-${rl.label ?? ''}`}
+            {...(horizontal ? { x: rl.value } : { y: rl.value })}
+            stroke={rl.color ?? NEUTRAL.axis}
+            strokeDasharray={rl.strokeDasharray ?? '4 4'}
+            label={rl.label ? { value: rl.label, position: 'insideTopRight', fontSize: 10, fill: NEUTRAL.axis } : undefined}
+          />
+        ))}
         {series.map((s, i) => {
           const isTop = layout === 'stack' && i === series.length - 1;
           return (
@@ -154,30 +174,134 @@ export const GroupedBarChart = (p: BarProps) => <BarChart {...p} layout="group" 
 export const StackedBarChart = (p: BarProps) => <BarChart {...p} layout="stack" showLegend />;
 export const PercentStackedBarChart = (p: BarProps) => <BarChart {...p} layout="expand" valueFormat="percent" showLegend />;
 
+export type ComboSeries = Series & { format?: keyof typeof vfMap };
+
+export type ComboReferenceLine = {
+  yAxisId: 'l' | 'r';
+  value: number;
+  label?: string;
+  strokeDasharray?: string;
+  color?: string;
+};
+
 export interface ComboProps {
   data: Datum[];
   xKey: string;
-  bar: Series & { format?: keyof typeof vfMap };
-  line: Series & { format?: keyof typeof vfMap };
+  /** Single-bar shorthand (gallery / legacy). Prefer `bars`. */
+  bar?: ComboSeries;
+  /** Single-line shorthand. Prefer `lines`. */
+  line?: ComboSeries;
+  /** Grouped bars on the left axis (e.g. reach % per audience). */
+  bars?: ComboSeries[];
+  /** Overlay lines on the right axis (e.g. affinity index per audience). */
+  lines?: ComboSeries[];
+  /** Default format for all bars when a series omits `format`. */
+  barFormat?: keyof typeof vfMap;
+  /** Default format for all lines when a series omits `format`. */
+  lineFormat?: keyof typeof vfMap;
+  referenceLines?: ComboReferenceLine[];
+  /** Dim non-matching categories; accent the match (click-highlight). */
+  highlightedCategory?: string | null;
+  onCategoryClick?: (category: string) => void;
+  showLegend?: boolean;
   className?: string;
 }
 
-/** Volume bars + a rate line on a second axis. */
-export function ComboChart({ data, xKey, bar, line, className }: ComboProps) {
-  const cfg = withConfig([bar, line]);
-  const bvf = vfMap[bar.format ?? 'compact'], lvf = vfMap[line.format ?? 'compact'];
+type ComboBarClick = { payload?: Datum };
+
+/** Volume bars + rate line(s) on a second axis. Supports multi-series dual-axis. */
+export function ComboChart({
+  data, xKey, bar, line, bars: barsProp, lines: linesProp,
+  barFormat = 'compact', lineFormat = 'compact',
+  referenceLines, highlightedCategory, onCategoryClick, showLegend = true, className,
+}: ComboProps) {
+  const bars = barsProp?.length ? barsProp : bar ? [bar] : [];
+  const lines = linesProp?.length ? linesProp : line ? [line] : [];
+  const cfg = withConfig([...bars, ...lines]);
+  const bvf = vfMap[bars[0]?.format ?? barFormat];
+  const lvf = vfMap[lines[0]?.format ?? lineFormat];
+  const xAxisHeight = data.length > 8 ? 52 : 28;
   return (
     <ChartContainer config={cfg} className={className}>
-      <ComposedChart data={data} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
+      <ComposedChart
+        data={data}
+        margin={{ top: 8, right: 12, left: 4, bottom: data.length > 8 ? 12 : 4 }}
+        barCategoryGap="22%"
+      >
         <CartesianGrid vertical={false} />
-        <XAxis dataKey={xKey} {...axisProps} />
+        <XAxis
+          dataKey={xKey}
+          {...axisProps}
+          {...(data.length > 8
+            ? { angle: -25, textAnchor: 'end' as const, height: xAxisHeight, interval: 0 }
+            : {})}
+        />
         <YAxis yAxisId="l" width={44} tickFormatter={bvf} {...axisProps} />
         <YAxis yAxisId="r" orientation="right" width={40} tickFormatter={lvf} {...axisProps} />
         <ChartTooltip content={<ChartTooltipContent />} />
-        <ChartLegend content={<ChartLegendContent />} />
-        <Bar yAxisId="l" dataKey={bar.key} fill={cfg[bar.key]?.color as string} radius={[3, 3, 0, 0]} isAnimationActive={false} />
-        <Line yAxisId="r" type="monotone" dataKey={line.key} stroke={cfg[line.key]?.color as string}
-          strokeWidth={2.4} dot={{ r: 2.6, fill: '#fff', strokeWidth: 1.6 }} isAnimationActive={false} />
+        {showLegend && (bars.length + lines.length > 1) ? (
+          <ChartLegend content={<ChartLegendContent />} />
+        ) : null}
+        {(referenceLines ?? []).map((rl) => (
+          <ReferenceLine
+            key={`${rl.yAxisId}-${rl.value}-${rl.label ?? ''}`}
+            yAxisId={rl.yAxisId}
+            y={rl.value}
+            stroke={rl.color ?? NEUTRAL.axis}
+            strokeDasharray={rl.strokeDasharray ?? '4 4'}
+            label={rl.label ? { value: rl.label, position: 'insideTopRight', fontSize: 10, fill: NEUTRAL.axis } : undefined}
+          />
+        ))}
+        {bars.map((s, i) => (
+          <Bar
+            key={s.key}
+            yAxisId="l"
+            dataKey={s.key}
+            name={s.label}
+            fill={(cfg[s.key]?.color as string) ?? `var(--av-chart-${(i % 8) + 1})`}
+            radius={[3, 3, 0, 0]}
+            cursor={onCategoryClick ? 'pointer' : 'default'}
+            isAnimationActive={false}
+            onClick={
+              onCategoryClick
+                ? (barProps: ComboBarClick) => {
+                    const cat = barProps.payload?.[xKey];
+                    if (typeof cat === 'string') onCategoryClick(cat);
+                  }
+                : undefined
+            }
+          >
+            {highlightedCategory
+              ? data.map((row, idx) => {
+                  const cat = row[xKey];
+                  const active = cat === highlightedCategory;
+                  const base = (cfg[s.key]?.color as string) ?? `var(--av-chart-${(i % 8) + 1})`;
+                  return (
+                    <Cell
+                      key={`${s.key}-${idx}`}
+                      fill={base}
+                      fillOpacity={active ? 1 : 0.28}
+                      stroke={active ? base : undefined}
+                      strokeWidth={active ? 2 : 0}
+                    />
+                  );
+                })
+              : null}
+          </Bar>
+        ))}
+        {lines.map((s, i) => (
+          <Line
+            key={s.key}
+            yAxisId="r"
+            type="monotone"
+            dataKey={s.key}
+            name={s.label}
+            stroke={(cfg[s.key]?.color as string) ?? `var(--av-chart-${((bars.length + i) % 8) + 1})`}
+            strokeWidth={2.4}
+            dot={{ r: 2.6, fill: 'var(--av-surface)', strokeWidth: 1.6 }}
+            isAnimationActive={false}
+          />
+        ))}
       </ComposedChart>
     </ChartContainer>
   );

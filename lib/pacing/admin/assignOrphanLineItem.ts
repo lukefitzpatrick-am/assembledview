@@ -1,7 +1,8 @@
 import "server-only";
 
+import { revalidateTag } from "next/cache";
+import { PACING_CAMPAIGNS_TAG } from "@/lib/pacing/campaigns/pacingRowsCache";
 import { getLiveSearchLineItemIds } from "@/lib/pacing/campaigns/liveSearchLineItems";
-import { invalidateSearchCampaignsPacingCache } from "@/lib/snowflake/search-campaigns-pacing";
 import {
   sessionExecuteRows,
   sessionExecuteVoid,
@@ -137,7 +138,7 @@ export async function assignOrphanLineItem(
     note: args.note ?? null,
   });
 
-  invalidateSearchCampaignsPacingCache();
+  revalidateTag(PACING_CAMPAIGNS_TAG);
 
   return {
     rowsAffected: result.rowsAffected,

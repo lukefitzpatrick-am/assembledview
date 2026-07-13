@@ -72,6 +72,27 @@ export async function requireAdmin(
   return requireRole(req, 'admin', options)
 }
 
+/**
+ * Admin gate for finance APIs (SEC Wave 3). Uses `requireRole(..., "admin")` with
+ * mark-billed-aligned bodies: `{ error: "unauthorised" }` / `{ error: "forbidden" }`.
+ */
+export async function requireFinanceAdmin(
+  req: NextRequest,
+  options: RequireRoleOptions = {}
+): Promise<RequireRoleSuccess | RequireRoleFailure> {
+  const result = await requireRole(req, "admin", options)
+  if ("response" in result) {
+    const status = result.response.status === 401 ? 401 : 403
+    return {
+      response: NextResponse.json(
+        { error: status === 401 ? "unauthorised" : "forbidden" },
+        { status }
+      ),
+    }
+  }
+  return result
+}
+
 /** For server actions / non-route code: assert Auth0 session user is admin. */
 export function requireAdminUser(user: User | null | undefined): void {
   if (!user) {

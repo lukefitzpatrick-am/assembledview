@@ -6,10 +6,17 @@ import type {
   FinanceFilters,
 } from "@/lib/types/financeBilling"
 import { fetchBillingRecords, fetchPayablesRecords, FinanceHttpError } from "@/lib/finance/api"
-import { getCurrentBillingMonth } from "@/lib/finance/months"
+import { getCurrentBillingMonth, australianFyStartYearForDate } from "@/lib/finance/months"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 
-export type FinanceHubTab = "overview" | "billing" | "payables" | "accrual" | "forecast" | "report"
+export type FinanceHubTab =
+  | "overview"
+  | "billing"
+  | "payables"
+  | "accrual"
+  | "forecast"
+  | "report"
+  | "queue"
 
 /** Client-side snapshot of a failed finance list fetch (for toasts + clipboard debug). */
 export type FinanceHubFetchError = {
@@ -27,6 +34,7 @@ const HUB_TABS: readonly FinanceHubTab[] = [
   "accrual",
   "forecast",
   "report",
+  "queue",
 ]
 
 export function parseFinanceHubTabParam(tab: string | null | undefined): FinanceHubTab {
@@ -45,9 +53,10 @@ let fetchAllDebounceScheduledSig: string | null = null
 let fetchAllInFlight: Promise<void> | null = null
 let fetchAllInFlightSignature: string | null = null
 
-/** Stable signature for billing/payables fetches (month range + filter dimensions). */
+/** Stable signature for billing/payables fetches (FY + month range + filter dimensions). */
 export function buildFinanceFetchAllSignature(f: FinanceFilters): string {
   return [
+    String(f.financialYear),
     f.monthRange.from,
     f.monthRange.to,
     String(f.includeDrafts),
@@ -157,11 +166,14 @@ interface FinanceStore {
 }
 
 const defaultMonth = getCurrentBillingMonth()
+const defaultFinancialYear = australianFyStartYearForDate()
 
 const defaultFilters: FinanceFilters = {
   selectedClients: [],
   selectedPublishers: [],
   includeDrafts: false,
+  financialYear: defaultFinancialYear,
+  /** Default to current calendar month; FY switcher resets to full FY Jul–Jun. */
   monthRange: { from: defaultMonth, to: defaultMonth },
   billingTypes: ["media", "sow", "retainer", "payable"],
   statuses: ["draft", "booked", "approved", "invoiced", "paid"],

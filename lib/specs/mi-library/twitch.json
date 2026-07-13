@@ -1,0 +1,225 @@
+{
+  "publisher_slug": "twitch",
+  "publisher_name": "Twitch (via Amazon Ads)",
+  "container_category_default": "Programmatic",
+  "category_note": "Twitch is bought through Amazon Ads (ADSP - Amazon DSP). Mix of premium video, vertical video, stream display, mobile feed, and high-impact takeover formats. Map to Programmatic, Direct Digital, or BVOD depending on format and how the buy is executed.",
+  "last_refreshed": "2026-05-22",
+  "source": "https://advertising.amazon.com/resources/ad-specs/twitch (and per-format sub-pages, fetched 2026-05)",
+  "platform_notes": [
+    "All ads served via Amazon DSP (ADSP) or direct Amazon Ads insertion order",
+    "Twitch requires SSL compliance for all creative and tracking (HTTPS)",
+    "No DMP or third-party JavaScript tracking — only 1x1 pixel impression/click trackers from approved 3P vendors",
+    "VAST 2.0 and 3.0 supported; VAST 4.0 and VPAID NOT supported",
+    "Skip function NOT supported on most video formats",
+    "AU locale availability varies by format — confirm per format below"
+  ],
+  "formats": [
+    {
+      "format_name": "Premium Video",
+      "container": "Programmatic",
+      "category_in_amazon_ads": "Premium Media",
+      "placement": "Pre-roll and mid-roll across Twitch live broadcasts. Desktop, mobile, tablet, console, streaming TV. 100% above the fold, unskippable.",
+      "duration_options": ["6s", "15s", "20s", "30s", "60s"],
+      "duration_note": "Varying fees per length",
+      "resolution_first_party": "1920x1080",
+      "resolution_third_party": "Multiple transcodes mandatory (see notes)",
+      "video_bit_rate": "4,000-10,000 kbps",
+      "audio_levels": "-9dB",
+      "file_type": "MP4 (H.264)",
+      "frame_rate": "24-30 fps",
+      "third_party_transcodes_mandatory": [
+        "1920x1080 @ 4,000 kbps",
+        "1280x720 @ 2,200 kbps",
+        "854x480 @ 1,200 kbps",
+        "640x360 @ 550 kbps"
+      ],
+      "third_party_transcodes_recommended": [
+        "1024x576 @ 1,750 kbps",
+        "888x500 @ 1,316 kbps",
+        "720x406 @ 866 kbps",
+        "480x270 @ 384 kbps",
+        "320x180 @ 200 kbps",
+        "284x160 @ 180 kbps"
+      ],
+      "clickable": "Yes (except console and streaming TV inventory)",
+      "skippable": false,
+      "vast_supported": ["VAST 2.0", "VAST 3.0"],
+      "vast_not_supported": ["VAST 4.0", "VPAID", "VPAID 2"],
+      "tracking_events": ["Impressions", "Clicks", "Quartiles", "Completes"],
+      "au_locale_available": true,
+      "supply_deadline_rule": "Confirm with Amazon Ads account manager — typical SLAs apply",
+      "best_practice_notes": [
+        "100% above the fold and unskippable — high attention placement",
+        "Note SureStream inventory is SSAI pre-fetch; tags must be supplied accordingly",
+        "Required alphanumeric 'id' attribute on <Creative> element in VAST XML"
+      ]
+    },
+    {
+      "format_name": "Vertical Video Ads",
+      "container": "Programmatic",
+      "category_in_amazon_ads": "Premium Media",
+      "placement": "Desktop: silent ads adjacent to livestream. Mobile: unmuted, skippable, full-screen within feed.",
+      "duration_options": ["6s", "15s", "20s", "30s"],
+      "ratio": "9:16",
+      "resolution_first_party": "1080x1920",
+      "resolution_third_party": "360x640",
+      "video_bit_rate_min_first_party": "4 Mbps",
+      "video_bit_rate_min_third_party": "2 Mbps",
+      "video_bit_rate_recommended": "8 Mbps",
+      "max_file_size": "500MB (site served only)",
+      "frame_rate_recommended": "23.976 fps",
+      "frame_rate_options": ["23.976 (recommended)", "24", "25", "29.97"],
+      "frame_rate_mode": "Constant",
+      "audio_bit_rate_min_first_party": "192 kbps",
+      "audio_bit_rate_min_third_party": "128 kbps",
+      "audio_sample_rate": "44.1kHz or 48kHz",
+      "audio_levels": "-9dB",
+      "audio_channel": "Minimum 2-channel stereo",
+      "file_type": ["MP4 (H.264)", "M2T", "TS (H.264)", "MPG, MPEG, M2P, M2T, M2TS, PS, TS (MPEG-2)"],
+      "audio_codec": "AAC",
+      "au_locale_available": true,
+      "supply_deadline_rule": "Confirm with Amazon Ads account manager",
+      "best_practice_notes": [
+        "Native 9:16 design — adapts to both desktop and mobile viewing contexts",
+        "Mobile is unmuted by default; desktop is silent",
+        "Skippable on mobile only"
+      ]
+    },
+    {
+      "format_name": "Stream Display Ads",
+      "container": "Programmatic",
+      "category_in_amazon_ads": "Premium Media",
+      "placement": "Renders alongside Twitch live stream — between stream and chat, or below player. Available via ADSP.",
+      "ad_units_desktop": [
+        {"name": "Mirror-C", "base_dimensions": "160x600", "rendered_as": "Upscaled to 300x1050 with auto top/bottom bands matched to creative hex colour", "availability": "ADSP managed service only"},
+        {"name": "Skyscraper", "dimensions": "160x600", "placement": "Between live stream and chat"},
+        {"name": "Lowerthird", "dimensions": "728x90", "placement": "Directly below live stream player"}
+      ],
+      "ad_units_mobile": [
+        {"name": "Mobile lower-third", "dimensions": "320x50", "placement": "Below live stream player, portrait mode"},
+        {"name": "Mobile left-third", "dimensions": "160x600", "placement": "Left of live stream player, landscape mode"}
+      ],
+      "max_file_size": "50KB",
+      "file_type": ["JPG", "PNG"],
+      "clickable": true,
+      "tracking": "Approved 3P impression and click trackers accepted",
+      "au_locale_available": true,
+      "lead_times": {
+        "build_creative_static": "8 business days (includes 1 round client review)",
+        "build_creative_animated": "15 business days (includes 2 rounds client review)",
+        "launch_setup": "3 business days",
+        "screenshots_live_campaign": "3 business days"
+      },
+      "creative_guidelines": [
+        "Minimum font: 12pt copy, 9pt claims/disclaimers",
+        "Claims/disclaimer max 20% of total ad height",
+        "Mirror-C: NO borders. Top and bottom ~84px should be consistent colour (left side preferred) for clean band creation",
+        "Lowerthird/Skyscraper: borders optional but required if contrast vs white (#FFFFFF) or dark (#0E0E10) below 3:1"
+      ],
+      "supply_deadline_rule": "Standard creative: 8 business days build + 3 business days launch. Animated: 15 + 3 business days."
+    },
+    {
+      "format_name": "Mid-Feed Ads",
+      "container": "Social",
+      "category_in_amazon_ads": "Premium Media",
+      "placement": "Full-screen ads within Twitch mobile app discovery feed (mobile only)",
+      "dimensions": "1080x1920",
+      "ratio": "9:16",
+      "max_file_size": "250KB",
+      "file_type": ["JPG", "PNG"],
+      "animation": "None - static image only",
+      "clickable_area": "Auto-generated 'Learn More' CTA button only — not the full ad",
+      "cta_note": "'Learn More' button is auto-generated; cannot be customised. Do NOT design additional CTAs into creative.",
+      "creative_guidelines": [
+        "Min font: 12pt copy, 9pt claims/disclaimers",
+        "Claims/disclaimer max 20% of total ad height",
+        "Ad disclosure + CTA button account for 12% of total ad height — design around this",
+        "Reference Twitch PSD template for safe zones"
+      ],
+      "au_locale_available": false,
+      "available_locales_note": "Currently available: CA, MX, US, DE, ES, FR, IT, UK, JP. AU NOT in current rollout — confirm with Amazon Ads if AU availability has changed.",
+      "lead_times": {
+        "ready_creative": "5-8 working days",
+        "with_design_support": "Additional 8 days for design + 1 round client review"
+      },
+      "tracking": "Site served. Approved 3P trackers accepted."
+    },
+    {
+      "format_name": "First Impression Takeover",
+      "container": "Programmatic",
+      "category_in_amazon_ads": "High Impact Media",
+      "placement": "Viewer's first watched broadcast of the day. Exclusive: one advertiser per day per geo.",
+      "buy_basis": "Per day per geo, daily rate",
+      "duration_max": "30 seconds",
+      "skippable": false,
+      "resolution_min": "1920x1080",
+      "video_bit_rate": "4,000-10,000 kbps",
+      "audio_levels": "-9dB",
+      "file_type": "MP4 (H.264)",
+      "frame_rate": "24-30 fps",
+      "third_party_transcodes_mandatory": [
+        "1920x1080 @ 5,500 kbps",
+        "1280x720 @ 3,100 kbps",
+        "854x480 @ 1,200 kbps",
+        "640x360 @ 550 kbps",
+        "284x160 @ 180 kbps"
+      ],
+      "vast_supported": ["VAST 2.0", "VAST 3.0"],
+      "vast_not_supported": ["VPAID", "Skip function"],
+      "tracking_events": ["Impressions", "Clicks", "Quartiles", "Completes"],
+      "au_locale_available": true,
+      "supply_deadline_rule": "Confirm with Amazon Ads — high-impact format, allow extra lead time for booking",
+      "best_practice_notes": [
+        "Exclusive ownership of the day — design for impact",
+        "Note SureStream inventory is SSAI pre-fetch"
+      ]
+    },
+    {
+      "format_name": "Homepage Headliner",
+      "container": "Direct Digital",
+      "category_in_amazon_ads": "High Impact Media",
+      "placement": "Twitch desktop homepage + mobile app default landing page. Clickable, above the fold.",
+      "components_desktop": {
+        "left_unit": {"dimensions": "450x350", "max_file_size": "150KB", "file_type": "JPG or PNG (no transparency)", "animation": "None"},
+        "right_unit": {"dimensions": "450x350", "max_file_size": "150KB", "file_type": "JPG or PNG (no transparency)", "animation": "None"},
+        "centre_hex_colour": "Hex code for central background colour (e.g. #000000)"
+      },
+      "components_mobile": {
+        "full_screen_static": {"dimensions": "1080x1920", "max_file_size": "350KB", "file_type": "JPG or PNG", "animation": "None"},
+        "mobile_banner": {"dimensions": "640x100", "max_file_size": "350KB", "file_type": "JPG or PNG", "rendered_at": "2x display in 320x50 placement"}
+      },
+      "creative_guidelines": [
+        "Min font: 12pt copy, 9pt claims/disclaimers",
+        "Claims/disclaimer max 20% of total ad height",
+        "Desktop safe zone: keep all elements within 150px from edges to avoid UI overlap",
+        "Mobile full-screen: 'Learn More' CTA auto-generated (12% of total height) — do not add additional CTAs",
+        "PSD template available from Amazon Ads"
+      ],
+      "tracking": "Site served. Approved 3P impression and click trackers accepted. NO DMP or 3rd party JavaScript tracking.",
+      "au_locale_available": true,
+      "lead_times": {
+        "ready_creative": "5-8 working days",
+        "with_design_support": "Additional 8 days + 1 round client review"
+      }
+    }
+  ],
+  "additional_formats_not_detailed": [
+    "Super Leaderboard (IAB standard) — confirm dimensions with Amazon Ads",
+    "Medium Rectangle (IAB 300x250 standard, max 2 per page)",
+    "Streamables (30s opt-in ad on Twitch Partnered mobile games)",
+    "Homepage Carousel (max 240 characters, rotating slot)",
+    "Bounty Board (creator influencer marketplace)",
+    "Channel Takeover (creator-centric immersive experience)",
+    "Global Brand Partnership Studio (custom solutions)"
+  ],
+  "compliance_notes": [
+    "SSL/HTTPS required for ALL creative and tracking calls",
+    "Amazon Ads approved 3P vendors only — no unapproved ad tech",
+    "Geo/browser targeting must be set on the Twitch side, not in 3P tags",
+    "No third-party redirecting or 4P tags"
+  ],
+  "refresh_instructions": [
+    "Refresh quarterly — Amazon Ads updates Twitch specs periodically",
+    "Check format AU locale availability when adding Twitch line items to AU plans (Mid-Feed Ads not currently in AU)"
+  ]
+}

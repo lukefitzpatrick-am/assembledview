@@ -1,45 +1,35 @@
-# OpenAI Integration – Current State
+# Ava — current state
 
-- **Models referenced:** `process.env.OPENAI_MODEL` (default `gpt-4o-mini`).
-- **API used:** OpenAI Chat Completions (`/v1/chat/completions`) via the official `openai` SDK.
-- **Core helper:** `callOpenAIChat` in `lib/openai.ts` wraps the SDK call; defaults `temperature` to `0.2`, returns `{ reply, completion }` where `reply` is `choices[0].message.content`.
+- **Chat endpoint:** `POST /api/chat-v2` only (legacy `/api/chat` and GPT handler removed).
+- **Engine:** Anthropic Claude via `lib/ava/agentLoop.ts`. Optional kill-switch: `AVA_ENGINE=off` → 503.
+- **Required env:** `ANTHROPIC_API_KEY`. Optional: `ANTHROPIC_MODEL` (default `claude-sonnet-4-5`), `AVA_ENGINE=off`.
+- **Admin-only:** unauthenticated → 401; non-admin → 403.
+- **Route:** `maxDuration = 60` (multi-tool turns; streaming is a later phase).
 
-## Call Sites
+## Prompting
 
-- `lib/openai.ts`
-  - **API type / endpoint:** Chat Completions → `openai.chat.completions.create` (`/v1/chat/completions`).
-  - **Request shape:** `{ model, temperature, messages }`; `model` from `OPENAI_MODEL` env or `gpt-4o-mini`.
-  - **Response handling:** Extracts first choice content as `reply`; returns raw completion too.
-  - **Prompts:** `buildSystemPrompt` composes system text with page data, optional Xano summary, and caller-supplied instructions.
+- Claude system prompt: `lib/ava/buildAvaSystemPrompt.ts` (identity + voice + mode + PageContext summary).
+- Modes: `general` | `mediaplan_create` | `mediaplan_edit` — wired from route in `ClientLayout`.
+- Patches via `apply_form_patch` tool only — no JSON reply contract in prose.
 
-- `app/api/chat/route.ts`
-  - **API type / endpoint:** Uses `callOpenAIChat` (Chat Completions `/v1/chat/completions`).
-  - **Request shape to OpenAI:** Prepends `{ role: "system", content: buildSystemPrompt(...) }` to incoming `messages`. `buildSystemPrompt` includes page data summary, optional Xano fetch summary, and `systemInstructions`. Temperature/model defaults come from `callOpenAIChat`.
-  - **Response handling:** Sends back `{ reply, meta: { usedXano } }` to the client; errors return `{ error }` with 500.
-  - **Prompts:** System prompt built server-side; user/assistant history passed through from client.
+## Types
 
-- `lib/planParser.ts`
-  - **API type / endpoint:** Uses `callOpenAIChat` (Chat Completions `/v1/chat/completions`) for file-to-JSON extraction.
-  - **Request shape:** Messages: system prompt instructing JSON-only media-plan extraction; user message contains file name and content (truncated to 12,000 chars).
-  - **Response handling:** Parses `reply` via `coerceJson` to `items`; attaches `sourceFile`; also returns raw model text.
-  - **Prompts:** Extraction prompt defined inline in `extractPlanFromText`.
+- `PageContext` / `PageField` / `FormPatch` / `ModelChatReply` live in `lib/ava/types.ts`.
 
-## Prompt Locations
+## OpenAI (non-Ava)
 
-- System prompt builder: `lib/openai.ts` (`buildSystemPrompt`).
-- Media-plan extraction prompt: `lib/planParser.ts` (`extractPlanFromText`).
-- Client-provided additions: `components/ChatWidget.tsx` assembles `systemInstructions` and page data before sending to `/api/chat`; these end up inside `buildSystemPrompt`.
+- `callOpenAIChat` in `lib/openai.ts` remains for `lib/planParser.ts` media-plan extraction only.
+- Env: `OPENAI_API_KEY`, optional `OPENAI_MODEL`.
 
-## Environment
+## Tools
 
-- `OPENAI_API_KEY` required; `OPENAI_MODEL` optional (defaults to `gpt-4o-mini`); configured in `env.local.example`.
+- Registry: `lib/ava/tools/registry.ts`.
+- Form: `apply_form_patch`, `get_media_plan_summary`.
+- Context platform: `get_client_details`, `get_campaign_context`, `get_saved_audiences`, `get_best_practice`, `get_naming_rules`, `get_creative_assets`, `get_methodology`, `get_pacing_snapshot`.
+- Tools receive session `roles` / `clientSlugs` / `mbaNumbers` and enforce scope internally.
 
+## Client
 
-
-
-
-
-
-
-
-
+- `ChatWidget` POSTs to `/api/chat-v2` without an `engine` field.
+- Page providers register `pageContext` + actions on `window.__AV_ASSISTANT__` and clear on unmount.
+- `AdminAssistantGate` ignores bridge contexts whose `route.pathname` ≠ current pathname.

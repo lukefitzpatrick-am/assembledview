@@ -13,8 +13,11 @@ import { mapDeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMe
 import type { SocialPacingCampaignRow, SocialPlatform } from "@/lib/pacing/social/types";
 import { slugifyPlanClientName } from "@/lib/pacing/scope/resolveClientSlugs";
 import { isLiveCampaignStatus, type MediaPlanMaster } from "@/lib/types/mediaPlanMaster";
+import { boundedMap } from "@/lib/utils/boundedMap";
 
 const MEDIA_PLANS_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const;
+/** Parallel Xano per-master fetches; well under Launch-plan 100 req/s ceiling. */
+const XANO_MASTER_FETCH_CONCURRENCY = 8;
 
 export type GetLiveSocialLineItemsArgs = {
   asOfDate: string;
@@ -160,40 +163,45 @@ export async function resolveLiveSocialLineItemInputs(
   if (liveMasters.length === 0) return [];
 
   const versionRowsByMba = await fetchCurrentVersionRowsForMasters(liveMasters);
-  const inputs: LiveSocialLineItemInput[] = [];
 
-  for (const master of liveMasters) {
-    const versionRow = versionRowsByMba.get(norm(master.mba_number));
-    if (!versionRow) {
-      console.warn(
-        "[pacing/social] no version row for master",
-        master.mba_number,
-        master.version_number
-      );
-      continue;
-    }
-
-    const socialRows = await fetchSocialLineItemsForMba({
-      mba_number: master.mba_number,
-      versionRowId: versionRow.id,
-      versionNumber: master.version_number,
-    });
-
-    for (const socialRow of socialRows) {
-      const lineItemId = String(socialRow.line_item_id ?? socialRow.lineItemId ?? "").trim();
-      if (!lineItemId) {
+  const perMaster = await boundedMap(
+    liveMasters,
+    async (master) => {
+      const versionRow = versionRowsByMba.get(norm(master.mba_number));
+      if (!versionRow) {
         console.warn(
-          "[pacing/social] social row missing line_item_id",
+          "[pacing/social] no version row for master",
           master.mba_number,
-          socialRow.id
+          master.version_number
         );
-        continue;
+        return [] as LiveSocialLineItemInput[];
       }
-      inputs.push({ master, versionRow, socialRow });
-    }
-  }
 
-  return inputs;
+      const socialRows = await fetchSocialLineItemsForMba({
+        mba_number: master.mba_number,
+        versionRowId: versionRow.id,
+        versionNumber: master.version_number,
+      });
+
+      const inputs: LiveSocialLineItemInput[] = [];
+      for (const socialRow of socialRows) {
+        const lineItemId = String(socialRow.line_item_id ?? socialRow.lineItemId ?? "").trim();
+        if (!lineItemId) {
+          console.warn(
+            "[pacing/social] social row missing line_item_id",
+            master.mba_number,
+            socialRow.id
+          );
+          continue;
+        }
+        inputs.push({ master, versionRow, socialRow });
+      }
+      return inputs;
+    },
+    XANO_MASTER_FETCH_CONCURRENCY
+  );
+
+  return perMaster.flat();
 }
 
 function mapSocialRowToCampaignRow(

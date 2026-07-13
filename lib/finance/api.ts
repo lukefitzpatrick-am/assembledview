@@ -306,6 +306,29 @@ export async function markBilled(params: {
   return jsonOrThrow(response, path)
 }
 
+export async function saveBillingNotes(params: {
+  billing_type: BillingType
+  clients_id: number
+  client_name: string
+  mba_number: string | null
+  campaign_name: string | null
+  billing_month: string
+  notes: string
+  total?: number
+}): Promise<{
+  persisted_record_id: number
+  invoice_key: string
+  notes: string
+}> {
+  const path = "/api/finance/billing/notes"
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  })
+  return jsonOrThrow(response, path)
+}
+
 export async function updateLineItem(
   id: number,
   data: Partial<BillingLineItem>

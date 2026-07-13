@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils"
 import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
 import { useAuthContext } from "@/contexts/AuthContext"
 import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
-import type { PageContext, PageField } from "@/lib/openai"
+import type { PageContext, PageField } from "@/lib/ava/types"
 import {
   DASHBOARD_TEMPLATES,
   buildFiltersForTemplate,
