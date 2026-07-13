@@ -28,10 +28,17 @@ test("ava tool catalog: names unique and complete", () => {
   assert.ok(AVA_TOOL_NAMES.includes("start_mi_interview"))
   assert.ok(AVA_TOOL_NAMES.includes("generate_mi_workbook"))
   assert.ok(AVA_TOOL_NAMES.includes("load_skill"))
-  assert.equal(AVA_TOOL_NAMES.length, 14)
+  assert.ok(AVA_TOOL_NAMES.includes("generate_performance_report"))
+  assert.equal(AVA_TOOL_NAMES.length, 15)
   assert.deepEqual(
-    AVA_TOOL_NAMES.slice(-4),
-    ["get_platform_specs", "start_mi_interview", "generate_mi_workbook", "load_skill"],
+    AVA_TOOL_NAMES.slice(-5),
+    [
+      "get_platform_specs",
+      "start_mi_interview",
+      "generate_mi_workbook",
+      "load_skill",
+      "generate_performance_report",
+    ],
   )
 })
 
