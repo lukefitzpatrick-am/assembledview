@@ -20,6 +20,8 @@ const LIGHT_PUBLISHER_KEYS = [
   "billingagency",
   "billing_agency",
   "billingAgency",
+  "publisher_colour",
+  "publishertype",
 ] as const
 
 export type PublishersCacheResult = {

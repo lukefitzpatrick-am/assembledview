@@ -10,6 +10,7 @@ import {
 } from "@/components/charts/system"
 import { EmptyState } from "@/components/ui/states"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
+import { DASHBOARD_CHART_PLOT_HEIGHT } from "@/lib/charts/theme"
 import { getMediaLabel } from "@/lib/charts/registry"
 import { channelColorFor, fmt as chartFmt } from "@/lib/chart-theme"
 import { formatCurrencyAUD } from "@/lib/format/currency"
@@ -35,6 +36,9 @@ type SpendChartsRowProps = {
   /** Prorated planned spend to date (matches campaign summary when monthly data exists) */
   campaignSpendToDate?: number
 }
+
+const CHART_PLOT_HEIGHT = DASHBOARD_CHART_PLOT_HEIGHT
+const CHART_EMPTY_CLASS = "h-[400px] w-full"
 
 const UNKNOWN_PUBLISHER = "Unknown"
 const OTHER_BUCKET = "Other"
@@ -519,11 +523,12 @@ export default function SpendChartsRow({
               centerValue={chartFmt.currencyCompact(mediaChannelTotal)}
               centerLabel="Total"
               valueFormat="dollars"
-              className="min-h-[300px] w-full"
+              plotHeight={CHART_PLOT_HEIGHT}
+              className="w-full"
             />
           ) : (
             <EmptyState
-              className="min-h-[300px] border-0 bg-transparent"
+              className={`${CHART_EMPTY_CLASS} border-0 bg-transparent`}
               title="No spend data available"
               message={null}
             />
@@ -540,11 +545,12 @@ export default function SpendChartsRow({
               xKey="cat"
               series={[{ key: "value", label: "Spend" }]}
               valueFormat="dollars"
-              className="min-h-[300px] w-full"
+              plotHeight={CHART_PLOT_HEIGHT}
+              className="w-full"
             />
           ) : (
             <EmptyState
-              className="min-h-[300px] border-0 bg-transparent"
+              className={`${CHART_EMPTY_CLASS} border-0 bg-transparent`}
               title="No publisher spend from line items"
               message={null}
             />
@@ -561,7 +567,8 @@ export default function SpendChartsRow({
           xKey="month"
           series={monthlySeries}
           valueFormat="dollars"
-          className="min-h-[300px] w-full"
+          plotHeight={CHART_PLOT_HEIGHT}
+          className="w-full"
         />
       </BaseChartCard>
     </section>

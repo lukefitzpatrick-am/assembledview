@@ -24,13 +24,15 @@ export interface DonutProps {
   centerLabel?: string;
   valueFormat?: 'percent' | 'dollars' | 'number';
   className?: string;
+  /** Fixed plot height (px); overrides ChartContainer aspect-video sizing. */
+  plotHeight?: number;
 }
 
 /** Donut / media-mix share. Total in the hole. */
-export function DonutChart({ data, centerValue, centerLabel = 'Total', valueFormat = 'percent', className }: DonutProps) {
+export function DonutChart({ data, centerValue, centerLabel = 'Total', valueFormat = 'percent', className, plotHeight }: DonutProps) {
   const vf = valueFormat === 'dollars' ? fmt.currencyCompact : valueFormat === 'number' ? fmt.number : (n: number) => fmt.percent(n > 1 ? n / 100 : n);
   return (
-    <ChartContainer config={cfgFrom(data)} className={className}>
+    <ChartContainer config={cfgFrom(data)} className={className} plotHeight={plotHeight}>
       <PieChart margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
         <ChartTooltip content={<ChartTooltipContent nameKey="label" formatter={(v) => vf(Number(v))} />} />
         <Pie data={data} dataKey="value" nameKey="label" innerRadius="62%" outerRadius="92%"

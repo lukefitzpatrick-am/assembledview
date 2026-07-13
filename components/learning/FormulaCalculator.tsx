@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { Combobox } from "@/components/ui/combobox";
+import { cn } from "@/lib/utils";
 import { FormulaDSL, FormulaVariable } from "@/src/lib/learning/types";
 import { formatValue } from "@/src/lib/learning/evaluator";
 import { OUTPUT_KEY, formatNumericInput, roundToTwo, solveForOutput, solveForVariable } from "@/src/lib/learning/solver";
@@ -14,6 +15,8 @@ import { OUTPUT_KEY, formatNumericInput, roundToTwo, solveForOutput, solveForVar
 type Props = {
   formula: FormulaDSL;
   fallbackText?: string;
+  /** Hub rail: tighter layout, fewer chrome elements */
+  compact?: boolean;
 };
 
 function parseFormulaCalculatorNumber(raw: string | undefined, label: string): number {
@@ -27,7 +30,7 @@ function parseFormulaCalculatorNumber(raw: string | undefined, label: string): n
   return parsed;
 }
 
-export function FormulaCalculator({ formula, fallbackText }: Props) {
+export function FormulaCalculator({ formula, fallbackText, compact = false }: Props) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [result, setResult] = useState<string>("");
   const [error, setError] = useState<string>("");
@@ -138,9 +141,9 @@ export function FormulaCalculator({ formula, fallbackText }: Props) {
   }
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">{description}</p>
-      <div className="grid gap-3 sm:grid-cols-2 items-end">
+    <div className={compact ? "space-y-3" : "space-y-4"}>
+      {!compact && <p className="text-sm text-muted-foreground">{description}</p>}
+      <div className={cn("grid gap-3 items-end", !compact && "sm:grid-cols-2")}>
         <div className="space-y-1.5">
           <Label className="text-sm font-medium text-foreground">Solving for</Label>
           <Combobox
@@ -158,11 +161,13 @@ export function FormulaCalculator({ formula, fallbackText }: Props) {
             ]}
           />
         </div>
-        <p className="text-xs text-muted-foreground">
-          Enter the other fields; the selected one will auto-calculate with 2-decimal rounding.
-        </p>
+        {!compact && (
+          <p className="text-xs text-muted-foreground">
+            Enter the other fields; the selected one will auto-calculate with 2-decimal rounding.
+          </p>
+        )}
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className={cn("grid gap-3", !compact && "sm:grid-cols-2")}>
         {formula.variables.map((variable) => (
           <div key={variable.key} className="space-y-1.5">
             <Label className="text-sm font-medium text-foreground">
@@ -177,7 +182,7 @@ export function FormulaCalculator({ formula, fallbackText }: Props) {
               placeholder={solveFor === variable.key ? "Auto-calculated" : "0"}
               readOnly={solveFor === variable.key}
               disabled={solveFor === variable.key}
-              className="num"
+              className={cn("num", compact && "rounded-input focus-visible:ring-ring")}
             />
           </div>
         ))}
@@ -194,24 +199,33 @@ export function FormulaCalculator({ formula, fallbackText }: Props) {
           placeholder={solveFor === "output" ? "Auto-calculated" : "Enter desired output"}
           readOnly={solveFor === "output"}
           disabled={solveFor === "output"}
-          className="num"
+          className={cn("num", compact && "rounded-input focus-visible:ring-ring")}
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={handleCalculate} className="bg-primary text-primary-foreground hover:bg-primary/90">
-          Calculate
-        </Button>
-        <Button variant="ghost" onClick={handleReset}>
+        {!compact && (
+          <Button onClick={handleCalculate} className="bg-primary text-primary-foreground hover:bg-primary/90">
+            Calculate
+          </Button>
+        )}
+        <Button variant="ghost" size={compact ? "sm" : "default"} onClick={handleReset}>
           Reset
         </Button>
-        <span className="text-sm text-muted-foreground">
-          Solving for: {targetLabel}
-        </span>
+        {!compact && (
+          <span className="text-sm text-muted-foreground">
+            Solving for: {targetLabel}
+          </span>
+        )}
       </div>
-      <Separator />
-      <div className="rounded-card border border-border bg-card p-4 shadow-e1">
+      {!compact && <Separator />}
+      <div
+        className={cn(
+          "rounded-card border border-border bg-card shadow-e1",
+          compact ? "border-l-2 border-l-primary bg-surface-muted p-3" : "p-4",
+        )}
+      >
         <p className="text-xs uppercase text-muted-foreground tracking-wide mb-1">Result</p>
-        <p className="num text-2xl font-semibold text-foreground">
+        <p className={cn("num font-semibold text-foreground", compact ? "text-lg" : "text-2xl")}>
           {solveFor === "output" ? result || "—" : values[solveFor] || "—"}
         </p>
       </div>

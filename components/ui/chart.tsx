@@ -43,20 +43,27 @@ const ChartContainer = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
     config: ChartConfig
+    /** Fixed plot height (px). Replaces default 16:9 aspect ratio when set. */
+    plotHeight?: number
     children: React.ComponentProps<
       typeof RechartsPrimitive.ResponsiveContainer
     >["children"]
   }
->(({ id, className, children, config, ...props }, ref) => {
+>(({ id, className, children, config, plotHeight, style, ...props }, ref) => {
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
+  const plotStyle =
+    plotHeight != null
+      ? ({ height: plotHeight, maxHeight: plotHeight } as React.CSSProperties)
+      : undefined
 
   return (
     <ChartContext.Provider value={{ config }}>
       <div
         data-chart={chartId}
         ref={ref}
-        className={chartContainerRechartsClassNames(className)}
+        className={chartContainerRechartsClassNames(className, plotHeight)}
+        style={{ ...plotStyle, ...style }}
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
