@@ -21,6 +21,7 @@ import {
   Maximize2,
   PanelBottom,
   PanelBottomClose,
+  X,
 } from "lucide-react"
 
 const SIZE_PRESETS = {
@@ -449,18 +450,20 @@ export function ChatWidget({
       className={cn("fixed bottom-6 right-6 z-50", className)}
       style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
     >
-      <Button
-        onMouseDown={startDrag}
-        onClick={handleToggleClick}
-        className={cn(
-          "rounded-full shadow-lg cursor-grab active:cursor-grabbing",
-          isDragging && "cursor-grabbing"
-        )}
-        size="lg"
-        variant={isOpen ? "secondary" : "default"}
-      >
-        {isOpen ? "Close Ava" : "Ask Ava"}
-      </Button>
+      {!isOpen && (
+        <Button
+          onMouseDown={startDrag}
+          onClick={handleToggleClick}
+          className={cn(
+            "rounded-full shadow-lg cursor-grab active:cursor-grabbing",
+            isDragging && "cursor-grabbing"
+          )}
+          size="lg"
+          variant="default"
+        >
+          Ask Ava
+        </Button>
+      )}
 
       {isOpen && (
         <div
@@ -545,6 +548,16 @@ export function ChatWidget({
                 title={isCollapsed ? "Expand" : "Collapse"}
               >
                 {isCollapsed ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsOpen(false)}
+                aria-label="Close Ava chat"
+                title="Close"
+              >
+                <X className="h-4 w-4" />
               </Button>
             </div>
           </div>
