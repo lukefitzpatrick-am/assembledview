@@ -8,6 +8,13 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return
 
+  // On serverless (Vercel), every lambda cold start would re-fire all warm builds
+  // concurrently and starve the shared Xano Launch instance. Opt-in only.
+  if (process.env.VERCEL && process.env.WARM_CACHES_ON_BOOT !== "true") {
+    console.log("[cache-warm] skipped (serverless; set WARM_CACHES_ON_BOOT=true to enable)")
+    return
+  }
+
   // Dynamic imports keep the edge/runtime bundle free of Node-only deps.
   void (async () => {
     const label = "[cache-warm]"
