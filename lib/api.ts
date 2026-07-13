@@ -1,6 +1,7 @@
 import { toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getXanoBaseUrl } from "@/lib/api/xano"
+import { coalescedGetJson, invalidateCoalescedGetJson } from "@/lib/api/coalescedGetJson"
 import {
   MEDIA_TYPE_ID_CODES,
   buildLineItemIdentity,
@@ -1046,20 +1047,33 @@ export async function getPublishers(): Promise<Publisher[]> {
 }
 
 export async function getMediaPlanVersions() {
-  const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch media plan versions");
+  const { fetchAllXanoPages } = await import("@/lib/api/xanoPagination")
+  const { parseXanoListPayload } = await import("@/lib/api/xano")
+  try {
+    return await fetchAllXanoPages(
+      `${MEDIA_PLANS_BASE_URL}/media_plan_versions`,
+      {},
+      "lib_api_media_plan_versions",
+      100,
+      50
+    )
+  } catch {
+    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?page=1&per_page=100`);
+    if (!response.ok) {
+      throw new Error("Failed to fetch media plan versions");
+    }
+    return parseXanoListPayload(await response.json());
   }
-  return response.json();
 }
 
 export async function getMediaPlanVersionById(id: number) {
   try {
-    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?id=${id}`);
+    const { parseXanoListPayload } = await import("@/lib/api/xano")
+    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?id=${id}&page=1&per_page=50`);
     if (!response.ok) {
       throw new Error("Failed to fetch media plan version");
     }
-    const data = await response.json();
+    const data = parseXanoListPayload(await response.json());
     return Array.isArray(data) ? data[0] : data;
   } catch (error) {
     console.error("Error fetching media plan version:", error);
@@ -1069,11 +1083,12 @@ export async function getMediaPlanVersionById(id: number) {
 
 export async function getMediaPlanVersionByMasterId(masterId: number) {
   try {
-    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?media_plan_master_id=${masterId}`);
+    const { parseXanoListPayload } = await import("@/lib/api/xano")
+    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?media_plan_master_id=${masterId}&page=1&per_page=100`);
     if (!response.ok) {
       throw new Error("Failed to fetch media plan versions by master ID");
     }
-    const data = await response.json();
+    const data = parseXanoListPayload(await response.json());
     
     // Get the latest version (highest version_number)
     if (Array.isArray(data) && data.length > 0) {
@@ -1331,12 +1346,21 @@ async function fetchAllPublishers(): Promise<PublisherRow[]> {
 
   publishersInflight = (async () => {
     try {
-      const response = await fetch(publishersEndpoint);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch publishers (status ${response.status})`);
+      // Browser path shares the coalesced GET map with the edit page / other callers.
+      let rows: PublisherRow[];
+      if (isBrowser) {
+        const data = await coalescedGetJson<PublisherRow[]>(publishersEndpoint, {
+          ttlMs: PUBLISHERS_CACHE_TTL_MS,
+        });
+        rows = Array.isArray(data) ? data : [];
+      } else {
+        const response = await fetch(publishersEndpoint);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch publishers (status ${response.status})`);
+        }
+        const data = await response.json();
+        rows = Array.isArray(data) ? data : [];
       }
-      const data = await response.json();
-      const rows: PublisherRow[] = Array.isArray(data) ? data : [];
       publishersCache = {
         data: rows,
         expiresAt: Date.now() + PUBLISHERS_CACHE_TTL_MS,
@@ -1370,6 +1394,9 @@ function filterPublishersByFlag(
 export function clearPublishersCache(): void {
   publishersCache = null;
   publishersInflight = null;
+  if (isBrowser) {
+    invalidateCoalescedGetJson(publishersEndpoint);
+  }
 }
 
 export async function getPublishersForSearch(): Promise<Publisher[]> {
@@ -1845,6 +1872,17 @@ const LINE_ITEM_BROWSER_API_PATH: Record<string, string> = {
   production: "production",
 }
 
+/** In-flight line-item GETs keyed by URL (no AbortSignal — callers race their own timeout). */
+const lineItemInflight = new Map<string, Promise<any[]>>()
+
+/**
+ * Soft TTL so edit-page prefetch (parallel with MBA) and the later enabled-media
+ * loader share one network call even when the prefetch finishes first.
+ * Matches coalescedGetJson's default window.
+ */
+const LINE_ITEM_CACHE_TTL_MS = 60_000
+const lineItemCache = new Map<string, { data: any[]; expiresAt: number }>()
+
 async function fetchLineItemsFromApi(
   mbaNumber: string,
   mediaPlanVersion: number | undefined,
@@ -1866,19 +1904,53 @@ async function fetchLineItemsFromApi(
   }
 
   const url = `/api/media_plans/${pathSegment}?${params.toString()}`
-  const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const response = await fetch(url, { signal: controller.signal })
-    if (!response.ok) {
-      if (response.status === 404) {
-        return []
+
+  const cached = lineItemCache.get(url)
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.data
+  }
+
+  let shared = lineItemInflight.get(url)
+  if (!shared) {
+    shared = (async () => {
+      const response = await fetch(url)
+      if (!response.ok) {
+        if (response.status === 404) {
+          return []
+        }
+        throw new Error(`Failed to fetch ${key} line items (${response.status})`)
       }
-      throw new Error(`Failed to fetch ${key} line items (${response.status})`)
-    }
-    const data = await response.json()
-    return sortLineItemsByLineItemNumber(Array.isArray(data) ? data : [])
+      const data = await response.json()
+      const sorted = sortLineItemsByLineItemNumber(Array.isArray(data) ? data : [])
+      lineItemCache.set(url, {
+        data: sorted,
+        expiresAt: Date.now() + LINE_ITEM_CACHE_TTL_MS,
+      })
+      return sorted
+    })().finally(() => {
+      lineItemInflight.delete(url)
+    })
+    lineItemInflight.set(url, shared)
+  }
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      shared,
+      new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          const timeoutError = new Error(
+            `Line item fetch timed out after ${timeoutMs}ms for ${key}`
+          )
+          timeoutError.name = "LineItemFetchTimeout"
+          reject(timeoutError)
+        }, timeoutMs)
+      }),
+    ])
   } catch (err: unknown) {
+    if (err instanceof Error && err.name === "LineItemFetchTimeout") {
+      throw err
+    }
     if (err instanceof Error && err.name === "AbortError") {
       const timeoutError = new Error(`Line item fetch timed out after ${timeoutMs}ms for ${key}`)
       timeoutError.name = "LineItemFetchTimeout"
@@ -1886,7 +1958,7 @@ async function fetchLineItemsFromApi(
     }
     throw err
   } finally {
-    clearTimeout(timeoutId)
+    if (timeoutId !== undefined) clearTimeout(timeoutId)
   }
 }
 

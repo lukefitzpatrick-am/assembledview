@@ -1,4 +1,4 @@
-export type MockTemplateKind = "social" | "webpage" | "live"
+export type MockTemplateKind = "social" | "webpage" | "live" | "scene"
 
 export type AdSlot = {
   id: string
@@ -15,6 +15,7 @@ export type MockTemplateId =
   | "news-article"
   | "homepage"
   | "live-page"
+  | "tv-lounge"
 
 export type MockTemplate = {
   id: MockTemplateId
@@ -50,6 +51,7 @@ export const MOCK_TEMPLATES: MockTemplate[] = [
       { id: "mrec-sidebar", label: "MREC", width: 300, height: 250 },
     ],
   },
+  { id: "tv-lounge", label: "Lounge room TV", kind: "scene" },
   { id: "live-page", label: "Live page", kind: "live" },
 ]
 

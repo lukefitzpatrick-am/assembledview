@@ -151,7 +151,7 @@ function RawMedia({
   return null
 }
 
-function Html5Notice({ className }: { className?: string }) {
+export function Html5Notice({ className }: { className?: string }) {
   return (
     <div
       className={cn(

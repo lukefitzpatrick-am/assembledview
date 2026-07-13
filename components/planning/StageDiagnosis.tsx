@@ -1,12 +1,17 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Slider } from "@/components/ui/slider"
 import { cn } from "@/lib/utils"
 import type { TaxonomyRow } from "@/lib/planning/adapter"
 import { SALIENCE_OPTIONS, type SalienceLevel } from "./constants"
 import type { DiagnosisState } from "./store"
+import { TaxonomyStatusBadge } from "./TaxonomyStatusBadge"
+import {
+  fmtReachPct,
+  groupTaxonomy,
+  type TaxonomyGroup,
+} from "./taxonomyGrouping"
 
 type StageDiagnosisProps = {
   diagnosis: DiagnosisState
@@ -17,65 +22,6 @@ type StageDiagnosisProps = {
   onPatch: (patch: Partial<DiagnosisState>) => void
   onContinue: () => void
   onBack: () => void
-}
-
-type TaxonomyGroup = {
-  level1: string
-  rows: TaxonomyRow[]
-}
-
-function groupTaxonomy(rows: TaxonomyRow[]): TaxonomyGroup[] {
-  const order: string[] = []
-  const byLevel = new Map<string, TaxonomyRow[]>()
-  for (const row of rows) {
-    const key = row.level1 || "Other"
-    if (!byLevel.has(key)) {
-      byLevel.set(key, [])
-      order.push(key)
-    }
-    byLevel.get(key)!.push(row)
-  }
-  for (const list of byLevel.values()) {
-    list.sort((a, b) => a.sortOrder - b.sortOrder)
-  }
-  return order.map((level1) => ({
-    level1,
-    rows: byLevel.get(level1)!,
-  }))
-}
-
-function statusBadge(row: TaxonomyRow) {
-  if (row.rowType === "rollup") {
-    return (
-      <Badge variant="outline" size="sm" className="font-normal text-muted-foreground">
-        not scored
-      </Badge>
-    )
-  }
-  if (row.rowType === "injected") {
-    return (
-      <Badge variant="outline" size="sm" className="font-normal text-muted-foreground">
-        modelled — not RM measured
-      </Badge>
-    )
-  }
-  if (!row.engine) {
-    return (
-      <Badge variant="outline" size="sm" className="font-normal text-muted-foreground">
-        not scored
-      </Badge>
-    )
-  }
-  return (
-    <Badge variant="info" size="sm" className="font-normal">
-      scored
-    </Badge>
-  )
-}
-
-function fmtReachPct(pct: number): string {
-  if (!(pct > 0)) return "—"
-  return `${Math.round(pct * 100)}%`
 }
 
 function ChannelTaxonomyTable({ rows }: { rows: TaxonomyRow[] }) {
@@ -146,7 +92,9 @@ function GroupRows({ group }: { group: TaxonomyGroup }) {
             <td className="px-3 py-2.5 text-right">
               <span className="num tabular-nums">{fmtReachPct(row.reachPct)}</span>
             </td>
-            <td className="px-3 py-2.5">{statusBadge(row)}</td>
+            <td className="px-3 py-2.5">
+              <TaxonomyStatusBadge row={row} />
+            </td>
           </tr>
         )
       })}

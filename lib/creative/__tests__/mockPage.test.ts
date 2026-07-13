@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
-import { isPrivateOrReservedIp } from "@/lib/creative/mockPage/privateIp"
+import { isPrivateOrReservedIp } from "@/lib/creative/privateIp"
 
 describe("isPrivateOrReservedIp", () => {
   it("rejects RFC1918 and loopback IPv4", () => {

@@ -156,14 +156,26 @@ export async function getAvaXanoSummary({
     const versionUrl = new URL(xanoUrl("media_plan_versions", MEDIA_PLANS_BASE_KEYS as any))
     versionUrl.searchParams.set("media_plan_master_id", String(masterId))
     versionUrl.searchParams.set("version_number", String(latestVersionNumber))
+    versionUrl.searchParams.set("page", "1")
+    versionUrl.searchParams.set("per_page", "50")
     const versionRaw = await fetchJson(versionUrl.toString()).catch(() => null)
-    versionRow = Array.isArray(versionRaw) ? versionRaw[0] ?? null : versionRaw
+    versionRow = Array.isArray(versionRaw)
+      ? versionRaw[0] ?? null
+      : Array.isArray((versionRaw as any)?.items)
+        ? (versionRaw as any).items[0] ?? null
+        : versionRaw
   } else {
     // Fallback: try by mba_number and pick the highest version number if available.
     const versionsUrl = new URL(xanoUrl("media_plan_versions", MEDIA_PLANS_BASE_KEYS as any))
     versionsUrl.searchParams.set("mba_number", mba)
+    versionsUrl.searchParams.set("page", "1")
+    versionsUrl.searchParams.set("per_page", "100")
     const versionsRaw = await fetchJson(versionsUrl.toString()).catch(() => null)
-    const rows: any[] = Array.isArray(versionsRaw) ? versionsRaw : Array.isArray((versionsRaw as any)?.items) ? (versionsRaw as any).items : []
+    const rows: any[] = Array.isArray(versionsRaw)
+      ? versionsRaw
+      : Array.isArray((versionsRaw as any)?.items)
+        ? (versionsRaw as any).items
+        : []
     versionRow =
       rows
         .map((row) => ({ row, v: parseLooseNumber(row?.version_number ?? row?.versionNumber) ?? -1 }))

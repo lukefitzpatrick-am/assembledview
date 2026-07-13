@@ -1,4 +1,5 @@
 import type { CampaignKPI, ClientKPI, PublisherKPI } from "@/lib/kpi/types"
+import { coalescedGetJson } from "@/lib/api/coalescedGetJson"
 
 async function jsonOrThrow<T>(response: Response): Promise<T> {
   if (!response.ok) {
@@ -18,20 +19,16 @@ async function jsonOrThrow<T>(response: Response): Promise<T> {
 }
 
 export async function getPublisherKPIs(): Promise<PublisherKPI[]> {
-  const response = await fetch("/api/kpis/publisher", {
-    headers: { Accept: "application/json" },
-  })
-  const data = await jsonOrThrow<PublisherKPI[]>(response)
+  const data = await coalescedGetJson<PublisherKPI[]>("/api/kpis/publisher")
   return Array.isArray(data) ? data : []
 }
 
 export async function getClientKPIs(clientName: string): Promise<ClientKPI[]> {
   const params = new URLSearchParams()
   params.set("mp_client_name", clientName)
-  const response = await fetch(`/api/kpis/client?${params.toString()}`, {
-    headers: { Accept: "application/json" },
-  })
-  const data = await jsonOrThrow<ClientKPI[]>(response)
+  const data = await coalescedGetJson<ClientKPI[]>(
+    `/api/kpis/client?${params.toString()}`
+  )
   return Array.isArray(data) ? data : []
 }
 
@@ -42,10 +39,9 @@ export async function getCampaignKPIs(
   const params = new URLSearchParams()
   params.set("mbaNumber", mbaNumber)
   params.set("versionNumber", String(versionNumber))
-  const response = await fetch(`/api/kpis/campaign?${params.toString()}`, {
-    headers: { Accept: "application/json" },
-  })
-  const data = await jsonOrThrow<CampaignKPI[]>(response)
+  const data = await coalescedGetJson<CampaignKPI[]>(
+    `/api/kpis/campaign?${params.toString()}`
+  )
   return Array.isArray(data) ? data : []
 }
 

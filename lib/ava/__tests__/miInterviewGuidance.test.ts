@@ -26,3 +26,22 @@ test("MI interview guidance covers conduct rules 1–6", () => {
   assert.match(AVA_MI_TOOL_HINTS, /never invent/i)
   assert.match(AVA_MI_TOOL_HINTS, /derived fills are already applied/i)
 })
+
+test("MI interview guidance forbids freelanced Question N of M and derived labels", () => {
+  assert.match(AVA_MI_INTERVIEW_GUIDANCE, /questionIndex/)
+  assert.match(AVA_MI_INTERVIEW_GUIDANCE, /questionTotal/)
+  assert.match(
+    AVA_MI_INTERVIEW_GUIDANCE,
+    /never (compose|author|invent).{0,40}Question\s+N\s+of\s+M|do not (compose|author|invent).{0,40}["']?Question/i,
+  )
+  assert.match(
+    AVA_MI_INTERVIEW_GUIDANCE,
+    /echo.{0,40}(questionIndex|card)|questionIndex.{0,40}echo/i,
+  )
+  assert.match(
+    AVA_MI_INTERVIEW_GUIDANCE,
+    /derived.{0,80}(verbatim|field\/value|own labels|do not restate|never restate)/i,
+  )
+  assert.match(AVA_MI_INTERVIEW_GUIDANCE, /exportWithGaps/)
+  assert.match(AVA_MI_TOOL_HINTS, /exportWithGaps|open questions/i)
+})

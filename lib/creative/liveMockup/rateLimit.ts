@@ -1,14 +1,14 @@
 import "server-only"
 
-/** Simple in-memory rate limit: 10 fetches / min per session key. */
+/** 5 live-mockup screenshots / min per session key. */
 const WINDOW_MS = 60_000
-const MAX_HITS = 10
+const MAX_HITS = 5
 
 type Bucket = { timestamps: number[] }
 
 const buckets = new Map<string, Bucket>()
 
-export function checkMockPageRateLimit(sessionKey: string): {
+export function checkLiveMockupRateLimit(sessionKey: string): {
   ok: boolean
   remaining: number
 } {

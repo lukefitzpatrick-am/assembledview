@@ -1,6 +1,7 @@
 import axios from "axios"
 import { campaignOverlapsMonth } from "@/lib/finance/utils"
 import { xanoUrl } from "@/lib/api/xano"
+import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 
 export type RelevantVersionsResult = {
   year: number
@@ -69,10 +70,14 @@ export async function fetchRelevantPlanVersionsForFinanceMonth(
         }
       })
 
-      const versionsResponse = await axios.get(
-        xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
+      // Full version history (paged) — do NOT use media_plan_versions_latest / dashboard cache.
+      const allVersions = await fetchAllXanoPages(
+        xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
+        {},
+        "FINANCE_relevant_plan_versions",
+        100,
+        50
       )
-      const allVersions = Array.isArray(versionsResponse.data) ? versionsResponse.data : []
 
       allVersions.forEach((version: any) => {
         if (!version.mba_number) return

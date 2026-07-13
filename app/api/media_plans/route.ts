@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { xanoUrl } from '@/lib/api/xano';
+import { getCachedMediaPlanVersions } from '@/lib/api/mediaPlanVersionsCache';
 
 // Define the type for a MediaPlan object to ensure type safety
 // This should match the type definition in your page.tsx
@@ -37,29 +37,43 @@ type MediaPlan = {
 };
 
 export async function GET() {
-  const res = await fetch(
-    xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
-  )
-  if (!res.ok) return NextResponse.error()
-  const data = await res.json()
-  
-  // Filter to keep only the highest version for each unique MBA number
-  const filteredData = Object.values(
-    (Array.isArray(data) ? data : [data]).reduce((acc: Record<string, any>, plan: any) => {
-      const mbaNumber = plan.mba_number;
-      if (!mbaNumber) {
-        // Skip plans without an MBA number
-        return acc;
-      }
-      // Use version_number field from media_plan_versions
-      const versionNumber = plan.version_number || 0;
-      if (!acc[mbaNumber] || (acc[mbaNumber].version_number || 0) < versionNumber) {
-        acc[mbaNumber] = plan;
-      }
-      return acc;
-    }, {} as Record<string, any>)
-  );
-  
-  return NextResponse.json(filteredData)
-}
+  const t0 = Date.now()
+  try {
+    const { data, stale } = await getCachedMediaPlanVersions()
 
+    // Idempotent safeguard: latest-endpoint already returns one row per MBA.
+    // Keep the JS highest-version reduction so an env override to a full-history
+    // endpoint still yields one card per MBA.
+    const filteredData = Object.values(
+      data.reduce((acc: Record<string, any>, plan: any) => {
+        const mbaNumber = plan.mba_number;
+        if (!mbaNumber) {
+          // Skip plans without an MBA number
+          return acc;
+        }
+        // Use version_number field from media_plan_versions
+        const versionNumber = plan.version_number || 0;
+        if (!acc[mbaNumber] || (acc[mbaNumber].version_number || 0) < versionNumber) {
+          acc[mbaNumber] = plan;
+        }
+        return acc;
+      }, {} as Record<string, any>)
+    );
+
+    console.log(
+      `[media_plans] served ${filteredData.length} rows in ${Date.now() - t0}ms stale=${stale}`
+    )
+
+    if (stale) {
+      return NextResponse.json(filteredData, {
+        status: 200,
+        headers: { 'x-warning': 'served-stale-after-upstream-failure' },
+      })
+    }
+
+    return NextResponse.json(filteredData)
+  } catch {
+    // No last-known-good has ever existed (or cache rejected with no entry)
+    return NextResponse.json({ error: "upstream unavailable" }, { status: 502 })
+  }
+}

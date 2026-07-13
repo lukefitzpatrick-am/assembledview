@@ -14,7 +14,10 @@ import {
   buildMiInterviewQuestionCards,
   startMiInterviewTool,
 } from "../startMiInterview.js"
-import { generateMiWorkbookTool } from "../generateMiWorkbook.js"
+import {
+  gateMiWorkbookExport,
+  generateMiWorkbookTool,
+} from "../generateMiWorkbook.js"
 import {
   MI_SCOPE_VERSION_QUESTION_ID,
   resolveMiVersionScope,
@@ -250,6 +253,69 @@ test("MI tool schemas accept answer arrays", () => {
     assert.equal(answers?.items?.type, "object")
     assert.ok(answers?.items?.properties)
   }
+})
+
+test("generate_mi_workbook refuses export while open questions remain", () => {
+  const plan = {
+    lineItems: {
+      socialMedia: [
+        {
+          line_item_id: "social-1",
+          publisher: "Meta",
+          placement: "Facebook",
+        },
+      ],
+    },
+  }
+
+  const refused = gateMiWorkbookExport(plan, [])
+  assert.equal(refused.allow, false)
+  if (refused.allow) return
+  assert.equal(refused.payload.blocked, true)
+  assert.ok(refused.payload.openCount > 0)
+  assert.ok(refused.payload.currentQuestion)
+  assert.equal(typeof refused.payload.questionIndex, "number")
+  assert.equal(typeof refused.payload.questionTotal, "number")
+  assert.match(refused.payload.message, /exportWithGaps|export with gaps/i)
+  assert.ok(refused.questions?.length === 1)
+  assert.equal(refused.questions![0].id, refused.payload.currentQuestion!.id)
+})
+
+test("generate_mi_workbook allows export with explicit exportWithGaps override", () => {
+  const plan = {
+    lineItems: {
+      socialMedia: [
+        {
+          line_item_id: "social-1",
+          publisher: "Meta",
+          placement: "Facebook",
+        },
+      ],
+    },
+  }
+
+  const gated = gateMiWorkbookExport(plan, [], { exportWithGaps: true })
+  assert.equal(gated.allow, true)
+  if (!gated.allow) return
+  assert.ok(gated.result.summary.open > 0)
+
+  const complete = gateMiWorkbookExport(plan, [
+    { questionId: "creative_type:social-1", answer: "static" },
+  ])
+  assert.equal(complete.allow, true)
+})
+
+test("generate_mi_workbook schema and description require explicit gap override", () => {
+  const schema = generateMiWorkbookTool.definition.input_schema as {
+    properties?: Record<string, { type?: string; description?: string }>
+  }
+  const flag = schema.properties?.exportWithGaps
+  assert.equal(flag?.type, "boolean")
+  assert.match(flag?.description ?? "", /open|gaps/i)
+  assert.match(
+    generateMiWorkbookTool.definition.description ?? "",
+    /exportWithGaps|open questions|unanswered/i,
+  )
 })
 
 test("chat file attachment shape is generic and coerceable", () => {

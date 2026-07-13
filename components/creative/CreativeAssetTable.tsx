@@ -60,6 +60,8 @@ type CreativeAssetTableProps = {
   assets: CreativeAsset[]
   lineItemOptions: LineItemOption[]
   defaultBrandName?: string
+  clientName?: string
+  campaignName?: string
   metaPageId?: string
   onRename: (id: number, assetName: string) => Promise<void>
   onLineItemChange: (
@@ -160,6 +162,8 @@ export function CreativeAssetTable({
   assets,
   lineItemOptions,
   defaultBrandName = "Brand",
+  clientName,
+  campaignName,
   metaPageId,
   onRename,
   onLineItemChange,
@@ -372,6 +376,8 @@ export function CreativeAssetTable({
           if (!open) setMockupTarget(null)
         }}
         defaultBrandName={defaultBrandName}
+        clientName={clientName ?? defaultBrandName}
+        campaignName={campaignName}
         metaPageId={metaPageId}
       />
     </>

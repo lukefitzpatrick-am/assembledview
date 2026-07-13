@@ -61,6 +61,14 @@ export function xanoAuthHeaders(): HeadersInit {
   }
 }
 
+/** Plain-object form for axios `headers` (avoids HeadersInit union vs AxiosHeaders). */
+export function xanoAuthHeaderRecord(): Record<string, string> {
+  return {
+    Accept: "application/json",
+    ...(process.env.XANO_API_KEY ? { Authorization: `Bearer ${process.env.XANO_API_KEY}` } : {}),
+  }
+}
+
 export function xanoPostHeaders(): HeadersInit {
   return {
     "Content-Type": "application/json",

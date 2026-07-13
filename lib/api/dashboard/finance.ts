@@ -1,12 +1,11 @@
-import { parseXanoListPayload } from '@/lib/api/xano'
 import { xanoMediaPlansUrl } from '@/lib/api/xanoClients'
+import { fetchAllXanoPages } from '@/lib/api/xanoPagination'
 import {
   australianFyStartYearForDate,
   billingMonthsInAustralianFinancialYear,
   referenceDateForFyStartYear,
 } from '@/lib/finance/months'
 import {
-  apiClient,
   getTzParts,
   getAustralianFinancialYearWindow,
   isBookedApprovedCompleted,
@@ -60,8 +59,13 @@ export async function getFinanceHubScheduleFytdTotals(
 
   const { start: fyStart, end: fyEnd } = getAustralianFinancialYearWindow(reference)
 
-  const versionsResponse = await apiClient.get(xanoMediaPlansUrl('media_plan_versions'))
-  const allVersions = parseXanoListPayload(versionsResponse.data)
+  const allVersions = await fetchAllXanoPages(
+    xanoMediaPlansUrl('media_plan_versions'),
+    {},
+    'DASHBOARD_finance_hub_schedule_fytd',
+    100,
+    50
+  )
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
     const mbaNumber = version?.mba_number

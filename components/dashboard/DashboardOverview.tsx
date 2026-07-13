@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from "react"
-import { motion } from "framer-motion"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import { PanelRow, PanelRowCell } from "@/components/layout/PanelRow"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
@@ -13,7 +12,7 @@ import { MetricCard } from "@/components/ui/MetricCard"
 import { EmptyState, ErrorState } from "@/components/ui/states"
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { BarChart3, ChevronDown, FilterX, TrendingUp, ShoppingCart, Users, Search, type LucideIcon } from "lucide-react"
+import { BarChart3, ChevronDown, FilterX, TrendingUp, Users, Search, type LucideIcon } from "lucide-react"
 import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPreference"
 import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import {
@@ -22,25 +21,6 @@ import {
   dashboardCampaignGridClassName,
 } from "@/components/dashboard/DashboardEntityCards"
 import { format } from "date-fns"
-import {
-  BaseChartCard,
-  ChartExportToolbar,
-  StackedBarChart,
-  TreemapChart,
-  exportPng,
-} from "@/components/charts/system"
-import { reshapeSpendTreemap } from "@/components/dashboard/dashboardChartReshape"
-import { useToast } from "@/components/ui/use-toast"
-import { useChartExport } from "@/hooks/useChartExport"
-import {
-  buildStackedColumnCsvRows,
-  STACKED_COLUMN_CSV_COLUMNS,
-} from "@/lib/charts/stackedColumnExport"
-import {
-  finalizeChartDatumClickPayload,
-  type ChartDatumClickPayload,
-  type ChartStackedColumnRow,
-} from "@/components/charts/chartDatumClick"
 import { usePathname, useRouter } from "next/navigation"
 import { AuthPageLoading } from "@/components/AuthLoadingState"
 import { cn } from "@/lib/utils"
@@ -61,7 +41,6 @@ import { Label } from "@/components/ui/label"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import {
   CampaignCardSkeleton,
-  ChartSkeleton,
   KPICardSkeleton,
 } from "@/components/dashboard/skeletons"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -97,8 +76,6 @@ type MediaPlan = {
   mp_progaudio: boolean
   mp_progooh: boolean
   mp_influencers: boolean
-  billingSchedule?: any
-  deliverySchedule?: any
 }
 
 interface ScopeOfWork {
@@ -153,9 +130,6 @@ type DashboardMetricCard = {
 
 const LIVE_STATUSES = ["booked", "approved", "completed"]
 
-/** Top spend rows in the FY client table that may show a monthly trend sparkline. */
-const DASHBOARD_CLIENT_SPARKLINE_TOP_N = 8
-
 const normalizeStatus = (status?: string | null) => (status || "").toString().toLowerCase().trim()
 
 const normalizeClientFilterValue = (value: string) =>
@@ -164,73 +138,6 @@ const normalizeClientFilterValue = (value: string) =>
     .toLowerCase()
     .trim()
     .replace(/\s+/g, " ")
-
-/** Match spend labels (`mp_clientname`, version `mp_client_name`) to Xano client profile keys. */
-function resolveClientProfileColour(
-  displayName: string,
-  clientColors: Record<string, string>,
-): string | undefined {
-  if (!displayName || !clientColors || typeof clientColors !== "object") return undefined
-  if (clientColors[displayName]) return clientColors[displayName]
-  const trimmed = displayName.trim()
-  if (trimmed !== displayName && clientColors[trimmed]) return clientColors[trimmed]
-  const norm = normalizeClientFilterValue(displayName)
-  if (!norm) return undefined
-  for (const [key, colour] of Object.entries(clientColors)) {
-    if (typeof colour !== "string" || !colour) continue
-    if (normalizeClientFilterValue(key) === norm) return colour
-  }
-  return undefined
-}
-
-type MonthlyClientSpendBucket = { month: string; data: Array<{ client: string; amount: number }> }
-
-function extractClientMonthlySeries(monthly: MonthlyClientSpendBucket[], clientName: string): number[] | null {
-  if (!monthly.length) return null
-  const norm = normalizeClientFilterValue(clientName)
-  const series = monthly.map((m) => {
-    const hit =
-      m.data.find((d) => d.client === clientName) ??
-      m.data.find((d) => normalizeClientFilterValue(d.client) === norm)
-    const raw = hit?.amount
-    const n = typeof raw === "number" && Number.isFinite(raw) ? raw : 0
-    return Math.max(0, n)
-  })
-  if (!series.some((v) => v > 0)) return null
-  return series
-}
-
-function MonthlySpendSparkline({ values, stroke }: { values: number[]; stroke?: string }) {
-  const w = 80
-  const h = 28
-  const pad = 2
-  if (values.length === 0) return null
-  const max = Math.max(...values)
-  const min = Math.min(...values)
-  const range = max - min || 1
-  const innerW = w - pad * 2
-  const innerH = h - pad * 2
-  const pts = values
-    .map((v, i) => {
-      const x = pad + (values.length === 1 ? innerW / 2 : (i / (values.length - 1)) * innerW)
-      const y = pad + innerH - ((v - min) / range) * innerH
-      return `${x},${y}`
-    })
-    .join(" ")
-  const lineStroke = stroke?.trim() ? stroke : "hsl(var(--primary))"
-  return (
-    <svg width={w} height={h} className="shrink-0 overflow-visible" aria-hidden>
-      <polyline
-        fill="none"
-        stroke={lineStroke}
-        strokeWidth={1.75}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        points={pts}
-      />
-    </svg>
-  )
-}
 
 const slugifyClientName = (name?: string | null) => {
   if (!name || typeof name !== "string") return ""
@@ -241,14 +148,14 @@ const slugifyClientName = (name?: string | null) => {
     .trim()
 }
 
-/** Dashboard table + chart-driven filters (URL-synced). */
+/** Dashboard table filters (URL-synced). */
 export type DashboardViewFilters = {
   campaignSearch: string
   /** Normalized client keys (same values as the client multi-select). */
   clients: string[]
-  /** Publisher names as they appear on billing line items / charts. */
+  /** Publisher names retained for URL/saved-view compatibility (schedule filtering removed). */
   publishers: string[]
-  /** Month label aligned with stacked charts / billing `monthYear` (e.g. "July 2024"). */
+  /** Month label retained for URL/saved-view compatibility (schedule filtering removed). */
   month: string | null
 }
 
@@ -258,31 +165,6 @@ const defaultDashboardViewFilters = (): DashboardViewFilters => ({
   publishers: [],
   month: null,
 })
-
-const normalizeMonthKeyForMatch = (value: string | null | undefined) =>
-  (value || "").toString().trim().toLowerCase().replace(/\s+/g, " ")
-
-const billingScheduleMatchesMonth = (schedule: any, monthFilter: string | null): boolean => {
-  if (!monthFilter || !String(monthFilter).trim()) return true
-
-  const target = normalizeMonthKeyForMatch(monthFilter)
-  if (!target) return true
-
-  let scheduleArray: any[] = []
-  if (Array.isArray(schedule)) {
-    scheduleArray = schedule
-  } else if (schedule?.months && Array.isArray(schedule.months)) {
-    scheduleArray = schedule.months
-  } else {
-    return false
-  }
-
-  return scheduleArray.some((entry: any) => {
-    const my = entry?.monthYear
-    if (!my || typeof my !== "string") return false
-    return normalizeMonthKeyForMatch(my) === target
-  })
-}
 
 const parseDashboardFiltersFromSearchParams = (sp: URLSearchParams): DashboardViewFilters => ({
   campaignSearch: sp.get("q") ?? "",
@@ -479,8 +361,7 @@ const getLatestPlanVersions = (plans: MediaPlan[]): MediaPlan[] => {
 
 /**
  * Per MBA, use the highest-version plan that is booked, approved, or completed.
- * Aligns FY spend tables with global monthly APIs: a newer draft must not hide
- * an approved/booked/completed version used for delivery/billing.
+ * A newer draft must not hide an approved/booked/completed version used for live metrics.
  */
 function getHighestBookedApprovedCompletedVersionPerMba(plans: MediaPlan[]): MediaPlan[] {
   const byMba = new Map<string, MediaPlan[]>()
@@ -507,19 +388,6 @@ function getHighestBookedApprovedCompletedVersionPerMba(plans: MediaPlan[]): Med
     out.push(best)
   }
   return out
-}
-
-// Helper function to get the current Australian Financial Year dates
-const getCurrentFinancialYear = () => {
-  const today = new Date()
-  const currentMonth = today.getMonth() // 0-11 (Jan-Dec)
-  const currentYear = today.getFullYear()
-
-  const startYear = currentMonth >= 6 ? currentYear : currentYear - 1
-  const startDate = new Date(startYear, 6, 1) // July 1st
-  const endDate = new Date(startYear + 1, 5, 30) // June 30th
-
-  return { startDate, endDate }
 }
 
 const formatCurrency = (amount: number) =>
@@ -579,75 +447,6 @@ function DashboardPageErrorPanel({
   )
 }
 
-const parseBillingScheduleAmount = (amountStr: string | number): number => {
-  if (typeof amountStr === "number") return amountStr
-  if (!amountStr || typeof amountStr !== "string") return 0
-  const cleaned = amountStr.replace(/[$,]/g, "").trim()
-  const parsed = parseFloat(cleaned)
-  return isNaN(parsed) ? 0 : parsed
-}
-
-const parseMonthYear = (monthYear: string): Date | null => {
-  try {
-    const parts = monthYear.trim().split(" ")
-    if (parts.length !== 2) return null
-
-    const monthNames = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
-    const monthAbbr = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
-
-    const monthStr = parts[0].toLowerCase()
-    const year = parseInt(parts[1])
-
-    let monthIndex = monthNames.indexOf(monthStr)
-    if (monthIndex === -1) {
-      monthIndex = monthAbbr.indexOf(monthStr)
-    }
-
-    if (monthIndex === -1 || isNaN(year)) return null
-
-    return new Date(year, monthIndex, 1)
-  } catch {
-    return null
-  }
-}
-
-const extractPublishersFromSchedule = (schedule: any): Set<string> => {
-  const publishers = new Set<string>()
-  if (!schedule) return publishers
-
-  let scheduleArray: any[] = []
-  if (Array.isArray(schedule)) {
-    scheduleArray = schedule
-  } else if (schedule.months && Array.isArray(schedule.months)) {
-    scheduleArray = schedule.months
-  } else {
-    return publishers
-  }
-
-  scheduleArray.forEach((entry: any) => {
-    if (entry.mediaTypes && Array.isArray(entry.mediaTypes)) {
-      entry.mediaTypes.forEach((mediaType: any) => {
-        if (mediaType.lineItems && Array.isArray(mediaType.lineItems)) {
-          mediaType.lineItems.forEach((lineItem: any) => {
-            if (lineItem.header1 && lineItem.header1.trim() !== "") {
-              publishers.add(lineItem.header1.trim())
-            }
-          })
-        }
-      })
-    }
-  })
-
-  return publishers
-}
-
-const planHasAnyPublisher = (plan: MediaPlan, publishers: string[]): boolean => {
-  if (!publishers.length) return true
-  const schedule = plan.deliverySchedule ?? plan.billingSchedule
-  const pubSet = extractPublishersFromSchedule(schedule)
-  return publishers.some((p) => pubSet.has(p))
-}
-
 const normalizeDashboardSearch = (value: string) => value.toLowerCase().trim()
 
 function applyDashboardTableFiltersToPlans(plans: MediaPlan[], filters: DashboardViewFilters): MediaPlan[] {
@@ -672,11 +471,7 @@ function applyDashboardTableFiltersToPlans(plans: MediaPlan[], filters: Dashboar
       if (!haystack.includes(searchLower)) return false
     }
 
-    if (!planHasAnyPublisher(plan, filters.publishers)) return false
-
-    const schedule = plan.deliverySchedule ?? plan.billingSchedule
-    if (!billingScheduleMatchesMonth(schedule, filters.month)) return false
-
+    // Publisher/month filters previously depended on billing/delivery schedules — no-op for scalar tables.
     return true
   })
 }
@@ -684,110 +479,43 @@ function applyDashboardTableFiltersToPlans(plans: MediaPlan[], filters: Dashboar
 function applyDashboardTableFiltersToScopes(scopes: ScopeOfWork[], filters: DashboardViewFilters): ScopeOfWork[] {
   const selectedClients = new Set(filters.clients.map((value) => normalizeClientFilterValue(value)).filter(Boolean))
 
-  if ((filters.publishers.length > 0 || filters.month) && selectedClients.size === 0) {
-    return []
-  }
-
   if (selectedClients.size === 0) return scopes
 
   return scopes.filter((scope) => selectedClients.has(normalizeClientFilterValue(scope.client_name || "")))
 }
 
-const extractSpendFromSchedule = (schedule: any, fyStartDate: Date, fyEndDate: Date): { publisherSpend: Record<string, number>; totalSpend: number } => {
-  const publisherSpend: Record<string, number> = {}
-  let totalSpend = 0
-  if (!schedule) return { publisherSpend, totalSpend }
-
-  let scheduleArray: any[] = []
-  if (Array.isArray(schedule)) {
-    scheduleArray = schedule
-  } else if (schedule.months && Array.isArray(schedule.months)) {
-    scheduleArray = schedule.months
-  } else {
-    return { publisherSpend, totalSpend }
-  }
-
-  scheduleArray.forEach((entry: any) => {
-    const monthDate = parseMonthYear(entry.monthYear)
-    if (!monthDate) return
-
-    const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1)
-    const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0)
-
-    if (monthStart <= fyEndDate && monthEnd >= fyStartDate) {
-      if (entry.mediaTypes && Array.isArray(entry.mediaTypes)) {
-        entry.mediaTypes.forEach((mediaType: any) => {
-          if (mediaType.lineItems && Array.isArray(mediaType.lineItems)) {
-            mediaType.lineItems.forEach((lineItem: any) => {
-              const amount = parseBillingScheduleAmount(lineItem.amount)
-              if (amount > 0 && lineItem.header1 && lineItem.header1.trim() !== "") {
-                const publisher = lineItem.header1.trim()
-                publisherSpend[publisher] = (publisherSpend[publisher] || 0) + amount
-                totalSpend += amount
-              }
-            })
-          }
-        })
-      }
-    }
-  })
-
-  return { publisherSpend, totalSpend }
-}
-
 const transformMediaPlanData = (apiData: any[]): MediaPlan[] =>
-  apiData.map((item: any) => {
-    let billingSchedule = item.billingSchedule
-    let deliverySchedule = item.deliverySchedule
-    if (billingSchedule && typeof billingSchedule === "string") {
-      try {
-        billingSchedule = JSON.parse(billingSchedule)
-      } catch {
-        billingSchedule = null
-      }
-    }
-    if (deliverySchedule && typeof deliverySchedule === "string") {
-      try {
-        deliverySchedule = JSON.parse(deliverySchedule)
-      } catch {
-        deliverySchedule = null
-      }
-    }
-
-    return {
-      id: item.id || 0,
-      mp_clientname: item.mp_client_name || item.mp_clientname || "",
-      mp_campaignname: item.campaign_name || item.mp_campaignname || "",
-      mp_mba_number: item.mba_number || item.mp_mba_number || "",
-      mp_version: item.version_number || item.mp_version || 1,
-      mp_brand: item.brand || "",
-      mp_campaignstatus: item.campaign_status || item.mp_campaignstatus || "",
-      mp_campaigndates_start: item.campaign_start_date || item.mp_campaigndates_start || "",
-      mp_campaigndates_end: item.campaign_end_date || item.mp_campaigndates_end || "",
-      mp_campaignbudget: item.mp_campaignbudget || 0,
-      mp_television: item.mp_television || false,
-      mp_radio: item.mp_radio || false,
-      mp_newspaper: item.mp_newspaper || false,
-      mp_magazines: item.mp_magazines || false,
-      mp_ooh: item.mp_ooh || false,
-      mp_cinema: item.mp_cinema || false,
-      mp_digidisplay: item.mp_digidisplay || false,
-      mp_digiaudio: item.mp_digiaudio || false,
-      mp_digivideo: item.mp_digivideo || false,
-      mp_bvod: item.mp_bvod || false,
-      mp_integration: item.mp_integration || false,
-      mp_search: item.mp_search || false,
-      mp_socialmedia: item.mp_socialmedia || false,
-      mp_progdisplay: item.mp_progdisplay || false,
-      mp_progvideo: item.mp_progvideo || false,
-      mp_progbvod: item.mp_progbvod || false,
-      mp_progaudio: item.mp_progaudio || false,
-      mp_progooh: item.mp_progooh || false,
-      mp_influencers: item.mp_influencers || false,
-      billingSchedule: billingSchedule || undefined,
-      deliverySchedule: deliverySchedule || undefined,
-    }
-  })
+  apiData.map((item: any) => ({
+    id: item.id || 0,
+    mp_clientname: item.mp_client_name || item.mp_clientname || "",
+    mp_campaignname: item.campaign_name || item.mp_campaignname || "",
+    mp_mba_number: item.mba_number || item.mp_mba_number || "",
+    mp_version: item.version_number || item.mp_version || 1,
+    mp_brand: item.brand || "",
+    mp_campaignstatus: item.campaign_status || item.mp_campaignstatus || "",
+    mp_campaigndates_start: item.campaign_start_date || item.mp_campaigndates_start || "",
+    mp_campaigndates_end: item.campaign_end_date || item.mp_campaigndates_end || "",
+    mp_campaignbudget: item.mp_campaignbudget || 0,
+    mp_television: item.mp_television || false,
+    mp_radio: item.mp_radio || false,
+    mp_newspaper: item.mp_newspaper || false,
+    mp_magazines: item.mp_magazines || false,
+    mp_ooh: item.mp_ooh || false,
+    mp_cinema: item.mp_cinema || false,
+    mp_digidisplay: item.mp_digidisplay || false,
+    mp_digiaudio: item.mp_digiaudio || false,
+    mp_digivideo: item.mp_digivideo || false,
+    mp_bvod: item.mp_bvod || false,
+    mp_integration: item.mp_integration || false,
+    mp_search: item.mp_search || false,
+    mp_socialmedia: item.mp_socialmedia || false,
+    mp_progdisplay: item.mp_progdisplay || false,
+    mp_progvideo: item.mp_progvideo || false,
+    mp_progbvod: item.mp_progbvod || false,
+    mp_progaudio: item.mp_progaudio || false,
+    mp_progooh: item.mp_progooh || false,
+    mp_influencers: item.mp_influencers || false,
+  }))
 
 function useIsMd() {
   const [isMd, setIsMd] = useState(false)
@@ -992,16 +720,10 @@ export default function DashboardOverview({
   const pathname = usePathname()
   const [mediaPlans, setMediaPlans] = useState<MediaPlan[]>([])
   const [scopes, setScopes] = useState<ScopeOfWork[]>([])
-  const [monthlyPublisherSpend, setMonthlyPublisherSpend] = useState<Array<{ month: string; data: Array<{ publisher: string; amount: number }> }>>([])
-  const [monthlyClientSpend, setMonthlyClientSpend] = useState<Array<{ month: string; data: Array<{ client: string; amount: number }> }>>([])
-  /** `mp_client_name` → `brand_colour` from Xano (see `getGlobalMonthlyClientSpend`). */
-  const [clientProfileColors, setClientProfileColors] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [fetchError, setFetchError] = useState<DashboardErrorCopy | null>(null)
   const [dataLastRefreshedAt, setDataLastRefreshedAt] = useState<Date | null>(null)
-  const [publisherSpendData, setPublisherSpendData] = useState<Array<{ name: string; value: number; percentage: number }>>([])
-  const [clientSpendData, setClientSpendData] = useState<Array<{ name: string; value: number; percentage: number }>>([])
   const [liveCampaignSort, setLiveCampaignSort] = useState<SortState>({ column: "", direction: null })
   const [liveScopesSort, setLiveScopesSort] = useState<SortState>({ column: "", direction: null })
   const [dueSoonSort, setDueSoonSort] = useState<SortState>({ column: "", direction: null })
@@ -1079,15 +801,6 @@ export default function DashboardOverview({
       accent: "bg-channel-bvod",
       iconBg: "bg-surface-panel",
       iconText: "text-channel-bvod",
-    },
-    {
-      title: "Total Live Publishers",
-      value: "0",
-      icon: ShoppingCart,
-      tooltip: "Sum of unique publishers with live activity from campaigns",
-      accent: "bg-pacing-behind",
-      iconBg: "bg-pacing-behind-bg",
-      iconText: "text-status-behind-fg",
     },
   ])
 
@@ -1455,50 +1168,6 @@ export default function DashboardOverview({
     }
   }, [appliedSavedViewId, savedViews, dashboardFilters])
 
-  const handleSpendPublisherPieClick = useCallback((payload: ChartDatumClickPayload) => {
-    if (payload.chart !== "pie" && payload.chart !== "treemap") return
-    const name = payload.name?.trim()
-    if (!name) return
-    const params = new URLSearchParams()
-    params.set("publisher", name)
-    router.push(`/publishers?${params.toString()}`)
-  }, [router])
-
-  const handleSpendClientPieClick = useCallback((payload: ChartDatumClickPayload) => {
-    if (payload.chart !== "pie" && payload.chart !== "treemap") return
-    const name = payload.name?.trim()
-    if (!name) return
-    const key = normalizeClientFilterValue(name)
-    if (!key) return
-    setDashboardFilters((f) => ({ ...f, clients: [key], month: null }))
-  }, [])
-
-  const handleMonthlyClientChartClick = useCallback((payload: ChartDatumClickPayload) => {
-    if (payload.chart !== "stackedColumn") return
-    const name = payload.name?.trim()
-    if (!name) return
-    const key = normalizeClientFilterValue(name)
-    if (!key) return
-    if (payload.source === "legend") {
-      setDashboardFilters((f) => ({ ...f, clients: [key], month: null }))
-    } else {
-      const month = payload.category?.trim() || null
-      setDashboardFilters((f) => ({ ...f, clients: [key], month }))
-    }
-  }, [])
-
-  const handleMonthlyPublisherChartClick = useCallback((payload: ChartDatumClickPayload) => {
-    if (payload.chart !== "stackedColumn") return
-    const name = payload.name?.trim()
-    if (!name) return
-    if (payload.source === "legend") {
-      setDashboardFilters((f) => ({ ...f, publishers: [name], month: null }))
-    } else {
-      const month = payload.category?.trim() || null
-      setDashboardFilters((f) => ({ ...f, publishers: [name], month }))
-    }
-  }, [])
-
   useEffect(() => {
     if (mounted && !isLoading && !user) {
       const loginReturn = encodeURIComponent(returnTo || "/dashboard")
@@ -1521,63 +1190,49 @@ export default function DashboardOverview({
       setLoading(true)
       setFetchError(null)
 
-      try {
-        const [monthlyPubResp, monthlyClientResp] = await Promise.all([
-          fetch("/api/dashboard/global-monthly-publisher-spend"),
-          fetch("/api/dashboard/global-monthly-client-spend"),
-        ])
-
-        const monthlyPub = monthlyPubResp.ok ? await monthlyPubResp.json() : []
-        const monthlyClient = monthlyClientResp.ok ? await monthlyClientResp.json() : null
-
-        setMonthlyPublisherSpend(Array.isArray(monthlyPub) ? monthlyPub : [])
-        setMonthlyClientSpend(
-          monthlyClient && typeof monthlyClient === "object" && Array.isArray(monthlyClient.data)
-            ? monthlyClient.data
-            : [],
-        )
-        const colours =
-          monthlyClient &&
-          typeof monthlyClient === "object" &&
-          monthlyClient.clientColors &&
-          typeof monthlyClient.clientColors === "object" &&
-          !Array.isArray(monthlyClient.clientColors)
-            ? (monthlyClient.clientColors as Record<string, string>)
-            : {}
-        setClientProfileColors(colours)
-      } catch (error) {
-        console.error("Dashboard: Error fetching monthly breakdowns:", error)
-        setMonthlyPublisherSpend([])
-        setMonthlyClientSpend([])
-        setClientProfileColors({})
-      }
-
-      const mediaPlansResponse = await fetch("/api/media_plans").catch((err) => {
-        console.error("Dashboard: Error fetching media plans:", err)
-        throw new Error("Failed to fetch media plans")
-      })
-
-      if (!mediaPlansResponse.ok) {
-        const errorText = await mediaPlansResponse.text()
-        console.error("Dashboard: Media plans API error:", mediaPlansResponse.status, errorText)
-        throw new Error(`Failed to fetch media plans: ${mediaPlansResponse.status}`)
-      }
-
-      const mediaPlansRaw = await mediaPlansResponse.json()
-      const mediaPlansData = transformMediaPlanData(Array.isArray(mediaPlansRaw) ? mediaPlansRaw : [])
-
-      let scopesData: ScopeOfWork[] = []
-      if (showTables || showMetrics) {
-        const scopesResponse = await fetch("/api/scopes-of-work").catch((err) => {
-          console.error("Dashboard: Error fetching scopes:", err)
-          return { ok: false, json: async () => [] }
-        })
-
-        if (scopesResponse.ok) {
-          const scopesRaw = await scopesResponse.json()
-          scopesData = Array.isArray(scopesRaw) ? scopesRaw : []
+      const warnIfStale = (response: Response, label: string) => {
+        const warning = response.headers.get("x-warning")
+        if (warning) {
+          console.warn(`Dashboard: ${label} served with warning: ${warning}`)
         }
       }
+
+      // Media plans and scopes are independent — one failure must not abort the other.
+      const mediaPlansPromise = fetch("/api/media_plans")
+        .then(async (mediaPlansResponse) => {
+          warnIfStale(mediaPlansResponse, "media_plans")
+          if (!mediaPlansResponse.ok) {
+            const errorText = await mediaPlansResponse.text()
+            console.error("Dashboard: Media plans API error:", mediaPlansResponse.status, errorText)
+            return [] as any[]
+          }
+          const mediaPlansRaw = await mediaPlansResponse.json()
+          return transformMediaPlanData(Array.isArray(mediaPlansRaw) ? mediaPlansRaw : [])
+        })
+        .catch((err) => {
+          console.error("Dashboard: Error fetching media plans:", err)
+          return [] as MediaPlan[]
+        })
+
+      const scopesPromise =
+        showTables || showMetrics
+          ? fetch("/api/scopes-of-work")
+              .then(async (scopesResponse) => {
+                warnIfStale(scopesResponse, "scopes-of-work")
+                if (!scopesResponse.ok) return [] as ScopeOfWork[]
+                const scopesRaw = await scopesResponse.json()
+                return Array.isArray(scopesRaw) ? scopesRaw : []
+              })
+              .catch((err) => {
+                console.error("Dashboard: Error fetching scopes:", err)
+                return [] as ScopeOfWork[]
+              })
+          : Promise.resolve([] as ScopeOfWork[])
+
+      const [mediaPlansSettled, scopesSettled] = await Promise.allSettled([mediaPlansPromise, scopesPromise])
+      const mediaPlansData =
+        mediaPlansSettled.status === "fulfilled" ? mediaPlansSettled.value : []
+      const scopesData = scopesSettled.status === "fulfilled" ? scopesSettled.value : []
 
       setMediaPlans(mediaPlansData)
       setScopes(scopesData)
@@ -1606,68 +1261,6 @@ export default function DashboardOverview({
       const totalLiveScopes = liveScopes.length
       const totalLiveClients = liveClients.size
 
-      const { startDate: fyStartDate, endDate: fyEndDate } = getCurrentFinancialYear()
-      const eligibleCampaignsInFY = statusFilteredPlans.filter((plan) => {
-        const planStartDate = new Date(plan.mp_campaigndates_start)
-        const planEndDate = new Date(plan.mp_campaigndates_end)
-        return planStartDate <= fyEndDate && planEndDate >= fyStartDate
-      })
-
-      const allPublishersSet = new Set<string>()
-      for (const campaign of liveCampaigns) {
-        const schedule = campaign.deliverySchedule ?? campaign.billingSchedule
-        if (schedule) {
-          const publishers = extractPublishersFromSchedule(schedule)
-          publishers.forEach((publisher) => allPublishersSet.add(publisher))
-        }
-      }
-      const totalLivePublishers = allPublishersSet.size
-
-      const publisherSpend: Record<string, number> = {}
-      const clientSpend: Record<string, number> = {}
-
-      for (const campaign of eligibleCampaignsInFY) {
-        const schedule = campaign.deliverySchedule ?? campaign.billingSchedule
-        if (schedule) {
-          try {
-            const { publisherSpend: campaignPublisherSpend, totalSpend: campaignTotalSpend } = extractSpendFromSchedule(schedule, fyStartDate, fyEndDate)
-
-            Object.entries(campaignPublisherSpend).forEach(([publisher, amount]) => {
-              publisherSpend[publisher] = (publisherSpend[publisher] || 0) + amount
-            })
-
-            if (campaign.mp_clientname && campaignTotalSpend > 0) {
-              clientSpend[campaign.mp_clientname] = (clientSpend[campaign.mp_clientname] || 0) + campaignTotalSpend
-            }
-          } catch (error) {
-            console.error(`Error processing billing schedule for campaign ${campaign.mp_mba_number}:`, error)
-          }
-        }
-      }
-
-      const publisherSpendArray = Object.entries(publisherSpend)
-        .map(([name, value]) => ({ name, value: Math.round(value), percentage: 0 }))
-        .filter((item) => item.value > 0)
-        .sort((a, b) => b.value - a.value)
-
-      const totalPublisherSpend = publisherSpendArray.reduce((sum, item) => sum + item.value, 0)
-      publisherSpendArray.forEach((item) => {
-        item.percentage = totalPublisherSpend > 0 ? (item.value / totalPublisherSpend) * 100 : 0
-      })
-
-      const clientSpendArray = Object.entries(clientSpend)
-        .map(([name, value]) => ({ name, value: Math.round(value), percentage: 0 }))
-        .filter((item) => item.value > 0)
-        .sort((a, b) => b.value - a.value)
-
-      const totalClientSpend = clientSpendArray.reduce((sum, item) => sum + item.value, 0)
-      clientSpendArray.forEach((item) => {
-        item.percentage = totalClientSpend > 0 ? (item.value / totalClientSpend) * 100 : 0
-      })
-
-      setPublisherSpendData(publisherSpendArray)
-      setClientSpendData(clientSpendArray)
-
       setDashboardMetrics([
         {
           title: "Total Live Campaigns",
@@ -1695,15 +1288,6 @@ export default function DashboardOverview({
           accent: "bg-channel-bvod",
           iconBg: "bg-surface-panel",
           iconText: "text-channel-bvod",
-        },
-        {
-          title: "Total Live Publishers",
-          value: totalLivePublishers.toString(),
-          icon: ShoppingCart,
-          tooltip: "Unique publishers appearing on live campaigns",
-          accent: "bg-pacing-behind",
-          iconBg: "bg-pacing-behind-bg",
-          iconText: "text-status-behind-fg",
         },
       ])
       setDataLastRefreshedAt(new Date())
@@ -2227,164 +1811,6 @@ export default function DashboardOverview({
     }
   }, [])
 
-  const dashboardClientTreemapColors = useMemo(() => {
-    const out: Record<string, string> = {}
-    for (const row of clientSpendData) {
-      const c = resolveClientProfileColour(row.name, clientProfileColors)
-      if (c) out[row.name] = c
-    }
-    return out
-  }, [clientSpendData, clientProfileColors])
-
-  const dashboardMonthlyClientSeriesColors = useMemo(() => {
-    const names = new Set<string>()
-    for (const m of monthlyClientSpend) {
-      for (const item of m.data) {
-        if (item.client) names.add(item.client)
-      }
-    }
-    const out: Record<string, string> = {}
-    for (const name of names) {
-      const c = resolveClientProfileColour(name, clientProfileColors)
-      if (c) out[name] = c
-    }
-    return out
-  }, [monthlyClientSpend, clientProfileColors])
-
-  const monthlyClientStackedRows = useMemo(
-    () =>
-      monthlyClientSpend.map((m) => ({
-        month: m.month,
-        ...m.data.reduce(
-          (acc, item) => {
-            acc[item.client] = Math.round(item.amount)
-            return acc
-          },
-          {} as Record<string, number>,
-        ),
-      })),
-    [monthlyClientSpend],
-  )
-
-  const monthlyClientStackedSeries = useMemo(() => {
-    const keys = new Set<string>()
-    for (const row of monthlyClientStackedRows) {
-      for (const k of Object.keys(row)) {
-        if (k !== "month") keys.add(k)
-      }
-    }
-    return Array.from(keys)
-      .sort()
-      .map((key, i) => ({
-        key,
-        label: key,
-        color:
-          dashboardMonthlyClientSeriesColors[key] ??
-          `var(--av-chart-${(i % 8) + 1})`,
-      }))
-  }, [monthlyClientStackedRows, dashboardMonthlyClientSeriesColors])
-
-  const monthlyPublisherStackedRows = useMemo(
-    () =>
-      monthlyPublisherSpend.map((m) => ({
-        month: m.month,
-        ...m.data.reduce(
-          (acc, item) => {
-            acc[item.publisher] = Math.round(item.amount)
-            return acc
-          },
-          {} as Record<string, number>,
-        ),
-      })),
-    [monthlyPublisherSpend],
-  )
-
-  const monthlyPublisherStackedSeries = useMemo(() => {
-    const keys = new Set<string>()
-    for (const row of monthlyPublisherStackedRows) {
-      for (const k of Object.keys(row)) {
-        if (k !== "month") keys.add(k)
-      }
-    }
-    return Array.from(keys)
-      .sort()
-      .map((key, i) => ({
-        key,
-        label: key,
-        color: `var(--av-chart-${(i % 8) + 1})`,
-      }))
-  }, [monthlyPublisherStackedRows])
-
-  const publisherTreemapData = useMemo(
-    () => reshapeSpendTreemap(publisherSpendData),
-    [publisherSpendData],
-  )
-
-  const clientTreemapData = useMemo(
-    () => reshapeSpendTreemap(clientSpendData, dashboardClientTreemapColors),
-    [clientSpendData, dashboardClientTreemapColors],
-  )
-
-  const monthlyClientChartRef = useRef<HTMLDivElement>(null)
-  const monthlyPublisherChartRef = useRef<HTMLDivElement>(null)
-  const { exportCsv } = useChartExport()
-  const { toast } = useToast()
-
-  const monthlyClientCsvRows = useMemo(
-    () => buildStackedColumnCsvRows(monthlyClientStackedRows, monthlyClientStackedSeries),
-    [monthlyClientStackedRows, monthlyClientStackedSeries],
-  )
-
-  const monthlyPublisherCsvRows = useMemo(
-    () => buildStackedColumnCsvRows(monthlyPublisherStackedRows, monthlyPublisherStackedSeries),
-    [monthlyPublisherStackedRows, monthlyPublisherStackedSeries],
-  )
-
-  const handleExportMonthlyClientCsv = useCallback(() => {
-    if (!monthlyClientCsvRows.length) {
-      toast({
-        title: "CSV export unavailable",
-        description: "No data available to export for this chart.",
-        variant: "destructive",
-      })
-      return
-    }
-    exportCsv(monthlyClientCsvRows, STACKED_COLUMN_CSV_COLUMNS, "monthly-spend-by-client.csv")
-    toast({
-      title: "CSV exported",
-      description: "Monthly Spend by Client data has been downloaded.",
-    })
-  }, [exportCsv, monthlyClientCsvRows, toast])
-
-  const handleExportMonthlyPublisherCsv = useCallback(() => {
-    if (!monthlyPublisherCsvRows.length) {
-      toast({
-        title: "CSV export unavailable",
-        description: "No data available to export for this chart.",
-        variant: "destructive",
-      })
-      return
-    }
-    exportCsv(monthlyPublisherCsvRows, STACKED_COLUMN_CSV_COLUMNS, "monthly-spend-by-publisher.csv")
-    toast({
-      title: "CSV exported",
-      description: "Monthly Spend by Publisher data has been downloaded.",
-    })
-  }, [exportCsv, monthlyPublisherCsvRows, toast])
-
-  const clientSpendSparklineTable = useMemo(() => {
-    const rows = clientSpendData.slice(0, DASHBOARD_CLIENT_SPARKLINE_TOP_N)
-    if (!monthlyClientSpend.length || rows.length === 0) {
-      return { rows, showTrendColumn: false, seriesByName: {} as Record<string, number[] | null> }
-    }
-    const seriesByName: Record<string, number[] | null> = {}
-    for (const row of rows) {
-      seriesByName[row.name] = extractClientMonthlySeries(monthlyClientSpend, row.name)
-    }
-    const showTrendColumn = Object.values(seriesByName).some((s) => s != null)
-    return { rows, showTrendColumn, seriesByName }
-  }, [clientSpendData, monthlyClientSpend])
-
   if (!mounted || isLoading) {
     return <AuthPageLoading message="Loading dashboard..." />
   }
@@ -2596,8 +2022,6 @@ export default function DashboardOverview({
 
   const tableSectionVisible =
     layoutPanels.liveCampaigns || layoutPanels.scopes || layoutPanels.dueSoon || layoutPanels.finishedRecently
-
-  const chartCardQuiet = "border-0 bg-transparent shadow-none"
 
   return (
     <>
@@ -3186,248 +2610,6 @@ export default function DashboardOverview({
           ) : null}
         </PanelRow>
         </>
-      ) : null}
-
-      <div className="pt-4 pb-1">
-        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Performance insights</h2>
-      </div>
-
-      {layoutPanels.spendBreakdown ? (
-        <PanelRow
-          title="Spend breakdown"
-          helperText="Media cost only — current financial year (billing schedule). Publisher treemap: drill down to the publishers list (query param). Client treemap: filter tables above."
-        >
-          {loading ? (
-            <>
-              <PanelRowCell>
-                <ChartSkeleton />
-              </PanelRowCell>
-              <PanelRowCell>
-                <ChartSkeleton />
-              </PanelRowCell>
-            </>
-          ) : (
-            <>
-          <PanelRowCell>
-            <Panel className="overflow-hidden border-0 shadow-md">
-              <PanelContent standalone className="p-0">
-                <BaseChartCard
-                  title="Spend via Publisher"
-                  subtitle="Media cost only - Current financial year"
-                  className={cn("rounded-lg border-0 shadow-none", chartCardQuiet)}
-                >
-                  <TreemapChart
-                    data={publisherTreemapData}
-                    valueFormat="dollars"
-                    className="aspect-auto h-[280px] w-full"
-                    onNodeClick={(name) => {
-                      const row = publisherSpendData.find((d) => d.name === name)
-                      const value = row?.value ?? 0
-                      const percentage = row?.percentage ?? 0
-                      handleSpendPublisherPieClick(
-                        finalizeChartDatumClickPayload({
-                          chart: "treemap",
-                          source: "cell",
-                          name,
-                          value,
-                          percentage,
-                          index: Math.max(0, publisherSpendData.findIndex((d) => d.name === name)),
-                          datum: { name, value, percentage },
-                        }),
-                      )
-                    }}
-                  />
-                </BaseChartCard>
-              </PanelContent>
-            </Panel>
-          </PanelRowCell>
-          <PanelRowCell>
-            <Panel className="overflow-hidden border-0 shadow-md">
-              <PanelContent standalone className="p-0">
-                <BaseChartCard
-                  title="Spend via Client"
-                  subtitle="Media cost only - Current financial year"
-                  className={cn("rounded-lg border-0 shadow-none", chartCardQuiet)}
-                >
-                  <TreemapChart
-                    data={clientTreemapData}
-                    valueFormat="dollars"
-                    className="aspect-auto h-[280px] w-full"
-                    onNodeClick={(name) => {
-                      const row = clientSpendData.find((d) => d.name === name)
-                      const value = row?.value ?? 0
-                      const percentage = row?.percentage ?? 0
-                      handleSpendClientPieClick(
-                        finalizeChartDatumClickPayload({
-                          chart: "treemap",
-                          source: "cell",
-                          name,
-                          value,
-                          percentage,
-                          index: Math.max(0, clientSpendData.findIndex((d) => d.name === name)),
-                          datum: { name, value, percentage },
-                        }),
-                      )
-                    }}
-                  />
-                </BaseChartCard>
-              </PanelContent>
-            </Panel>
-          </PanelRowCell>
-            </>
-          )}
-        </PanelRow>
-      ) : null}
-
-      {layoutPanels.monthlyTrends ? (
-        <MobileCollapsibleSection
-          isMd={isMd}
-          open={openMonthlyCharts}
-          onOpenChange={setOpenMonthlyCharts}
-          title="Monthly breakdowns"
-          helperText="Stacked totals by client and publisher for the current financial year. Click a segment or legend to filter by client or publisher (and month when clicking a bar segment). Each chart also has a keyboard filter control below the graphic."
-        >
-          {loading ? (
-            <div className="flex flex-col gap-4">
-              <ChartSkeleton />
-              <ChartSkeleton />
-            </div>
-          ) : (
-          <div className="flex flex-col gap-4">
-            <Panel className="overflow-hidden border-0 shadow-md">
-              <PanelContent standalone className="p-0">
-                <BaseChartCard
-                  title="Monthly Spend by Client"
-                  subtitle="Media cost by client per month (current FY, billing schedule)"
-                  className={cn("rounded-lg border-0 shadow-none", chartCardQuiet)}
-                  bodyRef={monthlyClientChartRef}
-                  toolbar={
-                    <ChartExportToolbar
-                      onCsv={handleExportMonthlyClientCsv}
-                      onPng={() =>
-                        void exportPng(monthlyClientChartRef.current, "monthly-spend-by-client.png")
-                      }
-                    />
-                  }
-                >
-                  <StackedBarChart
-                    data={monthlyClientStackedRows}
-                    xKey="month"
-                    series={monthlyClientStackedSeries}
-                    valueFormat="dollars"
-                    className="aspect-auto h-[280px] w-full"
-                    legendVerticalAlign="bottom"
-                    onSeriesClick={({ seriesKey, category, source }) => {
-                      if (source === "legend") {
-                        const sum = monthlyClientStackedRows.reduce(
-                          (s, row) => s + Math.max(0, Number(row[seriesKey]) || 0),
-                          0,
-                        )
-                        handleMonthlyClientChartClick(
-                          finalizeChartDatumClickPayload({
-                            chart: "stackedColumn",
-                            source: "legend",
-                            name: seriesKey,
-                            value: sum,
-                            category: "",
-                            index: Math.max(0, monthlyClientStackedSeries.findIndex((s) => s.key === seriesKey)),
-                            datum: null,
-                          }),
-                        )
-                        return
-                      }
-                      const row = monthlyClientStackedRows.find((r) => r.month === category) as
-                        | ChartStackedColumnRow
-                        | undefined
-                      if (!row || typeof category !== "string") return
-                      handleMonthlyClientChartClick(
-                        finalizeChartDatumClickPayload({
-                          chart: "stackedColumn",
-                          source: "bar",
-                          name: seriesKey,
-                          value: Number(row[seriesKey]) || 0,
-                          category,
-                          index: Math.max(0, monthlyClientStackedSeries.findIndex((s) => s.key === seriesKey)),
-                          datum: row,
-                        }),
-                      )
-                    }}
-                  />
-                </BaseChartCard>
-              </PanelContent>
-            </Panel>
-
-            <Panel className="overflow-hidden border-0 shadow-md">
-              <PanelContent standalone className="p-0">
-                <BaseChartCard
-                  title="Monthly Spend by Publisher"
-                  subtitle="Media cost by publisher per month (current FY, billing schedule)"
-                  className={cn("rounded-lg border-0 shadow-none", chartCardQuiet)}
-                  bodyRef={monthlyPublisherChartRef}
-                  toolbar={
-                    <ChartExportToolbar
-                      onCsv={handleExportMonthlyPublisherCsv}
-                      onPng={() =>
-                        void exportPng(monthlyPublisherChartRef.current, "monthly-spend-by-publisher.png")
-                      }
-                    />
-                  }
-                >
-                  <StackedBarChart
-                    data={monthlyPublisherStackedRows}
-                    xKey="month"
-                    series={monthlyPublisherStackedSeries}
-                    valueFormat="dollars"
-                    className="aspect-auto h-[280px] w-full"
-                    legendVerticalAlign="bottom"
-                    onSeriesClick={({ seriesKey, category, source }) => {
-                      if (source === "legend") {
-                        const sum = monthlyPublisherStackedRows.reduce(
-                          (s, row) => s + Math.max(0, Number(row[seriesKey]) || 0),
-                          0,
-                        )
-                        handleMonthlyPublisherChartClick(
-                          finalizeChartDatumClickPayload({
-                            chart: "stackedColumn",
-                            source: "legend",
-                            name: seriesKey,
-                            value: sum,
-                            category: "",
-                            index: Math.max(
-                              0,
-                              monthlyPublisherStackedSeries.findIndex((s) => s.key === seriesKey),
-                            ),
-                            datum: null,
-                          }),
-                        )
-                        return
-                      }
-                      const row = monthlyPublisherStackedRows.find((r) => r.month === category) as
-                        | ChartStackedColumnRow
-                        | undefined
-                      if (!row || typeof category !== "string") return
-                      handleMonthlyPublisherChartClick(
-                        finalizeChartDatumClickPayload({
-                          chart: "stackedColumn",
-                          source: "bar",
-                          name: seriesKey,
-                          value: Number(row[seriesKey]) || 0,
-                          category,
-                          index: Math.max(
-                            0,
-                            monthlyPublisherStackedSeries.findIndex((s) => s.key === seriesKey),
-                          ),
-                          datum: row,
-                        }),
-                      )
-                    }}
-                  />
-                </BaseChartCard>
-              </PanelContent>
-            </Panel>
-          </div>
-          )}
-        </MobileCollapsibleSection>
       ) : null}
 
     </div>

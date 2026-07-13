@@ -23,6 +23,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug";
+import { coalescedGetJson } from "@/lib/api/coalescedGetJson";
 import { cn } from "@/lib/utils";
 
 interface Client {
@@ -64,11 +65,7 @@ export function AppSidebar() {
 
   async function fetchClients() {
     try {
-      const response = await fetch("/api/clients");
-      if (!response.ok) {
-        throw new Error("Failed to fetch clients");
-      }
-      const data = await response.json();
+      const data = await coalescedGetJson<Client[]>("/api/clients");
       if (Array.isArray(data)) {
         setClients(data);
       }

@@ -10,9 +10,10 @@ import type { AllocatedChannel, ScoredChannel } from "@/app/tools/behavioural-pl
 import type { AdapterResult } from "@/lib/planning/adapter"
 import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
 import { buildCreateCampaignHref } from "@/lib/mediaplan/createPrefill"
-import { dfii } from "@/lib/planning/dfii"
 import { cn } from "@/lib/utils"
-import { DfiiValue, OutcomeCharts, topDfiiLabel } from "./OutcomeCharts"
+import { AllChannelsCompareTable } from "./AllChannelsCompareTable"
+import { OutcomeCharts, topDfiiLabel } from "./OutcomeCharts"
+import { RecommendedSplitBlock } from "./RecommendedSplitBlock"
 import { SavedAudienceAttachList } from "./SavedAudienceAttachList"
 import { AUDIENCE_ACCENTS } from "./constants"
 import { formatAudienceWc, robustnessFromN } from "./robustness"
@@ -56,100 +57,12 @@ type StageCompareProps = {
   onBack: () => void
 }
 
-function fmtDollars(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`
-  if (n >= 1000) return `$${Math.round(n / 1000)}k`
-  return `$${Math.round(n)}`
-}
-
 function blendedReach(allocated: AllocatedChannel[]): number {
   return allocated.reduce((s, a) => s + a.ch.reachPct * 100 * (a.pct / 100), 0)
 }
 
 function topMix(allocated: AllocatedChannel[], n = 3) {
   return allocated.slice(0, n)
-}
-
-type CompareRow = {
-  channelId: string
-  channelName: string
-  cells: Array<{
-    audienceId: string
-    weight: number
-    reachWc: number
-    dollars: number
-    isLead: boolean
-    dfii: number | null
-  } | null>
-  combinedWeight: number
-}
-
-function buildCompareRows(bundles: AudienceCompareBundle[]): CompareRow[] {
-  const channelMap = new Map<
-    string,
-    { name: string; weights: number[]; byAudience: Map<string, AllocatedChannel> }
-  >()
-
-  const dfiiByAudience = new Map<string, Map<string, number | null>>()
-  for (const b of bundles) {
-    const vals = dfii(b.scored.map((s) => ({ bcs: s.bcs })))
-    const map = new Map<string, number | null>()
-    b.scored.forEach((s, i) => map.set(s.ch.id, vals[i] ?? null))
-    dfiiByAudience.set(b.draft.id, map)
-  }
-
-  for (const b of bundles) {
-    for (const a of b.allocated) {
-      const existing = channelMap.get(a.ch.id)
-      if (!existing) {
-        channelMap.set(a.ch.id, {
-          name: a.ch.name,
-          weights: [],
-          byAudience: new Map([[b.draft.id, a]]),
-        })
-      } else {
-        existing.byAudience.set(b.draft.id, a)
-      }
-    }
-  }
-
-  const rows: CompareRow[] = []
-  for (const [channelId, meta] of channelMap) {
-    const cells = bundles.map((b) => {
-      const alloc = meta.byAudience.get(b.draft.id)
-      if (!alloc) return null
-      return {
-        audienceId: b.draft.id,
-        weight: alloc.pct,
-        reachWc: alloc.ch.reachWc ?? 0,
-        dollars: alloc.dollars,
-        isLead: false,
-        dfii: dfiiByAudience.get(b.draft.id)?.get(channelId) ?? null,
-      }
-    })
-
-    let maxW = -1
-    let leadIdx = -1
-    cells.forEach((c, i) => {
-      if (c && c.weight > maxW) {
-        maxW = c.weight
-        leadIdx = i
-      }
-    })
-    if (leadIdx >= 0 && cells[leadIdx]) {
-      cells[leadIdx] = { ...cells[leadIdx]!, isLead: true }
-    }
-
-    const combinedWeight = cells.reduce((s, c) => s + (c?.weight ?? 0), 0)
-    rows.push({
-      channelId,
-      channelName: meta.name,
-      cells,
-      combinedWeight,
-    })
-  }
-
-  return rows.sort((a, b) => b.combinedWeight - a.combinedWeight)
 }
 
 export function StageCompare({
@@ -169,10 +82,10 @@ export function StageCompare({
 }: StageCompareProps) {
   const { toast } = useToast()
   const router = useRouter()
-  const rows = buildCompareRows(bundles)
   const createShare = 100 - diagnosis.createCapture
   const captureShare = diagnosis.createCapture
   const colCount = bundles.length
+  const showDollars = brief.budget > 0
   const [savingId, setSavingId] = useState<string | null>(null)
   const [lastSavedName, setLastSavedName] = useState<string | null>(null)
 
@@ -349,95 +262,9 @@ export function StageCompare({
           <TabsTrigger value="mix">Mix table</TabsTrigger>
           <TabsTrigger value="charts">Charts</TabsTrigger>
         </TabsList>
-        <TabsContent value="mix" className="space-y-4">
-      <div className="overflow-x-auto rounded-card border border-border bg-card shadow-e1">
-        <table className="w-full min-w-[640px] border-collapse text-sm">
-          <thead>
-            <tr className="border-b border-border text-left text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-              <th className="px-3 py-2.5">Channel</th>
-              {bundles.map((b) => {
-                const accent = AUDIENCE_ACCENTS[b.draft.colorIndex]!
-                return (
-                  <th key={b.draft.id} className="px-3 py-2.5">
-                    <span className="inline-flex items-center gap-1.5 normal-case tracking-normal">
-                      <span className={cn("h-2 w-2 rounded-full", accent.bg)} />
-                      {b.draft.name}
-                    </span>
-                  </th>
-                )
-              })}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={1 + bundles.length}
-                  className="px-3 py-6 text-center text-xs text-muted-foreground"
-                >
-                  No scored channels yet — complete audiences and wait for profiles.
-                </td>
-              </tr>
-            ) : (
-              rows.map((row) => (
-                <tr key={row.channelId} className="border-b border-border last:border-0">
-                  <td className="px-3 py-2.5 font-medium">{row.channelName}</td>
-                  {row.cells.map((cell, i) => {
-                    const b = bundles[i]!
-                    const accent = AUDIENCE_ACCENTS[b.draft.colorIndex]!
-                    if (!cell) {
-                      return (
-                        <td key={b.draft.id} className="px-3 py-2.5 text-muted-foreground">
-                          —
-                        </td>
-                      )
-                    }
-                    return (
-                      <td key={b.draft.id} className="px-3 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <div className="h-1.5 min-w-[48px] flex-1 overflow-hidden rounded-pill bg-[var(--fill-track)]">
-                            <div
-                              className="h-full rounded-pill"
-                              style={{
-                                width: `${Math.min(100, cell.weight)}%`,
-                                background: accent.cssVar,
-                              }}
-                            />
-                          </div>
-                          <span className="num w-8 text-right text-xs tabular-nums">
-                            {Math.round(cell.weight)}%
-                          </span>
-                          {cell.isLead ? (
-                            <span
-                              className={cn("h-2 w-2 shrink-0 rounded-full", accent.bg)}
-                              title="Lead"
-                              aria-label="Lead channel for this audience"
-                            />
-                          ) : (
-                            <span className="h-2 w-2 shrink-0" aria-hidden />
-                          )}
-                        </div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-[10px] text-muted-foreground">
-                          <span>
-                            <span className="num tabular-nums">
-                              {formatAudienceWc(cell.reachWc)}
-                            </span>
-                            &apos;000s ·{" "}
-                            <span className="num tabular-nums">{fmtDollars(cell.dollars)}</span>
-                          </span>
-                          <span className="inline-flex items-center gap-1">
-                            DFII <DfiiValue value={cell.dfii} />
-                          </span>
-                        </div>
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+        <TabsContent value="mix" className="space-y-6">
+          <AllChannelsCompareTable bundles={bundles} />
+          <RecommendedSplitBlock bundles={bundles} showDollars={showDollars} />
         </TabsContent>
         <TabsContent value="charts">
           <OutcomeCharts bundles={bundles} onOpenMethodology={onOpenMethodology} />

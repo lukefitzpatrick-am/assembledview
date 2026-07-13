@@ -40,3 +40,7 @@ lint-full.txt
 *.log
 
 .cursor/
+.claude-scratch/
+.mcp.json
+AV_HANDOFF_*.zip
+*.zip

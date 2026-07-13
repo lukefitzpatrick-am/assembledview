@@ -4,6 +4,7 @@ import { fetchAllMediaContainerLineItems, MEDIA_CONTAINER_ENDPOINTS } from "@/li
 import { filterLineItemsByPlanNumber } from "@/lib/api/mediaPlanVersionHelper"
 import { normalizeCampaignLineItems } from "@/lib/mediaplan/normalizeCampaignLineItems"
 import { xanoUrl } from "@/lib/api/xano"
+import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 
 export const dynamic = "force-dynamic"
@@ -526,18 +527,20 @@ export async function GET(
     }
     
     // Collect versions for this MBA. Xano filters can be inconsistent across environments,
-    // so we attempt a targeted fetch first and then fall back to a full table scan.
+    // so we attempt a targeted fetch first and then fall back to a full table scan (paged).
+    // Version history — do NOT use media_plan_versions_latest.
     const collectedVersions: any[] = []
+    const versionsBase = xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
 
     // Targeted fetch by MBA number
     try {
-      const versionQueryUrl = `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${encodeURIComponent(mba_number)}`
-      const versionResponse = await axios.get(versionQueryUrl)
-      const data = Array.isArray(versionResponse.data)
-        ? versionResponse.data
-        : versionResponse.data
-          ? [versionResponse.data]
-          : []
+      const data = await fetchAllXanoPages(
+        versionsBase,
+        { mba_number },
+        "CAMPAIGN_versions_by_mba",
+        100,
+        20
+      )
       collectedVersions.push(...data)
     } catch (err) {
       console.warn("Targeted version fetch by mba_number failed", {
@@ -549,14 +552,13 @@ export async function GET(
     // Fallback: fetch all versions when mba_number filter returns nothing (prevents 404s when filters change)
     if (collectedVersions.length === 0) {
       try {
-        const allVersionsResponse = await axios.get(
-          xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
+        const allData = await fetchAllXanoPages(
+          versionsBase,
+          {},
+          "CAMPAIGN_versions_full_fallback",
+          100,
+          50
         )
-        const allData = Array.isArray(allVersionsResponse.data)
-          ? allVersionsResponse.data
-          : allVersionsResponse.data
-            ? [allVersionsResponse.data]
-            : []
         collectedVersions.push(...allData)
       } catch (err) {
         console.warn("Fallback fetch of all media_plan_versions failed", {
@@ -569,13 +571,13 @@ export async function GET(
     // Additional fallback by master_id to support legacy records that may not include mba_number
     if (collectedVersions.length === 0 && masterData?.id !== undefined) {
       try {
-        const fallbackUrl = `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${encodeURIComponent(masterData.id)}`
-        const fallbackResponse = await axios.get(fallbackUrl)
-        const fallbackData = Array.isArray(fallbackResponse.data)
-          ? fallbackResponse.data
-          : fallbackResponse.data
-            ? [fallbackResponse.data]
-            : []
+        const fallbackData = await fetchAllXanoPages(
+          versionsBase,
+          { media_plan_master_id: masterData.id },
+          "CAMPAIGN_versions_by_master",
+          100,
+          20
+        )
         collectedVersions.push(...fallbackData)
       } catch (fallbackErr) {
         console.warn("Fallback fetch by master_id failed", {

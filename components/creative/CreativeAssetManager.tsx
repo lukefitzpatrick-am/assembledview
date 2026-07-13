@@ -473,6 +473,8 @@ export function CreativeAssetManager({
             assets={filteredAssets}
             lineItemOptions={lineItemOptions}
             defaultBrandName={clientName}
+            clientName={clientName}
+            campaignName={campaignName}
             metaPageId={resolvedMetaPageId}
             onRename={handleRename}
             onLineItemChange={handleLineItemChange}

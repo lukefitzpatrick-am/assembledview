@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { xanoUrl } from '@/lib/api/xano';
+import { parseXanoListPayload, xanoUrl } from '@/lib/api/xano';
 import { sortLineItemsByLineItemNumber } from '@/lib/mediaplan/lineItemIds';
 
 /**
@@ -48,20 +48,18 @@ export async function getVersionNumberForMBA(
       throw new Error(`Media plan master for MBA ${mbaNumber} is missing version_number`);
     }
     
-    // Get the specific version data
+    // Get the specific version data (paged endpoint — pass page/per_page, unwrap items)
     const versionResponse = await axios.get(
-      `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}`
+      `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}&page=1&per_page=50`
     );
     
-    let versionData: any = null;
-    if (Array.isArray(versionResponse.data)) {
-      versionData = versionResponse.data.find((item: any) => 
-        item.media_plan_master_id === masterData.id && 
-        item.version_number === masterData.version_number
-      );
-    } else {
-      versionData = versionResponse.data;
-    }
+    const versionRows = parseXanoListPayload(versionResponse.data)
+    const versionData =
+      versionRows.find(
+        (item: any) =>
+          item.media_plan_master_id === masterData.id &&
+          item.version_number === masterData.version_number
+      ) ?? versionRows[0] ?? null;
     
     if (versionData && versionData.version_number !== undefined && versionData.version_number !== null) {
       return String(versionData.version_number);

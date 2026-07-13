@@ -1,4 +1,5 @@
 import type AvaTool from "./types"
+import type { ChatInterviewQuestion } from "@/lib/ava/types"
 import { toChatFileAttachment } from "@/lib/ava/chatFileAttachment"
 import { fetchAllMediaContainerLineItems } from "@/lib/api/media-containers"
 import {
@@ -7,8 +8,17 @@ import {
   miWorkbookFilename,
   type MiWorkbookCampaign,
 } from "@/lib/specs/buildMiWorkbook"
-import { applyAnswers, resolveMiPlan, type MiAnswer } from "@/lib/specs/resolve"
+import {
+  applyAnswers,
+  type MiAnswer,
+  type MiPlanInput,
+  type MiResolveResult,
+} from "@/lib/specs/resolve"
 import { storeMiWorkbookBuffer } from "@/lib/specs/storeMiExport"
+import {
+  buildMiInterviewPayload,
+  buildMiInterviewQuestionCards,
+} from "./startMiInterview"
 import { asRecord, asString, jsonContent, MI_SCOPE_VERSION_QUESTION_ID, resolveMediaContainerScope, resolveMiVersionScope, resolveScopedMba } from "./helpers"
 
 const XLSX_CONTENT_TYPE =
@@ -43,11 +53,60 @@ function answersFrom(input: Record<string, unknown>): MiAnswer[] {
   })
 }
 
+export type MiWorkbookExportGate =
+  | { allow: true; result: MiResolveResult }
+  | {
+      allow: false
+      payload: {
+        blocked: true
+        openCount: number
+        resolvedCount: number
+        currentQuestion: ReturnType<typeof buildMiInterviewPayload>["currentQuestion"]
+        questionIndex?: number
+        questionTotal?: number
+        message: string
+      }
+      questions: ChatInterviewQuestion[]
+    }
+
+/**
+ * Refuse silent workbook export while interview questions remain unanswered.
+ * Pass exportWithGaps: true only when the user explicitly chooses to export with gaps.
+ */
+export function gateMiWorkbookExport(
+  plan: MiPlanInput,
+  answers: MiAnswer[] = [],
+  options: { exportWithGaps?: boolean } = {},
+): MiWorkbookExportGate {
+  const result = applyAnswers(plan, answers)
+  if (result.summary.open === 0 || options.exportWithGaps === true) {
+    return { allow: true, result }
+  }
+
+  const interview = buildMiInterviewPayload(plan, answers)
+  const questions = buildMiInterviewQuestionCards(plan, answers) ?? []
+
+  return {
+    allow: false,
+    payload: {
+      blocked: true,
+      openCount: interview.openCount,
+      resolvedCount: interview.resolvedCount,
+      currentQuestion: interview.currentQuestion,
+      ...(interview.questionIndex != null ? { questionIndex: interview.questionIndex } : {}),
+      ...(interview.questionTotal != null ? { questionTotal: interview.questionTotal } : {}),
+      message:
+        "Interview incomplete — unanswered questions remain. Resume with start_mi_interview (pass every [mi:…] answer so far), or set exportWithGaps: true only when the user explicitly chooses to export with gaps.",
+    },
+    questions,
+  }
+}
+
 export const generateMiWorkbookTool: AvaTool = {
   definition: {
     name: "generate_mi_workbook",
     description:
-      "Export a material-instructions XLSX workbook for an MBA to private Blob storage. Use only after the MI interview or when an export is explicitly requested. Export-only: answers are not saved back to the media plan. The chat UI shows a download card — confirm briefly (e.g. Workbook ready) and note gaps; do not paste a download URL.",
+      "Export a material-instructions XLSX workbook for an MBA to private Blob storage. Refuses when unanswered interview questions remain (openCount > 0) unless exportWithGaps is true (user explicitly chose stop / export with gaps). Prefer calling only after openCount is 0. Export-only: answers are not saved back to the media plan. The chat UI shows a download card — confirm briefly (e.g. Workbook ready) and note gaps; do not paste a download URL.",
     input_schema: {
       type: "object",
       properties: {
@@ -71,6 +130,11 @@ export const generateMiWorkbookTool: AvaTool = {
             required: ["questionId", "answer"],
             additionalProperties: false,
           },
+        },
+        exportWithGaps: {
+          type: "boolean",
+          description:
+            "Explicit override to export while open interview questions remain (workbook will have NEEDS_SPEC gaps). Set only when the user chooses stop / export with gaps — never by default.",
         },
         versionNumber: {
           type: "number",
@@ -134,7 +198,18 @@ export const generateMiWorkbookTool: AvaTool = {
         (answer) => answer.questionId !== MI_SCOPE_VERSION_QUESTION_ID,
       )
       const plan = { lineItems }
-      const result = planAnswers.length > 0 ? applyAnswers(plan, planAnswers) : resolveMiPlan(plan)
+      const gate = gateMiWorkbookExport(plan, planAnswers, {
+        exportWithGaps: args.exportWithGaps === true,
+      })
+      if (!gate.allow) {
+        return {
+          content: jsonContent(gate.payload),
+          ...(gate.questions.length > 0 ? { questions: gate.questions } : {}),
+          isError: false,
+        }
+      }
+
+      const result = gate.result
       const campaign = campaignFromLineItems(scopedMba.mba, lineItems)
       const { workbook, gapCount } = await buildMiWorkbook({
         ...miPayloadFromResolve(campaign, result),

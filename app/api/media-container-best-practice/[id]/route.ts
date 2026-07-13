@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import axios from "axios"
 import { xanoUrl } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import { invalidateMediaContainerBestPracticeCache } from "@/lib/api/mediaContainerBestPracticeCache"
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -15,6 +16,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         _name: currentUser?.email ?? currentUser?.name ?? null,
       },
     )
+    invalidateMediaContainerBestPracticeCache()
     return NextResponse.json(response.data)
   } catch (error) {
     console.error("Failed to update media-container best practice:", error)

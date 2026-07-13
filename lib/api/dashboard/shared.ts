@@ -4,15 +4,17 @@
 import axios from 'axios'
 import { slugifyClientNameForUrl } from '@/lib/clients/slug'
 import { parseDateNativeSafe } from '@/lib/dates/parseDateNativeSafe'
+import { xanoAuthHeaderRecord } from '@/lib/api/xano'
 
 export const MELBOURNE_TZ = 'Australia/Melbourne'
 export const DAY_MS = 24 * 60 * 60 * 1000
 
-// Create axios instance with timeout
+// Create axios instance with timeout; auth only when XANO_API_KEY is set
 export const apiClient = axios.create({
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
+    ...xanoAuthHeaderRecord(),
   }
 })
 

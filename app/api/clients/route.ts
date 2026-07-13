@@ -1,36 +1,29 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
-import { getCachedClients, invalidateClientsCache, setCachedClients } from "@/lib/cache/clientsCache"
+import {
+  getCachedClientsList,
+  invalidateClientsCache,
+} from "@/lib/cache/clientsCache"
 import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
+import { xanoAuthHeaderRecord } from "@/lib/api/xano"
 
 export const runtime = "nodejs"
 
 const clientsUrl = getXanoClientsCollectionUrl()
 
 const API_TIMEOUT = Number(process.env.XANO_TIMEOUT_MS ?? 5000)
-const MAX_RETRIES = Number(process.env.XANO_MAX_RETRIES ?? 1)
+/** Default 2 so the retry loop can actually retry once (was 1 = dead loop). */
+const MAX_RETRIES = Number(process.env.XANO_MAX_RETRIES ?? 2)
 const OVERALL_TIMEOUT_MS = Number(process.env.XANO_OVERALL_TIMEOUT_MS ?? 6000)
-const CACHE_TTL_MS = Number(process.env.CLIENTS_CACHE_TTL_MS ?? 5 * 60 * 1000)
+const BACKOFF_BASE_MS = 500
+const BACKOFF_FACTOR = 2
 
-function withClientSlug(raw: any) {
-  const name = getClientDisplayName(raw)
-  const xanoSlugOriginal = typeof raw?.slug === "string" ? raw.slug.trim() : ""
-
-  return {
-    ...raw,
-    slug: slugifyClientNameForUrl(name),
-    ...(xanoSlugOriginal
-      ? { xano_url_slug: slugifyClientNameForUrl(xanoSlugOriginal) }
-      : {}),
-  }
-}
-
-// Create an axios instance with default config
+// Create an axios instance with default config; auth only when XANO_API_KEY is set
 const apiClient = axios.create({
   timeout: API_TIMEOUT,
   headers: {
     "Content-Type": "application/json",
+    ...xanoAuthHeaderRecord(),
   },
 })
 
@@ -38,11 +31,16 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-// Helper function to retry API calls
+function backoffDelayMs(attemptIndex: number): number {
+  const base = BACKOFF_BASE_MS * Math.pow(BACKOFF_FACTOR, attemptIndex)
+  const jitter = base * (0.75 + Math.random() * 0.5)
+  return Math.round(jitter)
+}
+
+// Retry with exponential backoff + ±25% jitter (default maxRetries=2 → one real retry)
 async function retryApiCall<T>(
   apiCall: () => Promise<T>,
-  maxRetries = MAX_RETRIES,
-  delayMs = 750
+  maxRetries = MAX_RETRIES
 ): Promise<T> {
   let lastError: any
 
@@ -54,6 +52,7 @@ async function retryApiCall<T>(
       console.error(`API call attempt ${attempt} failed:`, error)
 
       if (attempt < maxRetries) {
+        const delayMs = backoffDelayMs(attempt - 1)
         console.log(`Retrying in ${delayMs}ms...`)
         await sleep(delayMs)
       }
@@ -85,36 +84,12 @@ export async function GET(request: Request) {
     const refreshRaw = url.searchParams.get("refresh")
     const bypassCache = refreshRaw === "1" || refreshRaw === "true" || refreshRaw === "yes"
 
-    if (!bypassCache) {
-      const cached = getCachedClients()
-      if (cached) {
-        return NextResponse.json(cached)
-      }
-    }
-
-    // For now, allow access for development
-    // In production, you would validate the Auth0 session here
-    const response = await withOverallTimeout(retryApiCall(() => apiClient.get(clientsUrl)))
-
-    const payload = Array.isArray(response.data)
-      ? response.data.map(withClientSlug)
-      : response.data
-
-    if (Array.isArray(payload)) {
-      setCachedClients(payload, CACHE_TTL_MS)
-    }
-
-    return NextResponse.json(payload)
+    const { data, stale } = await getCachedClientsList({ bypassCache })
+    const headers: Record<string, string> = {}
+    if (stale) headers["x-warning"] = "served-stale-after-upstream-failure"
+    return NextResponse.json(data, { headers })
   } catch (error) {
     console.error("Failed to fetch clients:", error)
-    const cached = getCachedClients()
-    if (cached) {
-      console.warn("Serving cached clients after upstream failure")
-      return NextResponse.json(cached, {
-        status: 200,
-        headers: { "x-warning": "served-cached-after-upstream-failure" },
-      })
-    }
     // Fail soft with empty list so the sidebar doesn't break admin UI.
     return NextResponse.json([], { status: 200, headers: { "x-warning": "clients-unavailable" } })
   }

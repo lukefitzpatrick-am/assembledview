@@ -4,13 +4,16 @@ import { toMelbourneDateString } from "@/lib/timezone"
 import { xanoUrl } from "@/lib/api/xano"
 import { findExistingMasterByMbaNumber } from "@/lib/api/mediaPlanMasterLookup"
 import { requireRole } from "@/lib/requireRole"
+import {
+  fetchMediaPlansListFallback,
+  getCachedMediaPlansList,
+} from "@/lib/api/mediaPlansListCache"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const maxDuration = 60
 
 const XANO_TIMEOUT_MS = 15_000
-const XANO_LONG_TIMEOUT_MS = 30_000
 
 export async function POST(request: NextRequest) {
   try {
@@ -99,140 +102,37 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET(request: NextRequest) {
+  const t0 = Date.now()
   try {
     const gate = await requireRole(request, ["admin", "manager"])
     if ("response" in gate) return gate.response
 
-    // Fetch from MediaPlanVersions to get the latest versions with media type flags
     try {
-      // Trimmed endpoint: list-view scalar fields only (no billingSchedule/deliverySchedule); sole consumer is app/mediaplans/page.tsx
-      const [versionsResponse, masterResponse] = await Promise.all([
-        axios.get(xanoUrl("media_plan_versions_trimmed", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), {
-          timeout: XANO_LONG_TIMEOUT_MS,
-        }),
-        axios.get(xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), {
-          timeout: XANO_TIMEOUT_MS,
-        }),
-      ])
-      
-      const versionsData = versionsResponse.data
-      const mastersData = Array.isArray(masterResponse.data) ? masterResponse.data : [masterResponse.data]
-      
-      console.log("MediaPlanVersions response:", versionsData)
-      console.log("MediaPlanMaster response:", mastersData)
-      
-      // Create a map of mba_number -> master data for quick lookup
-      const masterMap = new Map<string, any>()
-      mastersData.forEach((master: any) => {
-        if (master.mba_number) {
-          masterMap.set(master.mba_number, master)
-        }
-      })
-      
-      // Find the latest version for each unique MBA number from media_plan_versions
-      // Group by mba_number and keep only the entry with the highest version_number
-      const latestVersionsFromVersions = Object.values(
-        (Array.isArray(versionsData) ? versionsData : [versionsData]).reduce((acc: Record<string, any>, plan: any) => {
-          const mbaNumber = plan.mba_number;
-          if (!mbaNumber) {
-            // Skip plans without an MBA number
-            return acc;
-          }
-          if (!acc[mbaNumber] || acc[mbaNumber].version_number < plan.version_number) {
-            acc[mbaNumber] = plan;
-          }
-          return acc;
-        }, {} as Record<string, any>)
-      );
-
-      // Now merge with master data to get the correct version_number from media_plan_master
-      // Use version_number from media_plan_master as the source of truth
-      const mergedData = latestVersionsFromVersions.map((versionPlan: any) => {
-        const masterData = masterMap.get(versionPlan.mba_number)
-        if (masterData && masterData.version_number !== undefined) {
-          // Override version_number with the one from media_plan_master
-          return {
-            ...versionPlan,
-            version_number: masterData.version_number // Use version_number from master, NOT from versions table
-          }
-        }
-        // If no master found, keep the version from versions table (fallback)
-        console.warn(`No master data found for MBA ${versionPlan.mba_number}, using version_number from versions table`)
-        return versionPlan
-      })
-
-      console.log("Merged data with version_number from media_plan_master:", mergedData)
-      return NextResponse.json(mergedData)
-    } catch (versionsError) {
-      console.log("MediaPlanVersions failed, trying original endpoint:", versionsError.message)
-      
-      // Fallback to the original working endpoint
-      // Use version_number from media_plan_master as the source of truth
-      try {
-        // Fetch master data to get correct version numbers
-        let masterMap = new Map<string, any>()
-        try {
-          const masterResponse = await axios.get(
-            xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
-            { timeout: XANO_TIMEOUT_MS }
-          )
-          const masters = Array.isArray(masterResponse.data) ? masterResponse.data : [masterResponse.data]
-          masters.forEach((master: any) => {
-            if (master.mba_number) {
-              masterMap.set(master.mba_number, master)
-            }
-          })
-        } catch (masterError) {
-          console.log("Could not fetch masters for version number:", masterError)
-        }
-        
-        // get_mediaplan_topline expects version_number in the request body as a POST request
-        // Use a reasonable default, but we'll override with master version_number after
-        let latestVersionId = 1; // Default fallback
-        if (masterMap.size > 0) {
-          const maxVersion = Math.max(...Array.from(masterMap.values()).map((m: any) => m.version_number || 1))
-          latestVersionId = maxVersion
-        }
-        
-        const originalResponse = await axios.post(
-          xanoUrl("get_mediaplan_topline", "XANO_MEDIAPLANS_BASE_URL"),
-          { version_number: latestVersionId },
-          { timeout: XANO_LONG_TIMEOUT_MS }
-        )
-        console.log("Original endpoint response:", originalResponse.data)
-        
-        // Apply the same filtering: group by mba_number and keep only highest version
-        const fallbackData = Array.isArray(originalResponse.data) ? originalResponse.data : [originalResponse.data];
-        const filteredFallbackData = Object.values(
-          fallbackData.reduce((acc: Record<string, any>, plan: any) => {
-            const mbaNumber = plan.mba_number;
-            if (!mbaNumber) {
-              // Skip plans without an MBA number
-              return acc;
-            }
-            if (!acc[mbaNumber] || acc[mbaNumber].version_number < plan.version_number) {
-              acc[mbaNumber] = plan;
-            }
-            return acc;
-          }, {} as Record<string, any>)
-        );
-        
-        // Override version_number with the one from media_plan_master
-        const mergedFallbackData = filteredFallbackData.map((plan: any) => {
-          const masterData = masterMap.get(plan.mba_number)
-          if (masterData && masterData.version_number !== undefined) {
-            return {
-              ...plan,
-              version_number: masterData.version_number // Use version_number from master
-            }
-          }
-          return plan
+      const { data, stale } = await getCachedMediaPlansList()
+      console.log(
+        `[MEDIAPLANS_LIST] cache hit/fresh in ${Date.now() - t0}ms count=${data.length} stale=${stale}`
+      )
+      if (stale) {
+        return NextResponse.json(data, {
+          status: 200,
+          headers: { "x-warning": "served-stale-after-upstream-failure" },
         })
-        
+      }
+      return NextResponse.json(data)
+    } catch (versionsError) {
+      console.log(
+        "MediaPlanVersions failed, trying original endpoint:",
+        versionsError instanceof Error ? versionsError.message : versionsError
+      )
+
+      try {
+        const mergedFallbackData = await fetchMediaPlansListFallback()
+        console.log(
+          `[MEDIAPLANS_LIST] fallback in ${Date.now() - t0}ms count=${mergedFallbackData.length}`
+        )
         return NextResponse.json(mergedFallbackData)
       } catch (fallbackError) {
         console.error("Fallback endpoint also failed:", fallbackError)
-        // Re-throw the original error since fallback also failed
         throw versionsError
       }
     }
@@ -260,4 +160,3 @@ export async function GET(request: NextRequest) {
     );
   }
 }
-
