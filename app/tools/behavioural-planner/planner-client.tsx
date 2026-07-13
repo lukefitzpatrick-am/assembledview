@@ -311,6 +311,19 @@ export function BehaviouralPlannerClient() {
           meta: currentMeta,
           segmentId: effectiveSegmentId(draft.segmentId),
         })
+        if (process.env.NODE_ENV === "development") {
+          console.info("[planner] skippedEngineIds", next.skippedEngineIds)
+          console.info(
+            "[planner] leaf rows without engine",
+            next.taxonomy
+              .filter((r) => r.rowType === "leaf" && !r.engine)
+              .map((r) => ({
+                id: r.channelId,
+                engineId: r.engineChannelId,
+                label: r.label,
+              }))
+          )
+        }
         setResults((prev) => ({
           ...prev,
           [draft.id]: { adapted: next, loading: false, error: null },

@@ -87,7 +87,14 @@ function GroupRows({ group }: { group: TaxonomyGroup }) {
                 isRollup ? "pl-3 font-medium" : "pl-5 font-normal"
               )}
             >
-              {row.label}
+              <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span>{row.label}</span>
+                {isRollup ? (
+                  <span className="text-[10px] font-normal uppercase tracking-wider text-muted-foreground">
+                    Group total
+                  </span>
+                ) : null}
+              </span>
             </td>
             <td className="px-3 py-2.5 text-right">
               <span className="num tabular-nums">{fmtReachPct(row.reachPct)}</span>
@@ -232,9 +239,9 @@ export function StageDiagnosis({
         <div>
           <h3 className="text-sm font-medium">Channel reach</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Full RM taxonomy for the active audience. Group totals show reach only and are
-            excluded from BCS, DFII, and allocation. Search is modelled, not Roy Morgan
-            measured.
+            Full RM taxonomy for the active audience. Group totals show reach only (no
+            status badge) and are excluded from BCS, DFII, and allocation. Search is
+            modelled, not Roy Morgan measured.
           </p>
         </div>
         {taxonomyLoading && taxonomy.length === 0 ? (
