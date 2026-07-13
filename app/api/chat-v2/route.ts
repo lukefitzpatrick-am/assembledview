@@ -207,6 +207,19 @@ function deriveAvaIdentifiers(pageContext?: PageContext): {
 
   if (typeof route === "string" && route) {
     const decoded = decodeURIComponent(route)
+    // Client campaign dashboard: /dashboard/{clientSlug}/{mbaNumber}
+    // Reserved first segments under app/dashboard/* today: only [slug] + page.tsx.
+    const dashboardMatch = decoded.match(/^\/dashboard\/([^/?#]+)\/([^/?#]+)/i)
+    if (dashboardMatch?.[1] && dashboardMatch?.[2]) {
+      const clientSlug = String(dashboardMatch[1]).trim()
+      const mbaNumber = String(dashboardMatch[2]).trim()
+      return {
+        clientSlug: clientSlug || fromEntities.clientSlug,
+        mbaNumber: mbaNumber || fromEntities.mbaNumber,
+        versionNumber: fromEntities.versionNumber,
+        enabledMediaTypes: fromEntities.enabledMediaTypes,
+      }
+    }
     const mbaMatch = decoded.match(/\/mba\/([^/?#]+)/i)
     const mbaNumber = mbaMatch?.[1] ? String(mbaMatch[1]).trim() : undefined
     return {
