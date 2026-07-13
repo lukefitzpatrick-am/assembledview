@@ -145,10 +145,20 @@ function LivePanel({
   draft,
   result,
   segments,
+  brief,
+  waveLabel,
+  insightCacheKey,
+  cachedInsight,
+  onInsight,
 }: {
   draft: AudienceDraft
   result: AudienceResult | undefined
   segments: PlanningSegment[]
+  brief: BriefState
+  waveLabel: string
+  insightCacheKey: string
+  cachedInsight: string | null
+  onInsight: (cacheKey: string, text: string) => void
 }) {
   const lensId = effectiveSegmentId(draft.segmentId)
   const lensLabel = isBaseSegmentLens(draft.segmentId)
@@ -208,6 +218,17 @@ function LivePanel({
             <span className="font-medium">{rob.label}</span>
             <span className="ml-1.5 opacity-90">{rob.detail}</span>
           </div>
+
+          <AudienceInsightBlock
+            draft={draft}
+            adapted={adapted}
+            brief={brief}
+            waveLabel={waveLabel}
+            segments={segments}
+            cacheKey={insightCacheKey}
+            cachedInsight={cachedInsight}
+            onInsight={onInsight}
+          />
 
           <div className="flex flex-wrap gap-1.5">
             {adapted && adapted.suppressedCells > 0 ? (
@@ -471,19 +492,16 @@ export function StageAudiences({
           </div>
         </div>
 
-        <div className="space-y-3">
-          <LivePanel draft={active} result={results[active.id]} segments={segments} />
-          <AudienceInsightBlock
-            draft={active}
-            adapted={results[active.id]?.adapted ?? null}
-            brief={brief}
-            waveLabel={waveLabel}
-            segments={segments}
-            cacheKey={insightCacheKey}
-            cachedInsight={cachedInsight}
-            onInsight={onInsight}
-          />
-        </div>
+        <LivePanel
+          draft={active}
+          result={results[active.id]}
+          segments={segments}
+          brief={brief}
+          waveLabel={waveLabel}
+          insightCacheKey={insightCacheKey}
+          cachedInsight={cachedInsight}
+          onInsight={onInsight}
+        />
       </div>
 
       {/* Comparison strip — never sums audience_wc across audiences */}

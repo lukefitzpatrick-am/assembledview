@@ -146,7 +146,7 @@ export function AudienceInsightBlock({
   }
 
   return (
-    <div className="rounded-card border border-border bg-surface-panel p-4 shadow-e0 space-y-3">
+    <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
         <h4 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
           Audience insight
