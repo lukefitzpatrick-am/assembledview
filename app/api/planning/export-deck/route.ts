@@ -98,7 +98,17 @@ function parseBody(raw: unknown): PlannerDeckInput {
       insight: asString(row.insight, 4000) ?? null,
       topMix: asString(row.topMix, 300) || "—",
       topDfii: asString(row.topDfii, 120) || "—",
-      charts: { reachIndexPng, quadrantPng, dfiiPng },
+      charts: {
+        reachIndexPng,
+        reachIndexPngWidth: asNumber(chartsRaw.reachIndexPngWidth) ?? null,
+        reachIndexPngHeight: asNumber(chartsRaw.reachIndexPngHeight) ?? null,
+        quadrantPng,
+        quadrantPngWidth: asNumber(chartsRaw.quadrantPngWidth) ?? null,
+        quadrantPngHeight: asNumber(chartsRaw.quadrantPngHeight) ?? null,
+        dfiiPng,
+        dfiiPngWidth: asNumber(chartsRaw.dfiiPngWidth) ?? null,
+        dfiiPngHeight: asNumber(chartsRaw.dfiiPngHeight) ?? null,
+      },
     }
   })
 
@@ -139,6 +149,8 @@ function parseBody(raw: unknown): PlannerDeckInput {
     reachBasis: asString(body.reachBasis, 40) || "Addressable",
     audiences,
     splitTablePng,
+    splitTablePngWidth: asNumber(body.splitTablePngWidth) ?? null,
+    splitTablePngHeight: asNumber(body.splitTablePngHeight) ?? null,
     generatedAtLabel: asString(body.generatedAtLabel, 40) || new Date().toLocaleDateString("en-AU"),
   }
 }

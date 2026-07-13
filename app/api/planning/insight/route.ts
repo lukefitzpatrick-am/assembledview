@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { AVA_MODEL, getAnthropicClient } from "@/lib/ava/anthropic"
+import {
+  AVA_MAX_TOKENS,
+  AVA_MODEL,
+  getAnthropicClient,
+} from "@/lib/ava/anthropic"
 import { buildLoadSkillPayload } from "@/lib/ava/tools/loadSkill"
 import { checkInsightRateLimit } from "@/lib/planning/insightRateLimit"
 import { requireRole } from "@/lib/requireRole"
@@ -193,7 +197,7 @@ export async function POST(request: NextRequest) {
     const client = getAnthropicClient()
     const response = await client.messages.create({
       model: AVA_MODEL,
-      max_tokens: 1500,
+      max_tokens: AVA_MAX_TOKENS,
       system,
       messages: [
         {
@@ -209,7 +213,34 @@ export async function POST(request: NextRequest) {
       .join("\n")
       .trim()
 
+    const stopReason = response.stop_reason
+    const outputTokens = Number(response.usage?.output_tokens) || 0
+
+    if (stopReason === "max_tokens") {
+      console.error("[planning/insight] stop", {
+        stopReason,
+        outputTokens,
+      })
+      if (text) {
+        return NextResponse.json({
+          insight: `${text}\n\n[Reply hit the length limit — say "continue" for the rest.]`,
+        })
+      }
+      return NextResponse.json(
+        {
+          error: "generation_failed",
+          message:
+            "That answer exceeded my reply limit before I could write anything. Ask me for a shorter cut (e.g. one section at a time).",
+        },
+        { status: 502 }
+      )
+    }
+
     if (!text) {
+      console.error("[planning/insight] stop", {
+        stopReason,
+        outputTokens,
+      })
       return NextResponse.json(
         { error: "generation_failed", message: "AVA returned an empty insight." },
         { status: 502 }

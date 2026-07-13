@@ -23,12 +23,13 @@ function buildParams(req: LiveMockupRender, accessKey: string): URLSearchParams 
   params.set("block_ads", "false")
   // Capture rendered HTML even when the host returns non-2xx (common on deep AU pages).
   params.set("ignore_host_errors", "true")
-  params.set("wait_until", "networkidle2")
+  // Default wait_until=load — networkidle hangs on ad-heavy pages (trackers never idle).
+  // delay runs after load so GPT/slot injection has time without waiting for idle.
   params.set("delay", "3")
+  // Provider timeout (seconds) below our 55s AbortController so their error beats our abort.
+  params.set("timeout", "50")
   if (req.injectScript) {
     params.set("scripts", req.injectScript)
-    // Injected creative <img> may trigger loads after scripts run.
-    params.set("scripts_wait_until", "networkidle2")
   }
   return params
 }

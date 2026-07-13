@@ -23,9 +23,15 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
+import { MiOpenQuestionsForm } from "@/components/specs/MiOpenQuestionsForm"
 import type { LineItemOption } from "@/lib/creative/lineItemOptions"
 import type { CreativeAsset } from "@/lib/creative/types"
 import type { MiClientPrefill } from "@/lib/specs/applyClientPrefill"
+import {
+  buildMockupMiAutoAnswers,
+  mergeMiAnswers,
+} from "@/lib/specs/miAutoAnswers"
+import type { MiAnswer, MiOpenQuestion } from "@/lib/specs/resolve"
 import { cn } from "@/lib/utils"
 import { captureVideoFrameDataUrl } from "../scenes/useVideoFrames"
 import {
@@ -207,6 +213,9 @@ export function CopyChatPanel({
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
   const [buildingMi, setBuildingMi] = useState(false)
   const [lineItemId, setLineItemId] = useState("")
+  const [miPrefill, setMiPrefill] = useState<MiClientPrefill[] | null>(null)
+  const [miAnswers, setMiAnswers] = useState<MiAnswer[]>([])
+  const [miOpenQuestions, setMiOpenQuestions] = useState<MiOpenQuestion[] | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const hasCopy =
@@ -374,6 +383,81 @@ export function CopyChatPanel({
     }
   }
 
+  function miExportUrl() {
+    return `/api/mediaplans/mba/${encodeURIComponent(mbaNumber!.trim())}/material-instructions`
+  }
+
+  async function dryRunMi(answers: MiAnswer[]) {
+    const response = await fetch(miExportUrl(), {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dry_run: true, answers }),
+    })
+    if (!response.ok) {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null
+      throw new Error(data?.error ?? "Couldn't resolve MI questions.")
+    }
+    return (await response.json()) as {
+      open_questions: MiOpenQuestion[]
+      summary: { resolved: number; open: number }
+    }
+  }
+
+  async function downloadMiWorkbook(
+    answers: MiAnswer[],
+    client_prefill: MiClientPrefill[],
+  ) {
+    const response = await fetch(miExportUrl(), {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answers, client_prefill }),
+    })
+    if (!response.ok) {
+      const data = (await response.json().catch(() => null)) as { error?: string } | null
+      throw new Error(data?.error ?? "Couldn't build the workbook.")
+    }
+    const blob = await response.blob()
+    const disposition = response.headers.get("Content-Disposition") ?? ""
+    const match = disposition.match(/filename="([^"]+)"/)
+    saveAs(blob, match?.[1] ?? "material-instructions.xlsx")
+    const gapCount = Number(response.headers.get("X-Mi-Gap-Count") ?? "0")
+    toast({
+      title: "MI downloaded",
+      description:
+        gapCount > 0
+          ? `Downloaded with ${gapCount} spec gap(s) remaining.`
+          : `Social tab pre-filled for ${client_prefill.length} line item row(s).`,
+    })
+  }
+
+  /** Iteratively dry-run + auto-answer creative_type / format from mockup context. */
+  async function collectMockupAutoAnswers(lineId: string): Promise<{
+    answers: MiAnswer[]
+    openQuestions: MiOpenQuestion[]
+  }> {
+    let answers: MiAnswer[] = []
+    let openQuestions: MiOpenQuestion[] = []
+    for (let step = 0; step < 4; step += 1) {
+      const result = await dryRunMi(answers)
+      openQuestions = result.open_questions ?? []
+      const auto = buildMockupMiAutoAnswers({
+        lineItemId: lineId,
+        mimeTypes: [asset.mime_type],
+        platform,
+        openQuestions,
+      })
+      const merged = mergeMiAnswers(answers, auto)
+      const before = new Set(answers.map((item) => `${item.questionId}=${item.answer}`))
+      const added = merged.some((item) => !before.has(`${item.questionId}=${item.answer}`))
+      answers = merged
+      if (!added) break
+    }
+    const final = await dryRunMi(answers)
+    return { answers, openQuestions: final.open_questions ?? [] }
+  }
+
   async function buildMi() {
     if (!mbaNumber?.trim()) {
       toast({
@@ -412,38 +496,40 @@ export function CopyChatPanel({
         }
       })
 
-      const response = await fetch(
-        `/api/mediaplans/mba/${encodeURIComponent(mbaNumber.trim())}/material-instructions`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ client_prefill }),
-        },
-      )
-
-      if (!response.ok) {
-        const data = (await response.json().catch(() => null)) as { error?: string } | null
-        toast({
-          title: "MI download failed",
-          description: data?.error ?? "Couldn't build the workbook.",
-          variant: "destructive",
-        })
+      const { answers, openQuestions } = await collectMockupAutoAnswers(lineItemId)
+      if (openQuestions.length > 0) {
+        setMiPrefill(client_prefill)
+        setMiAnswers(answers)
+        setMiOpenQuestions(openQuestions)
         return
       }
 
-      const blob = await response.blob()
-      const disposition = response.headers.get("Content-Disposition") ?? ""
-      const match = disposition.match(/filename="([^"]+)"/)
-      saveAs(blob, match?.[1] ?? "material-instructions.xlsx")
-      toast({
-        title: "MI downloaded",
-        description: `Social tab pre-filled for ${indices.length} line item row(s).`,
-      })
-    } catch {
+      await downloadMiWorkbook(answers, client_prefill)
+    } catch (error) {
       toast({
         title: "MI download failed",
-        description: "Something went wrong building the workbook.",
+        description:
+          error instanceof Error ? error.message : "Something went wrong building the workbook.",
+        variant: "destructive",
+      })
+    } finally {
+      setBuildingMi(false)
+    }
+  }
+
+  async function confirmMiQuestions(mergedAnswers: MiAnswer[]) {
+    if (!miPrefill) return
+    setBuildingMi(true)
+    try {
+      await downloadMiWorkbook(mergedAnswers, miPrefill)
+      setMiOpenQuestions(null)
+      setMiPrefill(null)
+      setMiAnswers([])
+    } catch (error) {
+      toast({
+        title: "MI download failed",
+        description:
+          error instanceof Error ? error.message : "Something went wrong building the workbook.",
         variant: "destructive",
       })
     } finally {
@@ -587,7 +673,23 @@ export function CopyChatPanel({
       </div>
 
       <div className="shrink-0 space-y-2 border-t border-border bg-surface-panel p-3">
-        {selected.size > 0 ? (
+        {miOpenQuestions && miOpenQuestions.length > 0 ? (
+          <div className="rounded-card border border-border bg-card p-3">
+            <MiOpenQuestionsForm
+              key={miOpenQuestions.map((question) => question.id).join("|")}
+              openQuestions={miOpenQuestions}
+              initialAnswers={miAnswers}
+              busy={buildingMi}
+              confirmLabel={buildingMi ? "Building MI…" : "Download MI"}
+              onCancel={() => {
+                setMiOpenQuestions(null)
+                setMiPrefill(null)
+                setMiAnswers([])
+              }}
+              onConfirm={(answers) => void confirmMiQuestions(answers)}
+            />
+          </div>
+        ) : selected.size > 0 ? (
           <div className="space-y-2 rounded-input border border-border bg-card p-2">
             {socialLineItems.length > 1 || !asset.line_item_id ? (
               <div className="space-y-1">
@@ -627,6 +729,7 @@ export function CopyChatPanel({
           </div>
         ) : null}
 
+        {miOpenQuestions && miOpenQuestions.length > 0 ? null : (
         <form
           className="flex gap-2"
           onSubmit={(event) => {
@@ -660,6 +763,7 @@ export function CopyChatPanel({
             <Send className="size-4" />
           </Button>
         </form>
+        )}
       </div>
     </div>
   )

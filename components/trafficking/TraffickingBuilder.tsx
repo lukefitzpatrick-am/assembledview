@@ -660,13 +660,21 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
       const filename = response.headers
         .get("content-disposition")
         ?.match(/filename="([^"]+)"/i)?.[1] || "material-instructions.xlsx"
+      const gapCount = Number(response.headers.get("X-Mi-Gap-Count") ?? "0")
       const url = URL.createObjectURL(await response.blob())
       const link = document.createElement("a")
       link.href = url
       link.download = filename
       link.click()
       URL.revokeObjectURL(url)
-      toast({ title: "Downloaded", description: filename })
+      if (gapCount > 0) {
+        toast({
+          title: "Downloaded with spec gaps",
+          description: `This MI has ${gapCount} spec gaps (NEEDS_SPEC) — build from the creative mockup or answer the spec questions to fill them.`,
+        })
+      } else {
+        toast({ title: "Downloaded", description: filename })
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to download material instructions"

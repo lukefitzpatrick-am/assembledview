@@ -162,14 +162,23 @@ export function exportCsv(rows: Record<string, unknown>[], filename = 'chart.csv
   triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8' }), filename);
 }
 
+export type CapturedPng = {
+  dataUrl: string
+  /** Pixel width of the rendered PNG. */
+  width: number
+  /** Pixel height of the rendered PNG. */
+  height: number
+}
+
 /**
  * Render the first <svg> inside `el` to a PNG data URL (or html2canvas fallback).
  * Works for Recharts / custom-SVG charts and HTML tables.
+ * Returns pixel dimensions so exporters can preserve aspect ratio.
  */
 export async function captureNodePng(
   el: HTMLElement | null,
   scale = 2
-): Promise<string | null> {
+): Promise<CapturedPng | null> {
   if (!el) return null
 
   const svg = el.querySelector("svg")
@@ -196,7 +205,11 @@ export async function captureNodePng(
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     ctx.scale(scale, scale)
     ctx.drawImage(img, 0, 0)
-    return canvas.toDataURL("image/png")
+    return {
+      dataUrl: canvas.toDataURL("image/png"),
+      width: canvas.width,
+      height: canvas.height,
+    }
   }
 
   const html2canvas = (await import("html2canvas")).default
@@ -206,7 +219,11 @@ export async function captureNodePng(
     logging: false,
     useCORS: true,
   })
-  return canvas.toDataURL("image/png")
+  return {
+    dataUrl: canvas.toDataURL("image/png"),
+    width: canvas.width,
+    height: canvas.height,
+  }
 }
 
 /**
@@ -214,9 +231,9 @@ export async function captureNodePng(
  * Works for both the Recharts charts and the custom-SVG ones.
  */
 export async function exportPng(el: HTMLElement | null, filename = "chart.png", scale = 2) {
-  const dataUrl = await captureNodePng(el, scale)
-  if (!dataUrl) return
-  const res = await fetch(dataUrl)
+  const captured = await captureNodePng(el, scale)
+  if (!captured) return
+  const res = await fetch(captured.dataUrl)
   const blob = await res.blob()
   triggerDownload(blob, filename)
 }
