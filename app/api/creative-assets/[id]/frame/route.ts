@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { get } from "@vercel/blob"
 
+import { getPrivateBlob } from "@/lib/creative/getPrivateBlob"
 import { getById, XanoCreativeAssetError } from "@/lib/creative/xanoCreativeAssets"
 import { verifyFrameToken } from "@/lib/creative/liveMockup/frameSign"
 
@@ -45,7 +45,7 @@ export async function GET(
       return NextResponse.json({ error: "not_found" }, { status: 404 })
     }
 
-    const blobResult = await get(row.blob_url, { access: "private" })
+    const blobResult = await getPrivateBlob(row.blob_url)
     if (!blobResult || blobResult.statusCode !== 200 || !blobResult.stream) {
       return NextResponse.json({ error: "not_found" }, { status: 404 })
     }

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import { get } from "@vercel/blob"
 import JSZip from "jszip"
 import { auth0 } from "@/lib/auth0"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { getUserRoles } from "@/lib/rbac"
+import { getPrivateBlob } from "@/lib/creative/getPrivateBlob"
 import { getById, XanoCreativeAssetError } from "@/lib/creative/xanoCreativeAssets"
 
 export const runtime = "nodejs"
@@ -170,7 +170,7 @@ export async function GET(
       return previewJson({ error: "Preview is only available for HTML5 zip bundles" }, 400)
     }
 
-    const blobResult = await get(row.blob_url, { access: "private" })
+    const blobResult = await getPrivateBlob(row.blob_url)
     if (!blobResult || blobResult.statusCode !== 200 || !blobResult.stream) {
       return previewJson({ error: "Blob not found" }, 404)
     }

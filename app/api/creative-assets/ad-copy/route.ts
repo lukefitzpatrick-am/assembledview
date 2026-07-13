@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import { get } from "@vercel/blob"
 import type Anthropic from "@anthropic-ai/sdk"
 import { z } from "zod"
 
@@ -17,6 +16,7 @@ import {
 import { buildAdCopyAvContext } from "@/lib/creative/adCopy/avContext"
 import { researchClientBrief } from "@/lib/creative/adCopy/researchClient"
 import { checkAdCopyRateLimit } from "@/lib/creative/adCopy/rateLimit"
+import { getPrivateBlob } from "@/lib/creative/getPrivateBlob"
 import type { CreativeAsset } from "@/lib/creative/types"
 import { getById, XanoCreativeAssetError } from "@/lib/creative/xanoCreativeAssets"
 import { requireRole } from "@/lib/requireRole"
@@ -191,7 +191,7 @@ async function loadImageBase64(
     throw new Error("unsupported_mime")
   }
 
-  const blobResult = await get(row.blob_url, { access: "private" })
+  const blobResult = await getPrivateBlob(row.blob_url)
   if (!blobResult || blobResult.statusCode !== 200 || !blobResult.stream) {
     throw new Error("blob_missing")
   }
