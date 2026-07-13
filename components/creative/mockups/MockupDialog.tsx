@@ -118,17 +118,56 @@ export function MockupDialog({
           </div>
         </DialogHeader>
 
-        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-          <div className="min-h-0 min-w-0 flex-1 overflow-auto bg-background px-4 py-6 sm:px-8 xl:min-w-[480px]">
-            {asset ? (
-              isLive ? (
-                <LivePageMockup
-                  asset={asset}
-                  onUseBuiltInTemplates={() => setTemplateId("news-article")}
-                />
-              ) : isScene ? (
-                <TvSceneMockup asset={asset} />
-              ) : isSocial ? (
+        {showSocialRail && asset && socialPlatform ? (
+          <>
+            {/* xl+: three floating cards on one canvas */}
+            <div className="hidden min-h-0 flex-1 overflow-auto bg-background px-4 py-6 xl:block sm:px-8">
+              <div className="flex items-start justify-center gap-6">
+                <div className="shrink-0">
+                  <SocialMockFrames
+                    templateId={
+                      templateId as
+                        | "facebook-feed"
+                        | "instagram-feed"
+                        | "instagram-story"
+                        | "tiktok"
+                    }
+                    copy={adCopy}
+                    asset={asset}
+                    metaPageId={metaPageId}
+                  />
+                </div>
+
+                <aside className="w-[300px] shrink-0 rounded-card border border-border bg-card p-4 shadow-e1">
+                  <p className="mb-3 text-sm font-medium text-foreground">Ad details</p>
+                  <SocialAdDetailsForm
+                    copy={adCopy}
+                    onChange={setAdCopy}
+                    showDescription={templateId === "facebook-feed"}
+                  />
+                </aside>
+
+                <aside className="flex max-h-[80vh] w-[380px] shrink-0 flex-col overflow-hidden rounded-card border border-border bg-card shadow-e1">
+                  <CopyChatPanel
+                    asset={asset}
+                    platform={socialPlatform}
+                    copy={adCopy}
+                    onChange={setAdCopy}
+                    showDescription={templateId === "facebook-feed"}
+                    clientName={clientName}
+                    campaignName={campaignName}
+                    mbaNumber={mbaNumber}
+                    socialLineItems={socialLineItems}
+                    hideDetailsAccordion
+                    className="max-h-[80vh]"
+                  />
+                </aside>
+              </div>
+            </div>
+
+            {/* Below xl: stacked mock + accordion/chat */}
+            <div className="flex min-h-0 flex-1 flex-col xl:hidden lg:flex-row">
+              <div className="min-h-0 min-w-0 flex-1 overflow-auto bg-background px-4 py-6 sm:px-8">
                 <SocialMockFrames
                   templateId={
                     templateId as
@@ -141,29 +180,8 @@ export function MockupDialog({
                   asset={asset}
                   metaPageId={metaPageId}
                 />
-              ) : isWebpage ? (
-                <WebPageMockTemplates
-                  templateId={templateId as "news-article" | "homepage"}
-                  asset={asset}
-                />
-              ) : null
-            ) : null}
-          </div>
-
-          {showSocialRail && asset && socialPlatform ? (
-            <>
-              {/* xl+: Ad details as its own column */}
-              <aside className="hidden min-h-0 w-[300px] shrink-0 flex-col overflow-y-auto border-l border-border bg-surface-panel p-4 xl:flex">
-                <p className="mb-3 text-sm font-medium text-foreground">Ad details</p>
-                <SocialAdDetailsForm
-                  copy={adCopy}
-                  onChange={setAdCopy}
-                  showDescription={templateId === "facebook-feed"}
-                />
-              </aside>
-
-              {/* Below xl: accordion+chat stacked; xl+: workshop only (details column above) */}
-              <aside className="flex min-h-0 w-full shrink-0 flex-col border-t border-border bg-surface-panel lg:w-[400px] xl:w-[380px] xl:border-l xl:border-t-0">
+              </div>
+              <aside className="flex min-h-0 w-full shrink-0 flex-col border-t border-border bg-surface-panel lg:w-[400px] lg:border-l lg:border-t-0">
                 <CopyChatPanel
                   asset={asset}
                   platform={socialPlatform}
@@ -176,9 +194,40 @@ export function MockupDialog({
                   socialLineItems={socialLineItems}
                 />
               </aside>
-            </>
-          ) : null}
-        </div>
+            </div>
+          </>
+        ) : (
+          <div className="min-h-0 flex-1 overflow-auto bg-background px-4 py-6 sm:px-8">
+            {asset ? (
+              isLive ? (
+                <LivePageMockup
+                  asset={asset}
+                  onUseBuiltInTemplates={() => setTemplateId("news-article")}
+                />
+              ) : isScene ? (
+                <TvSceneMockup asset={asset} />
+              ) : isWebpage ? (
+                <WebPageMockTemplates
+                  templateId={templateId as "news-article" | "homepage"}
+                  asset={asset}
+                />
+              ) : isSocial && socialPlatform ? (
+                <SocialMockFrames
+                  templateId={
+                    templateId as
+                      | "facebook-feed"
+                      | "instagram-feed"
+                      | "instagram-story"
+                      | "tiktok"
+                  }
+                  copy={adCopy}
+                  asset={asset}
+                  metaPageId={metaPageId}
+                />
+              ) : null
+            ) : null}
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   )

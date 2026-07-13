@@ -2,7 +2,9 @@
 
 import type { ReactNode } from "react"
 import { useEffect, useState } from "react"
+import { ImageOff } from "lucide-react"
 
+import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Tooltip,
@@ -121,6 +123,8 @@ function RawMedia({
   className,
   objectUrl,
   objectLoading,
+  objectError,
+  onRetry,
 }: {
   asset: CreativeAsset
   fit: MediaFit
@@ -128,21 +132,44 @@ function RawMedia({
   /** Shared blob URL when parent already loaded the video. */
   objectUrl?: string | null
   objectLoading?: boolean
+  objectError?: string | null
+  onRetry?: () => void
 }) {
   const objectClass = fit === "contain" ? "object-contain" : "object-cover"
   const fetched = useMediaObjectUrl(
     isVideo(asset.mime_type) && objectUrl === undefined ? asset : null,
   )
   const videoSrc = objectUrl !== undefined ? objectUrl : fetched.url
+  const videoError = objectUrl !== undefined ? objectError ?? null : fetched.error
   const videoLoading =
-    objectUrl !== undefined ? Boolean(objectLoading) : fetched.loading || !fetched.url
+    objectUrl !== undefined
+      ? Boolean(objectLoading) && !videoError
+      : fetched.loading
+  const retry = onRetry ?? fetched.retry
 
   if (isVideo(asset.mime_type)) {
+    if (videoError) {
+      return (
+        <div
+          className={cn(
+            "flex h-full w-full flex-col items-center justify-center gap-2 bg-muted px-4 text-center",
+            className,
+          )}
+          role="alert"
+        >
+          <ImageOff className="size-6 text-status-critical-fg" aria-hidden />
+          <p className="text-xs text-status-critical-fg">{videoError}</p>
+          <Button type="button" size="sm" variant="secondary" onClick={retry}>
+            Retry
+          </Button>
+        </div>
+      )
+    }
     if (videoLoading || !videoSrc) {
       return (
         <Skeleton
           className={cn("h-full w-full rounded-none", className)}
-          aria-label={fetched.error ?? "Loading video preview"}
+          aria-label="Loading video preview"
         />
       )
     }
@@ -237,7 +264,9 @@ export function StoryMedia({
   const videoProps = isVideo(asset.mime_type)
     ? {
         objectUrl: sharedVideo.url,
-        objectLoading: sharedVideo.loading || !sharedVideo.url,
+        objectLoading: sharedVideo.loading,
+        objectError: sharedVideo.error,
+        onRetry: sharedVideo.retry,
       }
     : {}
 

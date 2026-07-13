@@ -8,6 +8,8 @@ type MediaObjectUrlState = {
   url: string | null
   loading: boolean
   error: string | null
+  /** Re-trigger the download fetch (clears failed state). */
+  retry: () => void
 }
 
 /**
@@ -18,6 +20,7 @@ export function useMediaObjectUrl(asset: CreativeAsset | null): MediaObjectUrlSt
   const [url, setUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
 
   useEffect(() => {
     if (!asset) {
@@ -61,7 +64,12 @@ export function useMediaObjectUrl(asset: CreativeAsset | null): MediaObjectUrlSt
       cancelled = true
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [asset?.id])
+  }, [asset?.id, retryKey])
 
-  return { url, loading, error }
+  return {
+    url,
+    loading,
+    error,
+    retry: () => setRetryKey((key) => key + 1),
+  }
 }

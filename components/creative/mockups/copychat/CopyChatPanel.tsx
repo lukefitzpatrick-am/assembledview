@@ -54,6 +54,8 @@ type ChatMessage = {
   role: "user" | "assistant"
   text: string
   options?: AdCopyVariant[]
+  /** Distinct from AVA copy — muted/critical failure bubble. */
+  tone?: "error"
 }
 
 type CopyChatPanelProps = {
@@ -68,6 +70,7 @@ type CopyChatPanelProps = {
   socialLineItems: LineItemOption[]
   /** When true, Ad details are rendered beside this panel — skip the accordion. */
   hideDetailsAccordion?: boolean
+  className?: string
 }
 
 const SUGGESTIONS = [
@@ -193,6 +196,7 @@ export function CopyChatPanel({
   mbaNumber,
   socialLineItems,
   hideDetailsAccordion = false,
+  className,
 }: CopyChatPanelProps) {
   const { toast } = useToast()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -282,7 +286,21 @@ export function CopyChatPanel({
     try {
       let videoFrameDataUrl: string | undefined
       if (isVideo(asset.mime_type)) {
-        videoFrameDataUrl = await captureVideoFrameDataUrl(asset)
+        try {
+          videoFrameDataUrl = await captureVideoFrameDataUrl(asset)
+        } catch (frameError) {
+          console.error("[CopyChatPanel] frame capture failed", frameError)
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: newId(),
+              role: "assistant",
+              tone: "error",
+              text: "Couldn't read the creative — media downloads are failing (see console)",
+            },
+          ])
+          return
+        }
       }
 
       const response = await fetch("/api/creative-assets/ad-copy", {
@@ -311,12 +329,16 @@ export function CopyChatPanel({
       }
 
       if (!response.ok) {
-        toast({
-          title: response.status === 429 ? "Rate limited" : "AVA couldn't write copy",
-          description: data.message ?? "Try again in a moment.",
-          variant: "destructive",
-        })
-        setMessages((prev) => prev.filter((msg) => msg.id !== userMessage.id))
+        console.error("[CopyChatPanel] ad-copy POST failed", response.status, data)
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: newId(),
+            role: "assistant",
+            tone: "error",
+            text: "Couldn't read the creative — media downloads are failing (see console)",
+          },
+        ])
         return
       }
 
@@ -336,13 +358,17 @@ export function CopyChatPanel({
         setSelected(new Set())
         setPreviewIndex(null)
       }
-    } catch {
-      toast({
-        title: "AVA couldn't write copy",
-        description: "Something went wrong. You can still edit the fields manually.",
-        variant: "destructive",
-      })
-      setMessages((prev) => prev.filter((msg) => msg.id !== userMessage.id))
+    } catch (error) {
+      console.error("[CopyChatPanel] ad-copy request failed", error)
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: newId(),
+          role: "assistant",
+          tone: "error",
+          text: "Couldn't read the creative — media downloads are failing (see console)",
+        },
+      ])
     } finally {
       setSending(false)
     }
@@ -426,7 +452,7 @@ export function CopyChatPanel({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className={cn("flex h-full min-h-0 flex-col", className)}>
       {!hideDetailsAccordion ? (
         <Accordion
           type="single"
@@ -489,8 +515,11 @@ export function CopyChatPanel({
               "rounded-card px-3 py-2 text-sm",
               message.role === "user"
                 ? "ml-6 bg-primary text-primary-foreground"
-                : "mr-4 border border-border bg-card text-foreground",
+                : message.tone === "error"
+                  ? "mr-4 border border-destructive/40 bg-pacing-critical-bg text-status-critical-fg"
+                  : "mr-4 border border-border bg-card text-foreground",
             )}
+            role={message.tone === "error" ? "alert" : undefined}
           >
             <p className="whitespace-pre-wrap">{message.text}</p>
           </div>
