@@ -1,5 +1,5 @@
 {
-  "importedAt": "2026-07-11T10:30:00Z",
+  "importedAt": "2026-07-13T00:00:00Z",
   "sourceZip": "ava-skills-drop-v2.zip",
   "skills": {
     "assembled-marketing-brain": "1.1.0",
@@ -9,6 +9,7 @@
     "assembled-search-copy": "1.2.0",
     "assembled-linkedin-copy": "1.1.0",
     "assembled-video-scripts": "1.1.0",
-    "assembled-presentations": "1.2.0"
+    "assembled-presentations": "1.2.0",
+    "assembled-performance-review-report": "1.0.0"
   }
 }

@@ -89,6 +89,15 @@ const SKILL_META: Record<
     chains: [MARKETING_BRAIN_ID],
     pairedTools: ["get_campaign_context", "get_pacing_snapshot"],
   },
+  "assembled-performance-review-report": {
+    title: "Performance review & report",
+    chains: [MARKETING_BRAIN_ID],
+    pairedTools: [
+      "get_pacing_snapshot",
+      "get_campaign_context",
+      "generate_performance_report",
+    ],
+  },
 }
 
 const EXPECTED_SKILL_IDS = Object.keys(SKILL_META)
@@ -189,7 +198,7 @@ function loadSkillFromDisk(id: string, dir: string): AvaSkillEntry {
 let cachedRegistry: AvaSkillEntry[] | null = null
 
 /**
- * Load all 8 skills. Cached after first successful load in-process.
+ * Load all 9 skills. Cached after first successful load in-process.
  */
 export function loadSkillRegistry(dir = skillsContentDir()): AvaSkillEntry[] {
   if (cachedRegistry && dir === skillsContentDir()) return cachedRegistry

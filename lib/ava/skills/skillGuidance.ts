@@ -28,7 +28,8 @@ Load at most ONE skill per turn (plus its auto-chained decision rules). Page ski
 Commentary: load assembled-insight-commentary THEN get_pacing_snapshot / get_campaign_context.
 Copy (meta/search/linkedin/video): load the matching copy skill THEN get_client_details + get_saved_audiences + get_best_practice + get_platform_specs.
 Audience insight: load assembled-audience-insight THEN get_saved_audiences + get_methodology + use planning page context.
-Presentations: load assembled-presentations (outline-only in Ava) THEN get_campaign_context / get_pacing_snapshot as needed — do not generate .pptx.
+Presentations: load assembled-presentations (outline-only in Ava) THEN get_campaign_context / get_pacing_snapshot as needed — do not generate .pptx (the ONE exception is generate_performance_report inside assembled-performance-review-report).
+Performance review & report (campaign dashboard pages / Review & Report button): load assembled-performance-review-report THEN get_pacing_snapshot + get_campaign_context. generate_performance_report ONLY after the user explicitly confirms the reviewed narrative — never unprompted.
 ${rows.join("\n")}
 `.trim()
 }
