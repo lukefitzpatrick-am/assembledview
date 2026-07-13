@@ -51,7 +51,7 @@ export const getCampaignContextTool: AvaTool = {
     try {
       const { versionNumber, mediaTypeFilter } = resolveMediaContainerScope(context)
       const [summary, byChannel] = await Promise.all([
-        getAvaXanoSummary({ clientSlug, mbaNumber: mba }),
+        getAvaXanoSummary({ clientSlug, mbaNumber: mba, versionNumber }),
         fetchAllMediaContainerLineItems(mba, versionNumber, mediaTypeFilter),
       ])
 

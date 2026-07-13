@@ -25,7 +25,11 @@ export const getMediaPlanSummaryTool: AvaTool = {
     }
 
     try {
-      const summary = await getAvaXanoSummary({ clientSlug, mbaNumber });
+      const summary = await getAvaXanoSummary({
+        clientSlug,
+        mbaNumber,
+        versionNumber: context.versionNumber,
+      });
       if (summary === "") {
         return {
           content:

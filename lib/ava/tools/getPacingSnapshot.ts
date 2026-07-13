@@ -102,7 +102,9 @@ export const getPacingSnapshotTool: AvaTool = {
       }
 
       const [planSummary, search, social, programmatic, adServing, direct] = await Promise.all([
-        mbaNumber ? getAvaXanoSummary({ clientSlug, mbaNumber }) : Promise.resolve(""),
+        mbaNumber
+          ? getAvaXanoSummary({ clientSlug, mbaNumber, versionNumber: context.versionNumber })
+          : Promise.resolve(""),
         getCachedSearchPacingRows(asOfDate, allowedClientSlugs),
         getCachedSocialPacingRows(asOfDate, allowedClientSlugs),
         getCachedProgrammaticPacingRows(asOfDate, allowedClientSlugs),
