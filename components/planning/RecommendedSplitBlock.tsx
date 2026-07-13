@@ -24,6 +24,7 @@ type SplitRow = {
     dfii: number | null
   } | null>
   combinedWeight: number
+  scoredOrder: number
 }
 
 function fmtDollars(n: number): string {
@@ -39,7 +40,7 @@ function fmtPct(n: number): string {
 function buildSplitRows(bundles: AudienceCompareBundle[]): SplitRow[] {
   const channelMap = new Map<
     string,
-    { name: string; byAudience: Map<string, AllocatedChannel> }
+    { name: string; byAudience: Map<string, AllocatedChannel | null>; scoredOrder: number }
   >()
 
   const dfiiByAudience = new Map<string, Map<string, number | null>>()
@@ -50,29 +51,46 @@ function buildSplitRows(bundles: AudienceCompareBundle[]): SplitRow[] {
     dfiiByAudience.set(b.draft.id, map)
   }
 
+  const allocByAudience = new Map<string, Map<string, AllocatedChannel>>()
   for (const b of bundles) {
-    for (const a of b.allocated) {
-      const existing = channelMap.get(a.ch.id)
+    allocByAudience.set(
+      b.draft.id,
+      new Map(b.allocated.map((a) => [a.ch.id, a]))
+    )
+  }
+
+  // All scored channels (BCS desc via computeBcs), left-join allocation.
+  bundles.forEach((b, bundleIdx) => {
+    b.scored.forEach((s, scoreIdx) => {
+      const existing = channelMap.get(s.ch.id)
+      const alloc = allocByAudience.get(b.draft.id)?.get(s.ch.id) ?? null
       if (!existing) {
-        channelMap.set(a.ch.id, {
-          name: a.ch.name,
-          byAudience: new Map([[b.draft.id, a]]),
+        channelMap.set(s.ch.id, {
+          name: s.ch.name,
+          byAudience: new Map([[b.draft.id, alloc]]),
+          // Prefer first audience's BCS order as primary sort key.
+          scoredOrder: bundleIdx === 0 ? scoreIdx : 10_000 + scoreIdx,
         })
       } else {
-        existing.byAudience.set(b.draft.id, a)
+        existing.byAudience.set(b.draft.id, alloc)
+        if (bundleIdx === 0) existing.scoredOrder = scoreIdx
       }
-    }
-  }
+    })
+  })
 
   const rows: SplitRow[] = []
   for (const [channelId, meta] of channelMap) {
     const cells = bundles.map((b) => {
-      const alloc = meta.byAudience.get(b.draft.id)
-      if (!alloc) return null
+      if (!meta.byAudience.has(b.draft.id) && !b.scored.some((s) => s.ch.id === channelId)) {
+        return null
+      }
+      const alloc = meta.byAudience.get(b.draft.id) ?? null
+      const inScored = b.scored.some((s) => s.ch.id === channelId)
+      if (!inScored) return null
       return {
         audienceId: b.draft.id,
-        pct: alloc.pct,
-        dollars: alloc.dollars,
+        pct: alloc?.pct ?? 0,
+        dollars: alloc?.dollars ?? 0,
         isLead: false,
         dfii: dfiiByAudience.get(b.draft.id)?.get(channelId) ?? null,
       }
@@ -81,12 +99,13 @@ function buildSplitRows(bundles: AudienceCompareBundle[]): SplitRow[] {
     let maxW = -1
     let leadIdx = -1
     cells.forEach((c, i) => {
+      // Lead only among channels that carry budget (top-N allocation).
       if (c && c.pct > maxW) {
         maxW = c.pct
         leadIdx = i
       }
     })
-    if (leadIdx >= 0 && cells[leadIdx]) {
+    if (leadIdx >= 0 && cells[leadIdx] && cells[leadIdx]!.pct > 0) {
       cells[leadIdx] = { ...cells[leadIdx]!, isLead: true }
     }
 
@@ -96,18 +115,12 @@ function buildSplitRows(bundles: AudienceCompareBundle[]): SplitRow[] {
       channelName: meta.name,
       cells,
       combinedWeight,
+      scoredOrder: meta.scoredOrder,
     })
   }
 
-  // Preserve allocate rank order: first audience's allocated order, then any extras by weight.
-  const primaryOrder = bundles[0]?.allocated.map((a) => a.ch.id) ?? []
-  const orderIndex = new Map(primaryOrder.map((id, i) => [id, i]))
   return rows.sort((a, b) => {
-    const ai = orderIndex.get(a.channelId)
-    const bi = orderIndex.get(b.channelId)
-    if (ai != null && bi != null) return ai - bi
-    if (ai != null) return -1
-    if (bi != null) return 1
+    if (a.scoredOrder !== b.scoredOrder) return a.scoredOrder - b.scoredOrder
     return b.combinedWeight - a.combinedWeight
   })
 }
@@ -129,8 +142,9 @@ export function RecommendedSplitBlock({
       <div>
         <h3 className="text-sm font-medium">Recommended split</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Top {bundles[0]?.allocated.length || 8} channels by BCS (power 1.5). Percentages
-          sum to 100% per audience
+          All channels shown with DFII. Budget concentrates in the top{" "}
+          {bundles[0]?.allocated.length || 8} by BCS (power 1.5) — percentages sum to
+          100% per audience
           {showDollars
             ? ". Dollars are indicative — benchmark CPMs until warehouse CPMs are seeded."
             : ". Add a working budget in Stage A to see indicative dollars."}
@@ -161,7 +175,7 @@ export function RecommendedSplitBlock({
                   colSpan={1 + bundles.length}
                   className="px-3 py-6 text-center text-xs text-muted-foreground"
                 >
-                  No allocated channels yet — complete audiences and wait for profiles.
+                  No scored channels yet — complete audiences and wait for profiles.
                 </td>
               </tr>
             ) : (

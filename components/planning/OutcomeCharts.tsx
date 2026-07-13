@@ -354,6 +354,7 @@ export function OutcomeCharts({
       </div>
       ) : null}
 
+      <div className="space-y-1.5">
       <BaseChartCard
         title="Reach × Index"
         subtitle={
@@ -459,6 +460,13 @@ export function OutcomeCharts({
           </Popover>
         )}
       </BaseChartCard>
+      {!clientSafe ? (
+        <p className="text-[11px] text-muted-foreground">
+          Search is modelled from benchmarks (no RM reach) — see DFII ranked and the
+          recommended split for Search.
+        </p>
+      ) : null}
+      </div>
 
       {!clientSafe ? (
         <>
