@@ -727,12 +727,17 @@ export function BehaviouralPlannerClient() {
           channelNamesById={Object.fromEntries(
             constraintChannels.map((c) => [c.id, c.name])
           )}
-          insightByAudienceId={Object.fromEntries(
-            state.audiences.map((a) => {
-              const key = audienceKey(state.waveId, a)
-              return [a.id, insightByKey[key] ?? null]
-            })
-          )}
+          insightFor={(draftId) => {
+            const draft = state.audiences.find((a) => a.id === draftId)
+            const key = draft ? audienceKey(state.waveId, draft) : draftId
+            return {
+              cacheKey: key,
+              cachedInsight: insightByKey[key] ?? null,
+            }
+          }}
+          onInsight={(key, text) =>
+            setInsightByKey((prev) => ({ ...prev, [key]: text }))
+          }
           segments={meta.segments}
           onOpenMethodology={(focusId) => {
             setMethodologyFocusId(focusId ?? null)

@@ -11,6 +11,7 @@ import type { AdapterResult } from "@/lib/planning/adapter"
 import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
 import { buildCreateCampaignHref } from "@/lib/mediaplan/createPrefill"
 import { cn } from "@/lib/utils"
+import { CompareAudienceInsight } from "./CompareAudienceInsight"
 import { ExportDeckButton } from "./ExportDeckButton"
 import { AllChannelsCompareTable } from "./AllChannelsCompareTable"
 import { OutcomeCharts, topDfiiLabel } from "./OutcomeCharts"
@@ -23,6 +24,7 @@ import type {
   BriefState,
   DiagnosisState,
 } from "./store"
+import type { PlanningSegment } from "@/lib/planning/types"
 
 export type AudienceCompareBundle = {
   draft: AudienceDraft
@@ -54,9 +56,10 @@ type StageCompareProps = {
   savedLoading: boolean
   /** engineChannelId → display name for export constraints summary */
   channelNamesById: Record<string, string>
-  /** audience draft id → cached insight markdown */
-  insightByAudienceId: Record<string, string | null>
-  segments: import("@/lib/planning/types").PlanningSegment[]
+  /** Lookup shared insight cache entry for an audience draft id. */
+  insightFor: (draftId: string) => { cacheKey: string; cachedInsight: string | null }
+  onInsight: (cacheKey: string, text: string) => void
+  segments: PlanningSegment[]
   onOpenMethodology: (focusId?: string) => void
   onLoadSaved: (row: PlanningAudienceRow) => void
   onAudienceSaved: () => void
@@ -82,7 +85,8 @@ export function StageCompare({
   savedAudiences,
   savedLoading,
   channelNamesById,
-  insightByAudienceId,
+  insightFor,
+  onInsight,
   segments,
   onOpenMethodology,
   onLoadSaved,
@@ -99,6 +103,9 @@ export function StageCompare({
   const [lastSavedName, setLastSavedName] = useState<string | null>(null)
 
   const canSave = Boolean(brief.clientId && brief.clientName.trim())
+  const insightByAudienceId = Object.fromEntries(
+    bundles.map((b) => [b.draft.id, insightFor(b.draft.id).cachedInsight])
+  )
 
   async function handleUseAudience(bundle: AudienceCompareBundle) {
     if (!brief.clientId) {
@@ -170,6 +177,8 @@ export function StageCompare({
           excludedChannelIds={excludedChannelIds}
           channelNamesById={channelNamesById}
           insightByAudienceId={insightByAudienceId}
+          insightFor={insightFor}
+          onInsight={onInsight}
           segments={segments}
           showDollars={showDollars}
         />
@@ -239,6 +248,17 @@ export function StageCompare({
                   <span className="text-muted-foreground">Top DFII: </span>
                   {topDfiiLabel(b.scored) ?? "—"}
                 </div>
+                <CompareAudienceInsight
+                  draft={b.draft}
+                  adapted={b.adapted}
+                  scored={b.scored}
+                  brief={brief}
+                  waveLabel={waveLabel}
+                  segments={segments}
+                  cacheKey={insightFor(b.draft.id).cacheKey}
+                  cachedInsight={insightFor(b.draft.id).cachedInsight}
+                  onInsight={onInsight}
+                />
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"

@@ -1,13 +1,26 @@
 /**
  * Build a Demand Flow planner deck from the Assembled Media brand template.
- * Never starts from a blank presentation — always assembled-template.pptx.
+ * Root is assembled-root.pptx (cover only); slides are imported from
+ * assembled-template.pptx. Never starts from a blank presentation.
  */
 import fs from "fs"
 import os from "os"
 import path from "path"
 import { Automizer, ModifyTextHelper } from "pptx-automizer"
+import { summariseInsight } from "@/lib/planning/insightText"
 
+export { summariseInsight } from "@/lib/planning/insightText"
+
+const ROOT_NAME = "assembled-root.pptx"
 const TEMPLATE_NAME = "assembled-template.pptx"
+
+/** Right-hand content area on narrative slides 27–29 (Content Placeholder 2). */
+const CONTENT = {
+  x: 6.18,
+  y: 0.43,
+  w: 6.57,
+  h: 6.49,
+}
 
 export type PlannerDeckBrief = {
   clientName?: string
@@ -30,8 +43,14 @@ export type PlannerDeckAudience = {
   topDfii: string
   charts: {
     reachIndexPng?: string | null
+    reachIndexPngWidth?: number | null
+    reachIndexPngHeight?: number | null
     quadrantPng?: string | null
+    quadrantPngWidth?: number | null
+    quadrantPngHeight?: number | null
     dfiiPng?: string | null
+    dfiiPngWidth?: number | null
+    dfiiPngHeight?: number | null
   }
 }
 
@@ -51,45 +70,24 @@ export type PlannerDeckInput = {
   reachBasis: string
   audiences: PlannerDeckAudience[]
   splitTablePng?: string | null
+  splitTablePngWidth?: number | null
+  splitTablePngHeight?: number | null
   generatedAtLabel: string
-}
-
-const EMU = 914400
-function emuToIn(n: number) {
-  return n / EMU
-}
-
-/** Slide 57 chart frame */
-const CHART_57 = {
-  x: emuToIn(552450),
-  y: emuToIn(1476375),
-  w: emuToIn(11099800),
-  h: emuToIn(4681538),
-}
-/** Slide 63 left / right chart frames */
-const CHART_63_L = {
-  x: emuToIn(4641850),
-  y: emuToIn(1243013),
-  w: emuToIn(3295650),
-  h: emuToIn(4908550),
-}
-const CHART_63_R = {
-  x: emuToIn(8382000),
-  y: emuToIn(1243013),
-  w: emuToIn(3294063),
-  h: emuToIn(4908550),
 }
 
 function templateDir() {
   return path.join(process.cwd(), "lib", "planning", "export", "assets")
 }
 
-function assertTemplateExists() {
-  const p = path.join(templateDir(), TEMPLATE_NAME)
-  if (!fs.existsSync(p)) {
-    throw new Error(`Assembled template missing at ${p}`)
+function assertAssetsExist() {
+  const root = path.join(templateDir(), ROOT_NAME)
+  const tpl = path.join(templateDir(), TEMPLATE_NAME)
+  if (!fs.existsSync(root)) {
+    throw new Error(`Assembled root missing at ${root}`)
   }
-  return p
+  if (!fs.existsSync(tpl)) {
+    throw new Error(`Assembled template missing at ${tpl}`)
+  }
 }
 
 function stripDataUrl(dataUrl: string): { mime: string; base64: string } {
@@ -103,6 +101,41 @@ function toPptxImageData(dataUrl: string | null | undefined): string | null {
   if (!dataUrl?.trim()) return null
   const { mime, base64 } = stripDataUrl(dataUrl)
   return `${mime};base64,${base64}`
+}
+
+/** Read IHDR width/height from a PNG data URL when client dims are absent. */
+export function pngPixelSize(
+  dataUrl: string | null | undefined
+): { width: number; height: number } | null {
+  if (!dataUrl?.trim()) return null
+  try {
+    const { base64 } = stripDataUrl(dataUrl)
+    const buf = Buffer.from(base64, "base64")
+    if (buf.length < 24) return null
+    if (buf.toString("ascii", 1, 4) !== "PNG") return null
+    const width = buf.readUInt32BE(16)
+    const height = buf.readUInt32BE(20)
+    if (!width || !height) return null
+    return { width, height }
+  } catch {
+    return null
+  }
+}
+
+function resolvePngSize(
+  dataUrl: string | null | undefined,
+  width?: number | null,
+  height?: number | null
+): { width: number; height: number } {
+  if (
+    typeof width === "number" &&
+    width > 0 &&
+    typeof height === "number" &&
+    height > 0
+  ) {
+    return { width, height }
+  }
+  return pngPixelSize(dataUrl) ?? { width: 1200, height: 340 }
 }
 
 function setText(slide: { modifyElement: Function }, name: string, text: string) {
@@ -135,59 +168,6 @@ function fmtDate(d: string | null | undefined) {
   return d
 }
 
-/** Pull HEADLINE + first two bullet-ish findings from insight markdown. */
-export function summariseInsight(insight: string | null | undefined): {
-  headline: string | null
-  findings: string[]
-  reachArchitecture: string | null
-} {
-  if (!insight?.trim()) {
-    return { headline: null, findings: [], reachArchitecture: null }
-  }
-  const lines = insight
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean)
-
-  let headline: string | null = null
-  const findings: string[] = []
-  let reachArchitecture: string | null = null
-  let section: string | null = null
-
-  for (const line of lines) {
-    const upper = line.toUpperCase()
-    if (upper.startsWith("HEADLINE")) {
-      section = "headline"
-      const rest = line.replace(/^HEADLINE[:\s]*/i, "").trim()
-      if (rest) headline = rest
-      continue
-    }
-    if (upper.startsWith("WHAT STANDS OUT")) {
-      section = "stands"
-      continue
-    }
-    if (upper.startsWith("REACH ARCHITECTURE")) {
-      section = "reach"
-      continue
-    }
-    if (
-      upper.startsWith("CREATIVE") ||
-      upper.startsWith("WATCH-OUTS") ||
-      upper.startsWith("WATCH OUTS")
-    ) {
-      section = "other"
-      continue
-    }
-    const cleaned = line.replace(/^[-*•]\s*/, "").replace(/^\d+[.)]\s*/, "")
-    if (section === "headline" && !headline) headline = cleaned
-    else if (section === "stands" && findings.length < 2) findings.push(cleaned)
-    else if (section === "reach" && !reachArchitecture) reachArchitecture = cleaned
-  }
-
-  if (!headline) headline = lines[0] ?? null
-  return { headline, findings, reachArchitecture }
-}
-
 function createCapturePair(createCapture: number) {
   const capture = Math.max(0, Math.min(100, createCapture))
   const create = 100 - capture
@@ -212,8 +192,43 @@ function addImage(
   }, name)
 }
 
+/** Fit image into content area at full width, capped height, vertically centred. */
+function contentBoxCentered(
+  pngW: number,
+  pngH: number,
+  maxH: number
+): { x: number; y: number; w: number; h: number } {
+  const w = CONTENT.w
+  let h = w * (pngH / pngW)
+  if (h > maxH) h = maxH
+  const y = CONTENT.y + (CONTENT.h - h) / 2
+  return { x: CONTENT.x, y, w, h }
+}
+
+/** Stack images top-down in the content area; each width = CONTENT.w, h by aspect ≤ maxEachH. */
+function contentBoxesStacked(
+  sizes: Array<{ width: number; height: number }>,
+  maxEachH: number,
+  gap = 0.2
+): Array<{ x: number; y: number; w: number; h: number }> {
+  const boxes = sizes.map(({ width, height }) => {
+    const w = CONTENT.w
+    let h = w * (height / width)
+    if (h > maxEachH) h = maxEachH
+    return { x: CONTENT.x, y: 0, w, h }
+  })
+  const totalH =
+    boxes.reduce((sum, b) => sum + b.h, 0) + gap * Math.max(0, boxes.length - 1)
+  let y = CONTENT.y + Math.max(0, (CONTENT.h - totalH) / 2)
+  return boxes.map((b) => {
+    const placed = { ...b, y }
+    y += b.h + gap
+    return placed
+  })
+}
+
 export async function buildPlannerDeck(input: PlannerDeckInput): Promise<Buffer> {
-  assertTemplateExists()
+  assertAssetsExist()
   const audiences = input.audiences.slice(0, 3)
   const client = safe(input.brief.clientName, "Client")
   const campaign = safe(input.brief.campaignName, "Demand Flow plan")
@@ -223,18 +238,16 @@ export async function buildPlannerDeck(input: PlannerDeckInput): Promise<Buffer>
   const automizer = new Automizer({
     templateDir: templateDir(),
     outputDir: os.tmpdir(),
-    removeExistingSlides: true,
+    removeExistingSlides: false,
     autoImportSlideMasters: true,
-    cleanup: true,
+    cleanup: false,
     verbosity: 0,
     cleanupPlaceholders: false,
     compression: 6,
   })
 
-  const pres = automizer.loadRoot(TEMPLATE_NAME).load(TEMPLATE_NAME, "tpl")
-
-  // 1 Cover
-  pres.addSlide("tpl", 1)
+  // Root already contains the cover as slide 1 — do not re-add cover from tpl.
+  const pres = automizer.loadRoot(ROOT_NAME).load(TEMPLATE_NAME, "tpl")
 
   // 2 Statement Lime
   pres.addSlide("tpl", 16, (slide) => {
@@ -296,7 +309,7 @@ export async function buildPlannerDeck(input: PlannerDeckInput): Promise<Buffer>
     setText(slide, "Text Placeholder 2", "Audiences & insights")
   })
 
-  // Per audience
+  // Per audience — chart-free narrative slide 27 (never import 57–66)
   for (const aud of audiences) {
     const insight = summariseInsight(aud.insight)
     const block2 = insight.headline
@@ -310,19 +323,27 @@ export async function buildPlannerDeck(input: PlannerDeckInput): Promise<Buffer>
     })
 
     const reachPng = toPptxImageData(aud.charts.reachIndexPng)
+    const reachSize = resolvePngSize(
+      aud.charts.reachIndexPng,
+      aud.charts.reachIndexPngWidth,
+      aud.charts.reachIndexPngHeight
+    )
     const commentary =
       insight.reachArchitecture ||
       `Reach architecture for ${aud.name} · ${input.reachBasis} basis · wave ${input.waveLabel}`
 
-    pres.addSlide("tpl", 57, (slide) => {
-      try {
-        slide.removeElement("Content Placeholder 6")
-      } catch {
-        /* chart may already be absent */
-      }
-      setText(slide, "Text Placeholder 2", `${aud.name} - reach x index`)
-      setText(slide, "Text Placeholder 3", commentary)
-      addImage(slide, reachPng, CHART_57, `reach-${aud.name}`)
+    pres.addSlide("tpl", 27, (slide) => {
+      setText(
+        slide,
+        "Text Placeholder 1",
+        `${aud.name}\nReach × index\n${commentary}`
+      )
+      addImage(
+        slide,
+        reachPng,
+        contentBoxCentered(reachSize.width, reachSize.height, 5.0),
+        `reach-${aud.name}`
+      )
     })
   }
 
@@ -377,48 +398,60 @@ export async function buildPlannerDeck(input: PlannerDeckInput): Promise<Buffer>
 
   const dfiiPng = toPptxImageData(active?.charts.dfiiPng)
   const quadPng = toPptxImageData(active?.charts.quadrantPng)
+  const dfiiSize = resolvePngSize(
+    active?.charts.dfiiPng,
+    active?.charts.dfiiPngWidth,
+    active?.charts.dfiiPngHeight
+  )
+  const quadSize = resolvePngSize(
+    active?.charts.quadrantPng,
+    active?.charts.quadrantPngWidth,
+    active?.charts.quadrantPngHeight
+  )
   const planCommentary = active
     ? `Active audience: ${active.name}. Top DFII: ${active.topDfii}. Mix: ${active.topMix}.`
     : "Recommended plan from scored channels."
 
-  pres.addSlide("tpl", 63, (slide) => {
-    try {
-      slide.removeElement("Chart Placeholder 10")
-    } catch {
-      /* ignore */
+  // Chart-free narrative slide 28 — DFII + quadrant stacked in content area
+  pres.addSlide("tpl", 28, (slide) => {
+    setText(slide, "Text Placeholder 1", `Recommended plan\n${planCommentary}`)
+    const sizes: Array<{ width: number; height: number }> = []
+    const images: Array<{ data: string | null; name: string }> = []
+    if (dfiiPng) {
+      sizes.push(dfiiSize)
+      images.push({ data: dfiiPng, name: "dfii-chart" })
     }
-    try {
-      slide.removeElement("Chart Placeholder 13")
-    } catch {
-      /* ignore */
+    if (quadPng) {
+      sizes.push(quadSize)
+      images.push({ data: quadPng, name: "quadrant-chart" })
     }
-    setText(slide, "Text Placeholder 6", "Recommended plan")
-    setText(slide, "Text Placeholder 7", planCommentary)
-    setText(slide, "Text Placeholder 3", "DFII ranked")
-    setText(slide, "Text Placeholder 4", "Reach × index")
-    setText(
-      slide,
-      "Text Placeholder 5",
-      `Roy Morgan · wave ${input.waveLabel} · ${input.reachBasis}`
-    )
-    addImage(slide, dfiiPng, CHART_63_L, "dfii-chart")
-    addImage(slide, quadPng, CHART_63_R, "quadrant-chart")
+    const boxes = contentBoxesStacked(sizes, 2.9)
+    images.forEach((img, i) => {
+      const box = boxes[i]
+      if (box) addImage(slide, img.data, box, img.name)
+    })
   })
 
   const splitPng = toPptxImageData(input.splitTablePng)
-  pres.addSlide("tpl", 57, (slide) => {
-    try {
-      slide.removeElement("Content Placeholder 6")
-    } catch {
-      /* ignore */
-    }
-    setText(slide, "Text Placeholder 2", "Recommended split")
+  const splitSize = resolvePngSize(
+    input.splitTablePng,
+    input.splitTablePngWidth,
+    input.splitTablePngHeight
+  )
+
+  // Chart-free narrative slide 29
+  pres.addSlide("tpl", 29, (slide) => {
     setText(
       slide,
-      "Text Placeholder 3",
-      "Budget concentrates in the top 8 by BCS (power 1.5). All channels shown with DFII."
+      "Text Placeholder 1",
+      "Recommended split\nBudget concentrates in the top 8 by BCS (power 1.5). All channels shown with DFII."
     )
-    addImage(slide, splitPng, CHART_57, "split-table")
+    addImage(
+      slide,
+      splitPng,
+      contentBoxCentered(splitSize.width, splitSize.height, 5.0),
+      "split-table"
+    )
   })
 
   // End

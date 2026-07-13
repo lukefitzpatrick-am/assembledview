@@ -18,6 +18,7 @@ import {
   effectiveSegmentId,
   isBaseSegmentLens,
 } from "@/components/planning/store"
+import { generateAudienceInsight } from "@/components/planning/useAudienceInsight"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import type { PlanningSegment } from "@/lib/planning/types"
@@ -31,6 +32,8 @@ type ExportDeckButtonProps = {
   excludedChannelIds: string[]
   channelNamesById: Record<string, string>
   insightByAudienceId: Record<string, string | null>
+  insightFor: (draftId: string) => { cacheKey: string; cachedInsight: string | null }
+  onInsight: (cacheKey: string, text: string) => void
   segments: PlanningSegment[]
   showDollars: boolean
 }
@@ -84,10 +87,16 @@ function topAffinityFallback(bundle: AudienceCompareBundle) {
     .join(" · ")
 }
 
+type CapturedExportPng = {
+  dataUrl: string | null
+  width: number | null
+  height: number | null
+}
+
 async function mountAndCapture(
   node: React.ReactNode,
   selectors: string[]
-): Promise<Record<string, string | null>> {
+): Promise<Record<string, CapturedExportPng>> {
   const host = document.createElement("div")
   host.setAttribute("aria-hidden", "true")
   host.style.cssText =
@@ -98,13 +107,20 @@ async function mountAndCapture(
   await waitFrames(2)
   await new Promise((r) => setTimeout(r, 400))
 
-  const out: Record<string, string | null> = {}
+  const out: Record<string, CapturedExportPng> = {}
   for (const sel of selectors) {
     const el = host.querySelector(sel) as HTMLElement | null
     try {
-      out[sel] = await captureNodePng(el)
+      const captured = await captureNodePng(el)
+      out[sel] = captured
+        ? {
+            dataUrl: captured.dataUrl,
+            width: captured.width,
+            height: captured.height,
+          }
+        : { dataUrl: null, width: null, height: null }
     } catch {
-      out[sel] = null
+      out[sel] = { dataUrl: null, width: null, height: null }
     }
   }
 
@@ -122,16 +138,32 @@ export function ExportDeckButton({
   excludedChannelIds,
   channelNamesById,
   insightByAudienceId,
+  insightFor,
+  onInsight,
   segments,
   showDollars,
 }: ExportDeckButtonProps) {
   const { toast } = useToast()
   const [busy, setBusy] = useState(false)
+  const [showMissingHint, setShowMissingHint] = useState(false)
+  const [generatingMissing, setGeneratingMissing] = useState(false)
+  const [generateError, setGenerateError] = useState<string | null>(null)
   const ready = bundles.every((b) => b.adapted && b.scored.length > 0)
 
-  async function handleExport() {
+  const missingBundles = bundles.filter((b) => {
+    const cached = insightFor(b.draft.id).cachedInsight
+    return !cached?.trim()
+  })
+  const missingCount = missingBundles.length
+  const totalCount = bundles.length
+
+  async function runExport(
+    insightOverrides?: Record<string, string | null>
+  ) {
     if (!ready || busy) return
     setBusy(true)
+    setShowMissingHint(false)
+    setGenerateError(null)
     try {
       const audiencesPayload: Array<{
         name: string
@@ -142,8 +174,14 @@ export function ExportDeckButton({
         topDfii: string
         charts: {
           reachIndexPng: string | null
+          reachIndexPngWidth: number | null
+          reachIndexPngHeight: number | null
           quadrantPng: string | null
+          quadrantPngWidth: number | null
+          quadrantPngHeight: number | null
           dfiiPng: string | null
+          dfiiPngWidth: number | null
+          dfiiPngHeight: number | null
         }
       }> = []
 
@@ -157,18 +195,31 @@ export function ExportDeckButton({
             '[data-export="dfii-ranked"]',
           ]
         )
+        const reach = captured['[data-export="reach-index"]']
+        const quadrant = captured['[data-export="reach-index-quadrant"]']
+        const dfii = captured['[data-export="dfii-ranked"]']
+        const insight =
+          insightOverrides?.[b.draft.id] ??
+          insightByAudienceId[b.draft.id] ??
+          insightFor(b.draft.id).cachedInsight ??
+          null
         audiencesPayload.push({
           name: b.draft.name,
           definition: definitionLine(b.draft, segments),
           stats: statsLine(b),
-          insight: insightByAudienceId[b.draft.id] ?? null,
+          insight,
           topMix: topMixLine(b) || topAffinityFallback(b),
           topDfii: topDfiiLabel(b.scored) ?? "—",
           charts: {
-            reachIndexPng: captured['[data-export="reach-index"]'] ?? null,
-            quadrantPng:
-              i === 0 ? captured['[data-export="reach-index-quadrant"]'] ?? null : null,
-            dfiiPng: i === 0 ? captured['[data-export="dfii-ranked"]'] ?? null : null,
+            reachIndexPng: reach?.dataUrl ?? null,
+            reachIndexPngWidth: reach?.width ?? null,
+            reachIndexPngHeight: reach?.height ?? null,
+            quadrantPng: i === 0 ? (quadrant?.dataUrl ?? null) : null,
+            quadrantPngWidth: i === 0 ? (quadrant?.width ?? null) : null,
+            quadrantPngHeight: i === 0 ? (quadrant?.height ?? null) : null,
+            dfiiPng: i === 0 ? (dfii?.dataUrl ?? null) : null,
+            dfiiPngWidth: i === 0 ? (dfii?.width ?? null) : null,
+            dfiiPngHeight: i === 0 ? (dfii?.height ?? null) : null,
           },
         })
       }
@@ -177,6 +228,7 @@ export function ExportDeckButton({
         <RecommendedSplitBlock bundles={bundles} showDollars={showDollars} />,
         ['[data-export="recommended-split"]']
       )
+      const split = splitCap['[data-export="recommended-split"]']
 
       const includedCount = Object.keys(channelNamesById).filter(
         (id) => !excludedChannelIds.includes(id)
@@ -209,7 +261,9 @@ export function ExportDeckButton({
           waveLabel,
           reachBasis,
           audiences: audiencesPayload,
-          splitTablePng: splitCap['[data-export="recommended-split"]'],
+          splitTablePng: split?.dataUrl ?? null,
+          splitTablePngWidth: split?.width ?? null,
+          splitTablePngHeight: split?.height ?? null,
           generatedAtLabel: new Date().toLocaleDateString("en-AU", {
             day: "numeric",
             month: "short",
@@ -248,25 +302,119 @@ export function ExportDeckButton({
       })
     } finally {
       setBusy(false)
+      setGeneratingMissing(false)
+    }
+  }
+
+  function handleExportClick() {
+    if (!ready || busy) return
+    if (missingCount > 0) {
+      setShowMissingHint(true)
+      setGenerateError(null)
+      return
+    }
+    void runExport()
+  }
+
+  async function handleGenerateAllMissing() {
+    if (generatingMissing || busy) return
+    setGeneratingMissing(true)
+    setGenerateError(null)
+    const overrides: Record<string, string | null> = {}
+    try {
+      for (const b of missingBundles) {
+        if (!b.adapted) {
+          throw new Error(`“${b.draft.name}” has no live composition yet`)
+        }
+        const { cacheKey } = insightFor(b.draft.id)
+        const text = await generateAudienceInsight({
+          draft: b.draft,
+          adapted: b.adapted,
+          scored: b.scored,
+          brief,
+          waveLabel,
+          segments,
+        })
+        onInsight(cacheKey, text)
+        overrides[b.draft.id] = text
+      }
+      await runExport({
+        ...Object.fromEntries(
+          bundles.map((b) => [
+            b.draft.id,
+            overrides[b.draft.id] ??
+              insightFor(b.draft.id).cachedInsight ??
+              null,
+          ])
+        ),
+      })
+    } catch (err) {
+      setGenerateError(
+        err instanceof Error ? err.message : "Failed to generate missing insights"
+      )
+      setGeneratingMissing(false)
     }
   }
 
   return (
-    <Button
-      type="button"
-      size="sm"
-      variant="outline"
-      disabled={!ready || busy}
-      onClick={() => void handleExport()}
-    >
-      {busy ? (
-        <>
-          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-          Exporting…
-        </>
-      ) : (
-        "Export deck (.pptx)"
-      )}
-    </Button>
+    <div className="flex max-w-md flex-col items-end gap-2">
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        disabled={!ready || busy || generatingMissing}
+        onClick={handleExportClick}
+      >
+        {busy ? (
+          <>
+            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            Exporting…
+          </>
+        ) : (
+          "Export deck (.pptx)"
+        )}
+      </Button>
+
+      {showMissingHint && missingCount > 0 ? (
+        <div className="w-full rounded-input border border-border bg-card px-3 py-2.5 text-left shadow-e1">
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            {missingCount} of {totalCount} audiences have no generated insight — export
+            will use the affinity fallback.
+          </p>
+          {generateError ? (
+            <div className="mt-2 rounded-input border border-border bg-pacing-critical-bg px-2.5 py-1.5 text-xs text-status-critical-fg">
+              {generateError}
+            </div>
+          ) : null}
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy || generatingMissing}
+              onClick={() => void runExport()}
+            >
+              Export anyway
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={busy || generatingMissing}
+              onClick={() => void handleGenerateAllMissing()}
+            >
+              {generatingMissing ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Generating…
+                </>
+              ) : (
+                "Generate all missing"
+              )}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   )
 }
