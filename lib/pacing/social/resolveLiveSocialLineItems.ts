@@ -120,7 +120,7 @@ function isTikTokPlatformString(value: unknown): boolean {
   return /\btik\s*tok\b/i.test(String(value ?? ""));
 }
 
-function classifySocialPacingPlatform(row: Record<string, unknown>): SocialPlatform | null {
+export function classifySocialPacingPlatform(row: Record<string, unknown>): SocialPlatform | null {
   const platform = String(row.platform ?? "").trim();
   if (platform) {
     if (isMetaPlatformString(platform)) return "meta";

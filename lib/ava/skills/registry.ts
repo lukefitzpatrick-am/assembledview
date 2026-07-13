@@ -57,7 +57,7 @@ const SKILL_META: Record<
   "assembled-insight-commentary": {
     title: "Insight & delivery commentary",
     chains: [MARKETING_BRAIN_ID],
-    pairedTools: ["get_pacing_snapshot", "get_campaign_context"],
+    pairedTools: ["get_delivery_snapshot", "get_pacing_snapshot", "get_campaign_context"],
   },
   "assembled-audience-insight": {
     title: "Audience insight",
@@ -93,6 +93,7 @@ const SKILL_META: Record<
     title: "Performance review & report",
     chains: [MARKETING_BRAIN_ID],
     pairedTools: [
+      "get_delivery_snapshot",
       "get_pacing_snapshot",
       "get_campaign_context",
       "generate_performance_report",

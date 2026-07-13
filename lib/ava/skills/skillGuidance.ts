@@ -25,11 +25,11 @@ function buildSkillGuidanceTable(): string {
   return `
 Assembled skills (load_skill):
 Load at most ONE skill per turn (plus its auto-chained decision rules). Page skill buttons send a visible user message — route via load_skill from that intent; there is no hidden side-channel. Skills' "clarify below ~90% confidence — ask" rule is binding; ask ONE clarifying question per turn (same as engagement rules). Load references lazily: call load_skill again with reference when the skill body says to (e.g. specs-and-evidence, example-output) — never all upfront. Respect get_platform_specs character limits when a copy skill says write to spec. For commentary: four questions (what/how/why/next); never invent numbers; name omitted context rings (minimal mode).
-Commentary: load assembled-insight-commentary THEN get_pacing_snapshot / get_campaign_context.
+Commentary: load assembled-insight-commentary THEN get_delivery_snapshot (campaign delivery) / get_pacing_snapshot (client-level) / get_campaign_context.
 Copy (meta/search/linkedin/video): load the matching copy skill THEN get_client_details + get_saved_audiences + get_best_practice + get_platform_specs.
 Audience insight: load assembled-audience-insight THEN get_saved_audiences + get_methodology + use planning page context.
 Presentations: load assembled-presentations (outline-only in Ava) THEN get_campaign_context / get_pacing_snapshot as needed — do not generate .pptx (the ONE exception is generate_performance_report inside assembled-performance-review-report).
-Performance review & report (campaign dashboard pages / Review & Report button): load assembled-performance-review-report THEN get_pacing_snapshot + get_campaign_context. generate_performance_report ONLY after the user explicitly confirms the reviewed narrative — never unprompted.
+Performance review & report (campaign dashboard pages / Review & Report button): load assembled-performance-review-report THEN get_delivery_snapshot (campaign delivery) / get_pacing_snapshot (client-level) / get_campaign_context. generate_performance_report ONLY after the user explicitly confirms the reviewed narrative — never unprompted.
 ${rows.join("\n")}
 `.trim()
 }

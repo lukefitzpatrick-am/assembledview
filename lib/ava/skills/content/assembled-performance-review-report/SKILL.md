@@ -2,7 +2,7 @@
 name: assembled-performance-review-report
 description: Review campaign delivery on an Assembled View client dashboard page, write commentary and insights, make recommendations, and on confirmation build a client-facing PowerPoint report on the Assembled template. Use whenever AVA or Luke asks to "review performance", "review delivery", "provide insight", "write the monthly report", "build the report", or when the Review & Report button is pressed on a client dashboard page. One run covers the campaign (MBA) on the page. Composes assembled-insight-commentary (the narrative) and assembled-presentations (the deck).
 metadata:
-  version: 1.0.0
+  version: 1.0.1
   surface: Assembled View / AVA client dashboard pages, and Cowork
 ---
 
@@ -30,7 +30,7 @@ Also establish before Stage 1:
 
 ## Stage 1: delivery review
 
-Pull the campaign's delivery data (pacing snapshot, planned vs delivered, per-channel lines). Read every performance container on the page. Do not invent or re-derive numbers; if a needed figure is not available, name it as missing.
+Pull the campaign's delivery data with `get_delivery_snapshot` - it reads the same source as the on-page delivery containers (social Meta/TikTok, programmatic display and video, ad-serving/BVOD, search), returning delivered spend, impressions, clicks and views per line against the plan's budgets. Use `get_campaign_context` for plan and version detail, and `get_pacing_snapshot` only for client-level pacing questions outside a campaign page. Read every performance container on the page. Do not invent or re-derive numbers; if a needed figure is not available, name it as missing.
 
 For each of the following, record planned, delivered, variance, and an on/off pace call against *expected to date* (not end-of-flight totals):
 

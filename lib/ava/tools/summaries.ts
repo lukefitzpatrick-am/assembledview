@@ -6,7 +6,7 @@ import type { PlanningMethodologyRow } from "@/lib/planning/types"
 import { getTemplate } from "@/lib/naming/templates"
 import { composeName } from "@/lib/naming/compose"
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
-import { asNumber, asString, capList, truncateText } from "./helpers"
+import { asNumber, asString, capList, LIST_CAP, truncateText } from "./helpers"
 
 const FEE_KEYS = [
   "feesearch",
@@ -61,6 +61,7 @@ export const AVA_TOOL_NAMES = [
   "get_creative_assets",
   "get_methodology",
   "get_pacing_snapshot",
+  "get_delivery_snapshot",
   "get_platform_specs",
   "start_mi_interview",
   "generate_mi_workbook",
@@ -251,5 +252,70 @@ export function summarisePacingSnapshot(args: {
     truncated,
     statusCounts: byStatus,
     rows: items,
+  }
+}
+
+export type DeliveryLineSnapshot = {
+  lineItemId: string
+  name: string
+  plannedBudget: number | null
+  plannedUnits: number | null
+  startDate: string | null
+  endDate: string | null
+  spendToDate: number
+  impressions: number
+  clicks: number
+  results: number
+  video3sViews: number
+  cpm: number | null
+  ctr: number | null
+  cpc: number | null
+  noDeliveryRows: boolean
+}
+
+export type DeliveryChannelGroup = {
+  group: string
+  lines: DeliveryLineSnapshot[]
+  totals: {
+    spendToDate: number
+    impressions: number
+    clicks: number
+    results: number
+    video3sViews: number
+    plannedBudget: number | null
+    cpm: number | null
+    ctr: number | null
+    cpc: number | null
+  }
+}
+
+export function summariseDeliverySnapshot(args: {
+  asOf: string
+  window: { startDate: string | null; endDate: string | null }
+  mbaNumber: string
+  versionNumber: number | null
+  channels: DeliveryChannelGroup[]
+  planTotals: DeliveryChannelGroup["totals"]
+}) {
+  const channels = args.channels.map((ch) => {
+    const { items, truncated } = capList(ch.lines, LIST_CAP)
+    return {
+      group: ch.group,
+      lineCount: ch.lines.length,
+      truncated,
+      totals: ch.totals,
+      lines: items.map((line) => ({
+        ...line,
+        name: truncateText(line.name, 80),
+      })),
+    }
+  })
+  return {
+    asOf: args.asOf,
+    window: args.window,
+    mbaNumber: args.mbaNumber,
+    versionNumber: args.versionNumber,
+    channels,
+    planTotals: args.planTotals,
   }
 }

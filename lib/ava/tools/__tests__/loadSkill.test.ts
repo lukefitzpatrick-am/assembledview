@@ -27,6 +27,7 @@ test("load_skill: returns body + learnings + chained decision rules", () => {
   assert.equal(payload.chainedDecisionRules, true)
   assert.ok(payload.content?.includes("four questions"))
   assert.ok(payload.content?.includes("Chained: assembled-marketing-brain"))
+  assert.ok(payload.pairedTools?.includes("get_delivery_snapshot"))
   assert.ok(payload.pairedTools?.includes("get_pacing_snapshot"))
 })
 
@@ -64,6 +65,7 @@ test("skill guidance mentions one skill per turn and paired tools", () => {
   assert.match(AVA_SKILL_TOOL_HINTS, /load_skill/)
   assert.match(AVA_SKILL_GUIDANCE, /ONE skill per turn/i)
   assert.match(AVA_SKILL_GUIDANCE, /assembled-insight-commentary/)
+  assert.match(AVA_SKILL_GUIDANCE, /get_delivery_snapshot/)
   assert.match(AVA_SKILL_GUIDANCE, /get_platform_specs/)
   assert.match(AVA_SKILL_GUIDANCE, /outline-only/i)
   assert.match(AVA_SKILL_GUIDANCE, /visible user message/i)

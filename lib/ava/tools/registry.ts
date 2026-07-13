@@ -11,6 +11,7 @@ import { getNamingRulesTool } from "./getNamingRules";
 import { getCreativeAssetsTool } from "./getCreativeAssets";
 import { getMethodologyTool } from "./getMethodology";
 import { getPacingSnapshotTool } from "./getPacingSnapshot";
+import { getDeliverySnapshotTool } from "./getDeliverySnapshot";
 import { getPlatformSpecsTool } from "./getPlatformSpecs";
 import { startMiInterviewTool } from "./startMiInterview";
 import { generateMiWorkbookTool } from "./generateMiWorkbook";
@@ -28,6 +29,7 @@ const AVA_TOOLS: AvaTool[] = [
   getCreativeAssetsTool,
   getMethodologyTool,
   getPacingSnapshotTool,
+  getDeliverySnapshotTool,
   getPlatformSpecsTool,
   startMiInterviewTool,
   generateMiWorkbookTool,
