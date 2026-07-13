@@ -536,7 +536,7 @@ export function BehaviouralPlannerClient() {
 
   if (metaLoading) {
     return (
-      <div className="container mx-auto max-w-5xl px-6 py-8">
+      <div className="container mx-auto max-w-5xl 2xl:max-w-7xl px-6 py-8">
         <p className="text-sm text-muted-foreground">Loading planning catalogue…</p>
       </div>
     )
@@ -544,7 +544,7 @@ export function BehaviouralPlannerClient() {
 
   if (metaError || !meta) {
     return (
-      <div className="container mx-auto max-w-5xl px-6 py-8">
+      <div className="container mx-auto max-w-5xl 2xl:max-w-7xl px-6 py-8">
         <div className="rounded-lg border border-status-critical-fg/30 bg-pacing-critical-bg px-4 py-6 text-sm text-status-critical-fg">
           <p className="font-medium">Could not load planning meta</p>
           <p className="mt-1 text-xs opacity-90">{metaError ?? "Unknown error"}</p>
@@ -562,7 +562,7 @@ export function BehaviouralPlannerClient() {
     state.audiences[0]?.reachBasis === "total" ? "Total" : "Addressable"
 
   return (
-    <div className="container mx-auto max-w-5xl px-6 py-8">
+    <div className="container mx-auto max-w-5xl 2xl:max-w-7xl px-6 py-8">
       <div className="mb-6 flex items-baseline justify-between border-b border-border pb-3">
         <div>
           <h1 className="text-xl font-medium">

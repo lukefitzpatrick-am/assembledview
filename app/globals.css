@@ -273,6 +273,11 @@
     @apply bg-surface-muted;
     font-size: 80%;
   }
+  @media (min-width: 1536px) {
+    html {
+      font-size: 87.5%;
+    }
+  }
   body {
     @apply bg-surface-muted text-foreground font-sans;
   }
