@@ -30,6 +30,7 @@ import { PLANNING_STATES } from "@/lib/planning/types"
 import { cn } from "@/lib/utils"
 import { Info } from "lucide-react"
 import { AUDIENCE_ACCENTS, MAX_AUDIENCES } from "./constants"
+import { AudienceInsightBlock } from "./AudienceInsightBlock"
 import {
   formatAudienceWc,
   pctOfUniverse,
@@ -39,6 +40,7 @@ import {
   effectiveSegmentId,
   isBaseSegmentLens,
   type AudienceDraft,
+  type BriefState,
 } from "./store"
 
 type AudienceResult = {
@@ -52,6 +54,11 @@ type StageAudiencesProps = {
   activeAudienceId: string
   segments: PlanningSegment[]
   results: Record<string, AudienceResult>
+  brief: BriefState
+  waveLabel: string
+  insightCacheKey: string
+  cachedInsight: string | null
+  onInsight: (cacheKey: string, text: string) => void
   onSelect: (id: string) => void
   onAdd: () => void
   onRemove: (id: string) => void
@@ -248,6 +255,11 @@ export function StageAudiences({
   activeAudienceId,
   segments,
   results,
+  brief,
+  waveLabel,
+  insightCacheKey,
+  cachedInsight,
+  onInsight,
   onSelect,
   onAdd,
   onRemove,
@@ -459,7 +471,19 @@ export function StageAudiences({
           </div>
         </div>
 
-        <LivePanel draft={active} result={results[active.id]} segments={segments} />
+        <div className="space-y-3">
+          <LivePanel draft={active} result={results[active.id]} segments={segments} />
+          <AudienceInsightBlock
+            draft={active}
+            adapted={results[active.id]?.adapted ?? null}
+            brief={brief}
+            waveLabel={waveLabel}
+            segments={segments}
+            cacheKey={insightCacheKey}
+            cachedInsight={cachedInsight}
+            onInsight={onInsight}
+          />
+        </div>
       </div>
 
       {/* Comparison strip — never sums audience_wc across audiences */}

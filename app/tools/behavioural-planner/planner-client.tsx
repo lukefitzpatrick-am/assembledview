@@ -206,6 +206,7 @@ export function BehaviouralPlannerClient() {
   )
 
   const [results, setResults] = useState<Record<string, AudienceResult>>({})
+  const [insightByKey, setInsightByKey] = useState<Record<string, string>>({})
   const [savedAudiences, setSavedAudiences] = useState<PlanningAudienceRow[]>([])
   const [savedLoading, setSavedLoading] = useState(false)
   const [savedRefresh, setSavedRefresh] = useState(0)
@@ -514,6 +515,15 @@ export function BehaviouralPlannerClient() {
     const audiences = state.audiences.slice(0, AVA_LIST_CAP).map((a) => {
       const adapted = results[a.id]?.adapted
       const rob = robustnessFromN(adapted?.unweightedN ?? 0)
+      const segmentId = effectiveSegmentId(a.segmentId)
+      const topIndexChannels = (adapted?.channels ?? [])
+        .map((ch) => ({
+          name: avaTruncate(ch.name, 80),
+          index: Math.round(ch.aff[segmentId] ?? 100),
+          reachPct: Math.round(ch.reachPct * 1000) / 10,
+        }))
+        .sort((x, y) => y.index - x.index)
+        .slice(0, 5)
       return {
         id: a.id,
         name: avaTruncate(a.name, 80),
@@ -523,6 +533,7 @@ export function BehaviouralPlannerClient() {
         unweightedN: rob.n,
         robustnessBand: rob.band,
         robustnessLabel: rob.label,
+        topIndexChannels,
       }
     })
     const active = state.audiences.find((a) => a.id === state.activeAudienceId)
@@ -592,6 +603,12 @@ export function BehaviouralPlannerClient() {
     state.waveId ||
     "—"
 
+  const activeAudience =
+    state.audiences.find((a) => a.id === state.activeAudienceId) ?? state.audiences[0]
+  const activeInsightKey = activeAudience
+    ? audienceKey(state.waveId, activeAudience)
+    : ""
+
   const reachBasisLabel =
     state.audiences[0]?.reachBasis === "total" ? "Total" : "Addressable"
 
@@ -655,6 +672,13 @@ export function BehaviouralPlannerClient() {
           activeAudienceId={state.activeAudienceId}
           segments={meta.segments}
           results={results}
+          brief={state.brief}
+          waveLabel={waveLabel}
+          insightCacheKey={activeInsightKey}
+          cachedInsight={activeInsightKey ? insightByKey[activeInsightKey] ?? null : null}
+          onInsight={(key, text) =>
+            setInsightByKey((prev) => ({ ...prev, [key]: text }))
+          }
           onSelect={(id) => dispatch({ type: "SET_ACTIVE_AUDIENCE", id })}
           onAdd={() => dispatch({ type: "ADD_AUDIENCE" })}
           onRemove={(id) => dispatch({ type: "REMOVE_AUDIENCE", id })}
