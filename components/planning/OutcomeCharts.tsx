@@ -355,6 +355,7 @@ export function OutcomeCharts({
       ) : null}
 
       <div className="space-y-1.5">
+      <div data-export="reach-index">
       <BaseChartCard
         title="Reach × Index"
         subtitle={
@@ -467,9 +468,11 @@ export function OutcomeCharts({
         </p>
       ) : null}
       </div>
+      </div>
 
       {!clientSafe ? (
         <>
+      <div data-export="reach-index-quadrant">
       <BaseChartCard
         title="Reach × Index quadrant"
         subtitle="Point size = DFII · guides at median reach and index 100"
@@ -512,7 +515,9 @@ export function OutcomeCharts({
           />
         )}
       </BaseChartCard>
+      </div>
 
+      <div data-export="dfii-ranked">
       <BaseChartCard
         title="DFII ranked"
         subtitle={
@@ -563,6 +568,7 @@ export function OutcomeCharts({
           </div>
         )}
       </BaseChartCard>
+      </div>
 
       <BaseChartCard
         title="Addressable vs Total reach"

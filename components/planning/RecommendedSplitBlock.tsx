@@ -138,7 +138,7 @@ export function RecommendedSplitBlock({
   })
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" data-export="recommended-split">
       <div>
         <h3 className="text-sm font-medium">Recommended split</h3>
         <p className="mt-0.5 text-xs text-muted-foreground">

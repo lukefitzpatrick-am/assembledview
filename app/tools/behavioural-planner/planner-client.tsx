@@ -724,6 +724,16 @@ export function BehaviouralPlannerClient() {
           bundles={compareBundles}
           savedAudiences={savedAudiences}
           savedLoading={savedLoading}
+          channelNamesById={Object.fromEntries(
+            constraintChannels.map((c) => [c.id, c.name])
+          )}
+          insightByAudienceId={Object.fromEntries(
+            state.audiences.map((a) => {
+              const key = audienceKey(state.waveId, a)
+              return [a.id, insightByKey[key] ?? null]
+            })
+          )}
+          segments={meta.segments}
           onOpenMethodology={(focusId) => {
             setMethodologyFocusId(focusId ?? null)
             setMethodologyOpen(true)

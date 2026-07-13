@@ -11,6 +11,7 @@ import type { AdapterResult } from "@/lib/planning/adapter"
 import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
 import { buildCreateCampaignHref } from "@/lib/mediaplan/createPrefill"
 import { cn } from "@/lib/utils"
+import { ExportDeckButton } from "./ExportDeckButton"
 import { AllChannelsCompareTable } from "./AllChannelsCompareTable"
 import { OutcomeCharts, topDfiiLabel } from "./OutcomeCharts"
 import { RecommendedSplitBlock } from "./RecommendedSplitBlock"
@@ -51,6 +52,11 @@ type StageCompareProps = {
   bundles: AudienceCompareBundle[]
   savedAudiences: PlanningAudienceRow[]
   savedLoading: boolean
+  /** engineChannelId → display name for export constraints summary */
+  channelNamesById: Record<string, string>
+  /** audience draft id → cached insight markdown */
+  insightByAudienceId: Record<string, string | null>
+  segments: import("@/lib/planning/types").PlanningSegment[]
   onOpenMethodology: (focusId?: string) => void
   onLoadSaved: (row: PlanningAudienceRow) => void
   onAudienceSaved: () => void
@@ -75,6 +81,9 @@ export function StageCompare({
   bundles,
   savedAudiences,
   savedLoading,
+  channelNamesById,
+  insightByAudienceId,
+  segments,
   onOpenMethodology,
   onLoadSaved,
   onAudienceSaved,
@@ -145,11 +154,25 @@ export function StageCompare({
 
   return (
     <div className="space-y-5">
-      <div>
-        <h2 className="text-base font-medium">Compare & plan</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Per-audience mix side-by-side. Audiences are compared — never added together.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-medium">Compare & plan</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Per-audience mix side-by-side. Audiences are compared — never added together.
+          </p>
+        </div>
+        <ExportDeckButton
+          brief={brief}
+          diagnosis={diagnosis}
+          waveLabel={waveLabel}
+          reachBasis={reachBasis}
+          bundles={bundles}
+          excludedChannelIds={excludedChannelIds}
+          channelNamesById={channelNamesById}
+          insightByAudienceId={insightByAudienceId}
+          segments={segments}
+          showDollars={showDollars}
+        />
       </div>
 
       <div
