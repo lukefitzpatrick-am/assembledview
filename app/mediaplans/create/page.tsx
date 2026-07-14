@@ -5244,6 +5244,12 @@ function CreateMediaPlan() {
 
 const handleSaveAll = async () => {
   if (saveAllInFlightRef.current) return
+  if (budgetRemaining < 0) {
+    const proceed = window.confirm(
+      `Budget remaining is ${formatMoney(budgetRemaining)} (overspend). Save this plan anyway?`
+    )
+    if (!proceed) return
+  }
   saveAllInFlightRef.current = true
   try {
     setIsSaveModalOpen(true);
@@ -5700,6 +5706,7 @@ const handleSaveAll = async () => {
       channels: selectedMediaCount,
       status: "Draft",
       budgetRemaining: formatMoney(budgetRemaining),
+      budgetRemainingOverspend,
     }),
     [
       watchedCampaignName,
@@ -5707,6 +5714,7 @@ const handleSaveAll = async () => {
       watchedCampaignBudget,
       selectedMediaCount,
       budgetRemaining,
+      budgetRemainingOverspend,
       currencyFormatter,
     ]
   )
