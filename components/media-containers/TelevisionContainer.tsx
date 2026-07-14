@@ -1,5 +1,6 @@
 "use client"
 
+import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import {
   readContainerEntryMode,
@@ -251,6 +252,11 @@ export default function TelevisionContainer({
     []
   )
   const [tvExpertModalOpen, setTvExpertModalOpen] = useState(false)
+
+  const [expertApplyPendingPageSave, setExpertApplyPendingPageSave] = useState(false)
+  useEffect(() => {
+    return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
+  }, [])
   const [tvExpertExitConfirmOpen, setTvExpertExitConfirmOpen] = useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const tvStandardBaselineRef = useRef("")
@@ -519,6 +525,7 @@ export default function TelevisionContainer({
     )
     setTvExpertExitConfirmOpen(false)
     collapseAllLineItems()
+    setExpertApplyPendingPageSave(true)
     setTvExpertModalOpen(false)
   }, [
     campaignStartDate,
@@ -1187,6 +1194,11 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                       }}
                     >
                       Schedule grid open
+                    </Badge>
+                  ) : null}
+                  {expertApplyPendingPageSave ? (
+                    <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Not saved to plan yet
                     </Badge>
                   ) : null}
                 </div>
@@ -2024,8 +2036,17 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
             </div>
           </ComboboxModalProvider>
           <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
+            {expertApplyPendingPageSave ? (
+              <span className="mr-auto text-xs text-muted-foreground">
+                Applied earlier — awaiting page Save
+              </span>
+            ) : (
+              <span className="mr-auto text-xs text-muted-foreground">
+                Apply updates the plan draft only
+              </span>
+            )}
             <Button type="button" onClick={handleTvExpertApply}>
-              Apply
+              Apply to plan (not saved yet)
             </Button>
           </DialogFooter>
         </DialogContent>

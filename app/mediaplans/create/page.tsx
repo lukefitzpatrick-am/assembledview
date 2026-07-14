@@ -26,6 +26,7 @@ import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/mul
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePresetBar"
+import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApplyDirtyClearOnSave"
 import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { ChevronsUpDown, Check, Download, FileText, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -5875,6 +5876,7 @@ const handleSaveAll = async () => {
   
   return (
     <>
+      <ExpertApplyDirtyClearOnSave hasUnsavedChanges={hasUnsavedChanges} />
       <PlanWizardShell
         title="Create a Campaign"
         subtitle={<p>Set up campaign details, select media types, and configure line items.</p>}

@@ -1,5 +1,6 @@
 "use client"
 
+import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import {
   readContainerEntryMode,
@@ -356,6 +357,11 @@ export default function CinemaContainer({
   // --- Expert mode ---
   const [expertCinemaRows, setExpertCinemaRows] = useState<CinemaExpertScheduleRow[]>([])
   const [cinemaExpertModalOpen, setCinemaExpertModalOpen] = useState(false)
+
+  const [expertApplyPendingPageSave, setExpertApplyPendingPageSave] = useState(false)
+  useEffect(() => {
+    return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
+  }, [])
   const [cinemaExpertExitConfirmOpen, setCinemaExpertExitConfirmOpen] = useState(false)
   const cinemaStandardBaselineRef = useRef("")
   const cinemaExpertRowsBaselineRef = useRef("")
@@ -457,6 +463,7 @@ export default function CinemaContainer({
     )
     setCinemaExpertExitConfirmOpen(false)
     collapseAllLineItems()
+    setExpertApplyPendingPageSave(true)
     setCinemaExpertModalOpen(false)
   }, [
     campaignStartDate,
@@ -1966,7 +1973,16 @@ useEffect(() => {
             </div>
           </ComboboxModalProvider>
           <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
-            <Button type="button" onClick={handleCinemaExpertApply}>Apply</Button>
+            {expertApplyPendingPageSave ? (
+              <span className="mr-auto text-xs text-muted-foreground">
+                Applied earlier — awaiting page Save
+              </span>
+            ) : (
+              <span className="mr-auto text-xs text-muted-foreground">
+                Apply updates the plan draft only
+              </span>
+            )}
+            <Button type="button" onClick={handleCinemaExpertApply}>Apply to plan (not saved yet)</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1991,7 +2007,7 @@ useEffect(() => {
             >
               Discard
             </Button>
-            <Button type="button" onClick={handleCinemaExpertApply}>Apply changes</Button>
+            <Button type="button" onClick={handleCinemaExpertApply}>Apply to plan (not saved yet)</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

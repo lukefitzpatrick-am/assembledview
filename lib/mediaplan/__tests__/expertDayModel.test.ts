@@ -85,11 +85,11 @@ test("rebucketWeeklyValues preserves per-row totals across weekStartsOn change i
   old[sunCols[0]!.weekKey] = 70
 
   const next = rebucketWeeklyValues(old, sunCols, monCols)
-  const oldTotal = Object.values(old).reduce(
+  const oldTotal = Object.values(old).reduce<number>(
     (s, v) => s + (typeof v === "number" ? v : 0),
     0
   )
-  const newTotal = Object.values(next).reduce(
+  const newTotal = Object.values(next).reduce<number>(
     (s, v) => s + (typeof v === "number" ? v : 0),
     0
   )
@@ -118,7 +118,7 @@ test("rebucketRowsForWeekStartsOn materialises merged spans and conserves totals
   ]
   const next = rebucketRowsForWeekStartsOn(rows, sunCols, monCols)
   assert.equal(next[0]!.mergedWeekSpans?.length ?? 0, 0)
-  const total = Object.values(next[0]!.weeklyValues).reduce(
+  const total = Object.values(next[0]!.weeklyValues).reduce<number>(
     (s, v) => s + (typeof v === "number" ? v : 0),
     0
   )

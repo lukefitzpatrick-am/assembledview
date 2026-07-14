@@ -29,6 +29,7 @@ import { Combobox } from "@/components/ui/combobox"
 import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePresetBar"
+import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApplyDirtyClearOnSave"
 import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -8824,6 +8825,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   return (
     <>
+      <ExpertApplyDirtyClearOnSave hasUnsavedChanges={hasUnsavedChanges} />
       <Dialog open={rollbackModalOpen} onOpenChange={setRollbackModalOpen}>
         <DialogContent className="overflow-hidden p-0 sm:max-w-lg">
           <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />

@@ -1,5 +1,6 @@
 "use client"
 
+import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import {
   readContainerEntryMode,
@@ -250,6 +251,11 @@ export default function BVODContainer({
     []
   )
   const [bvodExpertModalOpen, setBvodExpertModalOpen] = useState(false)
+
+  const [expertApplyPendingPageSave, setExpertApplyPendingPageSave] = useState(false)
+  useEffect(() => {
+    return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
+  }, [])
   const [bvodExpertExitConfirmOpen, setBvodExpertExitConfirmOpen] =
     useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
@@ -511,6 +517,7 @@ export default function BVODContainer({
     )
     setBvodExpertExitConfirmOpen(false)
     collapseAllLineItems()
+    setExpertApplyPendingPageSave(true)
     setBvodExpertModalOpen(false)
   }, [
     campaignStartDate,
@@ -1161,6 +1168,11 @@ useEffect(() => {
                       }}
                     >
                       Schedule grid open
+                    </Badge>
+                  ) : null}
+                  {expertApplyPendingPageSave ? (
+                    <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Not saved to plan yet
                     </Badge>
                   ) : null}
                 </div>
@@ -2095,8 +2107,17 @@ useEffect(() => {
             </div>
           </ComboboxModalProvider>
           <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
+            {expertApplyPendingPageSave ? (
+              <span className="mr-auto text-xs text-muted-foreground">
+                Applied earlier — awaiting page Save
+              </span>
+            ) : (
+              <span className="mr-auto text-xs text-muted-foreground">
+                Apply updates the plan draft only
+              </span>
+            )}
             <Button type="button" onClick={handleBvodExpertApply}>
-              Apply
+              Apply to plan (not saved yet)
             </Button>
           </DialogFooter>
         </DialogContent>
