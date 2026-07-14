@@ -304,9 +304,8 @@ export function createEmptyProgOohExpertRow(
     buyType: "",
     creativeTargeting: "",
     creative: "",
-    environment: "",
-    format: "",
-    location: "",
+    placement: "",
+    size: "",
     buyingDemo: "",
     market: "",
     fixedCostMedia: false,
@@ -327,10 +326,9 @@ const PROGOOH_DESCRIPTOR_CORE: readonly (keyof ProgOohExpertScheduleRow)[] = [
   "bidStrategy",
   "buyType",
   "creativeTargeting",
-  "environment",
+  "placement",
   "creative",
-  "format",
-  "location",
+  "size",
 ]
 
 const PROGOOH_BILLING_FLAG_KEYS: readonly (keyof ProgOohExpertScheduleRow)[] = [
@@ -598,7 +596,7 @@ export function ProgOohExpertGrid({
 
   const descriptorColWidths = useMemo(() => {
     const billing = showBillingCols ? [56, 56, 56, 56] : []
-    const core = [48, 48, 120, 110, 96, 120, 110, 110, 110, 110]
+    const core = [48, 48, 120, 110, 96, 120, 110, 110, 80]
     const tail = [96, 110, 88]
     return [...billing, ...core, ...tail]
   }, [showBillingCols])
@@ -2647,10 +2645,9 @@ export function ProgOohExpertGrid({
       "Bid Strategy",
       "Buy Type",
       "Creative Targeting",
-      "Environment",
+      "Placement",
       "Creative",
-      "Format",
-      "Location",
+      "Size",
     ]
     const billing = showBillingCols
       ? [
@@ -3097,9 +3094,8 @@ export function ProgOohExpertGrid({
                       const cBuy = colIndexOf("buyType")
                       const cTgt = colIndexOf("creativeTargeting")
                       const cCre = colIndexOf("creative")
-                      const cEnv = colIndexOf("environment")
-                      const cFmt = colIndexOf("format")
-                      const cLoc = colIndexOf("location")
+                      const cPlc = colIndexOf("placement")
+                      const cSiz = colIndexOf("size")
                       const cDemo = colIndexOf("buyingDemo")
                       const cMkt = colIndexOf("market")
                       const cRate = colIndexOf("unitRate")
@@ -3113,12 +3109,9 @@ export function ProgOohExpertGrid({
                         <tr
                           className={cn(
                             stripe,
-                            "transition-colors hover:bg-muted/35 focus-within:bg-muted/35",
-                            isDropTarget(rowIndex) &&
-                              "bg-primary/10 ring-1 ring-inset ring-primary/40"
+                            "transition-colors hover:bg-muted/35 focus-within:bg-muted/35"
                           )}
                           style={stripeStyle}
-                          {...rowDropProps(rowIndex)}
                         >
                           <ExpertGridRowReorderCell
                             rowIndex={rowIndex}
@@ -3444,26 +3437,26 @@ export function ProgOohExpertGrid({
                             />
                           </td>
                           <td
-                            className={stickyTd(cEnv)}
-                            style={stickyStyleBody(cEnv)}
+                            className={stickyTd(cPlc)}
+                            style={stickyStyleBody(cPlc)}
                           >
                             <Input
                               id={expertGridCellId(
                                 domGridId,
                                 rowIndex,
-                                cEnv
+                                cPlc
                               )}
                               className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              value={row.environment}
+                              value={row.placement}
                               onFocus={() =>
-                                handleCellFocus(rowIndex, "environment")
+                                handleCellFocus(rowIndex, "placement")
                               }
                               onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cEnv, e)
+                                handleGridInputKeyDown(rowIndex, cPlc, e)
                               }
                               onChange={(e) =>
                                 updateRow(rowIndex, {
-                                  environment: e.target.value,
+                                  placement: e.target.value,
                                 })
                               }
                             />
@@ -3494,51 +3487,26 @@ export function ProgOohExpertGrid({
                             />
                           </td>
                           <td
-                            className={stickyTd(cFmt)}
-                            style={stickyStyleBody(cFmt)}
+                            className={stickyTd(cSiz)}
+                            style={stickyStyleBody(cSiz)}
                           >
                             <Input
                               id={expertGridCellId(
                                 domGridId,
                                 rowIndex,
-                                cFmt
+                                cSiz
                               )}
                               className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              value={row.format}
+                              value={row.size}
                               onFocus={() =>
-                                handleCellFocus(rowIndex, "format")
+                                handleCellFocus(rowIndex, "size")
                               }
                               onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cFmt, e)
+                                handleGridInputKeyDown(rowIndex, cSiz, e)
                               }
                               onChange={(e) =>
                                 updateRow(rowIndex, {
-                                  format: e.target.value,
-                                })
-                              }
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cLoc)}
-                            style={stickyStyleBody(cLoc)}
-                          >
-                            <Input
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cLoc
-                              )}
-                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              value={row.location}
-                              onFocus={() =>
-                                handleCellFocus(rowIndex, "location")
-                              }
-                              onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cLoc, e)
-                              }
-                              onChange={(e) =>
-                                updateRow(rowIndex, {
-                                  location: e.target.value,
+                                  size: e.target.value,
                                 })
                               }
                             />
