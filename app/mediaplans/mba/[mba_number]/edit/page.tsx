@@ -161,7 +161,18 @@ import {
   type LineOverrideMeta,
 } from "@/lib/finance/manualBillingOverridesUi"
 import { persistManualBillingOverrides } from "@/lib/finance/persistManualBillingOverrides"
+import {
+  collectPersistedBillingLineIds,
+  diffBillingActivity,
+  findStaleDateBasisOverrides,
+  formatPreservePriorAlert,
+  type BillingActivityLine,
+  type DateBasisDecision,
+  type StaleDateBasisOverride,
+} from "@/lib/finance/preservePriorBilling"
+import { applyDateBasisKeepOrReset } from "@/lib/finance/applyDateBasisKeepOrReset"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
+import { DateBasisKeepResetDialog } from "@/components/billing/DateBasisKeepResetDialog"
 import {
   MbaBillableEqualsPill,
   MbaFeeAdjustedPill,
@@ -1815,6 +1826,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }>({})
   /** Reason / dateBasis from billing_overrides rows (keyed by line_item_id). */
   const manualBillingOverrideMetaRef = useRef<Map<string, LineOverrideMeta[]>>(new Map())
+  /** Canonical line ids present on last hydrated / saved billing baseline (C3 preserve-prior). */
+  const persistedBillingLineIdsRef = useRef<Set<string>>(new Set())
+  type DateBasisDialogChoice = DateBasisDecision | "cancel"
+  const dateBasisDialogResolverRef = useRef<((choice: DateBasisDialogChoice) => void) | null>(null)
+  const dateBasisDialogSettledRef = useRef(false)
+  const [dateBasisDialogOpen, setDateBasisDialogOpen] = useState(false)
+  const [dateBasisStaleOverrides, setDateBasisStaleOverrides] = useState<StaleDateBasisOverride[]>([])
   const autoReferenceBillingMonthsRef = useRef<BillingMonth[]>([])
   const [autoDeliveryMonths, setAutoDeliveryMonths] = useState<BillingMonth[]>([])
   const deliveryScheduleSnapshotRef = useRef<BillingMonth[] | null>(null)
@@ -2814,6 +2832,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setInfluencersBursts([])
       setSavedBillingMonths([])
       savedBillingMonthsRef.current = []
+      persistedBillingLineIdsRef.current = new Set()
       setWorkingBillingMonths([])
       setBillingHydrationComplete(false)
       setAutoReferenceBillingMonths([])
@@ -3097,6 +3116,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           hasPersistedBillingScheduleRef.current = true
           setSavedBillingMonths(deepSaved)
           savedBillingMonthsRef.current = deepSaved
+          persistedBillingLineIdsRef.current = collectPersistedBillingLineIds(deepSaved)
           setWorkingBillingMonths(deepWorking)
           workingBillingMonthsRef.current = deepWorking
           setBillingHydrationComplete(true)
@@ -3118,6 +3138,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           hasPersistedBillingScheduleRef.current = false
           setSavedBillingMonths([])
           savedBillingMonthsRef.current = []
+          persistedBillingLineIdsRef.current = new Set()
           setBillingHydrationComplete(true)
           setHasPersistedBillingSchedule(false)
           setIsManualBilling(false)
@@ -5223,6 +5244,51 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     influencersBursts,
   ])
 
+  /** C3 — incoming container activity for preserve-prior / stale dateBasis preflight. */
+  const buildIncomingActivity = useCallback((): BillingActivityLine[] => {
+    const out: BillingActivityLine[] = []
+    for (const config of billingFeeSeedEnabledConfigs) {
+      const items = config.lineItems ?? []
+      items.forEach((raw, index) => {
+        const stableId = editorBillingStableLineItemId(config.billingKey, raw, index)
+        // Table + diff APIs key on canonical id (strip `billing-…::`).
+        const lineItemId = toBillingOverrideLineItemId(stableId)
+        if (!lineItemId) return
+        const { header1, header2 } = getScheduleHeaders(config.billingKey, raw)
+        const label =
+          [header1, header2].filter(Boolean).join(" ").trim() ||
+          `${config.billingKey} ${lineItemId}`
+        const bursts = resolveLineItemBursts(raw).map((b: any) => ({
+          startDate: String(b?.startDate ?? b?.start_date ?? ""),
+          endDate: String(b?.endDate ?? b?.end_date ?? ""),
+        }))
+        out.push({ lineItemId, label, bursts })
+      })
+    }
+    return out
+  }, [billingFeeSeedEnabledConfigs])
+
+  const finishDateBasisDialog = useCallback((choice: DateBasisDialogChoice) => {
+    if (dateBasisDialogSettledRef.current) return
+    dateBasisDialogSettledRef.current = true
+    setDateBasisDialogOpen(false)
+    const resolve = dateBasisDialogResolverRef.current
+    dateBasisDialogResolverRef.current = null
+    resolve?.(choice)
+  }, [])
+
+  const promptDateBasisKeepOrReset = useCallback(
+    (stale: StaleDateBasisOverride[]): Promise<DateBasisDialogChoice> => {
+      dateBasisDialogSettledRef.current = false
+      setDateBasisStaleOverrides(stale)
+      setDateBasisDialogOpen(true)
+      return new Promise((resolve) => {
+        dateBasisDialogResolverRef.current = resolve
+      })
+    },
+    []
+  )
+
   /**
    * Shared line/fee inputs for panel financials and version-save bodies (C1 omit mode).
    * Overrides: pass [] — the server attaches billing_overrides on save.
@@ -5641,7 +5707,53 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
       
       updateSaveStatus('Media Plan Master', 'success')
-      
+
+      // --- C3 preflight: preserve-prior diff + stale dateBasis keep/reset (before version PUT) ---
+      const incomingActivity = buildIncomingActivity()
+      const activityDiff = diffBillingActivity({
+        persistedLineIds: persistedBillingLineIdsRef.current,
+        incoming: incomingActivity,
+      })
+
+      const preflightVersionId = await resolveMediaPlanVersionRowId()
+      if (preflightVersionId != null) {
+        try {
+          const overrideRows = await fetchBillingOverridesClient(preflightVersionId)
+          const stale = await findStaleDateBasisOverrides({
+            overrideRows,
+            incoming: incomingActivity,
+          })
+          if (stale.length > 0) {
+            const decision = await promptDateBasisKeepOrReset(stale)
+            if (decision === "cancel") {
+              setSaveStatus([
+                { name: "Media Plan Master", status: "success" },
+                { name: "Media Plan Version", status: "error", error: "Cancelled — billing dates decision." },
+              ])
+              toast({
+                title: "Save cancelled",
+                description: "Campaign was not versioned. Choose keep or reset when billing dates changed.",
+              })
+              setIsSaving(false)
+              return
+            }
+            await applyDateBasisKeepOrReset({
+              versionId: preflightVersionId,
+              decision,
+              stale,
+              overrideRows,
+            })
+          }
+        } catch (err: any) {
+          console.warn("[C3] dateBasis preflight failed; continuing save", err)
+          toast({
+            variant: "destructive",
+            title: "Billing override check failed",
+            description: err?.message || "Proceeding with save without keep/reset prompt.",
+          })
+        }
+      }
+
       // 2. C1 omit-mode: send core inputs; server regenerates schedules from core + overrides.
       const hasWorkingBillingPayload = workingBillingMonths.length > 0
       const billingScheduleSource = hasWorkingBillingPayload ? "working" : "empty"
@@ -5710,6 +5822,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const snapshotAfterSave = deepCloneBillingMonthsState(workingBillingMonths)
       setSavedBillingMonths(snapshotAfterSave)
       savedBillingMonthsRef.current = snapshotAfterSave
+      persistedBillingLineIdsRef.current = collectPersistedBillingLineIds(snapshotAfterSave)
       billingLineItemsFollowAutoRef.current = false
       if (snapshotAfterSave.length > 0) {
         hasPersistedBillingScheduleRef.current = true
@@ -6200,6 +6313,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         title: "Success", 
         description: `Saved as version ${nextVersion}` 
       })
+
+      if (activityDiff.isAdditivePreserve) {
+        const preserveMsg = formatPreservePriorAlert(activityDiff)
+        if (preserveMsg) {
+          toast({
+            title: "Prior billing preserved",
+            description: preserveMsg,
+          })
+        }
+      }
 
       if (billingOverrideNotices.length > 0) {
         toast({
@@ -8081,6 +8204,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       if (savedResult.linesSeeded > 0) {
         setSavedBillingMonths(savedResult.months)
         savedBillingMonthsRef.current = savedResult.months
+        persistedBillingLineIdsRef.current = collectPersistedBillingLineIds(savedResult.months)
         billingFeeSeedDebug("seed applied (saved)", { lines: savedResult.linesSeeded })
       }
     }
@@ -10009,6 +10133,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           onAcknowledge={handleAcknowledgeDivergence}
         />
       ) : null}
+
+      <DateBasisKeepResetDialog
+        open={dateBasisDialogOpen}
+        stale={dateBasisStaleOverrides}
+        onKeep={() => finishDateBasisDialog("keep")}
+        onReset={() => finishDateBasisDialog("reset")}
+        onCancel={() => finishDateBasisDialog("cancel")}
+      />
 
       <AlertDialog open={fullBillingResetConfirmOpen} onOpenChange={setFullBillingResetConfirmOpen}>
         <AlertDialogContent>
