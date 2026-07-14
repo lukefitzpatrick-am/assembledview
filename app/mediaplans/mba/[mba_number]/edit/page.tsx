@@ -30,6 +30,8 @@ import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/mul
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePresetBar"
 import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApplyDirtyClearOnSave"
+import { BuilderIssuesBadge } from "@/components/mediaplans/BuilderIssuesBadge"
+import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
 import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -2432,6 +2434,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const budgetRemaining = useMemo(
     () => (Number(campaignBudget) || 0) - totalInvestment,
     [campaignBudget, totalInvestment]
+  )
+  const budgetRemainingOverspend = budgetRemaining < 0
+
+  const missingPublisherKpiCount = useMemo(
+    () => kpiRows.filter((r) => r.hasPublisherKpi === false).length,
+    [kpiRows]
   )
 
   /** Single source of truth for media toggles — avoids batch useWatch + render-time form.watch feedback loops. */
@@ -4887,6 +4895,77 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return v.hasAnyIssue
   }, [isManualBilling, workingBillingMonths, validateBillingBeforeSave])
 
+  const builderIssues = useMemo(() => {
+    const issues: BuilderIssue[] = []
+    const client = String(watchedClientName ?? "").trim()
+    const name = String(watchedCampaignName ?? "").trim()
+    if (!client) {
+      issues.push({
+        id: "required-client",
+        severity: "error",
+        title: "Client name is required",
+        scrollTargetId: "builder-section-campaign",
+      })
+    }
+    if (!name) {
+      issues.push({
+        id: "required-campaign-name",
+        severity: "error",
+        title: "Campaign name is required",
+        scrollTargetId: "builder-section-campaign",
+      })
+    }
+    if (dateWarning.hasViolation) {
+      issues.push({
+        id: "dates-outside-window",
+        severity: "warning",
+        title:
+          dateWarning.offendingCount === 1
+            ? "1 line item has flight dates outside the campaign window"
+            : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`,
+        detail: "Adjust burst dates or campaign dates.",
+        scrollTargetId: "builder-field-campaign-dates",
+      })
+    }
+    if (budgetRemainingOverspend) {
+      issues.push({
+        id: "budget-overspend",
+        severity: "warning",
+        title: "Budget remaining is negative",
+        detail: `${formatMoney(budgetRemaining)} over the campaign budget.`,
+        scrollTargetId: "builder-field-campaign-budget",
+      })
+    }
+    if (hasBillingMismatch) {
+      issues.push({
+        id: "billing-drift",
+        severity: "warning",
+        title: "Billing schedule differs from line items",
+        detail: "Open Edit Billing to review, or run a full reset to auto.",
+        scrollTargetId: "builder-section-billing",
+      })
+    }
+    if (missingPublisherKpiCount > 0) {
+      issues.push({
+        id: "missing-publisher-kpi",
+        severity: "warning",
+        title: `${missingPublisherKpiCount} missing publisher KPI`,
+        detail: "Does not block save — open KPIs to add publisher coverage.",
+        scrollTargetId: "builder-section-kpis",
+      })
+    }
+    return issues
+  }, [
+    watchedClientName,
+    watchedCampaignName,
+    dateWarning.hasViolation,
+    dateWarning.offendingCount,
+    budgetRemainingOverspend,
+    budgetRemaining,
+    hasBillingMismatch,
+    missingPublisherKpiCount,
+  ])
+
   const billingFeeSeedEnabledConfigs = useMemo((): SeedLineFeesMediaConfig[] => {
     const formFlagByKey: Record<string, keyof typeof mediaFlagMap> = {
       television: "mp_television",
@@ -5175,6 +5254,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [])
 
   const handleSaveAll = async () => {
+    if (budgetRemainingOverspend) {
+      const proceed = window.confirm(
+        `Budget remaining is ${formatMoney(budgetRemaining)} — this campaign is over budget. Save anyway?`
+      )
+      if (!proceed) return
+    }
+
     setIsSaveModalOpen(true)
     setIsSaving(true)
     
@@ -8228,6 +8314,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         campaignStatusOptions.find((option) => option.value === watchedCampaignStatus)?.label ??
         String(watchedCampaignStatus ?? "—"),
       budgetRemaining: formatMoney(budgetRemaining),
+      budgetRemainingOverspend,
     }),
     [
       watchedCampaignName,
@@ -8237,12 +8324,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       watchedCampaignStatus,
       campaignStatusOptions,
       budgetRemaining,
+      budgetRemainingOverspend,
       mbaCurrencyFormatter,
     ]
   )
 
   const wizardBottomBar = (
     <>
+      <BuilderIssuesBadge issues={builderIssues} />
       {dateWarning.hasViolation ? (
         <div className="flex items-center gap-2 text-sm font-medium text-destructive">
           <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-destructive" />
@@ -8252,11 +8341,33 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         </div>
       ) : null}
       {hasBillingMismatch ? (
-        <div className="flex items-center gap-2 text-center text-sm font-medium text-status-behind-fg">
-          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-pacing-behind" aria-hidden="true" />
-          <span>
-            Billing schedule has differences from line items — open Edit Billing to review or run a full reset
-          </span>
+        <div className="flex flex-col gap-2 rounded-card border border-pacing-behind bg-pacing-behind-bg px-3 py-2 text-status-behind-fg sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-sm font-medium">
+            <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-pacing-behind" aria-hidden="true" />
+            <span>
+              Billing schedule has differences from line items. Edit Billing lets you review and keep the manual
+              changes you want — a full reset discards all manual overrides and rebuilds from bursts.
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleManualBillingOpen}
+              className="h-8 shrink-0 rounded-pill px-3"
+            >
+              Edit Billing (recommended)
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => setFullBillingResetConfirmOpen(true)}
+              className="h-8 shrink-0 rounded-pill border-border px-3"
+            >
+              Full reset to auto
+            </Button>
+          </div>
         </div>
       ) : null}
       <CampaignExportsSection
@@ -8629,7 +8740,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           <Form {...form}>
           <form className="space-y-6">
             <section id="campaign-setup" className="scroll-mt-[18px]">
-            <div className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+            <div
+              id="builder-section-campaign"
+              className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm scroll-mt-24"
+            >
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
               <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Campaign Details</h3>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -8671,7 +8785,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 name="mp_clientname"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">Client Name</FormLabel>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">
+                      Client Name <span className="text-status-critical-fg" aria-hidden>*</span>
+                    </FormLabel>
                     <FormControl>
                       <Input {...field} disabled />
                     </FormControl>
@@ -8688,7 +8804,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 name="mp_campaignname"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Name</FormLabel>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">
+                      Campaign Name <span className="text-status-critical-fg" aria-hidden>*</span>
+                    </FormLabel>
                     <FormControl>
                       <Input {...field} value={String(field.value)} />
                     </FormControl>
@@ -8759,7 +8877,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 )}
               />
 
-              <div className="space-y-3 sm:col-span-2">
+              <div id="builder-field-campaign-dates" className="space-y-3 scroll-mt-24 sm:col-span-2">
                 <CampaignDatePresetBar
                   onApply={({ start, end }) => {
                     form.setValue("mp_campaigndates_start", start, { shouldDirty: true, shouldValidate: true })
@@ -8773,7 +8891,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 name="mp_campaigndates_start"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Start Date</FormLabel>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">
+                      Campaign Start Date <span className="text-status-critical-fg" aria-hidden>*</span>
+                    </FormLabel>
                     <FormControl>
                       <SingleDatePicker
                         ref={field.ref}
@@ -8799,7 +8919,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 name="mp_campaigndates_end"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign End Date</FormLabel>
+                    <FormLabel className="text-sm font-medium text-muted-foreground">
+                      Campaign End Date <span className="text-status-critical-fg" aria-hidden>*</span>
+                    </FormLabel>
                     <FormControl>
                       <SingleDatePicker
                         ref={field.ref}
@@ -8826,8 +8948,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 control={form.control}
                 name="mp_campaignbudget"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Budget</FormLabel>
+                  <FormItem id="builder-field-campaign-budget" className="scroll-mt-24">
+                    <FormLabel className="text-sm font-medium text-muted-foreground">
+                      Campaign Budget <span className="text-status-critical-fg" aria-hidden>*</span>
+                    </FormLabel>
                     <FormControl>
                       <MoneyInput
                         ref={field.ref}
@@ -9052,7 +9176,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             </div>
 
             {/* Billing Schedule Section — summary grid; detail/line edits are in Manual Billing. New months/media/lines merge in via append-only logic without full reset. */}
-            <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+            <div
+              id="builder-section-billing"
+              className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm scroll-mt-24"
+            >
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Billing Schedule</h3>
                 <div className="flex flex-wrap items-center gap-2">
@@ -9129,7 +9256,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               </div>
             </div>
 
-              <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
+              <div
+                id="builder-section-kpis"
+                className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm scroll-mt-24"
+              >
                 <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">KPIs</h3>
                 </div>
