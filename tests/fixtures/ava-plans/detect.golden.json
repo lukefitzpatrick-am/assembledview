@@ -1,0 +1,42 @@
+{
+  "arn_boss-engineering_annual-laydown-fy26.xlsx": {
+    "sheetName": "ARN Schedule",
+    "headerRow": 10,
+    "granularity": "textMonthWeekly",
+    "junkColumns": [],
+    "flightColumnCount": 52,
+    "notes": "Text-month + week-number flight (no ISO date row)"
+  },
+  "sca_boss-engineering_fy26_v1.xlsx": {
+    "sheetName": "Boss Engineering",
+    "headerRow": 9,
+    "granularity": "fourWeekly",
+    "junkColumns": [],
+    "flightColumnCount": 52
+  },
+  "sca_boss-engineering_fy26_v2-rev.xlsx": {
+    "sheetName": "Boss Engineering",
+    "headerRow": 9,
+    "granularity": "fourWeekly",
+    "junkColumns": [],
+    "flightColumnCount": 52,
+    "mustNotSelectSheets": ["Double Check", "Audience", "R+F"]
+  },
+  "qms_strength-meals_esb-ooh.xlsx": {
+    "sheetName": "QMS_2026_Paid",
+    "headerRow": 8,
+    "granularity": "weekly",
+    "junkColumns": [],
+    "flightColumnCount": 96,
+    "mustNotSelectSheets": ["QMS_2026_Bonus", "Campaign MOVE Summary"],
+    "bonusSheetName": "QMS_2026_Bonus"
+  },
+  "sen_boss-engineering_fy26.xlsx": {
+    "sheetName": "OPTION 2",
+    "headerRow": 16,
+    "granularity": "weekly",
+    "junkColumnsMustInclude": ["CS", "DP"],
+    "flightColumnCount": 77,
+    "notes": "CS–DP 1900-date / Error junk band must be dropped from flight"
+  }
+}

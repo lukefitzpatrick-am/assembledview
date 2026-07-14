@@ -1,10 +1,16 @@
 /**
  * Stage 1 — deterministic media-owner plan structure detector.
- * Faithful TS port of plan_detector_prototype.py (validated on 5 owner plans).
+ * Faithful TS port of plan_detector_prototype.py (validated on 5 owner plans),
+ * plus Paid/Bonus sheet selection and ARN text-month / week-number flight.
  */
 
 import ExcelJS from "exceljs"
-import type { DetectedColumn, DetectedSheet } from "./types"
+import type {
+  DetectedColumn,
+  DetectedFlightColumn,
+  DetectedSheet,
+  FlightGranularity,
+} from "./types"
 
 const META_LABELS =
   /^(client|campaign|demo|demographic|target|timing|agency|date|version|prepared|share option|booking)/i
@@ -13,6 +19,35 @@ const LINEITEM_HDRS =
 const COST_HDRS =
   /(rate|value|cost|total|cpm|invest|media value|market value|budget|entitlement|impact|audience|reach|frequenc|spots|potential|install|production)/i
 const ISO = /^\d{4}-\d{2}-\d{2}/
+const MONTH_TOKEN =
+  /^(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)$/i
+
+const MONTH_NUM: Record<string, number> = {
+  jan: 1,
+  january: 1,
+  feb: 2,
+  february: 2,
+  mar: 3,
+  march: 3,
+  apr: 4,
+  april: 4,
+  may: 5,
+  jun: 6,
+  june: 6,
+  jul: 7,
+  july: 7,
+  aug: 8,
+  august: 8,
+  sep: 9,
+  sept: 9,
+  september: 9,
+  oct: 10,
+  october: 10,
+  nov: 11,
+  november: 11,
+  dec: 12,
+  december: 12,
+}
 
 function unwrapCellValue(v: unknown): string | number | Date | null {
   if (v == null) return null
@@ -45,30 +80,154 @@ function parseDate(v: unknown): Date | null {
   return null
 }
 
-export async function detectPlanStructure(buffer: Buffer): Promise<DetectedSheet> {
-  const wb = new ExcelJS.Workbook()
-  // exceljs accepts Buffer / ArrayBuffer / Uint8Array
-  await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer)
+function parseMonthToken(v: unknown): number | null {
+  if (typeof v !== "string") return null
+  const t = v.trim().replace(/\./g, "").toLowerCase()
+  if (!MONTH_TOKEN.test(t)) return null
+  return MONTH_NUM[t] ?? null
+}
 
-  if (wb.worksheets.length === 0) {
+function parseYearToken(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v) && v >= 2000 && v <= 2100) {
+    return Math.trunc(v)
+  }
+  if (typeof v === "string") {
+    const m = v.trim().match(/^(20\d{2})$/)
+    if (m) return Number(m[1])
+  }
+  return null
+}
+
+function parseDayToken(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v) && v >= 1 && v <= 31) {
+    return Math.trunc(v)
+  }
+  if (typeof v === "string" && /^\d{1,2}$/.test(v.trim())) {
+    const n = Number(v.trim())
+    if (n >= 1 && n <= 31) return n
+  }
+  return null
+}
+
+function isoDateUTC(year: number, month: number, day: number): string | null {
+  const d = new Date(Date.UTC(year, month - 1, day))
+  if (
+    d.getUTCFullYear() !== year ||
+    d.getUTCMonth() !== month - 1 ||
+    d.getUTCDate() !== day
+  ) {
+    return null
+  }
+  return d.toISOString().slice(0, 10)
+}
+
+/** Score worksheet for primary data selection. Penalises QA / Bonus / MOVE tabs. */
+export function scoreWorksheetForPrimary(ws: ExcelJS.Worksheet): number {
+  let score = (ws.rowCount || 0) * Math.min(ws.columnCount || 0, 140)
+  if (/double check|summary|audience|r\+f|move|bonus/i.test(ws.name)) {
+    score *= 0.3
+  }
+  if (/paid/i.test(ws.name)) {
+    score *= 1.25
+  }
+  return score
+}
+
+/**
+ * Prefer a *Paid* sibling when present; otherwise highest score.
+ * Bonus tabs are deprioritised via {@link scoreWorksheetForPrimary}.
+ */
+export function pickPrimaryWorksheet(
+  worksheets: ExcelJS.Worksheet[]
+): ExcelJS.Worksheet {
+  if (worksheets.length === 0) {
     throw new Error("Workbook has no worksheets")
   }
-
-  let ws = wb.worksheets[0]
-  let best = -1
-  for (const s of wb.worksheets) {
-    let score = (s.rowCount || 0) * Math.min(s.columnCount || 0, 140)
-    if (/double check|summary|audience|r\+f|move/i.test(s.name)) score *= 0.3
-    if (score > best) {
-      best = score
-      ws = s
+  const paid = worksheets.filter((s) => /paid/i.test(s.name))
+  const pool = paid.length > 0 ? paid : worksheets
+  let best = pool[0]
+  let bestScore = -1
+  for (const s of pool) {
+    const score = scoreWorksheetForPrimary(s)
+    if (score > bestScore) {
+      bestScore = score
+      best = s
     }
   }
+  return best
+}
 
+function detectTextMonthFlight(
+  cell: (r: number, c: number) => string | number | Date | null,
+  letter: (c: number) => string,
+  maxR: number,
+  maxC: number
+): {
+  dateRow: number
+  columns: DetectedFlightColumn[]
+  granularity: FlightGranularity
+} | null {
+  let monthRow: number | null = null
+  let monthHits = 0
+  for (let r = 1; r <= maxR; r++) {
+    let hits = 0
+    for (let c = 1; c <= maxC; c++) {
+      if (parseMonthToken(cell(r, c)) != null) hits++
+    }
+    if (hits > monthHits) {
+      monthHits = hits
+      monthRow = r
+    }
+  }
+  if (monthRow == null || monthHits < 4) return null
+
+  const weekRow = monthRow + 1
+  if (weekRow > maxR) return null
+  let weekHits = 0
+  for (let c = 1; c <= maxC; c++) {
+    if (parseDayToken(cell(weekRow, c)) != null) weekHits++
+  }
+  if (weekHits < 4) return null
+
+  const yearRow = monthRow - 1
+  let lastYear: number | null = null
+  const columns: DetectedFlightColumn[] = []
+  for (let c = 1; c <= maxC; c++) {
+    const month = parseMonthToken(cell(monthRow, c))
+    const day = parseDayToken(cell(weekRow, c))
+    if (month == null || day == null) continue
+    if (yearRow >= 1) {
+      const y = parseYearToken(cell(yearRow, c))
+      if (y != null) lastYear = y
+    }
+    if (lastYear == null) continue
+    const date = isoDateUTC(lastYear, month, day)
+    if (!date) continue
+    const monthLabel = String(cell(monthRow, c) ?? "").trim()
+    columns.push({
+      index: c,
+      letter: letter(c),
+      date,
+      label: `${monthLabel} / ${day}`.trim(),
+    })
+  }
+  if (columns.length < 4) return null
+  return {
+    dateRow: weekRow,
+    columns,
+    granularity: "textMonthWeekly",
+  }
+}
+
+function detectWorksheet(
+  ws: ExcelJS.Worksheet,
+  opts?: { isBonusSheet?: boolean }
+): DetectedSheet {
   const maxR = Math.min(ws.rowCount || 1, 60)
   const maxC = Math.min(ws.columnCount || 1, 140)
 
   const cell = (r: number, c: number) => unwrapCellValue(ws.getCell(r, c).value)
+  const letter = (c: number) => ws.getColumn(c).letter
 
   const dateCells: Record<number, { c: number; date: Date }[]> = {}
   const junk = new Set<number>()
@@ -97,15 +256,35 @@ export async function detectPlanStructure(buffer: Buffer): Promise<DetectedSheet
     }
   }
 
-  let granularity: DetectedSheet["flight"]["granularity"] = "unknown"
-  if (dates.length >= 2) {
-    const deltas = dates
+  let granularity: FlightGranularity = "unknown"
+  let flightCols: DetectedFlightColumn[] = dates
+    .filter((d) => !junk.has(d.c))
+    .map((d) => ({
+      index: d.c,
+      letter: letter(d.c),
+      date: toISO(d.date) ?? d.date.toISOString().slice(0, 10),
+    }))
+
+  if (flightCols.length >= 2) {
+    const deltas = flightCols
       .slice(1)
-      .map((d, i) => (d.date.getTime() - dates[i].date.getTime()) / 86400000)
+      .map((d, i) => {
+        const a = parseDate(flightCols[i].date)
+        const b = parseDate(d.date)
+        if (!a || !b) return 0
+        return (b.getTime() - a.getTime()) / 86400000
+      })
       .filter((x) => x > 0)
       .sort((a, b) => a - b)
     const med = deltas[Math.floor(deltas.length / 2)] ?? 0
     granularity = med <= 8 ? "weekly" : med <= 31 ? "fourWeekly" : "monthly"
+  } else {
+    const textFlight = detectTextMonthFlight(cell, letter, maxR, maxC)
+    if (textFlight) {
+      dateRow = textFlight.dateRow
+      flightCols = textFlight.columns.filter((c) => !junk.has(c.index))
+      granularity = textFlight.granularity
+    }
   }
 
   let headerRow: number | null = null
@@ -143,12 +322,6 @@ export async function detectPlanStructure(buffer: Buffer): Promise<DetectedSheet
     }
   }
 
-  const letter = (c: number) => ws.getColumn(c).letter
-  const flightCols = dates.map((d) => ({
-    index: d.c,
-    letter: letter(d.c),
-    date: toISO(d.date) ?? d.date.toISOString().slice(0, 10),
-  }))
   const firstFlight = flightCols.length
     ? Math.min(...flightCols.map((f) => f.index))
     : maxC
@@ -165,7 +338,6 @@ export async function detectPlanStructure(buffer: Buffer): Promise<DetectedSheet
         header: v.replace(/\s+/g, " ").trim(),
       }
       if (junk.has(c) || flightCols.some((f) => f.index === c)) continue
-      // Match prototype: cost headers anywhere outside flight/junk; descriptors left of flight.
       if (COST_HDRS.test(v)) costColumns.push(col)
       else if (c < firstFlight) lineItemColumns.push(col)
     }
@@ -195,8 +367,33 @@ export async function detectPlanStructure(buffer: Buffer): Promise<DetectedSheet
     lineItemColumns,
     flight: { dateRow, columns: flightCols, granularity },
     costColumns,
-    junkColumns: [...junk].map(letter),
+    junkColumns: [...junk].map(letter).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })),
     dataRowRange: { firstDataRow, lastDataRow },
     grid,
+    ...(opts?.isBonusSheet ? { isBonusSheet: true as const } : {}),
   }
+}
+
+export async function detectPlanStructure(buffer: Buffer): Promise<DetectedSheet> {
+  const wb = new ExcelJS.Workbook()
+  await wb.xlsx.load(buffer as unknown as ExcelJS.Buffer)
+
+  if (wb.worksheets.length === 0) {
+    throw new Error("Workbook has no worksheets")
+  }
+
+  const primaryWs = pickPrimaryWorksheet(wb.worksheets)
+  const primary = detectWorksheet(primaryWs)
+
+  const bonusSheets: DetectedSheet[] = []
+  for (const s of wb.worksheets) {
+    if (s === primaryWs) continue
+    if (!/bonus/i.test(s.name)) continue
+    bonusSheets.push(detectWorksheet(s, { isBonusSheet: true }))
+  }
+  if (bonusSheets.length) {
+    primary.bonusSheets = bonusSheets
+  }
+
+  return primary
 }

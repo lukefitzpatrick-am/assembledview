@@ -6,6 +6,22 @@ export type DetectedColumn = {
   header: string
 }
 
+export type FlightGranularity =
+  | "weekly"
+  | "fourWeekly"
+  | "monthly"
+  | "textMonthWeekly"
+  | "unknown"
+
+export type DetectedFlightColumn = {
+  index: number
+  letter: string
+  /** ISO yyyy-MM-dd (synthesised for text-month / week-number bands). */
+  date: string
+  /** Optional header label (e.g. "JULY / 7") for text-month flight. */
+  label?: string
+}
+
 export type DetectedSheet = {
   sheetName: string
   meta: Record<string, string>
@@ -13,13 +29,17 @@ export type DetectedSheet = {
   lineItemColumns: DetectedColumn[]
   flight: {
     dateRow: number | null
-    columns: { index: number; letter: string; date: string }[]
-    granularity: "weekly" | "fourWeekly" | "monthly" | "unknown"
+    columns: DetectedFlightColumn[]
+    granularity: FlightGranularity
   }
   costColumns: DetectedColumn[]
   junkColumns: string[]
   dataRowRange: { firstDataRow: number; lastDataRow: number }
   grid: (string | number | null)[][]
+  /** True when this sheet was detected as a Bonus / added-value sibling. */
+  isBonusSheet?: boolean
+  /** Secondary Bonus sheet detections (primary sheet only). */
+  bonusSheets?: DetectedSheet[]
 }
 
 export type AutopopulateChannel = "radio" | "ooh"

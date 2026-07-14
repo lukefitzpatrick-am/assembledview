@@ -21,7 +21,7 @@ Money / burst budget (authoritative copy rule):
 Rules:
 1. Identify data rows vs group/subtotal/header rows. Group rows (e.g. a State or Network name with no rate/quantity of its own) are context, NOT line items — attach their label to the child rows as network/market where appropriate.
 2. One output line item per real media line. Map descriptor cells to schema fields. Leave a field "" if the plan doesn't specify it. Do not fabricate.
-3. Bursts: for each flight column (or contiguous run of columns) that holds a quantity/spend for this line, emit one burst with startDate/endDate from that column's date(s) and money/quantity from the row's cell. If the flight band is empty (ARN-style text months), read the month/week headers from the grid yourself and construct ISO dates for the campaign's year.
+3. Bursts: for each flight column (or contiguous run of columns) that holds a quantity/spend for this line, emit one burst with startDate/endDate from that column's date(s) and money/quantity from the row's cell. When granularity is textMonthWeekly, flight.columns[].date are synthesised ISO week-start dates from year/month/week-number headers — still use those dates; do not invent a different calendar.
 4. Bonus/added-value lines or sheets: set is_bonus=true and do NOT add them to paid budget.
 5. Metadata: fill plan_meta (client, campaign, demo, start/end) from the grid even if it sits in an odd place. If a value is absent, omit it — never guess.
 6. Every number you output must be traceable to a cell. If you are <80% sure of a mapping, put the line in needs_review with a one-line reason instead of guessing.
