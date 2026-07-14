@@ -1,5 +1,7 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
@@ -308,6 +310,7 @@ export default function IntegrationContainer({
   useEffect(() => {
     return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
   }, [])
+  const mediaLineItemsPublishFpRef = useRef("")
 
   const [integrationExpertExitConfirmOpen, setIntegrationExpertExitConfirmOpen] =
     useState(false)
@@ -622,7 +625,7 @@ export default function IntegrationContainer({
       };
     });
 
-    onMediaLineItemsChange(transformedLineItems);
+    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
   }, [watchedLineItems, mbaNumber, feeintegration, form, onMediaLineItemsChange]);
   
   // Memoized calculations

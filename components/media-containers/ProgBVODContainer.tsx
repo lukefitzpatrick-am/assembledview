@@ -1,5 +1,7 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
@@ -307,6 +309,7 @@ export default function ProgBVODContainer({
   )
 
   const progbvodStandardBaselineRef = useRef("")
+  const mediaLineItemsPublishFpRef = useRef("")
   const [expertProgBvodRows, setExpertProgBvodRows] = useState<
     ProgBvodExpertScheduleRow[]
   >([])
@@ -602,7 +605,7 @@ export default function ProgBVODContainer({
       };
     });
 
-    onMediaLineItemsChange(transformedLineItems);
+    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
   }, [watchedLineItems, mbaNumber, feeprogbvod, form, onMediaLineItemsChange]);
   
   // Memoized calculations

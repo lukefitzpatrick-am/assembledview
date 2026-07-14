@@ -1,5 +1,7 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
@@ -301,6 +303,7 @@ export default function ProgOOHContainer({
   )
 
   const progoohStandardBaselineRef = useRef("")
+  const mediaLineItemsPublishFpRef = useRef("")
   const [expertProgOohRows, setExpertProgOohRows] = useState<
     ProgOohExpertScheduleRow[]
   >([])
@@ -611,7 +614,7 @@ export default function ProgOOHContainer({
       };
     });
 
-    onMediaLineItemsChange(transformedLineItems);
+    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
   }, [watchedLineItems, mbaNumber, feeprogooh, form, onMediaLineItemsChange]);
   
   // Memoized calculations

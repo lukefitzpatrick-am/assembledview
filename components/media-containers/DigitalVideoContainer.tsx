@@ -1,5 +1,7 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
@@ -250,6 +252,7 @@ export default function DigiVideoContainer({
   useEffect(() => {
     return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
   }, [])
+  const mediaLineItemsPublishFpRef = useRef("")
 
   const [digiVideoExpertExitConfirmOpen, setDigiVideoExpertExitConfirmOpen] =
     useState(false)
@@ -670,7 +673,7 @@ export default function DigiVideoContainer({
       };
     });
 
-    onMediaLineItemsChange(transformedLineItems);
+    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
   }, [watchedLineItems, mbaNumber, feedigivideo, form, onMediaLineItemsChange]);
   
   // Memoized calculations

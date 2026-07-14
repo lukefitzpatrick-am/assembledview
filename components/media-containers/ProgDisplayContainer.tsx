@@ -1,5 +1,7 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
@@ -307,6 +309,7 @@ export default function ProgDisplayContainer({
   )
 
   const progdisplayStandardBaselineRef = useRef("")
+  const mediaLineItemsPublishFpRef = useRef("")
   const [expertProgDisplayRows, setExpertProgDisplayRows] = useState<
     ProgDisplayExpertScheduleRow[]
   >([])
@@ -615,7 +618,7 @@ export default function ProgDisplayContainer({
       };
     });
 
-    onMediaLineItemsChange(transformedLineItems);
+    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
   }, [watchedLineItems, mbaNumber, feeprogdisplay, form, onMediaLineItemsChange]);
   
   // Memoized calculations

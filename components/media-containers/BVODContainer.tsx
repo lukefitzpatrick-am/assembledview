@@ -1,5 +1,7 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
@@ -258,6 +260,7 @@ export default function BVODContainer({
   useEffect(() => {
     return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
   }, [])
+  const mediaLineItemsPublishFpRef = useRef("")
   const [bvodExpertExitConfirmOpen, setBvodExpertExitConfirmOpen] =
     useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
@@ -702,7 +705,7 @@ export default function BVODContainer({
       };
     });
 
-    onMediaLineItemsChange(transformedLineItems);
+    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
   }, [watchedLineItems, mbaNumber, feebvod, onMediaLineItemsChange, form]);
   
   // Memoized calculations

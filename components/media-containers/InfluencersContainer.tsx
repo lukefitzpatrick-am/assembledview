@@ -1,5 +1,7 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
@@ -298,6 +300,7 @@ export default function InfluencersContainer({
   useEffect(() => {
     return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
   }, [])
+  const mediaLineItemsPublishFpRef = useRef("")
 
   const [influencersExpertExitConfirmOpen, setInfluencersExpertExitConfirmOpen] =
     useState(false)
@@ -554,7 +557,7 @@ export default function InfluencersContainer({
       };
     });
 
-    onMediaLineItemsChange(transformedLineItems);
+    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
   }, [watchedLineItems, mbaNumber, feeinfluencers, form, onMediaLineItemsChange]);
 
   // Memoized calculations

@@ -1,5 +1,7 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
@@ -259,6 +261,7 @@ export default function TelevisionContainer({
   useEffect(() => {
     return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
   }, [])
+  const mediaLineItemsPublishFpRef = useRef("")
   const [tvExpertExitConfirmOpen, setTvExpertExitConfirmOpen] = useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
   const tvStandardBaselineRef = useRef("")
@@ -1091,7 +1094,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
     };
   });
 
-  onMediaLineItemsChangeRef.current(transformedLineItems);
+  publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, (items) => onMediaLineItemsChangeRef.current(items));
 }, [watchedLineItems, mbaNumber, feetelevision, form]);
 
   useEffect(() => {

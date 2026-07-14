@@ -1,5 +1,7 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
@@ -246,7 +248,8 @@ export default function RadioContainer({
   const [expertApplyPendingPageSave, setExpertApplyPendingPageSave] = useState(false)
   useEffect(() => {
     return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
-  }, []);
+  }, [])
+  const mediaLineItemsPublishFpRef = useRef("");
   const [radioExpertExitConfirmOpen, setRadioExpertExitConfirmOpen] = useState(false);
   /** Brief visual cue on Expert segment so users notice the toggle on first paint. */
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true);
@@ -756,7 +759,7 @@ export default function RadioContainer({
       };
     });
 
-  onMediaLineItemsChange(transformedLineItems);
+  publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
 }, [watchedLineItems, mbaNumber, feeradio, form, onMediaLineItemsChange, createLineItemId]);
   
   // Memoized calculations

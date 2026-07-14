@@ -1,5 +1,7 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
@@ -252,6 +254,7 @@ export default function ProductionContainer({
   useEffect(() => {
     return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
   }, [])
+  const mediaLineItemsPublishFpRef = useRef("")
   const [productionExpertExitConfirmOpen, setProductionExpertExitConfirmOpen] =
     useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
@@ -581,7 +584,7 @@ export default function ProductionContainer({
     investmentChangeRef.current?.(buildInvestmentByMonth(bursts))
     const mappedLineItems = mapLineItemsForExport(watchedLineItems || [], mbaNumber)
     lineItemsChangeRef.current?.(mappedLineItems)
-    mediaLineItemsChangeRef.current?.(apiLineItems)
+    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, apiLineItems, (items) => mediaLineItemsChangeRef.current?.(items))
   }, [watchedLineItems, totals.totalMedia, mbaNumber, apiLineItems])
 
   const handleAddLineItem = () => {
