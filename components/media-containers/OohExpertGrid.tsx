@@ -11,7 +11,10 @@ import {
 } from "react"
 import { MemoExpertGridRow } from "@/components/media-containers/MemoExpertGridRow"
 import { isExpertRowIncomplete, expertRowIncompleteReasons } from "@/lib/mediaplan/expertRowCompleteness"
-import { useVirtualizer } from "@tanstack/react-virtual"
+import {
+  ExpertGridVirtualSpacerBody,
+  useExpertGridRowVirtualizer,
+} from "@/components/media-containers/useExpertGridRowVirtualizer"
 import {
   buildMapsPreservingIdentity,
   finalizeRowsPreservingIdentity,
@@ -60,6 +63,11 @@ import {
 } from "@/lib/mediaplan/expertRowLifecycle"
 import { reorderExpertRows, weekColStyle, mergedSpanWidthPx } from "@/lib/mediaplan/expertGridInteractions"
 import {
+  OOH_EXPERT_ROW_HEIGHT_PX,
+  OOH_EXPERT_ROW_OVERSCAN,
+  computeOohExpertWeeklyTotals,
+} from "@/lib/mediaplan/oohExpertVirtualization"
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -97,7 +105,6 @@ import {
   handleExpertGridInputKeyDown,
 } from "@/lib/mediaplan/expertGridKeyboardNav"
 import {
-  expertRowCostSplit,
   expertRowNetMedia,
   expertRowNetMediaTooltip,
   expertRowQuantitySum,
@@ -214,18 +221,12 @@ const DEBUG_OOH_MERGE = false
  *
  * Flip to `false` for a fast rollback to the fully-rendered tbody. Only the OOH
  * Expert grid is virtualized; other ExpertGrids are untouched.
+ *
+ * Row height is FIXED (`OOH_EXPERT_ROW_HEIGHT_PX`) with matching CSS on each
+ * schedule `<tr>` — no `measureElement`. Mismatched real height vs estimate
+ * causes sticky-column / spacer misalignment.
  */
 const OOH_EXPERT_ROW_VIRTUALIZATION = true
-
-/**
- * Estimated body-row height (px). OOH schedule rows use ~h-8 / min-h-10 cells;
- * 41px matches a single-line row with borders. Fixed estimate + generous
- * overscan is acceptable for the prototype (no per-row measurement).
- */
-const OOH_EXPERT_ROW_ESTIMATE_PX = 41
-
-/** Overscan keeps drag/keyboard neighbours mounted around the visible window. */
-const OOH_EXPERT_ROW_OVERSCAN = 12
 
 /**
  * Parse clipboard text that may contain tab-separated values (Excel/Sheets)
@@ -623,6 +624,9 @@ export function OohExpertGrid({
 
   const stickyStyleBodyDescriptorTotalLabel = useMemo(
     () => ({
+      position: "sticky" as const,
+      left: EXPERT_REORDER_COL_WIDTH_PX,
+      zIndex: 30,
       width: descriptorStickyBlockWidthPx,
       minWidth: descriptorStickyBlockWidthPx,
       maxWidth: descriptorStickyBlockWidthPx,
@@ -874,6 +878,8 @@ export function OohExpertGrid({
   )
 
 
+  const gridScrollRef = useRef<HTMLDivElement>(null)
+
   const handleReorder = useCallback(
     (from: number, to: number) => {
       const next = reorderExpertRows(normalizedRowsRef.current, from, to)
@@ -883,8 +889,37 @@ export function OohExpertGrid({
     },
     [pushRows, onReorder]
   )
+
+  const theadRef = useRef<HTMLTableSectionElement>(null)
+  const [theadHeightPx, setTheadHeightPx] = useState(48)
+  useEffect(() => {
+    const el = theadRef.current
+    if (!el || typeof ResizeObserver === "undefined") return
+    const measure = () => {
+      const h = el.getBoundingClientRect().height
+      if (h > 0) setTheadHeightPx(h)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const rowReorderVirtual = useMemo(
+    () =>
+      OOH_EXPERT_ROW_VIRTUALIZATION
+        ? {
+            rowCount: normalizedRows.length,
+            estimateSizePx: OOH_EXPERT_ROW_HEIGHT_PX,
+            getScrollElement: () => gridScrollRef.current,
+            getBodyOffsetTop: () => theadHeightPx,
+          }
+        : null,
+    [normalizedRows.length, theadHeightPx]
+  )
+
   const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
-    useExpertRowReorder(handleReorder)
+    useExpertRowReorder(handleReorder, rowReorderVirtual)
   const { weekColumnWidths, setWeekColumnWidth } = useExpertWeekColumnWidths()
 
   const resolveWeekDragSource = useCallback(
@@ -1126,7 +1161,7 @@ export function OohExpertGrid({
 
   const stickyThCorner = (className?: string) =>
     cn(
-      "sticky top-0 border-b border-r px-1.5 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm",
+      "sticky top-0 z-[60] border-b border-r px-1.5 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm",
       className
     )
 
@@ -1136,11 +1171,14 @@ export function OohExpertGrid({
 
   const stickyTd = (index: number, className?: string) =>
     cn(
-      "border-b border-r bg-inherit px-1 py-0.5 align-middle",
+      "border-b border-r bg-inherit px-1 py-0 align-middle overflow-hidden",
       className
     )
 
   const stickyStyleBody = (index: number) => ({
+    position: "sticky" as const,
+    left: EXPERT_REORDER_COL_WIDTH_PX + (leftOffsets[index] ?? 0),
+    zIndex: 20 + Math.min(index, 20),
     width: descriptorColWidths[index],
     minWidth: descriptorColWidths[index],
     maxWidth: descriptorColWidths[index],
@@ -1148,11 +1186,26 @@ export function OohExpertGrid({
   })
 
   const stickyStyleHeaderCorner = (index: number) => ({
+    position: "sticky" as const,
+    left: EXPERT_REORDER_COL_WIDTH_PX + (leftOffsets[index] ?? 0),
+    zIndex: 70 + Math.min(index, 20),
     width: descriptorColWidths[index],
     minWidth: descriptorColWidths[index],
     maxWidth: descriptorColWidths[index],
     boxSizing: "border-box" as const,
   })
+
+  const stickyStyleReorderBody = {
+    position: "sticky" as const,
+    left: 0,
+    zIndex: 40,
+  }
+
+  const stickyStyleReorderHeader = {
+    position: "sticky" as const,
+    left: 0,
+    zIndex: 80,
+  }
 
   // F-28 Phase 2: virtualized rows may be unmounted off-screen, so keyboard nav
   // asks the virtualizer to scroll a target row into range before focusing. The
@@ -2119,18 +2172,25 @@ export function OohExpertGrid({
     weekMultiSelect,
   ])
 
-  const gridScrollRef = useRef<HTMLDivElement>(null)
-
   // F-28 Phase 2 — virtualize only the schedule rows. The existing scroll div
   // (`gridScrollRef`) is the scroll element; the weekly-totals footer row stays
   // outside the virtual window and always renders after the bottom spacer.
-  const rowVirtualizer = useVirtualizer({
+  // scrollMargin / scrollPaddingStart keep ranges + scrollToIndex aligned with
+  // the sticky <thead> that sits above the virtual body inside the same scroller.
+  const {
+    virtualItems,
+    paddingTop,
+    paddingBottom,
+    scrollToIndex,
+  } = useExpertGridRowVirtualizer({
     count: normalizedRows.length,
     getScrollElement: () => gridScrollRef.current,
-    estimateSize: () => OOH_EXPERT_ROW_ESTIMATE_PX,
+    estimateSize: OOH_EXPERT_ROW_HEIGHT_PX,
     overscan: OOH_EXPERT_ROW_OVERSCAN,
+    scrollMargin: theadHeightPx,
+    scrollPaddingStart: theadHeightPx,
   })
-  rowVirtualizerRef.current = rowVirtualizer
+  rowVirtualizerRef.current = { scrollToIndex }
 
   /**
    * Colspan for the top/bottom virtual spacer rows. Must equal the thead/totals
@@ -2684,48 +2744,16 @@ export function OohExpertGrid({
     [pushRows, weekKeys]
   )
 
-  const containerTotals = useMemo(() => {
-    let sumNet = 0
-    let sumFee = 0
-    let sumQty = 0
-    const perWeek: Record<string, number> = {}
-    for (const k of weekKeys) perWeek[k] = 0
-
-    for (const row of normalizedRows) {
-      const { net, fee } = expertRowCostSplit(row, weekKeys, feeooh)
-      sumNet += net
-      sumFee += fee
-      for (const k of weekKeys) {
-        const q = parseNum(row.weeklyValues[k])
-        perWeek[k] += q
-        sumQty += q
-      }
-      // Day-detailed weeks keep an empty week cell; their qty lives in dailyValues.
-      if (row.dailyValues) {
-        for (const k of weekKeys) {
-          for (const dk of dayKeysByWeekKey[k] ?? []) {
-            const dv = row.dailyValues[dk]
-            if (dv === "" || dv === undefined) continue
-            const q = parseNum(dv)
-            perWeek[k] += q
-            sumQty += q
-          }
-        }
-      }
-      for (const span of row.mergedWeekSpans ?? []) {
-        const q = span.totalQty
-        if (!Number.isFinite(q) || q === 0) continue
-        if (span.startWeekKey in perWeek) {
-          perWeek[span.startWeekKey] += q
-        }
-        sumQty += q
-      }
-    }
-
-    const totalWithFee = sumNet + sumFee
-
-    return { sumNet, sumQty, perWeek, fee: sumFee, totalWithFee }
-  }, [dayKeysByWeekKey, feeooh, normalizedRows, weekKeys])
+  const containerTotals = useMemo(
+    () =>
+      computeOohExpertWeeklyTotals(
+        normalizedRows,
+        weekKeys,
+        dayKeysByWeekKey,
+        feeooh
+      ),
+    [dayKeysByWeekKey, feeooh, normalizedRows, weekKeys]
+  )
 
   const descriptorHeadLabels = useMemo(() => {
     const core = [
@@ -2968,11 +2996,14 @@ export function OohExpertGrid({
                 data-ooh-expert-grid-scroll=""
               >
                 <table className="w-max min-w-full border-collapse text-sm">
-                  <thead className="[&_tr]:border-b-0">
+                  <thead ref={theadRef} className="[&_tr]:border-b-0">
                     <tr>
                       <ExpertGridRowReorderHeaderCell
                         className={stickyThCorner("text-center")}
-                        style={oohExpertHeaderCellBgStyle}
+                        style={{
+                          ...stickyStyleReorderHeader,
+                          ...oohExpertHeaderCellBgStyle,
+                        }}
                       />
                       {descriptorHeadLabels.map((label, i) => (
                         <th
@@ -3197,10 +3228,15 @@ export function OohExpertGrid({
                         <tr
                           className={cn(
                             stripe,
-                            "transition-colors hover:bg-muted/35 focus-within:bg-muted/35",
+                            "ooh-expert-schedule-row transition-colors hover:bg-muted/35 focus-within:bg-muted/35",
                             isDropTarget(rowIndex) && "bg-primary/10 ring-1 ring-inset ring-primary/40"
                           )}
-                          style={stripeStyle}
+                          data-ooh-expert-row-index={rowIndex}
+                          style={{
+                            ...stripeStyle,
+                            height: OOH_EXPERT_ROW_HEIGHT_PX,
+                            maxHeight: OOH_EXPERT_ROW_HEIGHT_PX,
+                          }}
                           {...rowDropProps(rowIndex)}
                         >
                           <ExpertGridRowReorderCell
@@ -3213,14 +3249,21 @@ export function OohExpertGrid({
                                 : undefined
                             }
                             className={stickyTd(0, "text-center")}
+                            style={{
+                              ...stickyStyleReorderBody,
+                              ...(stripeStyle ?? {}),
+                            }}
                           />
                           {showBillingCols ? (
                             <>
                               <td
                                 className={stickyTd(cFixed)}
-                                style={stickyStyleBody(cFixed)}
+                                style={{
+                                  ...stickyStyleBody(cFixed),
+                                  ...(stripeStyle ?? {}),
+                                }}
                               >
-                                <div className="flex min-h-10 items-center justify-center py-1.5">
+                                <div className="flex h-8 items-center justify-center overflow-hidden">
                                   <Checkbox
                                     id={expertGridCellId(
                                       domGridId,
@@ -3251,9 +3294,12 @@ export function OohExpertGrid({
                               </td>
                               <td
                                 className={stickyTd(cClient)}
-                                style={stickyStyleBody(cClient)}
+                                style={{
+                                  ...stickyStyleBody(cClient),
+                                  ...(stripeStyle ?? {}),
+                                }}
                               >
-                                <div className="flex min-h-10 items-center justify-center py-1.5">
+                                <div className="flex h-8 items-center justify-center overflow-hidden">
                                   <Checkbox
                                     id={expertGridCellId(
                                       domGridId,
@@ -3284,9 +3330,12 @@ export function OohExpertGrid({
                               </td>
                               <td
                                 className={stickyTd(cBif)}
-                                style={stickyStyleBody(cBif)}
+                                style={{
+                                  ...stickyStyleBody(cBif),
+                                  ...(stripeStyle ?? {}),
+                                }}
                               >
-                                <div className="flex min-h-10 items-center justify-center py-1.5">
+                                <div className="flex h-8 items-center justify-center overflow-hidden">
                                   <Checkbox
                                     id={expertGridCellId(
                                       domGridId,
@@ -4890,47 +4939,18 @@ export function OohExpertGrid({
                         )
                       }
 
-                      const virtualItems = rowVirtualizer.getVirtualItems()
-                      const paddingTop =
-                        virtualItems.length > 0 ? virtualItems[0]!.start : 0
-                      const paddingBottom =
-                        virtualItems.length > 0
-                          ? rowVirtualizer.getTotalSize() -
-                            virtualItems[virtualItems.length - 1]!.end
-                          : 0
-
                       return (
-                        <>
-                          {paddingTop > 0 ? (
-                            <tr aria-hidden style={{ height: paddingTop }}>
-                              <td
-                                colSpan={virtualSpacerColSpan}
-                                style={{
-                                  height: paddingTop,
-                                  padding: 0,
-                                  border: 0,
-                                }}
-                              />
-                            </tr>
-                          ) : null}
+                        <ExpertGridVirtualSpacerBody
+                          colSpan={virtualSpacerColSpan}
+                          paddingTop={paddingTop}
+                          paddingBottom={paddingBottom}
+                        >
                           {virtualItems.map((vi) => {
                             const row = normalizedRows[vi.index]
                             if (!row) return null
                             return renderScheduleRow(row, vi.index)
                           })}
-                          {paddingBottom > 0 ? (
-                            <tr aria-hidden style={{ height: paddingBottom }}>
-                              <td
-                                colSpan={virtualSpacerColSpan}
-                                style={{
-                                  height: paddingBottom,
-                                  padding: 0,
-                                  border: 0,
-                                }}
-                              />
-                            </tr>
-                          ) : null}
-                        </>
+                        </ExpertGridVirtualSpacerBody>
                       )
                     })()}
                     <tr
@@ -4943,6 +4963,9 @@ export function OohExpertGrid({
                           width: EXPERT_REORDER_COL_WIDTH_PX,
                           minWidth: EXPERT_REORDER_COL_WIDTH_PX,
                           maxWidth: EXPERT_REORDER_COL_WIDTH_PX,
+                          position: "sticky",
+                          left: 0,
+                          zIndex: 40,
                           ...oohExpertTotalsRowBgStyle,
                         }}
                       />
