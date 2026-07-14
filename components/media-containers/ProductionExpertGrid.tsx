@@ -2431,7 +2431,6 @@ export function ProductionExpertGrid({
       .join(",")
     return [
       entryMode,
-      showBillingCols ? "1" : "0",
       expanded,
       widths,
       weekKeys.join(","),
@@ -2464,7 +2463,6 @@ export function ProductionExpertGrid({
     isSelecting,
     multiCellSelection,
     pendingMergeSelection,
-    showBillingCols,
     weekColumnWidths,
     weekDragSource,
     weekKeys,
