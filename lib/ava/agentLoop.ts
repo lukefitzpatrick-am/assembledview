@@ -8,6 +8,7 @@ import {
 import { AVA_TOOL_DEFINITIONS, getToolByName } from "./tools/registry";
 import type { AvaToolContext } from "./tools/types";
 import type { ChatFileAttachment, ChatInterviewQuestion, FormPatch } from "@/lib/ava/types";
+import type { CapturedLineItemsLoad } from "@/lib/ava/autopopulate/types";
 
 export type AvaAgentInput = {
   systemPrompt: string;
@@ -21,6 +22,7 @@ export type AvaAgentInput = {
 export type AvaAgentResult = {
   replyText: string;
   patch: FormPatch | null;
+  lineItemsLoad: CapturedLineItemsLoad | null;
   /** Display-only; never written into Anthropic message history. */
   attachments: ChatFileAttachment[] | null;
   /** Display-only; never written into Anthropic message history. */
@@ -122,6 +124,7 @@ function finishTurn(
   return {
     replyText,
     patch: context.capturedPatch,
+    lineItemsLoad: context.capturedLineItemsLoad,
     attachments: context.capturedAttachments?.length
       ? context.capturedAttachments
       : null,

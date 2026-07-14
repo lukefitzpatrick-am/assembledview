@@ -92,6 +92,7 @@ export type ChatInterviewQuestion = {
 export type ModelChatReply = {
   replyText: string
   patch: FormPatch | null
+  lineItemsLoad?: import("@/lib/ava/autopopulate/types").CapturedLineItemsLoad | null
   attachments?: ChatFileAttachment[]
   questions?: ChatInterviewQuestion[]
 }

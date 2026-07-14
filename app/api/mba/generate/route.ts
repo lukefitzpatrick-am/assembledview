@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateMBA, MBAData } from '@/lib/generateMBA';
 import { format } from 'date-fns';
+import { addGst } from '@/lib/finance/gst';
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,6 +15,8 @@ export async function POST(req: NextRequest) {
     if (!mbaNumber || !body.mp_client_name) {
       return NextResponse.json({ error: 'Missing required MBA data' }, { status: 400 });
     }
+
+    const exGst = Number(body.totalInvestment) || 0
 
     // Transform the incoming request body to fit the MBAData interface
     const dataForPdf: MBAData = {
@@ -40,8 +43,8 @@ export async function POST(req: NextRequest) {
         service_fee: body.calculateAssembledFee,
         production: body.calculateProductionCosts,
         adserving: body.calculateAdServingFees,
-        totals_ex_gst: body.totalInvestment,
-        total_inc_gst: body.totalInvestment * 1.1, // Calculate GST
+        totals_ex_gst: exGst,
+        total_inc_gst: addGst(exGst),
       },
       // Map the detailed billing months to the simpler structure needed for the MBA
       billingSchedule: body.billingMonths.map((m: { monthYear: string, totalAmount: string }) => ({

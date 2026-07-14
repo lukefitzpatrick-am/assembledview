@@ -1952,10 +1952,9 @@ export async function generateMediaPlan(
     }
 
     const totalFill: ExcelJS.Fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBDDC52' } };
-    const grossMediaMbaTotal = mbaData?.totals?.gross_media ?? 0;
-    const grandTotalColN = mbaTotalsLayout === 'standard'
-      ? grossMediaMbaTotal + serviceFeeTotal + adServingTotal
-      : grossMediaMbaTotal;
+    // Campaign Total (col N) = core nettExGst (caller-supplied post-R2 totals_ex_gst).
+    // Do not re-sum gross_media + fee + adserving — that omitted production and drifted from the MBA block.
+    const grandTotalColN = mbaData?.totals?.totals_ex_gst ?? 0;
 
     for (let colNum = 2; colNum <= headerLastColNum; colNum++) {
       style(sheet.getCell(currentRow, colNum), { fill: totalFill });

@@ -25,13 +25,14 @@ test("ava tool catalog: names unique and complete", () => {
   assert.ok(AVA_TOOL_NAMES.includes("get_pacing_snapshot"))
   assert.ok(AVA_TOOL_NAMES.includes("get_delivery_snapshot"))
   assert.ok(AVA_TOOL_NAMES.includes("apply_form_patch"))
+  assert.ok(AVA_TOOL_NAMES.includes("apply_parsed_plan"))
   assert.ok(AVA_TOOL_NAMES.includes("get_media_plan_summary"))
   assert.ok(AVA_TOOL_NAMES.includes("get_platform_specs"))
   assert.ok(AVA_TOOL_NAMES.includes("start_mi_interview"))
   assert.ok(AVA_TOOL_NAMES.includes("generate_mi_workbook"))
   assert.ok(AVA_TOOL_NAMES.includes("load_skill"))
   assert.ok(AVA_TOOL_NAMES.includes("generate_performance_report"))
-  assert.equal(AVA_TOOL_NAMES.length, 16)
+  assert.equal(AVA_TOOL_NAMES.length, 17)
   assert.deepEqual(
     AVA_TOOL_NAMES.slice(-6),
     [

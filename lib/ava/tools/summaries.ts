@@ -53,6 +53,7 @@ const PLATFORM_ID_KEYS = [
 export const AVA_TOOL_NAMES = [
   "get_media_plan_summary",
   "apply_form_patch",
+  "apply_parsed_plan",
   "get_client_details",
   "get_campaign_context",
   "get_saved_audiences",

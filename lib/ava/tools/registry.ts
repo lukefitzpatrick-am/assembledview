@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type AvaTool from "./types";
 import { AVA_TOOL_NAMES } from "./summaries";
 import { applyFormPatchTool } from "./applyFormPatch";
+import { applyParsedPlanTool } from "./applyParsedPlan";
 import { getMediaPlanSummaryTool } from "./getMediaPlanSummary";
 import { getClientDetailsTool } from "./getClientDetails";
 import { getCampaignContextTool } from "./getCampaignContext";
@@ -21,6 +22,7 @@ import { generatePerformanceReportTool } from "./generatePerformanceReport";
 const AVA_TOOLS: AvaTool[] = [
   getMediaPlanSummaryTool,
   applyFormPatchTool,
+  applyParsedPlanTool,
   getClientDetailsTool,
   getCampaignContextTool,
   getSavedAudiencesTool,

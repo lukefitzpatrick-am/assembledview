@@ -14,6 +14,9 @@ import { extractBillingMonthStart } from "@/lib/spend/billingScheduleExpectedToD
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/monthlyPlanCalendar"
 import { getDraftReturnRejection } from "@/lib/mediaplan/campaignStatusGuard"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
+import { fetchBillingOverridesForVersion } from "@/lib/finance/billingOverrides"
+import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
+import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -1402,6 +1405,65 @@ export async function PUT(
     const normalizedCampaignStartDate = campaignStartDate ? toMelbourneDateString(campaignStartDate) : campaignStartDate
     const normalizedCampaignEndDate = campaignEndDate ? toMelbourneDateString(campaignEndDate) : campaignEndDate
 
+    // C1 — server recompute/validate billing schedule when line inputs are provided.
+    // Overrides load from the version the save is based on (overwrite → v1; else previous).
+    let billingScheduleToPersist: unknown = data.billingSchedule ?? null
+    let deliveryScheduleToPersist: unknown =
+      data.deliverySchedule ?? data.delivery_schedule ?? null
+    let inputsHashToPersist: string | undefined
+    let rebillNeededToPersist: boolean | undefined
+
+    const financialLineItems = (Array.isArray(data.lineItems)
+      ? data.lineItems
+      : Array.isArray(data.financialLineItems)
+        ? data.financialLineItems
+        : null) as LineItemInput[] | null
+    const feeLoading = (data.feeLoading ?? data.fee_loading ?? null) as FeeLoading | null
+
+    if (financialLineItems && financialLineItems.length > 0 && feeLoading) {
+      const overridesVersionId =
+        (overwriteMode ? v1Row?.id : previousVersion?.id) ?? previousVersion?.id ?? v1Row?.id
+      const overrideRows = overridesVersionId
+        ? await fetchBillingOverridesForVersion(overridesVersionId, {
+            baseUrl: mediaPlansBaseUrl,
+          })
+        : []
+
+      const recompute = recomputeAndValidateBillingScheduleOnSave({
+        lineItems: financialLineItems,
+        feeLoading,
+        clientBillingSchedule: data.billingSchedule,
+        overrideRows,
+        opts: {
+          ...(normalizedCampaignStartDate
+            ? { campaignStart: new Date(String(normalizedCampaignStartDate)) }
+            : {}),
+          ...(normalizedCampaignEndDate
+            ? { campaignEnd: new Date(String(normalizedCampaignEndDate)) }
+            : {}),
+        },
+      })
+
+      if (!recompute.ok) {
+        return NextResponse.json(recompute.body, { status: recompute.status })
+      }
+
+      billingScheduleToPersist = recompute.billingSchedule
+      // Never leave delivery null when we regenerated from server.
+      if (recompute.generatedFromServer || deliveryScheduleToPersist == null) {
+        deliveryScheduleToPersist = recompute.deliverySchedule
+      }
+      inputsHashToPersist = recompute.inputs_hash
+      rebillNeededToPersist = false
+    } else if (billingScheduleToPersist == null) {
+      // Never store null when the client omitted the schedule but also sent no
+      // line inputs to regenerate from — fall back to previous version schedule.
+      billingScheduleToPersist = previousVersion?.billingSchedule ?? []
+      console.warn(
+        "[mba-put] C1 skipped (no lineItems+feeLoading); refusing null billingSchedule"
+      )
+    }
+
     // Format the data to match the media_plan_versions schema
     const mpProductionFlag = isTruthyFlag(data.mp_production)
     const resolvedClientName =
@@ -1441,10 +1503,12 @@ export async function PUT(
       mp_progaudio: isTruthyFlag(data.mp_progaudio),
       mp_progooh: isTruthyFlag(data.mp_progooh),
       mp_influencers: isTruthyFlag(data.mp_influencers),
-      billingSchedule: data.billingSchedule || null,
+      billingSchedule: billingScheduleToPersist,
       // Accept either casing from client; persist both keys to tolerate Xano schema/input naming.
-      deliverySchedule: data.deliverySchedule ?? data.delivery_schedule ?? null,
-      delivery_schedule: data.deliverySchedule ?? data.delivery_schedule ?? null,
+      deliverySchedule: deliveryScheduleToPersist,
+      delivery_schedule: deliveryScheduleToPersist,
+      ...(inputsHashToPersist != null ? { inputs_hash: inputsHashToPersist } : {}),
+      ...(rebillNeededToPersist != null ? { rebill_needed: rebillNeededToPersist } : {}),
     }
 
     // Update MediaPlanMaster with new version number and campaign name

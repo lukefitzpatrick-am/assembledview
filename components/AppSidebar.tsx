@@ -111,16 +111,20 @@ export function AppSidebar() {
       icon: typeof BookOpen;
       href: string;
       exact?: boolean;
-    }> = [
-      { title: "Knowledge Hub", icon: BookOpen, href: "/knowledge" },
-    ];
+    }> = [];
     if (userClient) {
-      links.unshift({
+      links.push({
         title: formatClientSlugLabel(userClient) || userClient.toUpperCase(),
         icon: LayoutDashboard,
         href: `/dashboard/${userClient}`,
       });
+      links.push({
+        title: "Creative",
+        icon: Images,
+        href: `/dashboard/${userClient}/creative`,
+      });
     }
+    links.push({ title: "Knowledge Hub", icon: BookOpen, href: "/knowledge" });
     return links;
   }, [userClient]);
 

@@ -1,5 +1,11 @@
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import { extractReportLinesFromBillingSchedule } from "@/lib/finance/extractReportLinesFromBillingSchedule"
+import { monthExGstFromScheduleEntry } from "@/lib/finance/computeBillableAlignedMbaTotal"
+import {
+  computeCampaignFinancialsFromVersion,
+  findScheduleMonthForCalendar,
+} from "@/lib/finance/computeCampaignFinancialsFromVersion"
+import { getBillingSchedule } from "@/lib/finance/normalizeFields"
 import {
   buildPlanLineItemMediaDetailLookup,
   compactMediaDetailSlice,
@@ -7,13 +13,16 @@ import {
   type PlanLineItemMediaDetailLookup,
 } from "@/lib/finance/planLineItemEnrichment"
 import {
-  extractLineItemsFromBillingSchedule,
-  extractServiceAmountsFromBillingSchedule,
+  financeMediaLinesFromBillingMonth,
+  serviceAmountsFromBillingMonth,
+} from "@/lib/finance/scheduleMonthFinanceExtract"
+import {
   formatInvoiceDate,
   getMediaTypeKeyFromDisplayName,
   mergeFinanceLineItems,
   type FinanceLineItem,
 } from "@/lib/finance/utils"
+import { roundMoney2 } from "@/lib/format/money"
 
 function financeMediaLineToBillingLine(
   li: FinanceLineItem,
@@ -92,8 +101,10 @@ function buildClientResolution(
 }
 
 /**
- * Synthetic receivable rows from `media_plan_versions.billingSchedule` for one calendar month
- * (aligned with `/api/finance/data` extraction).
+ * Synthetic receivable rows for one calendar month.
+ *
+ * Month amounts come from {@link computeCampaignFinancialsFromVersion} billing
+ * schedule (core) — not from re-extracting/renormalising persisted mediaTypes JSON.
  */
 export function derivePlanReceivableBillingRecordsForMonth(
   relevantVersions: Record<string, unknown>[],
@@ -108,7 +119,7 @@ export function derivePlanReceivableBillingRecordsForMonth(
     count: mbaIdentifiers.length,
     sample: mbaIdentifiers.slice(0, 5),
   })
-  const billingMonth = `${year}-${String(month).padStart(2, "0")}`
+  const billingMonthKey = `${year}-${String(month).padStart(2, "0")}`
   const out: BillingRecord[] = []
   let syntheticId = 1
 
@@ -118,15 +129,15 @@ export function derivePlanReceivableBillingRecordsForMonth(
       status === "booked" || status === "approved" || status === "completed"
     if (!bookedLike && !options.includeNonBookedCampaigns) continue
 
-    let billingSchedule: unknown = null
-    const raw = version.billingSchedule ?? version.billing_schedule
-    if (raw) {
-      try {
-        billingSchedule = typeof raw === "string" ? JSON.parse(raw as string) : raw
-      } catch {
-        billingSchedule = null
-      }
-    }
+    const financials = computeCampaignFinancialsFromVersion(version)
+    if (!financials) continue
+
+    const coreBillingMonth = findScheduleMonthForCalendar(
+      financials.billingSchedule,
+      year,
+      month
+    )
+    if (!coreBillingMonth) continue
 
     const { clients_id, client_name } = buildClientResolution(version, clientMap, mbaIdentifiers)
     const mba = String(version.mba_number ?? "").trim()
@@ -135,9 +146,12 @@ export function derivePlanReceivableBillingRecordsForMonth(
     const planLookup = buildPlanLineItemMediaDetailLookup(version as Record<string, unknown>)
 
     const financeMediaLines = mergeFinanceLineItems(
-      extractLineItemsFromBillingSchedule(billingSchedule, year, month, publisherMap as Map<string, any>)
+      financeMediaLinesFromBillingMonth(
+        coreBillingMonth,
+        publisherMap as Map<string, { billingagency?: string | null }>
+      )
     )
-    const serviceAmounts = extractServiceAmountsFromBillingSchedule(billingSchedule, year, month)
+    const serviceAmounts = serviceAmountsFromBillingMonth(coreBillingMonth)
 
     const totalLineItemsAmount = financeMediaLines.reduce((s, li) => s + li.amount, 0)
     const totalServicesAmount =
@@ -164,7 +178,12 @@ export function derivePlanReceivableBillingRecordsForMonth(
       : "draft"
 
     const mediaLines = financeMediaLines.map((li, i) => financeMediaLineToBillingLine(li, i, planLookup))
-    const reportLines = extractReportLinesFromBillingSchedule(billingSchedule, billingMonth)
+    // Report enrichment only when the persisted schedule already carries enriched
+    // mediaAmount/feeAmount fields (legacy schedules stay without report_lines).
+    const reportLines = extractReportLinesFromBillingSchedule(
+      getBillingSchedule(version),
+      billingMonthKey
+    )
     const feeLines: BillingLineItem[] = []
     let order = mediaLines.length
     const pushFee = (item_code: string, description: string, amount: number) => {
@@ -177,7 +196,7 @@ export function derivePlanReceivableBillingRecordsForMonth(
         media_type: null,
         description,
         publisher_name: null,
-        amount: Math.round(amount * 100) / 100,
+        amount: roundMoney2(amount),
         client_pays_media: false,
         sort_order: order++,
       })
@@ -189,13 +208,10 @@ export function derivePlanReceivableBillingRecordsForMonth(
 
     const line_items = [...mediaLines, ...feeLines]
     if (line_items.length > 0) {
-      const mediaTotal = line_items
-        .filter((li) => li.line_type === "media" && li.client_pays_media !== true)
-        .reduce((s, li) => s + li.amount, 0)
-      const serviceTotal = line_items
-        .filter((li) => li.line_type === "service")
-        .reduce((s, li) => s + li.amount, 0)
-      const total = Math.round((mediaTotal + serviceTotal) * 100) / 100
+      // Authoritative campaign monthly receivable = core billing schedule month ex-GST.
+      const total = monthExGstFromScheduleEntry(
+        coreBillingMonth as unknown as Record<string, unknown>
+      )
       const record: BillingRecord = {
         id: syntheticId++,
         billing_type: "media",
@@ -203,10 +219,12 @@ export function derivePlanReceivableBillingRecordsForMonth(
         client_name,
         mba_number: mba || null,
         media_plan_version_id: Number.isFinite(media_plan_version_id) ? media_plan_version_id : null,
-        media_plan_version_number: Number.isFinite(media_plan_version_number) ? media_plan_version_number : null,
+        media_plan_version_number: Number.isFinite(media_plan_version_number)
+          ? media_plan_version_number
+          : null,
         campaign_name: campaign,
         po_number: version.po_number != null ? String(version.po_number) : null,
-        billing_month: billingMonth,
+        billing_month: billingMonthKey,
         invoice_date: invoiceDate,
         payment_days: paymentDays,
         payment_terms: paymentTerms,

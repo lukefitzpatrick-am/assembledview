@@ -21,7 +21,7 @@ import {
   AVA_SKILL_TOOL_HINTS,
 } from "@/lib/ava/skills/skillGuidance"
 import { runAvaAgent } from "@/lib/ava/agentLoop"
-import type { AvaToolContext } from "@/lib/ava/tools/types"
+import type { AvaToolContext, PendingParsedPlan } from "@/lib/ava/tools/types"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -46,6 +46,7 @@ Reach for this when:
 ${AVA_MI_TOOL_HINTS}
 ${AVA_SKILL_TOOL_HINTS}
 - apply_form_patch — only when the user explicitly asks to change editable field values
+- apply_parsed_plan — only after the user confirms loading a pending media-owner plan parse into the form (never invent numbers; never skip confirm)
 
 Page snapshot surfaces (state.surface) — use on-page state first; pair tools only when you need more than the snapshot:
 - creative — visible assets, filters, missing line-item links; pair with get_creative_assets for the full MBA library
@@ -64,6 +65,12 @@ type ChatRequestBody = {
   messages?: ChatCompletionMessageParam[]
   pageContext?: PageContext
   mode?: ChatMode
+  /** Pending parsed plan from AVA xlsx attach (same-turn confirm → apply_parsed_plan). */
+  pendingParsedPlan?: {
+    channel?: string
+    mapped?: unknown
+    fileName?: string
+  }
 }
 
 export async function POST(req: NextRequest) {
@@ -110,7 +117,7 @@ export async function POST(req: NextRequest) {
       throw new ValidationError("'messages' must be an array")
     }
 
-    const { messages: incomingMessages, pageContext, mode } = body
+    const { messages: incomingMessages, pageContext, mode, pendingParsedPlan } = body
     const resolvedMode = resolveMode(mode)
     const safeMessages = sanitiseMessages(incomingMessages)
     const anthropicMessages = toAnthropicMessages(safeMessages)
@@ -135,6 +142,8 @@ export async function POST(req: NextRequest) {
       capturedPatch: null,
       capturedAttachments: null,
       capturedQuestions: null,
+      pendingParsedPlan: coercePendingParsedPlan(pendingParsedPlan),
+      capturedLineItemsLoad: null,
     }
 
     const result = await runAvaAgent({
@@ -146,6 +155,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       replyText: result.replyText,
       patch: result.patch,
+      lineItemsLoad: result.lineItemsLoad,
       attachments: result.attachments,
       questions: result.questions,
       meta: {
@@ -284,4 +294,20 @@ function resolveMode(mode?: ChatMode | string): ChatMode {
     return mode
   }
   return "general"
+}
+
+function coercePendingParsedPlan(
+  raw: ChatRequestBody["pendingParsedPlan"],
+): PendingParsedPlan | null {
+  if (!raw || typeof raw !== "object") return null
+  const channel = raw.channel
+  if (channel !== "radio" && channel !== "ooh") return null
+  if (!raw.mapped || typeof raw.mapped !== "object") return null
+  const mapped = raw.mapped as PendingParsedPlan["mapped"]
+  if (!Array.isArray(mapped.line_items)) return null
+  const pending: PendingParsedPlan = { channel, mapped }
+  if (typeof raw.fileName === "string" && raw.fileName.trim()) {
+    pending.fileName = raw.fileName.trim()
+  }
+  return pending
 }

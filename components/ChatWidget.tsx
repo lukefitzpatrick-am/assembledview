@@ -12,6 +12,8 @@ import {
   displayMiAnswerText,
 } from "@/lib/ava/chatInterviewQuestion"
 import type { ChatFileAttachment, FormPatch, ModelChatReply, PageContext } from "@/lib/ava/types"
+import type { CapturedLineItemsLoad } from "@/lib/ava/autopopulate/types"
+import type { PendingParsedPlan } from "@/lib/ava/tools/types"
 import type { ChatMode } from "@/src/ava/modes"
 import { ChatQuestionCard, type ChatQuestionCardState } from "@/components/ChatQuestionCard"
 import {
@@ -21,6 +23,7 @@ import {
   Maximize2,
   PanelBottom,
   PanelBottomClose,
+  Paperclip,
   X,
 } from "lucide-react"
 
@@ -222,6 +225,11 @@ export function ChatWidget({
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<ChatUiMessage[]>(() => toUiMessages(initialMessages))
   const [error, setError] = useState<string | null>(null)
+  const [pendingParsedPlan, setPendingParsedPlan] = useState<PendingParsedPlan | null>(null)
+  const pendingParsedPlanRef = useRef<PendingParsedPlan | null>(null)
+  const [importChannel, setImportChannel] = useState<"radio" | "ooh">("radio")
+  const [isParsingPlan, setIsParsingPlan] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [dragState, setDragState] = useState<{ offsetX: number; offsetY: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -371,6 +379,15 @@ export function ChatWidget({
         messages: toApiMessages(updatedMessages),
         pageContext: resolvedPageContext,
         mode,
+        ...(pendingParsedPlanRef.current
+          ? {
+              pendingParsedPlan: {
+                channel: pendingParsedPlanRef.current.channel,
+                mapped: pendingParsedPlanRef.current.mapped,
+                fileName: pendingParsedPlanRef.current.fileName,
+              },
+            }
+          : {}),
       }
 
       const response = await fetch("/api/chat-v2", {
@@ -409,8 +426,17 @@ export function ChatWidget({
         appendAssistantNote,
       })
 
+      const didApplyLines = await maybeApplyLineItemsLoad({
+        load: parsedReply.lineItemsLoad ?? null,
+        appendAssistantNote,
+      })
+      if (didApplyLines) {
+        pendingParsedPlanRef.current = null
+        setPendingParsedPlan(null)
+      }
+
       // Legacy fallback (secondary): action JSON embedded in replyText, or response includes { action: ... }.
-      if (!didApplyPatch) {
+      if (!didApplyPatch && !didApplyLines) {
         await maybeHandleAssistantAction(parsedReply.replyText, appendAssistantNote)
         await maybeHandleAssistantActionObject(data, appendAssistantNote)
       }
@@ -442,6 +468,61 @@ export function ChatWidget({
   }
 
   sendMessageRef.current = sendMessage
+
+  async function handlePlanFileSelected(file: File | null) {
+    if (!file || isSending || isParsingPlan) return
+    const lower = file.name.toLowerCase()
+    if (!lower.endsWith(".xlsx") && !lower.endsWith(".xls")) {
+      setError("Media-plan import accepts .xlsx / .xls only (P1).")
+      return
+    }
+    setIsParsingPlan(true)
+    setError(null)
+    setIsOpen(true)
+    setIsCollapsed(false)
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("channel", importChannel)
+      const response = await fetch("/api/processPlan", {
+        method: "POST",
+        body: formData,
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(
+          typeof data?.error === "string" ? data.error : "Plan parse failed",
+        )
+      }
+      if (!data?.mapped || (data.channel !== "radio" && data.channel !== "ooh")) {
+        throw new Error("Plan parse returned an unexpected payload")
+      }
+      const pending: PendingParsedPlan = {
+        channel: data.channel,
+        mapped: data.mapped,
+        fileName: file.name,
+      }
+      pendingParsedPlanRef.current = pending
+      setPendingParsedPlan(pending)
+      const summary =
+        typeof data.summary === "string" && data.summary.trim()
+          ? data.summary.trim()
+          : `Parsed ${file.name} for ${data.channel}.`
+      const prompt = [
+        `I uploaded media-owner plan "${file.name}" for ${data.channel}.`,
+        summary,
+        "Load skill assembled-media-plan-autopopulate, summarise the parse, and ask me to confirm before applying lines to the form via apply_parsed_plan.",
+      ].join("\n\n")
+      await sendMessage(prompt)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to parse plan"
+      setError(message)
+      appendAssistantNote(`Plan import failed: ${message}`)
+    } finally {
+      setIsParsingPlan(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
 
   const starterChips = STARTER_CHIPS[mode] ?? STARTER_CHIPS.general
 
@@ -619,21 +700,76 @@ export function ChatWidget({
             </div>
           )}
 
-          <div className="flex shrink-0 items-center gap-2 border-t px-3 py-3">
-            <Input
-              placeholder="Ask a question"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault()
-                  void sendMessage()
+          <div className="flex shrink-0 flex-col gap-2 border-t px-3 py-3">
+            <div className="flex items-center gap-2">
+              <label className="sr-only" htmlFor="ava-import-channel">
+                Import channel
+              </label>
+              <select
+                id="ava-import-channel"
+                className="h-9 rounded-input border border-border bg-background px-2 text-xs text-foreground"
+                value={importChannel}
+                disabled={isSending || isParsingPlan}
+                onChange={(e) =>
+                  setImportChannel(e.target.value === "ooh" ? "ooh" : "radio")
                 }
-              }}
-            />
-            <Button onClick={() => void sendMessage()} disabled={isSending}>
-              Send
-            </Button>
+                aria-label="Import channel"
+              >
+                <option value="radio">Radio</option>
+                <option value="ooh">OOH</option>
+              </select>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                className="hidden"
+                onChange={(e) => {
+                  void handlePlanFileSelected(e.target.files?.[0] ?? null)
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={isSending || isParsingPlan}
+                aria-label="Attach media-owner plan"
+                title="Attach media-owner plan (.xlsx)"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
+              <Input
+                placeholder={
+                  pendingParsedPlan
+                    ? "Confirm to load lines into the form…"
+                    : "Ask a question"
+                }
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault()
+                    void sendMessage()
+                  }
+                }}
+              />
+              <Button
+                onClick={() => void sendMessage()}
+                disabled={isSending || isParsingPlan}
+              >
+                {isParsingPlan ? "Parsing…" : "Send"}
+              </Button>
+            </div>
+            {pendingParsedPlan ? (
+              <p className="text-xs text-muted-foreground">
+                Pending {pendingParsedPlan.channel} parse
+                {pendingParsedPlan.fileName
+                  ? ` · ${pendingParsedPlan.fileName}`
+                  : ""}
+                . Confirm in chat to load into the form.
+              </p>
+            ) : null}
+            {error ? <p className="text-xs text-destructive">{error}</p> : null}
           </div>
         </div>
       )}
@@ -647,6 +783,7 @@ function coerceModelChatReply(data: any): ModelChatReply {
     return {
       replyText: data.replyText,
       patch: isFormPatch(data.patch) ? data.patch : null,
+      lineItemsLoad: isLineItemsLoad(data.lineItemsLoad) ? data.lineItemsLoad : null,
       attachments: coerceChatFileAttachments(data.attachments),
       questions: coerceChatInterviewQuestions(data.questions),
     }
@@ -660,6 +797,7 @@ function coerceModelChatReply(data: any): ModelChatReply {
         return {
           replyText: parsed.replyText,
           patch: isFormPatch(parsed.patch) ? parsed.patch : null,
+          lineItemsLoad: isLineItemsLoad(parsed.lineItemsLoad) ? parsed.lineItemsLoad : null,
           attachments: coerceChatFileAttachments(parsed.attachments),
           questions: coerceChatInterviewQuestions(parsed.questions),
         }
@@ -670,6 +808,50 @@ function coerceModelChatReply(data: any): ModelChatReply {
   }
 
   throw new Error("Sorry — I couldn’t understand that response. Please try again.")
+}
+
+function isLineItemsLoad(value: unknown): value is CapturedLineItemsLoad {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false
+  const v = value as Record<string, unknown>
+  if (v.channel !== "radio" && v.channel !== "ooh") return false
+  if (!Array.isArray(v.items)) return false
+  return true
+}
+
+async function maybeApplyLineItemsLoad({
+  load,
+  appendAssistantNote,
+}: {
+  load: CapturedLineItemsLoad | null
+  appendAssistantNote: (content: string) => void
+}): Promise<boolean> {
+  if (!load?.items?.length) return false
+  const ctx = getAssistantContext()
+  const setLineItems = ctx?.actions?.setLineItems
+  if (typeof setLineItems !== "function") {
+    appendAssistantNote(
+      "Parsed lines are ready, but this page has not registered setLineItems yet. Open create/edit media plan and try again.",
+    )
+    return true
+  }
+  try {
+    const note = await setLineItems({
+      channel: load.channel,
+      items: load.items,
+      replace: load.replace !== false,
+    })
+    if (typeof note === "string" && note.trim()) {
+      appendAssistantNote(note)
+    } else {
+      appendAssistantNote(
+        `Loaded ${load.items.length} ${load.channel} line item(s) into the form for review.`,
+      )
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error"
+    appendAssistantNote(`Could not load line items into the form: ${message}`)
+  }
+  return true
 }
 
 function stripJsonFences(raw: string) {

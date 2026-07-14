@@ -28,6 +28,8 @@ export type BillingLineItem = {
   monthlyAmounts: Record<string, number>; // Month key -> amount for that month
   totalAmount: number;
   billingMode?: "auto" | "manual";
+  /** Fee-component billing mode (independent of media {@link billingMode}). */
+  feeBillingMode?: "auto" | "manual";
   mediaType?: string;
   publisher?: string;
   buyType?: string;

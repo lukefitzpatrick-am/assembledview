@@ -46,7 +46,6 @@ import {
 import { formatAUD, formatMoney } from "@/lib/format/money"
 import { MoneyInput } from "@/components/ui/MoneyInput"
 import {
-  appendPartialApprovalToBillingSchedule,
   billingMonthsHaveDetailedLineItems,
   computeLineItemTotalsFromDeliveryMonths,
   hydratePartialMbaFromSavedMetadata,
@@ -131,12 +130,25 @@ import {
 import { BillingDivergenceModal } from "@/components/billing/BillingDivergenceModal"
 import { computeAdServingCost } from "@/lib/billing/computeAdServingCost"
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
-import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { mergeInvestmentMonths } from "@/lib/billing/mergeInvestmentMonths"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
 import { resolveLineDimensions } from "@/lib/finance/resolveLineDimensions"
+import { attachOverridesToLineInputs } from "@/lib/finance/billingOverrides"
+import {
+  buildEditorLineItemInputs,
+  buildFeeLoadingFromEditorFees,
+} from "@/lib/finance/buildEditorLineItemInputs"
+import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
+import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
+import {
+  MbaBillableEqualsPill,
+  MbaFeeAdjustedPill,
+  MbaMediaTypeRowPills,
+  MbaPartialScopePill,
+  mbaMediaTypeRowClassName,
+} from "@/components/billing/MbaDetailsPanelIndicators"
 import {
   applyBillingLineMode,
   billingMonthsHaveExplicitLineModes,
@@ -1716,50 +1728,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [progAudioTotal, setProgAudioTotal] = useState(0)
   const [progOohTotal, setProgOohTotal] = useState(0)
   const [influencersTotal, setInfluencersTotal] = useState(0)
-
-  const grossMediaTotal = useMemo(
-    () =>
-      (searchTotal ?? 0) +
-      (socialmediaTotal ?? 0) +
-      (televisionTotal ?? 0) +
-      (radioTotal ?? 0) +
-      (newspaperTotal ?? 0) +
-      (magazinesTotal ?? 0) +
-      (oohTotal ?? 0) +
-      (cinemaTotal ?? 0) +
-      (digitalDisplayTotal ?? 0) +
-      (digitalAudioTotal ?? 0) +
-      (digitalVideoTotal ?? 0) +
-      (bvodTotal ?? 0) +
-      (integrationTotal ?? 0) +
-      (progDisplayTotal ?? 0) +
-      (progVideoTotal ?? 0) +
-      (progBvodTotal ?? 0) +
-      (progAudioTotal ?? 0) +
-      (progOohTotal ?? 0) +
-      (influencersTotal ?? 0),
-    [
-      searchTotal,
-      socialmediaTotal,
-      televisionTotal,
-      radioTotal,
-      newspaperTotal,
-      magazinesTotal,
-      oohTotal,
-      cinemaTotal,
-      digitalDisplayTotal,
-      digitalAudioTotal,
-      digitalVideoTotal,
-      bvodTotal,
-      integrationTotal,
-      progDisplayTotal,
-      progVideoTotal,
-      progBvodTotal,
-      progAudioTotal,
-      progOohTotal,
-      influencersTotal,
-    ],
-  )
 
   /**
    * Billing preserved-state model:
@@ -4776,53 +4744,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     workingBillingMonthsRef.current = workingBillingMonths
   }, [workingBillingMonths])
 
-  /** Version PUT: serialize **workingBillingMonths** (attach line items to a clone only when months lack detail). */
-  const buildBillingScheduleForSave = useCallback((lineItemSnapshots?: MediaLineItemSaveSnapshots): Record<string, any> => {
-    const months = workingBillingMonths
-    if (!months?.length) {
-      return {}
-    }
-
-    const typedMonths = months as unknown as import("@/lib/billing/types").BillingMonth[]
-
-    const monthsForJson: import("@/lib/billing/types").BillingMonth[] = billingMonthsHaveDetailedLineItems(months)
-      ? typedMonths
-      : attachLineItemsToMonths(deepCloneBillingMonths(months), "billing", lineItemSnapshots)
-
-    return appendPartialApprovalToBillingSchedule({
-      billingSchedule: buildBillingScheduleJSON(monthsForJson),
-      metadata: isPartialMBA ? partialApprovalMetadata : null,
-    })
-  }, [
-    workingBillingMonths,
-    attachLineItemsToMonths,
-    deepCloneBillingMonths,
-    isPartialMBA,
-    partialApprovalMetadata,
-  ])
-
-  const buildDeliveryScheduleForSave = useCallback((lineItemSnapshots?: MediaLineItemSaveSnapshots): Record<string, any> => {
-    const snapshot = deliveryScheduleSnapshotRef.current
-    const deliveryMonths =
-      snapshot && snapshot.length > 0
-        ? deepCloneBillingMonths(snapshot)
-        : (autoDeliveryMonths.length > 0
-          ? deepCloneBillingMonths(autoDeliveryMonths)
-          : deepCloneBillingMonths(workingBillingMonths))
-
-    if (!deliveryMonths || deliveryMonths.length === 0) {
-      return {};
-    }
-    const monthsWithLineItems = attachLineItemsToMonths(deliveryMonths as BillingMonth[], "delivery", lineItemSnapshots);
-    return buildBillingScheduleJSON(monthsWithLineItems as import("@/lib/billing/types").BillingMonth[]);
-  }, [
-    attachLineItemsToMonths,
-    deepCloneBillingMonths,
-    deliveryScheduleSnapshotRef,
-    autoDeliveryMonths,
-    workingBillingMonths,
-  ]);
-
   /**
    * Single entry point for billing integrity before modal save or campaign save.
    * - blockingErrors: broken rollups, orphan stable-id rows, impossible arithmetic.
@@ -5058,6 +4979,101 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     progOohBursts,
     influencersBursts,
   ])
+
+  /**
+   * Shared line/fee inputs for panel financials and version-save bodies (C1 omit mode).
+   * Overrides: pass [] — the server attaches billing_overrides on save.
+   */
+  const billingSaveInputs = useMemo(() => {
+    const lineItems = attachOverridesToLineInputs(
+      buildEditorLineItemInputs(billingFeeSeedEnabledConfigs, {
+        isPartialMBA,
+        partialMBASelectedLineItemIds,
+      }),
+      []
+    )
+    const feeLoading = buildFeeLoadingFromEditorFees({
+      feetelevision: feeTelevision,
+      feeradio: feeRadio,
+      feenewspapers: feeNewspapers,
+      feemagazines: feeMagazines,
+      feeooh: feeOoh,
+      feecinema: feeCinema,
+      feedigidisplay: feeDigiDisplay,
+      feedigiaudio: feeDigiAudio,
+      feedigivideo: feeDigiVideo,
+      feebvod: feeBvod,
+      feeintegration: feeIntegration,
+      feesearch,
+      feesocial,
+      feeprogdisplay,
+      feeprogvideo,
+      feeprogbvod,
+      feeprogaudio,
+      feeprogooh,
+      feeinfluencers: feeInfluencers,
+      feecontentcreator,
+    })
+    return { lineItems, feeLoading }
+  }, [
+    billingFeeSeedEnabledConfigs,
+    isPartialMBA,
+    partialMBASelectedLineItemIds,
+    feeTelevision,
+    feeRadio,
+    feeNewspapers,
+    feeMagazines,
+    feeOoh,
+    feeCinema,
+    feeDigiDisplay,
+    feeDigiAudio,
+    feeDigiVideo,
+    feeBvod,
+    feeIntegration,
+    feesearch,
+    feesocial,
+    feeprogdisplay,
+    feeprogvideo,
+    feeprogbvod,
+    feeprogaudio,
+    feeprogooh,
+    feeInfluencers,
+    feecontentcreator,
+  ])
+
+  /**
+   * Single source of truth for MBA totals, panel indicators, PDF/xlsx exports —
+   * includes partial selection via billingSaveInputs.
+   */
+  const campaignFinancials = useMemo(() => {
+    const { lineItems, feeLoading } = billingSaveInputs
+    const start =
+      campaignStartDate instanceof Date && !Number.isNaN(campaignStartDate.getTime())
+        ? campaignStartDate
+        : undefined
+    const end =
+      campaignEndDate instanceof Date && !Number.isNaN(campaignEndDate.getTime())
+        ? campaignEndDate
+        : undefined
+    return computeCampaignFinancials(lineItems, { feeLoading }, {
+      campaignStart: start,
+      campaignEnd: end,
+    })
+  }, [billingSaveInputs, campaignStartDate, campaignEndDate])
+
+  const campaignFinancialsMediaByKey = useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const line of campaignFinancials.perLine) {
+      if (line.flags.excluded) continue
+      out[line.mediaType] = (out[line.mediaType] ?? 0) + line.media
+    }
+    return out
+  }, [campaignFinancials])
+
+  const panelIndicators = useMemo(
+    () => panelIndicatorsFromCampaignFinancials(campaignFinancials, { isPartialMBA }),
+    [campaignFinancials, isPartialMBA]
+  )
 
   const derivedCampaignFeeFromBursts = useMemo(
     () => computeDerivedCampaignFeeAmount(billingFeeSeedEnabledConfigs).totalFeeAmount,
@@ -5311,11 +5327,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       
       updateSaveStatus('Media Plan Master', 'success')
       
-      // 2. Billing / delivery JSON — billing always from **workingBillingMonths** (see `buildBillingScheduleForSave`).
-      const billingScheduleJSON = buildBillingScheduleForSave(lineItemSnapshotsForSave);
-      const deliveryScheduleJSON = buildDeliveryScheduleForSave(lineItemSnapshotsForSave);
-
-      // Dev-only logs right before save (required)
+      // 2. C1 omit-mode: send core inputs; server regenerates schedules from core + overrides.
       const hasWorkingBillingPayload = workingBillingMonths.length > 0
       const billingScheduleSource = hasWorkingBillingPayload ? "working" : "empty"
 
@@ -5357,10 +5369,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           search_bursts: searchBursts,
           social_media_bursts: socialMediaBursts,
           investment_by_month: investmentPerMonth,
-          billingSchedule: billingScheduleJSON,
-          deliverySchedule: deliveryScheduleJSON,
-          // Xano alias safeguard (some environments use snake_case column/input)
-          delivery_schedule: deliveryScheduleJSON,
+          lineItems: billingSaveInputs.lineItems,
+          feeLoading: billingSaveInputs.feeLoading,
+          billingSchedule: undefined,
+          deliverySchedule: undefined,
+          delivery_schedule: undefined,
         }),
       })
       
@@ -5901,6 +5914,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           search_bursts: searchBursts,
           social_media_bursts: socialMediaBursts,
           investment_by_month: investmentPerMonth,
+          lineItems: billingSaveInputs.lineItems,
+          feeLoading: billingSaveInputs.feeLoading,
+          billingSchedule: undefined,
+          deliverySchedule: undefined,
+          delivery_schedule: undefined,
         }),
       })
 
@@ -6305,77 +6323,33 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       throw new Error("MBA number is required to generate MBA")
     }
 
-    // Build media data from enabled media types
-    let finalVisibleMedia: { media_type: string; gross_amount: number }[]
-    let totalExGst: number
-    let finalTotals: {
-      gross_media: number
-      service_fee: number
-      production: number
-      adserving: number
-      totals_ex_gst: number
-      total_inc_gst: number
+    // Single source: core financials (partial selection already applied via billingSaveInputs).
+    const t = campaignFinancials.mbaScopeTotals
+    const finalVisibleMedia = mediaTypes
+      .filter((medium) => medium.name !== "mp_production")
+      .filter((medium) => Boolean(fv[medium.name as keyof MediaPlanFormValues]))
+      .map((medium) => {
+        const billingKey = mediaKeyMap[medium.name]
+        const gross_amount =
+          billingKey !== undefined ? (campaignFinancialsMediaByKey[billingKey] ?? 0) : 0
+        return {
+          media_type: medium.label,
+          gross_amount,
+        }
+      })
+
+    const finalTotals = {
+      gross_media: t.grossMedia,
+      service_fee: t.fee,
+      production: t.production,
+      adserving: t.adServing,
+      totals_ex_gst: t.nettExGst,
+      total_inc_gst: t.nettIncGst,
     }
 
-    if (isPartialMBA) {
-      finalVisibleMedia = Object.entries(partialMBAValues.mediaTotals)
-        .map(([mediaKey, amount]) => {
-          const medium = mediaTypes.find(m => mediaKeyMap[m.name] === mediaKey)
-          return medium
-            ? { media_type: medium.label, gross_amount: amount }
-            : null
-        })
-        .filter((item): item is { media_type: string; gross_amount: number } => item !== null)
-
-      totalExGst =
-        partialMBAValues.grossMedia +
-        partialMBAValues.assembledFee +
-        partialMBAValues.adServing +
-        partialMBAValues.production
-
-      finalTotals = {
-        gross_media: partialMBAValues.grossMedia,
-        service_fee: partialMBAValues.assembledFee,
-        production: partialMBAValues.production,
-        adserving: partialMBAValues.adServing,
-        totals_ex_gst: totalExGst,
-        total_inc_gst: totalExGst * 1.1,
-      }
-    } else {
-      const deliveryTotals = getDeliveryMbaTotals()
-
-      finalVisibleMedia = mediaTypes
-        .filter(medium => medium.name !== "mp_production")
-        .filter(medium => Boolean(fv[medium.name as keyof MediaPlanFormValues]))
-        .map(medium => {
-          const billingKey = mediaKeyMap[medium.name]
-          const gross_amount =
-            billingKey !== undefined ? (deliveryTotals.mediaCostsByKey[billingKey] ?? 0) : 0
-          return {
-            media_type: medium.label,
-            gross_amount,
-          }
-        })
-
-      totalExGst =
-        deliveryTotals.grossMedia +
-        deliveryTotals.assembledFee +
-        deliveryTotals.adServing +
-        deliveryTotals.production
-
-      finalTotals = {
-        gross_media: deliveryTotals.grossMedia,
-        service_fee: deliveryTotals.assembledFee,
-        production: deliveryTotals.production,
-        adserving: deliveryTotals.adServing,
-        totals_ex_gst: totalExGst,
-        total_inc_gst: totalExGst * 1.1,
-      }
-    }
-
-    const billingMonthsExGST = workingBillingMonths.map((month) => ({
+    const billingMonthsExGST = campaignFinancials.billingSchedule.map((month) => ({
       monthYear: month.monthYear,
-      totalAmount: month.totalAmount, // already ex GST
+      totalAmount: month.totalAmount,
     }))
 
     const resolvedPlanVersion = String(
@@ -6496,31 +6470,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       production: productionItems.filter(shouldIncludeMediaPlanLineItem),
     }
 
-    // MBA totals for Excel
-    const mbaDataGrossMedia = isPartialMBA
-      ? Object.entries(partialMBAValues.mediaTotals)
-          .map(([mediaKey, amount]) => {
-            const medium = mediaTypes.find(m => mediaKeyMap[m.name] === mediaKey)
-            return medium ? { media_type: medium.label, gross_amount: amount } : null
-          })
-          .filter((item): item is { media_type: string; gross_amount: number } => item !== null)
-      : mediaTypes
-          .filter(medium => medium.name !== "mp_production")
-          .filter(medium => Boolean(fv[medium.name as keyof MediaPlanFormValues]))
-          .map(medium => ({
-            media_type: medium.label,
-            gross_amount: calculateMediaTotal(medium.name),
-          }))
-
-    const grossForTotals = isPartialMBA ? partialMBAValues.grossMedia : grossMediaTotal
-    const productionForTotals = isPartialMBA ? partialMBAValues.production : calculateProductionCosts()
-
-    const totalExGstStandard = isPartialMBA
-      ? partialMBAValues.grossMedia +
-        partialMBAValues.assembledFee +
-        partialMBAValues.adServing +
-        partialMBAValues.production
-      : calculateTotalInvestment()
+    // MBA totals for Excel — same core as MBA Details / PDF (partial via selected line ids).
+    const coreTotals = campaignFinancials.mbaScopeTotals
+    const mbaDataGrossMedia = mediaTypes
+      .filter((medium) => medium.name !== "mp_production")
+      .filter((medium) => Boolean(fv[medium.name as keyof MediaPlanFormValues]))
+      .map((medium) => {
+        const billingKey = mediaKeyMap[medium.name]
+        return {
+          media_type: medium.label,
+          gross_amount:
+            billingKey !== undefined ? (campaignFinancialsMediaByKey[billingKey] ?? 0) : 0,
+        }
+      })
 
     let mediaItemsForWorkbook: MediaItems = mediaItems
     let mbaData: Parameters<typeof generateMediaPlan>[2]
@@ -6543,12 +6505,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       mbaData = {
         gross_media: mbaDataGrossMedia,
         totals: {
-          gross_media: grossForTotals,
-          service_fee: isPartialMBA ? partialMBAValues.assembledFee : calculateAssembledFee(),
-          production: productionForTotals,
-          adserving: isPartialMBA ? partialMBAValues.adServing : calculateAdServingFees(),
-          totals_ex_gst: totalExGstStandard,
-          total_inc_gst: totalExGstStandard * 1.1,
+          gross_media: coreTotals.grossMedia,
+          service_fee: coreTotals.fee,
+          production: coreTotals.production,
+          adserving: coreTotals.adServing,
+          totals_ex_gst: coreTotals.nettExGst,
+          total_inc_gst: coreTotals.nettIncGst,
         },
       }
     }
@@ -7229,218 +7191,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
   }, [markUnsavedChanges])
 
-  const calculateAssembledFee = useCallback((): number => {
-    if (workingBillingMonths.length > 0) {
-      return workingBillingMonths.reduce((sum, month) => {
-        const monthFeeTotal = parseFloat(month.feeTotal.replace(/[^0-9.-]/g, ""))
-        return sum + (monthFeeTotal || 0)
-      }, 0)
-    }
-
-    return (
-      (searchFeeTotal ?? 0) +
-      (socialMediaFeeTotal ?? 0) +
-      (progAudioFeeTotal ?? 0) +
-      (cinemaFeeTotal ?? 0) +
-      (digitalAudioFeeTotal ?? 0) +
-      (digitalDisplayFeeTotal ?? 0) +
-      (digitalVideoFeeTotal ?? 0) +
-      (bvodFeeTotal ?? 0) +
-      (integrationFeeTotal ?? 0) +
-      (progDisplayFeeTotal ?? 0) +
-      (progVideoFeeTotal ?? 0) +
-      (progBvodFeeTotal ?? 0) +
-      (progOohFeeTotal ?? 0) +
-      (influencersFeeTotal ?? 0) +
-      (televisionFeeTotal ?? 0) +
-      (radioFeeTotal ?? 0) +
-      (newspaperFeeTotal ?? 0) +
-      (magazinesFeeTotal ?? 0) +
-      (oohFeeTotal ?? 0)
-    )
-  }, [
-    workingBillingMonths,
-    searchFeeTotal,
-    socialMediaFeeTotal,
-    progAudioFeeTotal,
-    cinemaFeeTotal,
-    digitalAudioFeeTotal,
-    digitalDisplayFeeTotal,
-    digitalVideoFeeTotal,
-    bvodFeeTotal,
-    integrationFeeTotal,
-    progDisplayFeeTotal,
-    progVideoFeeTotal,
-    progBvodFeeTotal,
-    progOohFeeTotal,
-    influencersFeeTotal,
-    televisionFeeTotal,
-    radioFeeTotal,
-    newspaperFeeTotal,
-    magazinesFeeTotal,
-    oohFeeTotal,
-  ])
-
-  const calculateAdServingFees = useCallback(() => {
-    if (workingBillingMonths.length > 0) {
-      return workingBillingMonths.reduce((sum, month) => {
-        const monthAdServingTotal = parseFloat(month.adservingTechFees.replace(/[^0-9.-]/g, ""))
-        return sum + (monthAdServingTotal || 0)
-      }, 0)
-    }
-    const allBursts = [
-      ...progDisplayBursts,
-      ...progVideoBursts,
-      ...progBvodBursts,
-      ...progOohBursts,
-      ...progAudioBursts,
-      ...digitalAudioBursts,
-      ...digitalDisplayBursts,
-      ...digitalVideoBursts,
-      ...bvodBursts,
-    ]
-    const kpiByLineId = new Map(kpiRows.map((r) => [r.lineItemId, r]))
-    const toDecimal = (v: number | null | undefined) =>
-      v == null ? null : (v >= 1 ? v / 100 : v)
-
-    return allBursts.reduce((sum, b) => {
-      if (b.noAdserving) return sum
-      const kpi = b.lineItemId ? kpiByLineId.get(b.lineItemId) : undefined
-
-      if (process.env.NODE_ENV !== "production") {
-        const bt = (b.buyType || "").toLowerCase()
-        if ((bt === "cpc" || bt === "cpv") && !kpi) {
-          console.warn("[adserving] cpc/cpv burst unmatched to KPI — baseline used", {
-            lineItemId: b.lineItemId,
-            mediaType: b.mediaType,
-            buyType: b.buyType,
-          })
-        }
-      }
-
-      const cost = computeAdServingCost({
-        quantity: b.deliverables,
-        buyType: b.buyType || "",
-        mediaType: b.mediaType,
-        rate: getRateForMediaType(b.mediaType),
-        adservaudio,
-        adServingRatePct: b.adServingRatePct,
-        adServingImpressions: b.adServingImpressions,
-        kpiCtr: toDecimal(kpi?.ctr ?? null),
-        kpiVtr: toDecimal(kpi?.vtr ?? null),
-      })
-      return sum + cost
-    }, 0)
-  }, [
-    workingBillingMonths,
-    progDisplayBursts,
-    progVideoBursts,
-    progBvodBursts,
-    progOohBursts,
-    progAudioBursts,
-    digitalAudioBursts,
-    digitalDisplayBursts,
-    digitalVideoBursts,
-    bvodBursts,
-    getRateForMediaType,
-    adservaudio,
-    kpiRows,
-  ])
-
-  const calculateProductionCosts = useCallback(() => {
-    if (workingBillingMonths && workingBillingMonths.length > 0) {
-      return workingBillingMonths.reduce((sum, month) => {
-        const monthProduction = parseFloat((month.production || "0").toString().replace(/[^0-9.-]/g, ""))
-        return sum + (monthProduction || 0)
-      }, 0)
-    }
-    return 0
-  }, [workingBillingMonths])
-
-  const getDeliveryMbaTotals = useCallback(() => {
-    const source =
-      deliveryScheduleSnapshotRef.current && deliveryScheduleSnapshotRef.current.length > 0
-        ? deliveryScheduleSnapshotRef.current
-        : autoDeliveryMonths
-
-    const parseMoney = (v: unknown) =>
-      parseFloat(String(v ?? "").replace(/[^0-9.-]/g, "")) || 0
-
-    const mediaCostsByKey: Record<string, number> = {}
-    let assembledFee = 0
-    let adServing = 0
-    let production = 0
-
-    for (const month of source) {
-      assembledFee += parseMoney(month.feeTotal)
-      adServing += parseMoney(month.adservingTechFees)
-      production += parseMoney(month.production)
-
-      if (month.mediaCosts) {
-        for (const [k, raw] of Object.entries(month.mediaCosts)) {
-          if (k === "production") continue
-          mediaCostsByKey[k] = (mediaCostsByKey[k] || 0) + parseMoney(raw)
-        }
-      }
-    }
-
-    const grossMedia = Object.values(mediaCostsByKey).reduce((s, v) => s + v, 0)
-
-    return { grossMedia, assembledFee, adServing, production, mediaCostsByKey }
-  }, [autoDeliveryMonths])
-
-  const calculateTotalInvestment = () => {
-    return grossMediaTotal + calculateAssembledFee() + calculateAdServingFees() + calculateProductionCosts()
-  }
-
-  // Calculate the total for each media type for MBA generation (matching create page pattern)
-  const calculateMediaTotal = (mediaName: string) => {
-    switch (mediaName) {
-      case "mp_search":
-        return searchTotal ?? 0;
-      case "mp_cinema":
-        return cinemaTotal ?? 0;
-      case "mp_digiaudio":
-        return digitalAudioTotal ?? 0;
-      case "mp_digidisplay":
-        return digitalDisplayTotal ?? 0;
-      case "mp_digivideo":
-        return digitalVideoTotal ?? 0;
-      case "mp_socialmedia":
-        return socialmediaTotal ?? 0;
-      case "mp_progaudio":
-        return progAudioTotal ?? 0;
-      case "mp_progdisplay":
-        return progDisplayTotal ?? 0;
-      case "mp_progvideo":
-        return progVideoTotal ?? 0;
-      case "mp_progbvod":
-        return progBvodTotal ?? 0;
-      case "mp_progooh":
-        return progOohTotal ?? 0;
-      case "mp_influencers":
-        return influencersTotal ?? 0;
-      case "mp_television":
-        return televisionTotal ?? 0;
-      case "mp_radio":
-        return radioTotal ?? 0;
-      case "mp_newspaper":
-        return newspaperTotal ?? 0;
-      case "mp_magazines":
-        return magazinesTotal ?? 0;
-      case "mp_ooh":
-        return oohTotal ?? 0;
-      case "mp_integration":
-        return integrationTotal ?? 0;
-      case "mp_bvod":
-        return bvodTotal ?? 0;
-      case "mp_production":
-        return productionTotal ?? 0;
-      default:
-        return 0;
-    }
-  }
-
   // --- Partial MBA Handlers ---
 
   function getPartialMbaPrimaryBillingMonths(): BillingMonth[] {
@@ -7530,14 +7280,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const currentMediaTotals: Record<string, number> = {}
       enabledMediaRows.forEach((m) => {
         const mediaKey = (m as any).mediaKey as string
-        currentMediaTotals[mediaKey] = calculateMediaTotal(m.name)
+        currentMediaTotals[mediaKey] = campaignFinancialsMediaByKey[mediaKey] ?? 0
       })
+      const t = campaignFinancials.mbaScopeTotals
       const fallback = {
         mediaTotals: currentMediaTotals,
-        grossMedia: grossMediaTotal,
-        assembledFee: calculateAssembledFee(),
-        adServing: calculateAdServingFees(),
-        production: calculateProductionCosts(),
+        grossMedia: t.grossMedia,
+        assembledFee: t.fee,
+        adServing: t.adServing,
+        production: t.production,
       }
       setPartialMBAValues(fallback)
       setPartialMBALineItemsByMedia({})
@@ -7694,18 +7445,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   useEffect(() => {
-    const newTotalInvestment =
-      grossMediaTotal +
-      calculateAssembledFee() +
-      calculateAdServingFees() +
-      calculateProductionCosts()
-    setTotalInvestment(newTotalInvestment)
-  }, [
-    grossMediaTotal,
-    calculateAssembledFee,
-    calculateAdServingFees,
-    calculateProductionCosts,
-  ])
+    setTotalInvestment(campaignFinancials.mbaScopeTotals.nettExGst)
+  }, [campaignFinancials])
 
   /**
    * After persisted billing hydrates, compare saved baseline to auto-reference once per MBA/version load.
@@ -9213,7 +8954,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             {/* MBA Details Section */}
             <div className="flex h-full min-w-0 flex-col overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm">
               <div className="flex items-center justify-between border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
-                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">MBA Details</h3>
+                <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                  MBA Details
+                  <MbaPartialScopePill label={panelIndicators.mbaDetails.partialLabel} />
+                </h3>
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   {isPartialMBA ? (
                     <>
@@ -9233,12 +8977,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               </div>
               <div className="space-y-3 px-6 py-4">
                 {(() => {
-                  const deliveryMbaTotals = getDeliveryMbaTotals();
-                  const deliveryInvestmentExGst =
-                    deliveryMbaTotals.grossMedia +
-                    deliveryMbaTotals.assembledFee +
-                    deliveryMbaTotals.adServing +
-                    deliveryMbaTotals.production;
+                  const t = campaignFinancials.mbaScopeTotals
+                  const mediaByKey = campaignFinancialsMediaByKey
                   return (
                     <>
                       {mediaTypes
@@ -9246,13 +8986,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                         .filter((medium) => mediaFlagMap[medium.name as MediaTypeKey])
                         .map((medium) => {
                           const mediaKey = mediaKeyMap[medium.name];
-                          const total = isPartialMBA
-                            ? partialMBAValues.mediaTotals[mediaKey] || 0
-                            : deliveryMbaTotals.mediaCostsByKey[mediaKey] ?? 0;
+                          const rowIndicators = panelIndicators.mbaDetails.byMediaType[mediaKey]
+                          const total = mediaByKey[mediaKey] ?? 0
                           return (
-                            <div key={medium.name} className="flex items-center justify-between py-1">
-                              <span className="text-sm text-muted-foreground">{medium.label}</span>
-                              <span className="text-sm font-medium tabular-nums">
+                            <div key={medium.name} className={cn("flex items-center justify-between py-1", mbaMediaTypeRowClassName(rowIndicators))}>
+                              <span className="flex min-w-0 items-center text-sm text-muted-foreground">
+                                <span className="truncate">{medium.label}</span>
+                                <MbaMediaTypeRowPills row={rowIndicators} />
+                              </span>
+                              <span className="text-sm font-medium tabular-nums shrink-0">
                                 {mbaCurrencyFormatter.format(total)}
                               </span>
                             </div>
@@ -9262,47 +9004,38 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                       <div className="flex items-center justify-between py-1">
                         <span className="text-sm font-semibold">Gross Media</span>
                         <span className="text-sm font-semibold tabular-nums">
-                          {mbaCurrencyFormatter.format(
-                            isPartialMBA ? partialMBAValues.grossMedia : deliveryMbaTotals.grossMedia
-                          )}
+                          {mbaCurrencyFormatter.format(t.grossMedia)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between py-1">
-                        <span className="text-sm font-semibold">Assembled Fee</span>
+                        <span className="flex items-center text-sm font-semibold">
+                          Assembled Fee
+                          <MbaFeeAdjustedPill show={panelIndicators.mbaDetails.mbaFeeAdjusted} />
+                        </span>
                         <span className="text-sm font-semibold tabular-nums">
-                          {mbaCurrencyFormatter.format(
-                            isPartialMBA ? partialMBAValues.assembledFee : deliveryMbaTotals.assembledFee
-                          )}
+                          {mbaCurrencyFormatter.format(t.fee)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between py-1">
                         <span className="text-sm font-semibold">Ad Serving & Tech</span>
                         <span className="text-sm font-semibold tabular-nums">
-                          {mbaCurrencyFormatter.format(
-                            isPartialMBA ? partialMBAValues.adServing : deliveryMbaTotals.adServing
-                          )}
+                          {mbaCurrencyFormatter.format(t.adServing)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between py-1">
                         <span className="text-sm font-semibold">Production</span>
                         <span className="text-sm font-semibold tabular-nums">
-                          {mbaCurrencyFormatter.format(
-                            isPartialMBA ? partialMBAValues.production : deliveryMbaTotals.production
-                          )}
+                          {mbaCurrencyFormatter.format(t.production)}
                         </span>
                       </div>
                       <div className="border-t-2 border-primary/20 pt-3">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm font-bold">Total Investment (ex GST)</span>
+                          <span className="flex items-center text-sm font-bold">
+                            Total Investment (ex GST)
+                            <MbaBillableEqualsPill show={panelIndicators.mbaDetails.billableEqualsMba} />
+                          </span>
                           <span className="text-sm font-bold tabular-nums text-primary">
-                            {mbaCurrencyFormatter.format(
-                              isPartialMBA
-                                ? partialMBAValues.grossMedia +
-                                    partialMBAValues.assembledFee +
-                                    partialMBAValues.adServing +
-                                    partialMBAValues.production
-                                : deliveryInvestmentExGst
-                            )}
+                            {mbaCurrencyFormatter.format(t.nettExGst)}
                           </span>
                         </div>
                       </div>
