@@ -9,6 +9,16 @@ import {
   useState,
   type KeyboardEvent,
 } from "react"
+import { MemoExpertGridRow } from "@/components/media-containers/MemoExpertGridRow"
+import {
+  buildMapsPreservingIdentity,
+  finalizeRowsPreservingIdentity,
+  mapRowAtIndex,
+  normalizeRowsPreservingIdentity,
+  updateRowAtIndex,
+  type MapBuildCacheEntry,
+  type NormalizeRowCacheEntry,
+} from "@/lib/mediaplan/expertGridRowPerf"
 import {
   differenceInCalendarDays,
   format,
@@ -587,87 +597,111 @@ export function NewspaperExpertGrid({
     [networkNames]
   )
 
+  const normalizeRowCacheRef = useRef(
+    new Map<string, NormalizeRowCacheEntry<NewspaperExpertScheduleRow>>()
+  )
   const normalizedRows = useMemo(() => {
-    return rows.map((r) => {
-      const nextWeekly: ExpertWeeklyValues = {} as ExpertWeeklyValues
-      for (const k of weekKeys) {
-        const v = r.weeklyValues[k]
-        // Expert UX: backend/default zeroes for untouched weeks should render blank.
-        nextWeekly[k] = normalizeWeekValueForExpertGridBoundary(v)
-      }
-      return {
-        ...r,
-        weeklyValues: nextWeekly,
-        mergedWeekSpans: Array.isArray(r.mergedWeekSpans)
-          ? r.mergedWeekSpans
-          : [],
-      }
-    })
+    const { rows: next, cache } = normalizeRowsPreservingIdentity(
+      rows,
+      weekKeys,
+      (r, keys) => {
+        const nextWeekly: ExpertWeeklyValues = {} as ExpertWeeklyValues
+        for (const k of keys) {
+          const v = r.weeklyValues[k]
+          // Expert UX: backend/default zeroes for untouched weeks should render blank.
+          nextWeekly[k] = normalizeWeekValueForExpertGridBoundary(v)
+        }
+        return {
+          ...r,
+          weeklyValues: nextWeekly,
+          mergedWeekSpans: Array.isArray(r.mergedWeekSpans)
+            ? r.mergedWeekSpans
+            : [],
+        }
+      },
+      normalizeRowCacheRef.current
+    )
+    normalizeRowCacheRef.current = cache
+    return next
   }, [rows, weekKeys])
 
+  const rowMergeMapCacheRef = useRef(
+    new Map<
+      string,
+      MapBuildCacheEntry<
+        NewspaperExpertScheduleRow["mergedWeekSpans"],
+        NewspaperRowMergeMap
+      >
+    >()
+  )
   const rowMergeMaps = useMemo<readonly NewspaperRowMergeMap[]>(() => {
-    const maps = normalizedRows.map((row) => {
-      const anchorByWeekKey: Record<string, string> = {}
-      const interiorByWeekKey: Record<string, string> = {}
-      const spanById: Record<string, NewspaperExpertMergedWeekSpan> = {}
-      const spanMetaByAnchorWeekKey: Record<string, NewspaperRowMergeSpanMeta> = {}
-      const occupiedWeekKeys = new Set<string>()
-      // A row can contain multiple non-overlapping merged groups with gaps.
-      // Each accepted span contributes its own anchor/interior occupancy maps.
-      for (const span of row.mergedWeekSpans ?? []) {
-        if (spanById[span.id]) {
-          if (DEBUG_NEWSPAPER_MERGE) {
-            console.debug("[Newspaper merge] occupancy duplicate span id ignored", {
-              rowId: row.id,
-              rowIndex: normalizedRows.indexOf(row),
-              spanId: span.id,
-            })
+    const { maps, cache } = buildMapsPreservingIdentity(
+      normalizedRows,
+      weekKeys,
+      (row) => row.mergedWeekSpans,
+      (row) => {
+        const anchorByWeekKey: Record<string, string> = {}
+        const interiorByWeekKey: Record<string, string> = {}
+        const spanById: Record<string, NewspaperExpertMergedWeekSpan> = {}
+        const spanMetaByAnchorWeekKey: Record<string, NewspaperRowMergeSpanMeta> = {}
+        const occupiedWeekKeys = new Set<string>()
+        // A row can contain multiple non-overlapping merged groups with gaps.
+        // Each accepted span contributes its own anchor/interior occupancy maps.
+        for (const span of row.mergedWeekSpans ?? []) {
+          if (spanById[span.id]) {
+            if (DEBUG_NEWSPAPER_MERGE) {
+              console.debug("[Newspaper merge] occupancy duplicate span id ignored", {
+                rowId: row.id,
+                spanId: span.id,
+              })
+            }
+            continue
           }
-          continue
-        }
-        const keysRaw = weekKeysInSpanInclusive(
-          weekKeys,
-          span.startWeekKey,
-          span.endWeekKey
-        )
-        const keys = keysRaw.filter((k) => weekKeys.includes(k))
-        if (keys.length === 0) continue
-        // Prefer first valid span: later overlapping/conflicting spans are ignored.
-        if (keys.some((k) => occupiedWeekKeys.has(k))) {
-          if (DEBUG_NEWSPAPER_MERGE) {
-            console.debug("[Newspaper merge] occupancy overlap ignored", {
-              rowId: row.id,
-              rowIndex: normalizedRows.indexOf(row),
-              spanId: span.id,
-              keys,
-            })
+          const keysRaw = weekKeysInSpanInclusive(
+            weekKeys,
+            span.startWeekKey,
+            span.endWeekKey
+          )
+          const keys = keysRaw.filter((k) => weekKeys.includes(k))
+          if (keys.length === 0) continue
+          // Prefer first valid span: later overlapping/conflicting spans are ignored.
+          if (keys.some((k) => occupiedWeekKeys.has(k))) {
+            if (DEBUG_NEWSPAPER_MERGE) {
+              console.debug("[Newspaper merge] occupancy overlap ignored", {
+                rowId: row.id,
+                spanId: span.id,
+                keys,
+              })
+            }
+            continue
           }
-          continue
+          const anchorWeekKey = keys[0]!
+          anchorByWeekKey[anchorWeekKey] = span.id
+          for (let i = 1; i < keys.length; i += 1) {
+            interiorByWeekKey[keys[i]!] = span.id
+          }
+          for (const key of keys) occupiedWeekKeys.add(key)
+          spanById[span.id] = span
+          spanMetaByAnchorWeekKey[anchorWeekKey] = Object.freeze({
+            id: span.id,
+            startWeekKey: span.startWeekKey,
+            endWeekKey: span.endWeekKey,
+            totalQty: span.totalQty,
+            spanLength: keys.length,
+            weekKeysIncluded: Object.freeze([...keys]),
+          })
         }
-        const anchorWeekKey = keys[0]!
-        anchorByWeekKey[anchorWeekKey] = span.id
-        for (let i = 1; i < keys.length; i += 1) {
-          interiorByWeekKey[keys[i]!] = span.id
-        }
-        for (const key of keys) occupiedWeekKeys.add(key)
-        spanById[span.id] = span
-        spanMetaByAnchorWeekKey[anchorWeekKey] = Object.freeze({
-          id: span.id,
-          startWeekKey: span.startWeekKey,
-          endWeekKey: span.endWeekKey,
-          totalQty: span.totalQty,
-          spanLength: keys.length,
-          weekKeysIncluded: Object.freeze([...keys]),
+        return Object.freeze({
+          anchorByWeekKey: Object.freeze(anchorByWeekKey),
+          interiorByWeekKey: Object.freeze(interiorByWeekKey),
+          spanById: Object.freeze(spanById),
+          spanMetaByAnchorWeekKey: Object.freeze(spanMetaByAnchorWeekKey),
         })
-      }
-      return Object.freeze({
-        anchorByWeekKey: Object.freeze(anchorByWeekKey),
-        interiorByWeekKey: Object.freeze(interiorByWeekKey),
-        spanById: Object.freeze(spanById),
-        spanMetaByAnchorWeekKey: Object.freeze(spanMetaByAnchorWeekKey),
-      })
-    })
-    return Object.freeze(maps)
+      },
+      rowMergeMapCacheRef.current
+    )
+    rowMergeMapCacheRef.current = cache
+    return maps
   }, [normalizedRows, weekKeys])
 
   useEffect(() => {
@@ -687,19 +721,30 @@ export function NewspaperExpertGrid({
 
   const pushRows = useCallback(
     (next: NewspaperExpertScheduleRow[]) => {
-      const withDates = next.map((r) => {
+      const withDates = finalizeRowsPreservingIdentity(next, (r) => {
         // Week-level writes win over day detail (single invariant chokepoint).
         const cleared = clearConflictingDayDetail(r, dayKeysByWeekKey, weekKeys)
-        return {
-          ...cleared,
-          ...deriveNewspaperExpertRowScheduleYmdFromRow(
-            cleared,
-            weekColumns,
-            campaignStartDate,
-            campaignEndDate,
-            dayKeysByWeekKey
-          ),
+        const dates = deriveNewspaperExpertRowScheduleYmdFromRow(
+          cleared,
+          weekColumns,
+          campaignStartDate,
+          campaignEndDate,
+          dayKeysByWeekKey
+        )
+        if (
+          cleared === r &&
+          dates.startDate === r.startDate &&
+          dates.endDate === r.endDate
+        ) {
+          return r
         }
+        if (
+          dates.startDate === cleared.startDate &&
+          dates.endDate === cleared.endDate
+        ) {
+          return cleared
+        }
+        return { ...cleared, ...dates }
       })
       onRowsChange(withDates)
     },
@@ -735,19 +780,15 @@ export function NewspaperExpertGrid({
         })
         return
       }
-      pushRows(
-        normalizedRowsRef.current.map((r, i) => {
-          if (i !== rowIndex) return r
-          return {
-            ...r,
-            weeklyValues: { ...result.weeklyValues },
-            dailyValues: result.dailyValues,
-            mergedWeekSpans: result.mergedWeekSpans
-              ? [...result.mergedWeekSpans]
-              : r.mergedWeekSpans,
-          }
-        })
-      )
+      const next = mapRowAtIndex(normalizedRowsRef.current, rowIndex, (r) => ({
+        ...r,
+        weeklyValues: { ...result.weeklyValues },
+        dailyValues: result.dailyValues,
+        mergedWeekSpans: result.mergedWeekSpans
+          ? [...result.mergedWeekSpans]
+          : r.mergedWeekSpans,
+      }))
+      if (next) pushRows(next)
     },
     [
       campaignEndDate,
@@ -762,12 +803,12 @@ export function NewspaperExpertGrid({
 
   const handleReorder = useCallback(
     (from: number, to: number) => {
-      const next = reorderExpertRows(normalizedRows, from, to)
+      const next = reorderExpertRows(normalizedRowsRef.current, from, to)
       if (!next) return
       pushRows(next)
       onReorder?.()
     },
-    [normalizedRows, pushRows, onReorder]
+    [pushRows, onReorder]
   )
   const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
     useExpertRowReorder(handleReorder)
@@ -913,12 +954,15 @@ export function NewspaperExpertGrid({
 
   const updateRow = useCallback(
     (rowIndex: number, patch: Partial<NewspaperExpertScheduleRow>) => {
-      const next = normalizedRows.map((r, i) =>
-        i === rowIndex ? { ...r, ...patch } : r
+      const next = updateRowAtIndex(
+        normalizedRowsRef.current,
+        rowIndex,
+        patch
       )
+      if (!next) return
       pushRows(next)
     },
-    [normalizedRows, pushRows]
+    [pushRows]
   )
 
   const tryFuzzyMatch = useCallback(
@@ -959,17 +1003,20 @@ export function NewspaperExpertGrid({
         fuzzyCorrectionMapRef.current[key] = matched
       }
       const targetNorm = value.trim().toLowerCase()
-      const next = normalizedRows.map((r) => {
+      const rowsNow = normalizedRowsRef.current
+      let changed = false
+      const next = rowsNow.map((r) => {
         const cur = String(r[field] ?? "")
         if (cur.trim().toLowerCase() === targetNorm) {
+          changed = true
           return { ...r, [field]: matched }
         }
         return r
       })
-      pushRows(next)
+      if (changed) pushRows(next)
       setPendingFuzzyMatch(null)
     },
-    [pendingFuzzyMatch, normalizedRows, pushRows]
+    [pendingFuzzyMatch, pushRows]
   )
 
   const handleRowCountBlur = useCallback(() => {
@@ -1072,7 +1119,8 @@ export function NewspaperExpertGrid({
 
   const updateWeeklyCell = useCallback(
     (rowIndex: number, weekKey: string, raw: string) => {
-      const row = normalizedRows[rowIndex]
+      const rowsNow = normalizedRowsRef.current
+      const row = rowsNow[rowIndex]
       if (!row) return
       const span = findMergedSpanForWeek(row, weekKey, weekKeys)
       if (span && span.startWeekKey !== weekKey) return
@@ -1081,43 +1129,41 @@ export function NewspaperExpertGrid({
       if (cleaned === "" || cleaned === "-") {
         if (span) {
           // Preserve merge topology on edit clear/delete; only the X control unmerges.
-          const mergedWeekSpans = (row.mergedWeekSpans ?? []).map((s) =>
-            s.id === span.id ? { ...s, totalQty: 0 } : s
-          )
-          pushRows(
-            normalizedRows.map((r, i) =>
-              i === rowIndex ? { ...r, mergedWeekSpans } : r
-            )
-          )
+          const next = mapRowAtIndex(rowsNow, rowIndex, (r) => ({
+            ...r,
+            mergedWeekSpans: (r.mergedWeekSpans ?? []).map((s) =>
+              s.id === span.id ? { ...s, totalQty: 0 } : s
+            ),
+          }))
+          if (next) pushRows(next)
           return
         }
-        const weeklyValues = { ...row.weeklyValues, [weekKey]: "" as const }
-        pushRows(
-          normalizedRows.map((r, i) =>
-            i === rowIndex ? { ...r, weeklyValues } : r
-          )
-        )
+        const next = mapRowAtIndex(rowsNow, rowIndex, (r) => ({
+          ...r,
+          weeklyValues: { ...r.weeklyValues, [weekKey]: "" as const },
+        }))
+        if (next) pushRows(next)
         return
       }
       const n = Number.parseFloat(cleaned)
       if (!Number.isFinite(n)) return
       if (span) {
-        const mergedWeekSpans = (row.mergedWeekSpans ?? []).map((s) =>
-          s.id === span.id ? { ...s, totalQty: n } : s
-        )
-        pushRows(
-          normalizedRows.map((r, i) =>
-            i === rowIndex ? { ...r, mergedWeekSpans } : r
-          )
-        )
+        const next = mapRowAtIndex(rowsNow, rowIndex, (r) => ({
+          ...r,
+          mergedWeekSpans: (r.mergedWeekSpans ?? []).map((s) =>
+            s.id === span.id ? { ...s, totalQty: n } : s
+          ),
+        }))
+        if (next) pushRows(next)
         return
       }
-      const weeklyValues = { ...row.weeklyValues, [weekKey]: n }
-      pushRows(
-        normalizedRows.map((r, i) => (i === rowIndex ? { ...r, weeklyValues } : r))
-      )
+      const next = mapRowAtIndex(rowsNow, rowIndex, (r) => ({
+        ...r,
+        weeklyValues: { ...r.weeklyValues, [weekKey]: n },
+      }))
+      if (next) pushRows(next)
     },
-    [normalizedRows, pushRows, weekKeys]
+    [pushRows, weekKeys]
   )
 
   /**
@@ -1128,7 +1174,8 @@ export function NewspaperExpertGrid({
    */
   const updateDailyCell = useCallback(
     (rowIndex: number, weekKey: string, dayKey: string, raw: string) => {
-      const row = normalizedRows[rowIndex]
+      const rowsNow = normalizedRowsRef.current
+      const row = rowsNow[rowIndex]
       if (!row) return
       // Merged weeks are edited via their anchor cell, never day cells.
       if (findMergedSpanForWeek(row, weekKey, weekKeys)) return
@@ -1155,14 +1202,14 @@ export function NewspaperExpertGrid({
         nextDaily[dayKey] = n
       }
 
-      const weeklyValues = { ...row.weeklyValues, [weekKey]: "" as const }
-      pushRows(
-        normalizedRows.map((r, i) =>
-          i === rowIndex ? { ...r, weeklyValues, dailyValues: nextDaily } : r
-        )
-      )
+      const next = mapRowAtIndex(rowsNow, rowIndex, (r) => ({
+        ...r,
+        weeklyValues: { ...r.weeklyValues, [weekKey]: "" as const },
+        dailyValues: nextDaily,
+      }))
+      if (next) pushRows(next)
     },
-    [dayKeysByWeekKey, normalizedRows, pushRows, weekKeys]
+    [dayKeysByWeekKey, pushRows, weekKeys]
   )
 
   /**
@@ -1547,24 +1594,24 @@ export function NewspaperExpertGrid({
 
   const unmergeWeekSpan = useCallback(
     (rowIndex: number, spanId: string) => {
-      const row = normalizedRows[rowIndex]
+      const rowsNow = normalizedRowsRef.current
+      const row = rowsNow[rowIndex]
       if (!row) return
       // Dedicated and only destructive merge removal path.
       // Remove only the chosen span; all other merged groups on this row are preserved.
-      const mergedWeekSpans = (row.mergedWeekSpans ?? []).filter(
-        (span) => span.id !== spanId
-      )
-      pushRows(
-        normalizedRows.map((r, i) =>
-          i === rowIndex ? { ...r, mergedWeekSpans } : r
-        )
-      )
+      const next = mapRowAtIndex(rowsNow, rowIndex, (r) => ({
+        ...r,
+        mergedWeekSpans: (r.mergedWeekSpans ?? []).filter(
+          (span) => span.id !== spanId
+        ),
+      }))
+      if (next) pushRows(next)
       resetTransientWeekUiState()
       if (DEBUG_NEWSPAPER_MERGE) {
         console.debug("[Newspaper merge] unmerge applied", { rowIndex, spanId })
       }
     },
-    [normalizedRows, pushRows, resetTransientWeekUiState]
+    [pushRows, resetTransientWeekUiState]
   )
 
   const addRow = useCallback(() => {
@@ -1584,14 +1631,13 @@ export function NewspaperExpertGrid({
         weekKeys
       )
     )
-    const next = [...normalizedRows, ...newRows]
+    const next = [...normalizedRowsRef.current, ...newRows]
     pushRows(next)
     resetTransientWeekUiState()
     setRowCountInput(String(parsed))
   }, [
     campaignStartDate,
     campaignEndDate,
-    normalizedRows,
     pushRows,
     resetTransientWeekUiState,
     rowCountInput,
@@ -1601,7 +1647,7 @@ export function NewspaperExpertGrid({
   const duplicateRow = useCallback(
     (rowIndex: number) => {
       const next = duplicateExpertRow(
-        normalizedRows,
+        normalizedRowsRef.current,
         rowIndex,
         () =>
           typeof crypto !== "undefined" && crypto.randomUUID
@@ -1616,7 +1662,7 @@ export function NewspaperExpertGrid({
       pushRows(next)
       resetTransientWeekUiState()
     },
-    [normalizedRows, pushRows, resetTransientWeekUiState]
+    [pushRows, resetTransientWeekUiState]
   )
 
   const clearPendingMergeSelection = useCallback((reason: string) => {
@@ -1671,12 +1717,12 @@ export function NewspaperExpertGrid({
 
   const deleteRow = useCallback(
     (rowIndex: number) => {
-      const next = deleteExpertRow(normalizedRows, rowIndex)
+      const next = deleteExpertRow(normalizedRowsRef.current, rowIndex)
       if (!next) return
       pushRows(next)
       resetTransientWeekUiState()
     },
-    [normalizedRows, pushRows, resetTransientWeekUiState]
+    [pushRows, resetTransientWeekUiState]
   )
 
   const toggleWeekMultiSelect = useCallback(
@@ -2548,6 +2594,59 @@ export function NewspaperExpertGrid({
 
   const campaignRangeLabel = `${format(campaignStartDate, "MMM d, yyyy")} – ${format(campaignEndDate, "MMM d, yyyy")}`
 
+  /** Shared layout fingerprint — changes here re-render every memoised row. */
+  const layoutSig = useMemo(() => {
+    const expanded = [...expandedWeekKeys].sort().join(",")
+    const widths = Object.keys(weekColumnWidths)
+      .sort()
+      .map((k) => `${k}:${weekColumnWidths[k]}`)
+      .join(",")
+    return [
+      entryMode,
+      showBillingCols ? "1" : "0",
+      expanded,
+      widths,
+      String(feenewspapers),
+      weekKeys.join(","),
+      descriptorColWidths.join(","),
+      // Selection overlays span rows — bump all rows when the area selection changes.
+      weekStripSelection
+        ? `ss:${weekStripSelection.rowIndex}`
+        : "",
+      weekMultiSelect
+        ? `ms:${weekMultiSelect.rowIndex}:${weekMultiSelect.keys.join(",")}`
+        : "",
+      weekRectSelection
+        ? `wr:${weekRectSelection.rowStart}:${weekRectSelection.rowEnd}:${weekRectSelection.weekKeyStart}:${weekRectSelection.weekKeyEnd}`
+        : "",
+      multiCellSelection
+        ? `mc:${multiCellSelection.startRow}:${multiCellSelection.endRow}:${multiCellSelection.startCol}:${multiCellSelection.endCol}`
+        : "",
+      pendingMergeSelection
+        ? `pm:${pendingMergeSelection.rowIndex}:${pendingMergeSelection.keys.join(",")}`
+        : "",
+      weekDragSource ? `wds:${weekDragSource.rowIndex}:${weekDragSource.weekKey}` : "",
+      copiedCells ? "copy" : "",
+      isSelecting ? "sel" : "",
+    ].join("|")
+  }, [
+    copiedCells,
+    descriptorColWidths,
+    entryMode,
+    expandedWeekKeys,
+    feenewspapers,
+    isSelecting,
+    multiCellSelection,
+    pendingMergeSelection,
+    showBillingCols,
+    weekColumnWidths,
+    weekDragSource,
+    weekKeys,
+    weekMultiSelect,
+    weekRectSelection,
+    weekStripSelection,
+  ])
+
   return (
     <TooltipProvider delayDuration={300}>
       <Card className="relative overflow-hidden border-0 shadow-md">
@@ -2854,6 +2953,39 @@ export function NewspaperExpertGrid({
                   </thead>
                   <tbody>
                     {normalizedRows.map((row, rowIndex) => {
+                      const rowMergeMapForRow =
+                        rowMergeMaps[rowIndex] ??
+                        ({
+                          anchorByWeekKey: {},
+                          interiorByWeekKey: {},
+                          spanById: {},
+                          spanMetaByAnchorWeekKey: {},
+                        } as NewspaperRowMergeMap)
+                      const rowUiSig = [
+                        isDropTarget(rowIndex) ? "1" : "0",
+                        dragRowIndex === rowIndex ? "1" : "0",
+                        weekDragOver?.rowIndex === rowIndex
+                          ? `wo:${weekDragOver.weekKey}:${weekDragOver.valid ? 1 : 0}`
+                          : "",
+                        focusedCell?.rowIndex === rowIndex
+                          ? `f:${focusedCell.columnKey}`
+                          : "",
+                        budgetDraft?.rowIndex === rowIndex
+                          ? `bd:${budgetDraft.cellKey}:${budgetDraft.text}`
+                          : "",
+                        mergeSpanHighlightPulse?.rowIndex === rowIndex
+                          ? `mp:${mergeSpanHighlightPulse.startWeekKey}:${mergeSpanHighlightPulse.endWeekKey}`
+                          : "",
+                      ].join("|")
+                      return (
+                        <MemoExpertGridRow
+                          key={row.id}
+                          row={row}
+                          rowIndex={rowIndex}
+                          rowMergeMap={rowMergeMapForRow}
+                          layoutSig={layoutSig}
+                          rowUiSig={rowUiSig}
+                          render={() => {
                       const net = expertRowNetMedia(row, weekKeys, feenewspapers)
                       const qtySum = expertRowQuantitySum(row, weekKeys)
                       const rowUnitRate = parseNum(row.unitRate)
@@ -2893,7 +3025,6 @@ export function NewspaperExpertGrid({
 
                       return (
                         <tr
-                          key={row.id}
                           className={cn(
                             stripe,
                             "transition-colors hover:bg-muted/35 focus-within:bg-muted/35",
@@ -4588,6 +4719,9 @@ export function NewspaperExpertGrid({
                             return renderedWeekCells
                           })()}
                         </tr>
+                      )
+                          }}
+                        />
                       )
                     })}
                     <tr
