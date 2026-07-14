@@ -10,6 +10,7 @@ import {
   type KeyboardEvent,
 } from "react"
 import { MemoExpertGridRow } from "@/components/media-containers/MemoExpertGridRow"
+import { useVirtualizer } from "@tanstack/react-virtual"
 import {
   buildMapsPreservingIdentity,
   finalizeRowsPreservingIdentity,
@@ -203,6 +204,24 @@ const oohExpertTotalsRowBgStyle = {
 }
 
 const DEBUG_OOH_MERGE = false
+
+/**
+ * F-28 Phase 2 — row virtualization for the OOH Expert grid (prototype).
+ *
+ * Flip to `false` for a fast rollback to the fully-rendered tbody. Only the OOH
+ * Expert grid is virtualized; other ExpertGrids are untouched.
+ */
+const OOH_EXPERT_ROW_VIRTUALIZATION = true
+
+/**
+ * Estimated body-row height (px). OOH schedule rows use ~h-8 / min-h-10 cells;
+ * 41px matches a single-line row with borders. Fixed estimate + generous
+ * overscan is acceptable for the prototype (no per-row measurement).
+ */
+const OOH_EXPERT_ROW_ESTIMATE_PX = 41
+
+/** Overscan keeps drag/keyboard neighbours mounted around the visible window. */
+const OOH_EXPERT_ROW_OVERSCAN = 12
 
 /**
  * Parse clipboard text that may contain tab-separated values (Excel/Sheets)
@@ -1095,6 +1114,21 @@ export function OohExpertGrid({
     boxSizing: "border-box" as const,
   })
 
+  // F-28 Phase 2: virtualized rows may be unmounted off-screen, so keyboard nav
+  // asks the virtualizer to scroll a target row into range before focusing. The
+  // ref is populated once the virtualizer is created (below), keeping this
+  // callback stable for the keyboard handlers defined earlier in render.
+  const rowVirtualizerRef = useRef<{
+    scrollToIndex: (
+      index: number,
+      options?: { align?: "auto" | "start" | "center" | "end" }
+    ) => void
+  } | null>(null)
+  const ensureRowVisible = useCallback((rowIndex: number) => {
+    if (!OOH_EXPERT_ROW_VIRTUALIZATION) return
+    rowVirtualizerRef.current?.scrollToIndex(rowIndex, { align: "auto" })
+  }, [])
+
   const handleGridInputKeyDown = useCallback(
     (
       rowIndex: number,
@@ -1114,7 +1148,12 @@ export function OohExpertGrid({
         const end = t.selectionEnd ?? 0
         if (start === len && end === len) {
           e.preventDefault()
-          focusExpertGridCell(domGridId, rowIndex, firstWeekNavColIndex)
+          focusExpertGridCell(
+            domGridId,
+            rowIndex,
+            firstWeekNavColIndex,
+            ensureRowVisible
+          )
           return
         }
       }
@@ -1127,7 +1166,12 @@ export function OohExpertGrid({
         const end = t.selectionEnd ?? 0
         if (start === 0 && end === 0 && unitRateNavColIndex >= 0) {
           e.preventDefault()
-          focusExpertGridCell(domGridId, rowIndex, unitRateNavColIndex)
+          focusExpertGridCell(
+            domGridId,
+            rowIndex,
+            unitRateNavColIndex,
+            ensureRowVisible
+          )
           return
         }
       }
@@ -1138,10 +1182,12 @@ export function OohExpertGrid({
         rowCount: normalizedRows.length,
         colCount: navColCount,
         event: e,
+        ensureVisible: ensureRowVisible,
       })
     },
     [
       domGridId,
+      ensureRowVisible,
       firstWeekNavColIndex,
       navColCount,
       normalizedRows.length,
@@ -2034,6 +2080,40 @@ export function OohExpertGrid({
   ])
 
   const gridScrollRef = useRef<HTMLDivElement>(null)
+
+  // F-28 Phase 2 — virtualize only the schedule rows. The existing scroll div
+  // (`gridScrollRef`) is the scroll element; the weekly-totals footer row stays
+  // outside the virtual window and always renders after the bottom spacer.
+  const rowVirtualizer = useVirtualizer({
+    count: normalizedRows.length,
+    getScrollElement: () => gridScrollRef.current,
+    estimateSize: () => OOH_EXPERT_ROW_ESTIMATE_PX,
+    overscan: OOH_EXPERT_ROW_OVERSCAN,
+  })
+  rowVirtualizerRef.current = rowVirtualizer
+
+  /**
+   * Colspan for the top/bottom virtual spacer rows. Must equal the thead/totals
+   * column count: 1 reorder col + descriptor cols + WEEK_GRID_COL_OFFSET
+   * (gross / actions / Σ qty) + one cell per week (expanded weeks contribute one
+   * cell per campaign day).
+   */
+  const virtualSpacerColSpan = useMemo(() => {
+    let weekCells = 0
+    for (const col of weekColumns) {
+      weekCells += expandedWeekKeys.has(col.weekKey)
+        ? Math.max(1, (dayColumnsByWeekKey[col.weekKey] ?? []).length)
+        : 1
+    }
+    return (
+      1 + oohDescriptorKeys.length + WEEK_GRID_COL_OFFSET + weekCells
+    )
+  }, [
+    weekColumns,
+    expandedWeekKeys,
+    dayColumnsByWeekKey,
+    oohDescriptorKeys.length,
+  ])
 
   useEffect(() => {
     const handleDocumentPointerDown = (ev: PointerEvent) => {
@@ -2993,7 +3073,11 @@ export function OohExpertGrid({
                     </tr>
                   </thead>
                   <tbody>
-                    {normalizedRows.map((row, rowIndex) => {
+                    {(() => {
+                      const renderScheduleRow = (
+                        row: OohExpertScheduleRow,
+                        rowIndex: number
+                      ) => {
                       const rowMergeMapForRow =
                         rowMergeMaps[rowIndex] ??
                         ({
@@ -4748,7 +4832,57 @@ export function OohExpertGrid({
                           }}
                         />
                       )
-                    })}
+                      }
+
+                      if (!OOH_EXPERT_ROW_VIRTUALIZATION) {
+                        return normalizedRows.map((row, rowIndex) =>
+                          renderScheduleRow(row, rowIndex)
+                        )
+                      }
+
+                      const virtualItems = rowVirtualizer.getVirtualItems()
+                      const paddingTop =
+                        virtualItems.length > 0 ? virtualItems[0]!.start : 0
+                      const paddingBottom =
+                        virtualItems.length > 0
+                          ? rowVirtualizer.getTotalSize() -
+                            virtualItems[virtualItems.length - 1]!.end
+                          : 0
+
+                      return (
+                        <>
+                          {paddingTop > 0 ? (
+                            <tr aria-hidden style={{ height: paddingTop }}>
+                              <td
+                                colSpan={virtualSpacerColSpan}
+                                style={{
+                                  height: paddingTop,
+                                  padding: 0,
+                                  border: 0,
+                                }}
+                              />
+                            </tr>
+                          ) : null}
+                          {virtualItems.map((vi) => {
+                            const row = normalizedRows[vi.index]
+                            if (!row) return null
+                            return renderScheduleRow(row, vi.index)
+                          })}
+                          {paddingBottom > 0 ? (
+                            <tr aria-hidden style={{ height: paddingBottom }}>
+                              <td
+                                colSpan={virtualSpacerColSpan}
+                                style={{
+                                  height: paddingBottom,
+                                  padding: 0,
+                                  border: 0,
+                                }}
+                              />
+                            </tr>
+                          ) : null}
+                        </>
+                      )
+                    })()}
                     <tr
                       className="border-t-2 border-solid font-medium"
                       style={mediaTypeTotalsRowStyle(MEDIA_ACCENT_HEX)}
