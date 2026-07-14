@@ -1,5 +1,6 @@
 "use client"
 
+import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import {
   readContainerEntryMode,
   writeContainerEntryMode,
@@ -386,37 +387,7 @@ const handleAddNewNewspaperAdSize = async () => {
   const form = useForm<NewspapersFormValues>({
     resolver: zodResolver(newspapersFormSchema) as Resolver<NewspapersFormValues>,
     defaultValues: {
-      newspaperlineItems: [
-        {
-          network: "",
-          publisher: "",
-          title: "",
-          buyType: "",
-          format: "",
-          placement: "",
-          buyingDemo: "",
-          market: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
-          ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
-          bursts: [
-            {
-              _reactKey: newBurstReactKey(),
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-            } as NewspapersFormValues["newspaperlineItems"][number]["bursts"][number] & { _reactKey: string },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      newspaperlineItems: [],
     },
   });
 
@@ -1377,6 +1348,41 @@ useEffect(() => {
             {newspaperExpertModalOpen ? null : (
             <Form {...form}>
               <div className="space-y-6">
+                {lineItemFields.length === 0 ? (
+                  <ContainerEmptyLinesPlaceholder
+                    onAdd={() => appendLineItem({
+                                                          network: "",
+                                                          publisher: "",
+                                                          title: "",
+                                                          buyType: "",
+                                                          format: "",
+                                                          size: "",
+                                                          placement: "",
+                                                          buyingDemo: "",
+                                                          market: "",
+                                                          fixedCostMedia: false,
+                                                          clientPaysForMedia: false,
+                                                          budgetIncludesFees: false,
+                                                          noadserving: false,
+                                                          ...(() => {
+                                                            const nextNum = lineItemFields.length + 1;
+                                                            const id = createLineItemId(nextNum);
+                                                            return { lineItemId: id, line_item_id: id, line_item: nextNum, lineItem: nextNum };
+                                                          })(),
+                                                          bursts: [
+                                                            {
+                                                              _reactKey: newBurstReactKey(),
+                                                              budget: "",
+                                                              buyAmount: "",
+                                                              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+                                                              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+                                                              calculatedValue: 0,
+                                                              fee: 0,
+                                                            } as NewspapersFormValues["newspaperlineItems"][number]["bursts"][number] & { _reactKey: string },
+                                                          ],
+                                                        })}
+                  />
+                ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
                   const lineItemId = buildLineItemId(
                     mbaNumber,

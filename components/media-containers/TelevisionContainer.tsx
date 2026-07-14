@@ -1,5 +1,6 @@
 "use client"
 
+import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import {
   readContainerEntryMode,
   writeContainerEntryMode,
@@ -360,44 +361,7 @@ export default function TelevisionContainer({
   // Form initialization
   const form = useForm({
     defaultValues: {
-      televisionlineItems: [
-        {
-          // Line Item Level Defaults
-          market: "",
-          network: "",
-          station: "",
-          daypart: "",
-          placement: "",
-          bidStrategy: "", // Default if kept
-          buyType: "CPP",  // Example default
-          creativeTargeting: "", // Default if kept
-          creative: "",         // Default if kept
-          buyingDemo: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
-          ...(() => {
-            const id = createLineItemId(1);
-            return { lineItemId: id, line_item_id: id };
-          })(),
-          line_item: 1,
-          // Burst Level Defaults
-          bursts: [
-            {
-              budget: "",
-              buyAmount: "",
-              startDate: campaignStartDate || new Date(), // Use prop if available
-              endDate: campaignEndDate || new Date(),     // Use prop if available
-              size: "30s", // Example default
-              tarps: "",
-              calculatedValue: 0,
-              fee: 0,
-              _reactKey: newBurstReactKey(),
-            },
-          ],
-        },
-      ],
+      televisionlineItems: [],
     },
   }) as any;
 
@@ -1328,6 +1292,46 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
           <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
+                {lineItemFields.length === 0 ? (
+                  <ContainerEmptyLinesPlaceholder
+                    onAdd={() => appendLineItem({
+                                                          network: "",
+                                                          bidStrategy: "",
+                                                          station: "",
+                                                          daypart: "",
+                                                          placement: "",
+                                                          buyType: "",
+                                                          creativeTargeting: "",
+                                                          creative: "",
+                                                          buyingDemo: "",
+                                                          market: "",
+                                                          fixedCostMedia: false,
+                                                          clientPaysForMedia: false,
+                                                          budgetIncludesFees: false,
+                                                          noadserving: false,
+                                                        ...(() => {
+                                                          const nextNum = lineItemFields.length + 1;
+                                                          const id = createLineItemId(nextNum);
+                                                          return { lineItemId: id, line_item_id: id };
+                                                        })(),
+                                                        line_item: lineItemFields.length + 1,
+                                                        lineItem: lineItemFields.length + 1,
+                                                          bursts: [
+                                                            {
+                                                              budget: "",
+                                                              buyAmount: "",
+                                                              startDate: new Date(),
+                                                              endDate: new Date(),
+                                                              size: "30s",
+                                                              tarps: "",
+                                                              calculatedValue: 0,
+                                                              fee: 0,
+                                                              _reactKey: newBurstReactKey(),
+                                                            },
+                                                          ],
+                                                        })}
+                  />
+                ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
                   const lineItemId = buildLineItemId(
                     mbaNumber,

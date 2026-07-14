@@ -1,5 +1,6 @@
 "use client"
 
+import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import {
   readContainerEntryMode,
   writeContainerEntryMode,
@@ -238,38 +239,7 @@ export default function InfluencersContainer({
   const form = useForm<InfluencersFormValues>({
     resolver: zodResolver<InfluencersFormValues, any, InfluencersFormValues>(influencersFormSchema),
     defaultValues: {
-      lineItems: [
-        {
-          platform: "",
-          objective: "",
-          campaign: "",
-          bidStrategy: "",
-          buyType: "",
-          targetingAttribute: "",
-          creativeTargeting: "",
-          creative: "",
-          buyingDemo: "",   
-          market: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
-          bursts: [
-            {
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-              _reactKey: newBurstReactKey(),
-            } as InfluencersFormValues["lineItems"][number]["bursts"][number] & { _reactKey: string },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      lineItems: [],
     },
   });
 
@@ -1134,6 +1104,37 @@ const getBursts = () => {
           {influencersExpertModalOpen ? null : (
           <Form {...form}>
             <div className="space-y-6">
+                {lineItemFields.length === 0 ? (
+                  <ContainerEmptyLinesPlaceholder
+                    onAdd={() => appendLineItem({
+                                                          platform: "",
+                                                              objective: "",
+                                                              campaign: "",
+                                                          bidStrategy: "",
+                                                          buyType: "",
+                                                              targetingAttribute: "",
+                                                          creativeTargeting: "",
+                                                          creative: "",
+                                                          buyingDemo: "",
+                                                          market: "",
+                                                          fixedCostMedia: false,
+                                                          clientPaysForMedia: false,
+                                                          budgetIncludesFees: false,
+                                                              noadserving: false,
+                                                          bursts: [
+                                                            {
+                                                              budget: "",
+                                                              buyAmount: "",
+                                                              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+                                                              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+                                                              calculatedValue: 0,
+                                                              fee: 0,
+                                                              _reactKey: newBurstReactKey(),
+                                                            } as InfluencersFormValues["lineItems"][number]["bursts"][number] & { _reactKey: string },
+                                                          ],
+                                                        })}
+                  />
+                ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
                   const lineItemId = buildLineItemId(
                     mbaNumber,

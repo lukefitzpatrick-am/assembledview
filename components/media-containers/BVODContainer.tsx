@@ -1,5 +1,6 @@
 "use client"
 
+import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import {
   readContainerEntryMode,
   writeContainerEntryMode,
@@ -340,37 +341,7 @@ export default function BVODContainer({
   const form = useForm({
     resolver: zodResolver(bvodFormSchema),
     defaultValues: {
-      bvodlineItems: [
-        {
-          platform: "",
-          site: "",
-          bidStrategy: "",
-          buyType: "",
-          publisher: "",
-          creativeTargeting: "",
-          creative: "",
-          buyingDemo: "",
-          market: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
-          bursts: [
-            {
-              _reactKey: newBurstReactKey(),
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-            } as any,
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      bvodlineItems: [],
     },
   });
 
@@ -1295,6 +1266,36 @@ useEffect(() => {
           <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
+                {lineItemFields.length === 0 ? (
+                  <ContainerEmptyLinesPlaceholder
+                    onAdd={() => appendLineItem({
+                                                          platform: "",
+                                                          bidStrategy: "",
+                                                          site: "",
+                                                          buyType: "",
+                                                          publisher: "",
+                                                          creativeTargeting: "",
+                                                          creative: "",
+                                                          buyingDemo: "",
+                                                          market: "",
+                                                          fixedCostMedia: false,
+                                                          clientPaysForMedia: false,
+                                                          budgetIncludesFees: false,
+                                                          noadserving: false,
+                                                          bursts: [
+                                                            {
+                                                              _reactKey: newBurstReactKey(),
+                                                              budget: "",
+                                                              buyAmount: "",
+                                                              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+                                                              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+                                                              calculatedValue: 0,
+                                                              fee: 0,
+                                                            } as any,
+                                                          ],
+                                                        })}
+                  />
+                ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
                   const lineItemId = buildLineItemId(
                     mbaNumber,

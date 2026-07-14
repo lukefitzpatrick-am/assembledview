@@ -1,5 +1,6 @@
 "use client"
 
+import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import {
   readContainerEntryMode,
   writeContainerEntryMode,
@@ -427,40 +428,7 @@ export default function DigiDisplayContainer({
   const form = useForm({
     resolver: zodResolver(digidisplayFormSchema),
     defaultValues: {
-      digidisplaylineItems: [
-        {
-          platform: "",
-          site: "",
-          buyType: "",
-          publisher: "",
-          creativeTargeting: "",
-          creative: "",
-          buyingDemo: "",
-          market: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
-          ...(() => {
-            const id = buildLineItemId("", MEDIA_TYPE_ID_CODES.digitalDisplay, 1);
-            return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 };
-          })(),
-          bursts: [
-            {
-              _reactKey: newBurstReactKey(),
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-            } as DigiDisplayFormValues["digidisplaylineItems"][number]["bursts"][number] & { _reactKey: string },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      digidisplaylineItems: [],
     },
   });
 
@@ -1405,6 +1373,43 @@ useEffect(() => {
             {digiDisplayExpertModalOpen ? null : (
             <Form {...form}>
               <div className="space-y-6">
+                {lineItemFields.length === 0 ? (
+                  <ContainerEmptyLinesPlaceholder
+                    onAdd={() => appendLineItem({
+                                                              platform: "",
+                                                              site: "",
+                                                              buyType: "",
+                                                              publisher: "",
+                                                              creativeTargeting: "",
+                                                              creative: "",
+                                                              buyingDemo: "",
+                                                              market: "",
+                                                              fixedCostMedia: false,
+                                                              clientPaysForMedia: false,
+                                                              budgetIncludesFees: false,
+                                                              noadserving: false,
+                                                              ...(() => {
+                                                                const nextNumber = lineItemFields.length + 1;
+                                                                const id = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, nextNumber);
+                                                                return { lineItemId: id, line_item_id: id, line_item: nextNumber, lineItem: nextNumber };
+                                                              })(),
+                                                              bursts: [
+                                                                {
+                                                                  _reactKey: newBurstReactKey(),
+                                                                  budget: "",
+                                                                  buyAmount: "",
+                                                                  startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+                                                                  endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+                                                                  calculatedValue: 0,
+                                                                  fee: 0,
+                                                                } as DigiDisplayFormValues["digidisplaylineItems"][number]["bursts"][number] & { _reactKey: string },
+                                                              ],
+                                                              totalMedia: 0,
+                                                              totalDeliverables: 0,
+                                                              totalFee: 0,
+                                                            })}
+                  />
+                ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
                   const lineItem = form.getValues(`digidisplaylineItems.${lineItemIndex}`)
                   const lineNumber = resolveDigiDisplayLineNumber(

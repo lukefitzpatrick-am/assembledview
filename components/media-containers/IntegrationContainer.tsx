@@ -1,5 +1,6 @@
 "use client"
 
+import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import {
   readContainerEntryMode,
   writeContainerEntryMode,
@@ -246,38 +247,7 @@ export default function IntegrationContainer({
   const form = useForm<IntegrationFormValues>({
     resolver: zodResolver(integrationFormSchema) as any,
     defaultValues: {
-      lineItems: [
-        {
-          platform: "",
-          bidStrategy: "",
-          buyType: "",
-          objective: "",
-          campaign: "",
-          targetingAttribute: "",
-          creativeTargeting: "",
-          creative: "",
-          buyingDemo: "",
-          market: "",
-          noAdserving: false,
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          bursts: [
-            {
-              _reactKey: newBurstReactKey(),
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-            } as IntegrationFormValues["lineItems"][number]["bursts"][number] & { _reactKey: string },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      lineItems: [],
     },
   });
 
@@ -1216,6 +1186,37 @@ useEffect(() => {
           <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
+                {lineItemFields.length === 0 ? (
+                  <ContainerEmptyLinesPlaceholder
+                    onAdd={() => appendLineItem({
+                                                          platform: "",
+                                                          bidStrategy: "",
+                                                          buyType: "",
+                                                          objective: "",
+                                                          campaign: "",
+                                                          targetingAttribute: "",
+                                                          creativeTargeting: "",
+                                                          creative: "",
+                                                          buyingDemo: "",
+                                                          market: "",
+                                                          noAdserving: false,
+                                                          fixedCostMedia: false,
+                                                          clientPaysForMedia: false,
+                                                          budgetIncludesFees: false,
+                                                          bursts: [
+                                                            {
+                                                              _reactKey: newBurstReactKey(),
+                                                              budget: "",
+                                                              buyAmount: "",
+                                                              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+                                                              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+                                                              calculatedValue: 0,
+                                                              fee: 0,
+                                                            } as IntegrationFormValues["lineItems"][number]["bursts"][number] & { _reactKey: string },
+                                                          ],
+                                                        })}
+                  />
+                ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
                   const lineItemId = buildLineItemId(
                     mbaNumber,

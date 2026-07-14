@@ -1,5 +1,6 @@
 "use client"
 
+import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import {
   readContainerEntryMode,
   writeContainerEntryMode,
@@ -325,38 +326,7 @@ export default function CinemaContainer({
   const form = useForm<CinemaFormValues>({
     resolver: zodResolver(cinemaFormSchema) as any,
     defaultValues: {
-      cinemalineItems: [
-        {
-          network: "",
-          station: "",
-          bidStrategy: "",
-          buyType: "",
-          placement: "",
-          format: "",
-          duration: "",
-          buyingDemo: "",
-          market: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
-          ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
-          bursts: [
-            {
-              _reactKey: newBurstReactKey(),
-              budget: "",
-              buyAmount: "",
-              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-              calculatedValue: 0,
-              fee: 0,
-            } as CinemaFormValues["cinemalineItems"][number]["bursts"][number] & { _reactKey: string },
-          ],
-          totalMedia: 0,
-          totalDeliverables: 0,
-          totalFee: 0,
-        },
-      ],
+      cinemalineItems: [],
     },
   });
 
@@ -1239,6 +1209,41 @@ useEffect(() => {
           <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
+                {lineItemFields.length === 0 ? (
+                  <ContainerEmptyLinesPlaceholder
+                    onAdd={() => appendLineItem({
+                                                          network: "",
+                                                          station: "",
+                                                          bidStrategy: "",
+                                                          buyType: "",
+                                                          placement: "",
+                                                          format: "",
+                                                          duration: "",
+                                                          buyingDemo: "",
+                                                          market: "",
+                                                          fixedCostMedia: false,
+                                                          clientPaysForMedia: false,
+                                                          budgetIncludesFees: false,
+                                                          noadserving: false,
+                                                          ...(() => {
+                                                            const nextNum = lineItemFields.length + 1;
+                                                            const id = createLineItemId(nextNum);
+                                                            return { lineItemId: id, line_item_id: id, line_item: nextNum, lineItem: nextNum };
+                                                          })(),
+                                                          bursts: [
+                                                            {
+                                                              _reactKey: newBurstReactKey(),
+                                                              budget: "",
+                                                              buyAmount: "",
+                                                              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+                                                              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+                                                              calculatedValue: 0,
+                                                              fee: 0,
+                                                            } as CinemaFormValues["cinemalineItems"][number]["bursts"][number] & { _reactKey: string },
+                                                          ],
+                                                        })}
+                  />
+                ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
                   const lineItemId = buildLineItemId(
                     mbaNumber,

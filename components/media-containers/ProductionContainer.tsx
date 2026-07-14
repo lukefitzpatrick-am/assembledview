@@ -1,5 +1,6 @@
 "use client"
 
+import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import {
   readContainerEntryMode,
   writeContainerEntryMode,
@@ -304,16 +305,7 @@ export default function ProductionContainer({
   const form = useForm<ProductionFormValues>({
     resolver: zodResolver(productionFormSchema),
     defaultValues: {
-      lineItems: [
-        {
-          mediaType: mediaTypeOptions[0]?.value || "",
-          publisher: "",
-          description: "",
-          market: "",
-          lineItemId: "",
-          bursts: [makeDefaultBurst()],
-        },
-      ],
+      lineItems: [],
     },
   })
 
@@ -758,7 +750,19 @@ export default function ProductionContainer({
 
       <Form {...form}>
         <div className="space-y-6">
-          {lineItemFields.map((field, lineItemIndex) => {
+          {lineItemFields.length === 0 ? (
+                  <ContainerEmptyLinesPlaceholder
+                    onAdd={() => appendLineItem({
+      mediaType: mediaTypeOptions[0]?.value || "",
+      publisher: "",
+      description: "",
+      market: "",
+      lineItemId: "",
+      bursts: [makeDefaultBurst()],
+    })}
+                  />
+                ) : null}
+                {lineItemFields.map((field, lineItemIndex) => {
             const lineItemId =
               form.watch(`lineItems.${lineItemIndex}.lineItemId`) ||
               buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.production, lineItemIndex + 1)
