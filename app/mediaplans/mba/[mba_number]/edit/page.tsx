@@ -142,9 +142,26 @@ import { attachOverridesToLineInputs } from "@/lib/finance/billingOverrides"
 import {
   buildEditorLineItemInputs,
   buildFeeLoadingFromEditorFees,
+  editorBillingStableLineItemId,
 } from "@/lib/finance/buildEditorLineItemInputs"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
+import type { BurstDateLike } from "@/lib/finance/billingOverrideDateBasis"
+import {
+  fetchBillingOverridesClient,
+  replaceBillingOverrideLineClient,
+  resetBillingOverrideLineClient,
+} from "@/lib/finance/billingOverridesClient"
+import {
+  applyBillingOverrideRowsToMonths,
+  billingOverrideLineIdsMatch,
+  listManualOverrideLineIds,
+  toBillingOverrideLineItemId,
+  validateManualMediaMonthsSum,
+  type LineOverrideMeta,
+} from "@/lib/finance/manualBillingOverridesUi"
+import { persistManualBillingOverrides } from "@/lib/finance/persistManualBillingOverrides"
+import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import {
   MbaBillableEqualsPill,
   MbaFeeAdjustedPill,
@@ -1567,6 +1584,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [latestVersionNumber, setLatestVersionNumber] = useState<number>(1)
   const [nextSaveVersionNumber, setNextSaveVersionNumber] = useState<number | null>(null)
   const [selectedVersionNumber, setSelectedVersionNumber] = useState<number | null>(null)
+  /** DB row id of the current `media_plan_versions` record — NOT `version_number`. */
+  const [mediaPlanVersionId, setMediaPlanVersionId] = useState<string | number | null>(null)
   const [rollbackModalOpen, setRollbackModalOpen] = useState(false)
   const [rollbackTargetVersion, setRollbackTargetVersion] = useState<number | null>(null)
   const [rollbackTargetCreatedAt, setRollbackTargetCreatedAt] = useState<number | string | null>(null)
@@ -1794,6 +1813,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     adServing?: string[];
     production?: string[];
   }>({})
+  /** Reason / dateBasis from billing_overrides rows (keyed by line_item_id). */
+  const manualBillingOverrideMetaRef = useRef<Map<string, LineOverrideMeta[]>>(new Map())
   const autoReferenceBillingMonthsRef = useRef<BillingMonth[]>([])
   const [autoDeliveryMonths, setAutoDeliveryMonths] = useState<BillingMonth[]>([])
   const deliveryScheduleSnapshotRef = useRef<BillingMonth[] | null>(null)
@@ -2744,6 +2765,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setMediaLoadStatus({})
       setError(null)
       setMediaPlan(null)
+      setMediaPlanVersionId(null)
       
       // Reset all line items to prevent stale data
       setSearchLineItems([])
@@ -2807,6 +2829,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
       setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
       manualBillingCostPreBillSnapshotRef.current = {}
+      manualBillingOverrideMetaRef.current = new Map()
       deliveryScheduleSnapshotRef.current = null
       setIsPartialMBA(false)
       setPartialApprovalMetadata(null)
@@ -3042,6 +3065,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         
         // Set the media plan data (needed for version number display)
         setMediaPlan(data)
+
+        // Prefer the loaded version row id (same id PUT returns as versionId / version.id).
+        const loadedVersionRowId =
+          data.versionData?.id ??
+          data.version?.id ??
+          versionsFromApi.find((v) => v.version_number === loadedVersionNumber)?.id ??
+          (data.media_plan_master_id != null &&
+          data.id != null &&
+          String(data.id) !== String(data.media_plan_master_id)
+            ? data.id
+            : null)
+        setMediaPlanVersionId(loadedVersionRowId ?? null)
 
         const rawBillingSchedule =
           data.billingSchedule ??
@@ -3649,7 +3684,77 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, []);
 
   // Manual Billing Functions (matching create page)
-  function handleManualBillingOpen() {
+
+  /**
+   * Resolve `media_plan_versions` DB row id for billing_overrides APIs.
+   * Never use selectedVersionNumber (the version ordinal) here.
+   */
+  const resolveMediaPlanVersionRowId = useCallback(async (): Promise<string | number | null> => {
+    if (mediaPlanVersionId != null) return mediaPlanVersionId
+
+    const fromPayload =
+      mediaPlan?.versionData?.id ??
+      mediaPlan?.version?.id ??
+      null
+    if (fromPayload != null && String(fromPayload).trim() !== "") {
+      setMediaPlanVersionId(fromPayload)
+      return fromPayload
+    }
+
+    const vn = selectedVersionNumber
+    const fromList =
+      vn != null
+        ? availableVersions.find((v) => v.version_number === vn)?.id
+        : undefined
+    if (fromList != null) {
+      setMediaPlanVersionId(fromList)
+      return fromList
+    }
+
+    // When only the version number is in scope, load the version row to get its id.
+    if (mbaNumber && vn != null) {
+      try {
+        const res = await fetch(
+          `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}?skipLineItems=true&includeVersionsMeta=1&version=${encodeURIComponent(String(vn))}`,
+          { cache: "no-store" }
+        )
+        if (res.ok) {
+          const data = await res.json()
+          const rowId =
+            data.versionData?.id ??
+            data.version?.id ??
+            (Array.isArray(data.versions)
+              ? data.versions.find(
+                  (v: { version_number: number | string; id?: number }) =>
+                    Number(v.version_number) === vn
+                )?.id
+              : null) ??
+            (data.media_plan_master_id != null &&
+            data.id != null &&
+            String(data.id) !== String(data.media_plan_master_id)
+              ? data.id
+              : null)
+          if (rowId != null) {
+            setMediaPlanVersionId(rowId)
+            return rowId
+          }
+        }
+      } catch {
+        // fall through
+      }
+    }
+
+    const masterId = mediaPlan?.media_plan_master_id
+    const id = mediaPlan?.id
+    if (id != null && masterId != null && String(id) !== String(masterId)) {
+      setMediaPlanVersionId(id)
+      return id
+    }
+
+    return null
+  }, [mediaPlanVersionId, mediaPlan, selectedVersionNumber, availableVersions, mbaNumber])
+
+  async function handleManualBillingOpen() {
     // Clone `workingBillingMonths` into modal-local state; working stays unchanged until explicit save.
     // After load from `media_plan_versions`, only append missing line-item IDs from auto; do not rebuild from containers or re-total months here.
     const sourceMonths = workingBillingMonths
@@ -3802,7 +3907,33 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       })
     }
 
-    setManualBillingMonths(deepCopiedMonths)
+    let monthsForModal = deepCopiedMonths
+    manualBillingOverrideMetaRef.current = new Map()
+
+    const versionId = await resolveMediaPlanVersionRowId()
+    if (versionId != null) {
+      try {
+        const rows = await fetchBillingOverridesClient(versionId)
+        const { months, metaByLine } = applyBillingOverrideRowsToMonths(deepCopiedMonths, rows)
+        monthsForModal = months
+        manualBillingOverrideMetaRef.current = metaByLine
+      } catch (err: any) {
+        toast({
+          variant: "destructive",
+          title: "Could not load billing overrides",
+          description: err?.message || "Opening modal with schedule only.",
+        })
+      }
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Missing media plan version id",
+        description:
+          "Billing overrides could not be loaded — APIs key on the version row id, not the version number.",
+      })
+    }
+
+    setManualBillingMonths(monthsForModal)
     // UI-only state: reset pre-bill toggles for cost rows on open
     setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
     manualBillingCostPreBillSnapshotRef.current = {}
@@ -3810,7 +3941,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       mediaTypes,
       mediaFlagMap,
       mediaKeyMap,
-      deepCopiedMonths
+      monthsForModal
     )
     setManualBillingAccordionExpanded(defaultManualBillingAccordionExpanded(sections))
     setIsManualBillingModalOpen(true)
@@ -4419,9 +4550,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   /**
    * Level 2 — per–line-item reset (modal draft): copy that row from the auto template built as
    * `attachLineItemsToMonths(deepClone(autoReferenceBillingMonths), "billing")` — same source as append-merge,
-   * not ad-hoc container regen during the click handler.
+   * not ad-hoc container regen during the click handler. Also clears billing_overrides for the line.
    */
-  const handleManualBillingLineItemResetToAuto = useCallback((mediaKey: string, lineItemId: string) => {
+  const handleManualBillingLineItemResetToAuto = useCallback(async (mediaKey: string, lineItemId: string) => {
     const autoAgg = autoReferenceBillingMonthsRef.current
     if (!autoAgg.length) {
       toast({
@@ -4431,6 +4562,30 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           "No auto billing reference. Set campaign dates and bursts, or open Edit Billing and use Reset billing to auto there.",
       })
       return
+    }
+
+    const versionId = await resolveMediaPlanVersionRowId()
+    if (versionId != null) {
+      try {
+        await resetBillingOverrideLineClient({
+          media_plan_version_id: versionId,
+          line_item_id: toBillingOverrideLineItemId(lineItemId),
+          // omit component → clear both media and fee override rows
+        })
+        const canon = toBillingOverrideLineItemId(lineItemId)
+        for (const key of [...manualBillingOverrideMetaRef.current.keys()]) {
+          if (toBillingOverrideLineItemId(key) === canon) {
+            manualBillingOverrideMetaRef.current.delete(key)
+          }
+        }
+      } catch (err: any) {
+        toast({
+          variant: "destructive",
+          title: "Could not clear billing override",
+          description: err?.message || "Reset aborted.",
+        })
+        return
+      }
     }
 
     const template = attachLineItemsToMonthsRef.current(
@@ -4449,6 +4604,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
 
     const copyWithAutoMode = applyBillingLineMode(copy, lineItemId, "auto")
+    // Also stamp fee lane back to auto after copying auto fee amounts.
+    for (const month of copyWithAutoMode) {
+      if (!month.lineItems) continue
+      for (const items of Object.values(month.lineItems)) {
+        if (!Array.isArray(items)) continue
+        for (const line of items) {
+          if (billingOverrideLineIdsMatch(String(line.id ?? ""), lineItemId)) {
+            line.feeBillingMode = "auto"
+          }
+        }
+      }
+    }
     const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
     copyWithAutoMode.forEach((month) => {
       const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
@@ -4463,7 +4630,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     recalculateManualBillingTotals(copyWithAutoMode, formatter)
     setManualBillingMonths(copyWithAutoMode)
-  }, [manualBillingMonths])
+  }, [manualBillingMonths, resolveMediaPlanVersionRowId])
 
   const attachLineItemsToMonths = useCallback((
     months: BillingMonth[],
@@ -5167,7 +5334,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   const agencyFeeMonthTotalDrift = manualBillingMonthFeeSum - derivedCampaignFeeFromBursts
 
-  function handleManualBillingSave(forceIgnoreMismatch?: boolean, overrideFeeDrift?: boolean) {
+  async function handleManualBillingSave(forceIgnoreMismatch?: boolean, overrideFeeDrift?: boolean) {
     if (!forceIgnoreMismatch) {
       const v = validateBillingBeforeSave(manualBillingMonths, { feeCheck: true })
       if (v.blockingErrors.length > 0 || v.preservedManualOverrides.length > 0) {
@@ -5189,10 +5356,75 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       return
     }
 
+    const versionId = await resolveMediaPlanVersionRowId()
+    if (versionId == null) {
+      toast({
+        variant: "destructive",
+        title: "Cannot save billing overrides",
+        description:
+          "Missing media_plan_versions row id. Overrides key on the version DB id, not the version number.",
+      })
+      return
+    }
+
+    const getBurstsForLine = (billingRowId: string): BurstDateLike[] => {
+      const canon = toBillingOverrideLineItemId(billingRowId)
+      for (const config of billingFeeSeedEnabledConfigs) {
+        const items = config.lineItems ?? []
+        for (let i = 0; i < items.length; i++) {
+          const stableId = editorBillingStableLineItemId(config.billingKey, items[i], i)
+          if (
+            billingOverrideLineIdsMatch(stableId, billingRowId) ||
+            toBillingOverrideLineItemId(stableId) === canon
+          ) {
+            return resolveLineItemBursts(items[i]).map((b: any) => ({
+              startDate: String(b?.startDate ?? b?.start_date ?? ""),
+              endDate: String(b?.endDate ?? b?.end_date ?? ""),
+            }))
+          }
+        }
+      }
+      return []
+    }
+
+    // Surface C2 helpers that persist also uses (keeps imports live for media-sum gate / replace_line).
+    void listManualOverrideLineIds
+    void validateManualMediaMonthsSum
+    void replaceBillingOverrideLineClient
+
+    let result: Awaited<ReturnType<typeof persistManualBillingOverrides>>
+    try {
+      result = await persistManualBillingOverrides({
+        versionId,
+        months: manualBillingMonths,
+        autoMonthsForMediaTotals:
+          manualBillingAutoReferenceMonths ?? autoReferenceBillingMonths,
+        metaByLine: manualBillingOverrideMetaRef.current,
+        getBurstsForLine,
+      })
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Billing override save failed",
+        description: err?.message || "Could not write billing_overrides.",
+      })
+      return
+    }
+
+    if (!result.ok) {
+      toast({
+        variant: "destructive",
+        title: "Billing override blocked",
+        description: result.message,
+      })
+      return
+    }
+
+    // Update working billing for on-screen timing only — do NOT write billingSchedule JSON here.
+    // Campaign save (C1 omit-mode) recomputes the billed schedule server-side WITH these overrides attached.
     const applied = JSON.parse(JSON.stringify(manualBillingMonths)) as BillingMonth[]
     setWorkingBillingMonths(applied)
     workingBillingMonthsRef.current = applied
-    // `savedBillingMonths` updates only after a successful campaign/version save — not from modal commit.
     setIsManualBilling(true)
     billingLineItemsFollowAutoRef.current = billingMonthsHaveExplicitLineModes(applied)
     setIsManualBillingModalOpen(false)
@@ -5200,7 +5432,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
     toast({
       title: "Billing applied",
-      description: "Working billing schedule updated. Save the plan to persist the new baseline in the version store.",
+      description: `Overrides saved (${result.replacedMedia} media, ${result.replacedFee} fee${result.reset ? `, ${result.reset} reset` : ""}). Save the plan so C1 recomputes the schedule with overrides attached.`,
     })
   }
 
@@ -5553,6 +5785,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
       if (!isOverwriteMode) {
         startCampaignKpiSync()
+      }
+
+      if (versionId != null) {
+        setMediaPlanVersionId(versionId)
       }
 
       setAvailableVersions(prev => {
@@ -5946,6 +6182,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       if (refreshResponse.ok) {
         const refreshedData = await refreshResponse.json()
         setMediaPlan(refreshedData)
+        const refreshedVersionRowId =
+          refreshedData.versionData?.id ??
+          refreshedData.version?.id ??
+          (versionId != null ? versionId : null) ??
+          (refreshedData.media_plan_master_id != null &&
+          refreshedData.id != null &&
+          String(refreshedData.id) !== String(refreshedData.media_plan_master_id)
+            ? refreshedData.id
+            : null)
+        if (refreshedVersionRowId != null) {
+          setMediaPlanVersionId(refreshedVersionRowId)
+        }
       }
       
       toast({ 
@@ -8011,6 +8259,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             }))
           : []
         setAvailableVersions(versionsFromApi)
+        // Fill version row id if modal open/save need it before versions meta was ready.
+        setMediaPlanVersionId((prev) => {
+          if (prev != null) return prev
+          const vn =
+            selectedVersionNumber ??
+            (versionNumber != null ? parseInt(String(versionNumber), 10) : null)
+          if (vn == null || Number.isNaN(vn)) return prev
+          const hit = versionsFromApi.find((v: { version_number: number; id?: number }) => v.version_number === vn)
+          return hit?.id ?? prev
+        })
         const latest =
           typeof data.latestVersionNumber === "number"
             ? data.latestVersionNumber
@@ -8028,7 +8286,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     versionsMetaInflightRef.current = promise
     return promise
-  }, [mbaNumber, versionNumber])
+  }, [mbaNumber, versionNumber, selectedVersionNumber])
 
   const handleVersionSelect = useCallback((value: string) => {
     const numericVersion = parseInt(value, 10)
