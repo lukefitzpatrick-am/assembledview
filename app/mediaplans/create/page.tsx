@@ -25,6 +25,8 @@ import { Combobox } from "@/components/ui/combobox"
 import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
+import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePresetBar"
+import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { ChevronsUpDown, Check, Download, FileText, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { formatMoney } from "@/lib/format/money"
@@ -701,8 +703,8 @@ function CreateMediaPlan() {
       mp_client_name: "",
       mp_campaignstatus: "",
       mp_campaignname: "",
-      mp_campaigndates_start: new Date(),
-      mp_campaigndates_end: new Date(),
+      mp_campaigndates_start: defaultCampaignDateRange().start,
+      mp_campaigndates_end: defaultCampaignDateRange().end,
       mp_brand: "",
       mp_clientcontact: "",
       mp_ponumber: "",
@@ -6072,6 +6074,14 @@ const handleSaveAll = async () => {
                 )}
               />
 
+              <div className="space-y-3 sm:col-span-2">
+                <CampaignDatePresetBar
+                  onApply={({ start, end }) => {
+                    form.setValue("mp_campaigndates_start", start, { shouldDirty: true, shouldValidate: true })
+                    form.setValue("mp_campaigndates_end", end, { shouldDirty: true, shouldValidate: true })
+                  }}
+                />
+                <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="mp_campaigndates_start"
@@ -6123,6 +6133,8 @@ const handleSaveAll = async () => {
                   </FormItem>
                 )}
               />
+                </div>
+              </div>
 
               <FormField
                 control={form.control}

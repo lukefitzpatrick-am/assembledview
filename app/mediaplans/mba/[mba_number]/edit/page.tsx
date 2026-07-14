@@ -28,6 +28,8 @@ import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, For
 import { Combobox } from "@/components/ui/combobox"
 import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
+import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePresetBar"
+import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
@@ -2195,8 +2197,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       mp_clientname: "",
       mp_campaignstatus: "",
       mp_campaignname: "",
-      mp_campaigndates_start: new Date(),
-      mp_campaigndates_end: new Date(),
+      mp_campaigndates_start: defaultCampaignDateRange().start,
+      mp_campaigndates_end: defaultCampaignDateRange().end,
       mp_brand: "",
       mp_clientcontact: "",
       mp_ponumber: "",
@@ -9014,6 +9016,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 )}
               />
 
+              <div className="space-y-3 sm:col-span-2">
+                <CampaignDatePresetBar
+                  onApply={({ start, end }) => {
+                    form.setValue("mp_campaigndates_start", start, { shouldDirty: true, shouldValidate: true })
+                    form.setValue("mp_campaigndates_end", end, { shouldDirty: true, shouldValidate: true })
+                    markUnsavedChanges()
+                  }}
+                />
+                <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="mp_campaigndates_start"
@@ -9065,6 +9076,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   </FormItem>
                 )}
               />
+                </div>
+              </div>
 
               <FormField
                 control={form.control}
