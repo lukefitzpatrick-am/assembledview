@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  readContainerEntryMode,
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn, type Resolver } from "react-hook-form"
@@ -388,6 +393,16 @@ export default function ProgVideoContainer({
     setProgVideoExpertExitConfirmOpen(false)
     setProgVideoExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, progvideoExpertWeekColumns])
+
+  /* ux5-session-progvideoExpertModalOpen */
+  useEffect(() => {
+    if (readContainerEntryMode() !== "schedule") return
+    if (progvideoExpertModalOpen) return
+    openProgVideoExpertModal()
+    // mount-only: honour session entry preference
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
 
   const dismissProgVideoExpertExitConfirm = useCallback(() => {
     setProgVideoExpertExitConfirmOpen(false)
@@ -1034,7 +1049,7 @@ useEffect(() => {
                         color: PROG_VIDEO_MEDIA_HEX,
                       }}
                     >
-                      Expert schedule open
+                      Schedule grid open
                     </Badge>
                   ) : null}
                 </div>
@@ -1059,12 +1074,11 @@ useEffect(() => {
                     }
                     onClick={() => {
                       if (progvideoExpertModalOpen) {
+                        writeContainerEntryMode("card")
                         handleProgVideoExpertModalOpenChange(false)
                       }
                     }}
-                  >
-                    Standard
-                  </button>
+                  >Card entry</button>
                   <button
                     type="button"
                     aria-pressed={progvideoExpertModalOpen}
@@ -1089,12 +1103,11 @@ useEffect(() => {
                     }}
                     onClick={() => {
                       if (!progvideoExpertModalOpen) {
-                        openProgVideoExpertModal()
+                        writeContainerEntryMode("schedule")
+                          openProgVideoExpertModal()
                       }
                     }}
-                  >
-                    Expert
-                  </button>
+                  >Schedule grid</button>
                 </div>
               </div>
               <div className="flex items-center justify-between">

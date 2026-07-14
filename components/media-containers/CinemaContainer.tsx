@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  readContainerEntryMode,
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
@@ -425,6 +430,14 @@ export default function CinemaContainer({
     setCinemaExpertExitConfirmOpen(false)
     setCinemaExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, cinemaExpertWeekColumns])
+  /* ux5-session-cinemaExpertModalOpen */
+  useEffect(() => {
+    if (readContainerEntryMode() !== "schedule") return
+    if (cinemaExpertModalOpen) return
+    openCinemaExpertModal()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- session preference once on mount
+  }, [])
+
 
   const handleCinemaExpertModalOpenChange = useCallback(
     (open: boolean) => {
@@ -1170,9 +1183,7 @@ useEffect(() => {
                       "rounded-md px-3 py-1 text-xs font-medium transition-colors",
                       !cinemaExpertModalOpen ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
                     )}
-                  >
-                    Standard
-                  </button>
+                  >Card entry</button>
                   <button
                     type="button"
                     onClick={() => { if (!cinemaExpertModalOpen) openCinemaExpertModal() }}
@@ -1180,13 +1191,13 @@ useEffect(() => {
                       "rounded-md px-3 py-1 text-xs font-medium transition-colors",
                       cinemaExpertModalOpen ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
                     )}
-                  >
-                    Expert
-                  </button>
+                  >Schedule grid</button>
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Card-based entry</p>
+                <p className="text-sm text-muted-foreground">
+                  One card per line — or switch to Schedule grid for week quantities.
+                </p>
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {overallTotals.lineItemTotals.length} line item
                   {overallTotals.lineItemTotals.length !== 1 ? "s" : ""}

@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  readContainerEntryMode,
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
@@ -450,7 +455,17 @@ export default function RadioContainer({
     setExpertRadioRows(rows);
     setRadioExpertExitConfirmOpen(false);
     setRadioExpertModalOpen(true);
-  }, [campaignStartDate, campaignEndDate, form, radioExpertWeekColumns, feeradio]);
+  }, [campaignStartDate, campaignEndDate, form, radioExpertWeekColumns, feeradio])
+
+  /* ux5-session-radioExpertModalOpen */
+  useEffect(() => {
+    if (readContainerEntryMode() !== "schedule") return
+    if (radioExpertModalOpen) return
+    openRadioExpertModal()
+    // mount-only: honour session entry preference
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+;
 
   const dismissRadioExpertExitConfirm = useCallback(() => {
     setRadioExpertExitConfirmOpen(false);
@@ -1249,7 +1264,7 @@ useEffect(() => {
                         color: MEDIA_ACCENT_HEX,
                       }}
                     >
-                      Expert schedule open
+                      Schedule grid open
                     </Badge>
                   ) : null}
                 </div>
@@ -1274,12 +1289,11 @@ useEffect(() => {
                     }
                     onClick={() => {
                       if (radioExpertModalOpen) {
+                        writeContainerEntryMode("card")
                         handleRadioExpertModalOpenChange(false);
                       }
                     }}
-                  >
-                    Standard
-                  </button>
+                  >Card entry</button>
                   <button
                     type="button"
                     aria-pressed={radioExpertModalOpen}
@@ -1304,16 +1318,17 @@ useEffect(() => {
                     }}
                     onClick={() => {
                       if (!radioExpertModalOpen) {
-                        openRadioExpertModal();
+                        writeContainerEntryMode("schedule")
+                          openRadioExpertModal();
                       }
                     }}
-                  >
-                    Expert
-                  </button>
+                  >Schedule grid</button>
                 </div>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-muted-foreground">Card-based entry</p>
+                <p className="text-sm text-muted-foreground">
+                  One card per line — or switch to Schedule grid for week quantities.
+                </p>
                 <span className="text-xs text-muted-foreground tabular-nums sm:text-right">
                   {overallTotals.lineItemTotals.length} line item
                   {overallTotals.lineItemTotals.length !== 1 ? "s" : ""}

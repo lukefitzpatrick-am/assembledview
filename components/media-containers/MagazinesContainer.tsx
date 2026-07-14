@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  readContainerEntryMode,
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn, type Resolver } from "react-hook-form"
@@ -521,6 +526,16 @@ const form = useForm<MagazinesFormValues>({
     setMagazinesExpertExitConfirmOpen(false)
     setMagazinesExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, magazinesExpertWeekColumns])
+
+  /* ux5-session-magazinesExpertModalOpen */
+  useEffect(() => {
+    if (readContainerEntryMode() !== "schedule") return
+    if (magazinesExpertModalOpen) return
+    openMagazinesExpertModal()
+    // mount-only: honour session entry preference
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
 
   const dismissMagazinesExpertExitConfirm = useCallback(() => {
     setMagazinesExpertExitConfirmOpen(false)
@@ -1245,7 +1260,7 @@ useEffect(() => {
                       color: MEDIA_ACCENT_HEX,
                     }}
                   >
-                    Expert schedule open
+                    Schedule grid open
                   </Badge>
                 ) : null}
               </div>
@@ -1270,12 +1285,11 @@ useEffect(() => {
                   }
                   onClick={() => {
                     if (magazinesExpertModalOpen) {
-                      handleMagazinesExpertModalOpenChange(false)
-                    }
+                      writeContainerEntryMode("card")
+                        handleMagazinesExpertModalOpenChange(false)
+                      }
                   }}
-                >
-                  Standard
-                </button>
+                >Card entry</button>
                 <button
                   type="button"
                   aria-pressed={magazinesExpertModalOpen}
@@ -1300,16 +1314,17 @@ useEffect(() => {
                   }}
                   onClick={() => {
                     if (!magazinesExpertModalOpen) {
-                      openMagazinesExpertModal()
+                      writeContainerEntryMode("schedule")
+                          openMagazinesExpertModal()
                     }
                   }}
-                >
-                  Expert
-                </button>
+                >Schedule grid</button>
               </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">Card-based entry</p>
+              <p className="text-sm text-muted-foreground">
+                  One card per line — or switch to Schedule grid for week quantities.
+                </p>
               <span className="text-xs text-muted-foreground tabular-nums sm:text-right">
                 {overallTotals.lineItemTotals.length} line item
                 {overallTotals.lineItemTotals.length !== 1 ? "s" : ""}

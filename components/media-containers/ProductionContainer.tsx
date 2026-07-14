@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  readContainerEntryMode,
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useForm, useFieldArray, UseFormReturn, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -393,6 +398,16 @@ export default function ProductionContainer({
     setProductionExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, productionExpertWeekColumns])
 
+  /* ux5-session-productionExpertModalOpen */
+  useEffect(() => {
+    if (readContainerEntryMode() !== "schedule") return
+    if (productionExpertModalOpen) return
+    openProductionExpertModal()
+    // mount-only: honour session entry preference
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+
   const dismissProductionExpertExitConfirm = useCallback(() => {
     setProductionExpertExitConfirmOpen(false)
   }, [])
@@ -644,7 +659,7 @@ export default function ProductionContainer({
                       color: MEDIA_ACCENT_HEX,
                     }}
                   >
-                    Expert schedule open
+                    Schedule grid open
                   </Badge>
                 ) : null}
               </div>
@@ -669,12 +684,11 @@ export default function ProductionContainer({
                   }
                   onClick={() => {
                     if (productionExpertModalOpen) {
-                      handleProductionExpertModalOpenChange(false)
-                    }
+                      writeContainerEntryMode("card")
+                        handleProductionExpertModalOpenChange(false)
+                      }
                   }}
-                >
-                  Standard
-                </button>
+                >Card entry</button>
                 <button
                   type="button"
                   aria-pressed={productionExpertModalOpen}
@@ -699,16 +713,17 @@ export default function ProductionContainer({
                   }}
                   onClick={() => {
                     if (!productionExpertModalOpen) {
-                      openProductionExpertModal()
+                      writeContainerEntryMode("schedule")
+                          openProductionExpertModal()
                     }
                   }}
-                >
-                  Expert
-                </button>
+                >Schedule grid</button>
               </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">Card-based entry</p>
+              <p className="text-sm text-muted-foreground">
+                  One card per line — or switch to Schedule grid for week quantities.
+                </p>
               <span className="text-xs text-muted-foreground tabular-nums sm:text-right">
                 {lineItemFields.length} line item
                 {lineItemFields.length !== 1 ? "s" : ""}

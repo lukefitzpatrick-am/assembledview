@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  readContainerEntryMode,
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
@@ -453,6 +458,16 @@ export default function DigiAudioContainer({
     setDigiAudioExpertExitConfirmOpen(false)
     setDigiAudioExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, digiAudioExpertWeekColumns])
+
+  /* ux5-session-digiAudioExpertModalOpen */
+  useEffect(() => {
+    if (readContainerEntryMode() !== "schedule") return
+    if (digiAudioExpertModalOpen) return
+    openDigiAudioExpertModal()
+    // mount-only: honour session entry preference
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
 
   const dismissDigiAudioExpertExitConfirm = useCallback(() => {
     setDigiAudioExpertExitConfirmOpen(false)
@@ -1119,7 +1134,7 @@ useEffect(() => {
                         color: MEDIA_ACCENT_HEX,
                       }}
                     >
-                      Expert schedule open
+                      Schedule grid open
                     </Badge>
                   ) : null}
                 </div>
@@ -1144,12 +1159,11 @@ useEffect(() => {
                     }
                     onClick={() => {
                       if (digiAudioExpertModalOpen) {
+                        writeContainerEntryMode("card")
                         handleDigiAudioExpertModalOpenChange(false)
                       }
                     }}
-                  >
-                    Standard
-                  </button>
+                  >Card entry</button>
                   <button
                     type="button"
                     aria-pressed={digiAudioExpertModalOpen}
@@ -1174,16 +1188,17 @@ useEffect(() => {
                     }}
                     onClick={() => {
                       if (!digiAudioExpertModalOpen) {
-                        openDigiAudioExpertModal()
+                        writeContainerEntryMode("schedule")
+                          openDigiAudioExpertModal()
                       }
                     }}
-                  >
-                    Expert
-                  </button>
+                  >Schedule grid</button>
                 </div>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-muted-foreground">Card-based entry</p>
+                <p className="text-sm text-muted-foreground">
+                  One card per line — or switch to Schedule grid for week quantities.
+                </p>
                 <span className="text-xs text-muted-foreground tabular-nums sm:text-right">
                   {overallTotals.lineItemTotals.length} line item
                   {overallTotals.lineItemTotals.length !== 1 ? "s" : ""}

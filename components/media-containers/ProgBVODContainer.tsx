@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  readContainerEntryMode,
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn, type Resolver } from "react-hook-form"
@@ -390,6 +395,16 @@ export default function ProgBVODContainer({
     setProgBvodExpertExitConfirmOpen(false)
     setProgBvodExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, progbvodExpertWeekColumns])
+
+  /* ux5-session-progbvodExpertModalOpen */
+  useEffect(() => {
+    if (readContainerEntryMode() !== "schedule") return
+    if (progbvodExpertModalOpen) return
+    openProgBvodExpertModal()
+    // mount-only: honour session entry preference
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
 
   const dismissProgBvodExpertExitConfirm = useCallback(() => {
     setProgBvodExpertExitConfirmOpen(false)
@@ -1010,7 +1025,7 @@ useEffect(() => {
                         color: PROG_BVOD_MEDIA_HEX,
                       }}
                     >
-                      Expert schedule open
+                      Schedule grid open
                     </Badge>
                   ) : null}
                 </div>
@@ -1035,12 +1050,11 @@ useEffect(() => {
                     }
                     onClick={() => {
                       if (progbvodExpertModalOpen) {
+                        writeContainerEntryMode("card")
                         handleProgBvodExpertModalOpenChange(false)
                       }
                     }}
-                  >
-                    Standard
-                  </button>
+                  >Card entry</button>
                   <button
                     type="button"
                     aria-pressed={progbvodExpertModalOpen}
@@ -1065,12 +1079,11 @@ useEffect(() => {
                     }}
                     onClick={() => {
                       if (!progbvodExpertModalOpen) {
-                        openProgBvodExpertModal()
+                        writeContainerEntryMode("schedule")
+                          openProgBvodExpertModal()
                       }
                     }}
-                  >
-                    Expert
-                  </button>
+                  >Schedule grid</button>
                 </div>
               </div>
               <div className="flex items-center justify-between">

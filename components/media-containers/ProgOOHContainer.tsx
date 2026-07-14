@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  readContainerEntryMode,
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn, type Resolver } from "react-hook-form"
@@ -390,6 +395,16 @@ export default function ProgOOHContainer({
     setProgOohExpertExitConfirmOpen(false)
     setProgOohExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, progoohExpertWeekColumns])
+
+  /* ux5-session-progoohExpertModalOpen */
+  useEffect(() => {
+    if (readContainerEntryMode() !== "schedule") return
+    if (progoohExpertModalOpen) return
+    openProgOohExpertModal()
+    // mount-only: honour session entry preference
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
 
   const dismissProgOohExpertExitConfirm = useCallback(() => {
     setProgOohExpertExitConfirmOpen(false)
@@ -1025,7 +1040,7 @@ useEffect(() => {
                         color: PROG_OOH_MEDIA_HEX,
                       }}
                     >
-                      Expert schedule open
+                      Schedule grid open
                     </Badge>
                   ) : null}
                 </div>
@@ -1050,12 +1065,11 @@ useEffect(() => {
                     }
                     onClick={() => {
                       if (progoohExpertModalOpen) {
+                        writeContainerEntryMode("card")
                         handleProgOohExpertModalOpenChange(false)
                       }
                     }}
-                  >
-                    Standard
-                  </button>
+                  >Card entry</button>
                   <button
                     type="button"
                     aria-pressed={progoohExpertModalOpen}
@@ -1080,12 +1094,11 @@ useEffect(() => {
                     }}
                     onClick={() => {
                       if (!progoohExpertModalOpen) {
-                        openProgOohExpertModal()
+                        writeContainerEntryMode("schedule")
+                          openProgOohExpertModal()
                       }
                     }}
-                  >
-                    Expert
-                  </button>
+                  >Schedule grid</button>
                 </div>
               </div>
               <div className="flex items-center justify-between">

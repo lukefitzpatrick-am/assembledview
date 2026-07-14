@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  readContainerEntryMode,
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn, type Resolver } from "react-hook-form"
@@ -394,6 +399,16 @@ export default function ProgDisplayContainer({
     setProgDisplayExpertExitConfirmOpen(false)
     setProgDisplayExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, progdisplayExpertWeekColumns])
+
+  /* ux5-session-progdisplayExpertModalOpen */
+  useEffect(() => {
+    if (readContainerEntryMode() !== "schedule") return
+    if (progdisplayExpertModalOpen) return
+    openProgDisplayExpertModal()
+    // mount-only: honour session entry preference
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
 
   const dismissProgDisplayExpertExitConfirm = useCallback(() => {
     setProgDisplayExpertExitConfirmOpen(false)
@@ -1027,7 +1042,7 @@ useEffect(() => {
                         color: PROG_DISPLAY_MEDIA_HEX,
                       }}
                     >
-                      Expert schedule open
+                      Schedule grid open
                     </Badge>
                   ) : null}
                 </div>
@@ -1052,12 +1067,11 @@ useEffect(() => {
                     }
                     onClick={() => {
                       if (progdisplayExpertModalOpen) {
+                        writeContainerEntryMode("card")
                         handleProgDisplayExpertModalOpenChange(false)
                       }
                     }}
-                  >
-                    Standard
-                  </button>
+                  >Card entry</button>
                   <button
                     type="button"
                     aria-pressed={progdisplayExpertModalOpen}
@@ -1082,12 +1096,11 @@ useEffect(() => {
                     }}
                     onClick={() => {
                       if (!progdisplayExpertModalOpen) {
-                        openProgDisplayExpertModal()
+                        writeContainerEntryMode("schedule")
+                          openProgDisplayExpertModal()
                       }
                     }}
-                  >
-                    Expert
-                  </button>
+                  >Schedule grid</button>
                 </div>
               </div>
               <div className="flex items-center justify-between">

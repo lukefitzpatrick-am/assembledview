@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  readContainerEntryMode,
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn, type Resolver } from "react-hook-form"
@@ -390,6 +395,16 @@ export default function ProgAudioContainer({
     setProgAudioExpertExitConfirmOpen(false)
     setProgAudioExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, progAudioExpertWeekColumns])
+
+  /* ux5-session-progAudioExpertModalOpen */
+  useEffect(() => {
+    if (readContainerEntryMode() !== "schedule") return
+    if (progAudioExpertModalOpen) return
+    openProgAudioExpertModal()
+    // mount-only: honour session entry preference
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
 
   const dismissProgAudioExpertExitConfirm = useCallback(() => {
     setProgAudioExpertExitConfirmOpen(false)
@@ -1020,7 +1035,7 @@ useEffect(() => {
                         color: PROG_AUDIO_MEDIA_HEX,
                       }}
                     >
-                      Expert schedule open
+                      Schedule grid open
                     </Badge>
                   ) : null}
                 </div>
@@ -1045,12 +1060,11 @@ useEffect(() => {
                     }
                     onClick={() => {
                       if (progAudioExpertModalOpen) {
+                        writeContainerEntryMode("card")
                         handleProgAudioExpertModalOpenChange(false)
                       }
                     }}
-                  >
-                    Standard
-                  </button>
+                  >Card entry</button>
                   <button
                     type="button"
                     aria-pressed={progAudioExpertModalOpen}
@@ -1075,12 +1089,11 @@ useEffect(() => {
                     }}
                     onClick={() => {
                       if (!progAudioExpertModalOpen) {
-                        openProgAudioExpertModal()
+                        writeContainerEntryMode("schedule")
+                          openProgAudioExpertModal()
                       }
                     }}
-                  >
-                    Expert
-                  </button>
+                  >Schedule grid</button>
                 </div>
               </div>
               <div className="flex items-center justify-between">

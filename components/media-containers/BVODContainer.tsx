@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  readContainerEntryMode,
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
@@ -454,6 +459,16 @@ export default function BVODContainer({
     setBvodExpertExitConfirmOpen(false)
     setBvodExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, bvodExpertWeekColumns])
+
+  /* ux5-session-bvodExpertModalOpen */
+  useEffect(() => {
+    if (readContainerEntryMode() !== "schedule") return
+    if (bvodExpertModalOpen) return
+    openBvodExpertModal()
+    // mount-only: honour session entry preference
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
 
   const dismissBvodExpertExitConfirm = useCallback(() => {
     setBvodExpertExitConfirmOpen(false)
@@ -1174,7 +1189,7 @@ useEffect(() => {
                         color: MEDIA_ACCENT_HEX,
                       }}
                     >
-                      Expert schedule open
+                      Schedule grid open
                     </Badge>
                   ) : null}
                 </div>
@@ -1199,12 +1214,11 @@ useEffect(() => {
                     }
                     onClick={() => {
                       if (bvodExpertModalOpen) {
+                        writeContainerEntryMode("card")
                         handleBvodExpertModalOpenChange(false)
                       }
                     }}
-                  >
-                    Standard
-                  </button>
+                  >Card entry</button>
                   <button
                     type="button"
                     aria-pressed={bvodExpertModalOpen}
@@ -1229,16 +1243,17 @@ useEffect(() => {
                     }}
                     onClick={() => {
                       if (!bvodExpertModalOpen) {
-                        openBvodExpertModal()
+                        writeContainerEntryMode("schedule")
+                          openBvodExpertModal()
                       }
                     }}
-                  >
-                    Expert
-                  </button>
+                  >Schedule grid</button>
                 </div>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-muted-foreground">Card-based entry</p>
+                <p className="text-sm text-muted-foreground">
+                  One card per line — or switch to Schedule grid for week quantities.
+                </p>
                 <span className="text-xs text-muted-foreground tabular-nums sm:text-right">
                   {overallTotals.lineItemTotals.length} line item
                   {overallTotals.lineItemTotals.length !== 1 ? "s" : ""}
