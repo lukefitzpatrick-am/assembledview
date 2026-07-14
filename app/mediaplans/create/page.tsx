@@ -27,6 +27,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePresetBar"
 import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApplyDirtyClearOnSave"
+import { BuilderIssuesBadge } from "@/components/mediaplans/BuilderIssuesBadge"
+import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
 import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { ChevronsUpDown, Check, Download, FileText, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -1842,6 +1844,74 @@ function CreateMediaPlan() {
     () => (Number(watchedCampaignBudget) || 0) - grossMediaAllocated,
     [watchedCampaignBudget, grossMediaAllocated]
   )
+  const budgetRemainingOverspend = budgetRemaining < 0
+
+  const missingPublisherKpiCount = useMemo(
+    () => kpiRows.filter((r) => r.hasPublisherKpi === false).length,
+    [kpiRows]
+  )
+
+  const builderIssues = useMemo(() => {
+    const issues: BuilderIssue[] = []
+    const client = String(watchedClientName ?? "").trim()
+    const name = String(watchedCampaignName ?? "").trim()
+    if (!client) {
+      issues.push({
+        id: "required-client",
+        severity: "error",
+        title: "Client name is required",
+        scrollTargetId: "builder-section-campaign",
+      })
+    }
+    if (!name) {
+      issues.push({
+        id: "required-campaign-name",
+        severity: "error",
+        title: "Campaign name is required",
+        scrollTargetId: "builder-section-campaign",
+      })
+    }
+    if (dateWarning.hasViolation) {
+      issues.push({
+        id: "dates-outside-window",
+        severity: "warning",
+        title:
+          dateWarning.offendingCount === 1
+            ? "1 line item has flight dates outside the campaign window"
+            : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`,
+        detail: "Open the channel cards and adjust burst dates, or widen campaign dates.",
+        scrollTargetId: "builder-field-campaign-dates",
+      })
+    }
+    if (budgetRemainingOverspend) {
+      issues.push({
+        id: "budget-overspend",
+        severity: "warning",
+        title: "Budget remaining is negative",
+        detail: `${formatMoney(budgetRemaining)} over the campaign budget.`,
+        scrollTargetId: "builder-field-campaign-budget",
+      })
+    }
+    if (missingPublisherKpiCount > 0) {
+      issues.push({
+        id: "missing-publisher-kpi",
+        severity: "warning",
+        title: `${missingPublisherKpiCount} missing publisher KPI`,
+        detail: "Does not block save — open KPIs to add publisher coverage.",
+        scrollTargetId: "builder-section-kpis",
+      })
+    }
+    return issues
+  }, [
+    watchedClientName,
+    watchedCampaignName,
+    dateWarning.hasViolation,
+    dateWarning.offendingCount,
+    budgetRemainingOverspend,
+    budgetRemaining,
+    missingPublisherKpiCount,
+  ])
+
 
   const [partialApprovalMetadata, setPartialApprovalMetadata] = useState<PartialApprovalMetadata | null>(null)
 
@@ -5645,6 +5715,7 @@ const handleSaveAll = async () => {
 
   const wizardBottomBar = (
     <>
+      <BuilderIssuesBadge issues={builderIssues} />
       {dateWarning.hasViolation ? (
         <div className="rounded-card border border-pacing-critical bg-pacing-critical-bg px-3 py-2 text-xs font-medium text-status-critical-fg">
           {dateWarning.offendingCount === 1
@@ -5794,7 +5865,10 @@ const handleSaveAll = async () => {
               <p className="text-sm text-muted-foreground">Set the core campaign details and planning model before allocating channels.</p>
             </div>
             <div className="grid grid-cols-1 gap-6">
-            <div className="flex h-full min-w-0 flex-col gap-4 overflow-visible rounded-card border border-border bg-surface-panel shadow-e0">
+            <div
+              id="builder-section-campaign"
+              className="flex h-full min-w-0 flex-col gap-4 overflow-visible rounded-card border border-border bg-surface-panel shadow-e0 scroll-mt-24"
+            >
               <div className="border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
                 <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Campaign Details</h3>
               </div>
@@ -5807,7 +5881,9 @@ const handleSaveAll = async () => {
 
                   return (
                     <FormItem>
-                      <FormLabel className="text-sm font-medium text-text-secondary">Client Name</FormLabel>
+                      <FormLabel className="text-sm font-medium text-text-secondary">
+                        Client Name <span className="text-status-critical-fg" aria-hidden>*</span>
+                      </FormLabel>
                       <FormControl>
                         <Popover open={isClientPopoverOpen} onOpenChange={setIsClientPopoverOpen}>
                           <PopoverTrigger asChild>
@@ -5877,7 +5953,9 @@ const handleSaveAll = async () => {
                 name={"mp_campaignname" as keyof MediaPlanFormValues}
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-text-secondary">Campaign Name</FormLabel>
+                    <FormLabel className="text-sm font-medium text-text-secondary">
+                      Campaign Name <span className="text-status-critical-fg" aria-hidden>*</span>
+                    </FormLabel>
                     <FormControl>
                       <Input {...field} value={String(field.value)} />
                     </FormControl>
@@ -5955,7 +6033,7 @@ const handleSaveAll = async () => {
                 )}
               />
 
-              <div className="space-y-3 sm:col-span-2">
+              <div id="builder-field-campaign-dates" className="space-y-3 sm:col-span-2 scroll-mt-24">
                 <CampaignDatePresetBar
                   onApply={({ start, end }) => {
                     form.setValue("mp_campaigndates_start", start, { shouldDirty: true, shouldValidate: true })
@@ -5968,7 +6046,9 @@ const handleSaveAll = async () => {
                 name="mp_campaigndates_start"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-text-secondary">Campaign Start Date</FormLabel>
+                    <FormLabel className="text-sm font-medium text-text-secondary">
+                      Campaign Start Date <span className="text-status-critical-fg" aria-hidden>*</span>
+                    </FormLabel>
                     <FormControl>
                       <SingleDatePicker
                         ref={field.ref}
@@ -5994,7 +6074,9 @@ const handleSaveAll = async () => {
                 name="mp_campaigndates_end"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-sm font-medium text-text-secondary">Campaign End Date</FormLabel>
+                    <FormLabel className="text-sm font-medium text-text-secondary">
+                      Campaign End Date <span className="text-status-critical-fg" aria-hidden>*</span>
+                    </FormLabel>
                     <FormControl>
                       <SingleDatePicker
                         ref={field.ref}
@@ -6021,8 +6103,10 @@ const handleSaveAll = async () => {
                 control={form.control}
                 name="mp_campaignbudget"
                 render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm font-medium text-text-secondary">Campaign Budget</FormLabel>
+                  <FormItem id="builder-field-campaign-budget" className="scroll-mt-24">
+                    <FormLabel className="text-sm font-medium text-text-secondary">
+                      Campaign Budget <span className="text-status-critical-fg" aria-hidden>*</span>
+                    </FormLabel>
                     <FormControl>
                       <MoneyInput
                         ref={field.ref}
@@ -6351,7 +6435,10 @@ const handleSaveAll = async () => {
                 </div>
               </div>
 
-              <div className="flex h-full min-w-0 flex-col overflow-visible rounded-card border border-border bg-surface-panel shadow-e0">
+              <div
+                id="builder-section-kpis"
+                className="flex h-full min-w-0 flex-col overflow-visible rounded-card border border-border bg-surface-panel shadow-e0 scroll-mt-24"
+              >
                 <div className="border-b border-border bg-[var(--fill-track)] px-6 pb-3 pt-5">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">KPIs</h3>
                 </div>
