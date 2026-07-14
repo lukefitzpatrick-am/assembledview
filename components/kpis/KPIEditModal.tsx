@@ -39,6 +39,10 @@ export interface KPIEditModalProps {
   host: KpiHost
   publishers?: Publisher[]
   onPublisherKpiAdded?: () => void | Promise<void>
+  /** When opening, filter to this media type (or "all"). */
+  initialMediaType?: string
+  /** When true, only rows missing a publisher KPI are shown. */
+  missingPublisherOnly?: boolean
 }
 
 const numAuFmt = new Intl.NumberFormat("en-AU")
@@ -186,6 +190,8 @@ export function KPIEditModal({
   host,
   publishers = [],
   onPublisherKpiAdded,
+  initialMediaType = "all",
+  missingPublisherOnly = false,
 }: KPIEditModalProps) {
   const { toast } = useToast()
   const { rows: kpiRows, isSaving, onSave, onReset } = host
@@ -195,6 +201,8 @@ export function KPIEditModal({
   >({})
   const [filterMediaType, setFilterMediaType] = React.useState("all")
   const [showSourceFilter, setShowSourceFilter] = React.useState("all")
+  const [missingPublisherFilter, setMissingPublisherFilter] =
+    React.useState(false)
   const [publisherKpiDraftRowId, setPublisherKpiDraftRowId] = React.useState<string | null>(null)
   const [publisherKpiMetrics, setPublisherKpiMetrics] =
     React.useState<PublisherKpiMetricFormValues>({
@@ -213,12 +221,24 @@ export function KPIEditModal({
     setFieldErrors({})
     setPublisherKpiDraftRowId(null)
     setPublisherKpiSavingRowId(null)
+    setFilterMediaType(initialMediaType || "all")
+    setMissingPublisherFilter(Boolean(missingPublisherOnly))
     // The modal intentionally snapshots kpiRows when it opens and ignores
     // subsequent external updates to the rows reference. Including kpiRows
     // in the dependency array causes parent re-renders to clobber the
     // user's in-progress edits. See Stage 2e-1-fix.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open, initialMediaType, missingPublisherOnly])
+
+  React.useEffect(() => {
+    if (!open || !missingPublisherFilter) return
+    const firstMissing = kpiRows.find((r) => r.hasPublisherKpi === false)
+    if (!firstMissing?.lineItemId) return
+    const id = `kpi-row-${firstMissing.lineItemId}`
+    window.setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "center" })
+    }, 50)
+  }, [open, missingPublisherFilter, kpiRows])
 
   React.useEffect(() => {
     if (!open || publisherKpiRefreshToken === 0) return
@@ -258,9 +278,10 @@ export function KPIEditModal({
       .filter(({ row }) => {
         if (filterMediaType !== "all" && row.media_type !== filterMediaType) return false
         if (showSourceFilter !== "all" && row.source !== showSourceFilter) return false
+        if (missingPublisherFilter && row.hasPublisherKpi !== false) return false
         return true
       })
-  }, [editedRows, filterMediaType, showSourceFilter])
+  }, [editedRows, filterMediaType, showSourceFilter, missingPublisherFilter])
 
   const groups = React.useMemo(() => groupByMediaType(filteredIndexed), [filteredIndexed])
 
@@ -366,9 +387,21 @@ export function KPIEditModal({
                     <SelectItem value="default">default</SelectItem>
                   </SelectContent>
                 </Select>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={missingPublisherFilter ? "default" : "outline"}
+                  className="h-9 rounded-pill text-xs"
+                  onClick={() => setMissingPublisherFilter((v) => !v)}
+                >
+                  Missing publisher KPI
+                </Button>
               </div>
               <p className="text-xs text-muted-foreground">
                 {filteredIndexed.length} KPI rows across {summaryMediaTypeCount} media types
+                {missingPublisherFilter
+                  ? " · showing lines without a publisher KPI"
+                  : ""}
               </p>
             </div>
             <DialogClose asChild>
@@ -427,7 +460,14 @@ export function KPIEditModal({
                         const isFirst = rowInGroup === 0
                         const rowspan = entries.length
                         return (
-                          <tr key={row.lineItemId}>
+                          <tr
+                            key={row.lineItemId}
+                            id={row.lineItemId ? `kpi-row-${row.lineItemId}` : undefined}
+                            className={cn(
+                              row.hasPublisherKpi === false &&
+                                "bg-pacing-behind-bg/40"
+                            )}
+                          >
                             {isFirst ? (
                               <td
                                 rowSpan={rowspan}

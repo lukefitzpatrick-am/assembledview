@@ -99,9 +99,16 @@ export function KPISection({
 }: KPISectionProps) {
   const { rows: kpiRows, onReset } = host
   const [isModalOpen, setIsModalOpen] = React.useState(false)
+  const [modalMediaType, setModalMediaType] = React.useState("all")
+  const [modalMissingOnly, setModalMissingOnly] = React.useState(false)
 
   const channelCount = React.useMemo(
     () => new Set(kpiRows.map((r) => r.media_type)).size,
+    [kpiRows],
+  )
+
+  const totalMissingPublisher = React.useMemo(
+    () => kpiRows.filter((r) => r.hasPublisherKpi === false).length,
     [kpiRows],
   )
 
@@ -115,6 +122,12 @@ export function KPISection({
       {} as Record<string, ResolvedKPIRow[]>,
     )
   }, [kpiRows])
+
+  function openKpiEditor(opts?: { mediaType?: string; missingOnly?: boolean }) {
+    setModalMediaType(opts?.mediaType ?? "all")
+    setModalMissingOnly(Boolean(opts?.missingOnly))
+    setIsModalOpen(true)
+  }
 
   return (
     <div className={cn("space-y-3", className)}>
@@ -130,11 +143,23 @@ export function KPISection({
               {channelCount} channel{channelCount !== 1 ? "s" : ""}
             </span>
           )}
+          {totalMissingPublisher > 0 ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 rounded-pill border-pacing-behind/50 bg-pacing-behind-bg/40 px-2 text-[10px] text-status-behind-fg"
+              title="Opens KPI editor filtered to lines missing a publisher KPI. Does not block save."
+              onClick={() => openKpiEditor({ missingOnly: true })}
+            >
+              {totalMissingPublisher} missing publisher KPI
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => setIsModalOpen(true)}
+            onClick={() => openKpiEditor()}
             disabled={isLoading}
           >
             {kpiRows.length === 0 ? "KPIs" : "Edit KPIs"}
@@ -151,6 +176,13 @@ export function KPISection({
           </Button>
         </div>
       </div>
+
+      {totalMissingPublisher > 0 ? (
+        <p className="text-[10px] text-muted-foreground">
+          Missing publisher KPI flags are advisory — they do not block save.
+          Click a flag to jump to those lines in the KPI editor.
+        </p>
+      ) : null}
 
       {isLoading ? (
         <LoadingState rows={3} className="border-border bg-card" />
@@ -174,7 +206,7 @@ export function KPISection({
               <div
                 key={mediaType}
                 className="flex cursor-pointer items-center justify-between rounded-input px-1 py-0.5 text-[11px] hover:bg-table-row-hover"
-                onClick={() => setIsModalOpen(true)}
+                onClick={() => openKpiEditor({ mediaType })}
               >
                 <div className="flex items-center gap-1.5">
                   <span
@@ -189,7 +221,11 @@ export function KPISection({
                       variant="behind"
                       size="sm"
                       className="rounded-pill px-1 py-0 text-[10px] font-medium"
-                      title={`${missingPublisherCount} line item(s) have no publisher KPI`}
+                      title={`${missingPublisherCount} line item(s) have no publisher KPI — click to open. Does not block save.`}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openKpiEditor({ mediaType, missingOnly: true })
+                      }}
                     >
                       {missingPublisherCount} missing publisher KPI
                     </Badge>
@@ -223,6 +259,8 @@ export function KPISection({
         onClose={() => setIsModalOpen(false)}
         publishers={publishers}
         onPublisherKpiAdded={onPublisherKpiAdded}
+        initialMediaType={modalMediaType}
+        missingPublisherOnly={modalMissingOnly}
         host={{
           ...host,
           onSave: (updatedRows) => {
