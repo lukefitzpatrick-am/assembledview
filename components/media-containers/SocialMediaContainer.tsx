@@ -2,6 +2,8 @@
 
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
+import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
+import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
   readContainerEntryMode,
   writeContainerEntryMode,
@@ -1145,7 +1147,7 @@ const getBursts = () => {
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm text-muted-foreground">
-                  One card per line — or switch to Schedule grid for week quantities.
+                  One card per line - or switch to Schedule grid for week quantities.
                 </p>
                 <span className="text-xs text-muted-foreground tabular-nums sm:text-right">
                   {overallTotals.lineItemTotals.length} line item
@@ -1177,13 +1179,7 @@ const getBursts = () => {
 
       <div>
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-12 gap-3">
-          <div className="relative h-10 w-10">
-            <div className="absolute inset-0 rounded-full border-2 border-muted" />
-            <div className="absolute inset-0 rounded-full border-2 border-t-primary animate-spin" />
-          </div>
-          <span className="text-sm text-muted-foreground">Loading...</span>
-        </div>
+        <MediaContainerLoadState loading label="Social Media" />
       ) : (
         <div className="space-y-6">
           {socialExpertModalOpen ? null : (
@@ -1838,15 +1834,18 @@ const getBursts = () => {
             </div>
           </ComboboxModalProvider>
           <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
-            {expertApplyPendingPageSave ? (
-              <span className="mr-auto text-xs text-muted-foreground">
-                Applied earlier — awaiting page Save
-              </span>
-            ) : (
-              <span className="mr-auto text-xs text-muted-foreground">
-                Apply updates the plan draft only
-              </span>
-            )}
+            <div className="mr-auto flex flex-col gap-1.5">
+              <ExpertIncompleteRowsSummary rows={expertSocialRows} />
+              {expertApplyPendingPageSave ? (
+                <span className="text-xs text-muted-foreground">
+                  Applied earlier — awaiting page Save
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Apply updates the plan draft only
+                </span>
+              )}
+            </div>
             <Button type="button" onClick={handleSocialExpertApply}>
               Apply to plan (not saved yet)
             </Button>

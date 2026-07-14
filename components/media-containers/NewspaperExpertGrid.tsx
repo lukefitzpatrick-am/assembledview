@@ -10,6 +10,7 @@ import {
   type KeyboardEvent,
 } from "react"
 import { MemoExpertGridRow } from "@/components/media-containers/MemoExpertGridRow"
+import { isExpertRowIncomplete, expertRowIncompleteReasons } from "@/lib/mediaplan/expertRowCompleteness"
 import {
   buildMapsPreservingIdentity,
   finalizeRowsPreservingIdentity,
@@ -3082,6 +3083,11 @@ export function NewspaperExpertGrid({
                             rowIndex={rowIndex}
                             handleProps={handleProps(rowIndex)}
                             isDragging={dragRowIndex === rowIndex}
+                            incompleteReasons={
+                              isExpertRowIncomplete(row)
+                                ? expertRowIncompleteReasons(row)
+                                : undefined
+                            }
                             className={stickyTd(0, "text-center")}
                           />
                           {showBillingCols ? (
