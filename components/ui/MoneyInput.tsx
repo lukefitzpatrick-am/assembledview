@@ -54,6 +54,9 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
       onFocus={(e) => {
         setIsFocused(true)
         setRawValue(value != null ? String(value) : "")
+        // F-12 / UX-2: select-all so typing replaces the prior amount
+        const el = e.target
+        requestAnimationFrame(() => el.select())
         externalOnFocus?.(e)
       }}
       onBlur={(e) => {
