@@ -100,7 +100,7 @@ export function UserMenu() {
 
         {userRoles.includes('admin') && (
           <DropdownMenuItem asChild>
-            <Link href="/management" className="flex items-center">
+            <Link href="/admin/users/new" className="flex items-center">
               <Shield className="mr-2 h-4 w-4" />
               <span>User Management</span>
             </Link>

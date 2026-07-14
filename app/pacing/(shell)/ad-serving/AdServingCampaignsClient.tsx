@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types";
 import { AdServingLineItemTable } from "@/components/pacing-ad-serving/AdServingLineItemTable";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSlowLoadHint } from "@/lib/hooks/useSlowLoadHint";
 
 type ApiShape = { asOfDate: string; rows: AdServingPacingCampaignRow[] };
 
@@ -17,6 +18,7 @@ export function AdServingCampaignsClient({
   const [data, setData] = useState<ApiShape | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const showSlowHint = useSlowLoadHint(loading);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +64,11 @@ export function AdServingCampaignsClient({
             </div>
           </div>
         </div>
+        {showSlowHint ? (
+          <p className="text-xs text-muted-foreground">
+            Still querying Snowflake — this can take a little longer on a cold load.
+          </p>
+        ) : null}
       </div>
     );
   }

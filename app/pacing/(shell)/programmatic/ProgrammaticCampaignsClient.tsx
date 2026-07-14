@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { ProgrammaticPacingCampaignRow } from "@/lib/pacing/programmatic/types";
 import { LineItemPacingTable } from "@/components/pacing-programmatic/LineItemPacingTable";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSlowLoadHint } from "@/lib/hooks/useSlowLoadHint";
 
 type ApiShape = { asOfDate: string; rows: ProgrammaticPacingCampaignRow[] };
 
@@ -17,6 +18,7 @@ export function ProgrammaticCampaignsClient({
   const [data, setData] = useState<ApiShape | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const showSlowHint = useSlowLoadHint(loading);
 
   useEffect(() => {
     let cancelled = false;
@@ -65,6 +67,11 @@ export function ProgrammaticCampaignsClient({
             </div>
           </div>
         </div>
+        {showSlowHint ? (
+          <p className="text-xs text-muted-foreground">
+            Still querying Snowflake — programmatic data can take 30–40 seconds on a cold load.
+          </p>
+        ) : null}
       </div>
     );
   }
