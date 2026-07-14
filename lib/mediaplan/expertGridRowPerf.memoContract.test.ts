@@ -183,3 +183,116 @@ describe("F-28 row identity contract for memo skips", () => {
     expect(secondNorm.rows[17]?.station).toBe("Edited Station")
   })
 })
+
+/**
+ * Every wired ExpertGrid channel routes its rows through the same shared F-28
+ * core (normalizeRowsPreservingIdentity → updateRowAtIndex → finalize →
+ * re-normalize). One table-driven test asserts the identity contract holds for
+ * all channels rather than duplicating a near-identical block per grid.
+ */
+describe("F-28 memo contract across all ExpertGrid channels", () => {
+  // Mirrors the 18 channels wired in Phase 1 plus the two already-wired grids.
+  const CHANNELS = [
+    "Radio",
+    "OOH",
+    "Cinema",
+    "Television",
+    "BVOD",
+    "DigitalVideo",
+    "DigitalDisplay",
+    "DigitalAudio",
+    "Search",
+    "SocialMedia",
+    "Influencers",
+    "Integration",
+    "Newspaper",
+    "Magazines",
+    "Production",
+    "ProgAudio",
+    "ProgBVOD",
+    "ProgDisplay",
+    "ProgVideo",
+    "ProgOOH",
+  ] as const
+
+  const weekKeys = Object.freeze(
+    Array.from({ length: 52 }, (_, i) => `2025-W${String(i + 1).padStart(2, "0")}`)
+  )
+
+  type ChannelRow = {
+    id: string
+    descriptor: string
+    weeklyValues: Record<string, number | "">
+    mergedWeekSpans: readonly unknown[]
+    startDate: string
+    endDate: string
+  }
+
+  const normalizeOne = (
+    r: ChannelRow,
+    keys: readonly string[]
+  ): ChannelRow => {
+    const weeklyValues: Record<string, number | ""> = {}
+    for (const k of keys) weeklyValues[k] = r.weeklyValues[k] ?? ""
+    return { ...r, weeklyValues, mergedWeekSpans: r.mergedWeekSpans ?? [] }
+  }
+
+  it.each(CHANNELS)(
+    "%s: single-row edit preserves ≥ 299/300 row + 300/300 map identities",
+    (channel) => {
+      const seed: ChannelRow[] = Array.from({ length: 300 }, (_, i) => ({
+        id: `${channel}-${i}`,
+        descriptor: `${channel} row ${i}`,
+        weeklyValues: Object.fromEntries(
+          weekKeys.map((k) => [k, "" as const])
+        ),
+        mergedWeekSpans: [],
+        startDate: "2025-01-01",
+        endDate: "2025-12-31",
+      }))
+
+      const firstNorm = normalizeRowsPreservingIdentity(
+        seed,
+        weekKeys,
+        normalizeOne,
+        new Map()
+      )
+      const firstMaps = buildMapsPreservingIdentity(
+        firstNorm.rows,
+        weekKeys,
+        (r) => r.mergedWeekSpans,
+        (r) => ({ id: r.id }),
+        new Map()
+      )
+
+      const patched = updateRowAtIndex(firstNorm.rows, 128, {
+        descriptor: `${channel} EDITED`,
+      })!
+      const finalized = finalizeRowsPreservingIdentity(patched, (r) => r)
+      const secondNorm = normalizeRowsPreservingIdentity(
+        finalized,
+        weekKeys,
+        normalizeOne,
+        firstNorm.cache
+      )
+      const secondMaps = buildMapsPreservingIdentity(
+        secondNorm.rows,
+        weekKeys,
+        (r) => r.mergedWeekSpans,
+        (r) => ({ id: r.id }),
+        firstMaps.cache
+      )
+
+      let sameRow = 0
+      let sameMap = 0
+      for (let i = 0; i < 300; i++) {
+        if (secondNorm.rows[i] === firstNorm.rows[i]) sameRow++
+        if (secondMaps.maps[i] === firstMaps.maps[i]) sameMap++
+      }
+
+      expect(sameRow).toBeGreaterThanOrEqual(299)
+      expect(sameMap).toBe(300)
+      expect(secondNorm.rows[128]?.descriptor).toBe(`${channel} EDITED`)
+    }
+  )
+})
