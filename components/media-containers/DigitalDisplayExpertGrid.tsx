@@ -10,6 +10,14 @@ import {
   type KeyboardEvent,
 } from "react"
 import { MemoExpertGridRow } from "@/components/media-containers/MemoExpertGridRow"
+import {
+  ExpertGridVirtualSpacerBody,
+  useExpertGridRowVirtualizer,
+} from "@/components/media-containers/useExpertGridRowVirtualizer"
+import {
+  OOH_EXPERT_ROW_HEIGHT_PX,
+  OOH_EXPERT_ROW_OVERSCAN,
+} from "@/lib/mediaplan/oohExpertVirtualization"
 import { isExpertRowIncomplete, expertRowIncompleteReasons } from "@/lib/mediaplan/expertRowCompleteness"
 import {
   buildMapsPreservingIdentity,
@@ -218,6 +226,14 @@ function normalizeDigitalDisplayKey(input: unknown): string {
     .toLowerCase()
     .replace(/\s+/g, " ")
 }
+
+/**
+ * F-28 Phase 2 — row virtualization (shared helper from OOH). Fixed row height
+ * matches Prompt A (`OOH_EXPERT_ROW_HEIGHT_PX`); no measureElement.
+ */
+const DIGITALDISPLAY_EXPERT_ROW_VIRTUALIZATION = true
+const DIGITALDISPLAY_EXPERT_ROW_HEIGHT_PX = OOH_EXPERT_ROW_HEIGHT_PX
+const DIGITALDISPLAY_EXPERT_ROW_OVERSCAN = OOH_EXPERT_ROW_OVERSCAN
 
 /**
  * Parse clipboard text that may contain tab-separated values (Excel/Sheets)
@@ -896,6 +912,8 @@ export function DigitalDisplayExpertGrid({
   )
 
 
+  const gridScrollRef = useRef<HTMLDivElement>(null)
+
   const handleReorder = useCallback(
     (from: number, to: number) => {
       const next = reorderExpertRows(normalizedRowsRef.current, from, to)
@@ -905,8 +923,49 @@ export function DigitalDisplayExpertGrid({
     },
     [pushRows, onReorder]
   )
+
+  const theadRef = useRef<HTMLTableSectionElement>(null)
+  const [theadHeightPx, setTheadHeightPx] = useState(48)
+  useEffect(() => {
+    const el = theadRef.current
+    if (!el || typeof ResizeObserver === "undefined") return
+    const measure = () => {
+      const h = el.getBoundingClientRect().height
+      if (h > 0) setTheadHeightPx(h)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const rowReorderVirtual = useMemo(
+    () =>
+      DIGITALDISPLAY_EXPERT_ROW_VIRTUALIZATION
+        ? {
+            rowCount: normalizedRows.length,
+            estimateSizePx: DIGITALDISPLAY_EXPERT_ROW_HEIGHT_PX,
+            getScrollElement: () => gridScrollRef.current,
+            getBodyOffsetTop: () => theadHeightPx,
+          }
+        : null,
+    [normalizedRows.length, theadHeightPx]
+  )
+
   const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
-    useExpertRowReorder(handleReorder)
+    useExpertRowReorder(handleReorder, rowReorderVirtual)
+  const rowVirtualizerRef = useRef<{
+    scrollToIndex: (
+      index: number,
+      opts?: { align?: "start" | "center" | "end" | "auto" }
+    ) => void
+  } | null>(null)
+
+  const ensureRowVisible = useCallback((rowIndex: number) => {
+    if (!DIGITALDISPLAY_EXPERT_ROW_VIRTUALIZATION) return
+    rowVirtualizerRef.current?.scrollToIndex(rowIndex, { align: "auto" })
+  }, [])
+
   const { weekColumnWidths, setWeekColumnWidth } = useExpertWeekColumnWidths()
 
   const resolveWeekDragSource = useCallback(
@@ -1179,7 +1238,12 @@ export function DigitalDisplayExpertGrid({
         const end = t.selectionEnd ?? 0
         if (start === len && end === len) {
           e.preventDefault()
-          focusExpertGridCell(domGridId, rowIndex, firstWeekNavColIndex)
+          focusExpertGridCell(
+            domGridId,
+            rowIndex,
+            firstWeekNavColIndex,
+            ensureRowVisible
+          )
           return
         }
       }
@@ -1192,7 +1256,12 @@ export function DigitalDisplayExpertGrid({
         const end = t.selectionEnd ?? 0
         if (start === 0 && end === 0 && unitRateNavColIndex >= 0) {
           e.preventDefault()
-          focusExpertGridCell(domGridId, rowIndex, unitRateNavColIndex)
+          focusExpertGridCell(
+            domGridId,
+            rowIndex,
+            unitRateNavColIndex,
+            ensureRowVisible
+          )
           return
         }
       }
@@ -1203,10 +1272,12 @@ export function DigitalDisplayExpertGrid({
         rowCount: normalizedRows.length,
         colCount: navColCount,
         event: e,
+        ensureVisible: ensureRowVisible,
       })
     },
     [
       domGridId,
+      ensureRowVisible,
       firstWeekNavColIndex,
       navColCount,
       normalizedRows.length,
@@ -2098,7 +2169,37 @@ export function DigitalDisplayExpertGrid({
     weekMultiSelect,
   ])
 
-  const gridScrollRef = useRef<HTMLDivElement>(null)
+  const {
+    virtualItems,
+    paddingTop,
+    paddingBottom,
+    scrollToIndex,
+  } = useExpertGridRowVirtualizer({
+    count: normalizedRows.length,
+    getScrollElement: () => gridScrollRef.current,
+    estimateSize: DIGITALDISPLAY_EXPERT_ROW_HEIGHT_PX,
+    overscan: DIGITALDISPLAY_EXPERT_ROW_OVERSCAN,
+    scrollMargin: theadHeightPx,
+    scrollPaddingStart: theadHeightPx,
+  })
+  rowVirtualizerRef.current = { scrollToIndex }
+
+  const virtualSpacerColSpan = useMemo(() => {
+    let weekCells = 0
+    for (const col of weekColumns) {
+      weekCells += expandedWeekKeys.has(col.weekKey)
+        ? Math.max(1, (dayColumnsByWeekKey[col.weekKey] ?? []).length)
+        : 1
+    }
+    return (
+      1 + digitalDisplayDescriptorKeys.length + WEEK_GRID_COL_OFFSET + weekCells
+    )
+  }, [
+    weekColumns,
+    expandedWeekKeys,
+    dayColumnsByWeekKey,
+    digitalDisplayDescriptorKeys.length,
+  ])
 
   useEffect(() => {
     const handleDocumentPointerDown = (ev: PointerEvent) => {
@@ -2914,7 +3015,7 @@ export function DigitalDisplayExpertGrid({
                 data-digitaldisplay-expert-grid-scroll=""
               >
                 <table className="w-max min-w-full border-collapse text-sm">
-                  <thead className="[&_tr]:border-b-0">
+                  <thead ref={theadRef} className="[&_tr]:border-b-0">
                     <tr>
                       <ExpertGridRowReorderHeaderCell
                         className={stickyThCorner("text-center")}
@@ -3064,7 +3165,11 @@ export function DigitalDisplayExpertGrid({
                     </tr>
                   </thead>
                   <tbody>
-                    {normalizedRows.map((row, rowIndex) => {
+                    {(() => {
+                      const renderScheduleRow = (
+                        row: DigitalDisplayExpertScheduleRow,
+                        rowIndex: number
+                      ) => {
                       const rowMergeMapForRow =
                         rowMergeMaps[rowIndex] ??
                         ({
@@ -3142,7 +3247,12 @@ export function DigitalDisplayExpertGrid({
                             isDropTarget(rowIndex) &&
                               "bg-primary/10 ring-1 ring-inset ring-primary/40"
                           )}
-                          style={stripeStyle}
+                          data-digitaldisplay-expert-row-index={rowIndex}
+                          style={{
+                            ...stripeStyle,
+                            height: DIGITALDISPLAY_EXPERT_ROW_HEIGHT_PX,
+                            maxHeight: DIGITALDISPLAY_EXPERT_ROW_HEIGHT_PX,
+                          }}
                           {...rowDropProps(rowIndex)}
                         >
                           <ExpertGridRowReorderCell
@@ -3162,7 +3272,7 @@ export function DigitalDisplayExpertGrid({
                                 className={stickyTd(cFixed)}
                                 style={stickyStyleBody(cFixed)}
                               >
-                                <div className="flex min-h-10 items-center justify-center py-1.5">
+                                <div className="flex h-8 items-center justify-center overflow-hidden">
                                   <Checkbox
                                     id={expertGridCellId(
                                       domGridId,
@@ -3195,7 +3305,7 @@ export function DigitalDisplayExpertGrid({
                                 className={stickyTd(cClient)}
                                 style={stickyStyleBody(cClient)}
                               >
-                                <div className="flex min-h-10 items-center justify-center py-1.5">
+                                <div className="flex h-8 items-center justify-center overflow-hidden">
                                   <Checkbox
                                     id={expertGridCellId(
                                       domGridId,
@@ -3228,7 +3338,7 @@ export function DigitalDisplayExpertGrid({
                                 className={stickyTd(cBif)}
                                 style={stickyStyleBody(cBif)}
                               >
-                                <div className="flex min-h-10 items-center justify-center py-1.5">
+                                <div className="flex h-8 items-center justify-center overflow-hidden">
                                   <Checkbox
                                     id={expertGridCellId(
                                       domGridId,
@@ -4826,7 +4936,28 @@ export function DigitalDisplayExpertGrid({
                           }}
                         />
                       )
-                    })}
+                      }
+
+                      if (!DIGITALDISPLAY_EXPERT_ROW_VIRTUALIZATION) {
+                        return normalizedRows.map((row, rowIndex) =>
+                          renderScheduleRow(row, rowIndex)
+                        )
+                      }
+
+                      return (
+                        <ExpertGridVirtualSpacerBody
+                          colSpan={virtualSpacerColSpan}
+                          paddingTop={paddingTop}
+                          paddingBottom={paddingBottom}
+                        >
+                          {virtualItems.map((vi) => {
+                            const row = normalizedRows[vi.index]
+                            if (!row) return null
+                            return renderScheduleRow(row, vi.index)
+                          })}
+                        </ExpertGridVirtualSpacerBody>
+                      )
+                    })()}
                     <tr
                       className="border-t-2 border-solid font-medium"
                       style={mediaTypeTotalsRowStyle(MEDIA_ACCENT_HEX)}
