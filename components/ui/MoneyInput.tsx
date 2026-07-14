@@ -54,6 +54,8 @@ export const MoneyInput = forwardRef<HTMLInputElement, MoneyInputProps>(function
       onFocus={(e) => {
         setIsFocused(true)
         setRawValue(value != null ? String(value) : "")
+        const el = e.target
+        requestAnimationFrame(() => el.select())
         externalOnFocus?.(e)
       }}
       onBlur={(e) => {

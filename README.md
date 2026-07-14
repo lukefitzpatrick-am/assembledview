@@ -91,7 +91,7 @@ The code also accepts swapped `.com` / `.com.au` variants so one environment can
 Add an Action that puts the user’s **roles** on the custom roles claim and the **client identifier** (slug) on the client claim(s) above so the ID token (and thus the session) carries them. **Client** users must resolve to at least one **client slug** for dashboard scoping; otherwise the API returns 401 and the UI may send them to `/unauthorized`.
 
 **Admin user sync**  
-The admin user create/update API expects Auth0 Management credentials and, when syncing users to Xano, `XANO_USERS_ENDPOINT` plus `XANO_API_KEY` if that endpoint is secured (see [env.local.example](env.local.example)).
+The admin user create/update API expects Auth0 Management credentials and `XANO_API_KEY` if secured Xano endpoints are used (see [env.local.example](env.local.example)).
 
 **Admin email allowlist**  
 `ADMIN_EMAIL_ALLOWLIST` (comma-separated) is used where server routes enforce staff access.
@@ -158,7 +158,7 @@ Representative pages under [app](app):
 | Pacing | `/pacing`, overview, search, social, mappings, settings under `app/pacing` |
 | Finance | `/finance`, forecast / variance under `app/finance` |
 | Scopes of work | `/scopes-of-work`, create, `[id]/edit` |
-| Directory | `/clients`, `/publishers`, `/management`, `/support` |
+| Directory | `/clients`, `/publishers`, `/support` |
 | Account | `/profile`, `/account` |
 | Learning | `/learning` (redirects to definitions), `/learning/[section]` |
 | Admin (operators) | `/admin/users/new` |

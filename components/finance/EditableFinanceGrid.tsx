@@ -135,6 +135,23 @@ function appendRecordWithOptionalDetail(
   }
 }
 
+/** Accrual (and similar) emit a grand_total row whose client_name sorts mid-alphabet — pin its group last. */
+function groupHasGrandTotal(records: BillingRecord[]): boolean {
+  return records.some((r) => r.finance_accrual?.kind === "grand_total")
+}
+
+function compareGroupKeysPinningGrandTotal(
+  a: string,
+  b: string,
+  map: Map<string, BillingRecord[]>
+): number {
+  const aGrand = groupHasGrandTotal(map.get(a) ?? [])
+  const bGrand = groupHasGrandTotal(map.get(b) ?? [])
+  if (aGrand && !bGrand) return 1
+  if (!aGrand && bGrand) return -1
+  return a.localeCompare(b, undefined, { sensitivity: "base" })
+}
+
 function buildFlatItems(
   records: BillingRecord[],
   groupBy: EditableFinanceGridProps["groupBy"],
@@ -267,10 +284,15 @@ function buildFlatItems(
     map.get(k)!.push(r)
   }
 
-  const keys = [...map.keys()].sort((a, b) => a.localeCompare(b))
+  const keys = [...map.keys()].sort((a, b) => compareGroupKeysPinningGrandTotal(a, b, map))
   const out: FlatItem[] = []
-  const defaultGroupSort = (a: BillingRecord, b: BillingRecord) =>
-    (a.campaign_name || "").localeCompare(b.campaign_name || "")
+  const defaultGroupSort = (a: BillingRecord, b: BillingRecord) => {
+    const aGrand = a.finance_accrual?.kind === "grand_total"
+    const bGrand = b.finance_accrual?.kind === "grand_total"
+    if (aGrand && !bGrand) return 1
+    if (!aGrand && bGrand) return -1
+    return (a.campaign_name || "").localeCompare(b.campaign_name || "")
+  }
   for (const key of keys) {
     out.push({ type: "group", key, label: key })
     const list = map.get(key) ?? []

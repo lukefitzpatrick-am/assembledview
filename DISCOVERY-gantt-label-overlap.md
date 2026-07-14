@@ -25,7 +25,7 @@ Read-only investigation of the media plan **Timeline (Gantt)** view: label gutte
 | `components/media-containers/MediaContainerTimelineCollapsible.tsx` | Edit-page “Schedule preview” collapsible | Reuses dashboard `MediaGanttChart` (weekly default) |
 | `components/charts/system/domain-charts.tsx` | **`BurstGrid`** — smaller week grid for expert editor | **Separate** SVG component (`padL = 84`) |
 | `lib/utils/weeklyGanttColumns.ts` | Week column helpers for Expert Mode grids | Not used by campaign `MediaGanttChart` |
-| `app/(internal)/chart-gallery/page.tsx` | Internal demo of `MediaGanttChart` | Demo only |
+| ~~`app/(internal)/chart-gallery/page.tsx`~~ | Internal demo of `MediaGanttChart` | **Deleted** (friction wave-1 / F-07) |
 
 **Conclusion:** The campaign media plan Timeline uses **one** Gantt renderer (`MediaGanttChart` in `domain-charts.tsx`). `BurstGrid` is a related but separate expert-editor visualization. Investigation proceeds on the primary chain.
 

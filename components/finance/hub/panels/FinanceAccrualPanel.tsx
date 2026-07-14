@@ -48,6 +48,10 @@ function hashClientSubtotalId(clients_id: number, clientName: string): number {
 const GRAND_TOTAL_ID = -999_999_999
 
 function accrualGroupCompare(a: BillingRecord, b: BillingRecord) {
+  const grandA = a.finance_accrual?.kind === "grand_total"
+  const grandB = b.finance_accrual?.kind === "grand_total"
+  if (grandA && !grandB) return 1
+  if (!grandA && grandB) return -1
   const subA = a.finance_accrual?.kind === "client_subtotal"
   const subB = b.finance_accrual?.kind === "client_subtotal"
   if (subA && !subB) return 1

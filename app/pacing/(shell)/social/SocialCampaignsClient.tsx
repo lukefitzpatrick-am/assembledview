@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { SocialPacingCampaignRow } from "@/lib/pacing/social/types";
 import { LineItemPacingTable } from "@/components/pacing-social/LineItemPacingTable";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSlowLoadHint } from "@/lib/hooks/useSlowLoadHint";
 
 type ApiShape = { asOfDate: string; rows: SocialPacingCampaignRow[] };
 
@@ -15,6 +16,7 @@ export function SocialCampaignsClient({ isAdmin: _isAdmin }: SocialCampaignsClie
   const [data, setData] = useState<ApiShape | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const showSlowHint = useSlowLoadHint(loading);
 
   useEffect(() => {
     let cancelled = false;
@@ -63,6 +65,11 @@ export function SocialCampaignsClient({ isAdmin: _isAdmin }: SocialCampaignsClie
             </div>
           </div>
         </div>
+        {showSlowHint ? (
+          <p className="text-xs text-muted-foreground">
+            Still querying Snowflake — this can take a little longer on a cold load.
+          </p>
+        ) : null}
       </div>
     );
   }

@@ -21,7 +21,7 @@ import {
 import { reshapeSpendTreemap } from "@/components/dashboard/dashboardChartReshape"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
-import { ErrorState, LoadingState } from "@/components/ui/states"
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import type {
   BillingRecord,
   BillingStatus,
@@ -142,12 +142,25 @@ type AttentionItem = {
 type GlobalMonthlyClientRow = { month: string; data: Array<{ client: string; amount: number }> }
 type GlobalMonthlyPublisherRow = { month: string; data: Array<{ publisher: string; amount: number }> }
 
+type MonthlyFeedStatus = "loading" | "ok" | "empty" | "error"
+
+function MonthlyInsightsUnavailable() {
+  return (
+    <EmptyState
+      title="Monthly spend insights unavailable"
+      message="The monthly aggregate feed isn't live yet — this section will populate when it ships."
+    />
+  )
+}
+
 type FinanceOverviewContextValue = {
   navigateWith: (tab: FinanceHubTab, patch?: Partial<FinanceFilters>) => void
   onAttentionClick: (item: AttentionItem) => void
   loading: boolean
   chartsLoading: boolean
   loadError: string | null
+  publisherSpendStatus: MonthlyFeedStatus
+  clientSpendStatus: MonthlyFeedStatus
   fyStart: number
   currentMonth: string
   hubRangeLabel: string
@@ -196,6 +209,8 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
   const [monthlyClientSpend, setMonthlyClientSpend] = useState<GlobalMonthlyClientRow[]>([])
   const [clientProfileColors, setClientProfileColors] = useState<Record<string, string>>({})
   const [chartsLoading, setChartsLoading] = useState(true)
+  const [publisherSpendStatus, setPublisherSpendStatus] = useState<MonthlyFeedStatus>("loading")
+  const [clientSpendStatus, setClientSpendStatus] = useState<MonthlyFeedStatus>("loading")
   const [loadError, setLoadError] = useState<string | null>(null)
   const [scheduleFytd, setScheduleFytd] = useState({ billingYtd: 0, deliveryYtd: 0 })
   const [currentMonthBillingRecords, setCurrentMonthBillingRecords] = useState<BillingRecord[]>([])
@@ -311,35 +326,55 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     void (async () => {
       setChartsLoading(true)
+      setPublisherSpendStatus("loading")
+      setClientSpendStatus("loading")
       try {
         const [monthlyPubResp, monthlyClientResp] = await Promise.all([
           fetch("/api/dashboard/global-monthly-publisher-spend"),
           fetch("/api/dashboard/global-monthly-client-spend"),
         ])
-        const monthlyPub = monthlyPubResp.ok ? await monthlyPubResp.json() : []
-        const monthlyClient = monthlyClientResp.ok ? await monthlyClientResp.json() : null
 
         if (cancelled) return
-        setMonthlyPublisherSpend(Array.isArray(monthlyPub) ? monthlyPub : [])
-        setMonthlyClientSpend(
-          monthlyClient && typeof monthlyClient === "object" && Array.isArray(monthlyClient.data)
-            ? monthlyClient.data
-            : []
-        )
-        const colours =
-          monthlyClient &&
-          typeof monthlyClient === "object" &&
-          monthlyClient.clientColors &&
-          typeof monthlyClient.clientColors === "object" &&
-          !Array.isArray(monthlyClient.clientColors)
-            ? (monthlyClient.clientColors as Record<string, string>)
-            : {}
-        setClientProfileColors(colours)
+
+        if (!monthlyPubResp.ok) {
+          setMonthlyPublisherSpend([])
+          setPublisherSpendStatus("error")
+        } else {
+          const monthlyPub = await monthlyPubResp.json()
+          const pubRows = Array.isArray(monthlyPub) ? monthlyPub : []
+          setMonthlyPublisherSpend(pubRows)
+          setPublisherSpendStatus(pubRows.length === 0 ? "empty" : "ok")
+        }
+
+        if (!monthlyClientResp.ok) {
+          setMonthlyClientSpend([])
+          setClientProfileColors({})
+          setClientSpendStatus("error")
+        } else {
+          const monthlyClient = await monthlyClientResp.json()
+          const clientRows =
+            monthlyClient && typeof monthlyClient === "object" && Array.isArray(monthlyClient.data)
+              ? (monthlyClient.data as GlobalMonthlyClientRow[])
+              : []
+          setMonthlyClientSpend(clientRows)
+          setClientSpendStatus(clientRows.length === 0 ? "empty" : "ok")
+          const colours =
+            monthlyClient &&
+            typeof monthlyClient === "object" &&
+            monthlyClient.clientColors &&
+            typeof monthlyClient.clientColors === "object" &&
+            !Array.isArray(monthlyClient.clientColors)
+              ? (monthlyClient.clientColors as Record<string, string>)
+              : {}
+          setClientProfileColors(colours)
+        }
       } catch {
         if (!cancelled) {
           setMonthlyPublisherSpend([])
           setMonthlyClientSpend([])
           setClientProfileColors({})
+          setPublisherSpendStatus("error")
+          setClientSpendStatus("error")
         }
       } finally {
         if (!cancelled) setChartsLoading(false)
@@ -574,6 +609,8 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
       loading,
       chartsLoading,
       loadError,
+      publisherSpendStatus,
+      clientSpendStatus,
       fyStart,
       currentMonth,
       hubRangeLabel,
@@ -599,6 +636,8 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
       loading,
       chartsLoading,
       loadError,
+      publisherSpendStatus,
+      clientSpendStatus,
       fyStart,
       currentMonth,
       hubRangeLabel,
@@ -891,6 +930,8 @@ export default function FinanceOverviewPanel() {
   const {
     chartsLoading,
     loadError,
+    publisherSpendStatus,
+    clientSpendStatus,
     publisherSpendData,
     clientSpendData,
     dashboardClientTreemapColors,
@@ -900,6 +941,9 @@ export default function FinanceOverviewPanel() {
     attentionItems,
     onAttentionClick,
   } = useFinanceOverview()
+
+  const publisherInsightsReady = publisherSpendStatus === "ok"
+  const clientInsightsReady = clientSpendStatus === "ok"
 
   const monthlyClientStackedRows = useMemo(
     () =>
@@ -999,58 +1043,74 @@ export default function FinanceOverviewPanel() {
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
-                <BaseChartCard
-                  title="Spend via Publisher"
-                  subtitle="Media cost only - Current financial year"
-                  className={cn("rounded-card border-0 shadow-none", chartCardQuiet)}
-                >
-                  <TreemapChart
-                    data={publisherTreemapData}
-                    valueFormat="dollars"
-                    className="min-h-[280px] w-full"
-                  />
-                </BaseChartCard>
+                {publisherInsightsReady ? (
+                  <BaseChartCard
+                    title="Spend via Publisher"
+                    subtitle="Media cost only - Current financial year"
+                    className={cn("rounded-card border-0 shadow-none", chartCardQuiet)}
+                  >
+                    <TreemapChart
+                      data={publisherTreemapData}
+                      valueFormat="dollars"
+                      className="min-h-[280px] w-full"
+                    />
+                  </BaseChartCard>
+                ) : (
+                  <MonthlyInsightsUnavailable />
+                )}
               </div>
               <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
-                <BaseChartCard
-                  title="Spend via Client"
-                  subtitle="Media cost only - Current financial year"
-                  className={cn("rounded-card border-0 shadow-none", chartCardQuiet)}
-                >
-                  <TreemapChart
-                    data={clientTreemapData}
-                    valueFormat="dollars"
-                    className="min-h-[280px] w-full"
-                  />
-                </BaseChartCard>
+                {clientInsightsReady ? (
+                  <BaseChartCard
+                    title="Spend via Client"
+                    subtitle="Media cost only - Current financial year"
+                    className={cn("rounded-card border-0 shadow-none", chartCardQuiet)}
+                  >
+                    <TreemapChart
+                      data={clientTreemapData}
+                      valueFormat="dollars"
+                      className="min-h-[280px] w-full"
+                    />
+                  </BaseChartCard>
+                ) : (
+                  <MonthlyInsightsUnavailable />
+                )}
               </div>
             </div>
-            <BaseChartCard
-              title="Monthly Spend by Client"
-              subtitle="Media cost by client per month (current FY, billing schedule)"
-              className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
-            >
-              <StackedBarChart
-                data={monthlyClientStackedRows}
-                xKey="month"
-                series={monthlyClientStackedSeriesColored}
-                valueFormat="dollars"
-                className="min-h-[300px] w-full"
-              />
-            </BaseChartCard>
-            <BaseChartCard
-              title="Monthly Spend by Publisher"
-              subtitle="Media cost by publisher per month (current FY, billing schedule)"
-              className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
-            >
-              <StackedBarChart
-                data={monthlyPublisherStackedRows}
-                xKey="month"
-                series={monthlyPublisherStackedSeries}
-                valueFormat="dollars"
-                className="min-h-[300px] w-full"
-              />
-            </BaseChartCard>
+            {clientInsightsReady ? (
+              <BaseChartCard
+                title="Monthly Spend by Client"
+                subtitle="Media cost by client per month (current FY, billing schedule)"
+                className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
+              >
+                <StackedBarChart
+                  data={monthlyClientStackedRows}
+                  xKey="month"
+                  series={monthlyClientStackedSeriesColored}
+                  valueFormat="dollars"
+                  className="min-h-[300px] w-full"
+                />
+              </BaseChartCard>
+            ) : (
+              <MonthlyInsightsUnavailable />
+            )}
+            {publisherInsightsReady ? (
+              <BaseChartCard
+                title="Monthly Spend by Publisher"
+                subtitle="Media cost by publisher per month (current FY, billing schedule)"
+                className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
+              >
+                <StackedBarChart
+                  data={monthlyPublisherStackedRows}
+                  xKey="month"
+                  series={monthlyPublisherStackedSeries}
+                  valueFormat="dollars"
+                  className="min-h-[300px] w-full"
+                />
+              </BaseChartCard>
+            ) : (
+              <MonthlyInsightsUnavailable />
+            )}
           </div>
         )}
       </div>
