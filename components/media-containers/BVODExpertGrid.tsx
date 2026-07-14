@@ -2801,7 +2801,7 @@ export function BVODExpertGrid({
                 size="sm"
                 variant={entryMode === "deliverables" ? "secondary" : "ghost"}
                 className="h-7 px-2 text-xs"
-                title="Cells accept deliverable quantities (spots, impressions, clicks …)"
+                title="Enter deliverable quantities per week (spots, impressions, clicks, etc.)."
                 onClick={() => {
                   setEntryMode("deliverables")
                   setBudgetDraft(null)
@@ -2814,7 +2814,7 @@ export function BVODExpertGrid({
                 size="sm"
                 variant={entryMode === "budget" ? "secondary" : "ghost"}
                 className="h-7 px-2 text-xs"
-                title="Cells accept $ amounts, converted to deliverables via the row's unit rate. Values are always stored as deliverables."
+                title="Enter $ amounts per week; converted to deliverables via the row unit rate. Stored as deliverables."
                 onClick={() => {
                   setEntryMode("budget")
                   setBudgetDraft(null)
@@ -2824,15 +2824,13 @@ export function BVODExpertGrid({
               </Button>
             </div>
             <div className="flex items-center gap-2">
-              <Label htmlFor="bvod-expert-row-count" className="text-sm whitespace-nowrap">
-                Rows:
-              </Label>
+              <Label htmlFor="bvod-expert-row-count" className="sr-only">Add rows count</Label>
               <Input
                 id="bvod-expert-row-count"
                 type="number"
                 min={1}
                 max={500}
-                title="Rows to append when Add row is clicked (1–500)."
+                title="How many empty rows to append (1–500)."
                 className="w-16 h-8 border-0 bg-transparent text-sm shadow-none focus-visible:ring-2 focus-visible:ring-ring"
                 value={rowCountInput}
                 onChange={(e) => setRowCountInput(e.target.value.replace(/\D/g, ""))}
@@ -2844,7 +2842,7 @@ export function BVODExpertGrid({
               variant="outline"
               size="sm"
               onClick={addRow}
-              title="Rows to append when Add row is clicked (1–500)."
+              title="How many empty rows to append (1–500)."
             >
               <Plus className="mr-1 h-4 w-4" />
               {`Add ${Math.max(1, Math.min(500, Number.parseInt(rowCountInput || "1", 10) || 1))} rows`}
@@ -2854,6 +2852,7 @@ export function BVODExpertGrid({
               variant="ghost"
               size="sm"
               className="text-xs text-muted-foreground"
+              title="Show or hide fee / media / total billing columns on the schedule."
               onClick={() => setShowBillingCols((v) => !v)}
             >
               {showBillingCols ? "Hide" : "Show"} billing columns
