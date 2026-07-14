@@ -32,6 +32,7 @@ import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePrese
 import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApplyDirtyClearOnSave"
 import { BuilderIssuesBadge } from "@/components/mediaplans/BuilderIssuesBadge"
 import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
+import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -1396,11 +1397,7 @@ function MediaContainerSkeletonCard({ label }: { label?: string }) {
 }
 
 function MediaContainerSuspenseFallback({ label }: { label: string }) {
-  return (
-    <div className="space-y-6">
-      <MediaContainerSkeletonCard label={label} />
-    </div>
-  )
+  return <MediaContainerLoadState loading label={label} />
 }
 
 // Lazy-loaded components for each media type

@@ -29,6 +29,7 @@ import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePrese
 import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApplyDirtyClearOnSave"
 import { BuilderIssuesBadge } from "@/components/mediaplans/BuilderIssuesBadge"
 import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
+import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { ChevronsUpDown, Check, Download, FileText, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -294,15 +295,7 @@ const lazyWithChunkRetry = <T extends ComponentType<any>>(
   })
 
 function MediaContainerSuspenseFallback({ label }: { label: string }) {
-  return (
-    <div className="flex items-center gap-3 px-6 py-8">
-      <div className="relative h-5 w-5 shrink-0">
-        <div className="absolute inset-0 rounded-full border-2 border-muted" />
-        <div className="absolute inset-0 animate-spin rounded-full border-2 border-t-primary" />
-      </div>
-      <span className="text-sm text-muted-foreground">Loading {label}…</span>
-    </div>
-  )
+  return <MediaContainerLoadState loading label={label} />
 }
 
 // Lazy-loaded components for each media type
