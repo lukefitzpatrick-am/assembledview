@@ -281,7 +281,35 @@ export default function SearchContainer({
   // Form initialization
   const form = useForm({
     defaultValues: {
-      lineItems: [],
+      lineItems: [
+        {
+          platform: "",
+          bidStrategy: "",
+          buyType: "",
+          creativeTargeting: "",
+          creative: "",
+          buyingDemo: "",
+          market: "",
+          fixedCostMedia: false,
+          clientPaysForMedia: false,
+          budgetIncludesFees: false,
+          noadserving: false,
+          bursts: [
+            {
+              _reactKey: newBurstReactKey(),
+              budget: "",
+              buyAmount: "",
+              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+              calculatedValue: 0,
+              fee: 0,
+            },
+          ],
+          totalMedia: 0,
+          totalDeliverables: 0,
+          totalFee: 0,
+        },
+      ],
       overallDeliverables: 0,
     },
   }) as any;

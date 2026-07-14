@@ -315,7 +315,16 @@ export default function ProductionContainer({
   const form = useForm<ProductionFormValues>({
     resolver: zodResolver(productionFormSchema),
     defaultValues: {
-      lineItems: [],
+      lineItems: [
+        {
+          mediaType: mediaTypeOptions[0]?.value || "",
+          publisher: "",
+          description: "",
+          market: "",
+          lineItemId: "",
+          bursts: [makeDefaultBurst()],
+        },
+      ],
     },
   })
 

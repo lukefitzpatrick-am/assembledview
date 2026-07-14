@@ -352,7 +352,37 @@ export default function BVODContainer({
   const form = useForm({
     resolver: zodResolver(bvodFormSchema),
     defaultValues: {
-      bvodlineItems: [],
+      bvodlineItems: [
+        {
+          platform: "",
+          site: "",
+          bidStrategy: "",
+          buyType: "",
+          publisher: "",
+          creativeTargeting: "",
+          creative: "",
+          buyingDemo: "",
+          market: "",
+          fixedCostMedia: false,
+          clientPaysForMedia: false,
+          budgetIncludesFees: false,
+          noadserving: false,
+          bursts: [
+            {
+              _reactKey: newBurstReactKey(),
+              budget: "",
+              buyAmount: "",
+              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+              calculatedValue: 0,
+              fee: 0,
+            } as any,
+          ],
+          totalMedia: 0,
+          totalDeliverables: 0,
+          totalFee: 0,
+        },
+      ],
     },
   });
 

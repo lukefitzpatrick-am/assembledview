@@ -244,7 +244,38 @@ export default function InfluencersContainer({
   const form = useForm<InfluencersFormValues>({
     resolver: zodResolver<InfluencersFormValues, any, InfluencersFormValues>(influencersFormSchema),
     defaultValues: {
-      lineItems: [],
+      lineItems: [
+        {
+          platform: "",
+          objective: "",
+          campaign: "",
+          bidStrategy: "",
+          buyType: "",
+          targetingAttribute: "",
+          creativeTargeting: "",
+          creative: "",
+          buyingDemo: "",   
+          market: "",
+          fixedCostMedia: false,
+          clientPaysForMedia: false,
+          budgetIncludesFees: false,
+          noadserving: false,
+          bursts: [
+            {
+              budget: "",
+              buyAmount: "",
+              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+              calculatedValue: 0,
+              fee: 0,
+              _reactKey: newBurstReactKey(),
+            } as InfluencersFormValues["lineItems"][number]["bursts"][number] & { _reactKey: string },
+          ],
+          totalMedia: 0,
+          totalDeliverables: 0,
+          totalFee: 0,
+        },
+      ],
     },
   });
 

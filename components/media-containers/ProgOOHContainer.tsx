@@ -256,7 +256,41 @@ export default function ProgOOHContainer({
   // Form initialization
   const form = useForm<ProgOOHFormValues>({
     defaultValues: {
-      lineItems: [],
+      lineItems: [
+        {
+          platform: "",
+          bidStrategy: "",
+          buyType: "",
+          creativeTargeting: "",
+          creative: "",
+          buyingDemo: "",
+          market: "",
+          environment: "",
+          format: "",
+          location: "",
+          targetingAttribute: "",
+          placement: "",
+          size: "",
+          fixedCostMedia: false,
+          clientPaysForMedia: false,
+          budgetIncludesFees: false,
+          noadserving: false,
+          bursts: [
+            {
+              _reactKey: newBurstReactKey(),
+              budget: "",
+              buyAmount: "",
+              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+              calculatedValue: 0,
+              fee: 0,
+            } as ProgOOHFormValues["lineItems"][number]["bursts"][number] & { _reactKey: string },
+          ],
+          totalMedia: 0,
+          totalDeliverables: 0,
+          totalFee: 0,
+        },
+      ],
       overallDeliverables: 0,
     },
   }) as any;

@@ -263,7 +263,35 @@ export default function ProgAudioContainer({
   const form = useForm<ProgAudioFormValues>({
     resolver: zodResolver(progAudioFormSchema) as Resolver<ProgAudioFormValues>,
     defaultValues: {
-      lineItems: [],
+      lineItems: [
+        {
+          platform: "",
+          bidStrategy: "",
+          buyType: "",
+          creativeTargeting: "",
+          creative: "",
+          buyingDemo: "",
+          market: "",
+          fixedCostMedia: false,
+          clientPaysForMedia: false,
+          budgetIncludesFees: false,
+          noadserving: false,
+          bursts: [
+            {
+              budget: "",
+              buyAmount: "",
+              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+              calculatedValue: 0,
+              fee: 0,
+              _reactKey: newBurstReactKey(),
+            } as any,
+          ],
+          totalMedia: 0,
+          totalDeliverables: 0,
+          totalFee: 0,
+        },
+      ],
     },
   }) as UseFormReturn<ProgAudioFormValues>;
 

@@ -262,7 +262,39 @@ export default function ProgDisplayContainer({
   // Form initialization
   const form = useForm<ProgDisplayFormValues>({
     defaultValues: {
-      lineItems: [],
+      lineItems: [
+        {
+          platform: "",
+          bidStrategy: "",
+          buyType: "",
+          creativeTargeting: "",
+          creative: "",
+          buyingDemo: "",
+          market: "",
+          site: "",
+          placement: "",
+          size: "",
+          targetingAttribute: "",
+          fixedCostMedia: false,
+          clientPaysForMedia: false,
+          budgetIncludesFees: false,
+          noadserving: false,
+          bursts: [
+            {
+              budget: "",
+              buyAmount: "",
+              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+              calculatedValue: 0,
+              fee: 0,
+              _reactKey: newBurstReactKey(),
+            },
+          ],
+          totalMedia: 0,
+          totalDeliverables: 0,
+          totalFee: 0,
+        },
+      ],
       overallDeliverables: 0,
     },
   } as any);

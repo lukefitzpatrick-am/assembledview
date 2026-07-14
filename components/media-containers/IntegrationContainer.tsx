@@ -252,7 +252,38 @@ export default function IntegrationContainer({
   const form = useForm<IntegrationFormValues>({
     resolver: zodResolver(integrationFormSchema) as any,
     defaultValues: {
-      lineItems: [],
+      lineItems: [
+        {
+          platform: "",
+          bidStrategy: "",
+          buyType: "",
+          objective: "",
+          campaign: "",
+          targetingAttribute: "",
+          creativeTargeting: "",
+          creative: "",
+          buyingDemo: "",
+          market: "",
+          noAdserving: false,
+          fixedCostMedia: false,
+          clientPaysForMedia: false,
+          budgetIncludesFees: false,
+          bursts: [
+            {
+              _reactKey: newBurstReactKey(),
+              budget: "",
+              buyAmount: "",
+              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+              calculatedValue: 0,
+              fee: 0,
+            } as IntegrationFormValues["lineItems"][number]["bursts"][number] & { _reactKey: string },
+          ],
+          totalMedia: 0,
+          totalDeliverables: 0,
+          totalFee: 0,
+        },
+      ],
     },
   });
 

@@ -278,7 +278,37 @@ export default function OohContainer({
   const form = useForm({
     resolver: zodResolver(oohFormSchema),
     defaultValues: {
-      lineItems: [],
+      lineItems: [
+        {
+          network: "",
+          format: "",
+          buyType: "",
+          placement: "",
+          type: "",
+          size: "",
+          buyingDemo: "",
+          market: "",
+          fixedCostMedia: false,
+          clientPaysForMedia: false,
+          budgetIncludesFees: false,
+          noAdserving: false,
+          ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
+          bursts: [
+            {
+              _reactKey: newBurstReactKey(),
+              budget: "",
+              buyAmount: "",
+              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+              calculatedValue: 0,
+              fee: 0,
+            } as OohFormValues["lineItems"][number]["bursts"][number] & { _reactKey: string },
+          ],
+          totalMedia: 0,
+          totalDeliverables: 0,
+          totalFee: 0,
+        },
+      ],
       overallDeliverables: 0,
     },
   });

@@ -344,7 +344,40 @@ export default function DigiVideoContainer({
   const form = useForm({
     resolver: zodResolver(digivideoFormSchema),
     defaultValues: {
-      digivideolineItems: [],
+      digivideolineItems: [
+        {
+          platform: "",
+          site: "",
+          bidStrategy: "",
+          buyType: "",
+          publisher: "",
+          placement: "",
+          size: "",
+          targetingAttribute: "",
+          creativeTargeting: "",
+          creative: "",
+          buyingDemo: "",
+          market: "",
+          fixedCostMedia: false,
+          clientPaysForMedia: false,
+          budgetIncludesFees: false,
+          noadserving: false,
+          bursts: [
+            {
+              _reactKey: newBurstReactKey(),
+              budget: "",
+              buyAmount: "",
+              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+              calculatedValue: 0,
+              fee: 0,
+            } as DigiVideoFormValues["digivideolineItems"][number]["bursts"][number] & { _reactKey: string },
+          ],
+          totalMedia: 0,
+          totalDeliverables: 0,
+          totalFee: 0,
+        },
+      ],
     },
   });
 

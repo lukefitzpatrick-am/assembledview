@@ -439,7 +439,40 @@ export default function DigiDisplayContainer({
   const form = useForm({
     resolver: zodResolver(digidisplayFormSchema),
     defaultValues: {
-      digidisplaylineItems: [],
+      digidisplaylineItems: [
+        {
+          platform: "",
+          site: "",
+          buyType: "",
+          publisher: "",
+          creativeTargeting: "",
+          creative: "",
+          buyingDemo: "",
+          market: "",
+          fixedCostMedia: false,
+          clientPaysForMedia: false,
+          budgetIncludesFees: false,
+          noadserving: false,
+          ...(() => {
+            const id = buildLineItemId("", MEDIA_TYPE_ID_CODES.digitalDisplay, 1);
+            return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 };
+          })(),
+          bursts: [
+            {
+              _reactKey: newBurstReactKey(),
+              budget: "",
+              buyAmount: "",
+              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+              calculatedValue: 0,
+              fee: 0,
+            } as DigiDisplayFormValues["digidisplaylineItems"][number]["bursts"][number] & { _reactKey: string },
+          ],
+          totalMedia: 0,
+          totalDeliverables: 0,
+          totalFee: 0,
+        },
+      ],
     },
   });
 
