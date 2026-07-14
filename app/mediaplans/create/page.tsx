@@ -51,10 +51,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { SavingModal, type SaveStatusItem } from "@/components/ui/saving-modal"
 import { OutcomeModal } from "@/components/outcome-modal"
 import type { BillingBurst, BillingMonth, BillingLineItem } from "@/lib/billing/types" // adjust path if needed
-import { buildBillingScheduleJSON } from "@/lib/billing/buildBillingSchedule"
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import {
-  appendPartialApprovalToBillingSchedule,
   billingMonthsHaveDetailedLineItems,
   computeLineItemTotalsFromDeliveryMonths,
   recomputePartialMbaFromSelections,
@@ -147,6 +145,8 @@ import {
 } from "@/lib/finance/buildEditorLineItemInputs"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
+import { assertCoreScheduleParity } from "@/lib/finance/assertCoreScheduleParity"
+import { parsePersistedBillingScheduleToMonths } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
 import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
 import {
   MbaBillableEqualsPill,
@@ -1734,8 +1734,8 @@ function CreateMediaPlan() {
   ])
 
   /**
-   * Shared line/fee inputs for panel financials and version-save bodies.
-   * Create POST goes direct to Xano (no C1 omit recompute); still send these for parity with edit.
+   * Shared line/fee inputs for panel financials and version-save bodies (C1 omit mode).
+   * Create saves via MBA PUT — server recomputes schedules from these inputs.
    */
   const billingSaveInputs = useMemo(() => {
     const lineItems = attachOverridesToLineInputs(
@@ -4332,268 +4332,195 @@ function CreateMediaPlan() {
     updateSaveStatus('Media Plan Version', 'pending')
     
     try {
-      // 1. Gather form values
-      const fv = form.getValues();
-  
-      const attachLineItemsToMonths = (
-        months: BillingMonth[],
-        mode: "billing" | "delivery"
-      ): BillingMonth[] => {
-        let monthsWithLineItems = (months || []).map(month => ({
-          ...month,
-          lineItems: month.lineItems || {},
-        }));
+      const fv = form.getValues()
 
-        if (monthsWithLineItems.length === 0) {
-          return [];
-        }
+      const clientName =
+        typeof fv.mp_client_name === "string"
+          ? fv.mp_client_name.trim()
+          : String(fv.mp_client_name || "").trim()
 
-        const isAutoLineItems = (items: any): boolean => {
-          if (!Array.isArray(items) || items.length === 0) return false;
-          return items.every((li) => String(li?.header1 || "").trim() === "Auto");
-        };
-
-        const shouldReplace = (existing: any): boolean => {
-          if (!existing) return true;
-          if (Array.isArray(existing) && existing.length === 0) return true;
-          // Replace synthesized “Auto” line items with detailed line items
-          if (isAutoLineItems(existing)) return true;
-          return false;
-        };
-
-        const mediaTypeMap: Record<string, { lineItems: any[], key: string }> = {
-          'mp_television': { lineItems: televisionMediaLineItems, key: 'television' },
-          'mp_radio': { lineItems: radioMediaLineItems, key: 'radio' },
-          'mp_newspaper': { lineItems: newspaperMediaLineItems, key: 'newspaper' },
-          'mp_magazines': { lineItems: magazineMediaLineItems, key: 'magazines' },
-          'mp_ooh': { lineItems: oohMediaLineItems, key: 'ooh' },
-          'mp_cinema': { lineItems: cinemaMediaLineItems, key: 'cinema' },
-          'mp_digidisplay': { lineItems: digiDisplayMediaLineItems, key: 'digiDisplay' },
-          'mp_digiaudio': { lineItems: digiAudioMediaLineItems, key: 'digiAudio' },
-          'mp_digivideo': { lineItems: digiVideoMediaLineItems, key: 'digiVideo' },
-          'mp_bvod': { lineItems: bvodMediaLineItems, key: 'bvod' },
-          'mp_integration': { lineItems: integrationMediaLineItems, key: 'integration' },
-          'mp_search': { lineItems: searchMediaLineItems, key: 'search' },
-          'mp_socialmedia': { lineItems: socialMediaMediaLineItems, key: 'socialMedia' },
-          'mp_progdisplay': { lineItems: progDisplayMediaLineItems, key: 'progDisplay' },
-          'mp_progvideo': { lineItems: progVideoMediaLineItems, key: 'progVideo' },
-          'mp_progbvod': { lineItems: progBvodMediaLineItems, key: 'progBvod' },
-          'mp_progaudio': { lineItems: progAudioMediaLineItems, key: 'progAudio' },
-          'mp_progooh': { lineItems: progOohMediaLineItems, key: 'progOoh' },
-          'mp_influencers': { lineItems: influencersMediaLineItems, key: 'influencers' },
-          'mp_production': { lineItems: productionMediaLineItems, key: 'production' },
-        };
-
-        const allLineItems: Record<string, BillingLineItem[]> = {};
-        Object.entries(mediaTypeMap).forEach(([mediaTypeKey, { lineItems, key }]) => {
-          if (fv[mediaTypeKey as keyof typeof fv] && lineItems && lineItems.length > 0) {
-            const billingLineItems = generateBillingLineItems(lineItems, key, monthsWithLineItems, mode);
-            if (billingLineItems.length > 0) {
-              allLineItems[key] = billingLineItems;
-            }
-          }
-        });
-
-        monthsWithLineItems = monthsWithLineItems.map(month => {
-          const monthCopy = { ...month, lineItems: month.lineItems || {} };
-          Object.entries(allLineItems).forEach(([key, lineItems]) => {
-            const existing = (monthCopy.lineItems as any)[key];
-            if (shouldReplace(existing)) {
-              (monthCopy.lineItems as any)[key] = lineItems;
-            }
-          });
-          return monthCopy;
-        });
-
-        // Final safeguard: ensure each month has at least one line item using totals (without overwriting)
-        return monthsWithLineItems.map(synthesizeLineItemsFromTotals);
-      };
-
-      const hasManualBillingMonths = isManualBilling && manualBillingMonths.length > 0
-      const billingScheduleSource = hasManualBillingMonths ? "manual" : "billing"
-      const snapshot = deliveryScheduleSnapshotRef.current
-      const hasCampaignDates = Boolean(fv.mp_campaigndates_start && fv.mp_campaigndates_end)
-
-      let billingMonthsSource: BillingMonth[]
-      let deliveryMonthsSource: BillingMonth[]
-
-      if (hasCampaignDates) {
-        const freshSchedule = computeBillingAndDeliveryMonths({
-          campaignStart: fv.mp_campaigndates_start,
-          campaignEnd: fv.mp_campaigndates_end,
-          burstsByMediaType: {
-            search: searchBursts,
-            socialMedia: socialMediaBursts,
-            progAudio: progAudioBursts,
-            cinema: cinemaBursts,
-            digiAudio: digiAudioBursts,
-            digiDisplay: digiDisplayBursts,
-            digiVideo: digiVideoBursts,
-            progDisplay: progDisplayBursts,
-            progVideo: progVideoBursts,
-            progBvod: progBvodBursts,
-            progOoh: progOohBursts,
-            television: televisionBursts,
-            radio: radioBursts,
-            newspaper: newspaperBursts,
-            magazines: magazineBursts,
-            ooh: oohBursts,
-            bvod: bvodBursts,
-            integration: integrationBursts,
-            influencers: influencersBursts,
-            production: productionBursts,
-          },
-          getRateForMediaType,
-          adservaudio: adservaudio ?? 0,
-          isManualBilling,
-        })
-        billingMonthsSource = hasManualBillingMonths ? manualBillingMonths : freshSchedule.billingMonths
-        deliveryMonthsSource = freshSchedule.deliveryMonths
-      } else {
-        billingMonthsSource = hasManualBillingMonths ? manualBillingMonths : billingMonths
-        deliveryMonthsSource =
-          snapshot && snapshot.length > 0
-            ? deepCloneBillingMonths(snapshot)
-            : autoDeliveryMonths.length > 0
-              ? deepCloneBillingMonths(autoDeliveryMonths)
-              : deepCloneBillingMonths(billingMonths)
-      }
-
-      const deliveryScheduleSource = hasCampaignDates
-        ? "computed"
-        : snapshot && snapshot.length > 0
-          ? "snapshot"
-          : autoDeliveryMonths.length > 0
-            ? "auto"
-            : "billing"
-
-      const billingMonthsWithLineItems = attachLineItemsToMonths(
-        deepCloneBillingMonths(billingMonthsSource),
-        "billing"
-      );
-
-      if (process.env.NODE_ENV !== "production") {
-        console.log(`deliverySource = ${deliveryScheduleSource}`, {
-          firstMonthYear: deliveryMonthsSource[0]?.monthYear,
-        })
-        console.log(`billingFirstMonthYear = ${billingMonthsSource[0]?.monthYear}`)
-      }
-
-      const deliveryMonthsPrepared = (deliveryMonthsSource || []).map(synthesizeLineItemsFromTotals);
-      const deliveryMonthsWithLineItems = attachLineItemsToMonths(
-        deliveryMonthsPrepared,
-        "delivery"
-      );
-  
-      // 3. Build version payload (include only top‑level and toggles)
-      // Transform billing schedule to hierarchical structure (Media Type → line items)
-      let billingScheduleJSON = buildBillingScheduleJSON(billingMonthsWithLineItems);
-      if (!billingScheduleJSON.length && billingMonthsWithLineItems.length > 0) {
-        billingScheduleJSON = buildBillingScheduleJSON(
-          billingMonthsWithLineItems.map(synthesizeLineItemsFromTotals)
-        );
-      }
-      billingScheduleJSON = appendPartialApprovalToBillingSchedule({
-        billingSchedule: billingScheduleJSON,
-        metadata: isPartialMBA ? partialApprovalMetadata : null,
-      })
-
-      // Build delivery schedule JSON ONLY from delivery months (snapshot-derived baseline).
-      // Do NOT read feeTotal/adservingTechFees/production from billing months.
-      let deliveryScheduleJSON = buildBillingScheduleJSON(deliveryMonthsWithLineItems);
-      if (!deliveryScheduleJSON.length && deliveryMonthsWithLineItems.length > 0) {
-        deliveryScheduleJSON = buildBillingScheduleJSON(
-          deliveryMonthsWithLineItems.map(synthesizeLineItemsFromTotals)
-        );
-      }
-
-      // Safety net: guarantee every month has feeTotal and production before sending to Xano
-      const ensureScheduleFields = (schedule: any[], label: string) => {
-        if (!Array.isArray(schedule)) return schedule;
-        return schedule.map((month, i) => {
-          const patched = { ...month };
-          if (!patched.feeTotal || patched.feeTotal === "NaN" || patched.feeTotal === "$NaN") {
-            console.warn(`[${label}] Month ${i} (${month.monthYear}) missing/invalid feeTotal — defaulting to $0.00`);
-            patched.feeTotal = "$0.00";
-          }
-          if (!patched.production || patched.production === "NaN" || patched.production === "$NaN") {
-            patched.production = "$0.00";
-          }
-          return patched;
-        });
-      };
-
-      billingScheduleJSON = ensureScheduleFields(billingScheduleJSON, "billingSchedule");
-      deliveryScheduleJSON = ensureScheduleFields(deliveryScheduleJSON, "deliverySchedule");
-
-      // Validate required fields - ensure client_name is a non-empty string
-      const clientName = typeof fv.mp_client_name === 'string' 
-        ? fv.mp_client_name.trim() 
-        : String(fv.mp_client_name || '').trim();
-      
       if (!clientName) {
-        throw new Error("Client name is required. Please select a client.");
+        throw new Error("Client name is required. Please select a client.")
       }
-      
+      if (!fv.mba_number) {
+        throw new Error("MBA number is required before saving a version.")
+      }
+
+      const shouldEnableProduction = Boolean(
+        fv.mp_production || (productionMediaLineItems?.length ?? 0) > 0
+      )
+      const planVersionNumber = parseInt(fv.mp_plannumber ?? "1", 10) || 1
+
       console.log("Form values for media plan version:", {
         mp_client_name: clientName,
         mba_number: fv.mba_number,
         mp_plannumber: fv.mp_plannumber,
-      });
-      
-      const shouldEnableProduction = Boolean(
-        fv.mp_production || (productionMediaLineItems?.length ?? 0) > 0
-      )
+      })
 
-      // Build payload matching Xano's media_plan_versions endpoint expectations
-      // IMPORTANT: Field names must match Xano script's $input.* references
-      // Xano script maps: client_name -> mp_client_name in database
-      // All fields below must be declared in Xano's input block
-      const payload = {
-        media_plan_master_id: masterId,
-        version_number:       parseInt(fv.mp_plannumber, 10),
-        mba_number:           fv.mba_number || "",
-        campaign_name:        fv.mp_campaignname || "",
-        campaign_status:      fv.mp_campaignstatus || "Draft",
-        campaign_start_date:  toDateOnlyString(fv.mp_campaigndates_start),
-        campaign_end_date:    toDateOnlyString(fv.mp_campaigndates_end),
-        brand:                fv.mp_brand || "",
-        mp_client_name:       clientName,
-        client_contact:       fv.mp_clientcontact || "",
-        po_number:            fv.mp_ponumber || "",
-        mp_campaignbudget:    fv.mp_campaignbudget || 0,
-        fixed_fee:            fv.mp_fixedfee || false,
-        mp_production:        shouldEnableProduction,
-        mp_television:        fv.mp_television || false,
-        mp_radio:             fv.mp_radio || false,
-        mp_newspaper:         fv.mp_newspaper || false,
-        mp_magazines:         fv.mp_magazines || false,
-        mp_ooh:               fv.mp_ooh || false,
-        mp_cinema:            fv.mp_cinema || false,
-        mp_digidisplay:       fv.mp_digidisplay || false,
-        mp_digiaudio:         fv.mp_digiaudio || false,
-        mp_digivideo:         fv.mp_digivideo || false,
-        mp_bvod:              fv.mp_bvod || false,
-        mp_integration:       fv.mp_integration || false,
-        mp_search:            fv.mp_search || false,
-        mp_socialmedia:       fv.mp_socialmedia || false,
-        mp_progdisplay:       fv.mp_progdisplay || false,
-        mp_progvideo:         fv.mp_progvideo || false,
-        mp_progbvod:          fv.mp_progbvod || false,
-        mp_progaudio:         fv.mp_progaudio || false,
-        mp_progooh:           fv.mp_progooh || false,
-        mp_influencers:       fv.mp_influencers || false,
-        billingSchedule:      billingScheduleJSON,
-        deliverySchedule:     deliveryScheduleJSON,
-        // Xano alias safeguard
-        delivery_schedule:    deliveryScheduleJSON,
-        // Core inputs (parity with edit C1 omit mode; create still POSTs schedules client-side)
-        lineItems:            billingSaveInputs.lineItems,
-        feeLoading:           billingSaveInputs.feeLoading,
-      };
-  
-      // 3. Call Xano
-      const version = await createMediaPlanVersion(payload);
+      /**
+       * C1 preferred: MBA PUT omit-mode (server recomputes billing/delivery + inputs_hash).
+       * Create ships omit-only — no create-time manual billing months (edit-page C2).
+       */
+      let version: {
+        id: number
+        version_number?: number
+        billingSchedule?: unknown
+      }
+      let usedPutPath = false
+
+      try {
+        const versionResponse = await fetch(
+          `/api/mediaplans/mba/${encodeURIComponent(String(fv.mba_number))}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...fv,
+              mp_client_name: clientName,
+              mp_production: shouldEnableProduction,
+              lineItems: billingSaveInputs.lineItems,
+              feeLoading: billingSaveInputs.feeLoading,
+              billingSchedule: undefined,
+              deliverySchedule: undefined,
+              delivery_schedule: undefined,
+            }),
+          }
+        )
+
+        if (!versionResponse.ok) {
+          const errorBody = await versionResponse.json().catch(() => ({} as { error?: string }))
+          throw new Error(
+            errorBody.error || `MBA PUT failed (${versionResponse.status})`
+          )
+        }
+
+        const versionData = await versionResponse.json()
+        const versionIdRaw =
+          versionData.versionId ?? versionData.version?.id ?? versionData.id
+        const versionId = Number(versionIdRaw)
+        if (!Number.isFinite(versionId)) {
+          throw new Error("MBA PUT succeeded but returned no version id")
+        }
+
+        const savedVersionNumberRaw =
+          versionData.versionNumber ??
+          versionData.nextVersionNumber ??
+          versionData.version?.version_number ??
+          planVersionNumber
+        const savedVersionNumber =
+          typeof savedVersionNumberRaw === "string"
+            ? parseInt(savedVersionNumberRaw, 10)
+            : savedVersionNumberRaw
+
+        version = {
+          id: versionId,
+          version_number: Number.isFinite(savedVersionNumber)
+            ? savedVersionNumber
+            : planVersionNumber,
+          billingSchedule:
+            versionData.version?.billingSchedule ?? versionData.billingSchedule,
+        }
+        usedPutPath = true
+      } catch (putErr: unknown) {
+        // Fallback only when PUT cannot create first version for a fresh master
+        console.warn(
+          "[create C1] MBA PUT unavailable; falling back to createMediaPlanVersion with core schedules",
+          putErr
+        )
+        const fallbackVersion = await createMediaPlanVersion({
+          media_plan_master_id: masterId,
+          version_number: planVersionNumber,
+          mba_number: fv.mba_number || "",
+          campaign_name: fv.mp_campaignname || "",
+          campaign_status: fv.mp_campaignstatus || "Draft",
+          campaign_start_date: toDateOnlyString(fv.mp_campaigndates_start),
+          campaign_end_date: toDateOnlyString(fv.mp_campaigndates_end),
+          brand: fv.mp_brand || "",
+          mp_client_name: clientName,
+          client_contact: fv.mp_clientcontact || "",
+          po_number: fv.mp_ponumber || "",
+          mp_campaignbudget: fv.mp_campaignbudget || 0,
+          fixed_fee: fv.mp_fixedfee || false,
+          mp_production: shouldEnableProduction,
+          mp_television: fv.mp_television || false,
+          mp_radio: fv.mp_radio || false,
+          mp_newspaper: fv.mp_newspaper || false,
+          mp_magazines: fv.mp_magazines || false,
+          mp_ooh: fv.mp_ooh || false,
+          mp_cinema: fv.mp_cinema || false,
+          mp_digidisplay: fv.mp_digidisplay || false,
+          mp_digiaudio: fv.mp_digiaudio || false,
+          mp_digivideo: fv.mp_digivideo || false,
+          mp_bvod: fv.mp_bvod || false,
+          mp_integration: fv.mp_integration || false,
+          mp_search: fv.mp_search || false,
+          mp_socialmedia: fv.mp_socialmedia || false,
+          mp_progdisplay: fv.mp_progdisplay || false,
+          mp_progvideo: fv.mp_progvideo || false,
+          mp_progbvod: fv.mp_progbvod || false,
+          mp_progaudio: fv.mp_progaudio || false,
+          mp_progooh: fv.mp_progooh || false,
+          mp_influencers: fv.mp_influencers || false,
+          // Core schedules — never client-built buildBillingScheduleJSON
+          billingSchedule: campaignFinancials.billingSchedule,
+          deliverySchedule: campaignFinancials.deliverySchedule,
+          delivery_schedule: campaignFinancials.deliverySchedule,
+          lineItems: billingSaveInputs.lineItems,
+          feeLoading: billingSaveInputs.feeLoading,
+        } as Parameters<typeof createMediaPlanVersion>[0] & {
+          delivery_schedule?: unknown
+          lineItems?: unknown
+          feeLoading?: unknown
+        })
+        version = {
+          id: Number(fallbackVersion.id),
+          version_number: planVersionNumber,
+          billingSchedule: (fallbackVersion as { billingSchedule?: unknown }).billingSchedule,
+        }
+      }
+
+      // Cent-level verify: persisted schedule vs campaignFinancials.billingSchedule
+      let persistedRaw: unknown = version.billingSchedule
+      if (persistedRaw == null) {
+        try {
+          const reloadRes = await fetch(
+            `/api/mediaplans/mba/${encodeURIComponent(String(fv.mba_number))}?skipLineItems=true&billingScheduleFull=1&version=${encodeURIComponent(String(version.version_number ?? planVersionNumber))}`
+          )
+          if (reloadRes.ok) {
+            const reloaded = await reloadRes.json()
+            persistedRaw =
+              reloaded.billingSchedule ??
+              reloaded.version?.billingSchedule ??
+              reloaded.data?.billingSchedule
+          }
+        } catch (reloadErr) {
+          console.warn("[create C1] schedule reload failed", reloadErr)
+        }
+      }
+
+      const persistedMonths =
+        parsePersistedBillingScheduleToMonths(persistedRaw) ??
+        (Array.isArray(persistedRaw) ? (persistedRaw as BillingMonth[]) : null)
+
+      if (persistedMonths && campaignFinancials.billingSchedule.length > 0) {
+        const parity = assertCoreScheduleParity(
+          campaignFinancials.billingSchedule,
+          persistedMonths
+        )
+        if (!parity.ok) {
+          console.error("[create C1] schedule parity failed", {
+            path: usedPutPath ? "put" : "fallback",
+            deltas: parity.deltas,
+          })
+          throw new Error(`${parity.message}: ${parity.deltas.slice(0, 5).join("; ")}`)
+        }
+      } else if (campaignFinancials.billingSchedule.length > 0) {
+        console.warn(
+          "[create C1] could not parse persisted billingSchedule for parity check",
+          { usedPutPath }
+        )
+      }
+
       // Save campaign KPIs (non-blocking — don't fail the campaign save if KPIs fail)
       if (kpiRows.length > 0) {
         updateSaveStatus("Campaign KPIs", "pending")
@@ -4625,7 +4552,7 @@ function CreateMediaPlan() {
           {
             mp_client_name: clientName,
             mba_number: fv.mba_number ?? "",
-            version_number: parseInt(fv.mp_plannumber ?? "1", 10),
+            version_number: version.version_number ?? planVersionNumber,
             campaign_name: fv.mp_campaignname ?? "",
           },
           lineItemsByMediaType,
@@ -4649,7 +4576,9 @@ function CreateMediaPlan() {
       updateSaveStatus("MBA PDF Upload", "pending")
       updateSaveStatus("Media Plan Upload", "pending")
       const documentUploadPromise = (async () => {
-        const planVersionForDocs = String(fv.mp_plannumber || "1")
+        const planVersionForDocs = String(
+          version.version_number ?? fv.mp_plannumber ?? "1"
+        )
 
         const [{ blob: mbaBlob, fileName: mbaFileName }, { blob: mpBlob, fileName: mpFileName }] = await Promise.all([
           generateMbaPdfBlob({ planVersion: planVersionForDocs }),

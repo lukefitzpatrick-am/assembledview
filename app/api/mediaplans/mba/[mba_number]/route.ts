@@ -1385,7 +1385,7 @@ export async function PUT(
     
     const latestVersionNumber = allVersionsForMBA.length > 0
       ? Math.max(...allVersionsForMBA.map((v: any) => parseVersion(v.version_number)))
-      : parseVersion(masterData.version_number)
+      : 0
 
     const previousVersion =
       latestVersionNumber != null
