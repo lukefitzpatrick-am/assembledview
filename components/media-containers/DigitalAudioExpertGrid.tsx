@@ -12,6 +12,14 @@ import {
 import { MemoExpertGridRow } from "@/components/media-containers/MemoExpertGridRow"
 import { isExpertRowIncomplete, expertRowIncompleteReasons } from "@/lib/mediaplan/expertRowCompleteness"
 import {
+  ExpertGridVirtualSpacerBody,
+  useExpertGridRowVirtualizer,
+} from "@/components/media-containers/useExpertGridRowVirtualizer"
+import {
+  OOH_EXPERT_ROW_HEIGHT_PX,
+  OOH_EXPERT_ROW_OVERSCAN,
+} from "@/lib/mediaplan/oohExpertVirtualization"
+import {
   buildMapsPreservingIdentity,
   finalizeRowsPreservingIdentity,
   mapRowAtIndex,
@@ -211,6 +219,14 @@ const digiAudioExpertTotalsRowBgStyle = {
 }
 
 const DEBUG_DIGIAUDIO_MERGE = false
+
+/**
+ * F-28 Phase 2 — row virtualization (shared helper from OOH). Fixed row height
+ * matches Prompt A (`OOH_EXPERT_ROW_HEIGHT_PX`); no measureElement.
+ */
+const DIGIAUDIO_EXPERT_ROW_VIRTUALIZATION = true
+const DIGIAUDIO_EXPERT_ROW_HEIGHT_PX = OOH_EXPERT_ROW_HEIGHT_PX
+const DIGIAUDIO_EXPERT_ROW_OVERSCAN = OOH_EXPERT_ROW_OVERSCAN
 
 function normalizeDigitalAudioKey(input: unknown): string {
   return String(input ?? "")
@@ -897,6 +913,8 @@ export function DigitalAudioExpertGrid({
   )
 
 
+  const gridScrollRef = useRef<HTMLDivElement>(null)
+
   const handleReorder = useCallback(
     (from: number, to: number) => {
       const next = reorderExpertRows(normalizedRowsRef.current, from, to)
@@ -906,8 +924,37 @@ export function DigitalAudioExpertGrid({
     },
     [pushRows, onReorder]
   )
+
+  const theadRef = useRef<HTMLTableSectionElement>(null)
+  const [theadHeightPx, setTheadHeightPx] = useState(48)
+  useEffect(() => {
+    const el = theadRef.current
+    if (!el || typeof ResizeObserver === "undefined") return
+    const measure = () => {
+      const h = el.getBoundingClientRect().height
+      if (h > 0) setTheadHeightPx(h)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const rowReorderVirtual = useMemo(
+    () =>
+      DIGIAUDIO_EXPERT_ROW_VIRTUALIZATION
+        ? {
+            rowCount: normalizedRows.length,
+            estimateSizePx: DIGIAUDIO_EXPERT_ROW_HEIGHT_PX,
+            getScrollElement: () => gridScrollRef.current,
+            getBodyOffsetTop: () => theadHeightPx,
+          }
+        : null,
+    [normalizedRows.length, theadHeightPx]
+  )
+
   const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
-    useExpertRowReorder(handleReorder)
+    useExpertRowReorder(handleReorder, rowReorderVirtual)
   const { weekColumnWidths, setWeekColumnWidth } = useExpertWeekColumnWidths()
 
   const resolveWeekDragSource = useCallback(
@@ -1161,6 +1208,17 @@ export function DigitalAudioExpertGrid({
     boxSizing: "border-box" as const,
   })
 
+  const rowVirtualizerRef = useRef<{
+    scrollToIndex: (
+      index: number,
+      options?: { align?: "auto" | "start" | "center" | "end" }
+    ) => void
+  } | null>(null)
+  const ensureRowVisible = useCallback((rowIndex: number) => {
+    if (!DIGIAUDIO_EXPERT_ROW_VIRTUALIZATION) return
+    rowVirtualizerRef.current?.scrollToIndex(rowIndex, { align: "auto" })
+  }, [])
+
   const handleGridInputKeyDown = useCallback(
     (
       rowIndex: number,
@@ -1180,7 +1238,12 @@ export function DigitalAudioExpertGrid({
         const end = t.selectionEnd ?? 0
         if (start === len && end === len) {
           e.preventDefault()
-          focusExpertGridCell(domGridId, rowIndex, firstWeekNavColIndex)
+          focusExpertGridCell(
+            domGridId,
+            rowIndex,
+            firstWeekNavColIndex,
+            ensureRowVisible
+          )
           return
         }
       }
@@ -1193,7 +1256,12 @@ export function DigitalAudioExpertGrid({
         const end = t.selectionEnd ?? 0
         if (start === 0 && end === 0 && unitRateNavColIndex >= 0) {
           e.preventDefault()
-          focusExpertGridCell(domGridId, rowIndex, unitRateNavColIndex)
+          focusExpertGridCell(
+            domGridId,
+            rowIndex,
+            unitRateNavColIndex,
+            ensureRowVisible
+          )
           return
         }
       }
@@ -1204,10 +1272,12 @@ export function DigitalAudioExpertGrid({
         rowCount: normalizedRows.length,
         colCount: navColCount,
         event: e,
+        ensureVisible: ensureRowVisible,
       })
     },
     [
       domGridId,
+      ensureRowVisible,
       firstWeekNavColIndex,
       navColCount,
       normalizedRows.length,
@@ -2099,8 +2169,6 @@ export function DigitalAudioExpertGrid({
     weekMultiSelect,
   ])
 
-  const gridScrollRef = useRef<HTMLDivElement>(null)
-
   useEffect(() => {
     const handleDocumentPointerDown = (ev: PointerEvent) => {
       const root = gridScrollRef.current
@@ -2116,6 +2184,38 @@ export function DigitalAudioExpertGrid({
       window.removeEventListener("pointerdown", handleDocumentPointerDown, true)
     }
   }, [resetTransientWeekUiState])
+
+  const {
+    virtualItems,
+    paddingTop,
+    paddingBottom,
+    scrollToIndex,
+  } = useExpertGridRowVirtualizer({
+    count: normalizedRows.length,
+    getScrollElement: () => gridScrollRef.current,
+    estimateSize: DIGIAUDIO_EXPERT_ROW_HEIGHT_PX,
+    overscan: DIGIAUDIO_EXPERT_ROW_OVERSCAN,
+    scrollMargin: theadHeightPx,
+    scrollPaddingStart: theadHeightPx,
+  })
+  rowVirtualizerRef.current = { scrollToIndex }
+
+  const virtualSpacerColSpan = useMemo(() => {
+    let weekCells = 0
+    for (const col of weekColumns) {
+      weekCells += expandedWeekKeys.has(col.weekKey)
+        ? Math.max(1, (dayColumnsByWeekKey[col.weekKey] ?? []).length)
+        : 1
+    }
+    return (
+      1 + digiAudioDescriptorKeys.length + WEEK_GRID_COL_OFFSET + weekCells
+    )
+  }, [
+    weekColumns,
+    expandedWeekKeys,
+    dayColumnsByWeekKey,
+    digiAudioDescriptorKeys.length,
+  ])
 
   const handleCellFocus = useCallback((rowIndex: number, columnKey: string) => {
     const next = { rowIndex, columnKey }
@@ -2916,7 +3016,7 @@ export function DigitalAudioExpertGrid({
                 data-digiaudio-expert-grid-scroll=""
               >
                 <table className="w-max min-w-full border-collapse text-sm">
-                  <thead className="[&_tr]:border-b-0">
+                  <thead ref={theadRef} className="[&_tr]:border-b-0">
                     <tr>
                       <ExpertGridRowReorderHeaderCell
                         className={stickyThCorner("text-center")}
@@ -3066,7 +3166,11 @@ export function DigitalAudioExpertGrid({
                     </tr>
                   </thead>
                   <tbody>
-                    {normalizedRows.map((row, rowIndex) => {
+                    {(() => {
+                      const renderScheduleRow = (
+                        row: DigitalAudioExpertScheduleRow,
+                        rowIndex: number
+                      ) => {
                       const rowMergeMapForRow =
                         rowMergeMaps[rowIndex] ??
                         ({
@@ -4854,7 +4958,28 @@ export function DigitalAudioExpertGrid({
                           }}
                         />
                       )
-                    })}
+                      }
+
+                      if (!DIGIAUDIO_EXPERT_ROW_VIRTUALIZATION) {
+                        return normalizedRows.map((row, rowIndex) =>
+                          renderScheduleRow(row, rowIndex)
+                        )
+                      }
+
+                      return (
+                        <ExpertGridVirtualSpacerBody
+                          colSpan={virtualSpacerColSpan}
+                          paddingTop={paddingTop}
+                          paddingBottom={paddingBottom}
+                        >
+                          {virtualItems.map((vi) => {
+                            const row = normalizedRows[vi.index]
+                            if (!row) return null
+                            return renderScheduleRow(row, vi.index)
+                          })}
+                        </ExpertGridVirtualSpacerBody>
+                      )
+                    })()}
                     <tr
                       className="border-t-2 border-solid font-medium"
                       style={mediaTypeTotalsRowStyle(MEDIA_ACCENT_HEX)}
