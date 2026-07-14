@@ -2117,28 +2117,6 @@ export async function getBVODLineItemsByMBA(mbaNumber: string, mediaPlanVersion?
   }
 }
 
-export async function createBVODLineItem(data: Partial<BVODLineItem>): Promise<BVODLineItem> {
-  const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_bvod`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) throw new Error("Failed to create BVOD line item");
-  return response.json();
-}
-
-export async function updateBVODLineItem(id: number, data: Partial<BVODLineItem>): Promise<BVODLineItem> {
-  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.bvod)
-
-  const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_bvod/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) throw new Error("Failed to update BVOD line item");
-  return response.json();
-}
-
 export async function deleteBVODLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_bvod/${id}`, {
     method: 'DELETE',
@@ -2648,28 +2626,6 @@ export async function getProgVideoLineItemsByMBA(mbaNumber: string, mediaPlanVer
     console.error("Error fetching programmatic video line items:", error);
     return [];
   }
-}
-
-export async function createProgVideoLineItem(data: Partial<ProgVideoLineItem>): Promise<ProgVideoLineItem> {
-  const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_video`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) throw new Error("Failed to create programmatic video line item");
-  return response.json();
-}
-
-export async function updateProgVideoLineItem(id: number, data: Partial<ProgVideoLineItem>): Promise<ProgVideoLineItem> {
-  const payload = applyDeterministicIdForUpdate(data, MEDIA_TYPE_ID_CODES.progVideo)
-
-  const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_video/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) throw new Error("Failed to update programmatic video line item");
-  return response.json();
 }
 
 export async function deleteProgVideoLineItem(id: number): Promise<void> {
