@@ -73,6 +73,7 @@ import {
   ExpertGridRowReorderHeaderCell,
 } from "@/components/media-containers/ExpertGridRowReorderCell"
 import { ExpertGridWeekResizeHandle } from "@/components/media-containers/ExpertGridWeekResizeHandle"
+import { ExpertGridWeekCommencesBar } from "@/components/media-containers/ExpertGridWeekCommencesBar"
 import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
 import { useExpertWeekColumnWidths } from "@/hooks/useExpertWeekColumnWidths"
 import type {
@@ -108,6 +109,7 @@ import {
 import {
   buildWeeklyGanttColumnsFromCampaign,
   type WeeklyGanttWeekColumn,
+  type WeekStartsOn,
 } from "@/lib/utils/weeklyGanttColumns"
 import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
@@ -122,6 +124,7 @@ import {
   expandWeekToDaily,
   resizeSpanWeeks,
   weekDayKeys,
+  rebucketRowsForWeekStartsOn,
   weekHasDailyValues,
   weekIsUniform,
   type DayColumn,
@@ -444,9 +447,15 @@ export function ProgDisplayExpertGrid({
     [publishers]
   )
 
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0)
   const weekColumns = useMemo(
-    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
-    [campaignStartDate, campaignEndDate]
+    () =>
+      buildWeeklyGanttColumnsFromCampaign(
+        campaignStartDate,
+        campaignEndDate,
+        weekStartsOn
+      ),
+    [campaignStartDate, campaignEndDate, weekStartsOn]
   )
   const weekKeys = useMemo(() => weekColumns.map((c) => c.weekKey), [weekColumns])
   /** Campaign-clamped day keys per week column (for day-level detail). */
@@ -773,6 +782,36 @@ export function ProgDisplayExpertGrid({
       weekKeys,
     ]
   )
+
+  const pendingWeekRebucketRef = useRef<typeof normalizedRowsRef.current | null>(
+    null
+  )
+  const handleWeekStartsOnChange = useCallback(
+    (next: WeekStartsOn) => {
+      if (next === weekStartsOn) return
+      const oldColumns = weekColumns
+      const newColumns = buildWeeklyGanttColumnsFromCampaign(
+        campaignStartDate,
+        campaignEndDate,
+        next
+      )
+      pendingWeekRebucketRef.current = rebucketRowsForWeekStartsOn(
+        normalizedRowsRef.current,
+        oldColumns,
+        newColumns
+      )
+      setExpandedWeekKeys(new Set())
+      setWeekStartsOn(next)
+    },
+    [weekStartsOn, weekColumns, campaignStartDate, campaignEndDate]
+  )
+  useEffect(() => {
+    const pending = pendingWeekRebucketRef.current
+    if (!pending) return
+    pendingWeekRebucketRef.current = null
+    pushRows(pending)
+  }, [weekStartsOn, pushRows])
+
   const handleRowEdgeDatePick = useCallback(
     (rowIndex: number, edge: "start" | "end", picked: Date | undefined) => {
       if (!picked) return
@@ -2768,10 +2807,10 @@ export function ProgDisplayExpertGrid({
               variant="outline"
               size="sm"
               onClick={addRow}
-              title="Append as many empty rows as the number in the Rows field (1–500)."
+              title="Rows to append when Add row is clicked (1–500)."
             >
               <Plus className="mr-1 h-4 w-4" />
-              Add row
+              {`Add ${Math.max(1, Math.min(500, Number.parseInt(rowCountInput || "1", 10) || 1))} rows`}
             </Button>
             <Button
               type="button"
@@ -2795,6 +2834,12 @@ export function ProgDisplayExpertGrid({
           </div>
 
           <div className="overflow-hidden rounded-lg border border-border/80 bg-card/30 shadow-sm">
+            <div className="flex items-center border-b border-border/60 bg-card/60 px-3 py-1.5">
+              <ExpertGridWeekCommencesBar
+                weekStartsOn={weekStartsOn}
+                onWeekStartsOnChange={handleWeekStartsOnChange}
+              />
+            </div>
             {normalizedRows.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-4 px-6 py-14 text-center">
                 <div

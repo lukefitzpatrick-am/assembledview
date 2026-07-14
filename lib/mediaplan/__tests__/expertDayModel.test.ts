@@ -7,6 +7,8 @@ import {
   weekIsUniform,
   emitDayBurstsForWeek,
   resizeSpanWeeks,
+  rebucketWeeklyValues,
+  rebucketRowsForWeekStartsOn,
 } from "@/lib/mediaplan/expertDayModel"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 
@@ -64,4 +66,61 @@ test("resizeSpanWeeks grows/shrinks and clamps", () => {
     { startWeekKey: keys[0]!, endWeekKey: keys[2]! }
   )
   assert.equal(resizeSpanWeeks(keys, keys[1]!, keys[2]!, "end", -5), null) // ns>ne invalid
+})
+
+test("rebucketWeeklyValues is a no-op on empty grid", () => {
+  const sunCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 0)
+  const monCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 1)
+  const empty: Record<string, number | ""> = {}
+  for (const c of sunCols) empty[c.weekKey] = ""
+  assert.deepEqual(rebucketWeeklyValues(empty, sunCols, monCols), {})
+})
+
+test("rebucketWeeklyValues preserves per-row totals across weekStartsOn change including boundary-spanning value", () => {
+  const sunCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 0)
+  const monCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 1)
+  // Put 70 on Sunday week starting 2026-01-04 (Sun–Sat) — spans Mon tiling.
+  const old: Record<string, number | ""> = {}
+  for (const c of sunCols) old[c.weekKey] = ""
+  old[sunCols[0]!.weekKey] = 70
+
+  const next = rebucketWeeklyValues(old, sunCols, monCols)
+  const oldTotal = Object.values(old).reduce(
+    (s, v) => s + (typeof v === "number" ? v : 0),
+    0
+  )
+  const newTotal = Object.values(next).reduce(
+    (s, v) => s + (typeof v === "number" ? v : 0),
+    0
+  )
+  assert.equal(newTotal, oldTotal)
+  // Sun week 4–10 overlaps Mon weeks: Dec29–Jan4 (1 day) and Jan5–11 (6 days)
+  assert.equal(next["2025-12-29"], 10) // 70 * 1/7
+  assert.equal(next["2026-01-05"], 60) // 70 * 6/7
+})
+
+test("rebucketRowsForWeekStartsOn materialises merged spans and conserves totals", () => {
+  const sunCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 0)
+  const monCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 1)
+  const weeklyValues: Record<string, number | ""> = {}
+  for (const c of sunCols) weeklyValues[c.weekKey] = ""
+  const rows = [
+    {
+      weeklyValues,
+      mergedWeekSpans: [
+        {
+          startWeekKey: sunCols[0]!.weekKey,
+          endWeekKey: sunCols[1]!.weekKey,
+          totalQty: 140,
+        },
+      ],
+    },
+  ]
+  const next = rebucketRowsForWeekStartsOn(rows, sunCols, monCols)
+  assert.equal(next[0]!.mergedWeekSpans?.length ?? 0, 0)
+  const total = Object.values(next[0]!.weeklyValues).reduce(
+    (s, v) => s + (typeof v === "number" ? v : 0),
+    0
+  )
+  assert.equal(total, 140)
 })
