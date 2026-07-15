@@ -181,6 +181,7 @@ import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancia
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import { assertCoreScheduleParity } from "@/lib/finance/assertCoreScheduleParity"
 import { parsePersistedBillingScheduleToMonths } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
+import { buildMbaBillingScopeLineLabel } from "@/lib/billing/mbaBillingScopeLineLabel"
 import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
 
 
@@ -1869,30 +1870,33 @@ function CreateMediaPlan() {
     ) as Record<string, string>
   }, [])
 
-  /** Per-line rows for MbaBillingModal left column — titles from seed configs when available. */
+  /** Per-line rows for MbaBillingModal left column — human titles from line descriptors. */
   const mbaBillingScopeLines = useMemo((): MbaBillingScopeLine[] => {
-    const titleById = new Map<string, { title: string; subtitle?: string }>()
+    const rawById = new Map<string, unknown>()
+    const indexByMedia = new Map<string, number>()
     for (const config of billingFeeSeedEnabledConfigs) {
       const items = config.lineItems ?? []
       items.forEach((raw, index) => {
         const id = editorBillingStableLineItemId(config.billingKey, raw, index)
-        const row = (raw ?? {}) as Record<string, unknown>
-        const h1 = String(row.header1 ?? row.platform ?? row.publisher ?? row.name ?? "").trim()
-        const h2 = String(row.header2 ?? row.campaignName ?? row.placement ?? "").trim()
-        titleById.set(id, {
-          title: h1 || id,
-          subtitle: h2 || undefined,
-        })
+        rawById.set(id, raw)
       })
     }
     return campaignFinancials.perLine.map((line) => {
-      const meta = titleById.get(line.lineItemId)
+      const mediaLabel = mediaLabelByBillingKey[line.mediaType] ?? line.mediaType
+      const lineNumber = (indexByMedia.get(line.mediaType) ?? 0) + 1
+      indexByMedia.set(line.mediaType, lineNumber)
+      const { title, subtitle } = buildMbaBillingScopeLineLabel({
+        mediaType: line.mediaType,
+        mediaLabel,
+        lineItem: rawById.get(line.lineItemId) ?? {},
+        lineNumber,
+      })
       return {
         lineItemId: line.lineItemId,
         mediaType: line.mediaType,
-        mediaLabel: mediaLabelByBillingKey[line.mediaType] ?? line.mediaType,
-        title: meta?.title ?? line.lineItemId,
-        subtitle: meta?.subtitle,
+        mediaLabel,
+        title,
+        subtitle,
         approved: !line.flags.excluded,
         media: line.media,
         fee: line.fee,
@@ -4032,6 +4036,36 @@ function CreateMediaPlan() {
     }
     setPartialMBASelectedLineItemIds(nextSelected)
     const nextEnabled = { ...partialMBAMediaEnabled, [mediaType]: (nextSelected[mediaType]?.length ?? 0) > 0 }
+    setPartialMBAMediaEnabled(nextEnabled)
+    setIsPartialMBA(true)
+    const months =
+      partialMBAMonthYears.length > 0
+        ? partialMBAMonthYears
+        : (autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths).map((m) => m.monthYear)
+    if (months.length && partialMBAMonthYears.length === 0) setPartialMBAMonthYears(months)
+    recomputePartialMBAFromLineItems(months, nextSelected, nextEnabled)
+  }
+
+  function handleMbaBillingToggleContainer(mediaType: string, approved: boolean) {
+    const containerIds = campaignFinancials.perLine
+      .filter((line) => line.mediaType === mediaType)
+      .map((line) => line.lineItemId)
+    const nextSelected = { ...partialMBASelectedLineItemIds }
+    // Seed full approval map when first leaving all-in.
+    if (!isPartialMBA && Object.keys(partialMBASelectedLineItemIds).length === 0) {
+      for (const line of campaignFinancials.perLine) {
+        if (!nextSelected[line.mediaType]) nextSelected[line.mediaType] = []
+        if (!nextSelected[line.mediaType].includes(line.lineItemId)) {
+          nextSelected[line.mediaType].push(line.lineItemId)
+        }
+      }
+    }
+    nextSelected[mediaType] = approved ? containerIds : []
+    setPartialMBASelectedLineItemIds(nextSelected)
+    const nextEnabled = {
+      ...partialMBAMediaEnabled,
+      [mediaType]: (nextSelected[mediaType]?.length ?? 0) > 0,
+    }
     setPartialMBAMediaEnabled(nextEnabled)
     setIsPartialMBA(true)
     const months =
@@ -6468,6 +6502,7 @@ const handleSaveAll = async () => {
         panelIndicators={panelIndicators}
         scopeLines={mbaBillingScopeLines}
         onToggleLineApproved={handleMbaBillingToggleLine}
+        onToggleContainerApproved={handleMbaBillingToggleContainer}
         onResetApprovalsToAllIn={handleMbaBillingResetApprovalsToAllIn}
         onDownloadExcel={handleDownloadBillingScheduleExcel}
         downloadDisabled={campaignFinancials.billingSchedule.length === 0}

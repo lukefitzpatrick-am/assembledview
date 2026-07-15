@@ -1,9 +1,10 @@
 "use client"
 
-import type { ReactNode } from "react"
-import { Check, Download, X } from "lucide-react"
+import { useMemo, useState, type ReactNode } from "react"
+import { Check, ChevronDown, Download, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
@@ -33,7 +34,6 @@ import {
   MbaBillableEqualsPill,
   MbaFeeAdjustedPill,
   MbaMediaTypeRowPills,
-  mbaMediaTypeRowClassName,
 } from "@/components/billing/MbaDetailsPanelIndicators"
 
 const money = new Intl.NumberFormat("en-AU", {
@@ -42,6 +42,9 @@ const money = new Intl.NumberFormat("en-AU", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 })
+
+/** Collapsed-by-default expand memory for the browser session (survives modal close). */
+const sessionExpandedByMediaType: Record<string, boolean> = {}
 
 export type MbaBillingScopeLine = {
   lineItemId: string
@@ -70,6 +73,8 @@ export type MbaBillingModalProps = {
   /** Per-line scope rows for approve/exclude. */
   scopeLines: MbaBillingScopeLine[]
   onToggleLineApproved: (lineItemId: string, mediaType: string, approved: boolean) => void
+  /** Approve/exclude every line in a media-type container (batched). */
+  onToggleContainerApproved?: (mediaType: string, approved: boolean) => void
   onResetApprovalsToAllIn?: () => void
   onDownloadExcel?: () => void
   downloadDisabled?: boolean
@@ -79,6 +84,52 @@ export type MbaBillingModalProps = {
   /** Parent-owned C2 editor (ManualBillingSpreadsheet etc.). */
   manualBillingEditor?: ReactNode
   footer?: ReactNode
+}
+
+type ScopeContainerGroup = {
+  mediaType: string
+  mediaLabel: string
+  lines: MbaBillingScopeLine[]
+  approvedCount: number
+  totalCount: number
+  mediaSum: number
+  feeSum: number
+  allApproved: boolean
+  noneApproved: boolean
+  partial: boolean
+}
+
+function groupScopeLinesByContainer(scopeLines: MbaBillingScopeLine[]): ScopeContainerGroup[] {
+  const order: string[] = []
+  const byType = new Map<string, MbaBillingScopeLine[]>()
+  for (const line of scopeLines) {
+    if (!byType.has(line.mediaType)) {
+      byType.set(line.mediaType, [])
+      order.push(line.mediaType)
+    }
+    byType.get(line.mediaType)!.push(line)
+  }
+  return order.map((mediaType) => {
+    const lines = byType.get(mediaType) ?? []
+    const approvedCount = lines.filter((l) => l.approved).length
+    const totalCount = lines.length
+    const mediaSum = lines.reduce((acc, l) => acc + l.media, 0)
+    const feeSum = lines.reduce((acc, l) => acc + l.fee, 0)
+    const allApproved = totalCount > 0 && approvedCount === totalCount
+    const noneApproved = approvedCount === 0
+    return {
+      mediaType,
+      mediaLabel: lines[0]?.mediaLabel ?? mediaType,
+      lines,
+      approvedCount,
+      totalCount,
+      mediaSum,
+      feeSum,
+      allApproved,
+      noneApproved,
+      partial: !allApproved && !noneApproved,
+    }
+  })
 }
 
 function HeaderStrip({
@@ -146,6 +197,87 @@ function HeaderStrip({
   )
 }
 
+function ScopeLineRow({
+  line,
+  onToggleLineApproved,
+}: {
+  line: MbaBillingScopeLine
+  onToggleLineApproved: MbaBillingModalProps["onToggleLineApproved"]
+}) {
+  const muted = line.flags.excluded
+  return (
+    <div
+      className={cn(
+        "flex items-start gap-3 rounded-input border border-transparent px-2 py-2 pl-8 transition-colors",
+        muted ? "opacity-60" : "hover:bg-table-row-hover"
+      )}
+    >
+      <Switch
+        checked={line.approved}
+        onCheckedChange={(checked) =>
+          onToggleLineApproved(line.lineItemId, line.mediaType, checked)
+        }
+        aria-label={
+          line.approved
+            ? `Exclude ${line.title} from MBA`
+            : `Approve ${line.title} for MBA`
+        }
+        className="mt-0.5 shrink-0"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="truncate text-sm font-medium text-foreground">{line.title}</span>
+          {line.approved && !muted ? (
+            <Badge
+              variant="secondary"
+              size="sm"
+              className="rounded-pill font-normal text-status-on-track-fg"
+            >
+              In MBA
+            </Badge>
+          ) : (
+            <Badge
+              variant="secondary"
+              size="sm"
+              className="rounded-pill font-normal text-muted-foreground"
+            >
+              Not in MBA
+            </Badge>
+          )}
+          {line.flags.manualBilling && !muted ? (
+            <Badge variant="warning" size="sm" className="rounded-pill font-normal">
+              Manual
+            </Badge>
+          ) : null}
+          {line.flags.manualFee && !muted ? (
+            <Badge
+              variant="outline"
+              size="sm"
+              className="rounded-pill font-normal text-status-behind-fg border-border"
+            >
+              Fee adjusted
+            </Badge>
+          ) : null}
+          {line.flags.clientPaysForMedia && !muted ? (
+            <Badge variant="secondary" size="sm" className="rounded-pill font-normal">
+              Client pays
+            </Badge>
+          ) : null}
+        </div>
+        {line.subtitle ? (
+          <p className="truncate text-xs text-muted-foreground">{line.subtitle}</p>
+        ) : null}
+      </div>
+      <div className="shrink-0 text-right">
+        <div className="num text-sm font-medium">{money.format(line.media)}</div>
+        {line.fee > 0.005 ? (
+          <div className="num text-xs text-muted-foreground">fee {money.format(line.fee)}</div>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 /**
  * Single MBA & Billing split view. Displays core financials + panel indicators only —
  * no local totals math. Parent owns approval + C2/C3 callbacks.
@@ -158,6 +290,7 @@ export function MbaBillingModal({
   panelIndicators,
   scopeLines,
   onToggleLineApproved,
+  onToggleContainerApproved,
   onResetApprovalsToAllIn,
   onDownloadExcel,
   downloadDisabled,
@@ -169,6 +302,12 @@ export function MbaBillingModal({
   const t = financials.mbaScopeTotals
   const schedule = financials.billingSchedule
   const byMedia = panelIndicators.mbaDetails.byMediaType
+
+  const [expandedByMediaType, setExpandedByMediaType] = useState<Record<string, boolean>>(
+    () => ({ ...sessionExpandedByMediaType })
+  )
+
+  const containers = useMemo(() => groupScopeLinesByContainer(scopeLines), [scopeLines])
 
   const grandMedia = schedule.reduce(
     (acc, m) => acc + (parseFloat(String(m.mediaTotal).replace(/[^0-9.-]/g, "")) || 0),
@@ -192,6 +331,27 @@ export function MbaBillingModal({
     (acc, m) => acc + (parseFloat(String(m.totalAmount).replace(/[^0-9.-]/g, "")) || 0),
     0
   )
+
+  function toggleContainerExpanded(mediaType: string) {
+    setExpandedByMediaType((prev) => {
+      const next = { ...prev, [mediaType]: !prev[mediaType] }
+      sessionExpandedByMediaType[mediaType] = next[mediaType]
+      return next
+    })
+  }
+
+  function handleContainerApproveToggle(group: ScopeContainerGroup) {
+    const nextApproved = !group.allApproved
+    if (onToggleContainerApproved) {
+      onToggleContainerApproved(group.mediaType, nextApproved)
+      return
+    }
+    for (const line of group.lines) {
+      if (line.approved !== nextApproved) {
+        onToggleLineApproved(line.lineItemId, line.mediaType, nextApproved)
+      }
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -229,80 +389,95 @@ export function MbaBillingModal({
                   </Button>
                 ) : null}
               </div>
-              <div className="max-h-[min(50vh,28rem)] space-y-1 overflow-y-auto px-3 py-3 xl:max-h-none">
-                {scopeLines.length === 0 ? (
+              <div className="max-h-[min(50vh,28rem)] space-y-2 overflow-y-auto px-3 py-3 xl:max-h-none">
+                {containers.length === 0 ? (
                   <p className="px-2 py-6 text-center text-sm text-muted-foreground">
                     No line items yet. Enable media and add flights first.
                   </p>
                 ) : (
-                  scopeLines.map((line) => {
-                    const rowInd = byMedia[line.mediaType]
-                    const muted = line.flags.excluded
+                  containers.map((group) => {
+                    const expanded = Boolean(expandedByMediaType[group.mediaType])
+                    const rowInd = byMedia[group.mediaType]
+                    const checkboxState: boolean | "indeterminate" = group.allApproved
+                      ? true
+                      : group.partial
+                        ? "indeterminate"
+                        : false
                     return (
                       <div
-                        key={`${line.mediaType}:${line.lineItemId}`}
-                        className={cn(
-                          "flex items-start gap-3 rounded-input border border-transparent px-2 py-2 transition-colors",
-                          muted ? "opacity-60" : "hover:bg-table-row-hover",
-                          mbaMediaTypeRowClassName(rowInd)
-                        )}
+                        key={group.mediaType}
+                        className="rounded-input border border-border bg-card shadow-e0"
                       >
-                        <Switch
-                          checked={line.approved}
-                          onCheckedChange={(checked) =>
-                            onToggleLineApproved(line.lineItemId, line.mediaType, checked)
-                          }
-                          aria-label={
-                            line.approved
-                              ? `Exclude ${line.title} from MBA`
-                              : `Approve ${line.title} for MBA`
-                          }
-                          className="mt-0.5 shrink-0"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span className="truncate text-sm font-medium text-foreground">
-                              {line.title}
-                            </span>
-                            <Badge
-                              variant="outline"
-                              size="sm"
-                              className="rounded-pill font-normal text-muted-foreground"
-                            >
-                              {line.mediaLabel}
-                            </Badge>
-                            <MbaMediaTypeRowPills row={rowInd} />
-                            {line.flags.clientPaysForMedia && !muted ? (
-                              <Badge
-                                variant="secondary"
-                                size="sm"
-                                className="rounded-pill font-normal"
-                              >
-                                Client pays media
-                              </Badge>
-                            ) : null}
-                            {muted ? (
-                              <Badge
-                                variant="secondary"
-                                size="sm"
-                                className="rounded-pill font-normal text-muted-foreground"
-                              >
-                                Not in MBA — excluded
-                              </Badge>
-                            ) : null}
-                          </div>
-                          {line.subtitle ? (
-                            <p className="truncate text-xs text-muted-foreground">{line.subtitle}</p>
-                          ) : null}
-                        </div>
-                        <div className="shrink-0 text-right">
-                          <div className="num text-sm font-medium">{money.format(line.media)}</div>
-                          {line.fee > 0.005 ? (
-                            <div className="num text-xs text-muted-foreground">
-                              fee {money.format(line.fee)}
+                        <div
+                          className={cn(
+                            "flex items-center gap-2 px-2 py-2",
+                            group.noneApproved && "opacity-70"
+                          )}
+                        >
+                          <button
+                            type="button"
+                            className="interactive-tint flex min-w-0 flex-1 items-center gap-2 rounded-input px-1 py-1 text-left"
+                            onClick={() => toggleContainerExpanded(group.mediaType)}
+                            aria-expanded={expanded}
+                          >
+                            <ChevronDown
+                              className={cn(
+                                "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                                !expanded && "-rotate-90"
+                              )}
+                              aria-hidden
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-1.5">
+                                <span className="truncate text-sm font-semibold text-foreground">
+                                  {group.mediaLabel}
+                                </span>
+                                <Badge
+                                  variant="secondary"
+                                  size="sm"
+                                  className="rounded-pill font-medium"
+                                >
+                                  <span className="num">
+                                    {group.approvedCount} of {group.totalCount}
+                                  </span>
+                                </Badge>
+                                <MbaMediaTypeRowPills row={rowInd} />
+                              </div>
                             </div>
-                          ) : null}
+                            <div className="shrink-0 text-right">
+                              <div className="num text-sm font-medium">
+                                {money.format(group.mediaSum)}
+                              </div>
+                              {group.feeSum > 0.005 ? (
+                                <div className="num text-xs text-muted-foreground">
+                                  fee {money.format(group.feeSum)}
+                                </div>
+                              ) : null}
+                            </div>
+                          </button>
+                          <Checkbox
+                            checked={checkboxState}
+                            onCheckedChange={() => handleContainerApproveToggle(group)}
+                            aria-label={
+                              group.allApproved
+                                ? `Exclude all ${group.mediaLabel} lines from MBA`
+                                : `Approve all ${group.mediaLabel} lines for MBA`
+                            }
+                            className="shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          />
                         </div>
+                        {expanded ? (
+                          <div className="space-y-0.5 border-t border-border px-1 py-1">
+                            {group.lines.map((line) => (
+                              <ScopeLineRow
+                                key={`${line.mediaType}:${line.lineItemId}`}
+                                line={line}
+                                onToggleLineApproved={onToggleLineApproved}
+                              />
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     )
                   })
