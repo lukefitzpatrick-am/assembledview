@@ -37,6 +37,7 @@ function parseScheduleMoney(value: string | undefined): number {
 export type MbaBillingAutoCalcSummaryProps = {
   financials: CampaignFinancials
   panelIndicators: PanelIndicatorsFromCampaignFinancials
+  mediaLabelByType?: Record<string, string>
 }
 
 /**
@@ -48,9 +49,24 @@ export type MbaBillingAutoCalcSummaryProps = {
 export function MbaBillingAutoCalcSummary({
   financials,
   panelIndicators,
+  mediaLabelByType = {},
 }: MbaBillingAutoCalcSummaryProps) {
   const t = financials.mbaScopeTotals
   const schedule = financials.billingSchedule
+
+  const mediaBreakdown: { mediaType: string; media: number }[] = []
+  if (financials.perLine.length > 0) {
+    const sums = new Map<string, number>()
+    for (const line of financials.perLine) {
+      if (line.flags.excluded) continue
+      if (!sums.has(line.mediaType)) {
+        mediaBreakdown.push({ mediaType: line.mediaType, media: 0 })
+        sums.set(line.mediaType, mediaBreakdown.length - 1)
+      }
+      const idx = sums.get(line.mediaType)!
+      mediaBreakdown[idx].media += line.media
+    }
+  }
 
   const grandMedia = schedule.reduce((acc, m) => acc + parseScheduleMoney(m.mediaTotal), 0)
   const grandFee = schedule.reduce((acc, m) => acc + parseScheduleMoney(m.feeTotal), 0)
@@ -78,6 +94,14 @@ export function MbaBillingAutoCalcSummary({
           ) : null}
         </div>
         <div className="space-y-2 px-5 py-4">
+          {mediaBreakdown.map(({ mediaType, media }) => (
+            <div key={mediaType} className="flex items-center justify-between py-0.5 pl-4">
+              <span className="text-sm text-muted-foreground">
+                {mediaLabelByType[mediaType] ?? mediaType}
+              </span>
+              <span className="num text-sm text-muted-foreground">{money.format(media)}</span>
+            </div>
+          ))}
           <div className="flex items-center justify-between py-0.5">
             <span className="text-sm text-muted-foreground">Gross Media</span>
             <span className="num text-sm font-medium">{money.format(t.grossMedia)}</span>

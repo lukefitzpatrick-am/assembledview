@@ -9905,6 +9905,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <MbaBillingAutoCalcSummary
                 financials={campaignFinancialsForPanels}
                 panelIndicators={panelIndicators}
+                mediaLabelByType={mediaLabelByBillingKey}
               />
               <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" onClick={handleMbaBillingModalOpen}>
