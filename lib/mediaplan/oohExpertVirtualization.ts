@@ -153,3 +153,124 @@ export function computeOohExpertWeeklyTotals(
     totalWithFee: sumNet + sumFee,
   }
 }
+
+/**
+ * Default overscan for expert-grid COLUMN virtualization (OOH prototype).
+ * Horizontal week window + overscan keeps merge/keyboard neighbours mounted.
+ */
+export const EXPERT_GRID_COL_OVERSCAN_DEFAULT = 4
+
+/** OOH alias — same default as the shared column overscan. */
+export const OOH_EXPERT_COL_OVERSCAN = EXPERT_GRID_COL_OVERSCAN_DEFAULT
+
+/**
+ * Cumulative left edges (px) for each week column, length = widths.length + 1
+ * where the last entry is the total width of the week band.
+ */
+export function cumulativeColumnOffsets(
+  widthsPx: readonly number[]
+): number[] {
+  const offsets = new Array<number>(widthsPx.length + 1)
+  offsets[0] = 0
+  for (let i = 0; i < widthsPx.length; i++) {
+    offsets[i + 1] = offsets[i]! + Math.max(0, widthsPx[i] ?? 0)
+  }
+  return offsets
+}
+
+/**
+ * Expected mounted inclusive week-column range for a fixed-width horizontal
+ * virtualizer (TanStack-style range math with overscan).
+ */
+export function expectedMountedColRange(
+  scrollLeft: number,
+  viewportWidth: number,
+  widthsPx: readonly number[],
+  overscan: number
+): { start: number; end: number } {
+  const n = widthsPx.length
+  if (n <= 0) return { start: 0, end: -1 }
+  if (viewportWidth <= 0) {
+    return {
+      start: 0,
+      end: Math.min(n - 1, overscan),
+    }
+  }
+  const offsets = cumulativeColumnOffsets(widthsPx)
+  const total = offsets[n]!
+  const left = Math.max(0, Math.min(scrollLeft, total))
+  const right = Math.max(left, Math.min(left + viewportWidth, total))
+
+  let start = 0
+  while (start < n && offsets[start + 1]! <= left) start += 1
+  let end = n - 1
+  while (end > 0 && offsets[end]! >= right) end -= 1
+
+  start = Math.max(0, start - overscan)
+  end = Math.min(n - 1, end + overscan)
+  return { start, end }
+}
+
+export function mountedColCount(range: {
+  start: number
+  end: number
+}): number {
+  if (range.end < range.start) return 0
+  return range.end - range.start + 1
+}
+
+/**
+ * Left/right spacer widths (px) for unmounted week columns outside the
+ * mounted inclusive range. Preserves total scroll width / sticky geometry.
+ */
+export function expertGridColSpacerWidths(
+  range: { start: number; end: number },
+  widthsPx: readonly number[]
+): { paddingLeft: number; paddingRight: number } {
+  const n = widthsPx.length
+  if (n <= 0 || range.end < range.start) {
+    const total = widthsPx.reduce((s, w) => s + Math.max(0, w), 0)
+    return { paddingLeft: 0, paddingRight: total }
+  }
+  let paddingLeft = 0
+  for (let i = 0; i < range.start; i++) paddingLeft += Math.max(0, widthsPx[i] ?? 0)
+  let paddingRight = 0
+  for (let i = range.end + 1; i < n; i++) {
+    paddingRight += Math.max(0, widthsPx[i] ?? 0)
+  }
+  return { paddingLeft, paddingRight }
+}
+
+export type ExpertMergeSpanKeys = Readonly<{
+  startWeekKey: string
+  endWeekKey: string
+}>
+
+/**
+ * Expand a mounted week range so any merge span that intersects the window
+ * also includes its full week span (keeps colSpan anchors/interiors coherent).
+ */
+export function expandColRangeForMerges(
+  range: { start: number; end: number },
+  weekKeys: readonly string[],
+  mergeSpans: readonly ExpertMergeSpanKeys[]
+): { start: number; end: number } {
+  if (range.end < range.start || weekKeys.length === 0) return range
+  const keyIndex = new Map(weekKeys.map((k, i) => [k, i]))
+  let start = range.start
+  let end = range.end
+  for (const span of mergeSpans) {
+    const s = keyIndex.get(span.startWeekKey)
+    const e = keyIndex.get(span.endWeekKey)
+    if (s === undefined || e === undefined) continue
+    const lo = Math.min(s, e)
+    const hi = Math.max(s, e)
+    if (hi < start || lo > end) continue
+    start = Math.min(start, lo)
+    end = Math.max(end, hi)
+  }
+  return {
+    start: Math.max(0, start),
+    end: Math.min(weekKeys.length - 1, end),
+  }
+}

@@ -26,11 +26,17 @@ import type {
   OohExpertScheduleRow,
 } from "@/lib/mediaplan/expertModeWeeklySchedule"
 import {
+  OOH_EXPERT_COL_OVERSCAN,
   OOH_EXPERT_ROW_HEIGHT_PX,
   OOH_EXPERT_ROW_OVERSCAN,
   computeOohExpertWeeklyTotals,
+  cumulativeColumnOffsets,
+  expandColRangeForMerges,
+  expertGridColSpacerWidths,
   expertGridVirtualSpacerPaddings,
+  expectedMountedColRange,
   expectedMountedRowRange,
+  mountedColCount,
   mountedRowCount,
   virtualRowIndexFromOffsetY,
 } from "@/lib/mediaplan/oohExpertVirtualization"
@@ -359,4 +365,64 @@ test("8b. PERF: single add-row onto 300×52 stays under 50ms (state path)", () =
     elapsed < 50,
     `single Add row took ${elapsed.toFixed(2)}ms (budget 50ms)`
   )
+})
+
+test("9. COLUMN WINDOW: 12-month (~52) weeks mounts a bounded horizontal window", () => {
+  const widths = weekKeys.map(() => WEEK_COL_WIDTH_PX)
+  assert.ok(widths.length >= 52)
+  const viewportWidth = 800
+  const nearLeft = expectedMountedColRange(
+    0,
+    viewportWidth,
+    widths,
+    OOH_EXPERT_COL_OVERSCAN
+  )
+  const mid = expectedMountedColRange(
+    26 * WEEK_COL_WIDTH_PX,
+    viewportWidth,
+    widths,
+    OOH_EXPERT_COL_OVERSCAN
+  )
+  const nearRight = expectedMountedColRange(
+    45 * WEEK_COL_WIDTH_PX,
+    viewportWidth,
+    widths,
+    OOH_EXPERT_COL_OVERSCAN
+  )
+
+  const maxWindow =
+    Math.ceil(viewportWidth / WEEK_COL_WIDTH_PX) + 2 * OOH_EXPERT_COL_OVERSCAN + 2
+  assert.ok(mountedColCount(nearLeft) <= maxWindow)
+  assert.ok(mountedColCount(mid) <= maxWindow)
+  assert.ok(mountedColCount(nearRight) <= maxWindow)
+  assert.ok(mountedColCount(nearLeft) < widths.length)
+  assert.ok(mountedColCount(mid) < widths.length)
+
+  // BEFORE (no windowing): every visible row mounts all week cells.
+  const beforeCellsPerRow = widths.length
+  const afterCellsPerRow = mountedColCount(mid)
+  assert.ok(
+    afterCellsPerRow < beforeCellsPerRow / 2,
+    `expected horizontal window << 52, got ${afterCellsPerRow} vs ${beforeCellsPerRow}`
+  )
+})
+
+test("9b. COLUMN SPACERS: left+visible+right widths equal total week band", () => {
+  const widths = weekKeys.map(() => WEEK_COL_WIDTH_PX)
+  const offsets = cumulativeColumnOffsets(widths)
+  const total = offsets[widths.length]!
+  const range = expectedMountedColRange(500, 700, widths, OOH_EXPERT_COL_OVERSCAN)
+  const { paddingLeft, paddingRight } = expertGridColSpacerWidths(range, widths)
+  let visible = 0
+  for (let i = range.start; i <= range.end; i++) visible += widths[i]!
+  assert.equal(paddingLeft + visible + paddingRight, total)
+})
+
+test("9c. COLUMN MERGES: intersecting spans expand the mounted range", () => {
+  const range = { start: 20, end: 25 }
+  const expanded = expandColRangeForMerges(range, weekKeys, [
+    { startWeekKey: weekKeys[10]!, endWeekKey: weekKeys[22]! },
+  ])
+  assert.equal(expanded.start, 10)
+  assert.equal(expanded.end, 25)
 })

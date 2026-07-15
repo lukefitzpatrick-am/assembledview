@@ -15,6 +15,7 @@ import {
   ExpertGridVirtualSpacerBody,
   useExpertGridRowVirtualizer,
 } from "@/components/media-containers/useExpertGridRowVirtualizer"
+import { useExpertGridColVirtualizer } from "@/components/media-containers/useExpertGridColVirtualizer"
 import {
   buildMapsPreservingIdentity,
   finalizeRowsPreservingIdentity,
@@ -63,6 +64,7 @@ import {
 } from "@/lib/mediaplan/expertRowLifecycle"
 import { reorderExpertRows, weekColStyle, mergedSpanWidthPx } from "@/lib/mediaplan/expertGridInteractions"
 import {
+  OOH_EXPERT_COL_OVERSCAN,
   OOH_EXPERT_ROW_HEIGHT_PX,
   OOH_EXPERT_ROW_OVERSCAN,
   computeOohExpertWeeklyTotals,
@@ -227,6 +229,12 @@ const DEBUG_OOH_MERGE = false
  * causes sticky-column / spacer misalignment.
  */
 const OOH_EXPERT_ROW_VIRTUALIZATION = true
+
+/**
+ * F-28 column virtualization prototype (OOH first, mirrors row windowing).
+ * Horizontal week band only — sticky descriptor geometry stays fully mounted.
+ */
+const OOH_EXPERT_COL_VIRTUALIZATION = true
 
 /**
  * Parse clipboard text that may contain tab-separated values (Excel/Sheets)
@@ -2195,25 +2203,85 @@ export function OohExpertGrid({
   /**
    * Colspan for the top/bottom virtual spacer rows. Must equal the thead/totals
    * column count: 1 reorder col + descriptor cols + WEEK_GRID_COL_OFFSET
-   * (gross / actions / Σ qty) + one cell per week (expanded weeks contribute one
-   * cell per campaign day).
+   * (gross / actions / Σ qty) + week band (left spacer + mounted weeks + right
+   * spacer when column virtualization is on; otherwise every week/day cell).
    */
+  const weekColWidthsPx = useMemo(
+    () => weekKeys.map((k) => widthForWeekKey(k)),
+    [weekKeys, widthForWeekKey]
+  )
+
+  const mergeSpansForColWindow = useMemo(() => {
+    const spans: { startWeekKey: string; endWeekKey: string }[] = []
+    for (const row of normalizedRows) {
+      for (const span of row.mergedWeekSpans ?? []) {
+        spans.push({
+          startWeekKey: span.startWeekKey,
+          endWeekKey: span.endWeekKey,
+        })
+      }
+    }
+    return spans
+  }, [normalizedRows])
+
+  const {
+    colStart,
+    colEnd,
+    paddingLeft: colPaddingLeft,
+    paddingRight: colPaddingRight,
+    mountedWeekIndices,
+  } = useExpertGridColVirtualizer({
+    widthsPx: weekColWidthsPx,
+    weekKeys,
+    getScrollElement: () => gridScrollRef.current,
+    overscan: OOH_EXPERT_COL_OVERSCAN,
+    enabled: OOH_EXPERT_COL_VIRTUALIZATION,
+    mergeSpans: mergeSpansForColWindow,
+  })
+
+  const visibleWeekColumns = useMemo(
+    () => mountedWeekIndices.map((i) => weekColumns[i]!).filter(Boolean),
+    [mountedWeekIndices, weekColumns]
+  )
+
   const virtualSpacerColSpan = useMemo(() => {
     let weekCells = 0
-    for (const col of weekColumns) {
-      weekCells += expandedWeekKeys.has(col.weekKey)
-        ? Math.max(1, (dayColumnsByWeekKey[col.weekKey] ?? []).length)
-        : 1
+    if (OOH_EXPERT_COL_VIRTUALIZATION) {
+      // Left spacer + right spacer (0-width spacers still occupy a table column
+      // when padding is 0 so thead/body/totals stay aligned).
+      weekCells += 2
+      for (const col of visibleWeekColumns) {
+        weekCells += expandedWeekKeys.has(col.weekKey)
+          ? Math.max(1, (dayColumnsByWeekKey[col.weekKey] ?? []).length)
+          : 1
+      }
+    } else {
+      for (const col of weekColumns) {
+        weekCells += expandedWeekKeys.has(col.weekKey)
+          ? Math.max(1, (dayColumnsByWeekKey[col.weekKey] ?? []).length)
+          : 1
+      }
     }
     return (
       1 + oohDescriptorKeys.length + WEEK_GRID_COL_OFFSET + weekCells
     )
   }, [
     weekColumns,
+    visibleWeekColumns,
     expandedWeekKeys,
     dayColumnsByWeekKey,
     oohDescriptorKeys.length,
   ])
+
+  const weekColSpacerStyle = (widthPx: number) =>
+    ({
+      width: widthPx,
+      minWidth: widthPx,
+      maxWidth: widthPx,
+      padding: 0,
+      border: "none",
+      boxSizing: "border-box" as const,
+    }) as const
 
   useEffect(() => {
     const handleDocumentPointerDown = (ev: PointerEvent) => {
@@ -2795,6 +2863,10 @@ export function OohExpertGrid({
       String(feeooh),
       weekKeys.join(","),
       descriptorColWidths.join(","),
+      // Column-virtualization window — rows must remount week cells when scroll moves.
+      OOH_EXPERT_COL_VIRTUALIZATION
+        ? `cw:${colStart}:${colEnd}:${colPaddingLeft}:${colPaddingRight}`
+        : "",
       // Selection overlays span rows — bump all rows when the area selection changes.
       weekStripSelection
         ? `ss:${weekStripSelection.rowIndex}`
@@ -2817,6 +2889,10 @@ export function OohExpertGrid({
     ].join("|")
   }, [
     copiedCells,
+    colEnd,
+    colPaddingLeft,
+    colPaddingRight,
+    colStart,
     descriptorColWidths,
     entryMode,
     expandedWeekKeys,
@@ -3032,7 +3108,20 @@ export function OohExpertGrid({
                           )}
                         </th>
                       ))}
-                      {weekColumns.map((col) => {
+                      {OOH_EXPERT_COL_VIRTUALIZATION ? (
+                        <th
+                          aria-hidden
+                          className={stickyThWeek}
+                          style={{
+                            ...weekColSpacerStyle(colPaddingLeft),
+                            ...oohExpertHeaderCellBgStyle,
+                          }}
+                        />
+                      ) : null}
+                      {(OOH_EXPERT_COL_VIRTUALIZATION
+                        ? visibleWeekColumns
+                        : weekColumns
+                      ).map((col) => {
                         const dayCols = expandedWeekKeys.has(col.weekKey)
                           ? dayColumnsByWeekKey[col.weekKey] ?? []
                           : []
@@ -3146,6 +3235,16 @@ export function OohExpertGrid({
                           </th>
                         )
                       })}
+                      {OOH_EXPERT_COL_VIRTUALIZATION ? (
+                        <th
+                          aria-hidden
+                          className={stickyThWeek}
+                          style={{
+                            ...weekColSpacerStyle(colPaddingRight),
+                            ...oohExpertHeaderCellBgStyle,
+                          }}
+                        />
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody>
@@ -3725,8 +3824,21 @@ export function OohExpertGrid({
                           </td>
                           {(() => {
                             const renderedWeekCells: React.ReactNode[] = []
+                            if (OOH_EXPERT_COL_VIRTUALIZATION) {
+                              renderedWeekCells.push(
+                                <td
+                                  key="__week-spacer-left"
+                                  aria-hidden
+                                  style={weekColSpacerStyle(colPaddingLeft)}
+                                />
+                              )
+                            }
                             const rowMergeMap = rowMergeMaps[rowIndex]
-                            for (let wi = 0; wi < weekColumns.length; wi += 1) {
+                            const weekIter = OOH_EXPERT_COL_VIRTUALIZATION
+                              ? mountedWeekIndices
+                              : weekColumns.map((_, i) => i)
+                            for (let wii = 0; wii < weekIter.length; wii += 1) {
+                              let wi = weekIter[wii]!
                               const col = weekColumns[wi]!
                               const cell = row.weeklyValues[col.weekKey]
                               const interiorSpanId =
@@ -4922,7 +5034,23 @@ export function OohExpertGrid({
                                   )
                                 }
                               }
-                              wi += spanLen - 1
+                              // Skip weekIter entries covered by this merge colSpan.
+                              const skipUntil = wi + spanLen
+                              while (
+                                wii + 1 < weekIter.length &&
+                                weekIter[wii + 1]! < skipUntil
+                              ) {
+                                wii += 1
+                              }
+                            }
+                            if (OOH_EXPERT_COL_VIRTUALIZATION) {
+                              renderedWeekCells.push(
+                                <td
+                                  key="__week-spacer-right"
+                                  aria-hidden
+                                  style={weekColSpacerStyle(colPaddingRight)}
+                                />
+                              )
                             }
                             return renderedWeekCells
                           })()}
@@ -5029,7 +5157,19 @@ export function OohExpertGrid({
                               })}
                         </div>
                       </td>
-                      {weekColumns.map((col) => {
+                      {OOH_EXPERT_COL_VIRTUALIZATION ? (
+                        <td
+                          aria-hidden
+                          style={{
+                            ...weekColSpacerStyle(colPaddingLeft),
+                            ...oohExpertTotalsRowBgStyle,
+                          }}
+                        />
+                      ) : null}
+                      {(OOH_EXPERT_COL_VIRTUALIZATION
+                        ? visibleWeekColumns
+                        : weekColumns
+                      ).map((col) => {
                         const units = expandedWeekKeys.has(col.weekKey)
                           ? Math.max(
                               1,
@@ -5063,6 +5203,15 @@ export function OohExpertGrid({
                           </td>
                         )
                       })}
+                      {OOH_EXPERT_COL_VIRTUALIZATION ? (
+                        <td
+                          aria-hidden
+                          style={{
+                            ...weekColSpacerStyle(colPaddingRight),
+                            ...oohExpertTotalsRowBgStyle,
+                          }}
+                        />
+                      ) : null}
                     </tr>
                   </tbody>
                 </table>
