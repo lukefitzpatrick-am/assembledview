@@ -7,7 +7,6 @@ import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/Co
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
-  readContainerEntryMode,
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
@@ -539,14 +538,6 @@ const form = useForm<MagazinesFormValues>({
     setMagazinesExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, magazinesExpertWeekColumns])
 
-  /* ux5-session-magazinesExpertModalOpen */
-  useEffect(() => {
-    if (readContainerEntryMode() !== "schedule") return
-    if (magazinesExpertModalOpen) return
-    openMagazinesExpertModal()
-    // mount-only: honour session entry preference
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
 
   const dismissMagazinesExpertExitConfirm = useCallback(() => {

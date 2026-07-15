@@ -6,7 +6,6 @@ import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBri
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
 import {
-  readContainerEntryMode,
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
@@ -409,14 +408,6 @@ export default function ProductionContainer({
     setProductionExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, productionExpertWeekColumns])
 
-  /* ux5-session-productionExpertModalOpen */
-  useEffect(() => {
-    if (readContainerEntryMode() !== "schedule") return
-    if (productionExpertModalOpen) return
-    openProductionExpertModal()
-    // mount-only: honour session entry preference
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
 
   const dismissProductionExpertExitConfirm = useCallback(() => {

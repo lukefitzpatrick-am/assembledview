@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
 
     const payload: Record<string, unknown> = {
       media_plan_version_id: versionId,
+      media_plan_version: versionId,
       line_item_id: String(lineItemId),
     }
     if (b.component != null) {

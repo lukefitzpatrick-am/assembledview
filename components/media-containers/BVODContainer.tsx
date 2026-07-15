@@ -7,7 +7,6 @@ import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/Co
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
-  readContainerEntryMode,
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
@@ -472,14 +471,6 @@ export default function BVODContainer({
     setBvodExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, bvodExpertWeekColumns])
 
-  /* ux5-session-bvodExpertModalOpen */
-  useEffect(() => {
-    if (readContainerEntryMode() !== "schedule") return
-    if (bvodExpertModalOpen) return
-    openBvodExpertModal()
-    // mount-only: honour session entry preference
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
 
   const dismissBvodExpertExitConfirm = useCallback(() => {

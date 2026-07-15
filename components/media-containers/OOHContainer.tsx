@@ -7,7 +7,6 @@ import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/Co
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
-  readContainerEntryMode,
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
@@ -396,15 +395,6 @@ export default function OohContainer({
     setOohExpertModalOpen(true);
   }, [campaignStartDate, campaignEndDate, form, oohExpertWeekColumns])
 
-  /* ux5-session-oohExpertModalOpen */
-  useEffect(() => {
-    if (readContainerEntryMode() !== "schedule") return
-    if (oohExpertModalOpen) return
-    openOohExpertModal()
-    // mount-only: honour session entry preference
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-;
 
   const dismissOohExpertExitConfirm = useCallback(() => {
     setOohExpertExitConfirmOpen(false);

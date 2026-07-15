@@ -7,7 +7,6 @@ import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/Co
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
-  readContainerEntryMode,
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
@@ -401,14 +400,6 @@ export default function IntegrationContainer({
     setIntegrationExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, integrationExpertWeekColumns])
 
-  /* ux5-session-integrationExpertModalOpen */
-  useEffect(() => {
-    if (readContainerEntryMode() !== "schedule") return
-    if (integrationExpertModalOpen) return
-    openIntegrationExpertModal()
-    // mount-only: honour session entry preference
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
 
   const dismissIntegrationExpertExitConfirm = useCallback(() => {

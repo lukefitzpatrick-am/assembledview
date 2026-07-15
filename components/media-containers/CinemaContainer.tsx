@@ -6,11 +6,6 @@ import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBri
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
-import {
-  readContainerEntryMode,
-  writeContainerEntryMode,
-} from "@/lib/mediaplan/containerEntryMode"
-
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
@@ -442,13 +437,6 @@ export default function CinemaContainer({
     setCinemaExpertExitConfirmOpen(false)
     setCinemaExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, cinemaExpertWeekColumns])
-  /* ux5-session-cinemaExpertModalOpen */
-  useEffect(() => {
-    if (readContainerEntryMode() !== "schedule") return
-    if (cinemaExpertModalOpen) return
-    openCinemaExpertModal()
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- session preference once on mount
-  }, [])
 
 
   const handleCinemaExpertModalOpenChange = useCallback(

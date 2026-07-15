@@ -44,6 +44,7 @@ export async function POST(request: NextRequest) {
 
     const payload = {
       media_plan_version_id: versionId,
+      media_plan_version: versionId,
       line_item_id: String(lineItemId),
       component,
       mode: b.mode ?? "manual",

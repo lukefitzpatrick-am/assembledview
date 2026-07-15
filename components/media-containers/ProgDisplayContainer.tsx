@@ -7,7 +7,6 @@ import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/Co
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
-  readContainerEntryMode,
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
@@ -412,14 +411,6 @@ export default function ProgDisplayContainer({
     setProgDisplayExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, progdisplayExpertWeekColumns])
 
-  /* ux5-session-progdisplayExpertModalOpen */
-  useEffect(() => {
-    if (readContainerEntryMode() !== "schedule") return
-    if (progdisplayExpertModalOpen) return
-    openProgDisplayExpertModal()
-    // mount-only: honour session entry preference
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
 
   const dismissProgDisplayExpertExitConfirm = useCallback(() => {

@@ -7,7 +7,6 @@ import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/Co
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
-  readContainerEntryMode,
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
@@ -469,15 +468,6 @@ export default function RadioContainer({
     setRadioExpertModalOpen(true);
   }, [campaignStartDate, campaignEndDate, form, radioExpertWeekColumns, feeradio])
 
-  /* ux5-session-radioExpertModalOpen */
-  useEffect(() => {
-    if (readContainerEntryMode() !== "schedule") return
-    if (radioExpertModalOpen) return
-    openRadioExpertModal()
-    // mount-only: honour session entry preference
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-;
 
   const dismissRadioExpertExitConfirm = useCallback(() => {
     setRadioExpertExitConfirmOpen(false);

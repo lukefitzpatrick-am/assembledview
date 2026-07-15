@@ -7,7 +7,6 @@ import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/Co
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
-  readContainerEntryMode,
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
@@ -384,14 +383,6 @@ export default function SocialMediaContainer({
     setSocialExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, socialExpertWeekColumns])
 
-  /* ux5-session-socialExpertModalOpen */
-  useEffect(() => {
-    if (readContainerEntryMode() !== "schedule") return
-    if (socialExpertModalOpen) return
-    openSocialExpertModal()
-    // mount-only: honour session entry preference
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
 
   const dismissSocialExpertExitConfirm = useCallback(() => {

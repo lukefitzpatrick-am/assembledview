@@ -7,7 +7,6 @@ import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/Co
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
-  readContainerEntryMode,
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
@@ -564,14 +563,6 @@ export default function DigiDisplayContainer({
     setDigiDisplayExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, digiDisplayExpertWeekColumns])
 
-  /* ux5-session-digiDisplayExpertModalOpen */
-  useEffect(() => {
-    if (readContainerEntryMode() !== "schedule") return
-    if (digiDisplayExpertModalOpen) return
-    openDigiDisplayExpertModal()
-    // mount-only: honour session entry preference
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
 
   const dismissDigiDisplayExpertExitConfirm = useCallback(() => {
