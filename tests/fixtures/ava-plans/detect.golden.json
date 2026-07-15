@@ -38,5 +38,13 @@
     "junkColumnsMustInclude": ["CS", "DP"],
     "flightColumnCount": 77,
     "notes": "CS–DP 1900-date / Error junk band must be dropped from flight"
+  },
+  "jcd_strength-meals_ooh.xlsx": {
+    "sheetName": "JCD Strength Meals Co ",
+    "headerRow": 19,
+    "granularity": "weekly",
+    "junkColumns": [],
+    "flightColumnCount": 88,
+    "notes": "JCDecaux OOH; DD/MM/YYYY weekly date-range flight headers; header row 19 sits below a Lunar-period/month/week-number label band; ~91 panel line items + section/city group rows"
   }
 }

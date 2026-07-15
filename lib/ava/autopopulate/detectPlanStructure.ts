@@ -15,7 +15,7 @@ import type {
 const META_LABELS =
   /^(client|campaign|demo|demographic|target|timing|agency|date|version|prepared|share option|booking)/i
 const LINEITEM_HDRS =
-  /(media description|station|network|format|buy type|length|days?|daypart|placement|entitlement|site number|qms format|latitude|spot|market|size|type|address)/i
+  /(media description|station|network|format|buy type|length|days?|daypart|placement|entitlement|site number|qms format|latitude|spot|market|size|type|address|panel|village|suburb|dimensions|illumination|direction|share.?of.?time|asset|digital operation|rotation|transit)/i
 const COST_HDRS =
   /(rate|value|cost|total|cpm|invest|media value|market value|budget|entitlement|impact|audience|reach|frequenc|spots|potential|install|production)/i
 const ISO = /^\d{4}-\d{2}-\d{2}/
@@ -78,6 +78,27 @@ function parseDate(v: unknown): Date | null {
     return Number.isNaN(d.getTime()) ? null : d
   }
   return null
+}
+
+/** AU day/month/year — first DMY match in a string (e.g. range start of "24/08/2026 - 30/08/2026"). */
+function parseDmyDate(v: unknown): Date | null {
+  if (typeof v !== "string") return null
+  const m = v.match(/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/)
+  if (!m) return null
+  const day = Number(m[1])
+  const month = Number(m[2])
+  let year = Number(m[3])
+  if (day < 1 || day > 31 || month < 1 || month > 12) return null
+  if (m[3].length <= 2) year = 2000 + year
+  const d = new Date(Date.UTC(year, month - 1, day))
+  if (
+    d.getUTCFullYear() !== year ||
+    d.getUTCMonth() !== month - 1 ||
+    d.getUTCDate() !== day
+  ) {
+    return null
+  }
+  return d
 }
 
 function parseMonthToken(v: unknown): number | null {
@@ -219,6 +240,63 @@ function detectTextMonthFlight(
   }
 }
 
+function detectRangeDateFlight(
+  cell: (r: number, c: number) => string | number | Date | null,
+  letter: (c: number) => string,
+  maxR: number,
+  maxC: number
+): {
+  dateRow: number
+  columns: DetectedFlightColumn[]
+  granularity: FlightGranularity
+} | null {
+  let dateRow: number | null = null
+  let bestHits = 0
+  for (let r = 1; r <= maxR; r++) {
+    let hits = 0
+    for (let c = 1; c <= maxC; c++) {
+      const v = cell(r, c)
+      if (typeof v === "string" && parseDmyDate(v) != null) hits++
+    }
+    if (hits > bestHits) {
+      bestHits = hits
+      dateRow = r
+    }
+  }
+  if (dateRow == null || bestHits < 4) return null
+
+  const columns: DetectedFlightColumn[] = []
+  for (let c = 1; c <= maxC; c++) {
+    const v = cell(dateRow, c)
+    if (typeof v !== "string") continue
+    const d = parseDmyDate(v)
+    if (!d) continue
+    columns.push({
+      index: c,
+      letter: letter(c),
+      date: d.toISOString().slice(0, 10),
+      label: v.replace(/\s+/g, " ").trim(),
+    })
+  }
+  if (columns.length < 4) return null
+
+  const deltas = columns
+    .slice(1)
+    .map((col, i) => {
+      const a = parseDate(columns[i].date)
+      const b = parseDate(col.date)
+      if (!a || !b) return 0
+      return (b.getTime() - a.getTime()) / 86400000
+    })
+    .filter((x) => x > 0)
+    .sort((a, b) => a - b)
+  const med = deltas[Math.floor(deltas.length / 2)] ?? 0
+  const granularity: FlightGranularity =
+    med <= 8 ? "weekly" : med <= 31 ? "fourWeekly" : "monthly"
+
+  return { dateRow, columns, granularity }
+}
+
 function detectWorksheet(
   ws: ExcelJS.Worksheet,
   opts?: { isBonusSheet?: boolean }
@@ -279,11 +357,18 @@ function detectWorksheet(
     const med = deltas[Math.floor(deltas.length / 2)] ?? 0
     granularity = med <= 8 ? "weekly" : med <= 31 ? "fourWeekly" : "monthly"
   } else {
-    const textFlight = detectTextMonthFlight(cell, letter, maxR, maxC)
-    if (textFlight) {
-      dateRow = textFlight.dateRow
-      flightCols = textFlight.columns.filter((c) => !junk.has(c.index))
-      granularity = textFlight.granularity
+    const rangeFlight = detectRangeDateFlight(cell, letter, maxR, maxC)
+    if (rangeFlight) {
+      dateRow = rangeFlight.dateRow
+      flightCols = rangeFlight.columns.filter((c) => !junk.has(c.index))
+      granularity = rangeFlight.granularity
+    } else {
+      const textFlight = detectTextMonthFlight(cell, letter, maxR, maxC)
+      if (textFlight) {
+        dateRow = textFlight.dateRow
+        flightCols = textFlight.columns.filter((c) => !junk.has(c.index))
+        granularity = textFlight.granularity
+      }
     }
   }
 
