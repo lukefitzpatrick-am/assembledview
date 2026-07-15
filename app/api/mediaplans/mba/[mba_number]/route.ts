@@ -1403,7 +1403,13 @@ export async function PUT(
     )
     // Draft saves overwrite the current working version in place (number unchanged).
     // Leaving "draft" (publish) falls through to the increment branch and cuts a new version.
-    const overwriteMode = overwriteTargetRow != null && incomingStatus === "draft"
+    // forceIncrement: approval-set change after a persisted baseline must cut vN → vN+1 even on draft.
+    const forceIncrement =
+      data.forceIncrement === true ||
+      data.force_increment === true ||
+      data.forceNewVersion === true
+    const overwriteMode =
+      overwriteTargetRow != null && incomingStatus === "draft" && !forceIncrement
     const overwriteTargetId = overwriteTargetRow?.id
     const overwriteTargetVersionNumber = parseVersion(overwriteTargetRow?.version_number) || 1
     

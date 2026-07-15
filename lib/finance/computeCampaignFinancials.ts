@@ -487,6 +487,7 @@ function buildResolvedLine(
       budgetIncludesFees,
       clientPaysForMedia,
       feePct,
+      buyType: line.buyType,
     })
     media += amounts.deliveryMediaAmount
     fee += amounts.feeAmount

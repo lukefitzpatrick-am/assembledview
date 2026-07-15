@@ -121,7 +121,25 @@ test("computeCampaignFinancials: excluded lines omit from MBA + billing", () => 
 
   const result = computeCampaignFinancials(lines, { feeLoading: {} })
   assert.equal(result.mbaScopeTotals.grossMedia, 1000)
+  assert.equal(result.mbaScopeTotals.nettExGst, 1000)
   assert.equal(result.perLine[1]!.flags.excluded, true)
+
+  // Excluded line stays in delivery schedule totals / per-line delivery months
+  const deliveryMedia = result.deliverySchedule.reduce(
+    (acc, m) => acc + (parseFloat(String(m.mediaTotal).replace(/[^0-9.-]/g, "")) || 0),
+    0
+  )
+  assert.equal(deliveryMedia, 1500)
+  assert.ok((result.perLine[1]!.deliveryMonths?.length ?? 0) > 0)
+
+  // Excluded line omitted from billing schedule + MBA scope
+  const billingMedia = result.billingSchedule.reduce(
+    (acc, m) => acc + (parseFloat(String(m.mediaTotal).replace(/[^0-9.-]/g, "")) || 0),
+    0
+  )
+  assert.equal(billingMedia, 1000)
+
+  assert.equal(result.validation.billableEqualsMba, true)
   assert.ok(
     result.deliveryVsBillingDelta.some((d) => d.reasons.includes("excluded"))
   )

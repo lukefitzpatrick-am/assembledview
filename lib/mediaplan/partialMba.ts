@@ -149,16 +149,29 @@ export function computeLineItemTotalsFromDeliveryMonths(params: {
 }
 
 /**
- * Recomputes partial MBA totals from line-item selection: media from selected lines;
- * assembled fee and ad serving scale with selected vs total line-item media for the same months.
+ * Builds partial-MBA UI values + metadata from **precomputed** campaign financials
+ * (approved subset already applied via LineItemInput.approval).
+ * Does not scale fee/ad-serving by media ratio — money comes from core only.
  */
 export function recomputePartialMbaFromSelections(params: {
-  deliveryMonthsForBaseline: BillingMonth[]
+  /** Core result for the current approval selection. */
+  financials: {
+    mbaScopeTotals: {
+      grossMedia: number
+      fee: number
+      adServing: number
+      production: number
+      nettExGst: number
+    }
+    perLine: Array<{
+      mediaType: string
+      media: number
+      flags: { excluded: boolean }
+    }>
+  }
   deliveryMonthsForLineItems: BillingMonth[]
   selectedMonthYears: readonly string[]
   selectedLineItemIdsByMedia: Record<string, string[]>
-  mediaKeys: readonly string[]
-  enabledMedia: Record<string, boolean>
   mediaLabelByKey: Record<string, string>
   formatCurrency: (n: number) => string
 }): {
@@ -167,12 +180,10 @@ export function recomputePartialMbaFromSelections(params: {
   metadata: PartialApprovalMetadata
 } {
   const {
-    deliveryMonthsForBaseline,
+    financials,
     deliveryMonthsForLineItems,
     selectedMonthYears,
     selectedLineItemIdsByMedia,
-    mediaKeys,
-    enabledMedia,
     mediaLabelByKey,
     formatCurrency,
   } = params
@@ -189,50 +200,24 @@ export function recomputePartialMbaFromSelections(params: {
   })
 
   const mediaTotals: Record<string, number> = {}
-  channels.forEach((channel) => {
-    mediaTotals[channel.mediaKey] = parseCurrency(channel.selectedTotal)
-  })
-
-  const grossSelected = sumMediaTotalsExcludingProduction(mediaTotals)
-
-  const baselineEnabled: Record<string, boolean> = {}
-  for (const k of mediaKeys) {
-    baselineEnabled[k] = enabledMedia[k] !== false
+  for (const line of financials.perLine) {
+    if (line.flags.excluded) continue
+    mediaTotals[line.mediaType] = (mediaTotals[line.mediaType] ?? 0) + line.media
   }
-
-  const baseline = computePartialMbaOverridesFromDeliveryMonths({
-    deliveryMonths: deliveryMonthsForBaseline,
-    selectedMonthYears,
-    mediaKeys,
-    enabledMedia: baselineEnabled,
-  })
-
-  let grossFullLineItems = 0
-  for (const k of mediaKeys) {
-    if (k === "production") continue
-    if (baselineEnabled[k] === false) continue
-    const byId = lineItemsMap[k]
-    if (!byId) continue
-    for (const item of Object.values(byId)) {
-      grossFullLineItems += item.amount
+  // Prefer channel selected totals when line-item breakdown exists (matches UI checkboxes).
+  for (const channel of channels) {
+    if (Object.keys(lineItemsMap[channel.mediaKey] ?? {}).length > 0) {
+      mediaTotals[channel.mediaKey] = parseCurrency(channel.selectedTotal)
     }
   }
 
-  let ratio: number
-  if (grossFullLineItems > 0) {
-    ratio = Math.min(1, grossSelected / grossFullLineItems)
-  } else if (baseline.grossMedia > 0) {
-    ratio = Math.min(1, grossSelected / baseline.grossMedia)
-  } else {
-    ratio = 1
-  }
-
+  const t = financials.mbaScopeTotals
   const values: PartialMbaValues = {
     mediaTotals,
-    grossMedia: grossSelected,
-    assembledFee: baseline.assembledFee * ratio,
-    adServing: baseline.adServing * ratio,
-    production: baseline.production,
+    grossMedia: t.grossMedia,
+    assembledFee: t.fee,
+    adServing: t.adServing,
+    production: t.production,
   }
 
   const lineItemsByMedia = Object.fromEntries(
@@ -248,9 +233,7 @@ export function recomputePartialMbaFromSelections(params: {
       assembledFee: formatCurrency(values.assembledFee),
       adServing: formatCurrency(values.adServing),
       production: formatCurrency(values.production),
-      totalInvestment: formatCurrency(
-        values.grossMedia + values.assembledFee + values.adServing + values.production,
-      ),
+      totalInvestment: formatCurrency(t.nettExGst),
     },
     note: buildPartialApprovalNote(channels, [...selectedMonthYears]),
     updatedAt: new Date().toISOString(),
