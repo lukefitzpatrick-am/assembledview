@@ -115,6 +115,100 @@ export function parseMapperToolInput(
   return { plan_meta, line_items, needs_review, warnings }
 }
 
+/** Above this many grid data rows, map in sequential batches. */
+export const MAPPER_CHUNK_THRESHOLD = 40
+/** Target data-row count per Claude batch when chunking. */
+export const MAPPER_CHUNK_SIZE = 30
+
+/**
+ * Grid rows after the header row. Detector always puts headerRow (when known)
+ * at grid[0]; remaining rows are the data band (panels + group context).
+ */
+export function countGridDataRows(detected: DetectedSheet): number {
+  if (detected.headerRow != null) return Math.max(0, detected.grid.length - 1)
+  return detected.grid.length
+}
+
+/**
+ * Split a detected sheet into mapper batches. Under the threshold returns the
+ * original sheet unchanged (same reference). Over it, each batch shares the
+ * same header/flight/columns/meta and only differs in its data-row grid slice.
+ * Trailing fully-blank data rows are dropped before splitting so worksheet
+ * padding does not create empty Claude calls.
+ */
+export function buildChunkedSheets(detected: DetectedSheet): DetectedSheet[] {
+  const dataCount = countGridDataRows(detected)
+  if (dataCount <= MAPPER_CHUNK_THRESHOLD) return [detected]
+
+  const hasHeader = detected.headerRow != null
+  const headerRows = hasHeader ? detected.grid.slice(0, 1) : []
+  let dataRows = hasHeader ? detected.grid.slice(1) : detected.grid.slice()
+
+  while (
+    dataRows.length > 0 &&
+    dataRows[dataRows.length - 1]!.every(
+      (c) => c == null || String(c).trim() === "",
+    )
+  ) {
+    dataRows = dataRows.slice(0, -1)
+  }
+  // Re-check after trim — entire sheet of blanks stays unchunked path below.
+  if (dataRows.length <= MAPPER_CHUNK_THRESHOLD) {
+    return [
+      {
+        ...detected,
+        grid: [...headerRows, ...dataRows],
+        dataRowRange: {
+          firstDataRow: detected.dataRowRange.firstDataRow,
+          lastDataRow:
+            detected.dataRowRange.firstDataRow + Math.max(0, dataRows.length - 1),
+        },
+        bonusSheets: undefined,
+      },
+    ]
+  }
+
+  const firstAbsolute = detected.dataRowRange.firstDataRow
+
+  const batches: DetectedSheet[] = []
+  for (let offset = 0; offset < dataRows.length; offset += MAPPER_CHUNK_SIZE) {
+    const slice = dataRows.slice(offset, offset + MAPPER_CHUNK_SIZE)
+    batches.push({
+      ...detected,
+      grid: [...headerRows, ...slice],
+      dataRowRange: {
+        firstDataRow: firstAbsolute + offset,
+        lastDataRow: firstAbsolute + offset + slice.length - 1,
+      },
+      // Chunks never carry nested bonus sheets — processPlanAutopopulate loops those.
+      bonusSheets: undefined,
+    })
+  }
+  return batches
+}
+
+/** Merge batch MapperResults: concat lines/reviews/warnings; prefer earliest plan_meta. */
+export function mergeMapperResults(results: MapperResult[]): MapperResult {
+  if (results.length === 0) {
+    return { plan_meta: {}, line_items: [], needs_review: [], warnings: [] }
+  }
+  if (results.length === 1) return results[0]!
+
+  const plan_meta: MapperResult["plan_meta"] = {}
+  for (const r of results) {
+    for (const key of ["client", "campaign", "demo", "startDate", "endDate"] as const) {
+      if (!plan_meta[key] && r.plan_meta[key]) plan_meta[key] = r.plan_meta[key]
+    }
+  }
+
+  return {
+    plan_meta,
+    line_items: results.flatMap((r) => r.line_items),
+    needs_review: results.flatMap((r) => r.needs_review),
+    warnings: results.flatMap((r) => r.warnings),
+  }
+}
+
 /** Compact payload for Claude — keep grid but avoid shipping unused keys twice. */
 function buildUserPayload(detected: DetectedSheet, channel: AutopopulateChannel) {
   return {
@@ -132,7 +226,7 @@ function buildUserPayload(detected: DetectedSheet, channel: AutopopulateChannel)
   }
 }
 
-export async function mapPlanWithClaude(input: {
+async function mapSingleBatch(input: {
   detected: DetectedSheet
   channel: AutopopulateChannel
 }): Promise<MapperResult> {
@@ -140,19 +234,23 @@ export async function mapPlanWithClaude(input: {
   const system = buildMapperSystemPrompt(input.channel)
   const userContent = JSON.stringify(buildUserPayload(input.detected, input.channel))
 
-  const response = await client.messages.create({
-    model: AVA_MODEL,
-    max_tokens: 8192,
-    system,
-    tools: [EMIT_MAPPED_PLAN_TOOL as unknown as Anthropic.Tool],
-    tool_choice: { type: "tool", name: EMIT_MAPPED_PLAN_TOOL_NAME },
-    messages: [
-      {
-        role: "user",
-        content: `Map this detected ${input.channel} plan to Assembled View line items.\n\n${userContent}`,
-      },
-    ],
-  })
+  // Stream: SDK requires streaming when max_tokens may take >10 min
+  // (claude-sonnet-4-5 ceiling is 64k).
+  const response = await client.messages
+    .stream({
+      model: AVA_MODEL,
+      max_tokens: 64000,
+      system,
+      tools: [EMIT_MAPPED_PLAN_TOOL as unknown as Anthropic.Tool],
+      tool_choice: { type: "tool", name: EMIT_MAPPED_PLAN_TOOL_NAME },
+      messages: [
+        {
+          role: "user",
+          content: `Map this detected ${input.channel} plan to Assembled View line items.\n\n${userContent}`,
+        },
+      ],
+    })
+    .finalMessage()
 
   const toolBlock = response.content.find(
     (b): b is Anthropic.ToolUseBlock =>
@@ -163,4 +261,24 @@ export async function mapPlanWithClaude(input: {
   }
 
   return parseMapperToolInput(toolBlock.input, input.channel)
+}
+
+/**
+ * Map a detected sheet via Claude. Large sheets are split into sequential
+ * batches so output size is unbounded by a single-call token ceiling.
+ */
+export async function mapPlanWithClaude(input: {
+  detected: DetectedSheet
+  channel: AutopopulateChannel
+}): Promise<MapperResult> {
+  const batches = buildChunkedSheets(input.detected)
+  if (batches.length === 1) {
+    return mapSingleBatch({ detected: batches[0]!, channel: input.channel })
+  }
+
+  const results: MapperResult[] = []
+  for (const batch of batches) {
+    results.push(await mapSingleBatch({ detected: batch, channel: input.channel }))
+  }
+  return mergeMapperResults(results)
 }
