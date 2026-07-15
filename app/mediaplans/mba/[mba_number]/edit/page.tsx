@@ -125,7 +125,6 @@ import {
   saveInfluencersLineItems,
   saveProductionLineItems,
   uploadMediaPlanVersionDocuments,
-  prefetchEditorMediaDetailsLists,
 } from "@/lib/api"
 import type { BillingMonth, BillingLineItem as BillingLineItemType, BillingBurst } from "@/lib/billing/types"
 import {
@@ -2131,7 +2130,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     //
     // Client lookup waits for both `clients` and `mediaPlan` (see effect below);
     // nothing in the wizard assumes reference lists arrive only after the plan.
-    prefetchEditorMediaDetailsLists()
     void Promise.allSettled([
       coalescedGetJson<Publisher[]>("/api/publishers"),
       coalescedGetJson<MediaContainerBestPractice[]>("/api/media-container-best-practice"),
