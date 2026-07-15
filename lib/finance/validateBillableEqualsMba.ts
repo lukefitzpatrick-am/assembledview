@@ -17,7 +17,7 @@ const DEFAULT_TOLERANCE = 0.01
 
 /**
  * Ensures the billing-schedule total (ex GST) matches the MBA total within tolerance.
- * Not wired into save/billing paths yet — Phase 0 validator only.
+ * Consumed by {@link computeCampaignFinancials} → `validation.billableEqualsMba`.
  */
 export function validateBillableEqualsMba(
   input: ValidateBillableEqualsMbaInput

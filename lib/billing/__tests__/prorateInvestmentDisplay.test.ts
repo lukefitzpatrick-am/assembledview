@@ -11,10 +11,10 @@ test("multi-month burst sums to full amount (fixes over-allocation)", () => {
     { amount: 10000, start: "2026-01-20", end: "2026-02-10" },
   ])
 
-  assert.ok(Math.abs(shares["January 2026"] - 5454.545454545455) < 0.000001)
-  assert.ok(Math.abs(shares["February 2026"] - 4545.454545454545) < 0.000001)
+  assert.equal(shares["January 2026"], 5454.55)
+  assert.equal(shares["February 2026"], 4545.45)
   const sum = Object.values(shares).reduce((a, b) => a + b, 0)
-  assert.ok(Math.abs(sum - 10000) < 0.000001)
+  assert.equal(Math.round(sum * 100), 1_000_000)
 })
 
 test("single-month burst → one row with full amount", () => {

@@ -11,9 +11,12 @@ export type MediaTypeRowIndicators = {
   notInMba: boolean
   manual: boolean
   feeAdjusted: boolean
+  /** True when any non-excluded line in this media type is client-pays-for-media. */
+  clientPays: boolean
 }
 
 export type MonthDotIndicator = {
+  /** Distinguishes hover copy; both tones render as attention (amber) in the UI. */
   tone: "prepay" | "manual"
   hover: string
 }
@@ -94,6 +97,9 @@ export function panelIndicatorsFromCampaignFinancials(
       notInMba: allExcluded,
       manual: lines.some((l) => l.flags.manualBilling),
       feeAdjusted: lines.some((l) => l.flags.manualFee),
+      clientPays: lines.some(
+        (l) => !l.flags.excluded && l.flags.clientPaysForMedia
+      ),
     }
   }
 
@@ -114,7 +120,8 @@ export function panelIndicatorsFromCampaignFinancials(
     titlePills.push({
       key: "prepay-reason",
       label: "Prepayment",
-      tone: "muted",
+      // Attention (amber) — same meaning family as manual overrides.
+      tone: "amber",
     })
   }
 

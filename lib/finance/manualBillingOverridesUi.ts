@@ -4,6 +4,7 @@
  */
 
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
+import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
 import {
   isoMonthToScheduleMonthYear,
   scheduleMonthYearToIso,
@@ -315,4 +316,147 @@ export function listManualOverrideLineIds(months: BillingMonth[]): {
     }
   }
   return { media: [...media], fee: [...fee] }
+}
+
+/**
+ * Upsert media (or fee) override meta for persistManualBillingOverrides.
+ * Keys by the first matching map entry (or the billing row id when new).
+ */
+export function upsertLineOverrideMeta(
+  metaByLine: Map<string, LineOverrideMeta[]>,
+  lineItemId: string,
+  meta: LineOverrideMeta
+): void {
+  const canon = toBillingOverrideLineItemId(lineItemId)
+  let mapKey = String(lineItemId).trim()
+  for (const key of metaByLine.keys()) {
+    if (toBillingOverrideLineItemId(key) === canon) {
+      mapKey = key
+      break
+    }
+  }
+  const prev = metaByLine.get(mapKey) ?? []
+  const next = prev.filter((m) => m.component !== meta.component)
+  next.push(meta)
+  metaByLine.set(mapKey, next)
+}
+
+/** Remove media/fee meta for a line (Reset to auto / clear prepayment). */
+export function clearLineOverrideMeta(
+  metaByLine: Map<string, LineOverrideMeta[]>,
+  lineItemId: string,
+  component?: "media" | "fee"
+): void {
+  const canon = toBillingOverrideLineItemId(lineItemId)
+  for (const key of [...metaByLine.keys()]) {
+    if (toBillingOverrideLineItemId(key) !== canon) continue
+    if (!component) {
+      metaByLine.delete(key)
+      continue
+    }
+    const next = (metaByLine.get(key) ?? []).filter((m) => m.component !== component)
+    if (next.length === 0) metaByLine.delete(key)
+    else metaByLine.set(key, next)
+  }
+}
+
+export function lineHasPrepaymentMeta(
+  metaByLine: Map<string, LineOverrideMeta[]>,
+  lineItemId: string
+): boolean {
+  const canon = toBillingOverrideLineItemId(lineItemId)
+  for (const [key, list] of metaByLine) {
+    if (toBillingOverrideLineItemId(key) !== canon) continue
+    if (list.some((m) => m.component === "media" && m.reason === "prepayment")) return true
+  }
+  return false
+}
+
+/**
+ * Full line-media in the earliest campaign/draft month, 0 elsewhere.
+ * Uses the same syncLineItemMonthlyAmountAcrossAllMonthRows path as cell edits.
+ */
+export function applyLinePrebillToMonths(
+  months: BillingMonth[],
+  mediaKey: string,
+  lineItemId: string,
+  lineMediaTotal: number
+): BillingMonth[] {
+  if (!months.length) return months
+  const earliest = months[0]!.monthYear
+  const total = roundMoney2(lineMediaTotal)
+  for (const month of months) {
+    const amount = month.monthYear === earliest ? total : 0
+    syncLineItemMonthlyAmountAcrossAllMonthRows(
+      months,
+      mediaKey,
+      lineItemId,
+      month.monthYear,
+      amount
+    )
+  }
+  // Stamp UI helper so Advanced Pre-bill checkbox stays in sync.
+  for (const month of months) {
+    if (!month.lineItems) continue
+    const list = month.lineItems[mediaKey as keyof typeof month.lineItems] as
+      | BillingLineItem[]
+      | undefined
+    if (!list) continue
+    for (const line of list) {
+      if (!billingOverrideLineIdsMatch(String(line.id ?? ""), lineItemId)) continue
+      line.preBill = true
+    }
+  }
+  return months
+}
+
+/** ISO month amounts for a prepayment override row (optimistic panels + replace_line). */
+export function buildPrepaymentOverrideMonths(
+  months: BillingMonth[],
+  lineMediaTotal: number
+): MonthAmount[] {
+  if (!months.length) return []
+  const earliest = months[0]!.monthYear
+  const total = roundMoney2(lineMediaTotal)
+  return months
+    .map((m) => ({
+      month: scheduleMonthYearToIso(m.monthYear),
+      amount: m.monthYear === earliest ? total : 0,
+    }))
+    .sort((a, b) => a.month.localeCompare(b.month))
+}
+
+/** Merge/replace a media prepayment row for live panel financials before persist. */
+export function upsertOptimisticPrepaymentOverrideRow(
+  rows: BillingOverrideRow[],
+  lineItemId: string,
+  months: MonthAmount[],
+  dateBasis = ""
+): BillingOverrideRow[] {
+  const canon = toBillingOverrideLineItemId(lineItemId)
+  const next = rows.filter((r) => {
+    if (rowComponent(r) !== "media") return true
+    return toBillingOverrideLineItemId(rowLineId(r)) !== canon
+  })
+  next.push({
+    line_item_id: canon,
+    component: "media",
+    mode: "manual",
+    reason: "prepayment",
+    months,
+    date_basis: dateBasis,
+  })
+  return next
+}
+
+/** Drop media override rows for a line (optimistic clear on Reset). */
+export function removeOptimisticMediaOverrideRow(
+  rows: BillingOverrideRow[],
+  lineItemId: string
+): BillingOverrideRow[] {
+  const canon = toBillingOverrideLineItemId(lineItemId)
+  return rows.filter((r) => {
+    if (rowComponent(r) !== "media") return true
+    return toBillingOverrideLineItemId(rowLineId(r)) !== canon
+  })
 }

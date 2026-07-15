@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { Check, ChevronDown, Download, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,17 +24,26 @@ import {
 import { cn } from "@/lib/utils"
 import type { CampaignFinancials } from "@/lib/finance/campaignFinancials.types"
 import type { PanelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
+import type { BillingDivergenceResult } from "@/lib/billing/compareBillingDivergence"
 import {
   BillingEqualsMbaPill,
+  BillingMismatchMbaPill,
   BillingMonthStatusDot,
   BillingScheduleTitlePills,
   EditBillingOverrideDot,
 } from "@/components/billing/BillingSchedulePanelIndicators"
 import {
   MbaBillableEqualsPill,
+  MbaBillableMismatchPill,
   MbaFeeAdjustedPill,
   MbaMediaTypeRowPills,
+  MbaPartialScopePill,
 } from "@/components/billing/MbaDetailsPanelIndicators"
+import { BillingDivergenceBanner } from "@/components/billing/BillingDivergenceBanner"
+import {
+  LineTimingInlineEditor,
+  type LineDateBasisChoice,
+} from "@/components/billing/LineTimingInlineEditor"
 
 const money = new Intl.NumberFormat("en-AU", {
   style: "currency",
@@ -60,7 +69,23 @@ export type MbaBillingScopeLine = {
     manualBilling: boolean
     manualFee: boolean
     clientPaysForMedia: boolean
+    prepaid: boolean
   }
+}
+
+/** Shared manual-billing read/write surface for inline Adjust timing (same model as Advanced). */
+export type MbaBillingLineTimingApi = {
+  monthYears: string[]
+  getAmount: (mediaKey: string, lineItemId: string, monthYear: string) => number
+  /** Expected media total for the sum gate (auto / booked line media). */
+  getExpectedMediaTotal: (mediaKey: string, lineItemId: string) => number
+  onCommit: (mediaKey: string, lineItemId: string, monthYear: string, raw: string) => void
+  onResetLine: (mediaKey: string, lineItemId: string) => void
+  /** Bill full line-media into the earliest campaign/draft month as reason=prepayment. */
+  onPrebillLine: (mediaKey: string, lineItemId: string) => void
+  /** Stale dateBasis keep/reset choice for a line (inline in timing editor). */
+  getDateBasisChoice?: (lineItemId: string) => LineDateBasisChoice | null
+  formatter: Intl.NumberFormat
 }
 
 export type MbaBillingModalProps = {
@@ -78,11 +103,43 @@ export type MbaBillingModalProps = {
   onResetApprovalsToAllIn?: () => void
   onDownloadExcel?: () => void
   downloadDisabled?: boolean
-  /** When true, show inline manual timing editor below the schedule. */
+  /**
+   * Opens the parent-owned full-billing reset confirm (AlertDialog).
+   * Hidden when omitted — modal does not run reset itself.
+   */
+  onResetBillingToAuto?: () => void
+  /**
+   * True when parent has prepared `manualBillingMonths` for timing edits.
+   * Enables per-line Adjust timing expanders without opening Advanced.
+   */
+  timingDraftReady?: boolean
+  /** Prepare the shared manual-billing draft (Edit timing). */
+  onEnsureTimingDraft?: () => void
+  /** Close / discard the timing draft session. */
+  onCloseTimingDraft?: () => void
+  /** When true, show the Advanced spreadsheet on the billing side. */
+  showAdvancedEditor?: boolean
+  onToggleAdvancedEditor?: () => void
+  /**
+   * @deprecated Prefer timingDraftReady + showAdvancedEditor.
+   * Treated as showAdvancedEditor when the new props are omitted.
+   */
   showManualEditor?: boolean
+  /**
+   * @deprecated Prefer onEnsureTimingDraft / onToggleAdvancedEditor.
+   */
   onToggleManualEditor?: () => void
-  /** Parent-owned C2 editor (ManualBillingSpreadsheet etc.). */
+  /** Per-line inline timing API (same callbacks as Advanced spreadsheet). */
+  lineTiming?: MbaBillingLineTimingApi
+  /** Parent-owned Advanced editor (ManualBillingSpreadsheetProvider). */
   manualBillingEditor?: ReactNode
+  /**
+   * Manual vs auto divergence — shown as an inline attention banner (not a stacked Dialog).
+   * Hidden when null / not divergent / already acknowledged.
+   */
+  billingDivergence?: BillingDivergenceResult | null
+  showDivergenceBanner?: boolean
+  onAcknowledgeDivergence?: () => void
   footer?: ReactNode
 }
 
@@ -135,9 +192,11 @@ function groupScopeLinesByContainer(scopeLines: MbaBillingScopeLine[]): ScopeCon
 function HeaderStrip({
   versionLabel,
   financials,
+  panelIndicators,
 }: {
   versionLabel: string
   financials: CampaignFinancials
+  panelIndicators: PanelIndicatorsFromCampaignFinancials
 }) {
   const lines = financials.perLine
   const total = lines.length
@@ -147,47 +206,53 @@ function HeaderStrip({
   const billingNeDelivery = financials.deliveryVsBillingDelta.filter(
     (d) => Math.abs(d.media) > 0.005 || d.reasons.some((r) => r !== "rounding")
   ).length
+  // CORE validation only (subtracts client-pays media). Never compare schedule grand total to MBA nett.
   const billableEquals = financials.validation.billableEqualsMba
+  const partialLabel = panelIndicators.mbaDetails.partialLabel
 
-  const quiet = manual === 0 && clientPays === 0 && billingNeDelivery === 0
+  const quiet =
+    !partialLabel && manual === 0 && clientPays === 0 && billingNeDelivery === 0
 
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-panel px-6 py-3">
       <Badge variant="secondary" size="sm" className="rounded-pill font-medium">
         MBA {versionLabel}
       </Badge>
-      {total > 0 ? (
-        <Badge variant="secondary" size="sm" className="rounded-pill font-medium">
-          <span className="num">
-            {approved} of {total}
-          </span>{" "}
-          approved
+      {/* Core signal — same Partial MBA · X of Y as MBA Details panel */}
+      <MbaPartialScopePill label={partialLabel} />
+      {!partialLabel && total > 0 ? (
+        <Badge variant="good" size="sm" className="rounded-pill font-medium">
+          <span className="num">{`${approved} of ${total} approved`}</span>
         </Badge>
       ) : null}
       {manual > 0 ? (
-        <Badge variant="warning" size="sm" className="rounded-pill font-medium">
+        <Badge variant="attention" size="sm" className="rounded-pill font-medium">
           <span className="num">{manual}</span> manual
         </Badge>
       ) : null}
       {clientPays > 0 ? (
-        <Badge variant="secondary" size="sm" className="rounded-pill font-medium">
+        <Badge variant="secondary" size="sm" className="rounded-pill font-medium text-muted-foreground">
           client-pays: <span className="num">{clientPays}</span>
         </Badge>
       ) : null}
       {billingNeDelivery > 0 ? (
-        <Badge variant="warning" size="sm" className="rounded-pill font-medium">
+        <Badge variant="attention" size="sm" className="rounded-pill font-medium">
           billing≠delivery: <span className="num">{billingNeDelivery}</span>
         </Badge>
       ) : null}
       {billableEquals ? (
-        <Badge
-          variant="secondary"
-          size="sm"
-          className="rounded-pill font-medium text-status-on-track-fg"
-          title="Billable totals match MBA"
-        >
+        <Badge variant="good" size="sm" className="rounded-pill font-medium" title="Billable totals match MBA">
           <Check className="mr-1 h-3.5 w-3.5" aria-hidden />
           billable = MBA
+        </Badge>
+      ) : total > 0 ? (
+        <Badge
+          variant="blocking"
+          size="sm"
+          className="rounded-pill font-medium"
+          title="Billable totals do not match MBA"
+        >
+          billing ≠ MBA
         </Badge>
       ) : null}
       {quiet && billableEquals && total > 0 ? (
@@ -197,84 +262,221 @@ function HeaderStrip({
   )
 }
 
+function inMbaVersionPillLabel(versionLabel: string): string {
+  const v = versionLabel.trim()
+  if (!v) return "In MBA"
+  return /^v/i.test(v) ? `In MBA ${v}` : `In MBA v${v}`
+}
+
 function ScopeLineRow({
   line,
+  versionLabel,
   onToggleLineApproved,
+  timingDraftReady,
+  onEnsureTimingDraft,
+  lineTiming,
 }: {
   line: MbaBillingScopeLine
+  versionLabel: string
   onToggleLineApproved: MbaBillingModalProps["onToggleLineApproved"]
+  timingDraftReady?: boolean
+  onEnsureTimingDraft?: () => void
+  lineTiming?: MbaBillingLineTimingApi
 }) {
   const muted = line.flags.excluded
+  const dateBasisChoice = lineTiming?.getDateBasisChoice?.(line.lineItemId) ?? null
+  const [timingOpen, setTimingOpen] = useState(() => Boolean(dateBasisChoice))
+  const canAdjustTiming = Boolean(lineTiming) && !muted
+
+  // Auto-expand Adjust timing when a date-basis choice appears for this line.
+  useEffect(() => {
+    if (dateBasisChoice && timingDraftReady) setTimingOpen(true)
+  }, [dateBasisChoice, timingDraftReady])
+
+  function handleToggleTiming() {
+    if (!canAdjustTiming) return
+    if (!timingDraftReady) {
+      onEnsureTimingDraft?.()
+      setTimingOpen(true)
+      return
+    }
+    setTimingOpen((v) => !v)
+  }
+
   return (
     <div
       className={cn(
-        "flex items-start gap-3 rounded-input border border-transparent px-2 py-2 pl-8 transition-colors",
-        muted ? "opacity-60" : "hover:bg-table-row-hover"
+        "rounded-input border border-transparent px-2 py-2 pl-8 transition-colors",
+        muted ? "bg-muted/30 text-muted-foreground opacity-70" : "hover:bg-table-row-hover"
       )}
     >
-      <Switch
-        checked={line.approved}
-        onCheckedChange={(checked) =>
-          onToggleLineApproved(line.lineItemId, line.mediaType, checked)
-        }
-        aria-label={
-          line.approved
-            ? `Exclude ${line.title} from MBA`
-            : `Approve ${line.title} for MBA`
-        }
-        className="mt-0.5 shrink-0"
-      />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="truncate text-sm font-medium text-foreground">{line.title}</span>
-          {line.approved && !muted ? (
-            <Badge
-              variant="secondary"
-              size="sm"
-              className="rounded-pill font-normal text-status-on-track-fg"
+      <div className="flex items-start gap-3">
+        <Switch
+          checked={line.approved}
+          onCheckedChange={(checked) =>
+            onToggleLineApproved(line.lineItemId, line.mediaType, checked)
+          }
+          aria-label={
+            line.approved
+              ? `Exclude ${line.title} from MBA`
+              : `Approve ${line.title} for MBA`
+          }
+          className="mt-0.5 shrink-0"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span
+              className={cn(
+                "truncate text-sm font-medium",
+                muted ? "text-muted-foreground" : "text-foreground"
+              )}
             >
-              In MBA
-            </Badge>
-          ) : (
-            <Badge
-              variant="secondary"
-              size="sm"
-              className="rounded-pill font-normal text-muted-foreground"
-            >
-              Not in MBA
-            </Badge>
-          )}
-          {line.flags.manualBilling && !muted ? (
-            <Badge variant="warning" size="sm" className="rounded-pill font-normal">
-              Manual
-            </Badge>
+              {line.title}
+            </span>
+            {muted ? (
+              <Badge
+                variant="secondary"
+                size="sm"
+                className="rounded-pill font-normal text-muted-foreground"
+              >
+                Not in MBA — excluded
+              </Badge>
+            ) : line.approved ? (
+              <Badge variant="good" size="sm" className="rounded-pill font-normal">
+                {inMbaVersionPillLabel(versionLabel)}
+              </Badge>
+            ) : (
+              <Badge
+                variant="secondary"
+                size="sm"
+                className="rounded-pill font-normal text-muted-foreground"
+              >
+                Not in MBA
+              </Badge>
+            )}
+            {line.flags.prepaid && !muted ? (
+              <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                Prepaid
+              </Badge>
+            ) : null}
+            {line.flags.manualBilling && !muted && !line.flags.prepaid ? (
+              <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                Manual
+              </Badge>
+            ) : null}
+            {line.flags.manualFee && !muted ? (
+              <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                Fee adjusted
+              </Badge>
+            ) : null}
+            {line.flags.clientPaysForMedia && !muted ? (
+              <Badge variant="secondary" size="sm" className="rounded-pill font-normal">
+                Client pays
+              </Badge>
+            ) : null}
+            {dateBasisChoice && !muted ? (
+              <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                Dates changed
+              </Badge>
+            ) : null}
+          </div>
+          {line.subtitle ? (
+            <p className="truncate text-xs text-muted-foreground">{line.subtitle}</p>
           ) : null}
-          {line.flags.manualFee && !muted ? (
-            <Badge
-              variant="outline"
-              size="sm"
-              className="rounded-pill font-normal text-status-behind-fg border-border"
-            >
-              Fee adjusted
-            </Badge>
-          ) : null}
-          {line.flags.clientPaysForMedia && !muted ? (
-            <Badge variant="secondary" size="sm" className="rounded-pill font-normal">
-              Client pays
-            </Badge>
+          {canAdjustTiming ? (
+            <div className="mt-1 flex flex-wrap items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={handleToggleTiming}
+                aria-expanded={timingOpen && timingDraftReady}
+              >
+                <ChevronDown
+                  className={cn(
+                    "mr-1 h-3.5 w-3.5 transition-transform",
+                    !(timingOpen && timingDraftReady) && "-rotate-90"
+                  )}
+                  aria-hidden
+                />
+                Adjust timing
+              </Button>
+              {!line.flags.prepaid ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => lineTiming?.onPrebillLine(line.mediaType, line.lineItemId)}
+                >
+                  ⚡ Prebill
+                </Button>
+              ) : null}
+            </div>
           ) : null}
         </div>
-        {line.subtitle ? (
-          <p className="truncate text-xs text-muted-foreground">{line.subtitle}</p>
-        ) : null}
+        <div className="shrink-0 text-right">
+          <div className="num text-sm font-medium">{money.format(line.media)}</div>
+          {line.fee > 0.005 ? (
+            <div className="num text-xs text-muted-foreground">fee {money.format(line.fee)}</div>
+          ) : null}
+        </div>
       </div>
-      <div className="shrink-0 text-right">
-        <div className="num text-sm font-medium">{money.format(line.media)}</div>
-        {line.fee > 0.005 ? (
-          <div className="num text-xs text-muted-foreground">fee {money.format(line.fee)}</div>
-        ) : null}
-      </div>
+      {canAdjustTiming && timingOpen && timingDraftReady && lineTiming ? (
+        <LineTimingInlineEditor
+          mediaKey={line.mediaType}
+          lineItemId={line.lineItemId}
+          expectedMediaTotal={lineTiming.getExpectedMediaTotal(line.mediaType, line.lineItemId)}
+          monthYears={lineTiming.monthYears}
+          getAmount={lineTiming.getAmount}
+          onCommit={lineTiming.onCommit}
+          onResetToAuto={lineTiming.onResetLine}
+          onPrebill={lineTiming.onPrebillLine}
+          isPrepaid={line.flags.prepaid}
+          dateBasisChoice={dateBasisChoice}
+          formatter={lineTiming.formatter}
+        />
+      ) : null}
     </div>
+  )
+}
+
+function ContainerStatusCheck({
+  allApproved,
+  partial,
+}: {
+  allApproved: boolean
+  partial: boolean
+}) {
+  if (allApproved) {
+    return (
+      <span
+        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-pill bg-status-good-bg text-status-good-fg"
+        title="All lines in MBA"
+        aria-label="All lines approved"
+      >
+        <Check className="h-3 w-3" aria-hidden />
+      </span>
+    )
+  }
+  if (partial) {
+    return (
+      <span
+        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-pill bg-status-attention-bg"
+        title="Partial approval"
+        aria-label="Partially approved"
+      >
+        <span className="h-2 w-2 rounded-pill bg-status-attention" aria-hidden />
+      </span>
+    )
+  }
+  return (
+    <span
+      className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-pill border border-border"
+      title="None in MBA"
+      aria-label="No lines approved"
+    />
   )
 }
 
@@ -294,11 +496,30 @@ export function MbaBillingModal({
   onResetApprovalsToAllIn,
   onDownloadExcel,
   downloadDisabled,
+  onResetBillingToAuto,
+  timingDraftReady,
+  onEnsureTimingDraft,
+  onCloseTimingDraft,
+  showAdvancedEditor,
+  onToggleAdvancedEditor,
   showManualEditor,
   onToggleManualEditor,
+  lineTiming,
   manualBillingEditor,
+  billingDivergence = null,
+  showDivergenceBanner = false,
+  onAcknowledgeDivergence,
   footer,
 }: MbaBillingModalProps) {
+  const advancedOpen = showAdvancedEditor ?? showManualEditor ?? false
+  const draftReady = timingDraftReady ?? advancedOpen
+  const ensureDraft =
+    onEnsureTimingDraft ??
+    (onToggleManualEditor && !advancedOpen ? onToggleManualEditor : undefined)
+  const toggleAdvanced =
+    onToggleAdvancedEditor ??
+    (onToggleManualEditor && draftReady ? onToggleManualEditor : undefined)
+  const closeDraft = onCloseTimingDraft
   const t = financials.mbaScopeTotals
   const schedule = financials.billingSchedule
   const byMedia = panelIndicators.mbaDetails.byMediaType
@@ -332,12 +553,27 @@ export function MbaBillingModal({
     0
   )
 
+  function setExpanded(next: Record<string, boolean>) {
+    setExpandedByMediaType(next)
+    for (const [k, v] of Object.entries(next)) {
+      sessionExpandedByMediaType[k] = v
+    }
+  }
+
   function toggleContainerExpanded(mediaType: string) {
     setExpandedByMediaType((prev) => {
       const next = { ...prev, [mediaType]: !prev[mediaType] }
       sessionExpandedByMediaType[mediaType] = next[mediaType]
       return next
     })
+  }
+
+  function expandAllContainers() {
+    setExpanded(Object.fromEntries(containers.map((c) => [c.mediaType, true])))
+  }
+
+  function collapseAllContainers() {
+    setExpanded(Object.fromEntries(containers.map((c) => [c.mediaType, false])))
   }
 
   function handleContainerApproveToggle(group: ScopeContainerGroup) {
@@ -355,48 +591,88 @@ export function MbaBillingModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[92vh] w-[min(100vw-1.5rem,72rem)] max-w-6xl flex-col overflow-hidden p-0">
-        <div className="h-1 shrink-0 bg-primary" />
-        <div className="shrink-0 border-b border-border px-6 py-4">
-          <DialogHeader>
-            <DialogTitle>MBA &amp; billing</DialogTitle>
-            <DialogDescription>
-              Approve lines for MBA scope and review the billing schedule. Totals come from core
-              financials.
-            </DialogDescription>
-          </DialogHeader>
+      <DialogContent className="flex h-[calc(100vh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-none flex-col gap-0 overflow-hidden p-0">
+        {/* Sticky header: brand bar + title + status strip */}
+        <div className="shrink-0">
+          <div className="h-1 bg-primary" />
+          <div className="border-b border-border px-6 py-4 pr-12">
+            <DialogHeader>
+              <DialogTitle>MBA &amp; billing</DialogTitle>
+              <DialogDescription>
+                Approve lines for MBA scope and review the billing schedule. Totals come from core
+                financials.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <HeaderStrip
+            versionLabel={versionLabel}
+            financials={financials}
+            panelIndicators={panelIndicators}
+          />
+          {showDivergenceBanner && billingDivergence?.isDivergent ? (
+            <div className="border-b border-border px-6 py-3">
+              <BillingDivergenceBanner
+                divergence={billingDivergence}
+                onAcknowledge={onAcknowledgeDivergence}
+              />
+            </div>
+          ) : null}
         </div>
 
-        <HeaderStrip versionLabel={versionLabel} financials={financials} />
-
+        {/* Scrollable two-column body between sticky header + footer */}
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="grid grid-cols-1 gap-0 xl:grid-cols-2 xl:divide-x xl:divide-border">
-            {/* Left — MBA scope */}
+          <div className="grid min-h-full grid-cols-1 gap-0 xl:grid-cols-2 xl:divide-x xl:divide-border">
+            {/* Left — MBA scope collapsible tree */}
             <section className="flex min-w-0 flex-col border-b border-border xl:border-b-0">
-              <div className="flex items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-5 py-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-muted/20 px-5 py-3">
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   MBA scope
                 </h3>
-                {onResetApprovalsToAllIn ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs"
-                    onClick={onResetApprovalsToAllIn}
-                  >
-                    All in
-                  </Button>
-                ) : null}
+                <div className="flex flex-wrap items-center gap-1">
+                  {containers.length > 0 ? (
+                    <>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={expandAllContainers}
+                      >
+                        Expand all
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={collapseAllContainers}
+                      >
+                        Collapse all
+                      </Button>
+                    </>
+                  ) : null}
+                  {onResetApprovalsToAllIn ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={onResetApprovalsToAllIn}
+                    >
+                      All in
+                    </Button>
+                  ) : null}
+                </div>
               </div>
-              <div className="max-h-[min(50vh,28rem)] space-y-2 overflow-y-auto px-3 py-3 xl:max-h-none">
+              <div className="space-y-2 px-3 py-3">
                 {containers.length === 0 ? (
                   <p className="px-2 py-6 text-center text-sm text-muted-foreground">
                     No line items yet. Enable media and add flights first.
                   </p>
                 ) : (
                   containers.map((group) => {
-                    const expanded = Boolean(expandedByMediaType[group.mediaType])
+                    // Collapsed by default — only true when explicitly expanded.
+                    const expanded = expandedByMediaType[group.mediaType] === true
                     const rowInd = byMedia[group.mediaType]
                     const checkboxState: boolean | "indeterminate" = group.allApproved
                       ? true
@@ -406,7 +682,7 @@ export function MbaBillingModal({
                     return (
                       <div
                         key={group.mediaType}
-                        className="rounded-input border border-border bg-card shadow-e0"
+                        className="rounded-card border border-border bg-card shadow-e0"
                       >
                         <div
                           className={cn(
@@ -430,17 +706,14 @@ export function MbaBillingModal({
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <span className="truncate text-sm font-semibold text-foreground">
-                                  {group.mediaLabel}
-                                </span>
-                                <Badge
-                                  variant="secondary"
-                                  size="sm"
-                                  className="rounded-pill font-medium"
-                                >
                                   <span className="num">
-                                    {group.approvedCount} of {group.totalCount}
+                                    {`${group.mediaLabel} · ${group.approvedCount} of ${group.totalCount}`}
                                   </span>
-                                </Badge>
+                                </span>
+                                <ContainerStatusCheck
+                                  allApproved={group.allApproved}
+                                  partial={group.partial}
+                                />
                                 <MbaMediaTypeRowPills row={rowInd} />
                               </div>
                             </div>
@@ -448,11 +721,9 @@ export function MbaBillingModal({
                               <div className="num text-sm font-medium">
                                 {money.format(group.mediaSum)}
                               </div>
-                              {group.feeSum > 0.005 ? (
-                                <div className="num text-xs text-muted-foreground">
-                                  fee {money.format(group.feeSum)}
-                                </div>
-                              ) : null}
+                              <div className="num text-xs text-muted-foreground">
+                                fee {money.format(group.feeSum)}
+                              </div>
                             </div>
                           </button>
                           <Checkbox
@@ -473,7 +744,11 @@ export function MbaBillingModal({
                               <ScopeLineRow
                                 key={`${line.mediaType}:${line.lineItemId}`}
                                 line={line}
+                                versionLabel={versionLabel}
                                 onToggleLineApproved={onToggleLineApproved}
+                                timingDraftReady={draftReady}
+                                onEnsureTimingDraft={ensureDraft}
+                                lineTiming={lineTiming}
                               />
                             ))}
                           </div>
@@ -483,6 +758,7 @@ export function MbaBillingModal({
                   })
                 )}
               </div>
+              {/* Core MBA scope totals — not ad-hoc resums of the tree */}
               <div className="mt-auto space-y-2 border-t border-border bg-muted/10 px-5 py-4">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Gross Media</span>
@@ -495,20 +771,29 @@ export function MbaBillingModal({
                   </span>
                   <span className="num font-medium">{money.format(t.fee)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Ad Serving &amp; Tech</span>
-                  <span className="num font-medium">{money.format(t.adServing)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Production</span>
-                  <span className="num font-medium">{money.format(t.production)}</span>
-                </div>
+                {(t.adServing > 0.005 || t.production > 0.005) && (
+                  <>
+                    {t.adServing > 0.005 ? (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Ad Serving &amp; Tech</span>
+                        <span className="num font-medium">{money.format(t.adServing)}</span>
+                      </div>
+                    ) : null}
+                    {t.production > 0.005 ? (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Production</span>
+                        <span className="num font-medium">{money.format(t.production)}</span>
+                      </div>
+                    ) : null}
+                  </>
+                )}
                 <div className="flex justify-between border-t border-border pt-2 text-sm font-semibold">
                   <span className="flex items-center">
-                    Total ex GST
+                    Total investment (ex GST)
                     <MbaBillableEqualsPill show={panelIndicators.mbaDetails.billableEqualsMba} />
+                    <MbaBillableMismatchPill show={!panelIndicators.mbaDetails.billableEqualsMba} />
                   </span>
-                  <span className="num text-primary">{money.format(t.nettExGst)}</span>
+                  <span className="num text-foreground">{money.format(t.nettExGst)}</span>
                 </div>
               </div>
             </section>
@@ -523,6 +808,16 @@ export function MbaBillingModal({
                   <BillingScheduleTitlePills pills={panelIndicators.billingSchedule.titlePills} />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {onResetBillingToAuto ? (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={onResetBillingToAuto}
+                    >
+                      Reset billing to auto
+                    </Button>
+                  ) : null}
                   {onDownloadExcel ? (
                     <Button
                       type="button"
@@ -535,19 +830,42 @@ export function MbaBillingModal({
                       Excel
                     </Button>
                   ) : null}
-                  {onToggleManualEditor ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={showManualEditor ? "secondary" : "default"}
-                      className="relative"
-                      onClick={onToggleManualEditor}
-                    >
-                      {showManualEditor ? "Hide editor" : "Edit timing"}
-                      <EditBillingOverrideDot
-                        show={panelIndicators.billingSchedule.editBillingHasOverride}
-                      />
-                    </Button>
+                  {ensureDraft || toggleAdvanced || closeDraft ? (
+                    <>
+                      {!draftReady && ensureDraft ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="action"
+                          className="relative"
+                          onClick={ensureDraft}
+                        >
+                          Edit timing
+                          <EditBillingOverrideDot
+                            show={panelIndicators.billingSchedule.editBillingHasOverride}
+                          />
+                        </Button>
+                      ) : null}
+                      {draftReady && toggleAdvanced ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={advancedOpen ? "secondary" : "outline"}
+                          className="relative"
+                          onClick={toggleAdvanced}
+                        >
+                          {advancedOpen ? "Hide advanced" : "Advanced editor"}
+                          <EditBillingOverrideDot
+                            show={panelIndicators.billingSchedule.editBillingHasOverride}
+                          />
+                        </Button>
+                      ) : null}
+                      {draftReady && closeDraft ? (
+                        <Button type="button" size="sm" variant="ghost" onClick={closeDraft}>
+                          Done
+                        </Button>
+                      ) : null}
+                    </>
                   ) : (
                     <p className="text-xs text-muted-foreground">
                       Manual billing available after save.
@@ -597,8 +915,12 @@ export function MbaBillingModal({
                           <TableCell>
                             <span className="inline-flex items-center">
                               Grand Total
+                              {/* Same core flag as header — not grandTotal vs MBA scope nett. */}
                               <BillingEqualsMbaPill
                                 show={panelIndicators.billingSchedule.billableEqualsMba}
+                              />
+                              <BillingMismatchMbaPill
+                                show={!panelIndicators.billingSchedule.billableEqualsMba}
                               />
                             </span>
                           </TableCell>
@@ -618,17 +940,23 @@ export function MbaBillingModal({
                 ) : null}
               </div>
 
-              {showManualEditor && manualBillingEditor ? (
-                <div className="border-t border-border px-3 py-4">{manualBillingEditor}</div>
+              {advancedOpen && manualBillingEditor ? (
+                <div className="border-t border-border px-3 py-4">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Advanced editor
+                  </p>
+                  {manualBillingEditor}
+                </div>
               ) : null}
             </section>
           </div>
         </div>
 
+        {/* Sticky footer */}
         {footer ? (
-          <div className="shrink-0 border-t border-border px-6 py-3">{footer}</div>
+          <div className="shrink-0 border-t border-border bg-background px-6 py-3">{footer}</div>
         ) : (
-          <div className="flex shrink-0 justify-end border-t border-border px-6 py-3">
+          <div className="flex shrink-0 justify-end border-t border-border bg-background px-6 py-3">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               <X className="mr-1.5 h-3.5 w-3.5" />
               Close

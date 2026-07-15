@@ -145,14 +145,18 @@ function mapBurst(burst: any, mediaType: string): BurstInput {
   return input
 }
 
-function resolveApproval(
+export function resolveApproval(
   mediaType: string,
   lineItemId: string,
   opts?: BuildEditorLineItemInputsOpts
 ): LineItemApproval {
   if (!opts?.isPartialMBA) return "approved"
   const selected = opts.partialMBASelectedLineItemIds?.[mediaType]
-  if (!selected || selected.length === 0) return "excluded"
+  // Unlisted / missing channel → fully IN (new channel or reload without metadata).
+  if (selected === undefined) return "approved"
+  // Explicit empty selection → channel managed as all-excluded.
+  if (selected.length === 0) return "excluded"
+  // Managed channel: only selected line ids are approved (new lines default out).
   return selected.includes(lineItemId) ? "approved" : "excluded"
 }
 

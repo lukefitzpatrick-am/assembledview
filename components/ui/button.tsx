@@ -9,6 +9,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary-hover",
+        /** Ink/neutral primary CTA — use for Save / Open MBA / Edit timing (not brand green). */
+        action: "bg-action text-action-foreground hover:bg-action-hover",
         destructive: "bg-error text-white hover:bg-error-hover",
         outline: "border-2 border-input bg-background hover:bg-accent hover:text-accent-foreground",
         secondary: "bg-secondary text-white hover:bg-secondary-hover",

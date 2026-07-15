@@ -142,6 +142,7 @@ test("get_creative_assets shape", () => {
     status: "active",
     uploaded_by_email: "a@b.com",
     uploaded_by_role: "admin",
+    uploaded_by_name: "Ada Admin",
   })
   assert.equal(row.mime, "image/png")
   assert.equal(row.line_item_id, "xSO1")

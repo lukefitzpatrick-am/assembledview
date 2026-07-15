@@ -108,6 +108,11 @@ export type LineItemInput = {
   billingOverride?: BillingOverride
   /** Fee billing timing/amount override (does not affect media). */
   feeOverride?: FeeOverride
+  /**
+   * Human display name (MBA scope title). Display/validation copy only —
+   * excluded from {@link computeBillingInputsHash}.
+   */
+  label?: string
 }
 
 export type PerLineResultFlags = {
@@ -115,6 +120,8 @@ export type PerLineResultFlags = {
   manualBilling: boolean
   /** True when the line carries a manual fee override (timing and/or amount). */
   manualFee: boolean
+  /** True when media billingOverride.reason is prepayment (full-line dump to earliest month). */
+  prepaid: boolean
   excluded: boolean
 }
 

@@ -32,6 +32,14 @@ function resolveUploadedByEmail(user: { [key: string]: unknown }): string {
   return typeof email === "string" && email.trim() ? email.trim() : ""
 }
 
+function resolveUploadedByName(user: { [key: string]: unknown }): string {
+  const name = user.name
+  if (typeof name === "string" && name.trim()) return name.trim()
+  const given = typeof user.given_name === "string" ? user.given_name.trim() : ""
+  const family = typeof user.family_name === "string" ? user.family_name.trim() : ""
+  return `${given} ${family}`.trim()
+}
+
 function parseUploadClientPayload(
   clientPayload: string | null,
 ):
@@ -155,6 +163,7 @@ export async function POST(request: NextRequest) {
 
         const email = resolveUploadedByEmail(session.user as { [key: string]: unknown })
         const role = resolveUploadedByRole(session.user as { [key: string]: unknown })
+        const name = resolveUploadedByName(session.user as { [key: string]: unknown })
 
         return {
           allowedContentTypes: ALLOWED_CONTENT_TYPES,
@@ -168,6 +177,7 @@ export async function POST(request: NextRequest) {
             file_size_bytes,
             email,
             role,
+            name,
           }),
         }
       },
@@ -198,6 +208,7 @@ export async function POST(request: NextRequest) {
           status: "active",
           uploaded_by_email: token.email,
           uploaded_by_role: token.role,
+          uploaded_by_name: token.name,
         })
       },
     })

@@ -70,6 +70,52 @@ test("panel indicators: manual + fee override surface pills and amber Edit Billi
   assert.equal(indicators.mbaDetails.mbaFeeAdjusted, true)
 })
 
+test("panel indicators: clientPays on media-type row when any in-scope line is client-pays", () => {
+  const financials = computeCampaignFinancials(
+    [
+      searchLine({
+        lineItemId: "billing-search::CP",
+        clientPaysForMedia: true,
+        feePct: 20,
+      }),
+    ],
+    { feeLoading: {} }
+  )
+  const indicators = panelIndicatorsFromCampaignFinancials(financials)
+
+  assert.equal(indicators.mbaDetails.byMediaType.search?.clientPays, true)
+  assert.equal(indicators.mbaDetails.byMediaType.search?.manual, false)
+})
+
+test("panel indicators: clientPays false when only excluded lines are client-pays", () => {
+  const financials = computeCampaignFinancials(
+    [
+      searchLine({
+        lineItemId: "billing-search::IN",
+        clientPaysForMedia: false,
+      }),
+      searchLine({
+        lineItemId: "billing-search::OUT",
+        clientPaysForMedia: true,
+        approval: "excluded",
+        enteredAmount: 500,
+        bursts: [
+          {
+            startDate: "2026-06-01",
+            endDate: "2026-06-30",
+            budget: 500,
+            buyAmount: 1,
+          },
+        ],
+      }),
+    ],
+    { feeLoading: {} }
+  )
+  const indicators = panelIndicatorsFromCampaignFinancials(financials)
+
+  assert.equal(indicators.mbaDetails.byMediaType.search?.clientPays, false)
+})
+
 test("panel indicators: partial scope amber label X of Y", () => {
   const financials = computeCampaignFinancials(
     [

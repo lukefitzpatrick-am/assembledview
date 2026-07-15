@@ -12,11 +12,13 @@ import {
 } from "@/components/ui/table"
 import {
   BillingEqualsMbaPill,
+  BillingMismatchMbaPill,
   BillingMonthStatusDot,
   BillingScheduleTitlePills,
 } from "@/components/billing/BillingSchedulePanelIndicators"
 import {
   MbaBillableEqualsPill,
+  MbaBillableMismatchPill,
   MbaFeeAdjustedPill,
   MbaPartialScopePill,
 } from "@/components/billing/MbaDetailsPanelIndicators"
@@ -82,16 +84,20 @@ export function MbaBillingAutoCalcSummary({
             <MbaPartialScopePill label={panelIndicators.mbaDetails.partialLabel} />
           </h3>
           {panelIndicators.mbaDetails.billableEqualsMba ? (
-            <Badge
-              variant="secondary"
-              size="sm"
-              className="rounded-pill font-medium text-status-on-track-fg"
-              title="Billable totals match MBA"
-            >
+            <Badge variant="good" size="sm" className="rounded-pill font-medium" title="Billable totals match MBA">
               <Check className="mr-1 h-3.5 w-3.5" aria-hidden />
               billable = MBA
             </Badge>
-          ) : null}
+          ) : (
+            <Badge
+              variant="blocking"
+              size="sm"
+              className="rounded-pill font-medium"
+              title="Billable totals do not match MBA"
+            >
+              billing ≠ MBA
+            </Badge>
+          )}
         </div>
         <div className="space-y-2 px-5 py-4">
           {mediaBreakdown.map(({ mediaType, media }) => (
@@ -126,8 +132,9 @@ export function MbaBillingAutoCalcSummary({
               <span className="flex items-center text-sm font-semibold text-foreground">
                 Total Investment (ex GST)
                 <MbaBillableEqualsPill show={panelIndicators.mbaDetails.billableEqualsMba} />
+                <MbaBillableMismatchPill show={!panelIndicators.mbaDetails.billableEqualsMba} />
               </span>
-              <span className="num text-sm font-semibold text-primary">
+              <span className="num text-sm font-semibold text-foreground">
                 {money.format(t.nettExGst)}
               </span>
             </div>
@@ -177,6 +184,9 @@ export function MbaBillingAutoCalcSummary({
                     Grand Total
                     <BillingEqualsMbaPill
                       show={panelIndicators.billingSchedule.billableEqualsMba}
+                    />
+                    <BillingMismatchMbaPill
+                      show={!panelIndicators.billingSchedule.billableEqualsMba}
                     />
                   </span>
                 </TableCell>

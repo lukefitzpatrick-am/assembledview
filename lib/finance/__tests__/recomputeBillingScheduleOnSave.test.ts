@@ -99,6 +99,10 @@ test("stale AUTO fee schedule (krusty-style) → 409 with totalDelta", () => {
   assert.equal(result.body.code, "BILLING_SCHEDULE_DIVERGENCE")
   assert.ok(result.body.delta)
   assert.ok(Math.abs(result.body.delta!.totalDeltaExGst) > 0.01)
+  assert.ok(
+    typeof result.body.userMessage === "string" && result.body.userMessage.includes("ex GST"),
+    "divergence body should include human userMessage"
+  )
 })
 
 test("matching AUTO schedule passes; rebill_needed false", () => {
@@ -127,6 +131,7 @@ test("manual media override that fails sum rule → 409 sumViolations (C2 gate)"
   const result = recomputeAndValidateBillingScheduleOnSave({
     lineItems: [
       searchLine({
+        label: "Google Search — Brand",
         billingOverride: {
           mode: "manual",
           reason: "manual",
@@ -145,4 +150,8 @@ test("manual media override that fails sum rule → 409 sumViolations (C2 gate)"
   assert.equal(result.status, 409)
   assert.equal(result.body.code, "BILLING_OVERRIDE_SUM_VIOLATION")
   assert.ok((result.body.sumViolations?.length ?? 0) >= 1)
+  const msg = result.body.sumViolations![0].message
+  assert.ok(msg.includes("Google Search — Brand"), `label in message: ${msg}`)
+  assert.ok(msg.includes("manual months add to"), `human sum copy: ${msg}`)
+  assert.ok(msg.includes("off by"), `delta in message: ${msg}`)
 })

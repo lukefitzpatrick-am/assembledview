@@ -77,4 +77,6 @@ test("manual prepayment override: ISO months match schedule monthYear (no phanto
     true,
     `timing-only override must keep billableEqualsMba; delta=${result.validation.deltaExGst}`
   )
+  assert.equal(pl.flags.prepaid, true)
+  assert.equal(pl.flags.manualBilling, true)
 })

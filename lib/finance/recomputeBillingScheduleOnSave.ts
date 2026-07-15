@@ -27,7 +27,7 @@ import {
   type ComputeCampaignFinancialsOpts,
 } from "@/lib/finance/computeCampaignFinancials"
 import { computeBillingInputsHash } from "@/lib/finance/computeBillingInputsHash"
-import { roundMoney2 } from "@/lib/format/money"
+import { formatAUD, roundMoney2 } from "@/lib/format/money"
 
 export const BILLING_AUTO_EQUALITY_TOLERANCE = 0.01
 
@@ -66,6 +66,8 @@ export type RecomputeBillingScheduleOnSaveErr = {
   body: {
     error: string
     code: string
+    /** Human-facing copy for UI toasts (when present). */
+    userMessage?: string
     delta?: {
       lines: AutoLineDelta[]
       totalDeltaExGst: number
@@ -162,13 +164,15 @@ export function validateManualOverrideSumRules(args: {
       // Media override must sum to booked line media (client-pays → billable media 0).
       const expected = line.clientPaysForMedia ? 0 : roundMoney2(pl.media)
       if (exceedsTolerance(actual, expected)) {
+        const delta = roundMoney2(actual - expected)
+        const label = String(line.label ?? "").trim() || line.lineItemId
         violations.push({
           lineItemId: line.lineItemId,
           component: "media",
           expected,
           actual,
-          delta: roundMoney2(actual - expected),
-          message: `Manual media override months sum ${actual} ≠ line media ${expected}`,
+          delta,
+          message: `${label}: manual months add to ${formatAUD(actual)} but the line bills ${formatAUD(expected)} — adjust the months to match (off by ${formatAUD(Math.abs(delta))}).`,
         })
       }
     }
@@ -361,9 +365,12 @@ export function recomputeAndValidateBillingScheduleOnSave(args: {
     financials,
   })
 
-  // Campaign media+fee gate catches stale month headers (e.g. krusty004 fee $9k
-  // vs recompute $14k). Adserving/production are omitted — those need rates not
-  // always available on the save path and are not the C1 stale-schedule failure.
+  // Campaign media+fee gate (scheduleMediaFeeTotal): compares client vs server
+  // media+fee month headers only. Ad-serving & production are intentionally NOT
+  // in this equality gate — their rates are not always present on the save path,
+  // so excluding them is deliberate (not a missed check). Those amounts are
+  // surfaced to planners via the builder-issues "adserving-unvalidated" warning.
+  // Catches stale month headers (e.g. krusty004 fee $9k vs recompute $14k).
   const clientTotal = scheduleMediaFeeTotal(clientSchedule)
   const serverTotal = scheduleMediaFeeTotal(financials.billingSchedule)
   const totalDelta = roundMoney2(clientTotal - serverTotal)
@@ -375,6 +382,7 @@ export function recomputeAndValidateBillingScheduleOnSave(args: {
       body: {
         error: "Client billing schedule AUTO lines diverge from server recompute",
         code: "BILLING_SCHEDULE_DIVERGENCE",
+        userMessage: `The billing schedule no longer matches the plan totals (off by ${formatAUD(Math.abs(totalDelta))} ex GST). Open MBA & billing → reset to auto, then save.`,
         delta: {
           lines: lineDeltas,
           totalDeltaExGst: totalDelta,

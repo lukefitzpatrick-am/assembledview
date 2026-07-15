@@ -68,6 +68,21 @@ const semanticColors = {
     "on-track-fg": "var(--status-on-track-fg)",
     "behind-fg": "var(--status-behind-fg)",
     "critical-fg": "var(--status-critical-fg)",
+    /* Meaning aliases → pacing (good/attention/blocking) */
+    good: "var(--status-good)",
+    "good-bg": "var(--status-good-bg)",
+    "good-fg": "var(--status-good-fg)",
+    attention: "var(--status-attention)",
+    "attention-bg": "var(--status-attention-bg)",
+    "attention-fg": "var(--status-attention-fg)",
+    blocking: "var(--status-blocking)",
+    "blocking-bg": "var(--status-blocking-bg)",
+    "blocking-fg": "var(--status-blocking-fg)",
+  },
+  action: {
+    DEFAULT: "hsl(var(--action))",
+    foreground: "hsl(var(--action-foreground))",
+    hover: "hsl(var(--action-hover))",
   },
   channel: {
     tv: "var(--channel-tv)",

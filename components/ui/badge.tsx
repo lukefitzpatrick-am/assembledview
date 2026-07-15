@@ -11,12 +11,18 @@ const badgeVariants = cva(
         default: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
         success: "border-transparent bg-pacing-ahead-bg text-status-ahead-fg",
         ahead: "border-transparent bg-pacing-ahead-bg text-status-ahead-fg",
+        /** Semantic: soft green — In MBA / billable=MBA / all-in complete */
+        good: "border-transparent bg-status-good-bg text-status-good-fg",
         info: "border-transparent bg-pacing-on-track-bg text-status-on-track-fg",
         "on-track": "border-transparent bg-pacing-on-track-bg text-status-on-track-fg",
         warning: "border-transparent bg-pacing-behind-bg text-status-behind-fg",
         behind: "border-transparent bg-pacing-behind-bg text-status-behind-fg",
+        /** Semantic: amber — Partial / Manual / Fee adjusted / Prepay */
+        attention: "border-transparent bg-status-attention-bg text-status-attention-fg",
         danger: "border-transparent bg-pacing-critical-bg text-status-critical-fg",
         critical: "border-transparent bg-pacing-critical-bg text-status-critical-fg",
+        /** Semantic: coral/red — billing ≠ MBA / sum violation */
+        blocking: "border-transparent bg-status-blocking-bg text-status-blocking-fg",
         secondary: "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
         destructive: "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
         outline: "text-foreground",

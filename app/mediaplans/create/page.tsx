@@ -15,6 +15,16 @@ import { Controller, useForm, useWatch, type Control } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { format } from "date-fns"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -28,6 +38,7 @@ import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePrese
 import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApplyDirtyClearOnSave"
 import { BuilderIssuesBadge } from "@/components/mediaplans/BuilderIssuesBadge"
 import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
+import { pushFinanceBuilderIssues } from "@/lib/mediaplan/pushFinanceBuilderIssues"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { ChevronsUpDown, Check, Download, FileText, Loader2 } from "lucide-react"
@@ -101,14 +112,21 @@ import {
 import { getMediaTypeHeadersForSchedule } from "@/lib/billing/mediaTypeHeaders"
 import { persistManualBillingOverrides } from "@/lib/finance/persistManualBillingOverrides"
 import {
+  applyLinePrebillToMonths,
   billingOverrideLineIdsMatch,
+  buildPrepaymentOverrideMonths,
+  clearLineOverrideMeta,
   extractOverrideMonthsFromSchedule,
   listManualOverrideLineIds,
+  removeOptimisticMediaOverrideRow,
   sumLineMediaAcrossMonths,
   toBillingOverrideLineItemId,
+  upsertLineOverrideMeta,
+  upsertOptimisticPrepaymentOverrideRow,
   validateManualMediaMonthsSum,
   type LineOverrideMeta,
 } from "@/lib/finance/manualBillingOverridesUi"
+import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import type { BurstDateLike } from "@/lib/finance/billingOverrideDateBasis"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
@@ -180,6 +198,11 @@ import {
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import { assertCoreScheduleParity } from "@/lib/finance/assertCoreScheduleParity"
+import {
+  humaniseBillingSaveError,
+  isBillingSaveGateError,
+  withMbaScopeLineLabels,
+} from "@/lib/finance/humaniseBillingSaveError"
 import { parsePersistedBillingScheduleToMonths } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
 import { buildMbaBillingScopeLineLabel } from "@/lib/billing/mbaBillingScopeLineLabel"
 import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
@@ -686,8 +709,11 @@ function CreateMediaPlan() {
   const [billingMonths, setBillingMonths] = useState<BillingMonth[]>([])
   const [billingTotal, setBillingTotal] = useState("$0.00")
   const [isManualBilling, setIsManualBilling] = useState(false)
-  /** Editor visibility inside MbaBillingModal (not a separate Dialog). */
+  /** Advanced spreadsheet visibility inside MbaBillingModal. */
   const [isManualBillingModalOpen, setIsManualBillingModalOpen] = useState(false)
+  /** Shared manualBillingMonths prepared for inline Adjust timing (+ Advanced). */
+  const [manualBillingDraftReady, setManualBillingDraftReady] = useState(false)
+  const [fullBillingResetConfirmOpen, setFullBillingResetConfirmOpen] = useState(false)
   const [hasPendingManualBilling, setHasPendingManualBilling] = useState(false)
   const [manualBillingAccordionExpanded, setManualBillingAccordionExpanded] = useState<string[]>([])
   const [manualBillingMonths, setManualBillingMonths] = useState<BillingMonth[]>([])
@@ -721,6 +747,13 @@ function CreateMediaPlan() {
   >({})
   /** Empty on create — no fetchBillingOverridesClient until after save. */
   const manualBillingOverrideMetaRef = useRef<Map<string, LineOverrideMeta[]>>(new Map())
+  /**
+   * Optimistic override rows for live panel financials (prepayment etc.) before campaign save
+   * persists them via metaByLine → billing_overrides.
+   */
+  const [draftBillingOverrideRows, setDraftBillingOverrideRows] = useState<BillingOverrideRow[]>(
+    []
+  )
   /** Auto schedule (+ line items) the user edited against — snapshotted at open/apply. */
   const manualBillingAutoReferenceMonthsRef = useRef<BillingMonth[]>([])
   const [billingError, setBillingError] = useState<{ show: boolean; messages: string[] }>({
@@ -1776,7 +1809,7 @@ function CreateMediaPlan() {
         isPartialMBA,
         partialMBASelectedLineItemIds,
       }),
-      []
+      draftBillingOverrideRows
     )
     const feeLoading = buildFeeLoadingFromEditorFees({
       feetelevision: feeTelevision,
@@ -1825,6 +1858,7 @@ function CreateMediaPlan() {
     feeprogooh,
     feeinfluencers,
     feecontentcreator,
+    draftBillingOverrideRows,
   ])
 
   /**
@@ -1962,6 +1996,20 @@ function CreateMediaPlan() {
         scrollTargetId: "builder-field-campaign-budget",
       })
     }
+    pushFinanceBuilderIssues(issues, campaignFinancials, panelIndicators)
+    if (
+      campaignFinancials.mbaScopeTotals.adServing > 0 ||
+      campaignFinancials.mbaScopeTotals.production > 0
+    ) {
+      issues.push({
+        id: "adserving-unvalidated",
+        severity: "warning",
+        title: "Ad serving / production not auto-checked",
+        detail:
+          "These aren't included in the save equality check — confirm their monthly amounts before billing.",
+        scrollTargetId: "mba-billing",
+      })
+    }
     if (missingPublisherKpiCount > 0) {
       issues.push({
         id: "missing-publisher-kpi",
@@ -1979,6 +2027,8 @@ function CreateMediaPlan() {
     dateWarning.offendingCount,
     budgetRemainingOverspend,
     budgetRemaining,
+    campaignFinancials,
+    panelIndicators,
     missingPublisherKpiCount,
   ])
 
@@ -3615,7 +3665,7 @@ function CreateMediaPlan() {
     return { months: deepCopiedMonths, allLineItems }
   }
 
-  function handleManualBillingOpen() {
+  function handleManualBillingOpen(): BillingMonth[] | undefined {
     // Re-open pending draft without wiping applied local months
     if (hasPendingManualBilling && manualBillingMonths.length > 0) {
       const sections = buildManualBillingMediaSections(
@@ -3625,8 +3675,8 @@ function CreateMediaPlan() {
         manualBillingMonths
       )
       setManualBillingAccordionExpanded(defaultManualBillingAccordionExpanded(sections))
-      setIsManualBillingModalOpen(true)
-      return
+      setManualBillingDraftReady(true)
+      return manualBillingMonths
     }
 
     const sourceMonths =
@@ -3642,7 +3692,7 @@ function CreateMediaPlan() {
         title: "No billing schedule",
         description: "Set campaign dates and media bursts before editing billing timing.",
       })
-      return
+      return undefined
     }
 
     const { months: deepCopiedMonths } = attachLineItemsForManualBillingEditor(sourceMonths)
@@ -3651,6 +3701,7 @@ function CreateMediaPlan() {
     manualBillingAutoReferenceMonthsRef.current = autoRef
     setManualBillingAutoReferenceMonths(autoRef)
     manualBillingOverrideMetaRef.current = new Map()
+    setDraftBillingOverrideRows([])
 
     const formatter = mbaCurrencyFormatter
     const grandTotal = deepCopiedMonths.reduce(
@@ -3671,7 +3722,8 @@ function CreateMediaPlan() {
     )
     setManualBillingAccordionExpanded(defaultManualBillingAccordionExpanded(sections))
     setBillingError({ show: false, messages: [] })
-    setIsManualBillingModalOpen(true)
+    setManualBillingDraftReady(true)
+    return deepCopiedMonths
   }
 
   function handleManualBillingChange(
@@ -3820,38 +3872,102 @@ function CreateMediaPlan() {
     )
   }
 
+  function handleManualBillingLineItemPrebill(mediaKey: string, lineItemId: string) {
+    let base = manualBillingMonths
+    if (!manualBillingDraftReady || base.length === 0) {
+      const opened = handleManualBillingOpen()
+      if (!opened?.length) {
+        toast({
+          variant: "destructive",
+          title: "Cannot prebill",
+          description: "Open Edit timing first so a billing draft is available.",
+        })
+        return
+      }
+      base = opened
+    }
+
+    const copy = deepCloneBillingMonths(base)
+    const autoMonths =
+      manualBillingAutoReferenceMonths.length > 0 ? manualBillingAutoReferenceMonths : copy
+    const lineMediaTotal = sumLineMediaAcrossMonths(autoMonths, lineItemId)
+    if (lineMediaTotal <= 0.005) {
+      toast({
+        variant: "destructive",
+        title: "Cannot prebill",
+        description: "This line has no media total to bill upfront.",
+      })
+      return
+    }
+
+    for (const month of copy) {
+      const list = month.lineItems?.[mediaKey as keyof typeof month.lineItems] as
+        | BillingLineItem[]
+        | undefined
+      const li = list?.find((x) => billingOverrideLineIdsMatch(String(x.id ?? ""), lineItemId))
+      if (!li) continue
+      li.preBillSnapshot = li.preBillSnapshot ?? { ...(li.monthlyAmounts ?? {}) }
+    }
+
+    applyLinePrebillToMonths(copy, mediaKey, lineItemId, lineMediaTotal)
+    const formatter = mbaCurrencyFormatter
+    copy.forEach((month) => {
+      const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
+        | BillingLineItem[]
+        | undefined
+      if (!monthLineItems) return
+      const mediaTypeTotal = monthLineItems.reduce(
+        (sum, li) => sum + (li.monthlyAmounts?.[month.monthYear] || 0),
+        0
+      )
+      ;(month.mediaCosts as Record<string, string>)[mediaKey] = formatter.format(mediaTypeTotal)
+    })
+
+    const next = applyBillingLineMode(copy, lineItemId, "manual")
+    const grandTotalNumber = recalculateManualBillingTotals(next, formatter)
+    setManualBillingTotal(formatter.format(grandTotalNumber))
+    setManualBillingMonths(next)
+
+    upsertLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, {
+      mode: "manual",
+      reason: "prepayment",
+      dateBasis: "",
+      component: "media",
+    })
+    setDraftBillingOverrideRows((prev) =>
+      upsertOptimisticPrepaymentOverrideRow(
+        prev,
+        lineItemId,
+        buildPrepaymentOverrideMonths(next, lineMediaTotal)
+      )
+    )
+  }
+
   function handleManualBillingLineItemPreBillToggle(
     mediaKey: string,
     lineItemId: string,
     nextChecked: boolean
   ) {
-    const copy = [...manualBillingMonths]
+    if (nextChecked) {
+      handleManualBillingLineItemPrebill(mediaKey, lineItemId)
+      return
+    }
+
+    const copy = deepCloneBillingMonths(manualBillingMonths)
     if (copy.length === 0) return
     const formatter = mbaCurrencyFormatter
     const monthYears = copy.map((m) => m.monthYear)
-    const firstMonthLineItems = copy[0]?.lineItems?.[mediaKey as keyof NonNullable<BillingMonth["lineItems"]>] as
-      | BillingLineItem[]
-      | undefined
+    const firstMonthLineItems = copy[0]?.lineItems?.[
+      mediaKey as keyof NonNullable<BillingMonth["lineItems"]>
+    ] as BillingLineItem[] | undefined
     if (!firstMonthLineItems) return
     const firstLineItem = firstMonthLineItems.find((li) => li.id === lineItemId)
-    if (!firstLineItem) return
+    if (!firstLineItem?.preBillSnapshot) return
 
     const desired: Record<string, number> = {}
-    if (nextChecked) {
-      const total = monthYears.reduce(
-        (sum, my) => sum + (firstLineItem.monthlyAmounts?.[my] || 0),
-        0
-      )
-      monthYears.forEach((my, idx) => {
-        desired[my] = idx === 0 ? total : 0
-      })
-    } else if (firstLineItem.preBillSnapshot) {
-      monthYears.forEach((my) => {
-        desired[my] = firstLineItem.preBillSnapshot?.[my] || 0
-      })
-    } else {
-      return
-    }
+    monthYears.forEach((my) => {
+      desired[my] = firstLineItem.preBillSnapshot?.[my] || 0
+    })
 
     copy.forEach((month) => {
       const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
@@ -3860,14 +3976,12 @@ function CreateMediaPlan() {
       if (!monthLineItems) return
       const li = monthLineItems.find((x) => x.id === lineItemId)
       if (!li) return
-      if (nextChecked) {
-        li.preBillSnapshot = li.preBillSnapshot ?? { ...li.monthlyAmounts }
-      }
       monthYears.forEach((my) => {
         li.monthlyAmounts[my] = desired[my] || 0
       })
       li.totalAmount = monthYears.reduce((sum, my) => sum + (li.monthlyAmounts?.[my] || 0), 0)
-      li.preBill = nextChecked
+      li.preBill = false
+      li.preBillSnapshot = undefined
     })
 
     copy.forEach((month) => {
@@ -3886,6 +4000,14 @@ function CreateMediaPlan() {
     const grandTotalNumber = recalculateManualBillingTotals(next, formatter)
     setManualBillingTotal(formatter.format(grandTotalNumber))
     setManualBillingMonths(next)
+    clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, "media")
+    upsertLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, {
+      mode: "manual",
+      reason: "manual",
+      dateBasis: "",
+      component: "media",
+    })
+    setDraftBillingOverrideRows((prev) => removeOptimisticMediaOverrideRow(prev, lineItemId))
   }
 
   function handleManualBillingLineItemResetToAuto(mediaKey: string, lineItemId: string) {
@@ -3893,6 +4015,9 @@ function CreateMediaPlan() {
     if (copy.length === 0) return
     const snapshot = manualBillingAutoLineItemSnapshotRef.current[`${mediaKey}::${lineItemId}`]
     if (!snapshot) return
+
+    clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId)
+    setDraftBillingOverrideRows((prev) => removeOptimisticMediaOverrideRow(prev, lineItemId))
 
     copy.forEach((month) => {
       const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
@@ -3967,6 +4092,34 @@ function CreateMediaPlan() {
     setManualBillingMonths(copy)
     setManualBillingCostPreBill((prev) => ({ ...prev, [costKey]: nextChecked }))
   }
+
+  /**
+   * Full billing reset — confirmed via AlertDialog. Rebuilds auto schedule from bursts
+   * and clears pending manual timing (same role as edit’s handleResetBillingScheduleToAuto).
+   */
+  const handleResetBillingScheduleToAuto = useCallback(() => {
+    calculateBillingSchedule()
+    setIsManualBilling(false)
+    setHasPendingManualBilling(false)
+    setManualBillingMonths([])
+    setManualBillingTotal("$0.00")
+    setManualBillingAutoReferenceMonths([])
+    manualBillingAutoReferenceMonthsRef.current = []
+    setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
+    manualBillingCostPreBillSnapshotRef.current = {}
+    manualBillingOverrideMetaRef.current = new Map()
+  }, [calculateBillingSchedule])
+
+  const runConfirmedFullBillingResetToAuto = useCallback(() => {
+    setFullBillingResetConfirmOpen(false)
+    setIsManualBillingModalOpen(false)
+    setBillingError({ show: false, messages: [] })
+    handleResetBillingScheduleToAuto()
+    toast({
+      title: "Billing reset",
+      description: "Schedule replaced from auto (bursts + line items).",
+    })
+  }, [handleResetBillingScheduleToAuto])
 
   /** Apply locally only — persist waits until first save has version.id. */
   function handleManualBillingApply() {
@@ -4522,7 +4675,10 @@ function CreateMediaPlan() {
           ...values,
           mp_client_name: clientName,
           mp_production: shouldEnableProduction,
-          lineItems: billingSaveInputs.lineItems,
+          lineItems: withMbaScopeLineLabels(
+            billingSaveInputs.lineItems,
+            mbaBillingScopeLines
+          ),
           feeLoading: billingSaveInputs.feeLoading,
           billingSchedule: undefined,
           deliverySchedule: undefined,
@@ -4541,10 +4697,17 @@ function CreateMediaPlan() {
         )
 
         if (!versionResponse.ok) {
-          const errorBody = await versionResponse.json().catch(() => ({} as { error?: string }))
-          throw new Error(
-            errorBody.error || `MBA PUT failed (${versionResponse.status})`
+          const errorBody = await versionResponse.json().catch(
+            () => ({} as { error?: string; code?: string })
           )
+          const human = humaniseBillingSaveError(
+            errorBody,
+            `MBA PUT failed (${versionResponse.status})`
+          )
+          updateSaveStatus("Media Plan Version", "error", human)
+          const err = new Error(human) as Error & { billingSaveCode?: string }
+          err.billingSaveCode = errorBody.code
+          throw err
         }
 
         const versionData = await versionResponse.json()
@@ -4575,6 +4738,15 @@ function CreateMediaPlan() {
         }
         usedPutPath = true
       } catch (putErr: unknown) {
+        // Finance C1/C2 gates must surface — never fall back to a divergent local create.
+        if (
+          putErr instanceof Error &&
+          isBillingSaveGateError({
+            code: (putErr as Error & { billingSaveCode?: string }).billingSaveCode,
+          })
+        ) {
+          throw putErr
+        }
         // Fallback only when PUT cannot create first version for a fresh master
         console.warn(
           "[create C1] MBA PUT unavailable; falling back to createMediaPlanVersion with core schedules",
@@ -4750,15 +4922,19 @@ function CreateMediaPlan() {
           }
         )
         if (!followUpRes.ok) {
-          const errorBody = await followUpRes.json().catch(() => ({} as { error?: string }))
-          const msg =
-            errorBody.error ||
+          const errorBody = await followUpRes.json().catch(
+            () => ({} as { error?: string; code?: string })
+          )
+          const msg = humaniseBillingSaveError(
+            errorBody,
             `Follow-up MBA PUT after billing overrides failed (${followUpRes.status})`
+          )
           toast({
             variant: "destructive",
             title: "Billing schedule refresh failed",
             description: msg,
           })
+          updateSaveStatus("Media Plan Version", "error", msg)
           throw new Error(msg)
         }
 
@@ -5923,10 +6099,10 @@ const handleSaveAll = async () => {
         </Button>
         <Button
           type="button"
-          variant="outline"
+          variant="action"
           onClick={handleSaveAll}
           disabled={isWizardSaving}
-          className="h-9 shrink-0 rounded-pill border-border px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-9 shrink-0 rounded-pill px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
         >
           {isWizardSaving ? "Saving..." : "Save draft"}
         </Button>
@@ -5979,9 +6155,10 @@ const handleSaveAll = async () => {
         </Button>
         <Button
           type="button"
+          variant="action"
           onClick={handleSaveAndDownloadAll}
           disabled={isLoading || isDownloading || isDownloadingAa || isWizardSaving}
-          className="h-9 shrink-0 rounded-pill bg-primary px-4 py-2 text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-9 shrink-0 rounded-pill px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
         >
           {isLoading || isDownloading || isDownloadingAa || isWizardSaving ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -6390,6 +6567,13 @@ const handleSaveAll = async () => {
                               const next = Boolean(checked)
                               if (next === Boolean(field.value)) return
                               field.onChange(next)
+                              if (next && isPartialMBA) {
+                                toast({
+                                  title: "New channel included in MBA",
+                                  description:
+                                    "New channel added and included in the MBA — exclude it in MBA & billing if it's not approved yet.",
+                                })
+                              }
                             }}
                             onBlur={field.onBlur}
                             disabled={field.disabled}
@@ -6425,7 +6609,7 @@ const handleSaveAll = async () => {
                     mediaLabelByType={mediaLabelByBillingKey}
                   />
                   <div className="flex flex-wrap items-center gap-2">
-                    <Button type="button" onClick={handleMbaBillingModalOpen}>
+                    <Button type="button" variant="action" onClick={handleMbaBillingModalOpen}>
                       Open MBA &amp; billing
                     </Button>
                     {isPartialMBA ? (
@@ -6495,6 +6679,7 @@ const handleSaveAll = async () => {
           setIsMbaBillingModalOpen(open)
           if (!open) {
             setIsManualBillingModalOpen(false)
+            setManualBillingDraftReady(false)
             setBillingError({ show: false, messages: [] })
           }
         }}
@@ -6507,14 +6692,44 @@ const handleSaveAll = async () => {
         onResetApprovalsToAllIn={handleMbaBillingResetApprovalsToAllIn}
         onDownloadExcel={handleDownloadBillingScheduleExcel}
         downloadDisabled={campaignFinancials.billingSchedule.length === 0}
-        showManualEditor={isManualBillingModalOpen}
-        onToggleManualEditor={() => {
+        onResetBillingToAuto={() => setFullBillingResetConfirmOpen(true)}
+        timingDraftReady={manualBillingDraftReady}
+        onEnsureTimingDraft={() => {
+          handleManualBillingOpen()
+        }}
+        onCloseTimingDraft={() => {
+          setManualBillingDraftReady(false)
+          setIsManualBillingModalOpen(false)
+          if (!hasPendingManualBilling) {
+            setManualBillingMonths([])
+          }
+          setBillingError({ show: false, messages: [] })
+        }}
+        showAdvancedEditor={isManualBillingModalOpen}
+        onToggleAdvancedEditor={() => {
           if (isManualBillingModalOpen) {
             setIsManualBillingModalOpen(false)
-            setBillingError({ show: false, messages: [] })
-          } else {
+            return
+          }
+          if (!manualBillingDraftReady) {
             handleManualBillingOpen()
           }
+          setIsManualBillingModalOpen(true)
+        }}
+        lineTiming={{
+          monthYears: manualBillingMonths.map((m) => m.monthYear),
+          getAmount: manualBillingSpreadsheetCallbacks.getLineItemAmount,
+          getExpectedMediaTotal: (_mediaKey, lineItemId) =>
+            sumLineMediaAcrossMonths(
+              manualBillingAutoReferenceMonths.length > 0
+                ? manualBillingAutoReferenceMonths
+                : manualBillingMonths,
+              lineItemId
+            ),
+          onCommit: manualBillingSpreadsheetCallbacks.onLineItemPaste,
+          onResetLine: handleManualBillingLineItemResetToAuto,
+          onPrebillLine: handleManualBillingLineItemPrebill,
+          formatter: mbaCurrencyFormatter,
         }}
         manualBillingEditor={
           <ManualBillingSpreadsheetProvider
@@ -6930,7 +7145,14 @@ const handleSaveAll = async () => {
                 >
                   Cancel
                 </Button>
-                <Button type="button" onClick={handleManualBillingApply}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setFullBillingResetConfirmOpen(true)}
+                >
+                  Reset billing to auto
+                </Button>
+                <Button type="button" variant="action" onClick={handleManualBillingApply}>
                   Apply billing changes
                 </Button>
               </div>
@@ -6952,6 +7174,40 @@ const handleSaveAll = async () => {
           </div>
         }
       />
+
+      <AlertDialog open={fullBillingResetConfirmOpen} onOpenChange={setFullBillingResetConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset all billing to auto?</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  This <span className="font-medium text-foreground">replaces the entire billing schedule</span> with a
+                  fresh burst-derived schedule. It is the{" "}
+                  <span className="font-medium text-foreground">only</span> action that fully rebuilds billing.
+                </p>
+                <p>
+                  Line-item resets and fee / tech / production row resets only change part of the schedule and do not do
+                  this.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              type="button"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault()
+                runConfirmedFullBillingResetToAuto()
+              }}
+            >
+              Reset all billing to auto
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
             <div className="space-y-6">
               <div className="relative pb-2 pt-8">

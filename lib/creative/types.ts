@@ -17,6 +17,7 @@ export interface CreativeAsset {
   status: "active" | "archived"
   uploaded_by_email: string
   uploaded_by_role: "admin" | "manager" | "client"
+  uploaded_by_name: string
 }
 
 export type CreativeAssetWritable = Omit<CreativeAsset, "id" | "created_at">
@@ -56,6 +57,7 @@ export const CREATIVE_ASSET_WRITABLE_KEYS = [
   "status",
   "uploaded_by_email",
   "uploaded_by_role",
+  "uploaded_by_name",
 ] as const satisfies readonly (keyof CreativeAssetWritable)[]
 
 export const CREATIVE_ASSET_PATCH_KEYS = [
@@ -84,6 +86,7 @@ export type UploadClientPayload = {
 export type UploadTokenPayload = UploadClientPayload & {
   email: string
   role: CreativeAsset["uploaded_by_role"]
+  name: string
 }
 
 export function parseUploadTokenPayload(
@@ -123,6 +126,7 @@ export function parseUploadTokenPayload(
       source_table: typeof raw.source_table === "string" ? raw.source_table.trim() : "",
       email: typeof raw.email === "string" ? raw.email.trim() : "",
       role,
+      name: typeof raw.name === "string" ? raw.name.trim() : "",
       media_plan_master_id:
         typeof raw.media_plan_master_id === "number" && Number.isFinite(raw.media_plan_master_id)
           ? raw.media_plan_master_id
@@ -171,7 +175,7 @@ function requireNumber(value: unknown, field: string): string | null {
 
 export function validateCreativeAssetCreateBody(
   body: unknown,
-): ValidationResult<Omit<CreativeAssetWritable, "uploaded_by_email" | "uploaded_by_role">> {
+): ValidationResult<Omit<CreativeAssetWritable, "uploaded_by_email" | "uploaded_by_role" | "uploaded_by_name">> {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return { ok: false, error: "Expected a JSON object body" }
   }
@@ -308,6 +312,10 @@ export function validateCreativeAssetWritable(
     return { ok: false, error: "uploaded_by_email must be a string" }
   }
 
+  if (raw.uploaded_by_name !== undefined && typeof raw.uploaded_by_name !== "string") {
+    return { ok: false, error: "uploaded_by_name must be a string" }
+  }
+
   return {
     ok: true,
     value: {
@@ -327,6 +335,7 @@ export function validateCreativeAssetWritable(
       status: raw.status as CreativeAsset["status"],
       uploaded_by_email: String(raw.uploaded_by_email).trim(),
       uploaded_by_role: role as CreativeAsset["uploaded_by_role"],
+      uploaded_by_name: typeof raw.uploaded_by_name === "string" ? raw.uploaded_by_name.trim() : "",
     },
   }
 }

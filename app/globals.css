@@ -139,6 +139,24 @@
     --status-behind-fg: #9a6a08;
     --status-critical-fg: #b23b27;
 
+    /*
+     * Meaning aliases (no new hues) — map status vocabulary to pacing tokens.
+     * good = soft green, attention = amber, blocking = coral/red.
+     * action = ink button fill (not brand green).
+     */
+    --status-good: var(--pacing-ahead);
+    --status-good-bg: var(--pacing-ahead-bg);
+    --status-good-fg: var(--status-ahead-fg);
+    --status-attention: var(--pacing-behind);
+    --status-attention-bg: var(--pacing-behind-bg);
+    --status-attention-fg: var(--status-behind-fg);
+    --status-blocking: var(--pacing-critical);
+    --status-blocking-bg: var(--pacing-critical-bg);
+    --status-blocking-fg: var(--status-critical-fg);
+    --action: 137 32% 9%;
+    --action-foreground: 0 0% 100%;
+    --action-hover: 137 32% 14%;
+
     --channel-tv: #e5573e;
     --channel-bvod: #472477;
     --channel-bvod-bg: rgba(71, 36, 119, 0.12);
@@ -258,6 +276,19 @@
     --status-on-track-fg: #9fc3e6;
     --status-behind-fg: #f1c15d;
     --status-critical-fg: #ef907f;
+
+    --status-good: var(--pacing-ahead);
+    --status-good-bg: var(--pacing-ahead-bg);
+    --status-good-fg: var(--status-ahead-fg);
+    --status-attention: var(--pacing-behind);
+    --status-attention-bg: var(--pacing-behind-bg);
+    --status-attention-fg: var(--status-behind-fg);
+    --status-blocking: var(--pacing-critical);
+    --status-blocking-bg: var(--pacing-critical-bg);
+    --status-blocking-fg: var(--status-critical-fg);
+    --action: 129 16% 92%;
+    --action-foreground: 150 29% 7%;
+    --action-hover: 129 16% 85%;
 
     --channel-bvod-bg: rgba(71, 36, 119, 0.12);
 

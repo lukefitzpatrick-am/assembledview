@@ -25,9 +25,12 @@ export function BillingScheduleTitlePills({
       {pills.map((p) => (
         <Badge
           key={p.key}
-          variant={p.tone === "amber" ? "warning" : "secondary"}
+          variant={p.tone === "amber" ? "attention" : "secondary"}
           size="sm"
-          className="rounded-pill font-medium"
+          className={cn(
+            "rounded-pill font-medium",
+            p.tone !== "amber" && "text-muted-foreground"
+          )}
         >
           {p.label}
         </Badge>
@@ -36,19 +39,22 @@ export function BillingScheduleTitlePills({
   )
 }
 
-/** Amber dot-badge overlaid on Edit Billing when any override exists. */
+/** Amber attention dot-badge overlaid on Edit Billing when any override exists. */
 export function EditBillingOverrideDot({ show }: { show: boolean }) {
   if (!show) return null
   return (
     <span
-      className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-pill bg-pacing-behind ring-2 ring-card"
+      className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-pill bg-status-attention ring-2 ring-card"
       aria-label="Billing overrides present"
       title="Billing overrides present"
     />
   )
 }
 
-/** Per-month blue (prepay) / amber (manual) status dot with calc→set hover. */
+/**
+ * Per-month status dot. Prepay and manual are both attention (amber) —
+ * prepay is no longer coded as on-track blue.
+ */
 export function BillingMonthStatusDot({ indicator }: { indicator?: MonthDotIndicator }) {
   if (!indicator) return null
   return (
@@ -56,10 +62,7 @@ export function BillingMonthStatusDot({ indicator }: { indicator?: MonthDotIndic
       <Tooltip>
         <TooltipTrigger asChild>
           <span
-            className={cn(
-              "ml-1.5 inline-block h-2 w-2 shrink-0 rounded-pill align-middle",
-              indicator.tone === "prepay" ? "bg-pacing-on-track" : "bg-pacing-behind"
-            )}
+            className="ml-1.5 inline-block h-2 w-2 shrink-0 rounded-pill align-middle bg-status-attention"
             aria-label={indicator.hover}
           />
         </TooltipTrigger>
@@ -71,17 +74,32 @@ export function BillingMonthStatusDot({ indicator }: { indicator?: MonthDotIndic
   )
 }
 
-/** Quiet tick on Grand Total when billing = MBA. */
+/** Good: quiet tick on Grand Total when billing = MBA. */
 export function BillingEqualsMbaPill({ show }: { show: boolean }) {
   if (!show) return null
   return (
     <Badge
-      variant="secondary"
+      variant="good"
       size="sm"
-      className="ml-2 rounded-pill font-normal text-muted-foreground"
+      className="ml-2 rounded-pill font-normal"
       title="Billing totals match MBA"
     >
       ✓ = MBA
+    </Badge>
+  )
+}
+
+/** Blocking: Grand Total when billing ≠ MBA. */
+export function BillingMismatchMbaPill({ show }: { show: boolean }) {
+  if (!show) return null
+  return (
+    <Badge
+      variant="blocking"
+      size="sm"
+      className="ml-2 rounded-pill font-medium"
+      title="Billing totals do not match MBA"
+    >
+      ≠ MBA
     </Badge>
   )
 }
