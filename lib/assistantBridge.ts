@@ -46,6 +46,12 @@ type AssistantActionHandlers = {
     items: Record<string, unknown>[]
     replace?: boolean
   }) => Promise<string | void> | string | void
+  /**
+   * Read current grid line items for a channel (AVA adjust_line_items → server).
+   */
+  getLineItems?: (payload: {
+    channel: "radio" | "ooh"
+  }) => Promise<{ items: Record<string, unknown>[] }> | { items: Record<string, unknown>[] }
 }
 
 export type AssistantContext = {

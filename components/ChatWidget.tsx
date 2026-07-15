@@ -375,6 +375,8 @@ export function ChatWidget({
       const resolvedPageContext =
         typeof getPageContext === "function" ? await getPageContext() : pageContext
 
+      const currentLineItems = await collectCurrentLineItemsFromBridge()
+
       const payload = {
         messages: toApiMessages(updatedMessages),
         pageContext: resolvedPageContext,
@@ -388,6 +390,7 @@ export function ChatWidget({
               },
             }
           : {}),
+        ...(currentLineItems ? { currentLineItems } : {}),
       }
 
       const response = await fetch("/api/chat-v2", {
@@ -816,6 +819,29 @@ function isLineItemsLoad(value: unknown): value is CapturedLineItemsLoad {
   if (v.channel !== "radio" && v.channel !== "ooh") return false
   if (!Array.isArray(v.items)) return false
   return true
+}
+
+async function collectCurrentLineItemsFromBridge(): Promise<{
+  radio?: Record<string, unknown>[]
+  ooh?: Record<string, unknown>[]
+} | null> {
+  const getLineItems = getAssistantContext()?.actions?.getLineItems
+  if (typeof getLineItems !== "function") return null
+  try {
+    const [radioRes, oohRes] = await Promise.all([
+      getLineItems({ channel: "radio" }),
+      getLineItems({ channel: "ooh" }),
+    ])
+    const radio = Array.isArray(radioRes?.items) ? radioRes.items : undefined
+    const ooh = Array.isArray(oohRes?.items) ? oohRes.items : undefined
+    if (!radio && !ooh) return null
+    return {
+      ...(radio ? { radio } : {}),
+      ...(ooh ? { ooh } : {}),
+    }
+  } catch {
+    return null
+  }
 }
 
 async function maybeApplyLineItemsLoad({

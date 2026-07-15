@@ -41,6 +41,7 @@ function baseContext(overrides: Partial<AvaToolContext> = {}): AvaToolContext {
     capturedQuestions: null,
     pendingParsedPlan: null,
     capturedLineItemsLoad: null,
+    currentLineItems: null,
     ...overrides,
   }
 }

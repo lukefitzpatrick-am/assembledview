@@ -47,6 +47,7 @@ ${AVA_MI_TOOL_HINTS}
 ${AVA_SKILL_TOOL_HINTS}
 - apply_form_patch — only when the user explicitly asks to change editable field values
 - apply_parsed_plan — only after the user confirms loading a pending media-owner plan parse into the form (never invent numbers; never skip confirm)
+- adjust_line_items — Use adjust_line_items to bulk-align descriptor fields on already-loaded plan lines from a plain-English instruction. Emit structured ops only; never set or compute burst money/dates/quantities; always show the diff and confirm before applying; scope precisely (all / where a field equals a value / bonus lines / specific rows).
 
 Page snapshot surfaces (state.surface) — use on-page state first; pair tools only when you need more than the snapshot:
 - creative — visible assets, filters, missing line-item links; pair with get_creative_assets for the full MBA library
@@ -70,6 +71,11 @@ type ChatRequestBody = {
     channel?: string
     mapped?: unknown
     fileName?: string
+  }
+  /** Current grid line items from bridge getLineItems (adjust_line_items). */
+  currentLineItems?: {
+    radio?: unknown
+    ooh?: unknown
   }
 }
 
@@ -117,7 +123,13 @@ export async function POST(req: NextRequest) {
       throw new ValidationError("'messages' must be an array")
     }
 
-    const { messages: incomingMessages, pageContext, mode, pendingParsedPlan } = body
+    const {
+      messages: incomingMessages,
+      pageContext,
+      mode,
+      pendingParsedPlan,
+      currentLineItems,
+    } = body
     const resolvedMode = resolveMode(mode)
     const safeMessages = sanitiseMessages(incomingMessages)
     const anthropicMessages = toAnthropicMessages(safeMessages)
@@ -144,6 +156,7 @@ export async function POST(req: NextRequest) {
       capturedQuestions: null,
       pendingParsedPlan: coercePendingParsedPlan(pendingParsedPlan),
       capturedLineItemsLoad: null,
+      currentLineItems: coerceCurrentLineItems(currentLineItems),
     }
 
     const result = await runAvaAgent({
@@ -310,4 +323,26 @@ function coercePendingParsedPlan(
     pending.fileName = raw.fileName.trim()
   }
   return pending
+}
+
+function coerceLineItemRows(raw: unknown): Record<string, unknown>[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const rows = raw.filter(
+    (row): row is Record<string, unknown> =>
+      !!row && typeof row === "object" && !Array.isArray(row),
+  )
+  return rows
+}
+
+function coerceCurrentLineItems(
+  raw: ChatRequestBody["currentLineItems"],
+): AvaToolContext["currentLineItems"] {
+  if (!raw || typeof raw !== "object") return null
+  const radio = coerceLineItemRows(raw.radio)
+  const ooh = coerceLineItemRows(raw.ooh)
+  if (!radio && !ooh) return null
+  return {
+    ...(radio ? { radio } : {}),
+    ...(ooh ? { ooh } : {}),
+  }
 }

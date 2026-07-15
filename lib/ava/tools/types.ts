@@ -51,6 +51,14 @@ export type AvaToolContext = {
   pendingParsedPlan: PendingParsedPlan | null;
   /** Side-channel: bulk line-items load for bridge setLineItems. */
   capturedLineItemsLoad: CapturedLineItemsLoad | null;
+  /**
+   * Current create/edit grid line items from bridge getLineItems (client-supplied).
+   * Used by adjust_line_items — never trust model-fabricated rows.
+   */
+  currentLineItems: {
+    radio?: Record<string, unknown>[];
+    ooh?: Record<string, unknown>[];
+  } | null;
 };
 
 export type AvaToolResult = {

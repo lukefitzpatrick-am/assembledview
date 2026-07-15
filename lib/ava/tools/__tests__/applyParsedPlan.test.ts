@@ -20,6 +20,7 @@ function ctx(overrides: Partial<AvaToolContext> = {}): AvaToolContext {
     capturedQuestions: null,
     pendingParsedPlan: null,
     capturedLineItemsLoad: null,
+    currentLineItems: null,
     ...overrides,
   }
 }
