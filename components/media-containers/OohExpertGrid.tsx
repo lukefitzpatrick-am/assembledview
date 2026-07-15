@@ -38,6 +38,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Combobox, type ComboboxOption } from "@/components/media-containers/ExpertGridCombobox"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
+import { DebouncedWeekQtyInput } from "@/components/media-containers/DebouncedWeekQtyInput"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
@@ -4180,15 +4181,11 @@ export function OohExpertGrid({
                               // their qty read-only rather than a blank cell.
                               const inputDisplay =
                                 entryMode === "budget" && rowBudgetEntryOk
-                                  ? budgetDraft &&
-                                    budgetDraft.rowIndex === rowIndex &&
-                                    budgetDraft.cellKey === col.weekKey
-                                    ? budgetDraft.text
-                                    : budgetCellDisplay(
-                                        row.buyType,
-                                        rowUnitRate,
-                                        cellQtyNum
-                                      )
+                                  ? budgetCellDisplay(
+                                      row.buyType,
+                                      rowUnitRate,
+                                      cellQtyNum
+                                    )
                                   : display
                               const budgetEntryBlocked =
                                 entryMode === "budget" && !rowBudgetEntryOk
@@ -4614,7 +4611,7 @@ export function OohExpertGrid({
                                       )
                                     }}
                                   >
-                                    <Input
+                                    <DebouncedWeekQtyInput
                                       ref={(el) => {
                                         const refKey = `${rowIndex}:${col.weekKey}`
                                         if (isMergedAnchorCell) {
@@ -4634,7 +4631,7 @@ export function OohExpertGrid({
                                           "bg-transparent shadow-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                                       )}
                                       inputMode="decimal"
-                                      value={inputDisplay}
+                                      committedValue={inputDisplay}
                                       disabled={budgetEntryBlocked}
                                       draggable={isDraggableWeekCell}
                                       onDragStart={(e) => {
@@ -4887,15 +4884,9 @@ export function OohExpertGrid({
                                         e
                                       )
                                     }}
-                                      onChange={(e) => {
+                                      onCommit={(text) => {
                                         if (entryMode === "budget") {
                                           if (!rowBudgetEntryOk) return
-                                          const text = e.target.value
-                                          setBudgetDraft({
-                                            rowIndex,
-                                            cellKey: col.weekKey,
-                                            text,
-                                          })
                                           const cleaned = text.replace(
                                             /[^\d.-]/g,
                                             ""
@@ -4927,7 +4918,7 @@ export function OohExpertGrid({
                                         updateWeeklyCell(
                                           rowIndex,
                                           col.weekKey,
-                                          e.target.value
+                                          text
                                         )
                                       }}
                                       onBlur={() => {
