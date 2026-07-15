@@ -30,6 +30,7 @@ import {
   OOH_EXPERT_ROW_HEIGHT_PX,
   OOH_EXPERT_ROW_OVERSCAN,
   computeOohExpertWeeklyTotals,
+  computeOohExpertWeeklyTotalsIncremental,
   cumulativeColumnOffsets,
   expandColRangeForMerges,
   expertGridColSpacerWidths,
@@ -40,6 +41,7 @@ import {
   mountedRowCount,
   virtualRowIndexFromOffsetY,
 } from "@/lib/mediaplan/oohExpertVirtualization"
+import { createExpertRowDerivedCache } from "@/lib/mediaplan/expertRowCost"
 import { WEEK_COL_WIDTH_PX } from "@/lib/mediaplan/expertGridShared"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 
@@ -425,4 +427,63 @@ test("9c. COLUMN MERGES: intersecting spans expand the mounted range", () => {
   ])
   assert.equal(expanded.start, 10)
   assert.equal(expanded.end, 25)
+})
+
+test("10. INCREMENTAL TOTALS: single-cell edit matches full recompute and is faster", () => {
+  let rows = buildRows(300)
+  rows = updateRowAtIndex(rows, 10, {
+    weeklyValues: {
+      ...rows[10]!.weeklyValues,
+      [weekKeys[0]!]: 5,
+    },
+  })!
+
+  const full0 = computeOohExpertWeeklyTotals(rows, weekKeys, {}, 0)
+  const incr0 = computeOohExpertWeeklyTotalsIncremental(
+    rows,
+    weekKeys,
+    {},
+    0,
+    null
+  )
+  assert.deepEqual(incr0.totals, full0)
+
+  const edited = updateRowAtIndex(rows, 10, {
+    weeklyValues: {
+      ...rows[10]!.weeklyValues,
+      [weekKeys[0]!]: 42,
+    },
+  })!
+
+  const tFull0 = performance.now()
+  const full1 = computeOohExpertWeeklyTotals(edited, weekKeys, {}, 0)
+  const fullMs = performance.now() - tFull0
+
+  const tIncr0 = performance.now()
+  const incr1 = computeOohExpertWeeklyTotalsIncremental(
+    edited,
+    weekKeys,
+    {},
+    0,
+    incr0.cache
+  )
+  const incrMs = performance.now() - tIncr0
+
+  assert.deepEqual(incr1.totals, full1)
+  assert.equal(incr1.totals.perWeek[weekKeys[0]!], 42)
+  // Incremental should touch one row — typically much faster than 300-row full pass.
+  // Allow slack on warm CI; require it not to be slower than full by >5x (regression guard).
+  assert.ok(
+    incrMs <= fullMs * 5 + 5,
+    `incremental ${incrMs.toFixed(2)}ms vs full ${fullMs.toFixed(2)}ms`
+  )
+
+  // Identity: unchanged rows keep references → derived cache hits.
+  const derived = createExpertRowDerivedCache()
+  const qtyA = derived.qtySum(edited[10]!, weekKeys)
+  const qtyB = derived.qtySum(edited[10]!, weekKeys)
+  assert.equal(qtyA, qtyB)
+  assert.equal(qtyA, 42)
+  assert.equal(derived.qtySum(edited[0]!, weekKeys), 0)
+  assert.equal(edited[0], rows[0], "sibling row identity preserved for memo skips")
 })

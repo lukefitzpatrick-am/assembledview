@@ -67,7 +67,8 @@ import {
   OOH_EXPERT_COL_OVERSCAN,
   OOH_EXPERT_ROW_HEIGHT_PX,
   OOH_EXPERT_ROW_OVERSCAN,
-  computeOohExpertWeeklyTotals,
+  computeOohExpertWeeklyTotalsIncremental,
+  type OohWeeklyTotalsCache,
 } from "@/lib/mediaplan/oohExpertVirtualization"
 import {
   Tooltip,
@@ -107,9 +108,8 @@ import {
   handleExpertGridInputKeyDown,
 } from "@/lib/mediaplan/expertGridKeyboardNav"
 import {
-  expertRowNetMedia,
+  createExpertRowDerivedCache,
   expertRowNetMediaTooltip,
-  expertRowQuantitySum,
 } from "@/lib/mediaplan/expertRowCost"
 import {
   deriveOohExpertRowScheduleYmdFromRow,
@@ -454,6 +454,8 @@ export function OohExpertGrid({
 }: OohExpertGridProps) {
   const { toast } = useToast()
   const domGridId = useId().replace(/:/g, "")
+  const weeklyTotalsCacheRef = useRef<OohWeeklyTotalsCache | null>(null)
+  const rowDerivedCacheRef = useRef(createExpertRowDerivedCache())
   const [focusedCell, setFocusedCell] = useState<OohExpertFocusedCell | null>(
     null
   )
@@ -2812,16 +2814,17 @@ export function OohExpertGrid({
     [pushRows, weekKeys]
   )
 
-  const containerTotals = useMemo(
-    () =>
-      computeOohExpertWeeklyTotals(
-        normalizedRows,
-        weekKeys,
-        dayKeysByWeekKey,
-        feeooh
-      ),
-    [dayKeysByWeekKey, feeooh, normalizedRows, weekKeys]
-  )
+  const containerTotals = useMemo(() => {
+    const { totals, cache } = computeOohExpertWeeklyTotalsIncremental(
+      normalizedRows,
+      weekKeys,
+      dayKeysByWeekKey,
+      feeooh,
+      weeklyTotalsCacheRef.current
+    )
+    weeklyTotalsCacheRef.current = cache
+    return totals
+  }, [dayKeysByWeekKey, feeooh, normalizedRows, weekKeys])
 
   const descriptorHeadLabels = useMemo(() => {
     const core = [
@@ -3286,8 +3289,9 @@ export function OohExpertGrid({
                           layoutSig={layoutSig}
                           rowUiSig={rowUiSig}
                           render={() => {
-                      const net = expertRowNetMedia(row, weekKeys, feeooh)
-                      const qtySum = expertRowQuantitySum(row, weekKeys)
+                      const derived = rowDerivedCacheRef.current
+                      const net = derived.netMedia(row, weekKeys, feeooh)
+                      const qtySum = derived.qtySum(row, weekKeys)
                       const rowUnitRate = parseNum(row.unitRate)
                       const rowBudgetEntryOk = rowSupportsBudgetEntry(
                         row.buyType,

@@ -116,32 +116,17 @@ export function computeOohExpertWeeklyTotals(
   for (const k of weekKeys) perWeek[k] = 0
 
   for (const row of rows) {
-    const { net, fee } = expertRowCostSplit(row, weekKeys, feePct)
-    sumNet += net
-    sumFee += fee
+    const contrib = oohExpertRowTotalsContribution(
+      row,
+      weekKeys,
+      dayKeysByWeekKey,
+      feePct
+    )
+    sumNet += contrib.sumNet
+    sumFee += contrib.fee
+    sumQty += contrib.sumQty
     for (const k of weekKeys) {
-      const q = expertGridParseNum(row.weeklyValues[k])
-      perWeek[k] += q
-      sumQty += q
-    }
-    if (row.dailyValues) {
-      for (const k of weekKeys) {
-        for (const dk of dayKeysByWeekKey[k] ?? []) {
-          const dv = row.dailyValues[dk]
-          if (dv === "" || dv === undefined) continue
-          const q = expertGridParseNum(dv)
-          perWeek[k] += q
-          sumQty += q
-        }
-      }
-    }
-    for (const span of row.mergedWeekSpans ?? []) {
-      const q = span.totalQty
-      if (!Number.isFinite(q) || q === 0) continue
-      if (span.startWeekKey in perWeek) {
-        perWeek[span.startWeekKey] += q
-      }
-      sumQty += q
+      perWeek[k] = (perWeek[k] ?? 0) + (contrib.perWeek[k] ?? 0)
     }
   }
 
@@ -152,6 +137,173 @@ export function computeOohExpertWeeklyTotals(
     fee: sumFee,
     totalWithFee: sumNet + sumFee,
   }
+}
+
+/** One row's contribution to container weekly totals (Σqty / net / per-week). */
+export function oohExpertRowTotalsContribution(
+  row: OohExpertScheduleRow,
+  weekKeys: readonly string[],
+  dayKeysByWeekKey: Readonly<Record<string, readonly string[]>>,
+  feePct: number
+): OohExpertWeeklyTotals {
+  const { net, fee } = expertRowCostSplit(row, weekKeys, feePct)
+  let sumQty = 0
+  const perWeek: Record<string, number> = {}
+  for (const k of weekKeys) perWeek[k] = 0
+
+  for (const k of weekKeys) {
+    const q = expertGridParseNum(row.weeklyValues[k])
+    perWeek[k] = (perWeek[k] ?? 0) + q
+    sumQty += q
+  }
+  if (row.dailyValues) {
+    for (const k of weekKeys) {
+      for (const dk of dayKeysByWeekKey[k] ?? []) {
+        const dv = row.dailyValues[dk]
+        if (dv === "" || dv === undefined) continue
+        const q = expertGridParseNum(dv)
+        perWeek[k] = (perWeek[k] ?? 0) + q
+        sumQty += q
+      }
+    }
+  }
+  for (const span of row.mergedWeekSpans ?? []) {
+    const q = span.totalQty
+    if (!Number.isFinite(q) || q === 0) continue
+    if (span.startWeekKey in perWeek) {
+      perWeek[span.startWeekKey] += q
+    }
+    sumQty += q
+  }
+
+  return {
+    sumNet: net,
+    sumQty,
+    perWeek,
+    fee,
+    totalWithFee: net + fee,
+  }
+}
+
+/** Apply ± one row contribution onto an existing totals object (immutable). */
+export function applyOohWeeklyTotalsDelta(
+  base: OohExpertWeeklyTotals,
+  contrib: OohExpertWeeklyTotals,
+  sign: 1 | -1,
+  weekKeys: readonly string[]
+): OohExpertWeeklyTotals {
+  const perWeek: Record<string, number> = { ...base.perWeek }
+  for (const k of weekKeys) {
+    perWeek[k] = (perWeek[k] ?? 0) + sign * (contrib.perWeek[k] ?? 0)
+  }
+  const sumNet = base.sumNet + sign * contrib.sumNet
+  const fee = base.fee + sign * contrib.fee
+  const sumQty = base.sumQty + sign * contrib.sumQty
+  return {
+    sumNet,
+    sumQty,
+    perWeek,
+    fee,
+    totalWithFee: sumNet + fee,
+  }
+}
+
+export type OohWeeklyTotalsCache = {
+  rows: readonly OohExpertScheduleRow[]
+  weekKeys: readonly string[]
+  feePct: number
+  totals: OohExpertWeeklyTotals
+}
+
+/**
+ * Identity-preserving incremental totals: a single-cell edit (one new row
+ * object) subtracts the old contribution and adds the new — O(changed) not O(n).
+ * Falls back to a full recompute when week keys / fee / many rows change.
+ */
+export function computeOohExpertWeeklyTotalsIncremental(
+  rows: readonly OohExpertScheduleRow[],
+  weekKeys: readonly string[],
+  dayKeysByWeekKey: Readonly<Record<string, readonly string[]>>,
+  feePct: number,
+  cache: OohWeeklyTotalsCache | null,
+  maxChangedForIncremental = 8
+): { totals: OohExpertWeeklyTotals; cache: OohWeeklyTotalsCache } {
+  const weekKeysSame =
+    !!cache &&
+    cache.weekKeys === weekKeys &&
+    cache.feePct === feePct
+
+  if (!cache || !weekKeysSame) {
+    const totals = computeOohExpertWeeklyTotals(
+      rows,
+      weekKeys,
+      dayKeysByWeekKey,
+      feePct
+    )
+    return { totals, cache: { rows, weekKeys, feePct, totals } }
+  }
+
+  const prev = cache.rows
+  if (prev === rows) {
+    return { totals: cache.totals, cache }
+  }
+
+  // Fast path: same length, find reference-changed slots.
+  if (prev.length === rows.length) {
+    const changed: number[] = []
+    for (let i = 0; i < rows.length; i++) {
+      if (prev[i] !== rows[i]) changed.push(i)
+    }
+    if (changed.length === 0) {
+      return {
+        totals: cache.totals,
+        cache: { rows, weekKeys, feePct, totals: cache.totals },
+      }
+    }
+    if (changed.length <= maxChangedForIncremental) {
+      let totals = cache.totals
+      for (const i of changed) {
+        const oldRow = prev[i]
+        const newRow = rows[i]
+        if (oldRow) {
+          totals = applyOohWeeklyTotalsDelta(
+            totals,
+            oohExpertRowTotalsContribution(
+              oldRow,
+              weekKeys,
+              dayKeysByWeekKey,
+              feePct
+            ),
+            -1,
+            weekKeys
+          )
+        }
+        if (newRow) {
+          totals = applyOohWeeklyTotalsDelta(
+            totals,
+            oohExpertRowTotalsContribution(
+              newRow,
+              weekKeys,
+              dayKeysByWeekKey,
+              feePct
+            ),
+            1,
+            weekKeys
+          )
+        }
+      }
+      return { totals, cache: { rows, weekKeys, feePct, totals } }
+    }
+  }
+
+  // Length changed or too many edits — full recompute (still correct).
+  const totals = computeOohExpertWeeklyTotals(
+    rows,
+    weekKeys,
+    dayKeysByWeekKey,
+    feePct
+  )
+  return { totals, cache: { rows, weekKeys, feePct, totals } }
 }
 
 /**
