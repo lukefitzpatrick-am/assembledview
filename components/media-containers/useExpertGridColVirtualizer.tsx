@@ -20,6 +20,14 @@ export type UseExpertGridColVirtualizerArgs = {
   enabled?: boolean
   /** Merge spans across all rows — expands the window so colSpans stay coherent. */
   mergeSpans?: readonly ExpertMergeSpanKeys[]
+  /**
+   * Sticky-left block width in px (reorder + descriptor columns). Sticky cells
+   * stay mounted in the table before the week-band spacer — they are NOT added
+   * into `paddingLeft`. This value only shrinks the effective viewport used to
+   * choose which week columns mount so the first visible week starts at the
+   * sticky boundary.
+   */
+  stickyLeftWidthPx?: number
 }
 
 export type ExpertGridColVirtualizerResult = {
@@ -35,8 +43,10 @@ export type ExpertGridColVirtualizerResult = {
  * Horizontal week-column window for expert grids (OOH Phase 2 column prototype).
  *
  * Shares the same overflow scroller as row virtualization. Sticky descriptor
- * geometry is unchanged — only the week band after {@link WEEK_SCROLLER_EDGE}
- * is windowed, with left/right spacer cells preserving total scroll width.
+ * geometry stays fully mounted; only the week band after the sticky boundary is
+ * windowed. Left/right spacer cells preserve the week-band scroll width — they
+ * must not re-include sticky width (that would double-count and drift the first
+ * week away from the boundary).
  */
 export function useExpertGridColVirtualizer({
   widthsPx,
@@ -45,6 +55,7 @@ export function useExpertGridColVirtualizer({
   overscan = EXPERT_GRID_COL_OVERSCAN_DEFAULT,
   enabled = true,
   mergeSpans = [],
+  stickyLeftWidthPx = 0,
 }: UseExpertGridColVirtualizerArgs): ExpertGridColVirtualizerResult {
   const [scrollLeft, setScrollLeft] = useState(0)
   const [viewportWidth, setViewportWidth] = useState(0)
@@ -102,9 +113,16 @@ export function useExpertGridColVirtualizer({
         mountedWeekIndices: Array.from({ length: n }, (_, i) => i),
       }
     }
+    // Sticky columns occupy the left of the viewport; week-band visibility is
+    // the remaining width. scrollLeft already tracks week-band progress because
+    // sticky cells are laid out before the week spacer in the table.
+    const weekViewportWidth = Math.max(
+      0,
+      (viewportWidth || 800) - Math.max(0, stickyLeftWidthPx)
+    )
     let range = expectedMountedColRange(
       scrollLeft,
-      viewportWidth || 800,
+      weekViewportWidth,
       widthsPx,
       overscan
     )
@@ -129,6 +147,7 @@ export function useExpertGridColVirtualizer({
     mergeSpans,
     overscan,
     scrollLeft,
+    stickyLeftWidthPx,
     viewportWidth,
     weekKeys,
     widthsPx,

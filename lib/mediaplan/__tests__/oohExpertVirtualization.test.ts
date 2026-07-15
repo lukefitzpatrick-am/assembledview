@@ -420,6 +420,35 @@ test("9b. COLUMN SPACERS: left+visible+right widths equal total week band", () =
   assert.equal(paddingLeft + visible + paddingRight, total)
 })
 
+test("9b2. COLUMN WINDOW: sticky-left shrinks week viewport; spacer never includes sticky width", () => {
+  // Sticky geometry (reorder + descriptors) is reserved in the table DOM, not
+  // the week-band spacer. The virtualizer subtracts sticky from clientWidth so
+  // the first visible week starts at the sticky boundary.
+  const widths = weekKeys.map(() => WEEK_COL_WIDTH_PX)
+  const stickyLeft = 44 + 1200 // reorder + representative descriptor total
+  const clientWidth = 800
+  const weekViewport = Math.max(0, clientWidth - stickyLeft)
+  const withSticky = expectedMountedColRange(
+    0,
+    weekViewport,
+    widths,
+    OOH_EXPERT_COL_OVERSCAN
+  )
+  const withoutSticky = expectedMountedColRange(
+    0,
+    clientWidth,
+    widths,
+    OOH_EXPERT_COL_OVERSCAN
+  )
+  assert.ok(weekViewport < clientWidth)
+  assert.ok(mountedColCount(withSticky) <= mountedColCount(withoutSticky))
+  assert.equal(withSticky.start, 0)
+
+  const { paddingLeft } = expertGridColSpacerWidths(withSticky, widths)
+  assert.equal(paddingLeft, 0) // scroll=0 window start — no sticky baked into spacer
+  assert.ok(paddingLeft < stickyLeft)
+})
+
 test("9c. COLUMN MERGES: intersecting spans expand the mounted range", () => {
   const range = { start: 20, end: 25 }
   const expanded = expandColRangeForMerges(range, weekKeys, [

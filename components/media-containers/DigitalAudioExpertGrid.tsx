@@ -84,6 +84,21 @@ import {
   ExpertGridRowReorderCell,
   ExpertGridRowReorderHeaderCell,
 } from "@/components/media-containers/ExpertGridRowReorderCell"
+import {
+  cumulativeLeftOffsets,
+  expertGridRowZebraProps,
+  expertGridStickyLeftWidthPx,
+  expertGridStickyStyleBody,
+  expertGridStickyStyleDescriptorTotalLabel,
+  expertGridStickyStyleHeaderCorner,
+  expertGridStickyStyleReorderBody,
+  expertGridStickyStyleReorderHeader,
+  expertGridStickyTd,
+  expertGridStickyThCorner,
+  expertGridStickyThWeek,
+  EXPERT_GRID_ROW_CLASS,
+  EXPERT_GRID_WEEK_BODY_Z,
+} from "@/components/media-containers/expertGridSticky"
 import { ExpertGridWeekResizeHandle } from "@/components/media-containers/ExpertGridWeekResizeHandle"
 import { ExpertGridWeekCommencesBar } from "@/components/media-containers/ExpertGridWeekCommencesBar"
 import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
@@ -355,15 +370,6 @@ const DIGIAUDIO_DESCRIPTOR_TAIL: readonly (keyof DigitalAudioExpertScheduleRow)[
   "unitRate",
 ]
 
-function cumulativeLeftOffsets(widths: readonly number[]): number[] {
-  const out: number[] = []
-  let acc = 0
-  for (const w of widths) {
-    out.push(acc)
-    acc += w
-  }
-  return out
-}
 
 function formatYmdDisplay(ymd: string): string {
   if (!ymd?.trim()) return "—"
@@ -665,12 +671,7 @@ export function DigitalAudioExpertGrid({
   )
 
   const stickyStyleBodyDescriptorTotalLabel = useMemo(
-    () => ({
-      width: descriptorStickyBlockWidthPx,
-      minWidth: descriptorStickyBlockWidthPx,
-      maxWidth: descriptorStickyBlockWidthPx,
-      boxSizing: "border-box" as const,
-    }),
+    () => expertGridStickyStyleDescriptorTotalLabel(descriptorStickyBlockWidthPx),
     [descriptorStickyBlockWidthPx]
   )
 
@@ -1178,35 +1179,23 @@ export function DigitalAudioExpertGrid({
   const firstWeekNavColIndex = digiAudioDescriptorKeys.length + WEEK_GRID_COL_OFFSET
   const unitRateNavColIndex = digiAudioDescriptorKeys.indexOf("unitRate")
 
-  const stickyThCorner = (className?: string) =>
-    cn(
-      "sticky top-0 border-b border-r px-1.5 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm",
-      className
-    )
+  const stickyThCorner = (className?: string) => expertGridStickyThCorner(className)
 
-  const stickyThWeek = cn(
-    "sticky top-0 z-[55] border-b border-r px-1 py-3.5 text-center text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm align-middle"
-  )
+  const stickyThWeek = expertGridStickyThWeek()
 
-  const stickyTd = (index: number, className?: string) =>
-    cn(
-      "border-b border-r bg-inherit px-1 py-0.5 align-middle",
-      className
-    )
+  const stickyTd = (_index: number, className?: string) =>
+    expertGridStickyTd(className)
 
-  const stickyStyleBody = (index: number) => ({
-    width: descriptorColWidths[index],
-    minWidth: descriptorColWidths[index],
-    maxWidth: descriptorColWidths[index],
-    boxSizing: "border-box" as const,
-  })
+  const stickyStyleBody = (index: number) =>
+    expertGridStickyStyleBody(index, leftOffsets, descriptorColWidths)
 
-  const stickyStyleHeaderCorner = (index: number) => ({
-    width: descriptorColWidths[index],
-    minWidth: descriptorColWidths[index],
-    maxWidth: descriptorColWidths[index],
-    boxSizing: "border-box" as const,
-  })
+  const stickyStyleHeaderCorner = (index: number) =>
+    expertGridStickyStyleHeaderCorner(index, leftOffsets, descriptorColWidths)
+
+  const stickyStyleReorderBody = expertGridStickyStyleReorderBody()
+
+  const stickyStyleReorderHeader = expertGridStickyStyleReorderHeader()
+
 
   const rowVirtualizerRef = useRef<{
     scrollToIndex: (
@@ -3020,7 +3009,7 @@ export function DigitalAudioExpertGrid({
                     <tr>
                       <ExpertGridRowReorderHeaderCell
                         className={stickyThCorner("text-center")}
-                        style={digiAudioExpertHeaderCellBgStyle}
+                        style={stickyStyleReorderHeader}
                       />
                       {descriptorHeadLabels.map((label, i) => (
                         <th
@@ -3030,10 +3019,7 @@ export function DigitalAudioExpertGrid({
                               ? DIGIAUDIO_EXPERT_WEEK_SCROLLER_EDGE
                               : undefined
                           )}
-                          style={{
-                            ...stickyStyleHeaderCorner(i),
-                            ...digiAudioExpertHeaderCellBgStyle,
-                          }}
+                          style={stickyStyleHeaderCorner(i)}
                         >
                           {label === "Unit Rate" ? (
                             <Tooltip>
@@ -3245,10 +3231,11 @@ export function DigitalAudioExpertGrid({
                         <tr
                           className={cn(
                             stripe,
-                            "transition-colors hover:bg-muted/35 focus-within:bg-muted/35",
+                            EXPERT_GRID_ROW_CLASS,
                             isDropTarget(rowIndex) &&
                               "bg-primary/10 ring-1 ring-inset ring-primary/40"
                           )}
+                          {...expertGridRowZebraProps(rowIndex)}
                           style={stripeStyle}
                           {...rowDropProps(rowIndex)}
                         >
@@ -3262,6 +3249,7 @@ export function DigitalAudioExpertGrid({
                                 : undefined
                             }
                             className={stickyTd(0, "text-center")}
+                            style={stickyStyleReorderBody}
                           />
                               {showBillingCols ? (
                                 <>
@@ -4220,6 +4208,7 @@ export function DigitalAudioExpertGrid({
                               const isFocusVisible = isActiveWeekCell
                               const tdClassName = cn(
                                 "border-b border-r p-0 align-middle",
+                                EXPERT_GRID_WEEK_BODY_Z,
                                 // Base states (empty / populated non-merged / merged anchor via wrapper).
                                 isEmptyWeekCell && "bg-inherit",
                                 isPopulatedNonMergedCell &&
@@ -4990,15 +4979,12 @@ export function DigitalAudioExpertGrid({
                           width: EXPERT_REORDER_COL_WIDTH_PX,
                           minWidth: EXPERT_REORDER_COL_WIDTH_PX,
                           maxWidth: EXPERT_REORDER_COL_WIDTH_PX,
-                          ...digiAudioExpertTotalsRowBgStyle,
+                          ...stickyStyleReorderBody,
                         }}
                       />
                       <td
                         className={stickyTd(0)}
-                        style={{
-                          ...stickyStyleBodyDescriptorTotalLabel,
-                          ...digiAudioExpertTotalsRowBgStyle,
-                        }}
+                        style={stickyStyleBodyDescriptorTotalLabel}
                         colSpan={digiAudioDescriptorKeys.length}
                       >
                         <div className="flex h-8 items-center px-1">
@@ -5015,10 +5001,7 @@ export function DigitalAudioExpertGrid({
                           stickyTd(digiAudioDescriptorKeys.length),
                           "h-8 px-1 text-xs tabular-nums"
                         )}
-                        style={{
-                          ...stickyStyleBody(digiAudioDescriptorKeys.length),
-                          ...digiAudioExpertTotalsRowBgStyle,
-                        }}
+                        style={stickyStyleBody(digiAudioDescriptorKeys.length)}
                       >
                         <div className="flex h-full items-center">
                           {formatAUD(containerTotals.sumNet)}
@@ -5029,10 +5012,7 @@ export function DigitalAudioExpertGrid({
                           stickyTd(digiAudioDescriptorKeys.length + 1),
                           "h-8"
                         )}
-                        style={{
-                          ...stickyStyleBody(digiAudioDescriptorKeys.length + 1),
-                          ...digiAudioExpertTotalsRowBgStyle,
-                        }}
+                        style={stickyStyleBody(digiAudioDescriptorKeys.length + 1)}
                       />
                       <td
                         className={cn(
@@ -5040,10 +5020,7 @@ export function DigitalAudioExpertGrid({
                           "h-8 px-1 text-xs tabular-nums text-muted-foreground",
                           DIGIAUDIO_EXPERT_WEEK_SCROLLER_EDGE
                         )}
-                        style={{
-                          ...stickyStyleBody(digiAudioDescriptorKeys.length + 2),
-                          ...digiAudioExpertTotalsRowBgStyle,
-                        }}
+                        style={stickyStyleBody(digiAudioDescriptorKeys.length + 2)}
                       >
                         <div className="flex h-full items-center justify-end">
                           {containerTotals.sumQty === 0

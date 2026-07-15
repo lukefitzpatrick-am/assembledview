@@ -87,6 +87,21 @@ import {
   ExpertGridRowReorderCell,
   ExpertGridRowReorderHeaderCell,
 } from "@/components/media-containers/ExpertGridRowReorderCell"
+import {
+  cumulativeLeftOffsets,
+  expertGridRowZebraProps,
+  expertGridStickyLeftWidthPx,
+  expertGridStickyStyleBody,
+  expertGridStickyStyleDescriptorTotalLabel,
+  expertGridStickyStyleHeaderCorner,
+  expertGridStickyStyleReorderBody,
+  expertGridStickyStyleReorderHeader,
+  expertGridStickyTd,
+  expertGridStickyThCorner,
+  expertGridStickyThWeek,
+  EXPERT_GRID_ROW_CLASS,
+  EXPERT_GRID_WEEK_BODY_Z,
+} from "@/components/media-containers/expertGridSticky"
 import { ExpertGridWeekResizeHandle } from "@/components/media-containers/ExpertGridWeekResizeHandle"
 import { ExpertGridWeekCommencesBar } from "@/components/media-containers/ExpertGridWeekCommencesBar"
 import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
@@ -366,15 +381,6 @@ const OOH_DESCRIPTOR_TAIL: readonly (keyof OohExpertScheduleRow)[] = [
   "unitRate",
 ]
 
-function cumulativeLeftOffsets(widths: readonly number[]): number[] {
-  const out: number[] = []
-  let acc = 0
-  for (const w of widths) {
-    out.push(acc)
-    acc += w
-  }
-  return out
-}
 
 function formatYmdDisplay(ymd: string): string {
   if (!ymd?.trim()) return "—"
@@ -643,15 +649,7 @@ export function OohExpertGrid({
   )
 
   const stickyStyleBodyDescriptorTotalLabel = useMemo(
-    () => ({
-      position: "sticky" as const,
-      left: EXPERT_REORDER_COL_WIDTH_PX,
-      zIndex: 30,
-      width: descriptorStickyBlockWidthPx,
-      minWidth: descriptorStickyBlockWidthPx,
-      maxWidth: descriptorStickyBlockWidthPx,
-      boxSizing: "border-box" as const,
-    }),
+    () => expertGridStickyStyleDescriptorTotalLabel(descriptorStickyBlockWidthPx),
     [descriptorStickyBlockWidthPx]
   )
 
@@ -1179,53 +1177,23 @@ export function OohExpertGrid({
   const firstWeekNavColIndex = oohDescriptorKeys.length + WEEK_GRID_COL_OFFSET
   const unitRateNavColIndex = oohDescriptorKeys.indexOf("unitRate")
 
-  const stickyThCorner = (className?: string) =>
-    cn(
-      "sticky top-0 z-[60] border-b border-r px-1.5 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm",
-      className
-    )
+  const stickyThCorner = (className?: string) => expertGridStickyThCorner(className)
 
-  const stickyThWeek = cn(
-    "sticky top-0 z-[55] border-b border-r px-1 py-3.5 text-center text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm align-middle"
-  )
+  const stickyThWeek = expertGridStickyThWeek()
 
-  const stickyTd = (index: number, className?: string) =>
-    cn(
-      "border-b border-r bg-inherit px-1 py-0 align-middle overflow-hidden",
-      className
-    )
+  const stickyTd = (_index: number, className?: string) =>
+    expertGridStickyTd(className)
 
-  const stickyStyleBody = (index: number) => ({
-    position: "sticky" as const,
-    left: EXPERT_REORDER_COL_WIDTH_PX + (leftOffsets[index] ?? 0),
-    zIndex: 20 + Math.min(index, 20),
-    width: descriptorColWidths[index],
-    minWidth: descriptorColWidths[index],
-    maxWidth: descriptorColWidths[index],
-    boxSizing: "border-box" as const,
-  })
+  const stickyStyleBody = (index: number) =>
+    expertGridStickyStyleBody(index, leftOffsets, descriptorColWidths)
 
-  const stickyStyleHeaderCorner = (index: number) => ({
-    position: "sticky" as const,
-    left: EXPERT_REORDER_COL_WIDTH_PX + (leftOffsets[index] ?? 0),
-    zIndex: 70 + Math.min(index, 20),
-    width: descriptorColWidths[index],
-    minWidth: descriptorColWidths[index],
-    maxWidth: descriptorColWidths[index],
-    boxSizing: "border-box" as const,
-  })
+  const stickyStyleHeaderCorner = (index: number) =>
+    expertGridStickyStyleHeaderCorner(index, leftOffsets, descriptorColWidths)
 
-  const stickyStyleReorderBody = {
-    position: "sticky" as const,
-    left: 0,
-    zIndex: 40,
-  }
+  const stickyStyleReorderBody = expertGridStickyStyleReorderBody()
 
-  const stickyStyleReorderHeader = {
-    position: "sticky" as const,
-    left: 0,
-    zIndex: 80,
-  }
+  const stickyStyleReorderHeader = expertGridStickyStyleReorderHeader()
+
 
   // F-28 Phase 2: virtualized rows may be unmounted off-screen, so keyboard nav
   // asks the virtualizer to scroll a target row into range before focusing. The
@@ -2261,6 +2229,7 @@ export function OohExpertGrid({
     overscan: OOH_EXPERT_COL_OVERSCAN,
     enabled: OOH_EXPERT_COL_VIRTUALIZATION,
     mergeSpans: mergeSpansForColWindow,
+    stickyLeftWidthPx: expertGridStickyLeftWidthPx(descriptorColWidths),
   })
 
   const visibleWeekColumns = useMemo(
@@ -3112,10 +3081,7 @@ export function OohExpertGrid({
                     <tr>
                       <ExpertGridRowReorderHeaderCell
                         className={stickyThCorner("text-center")}
-                        style={{
-                          ...stickyStyleReorderHeader,
-                          ...oohExpertHeaderCellBgStyle,
-                        }}
+                        style={stickyStyleReorderHeader}
                       />
                       {descriptorHeadLabels.map((label, i) => (
                         <th
@@ -3125,10 +3091,7 @@ export function OohExpertGrid({
                               ? OOH_EXPERT_WEEK_SCROLLER_EDGE
                               : undefined
                           )}
-                          style={{
-                            ...stickyStyleHeaderCorner(i),
-                            ...oohExpertHeaderCellBgStyle,
-                          }}
+                          style={stickyStyleHeaderCorner(i)}
                         >
                           {label === "Unit Rate" ? (
                             <Tooltip>
@@ -3364,9 +3327,12 @@ export function OohExpertGrid({
                         <tr
                           className={cn(
                             stripe,
-                            "ooh-expert-schedule-row transition-colors hover:bg-muted/35 focus-within:bg-muted/35",
-                            isDropTarget(rowIndex) && "bg-primary/10 ring-1 ring-inset ring-primary/40"
+                            EXPERT_GRID_ROW_CLASS,
+                            "ooh-expert-schedule-row",
+                            isDropTarget(rowIndex) &&
+                              "bg-primary/10 ring-1 ring-inset ring-primary/40"
                           )}
+                          {...expertGridRowZebraProps(rowIndex)}
                           data-ooh-expert-row-index={rowIndex}
                           style={{
                             ...stripeStyle,
@@ -3385,19 +3351,13 @@ export function OohExpertGrid({
                                 : undefined
                             }
                             className={stickyTd(0, "text-center")}
-                            style={{
-                              ...stickyStyleReorderBody,
-                              ...(stripeStyle ?? {}),
-                            }}
+                            style={stickyStyleReorderBody}
                           />
                           {showBillingCols ? (
                             <>
                               <td
                                 className={stickyTd(cFixed)}
-                                style={{
-                                  ...stickyStyleBody(cFixed),
-                                  ...(stripeStyle ?? {}),
-                                }}
+                                style={stickyStyleBody(cFixed)}
                               >
                                 <div className="flex h-8 items-center justify-center overflow-hidden">
                                   <Checkbox
@@ -3430,10 +3390,7 @@ export function OohExpertGrid({
                               </td>
                               <td
                                 className={stickyTd(cClient)}
-                                style={{
-                                  ...stickyStyleBody(cClient),
-                                  ...(stripeStyle ?? {}),
-                                }}
+                                style={stickyStyleBody(cClient)}
                               >
                                 <div className="flex h-8 items-center justify-center overflow-hidden">
                                   <Checkbox
@@ -3466,10 +3423,7 @@ export function OohExpertGrid({
                               </td>
                               <td
                                 className={stickyTd(cBif)}
-                                style={{
-                                  ...stickyStyleBody(cBif),
-                                  ...(stripeStyle ?? {}),
-                                }}
+                                style={stickyStyleBody(cBif)}
                               >
                                 <div className="flex h-8 items-center justify-center overflow-hidden">
                                   <Checkbox
@@ -4338,6 +4292,7 @@ export function OohExpertGrid({
                               const isFocusVisible = isActiveWeekCell
                               const tdClassName = cn(
                                 "border-b border-r p-0 align-middle",
+                                EXPERT_GRID_WEEK_BODY_Z,
                                 // Base states (empty / populated non-merged / merged anchor via wrapper).
                                 isEmptyWeekCell && "bg-inherit",
                                 isPopulatedNonMergedCell &&
@@ -5118,18 +5073,12 @@ export function OohExpertGrid({
                           width: EXPERT_REORDER_COL_WIDTH_PX,
                           minWidth: EXPERT_REORDER_COL_WIDTH_PX,
                           maxWidth: EXPERT_REORDER_COL_WIDTH_PX,
-                          position: "sticky",
-                          left: 0,
-                          zIndex: 40,
-                          ...oohExpertTotalsRowBgStyle,
+                          ...stickyStyleReorderBody,
                         }}
                       />
                       <td
                         className={stickyTd(0)}
-                        style={{
-                          ...stickyStyleBodyDescriptorTotalLabel,
-                          ...oohExpertTotalsRowBgStyle,
-                        }}
+                        style={stickyStyleBodyDescriptorTotalLabel}
                         colSpan={oohDescriptorKeys.length}
                       >
                         <div className="flex h-8 items-center px-1">
@@ -5146,10 +5095,7 @@ export function OohExpertGrid({
                           stickyTd(oohDescriptorKeys.length),
                           "h-8 px-1 text-xs tabular-nums"
                         )}
-                        style={{
-                          ...stickyStyleBody(oohDescriptorKeys.length),
-                          ...oohExpertTotalsRowBgStyle,
-                        }}
+                        style={stickyStyleBody(oohDescriptorKeys.length)}
                       >
                         <div className="flex h-full items-center">
                           {formatAUD(containerTotals.sumNet)}
@@ -5160,10 +5106,7 @@ export function OohExpertGrid({
                           stickyTd(oohDescriptorKeys.length + 1),
                           "h-8"
                         )}
-                        style={{
-                          ...stickyStyleBody(oohDescriptorKeys.length + 1),
-                          ...oohExpertTotalsRowBgStyle,
-                        }}
+                        style={stickyStyleBody(oohDescriptorKeys.length + 1)}
                       />
                       <td
                         className={cn(
@@ -5171,10 +5114,7 @@ export function OohExpertGrid({
                           "h-8 px-1 text-xs tabular-nums text-muted-foreground",
                           OOH_EXPERT_WEEK_SCROLLER_EDGE
                         )}
-                        style={{
-                          ...stickyStyleBody(oohDescriptorKeys.length + 2),
-                          ...oohExpertTotalsRowBgStyle,
-                        }}
+                        style={stickyStyleBody(oohDescriptorKeys.length + 2)}
                       >
                         <div className="flex h-full items-center justify-end">
                           {containerTotals.sumQty === 0
