@@ -65,6 +65,10 @@ import {
 } from "@/lib/mediaplan/expertRowLifecycle"
 import { reorderExpertRows, weekColStyle, mergedSpanWidthPx } from "@/lib/mediaplan/expertGridInteractions"
 import {
+  appendRowsInChunks,
+  clampBulkAddCount,
+} from "@/lib/mediaplan/chunkedBulkAdd"
+import {
   OOH_EXPERT_COL_OVERSCAN,
   OOH_EXPERT_ROW_HEIGHT_PX,
   OOH_EXPERT_ROW_OVERSCAN,
@@ -464,6 +468,11 @@ export function OohExpertGrid({
   focusedCellRef.current = focusedCell
 
   const [rowCountInput, setRowCountInput] = useState<string>("1")
+  const [bulkAddProgress, setBulkAddProgress] = useState<{
+    done: number
+    total: number
+  } | null>(null)
+  const bulkAddInFlightRef = useRef(false)
   const [pendingFuzzyMatch, setPendingFuzzyMatch] =
     useState<PendingFuzzyMatch | null>(null)
   const fuzzyMatchAutoApplyRef = useRef(false)
@@ -1797,26 +1806,38 @@ export function OohExpertGrid({
   )
 
   const addRow = useCallback(() => {
-    const parsed = Math.max(
-      1,
-      Math.min(500, parseInt(rowCountInput, 10) || 1)
-    )
+    if (bulkAddInFlightRef.current) return
+    const parsed = clampBulkAddCount(rowCountInput)
     const idPrefix =
       typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
         : `ooh-expert-${Date.now()}`
-    const newRows = Array.from({ length: parsed }, (_, i) =>
-      createEmptyOohExpertRow(
-        `${idPrefix}-${i}`,
-        campaignStartDate,
-        campaignEndDate,
-        weekKeys
-      )
-    )
-    const next = [...normalizedRowsRef.current, ...newRows]
-    pushRows(next)
-    resetTransientWeekUiState()
-    setRowCountInput(String(parsed))
+    bulkAddInFlightRef.current = true
+    setBulkAddProgress(parsed >= 40 ? { done: 0, total: parsed } : null)
+    void appendRowsInChunks({
+      existing: normalizedRowsRef.current,
+      totalToAdd: parsed,
+      createRows: (offset, count) =>
+        Array.from({ length: count }, (_, i) =>
+          createEmptyOohExpertRow(
+            `${idPrefix}-${offset + i}`,
+            campaignStartDate,
+            campaignEndDate,
+            weekKeys
+          )
+        ),
+      pushRows: (next) => {
+        pushRows(next)
+      },
+      onProgress: (done, total) => {
+        if (total >= 40) setBulkAddProgress({ done, total })
+      },
+    }).finally(() => {
+      bulkAddInFlightRef.current = false
+      setBulkAddProgress(null)
+      resetTransientWeekUiState()
+      setRowCountInput(String(parsed))
+    })
   }, [
     campaignStartDate,
     campaignEndDate,
@@ -3004,11 +3025,22 @@ export function OohExpertGrid({
               variant="outline"
               size="sm"
               onClick={addRow}
+              disabled={!!bulkAddProgress}
               title="How many empty rows to append (1–500)."
             >
               <Plus className="mr-1 h-4 w-4" />
-              {`Add ${Math.max(1, Math.min(500, Number.parseInt(rowCountInput || "1", 10) || 1))} rows`}
+              {bulkAddProgress
+                ? `Adding ${bulkAddProgress.done}/${bulkAddProgress.total}…`
+                : `Add ${clampBulkAddCount(rowCountInput)} rows`}
             </Button>
+            {bulkAddProgress ? (
+              <span
+                className="text-xs text-muted-foreground tabular-nums"
+                aria-live="polite"
+              >
+                Inserting rows…
+              </span>
+            ) : null}
             <Button
               type="button"
               variant="ghost"
