@@ -69,6 +69,8 @@ export const AVA_TOOL_NAMES = [
   "generate_mi_workbook",
   "load_skill",
   "generate_performance_report",
+  "get_client_brain",
+  "save_client_brain",
 ] as const
 
 export function summariseClientDetails(raw: Record<string, unknown>) {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import axios from "axios"
 import { xanoUrl } from "@/lib/api/xano"
 import { getPublisherByPublisherId } from "@/lib/api/publishers"
+import { invalidatePublishersCache } from "@/lib/api/publishersCache"
 import { bodyForPublisherPut } from "@/lib/publisher/normalizePublisher"
 
 export async function GET(_req: Request, { params }: { params: Promise<{ publisherId: string }> }) {
@@ -31,6 +32,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ publishe
       `${xanoUrl("edit_publishers", "XANO_PUBLISHERS_BASE_URL")}/${existing.id}`,
       payload,
     )
+    invalidatePublishersCache()
     return NextResponse.json(response.data)
   } catch (error) {
     console.error("Failed to update publisher:", error)

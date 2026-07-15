@@ -25,6 +25,8 @@ export interface ClientHubSummary {
   totalSpend: number
   /** Client brand colour from dashboard / Xano (`brand_colour`) when available */
   brandColour?: string
+  /** True when Xano has a non-empty `client_brain` (blob never sent to the grid). */
+  hasClientBrain?: boolean
 }
 
 /** Matches `ClientFinanceSlideOver` `finance` prop when the dashboard supplies a pre-built summary. */

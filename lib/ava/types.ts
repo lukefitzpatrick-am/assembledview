@@ -85,8 +85,12 @@ export type ChatInterviewQuestion = {
   selected?: string[]
   /** 1-based progress through the interview (answered + current). */
   index: number
-  /** Original open-question count at interview start (stable denominator). */
+  /** Open-question denominator for card echo (grows on follow-ups; bulk-apply advances consumed count). */
   total: number
+  /** Unanswered peers that share field + publisher + options (N ≥ 2). */
+  groupCount?: number
+  /** Card copy for the bulk-apply toggle, e.g. "5 similar Google Ads lines". */
+  groupLabel?: string
 }
 
 export type ModelChatReply = {

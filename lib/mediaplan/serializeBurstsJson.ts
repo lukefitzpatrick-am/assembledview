@@ -53,6 +53,7 @@ export function serializeBurstsJson(input: {
   feePct: number
   budgetIncludesFees: boolean
   clientPaysForMedia: boolean
+  buyType?: string
 }): SerializedBurst[] {
   return input.bursts.map((burst) => {
     const rawBudget = parseMoneyInput(burst.budget) ?? 0
@@ -61,6 +62,7 @@ export function serializeBurstsJson(input: {
       budgetIncludesFees: input.budgetIncludesFees,
       clientPaysForMedia: input.clientPaysForMedia,
       feePct: input.feePct,
+      buyType: input.buyType,
     })
 
     return {

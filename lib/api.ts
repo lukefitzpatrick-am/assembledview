@@ -1124,13 +1124,56 @@ export async function getMediaPlanVersionByMBA(mba_number: string) {
   return fetch(url)
 }
 
+/** Soft client TTL so page-mount prefetch survives until lazy containers mount. */
+const MEDIA_DETAILS_CLIENT_TTL_MS = 15 * 60_000
+
+/** Plan-independent reference lists used by media containers on the edit page. */
+export const EDITOR_MEDIA_DETAILS_PREFETCH_PATHS = [
+  "tv_stations",
+  "radio_stations",
+  "newspapers",
+  "newspaper_adsizes",
+  "magazines",
+  "magazines_adsizes",
+  "audio_site",
+  "video_site",
+  "display_site",
+  "bvod_site",
+] as const
+
+function mediaDetailsClientUrl(path: string): string {
+  return `${MEDIA_DETAILS_BASE_URL}/${path}`
+}
+
+function invalidateMediaDetailClientCache(path: string) {
+  if (isBrowser) {
+    invalidateCoalescedGetJson(mediaDetailsClientUrl(path))
+  }
+}
+
 async function fetchMediaDetail(path: string) {
-  const url = isBrowser ? `/api/media-details/${path}` : `${MEDIA_DETAILS_BASE_URL}/${path}`
-  const response = await fetch(url)
+  if (isBrowser) {
+    // Share in-flight + soft TTL with edit-page prefetch / Strict Mode remounts.
+    return coalescedGetJson(mediaDetailsClientUrl(path), {
+      ttlMs: MEDIA_DETAILS_CLIENT_TTL_MS,
+    })
+  }
+  const response = await fetch(mediaDetailsClientUrl(path))
   if (!response.ok) {
     throw new Error(`Failed to fetch media details: ${path}`)
   }
   return response.json()
+}
+
+/**
+ * Kick off media-details reference GETs immediately (fire-and-forget).
+ * Container mounts later coalesce onto the same in-flight / soft TTL entries.
+ */
+export function prefetchEditorMediaDetailsLists(): void {
+  if (!isBrowser) return
+  for (const path of EDITOR_MEDIA_DETAILS_PREFETCH_PATHS) {
+    void fetchMediaDetail(path).catch(() => {})
+  }
 }
 
 export async function getTVStations(): Promise<TVStation[]> {
@@ -1171,11 +1214,7 @@ export async function getDisplaySites(): Promise<DisplaySite[]> {
 }
 
 export async function getBVODSites(): Promise<BVODSite[]> {
-  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/bvod_site`);
-  if (!response.ok) {
-    throw new Error("Failed to fetch BVOD sites");
-  }
-  return response.json();
+  return fetchMediaDetail("bvod_site")
 }
 
 
@@ -1191,6 +1230,7 @@ export async function createTVStation(stationData: { station: string; network: s
   if (!response.ok) {
     throw new Error("Failed to create TV Station");
   }
+  invalidateMediaDetailClientCache("tv_stations")
   return response.json();
 }
 
@@ -1205,6 +1245,7 @@ export async function createRadioStation(stationData: { station: string; network
   if (!response.ok) {
     throw new Error("Failed to create TV Station");
   }
+  invalidateMediaDetailClientCache("radio_stations")
   return response.json();
 }
 
@@ -1219,6 +1260,7 @@ export async function createNewspaper(newspaperData: { title: string; network: s
   if (!response.ok) {
     throw new Error("Failed to create Newspaper");
   }
+  invalidateMediaDetailClientCache("newspapers")
   return response.json();
 }
 
@@ -1233,6 +1275,7 @@ export async function createNewspaperAdSize(adSizeData: { adsize: string }): Pro
   if (!response.ok) {
     throw new Error("Failed to create Newspaper Ad Size");
   }
+  invalidateMediaDetailClientCache("newspaper_adsizes")
   return response.json();
 }
 
@@ -1247,6 +1290,7 @@ export async function createMagazine(magazineData: { title: string; network: str
   if (!response.ok) {
     throw new Error("Failed to create Magazine");
   }
+  invalidateMediaDetailClientCache("magazines")
   const created = await response.json()
   return normalizeMagazineRecord(created)
 }
@@ -1262,6 +1306,7 @@ export async function createMagazineAdSize(adSizeData: { adsize: string }): Prom
   if (!response.ok) {
     throw new Error("Failed to create Magazine Ad Size");
   }
+  invalidateMediaDetailClientCache("magazines_adsizes")
   return response.json();
 }
 
@@ -1276,6 +1321,7 @@ export async function createAudioSite(siteData: { platform: string; site: string
   if (!response.ok) {
     throw new Error("Failed to create Audio Site");
   }
+  invalidateMediaDetailClientCache("audio_site")
   return response.json();
 }
 
@@ -1290,6 +1336,7 @@ export async function createVideoSite(siteData: { platform: string; site: string
   if (!response.ok) {
     throw new Error("Failed to create Video Site");
   }
+  invalidateMediaDetailClientCache("video_site")
   return response.json();
 }
 
@@ -1304,6 +1351,7 @@ export async function createDisplaySite(siteData: { platform: string; site: stri
   if (!response.ok) {
     throw new Error("Failed to create Display Site");
   }
+  invalidateMediaDetailClientCache("display_site")
   return response.json();
 }
 
@@ -1318,6 +1366,7 @@ export async function createBVODSite(siteData: { platform: string; site: string 
   if (!response.ok) {
     throw new Error("Failed to create BVOD Site");
   }
+  invalidateMediaDetailClientCache("bvod_site")
   return response.json();
 }
 

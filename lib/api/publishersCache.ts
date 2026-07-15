@@ -1,14 +1,17 @@
+import "server-only"
+
 import axios from "axios"
+import { revalidateTag, unstable_cache } from "next/cache"
 import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 
 /**
- * Coalesced TTL cache for `/api/publishers`.
+ * Durable TTL cache for `/api/publishers` via Next `unstable_cache` (Vercel Data Cache).
  * Publishers change rarely — default 10 minutes.
- * Always caches the full upstream payload; strips best-practice blobs when
- * `light: true` (default) for the edit-page critical path.
+ * Auth stays outside this cache. Serves last-known-good on upstream failure (`stale: true`).
  */
 
-const DEFAULT_TTL_MS = 10 * 60_000
+export const PUBLISHERS_TAG = "publishers-list"
+const REVALIDATE_SECONDS = 600 // 10 min
 
 const LIGHT_PUBLISHER_KEYS = [
   "id",
@@ -29,20 +32,8 @@ export type PublishersCacheResult = {
   stale: boolean
 }
 
-type CacheEntry = {
-  data: any[]
-  fetchedAt: number
-}
-
-let cacheEntry: CacheEntry | null = null
-let inFlightPromise: Promise<PublishersCacheResult> | null = null
-
-function cacheTtlMs(): number {
-  const raw = process.env.PUBLISHERS_CACHE_TTL_MS
-  if (raw == null || raw === "") return DEFAULT_TTL_MS
-  const n = Number(raw)
-  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_TTL_MS
-}
+/** Process-local LKG for stale-on-failure within a warm instance. */
+const lastKnownGoodByKey: Record<string, any[]> = {}
 
 function isPubFlagKey(key: string): boolean {
   return key.startsWith("pub_") || key.startsWith("PUB_")
@@ -82,46 +73,42 @@ async function fetchUpstreamFull(): Promise<any[]> {
 
 /**
  * @param light When true (default), strip best-practice blobs and keep name/id/flags only.
+ *   Included in the durable cache key so light/full are separate Data Cache entries.
  */
 export async function getCachedPublishersList(
   options: { light?: boolean } = {}
 ): Promise<PublishersCacheResult> {
   const light = options.light !== false
-  const project = (rows: any[], stale: boolean): PublishersCacheResult => ({
-    data: light ? rows.map(toLightPublisher) : rows,
-    stale,
-  })
+  const lightKey = light ? "light" : "full"
 
-  const now = Date.now()
-  if (cacheEntry && now - cacheEntry.fetchedAt < cacheTtlMs()) {
-    return project(cacheEntry.data, false)
-  }
-
-  if (inFlightPromise) {
-    const result = await inFlightPromise
-    return project(result.data, result.stale)
-  }
-
-  const promise = (async (): Promise<PublishersCacheResult> => {
-    try {
-      const data = await fetchUpstreamFull()
-      cacheEntry = { data, fetchedAt: Date.now() }
-      return { data, stale: false }
-    } catch (err) {
-      if (cacheEntry) {
-        console.warn(
-          "[publishersCache] upstream failed; serving last-known-good",
-          err instanceof Error ? err.message : err
-        )
-        return { data: cacheEntry.data, stale: true }
-      }
-      throw err
-    } finally {
-      inFlightPromise = null
+  try {
+    const cached = unstable_cache(
+      async () => {
+        const rows = await fetchUpstreamFull()
+        return light ? rows.map(toLightPublisher) : rows
+      },
+      ["publishers-list", lightKey],
+      { revalidate: REVALIDATE_SECONDS, tags: [PUBLISHERS_TAG] }
+    )
+    const data = await cached()
+    lastKnownGoodByKey[lightKey] = data
+    return { data, stale: false }
+  } catch (err) {
+    const lkg = lastKnownGoodByKey[lightKey]
+    if (lkg) {
+      console.warn(
+        "[publishersCache] upstream failed; serving last-known-good",
+        err instanceof Error ? err.message : err
+      )
+      return { data: lkg, stale: true }
     }
-  })()
+    throw err
+  }
+}
 
-  inFlightPromise = promise
-  const result = await promise
-  return project(result.data, result.stale)
+/** Drop durable + process-local cache (e.g. after POST/PUT). */
+export function invalidatePublishersCache() {
+  delete lastKnownGoodByKey.light
+  delete lastKnownGoodByKey.full
+  revalidateTag(PUBLISHERS_TAG)
 }

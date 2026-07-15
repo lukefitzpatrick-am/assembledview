@@ -8,6 +8,7 @@ import {
   PageHeroShell,
   PageHeroTitleBlock,
 } from "@/components/dashboard/PageHeroShell"
+import { ClientProfileLinks } from "@/components/dashboard/ClientProfileLinks"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatCurrencyCompact } from "@/lib/format/currency"
 import { cn } from "@/lib/utils"
@@ -26,6 +27,8 @@ export interface HeroBannerProps {
   isAdmin?: boolean
   /** Client hub (/client/[slug]): omit benchmark line and Avg ROAS meta. */
   clientHubLayout?: boolean
+  /** Raw Xano client row — used for profile link icons on admin hub. */
+  clientRecord?: Record<string, unknown> | null
 }
 
 function getClientInitials(clientName: string): string {
@@ -63,8 +66,10 @@ export function HeroBanner({
   onOpenKPIs,
   isAdmin = false,
   clientHubLayout = false,
+  clientRecord = null,
 }: HeroBannerProps) {
   const showBenchmarkLine = !clientHubLayout
+  const showProfileLinks = clientHubLayout && isAdmin
 
   const detail = (
     <>
@@ -146,6 +151,12 @@ export function HeroBanner({
           />
         </div>
       </div>
+
+      {showProfileLinks ? (
+        <div className={cn("relative z-10 mt-4", PAGE_HERO_PADDING, isAdmin && "pr-14 sm:pr-16 md:pr-20")}>
+          <ClientProfileLinks record={clientRecord} />
+        </div>
+      ) : null}
 
       {isAdmin ? (
         <div className="absolute right-3 top-1/2 z-20 -translate-y-1/2 sm:right-4 md:right-6 lg:right-7">

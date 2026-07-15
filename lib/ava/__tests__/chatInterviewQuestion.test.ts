@@ -3,6 +3,7 @@ import test from "node:test"
 
 import {
   coerceChatInterviewQuestions,
+  displayMiAnswerText,
   formatQuestionAnswerMessage,
   formatQuestionAnswerText,
   isChatInterviewQuestion,
@@ -39,6 +40,33 @@ test("toChatInterviewQuestion maps dimensions to text and keeps defaults", () =>
     total: 3,
   })
   assert.equal(asText.type, "text")
+})
+
+test("toChatInterviewQuestion carries groupCount/groupLabel for bulk-apply cards", () => {
+  const question = toChatInterviewQuestion({
+    id: "format:s1",
+    text: "Which formats?",
+    type: "multichoice",
+    options: ["RSA", "PMax"],
+    index: 1,
+    total: 5,
+    groupCount: 4,
+    groupLabel: "4 similar Google Ads lines",
+  })
+  assert.equal(question.groupCount, 4)
+  assert.equal(question.groupLabel, "4 similar Google Ads lines")
+  assert.ok(isChatInterviewQuestion(question))
+
+  const alone = toChatInterviewQuestion({
+    id: "format:solo",
+    text: "Which formats?",
+    type: "choice",
+    options: ["A"],
+    index: 1,
+    total: 1,
+    groupCount: 1,
+  })
+  assert.equal(alone.groupCount, undefined)
 })
 
 test("coerceChatInterviewQuestions filters invalid entries", () => {
@@ -84,6 +112,41 @@ test("formatQuestionAnswerMessage round-trips questionId for the next start_mi_i
   assert.deepEqual(parseMiAnswerMessage(message), {
     questionId: "format:search-1",
     answer: "Responsive Search Ads (RSA), Performance Max",
+    applyAll: false,
   })
   assert.equal(parseMiAnswerMessage("plain answer without tag"), undefined)
+})
+
+test("card round-trip with and without [apply-all] marker", () => {
+  const withMarker = formatQuestionAnswerMessage(
+    "format:search-1",
+    "multichoice",
+    ["Responsive Search Ads (RSA)", "Performance Max"],
+    "",
+    { applyAll: true },
+  )
+  assert.equal(
+    withMarker,
+    "[mi:format:search-1] Responsive Search Ads (RSA), Performance Max [apply-all]",
+  )
+  assert.deepEqual(parseMiAnswerMessage(withMarker), {
+    questionId: "format:search-1",
+    answer: "Responsive Search Ads (RSA), Performance Max",
+    applyAll: true,
+  })
+
+  const without = formatQuestionAnswerMessage(
+    "format:search-1",
+    "choice",
+    ["Responsive Search Ads (RSA)"],
+    "",
+    { applyAll: false },
+  )
+  assert.equal(without, "[mi:format:search-1] Responsive Search Ads (RSA)")
+  assert.equal(parseMiAnswerMessage(without)?.applyAll, false)
+
+  assert.equal(
+    displayMiAnswerText(withMarker),
+    "Responsive Search Ads (RSA), Performance Max",
+  )
 })

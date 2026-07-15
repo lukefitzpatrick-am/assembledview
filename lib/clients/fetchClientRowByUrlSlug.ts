@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { parseXanoListPayload } from '@/lib/api/xano'
 import { getXanoClientsCollectionUrl } from '@/lib/api/xanoClients'
+import { omitClientBrain } from '@/lib/clients/omitClientBrain'
 import { dashboardSlugKeyFromSegment, findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
 
 const apiClient = axios.create({
@@ -18,7 +19,8 @@ function xanoResponseBodyPreview(data: unknown): string {
 }
 
 /**
- * Full Xano client row for admin client hub detail (EditClientForm).
+ * List-safe Xano client row for slug resolution (brain blob stripped).
+ * For full profile including `client_brain`, follow with `fetchClientById`.
  */
 export async function fetchXanoClientRowByUrlSlug(urlSlug: string): Promise<Record<string, unknown> | null> {
   const trimmed = String(urlSlug ?? '').trim()
@@ -30,7 +32,9 @@ export async function fetchXanoClientRowByUrlSlug(urlSlug: string): Promise<Reco
   try {
     const response = await apiClient.get(url)
     const clients = parseXanoListPayload(response.data)
-    return findClientRawByDashboardSlug(clients, target)
+    const match = findClientRawByDashboardSlug(clients, target)
+    if (!match || typeof match !== 'object') return null
+    return omitClientBrain(match as Record<string, unknown>)
   } catch (e: any) {
     const msg = e?.message != null ? String(e.message) : String(e)
     console.error('[dashboard] fetchXanoClientRowByUrlSlug catch:', {

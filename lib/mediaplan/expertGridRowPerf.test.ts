@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest"
+import { describe, it } from "node:test"
+import assert from "node:assert/strict"
 
 import {
   buildMapsPreservingIdentity,
@@ -30,16 +31,16 @@ describe("updateRowAtIndex", () => {
       row("c", "C", weekKeys),
     ]
     const next = updateRowAtIndex(rows, 1, { label: "B2" })
-    expect(next).not.toBeNull()
-    expect(next![0]).toBe(rows[0])
-    expect(next![2]).toBe(rows[2])
-    expect(next![1]).not.toBe(rows[1])
-    expect(next![1]).toEqual({ ...rows[1], label: "B2" })
+    assert.ok(next)
+    assert.equal(next![0], rows[0])
+    assert.equal(next![2], rows[2])
+    assert.notEqual(next![1], rows[1])
+    assert.deepEqual(next![1], { ...rows[1], label: "B2" })
   })
 
   it("returns null for out-of-range index", () => {
-    expect(updateRowAtIndex([row("a", "A", [])], 3, { label: "x" })).toBeNull()
-    expect(updateRowAtIndex([row("a", "A", [])], -1, { label: "x" })).toBeNull()
+    assert.equal(updateRowAtIndex([row("a", "A", [])], 3, { label: "x" }), null)
+    assert.equal(updateRowAtIndex([row("a", "A", [])], -1, { label: "x" }), null)
   })
 })
 
@@ -47,10 +48,10 @@ describe("mapRowAtIndex", () => {
   it("maps one row and keeps sibling identities", () => {
     const rows = [row("a", "A", []), row("b", "B", []), row("c", "C", [])]
     const next = mapRowAtIndex(rows, 0, (r) => ({ ...r, label: "A2" }))
-    expect(next).not.toBeNull()
-    expect(next![0].label).toBe("A2")
-    expect(next![1]).toBe(rows[1])
-    expect(next![2]).toBe(rows[2])
+    assert.ok(next)
+    assert.equal(next![0].label, "A2")
+    assert.equal(next![1], rows[1])
+    assert.equal(next![2], rows[2])
   })
 })
 
@@ -58,8 +59,8 @@ describe("finalizeRowsPreservingIdentity", () => {
   it("keeps row identity when finalize returns the same reference", () => {
     const rows = [row("a", "A", []), row("b", "B", [])]
     const out = finalizeRowsPreservingIdentity(rows, (r) => r)
-    expect(out[0]).toBe(rows[0])
-    expect(out[1]).toBe(rows[1])
+    assert.equal(out[0], rows[0])
+    assert.equal(out[1], rows[1])
   })
 
   it("only replaces rows finalize mutates", () => {
@@ -67,9 +68,9 @@ describe("finalizeRowsPreservingIdentity", () => {
     const out = finalizeRowsPreservingIdentity(rows, (r) =>
       r.id === "b" ? { ...r, label: "B2" } : r
     )
-    expect(out[0]).toBe(rows[0])
-    expect(out[1]).not.toBe(rows[1])
-    expect(out[1].label).toBe("B2")
+    assert.equal(out[0], rows[0])
+    assert.notEqual(out[1], rows[1])
+    assert.equal(out[1].label, "B2")
   })
 })
 
@@ -91,10 +92,9 @@ describe("normalizeRowsPreservingIdentity", () => {
 
     const cache = new Map()
     const first = normalizeRowsPreservingIdentity(rows1, weekKeys, normalizeOne, cache)
-    expect(normalizeCalls).toBe(3)
-    expect(first.rows).toHaveLength(3)
+    assert.equal(normalizeCalls, 3)
+    assert.equal(first.rows.length, 3)
 
-    // Simulate parent feeding normalized rows back after a single-row patch.
     const rows2 = mapRowAtIndex(first.rows, 1, (r) => ({ ...r, label: "B2" }))!
     normalizeCalls = 0
     const second = normalizeRowsPreservingIdentity(
@@ -103,11 +103,11 @@ describe("normalizeRowsPreservingIdentity", () => {
       normalizeOne,
       first.cache
     )
-    expect(normalizeCalls).toBe(1)
-    expect(second.rows[0]).toBe(first.rows[0])
-    expect(second.rows[2]).toBe(first.rows[2])
-    expect(second.rows[1]).not.toBe(first.rows[1])
-    expect(second.rows[1].label).toBe("B2")
+    assert.equal(normalizeCalls, 1)
+    assert.equal(second.rows[0], first.rows[0])
+    assert.equal(second.rows[2], first.rows[2])
+    assert.notEqual(second.rows[1], first.rows[1])
+    assert.equal(second.rows[1].label, "B2")
   })
 
   it("invalidates all rows when weekKeys identity changes", () => {
@@ -129,7 +129,7 @@ describe("normalizeRowsPreservingIdentity", () => {
     )
     calls = 0
     normalizeRowsPreservingIdentity(rows, weekKeysB, normalizeOne, first.cache)
-    expect(calls).toBe(1)
+    assert.equal(calls, 1)
   })
 })
 
@@ -149,12 +149,11 @@ describe("buildMapsPreservingIdentity", () => {
       buildOne,
       new Map()
     )
-    expect(builds).toBe(2)
+    assert.equal(builds, 2)
 
     const rows2 = mapRowAtIndex(rows1, 0, (r) => ({
       ...r,
       label: "A2",
-      // same spans reference → map should reuse
     }))!
     builds = 0
     const second = buildMapsPreservingIdentity(
@@ -164,9 +163,9 @@ describe("buildMapsPreservingIdentity", () => {
       buildOne,
       first.cache
     )
-    expect(builds).toBe(0)
-    expect(second.maps[0]).toBe(first.maps[0])
-    expect(second.maps[1]).toBe(first.maps[1])
+    assert.equal(builds, 0)
+    assert.equal(second.maps[0], first.maps[0])
+    assert.equal(second.maps[1], first.maps[1])
   })
 })
 
@@ -179,14 +178,13 @@ describe("updateRowAtIndex scale", () => {
     const t0 = performance.now()
     const next = updateRowAtIndex(rows, 150, { label: "patched" })
     const ms = performance.now() - t0
-    expect(next).not.toBeNull()
+    assert.ok(next)
     let preserved = 0
     for (let i = 0; i < rows.length; i++) {
       if (next![i] === rows[i]) preserved++
     }
-    expect(preserved).toBe(299)
-    expect(next![150]).not.toBe(rows[150])
-    // Sanity: array rebuild of 300 cheap objects stays well under 50ms on CI.
-    expect(ms).toBeLessThan(50)
+    assert.equal(preserved, 299)
+    assert.notEqual(next![150], rows[150])
+    assert.ok(ms < 50)
   })
 })

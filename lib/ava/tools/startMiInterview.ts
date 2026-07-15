@@ -1,10 +1,19 @@
 import type AvaTool from "./types"
 import {
   parseMiAnswerMessage,
+  stripApplyAllMarker,
   toChatInterviewQuestion,
 } from "@/lib/ava/chatInterviewQuestion"
 import { fetchAllMediaContainerLineItems } from "@/lib/api/media-containers"
-import { resolveMiPlan, type MiAnswer, type MiPlanInput } from "@/lib/specs/resolve"
+import { slugifyPublisher } from "@/lib/specs/library"
+import {
+  flattenPlanLineItems,
+  resolveMiPlan,
+  type MiAnswer,
+  type MiOpenQuestion,
+  type MiPlanInput,
+  type MiResolvedSpec,
+} from "@/lib/specs/resolve"
 import { asRecord, asString, jsonContent, MI_SCOPE_VERSION_QUESTION_ID, resolveMediaContainerScope, resolveMiVersionScope, resolveScopedMba } from "./helpers"
 
 type InterviewQuestion = {
@@ -18,6 +27,8 @@ type InterviewQuestion = {
   line_item_id: string
   displayName: string
   appliesTo: string
+  groupCount?: number
+  groupLabel?: string
 }
 
 export type MiInterviewToolPayload = {
@@ -38,7 +49,136 @@ export type MiInterviewToolPayload = {
   derived?: ReturnType<typeof resolveMiPlan>["derived"]
 }
 
-function compactQuestion(question: ReturnType<typeof resolveMiPlan>["open_questions"][number]): InterviewQuestion {
+/** Deterministic grouping key: field + publisher_slug + serialised options. */
+export function miQuestionGroupKey(
+  field: string,
+  publisherSlug: string,
+  options?: string[],
+): string {
+  return `${field}\0${publisherSlug}\0${JSON.stringify(options ?? [])}`
+}
+
+function publisherSlugForQuestion(
+  question: Pick<MiOpenQuestion, "rowRef">,
+  resolved: MiResolvedSpec[],
+  plan: MiPlanInput,
+): string {
+  const fromResolved = resolved.find(
+    (row) => row.line_item_id === question.rowRef.line_item_id,
+  )?.publisher_slug
+  if (fromResolved) return fromResolved
+  const line = flattenPlanLineItems(plan).find(
+    (item) => item.line_item_id === question.rowRef.line_item_id,
+  )
+  return line?.publisher ? slugifyPublisher(line.publisher) : ""
+}
+
+function publisherLabelForSlug(
+  slug: string,
+  resolved: MiResolvedSpec[],
+): string {
+  const named = resolved.find((row) => row.publisher_slug === slug)?.fields_client?.Publisher
+  if (named?.trim()) return named.trim()
+  if (!slug) return "matching"
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
+/**
+ * Unanswered open questions that share the current question's group key.
+ * Order follows resolveMiPlan's open_questions order (deterministic).
+ */
+export function groupOpenQuestions(
+  openQuestions: MiOpenQuestion[],
+  currentQuestionId: string,
+  resolved: MiResolvedSpec[],
+  plan: MiPlanInput,
+): MiOpenQuestion[] {
+  const current = openQuestions.find((question) => question.id === currentQuestionId)
+  if (!current) return []
+  const key = miQuestionGroupKey(
+    current.field,
+    publisherSlugForQuestion(current, resolved, plan),
+    current.options,
+  )
+  return openQuestions.filter(
+    (question) =>
+      miQuestionGroupKey(
+        question.field,
+        publisherSlugForQuestion(question, resolved, plan),
+        question.options,
+      ) === key,
+  )
+}
+
+function groupMetaForCurrent(
+  openQuestions: MiOpenQuestion[],
+  currentQuestionId: string,
+  resolved: MiResolvedSpec[],
+  plan: MiPlanInput,
+): { groupCount: number; groupLabel: string } | undefined {
+  const members = groupOpenQuestions(openQuestions, currentQuestionId, resolved, plan)
+  if (members.length < 2) return undefined
+  const current = members.find((question) => question.id === currentQuestionId) ?? members[0]
+  const slug = publisherSlugForQuestion(current, resolved, plan)
+  const publisher = publisherLabelForSlug(slug, resolved)
+  return {
+    groupCount: members.length,
+    groupLabel: `${members.length} similar ${publisher} lines`,
+  }
+}
+
+/**
+ * Expand [apply-all] answers onto every unanswered peer in the recomputed group.
+ * Strips the marker before any answer reaches the resolver. Card preticks are not
+ * answers — the Confirm value is what expands to the group (user opt-in).
+ */
+export function expandApplyAllAnswers(
+  plan: MiPlanInput,
+  answers: MiAnswer[],
+): MiAnswer[] {
+  let expanded: MiAnswer[] = []
+
+  for (const raw of answers) {
+    const { answer, applyAll } = stripApplyAllMarker(raw.answer)
+    if (!answer) continue
+
+    if (!applyAll) {
+      expanded = [
+        ...expanded.filter((entry) => entry.questionId !== raw.questionId),
+        { questionId: raw.questionId, answer },
+      ]
+      continue
+    }
+
+    const snapshot = resolveMiPlan(plan, undefined, expanded)
+    const members = groupOpenQuestions(
+      snapshot.open_questions,
+      raw.questionId,
+      snapshot.resolved,
+      plan,
+    )
+    const ids =
+      members.length >= 2
+        ? members.map((question) => question.id)
+        : [raw.questionId]
+    const idSet = new Set(ids)
+    expanded = expanded.filter((entry) => !idSet.has(entry.questionId))
+    for (const id of ids) {
+      expanded.push({ questionId: id, answer })
+    }
+  }
+
+  return expanded
+}
+
+function compactQuestion(
+  question: ReturnType<typeof resolveMiPlan>["open_questions"][number],
+  group?: { groupCount: number; groupLabel: string },
+): InterviewQuestion {
   return {
     id: question.id,
     field: question.field,
@@ -50,6 +190,7 @@ function compactQuestion(question: ReturnType<typeof resolveMiPlan>["open_questi
     line_item_id: question.rowRef.line_item_id,
     displayName: question.rowRef.displayName,
     appliesTo: question.appliesTo,
+    ...(group ? { groupCount: group.groupCount, groupLabel: group.groupLabel } : {}),
   }
 }
 
@@ -57,6 +198,7 @@ function compactQuestion(question: ReturnType<typeof resolveMiPlan>["open_questi
  * Count answers that matched an open question and closed it.
  * Unmatched ids (stale / invented) do not advance progress.
  * Follow-up questions after dead-ends (e.g. specs_source) grow the total.
+ * Bulk-apply expansion must run before this so one Confirm can consume N.
  */
 function countConsumedAnswers(plan: MiPlanInput, answers: MiAnswer[]): number {
   let consumed = 0
@@ -82,12 +224,20 @@ export function buildMiInterviewPayload(
   plan: MiPlanInput,
   answers: MiAnswer[] = [],
 ): MiInterviewToolPayload {
+  const expanded = expandApplyAllAnswers(plan, answers)
   const baseline = resolveMiPlan(plan, undefined, [])
-  const result = resolveMiPlan(plan, undefined, answers)
-  const current = result.open_questions[0]
-    ? compactQuestion(result.open_questions[0])
-    : null
-  const answeredCount = countConsumedAnswers(plan, answers)
+  const result = resolveMiPlan(plan, undefined, expanded)
+  const currentOpen = result.open_questions[0]
+  const group = currentOpen
+    ? groupMetaForCurrent(
+        result.open_questions,
+        currentOpen.id,
+        result.resolved,
+        plan,
+      )
+    : undefined
+  const current = currentOpen ? compactQuestion(currentOpen, group) : null
+  const answeredCount = countConsumedAnswers(plan, expanded)
   const questionTotal = Math.max(baseline.summary.open, answeredCount + result.summary.open, 1)
 
   const payload: MiInterviewToolPayload = {
@@ -116,7 +266,8 @@ export function buildMiInterviewPayload(
  * Index/total use consumed matched answers + remaining open (so follow-up
  * questions after dead-ends grow questionTotal). Unmatched answer ids do not
  * advance the counter. Exactly ONE card per turn; questions 2+ arrive only via
- * the next tool call.
+ * the next tool call. When the current question's group has N ≥ 2, the card
+ * carries groupCount / groupLabel for the bulk-apply toggle.
  */
 export function buildMiInterviewQuestionCards(
   plan: MiPlanInput,
@@ -137,6 +288,9 @@ export function buildMiInterviewQuestionCards(
       selected: current.selected,
       index: payload.questionIndex,
       total: payload.questionTotal,
+      ...(current.groupCount != null
+        ? { groupCount: current.groupCount, groupLabel: current.groupLabel }
+        : {}),
     }),
   ]
 }
@@ -149,8 +303,14 @@ function answersFrom(input: Record<string, unknown>): MiAnswer[] {
     const response = asString(answer.answer)
     if (!questionId || !response) return []
     // Allow models to paste the full Confirm line as `answer`.
+    // Keep [apply-all] in the answer body for expandApplyAllAnswers.
     const tagged = parseMiAnswerMessage(response)
-    if (tagged) return [{ questionId: tagged.questionId, answer: tagged.answer }]
+    if (tagged) {
+      return [{
+        questionId: tagged.questionId,
+        answer: tagged.applyAll ? `${tagged.answer} [apply-all]` : tagged.answer,
+      }]
+    }
     return [{ questionId, answer: response }]
   })
 }
@@ -159,7 +319,7 @@ export const startMiInterviewTool: AvaTool = {
   definition: {
     name: "start_mi_interview",
     description:
-      "Resolve an MBA's material-instructions plan and return the ONE current interview question (plus summary counts). The chat UI shows an interactive question card for that question — the card already carries questionIndex/questionTotal; never compose your own \"Question N of M\" line; if you mention progress, echo those fields from the latest tool result only. Do not re-list options. Never author, paraphrase, reorder, or renumber questions: if it is not the tool card / currentQuestion, it is not a question. Derived fills are already applied (derivedCount mid-interview; full derived only when openCount is 0 for the confirm readback) — never ask the user to confirm them, never present them as questions, never restate them with your own labels, never map bid_strategy to funnel objectives (Awareness/Consideration/Conversions). User Confirm messages look like \"[mi:questionId] answer\" — pass every such pair (plus any earlier ones) as answers when calling again to advance. Does not save answers or generate a workbook.",
+      "Resolve an MBA's material-instructions plan and return the ONE current interview question (plus summary counts). The chat UI shows an interactive question card for that question — the card already carries questionIndex/questionTotal; never compose your own \"Question N of M\" line; if you mention progress, echo those fields from the latest tool result only. Do not re-list options. Never author, paraphrase, reorder, or renumber questions: if it is not the tool card / currentQuestion, it is not a question. When the card has a bulk-apply toggle, user Confirm may include [apply-all] — pass every [mi:…] tag verbatim (including [apply-all]); never summarise or omit the toggle. Derived fills are already applied (derivedCount mid-interview; full derived only when openCount is 0 for the confirm readback) — never ask the user to confirm them, never present them as questions, never restate them with your own labels, never map bid_strategy to funnel objectives (Awareness/Consideration/Conversions). User Confirm messages look like \"[mi:questionId] answer\" or \"[mi:questionId] answer [apply-all]\" — pass every such pair (plus any earlier ones) as answers when calling again to advance. Does not save answers or generate a workbook.",
     input_schema: {
       type: "object",
       properties: {

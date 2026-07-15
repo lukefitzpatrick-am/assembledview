@@ -270,6 +270,7 @@ export function getDigiDisplayBursts(
         budgetIncludesFees: !!li.budgetIncludesFees,
         clientPaysForMedia: !!li.clientPaysForMedia,
         feePct: pct,
+        buyType: li.buyType,
       })
 
       return {

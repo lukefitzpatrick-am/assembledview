@@ -1,24 +1,27 @@
+import "server-only"
+
+import { unstable_cache } from "next/cache"
 import { fetchAllXanoPagesWithCompleteness } from "@/lib/api/xanoPagination"
 import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
 
 /**
- * Shared coalesced cache for the dashboard's latest media_plan_versions list.
+ * Durable shared cache for the dashboard's latest media_plan_versions list.
  *
  * Default upstream: `media_plan_versions_latest` (one row per mba_number, highest
  * version_number), paged, with `include_schedules=false`. Schedule JSON is also
- * stripped client-side after fetch so dashboard/list payloads stay small even if
- * Xano ignores the flag.
+ * stripped after fetch so dashboard/list payloads stay small even if Xano ignores
+ * the flag.
  *
- * Serves stale-while-revalidate: when a populated entry is past TTL, callers get
- * the cached value immediately and a background refresh runs. Only a true cold
- * start (never filled) blocks on the upstream round-trip.
+ * Auth stays outside this cache. Serves last-known-good on upstream failure
+ * (`stale: true`).
  *
  * Consumers of this cache must treat the value as a latest-version-per-MBA list
  * of scalar fields only. Call sites that need schedules or version history must
  * hit `media_plan_versions` (paged) directly — never this cache.
  */
 
-const DEFAULT_TTL_MS = 60_000
+export const MEDIA_PLAN_VERSIONS_TAG = "media-plan-versions"
+const REVALIDATE_SECONDS = 60
 /** per_page ceiling on _latest measured 12 Jul 2026: 100 ✅ / 150 ❌ timeout. 171-row latest set = 2 requests. */
 const PAGE_SIZE = 100
 
@@ -34,20 +37,8 @@ export type MediaPlanVersionsCacheResult = {
   stale: boolean
 }
 
-type CacheEntry = {
-  data: any[]
-  fetchedAt: number
-}
-
-let cacheEntry: CacheEntry | null = null
-let inFlightPromise: Promise<MediaPlanVersionsCacheResult> | null = null
-
-function cacheTtlMs(): number {
-  const raw = process.env.MEDIA_PLAN_VERSIONS_CACHE_TTL_MS
-  if (raw == null || raw === "") return DEFAULT_TTL_MS
-  const n = Number(raw)
-  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_TTL_MS
-}
+/** Process-local LKG for stale-on-failure within a warm instance. */
+let lastKnownGood: any[] | null = null
 
 function versionsPath(): string {
   const override = process.env.XANO_MEDIA_PLAN_VERSIONS_PATH?.trim()
@@ -90,55 +81,29 @@ async function fetchUpstream(): Promise<any[]> {
   return list.map(stripScheduleFields)
 }
 
-function startRefresh(): Promise<MediaPlanVersionsCacheResult> {
-  const promise = (async (): Promise<MediaPlanVersionsCacheResult> => {
-    try {
-      const data = await fetchUpstream()
-      cacheEntry = { data, fetchedAt: Date.now() }
-      return { data, stale: false }
-    } catch (err) {
-      if (cacheEntry) {
-        console.warn(
-          "[mediaPlanVersionsCache] upstream failed; serving last-known-good",
-          err instanceof Error ? err.message : err,
-        )
-        return { data: cacheEntry.data, stale: true }
-      }
-      throw err
-    } finally {
-      inFlightPromise = null
-    }
-  })()
-
-  inFlightPromise = promise
-  return promise
-}
-
 /**
- * Returns the latest-per-MBA media_plan_versions list, coalescing concurrent
- * callers onto one upstream walk. Past-TTL hits return immediately and refresh
- * in the background. Serves last-known-good on failure (`stale: true`);
- * rejects only when there has never been a successful fetch.
+ * Returns the latest-per-MBA media_plan_versions list from the durable Data Cache.
+ * Serves last-known-good on failure (`stale: true`); rejects only when there
+ * has never been a successful fetch on this instance and Data Cache misses.
  */
 export async function getCachedMediaPlanVersions(): Promise<MediaPlanVersionsCacheResult> {
-  const now = Date.now()
-
-  if (cacheEntry && now - cacheEntry.fetchedAt < cacheTtlMs()) {
-    return { data: cacheEntry.data, stale: false }
-  }
-
-  // Populated but past TTL: serve immediately, revalidate in the background.
-  if (cacheEntry) {
-    if (!inFlightPromise) {
-      void startRefresh()
+  try {
+    const cached = unstable_cache(
+      async () => fetchUpstream(),
+      ["media-plan-versions"],
+      { revalidate: REVALIDATE_SECONDS, tags: [MEDIA_PLAN_VERSIONS_TAG] }
+    )
+    const data = await cached()
+    lastKnownGood = data
+    return { data, stale: false }
+  } catch (err) {
+    if (lastKnownGood) {
+      console.warn(
+        "[mediaPlanVersionsCache] upstream failed; serving last-known-good",
+        err instanceof Error ? err.message : err,
+      )
+      return { data: lastKnownGood, stale: true }
     }
-    return { data: cacheEntry.data, stale: false }
+    throw err
   }
-
-  // Cold start — never filled; block until upstream succeeds or rejects.
-  if (inFlightPromise) {
-    return inFlightPromise
-  }
-
-  return startRefresh()
 }

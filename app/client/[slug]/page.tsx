@@ -1,5 +1,6 @@
 import { notFound } from 'next/navigation'
 import { getClientDashboardData } from '@/lib/api/dashboard'
+import { fetchClientById } from '@/lib/clients/fetchClientById'
 import { fetchXanoClientRowByUrlSlug } from '@/lib/clients/fetchClientRowByUrlSlug'
 import { ClientDashboardPageContent } from '@/components/dashboard/ClientDashboardPageContent'
 
@@ -15,7 +16,7 @@ export default async function ClientHubDetailPage({ params }: PageProps) {
     notFound()
   }
 
-  const [clientData, clientRecord] = await Promise.all([
+  const [clientData, listSafeRow] = await Promise.all([
     getClientDashboardData(slug),
     fetchXanoClientRowByUrlSlug(slug),
   ])
@@ -23,6 +24,12 @@ export default async function ClientHubDetailPage({ params }: PageProps) {
   if (!clientData) {
     notFound()
   }
+
+  const id = listSafeRow?.id
+  const clientRecord =
+    id != null && String(id).trim()
+      ? ((await fetchClientById(id as string | number)) ?? listSafeRow)
+      : listSafeRow
 
   const clientLogo =
     typeof clientRecord?.logo === 'string' && clientRecord.logo.trim()

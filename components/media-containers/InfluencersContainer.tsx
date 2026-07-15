@@ -178,6 +178,7 @@ export function getInfluencersBursts(
         budgetIncludesFees: !!li.budgetIncludesFees,
         clientPaysForMedia: !!li.clientPaysForMedia,
         feePct: pct,
+        buyType: li.buyType,
       })
       
       return {
@@ -1341,7 +1342,7 @@ const getBursts = () => {
                                     <FormControl>
                                       <Combobox
                                         value={field.value}
-                                        onValueChange={field.onChange}
+                                        onValueChange={(value) => handleBuyTypeChange(lineItemIndex, value)}
                                         placeholder="Select"
                                         searchPlaceholder="Search buy types..."
                                         buttonClassName="h-9 w-full flex-1 rounded-md"

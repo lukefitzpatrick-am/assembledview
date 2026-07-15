@@ -1,4 +1,5 @@
 import axios from "axios"
+import { omitClientBrainFromList } from "@/lib/clients/omitClientBrain"
 import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
 
@@ -25,11 +26,13 @@ export async function getCachedClients(): Promise<any[]> {
         headers: xanoAuthHeaderRecord(),
       })
       const raw = res.data
-      const data: any[] = Array.isArray(raw)
+      const unstripped: any[] = Array.isArray(raw)
         ? raw
         : Array.isArray(raw?.items)
           ? raw.items
           : []
+      // Never cache multi-KB client_brain blobs on the list path.
+      const data = omitClientBrainFromList(unstripped)
       // Only successful fetches reach here, so caching the result is safe.
       clientsCacheEntry = { expiresAt: Date.now() + CACHE_TTL_MS, value: data }
       return data
@@ -44,6 +47,11 @@ export async function getCachedClients(): Promise<any[]> {
 
   clientsInFlightPromise = promise
   return promise
+}
+
+/** Drop clients list cache after PATCH (e.g. marketing brain save). */
+export function invalidateCachedClients() {
+  clientsCacheEntry = null
 }
 
 export async function getCachedPublishers(): Promise<any[]> {

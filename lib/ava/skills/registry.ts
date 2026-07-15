@@ -35,6 +35,7 @@ export type AvaSkillsVersion = {
 }
 
 const COPY_PAIRED_TOOLS = [
+  "get_client_brain",
   "get_client_details",
   "get_saved_audiences",
   "get_best_practice",
@@ -57,7 +58,12 @@ const SKILL_META: Record<
   "assembled-insight-commentary": {
     title: "Insight & delivery commentary",
     chains: [MARKETING_BRAIN_ID],
-    pairedTools: ["get_delivery_snapshot", "get_pacing_snapshot", "get_campaign_context"],
+    pairedTools: [
+      "get_client_brain",
+      "get_delivery_snapshot",
+      "get_pacing_snapshot",
+      "get_campaign_context",
+    ],
   },
   "assembled-audience-insight": {
     title: "Audience insight",
@@ -103,6 +109,11 @@ const SKILL_META: Record<
     title: "Media-plan auto-populate",
     chains: [MARKETING_BRAIN_ID],
     pairedTools: ["apply_parsed_plan"],
+  },
+  "client-marketing-brain": {
+    title: "Client marketing brain",
+    chains: [MARKETING_BRAIN_ID],
+    pairedTools: ["get_client_brain", "save_client_brain"],
   },
 }
 

@@ -28,12 +28,18 @@ export function ChatQuestionCard({
   onConfirm,
 }: ChatQuestionCardProps) {
   const locked = typeof question.confirmedAnswer === "string"
+  const groupSize =
+    typeof question.groupCount === "number" && question.groupCount >= 2
+      ? question.groupCount
+      : null
   const [selected, setSelected] = useState<string[]>(() =>
     question.selected?.length ? [...question.selected] : [],
   )
   const [freeText, setFreeText] = useState(() =>
     question.type === "text" && question.selected?.[0] ? question.selected[0] : "",
   )
+  /** Default ON — bulk-apply is the opt-in the card offers when peers share the same ask. */
+  const [applyAll, setApplyAll] = useState(true)
 
   const options = question.options ?? []
   const canConfirm = locked
@@ -61,6 +67,7 @@ export function ChatQuestionCard({
       question.type,
       selected,
       freeText,
+      { applyAll: groupSize != null && applyAll },
     )
     if (!answerText) return
     onConfirm(answerText)
@@ -142,6 +149,23 @@ export function ChatQuestionCard({
             )
           })}
         </div>
+      ) : null}
+
+      {groupSize != null && !locked ? (
+        <label
+          className={cn(
+            "flex items-start gap-3 rounded-input border border-border px-3 py-2 text-sm text-foreground",
+            disabled ? "opacity-60" : "hover:bg-table-row-hover",
+          )}
+        >
+          <Checkbox
+            checked={applyAll}
+            disabled={disabled}
+            onCheckedChange={(value) => setApplyAll(value === true)}
+            className="mt-0.5"
+          />
+          <span>Apply to all {groupSize} similar line items</span>
+        </label>
       ) : null}
 
       {locked ? (

@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
 /**
- * Shown when a channel container has no line items yet (replaces the auto $0 starter row).
+ * Shown when a channel is enabled but the user has deleted every line item.
+ * Channel enable still seeds one starter row via defaultValues.
  */
 export function ContainerEmptyLinesPlaceholder({
   onAdd,

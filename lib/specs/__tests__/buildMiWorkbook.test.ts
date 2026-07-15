@@ -150,6 +150,78 @@ test("client_prefill merges AVA copy into Social CLIENT columns", async () => {
   assert.equal(sheet.getCell(4, col("Variant")).value, "B")
 })
 
+const searchRow: MiResolvedSpec = {
+  line_item_id: "search-1",
+  displayName: "Google — Brand Exact",
+  container_category: "Search",
+  publisher_slug: "google-ads",
+  format_name: "Responsive Search Ads (RSA)",
+  confidence: "high",
+  fields_am: {
+    Campaign: "Winter Launch",
+    "Line Item": "Brand Exact",
+    Publisher: "Google Ads",
+    Format: "Responsive Search Ads (RSA)",
+  },
+  fields_specs: {
+    "Headline Limits": "Min 1, max 15. 30 characters each.",
+    Source: "https://support.google.com/google-ads",
+  },
+  fields_client: { Publisher: "Google Ads" },
+}
+
+test("client_prefill merges AVA search copy into Search CLIENT columns", async () => {
+  const headlines = ["Buy Assembled Media", "Search that converts", "AU media buying"].join("\n")
+  const descriptions = [
+    "Plan, buy and report in one platform.",
+    "Trusted by Australian brands.",
+  ].join("\n")
+
+  const prefills = applyClientPrefill([searchRow], [
+    {
+      line_item_id: "search-1",
+      fields: {
+        "Final URL": "https://assembledmedia.com.au/search",
+        "Display Path 1": "search",
+        "Display Path 2": "ads",
+        "Headlines (1-15)": headlines,
+        "Descriptions (1-4)": descriptions,
+        Sitelinks: "Our work\nContact",
+        Callouts: "Australian owned\nFast setup",
+      },
+    },
+  ])
+
+  assert.equal(prefills.length, 1)
+  assert.equal(prefills[0].fields_client["Final URL"], "https://assembledmedia.com.au/search")
+  assert.equal(prefills[0].fields_client["Display Path 1"], "search")
+  assert.equal(prefills[0].fields_client["Display Path 2"], "ads")
+  assert.equal(prefills[0].fields_client["Headlines (1-15)"], headlines)
+  assert.equal(prefills[0].fields_client["Descriptions (1-4)"], descriptions)
+  assert.equal(prefills[0].fields_client.Sitelinks, "Our work\nContact")
+  assert.equal(prefills[0].fields_client.Callouts, "Australian owned\nFast setup")
+
+  const { workbook } = await buildMiWorkbook(
+    miPayloadFromResolve({ name: "Winter Launch", client: "Acme" }, {
+      resolved: prefills,
+      open_questions: [],
+      derived: [],
+      summary: { resolved: 1, open: 0 },
+    }),
+  )
+  const sheet = workbook.getWorksheet("Search")
+  assert.ok(sheet)
+  const headers = sheet.getRow(2).values as Array<string | undefined>
+  const col = (name: string) => headers.findIndex((header) => header === name)
+  assert.equal(sheet.getCell(3, col("Final URL")).value, "https://assembledmedia.com.au/search")
+  assert.equal(sheet.getCell(3, col("Display Path 1")).value, "search")
+  assert.equal(sheet.getCell(3, col("Display Path 2")).value, "ads")
+  assert.equal(sheet.getCell(3, col("Headlines (1-15)")).value, headlines)
+  assert.equal(sheet.getCell(3, col("Descriptions (1-4)")).value, descriptions)
+  assert.equal(sheet.getCell(3, col("Sitelinks")).value, "Our work\nContact")
+  assert.equal(sheet.getCell(3, col("Callouts")).value, "Australian owned\nFast setup")
+})
+
 test("golden: specs_source paste text lands in Publisher-Specific Notes", async () => {
   const { resolveMiPlan } = await import("../resolve.js")
   const { loadMiLibrary } = await import("../library.js")

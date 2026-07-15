@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest"
+import { describe, it } from "node:test"
+import assert from "node:assert/strict"
 
 import {
   buildMapsPreservingIdentity,
@@ -60,7 +61,6 @@ describe("F-28 row identity contract for memo skips", () => {
       label: "edited",
     })!
     const finalized = finalizeRowsPreservingIdentity(patched, (r) => {
-      // unchanged rows: identity; edited row: same dates → keep post-patch ref
       return r
     })
     const secondNorm = normalizeRowsPreservingIdentity(
@@ -83,9 +83,9 @@ describe("F-28 row identity contract for memo skips", () => {
       if (secondNorm.rows[i] === firstNorm.rows[i]) sameRow++
       if (secondMaps.maps[i] === firstMaps.maps[i]) sameMap++
     }
-    expect(sameRow).toBe(299)
-    expect(sameMap).toBe(300)
-    expect(secondNorm.rows[42]?.label).toBe("edited")
+    assert.equal(sameRow, 299)
+    assert.equal(sameMap, 300)
+    assert.equal(secondNorm.rows[42]?.label, "edited")
   })
 
   it("mapRowAtIndex then finalize only rematerialises the changed index", () => {
@@ -98,9 +98,9 @@ describe("F-28 row identity contract for memo skips", () => {
     const out = finalizeRowsPreservingIdentity(mapped, (r) =>
       r.n === 99 ? { ...r, n: 100 } : r
     )
-    expect(out[0]).toBe(rows[0])
-    expect(out[2]).toBe(rows[2])
-    expect(out[1]).toEqual({ id: "b", n: 100 })
+    assert.equal(out[0], rows[0])
+    assert.equal(out[2], rows[2])
+    assert.deepEqual(out[1], { id: "b", n: 100 })
   })
 
   it("Radio-shaped rows: single edit preserves ≥ N-1 identities through normalize/finalize", () => {
@@ -177,10 +177,10 @@ describe("F-28 row identity contract for memo skips", () => {
       if (secondNorm.rows[i] === firstNorm.rows[i]) sameRow++
       if (secondMaps.maps[i] === firstMaps.maps[i]) sameMap++
     }
-    expect(sameRow).toBeGreaterThanOrEqual(299)
-    expect(sameMap).toBe(300)
-    expect(secondNorm.rows[17]?.network).toBe("Edited Network")
-    expect(secondNorm.rows[17]?.station).toBe("Edited Station")
+    assert.ok(sameRow >= 299)
+    assert.equal(sameMap, 300)
+    assert.equal(secondNorm.rows[17]?.network, "Edited Network")
+    assert.equal(secondNorm.rows[17]?.station, "Edited Station")
   })
 })
 
@@ -191,7 +191,6 @@ describe("F-28 row identity contract for memo skips", () => {
  * all channels rather than duplicating a near-identical block per grid.
  */
 describe("F-28 memo contract across all ExpertGrid channels", () => {
-  // Mirrors the 18 channels wired in Phase 1 plus the two already-wired grids.
   const CHANNELS = [
     "Radio",
     "OOH",
@@ -237,9 +236,8 @@ describe("F-28 memo contract across all ExpertGrid channels", () => {
     return { ...r, weeklyValues, mergedWeekSpans: r.mergedWeekSpans ?? [] }
   }
 
-  it.each(CHANNELS)(
-    "%s: single-row edit preserves ≥ 299/300 row + 300/300 map identities",
-    (channel) => {
+  for (const channel of CHANNELS) {
+    it(`${channel}: single-row edit preserves ≥ 299/300 row + 300/300 map identities`, () => {
       const seed: ChannelRow[] = Array.from({ length: 300 }, (_, i) => ({
         id: `${channel}-${i}`,
         descriptor: `${channel} row ${i}`,
@@ -290,9 +288,9 @@ describe("F-28 memo contract across all ExpertGrid channels", () => {
         if (secondMaps.maps[i] === firstMaps.maps[i]) sameMap++
       }
 
-      expect(sameRow).toBeGreaterThanOrEqual(299)
-      expect(sameMap).toBe(300)
-      expect(secondNorm.rows[128]?.descriptor).toBe(`${channel} EDITED`)
-    }
-  )
+      assert.ok(sameRow >= 299)
+      assert.equal(sameMap, 300)
+      assert.equal(secondNorm.rows[128]?.descriptor, `${channel} EDITED`)
+    })
+  }
 })

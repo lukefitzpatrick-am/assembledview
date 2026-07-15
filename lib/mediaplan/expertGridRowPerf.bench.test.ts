@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest"
+import { describe, it } from "node:test"
+import assert from "node:assert/strict"
 
 import {
   finalizeRowsPreservingIdentity,
@@ -75,8 +76,8 @@ describe("F-28 Phase 1 microbench (recorded in commit)", () => {
       `[F-28 OOH Phase1 bench] avgSingleEdit_ms=${avgEditMs.toFixed(3)} add100_ms=${add100Ms.toFixed(2)} rows=${afterAdd.rows.length}`
     )
 
-    expect(avgEditMs).toBeLessThan(5)
-    expect(add100Ms).toBeLessThan(50)
-    expect(afterAdd.rows.length).toBe(400)
+    assert.ok(avgEditMs < 5)
+    assert.ok(add100Ms < 50)
+    assert.equal(afterAdd.rows.length, 400)
   })
 })

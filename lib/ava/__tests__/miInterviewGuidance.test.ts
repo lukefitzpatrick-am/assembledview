@@ -45,3 +45,9 @@ test("MI interview guidance forbids freelanced Question N of M and derived label
   assert.match(AVA_MI_INTERVIEW_GUIDANCE, /exportWithGaps/)
   assert.match(AVA_MI_TOOL_HINTS, /exportWithGaps|open questions/i)
 })
+
+test("MI interview guidance requires verbatim [apply-all] and never summarise toggle", () => {
+  assert.match(AVA_MI_INTERVIEW_GUIDANCE, /\[apply-all\]/)
+  assert.match(AVA_MI_INTERVIEW_GUIDANCE, /verbatim/)
+  assert.match(AVA_MI_INTERVIEW_GUIDANCE, /never summarise|never summarize|never strip/i)
+})

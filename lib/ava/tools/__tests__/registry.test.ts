@@ -33,9 +33,11 @@ test("ava tool catalog: names unique and complete", () => {
   assert.ok(AVA_TOOL_NAMES.includes("generate_mi_workbook"))
   assert.ok(AVA_TOOL_NAMES.includes("load_skill"))
   assert.ok(AVA_TOOL_NAMES.includes("generate_performance_report"))
-  assert.equal(AVA_TOOL_NAMES.length, 18)
+  assert.ok(AVA_TOOL_NAMES.includes("get_client_brain"))
+  assert.ok(AVA_TOOL_NAMES.includes("save_client_brain"))
+  assert.equal(AVA_TOOL_NAMES.length, 20)
   assert.deepEqual(
-    AVA_TOOL_NAMES.slice(-6),
+    AVA_TOOL_NAMES.slice(-8),
     [
       "get_delivery_snapshot",
       "get_platform_specs",
@@ -43,6 +45,8 @@ test("ava tool catalog: names unique and complete", () => {
       "generate_mi_workbook",
       "load_skill",
       "generate_performance_report",
+      "get_client_brain",
+      "save_client_brain",
     ],
   )
 })

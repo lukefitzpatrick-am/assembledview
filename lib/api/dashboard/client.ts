@@ -8,6 +8,7 @@ import { parseXanoListPayload } from '@/lib/api/xano'
 import { getXanoClientsCollectionUrl, xanoMediaPlansUrl } from '@/lib/api/xanoClients'
 import { fetchAllXanoPages } from '@/lib/api/xanoPagination'
 import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slug'
+import { hasNonEmptyClientBrain, omitClientBrain } from '@/lib/clients/omitClientBrain'
 import { findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from '@/lib/spend/monthlyPlanCalendar'
 import { normalizeDateToMelbourneISO } from '@/lib/dates/normalizeCampaignDateISO'
@@ -841,6 +842,10 @@ export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHu
       liveCampaigns: dashboard.liveCampaigns,
       totalSpend: dashboard.totalSpend,
       brandColour: dashboard.brandColour || fromRaw,
+      hasClientBrain:
+        typeof raw.has_client_brain === 'boolean'
+          ? raw.has_client_brain
+          : hasNonEmptyClientBrain(raw),
     })
   }
 
@@ -852,10 +857,15 @@ async function fetchXanoClientsWithSlugsForHub(): Promise<any[]> {
   const url = getXanoClientsCollectionUrl()
   const response = await apiClient.get(url)
   const rows = parseXanoListPayload(response.data)
-  return rows.map((raw: any) => ({
-    ...raw,
-    slug: raw.slug || slugifyClientNameForUrl(getClientDisplayName(raw)),
-  }))
+  return rows.map((raw: any) => {
+    const stripped = omitClientBrain(
+      raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {},
+    )
+    return {
+      ...stripped,
+      slug: raw?.slug || slugifyClientNameForUrl(getClientDisplayName(raw)),
+    }
+  })
 }
 
 /** Server-only: loads clients from Xano and builds hub cards in one batched pass (no self-HTTP). */

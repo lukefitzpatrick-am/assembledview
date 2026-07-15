@@ -34,6 +34,8 @@ export function buildAdCopySystemPrompt(args: {
   avContext?: string
   researchBrief?: string | null
   researchThin?: boolean
+  /** Marketing brain from clients.client_brain — hard constraints when present. */
+  clientBrain?: string | null
 }): string {
   const { platform, brandName, clientName, campaignName } = args
   const optionCount = args.optionCount ?? 12
@@ -58,6 +60,7 @@ Platform limits (hard):
   if (mode === "no_brief") {
     const av = args.avContext?.trim() || "No AV context."
     const research = args.researchBrief?.trim()
+    const brain = args.clientBrain?.trim()
     const thinNote = args.researchThin
       ? "\nClient research was thin or unavailable — say so briefly in your reply and write from the creative + AV context alone."
       : ""
@@ -67,7 +70,7 @@ You are in a no-brief copy workshop turn. The user did not type a brief — rese
 the client and write ${optionCount} platform-correct options grounded in what the
 brand actually sells.
 
-AV context (from Assembled View):
+${brain ? `Client marketing brain (hard constraints — honour Tone and Compliance & never-say):\n${brain}\n` : ""}AV context (from Assembled View):
 ${av}
 
 ${research ? `Client research brief:\n${research}` : "No client research brief available."}
@@ -83,9 +86,10 @@ across genuinely distinct angles. Always call the emit_copy_chat tool with reply
   }
 
   if (mode === "chat") {
+    const brain = args.clientBrain?.trim()
     return `${base}
 
-You are in a copy workshop chat. Respond with a short reply plus options when useful.
+${brain ? `Client marketing brain (hard constraints — honour Tone and Compliance & never-say):\n${brain}\n` : ""}You are in a copy workshop chat. Respond with a short reply plus options when useful.
 When the user asks for copy (or gives a brief), produce exactly ${optionCount} options
 across genuinely distinct angles (benefit, proof, offer, curiosity, urgency,
 social-context, product-detail, lifestyle, comparison, risk-reversal, seasonal,

@@ -1,18 +1,23 @@
+import "server-only"
+
 import axios from "axios"
+import { unstable_cache } from "next/cache"
 import { fetchAllXanoPagesWithCompleteness } from "@/lib/api/xanoPagination"
 import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
 import { getCachedMediaPlanVersions } from "@/lib/api/mediaPlanVersionsCache"
 
 /**
- * Coalesced TTL cache for the media plans list page
+ * Durable TTL cache for the media plans list page
  * (`GET /api/mediaplans`): latest-per-MBA versions + masters, joined by mba_number.
  *
  * Versions come from `getCachedMediaPlanVersions` (shared `_latest` walk with the
- * dashboard) so a cold start hits `media_plan_versions_latest` once for both.
+ * dashboard) so a cold start hits `media_plan_versions_latest` once for both when
+ * the Data Cache is warm.
  * Masters overlay `version_number` only; versions without a master row are kept.
  */
 
-const DEFAULT_TTL_MS = 60_000
+export const MEDIA_PLANS_LIST_TAG = "media-plans-list"
+const REVALIDATE_SECONDS = 60
 const PAGE_SIZE = 100
 
 const SCHEDULE_KEYS = [
@@ -27,20 +32,8 @@ export type MediaPlansListCacheResult = {
   stale: boolean
 }
 
-type CacheEntry = {
-  data: any[]
-  fetchedAt: number
-}
-
-let cacheEntry: CacheEntry | null = null
-let inFlightPromise: Promise<MediaPlansListCacheResult> | null = null
-
-function cacheTtlMs(): number {
-  const raw = process.env.MEDIA_PLANS_LIST_CACHE_TTL_MS
-  if (raw == null || raw === "") return DEFAULT_TTL_MS
-  const n = Number(raw)
-  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_TTL_MS
-}
+/** Process-local LKG for stale-on-failure within a warm instance. */
+let lastKnownGood: any[] | null = null
 
 function stripScheduleFields(row: any): any {
   if (!row || typeof row !== "object") return row
@@ -122,36 +115,25 @@ async function fetchUpstream(): Promise<any[]> {
 }
 
 export async function getCachedMediaPlansList(): Promise<MediaPlansListCacheResult> {
-  const now = Date.now()
-  if (cacheEntry && now - cacheEntry.fetchedAt < cacheTtlMs()) {
-    return { data: cacheEntry.data, stale: false }
-  }
-
-  if (inFlightPromise) {
-    return inFlightPromise
-  }
-
-  const promise = (async (): Promise<MediaPlansListCacheResult> => {
-    try {
-      const data = await fetchUpstream()
-      cacheEntry = { data, fetchedAt: Date.now() }
-      return { data, stale: false }
-    } catch (err) {
-      if (cacheEntry) {
-        console.warn(
-          "[mediaPlansListCache] upstream failed; serving last-known-good",
-          err instanceof Error ? err.message : err
-        )
-        return { data: cacheEntry.data, stale: true }
-      }
-      throw err
-    } finally {
-      inFlightPromise = null
+  try {
+    const cached = unstable_cache(
+      async () => fetchUpstream(),
+      ["media-plans-list"],
+      { revalidate: REVALIDATE_SECONDS, tags: [MEDIA_PLANS_LIST_TAG] }
+    )
+    const data = await cached()
+    lastKnownGood = data
+    return { data, stale: false }
+  } catch (err) {
+    if (lastKnownGood) {
+      console.warn(
+        "[mediaPlansListCache] upstream failed; serving last-known-good",
+        err instanceof Error ? err.message : err
+      )
+      return { data: lastKnownGood, stale: true }
     }
-  })()
-
-  inFlightPromise = promise
-  return promise
+    throw err
+  }
 }
 
 /** Fallback path used when the primary list cache fetch fails entirely. */

@@ -102,6 +102,7 @@ export function extractAndFormatBursts(lineItem: any, feePct?: number): any[] {
     feePct: effectiveFeePct,
     budgetIncludesFees,
     clientPaysForMedia,
+    buyType: lineItem.buyType ?? lineItem.buy_type,
   });
 
   return serializedBursts.map((serializedBurst, index) => {

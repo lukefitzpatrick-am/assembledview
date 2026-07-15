@@ -1,8 +1,58 @@
 import { NextResponse } from "next/server"
 import { xanoUrl } from "@/lib/api/xano"
+import {
+  getCachedMediaDetailsReference,
+  invalidateMediaDetailsCache,
+  isMediaDetailsReferenceListPath,
+  isMediaDetailsReferenceRelatedPath,
+} from "@/lib/api/mediaDetailsCache"
 import { checkMediaDetailsProxyPath } from "@/lib/security/proxyAllowlist"
 
 type Params = { params: Promise<{ path: string[] }> }
+
+async function proxyUncached(request: Request, path: string, method: string) {
+  const targetUrl = xanoUrl(path, "XANO_MEDIA_DETAILS_BASE_URL")
+  const url = new URL(targetUrl)
+
+  const incoming = new URL(request.url)
+  incoming.searchParams.forEach((value, key) => {
+    url.searchParams.set(key, value)
+  })
+
+  const body =
+    method === "GET" || method === "HEAD" ? undefined : await request.text()
+
+  const upstream = await fetch(url.toString(), {
+    method,
+    headers: {
+      "Content-Type": request.headers.get("content-type") || "application/json",
+    },
+    body: body && body.length > 0 ? body : undefined,
+  })
+
+  const contentType = upstream.headers.get("content-type") || ""
+  const responseBody = contentType.includes("application/json")
+    ? await upstream.json()
+    : await upstream.text()
+
+  if (
+    method !== "GET" &&
+    method !== "HEAD" &&
+    upstream.ok &&
+    isMediaDetailsReferenceRelatedPath(path)
+  ) {
+    invalidateMediaDetailsCache()
+  }
+
+  if (contentType.includes("application/json")) {
+    return NextResponse.json(responseBody, { status: upstream.status })
+  }
+
+  return new NextResponse(responseBody, {
+    status: upstream.status,
+    headers: { "content-type": contentType || "text/plain" },
+  })
+}
 
 async function proxyRequest(request: Request, { params }: Params, method: string) {
   const { path: parts } = await params
@@ -19,40 +69,26 @@ async function proxyRequest(request: Request, { params }: Params, method: string
   }
 
   try {
-    const targetUrl = xanoUrl(path, "XANO_MEDIA_DETAILS_BASE_URL")
-    const url = new URL(targetUrl)
-
-    // Forward query params
-    const incoming = new URL(request.url)
-    incoming.searchParams.forEach((value, key) => {
-      url.searchParams.set(key, value)
-    })
-
-    // Forward body for non-GET/HEAD methods
-    const body =
-      method === "GET" || method === "HEAD" ? undefined : await request.text()
-
-    const upstream = await fetch(url.toString(), {
-      method,
-      headers: {
-        "Content-Type": request.headers.get("content-type") || "application/json"
-      },
-      body: body && body.length > 0 ? body : undefined
-    })
-
-    const contentType = upstream.headers.get("content-type") || ""
-    const responseBody = contentType.includes("application/json")
-      ? await upstream.json()
-      : await upstream.text()
-
-    if (contentType.includes("application/json")) {
-      return NextResponse.json(responseBody, { status: upstream.status })
+    // Only GET reference lists go through the durable Data Cache.
+    if (method === "GET" && isMediaDetailsReferenceListPath(path)) {
+      const incoming = new URL(request.url)
+      const cached = await getCachedMediaDetailsReference(
+        path,
+        incoming.searchParams
+      )
+      if ((cached.contentType || "").includes("application/json")) {
+        return NextResponse.json(cached.body, { status: cached.status })
+      }
+      return new NextResponse(
+        typeof cached.body === "string" ? cached.body : String(cached.body ?? ""),
+        {
+          status: cached.status,
+          headers: { "content-type": cached.contentType || "text/plain" },
+        }
+      )
     }
 
-    return new NextResponse(responseBody, {
-      status: upstream.status,
-      headers: { "content-type": contentType || "text/plain" }
-    })
+    return await proxyUncached(request, path, method)
   } catch (error: any) {
     console.error("[media-details proxy] error", error)
     return NextResponse.json(

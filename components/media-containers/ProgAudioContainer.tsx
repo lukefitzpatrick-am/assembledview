@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/dialog"
 import { getPublishersForProgAudio, getClientInfo } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
-import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
+import { computeBurstAmounts, computeBurstMediaFee } from "@/lib/mediaplan/burstAmounts"
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
@@ -191,6 +191,7 @@ export function getProgAudioBursts(
         budgetIncludesFees: !!li.budgetIncludesFees,
         clientPaysForMedia: !!li.clientPaysForMedia,
         feePct: pct,
+        buyType: li.buyType,
       })
 
       return {
@@ -225,10 +226,14 @@ export function calculateInvestmentPerMonth(form, feeprogaudio) {
   const bursts: InvestmentBurstInput[] = []
   items.forEach((lineItem: any) => {
     (lineItem.bursts || []).forEach((burst: any) => {
-      const lineMedia = parseFloat(String(burst.budget).replace(/[^0-9.]/g, "")) || 0
-      const feePct = feeprogaudio || 0
-      const totalInvestment = lineMedia + ((lineMedia / (100 - feePct)) * feePct)
-      bursts.push({ amount: totalInvestment, start: burst.startDate, end: burst.endDate })
+      const rawBudget = parseFloat(String(burst.budget).replace(/[^0-9.]/g, "")) || 0
+      const { media, fee } = computeBurstMediaFee({
+        rawBudget,
+        budgetIncludesFees: !!lineItem.budgetIncludesFees,
+        feePct: feeprogaudio || 0,
+        buyType: lineItem.buyType,
+      })
+      bursts.push({ amount: media + fee, start: burst.startDate, end: burst.endDate })
     })
   })
   return aggregateInvestmentDisplayRows(bursts)
@@ -605,14 +610,14 @@ export default function ProgAudioContainer({
       // Calculate totalMedia from raw budget amounts (for display in MBA section)
       let totalMedia = 0;
       lineItem.bursts.forEach((burst) => {
-        const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-        if (lineItem.budgetIncludesFees) {
-          const pct = feeprogaudio || 0;
-          totalMedia += (budget * (100 - pct)) / 100;
-        } else {
-          // Budget is net media
-          totalMedia += budget;
-        }
+        const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
+        const { media } = computeBurstMediaFee({
+          rawBudget,
+          budgetIncludesFees: !!lineItem.budgetIncludesFees,
+          feePct: feeprogaudio || 0,
+          buyType: lineItem.buyType,
+        });
+        totalMedia += media;
       });
 
       return {
@@ -661,19 +666,14 @@ export default function ProgAudioContainer({
       const summaryBursts: InvestmentBurstInput[] = [];
 
       lineItem.bursts.forEach((burst) => {
-        const budget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
-        let burstMedia = 0;
-        let burstFee = 0;
+        const rawBudget = parseFloat(burst.budget.replace(/[^0-9.]/g, "")) || 0;
         // Always calculate media for display purposes (ignore clientPaysForMedia)
-        if (lineItem.budgetIncludesFees) {
-          const pct = feeprogaudio || 0;
-          burstMedia = (budget * (100 - pct)) / 100;
-          burstFee = (budget * pct) / 100;
-        } else {
-          // Budget is net media, fee calculated on top
-          burstMedia = budget;
-          burstFee = feeprogaudio ? (budget / (100 - feeprogaudio)) * feeprogaudio : 0;
-        }
+        const { media: burstMedia, fee: burstFee } = computeBurstMediaFee({
+          rawBudget,
+          budgetIncludesFees: !!lineItem.budgetIncludesFees,
+          feePct: feeprogaudio || 0,
+          buyType: lineItem.buyType,
+        });
         lineMedia += burstMedia;
         lineFee += burstFee;
         lineDeliverables += burst.calculatedValue || 0;
@@ -723,16 +723,15 @@ export default function ProgAudioContainer({
       let lineDeliverables = 0;
 
       lineItem.bursts.forEach((burst) => {
-        const budget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
-        if (lineItem.budgetIncludesFees) {
-          const pct = feeprogaudio || 0;
-          lineMedia += (budget * (100 - pct)) / 100;
-          lineFee += (budget * pct) / 100;
-        } else {
-          lineMedia += budget;
-          const fee = feeprogaudio ? (budget / (100 - feeprogaudio)) * feeprogaudio : 0;
-          lineFee += fee;
-        }
+        const rawBudget = parseFloat(burst?.budget?.replace(/[^0-9.]/g, "") || "0");
+        const { media, fee } = computeBurstMediaFee({
+          rawBudget,
+          budgetIncludesFees: !!lineItem.budgetIncludesFees,
+          feePct: feeprogaudio || 0,
+          buyType: lineItem.buyType,
+        });
+        lineMedia += media;
+        lineFee += fee;
         lineDeliverables += burst?.calculatedValue || 0;
       });
 
@@ -1340,7 +1339,7 @@ useEffect(() => {
                                     <FormControl>
                                       <Combobox
                                         value={field.value}
-                                        onValueChange={field.onChange}
+                                        onValueChange={(value) => handleBuyTypeChange(lineItemIndex, value)}
                                         placeholder="Select"
                                         searchPlaceholder="Search buy types..."
                                         buttonClassName="h-9 w-full flex-1 rounded-md"
@@ -1487,6 +1486,13 @@ useEffect(() => {
                         {form.watch(`lineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           const buyType = form.watch(`lineItems.${lineItemIndex}.buyType`);
                           const showAdServingOverrideInput = shouldShowAdServingOverrideInput(buyType);
+                          const rawBudget = parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0");
+                          const { media: burstDisplayMedia, fee: burstDisplayFee } = computeBurstMediaFee({
+                            rawBudget,
+                            budgetIncludesFees: !!form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`),
+                            feePct: feeprogaudio || 0,
+                            buyType: form.getValues(`lineItems.${lineItemIndex}.buyType`),
+                          });
                           return (
                             <Card key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
                               <CardContent className={MP_BURST_CARD_CONTENT}>
@@ -1710,11 +1716,7 @@ useEffect(() => {
                                       <Input
                                         type="text"
                                         className="w-full h-10 text-sm"
-                                        value={formatMoney(
-                                          form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                                            ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feeprogaudio || 0))
-                                            : parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                        , { locale: "en-AU", currency: "AUD" })}
+                                        value={formatMoney(burstDisplayMedia, { locale: "en-AU", currency: "AUD" })}
                                         readOnly
                                       />
                                     </div>
@@ -1723,11 +1725,7 @@ useEffect(() => {
                                       <Input
                                         type="text"
                                         className="w-full h-10 text-sm"
-                                        value={formatMoney(
-                                          form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                                            ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feeprogaudio || 0)
-                                            : (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feeprogaudio || 0))) * (feeprogaudio || 0)
-                                        , { locale: "en-AU", currency: "AUD" })}
+                                        value={formatMoney(burstDisplayFee, { locale: "en-AU", currency: "AUD" })}
                                         readOnly
                                       />
                                     </div>

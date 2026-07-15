@@ -54,13 +54,15 @@ export function expertRowFeeSplit(
   rawCost: number,
   budgetIncludesFees: boolean,
   feePct: number,
-  clientPaysForMedia: boolean = false
+  clientPaysForMedia: boolean = false,
+  buyType?: string
 ): { net: number; fee: number } {
   const { mediaAmount, feeAmount } = computeBurstAmounts({
     rawBudget: rawCost,
     budgetIncludesFees,
     clientPaysForMedia,
     feePct,
+    buyType,
   })
   return { net: mediaAmount, fee: feeAmount }
 }

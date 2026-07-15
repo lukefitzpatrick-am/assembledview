@@ -1,5 +1,6 @@
 import type AvaTool from "./types"
 import type { ChatInterviewQuestion } from "@/lib/ava/types"
+import { parseMiAnswerMessage } from "@/lib/ava/chatInterviewQuestion"
 import { toChatFileAttachment } from "@/lib/ava/chatFileAttachment"
 import { fetchAllMediaContainerLineItems } from "@/lib/api/media-containers"
 import {
@@ -18,6 +19,7 @@ import { storeMiWorkbookBuffer } from "@/lib/specs/storeMiExport"
 import {
   buildMiInterviewPayload,
   buildMiInterviewQuestionCards,
+  expandApplyAllAnswers,
 } from "./startMiInterview"
 import { asRecord, asString, jsonContent, MI_SCOPE_VERSION_QUESTION_ID, resolveMediaContainerScope, resolveMiVersionScope, resolveScopedMba } from "./helpers"
 
@@ -49,7 +51,15 @@ function answersFrom(input: Record<string, unknown>): MiAnswer[] {
     const answer = asRecord(value)
     const questionId = asString(answer.questionId)
     const response = asString(answer.answer)
-    return questionId && response ? [{ questionId, answer: response }] : []
+    if (!questionId || !response) return []
+    const tagged = parseMiAnswerMessage(response)
+    if (tagged) {
+      return [{
+        questionId: tagged.questionId,
+        answer: tagged.applyAll ? `${tagged.answer} [apply-all]` : tagged.answer,
+      }]
+    }
+    return [{ questionId, answer: response }]
   })
 }
 
@@ -78,7 +88,8 @@ export function gateMiWorkbookExport(
   answers: MiAnswer[] = [],
   options: { exportWithGaps?: boolean } = {},
 ): MiWorkbookExportGate {
-  const result = applyAnswers(plan, answers)
+  const expanded = expandApplyAllAnswers(plan, answers)
+  const result = applyAnswers(plan, expanded)
   if (result.summary.open === 0 || options.exportWithGaps === true) {
     return { allow: true, result }
   }
@@ -194,8 +205,9 @@ export const generateMiWorkbookTool: AvaTool = {
         versionNumber,
         mediaTypeFilter,
       )
-      const planAnswers = answers.filter(
-        (answer) => answer.questionId !== MI_SCOPE_VERSION_QUESTION_ID,
+      const planAnswers = expandApplyAllAnswers(
+        { lineItems },
+        answers.filter((answer) => answer.questionId !== MI_SCOPE_VERSION_QUESTION_ID),
       )
       const plan = { lineItems }
       const gate = gateMiWorkbookExport(plan, planAnswers, {

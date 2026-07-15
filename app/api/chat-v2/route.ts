@@ -37,6 +37,8 @@ Reach for this when:
 - get_campaign_context — need MBA master/version summary or compact line items; start here when page context already has client/MBA identifiers
 - get_media_plan_summary — lighter plan text summary when full line-item detail is not needed
 - get_client_details — client fees, brand colour, or whether platform IDs are populated
+- get_client_brain — marketing brain + profile links; call BEFORE writing ad copy, commentary, or insights for a client. Honour Tone and Compliance & never-say as hard constraints. If empty, offer the client-marketing-brain skill.
+- save_client_brain — persist a drafted marketing brain (and empty link fields only unless overwrite_links)
 - get_pacing_snapshot — pacing/delivery story for a client or MBA (cached channel rows)
 - get_creative_assets — creative files attached to an MBA
 - get_naming_rules — naming template order or a composed name preview
@@ -58,6 +60,8 @@ Page snapshot surfaces (state.surface) — use on-page state first; pair tools o
 ${AVA_MI_INTERVIEW_GUIDANCE}
 
 ${AVA_SKILL_GUIDANCE}
+
+Client marketing brain — when writing ad copy, commentary, or insights for a client, call get_client_brain first and honour its Tone and Compliance & never-say sections as hard constraints. If empty, say so and offer to run the client-marketing-brain skill. Use web_search when researching for that skill (official site/socials, category, competitors) — not for routine chat.
 
 Never return JSON reply contracts in prose. After apply_form_patch, confirm changes in plain English.
 `.trim()
@@ -163,6 +167,7 @@ export async function POST(req: NextRequest) {
       systemPrompt,
       messages: anthropicMessages,
       context,
+      enableWebSearch: true,
     })
 
     return NextResponse.json({
