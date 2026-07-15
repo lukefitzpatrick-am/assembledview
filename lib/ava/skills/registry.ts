@@ -99,6 +99,11 @@ const SKILL_META: Record<
       "generate_performance_report",
     ],
   },
+  "assembled-media-plan-autopopulate": {
+    title: "Media-plan auto-populate",
+    chains: [MARKETING_BRAIN_ID],
+    pairedTools: ["apply_parsed_plan"],
+  },
 }
 
 const EXPECTED_SKILL_IDS = Object.keys(SKILL_META)

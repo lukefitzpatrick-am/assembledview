@@ -26,6 +26,14 @@ function resolveUploadedByEmail(user: { [key: string]: unknown }): string {
   return typeof email === "string" && email.trim() ? email.trim() : ""
 }
 
+function resolveUploadedByName(user: { [key: string]: unknown }): string {
+  const name = user.name
+  if (typeof name === "string" && name.trim()) return name.trim()
+  const given = typeof user.given_name === "string" ? user.given_name.trim() : ""
+  const family = typeof user.family_name === "string" ? user.family_name.trim() : ""
+  return `${given} ${family}`.trim()
+}
+
 function xanoErrorResponse(error: unknown): NextResponse {
   if (error instanceof XanoCreativeAssetError) {
     if (error.status === 401) {
@@ -91,6 +99,7 @@ export async function POST(request: NextRequest) {
       ...parsed.value,
       uploaded_by_email: resolveUploadedByEmail(session.user as { [key: string]: unknown }),
       uploaded_by_role: resolveUploadedByRole(session.user as { [key: string]: unknown }),
+      uploaded_by_name: resolveUploadedByName(session.user as { [key: string]: unknown }),
     })
 
     return NextResponse.json(row, { status: 201 })

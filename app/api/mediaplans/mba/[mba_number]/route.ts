@@ -14,6 +14,9 @@ import { extractBillingMonthStart } from "@/lib/spend/billingScheduleExpectedToD
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/monthlyPlanCalendar"
 import { getDraftReturnRejection } from "@/lib/mediaplan/campaignStatusGuard"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
+import { fetchBillingOverridesForVersion } from "@/lib/finance/billingOverrides"
+import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
+import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -1382,7 +1385,7 @@ export async function PUT(
     
     const latestVersionNumber = allVersionsForMBA.length > 0
       ? Math.max(...allVersionsForMBA.map((v: any) => parseVersion(v.version_number)))
-      : parseVersion(masterData.version_number)
+      : 0
 
     const previousVersion =
       latestVersionNumber != null
@@ -1391,16 +1394,87 @@ export async function PUT(
         : null
     
     const nextVersionNumber = (latestVersionNumber || 0) + 1
-    const v1Row = allVersionsForMBA.find((v: any) => parseVersion(v.version_number) === 1) ?? null
+    const overwriteTargetRow = previousVersion
+    const incomingStatus = normalise(
+      data.mp_campaignstatus ??
+        data.campaign_status ??
+        overwriteTargetRow?.campaign_status ??
+        masterData.campaign_status
+    )
+    // Draft saves overwrite the current working version in place (number unchanged).
+    // Leaving "draft" (publish) falls through to the increment branch and cuts a new version.
+    // forceIncrement: approval-set change after a persisted baseline must cut vN → vN+1 even on draft.
+    const forceIncrement =
+      data.forceIncrement === true ||
+      data.force_increment === true ||
+      data.forceNewVersion === true
     const overwriteMode =
-      v1Row != null &&
-      latestVersionNumber === 1 &&
-      normalise(v1Row.campaign_status) === "draft"
+      overwriteTargetRow != null && incomingStatus === "draft" && !forceIncrement
+    const overwriteTargetId = overwriteTargetRow?.id
+    const overwriteTargetVersionNumber = parseVersion(overwriteTargetRow?.version_number) || 1
     
     const campaignStartDate = data.mp_campaigndates_start ?? masterData.campaign_start_date
     const campaignEndDate = data.mp_campaigndates_end ?? masterData.campaign_end_date
     const normalizedCampaignStartDate = campaignStartDate ? toMelbourneDateString(campaignStartDate) : campaignStartDate
     const normalizedCampaignEndDate = campaignEndDate ? toMelbourneDateString(campaignEndDate) : campaignEndDate
+
+    // C1 — server recompute/validate billing schedule when line inputs are provided.
+    // Overrides load from the previous/current working version.
+    let billingScheduleToPersist: unknown = data.billingSchedule ?? null
+    let deliveryScheduleToPersist: unknown =
+      data.deliverySchedule ?? data.delivery_schedule ?? null
+    let inputsHashToPersist: string | undefined
+    let rebillNeededToPersist: boolean | undefined
+
+    const financialLineItems = (Array.isArray(data.lineItems)
+      ? data.lineItems
+      : Array.isArray(data.financialLineItems)
+        ? data.financialLineItems
+        : null) as LineItemInput[] | null
+    const feeLoading = (data.feeLoading ?? data.fee_loading ?? null) as FeeLoading | null
+
+    if (financialLineItems && financialLineItems.length > 0 && feeLoading) {
+      const overridesVersionId = previousVersion?.id
+      const overrideRows = overridesVersionId
+        ? await fetchBillingOverridesForVersion(overridesVersionId, {
+            baseUrl: mediaPlansBaseUrl,
+          })
+        : []
+
+      const recompute = recomputeAndValidateBillingScheduleOnSave({
+        lineItems: financialLineItems,
+        feeLoading,
+        clientBillingSchedule: data.billingSchedule,
+        overrideRows,
+        opts: {
+          ...(normalizedCampaignStartDate
+            ? { campaignStart: new Date(String(normalizedCampaignStartDate)) }
+            : {}),
+          ...(normalizedCampaignEndDate
+            ? { campaignEnd: new Date(String(normalizedCampaignEndDate)) }
+            : {}),
+        },
+      })
+
+      if (!recompute.ok) {
+        return NextResponse.json(recompute.body, { status: recompute.status })
+      }
+
+      billingScheduleToPersist = recompute.billingSchedule
+      // Never leave delivery null when we regenerated from server.
+      if (recompute.generatedFromServer || deliveryScheduleToPersist == null) {
+        deliveryScheduleToPersist = recompute.deliverySchedule
+      }
+      inputsHashToPersist = recompute.inputs_hash
+      rebillNeededToPersist = false
+    } else if (billingScheduleToPersist == null) {
+      // Never store null when the client omitted the schedule but also sent no
+      // line inputs to regenerate from — fall back to previous version schedule.
+      billingScheduleToPersist = previousVersion?.billingSchedule ?? []
+      console.warn(
+        "[mba-put] C1 skipped (no lineItems+feeLoading); refusing null billingSchedule"
+      )
+    }
 
     // Format the data to match the media_plan_versions schema
     const mpProductionFlag = isTruthyFlag(data.mp_production)
@@ -1441,10 +1515,12 @@ export async function PUT(
       mp_progaudio: isTruthyFlag(data.mp_progaudio),
       mp_progooh: isTruthyFlag(data.mp_progooh),
       mp_influencers: isTruthyFlag(data.mp_influencers),
-      billingSchedule: data.billingSchedule || null,
+      billingSchedule: billingScheduleToPersist,
       // Accept either casing from client; persist both keys to tolerate Xano schema/input naming.
-      deliverySchedule: data.deliverySchedule ?? data.delivery_schedule ?? null,
-      delivery_schedule: data.deliverySchedule ?? data.delivery_schedule ?? null,
+      deliverySchedule: deliveryScheduleToPersist,
+      delivery_schedule: deliveryScheduleToPersist,
+      ...(inputsHashToPersist != null ? { inputs_hash: inputsHashToPersist } : {}),
+      ...(rebillNeededToPersist != null ? { rebill_needed: rebillNeededToPersist } : {}),
     }
 
     // Update MediaPlanMaster with new version number and campaign name
@@ -1464,23 +1540,23 @@ export async function PUT(
     if (overwriteMode) {
       const overwriteData = {
         ...newVersionData,
-        version_number: 1,
+        version_number: overwriteTargetVersionNumber,
       }
       const overwriteMasterUpdateData = {
         ...masterUpdateData,
-        version_number: 1,
+        version_number: overwriteTargetVersionNumber,
       }
 
       try {
         versionResponse = await axios.patch(
-          `${mediaPlansBaseUrl}/media_plan_versions/${v1Row.id}`,
+          `${mediaPlansBaseUrl}/media_plan_versions/${overwriteTargetId}`,
           overwriteData,
           { timeout: XANO_LONG_TIMEOUT_MS },
         )
       } catch (versionPatchError) {
-        console.error("[mba-put] failed to overwrite draft version 1", versionPatchError)
+        console.error("[mba-put] failed to overwrite draft version", versionPatchError)
         return NextResponse.json(
-          { error: "Failed to overwrite draft version 1. No new version was created." },
+          { error: "Failed to overwrite draft version. No new version was created." },
           { status: 500 },
         )
       }
@@ -1490,7 +1566,7 @@ export async function PUT(
         overwriteMasterUpdateData,
         { timeout: XANO_TIMEOUT_MS },
       )
-      savedVersionNumber = 1
+      savedVersionNumber = overwriteTargetVersionNumber
     } else {
       // Create new version in media_plan_versions table
       versionResponse = await axios.post(`${mediaPlansBaseUrl}/media_plan_versions`, newVersionData, {
@@ -1537,10 +1613,10 @@ export async function PUT(
       version: versionResponse.data,
       master: masterUpdateResponse.data,
       mode: overwriteMode ? "overwrite" : "increment",
-      versionId: overwriteMode ? v1Row.id : versionResponse.data?.id,
+      versionId: overwriteMode ? overwriteTargetId : versionResponse.data?.id,
       versionNumber: savedVersionNumber,
       latestVersionNumber,
-      nextVersionNumber: overwriteMode ? 1 : nextVersionNumber
+      nextVersionNumber: overwriteMode ? overwriteTargetVersionNumber : nextVersionNumber,
     })
   } catch (error) {
     console.error("Error creating new media plan version:", error)

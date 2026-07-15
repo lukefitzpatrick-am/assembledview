@@ -1,7 +1,7 @@
 import type { ExpertDailyValues } from "@/lib/mediaplan/expertDayModel"
 
 /**
- * Week column key from {@link buildWeeklyGanttColumnsFromCampaign} (local Sunday, yyyy-MM-dd).
+ * Week column key from {@link buildWeeklyGanttColumnsFromCampaign} (week-start yyyy-MM-dd).
  * Also used as keys in per-week schedule cells.
  */
 export type ExpertWeekColumnKey = string

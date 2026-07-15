@@ -25,13 +25,15 @@ test("ava tool catalog: names unique and complete", () => {
   assert.ok(AVA_TOOL_NAMES.includes("get_pacing_snapshot"))
   assert.ok(AVA_TOOL_NAMES.includes("get_delivery_snapshot"))
   assert.ok(AVA_TOOL_NAMES.includes("apply_form_patch"))
+  assert.ok(AVA_TOOL_NAMES.includes("apply_parsed_plan"))
+  assert.ok(AVA_TOOL_NAMES.includes("adjust_line_items"))
   assert.ok(AVA_TOOL_NAMES.includes("get_media_plan_summary"))
   assert.ok(AVA_TOOL_NAMES.includes("get_platform_specs"))
   assert.ok(AVA_TOOL_NAMES.includes("start_mi_interview"))
   assert.ok(AVA_TOOL_NAMES.includes("generate_mi_workbook"))
   assert.ok(AVA_TOOL_NAMES.includes("load_skill"))
   assert.ok(AVA_TOOL_NAMES.includes("generate_performance_report"))
-  assert.equal(AVA_TOOL_NAMES.length, 16)
+  assert.equal(AVA_TOOL_NAMES.length, 18)
   assert.deepEqual(
     AVA_TOOL_NAMES.slice(-6),
     [
@@ -140,6 +142,7 @@ test("get_creative_assets shape", () => {
     status: "active",
     uploaded_by_email: "a@b.com",
     uploaded_by_role: "admin",
+    uploaded_by_name: "Ada Admin",
   })
   assert.equal(row.mime, "image/png")
   assert.equal(row.line_item_id, "xSO1")

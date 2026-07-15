@@ -64,6 +64,8 @@ type CreativeAssetTableProps = {
   campaignName?: string
   mbaNumber?: string
   metaPageId?: string
+  allowDelete?: boolean
+  allowMockup?: boolean
   onRename: (id: number, assetName: string) => Promise<void>
   onLineItemChange: (
     id: number,
@@ -167,6 +169,8 @@ export function CreativeAssetTable({
   campaignName,
   mbaNumber,
   metaPageId,
+  allowDelete = true,
+  allowMockup = true,
   onRename,
   onLineItemChange,
   onStatusToggle,
@@ -304,10 +308,12 @@ export function CreativeAssetTable({
                             Download
                           </a>
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setMockupTarget(asset)}>
-                          <LayoutTemplate className="mr-2 h-4 w-4" />
-                          Mockup
-                        </DropdownMenuItem>
+                        {allowMockup ? (
+                          <DropdownMenuItem onClick={() => setMockupTarget(asset)}>
+                            <LayoutTemplate className="mr-2 h-4 w-4" />
+                            Mockup
+                          </DropdownMenuItem>
+                        ) : null}
                         <DropdownMenuItem
                           onClick={() =>
                             void onStatusToggle(
@@ -328,14 +334,18 @@ export function CreativeAssetTable({
                             </>
                           )}
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={() => setDeleteTarget(asset)}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Delete
-                        </DropdownMenuItem>
+                        {allowDelete ? (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setDeleteTarget(asset)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </>
+                        ) : null}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -346,49 +356,53 @@ export function CreativeAssetTable({
         </Table>
       </div>
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete creative asset?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {deleteTarget
-                ? `“${deleteTarget.asset_name}” will be permanently removed from this campaign and deleted from storage.`
-                : null}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              className={cn("bg-destructive text-destructive-foreground hover:bg-destructive/90")}
-              disabled={deleting}
-              onClick={(event) => {
-                event.preventDefault()
-                if (!deleteTarget) return
-                setDeleting(true)
-                void onDelete(deleteTarget.id)
-                  .then(() => setDeleteTarget(null))
-                  .finally(() => setDeleting(false))
-              }}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      {allowDelete ? (
+        <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete creative asset?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {deleteTarget
+                  ? `“${deleteTarget.asset_name}” will be permanently removed from this campaign and deleted from storage.`
+                  : null}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                className={cn("bg-destructive text-destructive-foreground hover:bg-destructive/90")}
+                disabled={deleting}
+                onClick={(event) => {
+                  event.preventDefault()
+                  if (!deleteTarget) return
+                  setDeleting(true)
+                  void onDelete(deleteTarget.id)
+                    .then(() => setDeleteTarget(null))
+                    .finally(() => setDeleting(false))
+                }}
+              >
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : null}
 
-      <MockupDialog
-        asset={mockupTarget}
-        open={!!mockupTarget}
-        onOpenChange={(open) => {
-          if (!open) setMockupTarget(null)
-        }}
-        defaultBrandName={defaultBrandName}
-        clientName={clientName ?? defaultBrandName}
-        campaignName={campaignName}
-        mbaNumber={mbaNumber}
-        socialLineItems={socialLineItems}
-        metaPageId={metaPageId}
-      />
+      {allowMockup ? (
+        <MockupDialog
+          asset={mockupTarget}
+          open={!!mockupTarget}
+          onOpenChange={(open) => {
+            if (!open) setMockupTarget(null)
+          }}
+          defaultBrandName={defaultBrandName}
+          clientName={clientName ?? defaultBrandName}
+          campaignName={campaignName}
+          mbaNumber={mbaNumber}
+          socialLineItems={socialLineItems}
+          metaPageId={metaPageId}
+        />
+      ) : null}
     </>
   )
 }

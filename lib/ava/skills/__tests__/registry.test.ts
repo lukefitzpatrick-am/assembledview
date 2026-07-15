@@ -14,15 +14,16 @@ import {
   skillsContentDir,
 } from "../registry.js"
 
-test("skills: all 9 load with frontmatter, unique ids, chained brain", () => {
+test("skills: all 10 load with frontmatter, unique ids, chained brain", () => {
   __resetSkillRegistryCacheForTests()
   const entries = loadSkillRegistry()
-  assert.equal(entries.length, 9)
+  assert.equal(entries.length, 10)
 
   const ids = entries.map((e) => e.id)
-  assert.equal(new Set(ids).size, 9)
+  assert.equal(new Set(ids).size, 10)
   assert.ok(ids.includes(MARKETING_BRAIN_ID))
   assert.ok(ids.includes("assembled-performance-review-report"))
+  assert.ok(ids.includes("assembled-media-plan-autopopulate"))
 
   for (const entry of entries) {
     assert.ok(entry.version, `${entry.id} version`)

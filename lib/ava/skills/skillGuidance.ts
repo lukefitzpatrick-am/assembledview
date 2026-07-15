@@ -29,6 +29,7 @@ Commentary: load assembled-insight-commentary THEN get_delivery_snapshot (campai
 Copy (meta/search/linkedin/video): load the matching copy skill THEN get_client_details + get_saved_audiences + get_best_practice + get_platform_specs.
 Audience insight: load assembled-audience-insight THEN get_saved_audiences + get_methodology + use planning page context.
 Presentations: load assembled-presentations (outline-only in Ava) THEN get_campaign_context / get_pacing_snapshot as needed — do not generate .pptx (the ONE exception is generate_performance_report inside assembled-performance-review-report).
+Media-plan auto-populate (xlsx radio/OOH): load assembled-media-plan-autopopulate. Summarise the pending parse; wait for explicit confirm; then apply_parsed_plan. Never invent spend figures. To align descriptor fields on already-loaded lines, use adjust_line_items (ops + confirm; never money).
 Performance review & report (campaign dashboard pages / Review & Report button): load assembled-performance-review-report THEN get_delivery_snapshot (campaign delivery) / get_pacing_snapshot (client-level) / get_campaign_context. generate_performance_report ONLY after the user explicitly confirms the reviewed narrative — never unprompted. The review narrative is exempt from the 150-word default: aim ≤500 words, sections in the skill's order, still no markdown headers.
 ${rows.join("\n")}
 `.trim()

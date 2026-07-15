@@ -40,6 +40,8 @@ type CreativeAssetManagerProps = {
   showPageHeader?: boolean
   /** Meta page id from the selected client row (standalone picker). */
   metaPageId?: string
+  /** Client portal: hide delete/mockup and never resolve meta page via /api/clients. */
+  clientMode?: boolean
 }
 
 type MediaPlanPayload = {
@@ -74,6 +76,7 @@ export function CreativeAssetManager({
   mbaNumber,
   showPageHeader = false,
   metaPageId: metaPageIdProp,
+  clientMode = false,
 }: CreativeAssetManagerProps) {
   const pathname = usePathname()
   const { toast } = useToast()
@@ -169,6 +172,11 @@ export function CreativeAssetManager({
 
   useEffect(() => {
     const fromProp = metaPageIdProp?.trim() ?? ""
+    if (clientMode) {
+      setResolvedMetaPageId(fromProp)
+      return
+    }
+
     if (fromProp) {
       setResolvedMetaPageId(fromProp)
       return
@@ -201,7 +209,7 @@ export function CreativeAssetManager({
     return () => {
       cancelled = true
     }
-  }, [clientName, metaPageIdProp])
+  }, [clientMode, clientName, metaPageIdProp])
 
   const filteredAssets = useMemo(() => {
     const query = nameFilter.trim().toLowerCase()
@@ -477,6 +485,8 @@ export function CreativeAssetManager({
             campaignName={campaignName}
             mbaNumber={mbaNumber}
             metaPageId={resolvedMetaPageId}
+            allowDelete={!clientMode}
+            allowMockup={!clientMode}
             onRename={handleRename}
             onLineItemChange={handleLineItemChange}
             onStatusToggle={handleStatusToggle}

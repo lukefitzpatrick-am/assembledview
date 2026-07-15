@@ -9,6 +9,25 @@ import {
   useState,
   type KeyboardEvent,
 } from "react"
+import { MemoExpertGridRow } from "@/components/media-containers/MemoExpertGridRow"
+import {
+  ExpertGridVirtualSpacerBody,
+  useExpertGridRowVirtualizer,
+} from "@/components/media-containers/useExpertGridRowVirtualizer"
+import {
+  OOH_EXPERT_ROW_HEIGHT_PX,
+  OOH_EXPERT_ROW_OVERSCAN,
+} from "@/lib/mediaplan/oohExpertVirtualization"
+import { isExpertRowIncomplete, expertRowIncompleteReasons } from "@/lib/mediaplan/expertRowCompleteness"
+import {
+  buildMapsPreservingIdentity,
+  finalizeRowsPreservingIdentity,
+  mapRowAtIndex,
+  normalizeRowsPreservingIdentity,
+  updateRowAtIndex,
+  type MapBuildCacheEntry,
+  type NormalizeRowCacheEntry,
+} from "@/lib/mediaplan/expertGridRowPerf"
 import {
   differenceInCalendarDays,
   format,
@@ -62,7 +81,23 @@ import {
   ExpertGridRowReorderCell,
   ExpertGridRowReorderHeaderCell,
 } from "@/components/media-containers/ExpertGridRowReorderCell"
+import {
+  cumulativeLeftOffsets,
+  expertGridRowZebraProps,
+  expertGridStickyLeftWidthPx,
+  expertGridStickyStyleBody,
+  expertGridStickyStyleDescriptorTotalLabel,
+  expertGridStickyStyleHeaderCorner,
+  expertGridStickyStyleReorderBody,
+  expertGridStickyStyleReorderHeader,
+  expertGridStickyTd,
+  expertGridStickyThCorner,
+  expertGridStickyThWeek,
+  EXPERT_GRID_ROW_CLASS,
+  EXPERT_GRID_WEEK_BODY_Z,
+} from "@/components/media-containers/expertGridSticky"
 import { ExpertGridWeekResizeHandle } from "@/components/media-containers/ExpertGridWeekResizeHandle"
+import { ExpertGridWeekCommencesBar } from "@/components/media-containers/ExpertGridWeekCommencesBar"
 import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
 import { useExpertWeekColumnWidths } from "@/hooks/useExpertWeekColumnWidths"
 import type {
@@ -98,6 +133,7 @@ import {
 import {
   buildWeeklyGanttColumnsFromCampaign,
   type WeeklyGanttWeekColumn,
+  type WeekStartsOn,
 } from "@/lib/utils/weeklyGanttColumns"
 import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
@@ -112,6 +148,7 @@ import {
   expandWeekToDaily,
   resizeSpanWeeks,
   weekDayKeys,
+  rebucketRowsForWeekStartsOn,
   weekHasDailyValues,
   weekIsUniform,
   type DayColumn,
@@ -201,6 +238,15 @@ function normalizeProgDisplayKey(input: unknown): string {
     .toLowerCase()
     .replace(/\s+/g, " ")
 }
+
+
+/**
+ * F-28 Phase 2 — row virtualization (shared helper from OOH). Fixed row height
+ * matches Prompt A (`OOH_EXPERT_ROW_HEIGHT_PX`); no measureElement.
+ */
+const PROGDISPLAY_EXPERT_ROW_VIRTUALIZATION = true
+const PROGDISPLAY_EXPERT_ROW_HEIGHT_PX = OOH_EXPERT_ROW_HEIGHT_PX
+const PROGDISPLAY_EXPERT_ROW_OVERSCAN = OOH_EXPERT_ROW_OVERSCAN
 
 /**
  * Parse clipboard text that may contain tab-separated values (Excel/Sheets)
@@ -326,15 +372,6 @@ const PROGDISPLAY_DESCRIPTOR_TAIL: readonly (keyof ProgDisplayExpertScheduleRow)
   "unitRate",
 ]
 
-function cumulativeLeftOffsets(widths: readonly number[]): number[] {
-  const out: number[] = []
-  let acc = 0
-  for (const w of widths) {
-    out.push(acc)
-    acc += w
-  }
-  return out
-}
 
 function formatYmdDisplay(ymd: string): string {
   if (!ymd?.trim()) return "—"
@@ -434,9 +471,15 @@ export function ProgDisplayExpertGrid({
     [publishers]
   )
 
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0)
   const weekColumns = useMemo(
-    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
-    [campaignStartDate, campaignEndDate]
+    () =>
+      buildWeeklyGanttColumnsFromCampaign(
+        campaignStartDate,
+        campaignEndDate,
+        weekStartsOn
+      ),
+    [campaignStartDate, campaignEndDate, weekStartsOn]
   )
   const weekKeys = useMemo(() => weekColumns.map((c) => c.weekKey), [weekColumns])
   /** Campaign-clamped day keys per week column (for day-level detail). */
@@ -589,12 +632,7 @@ export function ProgDisplayExpertGrid({
   )
 
   const stickyStyleBodyDescriptorTotalLabel = useMemo(
-    () => ({
-      width: descriptorStickyBlockWidthPx,
-      minWidth: descriptorStickyBlockWidthPx,
-      maxWidth: descriptorStickyBlockWidthPx,
-      boxSizing: "border-box" as const,
-    }),
+    () => expertGridStickyStyleDescriptorTotalLabel(descriptorStickyBlockWidthPx),
     [descriptorStickyBlockWidthPx]
   )
 
@@ -603,87 +641,111 @@ export function ProgDisplayExpertGrid({
     [platformNames]
   )
 
+  const normalizeRowCacheRef = useRef(
+    new Map<string, NormalizeRowCacheEntry<ProgDisplayExpertScheduleRow>>()
+  )
   const normalizedRows = useMemo(() => {
-    return rows.map((r) => {
-      const nextWeekly: ExpertWeeklyValues = {} as ExpertWeeklyValues
-      for (const k of weekKeys) {
-        const v = r.weeklyValues[k]
-        // Expert UX: backend/default zeroes for untouched weeks should render blank.
-        nextWeekly[k] = normalizeWeekValueForExpertGridBoundary(v)
-      }
-      return {
-        ...r,
-        weeklyValues: nextWeekly,
-        mergedWeekSpans: Array.isArray(r.mergedWeekSpans)
-          ? r.mergedWeekSpans
-          : [],
-      }
-    })
+    const { rows: next, cache } = normalizeRowsPreservingIdentity(
+      rows,
+      weekKeys,
+      (r, keys) => {
+        const nextWeekly: ExpertWeeklyValues = {} as ExpertWeeklyValues
+        for (const k of keys) {
+          const v = r.weeklyValues[k]
+          // Expert UX: backend/default zeroes for untouched weeks should render blank.
+          nextWeekly[k] = normalizeWeekValueForExpertGridBoundary(v)
+        }
+        return {
+          ...r,
+          weeklyValues: nextWeekly,
+          mergedWeekSpans: Array.isArray(r.mergedWeekSpans)
+            ? r.mergedWeekSpans
+            : [],
+        }
+      },
+      normalizeRowCacheRef.current
+    )
+    normalizeRowCacheRef.current = cache
+    return next
   }, [rows, weekKeys])
 
+  const rowMergeMapCacheRef = useRef(
+    new Map<
+      string,
+      MapBuildCacheEntry<
+        ProgDisplayExpertScheduleRow["mergedWeekSpans"],
+        ProgDisplayRowMergeMap
+      >
+    >()
+  )
   const rowMergeMaps = useMemo<readonly ProgDisplayRowMergeMap[]>(() => {
-    const maps = normalizedRows.map((row) => {
-      const anchorByWeekKey: Record<string, string> = {}
-      const interiorByWeekKey: Record<string, string> = {}
-      const spanById: Record<string, ProgExpertMergedWeekSpan> = {}
-      const spanMetaByAnchorWeekKey: Record<string, ProgDisplayRowMergeSpanMeta> = {}
-      const occupiedWeekKeys = new Set<string>()
-      // A row can contain multiple non-overlapping merged groups with gaps.
-      // Each accepted span contributes its own anchor/interior occupancy maps.
-      for (const span of row.mergedWeekSpans ?? []) {
-        if (spanById[span.id]) {
-          if (DEBUG_PROGDISPLAY_MERGE) {
-            console.debug("[Programmatic Display merge] occupancy duplicate span id ignored", {
-              rowId: row.id,
-              rowIndex: normalizedRows.indexOf(row),
-              spanId: span.id,
-            })
+    const { maps, cache } = buildMapsPreservingIdentity(
+      normalizedRows,
+      weekKeys,
+      (row) => row.mergedWeekSpans,
+      (row) => {
+        const anchorByWeekKey: Record<string, string> = {}
+        const interiorByWeekKey: Record<string, string> = {}
+        const spanById: Record<string, ProgExpertMergedWeekSpan> = {}
+        const spanMetaByAnchorWeekKey: Record<string, ProgDisplayRowMergeSpanMeta> = {}
+        const occupiedWeekKeys = new Set<string>()
+        // A row can contain multiple non-overlapping merged groups with gaps.
+        // Each accepted span contributes its own anchor/interior occupancy maps.
+        for (const span of row.mergedWeekSpans ?? []) {
+          if (spanById[span.id]) {
+            if (DEBUG_PROGDISPLAY_MERGE) {
+              console.debug("[Programmatic Display merge] occupancy duplicate span id ignored", {
+                rowId: row.id,
+                spanId: span.id,
+              })
+            }
+            continue
           }
-          continue
-        }
-        const keysRaw = weekKeysInSpanInclusive(
-          weekKeys,
-          span.startWeekKey,
-          span.endWeekKey
-        )
-        const keys = keysRaw.filter((k) => weekKeys.includes(k))
-        if (keys.length === 0) continue
-        // Prefer first valid span: later overlapping/conflicting spans are ignored.
-        if (keys.some((k) => occupiedWeekKeys.has(k))) {
-          if (DEBUG_PROGDISPLAY_MERGE) {
-            console.debug("[Programmatic Display merge] occupancy overlap ignored", {
-              rowId: row.id,
-              rowIndex: normalizedRows.indexOf(row),
-              spanId: span.id,
-              keys,
-            })
+          const keysRaw = weekKeysInSpanInclusive(
+            weekKeys,
+            span.startWeekKey,
+            span.endWeekKey
+          )
+          const keys = keysRaw.filter((k) => weekKeys.includes(k))
+          if (keys.length === 0) continue
+          // Prefer first valid span: later overlapping/conflicting spans are ignored.
+          if (keys.some((k) => occupiedWeekKeys.has(k))) {
+            if (DEBUG_PROGDISPLAY_MERGE) {
+              console.debug("[Programmatic Display merge] occupancy overlap ignored", {
+                rowId: row.id,
+                spanId: span.id,
+                keys,
+              })
+            }
+            continue
           }
-          continue
+          const anchorWeekKey = keys[0]!
+          anchorByWeekKey[anchorWeekKey] = span.id
+          for (let i = 1; i < keys.length; i += 1) {
+            interiorByWeekKey[keys[i]!] = span.id
+          }
+          for (const key of keys) occupiedWeekKeys.add(key)
+          spanById[span.id] = span
+          spanMetaByAnchorWeekKey[anchorWeekKey] = Object.freeze({
+            id: span.id,
+            startWeekKey: span.startWeekKey,
+            endWeekKey: span.endWeekKey,
+            totalQty: span.totalQty,
+            spanLength: keys.length,
+            weekKeysIncluded: Object.freeze([...keys]),
+          })
         }
-        const anchorWeekKey = keys[0]!
-        anchorByWeekKey[anchorWeekKey] = span.id
-        for (let i = 1; i < keys.length; i += 1) {
-          interiorByWeekKey[keys[i]!] = span.id
-        }
-        for (const key of keys) occupiedWeekKeys.add(key)
-        spanById[span.id] = span
-        spanMetaByAnchorWeekKey[anchorWeekKey] = Object.freeze({
-          id: span.id,
-          startWeekKey: span.startWeekKey,
-          endWeekKey: span.endWeekKey,
-          totalQty: span.totalQty,
-          spanLength: keys.length,
-          weekKeysIncluded: Object.freeze([...keys]),
+        return Object.freeze({
+          anchorByWeekKey: Object.freeze(anchorByWeekKey),
+          interiorByWeekKey: Object.freeze(interiorByWeekKey),
+          spanById: Object.freeze(spanById),
+          spanMetaByAnchorWeekKey: Object.freeze(spanMetaByAnchorWeekKey),
         })
-      }
-      return Object.freeze({
-        anchorByWeekKey: Object.freeze(anchorByWeekKey),
-        interiorByWeekKey: Object.freeze(interiorByWeekKey),
-        spanById: Object.freeze(spanById),
-        spanMetaByAnchorWeekKey: Object.freeze(spanMetaByAnchorWeekKey),
-      })
-    })
-    return Object.freeze(maps)
+      },
+      rowMergeMapCacheRef.current
+    )
+    rowMergeMapCacheRef.current = cache
+    return maps
   }, [normalizedRows, weekKeys])
 
   useEffect(() => {
@@ -703,19 +765,30 @@ export function ProgDisplayExpertGrid({
 
   const pushRows = useCallback(
     (next: ProgDisplayExpertScheduleRow[]) => {
-      const withDates = next.map((r) => {
+      const withDates = finalizeRowsPreservingIdentity(next, (r) => {
         // Week-level writes win over day detail (single invariant chokepoint).
         const cleared = clearConflictingDayDetail(r, dayKeysByWeekKey, weekKeys)
-        return {
-          ...cleared,
-          ...deriveProgExpertRowScheduleYmdFromRow(
-            cleared,
-            weekColumns,
-            campaignStartDate,
-            campaignEndDate,
-            dayKeysByWeekKey
-          ),
+        const dates = deriveProgExpertRowScheduleYmdFromRow(
+          cleared,
+          weekColumns,
+          campaignStartDate,
+          campaignEndDate,
+          dayKeysByWeekKey
+        )
+        if (
+          cleared === r &&
+          dates.startDate === r.startDate &&
+          dates.endDate === r.endDate
+        ) {
+          return r
         }
+        if (
+          dates.startDate === cleared.startDate &&
+          dates.endDate === cleared.endDate
+        ) {
+          return cleared
+        }
+        return { ...cleared, ...dates }
       })
       onRowsChange(withDates)
     },
@@ -728,6 +801,36 @@ export function ProgDisplayExpertGrid({
       weekKeys,
     ]
   )
+
+  const pendingWeekRebucketRef = useRef<typeof normalizedRowsRef.current | null>(
+    null
+  )
+  const handleWeekStartsOnChange = useCallback(
+    (next: WeekStartsOn) => {
+      if (next === weekStartsOn) return
+      const oldColumns = weekColumns
+      const newColumns = buildWeeklyGanttColumnsFromCampaign(
+        campaignStartDate,
+        campaignEndDate,
+        next
+      )
+      pendingWeekRebucketRef.current = rebucketRowsForWeekStartsOn(
+        normalizedRowsRef.current,
+        oldColumns,
+        newColumns
+      )
+      setExpandedWeekKeys(new Set())
+      setWeekStartsOn(next)
+    },
+    [weekStartsOn, weekColumns, campaignStartDate, campaignEndDate]
+  )
+  useEffect(() => {
+    const pending = pendingWeekRebucketRef.current
+    if (!pending) return
+    pendingWeekRebucketRef.current = null
+    pushRows(pending)
+  }, [weekStartsOn, pushRows])
+
   const handleRowEdgeDatePick = useCallback(
     (rowIndex: number, edge: "start" | "end", picked: Date | undefined) => {
       if (!picked) return
@@ -751,19 +854,15 @@ export function ProgDisplayExpertGrid({
         })
         return
       }
-      pushRows(
-        normalizedRowsRef.current.map((r, i) => {
-          if (i !== rowIndex) return r
-          return {
-            ...r,
-            weeklyValues: { ...result.weeklyValues },
-            dailyValues: result.dailyValues,
-            mergedWeekSpans: result.mergedWeekSpans
-              ? [...result.mergedWeekSpans]
-              : r.mergedWeekSpans,
-          }
-        })
-      )
+      const next = mapRowAtIndex(normalizedRowsRef.current, rowIndex, (r) => ({
+        ...r,
+        weeklyValues: { ...result.weeklyValues },
+        dailyValues: result.dailyValues,
+        mergedWeekSpans: result.mergedWeekSpans
+          ? [...result.mergedWeekSpans]
+          : r.mergedWeekSpans,
+      }))
+      if (next) pushRows(next)
     },
     [
       campaignEndDate,
@@ -776,17 +875,60 @@ export function ProgDisplayExpertGrid({
   )
 
 
+  const gridScrollRef = useRef<HTMLDivElement>(null)
+
   const handleReorder = useCallback(
     (from: number, to: number) => {
-      const next = reorderExpertRows(normalizedRows, from, to)
+      const next = reorderExpertRows(normalizedRowsRef.current, from, to)
       if (!next) return
       pushRows(next)
       onReorder?.()
     },
-    [normalizedRows, pushRows, onReorder]
+    [pushRows, onReorder]
   )
+
+  const theadRef = useRef<HTMLTableSectionElement>(null)
+  const [theadHeightPx, setTheadHeightPx] = useState(48)
+  useEffect(() => {
+    const el = theadRef.current
+    if (!el || typeof ResizeObserver === "undefined") return
+    const measure = () => {
+      const h = el.getBoundingClientRect().height
+      if (h > 0) setTheadHeightPx(h)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const rowReorderVirtual = useMemo(
+    () =>
+      PROGDISPLAY_EXPERT_ROW_VIRTUALIZATION
+        ? {
+            rowCount: normalizedRows.length,
+            estimateSizePx: PROGDISPLAY_EXPERT_ROW_HEIGHT_PX,
+            getScrollElement: () => gridScrollRef.current,
+            getBodyOffsetTop: () => theadHeightPx,
+          }
+        : null,
+    [normalizedRows.length, theadHeightPx]
+  )
+
   const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
-    useExpertRowReorder(handleReorder)
+    useExpertRowReorder(handleReorder, rowReorderVirtual)
+  const rowVirtualizerRef = useRef<{
+    scrollToIndex: (
+      index: number,
+      opts?: { align?: "start" | "center" | "end" | "auto" }
+    ) => void
+  } | null>(null)
+
+  const ensureRowVisible = useCallback((rowIndex: number) => {
+    if (!PROGDISPLAY_EXPERT_ROW_VIRTUALIZATION) return
+    rowVirtualizerRef.current?.scrollToIndex(rowIndex, { align: "auto" })
+  }, [])
+
   const { weekColumnWidths, setWeekColumnWidth } = useExpertWeekColumnWidths()
 
   const resolveWeekDragSource = useCallback(
@@ -929,12 +1071,15 @@ export function ProgDisplayExpertGrid({
 
   const updateRow = useCallback(
     (rowIndex: number, patch: Partial<ProgDisplayExpertScheduleRow>) => {
-      const next = normalizedRows.map((r, i) =>
-        i === rowIndex ? { ...r, ...patch } : r
+      const next = updateRowAtIndex(
+        normalizedRowsRef.current,
+        rowIndex,
+        patch
       )
+      if (!next) return
       pushRows(next)
     },
-    [normalizedRows, pushRows]
+    [pushRows]
   )
 
   const tryFuzzyMatch = useCallback(
@@ -975,17 +1120,20 @@ export function ProgDisplayExpertGrid({
         fuzzyCorrectionMapRef.current[key] = matched
       }
       const targetNorm = value.trim().toLowerCase()
-      const next = normalizedRows.map((r) => {
+      const rowsNow = normalizedRowsRef.current
+      let changed = false
+      const next = rowsNow.map((r) => {
         const cur = String(r[field] ?? "")
         if (cur.trim().toLowerCase() === targetNorm) {
+          changed = true
           return { ...r, [field]: matched }
         }
         return r
       })
-      pushRows(next)
+      if (changed) pushRows(next)
       setPendingFuzzyMatch(null)
     },
-    [pendingFuzzyMatch, normalizedRows, pushRows]
+    [pendingFuzzyMatch, pushRows]
   )
 
   const handleRowCountBlur = useCallback(() => {
@@ -1002,35 +1150,23 @@ export function ProgDisplayExpertGrid({
   const firstWeekNavColIndex = progDisplayDescriptorKeys.length + WEEK_GRID_COL_OFFSET
   const unitRateNavColIndex = progDisplayDescriptorKeys.indexOf("unitRate")
 
-  const stickyThCorner = (className?: string) =>
-    cn(
-      "sticky top-0 border-b border-r px-1.5 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm",
-      className
-    )
+  const stickyThCorner = (className?: string) => expertGridStickyThCorner(className)
 
-  const stickyThWeek = cn(
-    "sticky top-0 z-[55] border-b border-r px-1 py-3.5 text-center text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))] backdrop-blur-sm align-middle"
-  )
+  const stickyThWeek = expertGridStickyThWeek()
 
-  const stickyTd = (index: number, className?: string) =>
-    cn(
-      "border-b border-r bg-inherit px-1 py-0.5 align-middle",
-      className
-    )
+  const stickyTd = (_index: number, className?: string) =>
+    expertGridStickyTd(className)
 
-  const stickyStyleBody = (index: number) => ({
-    width: descriptorColWidths[index],
-    minWidth: descriptorColWidths[index],
-    maxWidth: descriptorColWidths[index],
-    boxSizing: "border-box" as const,
-  })
+  const stickyStyleBody = (index: number) =>
+    expertGridStickyStyleBody(index, leftOffsets, descriptorColWidths)
 
-  const stickyStyleHeaderCorner = (index: number) => ({
-    width: descriptorColWidths[index],
-    minWidth: descriptorColWidths[index],
-    maxWidth: descriptorColWidths[index],
-    boxSizing: "border-box" as const,
-  })
+  const stickyStyleHeaderCorner = (index: number) =>
+    expertGridStickyStyleHeaderCorner(index, leftOffsets, descriptorColWidths)
+
+  const stickyStyleReorderBody = expertGridStickyStyleReorderBody()
+
+  const stickyStyleReorderHeader = expertGridStickyStyleReorderHeader()
+
 
   const handleGridInputKeyDown = useCallback(
     (
@@ -1051,7 +1187,12 @@ export function ProgDisplayExpertGrid({
         const end = t.selectionEnd ?? 0
         if (start === len && end === len) {
           e.preventDefault()
-          focusExpertGridCell(domGridId, rowIndex, firstWeekNavColIndex)
+          focusExpertGridCell(
+            domGridId,
+            rowIndex,
+            firstWeekNavColIndex,
+            ensureRowVisible
+          )
           return
         }
       }
@@ -1064,7 +1205,12 @@ export function ProgDisplayExpertGrid({
         const end = t.selectionEnd ?? 0
         if (start === 0 && end === 0 && unitRateNavColIndex >= 0) {
           e.preventDefault()
-          focusExpertGridCell(domGridId, rowIndex, unitRateNavColIndex)
+          focusExpertGridCell(
+            domGridId,
+            rowIndex,
+            unitRateNavColIndex,
+            ensureRowVisible
+          )
           return
         }
       }
@@ -1075,10 +1221,12 @@ export function ProgDisplayExpertGrid({
         rowCount: normalizedRows.length,
         colCount: navColCount,
         event: e,
+              ensureVisible: ensureRowVisible,
       })
     },
     [
       domGridId,
+      ensureRowVisible,
       firstWeekNavColIndex,
       navColCount,
       normalizedRows.length,
@@ -1088,7 +1236,8 @@ export function ProgDisplayExpertGrid({
 
   const updateWeeklyCell = useCallback(
     (rowIndex: number, weekKey: string, raw: string) => {
-      const row = normalizedRows[rowIndex]
+      const rowsNow = normalizedRowsRef.current
+      const row = rowsNow[rowIndex]
       if (!row) return
       const span = findMergedSpanForWeek(row, weekKey, weekKeys)
       if (span && span.startWeekKey !== weekKey) return
@@ -1097,43 +1246,41 @@ export function ProgDisplayExpertGrid({
       if (cleaned === "" || cleaned === "-") {
         if (span) {
           // Preserve merge topology on edit clear/delete; only the X control unmerges.
-          const mergedWeekSpans = (row.mergedWeekSpans ?? []).map((s) =>
-            s.id === span.id ? { ...s, totalQty: 0 } : s
-          )
-          pushRows(
-            normalizedRows.map((r, i) =>
-              i === rowIndex ? { ...r, mergedWeekSpans } : r
-            )
-          )
+          const next = mapRowAtIndex(rowsNow, rowIndex, (r) => ({
+            ...r,
+            mergedWeekSpans: (r.mergedWeekSpans ?? []).map((s) =>
+              s.id === span.id ? { ...s, totalQty: 0 } : s
+            ),
+          }))
+          if (next) pushRows(next)
           return
         }
-        const weeklyValues = { ...row.weeklyValues, [weekKey]: "" as const }
-        pushRows(
-          normalizedRows.map((r, i) =>
-            i === rowIndex ? { ...r, weeklyValues } : r
-          )
-        )
+        const next = mapRowAtIndex(rowsNow, rowIndex, (r) => ({
+          ...r,
+          weeklyValues: { ...r.weeklyValues, [weekKey]: "" as const },
+        }))
+        if (next) pushRows(next)
         return
       }
       const n = Number.parseFloat(cleaned)
       if (!Number.isFinite(n)) return
       if (span) {
-        const mergedWeekSpans = (row.mergedWeekSpans ?? []).map((s) =>
-          s.id === span.id ? { ...s, totalQty: n } : s
-        )
-        pushRows(
-          normalizedRows.map((r, i) =>
-            i === rowIndex ? { ...r, mergedWeekSpans } : r
-          )
-        )
+        const next = mapRowAtIndex(rowsNow, rowIndex, (r) => ({
+          ...r,
+          mergedWeekSpans: (r.mergedWeekSpans ?? []).map((s) =>
+            s.id === span.id ? { ...s, totalQty: n } : s
+          ),
+        }))
+        if (next) pushRows(next)
         return
       }
-      const weeklyValues = { ...row.weeklyValues, [weekKey]: n }
-      pushRows(
-        normalizedRows.map((r, i) => (i === rowIndex ? { ...r, weeklyValues } : r))
-      )
+      const next = mapRowAtIndex(rowsNow, rowIndex, (r) => ({
+        ...r,
+        weeklyValues: { ...r.weeklyValues, [weekKey]: n },
+      }))
+      if (next) pushRows(next)
     },
-    [normalizedRows, pushRows, weekKeys]
+    [pushRows, weekKeys]
   )
 
   /**
@@ -1144,7 +1291,8 @@ export function ProgDisplayExpertGrid({
    */
   const updateDailyCell = useCallback(
     (rowIndex: number, weekKey: string, dayKey: string, raw: string) => {
-      const row = normalizedRows[rowIndex]
+      const rowsNow = normalizedRowsRef.current
+      const row = rowsNow[rowIndex]
       if (!row) return
       // Merged weeks are edited via their anchor cell, never day cells.
       if (findMergedSpanForWeek(row, weekKey, weekKeys)) return
@@ -1171,14 +1319,14 @@ export function ProgDisplayExpertGrid({
         nextDaily[dayKey] = n
       }
 
-      const weeklyValues = { ...row.weeklyValues, [weekKey]: "" as const }
-      pushRows(
-        normalizedRows.map((r, i) =>
-          i === rowIndex ? { ...r, weeklyValues, dailyValues: nextDaily } : r
-        )
-      )
+      const next = mapRowAtIndex(rowsNow, rowIndex, (r) => ({
+        ...r,
+        weeklyValues: { ...r.weeklyValues, [weekKey]: "" as const },
+        dailyValues: nextDaily,
+      }))
+      if (next) pushRows(next)
     },
-    [dayKeysByWeekKey, normalizedRows, pushRows, weekKeys]
+    [dayKeysByWeekKey, pushRows, weekKeys]
   )
 
   /**
@@ -1563,24 +1711,24 @@ export function ProgDisplayExpertGrid({
 
   const unmergeWeekSpan = useCallback(
     (rowIndex: number, spanId: string) => {
-      const row = normalizedRows[rowIndex]
+      const rowsNow = normalizedRowsRef.current
+      const row = rowsNow[rowIndex]
       if (!row) return
       // Dedicated and only destructive merge removal path.
       // Remove only the chosen span; all other merged groups on this row are preserved.
-      const mergedWeekSpans = (row.mergedWeekSpans ?? []).filter(
-        (span) => span.id !== spanId
-      )
-      pushRows(
-        normalizedRows.map((r, i) =>
-          i === rowIndex ? { ...r, mergedWeekSpans } : r
-        )
-      )
+      const next = mapRowAtIndex(rowsNow, rowIndex, (r) => ({
+        ...r,
+        mergedWeekSpans: (r.mergedWeekSpans ?? []).filter(
+          (span) => span.id !== spanId
+        ),
+      }))
+      if (next) pushRows(next)
       resetTransientWeekUiState()
       if (DEBUG_PROGDISPLAY_MERGE) {
         console.debug("[Programmatic Display merge] unmerge applied", { rowIndex, spanId })
       }
     },
-    [normalizedRows, pushRows, resetTransientWeekUiState]
+    [pushRows, resetTransientWeekUiState]
   )
 
   const addRow = useCallback(() => {
@@ -1600,14 +1748,13 @@ export function ProgDisplayExpertGrid({
         weekKeys
       )
     )
-    const next = [...normalizedRows, ...newRows]
+    const next = [...normalizedRowsRef.current, ...newRows]
     pushRows(next)
     resetTransientWeekUiState()
     setRowCountInput(String(parsed))
   }, [
     campaignStartDate,
     campaignEndDate,
-    normalizedRows,
     pushRows,
     resetTransientWeekUiState,
     rowCountInput,
@@ -1617,7 +1764,7 @@ export function ProgDisplayExpertGrid({
   const duplicateRow = useCallback(
     (rowIndex: number) => {
       const next = duplicateExpertRow(
-        normalizedRows,
+        normalizedRowsRef.current,
         rowIndex,
         () =>
           typeof crypto !== "undefined" && crypto.randomUUID
@@ -1632,7 +1779,7 @@ export function ProgDisplayExpertGrid({
       pushRows(next)
       resetTransientWeekUiState()
     },
-    [normalizedRows, pushRows, resetTransientWeekUiState]
+    [pushRows, resetTransientWeekUiState]
   )
 
   const clearPendingMergeSelection = useCallback((reason: string) => {
@@ -1687,12 +1834,12 @@ export function ProgDisplayExpertGrid({
 
   const deleteRow = useCallback(
     (rowIndex: number) => {
-      const next = deleteExpertRow(normalizedRows, rowIndex)
+      const next = deleteExpertRow(normalizedRowsRef.current, rowIndex)
       if (!next) return
       pushRows(next)
       resetTransientWeekUiState()
     },
-    [normalizedRows, pushRows, resetTransientWeekUiState]
+    [pushRows, resetTransientWeekUiState]
   )
 
   const toggleWeekMultiSelect = useCallback(
@@ -1971,7 +2118,37 @@ export function ProgDisplayExpertGrid({
     weekMultiSelect,
   ])
 
-  const gridScrollRef = useRef<HTMLDivElement>(null)
+  const {
+    virtualItems,
+    paddingTop,
+    paddingBottom,
+    scrollToIndex,
+  } = useExpertGridRowVirtualizer({
+    count: normalizedRows.length,
+    getScrollElement: () => gridScrollRef.current,
+    estimateSize: PROGDISPLAY_EXPERT_ROW_HEIGHT_PX,
+    overscan: PROGDISPLAY_EXPERT_ROW_OVERSCAN,
+    scrollMargin: theadHeightPx,
+    scrollPaddingStart: theadHeightPx,
+  })
+  rowVirtualizerRef.current = { scrollToIndex }
+
+  const virtualSpacerColSpan = useMemo(() => {
+    let weekCells = 0
+    for (const col of weekColumns) {
+      weekCells += expandedWeekKeys.has(col.weekKey)
+        ? Math.max(1, (dayColumnsByWeekKey[col.weekKey] ?? []).length)
+        : 1
+    }
+    return (
+      1 + progDisplayDescriptorKeys.length + WEEK_GRID_COL_OFFSET + weekCells
+    )
+  }, [
+    weekColumns,
+    expandedWeekKeys,
+    dayColumnsByWeekKey,
+    progDisplayDescriptorKeys.length,
+  ])
 
   useEffect(() => {
     const handleDocumentPointerDown = (ev: PointerEvent) => {
@@ -2576,6 +2753,59 @@ export function ProgDisplayExpertGrid({
 
   const campaignRangeLabel = `${format(campaignStartDate, "MMM d, yyyy")} – ${format(campaignEndDate, "MMM d, yyyy")}`
 
+  /** Shared layout fingerprint — changes here re-render every memoised row. */
+  const layoutSig = useMemo(() => {
+    const expanded = [...expandedWeekKeys].sort().join(",")
+    const widths = Object.keys(weekColumnWidths)
+      .sort()
+      .map((k) => `${k}:${weekColumnWidths[k]}`)
+      .join(",")
+    return [
+      entryMode,
+      showBillingCols ? "1" : "0",
+      expanded,
+      widths,
+      String(feeprogdisplay),
+      weekKeys.join(","),
+      descriptorColWidths.join(","),
+      // Selection overlays span rows — bump all rows when the area selection changes.
+      weekStripSelection
+        ? `ss:${weekStripSelection.rowIndex}`
+        : "",
+      weekMultiSelect
+        ? `ms:${weekMultiSelect.rowIndex}:${weekMultiSelect.keys.join(",")}`
+        : "",
+      weekRectSelection
+        ? `wr:${weekRectSelection.rowStart}:${weekRectSelection.rowEnd}:${weekRectSelection.weekKeyStart}:${weekRectSelection.weekKeyEnd}`
+        : "",
+      multiCellSelection
+        ? `mc:${multiCellSelection.startRow}:${multiCellSelection.endRow}:${multiCellSelection.startCol}:${multiCellSelection.endCol}`
+        : "",
+      pendingMergeSelection
+        ? `pm:${pendingMergeSelection.rowIndex}:${pendingMergeSelection.keys.join(",")}`
+        : "",
+      weekDragSource ? `wds:${weekDragSource.rowIndex}:${weekDragSource.weekKey}` : "",
+      copiedCells ? "copy" : "",
+      isSelecting ? "sel" : "",
+    ].join("|")
+  }, [
+    copiedCells,
+    descriptorColWidths,
+    entryMode,
+    expandedWeekKeys,
+    feeprogdisplay,
+    isSelecting,
+    multiCellSelection,
+    pendingMergeSelection,
+    showBillingCols,
+    weekColumnWidths,
+    weekDragSource,
+    weekKeys,
+    weekMultiSelect,
+    weekRectSelection,
+    weekStripSelection,
+  ])
+
   return (
     <TooltipProvider delayDuration={300}>
       <Card className="relative overflow-hidden border-0 shadow-md">
@@ -2626,7 +2856,7 @@ export function ProgDisplayExpertGrid({
                 size="sm"
                 variant={entryMode === "deliverables" ? "secondary" : "ghost"}
                 className="h-7 px-2 text-xs"
-                title="Cells accept deliverable quantities (spots, impressions, clicks …)"
+                title="Enter deliverable quantities per week (spots, impressions, clicks, etc.)."
                 onClick={() => {
                   setEntryMode("deliverables")
                   setBudgetDraft(null)
@@ -2639,7 +2869,7 @@ export function ProgDisplayExpertGrid({
                 size="sm"
                 variant={entryMode === "budget" ? "secondary" : "ghost"}
                 className="h-7 px-2 text-xs"
-                title="Cells accept $ amounts, converted to deliverables via the row's unit rate. Values are always stored as deliverables."
+                title="Enter $ amounts per week; converted to deliverables via the row unit rate. Stored as deliverables."
                 onClick={() => {
                   setEntryMode("budget")
                   setBudgetDraft(null)
@@ -2649,15 +2879,13 @@ export function ProgDisplayExpertGrid({
               </Button>
             </div>
             <div className="flex items-center gap-2">
-              <Label htmlFor="progdisplay-expert-row-count" className="text-sm whitespace-nowrap">
-                Rows:
-              </Label>
+              <Label htmlFor="progdisplay-expert-row-count" className="sr-only">Add rows count</Label>
               <Input
                 id="progdisplay-expert-row-count"
                 type="number"
                 min={1}
                 max={500}
-                title="Rows to append when Add row is clicked (1–500)."
+                title="How many empty rows to append (1–500)."
                 className="w-16 h-8 border-0 bg-transparent text-sm shadow-none focus-visible:ring-2 focus-visible:ring-ring"
                 value={rowCountInput}
                 onChange={(e) => setRowCountInput(e.target.value.replace(/\D/g, ""))}
@@ -2669,16 +2897,17 @@ export function ProgDisplayExpertGrid({
               variant="outline"
               size="sm"
               onClick={addRow}
-              title="Append as many empty rows as the number in the Rows field (1–500)."
+              title="How many empty rows to append (1–500)."
             >
               <Plus className="mr-1 h-4 w-4" />
-              Add row
+              {`Add ${Math.max(1, Math.min(500, Number.parseInt(rowCountInput || "1", 10) || 1))} rows`}
             </Button>
             <Button
               type="button"
               variant="ghost"
               size="sm"
               className="text-xs text-muted-foreground"
+              title="Show or hide fee / media / total billing columns on the schedule."
               onClick={() => setShowBillingCols((v) => !v)}
             >
               {showBillingCols ? "Hide" : "Show"} billing columns
@@ -2696,6 +2925,12 @@ export function ProgDisplayExpertGrid({
           </div>
 
           <div className="overflow-hidden rounded-lg border border-border/80 bg-card/30 shadow-sm">
+            <div className="flex items-center border-b border-border/60 bg-card/60 px-3 py-1.5">
+              <ExpertGridWeekCommencesBar
+                weekStartsOn={weekStartsOn}
+                onWeekStartsOnChange={handleWeekStartsOnChange}
+              />
+            </div>
             {normalizedRows.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-4 px-6 py-14 text-center">
                 <div
@@ -2732,11 +2967,11 @@ export function ProgDisplayExpertGrid({
                 data-progdisplay-expert-grid-scroll=""
               >
                 <table className="w-max min-w-full border-collapse text-sm">
-                  <thead className="[&_tr]:border-b-0">
+                  <thead ref={theadRef} className="[&_tr]:border-b-0">
                     <tr>
                       <ExpertGridRowReorderHeaderCell
                         className={stickyThCorner("text-center")}
-                        style={progDisplayExpertHeaderCellBgStyle}
+                        style={stickyStyleReorderHeader}
                       />
                       {descriptorHeadLabels.map((label, i) => (
                         <th
@@ -2746,10 +2981,7 @@ export function ProgDisplayExpertGrid({
                               ? PROGDISPLAY_EXPERT_WEEK_SCROLLER_EDGE
                               : undefined
                           )}
-                          style={{
-                            ...stickyStyleHeaderCorner(i),
-                            ...progDisplayExpertHeaderCellBgStyle,
-                          }}
+                          style={stickyStyleHeaderCorner(i)}
                         >
                           {label === "Unit Rate" ? (
                             <Tooltip>
@@ -2882,7 +3114,44 @@ export function ProgDisplayExpertGrid({
                     </tr>
                   </thead>
                   <tbody>
-                    {normalizedRows.map((row, rowIndex) => {
+                    {(() => {
+                      const renderScheduleRow = (
+                        row: ProgDisplayExpertScheduleRow,
+                        rowIndex: number
+                      ) => {
+                      const rowMergeMapForRow =
+                        rowMergeMaps[rowIndex] ??
+                        ({
+                          anchorByWeekKey: {},
+                          interiorByWeekKey: {},
+                          spanById: {},
+                          spanMetaByAnchorWeekKey: {},
+                        } as ProgDisplayRowMergeMap)
+                      const rowUiSig = [
+                        isDropTarget(rowIndex) ? "1" : "0",
+                        dragRowIndex === rowIndex ? "1" : "0",
+                        weekDragOver?.rowIndex === rowIndex
+                          ? `wo:${weekDragOver.weekKey}:${weekDragOver.valid ? 1 : 0}`
+                          : "",
+                        focusedCell?.rowIndex === rowIndex
+                          ? `f:${focusedCell.columnKey}`
+                          : "",
+                        budgetDraft?.rowIndex === rowIndex
+                          ? `bd:${budgetDraft.cellKey}:${budgetDraft.text}`
+                          : "",
+                        mergeSpanHighlightPulse?.rowIndex === rowIndex
+                          ? `mp:${mergeSpanHighlightPulse.startWeekKey}:${mergeSpanHighlightPulse.endWeekKey}`
+                          : "",
+                      ].join("|")
+                      return (
+                        <MemoExpertGridRow
+                          key={row.id}
+                          row={row}
+                          rowIndex={rowIndex}
+                          rowMergeMap={rowMergeMapForRow}
+                          layoutSig={layoutSig}
+                          rowUiSig={rowUiSig}
+                          render={() => {
                       const net = expertRowNetMedia(row, weekKeys, feeprogdisplay)
                       const qtySum = expertRowQuantitySum(row, weekKeys)
                       const rowUnitRate = parseNum(row.unitRate)
@@ -2923,21 +3192,32 @@ export function ProgDisplayExpertGrid({
 
                       return (
                         <tr
-                          key={row.id}
                           className={cn(
                             stripe,
-                            "transition-colors hover:bg-muted/35 focus-within:bg-muted/35",
+                            EXPERT_GRID_ROW_CLASS,
                             isDropTarget(rowIndex) &&
                               "bg-primary/10 ring-1 ring-inset ring-primary/40"
                           )}
-                          style={stripeStyle}
+                          {...expertGridRowZebraProps(rowIndex)}
+                          data-progdisplay-expert-row-index={rowIndex}
+                          style={{
+                            ...stripeStyle,
+                            height: PROGDISPLAY_EXPERT_ROW_HEIGHT_PX,
+                            maxHeight: PROGDISPLAY_EXPERT_ROW_HEIGHT_PX,
+                          }}
                           {...rowDropProps(rowIndex)}
                         >
                           <ExpertGridRowReorderCell
                             rowIndex={rowIndex}
                             handleProps={handleProps(rowIndex)}
                             isDragging={dragRowIndex === rowIndex}
+                            incompleteReasons={
+                              isExpertRowIncomplete(row)
+                                ? expertRowIncompleteReasons(row)
+                                : undefined
+                            }
                             className={stickyTd(0, "text-center")}
+                            style={stickyStyleReorderBody}
                           />
                           {showBillingCols ? (
                             <>
@@ -2945,7 +3225,7 @@ export function ProgDisplayExpertGrid({
                                 className={stickyTd(cFixed)}
                                 style={stickyStyleBody(cFixed)}
                               >
-                                <div className="flex min-h-10 items-center justify-center py-1.5">
+                                <div className="flex h-8 items-center justify-center overflow-hidden">
                                   <Checkbox
                                     id={expertGridCellId(
                                       domGridId,
@@ -2978,7 +3258,7 @@ export function ProgDisplayExpertGrid({
                                 className={stickyTd(cClient)}
                                 style={stickyStyleBody(cClient)}
                               >
-                                <div className="flex min-h-10 items-center justify-center py-1.5">
+                                <div className="flex h-8 items-center justify-center overflow-hidden">
                                   <Checkbox
                                     id={expertGridCellId(
                                       domGridId,
@@ -3011,7 +3291,7 @@ export function ProgDisplayExpertGrid({
                                 className={stickyTd(cBif)}
                                 style={stickyStyleBody(cBif)}
                               >
-                                <div className="flex min-h-10 items-center justify-center py-1.5">
+                                <div className="flex h-8 items-center justify-center overflow-hidden">
                                   <Checkbox
                                     id={expertGridCellId(
                                       domGridId,
@@ -3044,7 +3324,7 @@ export function ProgDisplayExpertGrid({
                                 className={stickyTd(cNoad)}
                                 style={stickyStyleBody(cNoad)}
                               >
-                                <div className="flex min-h-10 items-center justify-center py-1.5">
+                                <div className="flex h-8 items-center justify-center overflow-hidden">
                                   <Checkbox
                                     id={expertGridCellId(
                                       domGridId,
@@ -3883,6 +4163,7 @@ export function ProgDisplayExpertGrid({
                               const isFocusVisible = isActiveWeekCell
                               const tdClassName = cn(
                                 "border-b border-r p-0 align-middle",
+                                EXPERT_GRID_WEEK_BODY_Z,
                                 // Base states (empty / populated non-merged / merged anchor via wrapper).
                                 isEmptyWeekCell && "bg-inherit",
                                 isPopulatedNonMergedCell &&
@@ -4618,7 +4899,31 @@ export function ProgDisplayExpertGrid({
                           })()}
                         </tr>
                       )
-                    })}
+                          }}
+                        />
+                      )
+                      }
+
+                      if (!PROGDISPLAY_EXPERT_ROW_VIRTUALIZATION) {
+                        return normalizedRows.map((row, rowIndex) =>
+                          renderScheduleRow(row, rowIndex)
+                        )
+                      }
+
+                      return (
+                        <ExpertGridVirtualSpacerBody
+                          colSpan={virtualSpacerColSpan}
+                          paddingTop={paddingTop}
+                          paddingBottom={paddingBottom}
+                        >
+                          {virtualItems.map((vi) => {
+                            const row = normalizedRows[vi.index]
+                            if (!row) return null
+                            return renderScheduleRow(row, vi.index)
+                          })}
+                        </ExpertGridVirtualSpacerBody>
+                      )
+                    })()}
                     <tr
                       className="border-t-2 border-solid font-medium"
                       style={mediaTypeTotalsRowStyle(MEDIA_ACCENT_HEX)}
@@ -4629,15 +4934,12 @@ export function ProgDisplayExpertGrid({
                           width: EXPERT_REORDER_COL_WIDTH_PX,
                           minWidth: EXPERT_REORDER_COL_WIDTH_PX,
                           maxWidth: EXPERT_REORDER_COL_WIDTH_PX,
-                          ...progDisplayExpertTotalsRowBgStyle,
+                          ...stickyStyleReorderBody,
                         }}
                       />
                       <td
                         className={stickyTd(0)}
-                        style={{
-                          ...stickyStyleBodyDescriptorTotalLabel,
-                          ...progDisplayExpertTotalsRowBgStyle,
-                        }}
+                        style={stickyStyleBodyDescriptorTotalLabel}
                         colSpan={progDisplayDescriptorKeys.length}
                       >
                         <div className="flex h-8 items-center px-1">
@@ -4654,10 +4956,7 @@ export function ProgDisplayExpertGrid({
                           stickyTd(progDisplayDescriptorKeys.length),
                           "h-8 px-1 text-xs tabular-nums"
                         )}
-                        style={{
-                          ...stickyStyleBody(progDisplayDescriptorKeys.length),
-                          ...progDisplayExpertTotalsRowBgStyle,
-                        }}
+                        style={stickyStyleBody(progDisplayDescriptorKeys.length)}
                       >
                         <div className="flex h-full items-center">
                           {formatAUD(containerTotals.sumNet)}
@@ -4668,10 +4967,7 @@ export function ProgDisplayExpertGrid({
                           stickyTd(progDisplayDescriptorKeys.length + 1),
                           "h-8"
                         )}
-                        style={{
-                          ...stickyStyleBody(progDisplayDescriptorKeys.length + 1),
-                          ...progDisplayExpertTotalsRowBgStyle,
-                        }}
+                        style={stickyStyleBody(progDisplayDescriptorKeys.length + 1)}
                       />
                       <td
                         className={cn(
@@ -4679,10 +4975,7 @@ export function ProgDisplayExpertGrid({
                           "h-8 px-1 text-xs tabular-nums text-muted-foreground",
                           PROGDISPLAY_EXPERT_WEEK_SCROLLER_EDGE
                         )}
-                        style={{
-                          ...stickyStyleBody(progDisplayDescriptorKeys.length + 2),
-                          ...progDisplayExpertTotalsRowBgStyle,
-                        }}
+                        style={stickyStyleBody(progDisplayDescriptorKeys.length + 2)}
                       >
                         <div className="flex h-full items-center justify-end">
                           {containerTotals.sumQty === 0

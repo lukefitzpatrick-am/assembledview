@@ -1,5 +1,15 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
+import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
+import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
+import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
+import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
+import {
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
@@ -237,6 +247,12 @@ export default function DigiVideoContainer({
   >([])
   const [digiVideoExpertModalOpen, setDigiVideoExpertModalOpen] =
     useState(false)
+  const [expertApplyPendingPageSave, setExpertApplyPendingPageSave] = useState(false)
+  useEffect(() => {
+    return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
+  }, [])
+  const mediaLineItemsPublishFpRef = useRef("")
+
   const [digiVideoExpertExitConfirmOpen, setDigiVideoExpertExitConfirmOpen] =
     useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
@@ -452,6 +468,8 @@ export default function DigiVideoContainer({
     setDigiVideoExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, digiVideoExpertWeekColumns])
 
+
+
   const dismissDigiVideoExpertExitConfirm = useCallback(() => {
     setDigiVideoExpertExitConfirmOpen(false)
   }, [])
@@ -523,6 +541,7 @@ export default function DigiVideoContainer({
       )
     setDigiVideoExpertExitConfirmOpen(false)
     collapseAllLineItems()
+    setExpertApplyPendingPageSave(true)
     setDigiVideoExpertModalOpen(false)
   }, [
     campaignStartDate,
@@ -678,7 +697,7 @@ export default function DigiVideoContainer({
       };
     });
 
-    onMediaLineItemsChange(transformedLineItems);
+    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
   }, [watchedLineItems, mbaNumber, feedigivideo, form, onMediaLineItemsChange]);
   
   // Memoized calculations
@@ -1150,7 +1169,12 @@ useEffect(() => {
                         color: MEDIA_ACCENT_HEX,
                       }}
                     >
-                      Expert schedule open
+                      Schedule grid open
+                    </Badge>
+                  ) : null}
+                  {expertApplyPendingPageSave ? (
+                    <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Not saved to plan yet
                     </Badge>
                   ) : null}
                 </div>
@@ -1175,12 +1199,11 @@ useEffect(() => {
                     }
                     onClick={() => {
                       if (digiVideoExpertModalOpen) {
+                        writeContainerEntryMode("card")
                         handleDigiVideoExpertModalOpenChange(false)
                       }
                     }}
-                  >
-                    Standard
-                  </button>
+                  >Card entry</button>
                   <button
                     type="button"
                     aria-pressed={digiVideoExpertModalOpen}
@@ -1205,16 +1228,17 @@ useEffect(() => {
                     }}
                     onClick={() => {
                       if (!digiVideoExpertModalOpen) {
-                        openDigiVideoExpertModal()
+                        writeContainerEntryMode("schedule")
+                          openDigiVideoExpertModal()
                       }
                     }}
-                  >
-                    Expert
-                  </button>
+                  >Schedule grid</button>
                 </div>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-muted-foreground">Card-based entry</p>
+                <p className="text-sm text-muted-foreground">
+                  One card per line - or switch to Schedule grid for week quantities.
+                </p>
                 <span className="text-xs text-muted-foreground tabular-nums sm:text-right">
                   {overallTotals.lineItemTotals.length} line item
                   {overallTotals.lineItemTotals.length !== 1 ? "s" : ""}
@@ -1245,18 +1269,45 @@ useEffect(() => {
   
       <div>
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <div className="relative h-10 w-10">
-              <div className="absolute inset-0 rounded-full border-2 border-muted" />
-              <div className="absolute inset-0 rounded-full border-2 border-t-primary animate-spin" />
-            </div>
-            <span className="text-sm text-muted-foreground">Loading...</span>
-          </div>
+          <MediaContainerLoadState loading label="Digital Video" />
         ) : (
           <div className="space-y-6">
             {digiVideoExpertModalOpen ? null : (
             <Form {...form}>
               <div className="space-y-6">
+                {lineItemFields.length === 0 ? (
+                  <ContainerEmptyLinesPlaceholder
+                    onAdd={() => appendLineItem({
+                                                              platform: "",
+                                                              site: "",
+                                                              bidStrategy: "",
+                                                              buyType: "",
+                                                              publisher: "",
+                                                              placement: "",
+                                                              size: "",
+                                                              targetingAttribute: "",
+                                                              creativeTargeting: "",
+                                                              creative: "",
+                                                              buyingDemo: "",
+                                                              market: "",
+                                                              fixedCostMedia: false,
+                                                              clientPaysForMedia: false,
+                                                              budgetIncludesFees: false,
+                                                              noadserving: false,
+                                                              bursts: [
+                                                                {
+                                                                  _reactKey: newBurstReactKey(),
+                                                                  budget: "",
+                                                                  buyAmount: "",
+                                                                  startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+                                                                  endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+                                                                  calculatedValue: 0,
+                                                                  fee: 0,
+                                                                } as DigiVideoFormValues["digivideolineItems"][number]["bursts"][number] & { _reactKey: string },
+                                                              ],
+                                                            })}
+                  />
+                ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
                   const lineItemId = buildLineItemId(
                     mbaNumber,
@@ -1983,8 +2034,20 @@ useEffect(() => {
             </div>
           </ComboboxModalProvider>
           <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
+            <div className="mr-auto flex flex-col gap-1.5">
+              <ExpertIncompleteRowsSummary rows={expertDigiVideoRows} />
+              {expertApplyPendingPageSave ? (
+                <span className="text-xs text-muted-foreground">
+                  Applied earlier — awaiting page Save
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Apply updates the plan draft only
+                </span>
+              )}
+            </div>
             <Button type="button" onClick={handleDigiVideoExpertApply}>
-              Apply
+              Apply to plan (not saved yet)
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2036,7 +2099,7 @@ useEffect(() => {
         </DialogContent>
       </Dialog>
 
-    {/* Add Site dialog — publisher is locked to the line item that opened it */}
+    {/* Add Site dialog - publisher is locked to the line item that opened it */}
 <Dialog open={isAddSiteDialogOpen} onOpenChange={setIsAddSiteDialogOpen}>
   <DialogContent className="sm:max-w-[425px]">
     <DialogHeader>

@@ -35,6 +35,62 @@ function monthBoundsFromKey(monthKey: string): { start: Date; end: Date } | null
   }
 }
 
+/**
+ * Round day-weighted shares to cents so they sum exactly to `targetAmount`
+ * (largest-remainder method). Preserves sign of the target.
+ */
+export function reconcileSharesToCents(
+  rawShares: Record<string, number>,
+  targetAmount: number
+): Record<string, number> {
+  if (!Number.isFinite(targetAmount)) return {}
+
+  const targetCents = Math.round(targetAmount * 100)
+  const entries = Object.entries(rawShares).filter(
+    ([, v]) => Number.isFinite(v) && Math.abs(v) > 1e-12
+  )
+  if (entries.length === 0) return {}
+
+  // Work in absolute cents for remainder distribution; re-apply sign at the end
+  // when target is negative (all raw shares should share that sign).
+  const sign = targetCents < 0 ? -1 : 1
+  const absTarget = Math.abs(targetCents)
+
+  type Part = { key: string; floor: number; frac: number }
+  const parts: Part[] = entries.map(([key, raw]) => {
+    const exact = Math.abs(raw) * 100
+    const floor = Math.floor(exact + 1e-9)
+    return { key, floor, frac: exact - floor }
+  })
+
+  let floorSum = parts.reduce((s, p) => s + p.floor, 0)
+  // Guard float noise where floors already overshoot by a cent
+  if (floorSum > absTarget) {
+    let over = floorSum - absTarget
+    const byFracAsc = [...parts].sort((a, b) => a.frac - b.frac || a.key.localeCompare(b.key))
+    for (const p of byFracAsc) {
+      if (over <= 0) break
+      if (p.floor <= 0) continue
+      p.floor -= 1
+      over -= 1
+      floorSum -= 1
+    }
+  }
+
+  let remainder = absTarget - floorSum
+  const byFracDesc = [...parts].sort((a, b) => b.frac - a.frac || a.key.localeCompare(b.key))
+  for (let i = 0; i < byFracDesc.length && remainder > 0; i++) {
+    byFracDesc[i]!.floor += 1
+    remainder -= 1
+  }
+
+  const out: Record<string, number> = {}
+  for (const p of parts) {
+    out[p.key] = (sign * p.floor) / 100
+  }
+  return out
+}
+
 export function prorateAcrossMonths(params: {
   amount: number
   burstStart: Date | string
@@ -61,5 +117,5 @@ export function prorateAcrossMonths(params: {
     }
   }
 
-  return shares
+  return reconcileSharesToCents(shares, params.amount)
 }

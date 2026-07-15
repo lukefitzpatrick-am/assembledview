@@ -38,6 +38,20 @@ type AssistantActionHandlers = {
     selector: string
     value: boolean
   }) => Promise<string | void> | string | void
+  /**
+   * Bulk-replace (or append) line items for a media container after AVA plan parse.
+   */
+  setLineItems?: (payload: {
+    channel: "radio" | "ooh"
+    items: Record<string, unknown>[]
+    replace?: boolean
+  }) => Promise<string | void> | string | void
+  /**
+   * Read current grid line items for a channel (AVA adjust_line_items → server).
+   */
+  getLineItems?: (payload: {
+    channel: "radio" | "ooh"
+  }) => Promise<{ items: Record<string, unknown>[] }> | { items: Record<string, unknown>[] }
 }
 
 export type AssistantContext = {

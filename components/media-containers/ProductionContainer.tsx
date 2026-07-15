@@ -1,5 +1,14 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
+import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
+import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
+import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
+import {
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useForm, useFieldArray, UseFormReturn, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -239,6 +248,12 @@ export default function ProductionContainer({
     ProductionExpertScheduleRow[]
   >([])
   const [productionExpertModalOpen, setProductionExpertModalOpen] = useState(false)
+
+  const [expertApplyPendingPageSave, setExpertApplyPendingPageSave] = useState(false)
+  useEffect(() => {
+    return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
+  }, [])
+  const mediaLineItemsPublishFpRef = useRef("")
   const [productionExpertExitConfirmOpen, setProductionExpertExitConfirmOpen] =
     useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
@@ -393,6 +408,8 @@ export default function ProductionContainer({
     setProductionExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, productionExpertWeekColumns])
 
+
+
   const dismissProductionExpertExitConfirm = useCallback(() => {
     setProductionExpertExitConfirmOpen(false)
   }, [])
@@ -445,6 +462,7 @@ export default function ProductionContainer({
     })
     setProductionExpertExitConfirmOpen(false)
     collapseAllLineItems()
+    setExpertApplyPendingPageSave(true)
     setProductionExpertModalOpen(false)
   }, [
     campaignStartDate,
@@ -566,7 +584,7 @@ export default function ProductionContainer({
     investmentChangeRef.current?.(buildInvestmentByMonth(bursts))
     const mappedLineItems = mapLineItemsForExport(watchedLineItems || [], mbaNumber)
     lineItemsChangeRef.current?.(mappedLineItems)
-    mediaLineItemsChangeRef.current?.(apiLineItems)
+    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, apiLineItems, (items) => mediaLineItemsChangeRef.current?.(items))
   }, [watchedLineItems, totals.totalMedia, mbaNumber, apiLineItems])
 
   const handleAddLineItem = () => {
@@ -644,9 +662,14 @@ export default function ProductionContainer({
                       color: MEDIA_ACCENT_HEX,
                     }}
                   >
-                    Expert schedule open
+                    Schedule grid open
                   </Badge>
                 ) : null}
+                  {expertApplyPendingPageSave ? (
+                    <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Not saved to plan yet
+                    </Badge>
+                  ) : null}
               </div>
               <div
                 role="group"
@@ -669,12 +692,11 @@ export default function ProductionContainer({
                   }
                   onClick={() => {
                     if (productionExpertModalOpen) {
-                      handleProductionExpertModalOpenChange(false)
-                    }
+                      writeContainerEntryMode("card")
+                        handleProductionExpertModalOpenChange(false)
+                      }
                   }}
-                >
-                  Standard
-                </button>
+                >Card entry</button>
                 <button
                   type="button"
                   aria-pressed={productionExpertModalOpen}
@@ -699,16 +721,17 @@ export default function ProductionContainer({
                   }}
                   onClick={() => {
                     if (!productionExpertModalOpen) {
-                      openProductionExpertModal()
+                      writeContainerEntryMode("schedule")
+                          openProductionExpertModal()
                     }
                   }}
-                >
-                  Expert
-                </button>
+                >Schedule grid</button>
               </div>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">Card-based entry</p>
+              <p className="text-sm text-muted-foreground">
+                  One card per line - or switch to Schedule grid for week quantities.
+                </p>
               <span className="text-xs text-muted-foreground tabular-nums sm:text-right">
                 {lineItemFields.length} line item
                 {lineItemFields.length !== 1 ? "s" : ""}
@@ -743,7 +766,19 @@ export default function ProductionContainer({
 
       <Form {...form}>
         <div className="space-y-6">
-          {lineItemFields.map((field, lineItemIndex) => {
+          {lineItemFields.length === 0 ? (
+                  <ContainerEmptyLinesPlaceholder
+                    onAdd={() => appendLineItem({
+      mediaType: mediaTypeOptions[0]?.value || "",
+      publisher: "",
+      description: "",
+      market: "",
+      lineItemId: "",
+      bursts: [makeDefaultBurst()],
+    })}
+                  />
+                ) : null}
+                {lineItemFields.map((field, lineItemIndex) => {
             const lineItemId =
               form.watch(`lineItems.${lineItemIndex}.lineItemId`) ||
               buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.production, lineItemIndex + 1)
@@ -1124,8 +1159,20 @@ export default function ProductionContainer({
             </div>
           </ComboboxModalProvider>
           <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
+            <div className="mr-auto flex flex-col gap-1.5">
+              <ExpertIncompleteRowsSummary rows={expertProductionRows} />
+              {expertApplyPendingPageSave ? (
+                <span className="text-xs text-muted-foreground">
+                  Applied earlier — awaiting page Save
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Apply updates the plan draft only
+                </span>
+              )}
+            </div>
             <Button type="button" onClick={handleProductionExpertApply}>
-              Apply
+              Apply to plan (not saved yet)
             </Button>
           </DialogFooter>
         </DialogContent>

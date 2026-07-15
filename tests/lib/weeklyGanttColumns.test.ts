@@ -43,6 +43,41 @@ test("buildWeeklyGanttColumnsFromCampaign covers partial weeks Sun–Sat", () =>
   assert.match(cols[0].labelFull, / - /)
 })
 
+test("buildWeeklyGanttColumnsFromCampaign default weekStartsOn=0 matches pre-param Sunday output byte-for-byte", () => {
+  const start = new Date(2025, 2, 12) // Wed
+  const end = new Date(2025, 3, 8) // Tue
+  const withDefault = buildWeeklyGanttColumnsFromCampaign(start, end)
+  const withExplicitSunday = buildWeeklyGanttColumnsFromCampaign(start, end, 0)
+  assert.deepEqual(withDefault, withExplicitSunday)
+  // Stable week-key sequence for the historic Sunday tiling.
+  assert.deepEqual(
+    withDefault.map((c) => c.weekKey),
+    ["2025-03-09", "2025-03-16", "2025-03-23", "2025-03-30", "2025-04-06"]
+  )
+  assert.equal(withDefault[0]!.weekStart.getDay(), 0)
+  assert.equal(withDefault[0]!.weekEnd.getDay(), 6)
+})
+
+test("buildWeeklyGanttColumnsFromCampaign respects each weekStartsOn", () => {
+  const start = new Date(2025, 2, 12)
+  const end = new Date(2025, 2, 20)
+  for (let d = 0; d <= 6; d++) {
+    const cols = buildWeeklyGanttColumnsFromCampaign(
+      start,
+      end,
+      d as 0 | 1 | 2 | 3 | 4 | 5 | 6
+    )
+    assert.ok(cols.length >= 1)
+    assert.equal(cols[0]!.weekStart.getDay(), d)
+    for (const col of cols) {
+      assert.equal(col.weekStart.getDay(), d)
+      assert.equal(col.weekKey, format(col.weekStart, "yyyy-MM-dd"))
+    }
+  }
+  const monday = buildWeeklyGanttColumnsFromCampaign(start, end, 1)
+  assert.equal(monday[0]!.weekKey, "2025-03-10")
+})
+
 test("buildWeeklyGanttColumnsFromCampaign returns [] when end is before start", () => {
   assert.deepEqual(
     buildWeeklyGanttColumnsFromCampaign(new Date(2025, 5, 10), new Date(2025, 5, 1)),

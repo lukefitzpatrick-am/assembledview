@@ -18,7 +18,10 @@ const adminCtx: AvaToolContext = {
   capturedPatch: null,
   capturedAttachments: null,
   capturedQuestions: null,
-}
+    pendingParsedPlan: null,
+    capturedLineItemsLoad: null,
+    currentLineItems: null,
+  }
 
 test("load_skill: returns body + learnings + chained decision rules", () => {
   const payload = buildLoadSkillPayload("assembled-insight-commentary")

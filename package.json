@@ -25,7 +25,9 @@
     "pacing:backfill:search-mappings": "tsx scripts/pacing/backfill-search-mappings.ts",
     "test:kpi-resolve": "tsx --test lib/kpi/__tests__/resolve.test.ts",
     "test:pacing-maths": "tsx --test lib/pacing/maths/__tests__/*.test.ts",
-    "test:ava-tools": "tsx --test lib/ava/tools/__tests__/registry.test.ts"
+    "test:ava-tools": "tsx --test lib/ava/tools/__tests__/registry.test.ts",
+    "test:ava-autopopulate": "tsx --test lib/ava/autopopulate/__tests__/*.test.ts",
+    "test:ava-detect-goldens": "tsx --test lib/ava/autopopulate/__tests__/detectPlanStructure.fixtures.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",

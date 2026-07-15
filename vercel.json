@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/pacing-digest",
       "schedule": "30 22 * * 1,4"
+    },
+    {
+      "path": "/api/cron/creative-upload-digest",
+      "schedule": "0 * * * *"
     }
   ]
 }

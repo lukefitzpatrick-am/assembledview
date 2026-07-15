@@ -1,5 +1,15 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
+import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
+import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
+import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
+import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
+import {
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn, type Resolver } from "react-hook-form"
@@ -324,11 +334,17 @@ export default function ProgVideoContainer({
   )
 
   const progvideoStandardBaselineRef = useRef("")
+  const mediaLineItemsPublishFpRef = useRef("")
   const [expertProgVideoRows, setExpertProgVideoRows] = useState<
     ProgVideoExpertScheduleRow[]
   >([])
   const [progvideoExpertModalOpen, setProgVideoExpertModalOpen] =
     useState(false)
+  const [expertApplyPendingPageSave, setExpertApplyPendingPageSave] = useState(false)
+  useEffect(() => {
+    return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
+  }, [])
+
   const [progvideoExpertExitConfirmOpen, setProgVideoExpertExitConfirmOpen] =
     useState(false)
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true)
@@ -388,6 +404,8 @@ export default function ProgVideoContainer({
     setProgVideoExpertExitConfirmOpen(false)
     setProgVideoExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, progvideoExpertWeekColumns])
+
+
 
   const dismissProgVideoExpertExitConfirm = useCallback(() => {
     setProgVideoExpertExitConfirmOpen(false)
@@ -460,6 +478,7 @@ export default function ProgVideoContainer({
       )
     setProgVideoExpertExitConfirmOpen(false)
     collapseAllLineItems()
+    setExpertApplyPendingPageSave(true)
     setProgVideoExpertModalOpen(false)
   }, [
     campaignStartDate,
@@ -628,7 +647,7 @@ export default function ProgVideoContainer({
       };
     });
 
-    onMediaLineItemsChange(transformedLineItems);
+    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
   }, [watchedLineItems, mbaNumber, feeprogvideo, form, onMediaLineItemsChange]);
   
   // Memoized calculations
@@ -1034,7 +1053,12 @@ useEffect(() => {
                         color: PROG_VIDEO_MEDIA_HEX,
                       }}
                     >
-                      Expert schedule open
+                      Schedule grid open
+                    </Badge>
+                  ) : null}
+                  {expertApplyPendingPageSave ? (
+                    <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Not saved to plan yet
                     </Badge>
                   ) : null}
                 </div>
@@ -1059,12 +1083,11 @@ useEffect(() => {
                     }
                     onClick={() => {
                       if (progvideoExpertModalOpen) {
+                        writeContainerEntryMode("card")
                         handleProgVideoExpertModalOpenChange(false)
                       }
                     }}
-                  >
-                    Standard
-                  </button>
+                  >Card entry</button>
                   <button
                     type="button"
                     aria-pressed={progvideoExpertModalOpen}
@@ -1089,12 +1112,11 @@ useEffect(() => {
                     }}
                     onClick={() => {
                       if (!progvideoExpertModalOpen) {
-                        openProgVideoExpertModal()
+                        writeContainerEntryMode("schedule")
+                          openProgVideoExpertModal()
                       }
                     }}
-                  >
-                    Expert
-                  </button>
+                  >Schedule grid</button>
                 </div>
               </div>
               <div className="flex items-center justify-between">
@@ -1128,18 +1150,47 @@ useEffect(() => {
   
       <div>
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <div className="relative h-10 w-10">
-              <div className="absolute inset-0 rounded-full border-2 border-muted" />
-              <div className="absolute inset-0 rounded-full border-2 border-t-primary animate-spin" />
-            </div>
-            <span className="text-sm text-muted-foreground">Loading...</span>
-          </div>
+          <MediaContainerLoadState loading label="Programmatic Video" />
         ) : (
           <div className="space-y-6">
             {progvideoExpertModalOpen ? null : (
             <Form {...form}>
               <div className="space-y-6">
+                {lineItemFields.length === 0 ? (
+                  <ContainerEmptyLinesPlaceholder
+                    onAdd={() => appendLineItem({
+                                                          platform: "",
+                                                          bidStrategy: "",
+                                                          buyType: "",
+                                                          creativeTargeting: "",
+                                                          creative: "",
+                                                          buyingDemo: "",
+                                                          market: "",
+                                                          site: "",
+                                                          placement: "",
+                                                          size: "",
+                                                          targetingAttribute: "",
+                                                          fixedCostMedia: false,
+                                                          clientPaysForMedia: false,
+                                                          budgetIncludesFees: false,
+                                                          noadserving: false,
+                                                          bursts: [
+                                                            {
+                                                              _reactKey: newBurstReactKey(),
+                                                              budget: "",
+                                                              buyAmount: "",
+                                                              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+                                                              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+                                                              calculatedValue: 0,
+                                                              fee: 0,
+                                                            },
+                                                          ],
+                                                          totalMedia: 0,
+                                                          totalDeliverables: 0,
+                                                          totalFee: 0,
+                                                        })}
+                  />
+                ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
                   const lineItemId = buildLineItemId(
                     mbaNumber,
@@ -1843,8 +1894,20 @@ useEffect(() => {
             </div>
           </ComboboxModalProvider>
           <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
+            <div className="mr-auto flex flex-col gap-1.5">
+              <ExpertIncompleteRowsSummary rows={expertProgVideoRows} />
+              {expertApplyPendingPageSave ? (
+                <span className="text-xs text-muted-foreground">
+                  Applied earlier — awaiting page Save
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Apply updates the plan draft only
+                </span>
+              )}
+            </div>
             <Button type="button" onClick={handleProgVideoExpertApply}>
-              Apply
+              Apply to plan (not saved yet)
             </Button>
           </DialogFooter>
         </DialogContent>

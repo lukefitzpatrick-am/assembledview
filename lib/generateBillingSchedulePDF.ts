@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { addGst } from '@/lib/finance/gst';
 
 export interface BillingSchedulePDFData {
   date: string;
@@ -117,14 +118,15 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.text('Month', margin.left, y);
-  doc.text('Amount (inc. GST)', margin.left + pageW, y, { align: 'right' });
+  doc.text('Amount (ex. GST)', margin.left + pageW, y, { align: 'right' });
   y += 2;
   doc.setDrawColor(0);
   doc.line(margin.left, y, margin.left + pageW, y);
   y += lineHeight;
 
   doc.setFont("helvetica", "normal");
-  
+  let runningExGst = 0;
+
   // Process billing schedule entries
   data.billingSchedule.forEach((entry) => {
     // Check if we need a new page
@@ -146,7 +148,7 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
     doc.setFont("helvetica", "bold");
     doc.text(entry.monthYear, margin.left, y);
     
-    // Calculate total for this month
+    // Calculate total for this month (ex-GST in both branches)
     let monthTotal = 0
     
     if (entry.totalAmount) {
@@ -170,9 +172,9 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
       if (entry.production) {
         monthTotal += parseFloat(entry.production.replace(/[^0-9.-]+/g, '')) || 0
       }
-      // Add GST (10%)
-      monthTotal = monthTotal * 1.1
     }
+
+    runningExGst += monthTotal;
     
     doc.text(formatCurrency(monthTotal), margin.left + pageW, y, { align: 'right' });
     y += lineHeight;
@@ -274,6 +276,38 @@ export async function generateBillingSchedulePDF(data: BillingSchedulePDFData): 
 
     y += lineHeight * 0.5; // Space between months
   });
+
+  // Grand totals (ex-GST sum from printed months; inc-GST via addGst)
+  if (y > maxY - lineHeight * 4) {
+    doc.addPage();
+    y = margin.top;
+    if (logoBase64) {
+      const logoWidth = 45;
+      const logoHeight = 9;
+      const logoX = doc.internal.pageSize.getWidth() - margin.right - logoWidth;
+      const logoY = margin.top - 15;
+      doc.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
+    }
+  }
+
+  y += 2;
+  doc.setDrawColor(0);
+  doc.line(margin.left, y, margin.left + pageW, y);
+  y += lineHeight;
+
+  const totalsX = margin.left + (pageW / 2);
+  const valueX = margin.left + pageW;
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.text('Total (ex. GST):', totalsX, y, { align: 'right' });
+  doc.setFont("helvetica", "normal");
+  doc.text(formatCurrency(runningExGst), valueX, y, { align: 'right' });
+  y += lineHeight;
+
+  doc.setFont("helvetica", "bold");
+  doc.text('Total (inc. GST):', totalsX, y, { align: 'right' });
+  doc.setFont("helvetica", "normal");
+  doc.text(formatCurrency(addGst(runningExGst)), valueX, y, { align: 'right' });
 
   // Return the generated PDF as a Blob
   return doc.output('blob');

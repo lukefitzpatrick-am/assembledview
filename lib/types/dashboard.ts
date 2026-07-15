@@ -71,6 +71,8 @@ export interface ClientDashboardData {
   totalCampaignsYTD: number
   spendPast30Days: number
   totalSpend: number
+  /** One row per MBA (all statuses) — source for client creative picker, etc. */
+  allCampaigns: Campaign[]
   liveCampaignsList: Campaign[]
   planningCampaignsList: Campaign[]
   completedCampaignsList: Campaign[]

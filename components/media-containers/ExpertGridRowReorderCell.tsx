@@ -1,18 +1,30 @@
 import * as React from "react"
-import { GripVertical } from "lucide-react"
+import { AlertTriangle, GripVertical } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export const EXPERT_REORDER_COL_WIDTH_PX = 44
 
 type ReorderHandleProps = React.HTMLAttributes<HTMLDivElement> & { draggable?: boolean }
 
-export function ExpertGridRowReorderCell({ rowIndex, handleProps, isDragging, className, style }: {
+export function ExpertGridRowReorderCell({
+  rowIndex,
+  handleProps,
+  isDragging,
+  incompleteReasons,
+  className,
+  style,
+}: {
   rowIndex: number
   handleProps: ReorderHandleProps
   isDragging?: boolean
+  incompleteReasons?: string[]
   className?: string
   style?: React.CSSProperties
 }) {
+  const incompleteLabel =
+    incompleteReasons && incompleteReasons.length > 0
+      ? incompleteReasons.join(", ")
+      : null
   return (
     <td
       className={cn("text-center", className)}
@@ -31,6 +43,15 @@ export function ExpertGridRowReorderCell({ rowIndex, handleProps, isDragging, cl
       >
         <GripVertical className="h-3.5 w-3.5 shrink-0" aria-hidden />
         <span className="text-[11px] font-medium tabular-nums text-foreground">{rowIndex + 1}</span>
+        {incompleteLabel ? (
+          <span
+            className="inline-flex text-status-behind-fg"
+            title={`Incomplete: ${incompleteLabel}`}
+            aria-label={`Incomplete row: ${incompleteLabel}`}
+          >
+            <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+          </span>
+        ) : null}
       </div>
     </td>
   )

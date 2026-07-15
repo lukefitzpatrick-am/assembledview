@@ -179,6 +179,11 @@ export default function MediaContainerSummarySection({
                   key={view}
                   type="button"
                   aria-pressed={active}
+                  title={
+                    view === "By month"
+                      ? "Split group spend across campaign months"
+                      : "Show total spend per group for the whole campaign"
+                  }
                   className={cn(
                     "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
                     active ? "text-white shadow-sm" : "text-muted-foreground hover:text-foreground"

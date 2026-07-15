@@ -349,6 +349,7 @@ export function AlterBillingDialog({
                 ) : null}
                 <Button
                   type="button"
+                  variant="action"
                   onClick={handleSaveClick}
                   disabled={isSaving || !isWithinTolerance}
                 >

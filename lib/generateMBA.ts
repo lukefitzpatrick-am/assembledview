@@ -225,7 +225,7 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
   
   doc.setFontSize(9);
   doc.text('Month', margin.left, y);
-  doc.text('Amount (inc. GST)', margin.left + pageW, y, { align: 'right' });
+  doc.text('Amount (ex. GST)', margin.left + pageW, y, { align: 'right' });
   y += 2;
   doc.setDrawColor(0);
   doc.line(margin.left, y, margin.left + pageW, y); // horizontal line
@@ -237,6 +237,25 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
     doc.text(formatAUD(parseCurrency(b.totalAmount)), margin.left + pageW, y, { align: 'right' });
     y += lineHeight;
   });
+
+  y += 2;
+  doc.setDrawColor(0);
+  doc.line(margin.left, y, margin.left + pageW, y); // divider above grand totals
+  y += lineHeight;
+
+  const billingTotalsX = margin.left + (pageW / 2);
+  const billingValueX = margin.left + pageW;
+
+  doc.setFont("helvetica", "bold");
+  doc.text('Total (ex. GST):', billingTotalsX, y, { align: 'right' });
+  doc.setFont("helvetica", "normal");
+  doc.text(formatAUD(mbaData.totals.totals_ex_gst), billingValueX, y, { align: 'right' });
+  y += lineHeight;
+
+  doc.setFont("helvetica", "bold");
+  doc.text('Total (inc. GST):', billingTotalsX, y, { align: 'right' });
+  doc.setFont("helvetica", "normal");
+  doc.text(formatAUD(mbaData.totals.total_inc_gst), billingValueX, y, { align: 'right' });
 
   // Return the generated PDF as a Blob.
   return doc.output('blob');

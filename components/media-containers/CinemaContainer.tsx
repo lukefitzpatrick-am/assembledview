@@ -1,5 +1,11 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
+import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
+import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
+import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
+import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
@@ -181,7 +187,7 @@ export function getCinemaBursts(
   )
 }
 
-/** Net media when budget is gross incl. fee — must match `getCinemaBursts` / burst row readouts (linear split). */
+/** Net media when budget is gross incl. fee - must match `getCinemaBursts` / burst row readouts (linear split). */
 function cinemaLineBurstNetMedia(
   rawBudget: number,
   budgetIncludesFees: boolean,
@@ -381,6 +387,12 @@ export default function CinemaContainer({
   // --- Expert mode ---
   const [expertCinemaRows, setExpertCinemaRows] = useState<CinemaExpertScheduleRow[]>([])
   const [cinemaExpertModalOpen, setCinemaExpertModalOpen] = useState(false)
+
+  const [expertApplyPendingPageSave, setExpertApplyPendingPageSave] = useState(false)
+  useEffect(() => {
+    return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
+  }, [])
+  const mediaLineItemsPublishFpRef = useRef("")
   const [cinemaExpertExitConfirmOpen, setCinemaExpertExitConfirmOpen] = useState(false)
   const cinemaStandardBaselineRef = useRef("")
   const cinemaExpertRowsBaselineRef = useRef("")
@@ -425,6 +437,7 @@ export default function CinemaContainer({
     setCinemaExpertExitConfirmOpen(false)
     setCinemaExpertModalOpen(true)
   }, [campaignStartDate, campaignEndDate, form, cinemaExpertWeekColumns])
+
 
   const handleCinemaExpertModalOpenChange = useCallback(
     (open: boolean) => {
@@ -474,6 +487,7 @@ export default function CinemaContainer({
     )
     setCinemaExpertExitConfirmOpen(false)
     collapseAllLineItems()
+    setExpertApplyPendingPageSave(true)
     setCinemaExpertModalOpen(false)
   }, [
     campaignStartDate,
@@ -698,7 +712,7 @@ export default function CinemaContainer({
       };
     });
 
-    onMediaLineItemsChange(transformedLineItems);
+    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
   }, [watchedLineItems, mbaNumber, feecinema, form, onMediaLineItemsChange]);
   
   // Memoized calculations
@@ -1170,9 +1184,7 @@ useEffect(() => {
                       "rounded-md px-3 py-1 text-xs font-medium transition-colors",
                       !cinemaExpertModalOpen ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
                     )}
-                  >
-                    Standard
-                  </button>
+                  >Card entry</button>
                   <button
                     type="button"
                     onClick={() => { if (!cinemaExpertModalOpen) openCinemaExpertModal() }}
@@ -1180,13 +1192,13 @@ useEffect(() => {
                       "rounded-md px-3 py-1 text-xs font-medium transition-colors",
                       cinemaExpertModalOpen ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
                     )}
-                  >
-                    Expert
-                  </button>
+                  >Schedule grid</button>
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <p className="text-sm text-muted-foreground">Card-based entry</p>
+                <p className="text-sm text-muted-foreground">
+                  One card per line - or switch to Schedule grid for week quantities.
+                </p>
                 <span className="text-xs text-muted-foreground tabular-nums">
                   {overallTotals.lineItemTotals.length} line item
                   {overallTotals.lineItemTotals.length !== 1 ? "s" : ""}
@@ -1217,17 +1229,46 @@ useEffect(() => {
   
       <div>
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <div className="relative h-10 w-10">
-              <div className="absolute inset-0 rounded-full border-2 border-muted" />
-              <div className="absolute inset-0 rounded-full border-2 border-t-primary animate-spin" />
-            </div>
-            <span className="text-sm text-muted-foreground">Loading...</span>
-          </div>
+          <MediaContainerLoadState loading label="Cinema" />
         ) : (
           <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
+                {lineItemFields.length === 0 ? (
+                  <ContainerEmptyLinesPlaceholder
+                    onAdd={() => appendLineItem({
+                                                          network: "",
+                                                          station: "",
+                                                          bidStrategy: "",
+                                                          buyType: "",
+                                                          placement: "",
+                                                          format: "",
+                                                          duration: "",
+                                                          buyingDemo: "",
+                                                          market: "",
+                                                          fixedCostMedia: false,
+                                                          clientPaysForMedia: false,
+                                                          budgetIncludesFees: false,
+                                                          noadserving: false,
+                                                          ...(() => {
+                                                            const nextNum = lineItemFields.length + 1;
+                                                            const id = createLineItemId(nextNum);
+                                                            return { lineItemId: id, line_item_id: id, line_item: nextNum, lineItem: nextNum };
+                                                          })(),
+                                                          bursts: [
+                                                            {
+                                                              _reactKey: newBurstReactKey(),
+                                                              budget: "",
+                                                              buyAmount: "",
+                                                              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+                                                              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+                                                              calculatedValue: 0,
+                                                              fee: 0,
+                                                            } as CinemaFormValues["cinemalineItems"][number]["bursts"][number] & { _reactKey: string },
+                                                          ],
+                                                        })}
+                  />
+                ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
                   const lineItemId = buildLineItemId(
                     mbaNumber,
@@ -1950,7 +1991,19 @@ useEffect(() => {
             </div>
           </ComboboxModalProvider>
           <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
-            <Button type="button" onClick={handleCinemaExpertApply}>Apply</Button>
+            <div className="mr-auto flex flex-col gap-1.5">
+              <ExpertIncompleteRowsSummary rows={expertCinemaRows} />
+              {expertApplyPendingPageSave ? (
+                <span className="text-xs text-muted-foreground">
+                  Applied earlier — awaiting page Save
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Apply updates the plan draft only
+                </span>
+              )}
+            </div>
+            <Button type="button" onClick={handleCinemaExpertApply}>Apply to plan (not saved yet)</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1975,7 +2028,7 @@ useEffect(() => {
             >
               Discard
             </Button>
-            <Button type="button" onClick={handleCinemaExpertApply}>Apply changes</Button>
+            <Button type="button" onClick={handleCinemaExpertApply}>Apply to plan (not saved yet)</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

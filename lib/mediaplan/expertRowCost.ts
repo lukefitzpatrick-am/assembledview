@@ -64,7 +64,8 @@ export function expertRowNetMedia(
     raw,
     !!row.budgetIncludesFees,
     feePct,
-    !!row.clientPaysForMedia
+    !!row.clientPaysForMedia,
+    row.buyType ?? undefined
   ).net
 }
 
@@ -79,7 +80,8 @@ export function expertRowCostSplit(
     raw,
     !!row.budgetIncludesFees,
     feePct,
-    !!row.clientPaysForMedia
+    !!row.clientPaysForMedia,
+    row.buyType ?? undefined
   )
   return { raw, net, fee }
 }
@@ -96,3 +98,56 @@ export function expertRowNetMediaTooltip(
     return `CPM: (Σ qty / 1000) × rate (${qtySum} / 1000 × ${rate})`
   return `Σ qty × rate (${qtySum} × ${rate})`
 }
+
+type RowDerivedCacheEntry = {
+  weekKeys: readonly string[]
+  feePct: number
+  qtySum: number
+  net: number
+}
+
+/**
+ * Identity-keyed memo for Σqty + net media. Unchanged row object references
+ * reuse prior derived values so sibling cell edits stay O(1) per dirty row.
+ */
+export function createExpertRowDerivedCache() {
+  const map = new WeakMap<object, RowDerivedCacheEntry>()
+  return {
+    qtySum(row: ExpertRowCostFields, weekKeys: readonly string[]): number {
+      const prev = map.get(row as object)
+      if (prev && prev.weekKeys === weekKeys) return prev.qtySum
+      const qtySum = expertRowQuantitySum(row, weekKeys)
+      map.set(row as object, {
+        weekKeys,
+        feePct: Number.NaN,
+        qtySum,
+        net: Number.NaN,
+      })
+      return qtySum
+    },
+    netMedia(
+      row: ExpertRowCostFields,
+      weekKeys: readonly string[],
+      feePct: number
+    ): number {
+      const prev = map.get(row as object)
+      if (
+        prev &&
+        prev.weekKeys === weekKeys &&
+        prev.feePct === feePct &&
+        Number.isFinite(prev.net)
+      ) {
+        return prev.net
+      }
+      const qtySum =
+        prev && prev.weekKeys === weekKeys
+          ? prev.qtySum
+          : expertRowQuantitySum(row, weekKeys)
+      const net = expertRowNetMedia(row, weekKeys, feePct)
+      map.set(row as object, { weekKeys, feePct, qtySum, net })
+      return net
+    },
+  }
+}
+
+export type ExpertRowDerivedCache = ReturnType<typeof createExpertRowDerivedCache>

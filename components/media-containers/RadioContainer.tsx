@@ -1,5 +1,15 @@
 "use client"
 
+import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+
+import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
+import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
+import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
+import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
+import {
+  writeContainerEntryMode,
+} from "@/lib/mediaplan/containerEntryMode"
+
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
@@ -232,7 +242,13 @@ export default function RadioContainer({
   const { mbaNumber } = useMediaPlanContext()
   const [overallDeliverables, setOverallDeliverables] = useState(0);
   const [expertRadioRows, setExpertRadioRows] = useState<RadioExpertScheduleRow[]>([]);
-  const [radioExpertModalOpen, setRadioExpertModalOpen] = useState(false);
+  const [radioExpertModalOpen, setRadioExpertModalOpen] = useState(false)
+
+  const [expertApplyPendingPageSave, setExpertApplyPendingPageSave] = useState(false)
+  useEffect(() => {
+    return subscribeMediaPlanPageSaved(() => setExpertApplyPendingPageSave(false))
+  }, [])
+  const mediaLineItemsPublishFpRef = useRef("");
   const [radioExpertExitConfirmOpen, setRadioExpertExitConfirmOpen] = useState(false);
   /** Brief visual cue on Expert segment so users notice the toggle on first paint. */
   const [expertSegmentAttention, setExpertSegmentAttention] = useState(true);
@@ -450,7 +466,8 @@ export default function RadioContainer({
     setExpertRadioRows(rows);
     setRadioExpertExitConfirmOpen(false);
     setRadioExpertModalOpen(true);
-  }, [campaignStartDate, campaignEndDate, form, radioExpertWeekColumns, feeradio]);
+  }, [campaignStartDate, campaignEndDate, form, radioExpertWeekColumns, feeradio])
+
 
   const dismissRadioExpertExitConfirm = useCallback(() => {
     setRadioExpertExitConfirmOpen(false);
@@ -508,6 +525,7 @@ export default function RadioContainer({
     );
     setRadioExpertExitConfirmOpen(false);
     collapseAllLineItems();
+    setExpertApplyPendingPageSave(true)
     setRadioExpertModalOpen(false);
   }, [
     campaignStartDate,
@@ -765,7 +783,7 @@ export default function RadioContainer({
       };
     });
 
-  onMediaLineItemsChange(transformedLineItems);
+  publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
 }, [watchedLineItems, mbaNumber, feeradio, form, onMediaLineItemsChange, createLineItemId]);
   
   // Memoized calculations
@@ -1249,7 +1267,12 @@ useEffect(() => {
                         color: MEDIA_ACCENT_HEX,
                       }}
                     >
-                      Expert schedule open
+                      Schedule grid open
+                    </Badge>
+                  ) : null}
+                  {expertApplyPendingPageSave ? (
+                    <Badge variant="outline" className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      Not saved to plan yet
                     </Badge>
                   ) : null}
                 </div>
@@ -1274,12 +1297,11 @@ useEffect(() => {
                     }
                     onClick={() => {
                       if (radioExpertModalOpen) {
+                        writeContainerEntryMode("card")
                         handleRadioExpertModalOpenChange(false);
                       }
                     }}
-                  >
-                    Standard
-                  </button>
+                  >Card entry</button>
                   <button
                     type="button"
                     aria-pressed={radioExpertModalOpen}
@@ -1304,16 +1326,17 @@ useEffect(() => {
                     }}
                     onClick={() => {
                       if (!radioExpertModalOpen) {
-                        openRadioExpertModal();
+                        writeContainerEntryMode("schedule")
+                          openRadioExpertModal();
                       }
                     }}
-                  >
-                    Expert
-                  </button>
+                  >Schedule grid</button>
                 </div>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-muted-foreground">Card-based entry</p>
+                <p className="text-sm text-muted-foreground">
+                  One card per line - or switch to Schedule grid for week quantities.
+                </p>
                 <span className="text-xs text-muted-foreground tabular-nums sm:text-right">
                   {overallTotals.lineItemTotals.length} line item
                   {overallTotals.lineItemTotals.length !== 1 ? "s" : ""}
@@ -1344,17 +1367,48 @@ useEffect(() => {
   
       <div>
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-3">
-            <div className="relative h-10 w-10">
-              <div className="absolute inset-0 rounded-full border-2 border-muted" />
-              <div className="absolute inset-0 rounded-full border-2 border-t-primary animate-spin" />
-            </div>
-            <span className="text-sm text-muted-foreground">Loading...</span>
-          </div>
+          <MediaContainerLoadState loading label="Radio" />
         ) : (
           <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
+                {lineItemFields.length === 0 ? (
+                  <ContainerEmptyLinesPlaceholder
+                    onAdd={() => appendLineItem({
+                                                          network: "",
+                                                          station: "",
+                                                          bidStrategy: "",
+                                                          buyType: "",
+                                                          placement: "",
+                                                          format: "",
+                                                          duration: "",
+                                                          buyingDemo: "",
+                                                          market: "",
+                                                          platform: "",
+                                                          creativeTargeting: "",
+                                                          creative: "",
+                                                          fixedCostMedia: false,
+                                                          clientPaysForMedia: false,
+                                                          budgetIncludesFees: false,
+                                                          noadserving: false,
+                                                          ...(() => { const nextNumber = lineItemFields.length + 1; const id = createLineItemId(nextNumber); return { lineItemId: id, line_item_id: id, line_item: nextNumber, lineItem: nextNumber }; })(),
+                                                          bursts: [
+                                                            {
+                                                              _reactKey: newBurstReactKey(),
+                                                              budget: "",
+                                                              buyAmount: "",
+                                                              startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+                                                              endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+                                                              calculatedValue: 0,
+                                                              fee: 0,
+                                                            },
+                                                          ],
+                                                          totalMedia: 0,
+                                                          totalDeliverables: 0,
+                                                          totalFee: 0,
+                                                        })}
+                  />
+                ) : null}
                 {lineItemFields.map((field, lineItemIndex) => {
                   const lineItemId = buildLineItemId(
                     mbaNumber,
@@ -2039,8 +2093,20 @@ useEffect(() => {
             </div>
           </ComboboxModalProvider>
           <DialogFooter className="flex-shrink-0 border-t pt-3 mt-2">
+            <div className="mr-auto flex flex-col gap-1.5">
+              <ExpertIncompleteRowsSummary rows={expertRadioRows} />
+              {expertApplyPendingPageSave ? (
+                <span className="text-xs text-muted-foreground">
+                  Applied earlier — awaiting page Save
+                </span>
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Apply updates the plan draft only
+                </span>
+              )}
+            </div>
             <Button type="button" onClick={handleRadioExpertApply}>
-              Apply
+              Apply to plan (not saved yet)
             </Button>
           </DialogFooter>
         </DialogContent>

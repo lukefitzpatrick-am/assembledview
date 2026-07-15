@@ -25,6 +25,11 @@ export interface ComputeBurstAmountsInput {
   clientPaysForMedia: boolean
   /** Fee percentage as a number (e.g. 12 for 12%). Pass 0 for fee-free channels. */
   feePct: number
+  /**
+   * Optional buy type. When `bonus` or `package_inclusions`, media and fee are
+   * always 0 regardless of entered budget (value-add / bonus billed media = 0).
+   */
+  buyType?: string
 }
 
 export interface ComputeBurstAmountsOutput {
@@ -41,7 +46,12 @@ export interface ComputeBurstAmountsOutput {
 /**
  * Computes media + fee amounts for a single burst. Channel-agnostic.
  *
- * Three branches, in priority order:
+ * Branches, in priority order:
+ *
+ *   0. `buyType` of `bonus` or `package_inclusions` — value-add placements.
+ *      Media and fee are always 0 regardless of entered budget (per confirmed
+ *      billing rules — bonus billed media = 0). Short-circuits before the
+ *      flag-based money branches.
  *
  *   1. `budgetIncludesFees` — entered budget is gross. Split into net media +
  *      fee at the channel fee rate. When `clientPaysForMedia` is also true,
@@ -74,7 +84,13 @@ export function computeBurstAmounts({
   budgetIncludesFees,
   clientPaysForMedia,
   feePct,
+  buyType,
 }: ComputeBurstAmountsInput): ComputeBurstAmountsOutput {
+  const bt = String(buyType || "").toLowerCase()
+  if (bt === "bonus" || bt === "package_inclusions") {
+    return { mediaAmount: 0, deliveryMediaAmount: 0, feeAmount: 0, totalAmount: 0 }
+  }
+
   const budget = Number.isFinite(rawBudget) ? rawBudget : 0
   const pct = Number.isFinite(feePct) ? feePct : 0
 

@@ -1,8 +1,14 @@
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import {
-  extractPayablesFromDeliverySchedule,
-  type PayableDeliveryExtract,
-} from "@/lib/finance/payablesReport"
+  computeCampaignFinancialsFromVersion,
+  findScheduleMonthForCalendar,
+} from "@/lib/finance/computeCampaignFinancialsFromVersion"
+import {
+  agencyOwedDeliveryMediaTotal,
+  payablesFromDeliveryMonth,
+} from "@/lib/finance/scheduleMonthFinanceExtract"
+import type { PayableDeliveryExtract } from "@/lib/finance/payablesReport"
+import { roundMoney2 } from "@/lib/format/money"
 
 const U = "\u001f"
 
@@ -10,6 +16,8 @@ export type PayablePlanVersionInput = {
   id?: unknown
   deliverySchedule?: unknown
   delivery_schedule?: unknown
+  billingSchedule?: unknown
+  billing_schedule?: unknown
   mba_number?: unknown
   campaign_name?: unknown
   mp_campaignname?: unknown
@@ -18,40 +26,24 @@ export type PayablePlanVersionInput = {
   clients_id?: unknown
   mp_clients_id?: unknown
   client_id?: unknown
-}
-
-function coalesceDeliveryJson(raw: unknown): unknown {
-  if (raw === null || raw === undefined) return null
-  if (typeof raw === "string") {
-    const t = raw.trim()
-    if (!t) return null
-    try {
-      return JSON.parse(t) as unknown
-    } catch {
-      return null
-    }
-  }
-  return raw
+  campaign_start_date?: unknown
+  campaign_end_date?: unknown
+  mp_campaigndates_start?: unknown
+  mp_campaigndates_end?: unknown
 }
 
 type EnrichedLine = PayableDeliveryExtract & { clientName: string }
 
 function agencyOwedTotal(rows: EnrichedLine[]): number {
-  return (
-    Math.round(
-      rows.filter((r) => !r.clientPaysForMedia).reduce((s, r) => s + r.amount, 0) * 100
-    ) / 100
-  )
+  return roundMoney2(rows.filter((r) => !r.clientPaysForMedia).reduce((s, r) => s + r.amount, 0))
 }
 
 /**
  * Build synthetic `BillingRecord` rows (`billing_type: "payable"`) for the finance hub.
  *
- * **Source of truth:** `media_plan_versions.deliverySchedule` / `delivery_schedule` only.
- * Receivables use `billingSchedule`; payables (publisher / delivery view) must not read
- * `billingSchedule` here — that would mix client billing with agency delivery.
- *
- * Groups by `clientId + publisherName + mbaNumber` so unrelated campaigns do not merge.
+ * Month amounts come from {@link computeCampaignFinancialsFromVersion} **delivery**
+ * schedule (core) — never from billingSchedule. Client-pays lines are kept on the
+ * record for UI but excluded from `total`.
  */
 export function derivePayableRecordsForMonth(
   versions: PayablePlanVersionInput[],
@@ -62,9 +54,17 @@ export function derivePayableRecordsForMonth(
   const lines: EnrichedLine[] = []
 
   for (const version of versions) {
-    // Payables: delivery JSON only (never billingSchedule / billing_schedule).
-    const ds = coalesceDeliveryJson(version.deliverySchedule ?? version.delivery_schedule)
-    if (!ds) continue
+    const financials = computeCampaignFinancialsFromVersion(version as Record<string, unknown>)
+    if (!financials) continue
+
+    // Payables always use delivery (fallbacks in computeCampaignFinancialsFromVersion
+    // may copy billing→delivery when delivery is empty — that is the core path’s choice).
+    const coreDeliveryMonth = findScheduleMonthForCalendar(
+      financials.deliverySchedule,
+      year,
+      month
+    )
+    if (!coreDeliveryMonth) continue
 
     const mba = String(version.mba_number ?? "").trim()
     const campaign =
@@ -73,11 +73,24 @@ export function derivePayableRecordsForMonth(
       Number(version.clients_id ?? version.mp_clients_id ?? version.client_id ?? 0) || 0
     const clientName = String(version.mp_client_name ?? version.client_name ?? "Unknown client").trim()
 
-    const extracted = extractPayablesFromDeliverySchedule(ds, year, month, {
+    const extracted = payablesFromDeliveryMonth(coreDeliveryMonth, {
       mbaNumber: mba,
       clientId,
       campaignName: campaign,
     })
+
+    // Dev-safety: agency owed from lines must match core delivery media (ex client-pays).
+    if (process.env.NODE_ENV !== "production") {
+      const fromLines = agencyOwedTotal(extracted.map((e) => ({ ...e, clientName })))
+      const fromCore = agencyOwedDeliveryMediaTotal(coreDeliveryMonth)
+      if (Math.abs(fromLines - fromCore) >= 0.01) {
+        console.warn("[finance-derive-payables] agency owed drift vs core delivery month", {
+          mba,
+          fromLines,
+          fromCore,
+        })
+      }
+    }
 
     for (const e of extracted) {
       lines.push({ ...e, clientName })
@@ -130,7 +143,6 @@ export function derivePayableRecordsForMonth(
       line_items,
       total,
       has_pending_edits: false,
-      // Payables come from deliverySchedule on the version, not billing schedule rows.
       source_billing_schedule_id: null,
     })
   }

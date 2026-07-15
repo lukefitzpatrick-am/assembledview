@@ -32,6 +32,8 @@ export type PlanWizardSummary = {
   channels: number | string
   status: string
   budgetRemaining: string
+  /** When true, budget remaining is shown as a warning (overspend). */
+  budgetRemainingOverspend?: boolean
 }
 
 export type PlanWizardShellProps = {
@@ -272,7 +274,19 @@ export function PlanWizardShell({
                   <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">
                     Budget remaining
                   </p>
-                  <p className="num font-semibold">{summary.budgetRemaining}</p>
+                  <p
+                    className={cn(
+                      "num font-semibold",
+                      summary.budgetRemainingOverspend && "text-status-behind-fg"
+                    )}
+                  >
+                    {summary.budgetRemaining}
+                  </p>
+                  {summary.budgetRemainingOverspend ? (
+                    <p className="mt-0.5 text-[10px] leading-snug text-status-behind-fg">
+                      Over campaign budget
+                    </p>
+                  ) : null}
                 </div>
                 <div>
                   <p className="text-[10px] uppercase tracking-wider text-[hsl(var(--sidebar-foreground)/0.55)]">

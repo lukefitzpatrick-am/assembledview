@@ -11,8 +11,42 @@ test("prorates a clean straddle across caller month keys", () => {
     monthKeys: ["January 2026", "February 2026"],
   })
 
-  assert.ok(Math.abs(shares["January 2026"] - 5454.545454545455) < 0.000001)
-  assert.ok(Math.abs(shares["February 2026"] - 4545.454545454545) < 0.000001)
+  // 12/22 and 10/22 of $10,000 → cent-reconciled via largest remainder
+  assert.equal(shares["January 2026"], 5454.55)
+  assert.equal(shares["February 2026"], 4545.45)
+  assert.equal(
+    Math.round((shares["January 2026"]! + shares["February 2026"]!) * 100),
+    1_000_000
+  )
+})
+
+test("monthly shares sum exactly to amount after cent reconciliation", () => {
+  const amount = 4265.33
+  const monthKeys = [
+    "January 2026",
+    "February 2026",
+    "March 2026",
+    "April 2026",
+    "May 2026",
+    "June 2026",
+    "July 2026",
+    "August 2026",
+    "September 2026",
+    "October 2026",
+    "November 2026",
+    "December 2026",
+  ]
+  const shares = prorateAcrossMonths({
+    amount,
+    burstStart: "2026-01-01",
+    burstEnd: "2026-12-31",
+    monthKeys,
+  })
+  const sum = Object.values(shares).reduce((s, v) => s + v, 0)
+  assert.equal(Math.round(sum * 100), Math.round(amount * 100))
+  for (const v of Object.values(shares)) {
+    assert.equal(Math.round(v * 100), v * 100)
+  }
 })
 
 test("allocates a single-day burst wholly to that month", () => {
@@ -52,6 +86,19 @@ test("handles first-day and last-day month edges", () => {
     monthKeys: ["January 2026", "February 2026"],
   })
 
-  assert.ok(Math.abs(endingOnFirst["February 2026"] - 10000 / 13) < 0.000001)
-  assert.ok(Math.abs(startingOnLast["January 2026"] - 10000 / 11) < 0.000001)
+  // 1/13 and 1/11 of $10,000 after cent reconciliation
+  assert.equal(endingOnFirst["February 2026"], 769.23)
+  assert.equal(startingOnLast["January 2026"], 909.09)
+  assert.equal(
+    Math.round(
+      ((endingOnFirst["January 2026"] ?? 0) + (endingOnFirst["February 2026"] ?? 0)) * 100
+    ),
+    1_000_000
+  )
+  assert.equal(
+    Math.round(
+      ((startingOnLast["January 2026"] ?? 0) + (startingOnLast["February 2026"] ?? 0)) * 100
+    ),
+    1_000_000
+  )
 })

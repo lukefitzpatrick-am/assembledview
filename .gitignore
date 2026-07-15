@@ -33,6 +33,7 @@ next-env.d.ts
 /.vscode/
 /secrets/
 snowflake.log
+.superpowers/
 
 # Transient tooling output (audit cleanup)
 filetree.txt
@@ -44,3 +45,4 @@ lint-full.txt
 .claude-scratch-export.pptx
 tmp-slide16-test.pptx
 *.zip
+xano-metadata-token.txt

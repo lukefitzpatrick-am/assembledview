@@ -7,7 +7,18 @@ import type {
   FormPatch,
   PageContext,
 } from "@/lib/ava/types";
+import type {
+  AutopopulateChannel,
+  CapturedLineItemsLoad,
+  MapperResult,
+} from "@/lib/ava/autopopulate/types";
 import type { UserRole } from "@/lib/rbac";
+
+export type PendingParsedPlan = {
+  channel: AutopopulateChannel;
+  mapped: MapperResult;
+  fileName?: string;
+};
 
 export type AvaToolContext = {
   pageContext: PageContext | undefined;
@@ -36,6 +47,18 @@ export type AvaToolContext = {
    * Never fed back into Anthropic message history.
    */
   capturedQuestions: ChatInterviewQuestion[] | null;
+  /** Pending Stage-2 mapper result from AVA xlsx attach (client-supplied, same turn). */
+  pendingParsedPlan: PendingParsedPlan | null;
+  /** Side-channel: bulk line-items load for bridge setLineItems. */
+  capturedLineItemsLoad: CapturedLineItemsLoad | null;
+  /**
+   * Current create/edit grid line items from bridge getLineItems (client-supplied).
+   * Used by adjust_line_items — never trust model-fabricated rows.
+   */
+  currentLineItems: {
+    radio?: Record<string, unknown>[];
+    ooh?: Record<string, unknown>[];
+  } | null;
 };
 
 export type AvaToolResult = {
