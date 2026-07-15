@@ -33,6 +33,7 @@ import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApply
 import { BuilderIssuesBadge } from "@/components/mediaplans/BuilderIssuesBadge"
 import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
+import { LazyMountWhenVisible } from "@/components/media-containers/LazyMountWhenVisible"
 import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -9755,6 +9756,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                       </div>
                     )}
                     {!showSectionLoader && !showSectionError && (
+                    <LazyMountWhenVisible label={medium.label} rootMargin="600px 0px">
                     <Suspense fallback={<MediaContainerSuspenseFallback label={medium.label} />}>
                       {medium.name === "mp_television" && (
                         <TelevisionContainer
@@ -10101,6 +10103,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                         />
                       )}
                     </Suspense>
+                    </LazyMountWhenVisible>
                     )}
                   </div>
                 );
