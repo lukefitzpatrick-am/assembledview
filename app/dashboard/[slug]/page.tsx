@@ -56,18 +56,22 @@ export default async function ClientDashboard({ params }: ClientDashboardProps) 
   let error: string | null = null
 
   try {
-    const [data, clientRecord] = await Promise.all([
+    const [data, clientRow] = await Promise.all([
       getClientDashboardData(slug),
       fetchXanoClientRowByUrlSlug(slug),
     ])
     if (data) {
+      // Tenant surface: logo only — never ship clientRecord (even omit-stripped) into RSC props.
       const clientLogo =
-        typeof clientRecord?.logo === 'string' && clientRecord.logo.trim()
-          ? clientRecord.logo
-          : typeof clientRecord?.client_logo === 'string' && clientRecord.client_logo.trim()
-            ? clientRecord.client_logo
+        typeof clientRow?.logo === "string" && clientRow.logo.trim()
+          ? clientRow.logo
+          : typeof clientRow?.client_logo === "string" && clientRow.client_logo.trim()
+            ? clientRow.client_logo
             : undefined
-      clientData = { ...data, clientRecord, ...(clientLogo !== undefined ? { clientLogo } : {}) }
+      clientData = {
+        ...data,
+        ...(clientLogo !== undefined ? { clientLogo } : {}),
+      }
     } else {
       clientData = null
     }
