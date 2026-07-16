@@ -390,6 +390,7 @@ export default function BVODContainer({
     fields: lineItemFields,
     append: appendLineItem,
     remove: removeLineItemBase,
+    replace: replaceLineItems,
   } = useFieldArray({
     control: form.control,
     name: "bvodlineItems",
@@ -527,10 +528,9 @@ export default function BVODContainer({
       prevLineItems as any,
       keyedMerged as any
     )
-    form.setValue("bvodlineItems", keyedMerged as any, {
-      shouldDirty: true,
-      shouldValidate: false,
-    })
+    // useFieldArray needs replace() for whole-array updates — setValue leaves
+    // the rendered fields stale even though form state updates.
+    replaceLineItems(keyedMerged as any)
     if (clearedOverride) {
       toast({
         title: "Ad serving overrides reset",
@@ -542,17 +542,17 @@ export default function BVODContainer({
       form.getValues("bvodlineItems")
     )
     setBvodExpertExitConfirmOpen(false)
-    collapseAllLineItems()
     setExpertApplyPendingPageSave(true)
     setBvodExpertModalOpen(false)
   }, [
     campaignStartDate,
     campaignEndDate,
-    collapseAllLineItems,
     expertBvodRows,
     feebvod,
     form,
     bvodExpertWeekColumns,
+    mbaNumber,
+    replaceLineItems,
     toast,
   ])
 

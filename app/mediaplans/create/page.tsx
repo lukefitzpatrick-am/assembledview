@@ -1878,8 +1878,10 @@ function CreateMediaPlan() {
     return computeCampaignFinancials(lineItems, { feeLoading }, {
       campaignStart: start,
       campaignEnd: end,
+      getRateForMediaType,
+      adservaudio: adservaudio ?? 0,
     })
-  }, [billingSaveInputs, campaignStart, campaignEnd])
+  }, [billingSaveInputs, campaignStart, campaignEnd, getRateForMediaType, adservaudio])
 
   const campaignFinancialsMediaByKey = useMemo(() => {
     const out: Record<string, number> = {}
@@ -3429,7 +3431,12 @@ function CreateMediaPlan() {
     const provisionalFinancials = computeCampaignFinancials(
       provisionalLineItems,
       { feeLoading: billingSaveInputs.feeLoading },
-      { campaignStart: start, campaignEnd: end }
+      {
+        campaignStart: start,
+        campaignEnd: end,
+        getRateForMediaType,
+        adservaudio: adservaudio ?? 0,
+      }
     )
 
     void nextEnabledMedia

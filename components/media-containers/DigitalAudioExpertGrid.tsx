@@ -708,6 +708,15 @@ export function DigitalAudioExpertGrid({
     return next
   }, [rows, weekKeys])
 
+  /** At least one row can convert $ → qty (unit rate > 0, not bonus/package). */
+  const anyRowSupportsBudgetEntry = useMemo(
+    () =>
+      normalizedRows.some((r) =>
+        rowSupportsBudgetEntry(r.buyType, parseNum(r.unitRate))
+      ),
+    [normalizedRows]
+  )
+
   const rowMergeMapCacheRef = useRef(
     new Map<
       string,
@@ -2885,36 +2894,53 @@ export function DigitalAudioExpertGrid({
           </CardTitle>
           <div className="flex flex-wrap items-center gap-3">
             <div
-              className="flex items-center gap-0.5 rounded-md border border-border/60 p-0.5"
-              role="group"
-              aria-label="Cell entry mode"
+              className="flex flex-wrap items-center gap-2"
             >
-              <Button
-                type="button"
-                size="sm"
-                variant={entryMode === "deliverables" ? "secondary" : "ghost"}
-                className="h-7 px-2 text-xs"
-                title="Enter deliverable quantities per week (spots, impressions, clicks, etc.)."
-                onClick={() => {
-                  setEntryMode("deliverables")
-                  setBudgetDraft(null)
-                }}
+              <div
+                className="flex items-center gap-0.5 rounded-md border border-border/60 p-0.5"
+                role="group"
+                aria-label="Cell entry mode"
               >
-                Deliverables
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant={entryMode === "budget" ? "secondary" : "ghost"}
-                className="h-7 px-2 text-xs"
-                title="Enter $ amounts per week; converted to deliverables via the row unit rate. Stored as deliverables."
-                onClick={() => {
-                  setEntryMode("budget")
-                  setBudgetDraft(null)
-                }}
-              >
-                $ Budget
-              </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={entryMode === "deliverables" ? "secondary" : "ghost"}
+                  className="h-7 px-2 text-xs"
+                  title="Enter deliverable quantities per week (spots, impressions, clicks, etc.)."
+                  onClick={() => {
+                    setEntryMode("deliverables")
+                    setBudgetDraft(null)
+                  }}
+                >
+                  Deliverables
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={entryMode === "budget" ? "secondary" : "ghost"}
+                  className="h-7 px-2 text-xs"
+                  title="Enter $ amounts per week; converted to deliverables via the row unit rate. Stored as deliverables."
+                  onClick={() => {
+                    if (!anyRowSupportsBudgetEntry) {
+                      toast({
+                        title: "Set a unit rate to enter budget",
+                        description:
+                          "Budget mode needs a unit rate on at least one row (bonus and package inclusions stay in deliverables).",
+                      })
+                      return
+                    }
+                    setEntryMode("budget")
+                    setBudgetDraft(null)
+                  }}
+                >
+                  $ Budget
+                </Button>
+              </div>
+              {!anyRowSupportsBudgetEntry && entryMode === "deliverables" ? (
+                <p className="text-xs text-muted-foreground">
+                  Set a unit rate to enter budget
+                </p>
+              ) : null}
             </div>
             <div className="flex items-center gap-2">
               <Label htmlFor="digiaudio-expert-row-count" className="sr-only">Add rows count</Label>
@@ -3027,7 +3053,16 @@ export function DigitalAudioExpertGrid({
                                 <span className="cursor-help">{label}</span>
                               </TooltipTrigger>
                               <TooltipContent side="bottom" className="max-w-xs text-xs">
-                                Rate (CPC / CPM / CPV depending on Buy Type)
+                                Rate (CPC / CPM / CPV depending on Buy Type). Required for $ Budget mode.
+                              </TooltipContent>
+                            </Tooltip>
+                          ) : label === "Net Media" ? (
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="cursor-help">{label}</span>
+                              </TooltipTrigger>
+                              <TooltipContent side="bottom" className="max-w-xs text-xs">
+                                Derived display — deliverables × unit rate (not editable).
                               </TooltipContent>
                             </Tooltip>
                           ) : (
@@ -3686,7 +3721,10 @@ export function DigitalAudioExpertGrid({
                           >
                             <div
                               className="flex h-8 items-center px-1 text-xs tabular-nums"
-                              title={netMediaTooltip}
+                              title={
+                                netMediaTooltip ||
+                                "Derived display — deliverables × unit rate (not editable)"
+                              }
                             >
                               {formatAUD(net)}
                             </div>
@@ -3838,6 +3876,11 @@ export function DigitalAudioExpertGrid({
                                       disabled={
                                         entryMode === "budget" && !rowBudgetEntryOk
                                       }
+                                      title={
+                                        entryMode === "budget" && !rowBudgetEntryOk
+                                          ? "Unit rate required for $ mode"
+                                          : undefined
+                                      }
                                       onChange={(e) => {
                                         if (entryMode === "budget") {
                                           if (!rowBudgetEntryOk) return
@@ -3956,9 +3999,11 @@ export function DigitalAudioExpertGrid({
                                           boxSizing: "border-box",
                                         }}
                                         title={
-                                          hasDetail
-                                            ? `Day value — ${dayCol.dayKey}`
-                                            : "Derived from the week's even split — editing saves day-level detail"
+                                          entryMode === "budget" && !rowBudgetEntryOk
+                                            ? "Unit rate required for $ mode"
+                                            : hasDetail
+                                              ? `Day value — ${dayCol.dayKey}`
+                                              : "Derived from the week's even split — editing saves day-level detail"
                                         }
                                       >
                                         <Input
@@ -3973,6 +4018,12 @@ export function DigitalAudioExpertGrid({
                                           disabled={
                                             entryMode === "budget" &&
                                             !rowBudgetEntryOk
+                                          }
+                                          title={
+                                            entryMode === "budget" &&
+                                            !rowBudgetEntryOk
+                                              ? "Unit rate required for $ mode"
+                                              : undefined
                                           }
                                           onChange={(e) => {
                                             if (entryMode === "budget") {
@@ -4324,15 +4375,17 @@ export function DigitalAudioExpertGrid({
                                   title={
                                     isMergedAnchorCell
                                       ? partialPlan
-                                        ? `Merged burst ${partialPlan.startYmd} – ${partialPlan.endYmd} — drag to move`
-                                        : "Drag to move merged burst"
+                                        ? `Merge-anchor ${partialPlan.startYmd} – ${partialPlan.endYmd} — edit quantity here; interior weeks follow this cell`
+                                        : "Merge-anchor — edit quantity here; interior weeks follow this cell"
                                       : hasDayDetail
                                         ? "Day-level detail (sum shown) — typing a value replaces it with a uniform week"
                                         : isSingleDraggableCell
                                           ? "Drag to move deliverable"
                                           : weekDragSource
-                                            ? "Merged interior — drop on anchor or empty week"
-                                            : undefined
+                                            ? "Merged interior — edit via the merge-anchor week"
+                                            : budgetEntryBlocked
+                                              ? "Unit rate required for $ mode"
+                                              : undefined
                                   }
                                   onMouseEnter={(e) => {
                                     if (!isSelecting) return
@@ -4536,6 +4589,13 @@ export function DigitalAudioExpertGrid({
                                       inputMode="decimal"
                                       value={inputDisplay}
                                       disabled={budgetEntryBlocked}
+                                      title={
+                                        budgetEntryBlocked
+                                          ? "Unit rate required for $ mode"
+                                          : isMergedAnchorCell
+                                            ? "Merge-anchor — edit quantity here; interior weeks follow this cell"
+                                            : undefined
+                                      }
                                       draggable={isDraggableWeekCell}
                                       onDragStart={(e) => {
                                         // resolveWeekDragSource returns the "merged" variant when called on a

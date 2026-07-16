@@ -5549,8 +5549,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return computeCampaignFinancials(lineItems, { feeLoading }, {
       campaignStart: start,
       campaignEnd: end,
+      getRateForMediaType,
+      adservaudio: adservaudio ?? 0,
     })
-  }, [billingSaveInputs, campaignStartDate, campaignEndDate])
+  }, [billingSaveInputs, campaignStartDate, campaignEndDate, getRateForMediaType, adservaudio])
 
   const campaignFinancialsMediaByKey = useMemo(() => {
     const out: Record<string, number> = {}
@@ -5584,6 +5586,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return computeCampaignFinancials(lineItems, { feeLoading: billingSaveInputs.feeLoading }, {
       campaignStart: start,
       campaignEnd: end,
+      getRateForMediaType,
+      adservaudio: adservaudio ?? 0,
     })
   }, [
     billingFeeSeedEnabledConfigs,
@@ -5593,6 +5597,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     billingSaveInputs.feeLoading,
     campaignStartDate,
     campaignEndDate,
+    getRateForMediaType,
+    adservaudio,
   ])
 
   const campaignFinancialsForPanelsMediaByKey = useMemo(() => {
@@ -8101,7 +8107,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     const provisionalFinancials = computeCampaignFinancials(
       provisionalLineItems,
       { feeLoading: billingSaveInputs.feeLoading },
-      { campaignStart: start, campaignEnd: end }
+      {
+        campaignStart: start,
+        campaignEnd: end,
+        getRateForMediaType,
+        adservaudio: adservaudio ?? 0,
+      }
     )
 
     void nextEnabledMedia

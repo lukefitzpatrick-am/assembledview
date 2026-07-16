@@ -387,6 +387,7 @@ export default function DigiAudioContainer({
     fields: lineItemFields,
     append: appendLineItem,
     remove: removeLineItemBase,
+    replace: replaceLineItems,
   } = useFieldArray({
     control: form.control,
     name: "digiaudiolineItems",
@@ -526,10 +527,9 @@ export default function DigiAudioContainer({
       prevLineItems as any,
       keyedMerged as any
     )
-    form.setValue("digiaudiolineItems", keyedMerged as any, {
-      shouldDirty: true,
-      shouldValidate: false,
-    })
+    // useFieldArray needs replace() for whole-array updates — setValue leaves
+    // the rendered fields stale even though form state updates.
+    replaceLineItems(keyedMerged as any)
     if (clearedOverride) {
       toast({
         title: "Ad serving overrides reset",
@@ -542,17 +542,17 @@ export default function DigiAudioContainer({
         form.getValues("digiaudiolineItems")
       )
     setDigiAudioExpertExitConfirmOpen(false)
-    collapseAllLineItems()
     setExpertApplyPendingPageSave(true)
     setDigiAudioExpertModalOpen(false)
   }, [
     campaignStartDate,
     campaignEndDate,
-    collapseAllLineItems,
     expertDigiAudioRows,
     feedigiaudio,
     form,
     digiAudioExpertWeekColumns,
+    mbaNumber,
+    replaceLineItems,
     toast,
   ])
 
@@ -601,7 +601,6 @@ export default function DigiAudioContainer({
         platform: item.platform || "",
         publisher: item.publisher || "",
         site: item.site || "",
-        placement: item.placement || "",
         bidStrategy: item.bid_strategy || "",
         buyType: item.buy_type || "",
         targetingAttribute: item.targeting_attribute || "",
