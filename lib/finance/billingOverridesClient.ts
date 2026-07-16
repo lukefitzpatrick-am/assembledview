@@ -22,9 +22,23 @@ export type ResetBillingOverrideLineBody = {
   component?: BillingOverrideComponent
 }
 
+/** True when versionId can safely be sent as media_plan_version_id (not empty / "undefined"). */
+export function isUsableBillingVersionId(
+  versionId: unknown
+): versionId is string | number {
+  if (versionId == null) return false
+  const s = String(versionId).trim()
+  return s !== "" && s !== "undefined" && s !== "null"
+}
+
 export async function fetchBillingOverridesClient(
   versionId: string | number
 ): Promise<BillingOverrideRow[]> {
+  // Guard empty/unresolved ids — avoids GET ?media_plan_version_id= → route 400.
+  if (!isUsableBillingVersionId(versionId)) {
+    return []
+  }
+
   const res = await fetch(
     `/api/billing-overrides?media_plan_version_id=${encodeURIComponent(String(versionId))}`,
     { method: "GET", cache: "no-store" }
