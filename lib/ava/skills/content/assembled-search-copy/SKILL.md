@@ -2,7 +2,7 @@
 name: assembled-search-copy
 description: Write Google Search ad copy to spec the Assembled Media way - Responsive Search Ads (RSA) headlines, descriptions and paths, plus Performance Max text assets. Use whenever asked to write, refresh, expand or iterate search ads, "RSA headlines", "search copy", "Google ads copy", "text ads", ad copy for a search campaign, or to review/iterate live search ads from a linked Google Ads account or pasted performance data. Researches the client first, writes to verified character specs, and iterates on what has worked when account data is available.
 metadata:
-  version: 1.2.0
+  version: 1.3.0
 ---
 
 # Search copy (Google RSAs)
@@ -89,3 +89,11 @@ accounts are NOT available. In that environment:
    what the user could paste to close the gap (e.g. competitor ads, account exports).
 4. The 90% rule still applies: if a required input is missing and no tool holds it,
    ask — one question per turn.
+
+### In-app emit contract (Search Ad Workshop)
+When running inside the Assembled View Search Ad Workshop, return the full asset set via the
+emit_search_copy tool: for RSA up to 15 headlines (30 chars) and 4 descriptions (90 chars) plus
+2 display paths (15 chars); for Performance Max also up to 5 long headlines (90 chars), 5
+descriptions and a business name (25 chars). Tag every asset with an angle and set `pinned` only
+for compliance text. Honour the client brain's Tone and Compliance & never-say as hard limits.
+Never invent offers or prices.

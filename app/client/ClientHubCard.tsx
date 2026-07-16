@@ -26,9 +26,21 @@ export function ClientHubCard({ row }: { row: ClientHubSummary }) {
               {clientInitials(row.clientName)}
             </div>
             <div className="min-w-0 flex-1 space-y-1">
-              <CardTitle className="text-lg font-semibold leading-snug line-clamp-2">
-                {row.clientName}
-              </CardTitle>
+              <div className="flex items-start gap-2">
+                <CardTitle className="text-lg font-semibold leading-snug line-clamp-2">
+                  {row.clientName}
+                </CardTitle>
+                {row.hasClientBrain ? (
+                  <Badge
+                    variant="secondary"
+                    size="sm"
+                    className="mt-0.5 shrink-0"
+                    title="Marketing brain on file"
+                  >
+                    brain ✓
+                  </Badge>
+                ) : null}
+              </div>
               <CardDescription className="text-xs">View dashboard &amp; details</CardDescription>
             </div>
           </div>

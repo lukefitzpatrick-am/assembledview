@@ -14,6 +14,7 @@ import {
   type AdCopyVariant,
 } from "@/lib/creative/adCopy/prompt"
 import { buildAdCopyAvContext } from "@/lib/creative/adCopy/avContext"
+import { fetchClientBrainForAdCopy } from "@/lib/creative/adCopy/fetchClientBrain"
 import { researchClientBrief } from "@/lib/creative/adCopy/researchClient"
 import { checkAdCopyRateLimit } from "@/lib/creative/adCopy/rateLimit"
 import { getPrivateBlob } from "@/lib/creative/getPrivateBlob"
@@ -336,7 +337,7 @@ export async function POST(request: NextRequest) {
       let systemPrompt: string
 
       if (isNoBrief) {
-        const [avContext, research] = await Promise.all([
+        const [avContext, research, clientBrain] = await Promise.all([
           buildAdCopyAvContext({
             asset: row,
             clientName: parsed.clientName,
@@ -348,6 +349,7 @@ export async function POST(request: NextRequest) {
             brandName: parsed.brandName,
             destinationUrl: parsed.destinationUrl,
           }),
+          fetchClientBrainForAdCopy(parsed.clientName),
         ])
 
         systemPrompt = buildAdCopySystemPrompt({
@@ -360,8 +362,10 @@ export async function POST(request: NextRequest) {
           avContext: avContext.text,
           researchBrief: research.brief,
           researchThin: research.thin || avContext.researchThinHint,
+          clientBrain,
         })
       } else {
+        const clientBrain = await fetchClientBrainForAdCopy(parsed.clientName)
         systemPrompt = buildAdCopySystemPrompt({
           platform: parsed.platform,
           brandName: parsed.brandName,
@@ -369,6 +373,7 @@ export async function POST(request: NextRequest) {
           campaignName: parsed.campaignName,
           optionCount,
           mode: "chat",
+          clientBrain,
         })
       }
 

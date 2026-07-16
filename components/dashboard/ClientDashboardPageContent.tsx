@@ -6,6 +6,7 @@ import { AnimatePresence, motion, useReducedMotion, type Variants } from "framer
 
 import { CampaignCardCompact } from "@/components/dashboard/CampaignCardCompact"
 import { CampaignStatusPills, type CampaignStatus } from "@/components/dashboard/CampaignStatusPills"
+import { ClientBrainCard } from "@/components/dashboard/ClientBrainCard"
 import { HeroBanner } from "@/components/dashboard/HeroBanner"
 import { HeroKPIBar } from "@/components/dashboard/HeroKPIBar"
 import { SpendingInsightsSection } from "@/components/dashboard/SpendingInsightsSection"
@@ -214,8 +215,18 @@ export function ClientDashboardPageContent({
             onOpenKPIs={() => setKpisModalOpen(true)}
             isAdmin={isAdmin}
             clientHubLayout={isClientHub}
+            clientRecord={isClientHub ? clientData.clientRecord : null}
           />
         </motion.section>
+
+        {isClientHub ? (
+          <motion.section variants={sectionVariants} className="mt-6 w-full lg:mt-8">
+            <ClientBrainCard
+              clientName={clientData.clientName}
+              record={clientData.clientRecord}
+            />
+          </motion.section>
+        ) : null}
 
         <motion.section variants={sectionVariants} className="mt-6 w-full lg:mt-8">
           {/* HeroKPIBar: averageRoas / roasTrend omitted (fabricated); restore with real KPI aggregation (Domain 10). */}

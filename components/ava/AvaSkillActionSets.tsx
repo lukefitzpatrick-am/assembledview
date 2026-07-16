@@ -22,6 +22,27 @@ export const AVA_SKILL_MESSAGES = {
     "Write a short-form video script for this campaign.",
 } as const
 
+export function createClientBrainMessage(clientName: string): string {
+  const name = clientName.trim() || "this client"
+  return `Create the marketing brain for ${name}`
+}
+
+export function AvaCreateClientBrainAction({
+  clientName,
+  className,
+}: {
+  clientName: string
+  className?: string
+}) {
+  return (
+    <AvaSkillAction
+      label="Create brain"
+      message={createClientBrainMessage(clientName)}
+      className={className}
+    />
+  )
+}
+
 export function AvaMediaplanCreateActions() {
   return (
     <>

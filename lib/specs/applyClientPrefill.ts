@@ -1,6 +1,7 @@
 import type { MiResolvedSpec } from "./resolve"
 
 export const MI_CLIENT_PREFILL_FIELDS = [
+  // Social CLIENT
   "Image/Video File Name",
   "Primary Text",
   "Headline",
@@ -8,6 +9,14 @@ export const MI_CLIENT_PREFILL_FIELDS = [
   "Call To Action",
   "Landing Page URL",
   "Preview Link",
+  // Search CLIENT (must match template_structure.json Search.CLIENT)
+  "Final URL",
+  "Display Path 1",
+  "Display Path 2",
+  "Headlines (1-15)",
+  "Descriptions (1-4)",
+  "Sitelinks",
+  "Callouts",
 ] as const
 
 export type MiClientPrefillField = (typeof MI_CLIENT_PREFILL_FIELDS)[number]

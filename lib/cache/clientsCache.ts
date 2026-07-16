@@ -1,4 +1,5 @@
 import axios from "axios"
+import { omitClientBrain } from "@/lib/clients/omitClientBrain"
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
 import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
 import { xanoAuthHeaderRecord } from "@/lib/api/xano"
@@ -34,9 +35,12 @@ function cacheTtlMs(): number {
 function withClientSlug(raw: any) {
   const name = getClientDisplayName(raw)
   const xanoSlugOriginal = typeof raw?.slug === "string" ? raw.slug.trim() : ""
+  const stripped = omitClientBrain(
+    raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {},
+  )
 
   return {
-    ...raw,
+    ...stripped,
     slug: slugifyClientNameForUrl(name),
     ...(xanoSlugOriginal
       ? { xano_url_slug: slugifyClientNameForUrl(xanoSlugOriginal) }

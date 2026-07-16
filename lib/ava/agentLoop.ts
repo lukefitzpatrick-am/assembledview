@@ -17,6 +17,8 @@ export type AvaAgentInput = {
    * Runtime tool state; `pageContext` is a {@link PageContext} snapshot when present.
    */
   context: AvaToolContext;
+  /** Append Anthropic server `web_search` (admin AVA chats). */
+  enableWebSearch?: boolean;
 };
 
 export type AvaAgentResult = {
@@ -40,6 +42,29 @@ const FALLBACK_REPLY = "I did not produce a response. Please try again.";
 
 const TOOL_LIMIT_REPLY =
   "I hit the tool call limit before finishing. Please try a simpler request or ask me to continue.";
+
+const WEB_SEARCH_TOOL: Anthropic.WebSearchTool20250305 = {
+  type: "web_search_20250305",
+  name: "web_search",
+  max_uses: 3,
+};
+
+function buildTools(
+  enableWebSearch: boolean,
+): Anthropic.ToolUnion[] {
+  if (!enableWebSearch) return AVA_TOOL_DEFINITIONS;
+  return [...AVA_TOOL_DEFINITIONS, WEB_SEARCH_TOOL];
+}
+
+function isClientToolUse(
+  block: Anthropic.ContentBlock,
+): block is Anthropic.ToolUseBlock {
+  return (
+    !!block &&
+    typeof block === "object" &&
+    (block as Anthropic.ContentBlock).type === "tool_use"
+  );
+}
 
 /** Structured failure string for the model — never crash the turn on a tool throw/timeout. */
 function formatToolFailure(toolName: string, rawMessage: string): string {
@@ -160,13 +185,14 @@ export async function runAvaAgent(
     };
 
     const toolCalls: AvaAgentResult["toolCalls"] = [];
+    const tools = buildTools(input.enableWebSearch === true);
 
     for (let iter = 0; iter < AVA_MAX_TOOL_ITERATIONS; iter++) {
       const response = await client.messages.create({
         model: AVA_MODEL,
         max_tokens: AVA_MAX_TOKENS,
         system,
-        tools: AVA_TOOL_DEFINITIONS,
+        tools,
         messages,
         stream: false,
       });
@@ -181,6 +207,20 @@ export async function runAvaAgent(
         return finishTurn(replyText, input.context, toolCalls, usage);
       }
 
+      // Anthropic server tools (web_search) may pause until the next request.
+      if (stopReason === "pause_turn") {
+        messages.push({
+          role: "assistant",
+          content: response.content as Anthropic.ContentBlockParam[],
+        });
+        toolCalls.push({
+          name: "web_search",
+          input: { note: "server_tool_pause_turn" },
+          resultPreview: "pause_turn (server web_search)",
+        });
+        continue;
+      }
+
       if (stopReason === "tool_use") {
         messages.push({
           role: "assistant",
@@ -190,20 +230,19 @@ export async function runAvaAgent(
         const toolUseBlocks: Anthropic.ToolUseBlock[] = [];
         if (Array.isArray(response.content)) {
           for (const block of response.content) {
-            if (
-              block &&
-              typeof block === "object" &&
-              (block as Anthropic.ContentBlock).type === "tool_use"
-            ) {
-              toolUseBlocks.push(block as Anthropic.ToolUseBlock);
+            if (isClientToolUse(block)) {
+              toolUseBlocks.push(block);
             }
           }
         }
 
         if (toolUseBlocks.length === 0) {
-          const replyText =
-            extractAllTextBlocks(response.content) || FALLBACK_REPLY;
-          return finishTurn(replyText, input.context, toolCalls, usage);
+          // Server-only tool turn (e.g. web_search finished in-content) — continue.
+          const replyText = extractAllTextBlocks(response.content);
+          if (replyText) {
+            return finishTurn(replyText, input.context, toolCalls, usage);
+          }
+          continue;
         }
 
         const toolResultContent: Anthropic.ToolResultBlockParam[] = [];
@@ -217,6 +256,27 @@ export async function runAvaAgent(
 
           let resultContent: string;
           let resultIsError: boolean;
+
+          // Never locally execute Anthropic server tools.
+          if (name === "web_search") {
+            resultContent = formatToolFailure(
+              name,
+              "web_search is a server tool and should not be executed client-side",
+            );
+            resultIsError = true;
+            toolCalls.push({
+              name,
+              input: toolInput,
+              resultPreview: truncatePreview(resultContent, 200),
+            });
+            toolResultContent.push({
+              type: "tool_result",
+              tool_use_id: toolUseId,
+              content: resultContent,
+              is_error: resultIsError,
+            });
+            continue;
+          }
 
           const tool = getToolByName(name);
           if (!tool) {
