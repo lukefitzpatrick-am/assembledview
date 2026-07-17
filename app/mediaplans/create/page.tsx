@@ -4675,6 +4675,9 @@ function CreateMediaPlan() {
         billingSchedule?: unknown
       }
       let usedPutPath = false
+      // REVIEW (integrity P0): track deferred publish from MBA PUT for stage-then-publish
+      let deferredPublish = false
+      let publishedVersionBeforeSave: number | string | undefined = planVersionNumber
 
       const omitModeBody = () => {
         const values = form.getValues()
@@ -4690,6 +4693,8 @@ function CreateMediaPlan() {
           billingSchedule: undefined,
           deliverySchedule: undefined,
           delivery_schedule: undefined,
+          // REVIEW (integrity P0): stage version; publish master.version_number after children succeed
+          deferMasterVersionPublish: true,
         }
       }
 
@@ -4744,6 +4749,10 @@ function CreateMediaPlan() {
             versionData.version?.billingSchedule ?? versionData.billingSchedule,
         }
         usedPutPath = true
+        deferredPublish =
+          Boolean(versionData.deferredPublish) && versionData.mode !== "overwrite"
+        publishedVersionBeforeSave =
+          versionData.publishedVersionNumber ?? planVersionNumber
       } catch (putErr: unknown) {
         // Finance C1/C2 gates must surface — never fall back to a divergent local create.
         if (
@@ -5551,27 +5560,55 @@ function CreateMediaPlan() {
       }
 
       // Execute all media type saves in parallel
+      // REVIEW (integrity P0): So-Fail — any channel error blocks success toast/navigation/publish
       if (mediaTypeSavePromises.length > 0) {
-        try {
-          const results = await Promise.all(mediaTypeSavePromises);
-          const errors = results.filter((result): result is { type: string; error: any; } => 
-            result && typeof result === 'object' && 'error' in result
-          );
+        const results = await Promise.all(mediaTypeSavePromises);
+        const errors = results.filter((result): result is { type: string; error: any; } => 
+          result && typeof result === 'object' && 'error' in result
+        );
           
-          if (errors.length > 0) {
-            toast({
-              title: 'Partial Success',
-              description: `Media plan saved but some media types failed to save.`,
-              variant: 'destructive'
-            });
-          }
-        } catch (error) {
+        if (errors.length > 0) {
+          const failedChannels = errors.map((e) => e.type || 'unknown')
+          console.error('[save integrity] create channel writes failed; blocking publish', {
+            mba_number: fv.mba_number,
+            versionId: version.id,
+            stagedVersionNumber: version.version_number,
+            publishedVersionNumber: publishedVersionBeforeSave,
+            deferredPublish,
+            usedPutPath,
+            failedChannels,
+            partialStateNote:
+              'Staged version / partial channel children may need cleanup; master.version_number was not advanced when deferred.',
+            errors,
+          })
           toast({
-            title: 'Warning',
-            description: 'Media plan saved but some media data could not be saved. Please try again.',
+            title: 'Save failed — version not published',
+            description: `Channel write(s) failed: ${failedChannels.join(', ')}. Master version was not advanced.`,
             variant: 'destructive'
           });
+          throw new Error(
+            `Channel write(s) failed: ${failedChannels.join(', ')}. Version not published.`
+          )
         }
+      }
+
+      if (deferredPublish && usedPutPath && version.version_number != null) {
+        updateSaveStatus('Publish version', 'pending')
+        const publishResponse = await fetch(
+          `/api/mediaplans/mba/${encodeURIComponent(String(fv.mba_number))}`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ version_number: version.version_number }),
+          }
+        )
+        if (!publishResponse.ok) {
+          const body = await publishResponse.json().catch(() => ({} as { error?: string }))
+          const publishError = body.error || 'Failed to publish version after channel saves'
+          updateSaveStatus('Publish version', 'error', publishError)
+          throw new Error(publishError)
+        }
+        updateSaveStatus('Publish version', 'success')
       }
 
       // Wait for document generation+upload (do not throw; errors already handled above)
