@@ -19,6 +19,7 @@ import type {
   NewspaperExpertScheduleRow,
   OohExpertMergedWeekSpan,
   OohExpertScheduleRow,
+  ProductionExpertScheduleRow,
   ProgAudioExpertScheduleRow,
   ProgBvodExpertScheduleRow,
   ProgDisplayExpertScheduleRow,
@@ -40,6 +41,7 @@ import {
   deriveMagazineExpertRowScheduleYmdFromRow,
   deriveNewspaperExpertRowScheduleYmdFromRow,
   deriveOohExpertRowScheduleYmdFromRow,
+  deriveProductionExpertRowScheduleYmdFromRow,
   deriveProgExpertRowScheduleYmdFromRow,
   deriveRadioExpertRowScheduleYmdFromRow,
   deriveSearchExpertRowScheduleYmdFromRow,
@@ -78,6 +80,7 @@ export type ExpertDescriptorColumnKind =
   | "date-end"
   | "combobox-publishers"
   | "combobox-static"
+  | "combobox-dynamic"
   | "combobox-sites"
   | "combobox-stations"
   | "combobox-titles"
@@ -96,7 +99,7 @@ export type ExpertDescriptorColumn = {
   normalizePaste?: (raw: string, ctx: { publisherNames: string[] }) => string
   /** Optional header hover tooltip. */
   headerTooltip?: string
-  /** Combobox search box placeholder when kind === "combobox-static". */
+  /** Combobox search box placeholder when kind === "combobox-static" | "combobox-dynamic". */
   searchPlaceholder?: string
 }
 
@@ -108,9 +111,10 @@ export type ExpertScheduleRowCommon = {
   buyType: string
   unitRate: number | string
   grossCost: number | string
-  fixedCostMedia: boolean
-  clientPaysForMedia: boolean
-  budgetIncludesFees: boolean
+  /** Billing flags — optional for channels with empty `billingFlagKeys` (e.g. Production). */
+  fixedCostMedia?: boolean
+  clientPaysForMedia?: boolean
+  budgetIncludesFees?: boolean
   weeklyValues: ExpertWeeklyValues
   dailyValues?: ExpertDailyValues
   mergedWeekSpans?: OohExpertMergedWeekSpan[]
@@ -162,7 +166,7 @@ export function getRowBoolean(row: object, key: string): boolean {
   return (row as Record<string, unknown>)[key] === true
 }
 
-function normalizeOptionPaste(
+export function normalizeOptionPaste(
   raw: string,
   options: ComboboxOption[]
 ): string {
@@ -2502,6 +2506,82 @@ export const INTEGRATION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Integrat
       dayKeysByWeekKey
     ) =>
       deriveIntegrationExpertRowScheduleYmdFromRow(
+        row,
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        dayKeysByWeekKey
+      ),
+  }
+
+export function createEmptyProductionExpertRow(
+  id: string,
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  weekKeys: string[]
+): ProductionExpertScheduleRow {
+  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
+  const weeklyValues = {} as ExpertWeeklyValues
+  for (const k of weekKeys) {
+    weeklyValues[k] = ""
+  }
+  return {
+    id,
+    startDate: ymd(campaignStartDate),
+    endDate: ymd(campaignEndDate),
+    mediaType: "",
+    publisher: "",
+    description: "",
+    market: "",
+    buyType: "production",
+    unitRate: "",
+    grossCost: 0,
+    weeklyValues,
+    mergedWeekSpans: [],
+  }
+}
+
+export const PRODUCTION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProductionExpertScheduleRow> =
+  {
+    mediaTypeKey: "production",
+    channelLabel: "Production",
+    publisherField: "publisher",
+    billingFlagKeys: [],
+    billingFlagLabels: [],
+    billingFlagWidthsPx: [],
+    descriptorCore: [
+      { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
+      { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
+      {
+        key: "mediaType",
+        label: "Production Type",
+        widthPx: 120,
+        kind: "combobox-dynamic",
+        searchPlaceholder: "Search production types…",
+      },
+      { key: "publisher", label: "Publisher", widthPx: 120, kind: "text" },
+      { key: "description", label: "Description", widthPx: 110, kind: "text" },
+      { key: "market", label: "Market", widthPx: 96, kind: "text" },
+    ],
+    descriptorTail: [
+      {
+        key: "unitRate",
+        label: "Unit Cost",
+        widthPx: 88,
+        kind: "unit-rate",
+        headerTooltip: "Unit cost × quantity = total cost",
+      },
+    ],
+    trailingHeaderLabels: ["Total Cost", "", "Σ qty"],
+    createEmptyRow: createEmptyProductionExpertRow,
+    deriveScheduleYmdFromRow: (
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    ) =>
+      deriveProductionExpertRowScheduleYmdFromRow(
         row,
         weekColumns,
         campaignStartDate,

@@ -141,6 +141,7 @@ import {
   expertGridDescriptorHeadLabels,
   getRowBoolean,
   getRowString,
+  normalizeOptionPaste,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
   buildWeeklyGanttColumnsFromCampaign,
@@ -348,6 +349,11 @@ export interface ExpertGridProps<TRow extends ExpertScheduleRowCommon = ExpertSc
   stations?: ExpertGridStationOption[]
   /** Title options (network + title) for combobox-titles columns */
   titles?: ExpertGridTitleOption[]
+  /**
+   * Runtime combobox options keyed by descriptor column key
+   * (for `combobox-dynamic` columns, e.g. Production Type).
+   */
+  extraComboboxOptions?: Partial<Record<string, ComboboxOption[]>>
   onReorder?: () => void
 }
 
@@ -407,6 +413,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   sites = [],
   stations = [],
   titles = [],
+  extraComboboxOptions,
   onReorder,
 }: ExpertGridProps<TRow>) {
   const MEDIA_ACCENT_HEX = getMediaTypeThemeHex(config.mediaTypeKey)
@@ -2422,12 +2429,19 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
             applied += 1
           } else if (
             findDescriptorColumn(config, String(field))?.kind ===
-            "combobox-static"
+              "combobox-static" ||
+            findDescriptorColumn(config, String(field))?.kind ===
+              "combobox-dynamic"
           ) {
-            const col = findDescriptorColumn(config, String(field))
-            const normalized = col?.normalizePaste
+            const col = findDescriptorColumn(config, String(field))!
+            const normalized = col.normalizePaste
               ? col.normalizePaste(raw, { publisherNames: platformNames })
-              : raw.trim()
+              : col.kind === "combobox-dynamic"
+                ? normalizeOptionPaste(
+                    raw,
+                    extraComboboxOptions?.[String(field)] ?? []
+                  )
+                : normalizeOptionPaste(raw, col.options ?? [])
             nextRows[targetRow] = {
               ...cur,
               [field]: normalized,
@@ -2498,6 +2512,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       toast,
       weekColumns,
       weekKeys,
+      extraComboboxOptions,
     ]
   )
 
@@ -2968,16 +2983,18 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
               <Plus className="mr-1 h-4 w-4" />
               {`Add ${Math.max(1, Math.min(500, Number.parseInt(rowCountInput || "1", 10) || 1))} rows`}
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="text-xs text-muted-foreground"
-              title="Show or hide fee / media / total billing columns on the schedule."
-              onClick={() => setShowBillingCols((v) => !v)}
-            >
-              {showBillingCols ? "Hide" : "Show"} billing columns
-            </Button>
+            {config.billingFlagKeys.length > 0 ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground"
+                title="Show or hide fee / media / total billing columns on the schedule."
+                onClick={() => setShowBillingCols((v) => !v)}
+              >
+                {showBillingCols ? "Hide" : "Show"} billing columns
+              </Button>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent className="space-y-4 pt-5">
@@ -3554,8 +3571,13 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                 </td>
                               )
                             }
-                            if (col.kind === "combobox-static") {
-                              const opts = col.options ?? []
+                            if (col.kind === "combobox-static" || col.kind === "combobox-dynamic") {
+                              const opts =
+                                col.kind === "combobox-dynamic"
+                                  ? (extraComboboxOptions?.[col.key] ??
+                                    col.options ??
+                                    [])
+                                  : (col.options ?? [])
                               const val = getRowString(row, col.key)
                               const isBid = col.key === "bidStrategy"
                               const isBuy = col.key === "buyType"
