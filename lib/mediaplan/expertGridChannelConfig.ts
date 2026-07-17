@@ -789,6 +789,139 @@ export const PROGBVOD_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgBvodExp
       ),
   }
 
+export const PROGOOH_BUY_TYPE_OPTIONS: ComboboxOption[] = [
+  { value: "cpc", label: "CPC" },
+  { value: "cpm", label: "CPM" },
+  { value: "cpv", label: "CPV" },
+  { value: "fixed_cost", label: "Fixed Cost" },
+]
+
+export const PROGOOH_BID_STRATEGY_OPTIONS: ComboboxOption[] = [
+  { value: "clicks", label: "Clicks" },
+  { value: "conversions", label: "Conversions" },
+  { value: "reach", label: "Reach" },
+  { value: "viewability", label: "Viewability" },
+]
+
+export function createEmptyProgOohExpertRow(
+  id: string,
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  weekKeys: string[]
+): ProgOohExpertScheduleRow {
+  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
+  const weeklyValues = {} as ExpertWeeklyValues
+  for (const k of weekKeys) {
+    weeklyValues[k] = ""
+  }
+  return {
+    id,
+    startDate: ymd(campaignStartDate),
+    endDate: ymd(campaignEndDate),
+    platform: "",
+    bidStrategy: "",
+    buyType: "",
+    creativeTargeting: "",
+    creative: "",
+    placement: "",
+    size: "",
+    buyingDemo: "",
+    market: "",
+    fixedCostMedia: false,
+    clientPaysForMedia: false,
+    budgetIncludesFees: false,
+    noadserving: false,
+    unitRate: "",
+    grossCost: 0,
+    weeklyValues,
+    mergedWeekSpans: [],
+  }
+}
+
+export const PROGOOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgOohExpertScheduleRow> =
+  {
+    mediaTypeKey: "progooh",
+    channelLabel: "Prog OOH",
+    publisherField: "platform",
+    billingFlagKeys: [
+      "fixedCostMedia",
+      "clientPaysForMedia",
+      "budgetIncludesFees",
+      "noadserving",
+    ],
+    billingFlagLabels: [
+      "Fixed Cost Media",
+      "Client Pays for Media",
+      "Budget Includes Fees",
+      "No Ad Serving",
+    ],
+    billingFlagWidthsPx: [56, 56, 56, 56],
+    descriptorCore: [
+      { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
+      { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
+      {
+        key: "platform",
+        label: "Platform",
+        widthPx: 120,
+        kind: "combobox-publishers",
+      },
+      {
+        key: "bidStrategy",
+        label: "Bid Strategy",
+        widthPx: 110,
+        kind: "combobox-static",
+        options: PROGOOH_BID_STRATEGY_OPTIONS,
+        normalizePaste: (raw) =>
+          normalizeOptionPaste(raw, PROGOOH_BID_STRATEGY_OPTIONS),
+      },
+      {
+        key: "buyType",
+        label: "Buy Type",
+        widthPx: 96,
+        kind: "combobox-static",
+        options: PROGOOH_BUY_TYPE_OPTIONS,
+        normalizePaste: (raw) =>
+          normalizeOptionPaste(raw, PROGOOH_BUY_TYPE_OPTIONS),
+      },
+      {
+        key: "creativeTargeting",
+        label: "Creative Targeting",
+        widthPx: 120,
+        kind: "text",
+      },
+      { key: "placement", label: "Placement", widthPx: 110, kind: "text" },
+      { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
+      { key: "size", label: "Size", widthPx: 80, kind: "text" },
+    ],
+    descriptorTail: [
+      { key: "market", label: "Market", widthPx: 96, kind: "text" },
+      { key: "buyingDemo", label: "Buying Demo", widthPx: 110, kind: "text" },
+      {
+        key: "unitRate",
+        label: "Unit Rate",
+        widthPx: 88,
+        kind: "unit-rate",
+        headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
+      },
+    ],
+    trailingHeaderLabels: ["Net Media", "", "Σ qty"],
+    createEmptyRow: createEmptyProgOohExpertRow,
+    deriveScheduleYmdFromRow: (
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    ) =>
+      deriveProgExpertRowScheduleYmdFromRow(
+        row,
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        dayKeysByWeekKey
+      ),
+  }
+
 /** Match labels/values on {@link OOHContainer} comboboxes. */
 export const OOH_FORMAT_OPTIONS: ComboboxOption[] = [
   { value: "active", label: "Active" },
