@@ -1514,3 +1514,110 @@ export const DIGIVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigiVideoE
         dayKeysByWeekKey
       ),
   }
+
+export const DIGIAUDIO_BUY_TYPE_OPTIONS: ComboboxOption[] = [
+  { value: "bonus", label: "Bonus" },
+  { value: "package_inclusions", label: "Package Inclusions" },
+  { value: "cpc", label: "CPC" },
+  { value: "cpm", label: "CPM" },
+  { value: "cpv", label: "CPV" },
+  { value: "fixed_cost", label: "Fixed Cost" },
+]
+
+export function createEmptyDigitalAudioExpertRow(
+  id: string,
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  weekKeys: string[]
+): DigitalAudioExpertScheduleRow {
+  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
+  const weeklyValues = {} as ExpertWeeklyValues
+  for (const k of weekKeys) {
+    weeklyValues[k] = ""
+  }
+  return {
+    id,
+    startDate: ymd(campaignStartDate),
+    endDate: ymd(campaignEndDate),
+    platform: "",
+    publisher: "",
+    site: "",
+    bidStrategy: "",
+    buyType: "",
+    targetingAttribute: "",
+    creativeTargeting: "",
+    creative: "",
+    buyingDemo: "",
+    market: "",
+    fixedCostMedia: false,
+    clientPaysForMedia: false,
+    budgetIncludesFees: false,
+    unitRate: "",
+    grossCost: 0,
+    weeklyValues,
+    mergedWeekSpans: [],
+  }
+}
+
+export const DIGIAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigitalAudioExpertScheduleRow> =
+  {
+    mediaTypeKey: "digiaudio",
+    channelLabel: "Digital Audio",
+    publisherField: "publisher",
+    billingFlagKeys: [
+      "fixedCostMedia",
+      "clientPaysForMedia",
+      "budgetIncludesFees"
+    ],
+    billingFlagLabels: [
+      "Fixed Cost Media",
+      "Client Pays for Media",
+      "Budget Includes Fees"
+    ],
+    billingFlagWidthsPx: [56, 56, 56],
+    descriptorCore: [
+      { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
+      { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
+      { key: "publisher", label: "Publisher", widthPx: 120, kind: "combobox-publishers" },
+      { key: "site", label: "Site", widthPx: 110, kind: "combobox-sites" },
+      {
+      key: "buyType",
+      label: "Buy Type",
+      widthPx: 96,
+      kind: "combobox-static",
+      options: DIGIAUDIO_BUY_TYPE_OPTIONS,
+      normalizePaste: (raw) =>
+        normalizeOptionPaste(raw, DIGIAUDIO_BUY_TYPE_OPTIONS),
+    },
+      { key: "targetingAttribute", label: "Targeting Attribute", widthPx: 120, kind: "text" },
+      { key: "creativeTargeting", label: "Creative Targeting", widthPx: 120, kind: "text" },
+      { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
+    ],
+    descriptorTail: [
+      { key: "market", label: "Market", widthPx: 96, kind: "text" },
+      { key: "buyingDemo", label: "Buying Demo", widthPx: 110, kind: "text" },
+      {
+      key: "unitRate",
+      label: "Unit Rate",
+      widthPx: 88,
+      kind: "unit-rate",
+      headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
+    },
+    ],
+    trailingHeaderLabels: ["Net Media", "", "Σ qty"],
+    createEmptyRow: createEmptyDigitalAudioExpertRow,
+    deriveScheduleYmdFromRow: (
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    ) =>
+      deriveDigitalAudioExpertRowScheduleYmdFromRow(
+        row,
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        dayKeysByWeekKey
+      ),
+  }
