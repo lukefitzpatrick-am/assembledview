@@ -88,6 +88,20 @@ export type ExpertDescriptorColumnKind =
   | "checkbox-billing"
   | "unit-rate"
 
+/** Where a descriptor field appears. Omit = "both". */
+export type ExpertDescriptorSurface = "grid" | "card" | "both"
+
+/**
+ * Channel option / billing flags shown as checkboxes in the descriptor.
+ * SoT for keys+labels; {@link ExpertGridChannelConfig.billingFlagKeys} etc. remain as back-compat mirrors.
+ */
+export type ExpertOptionFlag = {
+  key: string
+  label: string
+  /** Sticky width in the grid (px). Defaults to 44 when omitted. */
+  widthPx?: number
+}
+
 export type ExpertDescriptorColumn = {
   key: string
   label: string
@@ -101,6 +115,15 @@ export type ExpertDescriptorColumn = {
   headerTooltip?: string
   /** Combobox search box placeholder when kind === "combobox-static" | "combobox-dynamic". */
   searchPlaceholder?: string
+  /**
+   * Which surfaces render this field. Default `both`.
+   * Grid-only examples: unitRate, trailing Net Media / Σ qty.
+   */
+  surfaces?: ExpertDescriptorSurface
+  /** Optional input placeholder (card/grid editors). */
+  placeholder?: string
+  /** Card layout span (1 = half, 2 = full). Default 1 when omitted. */
+  cardSpan?: 1 | 2
 }
 
 /** Structural fields the ExpertGrid shell reads without channel-specific keys. */
@@ -111,7 +134,7 @@ export type ExpertScheduleRowCommon = {
   buyType: string
   unitRate: number | string
   grossCost: number | string
-  /** Billing flags — optional for channels with empty `billingFlagKeys` (e.g. Production). */
+  /** Billing flags — optional for channels with empty `optionFlags` (e.g. Production). */
   fixedCostMedia?: boolean
   clientPaysForMedia?: boolean
   budgetIncludesFees?: boolean
@@ -122,22 +145,44 @@ export type ExpertScheduleRowCommon = {
 }
 
 export type ExpertGridChannelConfig<TRow extends ExpertScheduleRowCommon> = {
-  /** Channel id for accents / debug. */
+  /** Channel id for accents / theme. */
   mediaTypeKey: MediaTypeThemeKey
   /** Human channel name in UI chrome. */
   channelLabel: string
   /** Publisher fuzzy-match field (Search/Prog: platform; OOH: network). */
   publisherField: ExpertGridPublisherField
+  /**
+   * Channel option / billing flags (SoT). Prefer this over billingFlag* mirrors.
+   * Empty = no billing checkboxes (e.g. Production).
+   */
+  optionFlags: readonly ExpertOptionFlag[]
+  /**
+   * @deprecated Prefer {@link optionFlags}. Kept in sync for ExpertGrid / callers.
+   */
   billingFlagKeys: readonly string[]
+  /**
+   * @deprecated Prefer {@link optionFlags}. Kept in sync for ExpertGrid / callers.
+   */
   billingFlagLabels: readonly string[]
+  /**
+   * @deprecated Prefer {@link optionFlags} `.widthPx`. Kept in sync for ExpertGrid / callers.
+   */
   billingFlagWidthsPx: readonly number[]
   descriptorCore: readonly ExpertDescriptorColumn[]
   descriptorTail: readonly ExpertDescriptorColumn[]
-  /** Labels after unit rate (computed cols — not stored on the row). */
+  /**
+   * Trailing computed columns after unit rate (SoT). Prefer this over trailingHeaderLabels.
+   * Typically Net Media / actions / Σ qty — marked `surfaces: "grid"`.
+   */
+  trailingColumns: readonly ExpertDescriptorColumn[]
+  /**
+   * @deprecated Prefer {@link trailingColumns}. Labels after unit rate (computed cols).
+   */
   trailingHeaderLabels: readonly string[]
   /**
    * Sticky widths for trailing computed cols (Net Media / actions / Σ qty).
    * Included in {@link expertGridDescriptorColWidths} so sticky offsets stay correct.
+   * @deprecated Prefer {@link trailingColumns} `.widthPx`.
    */
   trailingColWidthsPx?: readonly number[]
   createEmptyRow: (
@@ -232,6 +277,11 @@ export const SEARCH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SearchExpertS
     mediaTypeKey: "search",
     channelLabel: "Search",
     publisherField: "platform",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -286,10 +336,15 @@ export const SEARCH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SearchExpertS
         key: "unitRate",
         label: "Unit Rate",
         widthPx: 88,
-        kind: "unit-rate",
+        kind: "unit-rate", surfaces: "grid",
         headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
       },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptySearchExpertRow,
     deriveScheduleYmdFromRow: (
@@ -365,6 +420,12 @@ export const PROGVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgVideoE
     mediaTypeKey: "progvideo",
     channelLabel: "Prog Video",
     publisherField: "platform",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+    { key: "noadserving", label: "No Ad Serving", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -422,10 +483,15 @@ export const PROGVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgVideoE
         key: "unitRate",
         label: "Unit Rate",
         widthPx: 88,
-        kind: "unit-rate",
+        kind: "unit-rate", surfaces: "grid",
         headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
       },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyProgVideoExpertRow,
     deriveScheduleYmdFromRow: (
@@ -497,6 +563,12 @@ export const PROGDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgDisp
     mediaTypeKey: "progdisplay",
     channelLabel: "Prog Display",
     publisherField: "platform",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+    { key: "noadserving", label: "No Ad Serving", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -552,10 +624,15 @@ export const PROGDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgDisp
         key: "unitRate",
         label: "Unit Rate",
         widthPx: 88,
-        kind: "unit-rate",
+        kind: "unit-rate", surfaces: "grid",
         headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
       },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyProgDisplayExpertRow,
     deriveScheduleYmdFromRow: (
@@ -629,6 +706,12 @@ export const PROGAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgAudioE
     mediaTypeKey: "progaudio",
     channelLabel: "Prog Audio",
     publisherField: "platform",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+    { key: "noadserving", label: "No Ad Serving", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -684,10 +767,15 @@ export const PROGAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgAudioE
         key: "unitRate",
         label: "Unit Rate",
         widthPx: 88,
-        kind: "unit-rate",
+        kind: "unit-rate", surfaces: "grid",
         headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
       },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyProgAudioExpertRow,
     deriveScheduleYmdFromRow: (
@@ -759,6 +847,12 @@ export const PROGBVOD_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgBvodExp
     mediaTypeKey: "progbvod",
     channelLabel: "Prog BVOD",
     publisherField: "platform",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+    { key: "noadserving", label: "No Ad Serving", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -814,10 +908,15 @@ export const PROGBVOD_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgBvodExp
         key: "unitRate",
         label: "Unit Rate",
         widthPx: 88,
-        kind: "unit-rate",
+        kind: "unit-rate", surfaces: "grid",
         headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
       },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyProgBvodExpertRow,
     deriveScheduleYmdFromRow: (
@@ -890,6 +989,12 @@ export const PROGOOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgOohExper
     mediaTypeKey: "progooh",
     channelLabel: "Prog OOH",
     publisherField: "platform",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+    { key: "noadserving", label: "No Ad Serving", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -947,10 +1052,15 @@ export const PROGOOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgOohExper
         key: "unitRate",
         label: "Unit Rate",
         widthPx: 88,
-        kind: "unit-rate",
+        kind: "unit-rate", surfaces: "grid",
         headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
       },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyProgOohExpertRow,
     deriveScheduleYmdFromRow: (
@@ -1025,6 +1135,11 @@ export const SOCIALMEDIA_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SocialMe
     mediaTypeKey: "socialmedia",
     channelLabel: "Social Media",
     publisherField: "platform",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -1078,10 +1193,15 @@ export const SOCIALMEDIA_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SocialMe
         key: "unitRate",
         label: "Unit Rate",
         widthPx: 88,
-        kind: "unit-rate",
+        kind: "unit-rate", surfaces: "grid",
         headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
       },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptySocialMediaExpertRow,
     deriveScheduleYmdFromRow: (
@@ -1181,6 +1301,11 @@ export const OOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<OohExpertSchedul
     mediaTypeKey: "ooh",
     channelLabel: "OOH",
     publisherField: "network",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -1230,10 +1355,15 @@ export const OOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<OohExpertSchedul
         key: "unitRate",
         label: "Unit Rate",
         widthPx: 88,
-        kind: "unit-rate",
+        kind: "unit-rate", surfaces: "grid",
         headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
       },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 100, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 76, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 68, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     trailingColWidthsPx: [100, 76, 68],
     createEmptyRow: createEmptyOohExpertRow,
@@ -1252,6 +1382,97 @@ export const OOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<OohExpertSchedul
         dayKeysByWeekKey
       ),
   }
+
+
+/** Resolve option flags (SoT) with back-compat from billingFlag* triples. */
+export function getExpertOptionFlags(
+  config: Pick<
+    ExpertGridChannelConfig<ExpertScheduleRowCommon>,
+    "optionFlags" | "billingFlagKeys" | "billingFlagLabels" | "billingFlagWidthsPx"
+  >
+): readonly ExpertOptionFlag[] {
+  // `!= null` so empty Production `[]` is authoritative SoT.
+  if (config.optionFlags != null) return config.optionFlags
+  const keys = config.billingFlagKeys ?? []
+  const labels = config.billingFlagLabels ?? []
+  const widths = config.billingFlagWidthsPx ?? []
+  return keys.map((key, i) => ({
+    key,
+    label: labels[i] ?? "",
+    widthPx: widths[i] ?? 44,
+  }))
+}
+
+/** @deprecated Prefer {@link getExpertOptionFlags}. */
+export function getExpertBillingFlagKeys(
+  config: Pick<
+    ExpertGridChannelConfig<ExpertScheduleRowCommon>,
+    "optionFlags" | "billingFlagKeys" | "billingFlagLabels" | "billingFlagWidthsPx"
+  >
+): readonly string[] {
+  return getExpertOptionFlags(config).map((f) => f.key)
+}
+
+/** Build billingFlag* mirrors from optionFlags (for callers still on the old shape). */
+export function billingCompatFromOptionFlags(
+  flags: readonly ExpertOptionFlag[]
+): {
+  billingFlagKeys: readonly string[]
+  billingFlagLabels: readonly string[]
+  billingFlagWidthsPx: readonly number[]
+} {
+  return {
+    billingFlagKeys: flags.map((f) => f.key),
+    billingFlagLabels: flags.map((f) => f.label),
+    billingFlagWidthsPx: flags.map((f) => f.widthPx ?? 44),
+  }
+}
+
+/** Resolve trailing computed columns (SoT) with back-compat from trailingHeaderLabels. */
+export function getExpertTrailingColumns(
+  config: Pick<
+    ExpertGridChannelConfig<ExpertScheduleRowCommon>,
+    "trailingColumns" | "trailingHeaderLabels" | "trailingColWidthsPx"
+  >
+): readonly ExpertDescriptorColumn[] {
+  if (config.trailingColumns != null) return config.trailingColumns
+  const labels = config.trailingHeaderLabels ?? []
+  const widths = config.trailingColWidthsPx ?? []
+  const keys =
+    labels[0] === "Total Cost"
+      ? (["totalCost", "actions", "sumQty"] as const)
+      : (["netMedia", "actions", "sumQty"] as const)
+  return labels.map((label, i) => ({
+    key: keys[i] ?? `trailing${i}`,
+    label,
+    widthPx: widths[i] ?? 64,
+    kind: "text" as const,
+    surfaces: "grid" as const,
+  }))
+}
+
+/** @deprecated Prefer {@link getExpertTrailingColumns}. */
+export function getExpertTrailingHeaderLabels(
+  config: Pick<
+    ExpertGridChannelConfig<ExpertScheduleRowCommon>,
+    "trailingColumns" | "trailingHeaderLabels" | "trailingColWidthsPx"
+  >
+): readonly string[] {
+  return getExpertTrailingColumns(config).map((c) => c.label)
+}
+
+/** Build trailingHeaderLabels / trailingColWidthsPx from trailingColumns. */
+export function trailingCompatFromColumns(
+  cols: readonly ExpertDescriptorColumn[]
+): {
+  trailingHeaderLabels: readonly string[]
+  trailingColWidthsPx: readonly number[]
+} {
+  return {
+    trailingHeaderLabels: cols.map((c) => c.label),
+    trailingColWidthsPx: cols.map((c) => c.widthPx),
+  }
+}
 
 /** Descriptor keys in sticky order (billing optional). */
 export function expertGridDescriptorKeys(
@@ -1353,6 +1574,11 @@ export const DIGITALDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Digit
     mediaTypeKey: "digidisplay",
     channelLabel: "Digital Display",
     publisherField: "publisher",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -1388,10 +1614,15 @@ export const DIGITALDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Digit
       key: "unitRate",
       label: "Unit Rate",
       widthPx: 88,
-      kind: "unit-rate",
+      kind: "unit-rate", surfaces: "grid",
       headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
     },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyDigitalDisplayExpertRow,
     deriveScheduleYmdFromRow: (
@@ -1460,6 +1691,11 @@ export const DIGIVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigiVideoE
     mediaTypeKey: "digivideo",
     channelLabel: "Digi Video",
     publisherField: "publisher",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -1497,10 +1733,15 @@ export const DIGIVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigiVideoE
       key: "unitRate",
       label: "Unit Rate",
       widthPx: 88,
-      kind: "unit-rate",
+      kind: "unit-rate", surfaces: "grid",
       headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
     },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyDigiVideoExpertRow,
     deriveScheduleYmdFromRow: (
@@ -1568,6 +1809,11 @@ export const DIGIAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigitalAud
     mediaTypeKey: "digiaudio",
     channelLabel: "Digital Audio",
     publisherField: "publisher",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -1604,10 +1850,15 @@ export const DIGIAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigitalAud
       key: "unitRate",
       label: "Unit Rate",
       widthPx: 88,
-      kind: "unit-rate",
+      kind: "unit-rate", surfaces: "grid",
       headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
     },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyDigitalAudioExpertRow,
     deriveScheduleYmdFromRow: (
@@ -1674,6 +1925,11 @@ export const BVOD_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<BvodExpertSched
     mediaTypeKey: "bvod",
     channelLabel: "BVOD",
     publisherField: "publisher",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -1709,10 +1965,15 @@ export const BVOD_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<BvodExpertSched
       key: "unitRate",
       label: "Unit Rate",
       widthPx: 88,
-      kind: "unit-rate",
+      kind: "unit-rate", surfaces: "grid",
       headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
     },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyBvodExpertRow,
     deriveScheduleYmdFromRow: (
@@ -1781,6 +2042,11 @@ export const TELEVISION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Televisio
     mediaTypeKey: "television",
     channelLabel: "Television",
     publisherField: "network",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -1818,10 +2084,15 @@ export const TELEVISION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Televisio
       key: "unitRate",
       label: "Unit Rate",
       widthPx: 88,
-      kind: "unit-rate",
+      kind: "unit-rate", surfaces: "grid",
       headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
     },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyTelevisionExpertRow,
     deriveScheduleYmdFromRow: (
@@ -1887,6 +2158,11 @@ export const RADIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<RadioExpertSch
     mediaTypeKey: "radio",
     channelLabel: "Radio",
     publisherField: "network",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -1923,10 +2199,15 @@ export const RADIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<RadioExpertSch
       key: "unitRate",
       label: "Unit Rate",
       widthPx: 88,
-      kind: "unit-rate",
+      kind: "unit-rate", surfaces: "grid",
       headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
     },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyRadioExpertRow,
     deriveScheduleYmdFromRow: (
@@ -1992,6 +2273,11 @@ export const CINEMA_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<CinemaExpertS
     mediaTypeKey: "cinema",
     channelLabel: "Cinema",
     publisherField: "network",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -2028,10 +2314,15 @@ export const CINEMA_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<CinemaExpertS
       key: "unitRate",
       label: "Unit Rate",
       widthPx: 88,
-      kind: "unit-rate",
+      kind: "unit-rate", surfaces: "grid",
       headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
     },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyCinemaExpertRow,
     deriveScheduleYmdFromRow: (
@@ -2098,6 +2389,11 @@ export const NEWSPAPER_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<NewspaperE
     mediaTypeKey: "newspaper",
     channelLabel: "Newspaper",
     publisherField: "network",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -2134,10 +2430,15 @@ export const NEWSPAPER_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<NewspaperE
       key: "unitRate",
       label: "Unit Rate",
       widthPx: 88,
-      kind: "unit-rate",
+      kind: "unit-rate", surfaces: "grid",
       headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
     },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyNewspaperExpertRow,
     deriveScheduleYmdFromRow: (
@@ -2203,6 +2504,11 @@ export const MAGAZINES_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<MagazinesE
     mediaTypeKey: "magazines",
     channelLabel: "Magazines",
     publisherField: "network",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -2239,10 +2545,15 @@ export const MAGAZINES_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<MagazinesE
       key: "unitRate",
       label: "Unit Rate",
       widthPx: 88,
-      kind: "unit-rate",
+      kind: "unit-rate", surfaces: "grid",
       headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
     },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyMagazinesExpertRow,
     deriveScheduleYmdFromRow: (
@@ -2320,6 +2631,11 @@ export const INFLUENCERS_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Influenc
     mediaTypeKey: "influencers",
     channelLabel: "Influencers",
     publisherField: "platform",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -2365,10 +2681,15 @@ export const INFLUENCERS_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Influenc
       key: "unitRate",
       label: "Unit Rate",
       widthPx: 88,
-      kind: "unit-rate",
+      kind: "unit-rate", surfaces: "grid",
       headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
     },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyInfluencersExpertRow,
     deriveScheduleYmdFromRow: (
@@ -2447,6 +2768,11 @@ export const INTEGRATION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Integrat
     mediaTypeKey: "integration",
     channelLabel: "Integration",
     publisherField: "platform",
+    optionFlags: [
+    { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
+    { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
+    { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+  ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
@@ -2492,10 +2818,15 @@ export const INTEGRATION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Integrat
       key: "unitRate",
       label: "Unit Rate",
       widthPx: 88,
-      kind: "unit-rate",
+      kind: "unit-rate", surfaces: "grid",
       headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
     },
     ],
+    trailingColumns: [
+    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyIntegrationExpertRow,
     deriveScheduleYmdFromRow: (
@@ -2546,6 +2877,7 @@ export const PRODUCTION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Productio
     mediaTypeKey: "production",
     channelLabel: "Production",
     publisherField: "publisher",
+    optionFlags: [],
     billingFlagKeys: [],
     billingFlagLabels: [],
     billingFlagWidthsPx: [],
@@ -2568,10 +2900,15 @@ export const PRODUCTION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Productio
         key: "unitRate",
         label: "Unit Cost",
         widthPx: 88,
-        kind: "unit-rate",
+        kind: "unit-rate", surfaces: "grid",
         headerTooltip: "Unit cost × quantity = total cost",
       },
     ],
+    trailingColumns: [
+    { key: "totalCost", label: "Total Cost", widthPx: 88, kind: "text", surfaces: "grid" },
+    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+  ],
     trailingHeaderLabels: ["Total Cost", "", "Σ qty"],
     createEmptyRow: createEmptyProductionExpertRow,
     deriveScheduleYmdFromRow: (
