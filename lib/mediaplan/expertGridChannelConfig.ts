@@ -7,7 +7,16 @@ import { format, startOfDay } from "date-fns"
 import type { ComboboxOption } from "@/components/media-containers/ExpertGridCombobox"
 import type { ExpertDailyValues } from "@/lib/mediaplan/expertDayModel"
 import type {
+  BvodExpertScheduleRow,
+  CinemaExpertScheduleRow,
+  DigiVideoExpertScheduleRow,
+  DigitalAudioExpertScheduleRow,
+  DigitalDisplayExpertScheduleRow,
   ExpertWeeklyValues,
+  InfluencersExpertScheduleRow,
+  IntegrationExpertScheduleRow,
+  MagazinesExpertScheduleRow,
+  NewspaperExpertScheduleRow,
   OohExpertMergedWeekSpan,
   OohExpertScheduleRow,
   ProgAudioExpertScheduleRow,
@@ -15,12 +24,27 @@ import type {
   ProgDisplayExpertScheduleRow,
   ProgOohExpertScheduleRow,
   ProgVideoExpertScheduleRow,
+  RadioExpertScheduleRow,
   SearchExpertScheduleRow,
+  SocialMediaExpertScheduleRow,
+  TelevisionExpertScheduleRow,
 } from "@/lib/mediaplan/expertModeWeeklySchedule"
 import {
+  deriveBvodExpertRowScheduleYmdFromRow,
+  deriveCinemaExpertRowScheduleYmdFromRow,
+  deriveDigiVideoExpertRowScheduleYmdFromRow,
+  deriveDigitalAudioExpertRowScheduleYmdFromRow,
+  deriveDigitalDisplayExpertRowScheduleYmdFromRow,
+  deriveInfluencersExpertRowScheduleYmdFromRow,
+  deriveIntegrationExpertRowScheduleYmdFromRow,
+  deriveMagazineExpertRowScheduleYmdFromRow,
+  deriveNewspaperExpertRowScheduleYmdFromRow,
   deriveOohExpertRowScheduleYmdFromRow,
   deriveProgExpertRowScheduleYmdFromRow,
+  deriveRadioExpertRowScheduleYmdFromRow,
   deriveSearchExpertRowScheduleYmdFromRow,
+  deriveSocialMediaExpertRowScheduleYmdFromRow,
+  deriveTelevisionExpertRowScheduleYmdFromRow,
 } from "@/lib/mediaplan/expertChannelMappings"
 import {
   exactCanonicalBuyType,
@@ -31,7 +55,7 @@ import {
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
 import type { WeeklyGanttWeekColumn } from "@/lib/utils/weeklyGanttColumns"
 
-export type ExpertGridPublisherField = "platform" | "network"
+export type ExpertGridPublisherField = "platform" | "network" | "publisher"
 
 export type ExpertDescriptorColumnKind =
   | "date-start"
@@ -914,6 +938,137 @@ export const PROGOOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgOohExper
       dayKeysByWeekKey
     ) =>
       deriveProgExpertRowScheduleYmdFromRow(
+        row,
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        dayKeysByWeekKey
+      ),
+  }
+
+export const SOCIALMEDIA_BUY_TYPE_OPTIONS: ComboboxOption[] = [
+  { value: "bonus", label: "Bonus" },
+  { value: "package_inclusions", label: "Package Inclusions" },
+  { value: "cpc", label: "CPC" },
+  { value: "cpm", label: "CPM" },
+  { value: "cpv", label: "CPV" },
+  { value: "fixed_cost", label: "Fixed Cost" },
+]
+
+export const SOCIALMEDIA_BID_STRATEGY_OPTIONS: ComboboxOption[] = [
+  { value: "manual_cpc", label: "Clicks" },
+  { value: "completed_views", label: "Video Views" },
+  { value: "conversion_value", label: "Conversion Value" },
+  { value: "landing_page_views", label: "Landing Page Views" },
+  { value: "leads", label: "Leads" },
+  { value: "maximize_conversions", label: "Maximize Conversions" },
+  { value: "reach", label: "Reach" },
+]
+
+export function createEmptySocialMediaExpertRow(
+  id: string,
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  weekKeys: string[]
+): SocialMediaExpertScheduleRow {
+  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
+  const weeklyValues = {} as ExpertWeeklyValues
+  for (const k of weekKeys) {
+    weeklyValues[k] = ""
+  }
+  return {
+    id,
+    startDate: ymd(campaignStartDate),
+    endDate: ymd(campaignEndDate),
+    platform: "",
+    bidStrategy: "",
+    buyType: "",
+    creativeTargeting: "",
+    creative: "",
+    buyingDemo: "",
+    market: "",
+    fixedCostMedia: false,
+    clientPaysForMedia: false,
+    budgetIncludesFees: false,
+    unitRate: "",
+    grossCost: 0,
+    weeklyValues,
+    mergedWeekSpans: [],
+  }
+}
+
+export const SOCIALMEDIA_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SocialMediaExpertScheduleRow> =
+  {
+    mediaTypeKey: "socialmedia",
+    channelLabel: "Social Media",
+    publisherField: "platform",
+    billingFlagKeys: [
+      "fixedCostMedia",
+      "clientPaysForMedia",
+      "budgetIncludesFees",
+    ],
+    billingFlagLabels: [
+      "Fixed Cost Media",
+      "Client Pays for Media",
+      "Budget Includes Fees",
+    ],
+    billingFlagWidthsPx: [56, 56, 56],
+    descriptorCore: [
+      { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
+      { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
+      {
+        key: "platform",
+        label: "Platform",
+        widthPx: 120,
+        kind: "combobox-publishers",
+      },
+      {
+        key: "bidStrategy",
+        label: "Bid Strategy",
+        widthPx: 110,
+        kind: "combobox-static",
+        options: SOCIALMEDIA_BID_STRATEGY_OPTIONS,
+        normalizePaste: (raw) =>
+          normalizeOptionPaste(raw, SOCIALMEDIA_BID_STRATEGY_OPTIONS),
+      },
+      {
+        key: "buyType",
+        label: "Buy Type",
+        widthPx: 96,
+        kind: "combobox-static",
+        options: SOCIALMEDIA_BUY_TYPE_OPTIONS,
+        normalizePaste: (raw) =>
+          normalizeOptionPaste(raw, SOCIALMEDIA_BUY_TYPE_OPTIONS),
+      },
+      {
+        key: "creativeTargeting",
+        label: "Creative Targeting",
+        widthPx: 120,
+        kind: "text",
+      },
+      { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
+    ],
+    descriptorTail: [
+      { key: "market", label: "Market", widthPx: 96, kind: "text" },
+      { key: "buyingDemo", label: "Buying Demo", widthPx: 110, kind: "text" },
+      {
+        key: "unitRate",
+        label: "Unit Rate",
+        widthPx: 88,
+        kind: "unit-rate",
+        headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
+      },
+    ],
+    trailingHeaderLabels: ["Net Media", "", "Σ qty"],
+    createEmptyRow: createEmptySocialMediaExpertRow,
+    deriveScheduleYmdFromRow: (
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    ) =>
+      deriveSocialMediaExpertRowScheduleYmdFromRow(
         row,
         weekColumns,
         campaignStartDate,

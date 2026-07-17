@@ -3238,13 +3238,17 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                     searchPlaceholder={
                                       config.publisherField === "network"
                                         ? "Search networks…"
-                                        : "Search platforms…"
+                                        : config.publisherField === "publisher"
+                                          ? "Search publishers…"
+                                          : "Search platforms…"
                                     }
                                     emptyText={
                                       platformNames.length === 0
                                         ? config.publisherField === "network"
                                           ? "No networks."
-                                          : "No platforms."
+                                          : config.publisherField === "publisher"
+                                            ? "No publishers."
+                                            : "No platforms."
                                         : "No match."
                                     }
                                     buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
