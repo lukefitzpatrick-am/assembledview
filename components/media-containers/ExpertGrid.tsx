@@ -63,7 +63,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { fuzzyMatchNetwork } from "@/lib/mediaplan/expertOohFuzzyMatch"
+import { fuzzyMatchNetwork, fuzzyMatchStation } from "@/lib/mediaplan/expertOohFuzzyMatch"
 import {
   deleteExpertRow,
   duplicateExpertRow,
@@ -129,6 +129,10 @@ import {
 import type {
   ExpertGridChannelConfig,
   ExpertScheduleRowCommon,
+  ExpertGridSiteOption,
+  ExpertGridStationOption,
+  ExpertGridTitleOption,
+  ExpertDescriptorColumn,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
   expertGridBodyDescriptorColumns,
@@ -277,6 +281,43 @@ function normalizeSearchPlatformPaste(
   return fz?.matched ?? v
 }
 
+function normalizeKey(input: unknown): string {
+  return String(input ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+}
+
+function normalizeNamePaste(raw: string, names: string[]): string {
+  const v = raw.trim()
+  if (!v) return ""
+  const exact = names.find((n) => n.toLowerCase() === v.toLowerCase())
+  if (exact) return exact
+  const fz = fuzzyMatchStation(v, names)
+  return fz?.matched ?? v
+}
+
+function findDescriptorColumn(
+  config: ExpertGridChannelConfig<ExpertScheduleRowCommon>,
+  key: string
+): ExpertDescriptorColumn | undefined {
+  return [...config.descriptorCore, ...config.descriptorTail].find(
+    (c) => c.key === key
+  )
+}
+
+function dependentClearsOnPublisherChange(
+  config: ExpertGridChannelConfig<ExpertScheduleRowCommon>
+): Record<string, string> {
+  const patch: Record<string, string> = {}
+  for (const col of [...config.descriptorCore, ...config.descriptorTail]) {
+    if (col.kind === "combobox-sites" || col.kind === "combobox-titles") {
+      patch[col.key] = ""
+    }
+  }
+  return patch
+}
+
 function formatYmdDisplay(ymd: string): string {
   if (!ymd?.trim()) return "—"
   const d = new Date(`${ymd.trim()}T12:00:00`)
@@ -301,6 +342,12 @@ export interface ExpertGridProps<TRow extends ExpertScheduleRowCommon = ExpertSc
   onRowsChange: (rows: TRow[]) => void
   /** Publisher names for publisher combobox + fuzzy matching */
   publishers?: { publisher_name: string }[]
+  /** Site options (platform + site) for combobox-sites columns */
+  sites?: ExpertGridSiteOption[]
+  /** Station options for combobox-stations columns */
+  stations?: ExpertGridStationOption[]
+  /** Title options (network + title) for combobox-titles columns */
+  titles?: ExpertGridTitleOption[]
   onReorder?: () => void
 }
 
@@ -357,6 +404,9 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   rows,
   onRowsChange,
   publishers = [],
+  sites = [],
+  stations = [],
+  titles = [],
   onReorder,
 }: ExpertGridProps<TRow>) {
   const MEDIA_ACCENT_HEX = getMediaTypeThemeHex(config.mediaTypeKey)
@@ -563,6 +613,79 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   const platformComboboxOptions: ComboboxOption[] = useMemo(
     () => platformNames.map((name) => ({ value: name, label: name })),
     [platformNames]
+  )
+
+  const siteNames = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          sites
+            .map((s) => s.site?.trim())
+            .filter((name): name is string => Boolean(name))
+        )
+      ),
+    [sites]
+  )
+
+  const stationNames = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          stations
+            .map((s) => s.station?.trim())
+            .filter((name): name is string => Boolean(name))
+        )
+      ),
+    [stations]
+  )
+
+  const titleNames = useMemo(
+    () => Array.from(new Set(titles.map((t) => t.title).filter(Boolean))),
+    [titles]
+  )
+
+  const stationComboboxOptions: ComboboxOption[] = useMemo(
+    () => stationNames.map((name) => ({ value: name, label: name })),
+    [stationNames]
+  )
+
+  const publisherDependentClears = useMemo(
+    () => dependentClearsOnPublisherChange(config),
+    [config]
+  )
+
+  const siteComboboxOptionsForRow = useCallback(
+    (row: TRow): ComboboxOption[] => {
+      const pub = getRowString(row, config.publisherField)
+      const pubKey = normalizeKey(pub)
+      const filtered = pubKey
+        ? sites.filter((s) => normalizeKey(s.platform) === pubKey)
+        : sites
+      const names = Array.from(
+        new Set(
+          filtered
+            .map((s) => s.site?.trim())
+            .filter((name): name is string => Boolean(name))
+        )
+      )
+      return names.map((name) => ({ value: name, label: name }))
+    },
+    [sites, config.publisherField]
+  )
+
+  const titleComboboxOptionsForRow = useCallback(
+    (row: TRow): ComboboxOption[] => {
+      const network = getRowString(row, "network")
+      const netKey = normalizeKey(network)
+      const filtered = netKey
+        ? titles.filter((t) => normalizeKey(t.network) === netKey)
+        : titles
+      const names = Array.from(
+        new Set(filtered.map((t) => t.title).filter(Boolean))
+      )
+      return names.map((name) => ({ value: name, label: name }))
+    },
+    [titles]
   )
 
   const normalizeRowCacheRef = useRef(
@@ -1019,6 +1142,15 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       let match: { matched: string } | null = null
       if (field === config.publisherField) {
         match = fuzzyMatchNetwork(value, platformNames)
+      } else {
+        const descCol = findDescriptorColumn(config, String(field))
+        if (descCol?.kind === "combobox-sites") {
+          match = fuzzyMatchStation(value, siteNames)
+        } else if (descCol?.kind === "combobox-stations") {
+          match = fuzzyMatchStation(value, stationNames)
+        } else if (descCol?.kind === "combobox-titles") {
+          match = fuzzyMatchStation(value, titleNames)
+        }
       }
       if (!match) return
       if (fuzzyMatchAutoApplyRef.current) {
@@ -1032,7 +1164,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
         })
       }
     },
-    [config.publisherField, platformNames, updateRow]
+    [config, platformNames, siteNames, stationNames, titleNames, updateRow]
   )
 
   const handleFuzzyMatchConfirm = useCallback(
@@ -2289,10 +2421,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
             } as TRow
             applied += 1
           } else if (
-            config.descriptorCore.find((c) => c.key === field)?.kind ===
-              "combobox-static"
+            findDescriptorColumn(config, String(field))?.kind ===
+            "combobox-static"
           ) {
-            const col = config.descriptorCore.find((c) => c.key === field)
+            const col = findDescriptorColumn(config, String(field))
             const normalized = col?.normalizePaste
               ? col.normalizePaste(raw, { publisherNames: platformNames })
               : raw.trim()
@@ -2306,12 +2438,34 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
             nextRows[targetRow] = {
               ...cur,
               [config.publisherField]: plt,
+              ...publisherDependentClears,
             } as TRow
             applied += 1
           } else {
-            const v = raw.trim()
-            nextRows[targetRow] = { ...cur, [field]: v } as TRow
-            applied += 1
+            const descCol = findDescriptorColumn(config, String(field))
+            if (descCol?.kind === "combobox-sites") {
+              nextRows[targetRow] = {
+                ...cur,
+                [field]: normalizeNamePaste(raw, siteNames),
+              } as TRow
+              applied += 1
+            } else if (descCol?.kind === "combobox-stations") {
+              nextRows[targetRow] = {
+                ...cur,
+                [field]: normalizeNamePaste(raw, stationNames),
+              } as TRow
+              applied += 1
+            } else if (descCol?.kind === "combobox-titles") {
+              nextRows[targetRow] = {
+                ...cur,
+                [field]: normalizeNamePaste(raw, titleNames),
+              } as TRow
+              applied += 1
+            } else {
+              const v = raw.trim()
+              nextRows[targetRow] = { ...cur, [field]: v } as TRow
+              applied += 1
+            }
           }
         }
       }
@@ -2335,6 +2489,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       normalizedRows,
       config,
       platformNames,
+      siteNames,
+      stationNames,
+      titleNames,
+      publisherDependentClears,
       searchDescriptorKeys,
       pushRows,
       toast,
@@ -3232,6 +3390,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                     onValueChange={(v) =>
                                       updateRow(rowIndex, {
                                         [col.key]: v,
+                                        ...publisherDependentClears,
                                       } as Partial<TRow>)
                                     }
                                     placeholder="Select"
@@ -3260,6 +3419,135 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                         handleCellFocus(rowIndex, col.key)
                                       } else {
                                         tryFuzzyMatch(rowIndex, col.key, pubVal)
+                                      }
+                                    }}
+                                  />
+                                </td>
+                              )
+                            }
+                            if (col.kind === "combobox-sites") {
+                              const siteVal = getRowString(row, col.key)
+                              const siteOpts = siteComboboxOptionsForRow(row)
+                              const pubVal = getRowString(row, config.publisherField)
+                              return (
+                                <td
+                                  key={col.key}
+                                  className={stickyTd(ci)}
+                                  style={stickyStyleBody(ci)}
+                                >
+                                  <Combobox
+                                    id={cellId}
+                                    options={siteOpts}
+                                    value={siteVal}
+                                    onValueChange={(v) =>
+                                      updateRow(rowIndex, {
+                                        [col.key]: v,
+                                      } as Partial<TRow>)
+                                    }
+                                    placeholder="Select"
+                                    searchPlaceholder="Search sites…"
+                                    emptyText={
+                                      pubVal.trim() && siteOpts.length === 0
+                                        ? "No sites for this publisher."
+                                        : siteNames.length === 0
+                                          ? "No sites."
+                                          : "No match."
+                                    }
+                                    buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                                    onTriggerFocus={() =>
+                                      handleCellFocus(rowIndex, col.key)
+                                    }
+                                    onOpenChange={(open) => {
+                                      if (open) {
+                                        handleCellFocus(rowIndex, col.key)
+                                      } else {
+                                        tryFuzzyMatch(rowIndex, col.key, siteVal)
+                                      }
+                                    }}
+                                  />
+                                </td>
+                              )
+                            }
+                            if (col.kind === "combobox-stations") {
+                              const stationVal = getRowString(row, col.key)
+                              return (
+                                <td
+                                  key={col.key}
+                                  className={stickyTd(ci)}
+                                  style={stickyStyleBody(ci)}
+                                >
+                                  <Combobox
+                                    id={cellId}
+                                    options={stationComboboxOptions}
+                                    value={stationVal}
+                                    onValueChange={(v) =>
+                                      updateRow(rowIndex, {
+                                        [col.key]: v,
+                                      } as Partial<TRow>)
+                                    }
+                                    placeholder="Select"
+                                    searchPlaceholder="Search stations…"
+                                    emptyText={
+                                      stationNames.length === 0
+                                        ? "No stations."
+                                        : "No match."
+                                    }
+                                    buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                                    onTriggerFocus={() =>
+                                      handleCellFocus(rowIndex, col.key)
+                                    }
+                                    onOpenChange={(open) => {
+                                      if (open) {
+                                        handleCellFocus(rowIndex, col.key)
+                                      } else {
+                                        tryFuzzyMatch(
+                                          rowIndex,
+                                          col.key,
+                                          stationVal
+                                        )
+                                      }
+                                    }}
+                                  />
+                                </td>
+                              )
+                            }
+                            if (col.kind === "combobox-titles") {
+                              const titleVal = getRowString(row, col.key)
+                              const titleOpts = titleComboboxOptionsForRow(row)
+                              const networkVal = getRowString(row, "network")
+                              return (
+                                <td
+                                  key={col.key}
+                                  className={stickyTd(ci)}
+                                  style={stickyStyleBody(ci)}
+                                >
+                                  <Combobox
+                                    id={cellId}
+                                    options={titleOpts}
+                                    value={titleVal}
+                                    onValueChange={(v) =>
+                                      updateRow(rowIndex, {
+                                        [col.key]: v,
+                                      } as Partial<TRow>)
+                                    }
+                                    placeholder="Select"
+                                    searchPlaceholder="Search titles…"
+                                    emptyText={
+                                      networkVal.trim() && titleOpts.length === 0
+                                        ? "No titles for this network."
+                                        : titleNames.length === 0
+                                          ? "No titles."
+                                          : "No match."
+                                    }
+                                    buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                                    onTriggerFocus={() =>
+                                      handleCellFocus(rowIndex, col.key)
+                                    }
+                                    onOpenChange={(open) => {
+                                      if (open) {
+                                        handleCellFocus(rowIndex, col.key)
+                                      } else {
+                                        tryFuzzyMatch(rowIndex, col.key, titleVal)
                                       }
                                     }}
                                   />

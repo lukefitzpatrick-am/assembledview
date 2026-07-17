@@ -57,11 +57,30 @@ import type { WeeklyGanttWeekColumn } from "@/lib/utils/weeklyGanttColumns"
 
 export type ExpertGridPublisherField = "platform" | "network" | "publisher"
 
+export type ExpertGridSiteOption = {
+  platform?: string | null
+  site?: string | null
+}
+
+export type ExpertGridStationOption = {
+  station?: string | null
+  id?: number | string | null
+}
+
+export type ExpertGridTitleOption = {
+  id: string | number
+  title: string
+  network: string
+}
+
 export type ExpertDescriptorColumnKind =
   | "date-start"
   | "date-end"
   | "combobox-publishers"
   | "combobox-static"
+  | "combobox-sites"
+  | "combobox-stations"
+  | "combobox-titles"
   | "text"
   | "checkbox-billing"
   | "unit-rate"
@@ -1282,3 +1301,107 @@ export function expertGridBodyDescriptorColumns(
     : []
   return [...billing, ...config.descriptorCore, ...config.descriptorTail]
 }
+
+export const DIGITALDISPLAY_BUY_TYPE_OPTIONS: ComboboxOption[] = [
+  { value: "bonus", label: "Bonus" },
+  { value: "package_inclusions", label: "Package Inclusions" },
+  { value: "cpc", label: "CPC" },
+  { value: "cpm", label: "CPM" },
+  { value: "cpv", label: "CPV" },
+  { value: "fixed_cost", label: "Fixed Cost" },
+]
+
+export function createEmptyDigitalDisplayExpertRow(
+  id: string,
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  weekKeys: string[]
+): DigitalDisplayExpertScheduleRow {
+  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
+  const weeklyValues = {} as ExpertWeeklyValues
+  for (const k of weekKeys) {
+    weeklyValues[k] = ""
+  }
+  return {
+    id,
+    startDate: ymd(campaignStartDate),
+    endDate: ymd(campaignEndDate),
+    platform: "",
+    publisher: "",
+    site: "",
+    buyType: "",
+    creativeTargeting: "",
+    creative: "",
+    buyingDemo: "",
+    market: "",
+    fixedCostMedia: false,
+    clientPaysForMedia: false,
+    budgetIncludesFees: false,
+    unitRate: "",
+    grossCost: 0,
+    weeklyValues,
+    mergedWeekSpans: [],
+  }
+}
+
+export const DIGITALDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigitalDisplayExpertScheduleRow> =
+  {
+    mediaTypeKey: "digidisplay",
+    channelLabel: "Digital Display",
+    publisherField: "publisher",
+    billingFlagKeys: [
+      "fixedCostMedia",
+      "clientPaysForMedia",
+      "budgetIncludesFees"
+    ],
+    billingFlagLabels: [
+      "Fixed Cost Media",
+      "Client Pays for Media",
+      "Budget Includes Fees"
+    ],
+    billingFlagWidthsPx: [56, 56, 56],
+    descriptorCore: [
+      { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
+      { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
+      { key: "publisher", label: "Publisher", widthPx: 120, kind: "combobox-publishers" },
+      { key: "site", label: "Site", widthPx: 110, kind: "combobox-sites" },
+      {
+      key: "buyType",
+      label: "Buy Type",
+      widthPx: 96,
+      kind: "combobox-static",
+      options: DIGITALDISPLAY_BUY_TYPE_OPTIONS,
+      normalizePaste: (raw) =>
+        normalizeOptionPaste(raw, DIGITALDISPLAY_BUY_TYPE_OPTIONS),
+    },
+      { key: "creativeTargeting", label: "Creative Targeting", widthPx: 120, kind: "text" },
+      { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
+    ],
+    descriptorTail: [
+      { key: "market", label: "Market", widthPx: 96, kind: "text" },
+      { key: "buyingDemo", label: "Buying Demo", widthPx: 110, kind: "text" },
+      {
+      key: "unitRate",
+      label: "Unit Rate",
+      widthPx: 88,
+      kind: "unit-rate",
+      headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
+    },
+    ],
+    trailingHeaderLabels: ["Net Media", "", "Σ qty"],
+    createEmptyRow: createEmptyDigitalDisplayExpertRow,
+    deriveScheduleYmdFromRow: (
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    ) =>
+      deriveDigitalDisplayExpertRowScheduleYmdFromRow(
+        row,
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        dayKeysByWeekKey
+      ),
+  }
