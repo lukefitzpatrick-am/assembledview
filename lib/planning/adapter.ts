@@ -4,10 +4,10 @@
  */
 
 import {
-  BENCHMARK_DEFAULTS,
+  PLANNING_CHANNEL_BENCH,
   SEARCH_ENGINE_CHANNEL_ID,
-  type BenchmarkDefault,
-} from "./benchmarkDefaults"
+  type PlanningChannelBenchRow,
+} from "./planningChannelBench"
 import type {
   AudienceChannelResult,
   AudienceResponse,
@@ -110,12 +110,12 @@ export function scoreableChannels(taxonomy: TaxonomyRow[]): AdaptedChannel[] {
 function resolveBench(
   engineId: string,
   apiBench: AudienceChannelResult["bench"] | PlanningChannelMeta["bench"] | null | undefined,
-  fallback: BenchmarkDefault | undefined
+  fallback: PlanningChannelBenchRow | undefined
 ): { attn: number; B: number; D: number; cpm: number; name: string; color: string } | null {
-  const attn = apiBench?.attn ?? fallback?.attn ?? null
-  const B = apiBench?.brand_effect ?? fallback?.B ?? null
-  const D = apiBench?.direct_effect ?? fallback?.D ?? null
-  const cpm = apiBench?.cpm ?? fallback?.cpm ?? null
+  const attn = apiBench?.attn ?? fallback?.attn.value ?? null
+  const B = apiBench?.brand_effect ?? fallback?.brand_effect.value ?? null
+  const D = apiBench?.direct_effect ?? fallback?.direct_effect.value ?? null
+  const cpm = apiBench?.cpm ?? fallback?.cpm.value ?? null
   if (attn == null || B == null || D == null || cpm == null) return null
   return {
     attn,
@@ -227,7 +227,7 @@ export function adaptAudienceToEngine(opts: {
     const resolved = resolveBench(
       engineId,
       row.bench ?? metaRow?.bench,
-      BENCHMARK_DEFAULTS[engineId]
+      PLANNING_CHANNEL_BENCH[engineId]
     )
     if (!resolved) {
       skippedEngineIds.push(engineId)
@@ -283,15 +283,15 @@ export function adaptAudienceToEngine(opts: {
   }
 
   // Search — benchmark-only constant (affinity 100 neutral). Own group for Stage C.
-  const searchDefaults = BENCHMARK_DEFAULTS[SEARCH_ENGINE_CHANNEL_ID]
+  const searchDefaults = PLANNING_CHANNEL_BENCH[SEARCH_ENGINE_CHANNEL_ID]
   if (searchDefaults) {
     const engine: AdaptedChannel = {
       id: SEARCH_ENGINE_CHANNEL_ID,
       name: searchDefaults.name,
-      attn: searchDefaults.attn,
-      B: searchDefaults.B,
-      D: searchDefaults.D,
-      cpm: searchDefaults.cpm,
+      attn: searchDefaults.attn.value,
+      B: searchDefaults.brand_effect.value,
+      D: searchDefaults.direct_effect.value,
+      cpm: searchDefaults.cpm.value,
       color: searchDefaults.color,
       aff: { [segmentId]: 100 },
       ageMod: 1,
