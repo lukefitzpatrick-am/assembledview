@@ -185,7 +185,7 @@ export default function CampaignDetailsModal({
                     <p className="mt-2 text-lg font-semibold text-foreground">{formatAUD(expectedSpend)}</p>
                   </article>
                   <article className="rounded-lg bg-muted/50 p-4">
-                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Actual spend to date</p>
+                    <p className="text-xs uppercase tracking-wide text-muted-foreground">Delivered spend to date</p>
                     <p className="mt-2 text-lg font-semibold text-foreground">
                       {campaign.actualSpend !== undefined ? formatAUD(actualSpend) : "Not available"}
                     </p>
