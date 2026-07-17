@@ -96,6 +96,8 @@ export type LineItemInput = {
   enteredAmount: number
   budgetIncludesFees: boolean
   clientPaysForMedia: boolean
+  /** When true, this line skips ad-serving cost (matches billing schedule `noAdserving`). */
+  noAdserving?: boolean
   /**
    * Resolved agency fee % for this media type.
    * Optional on input — `computeCampaignFinancials` fills from `FeeLoading` by mediaType when unset.

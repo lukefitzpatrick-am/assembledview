@@ -31,6 +31,7 @@ function normalizeLineForHash(line: LineItemInput) {
     enteredAmount: roundMoney2(line.enteredAmount),
     budgetIncludesFees: line.budgetIncludesFees,
     clientPaysForMedia: line.clientPaysForMedia,
+    noAdserving: line.noAdserving ?? false,
     feePct: line.feePct ?? null,
     deliverablesManual: line.deliverablesManual ?? null,
     approval: line.approval,

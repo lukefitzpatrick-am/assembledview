@@ -9558,7 +9558,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   if (loadPhase === "bootstrapping") {
     return (
       <div
-        className="w-full min-h-screen"
+        className="w-full min-h-0"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="mx-auto w-full max-w-[1920px] px-4 sm:px-5 md:px-6 xl:px-8 2xl:px-10 pt-0 pb-24 space-y-6">
@@ -9698,7 +9698,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   if (loadPhase === "error" || error) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex min-h-0 items-center justify-center py-16">
         <div className="text-center">
           <h2 className="text-2xl font-semibold mb-2">Error</h2>
           <p className="text-muted-foreground">{error}</p>
@@ -10615,12 +10615,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           setLineItemLoadItems((prev) => prev.filter((item) => item.status === "error"))
         }}
         onItemClick={(name) => {
-          // Find the matching mediaType by label and scroll to it
+          // Find the matching mediaType by label and scroll within #main only
           const match = mediaTypes.find((m) => m.label === name)
           if (match) {
             const el = document.getElementById(`media-section-${match.name}`)
-            if (el) {
-              el.scrollIntoView({ behavior: "smooth", block: "start" })
+            const scroller = document.getElementById("main")
+            if (el && scroller) {
+              const offset = 18
+              const nextTop =
+                scroller.scrollTop +
+                (el.getBoundingClientRect().top - scroller.getBoundingClientRect().top) -
+                offset
+              scroller.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" })
             }
           }
         }}
