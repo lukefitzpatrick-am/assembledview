@@ -2256,3 +2256,129 @@ export const MAGAZINES_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<MagazinesE
         dayKeysByWeekKey
       ),
   }
+
+export const INFLUENCERS_BUY_TYPE_OPTIONS: ComboboxOption[] = [
+  { value: "bonus", label: "Bonus" },
+  { value: "package_inclusions", label: "Package Inclusions" },
+  { value: "cpc", label: "CPC" },
+  { value: "cpm", label: "CPM" },
+  { value: "cpv", label: "CPV" },
+  { value: "fixed_cost", label: "Fixed Cost" },
+]
+
+export const INFLUENCERS_BID_STRATEGY_OPTIONS: ComboboxOption[] = [
+  { value: "manual_cpc", label: "Clicks" },
+  { value: "completed_views", label: "Video Views" },
+  { value: "conversion_value", label: "Conversion Value" },
+  { value: "landing_page_views", label: "Landing Page Views" },
+  { value: "leads", label: "Leads" },
+  { value: "maximize_conversions", label: "Maximize Conversions" },
+  { value: "reach", label: "Reach" },
+]
+
+export function createEmptyInfluencersExpertRow(
+  id: string,
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  weekKeys: string[]
+): InfluencersExpertScheduleRow {
+  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
+  const weeklyValues = {} as ExpertWeeklyValues
+  for (const k of weekKeys) {
+    weeklyValues[k] = ""
+  }
+  return {
+    id,
+    startDate: ymd(campaignStartDate),
+    endDate: ymd(campaignEndDate),
+    platform: "",
+    objective: "",
+    campaign: "",
+    bidStrategy: "",
+    buyType: "",
+    targetingAttribute: "",
+    creativeTargeting: "",
+    creative: "",
+    buyingDemo: "",
+    market: "",
+    fixedCostMedia: false,
+    clientPaysForMedia: false,
+    budgetIncludesFees: false,
+    unitRate: "",
+    grossCost: 0,
+    weeklyValues,
+    mergedWeekSpans: [],
+  }
+}
+
+export const INFLUENCERS_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<InfluencersExpertScheduleRow> =
+  {
+    mediaTypeKey: "influencers",
+    channelLabel: "Influencers",
+    publisherField: "platform",
+    billingFlagKeys: [
+      "fixedCostMedia",
+      "clientPaysForMedia",
+      "budgetIncludesFees"
+    ],
+    billingFlagLabels: [
+      "Fixed Cost Media",
+      "Client Pays for Media",
+      "Budget Includes Fees"
+    ],
+    billingFlagWidthsPx: [56, 56, 56],
+    descriptorCore: [
+      { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
+      { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
+      { key: "platform", label: "Platform", widthPx: 120, kind: "combobox-publishers" },
+      {
+      key: "bidStrategy",
+      label: "Bid Strategy",
+      widthPx: 110,
+      kind: "combobox-static",
+      options: INFLUENCERS_BID_STRATEGY_OPTIONS,
+      normalizePaste: (raw) =>
+        normalizeOptionPaste(raw, INFLUENCERS_BID_STRATEGY_OPTIONS),
+    },
+      {
+      key: "buyType",
+      label: "Buy Type",
+      widthPx: 96,
+      kind: "combobox-static",
+      options: INFLUENCERS_BUY_TYPE_OPTIONS,
+      normalizePaste: (raw) =>
+        normalizeOptionPaste(raw, INFLUENCERS_BUY_TYPE_OPTIONS),
+    },
+      { key: "targetingAttribute", label: "Targeting Attribute", widthPx: 120, kind: "text" },
+      { key: "creativeTargeting", label: "Creative Targeting", widthPx: 120, kind: "text" },
+      { key: "objective", label: "Objective", widthPx: 110, kind: "text" },
+      { key: "campaign", label: "Campaign", widthPx: 110, kind: "text" },
+    ],
+    descriptorTail: [
+      { key: "market", label: "Market", widthPx: 96, kind: "text" },
+      { key: "buyingDemo", label: "Buying Demo", widthPx: 110, kind: "text" },
+      {
+      key: "unitRate",
+      label: "Unit Rate",
+      widthPx: 88,
+      kind: "unit-rate",
+      headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
+    },
+    ],
+    trailingHeaderLabels: ["Net Media", "", "Σ qty"],
+    createEmptyRow: createEmptyInfluencersExpertRow,
+    deriveScheduleYmdFromRow: (
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    ) =>
+      deriveInfluencersExpertRowScheduleYmdFromRow(
+        row,
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        dayKeysByWeekKey
+      ),
+  }
