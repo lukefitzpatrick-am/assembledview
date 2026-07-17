@@ -14,6 +14,7 @@
     "test:utm": "tsx --test tests/learning/utm.test.ts",
     "test:weekly-gantt": "node --loader ts-node/esm tests/lib/weeklyGanttColumns.test.ts",
     "test:expert-mappings": "tsx --test tests/lib/expertChannelMappings.test.ts",
+    "test:expert-goldens": "tsx --test lib/mediaplan/__tests__/expertGridGoldenParity.test.ts",
     "test:expert-paste": "node --loader ts-node/esm tests/lib/expertGridPaste.test.ts",
     "test:spreadsheet": "tsx --test tests/lib/spreadsheetSelection.test.ts",
     "test:finance-forecast": "tsx --test tests/finance/buildFinanceForecastDataset.test.ts tests/finance/varianceEngine.test.ts",
