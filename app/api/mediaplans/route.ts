@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
 import { toMelbourneDateString } from "@/lib/timezone"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { findExistingMasterByMbaNumber } from "@/lib/api/mediaPlanMasterLookup"
 import { requireRole } from "@/lib/requireRole"
 import {
@@ -61,11 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create MediaPlanMaster
-    const masterResponse = await axios.post(
-      xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
-      mediaPlanMasterData,
-      { timeout: XANO_TIMEOUT_MS }
-    )
+    const masterResponse = await axios.post(xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), mediaPlanMasterData, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS })
     
     // Note: Version creation is handled separately by handleSaveMediaPlanVersion 
     // which includes all fields (brand, client_contact, po_number, mediatype flags, billing schedule)

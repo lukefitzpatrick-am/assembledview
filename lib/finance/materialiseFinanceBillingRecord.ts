@@ -1,5 +1,5 @@
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { composeInvoiceKey } from "@/lib/finance/overlayFinanceStatus"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 
@@ -86,7 +86,7 @@ export async function ensureFinanceBillingRecord(
       po_number: "",
       invoice_date: null,
       source_billing_schedule_id: 0,
-    })
+    }, { headers: xanoPostHeaderRecord() })
     const newId = Number(response.data?.id)
     if (Number.isFinite(newId) && newId > 0) return newId
     console.error("[finance-materialise] POST returned non-numeric id", { response: response.data })
@@ -110,7 +110,7 @@ export async function ensureFinanceBillingRecord(
 
 async function fetchByInvoiceKey(invoice_key: string): Promise<number | null> {
   const url = xanoUrl("finance_billing_records", "XANO_CLIENTS_BASE_URL")
-  const response = await axios.get(url)
+  const response = await axios.get(url, { headers: xanoAuthHeaderRecord() })
   const data = response.data
   const rows: Array<Record<string, unknown>> = Array.isArray(data)
     ? data

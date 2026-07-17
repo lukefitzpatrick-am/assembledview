@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { xanoUrl } from '@/lib/api/xano';
+import { xanoUrl, xanoPostHeaderRecord, xanoAuthHeaderRecord } from '@/lib/api/xano';
 
 export async function PUT(
   request: Request,
@@ -21,7 +21,7 @@ export async function PUT(
       {
       method: 'PUT',
       headers: {
-        'Content-Type': 'application/json',
+        ...xanoPostHeaderRecord(),
       },
       body: JSON.stringify(data),
       }
@@ -69,6 +69,9 @@ export async function DELETE(
       `${xanoUrl("television_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}/${id}`,
       {
       method: 'DELETE',
+      headers: {
+        ...xanoAuthHeaderRecord(),
+      },
       }
     );
 

@@ -1,6 +1,11 @@
 import axios from "axios"
 import { fetchAllXanoPagesWithCompleteness } from "@/lib/api/xanoPagination"
-import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
+import {
+  parseXanoListPayload,
+  xanoAuthHeaderRecord,
+  xanoPostHeaderRecord,
+  xanoUrl,
+} from "@/lib/api/xano"
 import { getCachedMediaPlanVersions } from "@/lib/api/mediaPlanVersionsCache"
 
 /**
@@ -168,8 +173,10 @@ export async function fetchMediaPlansListFallback(): Promise<any[]> {
   } catch (masterError) {
     console.log("Could not fetch masters for version number:", masterError)
     try {
+      // REVIEW: Server-only cache module (used from API routes); auth via choke point.
       const masterResponse = await axios.get(mediaPlansUrl("media_plan_master"), {
         timeout: XANO_TIMEOUT_MS,
+        headers: xanoAuthHeaderRecord(),
       })
       const masters = parseXanoListPayload(masterResponse.data)
       for (const master of masters) {
@@ -190,7 +197,7 @@ export async function fetchMediaPlansListFallback(): Promise<any[]> {
   const originalResponse = await axios.post(
     xanoUrl("get_mediaplan_topline", "XANO_MEDIAPLANS_BASE_URL"),
     { version_number: latestVersionId },
-    { timeout: XANO_LONG_TIMEOUT_MS }
+    { timeout: XANO_LONG_TIMEOUT_MS, headers: xanoPostHeaderRecord() }
   )
 
   const fallbackData = Array.isArray(originalResponse.data)

@@ -4,7 +4,7 @@
  */
 
 import axios from "axios"
-import { getXanoBaseUrl, parseXanoListPayload } from "@/lib/api/xano"
+import { getXanoBaseUrl, parseXanoListPayload, xanoAuthHeaderRecord } from "@/lib/api/xano"
 import type {
   BillingOverride,
   BillingOverrideReason,
@@ -111,6 +111,7 @@ export async function fetchBillingOverridesForVersion(
         page: 1,
         per_page: 200,
       },
+      headers: xanoAuthHeaderRecord(),
       timeout: XANO_TIMEOUT_MS,
       validateStatus: (s) => s >= 200 && s < 500,
     })

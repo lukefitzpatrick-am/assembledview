@@ -3,6 +3,7 @@
  * Endpoint paths can be overridden via env (see below).
  */
 
+import { xanoAuthHeaderRecord } from "@/lib/api/xano"
 import type {
   FinanceForecastSnapshotLineRecord,
   FinanceForecastSnapshotRecord,
@@ -33,11 +34,10 @@ export async function fetchFinanceForecastSnapshotListFromXano(): Promise<Financ
   const base = process.env.XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL?.replace(/\/$/, "")
   if (!base) return []
 
-  const apiKey = process.env.XANO_API_KEY
   const url = `${base}/${LIST_PATH}`
   const res = await fetch(url, {
     method: "GET",
-    headers: { Accept: "application/json", ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
+    headers: xanoAuthHeaderRecord(),
     cache: "no-store",
   })
   if (!res.ok) {
@@ -84,13 +84,12 @@ export async function fetchFinanceForecastSnapshotLinesFromXano(
   const base = process.env.XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL?.replace(/\/$/, "")
   if (!base) return []
 
-  const apiKey = process.env.XANO_API_KEY
   const q = new URLSearchParams()
   q.set("snapshot_id", snapshotId)
   const url = `${base}/${LINES_PATH}?${q.toString()}`
   const res = await fetch(url, {
     method: "GET",
-    headers: { Accept: "application/json", ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
+    headers: xanoAuthHeaderRecord(),
     cache: "no-store",
   })
   if (!res.ok) {

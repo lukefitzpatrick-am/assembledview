@@ -4,7 +4,7 @@ import axios from "axios"
 import { parseDateSafe as safeParseDate } from "@/lib/dates/parseDateSafe"
 import { parseDateOnlyString, toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
-import { getXanoBaseUrl, parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
+import { getXanoBaseUrl, parseXanoListPayload, xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { getCachedClients } from "@/lib/finance/xanoReferenceCache"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { roundMoney4 } from "@/lib/format/money"
@@ -759,13 +759,10 @@ export async function GET(
 
     const tMaster = Date.now()
     // When version is known up-front, fetch master + version row in parallel.
-    const masterPromise = axios.get(masterQueryUrl, { timeout: XANO_TIMEOUT_MS })
+    const masterPromise = axios.get(masterQueryUrl, { headers: xanoAuthHeaderRecord(), timeout: XANO_TIMEOUT_MS })
     const earlyVersionPromise =
       requestedVersionNumber != null && !Number.isNaN(requestedVersionNumber)
-        ? axios.get(
-            `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}&version_number=${requestedVersionNumber}&page=1&per_page=50`,
-            { timeout: XANO_LONG_TIMEOUT_MS }
-          )
+        ? axios.get(`${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}&version_number=${requestedVersionNumber}&page=1&per_page=50`, { headers: xanoAuthHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS })
         : null
 
     const masterResponse = await masterPromise
@@ -886,10 +883,7 @@ export async function GET(
       versionData = scopedVersionsForMBA[0] || null
     } else {
       const tVersionRow = Date.now()
-      const scopedVersionResponse = await axios.get(
-        `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}&version_number=${targetVersionNumber}&page=1&per_page=50`,
-        { timeout: XANO_LONG_TIMEOUT_MS }
-      )
+      const scopedVersionResponse = await axios.get(`${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}&version_number=${targetVersionNumber}&page=1&per_page=50`, { headers: xanoAuthHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS })
       mark("versionRow", tVersionRow)
       const scopedVersionsForMBA = parseXanoListPayload(scopedVersionResponse.data).filter(
         (v: any) => normalise(v?.mba_number) === requestedNormalized
@@ -914,10 +908,7 @@ export async function GET(
       const fallbackVersionNumber = parseVersion(masterData?.version_number) ?? latestVersionNumber
       if (fallbackVersionNumber && fallbackVersionNumber !== targetVersionNumber) {
         const tFallback = Date.now()
-        const fallbackVersionResponse = await axios.get(
-          `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}&version_number=${fallbackVersionNumber}&page=1&per_page=50`,
-          { timeout: XANO_LONG_TIMEOUT_MS }
-        )
+        const fallbackVersionResponse = await axios.get(`${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba_number)}&version_number=${fallbackVersionNumber}&page=1&per_page=50`, { headers: xanoAuthHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS })
         mark("versionRowFallback", tFallback)
         const fallbackVersionsForMBA = parseXanoListPayload(fallbackVersionResponse.data).filter(
           (v: any) => normalise(v?.mba_number) === requestedNormalized
@@ -1336,10 +1327,7 @@ export async function PUT(
     console.log("Update data:", data)
     
     // First, get the MediaPlanMaster by MBA number (require exact match)
-    const masterResponse = await axios.get(
-      `${mediaPlansBaseUrl}/media_plan_master?mba_number=${mba_number}`,
-      { timeout: XANO_TIMEOUT_MS }
-    )
+    const masterResponse = await axios.get(`${mediaPlansBaseUrl}/media_plan_master?mba_number=${mba_number}`, { headers: xanoAuthHeaderRecord(), timeout: XANO_TIMEOUT_MS })
     const requestedNormalized = normalise(mba_number)
     const masterData = Array.isArray(masterResponse.data)
       ? masterResponse.data.find((item: any) => normalise(item?.mba_number) === requestedNormalized) || null
@@ -1548,11 +1536,7 @@ export async function PUT(
       }
 
       try {
-        versionResponse = await axios.patch(
-          `${mediaPlansBaseUrl}/media_plan_versions/${overwriteTargetId}`,
-          overwriteData,
-          { timeout: XANO_LONG_TIMEOUT_MS },
-        )
+        versionResponse = await axios.patch(`${mediaPlansBaseUrl}/media_plan_versions/${overwriteTargetId}`, overwriteData, { headers: xanoPostHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS })
       } catch (versionPatchError) {
         console.error("[mba-put] failed to overwrite draft version", versionPatchError)
         return NextResponse.json(
@@ -1561,23 +1545,13 @@ export async function PUT(
         )
       }
 
-      masterUpdateResponse = await axios.patch(
-        `${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`,
-        overwriteMasterUpdateData,
-        { timeout: XANO_TIMEOUT_MS },
-      )
+      masterUpdateResponse = await axios.patch(`${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`, overwriteMasterUpdateData, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS })
       savedVersionNumber = overwriteTargetVersionNumber
     } else {
       // Create new version in media_plan_versions table
-      versionResponse = await axios.post(`${mediaPlansBaseUrl}/media_plan_versions`, newVersionData, {
-        timeout: XANO_LONG_TIMEOUT_MS,
-      })
+      versionResponse = await axios.post(`${mediaPlansBaseUrl}/media_plan_versions`, newVersionData, { headers: xanoPostHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS, })
 
-      masterUpdateResponse = await axios.patch(
-        `${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`,
-        masterUpdateData,
-        { timeout: XANO_TIMEOUT_MS }
-      )
+      masterUpdateResponse = await axios.patch(`${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`, masterUpdateData, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS })
     }
 
     console.log("New version created:", versionResponse.data)
@@ -1668,7 +1642,7 @@ export async function PATCH(
     const masterQueryUrl = `${mediaPlansBaseUrl}/media_plan_master?mba_number=${encodeURIComponent(mba_number)}`
     console.log(`[PATCH] Querying master with URL: ${masterQueryUrl}`)
     
-    const masterResponse = await axios.get(masterQueryUrl, { timeout: XANO_TIMEOUT_MS })
+    const masterResponse = await axios.get(masterQueryUrl, { headers: xanoAuthHeaderRecord(), timeout: XANO_TIMEOUT_MS })
 
     const requestedNormalized = normalise(mba_number)
 
@@ -1791,12 +1765,10 @@ export async function PATCH(
     
     // Update MediaPlanMaster using the id field in the URL path
     // This should update ONLY the record with the matching ID
-    const masterUpdateResponse = await axios.patch(patchUrl, masterUpdateData, {
-      headers: {
+    const masterUpdateResponse = await axios.patch(patchUrl, masterUpdateData, { headers: { ...xanoPostHeaderRecord(), 
         "Content-Type": "application/json",
       },
-      timeout: XANO_TIMEOUT_MS,
-    })
+      timeout: XANO_TIMEOUT_MS, })
     
     // Check if the update was successful
     if (masterUpdateResponse.status >= 200 && masterUpdateResponse.status < 300) {

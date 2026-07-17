@@ -1,6 +1,6 @@
 import axios from "axios"
 import type AvaTool from "./types"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import type { MediaContainerBestPractice } from "@/lib/types/publisher"
 import { summariseBestPractice } from "./summaries"
 import { asRecord, asString, jsonContent } from "./helpers"
@@ -31,6 +31,7 @@ export const getBestPracticeTool: AvaTool = {
     try {
       const response = await axios.get(
         xanoUrl("media_container_best_practice", "XANO_PUBLISHERS_BASE_URL"),
+        { headers: xanoAuthHeaderRecord() },
       )
       const raw = response.data
       const rows: MediaContainerBestPractice[] = Array.isArray(raw)

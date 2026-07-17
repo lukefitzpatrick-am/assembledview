@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeader, xanoUrl } from "@/lib/api/xano"
 import { checkMediaPlansProxyPath } from "@/lib/security/proxyAllowlist"
 
 export const dynamic = "force-dynamic"
@@ -31,7 +31,7 @@ async function proxy(request: Request, ctx: Ctx) {
     method: request.method,
     headers: {
       "Content-Type": request.headers.get("content-type") || "application/json",
-      ...(process.env.XANO_API_KEY ? { Authorization: `Bearer ${process.env.XANO_API_KEY}` } : {}),
+      ...xanoAuthHeader(),
     },
     body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.text(),
   }

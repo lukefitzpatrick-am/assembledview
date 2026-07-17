@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 const XANO_TIMEOUT_MS = Number(process.env.XANO_TIMEOUT_MS || 10_000)
 
 export async function GET(req: Request) {
@@ -14,13 +14,8 @@ export async function GET(req: Request) {
 
   try {
     // Fetch existing media plans with the same MBA Identifier
-    const response = await axios.get(
-      xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
-      {
-        params: { mbaidentifier },
-        timeout: XANO_TIMEOUT_MS,
-      }
-    )
+    const response = await axios.get(xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), { headers: xanoAuthHeaderRecord(), params: { mbaidentifier },
+        timeout: XANO_TIMEOUT_MS, })
 
     // Handle both array and object responses from Xano
     const existingPlans = Array.isArray(response.data) 

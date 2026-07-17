@@ -1,6 +1,6 @@
 import axios from "axios"
 import { campaignOverlapsMonth } from "@/lib/finance/utils"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 
 export type RelevantVersionsResult = {
@@ -52,7 +52,8 @@ export async function fetchRelevantPlanVersionsForFinanceMonth(
   const promise = (async (): Promise<RelevantVersionsResult> => {
     try {
       const mastersResponse = await axios.get(
-        xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
+        xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
+        { headers: xanoAuthHeaderRecord() },
       )
       const masters = Array.isArray(mastersResponse.data) ? mastersResponse.data : []
 

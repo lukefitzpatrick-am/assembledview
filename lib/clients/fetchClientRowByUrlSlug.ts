@@ -1,12 +1,12 @@
 import axios from 'axios'
-import { parseXanoListPayload } from '@/lib/api/xano'
+import { parseXanoListPayload, xanoPostHeaderRecord } from '@/lib/api/xano'
 import { getXanoClientsCollectionUrl } from '@/lib/api/xanoClients'
 import { omitClientBrain } from '@/lib/clients/omitClientBrain'
 import { dashboardSlugKeyFromSegment, findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
 
 const apiClient = axios.create({
   timeout: Number(process.env.XANO_TIMEOUT_MS ?? 10000),
-  headers: { 'Content-Type': 'application/json' },
+  headers: xanoPostHeaderRecord(),
 })
 
 function xanoResponseBodyPreview(data: unknown): string {

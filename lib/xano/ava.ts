@@ -1,15 +1,11 @@
 import "server-only"
 
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 
-const XANO_API_KEY = process.env.XANO_API_KEY || ""
 const MEDIA_PLANS_BASE_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
 
 function getAuthHeaders() {
-  return {
-    "Content-Type": "application/json",
-    ...(XANO_API_KEY ? { Authorization: `Bearer ${XANO_API_KEY}` } : {}),
-  }
+  return xanoPostHeaderRecord()
 }
 
 function safeString(value: unknown): string | null {

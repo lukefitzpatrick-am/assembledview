@@ -1,5 +1,10 @@
 import axios from "axios"
-import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
+import {
+  parseXanoListPayload,
+  xanoAuthHeaderRecord,
+  xanoPostHeaderRecord,
+  xanoUrl,
+} from "@/lib/api/xano"
 
 const XANO_FINANCE_TIMEOUT_MS = 15_000
 
@@ -11,6 +16,7 @@ export const FINANCE_SAVED_VIEWS_PATH = "finance_saved_views"
 export async function xanoFinanceGet(path: string, params?: Record<string, unknown>) {
   const response = await axios.get(xanoUrl(path, "XANO_CLIENTS_BASE_URL"), {
     params,
+    headers: xanoAuthHeaderRecord(),
     timeout: XANO_FINANCE_TIMEOUT_MS,
   })
   return response.data
@@ -18,6 +24,7 @@ export async function xanoFinanceGet(path: string, params?: Record<string, unkno
 
 export async function xanoFinancePost(path: string, body: Record<string, unknown>) {
   const response = await axios.post(xanoUrl(path, "XANO_CLIENTS_BASE_URL"), body, {
+    headers: xanoPostHeaderRecord(),
     timeout: XANO_FINANCE_TIMEOUT_MS,
   })
   return response.data
@@ -25,6 +32,7 @@ export async function xanoFinancePost(path: string, body: Record<string, unknown
 
 export async function xanoFinancePatch(path: string, body: Record<string, unknown>) {
   const response = await axios.patch(xanoUrl(path, "XANO_CLIENTS_BASE_URL"), body, {
+    headers: xanoPostHeaderRecord(),
     timeout: XANO_FINANCE_TIMEOUT_MS,
   })
   return response.data
@@ -32,6 +40,7 @@ export async function xanoFinancePatch(path: string, body: Record<string, unknow
 
 export async function xanoFinanceDelete(path: string) {
   await axios.delete(xanoUrl(path, "XANO_CLIENTS_BASE_URL"), {
+    headers: xanoAuthHeaderRecord(),
     timeout: XANO_FINANCE_TIMEOUT_MS,
   })
 }

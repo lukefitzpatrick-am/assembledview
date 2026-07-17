@@ -1,7 +1,7 @@
 import "server-only"
 
 import axios, { AxiosError } from "axios"
-import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
+import { parseXanoListPayload, requireXanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import type {
   PlanningAudienceRow,
   PlanningAudienceWritable,
@@ -23,14 +23,13 @@ export class XanoPlanningAudienceError extends Error {
 }
 
 function authHeaders(): Record<string, string> {
-  const apiKey = process.env.XANO_API_KEY
-  if (!apiKey) {
+  try {
+    return {
+      ...requireXanoAuthHeaderRecord(),
+      "Content-Type": "application/json",
+    }
+  } catch {
     throw new XanoPlanningAudienceError("Missing XANO_API_KEY", 500)
-  }
-  return {
-    Accept: "application/json",
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${apiKey}`,
   }
 }
 

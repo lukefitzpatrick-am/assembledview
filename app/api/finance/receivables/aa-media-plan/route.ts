@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { xanoAuthHeader } from "@/lib/api/xano"
 import { parseSingleBillingMonthParam } from "@/lib/finance/billingApiParams"
 import { resolveRelevantVersionAaMediaPlan } from "@/lib/finance/resolveRelevantVersionAaMediaPlan"
 import { requireFinanceAdmin } from "@/lib/requireRole"
@@ -32,12 +33,11 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const apiKey = process.env.XANO_API_KEY
   let upstream: Response
   try {
     upstream = await fetch(resolved.upstreamUrl, {
       headers: {
-        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+        ...xanoAuthHeader(),
       },
     })
   } catch (e) {

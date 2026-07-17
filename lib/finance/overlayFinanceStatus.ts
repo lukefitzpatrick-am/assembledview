@@ -1,5 +1,5 @@
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 
 /**
@@ -73,7 +73,7 @@ export async function fetchPersistedFinanceStatusForMonth(
   if (!billingMonth) return []
   try {
     const url = xanoUrl("finance_billing_records", "XANO_CLIENTS_BASE_URL")
-    const response = await axios.get(url)
+    const response = await axios.get(url, { headers: xanoAuthHeaderRecord() })
     const data = response.data
     const rows: PersistedFinanceStatusRow[] = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
     return rows.filter((r) => r.billing_month === billingMonth)

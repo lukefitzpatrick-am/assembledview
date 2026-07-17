@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 const API_TIMEOUT = 10000; // 10 seconds timeout
 
 // Create an axios instance with default config
 const apiClient = axios.create({
   timeout: API_TIMEOUT,
   headers: {
-    'Content-Type': 'application/json',
+    ...xanoPostHeaderRecord(),
   }
 });
 

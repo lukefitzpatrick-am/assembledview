@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -14,13 +14,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const response = await axios.get(
-      `${xanoUrl("download_mediaplan", "XANO_MEDIAPLANS_BASE_URL")}/${id}`,
-      {
-        responseType: "arraybuffer",
-        timeout: XANO_LONG_TIMEOUT_MS,
-      }
-    )
+    const response = await axios.get(`${xanoUrl("download_mediaplan", "XANO_MEDIAPLANS_BASE_URL")}/${id}`, { headers: xanoAuthHeaderRecord(), responseType: "arraybuffer",
+        timeout: XANO_LONG_TIMEOUT_MS, })
     
     // Set the appropriate headers for PDF download
     const headers = new Headers()

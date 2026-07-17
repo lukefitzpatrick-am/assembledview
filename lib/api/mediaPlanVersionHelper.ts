@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { parseXanoListPayload, xanoUrl } from '@/lib/api/xano';
+import { parseXanoListPayload, xanoAuthHeaderRecord, xanoUrl } from '@/lib/api/xano';
 import { sortLineItemsByLineItemNumber } from '@/lib/mediaplan/lineItemIds';
 
 /**
@@ -27,8 +27,10 @@ export async function getVersionNumberForMBA(
   // Need to fetch the latest version_number from media_plan_versions table
   try {
     // First get the master data to find the latest version number
+    // REVIEW: Called from API/media-plan routes; keep server-side (no browser XANO_API_KEY).
     const masterResponse = await axios.get(
-      `${xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${encodeURIComponent(mbaNumber)}`
+      `${xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${encodeURIComponent(mbaNumber)}`,
+      { headers: xanoAuthHeaderRecord() }
     );
     let masterData: any = null;
     
@@ -50,7 +52,8 @@ export async function getVersionNumberForMBA(
     
     // Get the specific version data (paged endpoint — pass page/per_page, unwrap items)
     const versionResponse = await axios.get(
-      `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}&page=1&per_page=50`
+      `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}&page=1&per_page=50`,
+      { headers: xanoAuthHeaderRecord() }
     );
     
     const versionRows = parseXanoListPayload(versionResponse.data)

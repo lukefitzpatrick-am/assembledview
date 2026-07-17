@@ -1,5 +1,6 @@
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
+// REVIEW: Prefer importing only from server modules / route handlers (no browser bundle).
 import { getCachedClients } from "@/lib/cache/clientsCache"
 
 /**
@@ -43,7 +44,9 @@ export async function fetchPacingClientCatalogRows(): Promise<Record<string, unk
   const cached = getCachedClients()
   if (cached?.length) return cached as Record<string, unknown>[]
   try {
-    const response = await axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL"))
+    const response = await axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL"), {
+      headers: xanoAuthHeaderRecord(),
+    })
     const data = response.data
     if (Array.isArray(data)) return data as Record<string, unknown>[]
     if (data && typeof data === "object" && Array.isArray((data as { data?: unknown }).data)) {

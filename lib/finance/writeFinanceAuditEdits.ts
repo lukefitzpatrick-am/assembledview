@@ -1,5 +1,5 @@
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import type { ScheduleDiffChange } from "@/lib/finance/scheduleDiff"
 
 /**
@@ -33,7 +33,7 @@ export type AuditEditPayload = {
 async function postOne(payload: AuditEditPayload): Promise<boolean> {
   try {
     const url = xanoUrl("finance_edits", "XANO_CLIENTS_BASE_URL")
-    await axios.post(url, payload)
+    await axios.post(url, payload, { headers: xanoPostHeaderRecord() })
     return true
   } catch (error) {
     console.error("[finance-audit] POST finance_edits failed", {

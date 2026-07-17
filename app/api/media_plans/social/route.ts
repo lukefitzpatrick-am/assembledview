@@ -3,7 +3,7 @@ import axios from "axios";
 import { fetchAllXanoPages } from '@/lib/api/xanoPagination';
 import { lineItemPaginationParams } from '@/lib/api/mediaPlanLineItemQuery';
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper';
-import { parseXanoListPayload, xanoUrl } from '@/lib/api/xano';
+import { parseXanoListPayload, xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from '@/lib/api/xano';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        ...xanoPostHeaderRecord(),
       },
       body: JSON.stringify(socialMediaData),
       }
@@ -129,9 +129,7 @@ export async function GET(request: Request) {
       // Need to fetch the latest version_number from media_plan_versions table
       try {
         // First get the master data to find the latest version number
-        const masterResponse = await axios.get(
-          `${xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${encodeURIComponent(mbaNumber)}`
-        );
+        const masterResponse = await axios.get(`${xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${encodeURIComponent(mbaNumber)}`, { headers: xanoAuthHeaderRecord() });
         let masterData: any = null;
         
         if (Array.isArray(masterResponse.data)) {
@@ -142,9 +140,7 @@ export async function GET(request: Request) {
         
         if (masterData && masterData.version_number) {
           // Get the specific version data
-          const versionResponse = await axios.get(
-            `${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}&page=1&per_page=50`
-          );
+          const versionResponse = await axios.get(`${xanoUrl("media_plan_versions", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?media_plan_master_id=${masterData.id}&version_number=${masterData.version_number}&page=1&per_page=50`, { headers: xanoAuthHeaderRecord() });
           
           const versionRows = parseXanoListPayload(versionResponse.data);
           const versionData =

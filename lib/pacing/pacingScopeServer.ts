@@ -5,7 +5,7 @@ import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slu
 import { getCachedClients } from "@/lib/cache/clientsCache"
 import { getUserClientSlugs, getUserRoles } from "@/lib/rbac"
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 
 /**
  * Numeric Xano client ids the user may see, or `null` = unrestricted (admin / no slug claims).
@@ -34,7 +34,9 @@ async function loadClientsRows(): Promise<Record<string, unknown>[]> {
   const cached = getCachedClients()
   if (cached?.length) return cached as Record<string, unknown>[]
   try {
-    const response = await axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL"))
+    const response = await axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL"), {
+      headers: xanoAuthHeaderRecord(),
+    })
     const data = response.data
     if (Array.isArray(data)) return data as Record<string, unknown>[]
     if (data && typeof data === "object" && Array.isArray((data as { data?: unknown }).data)) {

@@ -4,7 +4,7 @@ import axios from "axios"
 import type { NextRequest, NextResponse } from "next/server"
 import type { User } from "@auth0/nextjs-auth0/types"
 import { auth0 } from "@/lib/auth0"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
 import { getCachedClients } from "@/lib/cache/clientsCache"
 import { getUserClientSlugs, getUserRoles } from "@/lib/rbac"
@@ -63,7 +63,9 @@ async function loadClientsRows(): Promise<Record<string, unknown>[]> {
   if (cached?.length) return cached as Record<string, unknown>[]
 
   try {
-    const response = await axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL"))
+    const response = await axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL"), {
+      headers: xanoAuthHeaderRecord(),
+    })
     const data = response.data
     if (Array.isArray(data)) return data as Record<string, unknown>[]
     if (data && typeof data === "object" && Array.isArray((data as { data?: unknown }).data)) {

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
 import { getVersionNumberForMBA, filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper';
-import { xanoUrl } from "@/lib/api/xano";
+import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -56,15 +56,10 @@ export async function GET(request: Request) {
     console.log(`[CINEMA] Strategy: Filtered at Xano via mba_number + version_number (with JS safety filter for legacy data)`);
     console.log(`[CINEMA] API URL: ${url}`);
     
-    const headers = {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json'
-    };
+    const headers = { ...xanoPostHeaderRecord() };
     
-    const response = await axios.get(url, { 
-      headers,
-      timeout: 10000 
-    });
+    const response = await axios.get(url, { headers: { ...xanoAuthHeaderRecord(), ...headers },
+      timeout: 10000 });
     
     console.log(`[CINEMA] API response status: ${response.status}`);
     console.log(`[CINEMA] Raw response data count:`, Array.isArray(response.data) ? response.data.length : 'not an array');
@@ -91,15 +86,9 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
     
-    const response = await axios.post(
-      `${xanoUrl("cinema_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}`,
-      data,
-      {
-        headers: {
+    const response = await axios.post(`${xanoUrl("cinema_line_items", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}`, data, { headers: { ...xanoPostHeaderRecord(), 
           'Content-Type': 'application/json',
-        },
-      }
-    );
+        }, });
     
     return NextResponse.json(response.data);
   } catch (error) {

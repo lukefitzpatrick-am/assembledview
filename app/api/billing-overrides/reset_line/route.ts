@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
-import { getXanoBaseUrl } from "@/lib/api/xano"
+import { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 
 export const dynamic = "force-dynamic"
@@ -48,16 +48,12 @@ export async function POST(request: NextRequest) {
     const baseUrl = getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
 
     // Prefer DELETE; fall back to POST if upstream only exposes POST.
-    let response = await axios.delete(`${baseUrl}/billing_overrides/reset_line`, {
-      data: payload,
+    let response = await axios.delete(`${baseUrl}/billing_overrides/reset_line`, { headers: xanoAuthHeaderRecord(), data: payload,
       timeout: XANO_TIMEOUT_MS,
-      validateStatus: (s) => s >= 200 && s < 500,
-    })
+      validateStatus: (s) => s >= 200 && s < 500, })
     if (response.status === 404 || response.status === 405) {
-      response = await axios.post(`${baseUrl}/billing_overrides/reset_line`, payload, {
-        timeout: XANO_TIMEOUT_MS,
-        validateStatus: (s) => s >= 200 && s < 500,
-      })
+      response = await axios.post(`${baseUrl}/billing_overrides/reset_line`, payload, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS,
+        validateStatus: (s) => s >= 200 && s < 500, })
     }
 
     if (response.status >= 400) {

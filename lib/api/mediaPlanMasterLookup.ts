@@ -1,5 +1,5 @@
 import axios from "axios"
-import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
+import { parseXanoListPayload, xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 
 function rowsFromMasterResponse(data: unknown): any[] {
   if (Array.isArray(data)) return data
@@ -21,7 +21,8 @@ export async function findExistingMasterByMbaNumber(
   const norm = trimmed.toLowerCase()
   const base = xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
   const url = `${base}?mba_number=${encodeURIComponent(trimmed)}`
-  const res = await axios.get(url)
+  const res = await axios.get(url, { headers: xanoAuthHeaderRecord() })
+  // REVIEW: confirm all callers of findExistingMasterByMbaNumber are server-only (route handlers / server modules).
   const rows = rowsFromMasterResponse(res.data)
   const match = rows.find(
     (item: { mba_number?: unknown; id?: unknown }) =>

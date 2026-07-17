@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { getVersionNumberForMBA, filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper';
-import { xanoUrl } from '@/lib/api/xano';
+import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from '@/lib/api/xano';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        ...xanoPostHeaderRecord(),
       },
       body: JSON.stringify(newspaperData),
       }
@@ -151,13 +151,11 @@ export async function GET(request: Request) {
     console.log(`[NEWSPAPER] Strategy: Filtered at Xano via mba_number + version_number (with JS safety filter for legacy data)`);
     console.log(`[NEWSPAPER] API URL: ${url}`);
     
-    const response = await axios.get(url, {
-      headers: {
+    const response = await axios.get(url, { headers: { ...xanoAuthHeaderRecord(), 
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      timeout: 10000
-    });
+      timeout: 10000 });
     
     console.log(`[NEWSPAPER] API response status: ${response.status}`);
     console.log(`[NEWSPAPER] Raw response data count:`, Array.isArray(response.data) ? response.data.length : 'not an array');

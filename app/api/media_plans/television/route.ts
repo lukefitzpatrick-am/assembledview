@@ -3,7 +3,7 @@ import axios from 'axios';
 import { getVersionNumberForMBA, filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper';
 import { fetchAllXanoPages } from '@/lib/api/xanoPagination';
 import { lineItemPaginationParams } from '@/lib/api/mediaPlanLineItemQuery';
-import { xanoUrl } from '@/lib/api/xano';
+import { xanoUrl, xanoPostHeaderRecord } from '@/lib/api/xano';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
+        ...xanoPostHeaderRecord(),
       },
       body: JSON.stringify(televisionData),
       }

@@ -9,7 +9,7 @@ import type {
   FinanceForecastPublisherInput,
   FinanceForecastScenario,
 } from "@/lib/types/financeForecast"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { stabilizeFinanceForecastDataset } from "./stabilizeFinanceForecastDataset"
 import { redactForecastRowDebug } from "./redactForecastDebug"
@@ -128,8 +128,12 @@ async function fetchFinanceForecastRawFromXanoUncached(): Promise<{
     fetchAllXanoPages(versionsUrl, {}, "FINANCE_forecast_media_plan_versions", 100, 50).catch(
       () => [] as any[]
     ),
-    axios.get(clientsUrl, { timeout: 15_000 }).catch(() => ({ data: [] })),
-    axios.get(publishersUrl, { timeout: 15_000 }).catch(() => ({ data: [] })),
+    axios
+      .get(clientsUrl, { timeout: 15_000, headers: xanoAuthHeaderRecord() })
+      .catch(() => ({ data: [] })),
+    axios
+      .get(publishersUrl, { timeout: 15_000, headers: xanoAuthHeaderRecord() })
+      .catch(() => ({ data: [] })),
   ])
 
   const clients = unwrapArray(clientsRes.data) as FinanceForecastClientInput[]

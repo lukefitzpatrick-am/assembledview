@@ -1,10 +1,10 @@
 import axios from "axios"
-import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
+import { parseXanoListPayload, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import type { PublisherKpi, PublisherKpiInput } from "./types"
 
 const apiClient = axios.create({
   timeout: 10000,
-  headers: { "Content-Type": "application/json" },
+  headers: xanoPostHeaderRecord(),
 })
 
 /** Unfiltered list — used when loading KPIs for the full media plan. */

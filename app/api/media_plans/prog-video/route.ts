@@ -3,7 +3,7 @@ import axios from "axios"
 import { getVersionNumberForMBA, filterLineItemsByPlanNumber } from "@/lib/api/mediaPlanVersionHelper"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { lineItemPaginationParams } from "@/lib/api/mediaPlanLineItemQuery"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -80,15 +80,9 @@ export async function POST(request: Request) {
   try {
     const data = await request.json()
 
-    const response = await axios.post(
-      xanoUrl("media_plan_prog_video", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
-      data,
-      {
-        headers: {
+    const response = await axios.post(xanoUrl("media_plan_prog_video", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), data, { headers: { ...xanoPostHeaderRecord(), 
           "Content-Type": "application/json",
-        },
-      }
-    )
+        }, })
 
     return NextResponse.json(response.data)
   } catch (error: any) {

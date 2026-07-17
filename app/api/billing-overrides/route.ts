@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
-import { getXanoBaseUrl, parseXanoListPayload } from "@/lib/api/xano"
+import { getXanoBaseUrl, parseXanoListPayload, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 
 export const dynamic = "force-dynamic"
@@ -28,15 +28,13 @@ export async function GET(request: NextRequest) {
     }
 
     const baseUrl = getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
-    const response = await axios.get(`${baseUrl}/billing_overrides`, {
-      params: {
+    const response = await axios.get(`${baseUrl}/billing_overrides`, { headers: xanoAuthHeaderRecord(), params: {
         media_plan_version_id: versionId,
         page: 1,
         per_page: 500,
       },
       timeout: XANO_TIMEOUT_MS,
-      validateStatus: (s) => s >= 200 && s < 500,
-    })
+      validateStatus: (s) => s >= 200 && s < 500, })
 
     if (response.status === 404) {
       return NextResponse.json({ overrides: [] })

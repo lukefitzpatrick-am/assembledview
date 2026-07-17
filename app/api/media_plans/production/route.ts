@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import axios from "axios";
 import { getVersionNumberForMBA, filterLineItemsByPlanNumber } from "@/lib/api/mediaPlanVersionHelper";
-import { xanoUrl } from "@/lib/api/xano";
+import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -51,16 +51,13 @@ export async function GET(request: Request) {
     }
 
     const url = `${xanoUrl("media_plan_production", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?${params.toString()}`;
-    const headers = {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    };
+    const headers = { ...xanoPostHeaderRecord() };
 
     console.log(`[PRODUCTION] Fetching from media_plan_production table`);
     console.log(`[PRODUCTION] Strategy: MBA-wide at Xano (version_number sent for forward-compat; JS filter + MBA fallback)`);
     console.log(`[PRODUCTION] API URL: ${url}`);
 
-    const response = await axios.get(url, { headers, timeout: 10000 });
+    const response = await axios.get(url, { headers: { ...xanoAuthHeaderRecord(), ...headers }, timeout: 10000 });
     const data = Array.isArray(response.data) ? response.data : [];
 
     console.log(`[PRODUCTION] Raw response data count:`, data.length);
@@ -86,15 +83,9 @@ export async function POST(request: Request) {
   try {
     const data = await request.json();
 
-    const response = await axios.post(
-      xanoUrl("media_plan_production", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
-      data,
-      {
-      headers: {
+    const response = await axios.post(xanoUrl("media_plan_production", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), data, { headers: { ...xanoPostHeaderRecord(), 
         "Content-Type": "application/json",
-      },
-      }
-    );
+      }, });
 
     return NextResponse.json(response.data);
   } catch (error) {
