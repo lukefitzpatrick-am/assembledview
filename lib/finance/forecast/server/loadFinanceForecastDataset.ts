@@ -173,7 +173,9 @@ function filterVersionsByTenant(
   versions: FinanceForecastMediaPlanVersionInput[],
   allowed: Set<string> | null
 ): FinanceForecastMediaPlanVersionInput[] {
-  if (!allowed || allowed.size === 0) return versions
+  // AuthZ: null = admin unrestricted; empty Set = fail closed (no rows), not book-wide.
+  if (allowed === null) return versions
+  if (allowed.size === 0) return []
   return versions.filter((v) => allowed.has(versionClientSlug(v)))
 }
 
@@ -181,7 +183,9 @@ function filterClientsByTenant(
   clients: FinanceForecastClientInput[],
   allowed: Set<string> | null
 ): FinanceForecastClientInput[] {
-  if (!allowed || allowed.size === 0) return clients
+  // AuthZ: null = admin unrestricted; empty Set = fail closed (no rows), not book-wide.
+  if (allowed === null) return clients
+  if (allowed.size === 0) return []
   return clients.filter((c) => {
     const slug = clientRowSlug(c)
     return allowed.has(slug)

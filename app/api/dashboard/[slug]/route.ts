@@ -16,9 +16,12 @@ export async function GET(
     }
     const roles = getUserRoles(session.user)
     const tenantSlugs = getUserClientSlugs(session.user)
-    const unscoped = roles.includes('admin') || tenantSlugs.length === 0
-    // Claims are already lowercased by getUserClientSlugs; normalise the URL param too.
+    // AuthZ: unrestricted dashboard access is admin-only; non-admin with no slug scope fails closed (403).
+    const unscoped = roles.includes('admin')
     const slugKey = slug.toLowerCase()
+    if (!unscoped && tenantSlugs.length === 0) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+    }
     if (!unscoped && !tenantSlugs.some((s) => s.toLowerCase() === slugKey)) {
       console.warn(`[dashboard] tenant mismatch: caller scoped to [${tenantSlugs.join(',')}] requested slug "${slug}"`)
       return NextResponse.json({ error: 'forbidden' }, { status: 403 })
