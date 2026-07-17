@@ -113,12 +113,23 @@ export function PlanWizardShell({
     if (typeof window === "undefined") return
 
     window.setTimeout(() => {
-      document.getElementById(targetId)?.scrollIntoView({ behavior: "smooth", block: "start" })
+      const target = document.getElementById(targetId)
+      const scroller = document.getElementById("main")
+      if (!target || !scroller) return
+
+      // Scroll only the app shell <main> — never the window — so the 48px top-bar stays put.
+      const offset = 18
+      const nextTop =
+        scroller.scrollTop + (target.getBoundingClientRect().top - scroller.getBoundingClientRect().top) - offset
+      scroller.scrollTo({ top: Math.max(0, nextTop), behavior: "smooth" })
     }, 0)
   }, [])
 
   useEffect(() => {
     if (typeof IntersectionObserver === "undefined") return
+
+    const scrollRoot = document.getElementById("main")
+    if (!scrollRoot) return
 
     const stepElements = steps
       .map((step) => document.getElementById(step.id))
@@ -160,7 +171,7 @@ export function PlanWizardShell({
         }
       },
       {
-        root: null,
+        root: scrollRoot,
         rootMargin: "-18px 0px -62% 0px",
         threshold: [0.2, 0.45, 0.7],
       }
@@ -171,7 +182,7 @@ export function PlanWizardShell({
   }, [steps, railSubItems, activeStepProp])
 
   return (
-    <div className="w-full min-h-screen overflow-visible pb-[env(safe-area-inset-bottom)]">
+    <div className="w-full min-h-0 overflow-visible pb-[env(safe-area-inset-bottom)]">
       <div className="mx-auto w-full max-w-[1920px] space-y-6 overflow-visible px-4 pb-24 pt-0 sm:px-5 md:px-6 xl:px-8 2xl:px-10">
         <MediaPlanEditorHero
           className="mb-2"
@@ -181,7 +192,7 @@ export function PlanWizardShell({
         />
 
         <div className="grid w-full grid-cols-1 items-start gap-5 overflow-visible xl:grid-cols-[220px_minmax(0,1fr)] xl:gap-6">
-          <aside className="scrollbar-thin flex flex-col gap-4 xl:sticky xl:top-4 xl:z-10 xl:max-h-[calc(100svh-5rem)] xl:self-start xl:overflow-y-auto xl:overscroll-contain">
+          <aside className="scrollbar-thin flex flex-col gap-4 xl:sticky xl:top-4 xl:z-10 xl:max-h-[calc(100dvh-5rem)] xl:self-start xl:overflow-y-auto xl:overscroll-contain">
             <nav
               className="rounded-frame border border-border bg-card p-2.5 shadow-e1"
               aria-label="Campaign wizard progress"

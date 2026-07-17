@@ -51,10 +51,21 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
               {isShellVisible && <AppSidebar />}
               <SidebarInset
                 className={cn(
-                  "flex-1 min-w-0 flex flex-col overflow-visible bg-surface-muted",
-                  alignShellWithPlanContent && "min-h-0",
-                  isShellVisible && "md:m-2 md:min-h-[calc(100svh-theme(spacing.4))] md:rounded-frame md:shadow-frame",
-                  alignShellWithPlanContent && isShellVisible && "md:h-[calc(100svh-theme(spacing.4))] md:max-h-[calc(100svh-theme(spacing.4))]",
+                  "flex-1 min-w-0 flex flex-col bg-surface-muted",
+                  // Plan create/edit: hard-frame the inset so only <main> scrolls and the 48px top-bar stays put.
+                  // Use dvh consistently with the outer h-dvh lock (no svh in this chain).
+                  alignShellWithPlanContent
+                    ? cn(
+                        // Override SidebarInset's min-h-svh / peer inset min-h-[100svh-…] so the hard frame wins.
+                        "min-h-0 max-h-full h-full overflow-hidden peer-data-[variant=inset]:min-h-0",
+                        isShellVisible &&
+                          "md:m-2 md:h-[calc(100dvh-theme(spacing.4))] md:max-h-[calc(100dvh-theme(spacing.4))] md:rounded-frame md:shadow-frame",
+                      )
+                    : cn(
+                        "overflow-visible",
+                        isShellVisible &&
+                          "md:m-2 md:min-h-[calc(100svh-theme(spacing.4))] md:rounded-frame md:shadow-frame",
+                      ),
                 )}
               >
                 {isShellVisible && (
