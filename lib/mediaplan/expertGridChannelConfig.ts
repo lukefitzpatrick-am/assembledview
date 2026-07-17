@@ -1940,3 +1940,108 @@ export const RADIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<RadioExpertSch
         dayKeysByWeekKey
       ),
   }
+
+export const CINEMA_BUY_TYPE_OPTIONS: ComboboxOption[] = [
+  { value: "bonus", label: "Bonus" },
+  { value: "package_inclusions", label: "Package Inclusions" },
+  { value: "cpm", label: "CPM" },
+  { value: "fixed_cost", label: "Fixed Cost" },
+  { value: "package", label: "Package" },
+  { value: "spots", label: "Spots" },
+]
+
+export function createEmptyCinemaExpertRow(
+  id: string,
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  weekKeys: string[]
+): CinemaExpertScheduleRow {
+  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
+  const weeklyValues = {} as ExpertWeeklyValues
+  for (const k of weekKeys) {
+    weeklyValues[k] = ""
+  }
+  return {
+    id,
+    startDate: ymd(campaignStartDate),
+    endDate: ymd(campaignEndDate),
+    network: "",
+    station: "",
+    market: "",
+    placement: "",
+    duration: "",
+    format: "",
+    buyingDemo: "",
+    buyType: "",
+    fixedCostMedia: false,
+    clientPaysForMedia: false,
+    budgetIncludesFees: false,
+    unitRate: "",
+    grossCost: 0,
+    weeklyValues,
+    mergedWeekSpans: [],
+  }
+}
+
+export const CINEMA_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<CinemaExpertScheduleRow> =
+  {
+    mediaTypeKey: "cinema",
+    channelLabel: "Cinema",
+    publisherField: "network",
+    billingFlagKeys: [
+      "fixedCostMedia",
+      "clientPaysForMedia",
+      "budgetIncludesFees"
+    ],
+    billingFlagLabels: [
+      "Fixed Cost Media",
+      "Client Pays for Media",
+      "Budget Includes Fees"
+    ],
+    billingFlagWidthsPx: [56, 56, 56],
+    descriptorCore: [
+      { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
+      { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
+      { key: "network", label: "Network", widthPx: 130, kind: "combobox-publishers" },
+      { key: "station", label: "Station", widthPx: 110, kind: "combobox-stations" },
+      {
+      key: "buyType",
+      label: "Buy Type",
+      widthPx: 96,
+      kind: "combobox-static",
+      options: CINEMA_BUY_TYPE_OPTIONS,
+      normalizePaste: (raw) =>
+        normalizeOptionPaste(raw, CINEMA_BUY_TYPE_OPTIONS),
+    },
+      { key: "placement", label: "Placement", widthPx: 110, kind: "text" },
+      { key: "duration", label: "Duration", widthPx: 80, kind: "text" },
+      { key: "format", label: "Format", widthPx: 96, kind: "text" },
+    ],
+    descriptorTail: [
+      { key: "market", label: "Market", widthPx: 96, kind: "text" },
+      { key: "buyingDemo", label: "Buying Demo", widthPx: 110, kind: "text" },
+      {
+      key: "unitRate",
+      label: "Unit Rate",
+      widthPx: 88,
+      kind: "unit-rate",
+      headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
+    },
+    ],
+    trailingHeaderLabels: ["Net Media", "", "Σ qty"],
+    createEmptyRow: createEmptyCinemaExpertRow,
+    deriveScheduleYmdFromRow: (
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    ) =>
+      deriveCinemaExpertRowScheduleYmdFromRow(
+        row,
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        dayKeysByWeekKey
+      ),
+  }
