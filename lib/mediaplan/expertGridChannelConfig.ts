@@ -1403,6 +1403,22 @@ export function getExpertOptionFlags(
   }))
 }
 
+/**
+ * Descriptor fields that belong on the ExpertCard field grid.
+ * Omits `surfaces: "grid"` (e.g. unitRate). Does not include trailingColumns
+ * or optionFlags — those are separate card sections.
+ */
+export function getExpertCardSurfaceFields(
+  config: Pick<
+    ExpertGridChannelConfig<ExpertScheduleRowCommon>,
+    "descriptorCore" | "descriptorTail"
+  >
+): ExpertDescriptorColumn[] {
+  return [...config.descriptorCore, ...config.descriptorTail].filter(
+    (c) => c.surfaces !== "grid"
+  )
+}
+
 /** @deprecated Prefer {@link getExpertOptionFlags}. */
 export function getExpertBillingFlagKeys(
   config: Pick<
