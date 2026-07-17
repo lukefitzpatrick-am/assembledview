@@ -534,7 +534,7 @@ function buildResolvedLine(
       feeAmount: amounts.feeAmount,
       totalAmount: amounts.totalAmount,
       mediaType: scheduleMediaType,
-      noAdserving: false,
+      noAdserving: line.noAdserving ?? false,
       feePercentage: feePct,
       clientPaysForMedia,
       budgetIncludesFees,
