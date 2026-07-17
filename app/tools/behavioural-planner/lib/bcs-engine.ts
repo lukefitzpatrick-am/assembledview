@@ -31,6 +31,8 @@ export function computeBcs(
       inputs.segments.reduce((s, sg) => s + (ch.aff[sg] ?? 100), 0) / inputs.segments.length;
     const ageMod = ch.ageMod;
     const genderMod = ch.genderMod;
+    // Doctrine (provenance only — no weight/logic change):
+    // A is affinity from RM when isRmMeasured; T (attn), E (B/D), C (cpm) are always bench.
     const A = Math.min(100, affAvg * affScale * ageMod * genderMod);
     const T = Math.min(100, ch.attn * attnScale);
     const E = (1 - O) * ch.B + O * ch.D;

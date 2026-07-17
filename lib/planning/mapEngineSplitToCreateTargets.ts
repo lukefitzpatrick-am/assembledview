@@ -6,7 +6,10 @@ import {
 
 export const UNMAPPED_MP_KEY = "__unmapped__" as const
 
-/** Stable display / residual tie-break order — MUST equal CREATE_MEDIA_TOGGLE_KEYS. */
+/**
+ * Residual tie-break / display order — derived from create form catalog via
+ * CREATE_MEDIA_TOGGLE_KEYS (not a hand-maintained twin).
+ */
 export const MP_KEY_ORDER = CREATE_MEDIA_TOGGLE_KEYS
 
 export type { CreateMediaToggleKey }
@@ -125,7 +128,7 @@ function rowsFromBuckets(
   buckets: Map<string, number>,
   campaignBudget: number
 ): CreateTargetRow[] {
-  const keys = [
+  const keys: string[] = [
     ...MP_KEY_ORDER.filter((k) => buckets.has(k)),
     ...(buckets.has(UNMAPPED_MP_KEY) ? [UNMAPPED_MP_KEY] : []),
   ]

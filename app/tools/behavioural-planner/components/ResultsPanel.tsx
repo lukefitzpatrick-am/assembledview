@@ -62,6 +62,7 @@ function toChannels(adapted: AdapterResult): Channel[] {
     reachPct: c.reachPct,
     isRmMeasured: c.isRmMeasured,
     ageBase: c.ageBase,
+    pillarSources: c.pillarSources,
   }));
 }
 

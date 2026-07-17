@@ -39,7 +39,8 @@ PLANNING_FACT_REACH    (wave_id, segment_id, state /* NAT,NSW,VIC,QLD,SA,WA,TAS,
                         wc_addressable NUMBER NULL, wc_total NUMBER NULL,
                         v_pct_addressable NUMBER NULL, v_pct_total NUMBER NULL)
 PLANNING_CHANNEL_BENCH (channel_id, attn, brand_effect, direct_effect, cpm,
-                        source, updated_by, updated_at)      -- non-RM benchmarks, see §8
+                        attn_source, brand_effect_source, direct_effect_source, cpm_source,
+                        updated_by, updated_at)      -- non-RM benchmarks; P7-8 per-pillar *_SOURCE (not a single source), see §8
 ```
 Population universe rows: the workbook's `(POPN '000)` row loads as channel_id
 'POPULATION' (wc_addressable = wc_total = universe). TOTAL/rollup columns (Men 50+,
@@ -106,7 +107,7 @@ heuristics — not reach curves. The split is clean and BOTH halves survive:
 | reach% (UI metric) | PLANNING_FACT_REACH | direct — replaces the `A*0.85` fiction and the 82% cap |
 | `attn`, `B`, `D`, `cpm` | PLANNING_CHANNEL_BENCH | admin-maintained benchmarks (NOT RM — badge in UI); seeded from current lib/data.ts values as the starting draft |
 | `weights`, `objective`, `budget`, allocation | client-side | unchanged — the BCS formula and `allocate` stay (calibration is a product task, not a build task) |
-| Search / Retail channels | PLANNING_CHANNEL_BENCH only | `is_rm_measured = false` → affinity defaults to 100 (neutral), scored on benchmarks; UI badges "benchmark-based" |
+| Search / Retail channels | PLANNING_CHANNEL_BENCH only | `is_rm_measured = false` → affinity defaults to 100 (neutral), scored on benchmarks; UI badges "Source: Assembled seed — pending warehouse source" |
 | CULTURAL_MOMENTS | stays seeded | deferred; not scored; revisit post-v1 |
 | AvaNarration | stays deterministic | LLM later |
 

@@ -27,6 +27,29 @@ function xanoErrorResponse(error: unknown): NextResponse {
 }
 
 /**
+ * GET /api/planning/audiences/[id]
+ * Returns the saved audience row (including definition_json / recommended_split).
+ * Gate: admin | manager.
+ */
+export async function GET(_request: NextRequest, context: RouteContext) {
+  const gate = await requireRole(_request, ["admin", "manager"])
+  if ("response" in gate) return gate.response
+
+  const { id: idRaw } = await context.params
+  const id = Number(idRaw)
+  if (!Number.isFinite(id) || id <= 0) {
+    return NextResponse.json({ error: "Invalid audience id" }, { status: 400 })
+  }
+
+  try {
+    const row = await getPlanningAudience(id)
+    return NextResponse.json(row)
+  } catch (error) {
+    return xanoErrorResponse(error)
+  }
+}
+
+/**
  * PATCH /api/planning/audiences/[id]
  * Whitelist: mba_number | client_visible | name.
  * Detach (mba_number null/empty) forces client_visible = false server-side.

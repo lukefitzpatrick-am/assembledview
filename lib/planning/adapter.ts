@@ -4,10 +4,24 @@
  */
 
 import {
+  ASSEMBLED_SEED_SOURCE,
   PLANNING_CHANNEL_BENCH,
+  ROY_MORGAN_SOURCE,
   SEARCH_ENGINE_CHANNEL_ID,
   type PlanningChannelBenchRow,
 } from "./planningChannelBench"
+
+/** Provenance labels for BCS pillars — not influence weights. */
+export type ChannelPillarSources = {
+  /** Affinity A: Roy Morgan when measured; else assembled seed. */
+  A: string
+  /** Attention T: always bench (never RM). */
+  T: string
+  /** Effect E (from B/D): always bench. */
+  E: string
+  /** Cost C (from CPM): always bench. */
+  C: string
+}
 import type {
   AudienceChannelResult,
   AudienceResponse,
@@ -37,6 +51,8 @@ export type AdaptedChannel = {
   reachPctTotal: number
   isRmMeasured: boolean
   ageBase: number
+  /** Per-pillar provenance strings for UI/deck (A may be RM; T/E/C always bench). */
+  pillarSources: ChannelPillarSources
 }
 
 export type ReachProfileRow = {
@@ -105,6 +121,20 @@ export function scoreableChannels(taxonomy: TaxonomyRow[]): AdaptedChannel[] {
     out.push(row.engine)
   }
   return out
+}
+
+function pillarSourcesFor(
+  isRmMeasured: boolean,
+  fallback: PlanningChannelBenchRow | undefined
+): ChannelPillarSources {
+  const benchSrc = (p: { source: string } | undefined) =>
+    p?.source ?? ASSEMBLED_SEED_SOURCE
+  return {
+    A: isRmMeasured ? ROY_MORGAN_SOURCE : benchSrc(fallback?.attn),
+    T: benchSrc(fallback?.attn),
+    E: benchSrc(fallback?.brand_effect),
+    C: benchSrc(fallback?.cpm),
+  }
 }
 
 function resolveBench(
@@ -265,6 +295,10 @@ export function adaptAudienceToEngine(opts: {
       reachPctTotal: row.reach_pct_total,
       isRmMeasured: row.is_rm_measured,
       ageBase: row.age_base,
+      pillarSources: pillarSourcesFor(
+        row.is_rm_measured,
+        PLANNING_CHANNEL_BENCH[engineId]
+      ),
     }
 
     taxonomy.push({
@@ -302,6 +336,7 @@ export function adaptAudienceToEngine(opts: {
       reachPctTotal: 0,
       isRmMeasured: false,
       ageBase: 14,
+      pillarSources: pillarSourcesFor(false, searchDefaults),
     }
     taxonomy.push({
       rowType: "injected",

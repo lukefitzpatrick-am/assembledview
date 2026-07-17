@@ -9,6 +9,9 @@ export const PLANNING_CHANNEL_BENCH_VERSION = "assembled-seed-v1"
 /** Fallback provenance string when warehouse per-pillar sources are not yet wired. */
 export const ASSEMBLED_SEED_SOURCE = "Assembled seed — pending warehouse source"
 
+/** Affinity (A) provenance when `is_rm_measured` is true. */
+export const ROY_MORGAN_SOURCE = "Roy Morgan"
+
 /** Client-side Search row — benchmark-only, not Roy Morgan. */
 export const SEARCH_ENGINE_CHANNEL_ID = "search"
 

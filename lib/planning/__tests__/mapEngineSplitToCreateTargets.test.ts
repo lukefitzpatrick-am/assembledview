@@ -7,7 +7,6 @@ import {
   UNMAPPED_MP_KEY,
   mapEngineSplitToCreateTargets,
   normalizeFrozenCreateTargets,
-  MP_KEY_ORDER,
 } from "../mapEngineSplitToCreateTargets.js"
 
 test("ENGINE_TO_MP is total over PLANNING_CHANNEL_BENCH keys", () => {
@@ -15,10 +14,6 @@ test("ENGINE_TO_MP is total over PLANNING_CHANNEL_BENCH keys", () => {
     assert.ok(id in ENGINE_TO_MP, `missing map entry: ${id}`)
   }
   assert.equal(ENGINE_TO_MP.digital_other, UNMAPPED_MP_KEY)
-})
-
-test("MP_KEY_ORDER matches create form media-type toggles", () => {
-  assert.deepEqual([...MP_KEY_ORDER], [...CREATE_MEDIA_TOGGLE_KEYS])
 })
 
 test("facebook+instagram collapse; sum targets === campaign_budget", () => {
