@@ -102,8 +102,7 @@ import { useExpertRowReorder } from "@/hooks/useExpertRowReorder"
 import { useExpertWeekColumnWidths } from "@/hooks/useExpertWeekColumnWidths"
 import type {
   ExpertWeeklyValues,
-  SearchExpertMergedWeekSpan,
-  SearchExpertScheduleRow,
+  OohExpertMergedWeekSpan,
 } from "@/lib/mediaplan/expertModeWeeklySchedule"
 import {
   anchorPasteColumnFromKey,
@@ -127,11 +126,17 @@ import {
   expertRowNetMediaTooltip,
   expertRowQuantitySum,
 } from "@/lib/mediaplan/expertRowCost"
-import type { ExpertGridChannelConfig } from "@/lib/mediaplan/expertGridChannelConfig"
+import type {
+  ExpertGridChannelConfig,
+  ExpertScheduleRowCommon,
+} from "@/lib/mediaplan/expertGridChannelConfig"
 import {
+  expertGridBodyDescriptorColumns,
   expertGridDescriptorKeys,
   expertGridDescriptorColWidths,
   expertGridDescriptorHeadLabels,
+  getRowBoolean,
+  getRowString,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
   buildWeeklyGanttColumnsFromCampaign,
@@ -286,15 +291,15 @@ function parseRowYmd(ymd: string): Date | null {
 }
 
 
-export interface ExpertGridProps {
-  config: ExpertGridChannelConfig<SearchExpertScheduleRow>
+export interface ExpertGridProps<TRow extends ExpertScheduleRowCommon = ExpertScheduleRowCommon> {
+  config: ExpertGridChannelConfig<TRow>
   campaignStartDate: Date
   campaignEndDate: Date
   feePercent: number
   /** Controlled row data; parent should initialize from standard line items when entering expert mode. */
-  rows: SearchExpertScheduleRow[]
-  onRowsChange: (rows: SearchExpertScheduleRow[]) => void
-  /** Platform names (search publishers API) for platform combobox + fuzzy matching */
+  rows: TRow[]
+  onRowsChange: (rows: TRow[]) => void
+  /** Publisher names for publisher combobox + fuzzy matching */
   publishers?: { publisher_name: string }[]
   onReorder?: () => void
 }
@@ -319,7 +324,7 @@ type WeekDragSource =
       totalQty: number
     }
 
-type FuzzyMatchField = "platform"
+type FuzzyMatchField = string
 
 interface PendingFuzzyMatch {
   rowIndex: number
@@ -340,11 +345,11 @@ type SearchRowMergeSpanMeta = Readonly<{
 type SearchRowMergeMap = Readonly<{
   anchorByWeekKey: Readonly<Record<string, string>>
   interiorByWeekKey: Readonly<Record<string, string>>
-  spanById: Readonly<Record<string, SearchExpertMergedWeekSpan>>
+  spanById: Readonly<Record<string, OohExpertMergedWeekSpan>>
   spanMetaByAnchorWeekKey: Readonly<Record<string, SearchRowMergeSpanMeta>>
 }>
 
-export function ExpertGrid({
+export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   config,
   campaignStartDate,
   campaignEndDate,
@@ -353,7 +358,7 @@ export function ExpertGrid({
   onRowsChange,
   publishers = [],
   onReorder,
-}: ExpertGridProps) {
+}: ExpertGridProps<TRow>) {
   const MEDIA_ACCENT_HEX = getMediaTypeThemeHex(config.mediaTypeKey)
   const searchExpertHeaderCellBgStyle = {
     backgroundColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.08),
@@ -514,7 +519,12 @@ export function ExpertGrid({
 
   const searchDescriptorKeys = useMemo(
     () =>
-      expertGridDescriptorKeys(config, showBillingCols) as (keyof SearchExpertScheduleRow)[],
+      expertGridDescriptorKeys(config, showBillingCols),
+    [config, showBillingCols]
+  )
+
+  const bodyDescriptorColumns = useMemo(
+    () => expertGridBodyDescriptorColumns(config, showBillingCols),
     [config, showBillingCols]
   )
 
@@ -556,7 +566,7 @@ export function ExpertGrid({
   )
 
   const normalizeRowCacheRef = useRef(
-    new Map<string, NormalizeRowCacheEntry<SearchExpertScheduleRow>>()
+    new Map<string, NormalizeRowCacheEntry<TRow>>()
   )
   const normalizedRows = useMemo(() => {
     const { rows: next, cache } = normalizeRowsPreservingIdentity(
@@ -587,7 +597,7 @@ export function ExpertGrid({
     new Map<
       string,
       MapBuildCacheEntry<
-        SearchExpertScheduleRow["mergedWeekSpans"],
+        TRow["mergedWeekSpans"],
         SearchRowMergeMap
       >
     >()
@@ -600,7 +610,7 @@ export function ExpertGrid({
       (row) => {
         const anchorByWeekKey: Record<string, string> = {}
         const interiorByWeekKey: Record<string, string> = {}
-        const spanById: Record<string, SearchExpertMergedWeekSpan> = {}
+        const spanById: Record<string, OohExpertMergedWeekSpan> = {}
         const spanMetaByAnchorWeekKey: Record<string, SearchRowMergeSpanMeta> = {}
         const occupiedWeekKeys = new Set<string>()
         // A row can contain multiple non-overlapping merged groups with gaps.
@@ -678,7 +688,7 @@ export function ExpertGrid({
   weekMultiSelectRef.current = weekMultiSelect
 
   const pushRows = useCallback(
-    (next: SearchExpertScheduleRow[]) => {
+    (next: TRow[]) => {
       const withDates = finalizeRowsPreservingIdentity(next, (r) => {
         // Week-level writes win over day detail (single invariant chokepoint).
         const cleared = clearConflictingDayDetail(r, dayKeysByWeekKey, weekKeys)
@@ -985,7 +995,7 @@ export function ExpertGrid({
   )
 
   const updateRow = useCallback(
-    (rowIndex: number, patch: Partial<SearchExpertScheduleRow>) => {
+    (rowIndex: number, patch: Partial<TRow>) => {
       const next = updateRowAtIndex(
         normalizedRowsRef.current,
         rowIndex,
@@ -1003,16 +1013,16 @@ export function ExpertGrid({
       const corrKey = `${field}:${value.trim().toLowerCase()}`
       const corrected = fuzzyCorrectionMapRef.current[corrKey]
       if (corrected) {
-        updateRow(rowIndex, { [field]: corrected } as Partial<SearchExpertScheduleRow>)
+        updateRow(rowIndex, { [field]: corrected } as Partial<TRow>)
         return
       }
       let match: { matched: string } | null = null
-      if (field === "platform") {
+      if (field === config.publisherField) {
         match = fuzzyMatchNetwork(value, platformNames)
       }
       if (!match) return
       if (fuzzyMatchAutoApplyRef.current) {
-        updateRow(rowIndex, { [field]: match.matched } as Partial<SearchExpertScheduleRow>)
+        updateRow(rowIndex, { [field]: match.matched } as Partial<TRow>)
       } else {
         setPendingFuzzyMatch({
           rowIndex,
@@ -1022,7 +1032,7 @@ export function ExpertGrid({
         })
       }
     },
-    [platformNames, updateRow]
+    [config.publisherField, platformNames, updateRow]
   )
 
   const handleFuzzyMatchConfirm = useCallback(
@@ -1280,7 +1290,7 @@ export function ExpertGrid({
         }
         return { ...r, weeklyValues, dailyValues: nextDaily }
       })
-      if (mutated) pushRows(folded)
+      if (mutated) pushRows(folded as TRow[])
     },
     [dayKeysByWeekKey, expandedWeekKeys, pushRows]
   )
@@ -1964,7 +1974,7 @@ export function ExpertGrid({
       typeof crypto !== "undefined" && crypto.randomUUID
         ? crypto.randomUUID()
         : `merge-${Date.now()}`
-    const newSpan: SearchExpertMergedWeekSpan = {
+    const newSpan: OohExpertMergedWeekSpan = {
       id: newId,
       startWeekKey: sorted[0]!,
       endWeekKey: sorted[sorted.length - 1]!,
@@ -2136,7 +2146,7 @@ export function ExpertGrid({
         let working = trimEmptyEdgeColumns(matrix)
         if (working.length === 0) return
 
-        const nextRows: SearchExpertScheduleRow[] = normalizedRows.map((r) => ({
+        const nextRows: TRow[] = normalizedRows.map((r) => ({
           ...r,
           weeklyValues: { ...r.weeklyValues },
           mergedWeekSpans: [...(r.mergedWeekSpans ?? [])],
@@ -2199,7 +2209,7 @@ export function ExpertGrid({
 
       const anchorRow = fc.rowIndex
 
-      const nextRows: SearchExpertScheduleRow[] = normalizedRows.map((r) => ({
+      const nextRows: TRow[] = normalizedRows.map((r) => ({
         ...r,
         weeklyValues: { ...r.weeklyValues },
         mergedWeekSpans: [...(r.mergedWeekSpans ?? [])],
@@ -2255,7 +2265,7 @@ export function ExpertGrid({
             continue
           }
 
-          const field = target.field as keyof SearchExpertScheduleRow
+          const field = target.field as keyof TRow
           if (field === "startDate" || field === "endDate") {
             continue
           }
@@ -2268,9 +2278,7 @@ export function ExpertGrid({
             nextRows[targetRow] = { ...cur, unitRate: res.value }
             applied += 1
           } else if (
-            field === "fixedCostMedia" ||
-            field === "clientPaysForMedia" ||
-            field === "budgetIncludesFees"
+            (config.billingFlagKeys as readonly string[]).includes(String(field))
           ) {
             const v = raw.trim().toLowerCase()
             const truthy =
@@ -2278,9 +2286,12 @@ export function ExpertGrid({
             nextRows[targetRow] = {
               ...cur,
               [field]: truthy,
-            } as SearchExpertScheduleRow
+            } as TRow
             applied += 1
-          } else if (field === "buyType" || field === "bidStrategy") {
+          } else if (
+            config.descriptorCore.find((c) => c.key === field)?.kind ===
+              "combobox-static"
+          ) {
             const col = config.descriptorCore.find((c) => c.key === field)
             const normalized = col?.normalizePaste
               ? col.normalizePaste(raw, { publisherNames: platformNames })
@@ -2288,18 +2299,18 @@ export function ExpertGrid({
             nextRows[targetRow] = {
               ...cur,
               [field]: normalized,
-            } as SearchExpertScheduleRow
+            } as TRow
             applied += 1
           } else if (field === config.publisherField) {
             const plt = normalizeSearchPlatformPaste(raw, platformNames)
             nextRows[targetRow] = {
               ...cur,
               [config.publisherField]: plt,
-            } as SearchExpertScheduleRow
+            } as TRow
             applied += 1
           } else {
             const v = raw.trim()
-            nextRows[targetRow] = { ...cur, [field]: v } as SearchExpertScheduleRow
+            nextRows[targetRow] = { ...cur, [field]: v } as TRow
             applied += 1
           }
         }
@@ -2644,7 +2655,7 @@ export function ExpertGrid({
   )
 
   const colIndexOf = useCallback(
-    (key: keyof SearchExpertScheduleRow) => searchDescriptorKeys.indexOf(key),
+    (key: string) => searchDescriptorKeys.indexOf(key),
     [searchDescriptorKeys]
   )
 
@@ -2880,27 +2891,27 @@ export function ExpertGrid({
                           )}
                           style={stickyStyleHeaderCorner(i)}
                         >
-                          {label === "Unit Rate" ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="cursor-help">{label}</span>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom" className="max-w-xs text-xs">
-                                Rate (CPC / CPM / CPV depending on Buy Type)
-                              </TooltipContent>
-                            </Tooltip>
-                          ) : searchDescriptorKeys[i] === "creativeTargeting" ? (
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="cursor-help">{label}</span>
-                              </TooltipTrigger>
-                              <TooltipContent side="bottom" className="max-w-xs text-xs">
-                                Creative / Keyword Targeting
-                              </TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            <ExpertGridBillingHeaderLabel label={label} />
-                          )}
+                          {(() => {
+                            const descKey = searchDescriptorKeys[i]
+                            const tipCol = descKey
+                              ? [...config.descriptorCore, ...config.descriptorTail].find(
+                                  (c) => c.key === descKey
+                                )
+                              : undefined
+                            if (tipCol?.headerTooltip) {
+                              return (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <span className="cursor-help">{label}</span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="bottom" className="max-w-xs text-xs">
+                                    {tipCol.headerTooltip}
+                                  </TooltipContent>
+                                </Tooltip>
+                              )
+                            }
+                            return <ExpertGridBillingHeaderLabel label={label} />
+                          })()}
                         </th>
                       ))}
                       {weekColumns.map((col) => {
@@ -3022,7 +3033,7 @@ export function ExpertGrid({
                   <tbody>
                     {(() => {
                       const renderScheduleRow = (
-                        row: SearchExpertScheduleRow,
+                        row: TRow,
                         rowIndex: number
                       ) => {
                       const rowMergeMapForRow =
@@ -3080,20 +3091,6 @@ export function ExpertGrid({
                       const grossCol = searchDescriptorKeys.length
                       const actionsCol = searchDescriptorKeys.length + 1
                       const sigmaCol = searchDescriptorKeys.length + 2
-                      const cStart = colIndexOf("startDate")
-                      const cEnd = colIndexOf("endDate")
-                      const cPlt = colIndexOf("platform")
-                      const cBid = colIndexOf("bidStrategy")
-                      const cBuy = colIndexOf("buyType")
-                      const cTgt = colIndexOf("creativeTargeting")
-                      const cCre = colIndexOf("creative")
-                      const cDemo = colIndexOf("buyingDemo")
-                      const cMkt = colIndexOf("market")
-                      const cRate = colIndexOf("unitRate")
-                      const cFixed = colIndexOf("fixedCostMedia")
-                      const cClient = colIndexOf("clientPaysForMedia")
-                      const cBif = colIndexOf("budgetIncludesFees")
-
                       return (
                         <tr
                           className={cn(
@@ -3123,389 +3120,240 @@ export function ExpertGrid({
                             className={stickyTd(0, "text-center")}
                             style={stickyStyleReorderBody}
                           />
-                          {showBillingCols ? (
-                            <>
-                              <td
-                                className={stickyTd(cFixed)}
-                                style={stickyStyleBody(cFixed)}
-                              >
-                                <div className="flex h-8 items-center justify-center overflow-hidden">
-                                  <Checkbox
-                                    id={expertGridCellId(
-                                      domGridId,
-                                      rowIndex,
-                                      cFixed
-                                    )}
-                                    checked={row.fixedCostMedia}
-                                    onCheckedChange={(v) =>
+                          {bodyDescriptorColumns.map((col) => {
+                            const ci = colIndexOf(col.key)
+                            if (ci < 0) return null
+                            const cellId = expertGridCellId(domGridId, rowIndex, ci)
+                            if (col.kind === "checkbox-billing") {
+                              return (
+                                <td
+                                  key={col.key}
+                                  className={stickyTd(ci)}
+                                  style={stickyStyleBody(ci)}
+                                >
+                                  <div className="flex h-8 items-center justify-center overflow-hidden">
+                                    <Checkbox
+                                      id={cellId}
+                                      checked={getRowBoolean(row, col.key)}
+                                      onCheckedChange={(v) =>
+                                        updateRow(rowIndex, {
+                                          [col.key]: v === true,
+                                        } as Partial<TRow>)
+                                      }
+                                      onFocus={() =>
+                                        handleCellFocus(rowIndex, col.key)
+                                      }
+                                      onKeyDown={(e) =>
+                                        handleGridInputKeyDown(
+                                          rowIndex,
+                                          ci,
+                                          e as KeyboardEvent<HTMLInputElement>
+                                        )
+                                      }
+                                    />
+                                  </div>
+                                </td>
+                              )
+                            }
+                            if (col.kind === "date-start") {
+                              return (
+                                <td
+                                  key={col.key}
+                                  className={stickyTd(ci)}
+                                  style={stickyStyleBody(ci)}
+                                >
+                                  <SingleDatePicker
+                                    id={cellId}
+                                    value={parseRowYmd(row.startDate)}
+                                    onChange={(d) =>
+                                      handleRowEdgeDatePick(rowIndex, "start", d)
+                                    }
+                                    calendarContext="media-burst"
+                                    mediaBurstRole="start"
+                                    campaignStartDate={campaignStartDate}
+                                    campaignEndDate={campaignEndDate}
+                                    dateFormat="dd/MM/yy"
+                                    align="start"
+                                    iconClassName="ml-1 h-3 w-3 shrink-0 opacity-50"
+                                    className="h-8 w-full cursor-pointer border-0 bg-transparent px-0 text-[11px] font-normal tabular-nums text-muted-foreground shadow-none hover:bg-transparent focus-visible:ring-1"
+                                    placeholder={
+                                      <span className="tabular-nums">
+                                        {formatYmdDisplay(row.startDate)}
+                                      </span>
+                                    }
+                                    title={row.startDate}
+                                  />
+                                </td>
+                              )
+                            }
+                            if (col.kind === "date-end") {
+                              return (
+                                <td
+                                  key={col.key}
+                                  className={stickyTd(ci)}
+                                  style={stickyStyleBody(ci)}
+                                >
+                                  <SingleDatePicker
+                                    id={cellId}
+                                    value={parseRowYmd(row.endDate)}
+                                    onChange={(d) =>
+                                      handleRowEdgeDatePick(rowIndex, "end", d)
+                                    }
+                                    calendarContext="media-burst"
+                                    mediaBurstRole="end"
+                                    campaignStartDate={campaignStartDate}
+                                    campaignEndDate={campaignEndDate}
+                                    dateFormat="dd/MM/yy"
+                                    align="start"
+                                    iconClassName="ml-1 h-3 w-3 shrink-0 opacity-50"
+                                    className="h-8 w-full cursor-pointer border-0 bg-transparent px-0 text-[11px] font-normal tabular-nums text-muted-foreground shadow-none hover:bg-transparent focus-visible:ring-1"
+                                    placeholder={
+                                      <span className="tabular-nums">
+                                        {formatYmdDisplay(row.endDate)}
+                                      </span>
+                                    }
+                                    title={row.endDate}
+                                  />
+                                </td>
+                              )
+                            }
+                            if (col.kind === "combobox-publishers") {
+                              const pubVal = getRowString(row, col.key)
+                              return (
+                                <td
+                                  key={col.key}
+                                  className={stickyTd(ci)}
+                                  style={stickyStyleBody(ci)}
+                                >
+                                  <Combobox
+                                    id={cellId}
+                                    options={platformComboboxOptions}
+                                    value={pubVal}
+                                    onValueChange={(v) =>
                                       updateRow(rowIndex, {
-                                        fixedCostMedia: v === true,
-                                      })
+                                        [col.key]: v,
+                                      } as Partial<TRow>)
+                                    }
+                                    placeholder="Select"
+                                    searchPlaceholder="Search platforms…"
+                                    emptyText={
+                                      platformNames.length === 0
+                                        ? "No platforms."
+                                        : "No match."
+                                    }
+                                    buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                                    onTriggerFocus={() =>
+                                      handleCellFocus(rowIndex, col.key)
+                                    }
+                                    onOpenChange={(open) => {
+                                      if (open) {
+                                        handleCellFocus(rowIndex, col.key)
+                                      } else {
+                                        tryFuzzyMatch(rowIndex, col.key, pubVal)
+                                      }
+                                    }}
+                                  />
+                                </td>
+                              )
+                            }
+                            if (col.kind === "combobox-static") {
+                              const opts = col.options ?? []
+                              const val = getRowString(row, col.key)
+                              const isBid = col.key === "bidStrategy"
+                              const isBuy = col.key === "buyType"
+                              return (
+                                <td
+                                  key={col.key}
+                                  className={stickyTd(ci)}
+                                  style={stickyStyleBody(ci)}
+                                >
+                                  <Combobox
+                                    id={cellId}
+                                    options={opts}
+                                    value={val}
+                                    onValueChange={(v) =>
+                                      updateRow(rowIndex, {
+                                        [col.key]: v,
+                                      } as Partial<TRow>)
+                                    }
+                                    placeholder="Select"
+                                    searchPlaceholder={
+                                      isBid
+                                        ? "Search bid strategies…"
+                                        : isBuy
+                                          ? "Search buy types…"
+                                          : "Search…"
+                                    }
+                                    buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                                    onTriggerFocus={() =>
+                                      handleCellFocus(rowIndex, col.key)
+                                    }
+                                    onOpenChange={(open) => {
+                                      if (open) {
+                                        handleCellFocus(rowIndex, col.key)
+                                      }
+                                    }}
+                                  />
+                                </td>
+                              )
+                            }
+                            if (col.kind === "unit-rate") {
+                              return (
+                                <td
+                                  key={col.key}
+                                  className={stickyTd(ci)}
+                                  style={stickyStyleBody(ci)}
+                                >
+                                  <Input
+                                    id={cellId}
+                                    className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                                    inputMode="decimal"
+                                    value={
+                                      row.unitRate === "" ||
+                                      row.unitRate === undefined
+                                        ? ""
+                                        : String(row.unitRate)
                                     }
                                     onFocus={() =>
-                                      handleCellFocus(
-                                        rowIndex,
-                                        "fixedCostMedia"
-                                      )
+                                      handleCellFocus(rowIndex, col.key)
                                     }
                                     onKeyDown={(e) =>
-                                      handleGridInputKeyDown(
-                                        rowIndex,
-                                        cFixed,
-                                        e as KeyboardEvent<HTMLInputElement>
-                                      )
+                                      handleGridInputKeyDown(rowIndex, ci, e)
                                     }
-                                  />
-                                </div>
-                              </td>
-                              <td
-                                className={stickyTd(cClient)}
-                                style={stickyStyleBody(cClient)}
-                              >
-                                <div className="flex h-8 items-center justify-center overflow-hidden">
-                                  <Checkbox
-                                    id={expertGridCellId(
-                                      domGridId,
-                                      rowIndex,
-                                      cClient
-                                    )}
-                                    checked={row.clientPaysForMedia}
-                                    onCheckedChange={(v) =>
+                                    onChange={(e) =>
                                       updateRow(rowIndex, {
-                                        clientPaysForMedia: v === true,
-                                      })
-                                    }
-                                    onFocus={() =>
-                                      handleCellFocus(
-                                        rowIndex,
-                                        "clientPaysForMedia"
-                                      )
-                                    }
-                                    onKeyDown={(e) =>
-                                      handleGridInputKeyDown(
-                                        rowIndex,
-                                        cClient,
-                                        e as KeyboardEvent<HTMLInputElement>
-                                      )
+                                        unitRate: e.target.value,
+                                      } as Partial<TRow>)
                                     }
                                   />
-                                </div>
-                              </td>
+                                </td>
+                              )
+                            }
+                            return (
                               <td
-                                className={stickyTd(cBif)}
-                                style={stickyStyleBody(cBif)}
+                                key={col.key}
+                                className={stickyTd(ci)}
+                                style={stickyStyleBody(ci)}
                               >
-                                <div className="flex h-8 items-center justify-center overflow-hidden">
-                                  <Checkbox
-                                    id={expertGridCellId(
-                                      domGridId,
-                                      rowIndex,
-                                      cBif
-                                    )}
-                                    checked={row.budgetIncludesFees}
-                                    onCheckedChange={(v) =>
-                                      updateRow(rowIndex, {
-                                        budgetIncludesFees: v === true,
-                                      })
-                                    }
-                                    onFocus={() =>
-                                      handleCellFocus(
-                                        rowIndex,
-                                        "budgetIncludesFees"
-                                      )
-                                    }
-                                    onKeyDown={(e) =>
-                                      handleGridInputKeyDown(
-                                        rowIndex,
-                                        cBif,
-                                        e as KeyboardEvent<HTMLInputElement>
-                                      )
-                                    }
-                                  />
-                                </div>
+                                <Input
+                                  id={cellId}
+                                  className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
+                                  value={getRowString(row, col.key)}
+                                  onFocus={() =>
+                                    handleCellFocus(rowIndex, col.key)
+                                  }
+                                  onKeyDown={(e) =>
+                                    handleGridInputKeyDown(rowIndex, ci, e)
+                                  }
+                                  onChange={(e) =>
+                                    updateRow(rowIndex, {
+                                      [col.key]: e.target.value,
+                                    } as Partial<TRow>)
+                                  }
+                                />
                               </td>
-                            </>
-                          ) : null}
-                          <td
-                            className={stickyTd(cStart)}
-                            style={stickyStyleBody(cStart)}
-                          >
-                            <SingleDatePicker
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cStart
-                              )}
-                              value={parseRowYmd(row.startDate)}
-                              onChange={(d) =>
-                                handleRowEdgeDatePick(rowIndex, "start", d)
-                              }
-                              calendarContext="media-burst"
-                              mediaBurstRole="start"
-                              campaignStartDate={campaignStartDate}
-                              campaignEndDate={campaignEndDate}
-                              dateFormat="dd/MM/yy"
-                              align="start"
-                              iconClassName="ml-1 h-3 w-3 shrink-0 opacity-50"
-                              className="h-8 w-full cursor-pointer border-0 bg-transparent px-0 text-[11px] font-normal tabular-nums text-muted-foreground shadow-none hover:bg-transparent focus-visible:ring-1"
-                              placeholder={
-                                <span className="tabular-nums">
-                                  {formatYmdDisplay(row.startDate)}
-                                </span>
-                              }
-                              title={row.startDate}
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cEnd)}
-                            style={stickyStyleBody(cEnd)}
-                          >
-                            <SingleDatePicker
-                              id={expertGridCellId(domGridId, rowIndex, cEnd)}
-                              value={parseRowYmd(row.endDate)}
-                              onChange={(d) =>
-                                handleRowEdgeDatePick(rowIndex, "end", d)
-                              }
-                              calendarContext="media-burst"
-                              mediaBurstRole="end"
-                              campaignStartDate={campaignStartDate}
-                              campaignEndDate={campaignEndDate}
-                              dateFormat="dd/MM/yy"
-                              align="start"
-                              iconClassName="ml-1 h-3 w-3 shrink-0 opacity-50"
-                              className="h-8 w-full cursor-pointer border-0 bg-transparent px-0 text-[11px] font-normal tabular-nums text-muted-foreground shadow-none hover:bg-transparent focus-visible:ring-1"
-                              placeholder={
-                                <span className="tabular-nums">
-                                  {formatYmdDisplay(row.endDate)}
-                                </span>
-                              }
-                              title={row.endDate}
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cPlt)}
-                            style={stickyStyleBody(cPlt)}
-                          >
-                            <Combobox
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cPlt
-                              )}
-                              options={platformComboboxOptions}
-                              value={row.platform}
-                              onValueChange={(v) =>
-                                updateRow(rowIndex, { platform: v })
-                              }
-                              placeholder="Select"
-                              searchPlaceholder="Search platforms…"
-                              emptyText={
-                                platformNames.length === 0
-                                  ? "No platforms."
-                                  : "No match."
-                              }
-                              buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              onTriggerFocus={() =>
-                                handleCellFocus(rowIndex, "platform")
-                              }
-                              onOpenChange={(open) => {
-                                if (open) {
-                                  handleCellFocus(rowIndex, "platform")
-                                } else {
-                                  tryFuzzyMatch(
-                                    rowIndex,
-                                    "platform",
-                                    row.platform
-                                  )
-                                }
-                              }}
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cBid)}
-                            style={stickyStyleBody(cBid)}
-                          >
-                            <Combobox
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cBid
-                              )}
-                              options={bidStrategyOptions}
-                              value={row.bidStrategy}
-                              onValueChange={(v) =>
-                                updateRow(rowIndex, { bidStrategy: v })
-                              }
-                              placeholder="Select"
-                              searchPlaceholder="Search bid strategies…"
-                              buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              onTriggerFocus={() =>
-                                handleCellFocus(rowIndex, "bidStrategy")
-                              }
-                              onOpenChange={(open) => {
-                                if (open) {
-                                  handleCellFocus(rowIndex, "bidStrategy")
-                                }
-                              }}
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cBuy)}
-                            style={stickyStyleBody(cBuy)}
-                          >
-                            <Combobox
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cBuy
-                              )}
-                              options={buyTypeOptions}
-                              value={row.buyType}
-                              onValueChange={(v) =>
-                                updateRow(rowIndex, { buyType: v })
-                              }
-                              placeholder="Select"
-                              searchPlaceholder="Search buy types…"
-                              buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              onTriggerFocus={() =>
-                                handleCellFocus(rowIndex, "buyType")
-                              }
-                              onOpenChange={(open) => {
-                                if (open) {
-                                  handleCellFocus(rowIndex, "buyType")
-                                }
-                              }}
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cTgt)}
-                            style={stickyStyleBody(cTgt)}
-                          >
-                            <Input
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cTgt
-                              )}
-                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              value={row.creativeTargeting}
-                              onFocus={() =>
-                                handleCellFocus(rowIndex, "creativeTargeting")
-                              }
-                              onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cTgt, e)
-                              }
-                              onChange={(e) =>
-                                updateRow(rowIndex, {
-                                  creativeTargeting: e.target.value,
-                                })
-                              }
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cCre)}
-                            style={stickyStyleBody(cCre)}
-                          >
-                            <Input
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cCre
-                              )}
-                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              value={row.creative}
-                              onFocus={() =>
-                                handleCellFocus(rowIndex, "creative")
-                              }
-                              onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cCre, e)
-                              }
-                              onChange={(e) =>
-                                updateRow(rowIndex, {
-                                  creative: e.target.value,
-                                })
-                              }
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cMkt)}
-                            style={stickyStyleBody(cMkt)}
-                          >
-                            <Input
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cMkt
-                              )}
-                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              value={row.market}
-                              onFocus={() =>
-                                handleCellFocus(rowIndex, "market")
-                              }
-                              onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cMkt, e)
-                              }
-                              onChange={(e) =>
-                                updateRow(rowIndex, { market: e.target.value })
-                              }
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cDemo)}
-                            style={stickyStyleBody(cDemo)}
-                          >
-                            <Input
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cDemo
-                              )}
-                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              value={row.buyingDemo}
-                              onFocus={() =>
-                                handleCellFocus(rowIndex, "buyingDemo")
-                              }
-                              onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cDemo, e)
-                              }
-                              onChange={(e) =>
-                                updateRow(rowIndex, {
-                                  buyingDemo: e.target.value,
-                                })
-                              }
-                            />
-                          </td>
-                          <td
-                            className={stickyTd(cRate)}
-                            style={stickyStyleBody(cRate)}
-                          >
-                            <Input
-                              id={expertGridCellId(
-                                domGridId,
-                                rowIndex,
-                                cRate
-                              )}
-                              className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
-                              inputMode="decimal"
-                              value={
-                                row.unitRate === "" ||
-                                row.unitRate === undefined
-                                  ? ""
-                                  : String(row.unitRate)
-                              }
-                              onFocus={() =>
-                                handleCellFocus(rowIndex, "unitRate")
-                              }
-                              onKeyDown={(e) =>
-                                handleGridInputKeyDown(rowIndex, cRate, e)
-                              }
-                              onChange={(e) =>
-                                updateRow(rowIndex, {
-                                  unitRate: e.target.value,
-                                })
-                              }
-                            />
-                          </td>
+                            )
+                          })}
                           <td
                             className={stickyTd(grossCol)}
                             style={stickyStyleBody(grossCol)}

@@ -5,11 +5,17 @@
  */
 import { format, startOfDay } from "date-fns"
 import type { ComboboxOption } from "@/components/media-containers/ExpertGridCombobox"
+import type { ExpertDailyValues } from "@/lib/mediaplan/expertDayModel"
 import type {
   ExpertWeeklyValues,
+  OohExpertMergedWeekSpan,
+  ProgVideoExpertScheduleRow,
   SearchExpertScheduleRow,
 } from "@/lib/mediaplan/expertModeWeeklySchedule"
-import { deriveSearchExpertRowScheduleYmdFromRow } from "@/lib/mediaplan/expertChannelMappings"
+import {
+  deriveProgExpertRowScheduleYmdFromRow,
+  deriveSearchExpertRowScheduleYmdFromRow,
+} from "@/lib/mediaplan/expertChannelMappings"
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
 import type { WeeklyGanttWeekColumn } from "@/lib/utils/weeklyGanttColumns"
 
@@ -33,9 +39,28 @@ export type ExpertDescriptorColumn = {
   options?: ComboboxOption[]
   /** Clipboard paste normalizer (value/label → stored value). */
   normalizePaste?: (raw: string, ctx: { publisherNames: string[] }) => string
+  /** Optional header hover tooltip. */
+  headerTooltip?: string
 }
 
-export type ExpertGridChannelConfig<TRow> = {
+/** Structural fields the ExpertGrid shell reads without channel-specific keys. */
+export type ExpertScheduleRowCommon = {
+  id: string
+  startDate: string
+  endDate: string
+  buyType: string
+  unitRate: number | string
+  grossCost: number | string
+  fixedCostMedia: boolean
+  clientPaysForMedia: boolean
+  budgetIncludesFees: boolean
+  weeklyValues: ExpertWeeklyValues
+  dailyValues?: ExpertDailyValues
+  mergedWeekSpans?: OohExpertMergedWeekSpan[]
+  sourceLineItemId?: string
+}
+
+export type ExpertGridChannelConfig<TRow extends ExpertScheduleRowCommon> = {
   /** Channel id for accents / debug. */
   mediaTypeKey: MediaTypeThemeKey
   /** Human channel name in UI chrome. */
@@ -63,6 +88,16 @@ export type ExpertGridChannelConfig<TRow> = {
     campaignEndDate: Date,
     dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
   ) => { startDate: string; endDate: string }
+}
+
+export function getRowString(row: object, key: string): string {
+  const v = (row as Record<string, unknown>)[key]
+  if (v == null) return ""
+  return String(v)
+}
+
+export function getRowBoolean(row: object, key: string): boolean {
+  return (row as Record<string, unknown>)[key] === true
 }
 
 function normalizeOptionPaste(
@@ -174,13 +209,20 @@ export const SEARCH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SearchExpertS
         label: "Creative Targeting",
         widthPx: 120,
         kind: "text",
+        headerTooltip: "Creative / Keyword Targeting",
       },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
     ],
     descriptorTail: [
       { key: "market", label: "Market", widthPx: 96, kind: "text" },
       { key: "buyingDemo", label: "Buying Demo", widthPx: 110, kind: "text" },
-      { key: "unitRate", label: "Unit Rate", widthPx: 88, kind: "unit-rate" },
+      {
+        key: "unitRate",
+        label: "Unit Rate",
+        widthPx: 88,
+        kind: "unit-rate",
+        headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
+      },
     ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptySearchExpertRow,
@@ -200,9 +242,145 @@ export const SEARCH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SearchExpertS
       ),
   }
 
+/** Match labels/values on ProgVideoContainer buy-type combobox. */
+export const PROGVIDEO_BUY_TYPE_OPTIONS: ComboboxOption[] = [
+  { value: "bonus", label: "Bonus" },
+  { value: "package_inclusions", label: "Package Inclusions" },
+  { value: "cpc", label: "CPC" },
+  { value: "cpm", label: "CPM" },
+  { value: "cpv", label: "CPV" },
+  { value: "fixed_cost", label: "Fixed Cost" },
+]
+
+export const PROGVIDEO_BID_STRATEGY_OPTIONS: ComboboxOption[] = [
+  { value: "completed_views", label: "Completed Views" },
+  { value: "reach", label: "Reach" },
+  { value: "target_cpa", label: "Target CPA" },
+  { value: "viewability", label: "Viewability" },
+]
+
+export function createEmptyProgVideoExpertRow(
+  id: string,
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  weekKeys: string[]
+): ProgVideoExpertScheduleRow {
+  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
+  const weeklyValues = {} as ExpertWeeklyValues
+  for (const k of weekKeys) {
+    weeklyValues[k] = ""
+  }
+  return {
+    id,
+    startDate: ymd(campaignStartDate),
+    endDate: ymd(campaignEndDate),
+    platform: "",
+    bidStrategy: "",
+    buyType: "",
+    creativeTargeting: "",
+    creative: "",
+    placement: "",
+    size: "",
+    buyingDemo: "",
+    market: "",
+    fixedCostMedia: false,
+    clientPaysForMedia: false,
+    budgetIncludesFees: false,
+    noadserving: false,
+    unitRate: "",
+    grossCost: 0,
+    weeklyValues,
+    mergedWeekSpans: [],
+  }
+}
+
+export const PROGVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgVideoExpertScheduleRow> =
+  {
+    mediaTypeKey: "progvideo",
+    channelLabel: "Prog Video",
+    publisherField: "platform",
+    billingFlagKeys: [
+      "fixedCostMedia",
+      "clientPaysForMedia",
+      "budgetIncludesFees",
+      "noadserving",
+    ],
+    billingFlagLabels: [
+      "Fixed Cost Media",
+      "Client Pays for Media",
+      "Budget Includes Fees",
+      "No Ad Serving",
+    ],
+    billingFlagWidthsPx: [56, 56, 56, 56],
+    descriptorCore: [
+      { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
+      { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
+      {
+        key: "platform",
+        label: "Platform",
+        widthPx: 120,
+        kind: "combobox-publishers",
+      },
+      {
+        key: "bidStrategy",
+        label: "Bid Strategy",
+        widthPx: 110,
+        kind: "combobox-static",
+        options: PROGVIDEO_BID_STRATEGY_OPTIONS,
+        normalizePaste: (raw) =>
+          normalizeOptionPaste(raw, PROGVIDEO_BID_STRATEGY_OPTIONS),
+      },
+      {
+        key: "buyType",
+        label: "Buy Type",
+        widthPx: 96,
+        kind: "combobox-static",
+        options: PROGVIDEO_BUY_TYPE_OPTIONS,
+        normalizePaste: (raw) =>
+          normalizeOptionPaste(raw, PROGVIDEO_BUY_TYPE_OPTIONS),
+      },
+      {
+        key: "creativeTargeting",
+        label: "Creative Targeting",
+        widthPx: 120,
+        kind: "text",
+      },
+      { key: "placement", label: "Placement", widthPx: 110, kind: "text" },
+      { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
+      { key: "size", label: "Size", widthPx: 80, kind: "text" },
+    ],
+    descriptorTail: [
+      { key: "market", label: "Market", widthPx: 96, kind: "text" },
+      { key: "buyingDemo", label: "Buying Demo", widthPx: 110, kind: "text" },
+      {
+        key: "unitRate",
+        label: "Unit Rate",
+        widthPx: 88,
+        kind: "unit-rate",
+        headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
+      },
+    ],
+    trailingHeaderLabels: ["Net Media", "", "Σ qty"],
+    createEmptyRow: createEmptyProgVideoExpertRow,
+    deriveScheduleYmdFromRow: (
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    ) =>
+      deriveProgExpertRowScheduleYmdFromRow(
+        row,
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        dayKeysByWeekKey
+      ),
+  }
+
 /** Descriptor keys in sticky order (billing optional). */
 export function expertGridDescriptorKeys(
-  config: ExpertGridChannelConfig<unknown>,
+  config: ExpertGridChannelConfig<ExpertScheduleRowCommon>,
   showBillingCols: boolean
 ): string[] {
   return [
@@ -213,7 +391,7 @@ export function expertGridDescriptorKeys(
 }
 
 export function expertGridDescriptorColWidths(
-  config: ExpertGridChannelConfig<unknown>,
+  config: ExpertGridChannelConfig<ExpertScheduleRowCommon>,
   showBillingCols: boolean
 ): number[] {
   const core = config.descriptorCore.map((c) => c.widthPx)
@@ -224,7 +402,7 @@ export function expertGridDescriptorColWidths(
 }
 
 export function expertGridDescriptorHeadLabels(
-  config: ExpertGridChannelConfig<unknown>,
+  config: ExpertGridChannelConfig<ExpertScheduleRowCommon>,
   showBillingCols: boolean
 ): string[] {
   const core = config.descriptorCore.map((c) => c.label)
@@ -234,4 +412,20 @@ export function expertGridDescriptorHeadLabels(
     ...config.trailingHeaderLabels,
   ]
   return [...billing, ...core, ...tail]
+}
+
+/** Flattened descriptor columns for body/paste (billing as checkbox-billing). */
+export function expertGridBodyDescriptorColumns(
+  config: ExpertGridChannelConfig<ExpertScheduleRowCommon>,
+  showBillingCols: boolean
+): ExpertDescriptorColumn[] {
+  const billing: ExpertDescriptorColumn[] = showBillingCols
+    ? config.billingFlagKeys.map((key, i) => ({
+        key,
+        label: config.billingFlagLabels[i] ?? key,
+        widthPx: config.billingFlagWidthsPx[i] ?? 56,
+        kind: "checkbox-billing" as const,
+      }))
+    : []
+  return [...billing, ...config.descriptorCore, ...config.descriptorTail]
 }
