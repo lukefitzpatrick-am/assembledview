@@ -187,6 +187,7 @@ import {
   shouldIncludeMediaPlanLineItem,
 } from "@/lib/mediaplan/advertisingAssociatesExcel"
 import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
+import { CREATE_MEDIA_TOGGLE_KEYS } from "@/lib/mediaplan/createMediaToggleKeys"
 import {
   attachOverridesToLineInputs,
 } from "@/lib/finance/billingOverrides"
@@ -793,26 +794,8 @@ function CreateMediaPlan() {
       mbaidentifier: "",
       mba_number: "",
       mp_plannumber: "1",
-      mp_television: false,
-      mp_radio: false,
+      ...Object.fromEntries(CREATE_MEDIA_TOGGLE_KEYS.map((k) => [k, false])),
       mp_production: false,
-      mp_newspaper: false,
-      mp_magazines: false,
-      mp_ooh: false,
-      mp_cinema: false,
-      mp_digidisplay: false,
-      mp_digiaudio: false,
-      mp_digivideo: false,
-      mp_bvod: false,
-      mp_integration: false,
-      mp_search: false,
-      mp_socialmedia: false,
-      mp_progdisplay: false,
-      mp_progvideo: false,
-      mp_progbvod: false,
-      mp_progaudio: false,
-      mp_progooh: false,
-      mp_influencers: false,
       mp_fixedfee: false,
       billingSchedule: [],
     },
@@ -1190,6 +1173,7 @@ function CreateMediaPlan() {
     ]
   )
 
+  // Media container toggles — names must match CREATE_MEDIA_TOGGLE_KEYS (excl. production/fixedfee).
   const mediaTypes = useMemo(
     () => [
       { name: "mp_fixedfee", label: "Fixed Fee", component: null },
