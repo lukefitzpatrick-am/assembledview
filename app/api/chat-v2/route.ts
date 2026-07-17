@@ -5,7 +5,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import type { ChatCompletionMessageParam } from "openai/resources/index.mjs"
 import type Anthropic from "@anthropic-ai/sdk"
 import { type ChatMode } from "@/src/ava/modes"
 import { auth0 } from "@/lib/auth0"
@@ -27,6 +26,12 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 /** Multi-tool Claude turns can exceed the default serverless limit; streaming is a later phase. */
 export const maxDuration = 60
+
+/** Minimal inbound chat message shape (previously openai ChatApiMessage). */
+type ChatApiMessage = {
+  role: string
+  content?: unknown
+}
 
 const AVA_V2_APPENDIX = `
 You are AVA, the AssembledView AI assistant. Respond in Australian English — short, direct sentences with a warm, personable voice (see voice rules).
@@ -67,7 +72,7 @@ Never return JSON reply contracts in prose. After apply_form_patch, confirm chan
 `.trim()
 
 type ChatRequestBody = {
-  messages?: ChatCompletionMessageParam[]
+  messages?: ChatApiMessage[]
   pageContext?: PageContext
   mode?: ChatMode
   /** Pending parsed plan from AVA xlsx attach (same-turn confirm → apply_parsed_plan). */
@@ -261,7 +266,7 @@ function deriveAvaIdentifiers(pageContext?: PageContext): {
   return fromEntities
 }
 
-function sanitiseMessages(messages: ChatCompletionMessageParam[]): ChatCompletionMessageParam[] {
+function sanitiseMessages(messages: ChatApiMessage[]): ChatApiMessage[] {
   if (!Array.isArray(messages)) return []
   return messages.filter((message) => {
     const role = message?.role
@@ -269,7 +274,7 @@ function sanitiseMessages(messages: ChatCompletionMessageParam[]): ChatCompletio
   })
 }
 
-function extractOpenAiMessageText(msg: ChatCompletionMessageParam): string {
+function extractOpenAiMessageText(msg: ChatApiMessage): string {
   const raw = msg as { content?: unknown }
   const c = raw.content
   if (typeof c === "string") return c
@@ -290,7 +295,7 @@ function extractOpenAiMessageText(msg: ChatCompletionMessageParam): string {
   return parts.join("")
 }
 
-function toAnthropicMessages(messages: ChatCompletionMessageParam[]): Anthropic.MessageParam[] {
+function toAnthropicMessages(messages: ChatApiMessage[]): Anthropic.MessageParam[] {
   const out: Anthropic.MessageParam[] = []
   for (const msg of messages) {
     const role = msg.role

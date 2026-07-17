@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import type { ChatCompletionMessageParam } from "openai/resources/index.mjs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -98,12 +97,18 @@ type ChatUiMessage = {
   questions?: ChatQuestionCardState[]
 }
 
+/** Minimal chat message shape previously imported from openai (type-only). */
+type ChatApiMessage = {
+  role: string
+  content?: unknown
+}
+
 type ChatWidgetProps = {
   getPageContext?: () => Promise<PageContext | undefined> | PageContext | undefined
   pageContext?: PageContext
   saveSelector?: string
   mode?: ChatMode
-  initialMessages?: ChatCompletionMessageParam[]
+  initialMessages?: ChatApiMessage[]
   className?: string
 }
 
@@ -125,7 +130,7 @@ const STARTER_CHIPS: Record<ChatMode, string[]> = {
   ],
 }
 
-function toUiMessages(messages: ChatCompletionMessageParam[]): ChatUiMessage[] {
+function toUiMessages(messages: ChatApiMessage[]): ChatUiMessage[] {
   const out: ChatUiMessage[] = []
   for (const msg of messages) {
     if (msg.role !== "user" && msg.role !== "assistant") continue
@@ -136,7 +141,7 @@ function toUiMessages(messages: ChatCompletionMessageParam[]): ChatUiMessage[] {
   return out
 }
 
-function toApiMessages(messages: ChatUiMessage[]): ChatCompletionMessageParam[] {
+function toApiMessages(messages: ChatUiMessage[]): ChatApiMessage[] {
   return messages.map((msg) => ({ role: msg.role, content: msg.content }))
 }
 
