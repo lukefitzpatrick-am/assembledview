@@ -88,6 +88,17 @@ export interface BillingRecord {
   billed?: boolean
   billed_at?: number | null
   billed_by?: number | null
+  /** Invoiced amount snapshotted when marked billed; never overwritten by schedule recompute. */
+  billed_amount?: number | null
+  /** Hash of the line set at bill time (see `hashBilledLineSet`). */
+  billed_lines_hash?: string | null
+  /**
+   * True when this month is billed and the current recomputed total / line set
+   * differs from the snapshotted billed amount / hash. Derived at overlay time.
+   */
+  billed_drift?: boolean
+  /** currentTotal - billed_amount when drift is computable; else null. */
+  billed_drift_delta?: number | null
   notes?: string | null
   exported_at?: number | null
   exported_by?: number | null

@@ -112,6 +112,8 @@ export function ReceivablesClientCard({
                     <div className="flex shrink-0 items-center gap-2">
                       <BilledStatusPill
                         billed={rec.billed}
+                        drift={rec.billed_drift}
+                        driftDelta={rec.billed_drift_delta}
                         onToggle={(next) => onToggleBilled(rec, next)}
                         disabled={!rec.invoice_key}
                       />

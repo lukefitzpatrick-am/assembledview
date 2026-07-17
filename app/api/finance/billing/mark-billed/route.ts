@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles } from "@/lib/rbac"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import { hashBilledLineSet, toBilledLineSnapshots } from "@/lib/finance/billedDrift"
 import { ensureFinanceBillingRecord } from "@/lib/finance/materialiseFinanceBillingRecord"
 import { composeInvoiceKey } from "@/lib/finance/overlayFinanceStatus"
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
@@ -111,6 +112,16 @@ export async function POST(request: NextRequest) {
 
     const total = typeof raw.total === "number" ? raw.total : undefined
 
+    const lineSnapshots = Array.isArray(raw.line_items)
+      ? toBilledLineSnapshots(
+          raw.line_items as Array<{
+            item_code?: string | null
+            amount?: number | null
+            schedule_line_item_id?: string | null
+          }>
+        )
+      : []
+
     const invoice_key = composeInvoiceKey(
       billing_type,
       clients_id,
@@ -142,9 +153,26 @@ export async function POST(request: NextRequest) {
     }
 
     const now = Date.now()
+    const billed_amount =
+      billed && typeof total === "number" && Number.isFinite(total) ? total : null
+    const billed_lines_hash =
+      billed && lineSnapshots.length > 0 ? hashBilledLineSet(lineSnapshots) : null
+
     const patch = billed
-      ? { billed: true, billed_at: now, billed_by: currentUser.id }
-      : { billed: false, billed_at: null, billed_by: null }
+      ? {
+          billed: true,
+          billed_at: now,
+          billed_by: currentUser.id,
+          billed_amount,
+          billed_lines_hash,
+        }
+      : {
+          billed: false,
+          billed_at: null,
+          billed_by: null,
+          billed_amount: null,
+          billed_lines_hash: null,
+        }
 
     await xanoFinancePatch(`${FINANCE_BILLING_RECORDS_PATH}/${recordId}`, patch)
 
@@ -168,6 +196,10 @@ export async function POST(request: NextRequest) {
       billed,
       billed_at: patch.billed_at,
       billed_by: patch.billed_by,
+      billed_amount: patch.billed_amount,
+      billed_lines_hash: patch.billed_lines_hash,
+      billed_drift: false,
+      billed_drift_delta: billed ? 0 : null,
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
