@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    name: npm ci + tsc
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+  knip:
+    name: knip (report-only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Soft gate: surface unused-export noise without failing PRs yet.
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Knip report
+        id: knip
+        run: |
+          set +e
+          npx knip --no-progress 2>&1 | tee knip-output.txt
+          status=$?
+          echo "knip_exit=$status" >> "$GITHUB_OUTPUT"
+
+          unused_files=$(grep -cE '^\.' knip-output.txt 2>/dev/null || true)
+          echo "## Knip summary (non-blocking)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Exit code: \`$status\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          grep -E '^(Unused|Unlisted|Unresolved|Duplicate|Configuration)' knip-output.txt | head -20 >> "$GITHUB_STEP_SUMMARY" || echo "(no category headers found)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Full log attached as artifact \`knip-output.txt\`." >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
+      - name: Upload knip log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: knip-report
+          path: knip-output.txt
+          if-no-files-found: ignore
