@@ -3235,10 +3235,16 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                       } as Partial<TRow>)
                                     }
                                     placeholder="Select"
-                                    searchPlaceholder="Search platforms…"
+                                    searchPlaceholder={
+                                      config.publisherField === "network"
+                                        ? "Search networks…"
+                                        : "Search platforms…"
+                                    }
                                     emptyText={
                                       platformNames.length === 0
-                                        ? "No platforms."
+                                        ? config.publisherField === "network"
+                                          ? "No networks."
+                                          : "No platforms."
                                         : "No match."
                                     }
                                     buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
@@ -3278,11 +3284,12 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                     }
                                     placeholder="Select"
                                     searchPlaceholder={
-                                      isBid
+                                      col.searchPlaceholder ??
+                                      (isBid
                                         ? "Search bid strategies…"
                                         : isBuy
                                           ? "Search buy types…"
-                                          : "Search…"
+                                          : "Search…")
                                     }
                                     buttonClassName="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
                                     onTriggerFocus={() =>

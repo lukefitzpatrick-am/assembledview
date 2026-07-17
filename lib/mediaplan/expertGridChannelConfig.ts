@@ -9,13 +9,21 @@ import type { ExpertDailyValues } from "@/lib/mediaplan/expertDayModel"
 import type {
   ExpertWeeklyValues,
   OohExpertMergedWeekSpan,
+  OohExpertScheduleRow,
   ProgVideoExpertScheduleRow,
   SearchExpertScheduleRow,
 } from "@/lib/mediaplan/expertModeWeeklySchedule"
 import {
+  deriveOohExpertRowScheduleYmdFromRow,
   deriveProgExpertRowScheduleYmdFromRow,
   deriveSearchExpertRowScheduleYmdFromRow,
 } from "@/lib/mediaplan/expertChannelMappings"
+import {
+  exactCanonicalBuyType,
+  exactCanonicalFormat,
+  fuzzyMatchBuyType,
+  fuzzyMatchFormat,
+} from "@/lib/mediaplan/expertOohFuzzyMatch"
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
 import type { WeeklyGanttWeekColumn } from "@/lib/utils/weeklyGanttColumns"
 
@@ -41,6 +49,8 @@ export type ExpertDescriptorColumn = {
   normalizePaste?: (raw: string, ctx: { publisherNames: string[] }) => string
   /** Optional header hover tooltip. */
   headerTooltip?: string
+  /** Combobox search box placeholder when kind === "combobox-static". */
+  searchPlaceholder?: string
 }
 
 /** Structural fields the ExpertGrid shell reads without channel-specific keys. */
@@ -74,6 +84,11 @@ export type ExpertGridChannelConfig<TRow extends ExpertScheduleRowCommon> = {
   descriptorTail: readonly ExpertDescriptorColumn[]
   /** Labels after unit rate (computed cols — not stored on the row). */
   trailingHeaderLabels: readonly string[]
+  /**
+   * Sticky widths for trailing computed cols (Net Media / actions / Σ qty).
+   * Included in {@link expertGridDescriptorColWidths} so sticky offsets stay correct.
+   */
+  trailingColWidthsPx?: readonly number[]
   createEmptyRow: (
     id: string,
     campaignStartDate: Date,
@@ -378,6 +393,159 @@ export const PROGVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgVideoE
       ),
   }
 
+/** Match labels/values on {@link OOHContainer} comboboxes. */
+export const OOH_FORMAT_OPTIONS: ComboboxOption[] = [
+  { value: "active", label: "Active" },
+  { value: "large_format", label: "Large Format" },
+  { value: "other", label: "Other" },
+  { value: "retail", label: "Retail" },
+  { value: "small_format", label: "Small Format" },
+  { value: "street_furniture", label: "Street Furniture" },
+  { value: "transit", label: "Transit" },
+]
+
+export const OOH_BUY_TYPE_OPTIONS: ComboboxOption[] = [
+  { value: "bonus", label: "Bonus" },
+  { value: "package_inclusions", label: "Package Inclusions" },
+  { value: "cpm", label: "CPM" },
+  { value: "fixed_cost", label: "Fixed Cost" },
+  { value: "package", label: "Package" },
+  { value: "panels", label: "Panels" },
+]
+
+function normalizeOohFormatPaste(raw: string): string {
+  const v = raw.trim()
+  if (!v) return ""
+  const fromOpts = normalizeOptionPaste(v, OOH_FORMAT_OPTIONS)
+  if (OOH_FORMAT_OPTIONS.some((o) => o.value === fromOpts)) return fromOpts
+  const ex = exactCanonicalFormat(v)
+  if (ex) return ex
+  const fz = fuzzyMatchFormat(v)
+  return fz?.matched ?? v
+}
+
+function normalizeOohBuyTypePaste(raw: string): string {
+  const v = raw.trim()
+  if (!v) return ""
+  const fromOpts = normalizeOptionPaste(v, OOH_BUY_TYPE_OPTIONS)
+  if (OOH_BUY_TYPE_OPTIONS.some((o) => o.value === fromOpts)) return fromOpts
+  const ex = exactCanonicalBuyType(v)
+  if (ex) return ex
+  const fz = fuzzyMatchBuyType(v)
+  return fz?.matched ?? v
+}
+
+export function createEmptyOohExpertRow(
+  id: string,
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  weekKeys: string[]
+): OohExpertScheduleRow {
+  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
+  const weeklyValues = {} as ExpertWeeklyValues
+  for (const k of weekKeys) {
+    weeklyValues[k] = ""
+  }
+  return {
+    id,
+    market: "",
+    network: "",
+    format: "",
+    type: "",
+    placement: "",
+    startDate: ymd(campaignStartDate),
+    endDate: ymd(campaignEndDate),
+    size: "",
+    panels: "",
+    buyingDemo: "",
+    buyType: "",
+    fixedCostMedia: false,
+    clientPaysForMedia: false,
+    budgetIncludesFees: false,
+    unitRate: "",
+    grossCost: 0,
+    weeklyValues,
+    mergedWeekSpans: [],
+  }
+}
+
+export const OOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<OohExpertScheduleRow> =
+  {
+    mediaTypeKey: "ooh",
+    channelLabel: "OOH",
+    publisherField: "network",
+    billingFlagKeys: [
+      "fixedCostMedia",
+      "clientPaysForMedia",
+      "budgetIncludesFees",
+    ],
+    billingFlagLabels: [
+      "Fixed Cost Media",
+      "Client Pays for Media",
+      "Budget Includes Fees",
+    ],
+    billingFlagWidthsPx: [56, 56, 56],
+    descriptorCore: [
+      { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
+      { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
+      {
+        key: "network",
+        label: "Network",
+        widthPx: 130,
+        kind: "combobox-publishers",
+      },
+      {
+        key: "format",
+        label: "Format",
+        widthPx: 130,
+        kind: "combobox-static",
+        options: OOH_FORMAT_OPTIONS,
+        searchPlaceholder: "Search formats…",
+        normalizePaste: (raw) => normalizeOohFormatPaste(raw),
+      },
+      {
+        key: "buyType",
+        label: "Buy Type",
+        widthPx: 110,
+        kind: "combobox-static",
+        options: OOH_BUY_TYPE_OPTIONS,
+        searchPlaceholder: "Search buy types…",
+        normalizePaste: (raw) => normalizeOohBuyTypePaste(raw),
+      },
+      { key: "placement", label: "Placement", widthPx: 120, kind: "text" },
+      { key: "type", label: "Type", widthPx: 96, kind: "text" },
+      { key: "size", label: "Size", widthPx: 96, kind: "text" },
+    ],
+    descriptorTail: [
+      { key: "market", label: "Market", widthPx: 96, kind: "text" },
+      { key: "buyingDemo", label: "Buying Demo", widthPx: 120, kind: "text" },
+      {
+        key: "unitRate",
+        label: "Unit Rate",
+        widthPx: 88,
+        kind: "unit-rate",
+        headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
+      },
+    ],
+    trailingHeaderLabels: ["Net Media", "", "Σ qty"],
+    trailingColWidthsPx: [100, 76, 68],
+    createEmptyRow: createEmptyOohExpertRow,
+    deriveScheduleYmdFromRow: (
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    ) =>
+      deriveOohExpertRowScheduleYmdFromRow(
+        row,
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        dayKeysByWeekKey
+      ),
+  }
+
 /** Descriptor keys in sticky order (billing optional). */
 export function expertGridDescriptorKeys(
   config: ExpertGridChannelConfig<ExpertScheduleRowCommon>,
@@ -396,9 +564,10 @@ export function expertGridDescriptorColWidths(
 ): number[] {
   const core = config.descriptorCore.map((c) => c.widthPx)
   const tail = config.descriptorTail.map((c) => c.widthPx)
+  const trailing = config.trailingColWidthsPx ?? []
   return showBillingCols
-    ? [...config.billingFlagWidthsPx, ...core, ...tail]
-    : [...core, ...tail]
+    ? [...config.billingFlagWidthsPx, ...core, ...tail, ...trailing]
+    : [...core, ...tail, ...trailing]
 }
 
 export function expertGridDescriptorHeadLabels(
