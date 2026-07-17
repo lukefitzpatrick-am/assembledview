@@ -1726,3 +1726,112 @@ export const BVOD_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<BvodExpertSched
         dayKeysByWeekKey
       ),
   }
+
+export const TV_BUY_TYPE_OPTIONS: ComboboxOption[] = [
+  { value: "bonus", label: "Bonus" },
+  { value: "cpm", label: "CPM" },
+  { value: "cpt", label: "CPT" },
+  { value: "fixed_cost", label: "Fixed Cost" },
+  { value: "package", label: "Package" },
+  { value: "spots", label: "Spots" },
+  { value: "CPP", label: "CPP" },
+  { value: "cpp", label: "CPP (lower)" },
+]
+
+export function createEmptyTelevisionExpertRow(
+  id: string,
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  weekKeys: string[]
+): TelevisionExpertScheduleRow {
+  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
+  const weeklyValues = {} as ExpertWeeklyValues
+  for (const k of weekKeys) {
+    weeklyValues[k] = ""
+  }
+  return {
+    id,
+    startDate: ymd(campaignStartDate),
+    endDate: ymd(campaignEndDate),
+    market: "",
+    network: "",
+    station: "",
+    daypart: "",
+    placement: "",
+    buyType: "",
+    buyingDemo: "",
+    size: "30s",
+    tarps: "",
+    fixedCostMedia: false,
+    clientPaysForMedia: false,
+    budgetIncludesFees: false,
+    unitRate: "",
+    grossCost: 0,
+    weeklyValues,
+    mergedWeekSpans: [],
+  }
+}
+
+export const TELEVISION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<TelevisionExpertScheduleRow> =
+  {
+    mediaTypeKey: "television",
+    channelLabel: "Television",
+    publisherField: "network",
+    billingFlagKeys: [
+      "fixedCostMedia",
+      "clientPaysForMedia",
+      "budgetIncludesFees"
+    ],
+    billingFlagLabels: [
+      "Fixed Cost Media",
+      "Client Pays for Media",
+      "Budget Includes Fees"
+    ],
+    billingFlagWidthsPx: [56, 56, 56],
+    descriptorCore: [
+      { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
+      { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
+      { key: "network", label: "Network", widthPx: 130, kind: "combobox-publishers" },
+      { key: "station", label: "Station", widthPx: 110, kind: "combobox-stations" },
+      {
+      key: "buyType",
+      label: "Buy Type",
+      widthPx: 96,
+      kind: "combobox-static",
+      options: TV_BUY_TYPE_OPTIONS,
+      normalizePaste: (raw) =>
+        normalizeOptionPaste(raw, TV_BUY_TYPE_OPTIONS),
+    },
+      { key: "placement", label: "Placement", widthPx: 110, kind: "text" },
+      { key: "daypart", label: "Daypart", widthPx: 96, kind: "text" },
+      { key: "size", label: "Size", widthPx: 80, kind: "text" },
+      { key: "tarps", label: "TARPs", widthPx: 72, kind: "text" },
+    ],
+    descriptorTail: [
+      { key: "market", label: "Market", widthPx: 96, kind: "text" },
+      { key: "buyingDemo", label: "Buying Demo", widthPx: 110, kind: "text" },
+      {
+      key: "unitRate",
+      label: "Unit Rate",
+      widthPx: 88,
+      kind: "unit-rate",
+      headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
+    },
+    ],
+    trailingHeaderLabels: ["Net Media", "", "Σ qty"],
+    createEmptyRow: createEmptyTelevisionExpertRow,
+    deriveScheduleYmdFromRow: (
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    ) =>
+      deriveTelevisionExpertRowScheduleYmdFromRow(
+        row,
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        dayKeysByWeekKey
+      ),
+  }
