@@ -47,7 +47,7 @@ function serBurst(b: {
   }
 }
 
-function serLine(l: { bursts: Parameters<typeof serBurst>[0][]; [k: string]: unknown }) {
+function serLine<T extends { bursts: Parameters<typeof serBurst>[0][] }>(l: T) {
   const { bursts, ...rest } = l
   return { ...rest, bursts: bursts.map(serBurst) }
 }

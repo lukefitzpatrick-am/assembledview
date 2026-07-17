@@ -63,10 +63,9 @@ function serializeBurst(b: {
   return out
 }
 
-function serializeLine(line: {
-  bursts: Parameters<typeof serializeBurst>[0][]
-  [k: string]: unknown
-}) {
+function serializeLine<T extends { bursts: Parameters<typeof serializeBurst>[0][] }>(
+  line: T
+) {
   const { bursts, ...rest } = line
   return { ...rest, bursts: bursts.map(serializeBurst) }
 }
