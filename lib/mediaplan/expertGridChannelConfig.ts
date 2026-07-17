@@ -10,6 +10,7 @@ import type {
   ExpertWeeklyValues,
   OohExpertMergedWeekSpan,
   OohExpertScheduleRow,
+  ProgAudioExpertScheduleRow,
   ProgDisplayExpertScheduleRow,
   ProgVideoExpertScheduleRow,
   SearchExpertScheduleRow,
@@ -508,6 +509,138 @@ export const PROGDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgDisp
     ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyProgDisplayExpertRow,
+    deriveScheduleYmdFromRow: (
+      row,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+      dayKeysByWeekKey
+    ) =>
+      deriveProgExpertRowScheduleYmdFromRow(
+        row,
+        weekColumns,
+        campaignStartDate,
+        campaignEndDate,
+        dayKeysByWeekKey
+      ),
+  }
+
+/** Match labels/values on ProgAudioContainer buy-type combobox. */
+export const PROGAUDIO_BUY_TYPE_OPTIONS: ComboboxOption[] = [
+  { value: "bonus", label: "Bonus" },
+  { value: "package_inclusions", label: "Package Inclusions" },
+  { value: "cpc", label: "CPC" },
+  { value: "cpm", label: "CPM" },
+  { value: "cpv", label: "CPV" },
+  { value: "fixed_cost", label: "Fixed Cost" },
+]
+
+export const PROGAUDIO_BID_STRATEGY_OPTIONS: ComboboxOption[] = [
+  { value: "clicks", label: "Clicks" },
+  { value: "completed_listens", label: "Completed Listens" },
+  { value: "conversions", label: "Conversions" },
+  { value: "reach", label: "Reach" },
+]
+
+export function createEmptyProgAudioExpertRow(
+  id: string,
+  campaignStartDate: Date,
+  campaignEndDate: Date,
+  weekKeys: string[]
+): ProgAudioExpertScheduleRow {
+  const ymd = (d: Date) => format(startOfDay(d), "yyyy-MM-dd")
+  const weeklyValues = {} as ExpertWeeklyValues
+  for (const k of weekKeys) {
+    weeklyValues[k] = ""
+  }
+  return {
+    id,
+    startDate: ymd(campaignStartDate),
+    endDate: ymd(campaignEndDate),
+    platform: "",
+    bidStrategy: "",
+    buyType: "",
+    creativeTargeting: "",
+    creative: "",
+    buyingDemo: "",
+    market: "",
+    fixedCostMedia: false,
+    clientPaysForMedia: false,
+    budgetIncludesFees: false,
+    noadserving: false,
+    unitRate: "",
+    grossCost: 0,
+    weeklyValues,
+    mergedWeekSpans: [],
+  }
+}
+
+export const PROGAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgAudioExpertScheduleRow> =
+  {
+    mediaTypeKey: "progaudio",
+    channelLabel: "Prog Audio",
+    publisherField: "platform",
+    billingFlagKeys: [
+      "fixedCostMedia",
+      "clientPaysForMedia",
+      "budgetIncludesFees",
+      "noadserving",
+    ],
+    billingFlagLabels: [
+      "Fixed Cost Media",
+      "Client Pays for Media",
+      "Budget Includes Fees",
+      "No Ad Serving",
+    ],
+    billingFlagWidthsPx: [56, 56, 56, 56],
+    descriptorCore: [
+      { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
+      { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
+      {
+        key: "platform",
+        label: "Platform",
+        widthPx: 120,
+        kind: "combobox-publishers",
+      },
+      {
+        key: "bidStrategy",
+        label: "Bid Strategy",
+        widthPx: 110,
+        kind: "combobox-static",
+        options: PROGAUDIO_BID_STRATEGY_OPTIONS,
+        normalizePaste: (raw) =>
+          normalizeOptionPaste(raw, PROGAUDIO_BID_STRATEGY_OPTIONS),
+      },
+      {
+        key: "buyType",
+        label: "Buy Type",
+        widthPx: 96,
+        kind: "combobox-static",
+        options: PROGAUDIO_BUY_TYPE_OPTIONS,
+        normalizePaste: (raw) =>
+          normalizeOptionPaste(raw, PROGAUDIO_BUY_TYPE_OPTIONS),
+      },
+      {
+        key: "creativeTargeting",
+        label: "Creative Targeting",
+        widthPx: 120,
+        kind: "text",
+      },
+      { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
+    ],
+    descriptorTail: [
+      { key: "market", label: "Market", widthPx: 96, kind: "text" },
+      { key: "buyingDemo", label: "Buying Demo", widthPx: 110, kind: "text" },
+      {
+        key: "unitRate",
+        label: "Unit Rate",
+        widthPx: 88,
+        kind: "unit-rate",
+        headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
+      },
+    ],
+    trailingHeaderLabels: ["Net Media", "", "Σ qty"],
+    createEmptyRow: createEmptyProgAudioExpertRow,
     deriveScheduleYmdFromRow: (
       row,
       weekColumns,
