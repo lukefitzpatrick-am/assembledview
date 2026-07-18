@@ -2631,8 +2631,14 @@ export const MAGAZINES_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<MagazinesE
     },
       { key: "placement", label: "Placement", widthPx: 110, kind: "text" },
       { key: "title", label: "Title", widthPx: 120, kind: "combobox-titles" },
-      { key: "size", label: "Size", widthPx: 80, kind: "text" },
-      { key: "publisher", label: "Publisher", widthPx: 120, kind: "text" },
+      {
+        key: "size",
+        label: "Ad Size",
+        widthPx: 80,
+        kind: "combobox-dynamic",
+      },
+      // Grid-only: card publisher control is Network (publisherField). Old card had no Publisher text field.
+      { key: "publisher", label: "Publisher", widthPx: 120, kind: "text", surfaces: "grid" },
     ],
     descriptorTail: [
       { key: "market", label: "Market", widthPx: 96, kind: "text" },
