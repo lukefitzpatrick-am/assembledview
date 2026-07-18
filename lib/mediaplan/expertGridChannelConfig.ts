@@ -1670,7 +1670,7 @@ export const DIGITALDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Digit
       normalizePaste: (raw) =>
         normalizeOptionPaste(raw, DIGITALDISPLAY_BUY_TYPE_OPTIONS),
     },
-      { key: "creativeTargeting", label: "Creative Targeting", widthPx: 120, kind: "text" },
+      { key: "creativeTargeting", label: "Targeting", widthPx: 120, kind: "text" },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
     ],
     descriptorTail: [
