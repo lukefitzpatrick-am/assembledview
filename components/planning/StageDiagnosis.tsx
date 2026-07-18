@@ -241,7 +241,7 @@ export function StageDiagnosis({
           <p className="mt-0.5 text-xs text-muted-foreground">
             Full RM taxonomy for the active audience. Group totals show reach only (no
             status badge) and are excluded from BCS, DFII, and allocation. Search is
-            modelled, not Roy Morgan measured.
+            Source: Assembled seed — pending warehouse source (attn/B/D/cpm never Roy Morgan).
           </p>
         </div>
         {taxonomyLoading && taxonomy.length === 0 ? (

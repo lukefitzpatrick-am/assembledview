@@ -44,6 +44,8 @@ function toStr(value: unknown): string {
 }
 
 function benchFromRow(row: Record<string, unknown>): PlanningBench {
+  // P7-8: do not wire a single SOURCE into all four pillars — prefer ATTN_SOURCE /
+  // BRAND_EFFECT_SOURCE / DIRECT_EFFECT_SOURCE / CPM_SOURCE when warehouse ships them.
   return {
     attn: toNumberOrNull(row.ATTN ?? row.attn),
     brand_effect: toNumberOrNull(row.BRAND_EFFECT ?? row.brand_effect),

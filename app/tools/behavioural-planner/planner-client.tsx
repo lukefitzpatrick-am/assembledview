@@ -126,6 +126,7 @@ function toEngineChannels(adapted: AdapterResult, excluded: Set<string>): Channe
       reachWc: c.reachWc,
       isRmMeasured: c.isRmMeasured,
       ageBase: c.ageBase,
+      pillarSources: c.pillarSources,
     }))
 }
 

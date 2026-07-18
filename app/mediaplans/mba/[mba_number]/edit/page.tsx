@@ -6140,7 +6140,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const forceIncrementForApprovals =
         Boolean(lastApprovalFp) && lastApprovalFp !== approvalFpNow
 
-      // 3. Create new media_plan_versions record using PUT (which creates new version and increments version_number)
+      // 3. Create new media_plan_versions record using PUT.
+      // REVIEW (integrity P0): deferMasterVersionPublish stages the version row without
+      // advancing master.version_number. We publish only after every channel child write succeeds.
       updateSaveStatus('Media Plan Version', 'pending')
       const versionResponse = await fetch(`/api/mediaplans/mba/${mbaNumber}`, {
         method: "PUT",
@@ -6161,6 +6163,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           billingSchedule: undefined,
           deliverySchedule: undefined,
           delivery_schedule: undefined,
+          deferMasterVersionPublish: true,
           ...(forceIncrementForApprovals ? { forceIncrement: true } : {}),
         }),
       })
@@ -6191,7 +6194,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         setHasPersistedBillingSchedule(true)
       }
 
-      // Get the version number from the response (PUT endpoint increments it unless draft v1 is overwritten)
+      // Get the version number from the response (PUT stages or overwrites; publish may be deferred)
       const mode = versionData.mode
       const versionId = versionData.versionId ?? versionData.version?.id ?? versionData.id
       const savedVersionNumber = versionData.versionNumber
@@ -6200,12 +6203,24 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         ?? versionData.master?.version_number 
         ?? targetSaveVersion
       const nextVersion = savedVersionNumber
-      const updatedLatest = Math.max(latestVersionNumber || 0, typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber || 0)
-      setLatestVersionNumber(updatedLatest)
-      setNextSaveVersionNumber(updatedLatest + 1)
-      setSelectedVersionNumber(typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber)
       const numericSavedVersion = typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber
       const isOverwriteMode = mode === "overwrite"
+      // REVIEW: deferredPublish means master.version_number was NOT advanced yet — do not
+      // commit local "current version" UI state until channel writes succeed and we PATCH publish.
+      const deferredPublish = Boolean(versionData.deferredPublish) && !isOverwriteMode
+      const publishedVersionBeforeSave =
+        versionData.publishedVersionNumber ?? inferredLatest
+      if (isOverwriteMode) {
+        const updatedLatest = Math.max(
+          latestVersionNumber || 0,
+          typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber || 0
+        )
+        setLatestVersionNumber(updatedLatest)
+        setNextSaveVersionNumber(updatedLatest + 1)
+        setSelectedVersionNumber(
+          typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber
+        )
+      }
       if (isOverwriteMode && !versionId) {
         throw new Error("Missing version 1 ID for draft overwrite")
       }
@@ -6652,14 +6667,80 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         )
       }
       
-      // Execute all saves in parallel
+      // Execute all channel child writes in parallel (stage), then publish master version.
+      // REVIEW (integrity P0): So-Fail — any channel error blocks success toast, navigation, and publish.
+      let channelSaveErrors: Array<{ type?: string; error?: unknown }> = []
       if (savePromises.length > 0) {
         const results = await Promise.all(savePromises)
-        const errors = results.filter(result => result && result.error)
-        
-        if (errors.length > 0) {
-          console.warn('Some media types failed to save:', errors)
+        channelSaveErrors = results.filter(
+          (result): result is { type?: string; error?: unknown } =>
+            Boolean(result && typeof result === 'object' && 'error' in result && result.error)
+        )
+      }
+
+      if (channelSaveErrors.length > 0) {
+        const failedChannels = channelSaveErrors.map((e) => e.type || 'unknown')
+        console.error('[save integrity] channel writes failed; blocking version publish', {
+          mbaNumber,
+          versionId,
+          stagedVersionNumber: nextVersion,
+          publishedVersionNumber: publishedVersionBeforeSave,
+          deferredPublish,
+          failedChannels,
+          partialStateNote:
+            'Staged version row and any successful channel children may need cleanup; master.version_number was not advanced.',
+          errors: channelSaveErrors,
+        })
+        toast({
+          variant: 'destructive',
+          title: 'Save failed — version not published',
+          description: `Channel write(s) failed: ${failedChannels.join(', ')}. Master version remains ${publishedVersionBeforeSave}. Staged version ${nextVersion} (id ${versionId ?? 'n/a'}) was not published.`,
+        })
+        setIsSaving(false)
+        return
+      }
+
+      // Publish: advance master.version_number only after every child write succeeded.
+      if (deferredPublish) {
+        updateSaveStatus('Publish version', 'pending')
+        const publishResponse = await fetch(`/api/mediaplans/mba/${mbaNumber}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ version_number: nextVersion }),
+        })
+        if (!publishResponse.ok) {
+          let publishError = 'Failed to publish version number after channel saves'
+          try {
+            const body = await publishResponse.json()
+            publishError = body.error || body.message || publishError
+          } catch {
+            /* ignore */
+          }
+          console.error('[save integrity] channel writes succeeded but publish failed', {
+            mbaNumber,
+            versionId,
+            stagedVersionNumber: nextVersion,
+            publishedVersionNumber: publishedVersionBeforeSave,
+          })
+          updateSaveStatus('Publish version', 'error', publishError)
+          toast({
+            variant: 'destructive',
+            title: 'Save incomplete — version not published',
+            description: `${publishError}. Channel data was written to staged version ${nextVersion}, but master.version_number was not advanced.`,
+          })
+          setIsSaving(false)
+          return
         }
+        updateSaveStatus('Publish version', 'success')
+        const updatedLatest = Math.max(
+          latestVersionNumber || 0,
+          typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber || 0
+        )
+        setLatestVersionNumber(updatedLatest)
+        setNextSaveVersionNumber(updatedLatest + 1)
+        setSelectedVersionNumber(
+          typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber
+        )
       }
 
       if (isOverwriteMode) {

@@ -1,9 +1,12 @@
 /**
  * Query-param contract for `/mediaplans/create` planning handoff (v1).
- * Params: clientId, campaignName, start, end (YYYY-MM-DD).
+ * Params: audienceId (frozen split), clientId, campaignName, start, end (YYYY-MM-DD).
+ * Never put split/$/% in the query string — load via audienceId only.
  */
 
 export type CreateCampaignPrefill = {
+  /** Saved planning audience id — create loads frozen recommended_split from API. */
+  audienceId?: string | number | null
   clientId?: string | number | null
   campaignName?: string | null
   /** YYYY-MM-DD */
@@ -14,6 +17,9 @@ export type CreateCampaignPrefill = {
 
 export function buildCreateCampaignHref(prefill: CreateCampaignPrefill = {}): string {
   const params = new URLSearchParams()
+  if (prefill.audienceId != null && String(prefill.audienceId).trim() !== "") {
+    params.set("audienceId", String(prefill.audienceId).trim())
+  }
   if (prefill.clientId != null && String(prefill.clientId).trim() !== "") {
     params.set("clientId", String(prefill.clientId).trim())
   }

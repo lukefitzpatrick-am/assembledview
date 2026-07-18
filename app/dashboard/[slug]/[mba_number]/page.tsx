@@ -665,12 +665,15 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     requestedEndISO,
   })
 
+  // Plan schedule "spend to date" is planned media, not Snowflake delivery.
+  // Only trust an explicit API actual; otherwise leave unset so the UI cannot
+  // present plan as delivered spend.
   const deliverySpendToDate = deriveSpendToDate(deliverySchedule)
   const metricsActual = metrics.actualSpendToDate
-  const trackedActualSpend =
+  const actualSpend =
     typeof metricsActual === "number" && Number.isFinite(metricsActual) && metricsActual > 0
       ? metricsActual
-      : deliverySpendToDate || 0
+      : undefined
 
   const monthlyPlanDateOpts = {
     campaignStartISO: effectiveStartISO,
@@ -697,12 +700,10 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     campaignBudget: budget,
   })
 
-  const actualSpend = trackedActualSpend
-
   if (DEBUG_SPEND) {
     console.log("[Spend Debug] spend resolution", {
-      trackedActualSpend,
-      deliverySpendToDate,
+      actualSpend,
+      deliverySpendToDatePlanned: deliverySpendToDate,
       metricsActualSpendToDate: metrics.actualSpendToDate,
       expectedSpend,
       totalPlannedMonthlySpend,

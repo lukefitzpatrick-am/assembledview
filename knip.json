@@ -12,7 +12,11 @@
     "lib/finance/forecast/index.ts",
     "lib/finance/forecast/server/index.ts",
     "lib/finance/forecast/snapshot/index.ts",
-    "src/ava/index.ts"
+    "src/ava/index.ts",
+    ".agents/**",
+    ".worktrees/**",
+    ".parked-untracked/**",
+    ".digiaudio-expert-origin.tsx"
   ],
   "ignoreDependencies": [
     "autoprefixer",

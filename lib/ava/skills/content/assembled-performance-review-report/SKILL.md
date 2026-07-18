@@ -58,7 +58,7 @@ Every insight climbs the full ladder: observation, insight, implication, action.
 
 Split recommendations into two lists:
 
-1. **In-flight optimisations**: changes to make now, each with an owner and expected effect (e.g. "shift $X from line A to line B to recover pace by [date]").
+1. **In-flight optimisations**: changes to make now, each with an owner and expected effect (cite reconciled snapshot numbers in chat; when mapping to deck fields, drop free-text `$` amounts — slides 3/5 carry the figures).
 2. **Next-period recommendations**: planning moves for the next month/quarter/campaign, grounded in the marketing brain (reach, continuity, attention, brand/activation balance).
 
 Aim for 2-4 insights and 2-5 recommendations. Fewer, sharper items beat a list that pads.
@@ -74,7 +74,7 @@ Post the full narrative in the chat panel in this order: executive summary, deli
 
 Client-facing monthly/WIP report on the fixed 10-slide Assembled report template (derived from the master brand template - never build from scratch, never restyle).
 
-**In Ava (Assembled View)**: call the `generate_performance_report` tool with the confirmed narrative mapped to its fields. The tool fills the template and returns a download card in the chat panel (same pattern as the MI workbook export). Call it ONLY after the explicit yes at the gate.
+**In Ava (Assembled View)**: call the `generate_performance_report` tool with the confirmed **narrative only** (execSummary, channels, keyInsight, insights, recs*, steps). Do **not** pass `deliverySpend`, `deliveryDeliverables`, or `kpis` — the tool injects those DETERMINISTICALLY from reconciled `get_delivery_snapshot` figures (same Snowflake source as on-page delivery) plus page planned-to-date. Call it ONLY after the explicit yes at the gate. Narrative fields must contain **no free-text dollar amounts** (`$…` / `AUD …`); the tool refuses invented `$` figures.
 
 **In Cowork/Claude**: build the same structure with the **assembled-presentations** skill from the master template.
 
@@ -84,16 +84,16 @@ The fixed report structure (every field filled - if a campaign has fewer than 4 
 |---|---|---|
 | 1 Cover | logo cover, no text | - |
 | 2 Executive summary | the BLUF, one bold statement | execSummary |
-| 3 Delivery vs plan | spend and deliverables vs expected to date | deliverySpend, deliveryDeliverables |
-| 4 Channel commentary | one point per channel group | channels x4 |
-| 5 Delivery KPIs | numbers lead, lime on dark | kpis x4 |
+| 3 Delivery vs plan | spend and deliverables vs expected to date | **server-injected** deliverySpend, deliveryDeliverables |
+| 4 Channel commentary | one point per channel group (no $ figures) | channels x4 |
+| 5 Delivery KPIs | numbers lead, lime on dark | **server-injected** kpis x4 |
 | 6 Key insight | the one lead insight, full ladder compressed | keyInsight |
 | 7 Insights | supporting insights | insights x3 |
 | 8 Recommendations | in-flight vs next period | recsInFlight, recsNextPeriod |
 | 9 Next steps | 4 steps, when + what | steps x4 (when, what) |
 | 10 End | logo close, no text | - |
 
-Slide copy rules: single-line strings per field (no line breaks), numbers lead, Australian English, sentence case, short lines, no em dashes, no filler. Match copy length to the box - shorten copy rather than crowd it (the tool enforces character caps; if it rejects a field, tighten the copy, never pad elsewhere). Every number on a slide must exist in the Stage 1 review or on the page - never re-derived.
+Slide copy rules: single-line strings per field (no line breaks), Australian English, sentence case, short lines, no em dashes, no filler. Match copy length to the box - shorten copy rather than crowd it (the tool enforces character caps; if it rejects a field, tighten the copy, never pad elsewhere). Hard money and KPI figures on slides 3 and 5 are injected server-side — never re-type them in narrative fields, and never invent `$` amounts in chat copy that will become deck narrative.
 
 File name: `{Client} {MBA} performance report {Mon YYYY}.pptx`.
 
@@ -103,7 +103,7 @@ Below ~90% confidence, never guess - ask. This applies at every stage: unknown o
 
 ## Failure modes - self-check before the gate
 
-Reject the draft if any of: commentary merely restates the containers; a cause asserted without ruling out alternatives; a miss hidden or softened; pacing judged against end-of-flight instead of expected-to-date; a metric dump instead of the 3-5 metrics that map to the objective; recommendations without owners; numbers on slides that do not trace to Stage 1; humour anywhere.
+Reject the draft if any of: commentary merely restates the containers; a cause asserted without ruling out alternatives; a miss hidden or softened; pacing judged against end-of-flight instead of expected-to-date; a metric dump instead of the 3-5 metrics that map to the objective; recommendations without owners; deck narrative fields containing free-text `$` / AUD amounts (hard numbers are server-injected); humour anywhere.
 
 ## Learnings and improvement loop
 

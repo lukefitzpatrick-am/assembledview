@@ -290,12 +290,21 @@ export async function markBilled(params: {
   billing_month: string
   billed: boolean
   total?: number
+  line_items?: Array<{
+    item_code: string
+    amount: number
+    schedule_line_item_id?: string | null
+  }>
 }): Promise<{
   persisted_record_id: number
   invoice_key: string
   billed: boolean
   billed_at: number | null
   billed_by: number | null
+  billed_amount: number | null
+  billed_lines_hash: string | null
+  billed_drift: boolean
+  billed_drift_delta: number | null
 }> {
   const path = "/api/finance/billing/mark-billed"
   const response = await fetch(path, {

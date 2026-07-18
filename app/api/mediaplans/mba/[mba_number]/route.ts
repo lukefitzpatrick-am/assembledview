@@ -1524,6 +1524,12 @@ export async function PUT(
     let versionResponse: any
     let masterUpdateResponse: any
     let savedVersionNumber = nextVersionNumber
+    // REVIEW (integrity P0): client may stage the version row first, write channel
+    // children, then PATCH master.version_number only on full success. Xano has no
+    // multi-table transaction — this is the closest stage-then-publish contract.
+    const deferMasterVersionPublish =
+      data.deferMasterVersionPublish === true ||
+      data.defer_master_version_publish === true
 
     if (overwriteMode) {
       const overwriteData = {
@@ -1551,7 +1557,29 @@ export async function PUT(
       // Create new version in media_plan_versions table
       versionResponse = await axios.post(`${mediaPlansBaseUrl}/media_plan_versions`, newVersionData, { headers: xanoPostHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS, })
 
-      masterUpdateResponse = await axios.patch(`${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`, masterUpdateData, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS })
+      if (deferMasterVersionPublish) {
+        // Stage only: sync campaign fields on master, but do NOT advance version_number.
+        // Client publishes via PATCH after every channel child write succeeds.
+        const { version_number: _omitStagedVersion, ...masterFieldsWithoutPublish } =
+          masterUpdateData
+        if (Object.keys(masterFieldsWithoutPublish).length > 0) {
+          masterUpdateResponse = await axios.patch(
+            `${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`,
+            masterFieldsWithoutPublish,
+            { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS },
+          )
+        } else {
+          masterUpdateResponse = { data: masterData }
+        }
+        console.warn("[mba-put] staged version without publishing master.version_number", {
+          mba_number,
+          stagedVersionNumber: nextVersionNumber,
+          publishedVersionNumber: latestVersionNumber || masterData.version_number,
+          versionId: versionResponse.data?.id,
+        })
+      } else {
+        masterUpdateResponse = await axios.patch(`${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`, masterUpdateData, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS })
+      }
     }
 
     console.log("New version created:", versionResponse.data)
@@ -1591,6 +1619,13 @@ export async function PUT(
       versionNumber: savedVersionNumber,
       latestVersionNumber,
       nextVersionNumber: overwriteMode ? overwriteTargetVersionNumber : nextVersionNumber,
+      // REVIEW: when true, master.version_number was intentionally left unpublished
+      deferredPublish: !overwriteMode && deferMasterVersionPublish,
+      publishedVersionNumber: overwriteMode
+        ? overwriteTargetVersionNumber
+        : deferMasterVersionPublish
+          ? latestVersionNumber || masterData.version_number
+          : savedVersionNumber,
     })
   } catch (error) {
     console.error("Error creating new media plan version:", error)

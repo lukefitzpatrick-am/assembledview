@@ -174,7 +174,8 @@ type CampaignPageAssemblyProps = {
   campaign: any
   metrics: any
   budget: number
-  actualSpend: number
+  /** Real delivered spend only when the API provides it — never plan schedule. */
+  actualSpend?: number
   expectedSpend: number
   totalPlannedMonthlySpend: number
   startDate?: string | null
@@ -461,7 +462,10 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
         end: campaignEndISO ?? endDate ?? null,
       },
       spend: {
-        delivered: Number.isFinite(actualSpend) ? actualSpend : undefined,
+        // Only set when real delivery is known — do not mirror plan as delivered.
+        ...(typeof actualSpend === "number" && Number.isFinite(actualSpend)
+          ? { delivered: actualSpend }
+          : {}),
         plannedToDate: Number.isFinite(expectedSpend) ? expectedSpend : undefined,
         ...(pacePct !== undefined ? { pacePct } : {}),
       },
@@ -593,7 +597,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
       </section>
 
       <section className="mt-8">
-        <SectionBoundary title="Spend and delivery insights">
+        <SectionBoundary title="Planned media insights">
           <Suspense fallback={<SpendChartsRowSkeleton />}>
             <div className="campaign-section-enter" style={{ animationDelay: "200ms" }}>
             <SpendChartsRow

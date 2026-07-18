@@ -1,5 +1,6 @@
 import axios from "axios"
 import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { detectBilledDrift, toBilledLineSnapshots } from "@/lib/finance/billedDrift"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 
 /**
@@ -21,6 +22,9 @@ export type PersistedFinanceStatusRow = {
   billed: boolean
   billed_at: number | null
   billed_by: number | null
+  /** Present after mark-billed stores an amount snapshot; may be absent on legacy rows. */
+  billed_amount?: number | null
+  billed_lines_hash?: string | null
   notes: string | null
   exported_at: number | null
   exported_by: number | null
@@ -126,6 +130,10 @@ export function applyStatusOverlay(
       billed: false,
       billed_at: null,
       billed_by: null,
+      billed_amount: null,
+      billed_lines_hash: null,
+      billed_drift: false,
+      billed_drift_delta: null,
       notes: null,
       exported_at: null,
       exported_by: null,
@@ -140,18 +148,43 @@ export function applyStatusOverlay(
       billed: false,
       billed_at: null,
       billed_by: null,
+      billed_amount: null,
+      billed_lines_hash: null,
+      billed_drift: false,
+      billed_drift_delta: null,
       notes: null,
       exported_at: null,
       exported_by: null,
       invoice_key: key,
     }
   }
+  const billed = persisted.billed === true
+  const billed_amount =
+    typeof persisted.billed_amount === "number" && Number.isFinite(persisted.billed_amount)
+      ? persisted.billed_amount
+      : null
+  const billed_lines_hash =
+    typeof persisted.billed_lines_hash === "string" && persisted.billed_lines_hash.length > 0
+      ? persisted.billed_lines_hash
+      : null
+  // Schedule-derived total / line_items stay authoritative; drift is derived only.
+  const drift = detectBilledDrift({
+    billed,
+    billedAmount: billed_amount,
+    billedLinesHash: billed_lines_hash,
+    currentTotal: record.total,
+    currentLines: toBilledLineSnapshots(record.line_items ?? []),
+  })
   return {
     ...record,
     persisted_record_id: persisted.id,
-    billed: persisted.billed === true,
+    billed,
     billed_at: persisted.billed_at ?? null,
     billed_by: persisted.billed_by ?? null,
+    billed_amount,
+    billed_lines_hash,
+    billed_drift: drift.drift,
+    billed_drift_delta: drift.delta,
     notes: persisted.notes ?? null,
     exported_at: persisted.exported_at ?? null,
     exported_by: persisted.exported_by ?? null,

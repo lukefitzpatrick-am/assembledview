@@ -201,12 +201,21 @@ export function ReceivablesPageClient({ embedded = false, onHubBridge }: Receiva
           billing_month: rec.billing_month,
           billed: nextBilled,
           total: rec.total,
+          line_items: (rec.line_items ?? []).map((li) => ({
+            item_code: li.item_code,
+            amount: li.amount,
+            schedule_line_item_id: li.schedule_line_item_id ?? null,
+          })),
         })
         updateBilledByInvoiceKey(res.invoice_key, {
           billed: res.billed,
           billed_at: res.billed_at,
           billed_by: res.billed_by,
           persisted_record_id: res.persisted_record_id,
+          billed_amount: res.billed_amount,
+          billed_lines_hash: res.billed_lines_hash,
+          billed_drift: res.billed_drift,
+          billed_drift_delta: res.billed_drift_delta,
         })
       } catch (e) {
         toast({
