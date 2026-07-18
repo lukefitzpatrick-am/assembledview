@@ -772,7 +772,7 @@ export const PROGAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgAudioE
       },
       {
         key: "creativeTargeting",
-        label: "Creative Targeting",
+        label: "Targeting",
         widthPx: 120,
         kind: "text",
       },
