@@ -4690,6 +4690,8 @@ export interface StandardSocialMediaFormLineItem {
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
   noadserving: boolean
+  /** Hydration shim: older saves used `placement` for creativeTargeting. */
+  placement?: string
   lineItemId?: string
   line_item_id?: string
   line_item?: number | string
@@ -5536,6 +5538,8 @@ export interface StandardInfluencersFormLineItem {
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
   noadserving: boolean
+  /** Hydration shim: older saves used `placement` for creativeTargeting. */
+  placement?: string
   lineItemId?: string
   line_item_id?: string
   line_item?: number | string
@@ -5971,6 +5975,8 @@ export interface StandardIntegrationFormLineItem {
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
   noAdserving: boolean
+  /** Hydration shim: older saves used `placement` for creativeTargeting. */
+  placement?: string
   lineItemId?: string
   line_item_id?: string
   line_item?: number | string

@@ -1646,6 +1646,8 @@ useEffect(() => {
                                         ),
                                         calculatedValue: 0,
                                         fee: 0,
+                                      } as MagazinesFormValues["magazineslineItems"][number]["bursts"][number] & {
+                                        _reactKey: string
                                       },
                                     ],
                                     totalMedia: 0,

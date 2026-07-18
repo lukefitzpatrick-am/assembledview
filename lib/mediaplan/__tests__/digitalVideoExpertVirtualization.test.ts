@@ -58,6 +58,7 @@ function emptyRow(id: string): DigiVideoExpertScheduleRow {
     fixedCostMedia: false,
     clientPaysForMedia: false,
     budgetIncludesFees: false,
+    noadserving: false,
     unitRate: "",
     grossCost: 0,
     weeklyValues,
