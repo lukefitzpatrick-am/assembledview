@@ -13,6 +13,7 @@ import { findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from '@/lib/spend/monthlyPlanCalendar'
 import { normalizeDateToMelbourneISO } from '@/lib/dates/normalizeCampaignDateISO'
 import { parseDateNativeSafe } from '@/lib/dates/parseDateNativeSafe'
+import { publishedVersionFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
 import {
   apiClient,
   isDashboardDebug,
@@ -358,9 +359,11 @@ function buildClientDashboardDataFromVersions(
     fallbackClient: Client | null
     totalCampaignsYTDFromMaster: number | null
     urlSlug: string
+    /** Published watermark per MBA — staged-but-unpublished rows must not win. */
+    publishedByMba?: Map<string, number>
   }
 ): ClientDashboardData | null {
-  const { fallbackClient, totalCampaignsYTDFromMaster, urlSlug } = ctx
+  const { fallbackClient, totalCampaignsYTDFromMaster, urlSlug, publishedByMba } = ctx
 
   const clientVersions = allVersions.filter((version: any) => {
     const nameCandidates = [
@@ -427,7 +430,8 @@ function buildClientDashboardDataFromVersions(
     const selectedVersionByMBA: Record<string, any> = {}
 
     Object.entries(versionsByMBA).forEach(([mbaKey, versions]: [string, any[]]) => {
-      const chosenVersion = pickHighestVersionRow(versions)
+      const published = publishedByMba?.get(mbaKey)
+      const chosenVersion = pickHighestVersionRow(versions, published)
       if (chosenVersion) {
         selectedVersionByMBA[mbaKey] = chosenVersion
       }
@@ -750,6 +754,7 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
 
     let totalCampaignsYTDFromMaster: number | null = null
     let masterEndpointUsed: string | null = null
+    let publishedByMba = new Map<string, number>()
 
     try {
       const { data: masterData, endpoint } = await fetchMediaPlanMasterWithFallback()
@@ -759,6 +764,12 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       totalCampaignsYTDFromMaster = Object.prototype.hasOwnProperty.call(ytdMap, targetSlug)
         ? ytdMap[targetSlug]!
         : null
+      for (const master of masterPlans) {
+        const key = normalizeMbaKey(master?.mba_number)
+        if (!key) continue
+        const published = publishedVersionFromMaster(master)
+        if (published > 0) publishedByMba.set(key, published)
+      }
     } catch (error) {
       console.warn('Dashboard: failed to load media plan master for totals', error)
     }
@@ -782,6 +793,7 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       fallbackClient,
       totalCampaignsYTDFromMaster,
       urlSlug: sanitizedSlug,
+      publishedByMba,
     })
   } catch (error: any) {
     const msg = error?.message != null ? String(error.message) : String(error)
@@ -807,6 +819,13 @@ export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHu
   ])
   const masterPlans = parseXanoListPayload(masterBundle.data)
   const ytdMap = buildYtdCountBySlugFromMaster(masterPlans, fyWindow)
+  const publishedByMba = new Map<string, number>()
+  for (const master of masterPlans) {
+    const key = normalizeMbaKey(master?.mba_number)
+    if (!key) continue
+    const published = publishedVersionFromMaster(master)
+    if (published > 0) publishedByMba.set(key, published)
+  }
 
   const summaries: ClientHubSummary[] = []
   for (const raw of rawClients) {
@@ -825,6 +844,7 @@ export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHu
       fallbackClient: fallback,
       totalCampaignsYTDFromMaster,
       urlSlug: slugUrl,
+      publishedByMba,
     })
     if (!dashboard) continue
 

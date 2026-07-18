@@ -1,3 +1,4 @@
+import { parseXanoListPayload } from '@/lib/api/xano'
 import { xanoMediaPlansUrl } from '@/lib/api/xanoClients'
 import { fetchAllXanoPages } from '@/lib/api/xanoPagination'
 import {
@@ -5,13 +6,17 @@ import {
   billingMonthsInAustralianFinancialYear,
   referenceDateForFyStartYear,
 } from '@/lib/finance/months'
+import { publishedVersionFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
 import {
+  apiClient,
   getTzParts,
   getAustralianFinancialYearWindow,
   isBookedApprovedCompleted,
+  normalizeMbaKey,
   normalizeSchedule,
   parseMonthYear,
   getMonthYearValue,
+  pickHighestVersionRow,
   sumLineItems,
   sumDeliveryScheduleMonthAgencyMedia,
 } from './shared'
@@ -59,13 +64,36 @@ export async function getFinanceHubScheduleFytdTotals(
 
   const { start: fyStart, end: fyEnd } = getAustralianFinancialYearWindow(reference)
 
-  const allVersions = await fetchAllXanoPages(
-    xanoMediaPlansUrl('media_plan_versions'),
-    {},
-    'DASHBOARD_finance_hub_schedule_fytd',
-    100,
-    50
-  )
+  const [allVersions, mastersRaw] = await Promise.all([
+    fetchAllXanoPages(
+      xanoMediaPlansUrl('media_plan_versions'),
+      {},
+      'DASHBOARD_finance_hub_schedule_fytd',
+      100,
+      50
+    ),
+    (async () => {
+      // Prefer same master endpoints as client dashboard; tolerate missing collection.
+      for (const endpoint of ['media_plan_master', 'media_plans_master'] as const) {
+        try {
+          const response = await apiClient.get(xanoMediaPlansUrl(endpoint))
+          return parseXanoListPayload(response.data)
+        } catch (err: any) {
+          if (err?.response?.status === 404) continue
+          throw err
+        }
+      }
+      return [] as any[]
+    })(),
+  ])
+
+  const publishedByMba = new Map<string, number>()
+  for (const master of mastersRaw || []) {
+    const key = normalizeMbaKey(master?.mba_number ?? master?.mbaNumber)
+    if (!key) continue
+    const published = publishedVersionFromMaster(master)
+    if (published > 0) publishedByMba.set(key, published)
+  }
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
     const mbaNumber = version?.mba_number
@@ -77,14 +105,27 @@ export async function getFinanceHubScheduleFytdTotals(
 
   const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce(
     (acc: Record<string, any>, [mbaNumber, versions]: [string, any[]]) => {
-      const sorted = versions.slice().sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
+      const mbaKey = normalizeMbaKey(mbaNumber) || String(mbaNumber)
+      const published = publishedByMba.get(mbaKey)
+      // Prefer booked/approved/completed among published versions only.
+      const candidatePool =
+        published != null && published > 0
+          ? versions.filter((v: any) => {
+              const vn = Number(v?.version_number ?? v?.versionNumber ?? 0)
+              return Number.isFinite(vn) && vn > 0 && vn <= published
+            })
+          : versions
+      const sorted = candidatePool
+        .slice()
+        .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
       const bookedApproved = sorted.find((v: any) => isBookedApprovedCompleted(v.campaign_status))
       if (bookedApproved) {
         acc[mbaNumber] = bookedApproved
         return acc
       }
-      if (sorted[0]) {
-        acc[mbaNumber] = sorted[0]
+      const highest = pickHighestVersionRow(versions, published)
+      if (highest) {
+        acc[mbaNumber] = highest
       }
       return acc
     },
