@@ -88,8 +88,26 @@ export type ExpertDescriptorColumnKind =
   | "checkbox-billing"
   | "unit-rate"
 
-/** Where a descriptor field appears. Omit = "both". */
-export type ExpertDescriptorSurface = "grid" | "card" | "both"
+/**
+ * Where a descriptor field appears. Omit = "both".
+ * - `grid` / `card` / `both`: rendered on that surface
+ * - `none`: persisted on the expert row only (hydration / round-trip); not shown on grid or card
+ */
+export type ExpertDescriptorSurface = "grid" | "card" | "both" | "none"
+
+/** True when the field should appear as a sticky ExpertGrid body/header column. */
+export function isExpertDescriptorGridSurface(
+  surfaces: ExpertDescriptorSurface | undefined
+): boolean {
+  return surfaces == null || surfaces === "both" || surfaces === "grid"
+}
+
+/** True when the field should appear on the ExpertCard field grid. */
+export function isExpertDescriptorCardSurface(
+  surfaces: ExpertDescriptorSurface | undefined
+): boolean {
+  return surfaces == null || surfaces === "both" || surfaces === "card"
+}
 
 /**
  * Channel option / billing flags shown as checkboxes in the descriptor.
@@ -1405,8 +1423,8 @@ export function getExpertOptionFlags(
 
 /**
  * Descriptor fields that belong on the ExpertCard field grid.
- * Omits `surfaces: "grid"` (e.g. unitRate). Does not include trailingColumns
- * or optionFlags — those are separate card sections.
+ * Omits `surfaces: "grid"` and `surfaces: "none"`. Does not include
+ * trailingColumns or optionFlags — those are separate card sections.
  */
 export function getExpertCardSurfaceFields(
   config: Pick<
@@ -1414,8 +1432,36 @@ export function getExpertCardSurfaceFields(
     "descriptorCore" | "descriptorTail"
   >
 ): ExpertDescriptorColumn[] {
-  return [...config.descriptorCore, ...config.descriptorTail].filter(
-    (c) => c.surfaces !== "grid"
+  return [...config.descriptorCore, ...config.descriptorTail].filter((c) =>
+    isExpertDescriptorCardSurface(c.surfaces)
+  )
+}
+
+/**
+ * All descriptor keys (core + tail), including `surfaces: "none"` persist-only
+ * fields. Used for descriptor ↔ row-type parity tests.
+ */
+export function expertDescriptorAllKeys(
+  config: Pick<
+    ExpertGridChannelConfig<ExpertScheduleRowCommon>,
+    "descriptorCore" | "descriptorTail"
+  >
+): string[] {
+  return [
+    ...config.descriptorCore.map((c) => c.key),
+    ...config.descriptorTail.map((c) => c.key),
+  ]
+}
+
+/** Descriptor columns that belong on the ExpertGrid sticky strip. */
+export function getExpertGridSurfaceFields(
+  config: Pick<
+    ExpertGridChannelConfig<ExpertScheduleRowCommon>,
+    "descriptorCore" | "descriptorTail"
+  >
+): ExpertDescriptorColumn[] {
+  return [...config.descriptorCore, ...config.descriptorTail].filter((c) =>
+    isExpertDescriptorGridSurface(c.surfaces)
   )
 }
 
@@ -1490,15 +1536,15 @@ export function trailingCompatFromColumns(
   }
 }
 
-/** Descriptor keys in sticky order (billing optional). */
+/** Descriptor keys in sticky order (billing optional). Omits card-only / none. */
 export function expertGridDescriptorKeys(
   config: ExpertGridChannelConfig<ExpertScheduleRowCommon>,
   showBillingCols: boolean
 ): string[] {
+  const gridCols = getExpertGridSurfaceFields(config)
   return [
     ...(showBillingCols ? config.billingFlagKeys : []),
-    ...config.descriptorCore.map((c) => c.key),
-    ...config.descriptorTail.map((c) => c.key),
+    ...gridCols.map((c) => c.key),
   ]
 }
 
@@ -1506,25 +1552,25 @@ export function expertGridDescriptorColWidths(
   config: ExpertGridChannelConfig<ExpertScheduleRowCommon>,
   showBillingCols: boolean
 ): number[] {
-  const core = config.descriptorCore.map((c) => c.widthPx)
-  const tail = config.descriptorTail.map((c) => c.widthPx)
+  const gridCols = getExpertGridSurfaceFields(config)
+  const widths = gridCols.map((c) => c.widthPx)
   const trailing = config.trailingColWidthsPx ?? []
   return showBillingCols
-    ? [...config.billingFlagWidthsPx, ...core, ...tail, ...trailing]
-    : [...core, ...tail, ...trailing]
+    ? [...config.billingFlagWidthsPx, ...widths, ...trailing]
+    : [...widths, ...trailing]
 }
 
 export function expertGridDescriptorHeadLabels(
   config: ExpertGridChannelConfig<ExpertScheduleRowCommon>,
   showBillingCols: boolean
 ): string[] {
-  const core = config.descriptorCore.map((c) => c.label)
+  const gridCols = getExpertGridSurfaceFields(config)
   const billing = showBillingCols ? [...config.billingFlagLabels] : []
-  const tail = [
-    ...config.descriptorTail.map((c) => c.label),
+  return [
+    ...billing,
+    ...gridCols.map((c) => c.label),
     ...config.trailingHeaderLabels,
   ]
-  return [...billing, ...core, ...tail]
 }
 
 /** Flattened descriptor columns for body/paste (billing as checkbox-billing). */
@@ -1540,7 +1586,7 @@ export function expertGridBodyDescriptorColumns(
         kind: "checkbox-billing" as const,
       }))
     : []
-  return [...billing, ...config.descriptorCore, ...config.descriptorTail]
+  return [...billing, ...getExpertGridSurfaceFields(config)]
 }
 
 export const DIGITALDISPLAY_BUY_TYPE_OPTIONS: ComboboxOption[] = [
