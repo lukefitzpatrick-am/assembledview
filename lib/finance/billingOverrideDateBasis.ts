@@ -63,6 +63,3 @@ export async function computeBillingOverrideDateBasis(
   const digest = await subtle.digest("SHA-256", new TextEncoder().encode(payload))
   return bytesToHex(digest)
 }
-
-/** @deprecated Use {@link computeBillingOverrideDateBasis} (async). Alias for callers written during C2. */
-export const computeBillingOverrideDateBasisAsync = computeBillingOverrideDateBasis

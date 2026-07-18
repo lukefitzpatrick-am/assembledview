@@ -23,6 +23,8 @@
     "postcss-load-config",
     "@babel/runtime",
     "core-js",
-    "eslint-config-next"
+    "eslint-config-next",
+    "mammoth",
+    "pdf-parse"
   ]
 }

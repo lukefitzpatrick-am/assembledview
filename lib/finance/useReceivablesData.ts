@@ -433,6 +433,3 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
     updateReceivableLineAmount,
   }
 }
-
-/** @deprecated Use `useReceivablesData` — kept for hub import compatibility. */
-export const useFinanceHubReceivablesData = useReceivablesData
