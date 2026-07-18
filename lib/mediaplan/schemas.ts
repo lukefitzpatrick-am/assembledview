@@ -686,6 +686,8 @@ export const productionLineItemSchema = z.object({
   publisher: z.string().optional(),
   description: z.string().optional(),
   market: z.string().optional(),
+  /** Line-level unit cost; synced to burst `.cost` when edited on the card. */
+  unitRate: z.union([z.number(), z.string()]).optional(),
   bursts: z.array(productionBurstSchema).min(1, "At least one burst is required"),
   lineItemId: z.string().optional(),
 })

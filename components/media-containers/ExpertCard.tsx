@@ -323,6 +323,10 @@ function ExpertCardFieldControl<T extends FieldValues>({
                 placeholder={d.placeholder}
                 className="h-10 w-full text-sm"
                 value={field.value ?? ""}
+                onChange={(e) => {
+                  field.onChange(e)
+                  onFieldValueChange?.(d.key, lineItemIndex, e.target.value)
+                }}
               />
             </FormControl>
             <FormMessage />

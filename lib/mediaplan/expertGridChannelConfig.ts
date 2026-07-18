@@ -3044,7 +3044,7 @@ export const PRODUCTION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Productio
       { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
       {
         key: "mediaType",
-        label: "Production Type",
+        label: "Production type",
         widthPx: 120,
         kind: "combobox-dynamic",
         searchPlaceholder: "Search production types…",
@@ -3058,7 +3058,8 @@ export const PRODUCTION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Productio
         key: "unitRate",
         label: "Unit Cost",
         widthPx: 88,
-        kind: "unit-rate", surfaces: "grid",
+        kind: "unit-rate",
+        surfaces: "both",
         headerTooltip: "Unit cost × quantity = total cost",
       },
     ],

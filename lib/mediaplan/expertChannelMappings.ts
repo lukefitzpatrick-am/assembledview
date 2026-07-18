@@ -168,6 +168,8 @@ export interface StandardProductionFormLineItem {
   publisher: string
   description: string
   market: string
+  /** Line-level unit cost (form key `unitRate`; legacy persisted as `unitCost`). */
+  unitRate?: number | string
   lineItemId?: string
   line_item_id?: string
   line_item?: number | string
@@ -177,6 +179,9 @@ export interface StandardProductionFormLineItem {
 
 export type StandardProductionLineItemInput = Partial<StandardProductionFormLineItem> & {
   media_type?: string
+  /** Legacy persisted key — hydrate into `unitRate`. */
+  unitCost?: number | string
+  unit_cost?: number | string
   bursts_json?: string | object
 }
 
@@ -2042,6 +2047,7 @@ export function mapProductionExpertRowsToStandardLineItems(
       publisher: row.publisher,
       description: row.description,
       market: row.market,
+      unitRate,
       lineItemId: id,
       line_item_id: id,
       line_item: lineNo,
@@ -2134,6 +2140,18 @@ export function mapStandardProductionLineItemsToExpertRows(
         ? crypto.randomUUID()
         : `production-expert-import-${Date.now()}-${index}`
 
+    const legacyUnitCost = (item as StandardProductionLineItemInput).unitCost
+    const legacyUnitCostSnake = (item as StandardProductionLineItemInput).unit_cost
+    const lineUnitRateRaw =
+      item.unitRate ?? legacyUnitCost ?? legacyUnitCostSnake
+    const lineUnitRateParsed =
+      lineUnitRateRaw === undefined || lineUnitRateRaw === ""
+        ? NaN
+        : parseNum(lineUnitRateRaw)
+    const unitRate = Number.isFinite(lineUnitRateParsed) && lineUnitRateParsed > 0
+      ? lineUnitRateParsed
+      : deriveProductionStandardUnitRateFromBursts(bursts)
+
     return {
       id: _reactKey,
       sourceLineItemId: id,
@@ -2148,7 +2166,7 @@ export function mapStandardProductionLineItemsToExpertRows(
       description: String(item.description ?? ""),
       market: String(item.market ?? ""),
       buyType,
-      unitRate: deriveProductionStandardUnitRateFromBursts(bursts),
+      unitRate,
       grossCost: sumProductionGrossBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
