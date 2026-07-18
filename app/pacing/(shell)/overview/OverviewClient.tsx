@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import type {
   OverviewAttentionItem,
   OverviewChannel,
@@ -31,20 +32,32 @@ function formatMoney(value: number | null): string {
   });
 }
 
+function buildOverviewUrl(page: number): string {
+  const params = new URLSearchParams();
+  if (page > 1) params.set("page", String(page));
+  const qs = params.toString();
+  return qs ? `/api/pacing/overview?${qs}` : "/api/pacing/overview";
+}
+
 export function OverviewClient({ isAdmin: _isAdmin }: OverviewClientProps) {
   const [data, setData] = useState<OverviewPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [isPending, startTransition] = useTransition();
 
-  useEffect(() => {
+  const load = useCallback((nextPage: number) => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch("/api/pacing/overview", { credentials: "include" })
+    fetch(buildOverviewUrl(nextPage), { credentials: "include" })
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const json = (await r.json()) as OverviewPayload;
-        if (!cancelled) setData(json);
+        if (!cancelled) {
+          setData(json);
+          setPage(json.scope?.page ?? nextPage);
+        }
       })
       .catch((e) => {
         if (!cancelled) setError(String(e?.message || e));
@@ -57,10 +70,22 @@ export function OverviewClient({ isAdmin: _isAdmin }: OverviewClientProps) {
     };
   }, []);
 
-  if (loading) {
+  useEffect(() => {
+    return load(page);
+    // Initial + page changes driven explicitly via load / buttons.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- page set from load response
+  }, [load]);
+
+  const goToPage = (nextPage: number) => {
+    startTransition(() => {
+      load(nextPage);
+    });
+  };
+
+  if (loading && !data) {
     return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
   }
-  if (error) {
+  if (error && !data) {
     return (
       <div className="p-6 text-sm text-destructive">Failed to load: {error}</div>
     );
@@ -69,9 +94,12 @@ export function OverviewClient({ isAdmin: _isAdmin }: OverviewClientProps) {
 
   const healthy =
     data.counts.onTrack + data.counts.ahead + data.counts.overPacing;
+  const unavailable = data.unavailableSources ?? [];
+  const available = data.availableSources ?? [];
+  const scope = data.scope;
 
   return (
-    <div className="space-y-4 p-4">
+    <div className={`space-y-4 p-4 ${isPending ? "opacity-70" : ""}`}>
       <header className="space-y-1">
         <h1 className="text-lg font-semibold">Pacing overview</h1>
         <p className="text-xs text-muted-foreground">
@@ -80,6 +108,54 @@ export function OverviewClient({ isAdmin: _isAdmin }: OverviewClientProps) {
           drill-down.
         </p>
       </header>
+
+      {unavailable.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-card border border-status-blocking-fg/30 bg-status-blocking-bg px-3 py-2">
+          <span className="text-xs font-medium text-status-blocking-fg">
+            Source unavailable
+          </span>
+          {unavailable.map((ch) => (
+            <Badge key={ch} variant="critical" size="sm">
+              {CHANNEL_LABEL[ch]} unavailable
+            </Badge>
+          ))}
+          <span className="text-xs text-muted-foreground">
+            Showing {available.map((ch) => CHANNEL_LABEL[ch]).join(", ") || "no"}{" "}
+            data for this page.
+          </span>
+        </div>
+      ) : null}
+
+      {scope ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span>
+            Clients {scope.clientSlugs.length} of {scope.totalClients}
+            {scope.hasMore || scope.page > 1
+              ? ` · page ${scope.page}`
+              : null}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={scope.page <= 1 || loading || isPending}
+              onClick={() => goToPage(scope.page - 1)}
+            >
+              Previous
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!scope.hasMore || loading || isPending}
+              onClick={() => goToPage(scope.page + 1)}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <StatusSummary counts={data.counts} />
 

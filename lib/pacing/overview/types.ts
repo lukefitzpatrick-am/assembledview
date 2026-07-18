@@ -55,6 +55,19 @@ export type OverviewStatusCounts = {
   kpiPending: number;
 };
 
+/**
+ * Client pagination for attention lists. KPI `counts` always cover the full
+ * live-in-window portfolio (access-filtered); `clientSlugs` here is the page.
+ */
+export type OverviewScopeMeta = {
+  page: number;
+  pageSize: number;
+  totalClients: number;
+  /** Sorted client slugs on this page (attention lists only). */
+  clientSlugs: string[];
+  hasMore: boolean;
+};
+
 export type OverviewPayload = {
   asOfDate: string;
   counts: OverviewStatusCounts;
@@ -64,4 +77,9 @@ export type OverviewPayload = {
   overPacing: OverviewAttentionItem[];
   /** Mild ahead-on-delivery (slightly_over) — not in the warning list. */
   aheadOnDelivery: OverviewAttentionItem[];
+  /** Sources that returned rows (or empty success) within the budget. */
+  availableSources: OverviewChannel[];
+  /** Sources that timed out or failed — UI shows a chip; response stays 200. */
+  unavailableSources: OverviewChannel[];
+  scope: OverviewScopeMeta;
 };
