@@ -52,6 +52,12 @@ import { cn } from "@/lib/utils"
 import { ChevronDown, Copy, Plus, Trash2 } from "lucide-react"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { MAGAZINES_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
+import {
+  MAGAZINES_CONTAINER_CONFIG,
+  buildDefaultLineItem,
+  mapHydrationToForm,
+  mapFormToApi,
+} from "@/lib/mediaplan/containerChannelConfig"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import {
   aggregateInvestmentDisplayRows,
@@ -396,18 +402,7 @@ const form = useForm<MagazinesFormValues>({
     defaultValues: {
       magazineslineItems: [
         {
-          network: "",
-          title: "",
-          buyType: "",
-          size: "",
-          publisher: "",
-          placement: "",
-          buyingDemo: "",
-          market: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
+          ...buildDefaultLineItem(MAGAZINES_CONTAINER_CONFIG.fieldMap),
           ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
           bursts: [
             {
@@ -670,18 +665,10 @@ const form = useForm<MagazinesFormValues>({
 
 
         return {
+          ...mapHydrationToForm(MAGAZINES_CONTAINER_CONFIG.fieldMap, item),
           network: item.network || item.publisher || "",
           title: item.title || item.publication || "",
           publisher: item.publisher || item.network || "",
-          placement: item.placement || "",
-          size: item.size || "",
-          buyType: item.buy_type || "",
-          buyingDemo: item.buying_demo || "",
-          market: item.market || "",
-          fixedCostMedia: item.fixed_cost_media || false,
-          clientPaysForMedia: item.client_pays_for_media || false,
-          budgetIncludesFees: item.budget_includes_fees || false,
-          noadserving: item.no_adserving || false,
           lineItemId,
           line_item_id: lineItemId,
           line_item: item.line_item ?? item.lineItem ?? index + 1,
@@ -752,18 +739,8 @@ const form = useForm<MagazinesFormValues>({
         mba_number: mbaNumber || "",
         mp_client_name: "",
         mp_plannumber: "",
-        network: lineItem.network || "",
+        ...mapFormToApi(MAGAZINES_CONTAINER_CONFIG.fieldMap, lineItem),
         publisher: lineItem.publisher || lineItem.network || "",
-        title: lineItem.title || "",
-        buy_type: lineItem.buyType || "",
-        size: lineItem.size || "",
-        format: "",
-        placement: lineItem.placement || "",
-        buying_demo: lineItem.buyingDemo || "",
-        market: lineItem.market || "",
-        fixed_cost_media: lineItem.fixedCostMedia || false,
-        client_pays_for_media: lineItem.clientPaysForMedia || false,
-        budget_includes_fees: lineItem.budgetIncludesFees || false,
         line_item_id: lineItemId,
         bursts: lineItem.bursts,
         feePct: feemagazines || 0,
@@ -1375,18 +1352,7 @@ useEffect(() => {
                 {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
-                                                          network: "",
-                                                          title: "",
-                                                          buyType: "",
-                                                          size: "",
-                                                          publisher: "",
-                                                          placement: "",
-                                                          buyingDemo: "",
-                                                          market: "",
-                                                          fixedCostMedia: false,
-                                                          clientPaysForMedia: false,
-                                                          budgetIncludesFees: false,
-                                                          noadserving: false,
+                                                          ...buildDefaultLineItem(MAGAZINES_CONTAINER_CONFIG.fieldMap),
                                                         ...(() => { const nextNumber = lineItemFields.length + 1; const id = createLineItemId(nextNumber); return { lineItemId: id, line_item_id: id, line_item: nextNumber, lineItem: nextNumber }; })(),
                                                           bursts: [
                                                             {
@@ -1610,18 +1576,7 @@ useEffect(() => {
                                 size="sm"
                                 onClick={() =>
                                   appendLineItem({
-                                    network: "",
-                                    title: "",
-                                    buyType: "",
-                                    size: "",
-                                    publisher: "",
-                                    placement: "",
-                                    buyingDemo: "",
-                                    market: "",
-                                    fixedCostMedia: false,
-                                    clientPaysForMedia: false,
-                                    budgetIncludesFees: false,
-                                    noadserving: false,
+                                    ...buildDefaultLineItem(MAGAZINES_CONTAINER_CONFIG.fieldMap),
                                     ...(() => {
                                       const nextNumber = lineItemFields.length + 1;
                                       const id = createLineItemId(nextNumber);

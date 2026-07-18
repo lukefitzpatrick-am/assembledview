@@ -10,6 +10,12 @@ import { ExpertIncompleteRowsSummary } from "@/components/media-containers/Exper
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import { SOCIALMEDIA_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
+  SOCIALMEDIA_CONTAINER_CONFIG,
+  buildDefaultLineItem,
+  mapHydrationToForm,
+  mapFormToApi,
+} from "@/lib/mediaplan/containerChannelConfig"
+import {
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
@@ -273,17 +279,7 @@ export default function SocialMediaContainer({
     defaultValues: {
       lineItems: [
         {
-          platform: "",
-          bidStrategy: "",
-          buyType: "",
-          creativeTargeting: "",
-          creative: "",
-          buyingDemo: "",   
-          market: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
+          ...buildDefaultLineItem(SOCIALMEDIA_CONTAINER_CONFIG.fieldMap),
           bursts: [
             {
               _reactKey: newBurstReactKey(),
@@ -600,17 +596,7 @@ export default function SocialMediaContainer({
         const lineItemId = item.line_item_id || item.lineItemId || buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia, lineNum)
 
         return {
-          platform: item.platform || "",
-          bidStrategy: item.bid_strategy || "",
-          buyType: item.buy_type || "",
-          creativeTargeting: item.creative_targeting || "",
-          creative: item.creative || "",
-          buyingDemo: item.buying_demo || "",
-          market: item.market || "",
-          fixedCostMedia: item.fixed_cost_media || false,
-          clientPaysForMedia: item.client_pays_for_media || false,
-          budgetIncludesFees: item.budget_includes_fees || false,
-          noadserving: item.no_adserving || false,
+          ...mapHydrationToForm(SOCIALMEDIA_CONTAINER_CONFIG.fieldMap, item),
           lineItemId,
           line_item_id: lineItemId,
           line_item: item.line_item ?? item.lineItem ?? index + 1,
@@ -680,17 +666,7 @@ export default function SocialMediaContainer({
         mba_number: mbaNumber || "",
         mp_client_name: "",
         mp_plannumber: "",
-        platform: lineItem.platform || "",
-        bid_strategy: lineItem.bidStrategy || "",
-        buy_type: lineItem.buyType || "",
-        creative_targeting: lineItem.creativeTargeting || "",
-        creative: lineItem.creative || "",
-        buying_demo: lineItem.buyingDemo || "",
-        market: lineItem.market || "",
-        fixed_cost_media: lineItem.fixedCostMedia || false,
-        client_pays_for_media: lineItem.clientPaysForMedia || false,
-        budget_includes_fees: lineItem.budgetIncludesFees || false,
-        no_adserving: lineItem.noadserving || false,
+        ...mapFormToApi(SOCIALMEDIA_CONTAINER_CONFIG.fieldMap, lineItem),
         line_item_id: lineItem.line_item_id,
         bursts: lineItem.bursts,
         feePct: feesocial || 0,
@@ -1213,17 +1189,7 @@ const getBursts = () => {
                 {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
-                                                          platform: "",
-                                                          bidStrategy: "",
-                                                          buyType: "",
-                                                          creativeTargeting: "",
-                                                          creative: "",
-                                                          buyingDemo: "",
-                                                          market: "",
-                                                          fixedCostMedia: false,
-                                                          clientPaysForMedia: false,
-                                                          budgetIncludesFees: false,
-                                                          noadserving: false,
+                                                          ...buildDefaultLineItem(SOCIALMEDIA_CONTAINER_CONFIG.fieldMap),
                                                           bursts: [
                                                             {
                                                               _reactKey: newBurstReactKey(),
@@ -1346,17 +1312,7 @@ const getBursts = () => {
                                 size="sm"
                                 onClick={() =>
                                   appendLineItem({
-                                    platform: "",
-                                    bidStrategy: "",
-                                    buyType: "",
-                                    creativeTargeting: "",
-                                    creative: "",
-                                    buyingDemo: "",
-                                    market: "",
-                                    fixedCostMedia: false,
-                                    clientPaysForMedia: false,
-                                    budgetIncludesFees: false,
-                                    noadserving: false,
+                                    ...buildDefaultLineItem(SOCIALMEDIA_CONTAINER_CONFIG.fieldMap),
                                     bursts: [
                                       {
                                         _reactKey: newBurstReactKey(),

@@ -32,13 +32,13 @@ export const CREATE_MEDIA_TYPE_CATALOG = [
   { name: "mp_production", label: "Production" },
 ] as const
 
-export type CreateMediaTypeCatalogEntry =
+type CreateMediaTypeCatalogEntry =
   (typeof CREATE_MEDIA_TYPE_CATALOG)[number]
 
 export type CreateMediaTypeCatalogName = CreateMediaTypeCatalogEntry["name"]
 
 /** Not planner carry-through containers (still shown as create toggles). */
-export type CreateNonCarryKey = "mp_fixedfee" | "mp_production"
+type CreateNonCarryKey = "mp_fixedfee" | "mp_production"
 
 export type CreateMediaToggleKey = Exclude<
   CreateMediaTypeCatalogName,

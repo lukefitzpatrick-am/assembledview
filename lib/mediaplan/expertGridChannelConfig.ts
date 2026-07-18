@@ -57,7 +57,7 @@ import {
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
 import type { WeeklyGanttWeekColumn } from "@/lib/utils/weeklyGanttColumns"
 
-export type ExpertGridPublisherField = "platform" | "network" | "publisher"
+type ExpertGridPublisherField = "platform" | "network" | "publisher"
 
 export type ExpertGridSiteOption = {
   platform?: string | null
@@ -75,7 +75,7 @@ export type ExpertGridTitleOption = {
   network: string
 }
 
-export type ExpertDescriptorColumnKind =
+type ExpertDescriptorColumnKind =
   | "date-start"
   | "date-end"
   | "combobox-publishers"
@@ -93,7 +93,7 @@ export type ExpertDescriptorColumnKind =
  * - `grid` / `card` / `both`: rendered on that surface
  * - `none`: persisted on the expert row only (hydration / round-trip); not shown on grid or card
  */
-export type ExpertDescriptorSurface = "grid" | "card" | "both" | "none"
+type ExpertDescriptorSurface = "grid" | "card" | "both" | "none"
 
 /** True when the field should appear as a sticky ExpertGrid body/header column. */
 export function isExpertDescriptorGridSurface(

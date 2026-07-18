@@ -8,24 +8,24 @@ import { Button } from "@/components/ui/button"
 import { useSidebar } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
 
-export type PlanWizardStep = {
+type PlanWizardStep = {
   id: string
   label: string
   sub: string
 }
 
-export type PlanWizardRailSubItem = {
+type PlanWizardRailSubItem = {
   id: string
   label: string
   scrollTargetId: string
 }
 
-export type PlanWizardRailSubItems = {
+type PlanWizardRailSubItems = {
   parentStepId: string
   items: PlanWizardRailSubItem[]
 }
 
-export type PlanWizardSummary = {
+type PlanWizardSummary = {
   title: string
   client: string
   budget: string

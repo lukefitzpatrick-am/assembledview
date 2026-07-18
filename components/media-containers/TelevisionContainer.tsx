@@ -8,6 +8,12 @@ import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/Co
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
+  TELEVISION_CONTAINER_CONFIG,
+  buildDefaultLineItem,
+  mapHydrationToForm,
+  mapFormToApi,
+} from "@/lib/mediaplan/containerChannelConfig"
+import {
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
@@ -376,21 +382,7 @@ export default function TelevisionContainer({
     defaultValues: {
       televisionlineItems: [
         {
-          // Line Item Level Defaults
-          market: "",
-          network: "",
-          station: "",
-          daypart: "",
-          placement: "",
-          bidStrategy: "", // Default if kept
-          buyType: "CPP",  // Example default
-          creativeTargeting: "", // Default if kept
-          creative: "",         // Default if kept
-          buyingDemo: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
+          ...buildDefaultLineItem(TELEVISION_CONTAINER_CONFIG.fieldMap),
           ...(() => {
             const id = createLineItemId(1);
             return { lineItemId: id, line_item_id: id };
@@ -661,15 +653,10 @@ export default function TelevisionContainer({
         }, 0)
 
         return {
-          market: item.market || "",
+          ...mapHydrationToForm(TELEVISION_CONTAINER_CONFIG.fieldMap, item),
+          // TV overlays: network/station aliases + creativeLength shim + size/tarps from bursts
           network: normalizedNetwork,
           station: normalizedStation,
-          daypart: item.daypart || "",
-          placement: item.placement || "",
-          bidStrategy: item.bid_strategy || "",
-          buyType: item.buy_type || "",
-          creativeTargeting: item.creative_targeting || "",
-          // Hydration shim: creativeLength / creative_length → creative
           creative:
             item.creative ||
             (item as { creativeLength?: string }).creativeLength ||
@@ -682,11 +669,6 @@ export default function TelevisionContainer({
               : tarpsFromBursts > 0
                 ? String(tarpsFromBursts)
                 : "",
-          buyingDemo: item.buying_demo || "",
-          fixedCostMedia: item.fixed_cost_media || false,
-          clientPaysForMedia: item.client_pays_for_media || false,
-          budgetIncludesFees: item.budget_includes_fees || false,
-          noadserving: item.no_adserving || false,
           lineItemId,
           line_item_id: lineItemId,
           line_item: item.line_item ?? item.lineItem ?? index + 1,
@@ -1125,18 +1107,8 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
       mba_number: mbaNumber || "",
       mp_client_name: "", // Will be set by parent component
       mp_plannumber: "", // Will be set by parent component
-      market: lineItem.market || "",
-      network: lineItem.network || "",
-      station: lineItem.station || "",
-      daypart: lineItem.daypart || "",
-      placement: lineItem.placement || "",
-      buy_type: lineItem.buyType || "",
-      buying_demo: lineItem.buyingDemo || "",
-      fixed_cost_media: lineItem.fixedCostMedia || false,
-      client_pays_for_media: lineItem.clientPaysForMedia || false,
-      budget_includes_fees: lineItem.budgetIncludesFees || false,
+      ...mapFormToApi(TELEVISION_CONTAINER_CONFIG.fieldMap, lineItem),
       line_item_id: lineItemId,
-      creative: lineItem.creative || "",
       bursts: lineItem.bursts,
       feePct: feetelevision || 0,
       line_item: lineNumber,
@@ -1356,20 +1328,8 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                 {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
-                                                          network: "",
-                                                          bidStrategy: "",
-                                                          station: "",
-                                                          daypart: "",
-                                                          placement: "",
+                                                          ...buildDefaultLineItem(TELEVISION_CONTAINER_CONFIG.fieldMap),
                                                           buyType: "",
-                                                          creativeTargeting: "",
-                                                          creative: "",
-                                                          buyingDemo: "",
-                                                          market: "",
-                                                          fixedCostMedia: false,
-                                                          clientPaysForMedia: false,
-                                                          budgetIncludesFees: false,
-                                                          noadserving: false,
                                                         ...(() => {
                                                           const nextNum = lineItemFields.length + 1;
                                                           const id = createLineItemId(nextNum);
@@ -1779,22 +1739,10 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                                 size="sm"
                                 onClick={() =>
                                   appendLineItem({
-                                    network: "",
-                                    bidStrategy: "",
-                                    station: "",
-                                    daypart: "",
-                                    placement: "",
+                                    ...buildDefaultLineItem(TELEVISION_CONTAINER_CONFIG.fieldMap),
                                     buyType: "",
-                                    creativeTargeting: "",
-                                    creative: "",
                                     size: "30s",
                                     tarps: "",
-                                    buyingDemo: "",
-                                    market: "",
-                                    fixedCostMedia: false,
-                                    clientPaysForMedia: false,
-                                    budgetIncludesFees: false,
-                                    noadserving: false,
                                     ...(() => {
                                       const nextNum = lineItemFields.length + 1;
                                       const id = createLineItemId(nextNum);

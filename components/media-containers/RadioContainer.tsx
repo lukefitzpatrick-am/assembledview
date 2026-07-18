@@ -19,6 +19,12 @@ import {
   radioFormSchema,
   type RadioFormValues,
 } from "@/lib/mediaplan/schemas"
+import {
+  RADIO_CONTAINER_CONFIG,
+  buildDefaultLineItem,
+  mapHydrationToForm,
+  mapFormToApi,
+} from "@/lib/mediaplan/containerChannelConfig"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -255,22 +261,7 @@ export default function RadioContainer({
     defaultValues: {
       radiolineItems: [
         {
-          network: "",
-          station: "",
-          bidStrategy: "",
-          buyType: "",
-          placement: "",
-          format: "",
-          duration: "",
-          buyingDemo: "",
-          market: "",
-          platform: "",
-          creativeTargeting: "",
-          creative: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
+          ...buildDefaultLineItem(RADIO_CONTAINER_CONFIG.fieldMap),
           ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
           bursts: [
             {
@@ -671,20 +662,10 @@ export default function RadioContainer({
         const normalizedStation = item.station || item.site || "";
 
         return {
-          market: item.market || "",
+          ...mapHydrationToForm(RADIO_CONTAINER_CONFIG.fieldMap, item),
           network: normalizedNetwork,
           station: normalizedStation,
-          placement: item.placement || "",
           platform: normalizedNetwork,
-          format: item.format || "",
-          duration: item.duration || "",
-          bidStrategy: item.bid_strategy || "",
-          buyType: item.buy_type || "",
-          buyingDemo: item.buying_demo || "",
-          fixedCostMedia: item.fixed_cost_media || false,
-          clientPaysForMedia: item.client_pays_for_media || false,
-          budgetIncludesFees: item.budget_includes_fees || false,
-          noadserving: item.no_adserving || false,
           lineItemId,
           line_item_id: lineItemId,
           line_item: item.line_item ?? item.lineItem ?? index + 1,
@@ -739,22 +720,10 @@ export default function RadioContainer({
         mba_number: mbaNumber || "",
         mp_client_name: "", // Will be set by parent component
         mp_plannumber: "", // Will be set by parent component
+        ...mapFormToApi(RADIO_CONTAINER_CONFIG.fieldMap, lineItem),
         network: lineItem.network || "",
         station: lineItem.station || "",
         platform: lineItem.platform || "",
-        bid_strategy: lineItem.bidStrategy || "",
-        buy_type: lineItem.buyType || "",
-        placement: lineItem.placement || "",
-        format: lineItem.format || "",
-        duration: lineItem.duration || "",
-        creative_targeting: lineItem.creativeTargeting || "",
-        creative: lineItem.creative || "",
-        buying_demo: lineItem.buyingDemo || "",
-        market: lineItem.market || "",
-        fixed_cost_media: lineItem.fixedCostMedia || false,
-        client_pays_for_media: lineItem.clientPaysForMedia || false,
-        budget_includes_fees: lineItem.budgetIncludesFees || false,
-        no_adserving: lineItem.noadserving || false,
         line_item_id: lineItemId,
         bursts: lineItem.bursts,
         feePct: feeradio || 0,
@@ -1355,22 +1324,7 @@ useEffect(() => {
                 {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
-                                                          network: "",
-                                                          station: "",
-                                                          bidStrategy: "",
-                                                          buyType: "",
-                                                          placement: "",
-                                                          format: "",
-                                                          duration: "",
-                                                          buyingDemo: "",
-                                                          market: "",
-                                                          platform: "",
-                                                          creativeTargeting: "",
-                                                          creative: "",
-                                                          fixedCostMedia: false,
-                                                          clientPaysForMedia: false,
-                                                          budgetIncludesFees: false,
-                                                          noadserving: false,
+                                                          ...buildDefaultLineItem(RADIO_CONTAINER_CONFIG.fieldMap),
                                                           ...(() => { const nextNumber = lineItemFields.length + 1; const id = createLineItemId(nextNumber); return { lineItemId: id, line_item_id: id, line_item: nextNumber, lineItem: nextNumber }; })(),
                                                           bursts: [
                                                             {
@@ -1554,22 +1508,7 @@ useEffect(() => {
                                 size="sm"
                                 onClick={() =>
                                   appendLineItem({
-                                    network: "",
-                                    station: "",
-                                    bidStrategy: "",
-                                    buyType: "",
-                                    placement: "",
-                                    format: "",
-                                    duration: "",
-                                    buyingDemo: "",
-                                    market: "",
-                                    platform: "",
-                                    creativeTargeting: "",
-                                    creative: "",
-                                    fixedCostMedia: false,
-                                    clientPaysForMedia: false,
-                                    budgetIncludesFees: false,
-                                    noadserving: false,
+                                    ...buildDefaultLineItem(RADIO_CONTAINER_CONFIG.fieldMap),
                                     ...(() => {
                                       const nextNumber = lineItemFields.length + 1;
                                       const id = createLineItemId(nextNumber);

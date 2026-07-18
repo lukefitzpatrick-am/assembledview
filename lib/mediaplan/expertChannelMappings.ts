@@ -74,7 +74,7 @@ const BURST_JSON_MONEY_FORMAT: MoneyFormatOptions = {
 }
 
 /** OOH/Radio form burst shape (matches container schemas). */
-export interface StandardMediaBurst {
+interface StandardMediaBurst {
   budget: string
   buyAmount: string
   startDate: Date
@@ -152,7 +152,7 @@ export type StandardRadioLineItemInput = Partial<StandardRadioFormLineItem> & {
 }
 
 /** Production burst — unit cost × quantity; dual-write standard keys optional on read. */
-export interface StandardProductionBurst {
+interface StandardProductionBurst {
   cost: number
   amount: number
   budget?: string
@@ -288,7 +288,7 @@ export type StandardImportMapperOptions = {
  * via {@link computeLoadedDeliverables}. Skips fallback when budgetIncludesFees is
  * true but feePct was not supplied (caller must pass channel fee).
  */
-export function resolveBurstDeliverablesForStandardImport(
+function resolveBurstDeliverablesForStandardImport(
   burst: StandardMediaBurst,
   buyType: string,
   budgetIncludesFees: boolean,
@@ -2474,7 +2474,7 @@ export function mapStandardCinemaLineItemsToExpertRows(
 }
 
 /** TV bursts include ad length and TARPs string (matches form). */
-export type StandardTelevisionBurst = StandardMediaBurst & {
+type StandardTelevisionBurst = StandardMediaBurst & {
   size?: string
   tarps?: string
 }

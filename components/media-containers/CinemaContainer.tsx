@@ -21,6 +21,12 @@ import { Input } from "@/components/ui/input"
 import { Combobox } from "@/components/ui/combobox"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { CINEMA_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
+import {
+  CINEMA_CONTAINER_CONFIG,
+  buildDefaultLineItem,
+  mapHydrationToForm,
+  mapFormToApi,
+} from "@/lib/mediaplan/containerChannelConfig"
 import { Form } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
@@ -308,19 +314,7 @@ export default function CinemaContainer({
     defaultValues: {
       cinemalineItems: [
         {
-          network: "",
-          station: "",
-          bidStrategy: "",
-          buyType: "",
-          placement: "",
-          format: "",
-          duration: "",
-          buyingDemo: "",
-          market: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
+          ...buildDefaultLineItem(CINEMA_CONTAINER_CONFIG.fieldMap),
           ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
           bursts: [
             {
@@ -595,19 +589,7 @@ export default function CinemaContainer({
         const parsedBursts = resolveLineItemBursts(item);
 
         return {
-          market: item.market || "",
-          network: item.network || "",
-          station: item.station || "",
-          placement: item.placement || "",
-          format: item.format || "",
-          duration: item.duration || "",
-          bidStrategy: item.bid_strategy || "",
-          buyType: item.buy_type || "",
-          buyingDemo: item.buying_demo || "",
-          fixedCostMedia: item.fixed_cost_media || false,
-          clientPaysForMedia: item.client_pays_for_media || false,
-          budgetIncludesFees: item.budget_includes_fees || false,
-          noadserving: item.no_adserving || false,
+          ...mapHydrationToForm(CINEMA_CONTAINER_CONFIG.fieldMap, item),
           lineItemId,
           line_item_id: lineItemId,
           line_item: item.line_item ?? item.lineItem ?? index + 1,
@@ -671,23 +653,11 @@ export default function CinemaContainer({
         mba_number: mbaNumber || "",
         mp_client_name: "",
         mp_plannumber: "",
-        market: lineItem.market || "",
-        network: lineItem.network || "",
-        station: lineItem.station || "",
-        placement: lineItem.placement || "",
-        format: lineItem.format || "",
-        duration: lineItem.duration || "",
-        buy_type: lineItem.buyType || "",
-        buying_demo: lineItem.buyingDemo || "",
-        fixed_cost_media: lineItem.fixedCostMedia || false,
-        client_pays_for_media: lineItem.clientPaysForMedia || false,
-        budget_includes_fees: lineItem.budgetIncludesFees || false,
-        no_adserving: lineItem.noadserving || false,
+        ...mapFormToApi(CINEMA_CONTAINER_CONFIG.fieldMap, lineItem),
         line_item_id: lineItemId,
         bursts: lineItem.bursts,
         feePct: feecinema || 0,
         line_item: lineNumber,
-        bid_strategy: lineItem.bidStrategy || "",
         totalMedia: totalMedia,
       };
     });
@@ -1217,19 +1187,7 @@ useEffect(() => {
                 {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
-                                                          network: "",
-                                                          station: "",
-                                                          bidStrategy: "",
-                                                          buyType: "",
-                                                          placement: "",
-                                                          format: "",
-                                                          duration: "",
-                                                          buyingDemo: "",
-                                                          market: "",
-                                                          fixedCostMedia: false,
-                                                          clientPaysForMedia: false,
-                                                          budgetIncludesFees: false,
-                                                          noadserving: false,
+                                                          ...buildDefaultLineItem(CINEMA_CONTAINER_CONFIG.fieldMap),
                                                           ...(() => {
                                                             const nextNum = lineItemFields.length + 1;
                                                             const id = createLineItemId(nextNum);
@@ -1387,19 +1345,7 @@ useEffect(() => {
                                 size="sm"
                                 onClick={() =>
                                   appendLineItem({
-                                    network: "",
-                                    station: "",
-                                    bidStrategy: "",
-                                    buyType: "",
-                                    placement: "",
-                                    format: "",
-                                    duration: "",
-                                    buyingDemo: "",
-                                    market: "",
-                                    fixedCostMedia: false,
-                                    clientPaysForMedia: false,
-                                    budgetIncludesFees: false,
-                                    noadserving: false,
+                                    ...buildDefaultLineItem(CINEMA_CONTAINER_CONFIG.fieldMap),
                                     ...(() => {
                                       const nextNum = lineItemFields.length + 1;
                                       const id = createLineItemId(nextNum);

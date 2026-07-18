@@ -1,7 +1,7 @@
 import { coerceBurstDateLocal } from "./burstDate"
 import { resolveProductionBurstBudget } from "./resolveProductionBurstBudget"
 
-export type NormalisedBurst = {
+type NormalisedBurst = {
   startDate: string
   endDate: string
   budget: number

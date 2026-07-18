@@ -589,7 +589,7 @@ export type ExpertRowScheduleFields = Readonly<{
   >
 }>
 
-export type ExpertRowScheduledElement =
+type ExpertRowScheduledElement =
   | {
       kind: "span"
       spanId: string

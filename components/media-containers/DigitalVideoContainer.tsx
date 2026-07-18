@@ -20,6 +20,12 @@ import {
   digivideoFormSchema,
   type DigiVideoFormValues,
 } from "@/lib/mediaplan/schemas"
+import {
+  DIGITALVIDEO_CONTAINER_CONFIG,
+  buildDefaultLineItem,
+  mapHydrationToForm,
+  mapFormToApi,
+} from "@/lib/mediaplan/containerChannelConfig"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
@@ -313,22 +319,7 @@ export default function DigiVideoContainer({
     defaultValues: {
       digivideolineItems: [
         {
-          platform: "",
-          site: "",
-          bidStrategy: "",
-          buyType: "",
-          publisher: "",
-          placement: "",
-          size: "",
-          targetingAttribute: "",
-          creativeTargeting: "",
-          creative: "",
-          buyingDemo: "",
-          market: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
+          ...buildDefaultLineItem(DIGITALVIDEO_CONTAINER_CONFIG.fieldMap),
           bursts: [
             {
               _reactKey: newBurstReactKey(),
@@ -564,22 +555,7 @@ export default function DigiVideoContainer({
       const transformedLineItems = items.map((item: any) => {
         const parsedBursts = resolveLineItemBursts(item);
         return {
-        platform: item.platform || "",
-        publisher: item.publisher || "",
-        site: item.site || "",
-        placement: item.placement || "",
-        size: item.size || "",
-        bidStrategy: item.bid_strategy || "",
-        buyType: item.buy_type || "",
-        targetingAttribute: item.targeting_attribute || "",
-        creativeTargeting: item.creative_targeting || "",
-        creative: item.creative || "",
-        buyingDemo: item.buying_demo || "",
-        market: item.market || "",
-        fixedCostMedia: item.fixed_cost_media || false,
-        clientPaysForMedia: item.client_pays_for_media || false,
-        budgetIncludesFees: item.budget_includes_fees || false,
-        noadserving: item.no_adserving || false,
+        ...mapHydrationToForm(DIGITALVIDEO_CONTAINER_CONFIG.fieldMap, item),
         line_item: item.line_item ?? item.lineItem,
         lineItem: item.lineItem ?? item.line_item,
         line_item_id: item.line_item_id || item.lineItemId,
@@ -641,22 +617,7 @@ export default function DigiVideoContainer({
         mba_number: mbaNumber || "",
         mp_client_name: "",
         mp_plannumber: "",
-        platform: lineItem.platform || "",
-        bid_strategy: lineItem.bidStrategy || "",
-        publisher: lineItem.publisher || "",
-        site: lineItem.site || "",
-        placement: lineItem.placement || "",
-        size: lineItem.size || "",
-        buy_type: lineItem.buyType || "",
-        targeting_attribute: lineItem.targetingAttribute || "",
-        creative_targeting: lineItem.creativeTargeting || "",
-        creative: lineItem.creative || "",
-        buying_demo: lineItem.buyingDemo || "",
-        market: lineItem.market || "",
-        fixed_cost_media: lineItem.fixedCostMedia || false,
-        client_pays_for_media: lineItem.clientPaysForMedia || false,
-        budget_includes_fees: lineItem.budgetIncludesFees || false,
-        no_adserving: lineItem.noadserving || false,
+        ...mapFormToApi(DIGITALVIDEO_CONTAINER_CONFIG.fieldMap, lineItem),
         line_item_id: lineItem.line_item_id,
         bursts: lineItem.bursts,
         feePct: feedigivideo || 0,
@@ -1246,22 +1207,7 @@ useEffect(() => {
                 {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
-                                                              platform: "",
-                                                              site: "",
-                                                              bidStrategy: "",
-                                                              buyType: "",
-                                                              publisher: "",
-                                                              placement: "",
-                                                              size: "",
-                                                              targetingAttribute: "",
-                                                              creativeTargeting: "",
-                                                              creative: "",
-                                                              buyingDemo: "",
-                                                              market: "",
-                                                              fixedCostMedia: false,
-                                                              clientPaysForMedia: false,
-                                                              budgetIncludesFees: false,
-                                                              noadserving: false,
+                                                              ...buildDefaultLineItem(DIGITALVIDEO_CONTAINER_CONFIG.fieldMap),
                                                               bursts: [
                                                                 {
                                                                   _reactKey: newBurstReactKey(),
@@ -1447,22 +1393,7 @@ useEffect(() => {
                                 size="sm"
                                 onClick={() =>
                                   appendLineItem({
-                                    platform: "",
-                                    site: "",
-                                    bidStrategy: "",
-                                    buyType: "",
-                                    publisher: "",
-                                    placement: "",
-                                    size: "",
-                                    targetingAttribute: "",
-                                    creativeTargeting: "",
-                                    creative: "",
-                                    buyingDemo: "",
-                                    market: "",
-                                    fixedCostMedia: false,
-                                    clientPaysForMedia: false,
-                                    budgetIncludesFees: false,
-                                    noadserving: false,
+                                    ...buildDefaultLineItem(DIGITALVIDEO_CONTAINER_CONFIG.fieldMap),
                                     bursts: [
                                       {
                                         _reactKey: newBurstReactKey(),
