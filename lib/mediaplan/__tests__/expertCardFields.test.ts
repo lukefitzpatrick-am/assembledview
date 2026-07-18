@@ -8,13 +8,15 @@ import test from "node:test"
 import { getExpertCardRenderedFields } from "@/components/media-containers/ExpertCard"
 import {
   getExpertCardSurfaceFields,
+  type ExpertGridChannelConfig,
+  CINEMA_EXPERT_CHANNEL_CONFIG,
   OOH_EXPERT_CHANNEL_CONFIG,
   RADIO_EXPERT_CHANNEL_CONFIG,
   SEARCH_EXPERT_CHANNEL_CONFIG,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 
 function expectedCardFields(
-  config: typeof SEARCH_EXPERT_CHANNEL_CONFIG
+  config: ExpertGridChannelConfig<any>
 ): { key: string; label: string }[] {
   return getExpertCardSurfaceFields(config).map(({ key, label }) => ({
     key,

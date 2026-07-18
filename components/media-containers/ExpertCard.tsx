@@ -86,6 +86,30 @@ export type ExpertCardProps<T extends FieldValues> = {
   onRemoveBurst: (lineItemIndex: number, burstIndex: number) => void
   /** Fired when Budget Includes Fees toggles (recalc bursts). */
   onBudgetIncludesFeesChange?: (lineItemIndex: number, checked: boolean) => void
+  /**
+   * Optional combobox change hook (e.g. buyType → zero burst budgets).
+   * Called after the field value is written.
+   */
+  onComboboxValueChange?: (
+    key: string,
+    lineItemIndex: number,
+    value: string
+  ) => void
+  /** Extra UI beside a card field control (e.g. station “add” button). */
+  fieldAdornments?: Partial<Record<string, React.ReactNode>>
+  /** Per-key Combobox overrides (disabled, emptyText, placeholders). */
+  comboboxPropsByKey?: Partial<
+    Record<
+      string,
+      {
+        disabled?: boolean
+        emptyText?: string
+        placeholder?: string
+        searchPlaceholder?: string
+        buttonClassName?: string
+      }
+    >
+  >
   summaryRow?: React.ReactNode
   footer?: React.ReactNode
   className?: string
@@ -124,6 +148,9 @@ function ExpertCardFieldControl<T extends FieldValues>({
   dynamicOptionsByKey,
   campaignStartDate,
   campaignEndDate,
+  onComboboxValueChange,
+  fieldAdornment,
+  comboboxProps,
 }: {
   d: ExpertDescriptorColumn
   form: UseFormReturn<T>
@@ -134,6 +161,19 @@ function ExpertCardFieldControl<T extends FieldValues>({
   dynamicOptionsByKey: Record<string, ComboboxOption[]>
   campaignStartDate: Date
   campaignEndDate: Date
+  onComboboxValueChange?: (
+    key: string,
+    lineItemIndex: number,
+    value: string
+  ) => void
+  fieldAdornment?: React.ReactNode
+  comboboxProps?: {
+    disabled?: boolean
+    emptyText?: string
+    placeholder?: string
+    searchPlaceholder?: string
+    buttonClassName?: string
+  }
 }) {
   const name = fieldName<T>(itemsKey, lineItemIndex, d.key)
   const publisherOptions = publishers.map((p) => ({
@@ -170,24 +210,49 @@ function ExpertCardFieldControl<T extends FieldValues>({
       <FormField
         control={form.control}
         name={name}
-        render={({ field }) => (
-          <FormItem className="flex flex-col space-y-1.5">
-            <FormLabel className="text-sm font-medium text-muted-foreground">
-              {d.label}
-            </FormLabel>
-            <FormControl>
-              <Combobox
-                value={field.value ?? ""}
-                onValueChange={field.onChange}
-                options={comboboxOptions()}
-                placeholder={d.placeholder ?? "Select"}
-                searchPlaceholder={d.searchPlaceholder ?? `Search ${d.label.toLowerCase()}...`}
-                className="w-full"
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
+        render={({ field }) => {
+          const combobox = (
+            <Combobox
+              value={field.value ?? ""}
+              onValueChange={(value) => {
+                field.onChange(value)
+                onComboboxValueChange?.(d.key, lineItemIndex, value)
+              }}
+              options={comboboxOptions()}
+              placeholder={
+                comboboxProps?.placeholder ?? d.placeholder ?? "Select"
+              }
+              searchPlaceholder={
+                comboboxProps?.searchPlaceholder ??
+                d.searchPlaceholder ??
+                `Search ${d.label.toLowerCase()}...`
+              }
+              disabled={comboboxProps?.disabled}
+              emptyText={comboboxProps?.emptyText}
+              buttonClassName={
+                comboboxProps?.buttonClassName ?? "h-9 w-full rounded-md"
+              }
+              className="w-full"
+            />
+          )
+
+          return (
+            <FormItem className="flex flex-col space-y-1.5">
+              <FormLabel className="text-sm font-medium text-muted-foreground">
+                {d.label}
+              </FormLabel>
+              {fieldAdornment ? (
+                <div className="flex flex-1 items-center space-x-1">
+                  <FormControl>{combobox}</FormControl>
+                  {fieldAdornment}
+                </div>
+              ) : (
+                <FormControl>{combobox}</FormControl>
+              )}
+              <FormMessage />
+            </FormItem>
+          )
+        }}
       />
     )
   }
@@ -628,6 +693,9 @@ export function ExpertCard<T extends FieldValues>({
   onDuplicateBurst,
   onRemoveBurst,
   onBudgetIncludesFeesChange,
+  onComboboxValueChange,
+  fieldAdornments,
+  comboboxPropsByKey,
   summaryRow,
   footer,
   className,
@@ -711,6 +779,9 @@ export function ExpertCard<T extends FieldValues>({
                       dynamicOptionsByKey={dynamicOptionsByKey}
                       campaignStartDate={campaignStartDate}
                       campaignEndDate={campaignEndDate}
+                      onComboboxValueChange={onComboboxValueChange}
+                      fieldAdornment={fieldAdornments?.[d.key]}
+                      comboboxProps={comboboxPropsByKey?.[d.key]}
                     />
                   </div>
                 ))}
