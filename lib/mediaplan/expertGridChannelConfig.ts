@@ -340,7 +340,7 @@ export const SEARCH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SearchExpertS
       },
       {
         key: "creativeTargeting",
-        label: "Creative Targeting",
+        label: "Targeting",
         widthPx: 120,
         kind: "text",
         headerTooltip: "Creative / Keyword Targeting",
