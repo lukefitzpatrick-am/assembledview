@@ -7,6 +7,7 @@ import {
   getCachedProgrammaticPacingRows,
   getCachedSearchPacingRows,
   getCachedSocialPacingRows,
+  pacingScopeKey,
 } from "@/lib/pacing/campaigns/pacingRowsCache";
 import { computeRowKpiStatus } from "@/lib/pacing/kpi/computeKpiStatus";
 import {
@@ -79,7 +80,10 @@ export function withSourceTimeout<T>(
 
 export type BuildOverviewPayloadArgs = {
   asOfDate?: string;
-  /** Auth access set; null = admin (still paginated — never fan-out with null/"all"). */
+  /**
+   * Auth access set; null = admin. Passed through to the same cached channel
+   * fetchers the per-channel tabs use (same scope key / cache entry).
+   */
   allowedClientSlugs: Set<string> | null;
   clientSlug?: string | null;
   page?: number;
@@ -89,11 +93,52 @@ export type BuildOverviewPayloadArgs = {
 };
 
 /**
+ * Time a source promise and log wall-clock latency (start → settle).
+ * Used to compare Overview fan-out vs per-tab `/api/pacing/campaigns`.
+ */
+export function withSourceTiming<T>(
+  promise: Promise<T>,
+  label: OverviewChannel,
+  meta: { scopeKey: string; timeoutMs: number }
+): Promise<T> {
+  const started = Date.now();
+  console.info("[pacing/overview] source start", {
+    channel: label,
+    scopeKey: meta.scopeKey,
+    timeoutMs: meta.timeoutMs,
+    t0: started,
+  });
+  return promise.then(
+    (value) => {
+      const ms = Date.now() - started;
+      console.info("[pacing/overview] source end", {
+        channel: label,
+        scopeKey: meta.scopeKey,
+        outcome: "fulfilled",
+        ms,
+      });
+      return value;
+    },
+    (err) => {
+      const ms = Date.now() - started;
+      console.info("[pacing/overview] source end", {
+        channel: label,
+        scopeKey: meta.scopeKey,
+        outcome: "rejected",
+        ms,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+  );
+}
+
+/**
  * Portfolio Overview: UNION of the same 4h cached channel fetchers the
- * channel tabs use. Fan-out uses the full live-in-window (access-filtered)
- * client set so KPI tiles cover the portfolio; attention lists are filtered
- * to the current page. Tolerant of individual source failures
- * (allSettled + timeout → partial 200).
+ * channel tabs use (same auth `allowedClientSlugs` / cache key). KPI tiles
+ * cover the live-in-window portfolio from resolveOverviewClientScope;
+ * attention lists are filtered to the current page. Tolerant of individual
+ * source failures (allSettled + timeout → partial 200).
  */
 export async function buildOverviewPayload(
   args: BuildOverviewPayloadArgs,
@@ -118,37 +163,38 @@ export async function buildOverviewPayload(
         pageSize: a.pageSize,
       })))({ ...args, asOfDate });
 
-  // Full portfolio Set — never null/"all" — so cache keys stay scoped and
-  // KPI counts cover every live-in-window client the user can see.
-  const scopedSlugs = scope.clientSlugs;
+  // Same auth scope the Search/Social/… tabs pass into getCached* — so Overview
+  // hits the warm `"all"` (admin) or access-Set cache entry instead of a cold
+  // live-slug-joined key that never matches the tabs.
+  const fetcherSlugs = args.allowedClientSlugs;
+  const fetcherScopeKey = pacingScopeKey(fetcherSlugs);
+  const portfolioSlugSet = scope.clientSlugs;
   const pageSlugSet = new Set(scope.pageSlugs);
 
+  console.info("[pacing/overview] fan-out begin", {
+    asOfDate,
+    fetcherScopeKey,
+    portfolioClientCount: portfolioSlugSet.size,
+    pageClientCount: pageSlugSet.size,
+    sourceTimeoutMs,
+  });
+
+  const timed = (label: OverviewChannel, promise: Promise<unknown>) =>
+    withSourceTimeout(
+      withSourceTiming(promise, label, {
+        scopeKey: fetcherScopeKey,
+        timeoutMs: sourceTimeoutMs,
+      }),
+      sourceTimeoutMs,
+      label
+    );
+
   const settled = await Promise.allSettled([
-    withSourceTimeout(
-      fetchers.search(asOfDate, scopedSlugs),
-      sourceTimeoutMs,
-      "search"
-    ),
-    withSourceTimeout(
-      fetchers.social(asOfDate, scopedSlugs),
-      sourceTimeoutMs,
-      "social"
-    ),
-    withSourceTimeout(
-      fetchers.programmatic(asOfDate, scopedSlugs),
-      sourceTimeoutMs,
-      "programmatic"
-    ),
-    withSourceTimeout(
-      fetchers.direct(asOfDate, scopedSlugs, false),
-      sourceTimeoutMs,
-      "direct"
-    ),
-    withSourceTimeout(
-      fetchers.adServing(asOfDate, scopedSlugs),
-      sourceTimeoutMs,
-      "ad-serving"
-    ),
+    timed("search", fetchers.search(asOfDate, fetcherSlugs)),
+    timed("social", fetchers.social(asOfDate, fetcherSlugs)),
+    timed("programmatic", fetchers.programmatic(asOfDate, fetcherSlugs)),
+    timed("direct", fetchers.direct(asOfDate, fetcherSlugs, false)),
+    timed("ad-serving", fetchers.adServing(asOfDate, fetcherSlugs)),
   ]);
 
   const channelOrder: OverviewChannel[] = [
@@ -158,6 +204,9 @@ export async function buildOverviewPayload(
     "direct",
     "ad-serving",
   ];
+
+  const inPortfolio = (clientName: string) =>
+    portfolioSlugSet.has(slugifyPlanClientName(clientName));
 
   const availableSources: OverviewChannel[] = [];
   const unavailableSources: OverviewChannel[] = [];
@@ -182,6 +231,7 @@ export async function buildOverviewPayload(
     if (channel === "search") {
       const search = value as Awaited<ReturnType<typeof getCachedSearchPacingRows>>;
       for (const row of search ?? []) {
+        if (!inPortfolio(row.clientName)) continue;
         items.push(
           mapSpendRowToOverviewItem(
             "search",
@@ -206,6 +256,7 @@ export async function buildOverviewPayload(
     } else if (channel === "social") {
       const social = value as Awaited<ReturnType<typeof getCachedSocialPacingRows>>;
       for (const row of social ?? []) {
+        if (!inPortfolio(row.clientName)) continue;
         items.push(
           mapSpendRowToOverviewItem(
             "social",
@@ -231,6 +282,7 @@ export async function buildOverviewPayload(
         ReturnType<typeof getCachedProgrammaticPacingRows>
       >;
       for (const row of programmatic ?? []) {
+        if (!inPortfolio(row.clientName)) continue;
         items.push(
           mapSpendRowToOverviewItem(
             "programmatic",
@@ -254,6 +306,7 @@ export async function buildOverviewPayload(
     } else if (channel === "direct") {
       const direct = value as Awaited<ReturnType<typeof getCachedDirectPacingRows>>;
       for (const group of direct ?? []) {
+        if (!inPortfolio(group.clientName)) continue;
         for (const line of group.lineItems) {
           items.push(
             mapDirectLineToOverviewItem({
@@ -275,6 +328,7 @@ export async function buildOverviewPayload(
         ReturnType<typeof getCachedAdServingPacingRows>
       >;
       for (const row of adServing ?? []) {
+        if (!inPortfolio(row.clientName)) continue;
         items.push(
           mapAdServingRowToOverviewItem({
             clientName: row.clientName,
