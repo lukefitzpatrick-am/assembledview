@@ -121,6 +121,11 @@ import {
   handleExpertGridInputKeyDown,
 } from "@/lib/mediaplan/expertGridKeyboardNav"
 import {
+  applyExpertFillDown,
+  type ExpertFillRange,
+} from "@/lib/mediaplan/expertGridFill"
+import { ExpertGridFillHandle } from "@/components/media-containers/ExpertGridFillHandle"
+import {
   expertRowCostSplit,
   expertRowNetMedia,
   expertRowNetMediaTooltip,
@@ -2237,6 +2242,22 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     setFocusedCell(next)
   }, [])
 
+  const handleFillDown = useCallback(
+    (rowIndex: number, columnKey: string, range: ExpertFillRange) => {
+      const column = findDescriptorColumn(config, columnKey)
+      if (!column) return
+      const next = applyExpertFillDown({
+        rows: normalizedRowsRef.current,
+        sourceRowIndex: rowIndex,
+        column,
+        range,
+        publisherNames: platformNames,
+      })
+      if (next) pushRows(next)
+    },
+    [config, platformNames, pushRows]
+  )
+
   const pasteMatrixIntoGrid = useCallback(
     (matrix: string[][]) => {
       if (!matrix || matrix.length === 0) return
@@ -3299,13 +3320,38 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                             const ci = colIndexOf(col.key)
                             if (ci < 0) return null
                             const cellId = expertGridCellId(domGridId, rowIndex, ci)
+                            const showFillHandle =
+                              focusedCell?.rowIndex === rowIndex &&
+                              focusedCell?.columnKey === col.key &&
+                              !col.readOnly &&
+                              col.kind !== "checkbox-billing"
+                            const tdClassName = cn(
+                              stickyTd(ci),
+                              showFillHandle && "relative"
+                            )
+                            const fillHandleNode = showFillHandle ? (
+                              <ExpertGridFillHandle
+                                onFillAllBelow={() =>
+                                  handleFillDown(rowIndex, col.key, {
+                                    mode: "all-below",
+                                  })
+                                }
+                                onFillDrag={(rowCount) =>
+                                  handleFillDown(rowIndex, col.key, {
+                                    mode: "drag",
+                                    rowCount,
+                                  })
+                                }
+                              />
+                            ) : null
                             if (col.kind === "checkbox-billing") {
                               return (
                                 <td
                                   key={col.key}
-                                  className={stickyTd(ci)}
+                                  className={tdClassName}
                                   style={stickyStyleBody(ci)}
                                 >
+                                  {fillHandleNode}
                                   <div className="flex h-8 items-center justify-center overflow-hidden">
                                     <Checkbox
                                       id={cellId}
@@ -3334,9 +3380,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={stickyTd(ci)}
+                                  className={tdClassName}
                                   style={stickyStyleBody(ci)}
                                 >
+                                  {fillHandleNode}
                                   <SingleDatePicker
                                     id={cellId}
                                     value={parseRowYmd(row.startDate)}
@@ -3365,9 +3412,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={stickyTd(ci)}
+                                  className={tdClassName}
                                   style={stickyStyleBody(ci)}
                                 >
+                                  {fillHandleNode}
                                   <SingleDatePicker
                                     id={cellId}
                                     value={parseRowYmd(row.endDate)}
@@ -3397,9 +3445,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={stickyTd(ci)}
+                                  className={tdClassName}
                                   style={stickyStyleBody(ci)}
                                 >
+                                  {fillHandleNode}
                                   <Combobox
                                     id={cellId}
                                     options={platformComboboxOptions}
@@ -3449,9 +3498,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={stickyTd(ci)}
+                                  className={tdClassName}
                                   style={stickyStyleBody(ci)}
                                 >
+                                  {fillHandleNode}
                                   <Combobox
                                     id={cellId}
                                     options={siteOpts}
@@ -3490,9 +3540,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={stickyTd(ci)}
+                                  className={tdClassName}
                                   style={stickyStyleBody(ci)}
                                 >
+                                  {fillHandleNode}
                                   <Combobox
                                     id={cellId}
                                     options={stationComboboxOptions}
@@ -3535,9 +3586,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={stickyTd(ci)}
+                                  className={tdClassName}
                                   style={stickyStyleBody(ci)}
                                 >
+                                  {fillHandleNode}
                                   <Combobox
                                     id={cellId}
                                     options={titleOpts}
@@ -3584,9 +3636,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={stickyTd(ci)}
+                                  className={tdClassName}
                                   style={stickyStyleBody(ci)}
                                 >
+                                  {fillHandleNode}
                                   <Combobox
                                     id={cellId}
                                     options={opts}
@@ -3622,9 +3675,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                               return (
                                 <td
                                   key={col.key}
-                                  className={stickyTd(ci)}
+                                  className={tdClassName}
                                   style={stickyStyleBody(ci)}
                                 >
+                                  {fillHandleNode}
                                   <Input
                                     id={cellId}
                                     className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"
@@ -3653,9 +3707,10 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                             return (
                               <td
                                 key={col.key}
-                                className={stickyTd(ci)}
+                                className={tdClassName}
                                 style={stickyStyleBody(ci)}
                               >
+                                {fillHandleNode}
                                 <Input
                                   id={cellId}
                                   className="h-8 border-0 bg-transparent px-1 text-xs shadow-none focus-visible:ring-1"

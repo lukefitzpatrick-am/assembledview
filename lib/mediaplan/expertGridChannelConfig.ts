@@ -142,6 +142,8 @@ export type ExpertDescriptorColumn = {
   placeholder?: string
   /** Card layout span (1 = half, 2 = full). Default 1 when omitted. */
   cardSpan?: 1 | 2
+  /** When true, Excel-style fill handle is a no-op for this column. */
+  readOnly?: boolean
 }
 
 /** Structural fields the ExpertGrid shell reads without channel-specific keys. */
