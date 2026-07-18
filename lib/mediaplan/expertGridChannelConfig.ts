@@ -1198,7 +1198,7 @@ export const SOCIALMEDIA_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SocialMe
       },
       {
         key: "creativeTargeting",
-        label: "Creative Targeting",
+        label: "Targeting",
         widthPx: 120,
         kind: "text",
       },
