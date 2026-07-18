@@ -1055,13 +1055,13 @@ export const PROGOOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgOohExper
       },
       {
         key: "creativeTargeting",
-        label: "Creative Targeting",
+        label: "Targeting",
         widthPx: 120,
         kind: "text",
       },
-      { key: "placement", label: "Placement", widthPx: 110, kind: "text" },
+      { key: "placement", label: "Placement", widthPx: 110, kind: "text", surfaces: "both" },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
-      { key: "size", label: "Size", widthPx: 80, kind: "text" },
+      { key: "size", label: "Ad Size", widthPx: 80, kind: "text", surfaces: "both" },
     ],
     descriptorTail: [
       { key: "market", label: "Market", widthPx: 96, kind: "text" },
