@@ -255,12 +255,21 @@ export function summarizeOverviewItems(
     .filter((i) => i.status === "ahead")
     .toSorted((a, b) => overBurnRatio(b) - overBurnRatio(a));
 
-  // asOfDate filled by caller
+  // asOfDate / sources / scope filled by buildOverviewPayload
   return {
     asOfDate: "",
     counts,
     underperforming,
     overPacing,
     aheadOnDelivery,
+    availableSources: [],
+    unavailableSources: [],
+    scope: {
+      page: 1,
+      pageSize: 0,
+      totalClients: 0,
+      clientSlugs: [],
+      hasMore: false,
+    },
   };
 }
