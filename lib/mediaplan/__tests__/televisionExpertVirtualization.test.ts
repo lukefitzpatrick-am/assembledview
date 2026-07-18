@@ -53,6 +53,7 @@ function emptyRow(id: string): TelevisionExpertScheduleRow {
     buyingDemo: "",
     size: "30s",
     tarps: "",
+    creative: "",
     fixedCostMedia: false,
     clientPaysForMedia: false,
     budgetIncludesFees: false,

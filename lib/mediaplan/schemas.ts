@@ -231,6 +231,10 @@ export const televisionlineItemSchema = z.object({
   buyType: z.string().min(1, "Buy Type is required"),
   creativeTargeting: z.string().default("").optional(),
   creative: z.string().default("").optional(),
+  /** Line-level Ad Size mirror (synced to burst.size for save). */
+  size: z.string().default("").optional(),
+  /** Line-level TARPs summary (expert/card surface; bursts keep per-burst tarps). */
+  tarps: z.string().default("").optional(),
   buyingDemo: z.string().default(""),
   fixedCostMedia: z.boolean().default(false),
   clientPaysForMedia: z.boolean().default(false),
@@ -682,6 +686,8 @@ export const productionLineItemSchema = z.object({
   publisher: z.string().optional(),
   description: z.string().optional(),
   market: z.string().optional(),
+  /** Line-level unit cost; synced to burst `.cost` when edited on the card. */
+  unitRate: z.union([z.number(), z.string()]).optional(),
   bursts: z.array(productionBurstSchema).min(1, "At least one burst is required"),
   lineItemId: z.string().optional(),
 })
