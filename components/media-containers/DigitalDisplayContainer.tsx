@@ -12,7 +12,7 @@ import {
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
-import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
+import { useForm, useFieldArray, UseFormReturn, type Resolver } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import {
@@ -437,8 +437,8 @@ export default function DigiDisplayContainer({
 }
 };
 
-  const form = useForm({
-    resolver: zodResolver(digidisplayFormSchema),
+  const form = useForm<DigiDisplayFormValues>({
+    resolver: zodResolver(digidisplayFormSchema) as Resolver<DigiDisplayFormValues>,
     defaultValues: {
       digidisplaylineItems: [
         {
