@@ -21,6 +21,8 @@ import {
 } from "@/lib/mediaplan/schemas"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { ExpertCard } from "@/components/media-containers/ExpertCard"
+import { DIGITALDISPLAY_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
 import { Input } from "@/components/ui/input"
 import { Combobox, ComboboxModalProvider } from "@/components/ui/combobox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
@@ -1469,7 +1471,9 @@ useEffect(() => {
                     return { totalMedia, totalCalculatedValue };
                   };
 
-                  const selectedPublisher = form.watch(`digidisplaylineItems.${lineItemIndex}.platform`);
+                  const selectedPublisher =
+                    form.watch(`digidisplaylineItems.${lineItemIndex}.publisher`) ||
+                    form.watch(`digidisplaylineItems.${lineItemIndex}.platform`);
 
                   let filteredDigiDisplaySites;
                   if (!selectedPublisher) {
@@ -1482,634 +1486,207 @@ useEffect(() => {
                   const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
 
                   return (
-                    <Card key={field.id} className="overflow-hidden border border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200 space-y-6">
-                      <CardHeader className="pb-2 bg-muted/30">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                              {lineNumber}
-                            </div>
-                            <div>
-                              <CardTitle className="text-sm font-semibold tracking-tight">Digital Display Line Item</CardTitle>
-                              <span className="font-mono text-[11px] text-muted-foreground">{lineItemId}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="text-right">
-                              <span className="block text-[11px] text-muted-foreground">Total</span>
-                              <span className="text-sm font-bold tabular-nums">
-                                {formatMoney(
-                                  form.getValues(`digidisplaylineItems.${lineItemIndex}.budgetIncludesFees`)
-                                    ? totalMedia
-                                    : totalMedia + (totalMedia / (100 - (feedigidisplay || 0))) * (feedigidisplay || 0),
-                                  { locale: "en-AU", currency: "AUD" }
-                                )}
-                              </span>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 shrink-0 rounded-full p-0"
-                              aria-expanded={!collapsedLineItems.has(lineItemIndex)}
-                              aria-label={
-                                collapsedLineItems.has(lineItemIndex)
-                                  ? `Expand details for digital display line item ${lineItemIndex + 1}`
-                                  : `Collapse details for digital display line item ${lineItemIndex + 1}`
-                              }
-                              onClick={() => toggleLineItemCollapsed(lineItemIndex)}
-                            >
-                              <ChevronDown
-                                className={cn(
-                                  "h-4 w-4 transition-transform",
-                                  collapsedLineItems.has(lineItemIndex) && "-rotate-90"
-                                )}
-                                aria-hidden
-                              />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      
-                      {/* Summary Row - Always visible */}
-                      <div className="px-6 py-2 border-b">
-                        <div className="grid grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="font-medium">Publisher:</span> {form.watch(`digidisplaylineItems.${lineItemIndex}.platform`) || 'Not selected'}
-                          </div>
-                          <div>
-                            <span className="font-medium">Buy Type:</span> {formatBuyTypeForDisplay(form.watch(`digidisplaylineItems.${lineItemIndex}.buyType`))}
-                          </div>
-                          <div>
-                            <span className="font-medium">Site:</span> {form.watch(`digidisplaylineItems.${lineItemIndex}.site`) || 'Not selected'}
-                          </div>
-                          <div>
-                            <span className="font-medium">Bursts:</span> {form.watch(`digidisplaylineItems.${lineItemIndex}.bursts`, []).length}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {!collapsedLineItems.has(lineItemIndex) && (
-                      <>
-                      <div className="px-6 py-5">
-                          <CardContent className="space-y-5 p-0">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
-                              
-                              {/* Column 1 - Dropdowns */}
-                              <div className="space-y-4">
-                              <FormField
-                                  control={form.control}
-                                  name={`digidisplaylineItems.${lineItemIndex}.platform`}
-                                  render={({ field }) => (
-                                    <FormItem className="flex flex-col space-y-1.5">
-                                      <FormLabel className="text-sm text-muted-foreground font-medium">Publisher</FormLabel>
-                                      <FormControl>
-                                        <Combobox
-                                          value={field.value}
-                                          onValueChange={(value) => {
-                                            field.onChange(value)
-                                            form.setValue(`digidisplaylineItems.${lineItemIndex}.publisher`, value, { shouldValidate: false })
-                                          }}
-                                          placeholder="Select Publisher"
-                                          searchPlaceholder="Search publishers..."
-                                          emptyText={publishers.length === 0 ? "No publishers available." : "No publishers found."}
-                                          buttonClassName="h-9 w-full flex-1 rounded-md"
-                                          options={publishers.map((publisher) => ({
-                                            value: publisher.publisher_name,
-                                            label: publisher.publisher_name,
-                                          }))}
-                                        />
-                                      </FormControl>
-                                      <FormMessage />
-                                    </FormItem>
-                                  )}
-                                />
-
-                              <FormField
-                                control={form.control}
-                                name={`digidisplaylineItems.${lineItemIndex}.site`}
-                                render={({ field }) => (
-                                  <FormItem className="flex flex-col space-y-1.5">
-                                    <FormLabel className="text-sm text-muted-foreground font-medium">Site</FormLabel>
-                                        <div className="flex-1 flex items-center space-x-1">
-                                          <FormControl>
-                                            <Combobox
-                                              value={field.value}
-                                              onValueChange={field.onChange}
-                                              disabled={!selectedPublisher}
-                                              placeholder={selectedPublisher ? "Select Site" : "Select Publisher first"}
-                                              searchPlaceholder="Search sites..."
-                                              emptyText={
-                                                selectedPublisher
-                                                  ? `No sites found for "${selectedPublisher}".`
-                                                  : "Select Publisher first"
-                                              }
-                                              buttonClassName="h-9 w-full rounded-md"
-                                              options={filteredDigiDisplaySites.map((digidisplaySite) => ({
-                                                value: digidisplaySite.site || `site-${digidisplaySite.id}`,
-                                                label: digidisplaySite.site || "(Unnamed site)",
-                                              }))}
-                                            />
-                                          </FormControl>
-                                            <Button
-                                              type="button"
-                                              variant="ghost"
-                                              size="sm"
-                                              className="p-1 h-auto"
-                                              onClick={() => {
-                                                const currentPublisherInForm = form.getValues(`digidisplaylineItems.${lineItemIndex}.platform`); //
-                                                if (!currentPublisherInForm) {
-                                                  toast({ //
-                                                    title: "Select a Site First",
-                                                    description: "Please select a Publisher before adding a site.",
-                                                    variant: "default", 
-                                                  });
-                                                  return;
-                                                }
-                                                setCurrentLineItemIndexForNewSite(lineItemIndex); //
-                                                setNewSiteName(""); //
-                                                setNewSitePlatform(selectedPublisher); //
-                                                setIsAddSiteDialogOpen(true); //
-                                              }}
-                                            >
-                                              <PlusCircle className="h-5 w-5 text-primary" />
-                                            </Button>
-                                           </div>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-
-                                                            <FormField
-                                control={form.control}
-                                name={`digidisplaylineItems.${lineItemIndex}.buyType`}
-                                render={({ field }) => (
-                                  <FormItem className="flex flex-col space-y-1.5">
-                                    <FormLabel className="text-sm text-muted-foreground font-medium">Buy Type</FormLabel>
-                                    <FormControl>
-                                      <Combobox
-                                        value={field.value}
-                                        onValueChange={(value) => handleBuyTypeChange(lineItemIndex, value)}
-                                        placeholder="Select"
-                                        searchPlaceholder="Search buy types..."
-                                        buttonClassName="h-9 w-full flex-1 rounded-md"
-                                        options={[
-                                          { value: "bonus", label: "Bonus" },
-                                          { value: "package_inclusions", label: "Package Inclusions" },
-                                          { value: "cpc", label: "CPC" },
-                                          { value: "cpm", label: "CPM" },
-                                          { value: "cpv", label: "CPV" },
-                                          { value: "fixed_cost", label: "Fixed Cost" },
-                                        ]}
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                            </div>
-
-                            {/* Column 2 - Targeting and Buying Demo */}
-                            <div className="space-y-4">
-                              <FormItem className="flex flex-col space-y-1.5">
-                                <FormLabel className="text-sm text-muted-foreground font-medium">Targeting</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    {...form.register(`digidisplaylineItems.${lineItemIndex}.creativeTargeting`)}
-                                    placeholder="Enter targeting details"
-                                    className="w-full h-24 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-
-                              <FormItem className="flex flex-col space-y-1.5">
-                                <FormLabel className="text-sm text-muted-foreground font-medium">Buying Demo</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    {...form.register(`digidisplaylineItems.${lineItemIndex}.buyingDemo`)}
-                                    placeholder="Enter buying demo details"
-                                    className="w-full min-h-0 h-10 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            </div>
-
-                            {/* Column 3 - Creative */}
-                            <div className="space-y-4">
-                              <FormItem className="flex flex-col space-y-1.5">
-                                <FormLabel className="text-sm text-muted-foreground font-medium">Creative</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    {...form.register(`digidisplaylineItems.${lineItemIndex}.creative`)}
-                                    placeholder="Enter creative details"
-                                    className="w-full h-24 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-
-                              <FormItem className="flex flex-col space-y-1.5">
-                                <FormLabel className="text-sm text-muted-foreground font-medium">Market</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    {...form.register(`digidisplaylineItems.${lineItemIndex}.market`)}
-                                    placeholder="Enter market or Geo Targeting"
-                                    className="w-full min-h-0 h-10 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            </div>
-
-                            {/* Column 4 - Checkboxes */}
-                            <div className="space-y-4">
-                              <div className="space-y-3 rounded-lg border border-border/30 bg-muted/20 p-4">
-                                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Options</span>
-                                <FormField
-                                  control={form.control}
-                                  name={`digidisplaylineItems.${lineItemIndex}.fixedCostMedia`}
-                                  render={({ field }) => (
-                                    <FormItem className="flex items-center space-x-2">
-                                      <FormControl>
-                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                      </FormControl>
-                                      <FormLabel className="text-sm">Fixed Cost Media</FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-
-                                <FormField
-                                  control={form.control}
-                                  name={`digidisplaylineItems.${lineItemIndex}.clientPaysForMedia`}
-                                  render={({ field }) => (
-                                    <FormItem className="flex items-center space-x-2">
-                                      <FormControl>
-                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                      </FormControl>
-                                      <FormLabel className="text-sm">Client Pays for Media</FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-
-                                <FormField
-                                  control={form.control}
-                                  name={`digidisplaylineItems.${lineItemIndex}.budgetIncludesFees`}
-                                  render={({ field }) => (
-                                    <FormItem className="flex items-center space-x-2">
-                                      <FormControl>
-                                        <Checkbox
-                                          checked={field.value}
-                                          onCheckedChange={(checked) => {
-                                            field.onChange(checked);
-                                            const bursts =
-                                              form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts`) || [];
-                                            bursts.forEach((_, bi) => handleValueChange(lineItemIndex, bi, !!checked));
-                                            handleLineItemValueChange(lineItemIndex);
-                                          }}
-                                        />
-                                      </FormControl>
-                                      <FormLabel className="text-sm">Budget Includes Fees</FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name={`digidisplaylineItems.${lineItemIndex}.noadserving`}
-                                  render={({ field }) => (
-                                    <FormItem className="flex items-center space-x-2">
-                                      <FormControl>
-                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                      </FormControl>
-                                      <FormLabel className="text-sm">No Ad Serving</FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </div>
-
-                      <BurstSection>
-                        {form.watch(`digidisplaylineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
-                          const buyType = form.watch(`digidisplaylineItems.${lineItemIndex}.buyType`);
-                          const showAdServingOverrideInput = shouldShowAdServingOverrideInput(buyType);
-                          const burstGridClass = showAdServingOverrideInput ? MP_BURST_GRID_8 : MP_BURST_GRID_7;
-                          return (
-                            <BurstRowCard key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`}>
-                              <BurstRowInner>
-                                <BurstLabel>
-                                  {formatBurstLabel(
-                                    burstIndex + 1,
-                                    form.watch(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
-                                    form.watch(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
-                                  )}
-                                </BurstLabel>
-
-                                  <BurstFieldGrid className={burstGridClass}>
-                                    <FormField
-                                      control={form.control}
-                                      name={`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
-                                      render={({ field }) => (
-<FormItem>
-  <BurstFieldLabel>Budget</BurstFieldLabel>
-  <FormControl>
-                                            <Input
-                                              {...field}
-                                              type="text"
-                                              className={MP_BURST_INPUT}
-                                              value={buyType === "bonus" || buyType === "package_inclusions" ? "0" : field.value}
-                                              disabled={buyType === "bonus" || buyType === "package_inclusions"}
-                                              onChange={(e) => {
-                                                const value = e.target.value.replace(/[^0-9.]/g, "");
-                                                field.onChange(value);
-                                                handleValueChange(lineItemIndex, burstIndex);
-                                              }}
-                                              onBlur={(e) => {
-                                                const value = e.target.value;
-                                                const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
-                                                  locale: "en-AU",
-                                                  currency: "AUD",
-                                                });
-                                                field.onChange(formattedValue);
-                                                handleValueChange(lineItemIndex, burstIndex);
-                                              }}
-                                            />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-
-                                    <FormField
-                                      control={form.control}
-                                      name={`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`}
-                                      render={({ field }) => (
-<FormItem>
-  <BurstFieldLabel>Buy Amount</BurstFieldLabel>
-  <FormControl>
-                                            <Input
-                                              {...field}
-                                              type="text"
-                                              className={MP_BURST_INPUT}
-                                              value={buyType === "bonus" || buyType === "package_inclusions" ? "0" : field.value}
-                                              disabled={buyType === "bonus" || buyType === "package_inclusions"}
-                                              onChange={(e) => {
-                                                const value = e.target.value.replace(/[^0-9.]/g, "");
-                                                field.onChange(value);
-                                                handleValueChange(lineItemIndex, burstIndex);
-                                              }}
-                                              onBlur={(e) => {
-                                                const value = e.target.value;
-                                                const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
-                                                  locale: "en-AU",
-                                                  currency: "AUD",
-                                                });
-                                                field.onChange(formattedValue);
-                                                handleValueChange(lineItemIndex, burstIndex);
-                                              }}
-                                            />
-                                          </FormControl>
-                                          <FormMessage />
-                                        </FormItem>
-                                      )}
-                                    />
-
-                                    <BurstDateRangeColumn>
-                                      <FormField
-                                        control={form.control}
-                                        name={`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
-                                        render={({ field }) => (
-<FormItem>
-  <BurstFieldLabel>Start Date</BurstFieldLabel>
-  <FormControl>
-                                              <SingleDatePicker
-                                                ref={field.ref}
-                                                name={field.name}
-                                                onBlur={field.onBlur}
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                                className="w-full h-10 pl-2 text-left font-normal text-sm"
-                                                calendarContext="media-burst"
-                                                mediaBurstRole="start"
-                                                campaignStartDate={campaignStartDate}
-                                                campaignEndDate={campaignEndDate}
-                                                isDateDisabled={(date) => date > new Date("2100-01-01")}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-
-                                      <FormField
-                                        control={form.control}
-                                        name={`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`}
-                                        render={({ field }) => (
-<FormItem>
-  <BurstFieldLabel>End Date</BurstFieldLabel>
-  <FormControl>
-                                              <SingleDatePicker
-                                                ref={field.ref}
-                                                name={field.name}
-                                                onBlur={field.onBlur}
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                                className="w-full h-10 pl-2 text-left font-normal text-sm"
-                                                calendarContext="media-burst"
-                                                mediaBurstRole="end"
-                                                campaignStartDate={campaignStartDate}
-                                                campaignEndDate={campaignEndDate}
-                                                isDateDisabled={(date) => date > new Date("2100-01-01")}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                    </BurstDateRangeColumn>
-
-                                    <FormField
-                                      control={form.control}
-                                      name={`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`}
-                                      render={({ field }) => (
-                                        <div className="space-y-1">
-                                          <BurstFieldLabel>
-                                            {getCpcFamilyBurstCalculatedColumnLabel(
-                                              "cpcCpvCpm",
-                                              form.watch(`digidisplaylineItems.${lineItemIndex}.buyType`) || ""
-                                            )}
-                                          </BurstFieldLabel>
-                                          <CpcFamilyBurstCalculatedField
-                                          form={form}
-                                          itemsKey="digidisplaylineItems"
-                                          lineItemIndex={lineItemIndex}
-                                          burstIndex={burstIndex}
-                                          field={field}
-                                          feePct={feedigidisplay || 0}
-                                          netMedia={netMediaForDeliverablesDigiDisplay}
-                                          variant="cpcCpvCpm"
-                                        />
-                                        </div>
-                                      )}
-                                    />
-
-                                    {(buyType === "cpc" || buyType === "cpv") && (
-                                      <FormField
-                                        control={form.control}
-                                        name={`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.adServingRatePct`}
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormLabel className="text-xs leading-tight">
-                                              {buyType === "cpc" ? "Ad serving CTR %" : "Ad serving VTR %"}
-                                            </FormLabel>
-                                            <FormControl>
-                                              <Input
-                                                {...field}
-                                                type="number"
-                                                inputMode="decimal"
-                                                placeholder={buyType === "cpc" ? "0.1" : "25"}
-                                                className="w-full h-10 text-sm"
-                                                value={field.value ?? ""}
-                                                onChange={(e) => {
-                                                  field.onChange(parseAdServingOverrideInput(e.target.value));
-                                                  handleValueChange(lineItemIndex, burstIndex);
-                                                  handleLineItemValueChange(lineItemIndex);
-                                                }}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                    )}
-
-                                    {buyType === "fixed_cost" && (
-                                      <FormField
-                                        control={form.control}
-                                        name={`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.adServingImpressions`}
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormLabel className="text-xs leading-tight">Ad serving impressions</FormLabel>
-                                            <FormControl>
-                                              <Input
-                                                {...field}
-                                                type="number"
-                                                inputMode="numeric"
-                                                placeholder="0"
-                                                className="w-full h-10 text-sm"
-                                                value={field.value ?? ""}
-                                                onChange={(e) => {
-                                                  field.onChange(parseAdServingOverrideInput(e.target.value));
-                                                  handleValueChange(lineItemIndex, burstIndex);
-                                                  handleLineItemValueChange(lineItemIndex);
-                                                }}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                    )}
-
-                                    <BurstReadonlyMetric
-                                      label="Media"
-                                      muted
-                                      value={formatMoney(
-                                        form.getValues(`digidisplaylineItems.${lineItemIndex}.budgetIncludesFees`)
-                                          ? (parseFloat(form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feedigidisplay || 0))
-                                          : parseFloat(form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                      , { locale: "en-AU", currency: "AUD" })}
-                                    />
-                                    <BurstReadonlyMetric
-                                      label={`Fee (${feedigidisplay}%)`}
-                                      muted
-                                      value={formatMoney(
-                                        form.getValues(`digidisplaylineItems.${lineItemIndex}.budgetIncludesFees`)
-                                          ? (parseFloat(form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feedigidisplay || 0)
-                                          : (parseFloat(form.getValues(`digidisplaylineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feedigidisplay || 0))) * (feedigidisplay || 0)
-                                      , { locale: "en-AU", currency: "AUD" })}
-                                    />
-                                  </BurstFieldGrid>
-
-                                  <BurstRowActions
-                                    onAdd={() => handleAppendBurst(lineItemIndex)}
-                                    onDuplicate={() => handleDuplicateBurst(lineItemIndex)}
-                                    onRemove={() => handleRemoveBurst(lineItemIndex, burstIndex)}
-                                  />
-                              </BurstRowInner>
-                            </BurstRowCard>
-                          );
-                        })}
-                      </BurstSection>
-                      </>
+                    <ExpertCard<DigiDisplayFormValues>
+                      key={field.id}
+                      config={DIGITALDISPLAY_EXPERT_CHANNEL_CONFIG}
+                      form={form}
+                      itemsKey="digidisplaylineItems"
+                      lineItemIndex={lineItemIndex}
+                      lineItemId={lineItemId}
+                      collapsed={collapsedLineItems.has(lineItemIndex)}
+                      onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
+                      totalDisplay={formatMoney(
+                        form.getValues(`digidisplaylineItems.${lineItemIndex}.budgetIncludesFees`)
+                          ? totalMedia
+                          : totalMedia + (totalMedia / (100 - (feedigidisplay || 0))) * (feedigidisplay || 0),
+                        { locale: "en-AU", currency: "AUD" }
                       )}
-
-                      <CardFooter className="flex items-center justify-between pt-4 pb-4 bg-muted/20 border-t border-border/40">
+                      publishers={publishers}
+                      dynamicOptionsByKey={{
+                        site: filteredDigiDisplaySites.map((site) => ({
+                          value: site.site || `site-${site.id}`,
+                          label: site.site || "(Unnamed site)",
+                        })),
+                      }}
+                      feePct={feedigidisplay || 0}
+                      calculatedVariant="cpcCpvCpm"
+                      campaignStartDate={campaignStartDate}
+                      campaignEndDate={campaignEndDate}
+                      onBurstValueChange={handleValueChange}
+                      onAppendBurst={handleAppendBurst}
+                      onDuplicateBurst={(li) => handleDuplicateBurst(li)}
+                      onRemoveBurst={handleRemoveBurst}
+                      onBudgetIncludesFeesChange={(li, checked) => {
+                        const bursts = form.getValues(`digidisplaylineItems.${li}.bursts`) || [];
+                        bursts.forEach((_, bi) => handleValueChange(li, bi, !!checked));
+                      }}
+                      onComboboxValueChange={(key, li, value) => {
+                        if (key === "buyType") handleBuyTypeChange(li, value);
+                        if (key === "publisher") {
+                          form.setValue(`digidisplaylineItems.${li}.platform`, value, {
+                            shouldDirty: true,
+                          });
+                          form.setValue(`digidisplaylineItems.${li}.site`, "", {
+                            shouldDirty: true,
+                          });
+                        }
+                      }}
+                      fieldAdornments={{
+                        site: (
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                            className="h-auto p-1"
+                            onClick={() => {
+                              const currentPublisherInForm =
+                                form.getValues(`digidisplaylineItems.${lineItemIndex}.publisher`) ||
+                                form.getValues(`digidisplaylineItems.${lineItemIndex}.platform`);
+                              if (!currentPublisherInForm) {
+                                toast({
+                                  title: "Select a Publisher First",
+                                  description: "Please select a Publisher before adding a site.",
+                                  variant: "default",
+                                });
+                                return;
+                              }
+                              setCurrentLineItemIndexForNewSite(lineItemIndex);
+                              setNewSiteName("");
+                              setNewSitePlatform(selectedPublisher);
+                              setIsAddSiteDialogOpen(true);
+                            }}
+                          >
+                            <PlusCircle className="h-5 w-5 text-primary" />
+                          </Button>
+                        ),
+                      }}
+                      comboboxPropsByKey={{
+                        site: {
+                          disabled: !selectedPublisher,
+                          placeholder: selectedPublisher
+                            ? "Select Site"
+                            : "Select Publisher first",
+                          searchPlaceholder: "Search sites...",
+                          emptyText: selectedPublisher
+                            ? `No sites found for "${selectedPublisher}".`
+                            : "Select Publisher first",
+                          buttonClassName: "h-9 w-full rounded-md",
+                        },
+                      }}
+                      summaryRow={
+                        <div className="border-b px-6 py-2">
+                          <div className="grid grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <span className="font-medium">Publisher:</span>{" "}
+                              {form.watch(`digidisplaylineItems.${lineItemIndex}.platform`) ||
+                                form.watch(`digidisplaylineItems.${lineItemIndex}.publisher`) ||
+                                "Not selected"}
+                            </div>
+                            <div>
+                              <span className="font-medium">Buy Type:</span>{" "}
+                              {formatBuyTypeForDisplay(
+                                form.watch(`digidisplaylineItems.${lineItemIndex}.buyType`)
+                              )}
+                            </div>
+                            <div>
+                              <span className="font-medium">Site:</span>{" "}
+                              {form.watch(`digidisplaylineItems.${lineItemIndex}.site`) ||
+                                "Not selected"}
+                            </div>
+                            <div>
+                              <span className="font-medium">Bursts:</span>{" "}
+                              {form.watch(`digidisplaylineItems.${lineItemIndex}.bursts`, []).length}
+                            </div>
+                          </div>
+                        </div>
+                      }
+                      footer={
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
                             onClick={() => removeLineItem(lineItemIndex)}
                           >
-                            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                             Remove
                           </Button>
                           <div className="flex items-center gap-2">
-                            <Button type="button" variant="outline" size="sm" onClick={() => handleDuplicateLineItem(lineItemIndex)}>
-                              <Copy className="h-3.5 w-3.5 mr-1.5" />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDuplicateLineItem(lineItemIndex)}
+                            >
+                              <Copy className="mr-1.5 h-3.5 w-3.5" />
                               Duplicate
                             </Button>
                             {lineItemIndex === lineItemFields.length - 1 && (
-                                                        <Button
-                                                          type="button"
-                                                          size="sm"
-                                                          onClick={() =>
-                                                            appendLineItem({
-                                                              platform: "",
-                                                              site: "",
-                                                              buyType: "",
-                                                              publisher: "",
-                                                              creativeTargeting: "",
-                                                              creative: "",
-                                                              buyingDemo: "",
-                                                              market: "",
-                                                              fixedCostMedia: false,
-                                                              clientPaysForMedia: false,
-                                                              budgetIncludesFees: false,
-                                                              noadserving: false,
-                                                              ...(() => {
-                                                                const nextNumber = lineItemFields.length + 1;
-                                                                const id = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, nextNumber);
-                                                                return { lineItemId: id, line_item_id: id, line_item: nextNumber, lineItem: nextNumber };
-                                                              })(),
-                                                              bursts: [
-                                                                {
-                                                                  _reactKey: newBurstReactKey(),
-                                                                  budget: "",
-                                                                  buyAmount: "",
-                                                                  startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-                                                                  endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-                                                                  calculatedValue: 0,
-                                                                  fee: 0,
-                                                                } as DigiDisplayFormValues["digidisplaylineItems"][number]["bursts"][number] & { _reactKey: string },
-                                                              ],
-                                                              totalMedia: 0,
-                                                              totalDeliverables: 0,
-                                                              totalFee: 0,
-                                                            })
-                                                          }
-                                                        >
-                                                          <Plus className="h-3.5 w-3.5 mr-1.5" />
-                                                          Add Line Item
-                                                        </Button>
-                                                      )}
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() =>
+                                  appendLineItem({
+                                    platform: "",
+                                    site: "",
+                                    buyType: "",
+                                    publisher: "",
+                                    creativeTargeting: "",
+                                    creative: "",
+                                    buyingDemo: "",
+                                    market: "",
+                                    fixedCostMedia: false,
+                                    clientPaysForMedia: false,
+                                    budgetIncludesFees: false,
+                                    noadserving: false,
+                                    ...(() => {
+                                      const nextNumber = lineItemFields.length + 1;
+                                      const id = buildLineItemId(
+                                        mbaNumber,
+                                        MEDIA_TYPE_ID_CODES.digitalDisplay,
+                                        nextNumber
+                                      );
+                                      return {
+                                        lineItemId: id,
+                                        line_item_id: id,
+                                        line_item: nextNumber,
+                                        lineItem: nextNumber,
+                                      };
+                                    })(),
+                                    bursts: [
+                                      {
+                                        _reactKey: newBurstReactKey(),
+                                        budget: "",
+                                        buyAmount: "",
+                                        startDate: defaultMediaBurstStartDate(
+                                          campaignStartDate,
+                                          campaignEndDate
+                                        ),
+                                        endDate: defaultMediaBurstEndDate(
+                                          campaignStartDate,
+                                          campaignEndDate
+                                        ),
+                                        calculatedValue: 0,
+                                        fee: 0,
+                                      } as DigiDisplayFormValues["digidisplaylineItems"][number]["bursts"][number] & {
+                                        _reactKey: string;
+                                      },
+                                    ],
+                                    totalMedia: 0,
+                                    totalDeliverables: 0,
+                                    totalFee: 0,
+                                  })
+                                }
+                              >
+                                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                Add Line Item
+                              </Button>
+                            )}
                           </div>
-                        </CardFooter>
-                    </Card>
+                        </>
+                      }
+                    />
                   );
                 })}
               </div>

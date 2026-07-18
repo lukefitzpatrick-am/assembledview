@@ -168,6 +168,8 @@ export interface StandardProductionFormLineItem {
   publisher: string
   description: string
   market: string
+  /** Line-level unit cost (form key `unitRate`; legacy persisted as `unitCost`). */
+  unitRate?: number | string
   lineItemId?: string
   line_item_id?: string
   line_item?: number | string
@@ -177,6 +179,9 @@ export interface StandardProductionFormLineItem {
 
 export type StandardProductionLineItemInput = Partial<StandardProductionFormLineItem> & {
   media_type?: string
+  /** Legacy persisted key — hydrate into `unitRate`. */
+  unitCost?: number | string
+  unit_cost?: number | string
   bursts_json?: string | object
 }
 
@@ -2042,6 +2047,7 @@ export function mapProductionExpertRowsToStandardLineItems(
       publisher: row.publisher,
       description: row.description,
       market: row.market,
+      unitRate,
       lineItemId: id,
       line_item_id: id,
       line_item: lineNo,
@@ -2134,6 +2140,18 @@ export function mapStandardProductionLineItemsToExpertRows(
         ? crypto.randomUUID()
         : `production-expert-import-${Date.now()}-${index}`
 
+    const legacyUnitCost = (item as StandardProductionLineItemInput).unitCost
+    const legacyUnitCostSnake = (item as StandardProductionLineItemInput).unit_cost
+    const lineUnitRateRaw =
+      item.unitRate ?? legacyUnitCost ?? legacyUnitCostSnake
+    const lineUnitRateParsed =
+      lineUnitRateRaw === undefined || lineUnitRateRaw === ""
+        ? NaN
+        : parseNum(lineUnitRateRaw)
+    const unitRate = Number.isFinite(lineUnitRateParsed) && lineUnitRateParsed > 0
+      ? lineUnitRateParsed
+      : deriveProductionStandardUnitRateFromBursts(bursts)
+
     return {
       id: _reactKey,
       sourceLineItemId: id,
@@ -2148,7 +2166,7 @@ export function mapStandardProductionLineItemsToExpertRows(
       description: String(item.description ?? ""),
       market: String(item.market ?? ""),
       buyType,
-      unitRate: deriveProductionStandardUnitRateFromBursts(bursts),
+      unitRate,
       grossCost: sumProductionGrossBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
@@ -2473,6 +2491,10 @@ export interface StandardTelevisionFormLineItem {
   bidStrategy?: string
   creativeTargeting?: string
   creative?: string
+  /** Line-level Ad Size (mirrored on bursts; surfaces both). */
+  size?: string
+  /** Line-level TARPs summary (surfaces both; bursts keep per-burst tarps). */
+  tarps?: string
   fixedCostMedia: boolean
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
@@ -2492,6 +2514,9 @@ export type StandardTelevisionLineItemInput = Partial<StandardTelevisionFormLine
   budget_includes_fees?: boolean
   no_adserving?: boolean
   bursts_json?: string | object
+  /** Legacy hydrate keys → map to `creative`. */
+  creativeLength?: string
+  creative_length?: string
 }
 
 function normalizeTelevisionBursts(item: StandardTelevisionLineItemInput): StandardTelevisionBurst[] {
@@ -2590,7 +2615,9 @@ function emptyTelevisionLineItem(
     buyingDemo: row.buyingDemo,
     bidStrategy: "",
     creativeTargeting: "",
-    creative: "",
+    creative: String(row.creative ?? ""),
+    size: String(row.size || "30s"),
+    tarps: String(row.tarps ?? ""),
     fixedCostMedia: Boolean(row.fixedCostMedia),
     clientPaysForMedia: Boolean(row.clientPaysForMedia),
     budgetIncludesFees: Boolean(row.budgetIncludesFees ?? budgetIncludesFees),
@@ -2740,7 +2767,9 @@ export function mapTvExpertRowsToStandardLineItems(
       buyingDemo: row.buyingDemo,
       bidStrategy: "",
       creativeTargeting: "",
-      creative: "",
+      creative: String(row.creative ?? ""),
+      size: String(row.size || "30s"),
+      tarps: String(row.tarps ?? ""),
       fixedCostMedia: Boolean(row.fixedCostMedia),
       clientPaysForMedia: Boolean(row.clientPaysForMedia),
       budgetIncludesFees,
@@ -2849,6 +2878,12 @@ export function mapStandardTvLineItemsToExpertRows(
       (s, col) => s + parseNum(weeklyValues[col.weekKey]),
       0
     )
+    const creativeFromItem = String(
+      item.creative ??
+        item.creativeLength ??
+        item.creative_length ??
+        ""
+    )
 
     return {
       id: _reactKey,
@@ -2866,8 +2901,11 @@ export function mapStandardTvLineItemsToExpertRows(
       placement: String(item.placement ?? ""),
       buyType,
       buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),
-      size: sizeFromBurst,
-      tarps: tarpsSum > 0 ? String(tarpsSum) : "",
+      creative: creativeFromItem,
+      size: String(item.size || sizeFromBurst),
+      tarps: String(
+        item.tarps ?? (tarpsSum > 0 ? String(tarpsSum) : "")
+      ),
       fixedCostMedia: Boolean(item.fixed_cost_media ?? item.fixedCostMedia),
       clientPaysForMedia: Boolean(
         item.client_pays_for_media ?? item.clientPaysForMedia
@@ -3460,7 +3498,7 @@ function emptyDigiVideoLineItem(
     fixedCostMedia: Boolean(row.fixedCostMedia),
     clientPaysForMedia: Boolean(row.clientPaysForMedia),
     budgetIncludesFees: Boolean(row.budgetIncludesFees ?? budgetIncludesFees),
-    noadserving: false,
+    noadserving: Boolean(row.noadserving),
     lineItemId: id,
     line_item_id: id,
     line_item: lineNo,
@@ -3620,7 +3658,7 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
       fixedCostMedia: Boolean(row.fixedCostMedia),
       clientPaysForMedia: Boolean(row.clientPaysForMedia),
       budgetIncludesFees,
-      noadserving: false,
+      noadserving: Boolean(row.noadserving),
       lineItemId: id,
       line_item_id: id,
       line_item: lineNo,
@@ -3761,6 +3799,7 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
       budgetIncludesFees: Boolean(
         item.budget_includes_fees ?? item.budgetIncludesFees
       ),
+      noadserving: Boolean(item.no_adserving ?? item.noadserving),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
@@ -5037,7 +5076,11 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
       bidStrategy: String(item.bidStrategy ?? ""),
       buyType,
       creativeTargeting: String(
-        item.creativeTargeting ?? item.creative_targeting ?? ""
+        item.creativeTargeting ??
+          item.creative_targeting ??
+          // Hydration shim: older saves used `placement` for this field.
+          item.placement ??
+          ""
       ),
       creative: String(item.creative ?? ""),
       buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),
@@ -5886,7 +5929,11 @@ export function mapStandardInfluencersLineItemsToExpertRows(
         item.targetingAttribute ?? item.targeting_attribute ?? ""
       ),
       creativeTargeting: String(
-        item.creativeTargeting ?? item.creative_targeting ?? ""
+        item.creativeTargeting ??
+          item.creative_targeting ??
+          // Hydration shim: older saves used `placement` for this field.
+          item.placement ??
+          ""
       ),
       creative: String(item.creative ?? ""),
       buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),
@@ -6317,7 +6364,11 @@ export function mapStandardIntegrationLineItemsToExpertRows(
         item.targetingAttribute ?? item.targeting_attribute ?? ""
       ),
       creativeTargeting: String(
-        item.creativeTargeting ?? item.creative_targeting ?? ""
+        item.creativeTargeting ??
+          item.creative_targeting ??
+          // Hydration shim: older saves used `placement` for this field.
+          item.placement ??
+          ""
       ),
       creative: String(item.creative ?? ""),
       buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),

@@ -4,8 +4,10 @@ import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLine
 
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
+import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
+import { PROGDISPLAY_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
@@ -26,7 +28,7 @@ import { Combobox, ComboboxModalProvider } from "@/components/ui/combobox"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import {
   Dialog,
@@ -1207,651 +1209,136 @@ useEffect(() => {
                   const { totalMedia, totalCalculatedValue } = getTotals(lineItemIndex);
 
                   return (
-                    <Card key={field.id} className="overflow-hidden border border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200 space-y-6">
-                      <CardHeader className="pb-2 bg-muted/30">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                              {lineItemIndex + 1}
+                    <ExpertCard<ProgDisplayFormValues>
+                      key={field.id}
+                      config={PROGDISPLAY_EXPERT_CHANNEL_CONFIG}
+                      form={form}
+                      itemsKey="lineItems"
+                      lineItemIndex={lineItemIndex}
+                      lineItemId={lineItemId}
+                      collapsed={collapsedLineItems.has(lineItemIndex)}
+                      onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
+                      totalDisplay={formatMoney(
+                        form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
+                          ? totalMedia
+                          : totalMedia + (totalMedia / (100 - (feeprogdisplay || 0))) * (feeprogdisplay || 0),
+                        { locale: "en-AU", currency: "AUD" }
+                      )}
+                      publishers={publishers}
+                      feePct={feeprogdisplay || 0}
+                      calculatedVariant="cpcCpvCpm"
+                      campaignStartDate={campaignStartDate}
+                      campaignEndDate={campaignEndDate}
+                      onBurstValueChange={handleValueChange}
+                      onAppendBurst={handleAppendBurst}
+                      onDuplicateBurst={(li, _bi) => handleDuplicateBurst(li)}
+                      onRemoveBurst={handleRemoveBurst}
+                      onBudgetIncludesFeesChange={(li, checked) => {
+                        const bursts = form.getValues(`lineItems.${li}.bursts`) || [];
+                        bursts.forEach((_, bi) => handleValueChange(li, bi, !!checked));
+                      }}
+                      onComboboxValueChange={(key, li, value) => {
+                        if (key === "buyType") handleBuyTypeChange(li, value);
+                      }}
+                      summaryRow={
+                        <div className="border-b px-6 py-2">
+                          <div className="grid grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <span className="font-medium">Platform:</span>{" "}
+                              {form.watch(`lineItems.${lineItemIndex}.platform`) ||
+                                "Not selected"}
                             </div>
                             <div>
-                              <CardTitle className="text-sm font-semibold tracking-tight">Prog Display Line Item</CardTitle>
-                              <span className="font-mono text-[11px] text-muted-foreground">{lineItemId}</span>
+                              <span className="font-medium">Buy Type:</span>{" "}
+                              {form.watch(`lineItems.${lineItemIndex}.buyType`) ||
+                                "Not selected"}
                             </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="text-right">
-                              <span className="block text-[11px] text-muted-foreground">Total</span>
-                              <span className="text-sm font-bold tabular-nums">
-                                {formatMoney(
-                                  form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                                    ? totalMedia
-                                    : totalMedia + (totalMedia / (100 - (feeprogdisplay || 0))) * (feeprogdisplay || 0),
-                                  { locale: "en-AU", currency: "AUD" }
-                                )}
-                              </span>
+                            <div>
+                              <span className="font-medium">Bid strategy:</span>{" "}
+                              {form.watch(`lineItems.${lineItemIndex}.bidStrategy`) ||
+                                "Not selected"}
                             </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 shrink-0 rounded-full p-0"
-                              aria-expanded={!collapsedLineItems.has(lineItemIndex)}
-                              aria-label={
-                                collapsedLineItems.has(lineItemIndex)
-                                  ? `Expand details for prog display line item ${lineItemIndex + 1}`
-                                  : `Collapse details for prog display line item ${lineItemIndex + 1}`
-                              }
-                              onClick={() => toggleLineItemCollapsed(lineItemIndex)}
-                            >
-                              <ChevronDown
-                                className={cn(
-                                  "h-4 w-4 transition-transform",
-                                  collapsedLineItems.has(lineItemIndex) && "-rotate-90"
-                                )}
-                                aria-hidden
-                              />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      
-                      {/* Summary Row - Always visible */}
-                      <div className="px-6 py-2 border-b">
-                        <div className="grid grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="font-medium">Platform:</span> {form.watch(`lineItems.${lineItemIndex}.platform`) || 'Not selected'}
-                          </div>
-                          <div>
-                            <span className="font-medium">Buy Type:</span> {form.watch(`lineItems.${lineItemIndex}.buyType`) || 'Not selected'}
-                          </div>
-                          <div>
-                            <span className="font-medium">Bid strategy:</span> {form.watch(`lineItems.${lineItemIndex}.bidStrategy`) || 'Not selected'}
-                          </div>
-                          <div>
-                            <span className="font-medium">Bursts:</span> {form.watch(`lineItems.${lineItemIndex}.bursts`, []).length}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {!collapsedLineItems.has(lineItemIndex) && (
-                      <>
-                      <div className="px-6 py-5">
-                          <CardContent className="space-y-5 p-0">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
-                              
-                              {/* Column 1 - Dropdowns */}
-                              <div className="space-y-4">
-                              <FormField
-                                control={form.control}
-                                name={`lineItems.${lineItemIndex}.platform`}
-                                render={({ field }) => (
-                                  <FormItem className="flex flex-col space-y-1.5">
-                                    <FormLabel className="text-sm text-muted-foreground font-medium">Platform</FormLabel>
-                                    <FormControl>
-                                      <Combobox
-                                        value={field.value}
-                                        onValueChange={field.onChange}
-                                        placeholder="Select"
-                                        searchPlaceholder="Search platforms..."
-                                        emptyText={publishers.length === 0 ? "No platforms available." : "No platforms found."}
-                                        buttonClassName="h-9 w-full flex-1 rounded-md"
-                                        options={publishers.map((publisher) => ({
-                                          value: publisher.publisher_name,
-                                          label: publisher.publisher_name,
-                                        }))}
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-
-                              <FormField
-                                control={form.control}
-                                name={`lineItems.${lineItemIndex}.bidStrategy`}
-                                render={({ field }) => (
-                                  <FormItem className="flex flex-col space-y-1.5">
-                                    <FormLabel className="text-sm text-muted-foreground font-medium">Bid Strategy</FormLabel>
-                                    <FormControl>
-                                      <Combobox
-                                        value={field.value}
-                                        onValueChange={field.onChange}
-                                        placeholder="Select"
-                                        searchPlaceholder="Search bid strategies..."
-                                        buttonClassName="h-9 w-full flex-1 rounded-md"
-                                        options={[
-                                          { value: "clicks", label: "Clicks" },
-                                          { value: "conversions", label: "Conversions" },
-                                          { value: "reach", label: "Reach" },
-                                          { value: "viewability", label: "Viewability" },
-                                        ]}
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-
-                              <FormField
-                                control={form.control}
-                                name={`lineItems.${lineItemIndex}.buyType`}
-                                render={({ field }) => (
-                                  <FormItem className="flex flex-col space-y-1.5">
-                                    <FormLabel className="text-sm text-muted-foreground font-medium">Buy Type</FormLabel>
-                                    <FormControl>
-                                      <Combobox
-                                        value={field.value}
-                                        onValueChange={field.onChange}
-                                        placeholder="Select"
-                                        searchPlaceholder="Search buy types..."
-                                        buttonClassName="h-9 w-full flex-1 rounded-md"
-                                        options={[
-                                          { value: "cpc", label: "CPC" },
-                                          { value: "cpm", label: "CPM" },
-                                          { value: "cpv", label: "CPV" },
-                                          { value: "fixed_cost", label: "Fixed Cost" },
-                                        ]}
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                            </div>
-
-                            {/* Column 2 - Targeting and Buying Demo */}
-                            <div className="space-y-4">
-                              <FormItem className="flex flex-col space-y-1.5">
-                                <FormLabel className="text-sm text-muted-foreground font-medium">Targeting</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    {...form.register(`lineItems.${lineItemIndex}.creativeTargeting`)}
-                                    placeholder="Enter targeting details"
-                                    className="w-full h-24 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-
-                              <FormItem className="flex flex-col space-y-1.5">
-                                <FormLabel className="text-sm text-muted-foreground font-medium">Buying Demo</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    {...form.register(`lineItems.${lineItemIndex}.buyingDemo`)}
-                                    placeholder="Enter buying demo details"
-                                    className="w-full min-h-0 h-10 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            </div>
-
-                            {/* Column 3 - Creative */}
-                            <div className="space-y-4">
-                              <FormItem className="flex flex-col space-y-1.5">
-                                <FormLabel className="text-sm text-muted-foreground font-medium">Creative</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    {...form.register(`lineItems.${lineItemIndex}.creative`)}
-                                    placeholder="Enter creative details"
-                                    className="w-full h-24 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-
-                              <FormItem className="flex flex-col space-y-1.5">
-                                <FormLabel className="text-sm text-muted-foreground font-medium">Market</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    {...form.register(`lineItems.${lineItemIndex}.market`)}
-                                    placeholder="Enter market or Geo Targeting"
-                                    className="w-full min-h-0 h-10 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            </div>
-
-                            {/* Column 4 - Checkboxes */}
-                            <div className="space-y-4">
-                              <div className="space-y-3 rounded-lg border border-border/30 bg-muted/20 p-4">
-                                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Options</span>
-                                <FormField
-                                  control={form.control}
-                                  name={`lineItems.${lineItemIndex}.fixedCostMedia`}
-                                  render={({ field }) => (
-                                    <FormItem className="flex items-center space-x-2">
-                                      <FormControl>
-                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                      </FormControl>
-                                      <FormLabel className="text-sm">Fixed Cost Media</FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-
-                                <FormField
-                                  control={form.control}
-                                  name={`lineItems.${lineItemIndex}.clientPaysForMedia`}
-                                  render={({ field }) => (
-                                    <FormItem className="flex items-center space-x-2">
-                                      <FormControl>
-                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                      </FormControl>
-                                      <FormLabel className="text-sm">Client Pays for Media</FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-
-                                <FormField
-                                  control={form.control}
-                                  name={`lineItems.${lineItemIndex}.budgetIncludesFees`}
-                                  render={({ field }) => (
-                                    <FormItem className="flex items-center space-x-2">
-                                      <FormControl>
-                                        <Checkbox
-                                          checked={field.value}
-                                          onCheckedChange={(checked) => {
-                                            field.onChange(checked);
-                                            const bursts = form.getValues(`lineItems.${lineItemIndex}.bursts`) || [];
-                                            bursts.forEach((_, bi) => handleValueChange(lineItemIndex, bi, !!checked));
-                                            handleLineItemValueChange(lineItemIndex);
-                                          }}
-                                        />
-                                      </FormControl>
-                                      <FormLabel className="text-sm">Budget Includes Fees</FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-                                <FormField
-                                  control={form.control}
-                                  name={`lineItems.${lineItemIndex}.noadserving`}
-                                  render={({ field }) => (
-                                    <FormItem className="flex items-center space-x-2">
-                                      <FormControl>
-                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                      </FormControl>
-                                      <FormLabel className="text-sm">No Ad Serving</FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-                              </div>
-
-                            </div>
-                          </div>
-                        </CardContent>
-                      </div>
-
-                      <div className={MP_BURST_SECTION_OUTER}>
-                        <div className={MP_BURST_HEADER_SHELL}>
-                          <div className={MP_BURST_HEADER_INNER}>
-                            <div className={MP_BURST_LABEL_COLUMN} aria-hidden />
-                            <div className={MP_BURST_HEADER_ROW}>
-                              <div className={`${shouldShowAdServingOverrideInput(form.watch(`lineItems.${lineItemIndex}.buyType`)) ? AD_SERVING_OVERRIDE_BURST_GRID : MP_BURST_GRID_7} text-[11px] font-semibold uppercase tracking-wider text-muted-foreground`}>
-                                <span>Budget</span>
-                                <span>Buy Amount</span>
-                                <span>Start</span>
-                                <span>End</span>
-                                <span>
-                                  {getCpcFamilyBurstCalculatedColumnLabel(
-                                    "cpcCpvCpm",
-                                    form.watch(`lineItems.${lineItemIndex}.buyType`) || ""
-                                  )}
-                                </span>
-                                {shouldShowAdServingOverrideInput(form.watch(`lineItems.${lineItemIndex}.buyType`)) && (
-                                  <span>Ad serving</span>
-                                )}
-                                <span>Media</span>
-                                <span>{`Fee (${feeprogdisplay}%)`}</span>
-                              </div>
-                              <div className={MP_BURST_ACTION_COLUMN}>
-                                <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Actions</span>
-                              </div>
+                            <div>
+                              <span className="font-medium">Bursts:</span>{" "}
+                              {form.watch(`lineItems.${lineItemIndex}.bursts`, []).length}
                             </div>
                           </div>
                         </div>
-                        {form.watch(`lineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
-                          const buyType = form.watch(`lineItems.${lineItemIndex}.buyType`);
-                          const showAdServingOverrideInput = shouldShowAdServingOverrideInput(buyType);
-                          return (
-                            <Card key={(burstField as any)._reactKey ?? `${lineItemIndex}-${burstIndex}`} className={MP_BURST_CARD}>
-                              <CardContent className={MP_BURST_CARD_CONTENT}>
-                                <div className={MP_BURST_ROW_SHELL}>
-                                  <div className={MP_BURST_LABEL_COLUMN}>
-                                    <h4 className={MP_BURST_LABEL_HEADING}>
-                                      {formatBurstLabel(
-                                        burstIndex + 1,
-                                        form.watch(`lineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`),
-                                        form.watch(`lineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`)
-                                      )}
-                                    </h4>
-                                  </div>
-                                  
-                                  <div className={showAdServingOverrideInput ? AD_SERVING_OVERRIDE_BURST_GRID : MP_BURST_GRID_7}>
-                                    <FormField
-                                      control={form.control}
-                                      name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`}
-                                      render={({ field }) => {
-                                        const buyType = form.watch(`lineItems.${lineItemIndex}.buyType`);
-                                        return (
-<FormItem>
-  <FormControl>
-                                              <Input
-                                                {...field}
-                                                type="text"
-                                                className="w-full min-w-[9rem] h-10 text-sm"
-                                                value={buyType === "bonus" || buyType === "package_inclusions" ? "0" : field.value}
-                                                disabled={buyType === "bonus" || buyType === "package_inclusions"}
-                                                onChange={(e) => {
-                                                  const value = e.target.value.replace(/[^0-9.]/g, "");
-                                                  field.onChange(value);
-                                                  handleValueChange(lineItemIndex, burstIndex);
-                                                }}
-                                                onBlur={(e) => {
-                                                  const value = e.target.value;
-                                                  const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
-                                                    locale: "en-AU",
-                                                    currency: "AUD",
-                                                  });
-                                                  field.onChange(formattedValue);
-                                                  handleValueChange(lineItemIndex, burstIndex);
-                                                }}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        );
-                                      }}
-                                    />
-
-                                    <FormField
-                                      control={form.control}
-                                      name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.buyAmount`}
-                                      render={({ field }) => {
-                                        const buyType = form.watch(`lineItems.${lineItemIndex}.buyType`);
-                                        return (
-<FormItem>
-  <FormControl>
-                                              <Input
-                                                {...field}
-                                                type="text"
-                                                className="w-full min-w-[9rem] h-10 text-sm"
-                                                value={buyType === "bonus" || buyType === "package_inclusions" ? "0" : field.value}
-                                                disabled={buyType === "bonus" || buyType === "package_inclusions"}
-                                                onChange={(e) => {
-                                                  const value = e.target.value.replace(/[^0-9.]/g, "");
-                                                  field.onChange(value);
-                                                  handleValueChange(lineItemIndex, burstIndex);
-                                                }}
-                                                onBlur={(e) => {
-                                                  const value = e.target.value;
-                                                  const formattedValue = formatMoney(parseMoneyInput(value) ?? 0, {
-                                                    locale: "en-AU",
-                                                    currency: "AUD",
-                                                  });
-                                                  field.onChange(formattedValue);
-                                                  handleValueChange(lineItemIndex, burstIndex);
-                                                }}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        );
-                                      }}
-                                    />
-
-                                    <div className="grid grid-cols-2 gap-2 col-span-2">
-                                      <FormField
-                                        control={form.control}
-                                        name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.startDate`}
-                                        render={({ field }) => (
-<FormItem>
-  <FormControl>
-                                              <SingleDatePicker
-                                                ref={field.ref}
-                                                name={field.name}
-                                                onBlur={field.onBlur}
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                                className="w-full h-10 pl-2 text-left font-normal text-sm"
-                                                calendarContext="media-burst"
-                                                mediaBurstRole="start"
-                                                campaignStartDate={campaignStartDate}
-                                                campaignEndDate={campaignEndDate}
-                                                isDateDisabled={(date) => date > new Date("2100-01-01")}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-
-                                      <FormField
-                                        control={form.control}
-                                        name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.endDate`}
-                                        render={({ field }) => (
-<FormItem>
-  <FormControl>
-                                              <SingleDatePicker
-                                                ref={field.ref}
-                                                name={field.name}
-                                                onBlur={field.onBlur}
-                                                value={field.value}
-                                                onChange={field.onChange}
-                                                className="w-full h-10 pl-2 text-left font-normal text-sm"
-                                                calendarContext="media-burst"
-                                                mediaBurstRole="end"
-                                                campaignStartDate={campaignStartDate}
-                                                campaignEndDate={campaignEndDate}
-                                                isDateDisabled={(date) => date > new Date("2100-01-01")}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                    </div>
-
-                                    <FormField
-                                      control={form.control}
-                                      name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`}
-                                      render={({ field }) => (
-                                        <CpcFamilyBurstCalculatedField
-                                          form={form}
-                                          itemsKey="lineItems"
-                                          lineItemIndex={lineItemIndex}
-                                          burstIndex={burstIndex}
-                                          field={field}
-                                          feePct={feeprogdisplay || 0}
-                                          variant="cpcCpvCpm"
-                                          bonusInputClassName="w-full h-10 text-sm"
-                                        />
-                                      )}
-                                    />
-
-                                    {(buyType === "cpc" || buyType === "cpv") && (
-                                      <FormField
-                                        control={form.control}
-                                        name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.adServingRatePct`}
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormLabel className="text-xs leading-tight">
-                                              {buyType === "cpc" ? "Ad serving CTR %" : "Ad serving VTR %"}
-                                            </FormLabel>
-                                            <FormControl>
-                                              <Input
-                                                {...field}
-                                                type="number"
-                                                inputMode="decimal"
-                                                placeholder={buyType === "cpc" ? "0.1" : "25"}
-                                                className="w-full h-10 text-sm"
-                                                value={field.value ?? ""}
-                                                onChange={(e) => {
-                                                  field.onChange(parseAdServingOverrideInput(e.target.value));
-                                                  handleValueChange(lineItemIndex, burstIndex);
-                                                  handleLineItemValueChange(lineItemIndex);
-                                                }}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                    )}
-
-                                    {buyType === "fixed_cost" && (
-                                      <FormField
-                                        control={form.control}
-                                        name={`lineItems.${lineItemIndex}.bursts.${burstIndex}.adServingImpressions`}
-                                        render={({ field }) => (
-                                          <FormItem>
-                                            <FormLabel className="text-xs leading-tight">Ad serving impressions</FormLabel>
-                                            <FormControl>
-                                              <Input
-                                                {...field}
-                                                type="number"
-                                                inputMode="numeric"
-                                                placeholder="0"
-                                                className="w-full h-10 text-sm"
-                                                value={field.value ?? ""}
-                                                onChange={(e) => {
-                                                  field.onChange(parseAdServingOverrideInput(e.target.value));
-                                                  handleValueChange(lineItemIndex, burstIndex);
-                                                  handleLineItemValueChange(lineItemIndex);
-                                                }}
-                                              />
-                                            </FormControl>
-                                            <FormMessage />
-                                          </FormItem>
-                                        )}
-                                      />
-                                    )}
-
-                                    <Input
-                                      type="text"
-                                      className="w-full h-10 text-sm bg-muted/30 border-border/40 text-muted-foreground"
-                                      value={formatMoney(
-                                        form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                                          ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (100 - (feeprogdisplay || 0))
-                                          : parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0")
-                                      , { locale: "en-AU", currency: "AUD" })}
-                                      readOnly
-                                    />
-                                    <Input
-                                      type="text"
-                                      className="w-full h-10 text-sm bg-muted/30 border-border/40 text-muted-foreground"
-                                      value={formatMoney(
-                                        form.getValues(`lineItems.${lineItemIndex}.budgetIncludesFees`)
-                                          ? (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / 100) * (feeprogdisplay || 0)
-                                          : (parseFloat(form.getValues(`lineItems.${lineItemIndex}.bursts.${burstIndex}.budget`)?.replace(/[^0-9.]/g, "") || "0") / (100 - (feeprogdisplay || 0))) * (feeprogdisplay || 0)
-                                      , { locale: "en-AU", currency: "AUD" })}
-                                      readOnly
-                                    />
-                                  </div>
-                                  
-                                  <div className={MP_BURST_ACTION_COLUMN}>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => handleAppendBurst(lineItemIndex)}
-                                      title="Add burst"
-                                    >
-                                      <Plus className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8"
-                                      onClick={() => handleDuplicateBurst(lineItemIndex)}
-                                      title="Duplicate burst"
-                                    >
-                                      <Copy className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-8 w-8 text-destructive/70 hover:text-destructive hover:bg-destructive/10"
-                                      onClick={() => handleRemoveBurst(lineItemIndex, burstIndex)}
-                                      title="Remove burst"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              </CardContent>
-                            </Card>
-                          );
-                        })}
-                      </div>
-                      </>
-                      )}
-
-                      <CardFooter className="flex items-center justify-between pt-4 pb-4 bg-muted/20 border-t border-border/40">
+                      }
+                      footer={
+                        <>
                           <Button
                             type="button"
                             variant="ghost"
                             size="sm"
-                            className="text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                            className="text-destructive/70 hover:bg-destructive/10 hover:text-destructive"
                             onClick={() => removeLineItem(lineItemIndex)}
                           >
-                            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
                             Remove
                           </Button>
                           <div className="flex items-center gap-2">
-                            <Button type="button" variant="outline" size="sm" onClick={() => handleDuplicateLineItem(lineItemIndex)}>
-                              <Copy className="h-3.5 w-3.5 mr-1.5" />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDuplicateLineItem(lineItemIndex)}
+                            >
+                              <Copy className="mr-1.5 h-3.5 w-3.5" />
                               Duplicate
                             </Button>
                             {lineItemIndex === lineItemFields.length - 1 && (
-                                                        <Button
-                                                          type="button"
-                                                          size="sm"
-                                                          onClick={() =>
-                                                            appendLineItem({
-                                                              platform: "",
-                                                              bidStrategy: "",
-                                                              buyType: "",
-                                                              creativeTargeting: "",
-                                                              creative: "",
-                                                              buyingDemo: "",
-                                                              market: "",
-                                                              site: "",
-                                                              placement: "",
-                                                              size: "",
-                                                              targetingAttribute: "",
-                                                              fixedCostMedia: false,
-                                                              clientPaysForMedia: false,
-                                                              budgetIncludesFees: false,
-                                                              noadserving: false,
-                                                              bursts: [
-                                                                {
-                                                                  budget: "",
-                                                                  buyAmount: "",
-                                                                  startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-                                                                  endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-                                                                  calculatedValue: 0,
-                                                                  fee: 0,
-                                                                  _reactKey: newBurstReactKey(),
-                                                                } as any,
-                                                              ],
-                                                              totalMedia: 0,
-                                                              totalDeliverables: 0,
-                                                              totalFee: 0,
-                                                            })
-                                                          }
-                                                        >
-                                                          <Plus className="h-3.5 w-3.5 mr-1.5" />
-                                                          Add Line Item
-                                                        </Button>
-                                                      )}
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() =>
+                                  appendLineItem({
+                                    platform: "",
+                                    bidStrategy: "",
+                                    buyType: "",
+                                    creativeTargeting: "",
+                                    creative: "",
+                                    buyingDemo: "",
+                                    market: "",
+                                    site: "",
+                                    placement: "",
+                                    size: "",
+                                    targetingAttribute: "",
+                                    fixedCostMedia: false,
+                                    clientPaysForMedia: false,
+                                    budgetIncludesFees: false,
+                                    noadserving: false,
+                                    bursts: [
+                                      {
+                                        budget: "",
+                                        buyAmount: "",
+                                        startDate: defaultMediaBurstStartDate(
+                                          campaignStartDate,
+                                          campaignEndDate
+                                        ),
+                                        endDate: defaultMediaBurstEndDate(
+                                          campaignStartDate,
+                                          campaignEndDate
+                                        ),
+                                        calculatedValue: 0,
+                                        fee: 0,
+                                        _reactKey: newBurstReactKey(),
+                                      } as any,
+                                    ],
+                                    totalMedia: 0,
+                                    totalDeliverables: 0,
+                                    totalFee: 0,
+                                  })
+                                }
+                              >
+                                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                Add Line Item
+                              </Button>
+                            )}
                           </div>
-                        </CardFooter>
-                    </Card>
+                        </>
+                      }
+                    />
                   );
                 })}
               </div>
