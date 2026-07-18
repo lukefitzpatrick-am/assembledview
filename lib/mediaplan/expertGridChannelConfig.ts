@@ -1365,6 +1365,8 @@ export const OOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<OohExpertSchedul
       { key: "placement", label: "Placement", widthPx: 120, kind: "text" },
       { key: "type", label: "Type", widthPx: 96, kind: "text" },
       { key: "size", label: "Size", widthPx: 96, kind: "text" },
+      // Persisted hydrate field; not shown on card or grid.
+      { key: "panels", label: "Panels", widthPx: 80, kind: "text", surfaces: "none" },
     ],
     descriptorTail: [
       { key: "market", label: "Market", widthPx: 96, kind: "text" },
@@ -1656,6 +1658,8 @@ export const DIGITALDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Digit
       { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
       { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
       { key: "publisher", label: "Publisher", widthPx: 120, kind: "combobox-publishers" },
+      // Persisted / synced from publisher; not shown on card or grid.
+      { key: "platform", label: "Platform", widthPx: 120, kind: "text", surfaces: "none" },
       { key: "site", label: "Site", widthPx: 110, kind: "combobox-sites" },
       {
       key: "buyType",
@@ -1905,7 +1909,17 @@ export const DIGIAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigitalAud
       { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
       { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
       { key: "publisher", label: "Publisher", widthPx: 120, kind: "combobox-publishers" },
+      // Persisted / synced from publisher; not shown on card or grid.
+      { key: "platform", label: "Platform", widthPx: 120, kind: "text", surfaces: "none" },
       { key: "site", label: "Site", widthPx: 110, kind: "combobox-sites" },
+      // Form field retained for hydrate; not on DigiAudio card historically.
+      {
+        key: "bidStrategy",
+        label: "Bid Strategy",
+        widthPx: 110,
+        kind: "text",
+        surfaces: "none",
+      },
       {
       key: "buyType",
       label: "Buy Type",
@@ -2021,7 +2035,17 @@ export const BVOD_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<BvodExpertSched
       { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
       { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
       { key: "publisher", label: "Publisher", widthPx: 120, kind: "combobox-publishers" },
+      // Persisted / synced from publisher; not shown on card or grid.
+      { key: "platform", label: "Platform", widthPx: 120, kind: "text", surfaces: "none" },
       { key: "site", label: "Site", widthPx: 110, kind: "combobox-sites" },
+      // Form field retained for hydrate; not on BVOD card historically.
+      {
+        key: "bidStrategy",
+        label: "Bid Strategy",
+        widthPx: 110,
+        kind: "text",
+        surfaces: "none",
+      },
       {
       key: "buyType",
       label: "Buy Type",
@@ -2522,6 +2546,8 @@ export const NEWSPAPER_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<NewspaperE
         widthPx: 80,
         kind: "combobox-dynamic",
       },
+      // Persisted hydrate field; size is the visible control.
+      { key: "format", label: "Format", widthPx: 80, kind: "text", surfaces: "none" },
       // Grid-only: card publisher control is Network (publisherField). Old card had no Publisher text field.
       { key: "publisher", label: "Publisher", widthPx: 120, kind: "text", surfaces: "grid" },
     ],
@@ -3064,6 +3090,8 @@ export const PRODUCTION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Productio
       { key: "publisher", label: "Publisher", widthPx: 120, kind: "text" },
       { key: "description", label: "Description", widthPx: 110, kind: "text" },
       { key: "market", label: "Market", widthPx: 96, kind: "text" },
+      // Fixed buy type for production rows; retained for hydrate, not shown.
+      { key: "buyType", label: "Buy Type", widthPx: 96, kind: "text", surfaces: "none" },
     ],
     descriptorTail: [
       {
