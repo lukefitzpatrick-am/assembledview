@@ -629,7 +629,7 @@ export const PROGDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgDisp
       },
       {
         key: "creativeTargeting",
-        label: "Creative Targeting",
+        label: "Targeting",
         widthPx: 120,
         kind: "text",
       },
