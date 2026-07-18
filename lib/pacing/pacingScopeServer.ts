@@ -8,7 +8,8 @@ import axios from "axios"
 import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 
 /**
- * Numeric Xano client ids the user may see, or `null` = unrestricted (admin / no slug claims).
+ * Numeric Xano client ids the user may see, or `null` = unrestricted (admin only).
+ * Non-admin with no slug claims → `[]` (fail closed / empty), not book-wide.
  */
 export async function getPacingClientScopeIds(user: User | undefined): Promise<number[] | null> {
   if (!user) return []
@@ -16,7 +17,8 @@ export async function getPacingClientScopeIds(user: User | undefined): Promise<n
   if (roles.includes("admin")) return null
 
   const tenantSlugs = getUserClientSlugs(user)
-  if (tenantSlugs.length === 0) return null
+  // AuthZ: no resolvable client slug → empty for non-admins (not unrestricted).
+  if (tenantSlugs.length === 0) return []
 
   const want = new Set(tenantSlugs.map((s) => slugifyClientNameForUrl(s)).filter(Boolean))
   const rows = await loadClientsRows()

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
-import { getUserRoles } from "@/lib/rbac"
+import { getUserRoles, getUserMbaNumbers } from "@/lib/rbac"
 import {
   createIdempotent,
   listByMba,
@@ -53,17 +53,26 @@ export async function GET(request: NextRequest) {
     }
 
     const mbaNumber = request.nextUrl.searchParams.get("mba_number")?.trim() ?? ""
-    const roles = getUserRoles(session.user)
-
-    if (roles.includes("client")) {
-      if (!mbaNumber) {
-        return NextResponse.json({ error: "mba_number is required" }, { status: 400 })
-      }
-      const access = await checkClientMbaAccess(request, mbaNumber)
-      if (!access.ok) return access.response
+    // AuthZ: creative-asset reads must be MBA-scoped; no bare list-all.
+    if (!mbaNumber) {
+      return NextResponse.json({ error: "mba_number is required" }, { status: 400 })
     }
 
-    const rows = await listByMba(mbaNumber || undefined)
+    const roles = getUserRoles(session.user)
+    if (roles.includes("client")) {
+      const access = await checkClientMbaAccess(request, mbaNumber)
+      if (!access.ok) return access.response
+    } else if (!roles.includes("admin")) {
+      const assigned = getUserMbaNumbers(session.user)
+      if (
+        assigned.length > 0 &&
+        !assigned.some((mba) => mba.toLowerCase() === mbaNumber.toLowerCase())
+      ) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 })
+      }
+    }
+
+    const rows = await listByMba(mbaNumber)
     return NextResponse.json(rows)
   } catch (error) {
     return xanoErrorResponse(error)
@@ -90,9 +99,18 @@ export async function POST(request: NextRequest) {
     }
 
     const roles = getUserRoles(session.user)
+    // AuthZ: creative-asset writes scoped to caller's MBA/client; clients must pass MBA access check.
     if (roles.includes("client")) {
       const access = await checkClientMbaAccess(request, parsed.value.mba_number)
       if (!access.ok) return access.response
+    } else if (!roles.includes("admin")) {
+      const assigned = getUserMbaNumbers(session.user)
+      if (
+        assigned.length > 0 &&
+        !assigned.some((mba) => mba.toLowerCase() === parsed.value.mba_number.toLowerCase())
+      ) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 })
+      }
     }
 
     const row = await createIdempotent({
