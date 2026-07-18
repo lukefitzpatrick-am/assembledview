@@ -157,6 +157,7 @@ import {
 import type { BurstDateLike } from "@/lib/finance/billingOverrideDateBasis"
 import {
   fetchBillingOverridesClient,
+  isUsableBillingVersionId,
   replaceBillingOverrideLineClient,
   resetBillingOverrideLineClient,
 } from "@/lib/finance/billingOverridesClient"
@@ -3247,7 +3248,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           String(data.id) !== String(data.media_plan_master_id)
             ? data.id
             : null)
-        setMediaPlanVersionId(loadedVersionRowId ?? null)
+        setMediaPlanVersionId(
+          isUsableBillingVersionId(loadedVersionRowId) ? loadedVersionRowId : null
+        )
 
         const rawBillingSchedule =
           data.billingSchedule ??
@@ -3849,13 +3852,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
    * Never use selectedVersionNumber (the version ordinal) here.
    */
   const resolveMediaPlanVersionRowId = useCallback(async (): Promise<string | number | null> => {
-    if (mediaPlanVersionId != null) return mediaPlanVersionId
+    // Empty string / "undefined" must not short-circuit — treat as unresolved.
+    if (isUsableBillingVersionId(mediaPlanVersionId)) return mediaPlanVersionId
 
     const fromPayload =
       mediaPlan?.versionData?.id ??
       mediaPlan?.version?.id ??
       null
-    if (fromPayload != null && String(fromPayload).trim() !== "") {
+    if (isUsableBillingVersionId(fromPayload)) {
       setMediaPlanVersionId(fromPayload)
       return fromPayload
     }
@@ -3865,7 +3869,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       vn != null
         ? availableVersions.find((v) => v.version_number === vn)?.id
         : undefined
-    if (fromList != null) {
+    if (isUsableBillingVersionId(fromList)) {
       setMediaPlanVersionId(fromList)
       return fromList
     }
@@ -3893,7 +3897,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             String(data.id) !== String(data.media_plan_master_id)
               ? data.id
               : null)
-          if (rowId != null) {
+          if (isUsableBillingVersionId(rowId)) {
             setMediaPlanVersionId(rowId)
             return rowId
           }
@@ -3905,7 +3909,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     const masterId = mediaPlan?.media_plan_master_id
     const id = mediaPlan?.id
-    if (id != null && masterId != null && String(id) !== String(masterId)) {
+    if (
+      isUsableBillingVersionId(id) &&
+      masterId != null &&
+      String(id) !== String(masterId)
+    ) {
       setMediaPlanVersionId(id)
       return id
     }
@@ -3916,7 +3924,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const refreshBillingOverrideRowsForPanels = useCallback(
     async (versionId?: string | number | null) => {
       const id = versionId ?? mediaPlanVersionId
-      if (id == null) {
+      // Skip until a real version row id exists (empty → client 400 / noisy toast).
+      if (!isUsableBillingVersionId(id)) {
         setBillingOverrideRowsForPanels([])
         return
       }
@@ -4092,7 +4101,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     manualBillingOverrideMetaRef.current = new Map()
 
     const versionId = await resolveMediaPlanVersionRowId()
-    if (versionId != null) {
+    if (isUsableBillingVersionId(versionId)) {
       try {
         const rows = await fetchBillingOverridesClient(versionId)
         const { months, metaByLine } = applyBillingOverrideRowsToMonths(deepCopiedMonths, rows)
@@ -4106,14 +4115,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           description: err?.message || "Opening modal with schedule only.",
         })
       }
-    } else {
-      toast({
-        variant: "destructive",
-        title: "Missing media plan version id",
-        description:
-          "Billing overrides could not be loaded — APIs key on the version row id, not the version number.",
-      })
     }
+    // No version id yet (fresh load race): open quietly with schedule only.
+    // refreshBillingOverrideRowsForPanels runs once mediaPlanVersionId resolves.
 
     setManualBillingMonths(monthsForModal)
     // UI-only state: reset pre-bill toggles for cost rows on open
@@ -5452,7 +5456,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     let cancelled = false
     ;(async () => {
       const versionId = await resolveMediaPlanVersionRowId()
-      if (versionId == null || cancelled) return
+      if (!isUsableBillingVersionId(versionId) || cancelled) return
       try {
         const rows =
           billingOverrideRowsForPanels.length > 0
@@ -5497,7 +5501,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       )
       if (!stale.length) return
       const versionId = await resolveMediaPlanVersionRowId()
-      if (versionId == null) {
+      if (!isUsableBillingVersionId(versionId)) {
         toast({
           variant: "destructive",
           title: "Cannot keep timing",
@@ -5546,7 +5550,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         billingOverrideLineIdsMatch(s.lineItemId, lineItemId)
       )
       const versionId = await resolveMediaPlanVersionRowId()
-      if (versionId != null && stale.length > 0) {
+      if (isUsableBillingVersionId(versionId) && stale.length > 0) {
         try {
           const rows =
             billingOverrideRowsForPanels.length > 0
@@ -6181,7 +6185,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       })
 
       const preflightVersionId = await resolveMediaPlanVersionRowId()
-      if (preflightVersionId != null) {
+      if (isUsableBillingVersionId(preflightVersionId)) {
         try {
           const overrideRows = await fetchBillingOverridesClient(preflightVersionId)
           const stale = await findStaleDateBasisOverrides({
