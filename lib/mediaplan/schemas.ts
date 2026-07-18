@@ -231,6 +231,10 @@ export const televisionlineItemSchema = z.object({
   buyType: z.string().min(1, "Buy Type is required"),
   creativeTargeting: z.string().default("").optional(),
   creative: z.string().default("").optional(),
+  /** Line-level Ad Size mirror (synced to burst.size for save). */
+  size: z.string().default("").optional(),
+  /** Line-level TARPs summary (expert/card surface; bursts keep per-burst tarps). */
+  tarps: z.string().default("").optional(),
   buyingDemo: z.string().default(""),
   fixedCostMedia: z.boolean().default(false),
   clientPaysForMedia: z.boolean().default(false),

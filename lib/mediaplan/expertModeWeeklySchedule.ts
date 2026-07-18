@@ -142,6 +142,8 @@ export interface TelevisionExpertScheduleRow {
   size: string
   /** Line-level TARPs / deliverable summary (burst-level tarps set on apply). */
   tarps: string
+  /** Creative length (e.g. "30s"); form key remains `creative`. */
+  creative: string
   fixedCostMedia: boolean
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean

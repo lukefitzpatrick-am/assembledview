@@ -2473,6 +2473,10 @@ export interface StandardTelevisionFormLineItem {
   bidStrategy?: string
   creativeTargeting?: string
   creative?: string
+  /** Line-level Ad Size (mirrored on bursts; surfaces both). */
+  size?: string
+  /** Line-level TARPs summary (surfaces both; bursts keep per-burst tarps). */
+  tarps?: string
   fixedCostMedia: boolean
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
@@ -2492,6 +2496,9 @@ export type StandardTelevisionLineItemInput = Partial<StandardTelevisionFormLine
   budget_includes_fees?: boolean
   no_adserving?: boolean
   bursts_json?: string | object
+  /** Legacy hydrate keys → map to `creative`. */
+  creativeLength?: string
+  creative_length?: string
 }
 
 function normalizeTelevisionBursts(item: StandardTelevisionLineItemInput): StandardTelevisionBurst[] {
@@ -2590,7 +2597,9 @@ function emptyTelevisionLineItem(
     buyingDemo: row.buyingDemo,
     bidStrategy: "",
     creativeTargeting: "",
-    creative: "",
+    creative: String(row.creative ?? ""),
+    size: String(row.size || "30s"),
+    tarps: String(row.tarps ?? ""),
     fixedCostMedia: Boolean(row.fixedCostMedia),
     clientPaysForMedia: Boolean(row.clientPaysForMedia),
     budgetIncludesFees: Boolean(row.budgetIncludesFees ?? budgetIncludesFees),
@@ -2740,7 +2749,9 @@ export function mapTvExpertRowsToStandardLineItems(
       buyingDemo: row.buyingDemo,
       bidStrategy: "",
       creativeTargeting: "",
-      creative: "",
+      creative: String(row.creative ?? ""),
+      size: String(row.size || "30s"),
+      tarps: String(row.tarps ?? ""),
       fixedCostMedia: Boolean(row.fixedCostMedia),
       clientPaysForMedia: Boolean(row.clientPaysForMedia),
       budgetIncludesFees,
@@ -2849,6 +2860,12 @@ export function mapStandardTvLineItemsToExpertRows(
       (s, col) => s + parseNum(weeklyValues[col.weekKey]),
       0
     )
+    const creativeFromItem = String(
+      item.creative ??
+        item.creativeLength ??
+        item.creative_length ??
+        ""
+    )
 
     return {
       id: _reactKey,
@@ -2866,8 +2883,11 @@ export function mapStandardTvLineItemsToExpertRows(
       placement: String(item.placement ?? ""),
       buyType,
       buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),
-      size: sizeFromBurst,
-      tarps: tarpsSum > 0 ? String(tarpsSum) : "",
+      creative: creativeFromItem,
+      size: String(item.size || sizeFromBurst),
+      tarps: String(
+        item.tarps ?? (tarpsSum > 0 ? String(tarpsSum) : "")
+      ),
       fixedCostMedia: Boolean(item.fixed_cost_media ?? item.fixedCostMedia),
       clientPaysForMedia: Boolean(
         item.client_pays_for_media ?? item.clientPaysForMedia

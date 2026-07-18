@@ -95,6 +95,15 @@ export type ExpertCardProps<T extends FieldValues> = {
     lineItemIndex: number,
     value: string
   ) => void
+  /**
+   * Optional text/input change hook (e.g. line-level size → sync burst sizes).
+   * Called after the field value is written for non-combobox fields.
+   */
+  onFieldValueChange?: (
+    key: string,
+    lineItemIndex: number,
+    value: string
+  ) => void
   /** Extra UI beside a card field control (e.g. station “add” button). */
   fieldAdornments?: Partial<Record<string, React.ReactNode>>
   /** Per-key Combobox overrides (disabled, emptyText, placeholders). */
@@ -110,6 +119,11 @@ export type ExpertCardProps<T extends FieldValues> = {
       }
     >
   >
+  /**
+   * Custom bursts UI (e.g. Television TARPs). When set, skips generic
+   * {@link ExpertCardBursts}.
+   */
+  burstsSlot?: React.ReactNode
   summaryRow?: React.ReactNode
   footer?: React.ReactNode
   className?: string
@@ -149,6 +163,7 @@ function ExpertCardFieldControl<T extends FieldValues>({
   campaignStartDate,
   campaignEndDate,
   onComboboxValueChange,
+  onFieldValueChange,
   fieldAdornment,
   comboboxProps,
 }: {
@@ -162,6 +177,11 @@ function ExpertCardFieldControl<T extends FieldValues>({
   campaignStartDate: Date
   campaignEndDate: Date
   onComboboxValueChange?: (
+    key: string,
+    lineItemIndex: number,
+    value: string
+  ) => void
+  onFieldValueChange?: (
     key: string,
     lineItemIndex: number,
     value: string
@@ -331,6 +351,13 @@ function ExpertCardFieldControl<T extends FieldValues>({
 
   // text (and any other kind): textarea matches Search/OOH card UX
   const useTextarea = d.kind === "text" || d.cardSpan === 2
+  const registerOpts = onFieldValueChange
+    ? {
+        onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+          onFieldValueChange(d.key, lineItemIndex, e.target.value)
+        },
+      }
+    : undefined
   return (
     <FormItem className="flex flex-col space-y-1.5">
       <FormLabel className="text-sm font-medium text-muted-foreground">
@@ -339,13 +366,13 @@ function ExpertCardFieldControl<T extends FieldValues>({
       <FormControl>
         {useTextarea ? (
           <Textarea
-            {...form.register(name)}
+            {...form.register(name, registerOpts)}
             placeholder={d.placeholder}
             className="h-10 min-h-0 w-full rounded-md border border-border/50 bg-muted/30 text-sm transition-colors focus:bg-background"
           />
         ) : (
           <Input
-            {...form.register(name)}
+            {...form.register(name, registerOpts)}
             placeholder={d.placeholder}
             className="h-10 w-full text-sm"
           />
@@ -694,8 +721,10 @@ export function ExpertCard<T extends FieldValues>({
   onRemoveBurst,
   onBudgetIncludesFeesChange,
   onComboboxValueChange,
+  onFieldValueChange,
   fieldAdornments,
   comboboxPropsByKey,
+  burstsSlot,
   summaryRow,
   footer,
   className,
@@ -780,6 +809,7 @@ export function ExpertCard<T extends FieldValues>({
                       campaignStartDate={campaignStartDate}
                       campaignEndDate={campaignEndDate}
                       onComboboxValueChange={onComboboxValueChange}
+                      onFieldValueChange={onFieldValueChange}
                       fieldAdornment={fieldAdornments?.[d.key]}
                       comboboxProps={comboboxPropsByKey?.[d.key]}
                     />
@@ -826,19 +856,23 @@ export function ExpertCard<T extends FieldValues>({
             </CardContent>
           </div>
 
-          <ExpertCardBursts
-            form={form}
-            itemsKey={itemsKey}
-            lineItemIndex={lineItemIndex}
-            feePct={feePct}
-            calculatedVariant={calculatedVariant}
-            campaignStartDate={campaignStartDate}
-            campaignEndDate={campaignEndDate}
-            onBurstValueChange={onBurstValueChange}
-            onAppendBurst={onAppendBurst}
-            onDuplicateBurst={onDuplicateBurst}
-            onRemoveBurst={onRemoveBurst}
-          />
+          {burstsSlot != null ? (
+            burstsSlot
+          ) : (
+            <ExpertCardBursts
+              form={form}
+              itemsKey={itemsKey}
+              lineItemIndex={lineItemIndex}
+              feePct={feePct}
+              calculatedVariant={calculatedVariant}
+              campaignStartDate={campaignStartDate}
+              campaignEndDate={campaignEndDate}
+              onBurstValueChange={onBurstValueChange}
+              onAppendBurst={onAppendBurst}
+              onDuplicateBurst={onDuplicateBurst}
+              onRemoveBurst={onRemoveBurst}
+            />
+          )}
         </>
       ) : null}
 
