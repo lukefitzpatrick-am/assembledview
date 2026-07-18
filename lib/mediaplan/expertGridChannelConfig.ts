@@ -1930,7 +1930,7 @@ export const DIGIAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigitalAud
         normalizeOptionPaste(raw, DIGIAUDIO_BUY_TYPE_OPTIONS),
     },
       { key: "targetingAttribute", label: "Targeting Attribute", widthPx: 120, kind: "text" },
-      { key: "creativeTargeting", label: "Creative Targeting", widthPx: 120, kind: "text" },
+      { key: "creativeTargeting", label: "Targeting", widthPx: 120, kind: "text" },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
     ],
     descriptorTail: [
