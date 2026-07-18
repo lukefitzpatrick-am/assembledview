@@ -5037,7 +5037,11 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
       bidStrategy: String(item.bidStrategy ?? ""),
       buyType,
       creativeTargeting: String(
-        item.creativeTargeting ?? item.creative_targeting ?? ""
+        item.creativeTargeting ??
+          item.creative_targeting ??
+          // Hydration shim: older saves used `placement` for this field.
+          item.placement ??
+          ""
       ),
       creative: String(item.creative ?? ""),
       buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),
@@ -5886,7 +5890,11 @@ export function mapStandardInfluencersLineItemsToExpertRows(
         item.targetingAttribute ?? item.targeting_attribute ?? ""
       ),
       creativeTargeting: String(
-        item.creativeTargeting ?? item.creative_targeting ?? ""
+        item.creativeTargeting ??
+          item.creative_targeting ??
+          // Hydration shim: older saves used `placement` for this field.
+          item.placement ??
+          ""
       ),
       creative: String(item.creative ?? ""),
       buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),
@@ -6317,7 +6325,11 @@ export function mapStandardIntegrationLineItemsToExpertRows(
         item.targetingAttribute ?? item.targeting_attribute ?? ""
       ),
       creativeTargeting: String(
-        item.creativeTargeting ?? item.creative_targeting ?? ""
+        item.creativeTargeting ??
+          item.creative_targeting ??
+          // Hydration shim: older saves used `placement` for this field.
+          item.placement ??
+          ""
       ),
       creative: String(item.creative ?? ""),
       buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),
