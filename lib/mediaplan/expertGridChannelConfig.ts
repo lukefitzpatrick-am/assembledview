@@ -1741,6 +1741,7 @@ export function createEmptyDigiVideoExpertRow(
     fixedCostMedia: false,
     clientPaysForMedia: false,
     budgetIncludesFees: false,
+    noadserving: false,
     unitRate: "",
     grossCost: 0,
     weeklyValues,
@@ -1757,23 +1758,36 @@ export const DIGIVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigiVideoE
     { key: "fixedCostMedia", label: "Fixed Cost Media", widthPx: 56 },
     { key: "clientPaysForMedia", label: "Client Pays for Media", widthPx: 56 },
     { key: "budgetIncludesFees", label: "Budget Includes Fees", widthPx: 56 },
+    { key: "noadserving", label: "No Ad Serving", widthPx: 56 },
   ],
     billingFlagKeys: [
       "fixedCostMedia",
       "clientPaysForMedia",
-      "budgetIncludesFees"
+      "budgetIncludesFees",
+      "noadserving",
     ],
     billingFlagLabels: [
       "Fixed Cost Media",
       "Client Pays for Media",
-      "Budget Includes Fees"
+      "Budget Includes Fees",
+      "No Ad Serving",
     ],
-    billingFlagWidthsPx: [56, 56, 56],
+    billingFlagWidthsPx: [56, 56, 56, 56],
     descriptorCore: [
       { key: "startDate", label: "Start Date", widthPx: 48, kind: "date-start" },
       { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
       { key: "publisher", label: "Publisher", widthPx: 120, kind: "combobox-publishers" },
+      // Persisted / synced from publisher; not shown on card or grid.
+      { key: "platform", label: "Platform", widthPx: 120, kind: "text", surfaces: "none" },
       { key: "site", label: "Site", widthPx: 110, kind: "combobox-sites" },
+      // Form field retained for hydrate; not on DigiVideo card historically.
+      {
+        key: "bidStrategy",
+        label: "Bid Strategy",
+        widthPx: 110,
+        kind: "text",
+        surfaces: "none",
+      },
       {
       key: "buyType",
       label: "Buy Type",
@@ -1783,10 +1797,10 @@ export const DIGIVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigiVideoE
       normalizePaste: (raw) =>
         normalizeOptionPaste(raw, DIGIVIDEO_BUY_TYPE_OPTIONS),
     },
-      { key: "creativeTargeting", label: "Creative Targeting", widthPx: 120, kind: "text" },
-      { key: "placement", label: "Placement", widthPx: 110, kind: "text" },
+      { key: "creativeTargeting", label: "Targeting", widthPx: 120, kind: "text" },
+      { key: "placement", label: "Placement", widthPx: 110, kind: "text", surfaces: "both" },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
-      { key: "size", label: "Size", widthPx: 80, kind: "text" },
+      { key: "size", label: "Ad Size", widthPx: 80, kind: "text", surfaces: "both" },
     ],
     descriptorTail: [
       { key: "market", label: "Market", widthPx: 96, kind: "text" },

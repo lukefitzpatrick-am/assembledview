@@ -3460,7 +3460,7 @@ function emptyDigiVideoLineItem(
     fixedCostMedia: Boolean(row.fixedCostMedia),
     clientPaysForMedia: Boolean(row.clientPaysForMedia),
     budgetIncludesFees: Boolean(row.budgetIncludesFees ?? budgetIncludesFees),
-    noadserving: false,
+    noadserving: Boolean(row.noadserving),
     lineItemId: id,
     line_item_id: id,
     line_item: lineNo,
@@ -3620,7 +3620,7 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
       fixedCostMedia: Boolean(row.fixedCostMedia),
       clientPaysForMedia: Boolean(row.clientPaysForMedia),
       budgetIncludesFees,
-      noadserving: false,
+      noadserving: Boolean(row.noadserving),
       lineItemId: id,
       line_item_id: id,
       line_item: lineNo,
@@ -3761,6 +3761,7 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
       budgetIncludesFees: Boolean(
         item.budget_includes_fees ?? item.budgetIncludesFees
       ),
+      noadserving: Boolean(item.no_adserving ?? item.noadserving),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,

@@ -219,6 +219,7 @@ export interface DigiVideoExpertScheduleRow {
   fixedCostMedia: boolean
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
+  noadserving: boolean
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
