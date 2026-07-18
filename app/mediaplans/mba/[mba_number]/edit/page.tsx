@@ -1957,6 +1957,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [isSaving, setIsSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([])
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false)
+  /** Children saved, master.version_number bump failed — retry publishes only. */
+  const [pendingPublishRetry, setPendingPublishRetry] = useState<{
+    versionNumber: number
+    versionId: number | string | null
+    publishedBefore: number
+  } | null>(null)
+  const [isRetryingPublish, setIsRetryingPublish] = useState(false)
   const [modalOpen, setModalOpen] = useState(false)
   const [modalTitle, setModalTitle] = useState("")
   const [modalOutcome, setModalOutcome] = useState("")
@@ -2264,7 +2271,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const shouldBlockNavigation = hasUnsavedChanges && !isSaving && !isLoading
   const { isOpen: isUnsavedPromptOpen, confirmNavigation, stayOnPage, requestNavigation } = useUnsavedChangesPrompt(shouldBlockNavigation)
   const hasSaveErrors = saveStatus.some(item => item.status === 'error')
-  const shouldShowSaveModal = isSaveModalOpen && (isSaving || hasSaveErrors || saveStatus.length > 0)
+  const shouldShowSaveModal =
+    isSaveModalOpen &&
+    (isSaving || isRetryingPublish || hasSaveErrors || saveStatus.length > 0 || Boolean(pendingPublishRetry))
 
   const updateLoadStatus = useCallback(
     (name: string, status: SaveStatusItem['status'], error?: string) => {
@@ -2284,11 +2293,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const hasLoadErrors = lineItemLoadItems.some((item) => item.status === 'error')
 
   useEffect(() => {
-    if (!isSaving && isSaveModalOpen && saveStatus.length > 0 && !hasSaveErrors) {
+    if (
+      !isSaving &&
+      !isRetryingPublish &&
+      !pendingPublishRetry &&
+      isSaveModalOpen &&
+      saveStatus.length > 0 &&
+      !hasSaveErrors
+    ) {
       setIsSaveModalOpen(false)
       setSaveStatus([])
     }
-  }, [hasSaveErrors, isSaveModalOpen, isSaving, saveStatus])
+  }, [hasSaveErrors, isSaveModalOpen, isSaving, isRetryingPublish, pendingPublishRetry, saveStatus])
 
   useEffect(() => {
     if (loadPhase === 'ready' && !isLoading && lineItemLoadItems.length > 0 && !hasLoadErrors) {
@@ -2297,10 +2313,105 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [hasLoadErrors, isLoading, lineItemLoadItems.length, loadPhase])
 
   const handleCloseSaveModal = useCallback(() => {
-    if (isSaving) return
+    if (isSaving || isRetryingPublish) return
     setIsSaveModalOpen(false)
-    setSaveStatus([])
-  }, [isSaving])
+    if (!pendingPublishRetry) {
+      setSaveStatus([])
+    }
+  }, [isSaving, isRetryingPublish, pendingPublishRetry])
+
+  const patchPublishStatus = useCallback(
+    (status: SaveStatusItem["status"], error?: string) => {
+      setSaveStatus((prev) => {
+        const name = "Publish version"
+        const existing = prev.find((item) => item.name === name)
+        if (!existing) return [...prev, { name, status, error }]
+        return prev.map((item) =>
+          item.name === name ? { ...item, status, error } : item
+        )
+      })
+    },
+    []
+  )
+
+  const handleRetryPublish = useCallback(async () => {
+    if (!pendingPublishRetry || !mbaNumber || isRetryingPublish) return
+    const { versionNumber, versionId, publishedBefore } = pendingPublishRetry
+    setIsRetryingPublish(true)
+    setIsSaveModalOpen(true)
+    patchPublishStatus("pending")
+    try {
+      const publishResponse = await fetch(`/api/mediaplans/mba/${mbaNumber}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ version_number: versionNumber }),
+      })
+      if (!publishResponse.ok) {
+        let publishError = "Failed to publish version number"
+        try {
+          const body = await publishResponse.json()
+          publishError = body.error || body.message || publishError
+        } catch {
+          /* ignore */
+        }
+        patchPublishStatus("error", publishError)
+        toast({
+          variant: "destructive",
+          title: "Publish retry failed",
+          description: `${publishError}. Master version remains ${publishedBefore}. Staged version ${versionNumber} is still unpublished.`,
+        })
+        return
+      }
+      patchPublishStatus("success")
+      setPendingPublishRetry(null)
+      const updatedLatest = Math.max(latestVersionNumber || 0, versionNumber)
+      setLatestVersionNumber(updatedLatest)
+      setNextSaveVersionNumber(updatedLatest + 1)
+      setSelectedVersionNumber(versionNumber)
+      setAvailableVersions((prev) => {
+        const existing = prev.some((v) => v.version_number === versionNumber)
+        // availableVersions.id is number | undefined; pendingPublishRetry.versionId is number | string | null
+        const resolvedId =
+          typeof versionId === "number"
+            ? versionId
+            : typeof versionId === "string" && versionId.trim() !== "" && Number.isFinite(Number(versionId))
+              ? Number(versionId)
+              : undefined
+        const newEntry = {
+          id: resolvedId,
+          version_number: versionNumber,
+          created_at: Date.now(),
+        }
+        if (existing) {
+          return prev.map((v) =>
+            v.version_number === versionNumber ? { ...v, ...newEntry } : v
+          )
+        }
+        return [...prev, newEntry]
+      })
+      toast({
+        title: "Version published",
+        description: `Version ${versionNumber} is now live.`,
+      })
+    } catch (err: any) {
+      const message = err?.message || String(err)
+      patchPublishStatus("error", message)
+      toast({
+        variant: "destructive",
+        title: "Publish retry failed",
+        description: message,
+      })
+    } finally {
+      setIsRetryingPublish(false)
+    }
+  }, [
+    pendingPublishRetry,
+    mbaNumber,
+    isRetryingPublish,
+    latestVersionNumber,
+    patchPublishStatus,
+    toast,
+  ])
 
   useEffect(() => {
     const subscription = form.watch(() => {
@@ -6304,19 +6415,25 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         setMediaPlanVersionId(versionId)
       }
 
-      setAvailableVersions(prev => {
-        const existing = prev.some(v => v.version_number === numericSavedVersion)
-        const newEntry = {
-          id: versionId,
-          version_number: numericSavedVersion,
-          created_at: versionData.version?.created_at ?? Date.now()
-        }
-        if (existing) {
-          return prev.map(v => v.version_number === numericSavedVersion ? { ...v, ...newEntry } : v)
-        }
-        return [...prev, newEntry]
-      })
-      
+      // Only surface the version in the picker after publish (or on overwrite).
+      // Staged-but-unpublished rows must not appear in availableVersions.
+      if (!deferredPublish) {
+        setAvailableVersions((prev) => {
+          const existing = prev.some((v) => v.version_number === numericSavedVersion)
+          const newEntry = {
+            id: versionId,
+            version_number: numericSavedVersion,
+            created_at: versionData.version?.created_at ?? Date.now(),
+          }
+          if (existing) {
+            return prev.map((v) =>
+              v.version_number === numericSavedVersion ? { ...v, ...newEntry } : v
+            )
+          }
+          return [...prev, newEntry]
+        })
+      }
+
       // 4. Save all line items with new version number
       const savePromises: Promise<any>[] = []
       const clientName = formValues.mp_clientname || selectedClient?.clientname_input || ""
@@ -6722,16 +6839,27 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             stagedVersionNumber: nextVersion,
             publishedVersionNumber: publishedVersionBeforeSave,
           })
+          const stagedVn =
+            typeof nextVersion === 'string' ? parseInt(nextVersion, 10) : Number(nextVersion)
+          setPendingPublishRetry({
+            versionNumber: Number.isFinite(stagedVn) ? stagedVn : Number(numericSavedVersion),
+            versionId: versionId ?? null,
+            publishedBefore:
+              typeof publishedVersionBeforeSave === 'number'
+                ? publishedVersionBeforeSave
+                : Number(publishedVersionBeforeSave) || 0,
+          })
           updateSaveStatus('Publish version', 'error', publishError)
           toast({
             variant: 'destructive',
-            title: 'Save incomplete — version not published',
-            description: `${publishError}. Channel data was written to staged version ${nextVersion}, but master.version_number was not advanced.`,
+            title: 'Saved but not published — retry publish',
+            description: `${publishError}. Channel data is staged as version ${nextVersion}. Master remains ${publishedVersionBeforeSave}. Use Retry publish to finish.`,
           })
           setIsSaving(false)
           return
         }
         updateSaveStatus('Publish version', 'success')
+        setPendingPublishRetry(null)
         const updatedLatest = Math.max(
           latestVersionNumber || 0,
           typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber || 0
@@ -6741,6 +6869,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         setSelectedVersionNumber(
           typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber
         )
+        setAvailableVersions((prev) => {
+          const existing = prev.some((v) => v.version_number === numericSavedVersion)
+          const newEntry = {
+            id: versionId,
+            version_number: numericSavedVersion,
+            created_at: versionData.version?.created_at ?? Date.now(),
+          }
+          if (existing) {
+            return prev.map((v) =>
+              v.version_number === numericSavedVersion ? { ...v, ...newEntry } : v
+            )
+          }
+          return [...prev, newEntry]
+        })
       }
 
       if (isOverwriteMode) {
@@ -10294,6 +10436,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         items={saveStatus}
         isSaving={isSaving}
         onClose={handleCloseSaveModal}
+        onRetryPublish={handleRetryPublish}
+        isRetryingPublish={isRetryingPublish}
+        publishRetryPending={Boolean(pendingPublishRetry)}
+        titleRetryPublish="Saved but not published"
+        descriptionRetryPublish="Channel data was saved to a staged version, but the master version was not advanced. Retry publish to finish — this only re-issues the version publish PATCH."
       />
 
       <OutcomeModal

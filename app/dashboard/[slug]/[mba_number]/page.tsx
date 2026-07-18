@@ -12,6 +12,8 @@ import {
   resolveCampaignTotalPlannedSpend,
 } from "@/lib/spend/resolveCampaignExpectedSpend"
 import { ErrorState } from "@/components/ui/states"
+import { deliveredSpendFromSnapshot } from "@/lib/delivery/deliveredSpendFromSnapshot"
+import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 
 export const maxDuration = 60
 
@@ -666,14 +668,21 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   })
 
   // Plan schedule "spend to date" is planned media, not Snowflake delivery.
-  // Only trust an explicit API actual; otherwise leave unset so the UI cannot
-  // present plan as delivered spend.
+  // Delivered spend must match the performance deck: loadDeliverySnapshot /
+  // get_delivery_snapshot. Show a $ only when the snapshot has positive spend;
+  // otherwise leave unset so the UI shows "Not available" (same as the deck).
   const deliverySpendToDate = deriveSpendToDate(deliverySchedule)
-  const metricsActual = metrics.actualSpendToDate
-  const actualSpend =
-    typeof metricsActual === "number" && Number.isFinite(metricsActual) && metricsActual > 0
-      ? metricsActual
-      : undefined
+  let actualSpend: number | undefined
+  try {
+    const deliverySnapshot = await loadDeliverySnapshot({
+      mbaNumber: mba_number,
+      versionNumber: Number.isFinite(vn) ? vn : undefined,
+      mpSearchEnabled,
+    })
+    actualSpend = deliveredSpendFromSnapshot(deliverySnapshot.planTotals.spendToDate)
+  } catch {
+    actualSpend = undefined
+  }
 
   const monthlyPlanDateOpts = {
     campaignStartISO: effectiveStartISO,

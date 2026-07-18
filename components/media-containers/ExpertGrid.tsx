@@ -16,7 +16,7 @@ import {
 } from "@/components/media-containers/useExpertGridRowVirtualizer"
 import {
   OOH_EXPERT_ROW_HEIGHT_PX,
-  OOH_EXPERT_ROW_OVERSCAN,
+  EXPERT_GRID_ROW_OVERSCAN_DEFAULT,
 } from "@/lib/mediaplan/oohExpertVirtualization"
 import { isExpertRowIncomplete, expertRowIncompleteReasons } from "@/lib/mediaplan/expertRowCompleteness"
 import {
@@ -254,7 +254,7 @@ function normalizeSearchKey(input: unknown): string {
  */
 const SEARCH_EXPERT_ROW_VIRTUALIZATION = true
 const SEARCH_EXPERT_ROW_HEIGHT_PX = OOH_EXPERT_ROW_HEIGHT_PX
-const SEARCH_EXPERT_ROW_OVERSCAN = OOH_EXPERT_ROW_OVERSCAN
+const SEARCH_EXPERT_ROW_OVERSCAN = EXPERT_GRID_ROW_OVERSCAN_DEFAULT
 
 /**
  * Parse clipboard text that may contain tab-separated values (Excel/Sheets)

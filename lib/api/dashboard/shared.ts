@@ -5,6 +5,10 @@ import axios from 'axios'
 import { slugifyClientNameForUrl } from '@/lib/clients/slug'
 import { parseDateNativeSafe } from '@/lib/dates/parseDateNativeSafe'
 import { xanoAuthHeaderRecord } from '@/lib/api/xano'
+import {
+  parseVersionNumber,
+  pickPublishedVersionRow,
+} from '@/lib/mediaplan/publishedVersionGuard'
 
 export const MELBOURNE_TZ = 'Australia/Melbourne'
 export const DAY_MS = 24 * 60 * 60 * 1000
@@ -45,13 +49,19 @@ export function normalizeMbaKey(raw: unknown): string | null {
 }
 
 export function numericVersion(v: any): number {
-  const n = Number(v?.version_number)
-  return Number.isFinite(n) && n > 0 ? n : 0
+  return parseVersionNumber(v?.version_number ?? v?.versionNumber)
 }
 
-/** Same rule as mediaplans editor: one row per MBA — the highest version_number (tie-break: updated_at). */
-export function pickHighestVersionRow(versions: any[]): any | null {
+/** Same rule as mediaplans editor: one row per MBA — the highest version_number (tie-break: updated_at).
+ * When `publishedVersionNumber` is provided, never pick a staged-but-unpublished row. */
+export function pickHighestVersionRow(
+  versions: any[],
+  publishedVersionNumber?: number,
+): any | null {
   if (!Array.isArray(versions) || versions.length === 0) return null
+  if (publishedVersionNumber != null && publishedVersionNumber > 0) {
+    return pickPublishedVersionRow(versions, publishedVersionNumber)
+  }
   return versions.reduce((best, v) => {
     const vn = numericVersion(v)
     const bn = numericVersion(best)

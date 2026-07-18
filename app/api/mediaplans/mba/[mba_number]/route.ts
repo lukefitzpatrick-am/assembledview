@@ -17,6 +17,12 @@ import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNum
 import { fetchBillingOverridesForVersion } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
 import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
+import {
+  isUnpublishedStagedVersion,
+  pickPublishedVersionRow,
+  publishedVersionFromMaster,
+} from "@/lib/mediaplan/publishedVersionGuard"
+import { reapUnpublishedStagedVersions } from "@/lib/mediaplan/reapUnpublishedStagedVersions"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -850,6 +856,7 @@ export async function GET(
         100,
         20
       )
+      const publishedCap = parseVersion(masterData?.version_number) ?? 0
       versionsMetadata = historyRows
         .filter((v: any) => normalise(v?.mba_number) === requestedNormalized)
         .map((v: any) => ({
@@ -857,12 +864,10 @@ export async function GET(
           version_number: parseVersion(v.version_number) ?? 0,
           created_at: v.created_at ?? v.createdAt ?? v.created ?? null,
         }))
-      if (versionsMetadata.length > 0) {
-        latestVersionNumber = Math.max(
-          latestVersionNumber,
-          ...versionsMetadata.map((v) => v.version_number || 0)
-        )
-      }
+        // Hide staged-but-unpublished rows (vn > master.version_number).
+        .filter((v) => v.version_number > 0 && v.version_number <= publishedCap)
+      // Never inflate latest beyond the published master watermark.
+      latestVersionNumber = publishedCap
       mark("versionsMeta", tVersions)
     }
 
@@ -1354,7 +1359,6 @@ export async function PUT(
       )
     }
 
-    // Calculate next version number based on max existing version for this MBA.
     // Version history for one MBA — do NOT use media_plan_versions_latest.
     const allVersionsForMBA = (
       await fetchAllXanoPages(
@@ -1365,22 +1369,44 @@ export async function PUT(
         20
       )
     ).filter((v: any) => normalise(v?.mba_number) === requestedNormalized)
-    
+
     const parseVersion = (value: any): number => {
-      const num = typeof value === 'string' ? parseInt(value, 10) : value
+      const num = typeof value === "string" ? parseInt(value, 10) : value
       return isNaN(num) ? 0 : num
     }
-    
-    const latestVersionNumber = allVersionsForMBA.length > 0
-      ? Math.max(...allVersionsForMBA.map((v: any) => parseVersion(v.version_number)))
-      : 0
 
+    // Published watermark is master.version_number — never max(all rows), which
+    // includes staged-but-unpublished orphans and would inflate nextVersion forever.
+    const publishedVersionNumber = publishedVersionFromMaster(masterData)
+
+    // FIX2: reap orphans on next save of this master (scoped, no cron). Prefer
+    // save-path cleanup over a scheduled sweep — smaller blast radius, no new
+    // infra, and it runs before next-version calculation.
+    const reapResult = await reapUnpublishedStagedVersions({
+      mbaNumber: mba_number,
+      mediaPlanMasterId: masterData.id,
+      publishedVersionNumber,
+      allVersions: allVersionsForMBA,
+    })
+    if (reapResult.deletedVersionIds.length > 0 || reapResult.errors.length > 0) {
+      console.warn("[mba-put] reaped unpublished staged versions", {
+        mba_number,
+        publishedVersionNumber,
+        orphanVersionNumbers: reapResult.orphanVersionNumbers,
+        deletedVersionIds: reapResult.deletedVersionIds,
+        deletedChildCount: reapResult.deletedChildCount,
+        errors: reapResult.errors,
+      })
+    }
+
+    const versionsForVersioning = allVersionsForMBA.filter(
+      (v: any) => !isUnpublishedStagedVersion(v.version_number, publishedVersionNumber),
+    )
+    const latestVersionNumber = publishedVersionNumber
     const previousVersion =
-      latestVersionNumber != null
-        ? allVersionsForMBA.find((v: any) => parseVersion(v.version_number) === latestVersionNumber) ??
-          null
-        : null
-    
+      pickPublishedVersionRow(versionsForVersioning, publishedVersionNumber) ??
+      pickPublishedVersionRow(allVersionsForMBA, publishedVersionNumber)
+
     const nextVersionNumber = (latestVersionNumber || 0) + 1
     const overwriteTargetRow = previousVersion
     const incomingStatus = normalise(
@@ -1759,6 +1785,19 @@ export async function PATCH(
     const masterUpdateData: any = {}
     
     if (data.version_number !== undefined) {
+      // Dev-only: force-fail publish PATCH after children already staged (verify retry UI).
+      if (
+        process.env.FORCE_FAIL_VERSION_PUBLISH === "1" &&
+        process.env.NODE_ENV !== "production"
+      ) {
+        console.warn(
+          `[PATCH] FORCE_FAIL_VERSION_PUBLISH=1 — refusing to bump version_number for MBA ${mba_number}`,
+        )
+        return NextResponse.json(
+          { error: "Forced publish failure (FORCE_FAIL_VERSION_PUBLISH=1)" },
+          { status: 500 },
+        )
+      }
       masterUpdateData.version_number = data.version_number
     }
     if (data.mp_campaignname !== undefined) {

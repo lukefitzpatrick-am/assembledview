@@ -2,12 +2,15 @@ import "server-only"
 
 import axios, { AxiosError } from "axios"
 import { parseXanoListPayload, requireXanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { getCachedClientsList } from "@/lib/cache/clientsCache"
 import type {
   PlanningAudienceRow,
   PlanningAudienceWritable,
 } from "./audienceTypes"
+import { resolveClientsIdByMbaIdentifier } from "./resolveClientsIdByMbaIdentifier"
 
 export type { PlanningAudienceRow, PlanningAudienceWritable } from "./audienceTypes"
+export { resolveClientsIdByMbaIdentifier } from "./resolveClientsIdByMbaIdentifier"
 
 const PLANNING_AUDIENCES_PATH = "planning_audiences"
 const XANO_TIMEOUT_MS = 15_000
@@ -146,26 +149,21 @@ export async function listPlanningAudiencesByMba(
   const needle = mbaNumber.trim().toLowerCase()
   if (!needle) return []
   try {
-    const base = xanoUrl(PLANNING_AUDIENCES_PATH, "XANO_CLIENTS_BASE_URL")
-    // Prefer server-side filter when Xano supports it; always re-filter client-side.
-    const url = `${base}?mba_number=${encodeURIComponent(mbaNumber.trim())}`
-    const response = await axios.get(url, {
-      headers: authHeaders(),
-      timeout: XANO_TIMEOUT_MS,
-    })
-    const rows = parseList(response.data)
+    // Xano requires clients_id on GET planning_audiences; mba_number alone → 400.
+    const { data: clients } = await getCachedClientsList()
+    const clientsId = resolveClientsIdByMbaIdentifier(mbaNumber, clients)
+    if (clientsId == null) {
+      console.warn(
+        "[planning-audiences] listPlanningAudiencesByMba: no clients_id for mba",
+        mbaNumber.trim()
+      )
+      return []
+    }
+    const rows = await listPlanningAudiences({ clientsId })
     return rows.filter(
       (row) => String(row.mba_number ?? "").trim().toLowerCase() === needle
     )
   } catch (error) {
-    // Fallback: list all and filter (small table).
-    try {
-      const all = await listPlanningAudiences()
-      return all.filter(
-        (row) => String(row.mba_number ?? "").trim().toLowerCase() === needle
-      )
-    } catch {
-      mapAxiosError(error, "listPlanningAudiencesByMba")
-    }
+    mapAxiosError(error, "listPlanningAudiencesByMba")
   }
 }

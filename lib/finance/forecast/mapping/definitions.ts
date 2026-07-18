@@ -43,12 +43,8 @@ export const PUBLISHER_TYPE_DIRECT = "direct"
 /** `publishers.publishertype` — programmatic / internal biddable. */
 export const PUBLISHER_TYPE_INTERNAL_BIDDABLE = "internal_biddable"
 
-/**
- * When a schedule line cannot be matched to a publisher row, we still need a billing-agency
- * default for AA vs AM split. **Product decision:** unknown → assembled media billing bucket.
- * Change only here if finance approves a different default.
- */
-export const DEFAULT_UNKNOWN_PUBLISHER_BILLING_AGENCY = PUBLISHER_BILLING_AGENCY_ASSEMBLED_MEDIA
+// Unknown publisher billing default = PUBLISHER_BILLING_AGENCY_ASSEMBLED_MEDIA
+// (product decision: unmatched publisher rows → Assembled Media billing bucket).
 
 // ---------------------------------------------------------------------------
 // Media-type sets (internal keys from `getMediaTypeKeyFromDisplayName`)
@@ -178,7 +174,7 @@ const ROW_DEFINITIONS: readonly ForecastRowDefinition[] = [
     line_key: FINANCE_FORECAST_LINE_KEYS.assembledMediaBillingForPublisher,
     summary: "Assembled Media billing (publisher media)",
     businessRule:
-      "Same as AA line, but includes publishers with `billingagency` Assembled Media and any unmatched publisher rows (see DEFAULT_UNKNOWN_PUBLISHER_BILLING_AGENCY).",
+      "Same as AA line, but includes publishers with `billingagency` Assembled Media and any unmatched publisher rows (defaults to PUBLISHER_BILLING_AGENCY_ASSEMBLED_MEDIA).",
     sourceFields: [
       sf("billing_schedule_json", ["mediaTypes[].lineItems[].amount"], "media $ by line"),
       sf("publishers", ["billingagency"], "AA vs AM split"),

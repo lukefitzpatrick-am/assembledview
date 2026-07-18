@@ -7,6 +7,11 @@ import {
   xanoUrl,
 } from "@/lib/api/xano"
 import { getCachedMediaPlanVersions } from "@/lib/api/mediaPlanVersionsCache"
+import {
+  parseVersionNumber,
+  publishedVersionFromMaster,
+  pickPublishedVersionRow,
+} from "@/lib/mediaplan/publishedVersionGuard"
 
 /**
  * Coalesced TTL cache for the media plans list page
@@ -81,7 +86,37 @@ async function fetchMasters(): Promise<any[]> {
   return items
 }
 
-function mergeLatestVersionsWithMasters(versionsData: any[], mastersData: any[]): any[] {
+async function fetchPublishedVersionRow(
+  mbaNumber: string,
+  published: number,
+): Promise<any | null> {
+  try {
+    const { data } = await axios.get(mediaPlansUrl("media_plan_versions"), {
+      headers: xanoAuthHeaderRecord(),
+      params: {
+        mba_number: mbaNumber,
+        version_number: published,
+        page: 1,
+        per_page: 50,
+      },
+      timeout: 15_000,
+    })
+    const rows = parseXanoListPayload(data)
+    const match = pickPublishedVersionRow(rows, published)
+    return match ? stripScheduleFields(match) : null
+  } catch (err) {
+    console.warn(
+      `[mediaPlansListCache] failed to fetch published vn=${published} for mba=${mbaNumber}`,
+      err instanceof Error ? err.message : err,
+    )
+    return null
+  }
+}
+
+async function mergeLatestVersionsWithMasters(
+  versionsData: any[],
+  mastersData: any[],
+): Promise<any[]> {
   const masterMap = new Map<string, any>()
   for (const master of mastersData) {
     if (master?.mba_number) {
@@ -106,17 +141,40 @@ function mergeLatestVersionsWithMasters(versionsData: any[], mastersData: any[])
     }
   }
 
-  // Master overlay: version_number only. Missing masters are tolerated (kept as-is).
-  return Array.from(latestByMba.values()).map((versionPlan) => {
-    const masterData = masterMap.get(versionPlan.mba_number)
-    if (masterData && masterData.version_number !== undefined) {
+  // Master overlay: version_number from published watermark.
+  // If `_latest` is an unpublished staged row (vn > master), resolve the
+  // published row instead of rewriting the number on staged content.
+  const merged = await Promise.all(
+    Array.from(latestByMba.values()).map(async (versionPlan) => {
+      const masterData = masterMap.get(versionPlan.mba_number)
+      if (!masterData || masterData.version_number === undefined) {
+        return versionPlan
+      }
+      const published = publishedVersionFromMaster(masterData)
+      const planVn = parseVersionNumber(versionPlan.version_number)
+      if (published > 0 && planVn > published) {
+        const publishedRow = await fetchPublishedVersionRow(
+          String(versionPlan.mba_number),
+          published,
+        )
+        if (publishedRow) {
+          return {
+            ...publishedRow,
+            version_number: masterData.version_number,
+          }
+        }
+        console.warn(
+          `[mediaPlansListCache] omitting unpublished staged list row mba=${versionPlan.mba_number} vn=${planVn} published=${published}`,
+        )
+        return null
+      }
       return {
         ...versionPlan,
         version_number: masterData.version_number,
       }
-    }
-    return versionPlan
-  })
+    }),
+  )
+  return merged.filter((row): row is any => row != null)
 }
 
 async function fetchUpstream(): Promise<any[]> {
@@ -220,11 +278,27 @@ export async function fetchMediaPlansListFallback(): Promise<any[]> {
     }
   }
 
-  return Array.from(latestByMba.values()).map((plan) => {
-    const masterData = masterMap.get(plan.mba_number)
-    if (masterData && masterData.version_number !== undefined) {
-      return { ...plan, version_number: masterData.version_number }
-    }
-    return plan
-  })
+  return (
+    await Promise.all(
+      Array.from(latestByMba.values()).map(async (plan) => {
+        const masterData = masterMap.get(plan.mba_number)
+        if (!masterData || masterData.version_number === undefined) {
+          return plan
+        }
+        const published = publishedVersionFromMaster(masterData)
+        const planVn = parseVersionNumber(plan.version_number)
+        if (published > 0 && planVn > published) {
+          const publishedRow = await fetchPublishedVersionRow(
+            String(plan.mba_number),
+            published,
+          )
+          if (publishedRow) {
+            return { ...publishedRow, version_number: masterData.version_number }
+          }
+          return null
+        }
+        return { ...plan, version_number: masterData.version_number }
+      }),
+    )
+  ).filter((row): row is any => row != null)
 }

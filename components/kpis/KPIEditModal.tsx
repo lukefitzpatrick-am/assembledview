@@ -926,5 +926,3 @@ export function KPIEditModal({
     </Dialog>
   )
 }
-
-export default KPIEditModal

@@ -530,6 +530,14 @@ function CreateMediaPlan() {
   const [clientPostcode, setClientPostcode] = useState("")
   const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([]);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  /** Children saved but master.version_number bump failed — retry publish PATCH only. */
+  const [pendingPublishRetry, setPendingPublishRetry] = useState<{
+    mbaNumber: string
+    versionNumber: number
+    versionId: number | null
+    publishedBefore: number
+  } | null>(null)
+  const [isRetryingPublish, setIsRetryingPublish] = useState(false)
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState("");
   const [modalOutcome, setModalOutcome] = useState("");
@@ -4648,20 +4656,109 @@ function CreateMediaPlan() {
   const { isOpen: isUnsavedPromptOpen, confirmNavigation, stayOnPage, requestNavigation } = useUnsavedChangesPrompt(shouldBlockNavigation)
   const isSavingInProgress = isPlanSaving || isVersionSaving;
   const hasSaveErrors = saveStatus.some(item => item.status === 'error');
-  const shouldShowSaveModal = isSaveModalOpen && (isSavingInProgress || hasSaveErrors || saveStatus.length > 0);
+  const shouldShowSaveModal =
+    isSaveModalOpen &&
+    (isSavingInProgress ||
+      isRetryingPublish ||
+      hasSaveErrors ||
+      saveStatus.length > 0 ||
+      Boolean(pendingPublishRetry));
 
   useEffect(() => {
-    if (!isSavingInProgress && isSaveModalOpen && saveStatus.length > 0 && !hasSaveErrors) {
+    if (
+      !isSavingInProgress &&
+      !isRetryingPublish &&
+      !pendingPublishRetry &&
+      isSaveModalOpen &&
+      saveStatus.length > 0 &&
+      !hasSaveErrors
+    ) {
       setIsSaveModalOpen(false);
       setSaveStatus([]);
     }
-  }, [hasSaveErrors, isSaveModalOpen, isSavingInProgress, saveStatus]);
+  }, [
+    hasSaveErrors,
+    isSaveModalOpen,
+    isSavingInProgress,
+    isRetryingPublish,
+    pendingPublishRetry,
+    saveStatus,
+  ]);
 
   const handleCloseSaveModal = useCallback(() => {
-    if (isSavingInProgress) return;
+    if (isSavingInProgress || isRetryingPublish) return;
     setIsSaveModalOpen(false);
-    setSaveStatus([]);
-  }, [isSavingInProgress]);
+    if (!pendingPublishRetry) {
+      setSaveStatus([]);
+    }
+  }, [isSavingInProgress, isRetryingPublish, pendingPublishRetry]);
+
+  const patchPublishStatus = useCallback(
+    (status: SaveStatusItem["status"], error?: string) => {
+      setSaveStatus((prev) => {
+        const name = "Publish version"
+        const existing = prev.find((item) => item.name === name)
+        if (!existing) return [...prev, { name, status, error }]
+        return prev.map((item) =>
+          item.name === name ? { ...item, status, error } : item
+        )
+      })
+    },
+    []
+  )
+
+  const handleRetryPublish = useCallback(async () => {
+    if (!pendingPublishRetry || isRetryingPublish) return
+    const { mbaNumber, versionNumber, publishedBefore } = pendingPublishRetry
+    setIsRetryingPublish(true)
+    setIsSaveModalOpen(true)
+    patchPublishStatus("pending")
+    try {
+      const publishResponse = await fetch(
+        `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ version_number: versionNumber }),
+        }
+      )
+      if (!publishResponse.ok) {
+        let publishError = "Failed to publish version number"
+        try {
+          const body = await publishResponse.json()
+          publishError = body.error || body.message || publishError
+        } catch {
+          /* ignore */
+        }
+        patchPublishStatus("error", publishError)
+        toast({
+          variant: "destructive",
+          title: "Publish retry failed",
+          description: `${publishError}. Master version remains ${publishedBefore}.`,
+        })
+        return
+      }
+      patchPublishStatus("success")
+      setPendingPublishRetry(null)
+      toast({
+        title: "Version published",
+        description: `Version ${versionNumber} is now live.`,
+      })
+      setHasUnsavedChanges(false)
+      form.reset(form.getValues())
+      router.push("/mediaplans")
+    } catch (err: any) {
+      const message = err?.message || String(err)
+      patchPublishStatus("error", message)
+      toast({
+        variant: "destructive",
+        title: "Publish retry failed",
+        description: message,
+      })
+    } finally {
+      setIsRetryingPublish(false)
+    }
+  }, [pendingPublishRetry, isRetryingPublish, patchPublishStatus, toast, form, router])
 
   const handleSaveMediaPlan = async () => {
     const existingId = mediaPlanIdRef.current
@@ -5736,10 +5833,30 @@ function CreateMediaPlan() {
         if (!publishResponse.ok) {
           const body = await publishResponse.json().catch(() => ({} as { error?: string }))
           const publishError = body.error || 'Failed to publish version after channel saves'
+          const stagedVn =
+            typeof version.version_number === 'string'
+              ? parseInt(version.version_number, 10)
+              : Number(version.version_number)
+          setPendingPublishRetry({
+            mbaNumber: String(fv.mba_number),
+            versionNumber: Number.isFinite(stagedVn) ? stagedVn : 0,
+            versionId: version.id ?? null,
+            publishedBefore:
+              typeof publishedVersionBeforeSave === 'number'
+                ? publishedVersionBeforeSave
+                : Number(publishedVersionBeforeSave) || 0,
+          })
           updateSaveStatus('Publish version', 'error', publishError)
-          throw new Error(publishError)
+          toast({
+            title: 'Saved but not published — retry publish',
+            description: `${publishError}. Channel data is staged as version ${version.version_number}. Master remains ${publishedVersionBeforeSave}. Use Retry publish to finish.`,
+            variant: 'destructive',
+          })
+          // Do not throw — leave modal open for retry; handleSaveAll must not navigate away.
+          return 'publish_pending' as const
         }
         updateSaveStatus('Publish version', 'success')
+        setPendingPublishRetry(null)
       }
 
       // Wait for document generation+upload (do not throw; errors already handled above)
@@ -5747,6 +5864,7 @@ function CreateMediaPlan() {
   
       // 7. Notify user
       toast({ title: 'Version saved', description: `Version ID ${version.id}` });
+      return 'ok' as const
     } catch (err: any) {
       // Update Media Plan Version status to error
       updateSaveStatus('Media Plan Version', 'error', err.message || 'Failed to save version');
@@ -5784,12 +5902,16 @@ const handleSaveAll = async () => {
 
     // 2️⃣ Save version (Media Plan Version status will be initialized in handleSaveMediaPlanVersion)
     try {
-      await handleSaveMediaPlanVersion(newMediaPlanId); // ✅ Pass the ID as an argument
-      setHasUnsavedChanges(false);
-      form.reset(form.getValues());
-      router.push('/mediaplans');
+      const versionResult = await handleSaveMediaPlanVersion(newMediaPlanId)
+      // Children saved but publish PATCH failed — keep user on page for Retry publish.
+      if (versionResult === 'publish_pending') {
+        return
+      }
+      setHasUnsavedChanges(false)
+      form.reset(form.getValues())
+      router.push('/mediaplans')
     } catch {
-      return;
+      return
     }
   } finally {
     saveAllInFlightRef.current = false
@@ -6845,6 +6967,11 @@ const handleSaveAll = async () => {
   items={saveStatus}
   isSaving={isSavingInProgress}
   onClose={handleCloseSaveModal}
+  onRetryPublish={handleRetryPublish}
+  isRetryingPublish={isRetryingPublish}
+  publishRetryPending={Boolean(pendingPublishRetry)}
+  titleRetryPublish="Saved but not published"
+  descriptionRetryPublish="Channel data was saved to a staged version, but the master version was not advanced. Retry publish to finish — this only re-issues the version publish PATCH."
 />
 
 <OutcomeModal

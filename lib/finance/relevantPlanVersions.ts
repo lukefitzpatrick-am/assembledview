@@ -80,17 +80,8 @@ export async function fetchRelevantPlanVersionsForFinanceMonth(
         50
       )
 
-      allVersions.forEach((version: any) => {
-        if (!version.mba_number) return
-        const versionNumber = Number(version.version_number) || 0
-        const existing = mbaToVersionMap.get(version.mba_number)
-        if (!existing || versionNumber > existing.versionNumber) {
-          mbaToVersionMap.set(version.mba_number, {
-            masterId: version.media_plan_master_id,
-            versionNumber,
-          })
-        }
-      })
+      // Trust master.version_number only — never raise the map from version rows.
+      // Staged-but-unpublished rows (vn > master) must not become "relevant".
 
       const relevantVersions = allVersions.filter((version: any) => {
         if (!version.mba_number) return false

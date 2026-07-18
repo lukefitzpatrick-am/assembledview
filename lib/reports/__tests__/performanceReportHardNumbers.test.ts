@@ -36,6 +36,29 @@ test("buildPerformanceReportHardNumbers injects delivered vs planned pace", () =
   assert.ok(hard.reconciled.pacePct != null && Math.abs(hard.reconciled.pacePct - 96) < 0.01)
 })
 
+test("buildPerformanceReportHardNumbers shows Not available when snapshot has no delivery", () => {
+  const hard = buildPerformanceReportHardNumbers({
+    totals: {
+      spendToDate: 0,
+      impressions: 0,
+      clicks: 0,
+      results: 0,
+      video3sViews: 0,
+      plannedBudget: null,
+      cpm: null,
+      ctr: null,
+      cpc: null,
+    },
+    plannedToDate: 50_000,
+  })
+
+  assert.match(hard.deliverySpend, /Not available/)
+  assert.doesNotMatch(hard.deliverySpend, /\$0\.00/)
+  assert.match(hard.kpis[3]!, /Not available/)
+  assert.equal(hard.reconciled.deliveredSpend, 0)
+  assert.equal(hard.reconciled.pacePct, null)
+})
+
 test("findInventedMoneyInNarrative rejects free-text $ figures", () => {
   const hit = findInventedMoneyInNarrative({
     execSummary: "Spend is on track this month.",

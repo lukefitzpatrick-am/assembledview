@@ -1,3 +1,4 @@
+import { deliveredSpendFromSnapshot } from "@/lib/delivery/deliveredSpendFromSnapshot"
 import { formatAUD } from "@/lib/format/money"
 import type { PerformanceReportPayload } from "@/lib/reports/buildPerformanceReport"
 
@@ -54,30 +55,39 @@ function formatCtr(ctr: number | null): string | null {
 
 /**
  * Build slide hard-number lines from reconciled Snowflake delivery totals
- * (same source as get_delivery_snapshot) plus page planned-to-date when known.
+ * (same source as get_delivery_snapshot / loadDeliverySnapshot) plus page
+ * planned-to-date when known. Zero/missing snapshot spend → "Not available"
+ * (matches dashboard Delivered spend to date).
  */
 export function buildPerformanceReportHardNumbers(args: {
   totals: DeliverySnapshotTotals
   plannedToDate?: number | null
 }): HardNumberFigures {
   const { totals } = args
-  const delivered = Number.isFinite(totals.spendToDate) ? totals.spendToDate : 0
+  const delivered = deliveredSpendFromSnapshot(totals.spendToDate)
   const plannedToDate =
     typeof args.plannedToDate === "number" && Number.isFinite(args.plannedToDate)
       ? args.plannedToDate
       : null
 
   let pacePct: number | null = null
-  if (plannedToDate != null && plannedToDate > 0) {
+  if (delivered != null && plannedToDate != null && plannedToDate > 0) {
     pacePct = (delivered / plannedToDate) * 100
   }
 
-  const spendLine =
-    plannedToDate != null
-      ? `Delivered ${formatAUD(delivered)} vs ${formatAUD(plannedToDate)} planned to date${
-          pacePct != null ? ` (${formatPct(pacePct)} pace)` : ""
-        }.`
-      : `Delivered spend to date ${formatAUD(delivered)} (planned-to-date unavailable).`
+  let spendLine: string
+  if (delivered == null) {
+    spendLine =
+      plannedToDate != null
+        ? `Delivered spend to date Not available (planned to date ${formatAUD(plannedToDate)}).`
+        : "Delivered spend to date Not available."
+  } else if (plannedToDate != null) {
+    spendLine = `Delivered ${formatAUD(delivered)} vs ${formatAUD(plannedToDate)} planned to date${
+      pacePct != null ? ` (${formatPct(pacePct)} pace)` : ""
+    }.`
+  } else {
+    spendLine = `Delivered spend to date ${formatAUD(delivered)} (planned-to-date unavailable).`
+  }
 
   const deliverablesParts: string[] = []
   deliverablesParts.push(`${formatCount(totals.impressions)} impressions`)
@@ -103,7 +113,9 @@ export function buildPerformanceReportHardNumbers(args: {
     clip(
       pacePct != null
         ? `Spend pace ${formatPct(pacePct)} vs planned to date`
-        : `Delivered spend ${formatAUD(delivered)}`,
+        : delivered != null
+          ? `Delivered spend ${formatAUD(delivered)}`
+          : "Delivered spend Not available",
       90,
     ),
   ]
@@ -113,7 +125,7 @@ export function buildPerformanceReportHardNumbers(args: {
     deliveryDeliverables: clip(deliverablesLine, 140),
     kpis,
     reconciled: {
-      deliveredSpend: delivered,
+      deliveredSpend: delivered ?? 0,
       plannedToDate,
       pacePct,
       impressions: totals.impressions,
