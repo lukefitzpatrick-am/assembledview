@@ -21,7 +21,7 @@ import type {
 } from "@/lib/mediaplan/expertModeWeeklySchedule"
 import {
   OOH_EXPERT_ROW_HEIGHT_PX,
-  OOH_EXPERT_ROW_OVERSCAN,
+  EXPERT_GRID_ROW_OVERSCAN_DEFAULT,
   expectedMountedRowRange,
   mountedRowCount,
   virtualRowIndexFromOffsetY,
@@ -29,7 +29,7 @@ import {
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 
 const PROGOOH_EXPERT_ROW_HEIGHT_PX = OOH_EXPERT_ROW_HEIGHT_PX
-const PROGOOH_EXPERT_ROW_OVERSCAN = OOH_EXPERT_ROW_OVERSCAN
+const PROGEXPERT_GRID_ROW_OVERSCAN_DEFAULT = EXPERT_GRID_ROW_OVERSCAN_DEFAULT
 
 const CS = new Date(2026, 0, 1)
 const CE = new Date(2026, 11, 31)
@@ -205,26 +205,26 @@ test("8. PERF: mounted DOM window stays bounded while scrolling 300 rows", () =>
     viewportHeight,
     PROGOOH_EXPERT_ROW_HEIGHT_PX,
     rowCount,
-    PROGOOH_EXPERT_ROW_OVERSCAN
+    PROGEXPERT_GRID_ROW_OVERSCAN_DEFAULT
   )
   const mid = expectedMountedRowRange(
     150 * PROGOOH_EXPERT_ROW_HEIGHT_PX,
     viewportHeight,
     PROGOOH_EXPERT_ROW_HEIGHT_PX,
     rowCount,
-    PROGOOH_EXPERT_ROW_OVERSCAN
+    PROGEXPERT_GRID_ROW_OVERSCAN_DEFAULT
   )
   const nearBottom = expectedMountedRowRange(
     280 * PROGOOH_EXPERT_ROW_HEIGHT_PX,
     viewportHeight,
     PROGOOH_EXPERT_ROW_HEIGHT_PX,
     rowCount,
-    PROGOOH_EXPERT_ROW_OVERSCAN
+    PROGEXPERT_GRID_ROW_OVERSCAN_DEFAULT
   )
 
   const maxWindow =
     Math.ceil(viewportHeight / PROGOOH_EXPERT_ROW_HEIGHT_PX) +
-    2 * PROGOOH_EXPERT_ROW_OVERSCAN +
+    2 * PROGEXPERT_GRID_ROW_OVERSCAN_DEFAULT +
     2
   assert.ok(mountedRowCount(nearTop) <= maxWindow)
   assert.ok(mountedRowCount(mid) <= maxWindow)

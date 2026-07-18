@@ -17,12 +17,9 @@ export const OOH_EXPERT_ROW_HEIGHT_PX = 41
 
 /**
  * Default overscan for expert-grid body virtualization (F-28 Phase 2).
- * Shared across channels; OOH keeps {@link OOH_EXPERT_ROW_OVERSCAN} as an alias.
+ * Shared across channels. Overscan keeps drag/keyboard neighbours mounted.
  */
 export const EXPERT_GRID_ROW_OVERSCAN_DEFAULT = 12
-
-/** Overscan keeps drag/keyboard neighbours mounted around the visible window. */
-export const OOH_EXPERT_ROW_OVERSCAN = EXPERT_GRID_ROW_OVERSCAN_DEFAULT
 
 /**
  * Map a Y offset (px from the start of the virtual body) to a logical row
@@ -311,9 +308,6 @@ export function computeOohExpertWeeklyTotalsIncremental(
  * Horizontal week window + overscan keeps merge/keyboard neighbours mounted.
  */
 export const EXPERT_GRID_COL_OVERSCAN_DEFAULT = 4
-
-/** OOH alias — same default as the shared column overscan. */
-export const OOH_EXPERT_COL_OVERSCAN = EXPERT_GRID_COL_OVERSCAN_DEFAULT
 
 /**
  * Cumulative left edges (px) for each week column, length = widths.length + 1
