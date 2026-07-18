@@ -537,11 +537,13 @@ export default function ProgBVODContainer({
       const transformedLineItems = items.map((item: any) => {
         const parsedBursts = resolveLineItemBursts(item);
         return {
-        site: item.site || "",
-        placement: item.placement || "",
-        size: item.size || "",
+        platform: item.platform || "",
+        bidStrategy: item.bid_strategy || "",
         buyType: item.buy_type || "",
-        targetingAttribute: item.targeting_attribute || "",
+        creativeTargeting: item.creative_targeting || "",
+        creative: item.creative || "",
+        buyingDemo: item.buying_demo || "",
+        market: item.market || "",
         fixedCostMedia: item.fixed_cost_media || false,
         clientPaysForMedia: item.client_pays_for_media || false,
         budgetIncludesFees: item.budget_includes_fees || false,
