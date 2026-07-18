@@ -1,5 +1,5 @@
 /**
- * Asserts ExpertCard card-surface (key, label) lists for Search / OOH / Radio
+ * Asserts ExpertCard card-surface (key, label) lists for Search / OOH / Radio / Cinema
  * match descriptor fields where surfaces !== "grid".
  */
 import assert from "node:assert/strict"
@@ -71,6 +71,28 @@ test("OOH ExpertCard rendered fields equal descriptor card-surface fields", () =
 test("Radio ExpertCard rendered fields equal descriptor card-surface fields", () => {
   const rendered = getExpertCardRenderedFields(RADIO_EXPERT_CHANNEL_CONFIG)
   const expected = expectedCardFields(RADIO_EXPERT_CHANNEL_CONFIG)
+  assert.deepEqual(rendered, expected)
+  assert.deepEqual(
+    rendered.map((f) => f.key),
+    [
+      "startDate",
+      "endDate",
+      "network",
+      "station",
+      "buyType",
+      "placement",
+      "duration",
+      "format",
+      "market",
+      "buyingDemo",
+    ]
+  )
+  assert.ok(!rendered.some((f) => f.key === "unitRate"))
+})
+
+test("Cinema ExpertCard rendered fields equal descriptor card-surface fields", () => {
+  const rendered = getExpertCardRenderedFields(CINEMA_EXPERT_CHANNEL_CONFIG)
+  const expected = expectedCardFields(CINEMA_EXPERT_CHANNEL_CONFIG)
   assert.deepEqual(rendered, expected)
   assert.deepEqual(
     rendered.map((f) => f.key),
