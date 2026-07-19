@@ -32,7 +32,7 @@ export function isUsableBillingVersionId(
 }
 
 export async function fetchBillingOverridesClient(
-  versionId: string | number
+  versionId: string | number | null | undefined
 ): Promise<BillingOverrideRow[]> {
   // Guard empty/unresolved ids — avoids GET ?media_plan_version_id= → route 400.
   if (!isUsableBillingVersionId(versionId)) {

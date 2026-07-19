@@ -142,7 +142,7 @@ test("31-day July burst: serialize(Date) must keep full-month media/fee parity",
   assert.equal(
     parity.ok,
     true,
-    parity.ok ? undefined : `parity failed: ${parity.mismatches.map((m) => m.message).join("; ")}`
+    parity.ok ? undefined : `parity failed: ${parity.deltas.join("; ")}`
   )
 })
 
