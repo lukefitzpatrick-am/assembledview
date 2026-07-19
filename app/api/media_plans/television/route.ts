@@ -1,8 +1,6 @@
+import { createChannelLineItemsGetHandler } from "@/lib/api/channelLineItemsGetHandler";
 import { NextResponse } from 'next/server';
 import axios from 'axios';
-import { getVersionNumberForMBA, filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper';
-import { fetchAllXanoPages } from '@/lib/api/xanoPagination';
-import { lineItemPaginationParams } from '@/lib/api/mediaPlanLineItemQuery';
 import { xanoUrl, xanoPostHeaderRecord } from '@/lib/api/xano';
 
 export const dynamic = 'force-dynamic';
@@ -103,89 +101,8 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET(request: Request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const mbaNumber = searchParams.get('mba_number');
-    const mediaPlanVersion = searchParams.get('media_plan_version');
-    const mpPlanNumber = searchParams.get('mp_plannumber');
-    
-    // mba_number is required
-    if (!mbaNumber) {
-      return NextResponse.json(
-        { error: "mba_number is required" },
-        { status: 400 }
-      );
-    }
-    
-    // Get the version_number from media_plan_versions table for this mba_number
-    let versionNumber: string | null = null;
-    
-    try {
-      versionNumber = await getVersionNumberForMBA(mbaNumber, mpPlanNumber, mediaPlanVersion);
-    } catch (versionError) {
-      console.error("Error fetching version number from media_plan_versions:", versionError);
-      return NextResponse.json(
-        { error: "Failed to determine version number. Please provide mp_plannumber or media_plan_version." },
-        { status: 400 }
-      );
-    }
-    
-    if (!versionNumber) {
-      return NextResponse.json(
-        { error: "Could not determine version number. Please provide mp_plannumber or media_plan_version." },
-        { status: 400 }
-      );
-    }
-    
-    console.log(`[TELEVISION] Fetching from media_plan_television table with pagination`);
-    console.log(`[TELEVISION] Strategy: Filtered at Xano via mba_number + version_number (with JS safety filter for legacy data)`);
-
-    const data = await fetchAllXanoPages(
-      xanoUrl("media_plan_television", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
-      lineItemPaginationParams(mbaNumber, versionNumber),
-      "TELEVISION"
-    );
-
-    console.log(`[TELEVISION] Raw response data count:`, data.length);
-
-    const filteredData = filterLineItemsByPlanNumber(data, mbaNumber, versionNumber, 'TELEVISION');
-    
-    console.log(`[TELEVISION] Final filtered data count: ${filteredData.length} (from ${data.length} total items)`);
-    
-    return NextResponse.json(filteredData);
-  } catch (error) {
-    console.error("Error fetching television data:", error);
-    
-    if (axios.isAxiosError(error)) {
-      // If it's a 404, return empty array (no data found is not an error)
-      if (error.response?.status === 404) {
-        console.log("Television line items not found (404), returning empty array");
-        return NextResponse.json([]);
-      }
-      
-      console.error("Axios error details:", {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-        url: error.config?.url,
-        method: error.config?.method,
-        headers: error.config?.headers,
-      });
-      
-      return NextResponse.json(
-        {
-          error: `Failed to fetch television data: ${error.response?.data?.message || error.message}`,
-        },
-        { status: error.response?.status || 500 }
-      );
-    }
-    
-    return NextResponse.json(
-      { error: "Failed to fetch television data" },
-      { status: 500 }
-    );
-  }
-}
-
+export const GET = createChannelLineItemsGetHandler(
+  "media_plan_television",
+  "TELEVISION"
+);
 
