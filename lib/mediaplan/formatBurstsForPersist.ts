@@ -1,5 +1,5 @@
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
-import { toMelbourneDateString } from "@/lib/timezone"
+import { formatBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { getBooleanField } from "@/lib/util/getBooleanField"
 
 export function parseBurstMoney(value: any): number {
@@ -84,10 +84,12 @@ export function extractAndFormatBursts(lineItem: any, feePct?: number): any[] {
     ? normalizedFeePct
     : deriveFeePctFromSerializedBursts(bursts, budgetIncludesFees);
 
-  // Preserve existing date formatting for API writes before handing off to the shared serializer.
+  // Normalize dates to Sydney YYYY-MM-DD before the shared serializer (heal on write).
   const formatBurstDate = (value: any) => {
     if (!value) return "";
-    if (value instanceof Date) return toMelbourneDateString(value);
+    if (value instanceof Date || typeof value === "string") {
+      return formatBurstDateLocal(value);
+    }
     return value;
   };
 

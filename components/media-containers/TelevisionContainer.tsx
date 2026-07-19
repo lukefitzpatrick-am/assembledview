@@ -1,6 +1,7 @@
 "use client"
 
 import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+import { coerceBurstDateLocal } from '@/lib/mediaplan/burstDate'
 
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
@@ -616,8 +617,8 @@ export default function TelevisionContainer({
         const bursts = parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
-          startDate: burst.startDate ? new Date(burst.startDate) : (campaignStartDate || new Date()),
-          endDate: burst.endDate ? new Date(burst.endDate) : (campaignEndDate || new Date()),
+          startDate: coerceBurstDateLocal(burst.startDate) ?? (campaignStartDate || new Date()),
+          endDate: coerceBurstDateLocal(burst.endDate) ?? (campaignEndDate || new Date()),
           size: burst.size || "",
           tarps: burst.tarps || "",
           calculatedValue: computeLoadedDeliverables(
@@ -767,8 +768,8 @@ export default function TelevisionContainer({
       lineItem: nextLineNumber,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
-        startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
-        endDate: burst?.endDate ? new Date(burst.endDate) : new Date(),
+        startDate: coerceBurstDateLocal(burst?.startDate) ?? new Date(),
+        endDate: coerceBurstDateLocal(burst?.endDate) ?? new Date(),
         tarps: burst?.tarps ?? "",
         size: burst?.size ?? "30s",
         calculatedValue: burst?.calculatedValue ?? 0,

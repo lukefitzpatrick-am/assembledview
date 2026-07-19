@@ -1,6 +1,7 @@
 "use client"
 
 import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+import { coerceBurstDateLocal } from '@/lib/mediaplan/burstDate'
 
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
@@ -542,8 +543,8 @@ export default function RadioContainer({
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),
-        startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
-        endDate: burst?.endDate ? new Date(burst.endDate) : new Date(),
+        startDate: coerceBurstDateLocal(burst?.startDate) ?? new Date(),
+        endDate: coerceBurstDateLocal(burst?.endDate) ?? new Date(),
         calculatedValue: burst?.calculatedValue ?? 0,
         fee: burst?.fee ?? 0,
       })),
@@ -639,8 +640,8 @@ export default function RadioContainer({
         const bursts = parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
-          startDate: burst.startDate ? new Date(burst.startDate) : defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-          endDate: burst.endDate ? new Date(burst.endDate) : defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
+          startDate: coerceBurstDateLocal(burst.startDate) ?? defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
+          endDate: coerceBurstDateLocal(burst.endDate) ?? defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
           calculatedValue: computeLoadedDeliverables(
             item.buy_type || item.buyType,
             burst,

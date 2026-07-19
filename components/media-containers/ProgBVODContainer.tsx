@@ -1,6 +1,7 @@
 "use client"
 
 import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+import { coerceBurstDateLocal } from '@/lib/mediaplan/burstDate'
 
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
@@ -512,8 +513,8 @@ export default function ProgBVODContainer({
       ...source,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
-        startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
-        endDate: burst?.endDate ? new Date(burst.endDate) : new Date(),
+        startDate: coerceBurstDateLocal(burst?.startDate) ?? new Date(),
+        endDate: coerceBurstDateLocal(burst?.endDate) ?? new Date(),
         calculatedValue: burst?.calculatedValue ?? 0,
         fee: burst?.fee ?? 0,
         _reactKey: newBurstReactKey(),
@@ -555,8 +556,8 @@ export default function ProgBVODContainer({
         bursts: parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
-          startDate: burst.startDate ? new Date(burst.startDate) : new Date(),
-          endDate: burst.endDate ? new Date(burst.endDate) : new Date(),
+          startDate: coerceBurstDateLocal(burst.startDate) ?? new Date(),
+          endDate: coerceBurstDateLocal(burst.endDate) ?? new Date(),
           calculatedValue: computeLoadedDeliverables(
             item.buy_type || item.buyType || "",
             burst,

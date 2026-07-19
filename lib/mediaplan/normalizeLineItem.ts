@@ -1,3 +1,4 @@
+import { coerceBurstDateLocal } from "./burstDate"
 import { resolveProductionBurstBudget } from "./resolveProductionBurstBudget"
 
 export type NormalisedBurst = {
@@ -277,8 +278,8 @@ function buildBurstKey(burst: NormalisedBurst) {
 
 function sortBurstsAscending(bursts: NormalisedBurst[]) {
   return [...bursts].sort((a, b) => {
-    const aTime = new Date(a.startDate || '').getTime()
-    const bTime = new Date(b.startDate || '').getTime()
+    const aTime = coerceBurstDateLocal(a.startDate)?.getTime() ?? 0
+    const bTime = coerceBurstDateLocal(b.startDate)?.getTime() ?? 0
     return aTime - bTime
   })
 }

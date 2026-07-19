@@ -1,4 +1,4 @@
-import { parseDateNativeSafe as parseDateSafe } from "../dates/parseDateNativeSafe"
+import { coerceBurstDateLocal, formatBurstDateLocal } from "./burstDate"
 import { resolveProductionBurstBudget } from "./resolveProductionBurstBudget"
 
 export type NormalisedBurst = {
@@ -10,11 +10,17 @@ export type NormalisedBurst = {
 }
 
 function toIsoDate(date: Date) {
-  return date.toISOString()
+  return formatBurstDateLocal(date)
 }
 
 function ensureDate(value?: string | Date | number | null, fallback?: Date | null) {
-  return parseDateSafe(value) || fallback || null
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return coerceBurstDateLocal(new Date(value)) || fallback || null
+  }
+  if (value instanceof Date || typeof value === "string") {
+    return coerceBurstDateLocal(value) || fallback || null
+  }
+  return fallback || null
 }
 
 function toNumber(value: any): number | undefined {
@@ -86,8 +92,8 @@ export function normaliseBurst(
   const startCandidate = raw?.start_date ?? raw?.startDate ?? raw?.start ?? fallbackStart
   const endCandidate = raw?.end_date ?? raw?.endDate ?? raw?.end ?? fallbackEnd ?? startCandidate
 
-  const startDateValue = ensureDate(startCandidate, parseDateSafe(fallbackStart))
-  const endDateValue = ensureDate(endCandidate, parseDateSafe(fallbackEnd) || startDateValue)
+  const startDateValue = ensureDate(startCandidate, ensureDate(fallbackStart ?? null))
+  const endDateValue = ensureDate(endCandidate, ensureDate(fallbackEnd ?? null) || startDateValue)
 
   if (!startDateValue || !endDateValue) {
     return null

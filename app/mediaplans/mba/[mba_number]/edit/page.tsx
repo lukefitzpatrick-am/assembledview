@@ -187,6 +187,7 @@ import {
 } from "@/lib/finance/preservePriorBilling"
 import { applyDateBasisKeepOrReset } from "@/lib/finance/applyDateBasisKeepOrReset"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
+import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { MbaBillingAutoCalcSummary } from "@/components/billing/MbaBillingAutoCalcSummary"
 import {
   MbaBillingModal,
@@ -4724,8 +4725,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       // IMPORTANT: line item amounts should reflect *media* only (net of fees when budget includes fees),
       // and should be $0 in billing mode when the client pays for media.
       bursts.forEach((burst: any) => {
-          const startDate = new Date(burst.startDate);
-          const endDate = new Date(burst.endDate);
+          const startDate = coerceBurstDateLocal(burst.startDate);
+          const endDate = coerceBurstDateLocal(burst.endDate);
+          if (!startDate || !endDate) return;
           const budget = parseFloat(burst.budget?.replace(/[^0-9.-]/g, '') || '0') || 
                         parseFloat(burst.buyAmount?.replace(/[^0-9.-]/g, '') || '0') || 0;
 
@@ -4758,7 +4760,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               ? (burstClientPaysForMedia ? 0 : netMedia)
               : netMedia; // delivery schedule should always reflect delivered media
 
-          if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || effectiveBudget === 0) return;
+          if (effectiveBudget === 0) return;
 
           const shares = prorateAcrossMonths({
             amount: effectiveBudget,
@@ -4778,9 +4780,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       })
 
       bursts.forEach((burst: any) => {
-        const startDate = new Date(burst.startDate)
-        const endDate = new Date(burst.endDate)
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return
+        const startDate = coerceBurstDateLocal(burst.startDate)
+        const endDate = coerceBurstDateLocal(burst.endDate)
+        if (!startDate || !endDate) return
 
         const deliverables = Number(burst.deliverables || 0)
         const noAdserving = Boolean(burst.noAdserving)

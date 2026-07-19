@@ -1,6 +1,7 @@
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import { getMediaLabel } from "@/lib/charts/registry"
 import { channelColorFor } from "@/lib/chart-theme"
+import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import type { NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
 
 /** Canonical media-type ordering for campaign plan summaries. */
@@ -180,8 +181,9 @@ export function reshapeAllocationOverTime(
         const amount = burstGross(burst)
         if (amount <= 0 || !burst.startDate) continue
 
-        const start = new Date(burst.startDate)
-        const end = new Date(burst.endDate || burst.startDate)
+        const start = coerceBurstDateLocal(burst.startDate)
+        const end = coerceBurstDateLocal(burst.endDate || burst.startDate)
+        if (!start || !end) continue
         if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) continue
 
         const shares = prorateAcrossMonths({
