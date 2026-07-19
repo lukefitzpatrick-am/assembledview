@@ -43,10 +43,11 @@ import type {
   StandardProductionFormLineItem,
 } from "./expertChannelMappings.js"
 
+import { formatBurstDateLocal } from "./burstDate"
+
 function isoDate(d: Date | string | undefined): string {
-  if (d === undefined) return ""
-  const x = d instanceof Date ? d : new Date(d)
-  return Number.isNaN(x.getTime()) ? "" : x.toISOString()
+  if (d === undefined || d === "") return ""
+  return formatBurstDateLocal(d)
 }
 
 /** Stable key for matching standard line items across expert ↔ standard conversions. */

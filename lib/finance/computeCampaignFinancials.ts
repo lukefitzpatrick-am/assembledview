@@ -12,6 +12,7 @@
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"
+import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import {
   coerceBuyTypeWithDevWarn,
@@ -248,12 +249,7 @@ function resolveLineFeePct(line: LineItemInput, feeLoading: FeeLoading): number 
 }
 
 function toDate(value: string | Date | undefined, fallback: Date): Date {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value
-  if (typeof value === "string" && value.trim()) {
-    const d = new Date(value)
-    if (!Number.isNaN(d.getTime())) return d
-  }
-  return fallback
+  return coerceBurstDateLocal(value) ?? fallback
 }
 
 function parseAmount(value: unknown): number {

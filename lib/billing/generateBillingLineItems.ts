@@ -2,6 +2,7 @@ import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { resolveLineDimensions } from "@/lib/finance/resolveLineDimensions"
+import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { resolveProductionBurstBudget } from "@/lib/mediaplan/resolveProductionBurstBudget"
 
@@ -56,8 +57,9 @@ export function generateBillingLineItems(
     })()
 
     bursts.forEach((burst: any) => {
-      const startDate = new Date(burst.startDate)
-      const endDate = new Date(burst.endDate)
+      const startDate = coerceBurstDateLocal(burst.startDate)
+      const endDate = coerceBurstDateLocal(burst.endDate)
+      if (!startDate || !endDate) return
       const budget = resolveProductionBurstBudget(burst).effectiveBudget
 
       const feePctRaw =
