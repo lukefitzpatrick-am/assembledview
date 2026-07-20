@@ -1,92 +1,74 @@
-import { NextRequest, NextResponse } from "next/server"
-import { auth0 } from "@/lib/auth0"
-import { getUserRoles, getUserClientIdentifier, getUserMbaNumbers } from "@/lib/rbac"
-import { fetchXanoClientRowByUrlSlug } from "@/lib/clients/fetchClientRowByUrlSlug"
+import type { NextRequest } from "next/server"
+import { NextResponse } from "next/server"
+import { apiClient } from "@/lib/api"
+import {
+  getXanoClientsCollectionUrl,
+  parseXanoListPayload,
+  xanoAuthHeaderRecord,
+} from "@/lib/api/xano"
+import { getPrimaryRole, getUserClientIdentifier } from "@/lib/rbac"
+import { mbaNumberMatchesClientIdentifier } from "@/lib/auth/mbaNumberMatchesClientIdentifier"
+import { resolveClientGroup } from "@/lib/clients/clientGroup"
 
-export type ClientMbaAccess =
-  | { ok: true; isClient: boolean }
-  | { ok: false; response: NextResponse }
-
-function forbiddenResponse(): NextResponse {
-  return NextResponse.json({ error: "forbidden" }, { status: 403 })
-}
-
+/**
+ * For role=client: verify the request's mba_number belongs to the user's client.
+ * Looks up client.mbaidentifier from Xano; MBA must equal identifier or match
+ * identifier + trailing digits (e.g. PENFOLD001).
+ * Returns a 403 NextResponse if denied, or null if allowed (or not a client / no mba).
+ */
 export async function checkClientMbaAccess(
   request: NextRequest,
-  mbaNumber: string
-): Promise<ClientMbaAccess> {
-  const session = await auth0.getSession(request)
-  if (!session?.user) {
-    return {
-      ok: false,
-      response: NextResponse.json({ error: "unauthorised" }, { status: 401 }),
-    }
-  }
+  user: Record<string, unknown> | null | undefined,
+  mbaNumber: string | null | undefined
+): Promise<NextResponse | null> {
+  if (getPrimaryRole(user) !== "client") return null
+  if (!mbaNumber || typeof mbaNumber !== "string") return null
 
-  const roles = getUserRoles(session.user)
-  if (!roles.includes("client")) {
-    return { ok: true, isClient: false }
-  }
-
-  const email = (session.user as { email?: string }).email
-
-  const mbaList = getUserMbaNumbers(session.user)
-  if (mbaList.length > 0) {
-    const mbaMatches = mbaList.some(
-      (mba) => mba.toLowerCase() === mbaNumber.toLowerCase()
-    )
-    if (mbaMatches) {
-      return { ok: true, isClient: true }
-    }
-    console.warn("[checkClientMbaAccess] MBA number not assigned to user", {
-      email,
-      requestedMba: mbaNumber,
-      assignedMbaNumbers: mbaList,
-    })
-    return { ok: false, response: forbiddenResponse() }
-  }
-
-  const slug = getUserClientIdentifier(session.user)
-  if (!slug) {
-    console.warn("[checkClientMbaAccess] Client user missing client identifier", {
-      email,
-      requestedMba: mbaNumber,
-    })
-    return { ok: false, response: forbiddenResponse() }
+  const clientSlug = getUserClientIdentifier(user)
+  if (!clientSlug) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
   try {
-    const row = await fetchXanoClientRowByUrlSlug(slug)
+    const clientsUrl = getXanoClientsCollectionUrl()
+    const clientsResponse = await apiClient.get(clientsUrl, {
+      headers: xanoAuthHeaderRecord(),
+    })
+    const clients = parseXanoListPayload(clientsResponse.data)
+    // Prefer group resolution so mbaidentifier-slugs (penfold) and name-slugs
+    // (penfolds) share the same mbaidentifier from the group anchor.
+    const group = resolveClientGroup(clients, clientSlug)
+    const client = group
+      ? group.anchor
+      : clients.find(
+          (c: { name?: string; client_name?: string; url_slug?: string }) => {
+            const name = (c.name || c.client_name || "").toString().toLowerCase()
+            const urlSlug = (c.url_slug || "").toString().toLowerCase()
+            const slugLower = clientSlug.toLowerCase()
+            return name.includes(slugLower) || urlSlug === slugLower
+          }
+        )
+
+    if (!client) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
+
     const mbaidentifier =
-      typeof row?.mbaidentifier === "string" ? row.mbaidentifier.trim() : null
-    if (!mbaidentifier) {
-      console.warn("[checkClientMbaAccess] Client row missing mbaidentifier", {
-        email,
-        userClientSlug: slug,
-        requestedMba: mbaNumber,
-      })
-      return { ok: false, response: forbiddenResponse() }
-    }
+      (client as { mbaidentifier?: string }).mbaidentifier ??
+      (client as { mba_identifier?: string }).mba_identifier ??
+      null
+    // Exact match preferred; fallback requires identifier + ONE OR MORE trailing
+    // digits (PENFOLD001). Bare startsWith is rejected (see mbaNumberMatchesClientIdentifier).
+    const allowed =
+      mbaNumber === mbaidentifier ||
+      mbaNumberMatchesClientIdentifier(mbaNumber, mbaidentifier)
 
-    // AuthZ: exact MBA match only (startsWith was overly broad / fail-open).
-    if (mbaNumber.toLowerCase() === mbaidentifier.toLowerCase()) {
-      return { ok: true, isClient: true }
+    if (!allowed) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
     }
-
-    console.warn("[checkClientMbaAccess] MBA number does not match client mbaidentifier", {
-      email,
-      userClientSlug: slug,
-      mbaidentifier,
-      requestedMba: mbaNumber,
-    })
-    return { ok: false, response: forbiddenResponse() }
-  } catch (err) {
-    console.warn("[checkClientMbaAccess] Failed to resolve client row for MBA access check", {
-      email,
-      userClientSlug: slug,
-      requestedMba: mbaNumber,
-      err,
-    })
-    return { ok: false, response: forbiddenResponse() }
+  } catch {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
+
+  return null
 }
