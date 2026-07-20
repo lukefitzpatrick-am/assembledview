@@ -6,13 +6,13 @@ import { coerceBurstDateLocal } from '@/lib/mediaplan/burstDate'
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
-import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
+import { allCollapsedIndices } from "@/lib/mediaplan/collapsedLineItems"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -254,7 +254,7 @@ export default function BVODContainer({
   const publishersRef = useRef<Publisher[]>([]);
   const bvodSitesRef = useRef<BVODSite[]>([]);
   const [publishers, setPublishers] = useState<Publisher[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [bvodSites, setBVODSites] = useState<BVODSite[]>([]);
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
@@ -656,6 +656,7 @@ export default function BVODContainer({
         bvodlineItems: transformedLineItems,
         overallDeliverables: 0,
       });
+      setCollapsedLineItems(allCollapsedIndices(transformedLineItems.length))
     },
     bvodExpertModalOpenRef,
   )
@@ -1263,10 +1264,7 @@ useEffect(() => {
       </div>
   
       <div>
-        {isLoading ? (
-          <MediaContainerLoadState loading label="BVOD" />
-        ) : (
-          <div className="space-y-6">
+                  <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.length === 0 ? (
@@ -1533,7 +1531,6 @@ useEffect(() => {
               </div>
             </Form>
           </div>
-        )}
       </div>
        {/* Add Station Dialog */}
 <Dialog open={isAddSiteDialogOpen} onOpenChange={setIsAddSiteDialogOpen}>

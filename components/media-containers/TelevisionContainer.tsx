@@ -6,7 +6,6 @@ import { coerceBurstDateLocal } from '@/lib/mediaplan/burstDate'
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
-import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
   TELEVISION_CONTAINER_CONFIG,
   buildDefaultLineItem,
@@ -26,6 +25,7 @@ import {
   useCallback,
 } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
+import { allCollapsedIndices } from "@/lib/mediaplan/collapsedLineItems"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -255,7 +255,7 @@ export default function TelevisionContainer({
   const hasProcessedInitialLineItemsRef = useRef(false);
   const lastProcessedLineItemsRef = useRef<string>('');
   const [publishers, setPublishers] = useState<Publisher[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [tvStations, setTvStations] = useState<TVStation[]>([]);
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
@@ -683,6 +683,7 @@ export default function TelevisionContainer({
         televisionlineItems: stampBurstReactKeys(transformedLineItems),
         overallDeliverables: 0,
       });
+      setCollapsedLineItems(allCollapsedIndices(transformedLineItems.length))
     },
     tvExpertModalOpenRef,
   )
@@ -1319,10 +1320,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
       </div>
   
       <div>
-        {isLoading ? (
-          <MediaContainerLoadState loading label="Television" />
-        ) : (
-          <div className="space-y-6">
+                  <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.length === 0 ? (
@@ -1779,7 +1777,6 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
               </div>
             </Form>
           </div>
-        )}
       </div>
       {/* Add Station Dialog */}
 <Dialog open={isAddStationDialogOpen} onOpenChange={setIsAddStationDialogOpen}>

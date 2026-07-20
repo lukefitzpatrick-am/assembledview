@@ -4,7 +4,6 @@ import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/Co
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
 import { ExpertGrid } from "@/components/media-containers/ExpertGrid"
-import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
 import type { CpcFamilyVariant } from "@/components/media-containers/burst-calculated-fields"
@@ -161,7 +160,6 @@ export default function MediaChannelContainer({
     getDeliverablesLabel,
     overallTotals,
     publishers,
-    isLoading,
     watchedLineItems,
     mbaNumber,
     reorderedRef,
@@ -329,9 +327,6 @@ export default function MediaChannelContainer({
       {extra}
 
       <div>
-        {isLoading ? (
-          <MediaContainerLoadState loading label={shell.loadLabel} />
-        ) : (
           <div className="space-y-6">
             {expertModalOpen ? null : (
               <Form {...form}>
@@ -508,7 +503,6 @@ export default function MediaChannelContainer({
               </Form>
             )}
           </div>
-        )}
       </div>
 
       <Dialog open={expertModalOpen} onOpenChange={handleModalOpenChange}>

@@ -6,7 +6,6 @@ import { coerceBurstDateLocal } from '@/lib/mediaplan/burstDate'
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
-import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
@@ -49,6 +48,7 @@ import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { useStableHydration } from "@/hooks/useStableHydration"
+import { allCollapsedIndices } from "@/lib/mediaplan/collapsedLineItems"
 import { cn } from "@/lib/utils"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import {
@@ -222,7 +222,7 @@ export default function RadioContainer({
   const hasProcessedInitialLineItemsRef = useRef(false);
   const lastProcessedLineItemsRef = useRef<string>('');
   const [publishers, setPublishers] = useState<Publisher[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [radioStations, setRadioStations] = useState<RadioStation[]>([]);
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
@@ -680,6 +680,7 @@ export default function RadioContainer({
         radiolineItems: stampBurstReactKeys(transformedLineItems),
         overallDeliverables: 0,
       });
+      setCollapsedLineItems(allCollapsedIndices(transformedLineItems.length))
       }
     },
     radioExpertModalOpenRef,
@@ -1315,10 +1316,7 @@ useEffect(() => {
       </div>
   
       <div>
-        {isLoading ? (
-          <MediaContainerLoadState loading label="Radio" />
-        ) : (
-          <div className="space-y-6">
+                  <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.length === 0 ? (
@@ -1555,7 +1553,6 @@ useEffect(() => {
               </div>
             </Form>
           </div>
-        )}
       </div>
       {/* Add Station Dialog */}
 <Dialog open={isAddStationDialogOpen} onOpenChange={setIsAddStationDialogOpen}>

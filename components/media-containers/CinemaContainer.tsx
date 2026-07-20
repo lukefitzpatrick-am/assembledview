@@ -6,9 +6,9 @@ import { coerceBurstDateLocal } from '@/lib/mediaplan/burstDate'
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
-import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import { useState, useEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
+import { allCollapsedIndices } from "@/lib/mediaplan/collapsedLineItems"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -219,7 +219,7 @@ export default function CinemaContainer({
   const publishersRef = useRef<Publisher[]>([]);
   const cinemaStationsRef = useRef<CinemaStation[]>([]);  
   const [publishers, setPublishers] = useState<Publisher[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [cinemaStations, setCinemaStations] = useState<CinemaStation[]>([]);
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
@@ -621,6 +621,7 @@ export default function CinemaContainer({
         cinemalineItems: stampBurstReactKeys(transformedLineItems),
         overallDeliverables: 0,
       });
+      setCollapsedLineItems(allCollapsedIndices(transformedLineItems.length))
     },
   )
 
@@ -1178,10 +1179,7 @@ useEffect(() => {
       </div>
   
       <div>
-        {isLoading ? (
-          <MediaContainerLoadState loading label="Cinema" />
-        ) : (
-          <div className="space-y-6">
+                  <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.length === 0 ? (
@@ -1391,7 +1389,6 @@ useEffect(() => {
               </div>
             </Form>
           </div>
-        )}
       </div>
       {/* Add Station Dialog */}
       <Dialog open={isAddStationDialogOpen} onOpenChange={setIsAddStationDialogOpen}>

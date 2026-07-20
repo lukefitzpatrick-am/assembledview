@@ -7,7 +7,6 @@ import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBri
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
-import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import { SOCIALMEDIA_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
   SOCIALMEDIA_CONTAINER_CONFIG,
@@ -19,7 +18,7 @@ import {
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, startTransition } from "react"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -45,6 +44,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/ui/use-toast"
 import { useStableHydration } from "@/hooks/useStableHydration"
+import { allCollapsedIndices } from "@/lib/mediaplan/collapsedLineItems"
 import { getPublishersForSocialMedia, getClientInfo } from "@/lib/api"
 import { formatBurstLabel } from "@/lib/bursts"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
@@ -245,7 +245,6 @@ export default function SocialMediaContainer({
   const publishersRef = useRef<Publisher[]>([]);
 
   const [publishers, setPublishers] = useState<Publisher[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
   const [overallDeliverables, setOverallDeliverables] = useState(0);
@@ -611,28 +610,7 @@ export default function SocialMediaContainer({
         lineItems: stampBurstReactKeys(transformedLineItems),
         overallDeliverables: 0,
       });
-
-      // Recalculate calculatedValue for all bursts after form reset
-      // This ensures deliverables are calculated correctly
-      setTimeout(() => {
-        transformedLineItems.forEach((lineItem, lineItemIndex) => {
-          lineItem.bursts.forEach((burst, burstIndex) => {
-            const calculatedValue = computeLoadedDeliverables(
-              String(lineItem.buyType || ""),
-              burst,
-              Boolean(lineItem.budgetIncludesFees),
-              feesocial || 0
-            );
-            
-            if (calculatedValue !== burst.calculatedValue) {
-              form.setValue(`lineItems.${lineItemIndex}.bursts.${burstIndex}.calculatedValue`, calculatedValue, {
-                shouldValidate: false,
-                shouldDirty: false,
-              });
-            }
-          });
-        });
-      }, 100);
+      setCollapsedLineItems(allCollapsedIndices(transformedLineItems.length))
     },
     socialExpertModalOpenRef,
   )
@@ -675,7 +653,11 @@ export default function SocialMediaContainer({
       };
     });
 
-    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, onMediaLineItemsChange);
+    publishMediaLineItemsIfChanged(mediaLineItemsPublishFpRef, transformedLineItems, (items) => {
+      startTransition(() => {
+        onMediaLineItemsChange(items)
+      })
+    });
   }, [watchedLineItems, mbaNumber, feesocial, form, onMediaLineItemsChange]);
 
   // Memoized calculations
@@ -883,7 +865,6 @@ export default function SocialMediaContainer({
         // Check if we already have publishers cached
         if (publishersRef.current.length > 0) {
           setPublishers(publishersRef.current);
-          setIsLoading(false);
           return;
         }
 
@@ -896,8 +877,6 @@ export default function SocialMediaContainer({
           description: error.message,
           variant: "destructive",
         });
-      } finally {
-        setIsLoading(false);
       }
     };
   
@@ -906,10 +885,12 @@ export default function SocialMediaContainer({
   
   // report raw totals (ignoring clientPaysForMedia) for MBA-Details
 useEffect(() => {
-  onTotalMediaChange(
-    overallTotals.overallMedia,
-    overallTotals.overallFee
-  )
+  startTransition(() => {
+    onTotalMediaChange(
+      overallTotals.overallMedia,
+      overallTotals.overallFee
+    )
+  })
 }, [overallTotals.overallFee, overallTotals.overallMedia, onTotalMediaChange])
 
 useEffect(() => {
@@ -960,7 +941,9 @@ useEffect(() => {
   );
 
   // push it up to page.tsx
-  onLineItemsChange(items);
+  startTransition(() => {
+    onLineItemsChange(items);
+  })
 }, [watchedLineItems, feesocial, form, mbaNumber, onLineItemsChange]);
 
 // Add new useEffect to capture raw social media line items data
@@ -1179,10 +1162,7 @@ const getBursts = () => {
       </div>
 
       <div>
-      {isLoading ? (
-        <MediaContainerLoadState loading label="Social Media" />
-      ) : (
-        <div className="space-y-6">
+              <div className="space-y-6">
           {socialExpertModalOpen ? null : (
           <Form {...form}>
             <div className="space-y-6">
@@ -1347,7 +1327,6 @@ const getBursts = () => {
             </Form>
           )}
           </div>
-        )}
       </div>
 
       <Dialog
