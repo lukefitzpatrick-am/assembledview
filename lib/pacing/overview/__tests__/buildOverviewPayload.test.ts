@@ -21,6 +21,8 @@ vi.mock("@/lib/pacing/campaigns/pacingRowsCache", () => ({
   getCachedProgrammaticPacingRows: vi.fn(async () => []),
   getCachedDirectPacingRows: vi.fn(async () => []),
   getCachedAdServingPacingRows: vi.fn(async () => []),
+  pacingScopeKey: (slugs: Set<string> | null) =>
+    slugs == null ? "all" : [...slugs].sort().join(","),
 }))
 
 vi.mock("@/lib/types/mediaPlanMaster", () => ({
@@ -199,7 +201,7 @@ describe("buildOverviewPayload", () => {
     expect(payload.availableSources).toContain("social")
   })
 
-  it("never passes null slug set into channel fetchers (scoped Set only)", async () => {
+  it("passes auth allowedClientSlugs (null for admin) into channel fetchers — same as tabs", async () => {
     const resolveScope = vi.fn(async () =>
       emptyScope({
         pageSlugs: ["acme"],
@@ -208,10 +210,10 @@ describe("buildOverviewPayload", () => {
         hasMore: true,
       })
     )
-    const seen: Set<string>[] = []
+    const seen: Array<Set<string> | null> = []
     const track =
       () =>
-      async (_asOf: string, slugs: Set<string>) => {
+      async (_asOf: string, slugs: Set<string> | null) => {
         seen.push(slugs)
         return okRows()
       }
@@ -229,13 +231,9 @@ describe("buildOverviewPayload", () => {
           social: track(),
           programmatic: track(),
           adServing: track(),
-          direct: async (asOf, slugs, _includeInactive) => {
-            // ChannelFetchers.direct still types slugs as Set|null (cache API),
-            // but overview must only ever pass a scoped Set.
-            if (!(slugs instanceof Set)) {
-              throw new Error("overview must not pass null slug set")
-            }
-            return track()(asOf, slugs)
+          direct: async (_asOf, slugs) => {
+            seen.push(slugs)
+            return okRows()
           },
         },
       }
@@ -243,8 +241,52 @@ describe("buildOverviewPayload", () => {
 
     expect(seen).toHaveLength(5)
     for (const slugs of seen) {
-      expect(slugs).toBeInstanceOf(Set)
-      expect([...slugs].sort()).toEqual(["acme", "beta"])
+      // Admin Overview must share the tab cache key ("all"), not the live portfolio Set.
+      expect(slugs).toBeNull()
+    }
+  })
+
+  it("passes restricted access Set into channel fetchers (same as tabs)", async () => {
+    const access = new Set(["acme", "beta"])
+    const resolveScope = vi.fn(async () =>
+      emptyScope({
+        pageSlugs: ["acme"],
+        clientSlugs: new Set(["acme"]),
+        totalClients: 1,
+      })
+    )
+    const seen: Array<Set<string> | null> = []
+    const track =
+      () =>
+      async (_asOf: string, slugs: Set<string> | null) => {
+        seen.push(slugs)
+        return okRows()
+      }
+
+    await buildOverviewPayload(
+      {
+        asOfDate: "2026-07-01",
+        allowedClientSlugs: access,
+        sourceTimeoutMs: 5_000,
+      },
+      {
+        resolveScope,
+        fetchers: {
+          search: track(),
+          social: track(),
+          programmatic: track(),
+          adServing: track(),
+          direct: async (_asOf, slugs) => {
+            seen.push(slugs)
+            return okRows()
+          },
+        },
+      }
+    )
+
+    expect(seen).toHaveLength(5)
+    for (const slugs of seen) {
+      expect(slugs).toBe(access)
     }
   })
 
