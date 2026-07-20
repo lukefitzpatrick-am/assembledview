@@ -40,10 +40,92 @@ type DashboardCampaign = {
   canEdit: boolean
 }
 
-function normalizeCampaignStatus(rawStatus?: string): CampaignStatus {
-  const status = (rawStatus ?? "").toLowerCase()
-  if (status === "completed") return "completed"
-  if (status === "live" || status === "booked" || status === "approved") return "live"
+/** Statuses eligible for date-based live/completed (mirrors admin LIVE_STATUSES). */
+const DATE_CLASSIFIABLE_STATUSES = new Set(["booked", "approved", "completed"])
+
+const MELBOURNE_TZ = "Australia/Melbourne"
+
+type TzParts = { year: number; month: number; day: number; hour: number; minute: number; second: number }
+
+/** Same Melbourne day-boundary logic as `getTodayWindow()` in lib/api/dashboard/shared.ts (client-safe replica). */
+function getTzParts(date: Date, timeZone = MELBOURNE_TZ): TzParts {
+  const formatter = new Intl.DateTimeFormat("en-AU", {
+    timeZone,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  })
+  const parts = formatter.formatToParts(date).reduce<Record<string, number>>((acc, part) => {
+    if (part.type !== "literal") {
+      acc[part.type] = Number(part.value)
+    }
+    return acc
+  }, {})
+
+  return {
+    year: parts.year,
+    month: parts.month,
+    day: parts.day,
+    hour: parts.hour,
+    minute: parts.minute,
+    second: parts.second,
+  }
+}
+
+function makeZonedDate(
+  year: number,
+  monthIndex: number,
+  day: number,
+  hour = 0,
+  minute = 0,
+  second = 0,
+  ms = 0,
+  timeZone = MELBOURNE_TZ
+): Date {
+  const utcGuess = Date.UTC(year, monthIndex, day, hour, minute, second, ms)
+  const parts = getTzParts(new Date(utcGuess), timeZone)
+  const asLocal = Date.UTC(parts.year, parts.month - 1, parts.day, parts.hour, parts.minute, parts.second, ms)
+  const offset = asLocal - utcGuess
+  return new Date(utcGuess - offset)
+}
+
+function getTodayWindow(): { startOfToday: Date; endOfToday: Date } {
+  const parts = getTzParts(new Date())
+  const startOfToday = makeZonedDate(parts.year, parts.month - 1, parts.day, 0, 0, 0, 0)
+  const endOfToday = makeZonedDate(parts.year, parts.month - 1, parts.day, 23, 59, 59, 999)
+  return { startOfToday, endOfToday }
+}
+
+/**
+ * Classify by campaign dates (admin dashboard parity), not status string alone.
+ * No 10-day / 40-day windows — client list shows the full book.
+ */
+function classifyCampaign(campaign: Pick<LegacyCampaign, "status" | "startDate" | "endDate">): CampaignStatus {
+  const status = String(campaign.status ?? "")
+    .trim()
+    .toLowerCase()
+
+  if (!DATE_CLASSIFIABLE_STATUSES.has(status)) {
+    return "planned"
+  }
+
+  const start = new Date(campaign.startDate)
+  const end = new Date(campaign.endDate)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    // Invalid dates: booked/approved → planned; completed stays completed
+    return status === "completed" ? "completed" : "planned"
+  }
+
+  const { startOfToday, endOfToday } = getTodayWindow()
+
+  if (end < startOfToday) return "completed"
+  if (start <= endOfToday && end >= startOfToday) return "live"
+  if (start > endOfToday) return "planned"
+
   return "planned"
 }
 
@@ -56,12 +138,13 @@ function buildCampaignEditHref(mbaNumber: string, versionNumber: number): string
 }
 
 function toDashboardCampaign(slug: string, mode: CampaignLinkMode, campaign: LegacyCampaign): DashboardCampaign {
+  const classified = classifyCampaign(campaign)
   const spentApprox =
     typeof campaign.expectedSpendToDate === "number" &&
     Number.isFinite(campaign.expectedSpendToDate) &&
     campaign.expectedSpendToDate > 0
       ? campaign.expectedSpendToDate
-      : normalizeCampaignStatus(campaign.status) === "completed"
+      : classified === "completed"
         ? campaign.budget
         : null
   const canEdit = mode === "adminHub"
@@ -69,7 +152,7 @@ function toDashboardCampaign(slug: string, mode: CampaignLinkMode, campaign: Leg
     id: `${campaign.mbaNumber}-${campaign.version_number}`,
     name: campaign.campaignName,
     mbaNumber: campaign.mbaNumber,
-    status: normalizeCampaignStatus(campaign.status),
+    status: classified,
     mediaTypes: campaign.mediaTypes,
     spentAmount: spentApprox,
     totalBudget: campaign.budget,
@@ -102,6 +185,7 @@ export function ClientDashboardPageContent({
     [campaignLinkMode, clientData.completedCampaignsList, clientData.liveCampaignsList, clientData.planningCampaignsList, slug]
   )
 
+  // statusCounts / filtered / upcoming all use classifyCampaign via toDashboardCampaign.status
   const statusCounts = useMemo(
     () =>
       allCampaigns.reduce(
@@ -123,7 +207,7 @@ export function ClientDashboardPageContent({
   const upcomingCampaigns = useMemo(
     () =>
       allCampaigns
-        .filter((campaign) => campaign.status === "planned")
+        .filter((campaign) => (campaign.status === "paused" ? "planned" : campaign.status) === "planned")
         .sort((a, b) => new Date(a.launchDate || "").getTime() - new Date(b.launchDate || "").getTime()),
     [allCampaigns]
   )
