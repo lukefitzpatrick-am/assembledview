@@ -152,6 +152,17 @@ function parseBudgetRaw(raw: unknown): number {
   return parseFloat(raw.replace(/[^0-9.]/g, "") || "0") || 0
 }
 
+function isComboboxDescriptorKind(kind: ExpertDescriptorColumn["kind"]): boolean {
+  return (
+    kind === "combobox-publishers" ||
+    kind === "combobox-static" ||
+    kind === "combobox-dynamic" ||
+    kind === "combobox-sites" ||
+    kind === "combobox-stations" ||
+    kind === "combobox-titles"
+  )
+}
+
 function ExpertCardFieldControl<T extends FieldValues>({
   d,
   form,
@@ -203,8 +214,17 @@ function ExpertCardFieldControl<T extends FieldValues>({
 
   const comboboxOptions = (): ComboboxOption[] => {
     switch (d.kind) {
-      case "combobox-publishers":
+      case "combobox-publishers": {
+        // Keep saved platforms selectable/renderable even if missing from the
+        // filtered publisher list (e.g. Influencer Management without flag).
+        const current = String(
+          (form.getValues(name) as string | undefined) ?? ""
+        ).trim()
+        if (current && !publisherOptions.some((o) => o.value === current)) {
+          return [{ value: current, label: current }, ...publisherOptions]
+        }
         return publisherOptions
+      }
       case "combobox-static":
         return d.options ?? []
       case "combobox-stations":
@@ -257,8 +277,8 @@ function ExpertCardFieldControl<T extends FieldValues>({
           )
 
           return (
-            <FormItem className="flex flex-col space-y-1.5">
-              <FormLabel className="text-sm font-medium text-muted-foreground">
+            <FormItem className="flex flex-col space-y-1">
+              <FormLabel className="text-xs font-medium text-muted-foreground">
                 {d.label}
               </FormLabel>
               {fieldAdornment ? (
@@ -353,8 +373,8 @@ function ExpertCardFieldControl<T extends FieldValues>({
     )
   }
 
-  // text (and any other kind): textarea matches Search/OOH card UX
-  const useTextarea = d.kind === "text" || d.cardSpan === 2
+  // text (and any other kind): multiline descriptors use a taller textarea
+  const useTextarea = d.multiline === true
   const registerOpts = onFieldValueChange
     ? {
         onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -363,8 +383,8 @@ function ExpertCardFieldControl<T extends FieldValues>({
       }
     : undefined
   return (
-    <FormItem className="flex flex-col space-y-1.5">
-      <FormLabel className="text-sm font-medium text-muted-foreground">
+    <FormItem className="flex flex-col space-y-1">
+      <FormLabel className="text-xs font-medium text-muted-foreground">
         {d.label}
       </FormLabel>
       <FormControl>
@@ -372,13 +392,14 @@ function ExpertCardFieldControl<T extends FieldValues>({
           <Textarea
             {...form.register(name, registerOpts)}
             placeholder={d.placeholder}
-            className="h-10 min-h-0 w-full rounded-md border border-border/50 bg-muted/30 text-sm transition-colors focus:bg-background"
+            rows={3}
+            className="min-h-[4.5rem] w-full resize-y rounded-md border border-border/50 bg-muted/30 text-sm transition-colors focus:bg-background"
           />
         ) : (
           <Input
             {...form.register(name, registerOpts)}
             placeholder={d.placeholder}
-            className="h-10 w-full text-sm"
+            className="h-9 w-full text-sm"
           />
         )}
       </FormControl>
@@ -701,7 +722,8 @@ function ExpertCardBursts<T extends FieldValues>({
 
 /**
  * Generic expert-mode line-item card driven by channel descriptor config:
- * header, card-surface field grid, optionFlags, and shared bursts + media/fee cells.
+ * header (option chips + total), two field zones (dropdowns then text entry),
+ * and shared bursts + media/fee cells.
  */
 export function ExpertCard<T extends FieldValues>({
   config,
@@ -735,21 +757,45 @@ export function ExpertCard<T extends FieldValues>({
 }: ExpertCardProps<T>) {
   const cardFields = getExpertCardSurfaceFields(config)
   const optionFlags = getExpertOptionFlags(config)
+  const dropdownFields = cardFields.filter((d) =>
+    isComboboxDescriptorKind(d.kind)
+  )
+  const textEntryFields = cardFields.filter(
+    (d) => !isComboboxDescriptorKind(d.kind)
+  )
+
+  const renderFieldControl = (d: ExpertDescriptorColumn) => (
+    <ExpertCardFieldControl
+      d={d}
+      form={form}
+      itemsKey={itemsKey}
+      lineItemIndex={lineItemIndex}
+      publishers={publishers}
+      stationOptions={stationOptions}
+      dynamicOptionsByKey={dynamicOptionsByKey}
+      campaignStartDate={campaignStartDate}
+      campaignEndDate={campaignEndDate}
+      onComboboxValueChange={onComboboxValueChange}
+      onFieldValueChange={onFieldValueChange}
+      fieldAdornment={fieldAdornments?.[d.key]}
+      comboboxProps={comboboxPropsByKey?.[d.key]}
+    />
+  )
 
   return (
     <Card
       className={cn(
-        "space-y-6 overflow-hidden border border-border/50 shadow-sm transition-shadow duration-200 hover:shadow-md",
+        "space-y-3 overflow-hidden border border-border/50 shadow-sm transition-shadow duration-200 hover:shadow-md",
         className
       )}
     >
-      <CardHeader className="bg-muted/30 pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <CardHeader className="bg-muted/30 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
               {lineItemIndex + 1}
             </div>
-            <div>
+            <div className="min-w-0">
               <CardTitle className="text-sm font-semibold tracking-tight">
                 {config.channelLabel} Line Item
               </CardTitle>
@@ -758,7 +804,43 @@ export function ExpertCard<T extends FieldValues>({
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-x-3 gap-y-1.5">
+            {optionFlags.length > 0 ? (
+              <div className="flex flex-wrap items-center justify-end gap-x-2.5 gap-y-1">
+                {optionFlags.map((flag) => (
+                  <FormField
+                    key={flag.key}
+                    control={form.control}
+                    name={fieldName<T>(itemsKey, lineItemIndex, flag.key)}
+                    render={({ field }) => (
+                      <FormItem className="flex items-center gap-1.5 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            className="h-3.5 w-3.5"
+                            checked={!!field.value}
+                            onCheckedChange={(checked) => {
+                              field.onChange(checked)
+                              if (
+                                flag.key === "budgetIncludesFees" &&
+                                onBudgetIncludesFeesChange
+                              ) {
+                                onBudgetIncludesFeesChange(
+                                  lineItemIndex,
+                                  !!checked
+                                )
+                              }
+                            }}
+                          />
+                        </FormControl>
+                        <FormLabel className="cursor-pointer whitespace-nowrap text-[11px] font-medium leading-none text-muted-foreground">
+                          {flag.label}
+                        </FormLabel>
+                      </FormItem>
+                    )}
+                  />
+                ))}
+              </div>
+            ) : null}
             <div className="text-right">
               <span className="block text-[11px] text-muted-foreground">Total</span>
               <span className="num text-sm font-bold">{totalDisplay}</span>
@@ -794,66 +876,28 @@ export function ExpertCard<T extends FieldValues>({
 
       {!collapsed ? (
         <>
-          <div className="px-6 py-5">
-            <CardContent className="space-y-5 p-0">
-              <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-                {cardFields.map((d) => (
-                  <div
-                    key={d.key}
-                    className={cn(d.cardSpan === 2 && "sm:col-span-2 lg:col-span-2")}
-                  >
-                    <ExpertCardFieldControl
-                      d={d}
-                      form={form}
-                      itemsKey={itemsKey}
-                      lineItemIndex={lineItemIndex}
-                      publishers={publishers}
-                      stationOptions={stationOptions}
-                      dynamicOptionsByKey={dynamicOptionsByKey}
-                      campaignStartDate={campaignStartDate}
-                      campaignEndDate={campaignEndDate}
-                      onComboboxValueChange={onComboboxValueChange}
-                      onFieldValueChange={onFieldValueChange}
-                      fieldAdornment={fieldAdornments?.[d.key]}
-                      comboboxProps={comboboxPropsByKey?.[d.key]}
-                    />
-                  </div>
-                ))}
-              </div>
+          <div className="px-6 py-3">
+            <CardContent className="space-y-3 p-0">
+              {dropdownFields.length > 0 ? (
+                <div className="grid grid-cols-1 gap-x-4 gap-y-2.5 sm:grid-cols-2">
+                  {dropdownFields.map((d) => (
+                    <div key={d.key}>{renderFieldControl(d)}</div>
+                  ))}
+                </div>
+              ) : null}
 
-              {optionFlags.length > 0 ? (
-                <div className="space-y-3 rounded-lg border border-border/30 bg-muted/20 p-4">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Options
-                  </span>
-                  {optionFlags.map((flag) => (
-                    <FormField
-                      key={flag.key}
-                      control={form.control}
-                      name={fieldName<T>(itemsKey, lineItemIndex, flag.key)}
-                      render={({ field }) => (
-                        <FormItem className="flex items-center space-x-2">
-                          <FormControl>
-                            <Checkbox
-                              checked={!!field.value}
-                              onCheckedChange={(checked) => {
-                                field.onChange(checked)
-                                if (
-                                  flag.key === "budgetIncludesFees" &&
-                                  onBudgetIncludesFeesChange
-                                ) {
-                                  onBudgetIncludesFeesChange(
-                                    lineItemIndex,
-                                    !!checked
-                                  )
-                                }
-                              }}
-                            />
-                          </FormControl>
-                          <FormLabel className="text-sm">{flag.label}</FormLabel>
-                        </FormItem>
+              {textEntryFields.length > 0 ? (
+                <div className="grid grid-cols-1 gap-x-4 gap-y-2.5 sm:grid-cols-3">
+                  {textEntryFields.map((d) => (
+                    <div
+                      key={d.key}
+                      className={cn(
+                        d.multiline && "sm:col-span-2",
+                        d.cardSpan === 2 && !d.multiline && "sm:col-span-2"
                       )}
-                    />
+                    >
+                      {renderFieldControl(d)}
+                    </div>
                   ))}
                 </div>
               ) : null}

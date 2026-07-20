@@ -377,7 +377,8 @@ export const influencersLineItemSchema = z.object({
   platform: z.string().min(1, "Platform is required"),
   objective: z.string(),
   campaign: z.string(),
-  bidStrategy: z.string().min(1, "Bid Strategy is required"),
+  // Persist-only leftover; not shown on Influencers card (Social-shaped).
+  bidStrategy: z.string(),
   buyType: z.string().min(1, "Buy Type is required"),
   targetingAttribute: z.string(),
   creativeTargeting: z.string(),

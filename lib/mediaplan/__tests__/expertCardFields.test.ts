@@ -10,6 +10,7 @@ import {
   getExpertCardSurfaceFields,
   type ExpertGridChannelConfig,
   CINEMA_EXPERT_CHANNEL_CONFIG,
+  INFLUENCERS_EXPERT_CHANNEL_CONFIG,
   OOH_EXPERT_CHANNEL_CONFIG,
   RADIO_EXPERT_CHANNEL_CONFIG,
   SEARCH_EXPERT_CHANNEL_CONFIG,
@@ -110,4 +111,29 @@ test("Cinema ExpertCard rendered fields equal descriptor card-surface fields", (
   assert.ok(!rendered.some((f) => f.key === "startDate"))
   assert.ok(!rendered.some((f) => f.key === "endDate"))
   assert.ok(!rendered.some((f) => f.key === "unitRate"))
+})
+
+test("Influencers ExpertCard surfaces Platform/Objective/Campaign/Buy Type/Targeting only", () => {
+  const rendered = getExpertCardRenderedFields(INFLUENCERS_EXPERT_CHANNEL_CONFIG)
+  const expected = expectedCardFields(INFLUENCERS_EXPERT_CHANNEL_CONFIG)
+  assert.deepEqual(rendered, expected)
+  assert.deepEqual(rendered, [
+    { key: "platform", label: "Platform" },
+    { key: "objective", label: "Objective" },
+    { key: "campaign", label: "Campaign" },
+    { key: "buyType", label: "Buy Type" },
+    { key: "targetingAttribute", label: "Targeting" },
+  ])
+  for (const socialKey of [
+    "bidStrategy",
+    "creativeTargeting",
+    "creative",
+    "market",
+    "buyingDemo",
+  ]) {
+    assert.ok(
+      !rendered.some((f) => f.key === socialKey),
+      `Influencers card must not render Social-style field ${socialKey}`
+    )
+  }
 })
