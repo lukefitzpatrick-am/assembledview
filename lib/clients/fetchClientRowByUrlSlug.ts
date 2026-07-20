@@ -1,31 +1,50 @@
-import { apiClient } from "@/lib/api"
-import { getXanoClientsCollectionUrl, parseXanoListPayload } from "@/lib/api/xano"
-import { resolveClientGroup } from "@/lib/clients/clientGroup"
-import { omitClientBrain } from "@/lib/clients/omitClientBrain"
+import axios from 'axios'
+import { parseXanoListPayload, xanoPostHeaderRecord } from '@/lib/api/xano'
+import { getXanoClientsCollectionUrl } from '@/lib/api/xanoClients'
+import { omitClientBrain } from '@/lib/clients/omitClientBrain'
+import { dashboardSlugKeyFromSegment, findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
+
+const apiClient = axios.create({
+  timeout: Number(process.env.XANO_TIMEOUT_MS ?? 10000),
+  headers: xanoPostHeaderRecord(),
+})
+
+function xanoResponseBodyPreview(data: unknown): string {
+  try {
+    const s = typeof data === 'string' ? data : JSON.stringify(data)
+    return s.length > 200 ? `${s.slice(0, 200)}...` : s
+  } catch {
+    return '[unserializable]'
+  }
+}
 
 /**
- * Fetch a single clients-collection row by dashboard URL slug.
- * Resolves via `resolveClientGroup` so mbaidentifier-slugs (e.g. "penfold") and
- * name-slugs (e.g. "penfolds") both return the group **anchor** — same branding
- * source as `getClientDashboardData` (`clientName` / `brandColour`).
- *
- * Returns null when the slug does not match any client (exact, then fuzzy).
- * Strips `client_brain` / `clientBrain` before returning.
+ * List-safe Xano client row for slug resolution (brain blob stripped).
+ * For full profile including `client_brain`, follow with `fetchClientById`.
  */
-export async function fetchXanoClientRowByUrlSlug(
-  slug: string
-): Promise<Record<string, unknown> | null> {
-  const trimmed = typeof slug === "string" ? slug.trim() : ""
+export async function fetchXanoClientRowByUrlSlug(urlSlug: string): Promise<Record<string, unknown> | null> {
+  const trimmed = String(urlSlug ?? '').trim()
   if (!trimmed) return null
+  const target = dashboardSlugKeyFromSegment(trimmed)
+  if (!target) return null
 
+  const url = getXanoClientsCollectionUrl()
   try {
-    const clientsUrl = getXanoClientsCollectionUrl()
-    const clientsResponse = await apiClient.get(clientsUrl)
-    const clients = parseXanoListPayload(clientsResponse.data)
-    const group = resolveClientGroup(clients, trimmed)
-    if (!group) return null
-    return omitClientBrain(group.anchor as Record<string, unknown>)
-  } catch {
+    const response = await apiClient.get(url)
+    const clients = parseXanoListPayload(response.data)
+    const match = findClientRawByDashboardSlug(clients, target)
+    if (!match || typeof match !== 'object') return null
+    return omitClientBrain(match as Record<string, unknown>)
+  } catch (e: any) {
+    const msg = e?.message != null ? String(e.message) : String(e)
+    console.error('[dashboard] fetchXanoClientRowByUrlSlug catch:', {
+      message: msg,
+      failedUrl: url,
+      responseStatus: e?.response?.status,
+      responseBodyPreview:
+        e?.response?.data != null ? xanoResponseBodyPreview(e.response.data) : undefined,
+      err: e,
+    })
     return null
   }
 }
