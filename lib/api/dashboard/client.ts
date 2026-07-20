@@ -7,6 +7,7 @@ import {
 import { parseXanoListPayload } from '@/lib/api/xano'
 import { getXanoClientsCollectionUrl, xanoMediaPlansUrl } from '@/lib/api/xanoClients'
 import { fetchAllXanoPages } from '@/lib/api/xanoPagination'
+import { resolveClientGroup } from '@/lib/clients/clientGroup'
 import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slug'
 import { hasNonEmptyClientBrain, omitClientBrain } from '@/lib/clients/omitClientBrain'
 import { findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
@@ -318,13 +319,19 @@ function rawClientToFallbackClient(raw: any): Client | null {
   const name = getClientDisplayName(raw)
   if (!name) return null
   const slug = String(raw.slug || slugifyClientNameForUrl(name)).trim()
+  const brandColour =
+    typeof raw.brand_colour === 'string' && raw.brand_colour.trim()
+      ? raw.brand_colour.trim()
+      : typeof raw.brandColour === 'string' && raw.brandColour.trim()
+        ? raw.brandColour.trim()
+        : undefined
   return {
     id: String(raw.id ?? ''),
     name,
     slug,
     createdAt: raw.created_at || new Date().toISOString(),
     updatedAt: raw.updated_at || new Date().toISOString(),
-    brandColour: raw.brand_colour,
+    brandColour,
   }
 }
 
@@ -353,7 +360,7 @@ function emptyDashboardForKnownClient(
 }
 
 function buildClientDashboardDataFromVersions(
-  targetSlug: string,
+  targetSlugs: Set<string>,
   allVersions: any[],
   ctx: {
     fallbackClient: Client | null
@@ -375,7 +382,7 @@ function buildClientDashboardDataFromVersions(
 
     if (nameCandidates.length === 0) return false
 
-    return nameCandidates.some((name: string) => slugifyClientName(name) === targetSlug)
+    return nameCandidates.some((name: string) => targetSlugs.has(slugifyClientName(name)))
   })
 
   const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
@@ -405,18 +412,23 @@ function buildClientDashboardDataFromVersions(
     return null
   }
 
+  // Branding from the anchor-backed fallbackClient — do not take from an arbitrary version row.
   const clientName =
-      clientVersions[0].mp_client_name ||
-      clientVersions[0].client_name ||
-      clientVersions[0].mp_clientname ||
-      fallbackClient?.name ||
-      urlSlug
-    const brandColour =
-      clientVersions[0].brand_colour ||
-      clientVersions[0].brandColour ||
-      fallbackClient?.brandColour
+    fallbackClient?.name ||
+    clientVersions[0].mp_client_name ||
+    clientVersions[0].client_name ||
+    clientVersions[0].mp_clientname ||
+    urlSlug
+  const brandColour =
+    fallbackClient?.brandColour ||
+    clientVersions[0].brand_colour ||
+    clientVersions[0].brandColour
 
-    console.log('Dashboard: using client from media_plan_versions', { clientName, slug: targetSlug, versions: clientVersions.length })
+  console.log('Dashboard: using client from media_plan_versions', {
+    clientName,
+    slugs: [...targetSlugs],
+    versions: clientVersions.length,
+  })
 
     // One row per MBA: highest version_number (matches mediaplans MBA edit — latest version wins).
     const versionsByMBA = clientVersions.reduce((acc: Record<string, any[]>, version: any) => {
@@ -717,7 +729,7 @@ function buildClientDashboardDataFromVersions(
     }
 
     console.log('Dashboard data built for client:', clientName, {
-      slug: targetSlug,
+      slugs: [...targetSlugs],
       campaigns: clientCampaigns.length,
       bookedApproved: bookedApprovedCampaigns.length,
       spendByMediaType: spendByMediaType.length,
@@ -726,6 +738,21 @@ function buildClientDashboardDataFromVersions(
     })
 
     return result
+}
+
+function sumYtdAcrossSlugs(
+  ytdMap: Record<string, number>,
+  targetSlugs: Set<string>,
+): number | null {
+  let sum = 0
+  let any = false
+  for (const s of targetSlugs) {
+    if (Object.prototype.hasOwnProperty.call(ytdMap, s)) {
+      sum += ytdMap[s]!
+      any = true
+    }
+  }
+  return any ? sum : null
 }
 
 export async function getClientDashboardData(slug: string): Promise<ClientDashboardData | null> {
@@ -740,16 +767,30 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
   }
 
   const sanitizedSlug = slug.trim()
-  const targetSlug = slugifyClientName(sanitizedSlug)
   const fyWindow = getAustralianFinancialYearWindow(new Date())
 
   try {
+    let targetSlugs = new Set([slugifyClientName(sanitizedSlug)].filter(Boolean))
     let fallbackClient: Client | null = null
+
     try {
-      fallbackClient = await getClientBySlug(targetSlug)
+      const clientsUrl = getXanoClientsCollectionUrl()
+      const clientsResponse = await apiClient.get(clientsUrl)
+      const clientRows = parseXanoListPayload(clientsResponse.data)
+      const group = resolveClientGroup(clientRows, sanitizedSlug)
+      if (group) {
+        targetSlugs = group.nameSlugs.size > 0 ? group.nameSlugs : targetSlugs
+        fallbackClient = rawClientToFallbackClient(group.anchor)
+      } else {
+        fallbackClient = await getClientBySlug(slugifyClientName(sanitizedSlug))
+      }
     } catch (err) {
-      console.warn('Dashboard: skipping client fallback lookup due to error', err)
-      fallbackClient = null
+      console.warn('Dashboard: skipping client group/fallback lookup due to error', err)
+      try {
+        fallbackClient = await getClientBySlug(slugifyClientName(sanitizedSlug))
+      } catch {
+        fallbackClient = null
+      }
     }
 
     let totalCampaignsYTDFromMaster: number | null = null
@@ -761,9 +802,7 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       masterEndpointUsed = endpoint
       const masterPlans = parseXanoListPayload(masterData)
       const ytdMap = buildYtdCountBySlugFromMaster(masterPlans, fyWindow)
-      totalCampaignsYTDFromMaster = Object.prototype.hasOwnProperty.call(ytdMap, targetSlug)
-        ? ytdMap[targetSlug]!
-        : null
+      totalCampaignsYTDFromMaster = sumYtdAcrossSlugs(ytdMap, targetSlugs)
       for (const master of masterPlans) {
         const key = normalizeMbaKey(master?.mba_number)
         if (!key) continue
@@ -789,7 +828,7 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       return null
     }
 
-    return buildClientDashboardDataFromVersions(targetSlug, allVersions, {
+    return buildClientDashboardDataFromVersions(targetSlugs, allVersions, {
       fallbackClient,
       totalCampaignsYTDFromMaster,
       urlSlug: sanitizedSlug,
@@ -840,7 +879,8 @@ export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHu
       ? ytdMap[targetSlug]!
       : null
 
-    const dashboard = buildClientDashboardDataFromVersions(targetSlug, allVersions, {
+    // Hub stays on single-slug path (grouped dashboard is getClientDashboardData only).
+    const dashboard = buildClientDashboardDataFromVersions(new Set([targetSlug]), allVersions, {
       fallbackClient: fallback,
       totalCampaignsYTDFromMaster,
       urlSlug: slugUrl,
