@@ -31,8 +31,6 @@ test("Search ExpertCard rendered fields equal descriptor card-surface fields", (
   assert.deepEqual(
     rendered.map((f) => f.key),
     [
-      "startDate",
-      "endDate",
       "platform",
       "bidStrategy",
       "buyType",
@@ -42,6 +40,8 @@ test("Search ExpertCard rendered fields equal descriptor card-surface fields", (
       "buyingDemo",
     ]
   )
+  assert.ok(!rendered.some((f) => f.key === "startDate"))
+  assert.ok(!rendered.some((f) => f.key === "endDate"))
   assert.ok(!rendered.some((f) => f.key === "unitRate"))
   assert.ok(!rendered.some((f) => f.key === "netMedia"))
 })
@@ -53,8 +53,6 @@ test("OOH ExpertCard rendered fields equal descriptor card-surface fields", () =
   assert.deepEqual(
     rendered.map((f) => f.key),
     [
-      "startDate",
-      "endDate",
       "network",
       "format",
       "buyType",
@@ -65,6 +63,8 @@ test("OOH ExpertCard rendered fields equal descriptor card-surface fields", () =
       "buyingDemo",
     ]
   )
+  assert.ok(!rendered.some((f) => f.key === "startDate"))
+  assert.ok(!rendered.some((f) => f.key === "endDate"))
   assert.ok(!rendered.some((f) => f.key === "unitRate"))
 })
 
@@ -75,8 +75,6 @@ test("Radio ExpertCard rendered fields equal descriptor card-surface fields", ()
   assert.deepEqual(
     rendered.map((f) => f.key),
     [
-      "startDate",
-      "endDate",
       "network",
       "station",
       "buyType",
@@ -87,6 +85,8 @@ test("Radio ExpertCard rendered fields equal descriptor card-surface fields", ()
       "buyingDemo",
     ]
   )
+  assert.ok(!rendered.some((f) => f.key === "startDate"))
+  assert.ok(!rendered.some((f) => f.key === "endDate"))
   assert.ok(!rendered.some((f) => f.key === "unitRate"))
 })
 
@@ -97,8 +97,6 @@ test("Cinema ExpertCard rendered fields equal descriptor card-surface fields", (
   assert.deepEqual(
     rendered.map((f) => f.key),
     [
-      "startDate",
-      "endDate",
       "network",
       "station",
       "buyType",
@@ -109,5 +107,7 @@ test("Cinema ExpertCard rendered fields equal descriptor card-surface fields", (
       "buyingDemo",
     ]
   )
+  assert.ok(!rendered.some((f) => f.key === "startDate"))
+  assert.ok(!rendered.some((f) => f.key === "endDate"))
   assert.ok(!rendered.some((f) => f.key === "unitRate"))
 })

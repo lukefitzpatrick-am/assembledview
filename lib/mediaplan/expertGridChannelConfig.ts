@@ -1436,8 +1436,11 @@ export function getExpertCardSurfaceFields(
     "descriptorCore" | "descriptorTail"
   >
 ): ExpertDescriptorColumn[] {
-  return [...config.descriptorCore, ...config.descriptorTail].filter((c) =>
-    isExpertDescriptorCardSurface(c.surfaces)
+  return [...config.descriptorCore, ...config.descriptorTail].filter(
+    (c) =>
+      isExpertDescriptorCardSurface(c.surfaces) &&
+      c.kind !== "date-start" &&
+      c.kind !== "date-end"
   )
 }
 
