@@ -150,4 +150,4 @@ export function createExpertRowDerivedCache() {
   }
 }
 
-export type ExpertRowDerivedCache = ReturnType<typeof createExpertRowDerivedCache>
+type ExpertRowDerivedCache = ReturnType<typeof createExpertRowDerivedCache>

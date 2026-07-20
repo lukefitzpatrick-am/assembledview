@@ -23,6 +23,12 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { INFLUENCERS_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
+import {
+  INFLUENCERS_CONTAINER_CONFIG,
+  buildDefaultLineItem,
+  mapHydrationToForm,
+  mapFormToApi,
+} from "@/lib/mediaplan/containerChannelConfig"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -224,20 +230,7 @@ export default function InfluencersContainer({
     defaultValues: {
       lineItems: [
         {
-          platform: "",
-          objective: "",
-          campaign: "",
-          bidStrategy: "",
-          buyType: "",
-          targetingAttribute: "",
-          creativeTargeting: "",
-          creative: "",
-          buyingDemo: "",   
-          market: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
+          ...buildDefaultLineItem(INFLUENCERS_CONTAINER_CONFIG.fieldMap),
           bursts: [
             {
               budget: "",
@@ -455,20 +448,7 @@ export default function InfluencersContainer({
       const transformedLineItems = items.map((item: any, idx: number) => {
         const parsedBursts = resolveLineItemBursts(item);
         return {
-        platform: item.platform || "",
-        objective: item.objective || "",
-        campaign: item.campaign || "",
-        bidStrategy: item.bid_strategy || "",
-        buyType: item.buy_type || "",
-        targetingAttribute: item.targeting_attribute || "",
-        creativeTargeting: item.creative_targeting || "",
-        creative: item.creative || "",
-        buyingDemo: item.buying_demo || "",
-        market: item.market || "",
-        fixedCostMedia: item.fixed_cost_media || false,
-        clientPaysForMedia: item.client_pays_for_media || false,
-        budgetIncludesFees: item.budget_includes_fees || false,
-        noadserving: item.no_adserving || false,
+        ...mapHydrationToForm(INFLUENCERS_CONTAINER_CONFIG.fieldMap, item),
         lineItemId:
           item.line_item_id ||
           item.lineItemId ||
@@ -540,16 +520,7 @@ export default function InfluencersContainer({
         mba_number: mbaNumber || "",
         mp_client_name: "",
         mp_plannumber: "",
-        platform: lineItem.platform || "",
-        objective: lineItem.objective || "",
-        campaign: lineItem.campaign || "",
-        buy_type: lineItem.buyType || "",
-        bid_strategy: lineItem.bidStrategy || "",
-        targeting_attribute: lineItem.targetingAttribute || "",
-        fixed_cost_media: lineItem.fixedCostMedia || false,
-        client_pays_for_media: lineItem.clientPaysForMedia || false,
-        budget_includes_fees: lineItem.budgetIncludesFees || false,
-        no_adserving: lineItem.noadserving || false,
+        ...mapFormToApi(INFLUENCERS_CONTAINER_CONFIG.fieldMap, lineItem),
         line_item_id: lineItemId,
         line_item: lineItem.line_item,
         bursts: lineItem.bursts || [],
@@ -1119,20 +1090,7 @@ const getBursts = () => {
                 {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
-                                                          platform: "",
-                                                              objective: "",
-                                                              campaign: "",
-                                                          bidStrategy: "",
-                                                          buyType: "",
-                                                              targetingAttribute: "",
-                                                          creativeTargeting: "",
-                                                          creative: "",
-                                                          buyingDemo: "",
-                                                          market: "",
-                                                          fixedCostMedia: false,
-                                                          clientPaysForMedia: false,
-                                                          budgetIncludesFees: false,
-                                                              noadserving: false,
+                                                          ...buildDefaultLineItem(INFLUENCERS_CONTAINER_CONFIG.fieldMap),
                                                           bursts: [
                                                             {
                                                               budget: "",
@@ -1255,20 +1213,7 @@ const getBursts = () => {
                                 size="sm"
                                 onClick={() =>
                                   appendLineItem({
-                                    platform: "",
-                                    objective: "",
-                                    campaign: "",
-                                    bidStrategy: "",
-                                    buyType: "",
-                                    targetingAttribute: "",
-                                    creativeTargeting: "",
-                                    creative: "",
-                                    buyingDemo: "",
-                                    market: "",
-                                    fixedCostMedia: false,
-                                    clientPaysForMedia: false,
-                                    budgetIncludesFees: false,
-                                    noadserving: false,
+                                    ...buildDefaultLineItem(INFLUENCERS_CONTAINER_CONFIG.fieldMap),
                                     bursts: [
                                       {
                                         budget: "",

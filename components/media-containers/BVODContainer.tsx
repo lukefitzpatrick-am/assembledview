@@ -20,6 +20,12 @@ import {
   bvodFormSchema,
   type BVODFormValues,
 } from "@/lib/mediaplan/schemas"
+import {
+  BVOD_CONTAINER_CONFIG,
+  buildDefaultLineItem,
+  mapHydrationToForm,
+  mapFormToApi,
+} from "@/lib/mediaplan/containerChannelConfig"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
@@ -356,19 +362,7 @@ export default function BVODContainer({
     defaultValues: {
       bvodlineItems: [
         {
-          platform: "",
-          site: "",
-          bidStrategy: "",
-          buyType: "",
-          publisher: "",
-          creativeTargeting: "",
-          creative: "",
-          buyingDemo: "",
-          market: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
+          ...buildDefaultLineItem(BVOD_CONTAINER_CONFIG.fieldMap),
           bursts: [
             {
               _reactKey: newBurstReactKey(),
@@ -640,19 +634,11 @@ export default function BVODContainer({
         const normalizedSite = item.site || item.station || item.publisher || normalizedPlatform;
 
         return {
+          ...mapHydrationToForm(BVOD_CONTAINER_CONFIG.fieldMap, item),
           platform: normalizedPlatform,
           publisher: item.publisher || normalizedPlatform,
           site: normalizedSite,
-          bidStrategy: item.bid_strategy || item.bidStrategy || "",
-          buyType: item.buy_type || "",
           creativeTargeting: item.creative_targeting || item.targeting || "",
-          creative: item.creative || "",
-          buyingDemo: item.buying_demo || "",
-          market: item.market || "",
-          fixedCostMedia: item.fixed_cost_media ?? false,
-          clientPaysForMedia: item.client_pays_for_media ?? false,
-          budgetIncludesFees: item.budget_includes_fees ?? false,
-          noadserving: item.no_adserving ?? false,
           line_item: item.line_item ?? item.lineItem,
           lineItem: item.lineItem ?? item.line_item,
           line_item_id: item.line_item_id || item.lineItemId,
@@ -699,20 +685,10 @@ export default function BVODContainer({
         mba_number: mbaNumber || "",
         mp_client_name: "",
         mp_plannumber: "",
+        ...mapFormToApi(BVOD_CONTAINER_CONFIG.fieldMap, lineItem),
         platform: lineItem.platform || lineItem.publisher || "",
         publisher: lineItem.publisher || "",
-        bid_strategy: lineItem.bidStrategy || "",
-        site: lineItem.site || "",
-        buy_type: lineItem.buyType || "",
-        creative_targeting: lineItem.creativeTargeting || "",
         targeting: lineItem.creativeTargeting || "",
-        creative: lineItem.creative || "",
-        buying_demo: lineItem.buyingDemo || "",
-        market: lineItem.market || "",
-        fixed_cost_media: lineItem.fixedCostMedia || false,
-        client_pays_for_media: lineItem.clientPaysForMedia || false,
-        budget_includes_fees: lineItem.budgetIncludesFees || false,
-        no_adserving: lineItem.noadserving || false,
         line_item_id: lineItem.line_item_id,
         bursts: lineItem.bursts,
         feePct: feebvod || 0,
@@ -1296,19 +1272,7 @@ useEffect(() => {
                 {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
-                                                          platform: "",
-                                                          bidStrategy: "",
-                                                          site: "",
-                                                          buyType: "",
-                                                          publisher: "",
-                                                          creativeTargeting: "",
-                                                          creative: "",
-                                                          buyingDemo: "",
-                                                          market: "",
-                                                          fixedCostMedia: false,
-                                                          clientPaysForMedia: false,
-                                                          budgetIncludesFees: false,
-                                                          noadserving: false,
+                                                          ...buildDefaultLineItem(BVOD_CONTAINER_CONFIG.fieldMap),
                                                           bursts: [
                                                             {
                                                               _reactKey: newBurstReactKey(),
@@ -1516,19 +1480,7 @@ useEffect(() => {
                                 size="sm"
                                 onClick={() =>
                                   appendLineItem({
-                                    platform: "",
-                                    site: "",
-                                    bidStrategy: "",
-                                    buyType: "",
-                                    publisher: "",
-                                    creativeTargeting: "",
-                                    creative: "",
-                                    buyingDemo: "",
-                                    market: "",
-                                    fixedCostMedia: false,
-                                    clientPaysForMedia: false,
-                                    budgetIncludesFees: false,
-                                    noadserving: false,
+                                    ...buildDefaultLineItem(BVOD_CONTAINER_CONFIG.fieldMap),
                                     ...(() => {
                                       const nextNumber = lineItemFields.length + 1;
                                       const id = buildLineItemId(

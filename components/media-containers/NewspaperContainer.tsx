@@ -45,6 +45,12 @@ import { cn } from "@/lib/utils"
 import { ChevronDown, Plus, Trash2, Copy } from "lucide-react"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { NEWSPAPER_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
+import {
+  NEWSPAPER_CONTAINER_CONFIG,
+  buildDefaultLineItem,
+  mapHydrationToForm,
+  mapFormToApi,
+} from "@/lib/mediaplan/containerChannelConfig"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"; // ad
 import {
   aggregateInvestmentDisplayRows,
@@ -396,18 +402,7 @@ const handleAddNewNewspaperAdSize = async () => {
     defaultValues: {
       newspaperlineItems: [
         {
-          network: "",
-          publisher: "",
-          title: "",
-          buyType: "",
-          format: "",
-          placement: "",
-          buyingDemo: "",
-          market: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
+          ...buildDefaultLineItem(NEWSPAPER_CONTAINER_CONFIG.fieldMap),
           ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
           bursts: [
             {
@@ -638,19 +633,9 @@ const handleAddNewNewspaperAdSize = async () => {
 
 
         return {
+          ...mapHydrationToForm(NEWSPAPER_CONTAINER_CONFIG.fieldMap, item),
           network: item.network || item.publisher || "",
-          publisher: item.publisher || "",
           title: item.title || item.publication || "",
-          placement: item.placement || "",
-          size: item.size || "",
-          format: item.format || "",
-          buyType: item.buy_type || "",
-          buyingDemo: item.buying_demo || "",
-          market: item.market || "",
-          fixedCostMedia: item.fixed_cost_media || false,
-          clientPaysForMedia: item.client_pays_for_media || false,
-          budgetIncludesFees: item.budget_includes_fees || false,
-          noadserving: item.no_adserving || false,
           lineItemId,
           line_item_id: lineItemId,
           line_item: item.line_item ?? item.lineItem ?? index + 1,
@@ -724,18 +709,8 @@ const handleAddNewNewspaperAdSize = async () => {
         mba_number: mbaNumber || "",
         mp_client_name: "",
         mp_plannumber: "",
-        network: lineItem.network || "",
+        ...mapFormToApi(NEWSPAPER_CONTAINER_CONFIG.fieldMap, lineItem),
         publisher: lineItem.publisher || lineItem.network || "",
-        title: lineItem.title || "",
-        buy_type: lineItem.buyType || "",
-        size: lineItem.size || "",
-        format: lineItem.format || "",
-        placement: lineItem.placement || "",
-        buying_demo: lineItem.buyingDemo || "",
-        market: lineItem.market || "",
-        fixed_cost_media: lineItem.fixedCostMedia || false,
-        client_pays_for_media: lineItem.clientPaysForMedia || false,
-        budget_includes_fees: lineItem.budgetIncludesFees || false,
         line_item_id: lineItemId,
         bursts: lineItem.bursts,
         feePct: feenewspapers || 0,
@@ -1386,19 +1361,8 @@ useEffect(() => {
                 {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
-                                                          network: "",
-                                                          publisher: "",
-                                                          title: "",
-                                                          buyType: "",
-                                                          format: "",
+                                                          ...buildDefaultLineItem(NEWSPAPER_CONTAINER_CONFIG.fieldMap),
                                                           size: "",
-                                                          placement: "",
-                                                          buyingDemo: "",
-                                                          market: "",
-                                                          fixedCostMedia: false,
-                                                          clientPaysForMedia: false,
-                                                          budgetIncludesFees: false,
-                                                          noadserving: false,
                                                           ...(() => {
                                                             const nextNum = lineItemFields.length + 1;
                                                             const id = createLineItemId(nextNum);
@@ -1610,19 +1574,8 @@ useEffect(() => {
                                 size="sm"
                                 onClick={() =>
                                   appendLineItem({
-                                    network: "",
-                                    publisher: "",
-                                    title: "",
-                                    buyType: "",
-                                    format: "",
+                                    ...buildDefaultLineItem(NEWSPAPER_CONTAINER_CONFIG.fieldMap),
                                     size: "",
-                                    placement: "",
-                                    buyingDemo: "",
-                                    market: "",
-                                    fixedCostMedia: false,
-                                    clientPaysForMedia: false,
-                                    budgetIncludesFees: false,
-                                    noadserving: false,
                                     ...(() => {
                                       const nextNum = lineItemFields.length + 1;
                                       const id = createLineItemId(nextNum);

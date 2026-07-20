@@ -24,6 +24,12 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { DIGITALDISPLAY_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
+import {
+  DIGITALDISPLAY_CONTAINER_CONFIG,
+  buildDefaultLineItem,
+  mapHydrationToForm,
+  mapFormToApi,
+} from "@/lib/mediaplan/containerChannelConfig"
 import { Input } from "@/components/ui/input"
 import { Combobox, ComboboxModalProvider } from "@/components/ui/combobox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
@@ -443,18 +449,7 @@ export default function DigiDisplayContainer({
     defaultValues: {
       digidisplaylineItems: [
         {
-          platform: "",
-          site: "",
-          buyType: "",
-          publisher: "",
-          creativeTargeting: "",
-          creative: "",
-          buyingDemo: "",
-          market: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
+          ...buildDefaultLineItem(DIGITALDISPLAY_CONTAINER_CONFIG.fieldMap),
           ...(() => {
             const id = buildLineItemId("", MEDIA_TYPE_ID_CODES.digitalDisplay, 1);
             return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 };
@@ -747,21 +742,11 @@ export default function DigiDisplayContainer({
         }];
 
         return {
+          ...mapHydrationToForm(DIGITALDISPLAY_CONTAINER_CONFIG.fieldMap, item),
+          // platform↔publisher alias + creativeTargeting fallback from targeting_attribute
           platform: item.publisher || item.platform || "",
           publisher: item.publisher || item.platform || "",
-          site: item.site || "",
-          placement: item.placement || "",
-          size: item.size || "",
-          buyType: item.buy_type || "",
           creativeTargeting: item.creative_targeting || item.targeting_attribute || "",
-          creative: item.creative || "",
-          buyingDemo: item.buying_demo || "",
-          market: item.market || "",
-          targetingAttribute: item.targeting_attribute || "",
-          fixedCostMedia: item.fixed_cost_media || false,
-          clientPaysForMedia: item.client_pays_for_media || false,
-          budgetIncludesFees: item.budget_includes_fees || false,
-          noadserving: item.no_adserving || false,
           bursts: bursts,
           lineItemId,
           line_item_id: lineItemId,
@@ -810,19 +795,11 @@ export default function DigiDisplayContainer({
         mba_number: mbaNumber || "",
         mp_client_name: "",
         mp_plannumber: "",
+        ...mapFormToApi(DIGITALDISPLAY_CONTAINER_CONFIG.fieldMap, lineItem),
+        // platform↔publisher alias; bid_strategy mirrors buyType (not in fieldMap)
         platform: lineItem.platform || lineItem.publisher || "",
         publisher: lineItem.publisher || lineItem.platform || "",
-        site: lineItem.site || "",
-        buy_type: lineItem.buyType || "",
         bid_strategy: lineItem.buyType || "",
-        creative_targeting: lineItem.creativeTargeting || "",
-        creative: lineItem.creative || "",
-        buying_demo: lineItem.buyingDemo || "",
-        market: lineItem.market || "",
-        fixed_cost_media: lineItem.fixedCostMedia || false,
-        client_pays_for_media: lineItem.clientPaysForMedia || false,
-        budget_includes_fees: lineItem.budgetIncludesFees || false,
-        no_adserving: lineItem.noadserving || false,
         line_item_id,
         bursts: lineItem.bursts,
         feePct: feedigidisplay || 0,
@@ -1414,18 +1391,7 @@ useEffect(() => {
                 {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
-                                                              platform: "",
-                                                              site: "",
-                                                              buyType: "",
-                                                              publisher: "",
-                                                              creativeTargeting: "",
-                                                              creative: "",
-                                                              buyingDemo: "",
-                                                              market: "",
-                                                              fixedCostMedia: false,
-                                                              clientPaysForMedia: false,
-                                                              budgetIncludesFees: false,
-                                                              noadserving: false,
+                                                              ...buildDefaultLineItem(DIGITALDISPLAY_CONTAINER_CONFIG.fieldMap),
                                                               ...(() => {
                                                                 const nextNumber = lineItemFields.length + 1;
                                                                 const id = buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, nextNumber);
@@ -1629,18 +1595,7 @@ useEffect(() => {
                                 size="sm"
                                 onClick={() =>
                                   appendLineItem({
-                                    platform: "",
-                                    site: "",
-                                    buyType: "",
-                                    publisher: "",
-                                    creativeTargeting: "",
-                                    creative: "",
-                                    buyingDemo: "",
-                                    market: "",
-                                    fixedCostMedia: false,
-                                    clientPaysForMedia: false,
-                                    budgetIncludesFees: false,
-                                    noadserving: false,
+                                    ...buildDefaultLineItem(DIGITALDISPLAY_CONTAINER_CONFIG.fieldMap),
                                     ...(() => {
                                       const nextNumber = lineItemFields.length + 1;
                                       const id = buildLineItemId(

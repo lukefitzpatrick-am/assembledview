@@ -24,6 +24,12 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { OOH_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
+import {
+  OOH_CONTAINER_CONFIG,
+  buildDefaultLineItem,
+  mapHydrationToForm,
+  mapFormToApi,
+} from "@/lib/mediaplan/containerChannelConfig"
 import { ComboboxModalProvider } from "@/components/ui/combobox"
 import { Form } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -259,18 +265,7 @@ export default function OohContainer({
     defaultValues: {
       lineItems: [
         {
-          network: "",
-          format: "",
-          buyType: "",
-          placement: "",
-          type: "",
-          size: "",
-          buyingDemo: "",
-          market: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noAdserving: false,
+          ...buildDefaultLineItem(OOH_CONTAINER_CONFIG.fieldMap),
           ...(() => { const id = createLineItemId(1); return { lineItemId: id, line_item_id: id, line_item: 1, lineItem: 1 }; })(),
           bursts: [
             {
@@ -500,18 +495,10 @@ export default function OohContainer({
 
 
         return {
+          ...mapHydrationToForm(OOH_CONTAINER_CONFIG.fieldMap, item),
           network: item.network || item.environment || "",
-          format: item.format || "",
           type: item.type || item.environment || "",
-          size: item.size || "",
           placement: item.placement || item.location || "",
-          buyType: item.buy_type || "",
-          buyingDemo: item.buying_demo || "",
-          market: item.market || "",
-          fixedCostMedia: item.fixed_cost_media || false,
-          clientPaysForMedia: item.client_pays_for_media || false,
-          budgetIncludesFees: item.budget_includes_fees || false,
-          noAdserving: item.no_adserving || false,
           lineItemId,
           line_item_id: lineItemId,
           line_item: lineNumber,
@@ -583,18 +570,7 @@ export default function OohContainer({
         mba_number: mbaNumber || "",
         mp_client_name: "",
         mp_plannumber: "",
-        network: lineItem.network || "",
-        format: lineItem.format || "",
-        buy_type: lineItem.buyType || "",
-        type: lineItem.type || "",
-        placement: lineItem.placement || "",
-        size: lineItem.size || "",
-        buying_demo: lineItem.buyingDemo || "",
-        market: lineItem.market || "",
-        fixed_cost_media: lineItem.fixedCostMedia || false,
-        client_pays_for_media: lineItem.clientPaysForMedia || false,
-        budget_includes_fees: lineItem.budgetIncludesFees || false,
-        no_adserving: lineItem.noAdserving || false,
+        ...mapFormToApi(OOH_CONTAINER_CONFIG.fieldMap, lineItem),
         line_item_id: lineItemId,
         bursts: lineItem.bursts,
         feePct: feeooh || 0,
@@ -1195,18 +1171,7 @@ useEffect(() => {
                 {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
-                                                          network: "",
-                                                          format: "",
-                                                          buyType: "",
-                                                          placement: "",
-                                                          type: "",
-                                                          size: "",
-                                                          buyingDemo: "",
-                                                          market: "",
-                                                          fixedCostMedia: false,
-                                                          clientPaysForMedia: false,
-                                                          budgetIncludesFees: false,
-                                                          noAdserving: false,
+                                                          ...buildDefaultLineItem(OOH_CONTAINER_CONFIG.fieldMap),
                                                           ...(() => { const nextNumber = lineItemFields.length + 1; const id = createLineItemId(nextNumber); return { lineItemId: id, line_item_id: id, line_item: nextNumber, lineItem: nextNumber }; })(),
                                                           bursts: [
                                                             {
@@ -1331,18 +1296,7 @@ useEffect(() => {
                                 size="sm"
                                 onClick={() =>
                                   appendLineItem({
-                                    network: "",
-                                    format: "",
-                                    buyType: "",
-                                    placement: "",
-                                    type: "",
-                                    size: "",
-                                    buyingDemo: "",
-                                    market: "",
-                                    fixedCostMedia: false,
-                                    clientPaysForMedia: false,
-                                    budgetIncludesFees: false,
-                                    noAdserving: false,
+                                    ...buildDefaultLineItem(OOH_CONTAINER_CONFIG.fieldMap),
                                     ...(() => {
                                       const nextNumber = lineItemFields.length + 1;
                                       const id = createLineItemId(nextNumber);

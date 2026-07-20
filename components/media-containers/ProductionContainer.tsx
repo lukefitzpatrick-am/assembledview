@@ -31,6 +31,12 @@ import { formatCurrencyFull } from "@/lib/format/currency"
 import { formatAUD } from "@/lib/format/money"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { PRODUCTION_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
+import {
+  PRODUCTION_CONTAINER_CONFIG,
+  buildDefaultLineItem,
+  mapHydrationToForm,
+  mapFormToApi,
+} from "@/lib/mediaplan/containerChannelConfig"
 import type { BillingBurst } from "@/lib/billing/types"
 import {
   aggregateInvestmentDisplayRows,
@@ -313,11 +319,8 @@ export default function ProductionContainer({
     defaultValues: {
       lineItems: [
         {
+          ...buildDefaultLineItem(PRODUCTION_CONTAINER_CONFIG.fieldMap),
           mediaType: mediaTypeOptions[0]?.value || "",
-          publisher: "",
-          description: "",
-          market: "",
-          unitRate: "",
           lineItemId: "",
           bursts: [makeDefaultBurst()],
         },
@@ -516,10 +519,10 @@ export default function ProductionContainer({
           })
 
           return {
+            ...mapHydrationToForm(PRODUCTION_CONTAINER_CONFIG.fieldMap, item),
             mediaType: item.mediaType || item.platform || item.media_type || "",
             publisher: item.publisher || item.network || "",
             description: item.description || item.creative || "",
-            market: item.market || "",
             // Hydration shim: unitCost / unit_cost → unitRate; else derive from first burst cost
             unitRate:
               item.unitRate ??
@@ -556,30 +559,33 @@ export default function ProductionContainer({
 
   const apiLineItems = useMemo(() => {
     const stableProductionItems = assignStableLineItemNumbers<any>(watchedLineItems || [], mbaNumber, MEDIA_TYPE_ID_CODES.production)
-    return stableProductionItems.map((lineItem) => ({
-      media_plan_version: 0,
-      mba_number: mbaNumber || "",
-      mp_client_name: "",
-      mp_plannumber: "",
-      media_type: lineItem.mediaType || "",
-      publisher: lineItem.publisher || "",
-      market: lineItem.market || "",
-      description: lineItem.description || "",
-      unitRate: lineItem.unitRate ?? "",
-      line_item_id: lineItem.line_item_id,
-      bursts: (lineItem.bursts || []).map((burst) =>
-        formatProductionBurstForPersist(
-          {
-            cost: Number(burst.cost) || 0,
-            amount: Number(burst.amount) || 0,
-            startDate: formatDateString(burst.startDate),
-            endDate: formatDateString(burst.endDate),
-          },
-          lineItem
-        )
-      ),
-      line_item: lineItem.line_item,
-    }))
+    return stableProductionItems.map((lineItem) => {
+      const { unit_rate: _omitUnitRate, ...apiFields } = mapFormToApi(
+        PRODUCTION_CONTAINER_CONFIG.fieldMap,
+        lineItem,
+      )
+      return {
+        media_plan_version: 0,
+        mba_number: mbaNumber || "",
+        mp_client_name: "",
+        mp_plannumber: "",
+        ...apiFields,
+        unitRate: lineItem.unitRate ?? "",
+        line_item_id: lineItem.line_item_id,
+        bursts: (lineItem.bursts || []).map((burst) =>
+          formatProductionBurstForPersist(
+            {
+              cost: Number(burst.cost) || 0,
+              amount: Number(burst.amount) || 0,
+              startDate: formatDateString(burst.startDate),
+              endDate: formatDateString(burst.endDate),
+            },
+            lineItem
+          )
+        ),
+        line_item: lineItem.line_item,
+      }
+    })
   }, [watchedLineItems, mbaNumber])
 
   useEffect(() => {
@@ -594,11 +600,8 @@ export default function ProductionContainer({
 
   const handleAddLineItem = () => {
     appendLineItem({
+      ...buildDefaultLineItem(PRODUCTION_CONTAINER_CONFIG.fieldMap),
       mediaType: mediaTypeOptions[0]?.value || "",
-      publisher: "",
-      description: "",
-      market: "",
-      unitRate: "",
       lineItemId: "",
       bursts: [makeDefaultBurst()],
     })
@@ -775,11 +778,8 @@ export default function ProductionContainer({
           {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
+      ...buildDefaultLineItem(PRODUCTION_CONTAINER_CONFIG.fieldMap),
       mediaType: mediaTypeOptions[0]?.value || "",
-      publisher: "",
-      description: "",
-      market: "",
-      unitRate: "",
       lineItemId: "",
       bursts: [makeDefaultBurst()],
     })}

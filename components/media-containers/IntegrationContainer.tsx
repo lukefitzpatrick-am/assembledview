@@ -23,6 +23,12 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { INTEGRATION_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
+import {
+  INTEGRATION_CONTAINER_CONFIG,
+  buildDefaultLineItem,
+  mapHydrationToForm,
+  mapFormToApi,
+} from "@/lib/mediaplan/containerChannelConfig"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -232,20 +238,7 @@ export default function IntegrationContainer({
     defaultValues: {
       lineItems: [
         {
-          platform: "",
-          bidStrategy: "",
-          buyType: "",
-          objective: "",
-          campaign: "",
-          targetingAttribute: "",
-          creativeTargeting: "",
-          creative: "",
-          buyingDemo: "",
-          market: "",
-          noAdserving: false,
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
+          ...buildDefaultLineItem(INTEGRATION_CONTAINER_CONFIG.fieldMap),
           bursts: [
             {
               _reactKey: newBurstReactKey(),
@@ -548,20 +541,9 @@ export default function IntegrationContainer({
         }];
 
         return {
-          platform: item.platform || "",
-          bidStrategy: item.bid_strategy || "",
-          objective: item.objective || "",
-          campaign: item.campaign || "",
+          ...mapHydrationToForm(INTEGRATION_CONTAINER_CONFIG.fieldMap, item),
           buyType,
-          creativeTargeting: item.creative_targeting || "",
-          creative: item.creative || "",
-          buyingDemo: item.buying_demo || "",
-          market: item.market || "",
-          targetingAttribute: item.targeting_attribute || "",
-          fixedCostMedia: item.fixed_cost_media || false,
-          clientPaysForMedia: item.client_pays_for_media || false,
           budgetIncludesFees,
-          noAdserving: item.no_adserving || false,
           line_item: item.line_item ?? item.lineItem,
           lineItem: item.lineItem ?? item.line_item,
           line_item_id: item.line_item_id || item.lineItemId,
@@ -604,20 +586,7 @@ export default function IntegrationContainer({
         mba_number: mbaNumber || "",
         mp_client_name: "",
         mp_plannumber: "",
-        platform: lineItem.platform || "",
-        objective: lineItem.objective || "",
-        campaign: lineItem.campaign || "",
-        buy_type: lineItem.buyType || "",
-        targeting_attribute: lineItem.targetingAttribute || "",
-        bid_strategy: lineItem.bidStrategy ?? "",
-        creative_targeting: lineItem.creativeTargeting ?? "",
-        creative: lineItem.creative ?? "",
-        buying_demo: lineItem.buyingDemo ?? "",
-        market: lineItem.market ?? "",
-        fixed_cost_media: lineItem.fixedCostMedia || false,
-        client_pays_for_media: lineItem.clientPaysForMedia || false,
-        budget_includes_fees: lineItem.budgetIncludesFees || false,
-        no_adserving: lineItem.noAdserving || false,
+        ...mapFormToApi(INTEGRATION_CONTAINER_CONFIG.fieldMap, lineItem),
         line_item_id: lineItem.line_item_id,
         bursts: lineItem.bursts,
         feePct: feeintegration || 0,
@@ -1201,20 +1170,7 @@ useEffect(() => {
                 {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
-                                                          platform: "",
-                                                          bidStrategy: "",
-                                                          buyType: "",
-                                                          objective: "",
-                                                          campaign: "",
-                                                          targetingAttribute: "",
-                                                          creativeTargeting: "",
-                                                          creative: "",
-                                                          buyingDemo: "",
-                                                          market: "",
-                                                          noAdserving: false,
-                                                          fixedCostMedia: false,
-                                                          clientPaysForMedia: false,
-                                                          budgetIncludesFees: false,
+                                                          ...buildDefaultLineItem(INTEGRATION_CONTAINER_CONFIG.fieldMap),
                                                           bursts: [
                                                             {
                                                               _reactKey: newBurstReactKey(),
@@ -1337,20 +1293,7 @@ useEffect(() => {
                                 size="sm"
                                 onClick={() =>
                                   appendLineItem({
-                                    platform: "",
-                                    bidStrategy: "",
-                                    buyType: "",
-                                    objective: "",
-                                    campaign: "",
-                                    targetingAttribute: "",
-                                    creativeTargeting: "",
-                                    creative: "",
-                                    buyingDemo: "",
-                                    market: "",
-                                    noAdserving: false,
-                                    fixedCostMedia: false,
-                                    clientPaysForMedia: false,
-                                    budgetIncludesFees: false,
+                                    ...buildDefaultLineItem(INTEGRATION_CONTAINER_CONFIG.fieldMap),
                                     bursts: [
                                       {
                                         _reactKey: newBurstReactKey(),

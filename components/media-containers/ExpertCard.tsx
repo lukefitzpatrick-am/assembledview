@@ -48,7 +48,7 @@ import {
 } from "@/lib/mediaplan/burstSectionLayout"
 import { cn } from "@/lib/utils"
 
-export type ExpertCardPublisher = { publisher_name: string }
+type ExpertCardPublisher = { publisher_name: string }
 
 /** Card-surface (key, label) pairs — same list ExpertCard renders. */
 export function getExpertCardRenderedFields(

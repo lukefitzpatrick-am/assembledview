@@ -1,4 +1,1 @@
-export {
-  reassignOohLineItemNumbers,
-  type LineItemWithIdentity as OohLineItemWithIdentity,
-} from "@/lib/mediaplan/lineItemOrder"
+export { reassignOohLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
