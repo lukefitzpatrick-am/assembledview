@@ -26,6 +26,7 @@ import {
 } from "@/components/media-containers/burst-calculated-fields"
 import { formatBurstLabel } from "@/lib/bursts"
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
+import { withInjectedComboboxValue } from "@/lib/mediaplan/comboboxCurrentValue"
 import {
   getExpertCardSurfaceFields,
   getExpertOptionFlags,
@@ -213,29 +214,30 @@ function ExpertCardFieldControl<T extends FieldValues>({
   }))
 
   const comboboxOptions = (): ComboboxOption[] => {
+    const current = form.getValues(name) as string | undefined
+    let options: ComboboxOption[] = []
     switch (d.kind) {
-      case "combobox-publishers": {
+      case "combobox-publishers":
         // Keep saved platforms selectable/renderable even if missing from the
-        // filtered publisher list (e.g. Influencer Management without flag).
-        const current = String(
-          (form.getValues(name) as string | undefined) ?? ""
-        ).trim()
-        if (current && !publisherOptions.some((o) => o.value === current)) {
-          return [{ value: current, label: current }, ...publisherOptions]
-        }
-        return publisherOptions
-      }
+        // filtered publisher list (e.g. Influencer Management without flag),
+        // and while the shared publishers fetch is still in flight.
+        options = publisherOptions
+        break
       case "combobox-static":
-        return d.options ?? []
+        options = d.options ?? []
+        break
       case "combobox-stations":
-        return stationOptions
+        options = stationOptions
+        break
       case "combobox-dynamic":
       case "combobox-sites":
       case "combobox-titles":
-        return dynamicOptionsByKey[d.key] ?? []
+        options = dynamicOptionsByKey[d.key] ?? []
+        break
       default:
-        return []
+        options = []
     }
+    return withInjectedComboboxValue(options, current)
   }
 
   if (
@@ -879,7 +881,7 @@ export function ExpertCard<T extends FieldValues>({
           <div className="px-6 py-3">
             <CardContent className="space-y-3 p-0">
               {dropdownFields.length > 0 ? (
-                <div className="grid grid-cols-1 gap-x-4 gap-y-2.5 sm:grid-cols-2">
+                <div className="grid grid-cols-1 gap-x-4 gap-y-2.5 md:grid-cols-2 lg:grid-cols-4">
                   {dropdownFields.map((d) => (
                     <div key={d.key}>{renderFieldControl(d)}</div>
                   ))}

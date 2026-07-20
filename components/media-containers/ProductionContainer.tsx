@@ -46,6 +46,7 @@ import { formatBurstLabel } from "@/lib/bursts"
 import type { LineItem } from "@/lib/generateMediaPlan"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { useStableHydration } from "@/hooks/useStableHydration"
+import { allCollapsedIndices } from "@/lib/mediaplan/collapsedLineItems"
 import {
   Dialog,
   DialogContent,
@@ -539,6 +540,7 @@ export default function ProductionContainer({
         form.reset({
           lineItems: stampBurstReactKeys(normalized),
         })
+        setCollapsedLineItems(allCollapsedIndices(normalized.length))
       } catch (err) {
         console.warn("[ProductionContainer] Failed to hydrate initial line items", err)
       }

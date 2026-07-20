@@ -1568,7 +1568,21 @@ const getMediaTypeAccentColor = (mediaName: string) =>
 function setIfChanged<T>(setter: Dispatch<SetStateAction<T>>, next: T): boolean {
   let didChange = false
   setter((prev) => {
-    if (JSON.stringify(prev) === JSON.stringify(next)) return prev
+    if (Object.is(prev, next)) return prev
+    // Primitives / null: strict equality is enough.
+    if (prev === null || next === null || typeof prev !== "object" || typeof next !== "object") {
+      if (prev === next) return prev
+      didChange = true
+      return next
+    }
+    // Deep compare once (avoid the old double-stringify on every call path
+    // when references already match via Object.is above).
+    try {
+      if (JSON.stringify(prev) === JSON.stringify(next)) return prev
+    } catch {
+      didChange = true
+      return next
+    }
     didChange = true
     return next
   })
@@ -1595,15 +1609,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   // Use React's use() hook to unwrap the params Promise
   // This ensures we get the latest value on every render/navigation
   const { mba_number: mbaNumber } = use(params)
-  
-  console.log("Current MBA number from params:", mbaNumber)
 
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
   const versionNumber = searchParams ? searchParams.get('version') : null
-  
-  console.log("Version number from query params:", versionNumber)
 
   const { setMbaNumber: setContextMbaNumber } = useMediaPlanContext()
 
@@ -10027,7 +10037,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                       </div>
                     )}
                     {!showSectionLoader && !showSectionError && (
-                    <LazyMountWhenVisible label={medium.label} rootMargin="600px 0px">
+                    <LazyMountWhenVisible label={medium.label} rootMargin="150px 0px">
                     <Suspense fallback={<MediaContainerSuspenseFallback label={medium.label} />}>
                       {medium.name === "mp_television" && (
                         <TelevisionContainer

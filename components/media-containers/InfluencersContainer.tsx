@@ -6,13 +6,13 @@ import { coerceBurstDateLocal } from '@/lib/mediaplan/burstDate'
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
-import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
+import { allCollapsedIndices } from "@/lib/mediaplan/collapsedLineItems"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -219,7 +219,6 @@ export default function InfluencersContainer({
   const publishersRef = useRef<Publisher[]>([]);
 
   const [publishers, setPublishers] = useState<Publisher[]>([])
-  const [isLoading, setIsLoading] = useState(true)
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
   const [overallDeliverables, setOverallDeliverables] = useState(0);
@@ -483,6 +482,7 @@ export default function InfluencersContainer({
         lineItems: stampBurstReactKeys(transformedLineItems),
         overallDeliverables: 0,
       });
+      setCollapsedLineItems(allCollapsedIndices(transformedLineItems.length))
     },
     influencersExpertModalOpenRef,
   )
@@ -809,7 +809,6 @@ export default function InfluencersContainer({
         // Check if we already have publishers cached
         if (publishersRef.current.length > 0) {
           setPublishers(publishersRef.current);
-          setIsLoading(false);
           return;
         }
 
@@ -822,8 +821,6 @@ export default function InfluencersContainer({
           description: error.message,
           variant: "destructive",
         });
-      } finally {
-        setIsLoading(false);
       }
     };
   
@@ -1080,10 +1077,7 @@ const getBursts = () => {
       </div>
 
     <div>
-      {isLoading ? (
-        <MediaContainerLoadState loading label="Influencers" />
-      ) : (
-        <div className="space-y-6">
+              <div className="space-y-6">
           {influencersExpertModalOpen ? null : (
           <Form {...form}>
             <div className="space-y-6">
@@ -1250,7 +1244,6 @@ const getBursts = () => {
             </Form>
           )}
           </div>
-        )}
       </div>
 
       <Dialog

@@ -6,13 +6,13 @@ import { coerceBurstDateLocal } from '@/lib/mediaplan/burstDate'
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
-import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import {
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
+import { allCollapsedIndices } from "@/lib/mediaplan/collapsedLineItems"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -249,7 +249,7 @@ export default function DigiAudioContainer({
   const publishersRef = useRef<Publisher[]>([]);
   const audioSitesRef = useRef<AudioSite[]>([]);
   const [publishers, setPublishers] = useState<Publisher[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [audioSites, setAudioSites] = useState<AudioSite[]>([]);
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
@@ -628,6 +628,7 @@ export default function DigiAudioContainer({
         digiaudiolineItems: stampBurstReactKeys(transformedLineItems),
         overallDeliverables: 0,
       });
+      setCollapsedLineItems(allCollapsedIndices(transformedLineItems.length))
     },
     digiAudioExpertModalOpenRef,
   )
@@ -1241,10 +1242,7 @@ useEffect(() => {
       </div>
   
       <div>
-        {isLoading ? (
-          <MediaContainerLoadState loading label="Digital Audio" />
-        ) : (
-          <div className="space-y-6">
+                  <div className="space-y-6">
             {digiAudioExpertModalOpen ? null : (
             <Form {...form}>
               <div className="space-y-6">
@@ -1496,7 +1494,6 @@ useEffect(() => {
             </Form>
             )}
           </div>
-        )}
       </div>
 
       <Dialog

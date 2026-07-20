@@ -7,12 +7,13 @@
  * containers keep only their wrapper + descriptor + channel-specific JSX.
  */
 
-import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, startTransition } from "react"
 import { useForm, useFieldArray, useWatch, type UseFormReturn } from "react-hook-form"
 import { useToast } from "@/components/ui/use-toast"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { useStableHydration } from "@/hooks/useStableHydration"
 import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+import { allCollapsedIndices } from "@/lib/mediaplan/collapsedLineItems"
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import {
   type ContainerChannelConfig,
@@ -182,7 +183,8 @@ export function useMediaChannelContainer(
   const publishersRef = useRef<Publisher[]>([])
 
   const [publishers, setPublishers] = useState<Publisher[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  // Options fetch must not block the line-item body; publishers populate async.
+  const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
   const [overallDeliverables, setOverallDeliverables] = useState(0)
@@ -508,6 +510,9 @@ export function useMediaChannelContainer(
         [fieldKey]: stampBurstReactKeys(transformedLineItems),
         overallDeliverables: 0,
       })
+      // Display-only: first paint is header rows. Form values remain in RHF
+      // via reset/getValues — collapse does not affect save, totals, or billing.
+      setCollapsedLineItems(allCollapsedIndices(transformedLineItems.length))
     },
     expertModalOpenRef,
   )
@@ -549,7 +554,11 @@ export function useMediaChannelContainer(
     publishMediaLineItemsIfChanged(
       mediaLineItemsPublishFpRef,
       transformedLineItems,
-      onMediaLineItemsChange,
+      (items) => {
+        startTransition(() => {
+          onMediaLineItemsChange(items)
+        })
+      },
     )
   }, [
     watchedLineItems,
@@ -830,7 +839,9 @@ export function useMediaChannelContainer(
   }, [clientId, toast, config])
 
   useEffect(() => {
-    onTotalMediaChange(overallTotals.overallMedia, overallTotals.overallFee)
+    startTransition(() => {
+      onTotalMediaChange(overallTotals.overallMedia, overallTotals.overallFee)
+    })
   }, [overallTotals.overallFee, overallTotals.overallMedia, onTotalMediaChange])
 
   useEffect(() => {
@@ -889,7 +900,9 @@ export function useMediaChannelContainer(
         }),
     )
 
-    onLineItemsChange(items)
+    startTransition(() => {
+      onLineItemsChange(items)
+    })
   }, [
     watchedLineItems,
     feePct,
