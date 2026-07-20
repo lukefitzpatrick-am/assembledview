@@ -1174,9 +1174,9 @@ const getBursts = () => {
                               )}
                             </div>
                             <div>
-                              <span className="font-medium">Bid Strategy:</span>{" "}
-                              {form.watch(`lineItems.${lineItemIndex}.bidStrategy`) ||
-                                "Not selected"}
+                              <span className="font-medium">Objective:</span>{" "}
+                              {form.watch(`lineItems.${lineItemIndex}.objective`) ||
+                                "—"}
                             </div>
                             <div>
                               <span className="font-medium">Bursts:</span>{" "}

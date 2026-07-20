@@ -142,6 +142,11 @@ export type ExpertDescriptorColumn = {
   placeholder?: string
   /** Card layout span (1 = half, 2 = full). Default 1 when omitted. */
   cardSpan?: 1 | 2
+  /**
+   * When true, ExpertCard renders this text field as a taller textarea
+   * (~2/3 width in the text-entry zone). Default false.
+   */
+  multiline?: boolean
   /** When true, Excel-style fill handle is a no-op for this column. */
   readOnly?: boolean
 }
@@ -345,6 +350,7 @@ export const SEARCH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SearchExpertS
         label: "Targeting",
         widthPx: 120,
         kind: "text",
+        multiline: true,
         headerTooltip: "Creative / Keyword Targeting",
       },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
@@ -491,8 +497,9 @@ export const PROGVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgVideoE
         label: "Targeting",
         widthPx: 120,
         kind: "text",
+        multiline: true,
       },
-      { key: "placement", label: "Placement", widthPx: 110, kind: "text", surfaces: "both" },
+      { key: "placement", label: "Placement", widthPx: 110, kind: "text", multiline: true, surfaces: "both" },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
       { key: "size", label: "Ad Size", widthPx: 80, kind: "text", surfaces: "both" },
     ],
@@ -634,6 +641,7 @@ export const PROGDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgDisp
         label: "Targeting",
         widthPx: 120,
         kind: "text",
+        multiline: true,
       },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
     ],
@@ -777,6 +785,7 @@ export const PROGAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgAudioE
         label: "Targeting",
         widthPx: 120,
         kind: "text",
+        multiline: true,
       },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
     ],
@@ -918,6 +927,7 @@ export const PROGBVOD_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgBvodExp
         label: "Targeting",
         widthPx: 120,
         kind: "text",
+        multiline: true,
       },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
     ],
@@ -1060,8 +1070,9 @@ export const PROGOOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgOohExper
         label: "Targeting",
         widthPx: 120,
         kind: "text",
+        multiline: true,
       },
-      { key: "placement", label: "Placement", widthPx: 110, kind: "text", surfaces: "both" },
+      { key: "placement", label: "Placement", widthPx: 110, kind: "text", multiline: true, surfaces: "both" },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
       { key: "size", label: "Ad Size", widthPx: 80, kind: "text", surfaces: "both" },
     ],
@@ -1203,6 +1214,7 @@ export const SOCIALMEDIA_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SocialMe
         label: "Targeting",
         widthPx: 120,
         kind: "text",
+        multiline: true,
       },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
     ],
@@ -1364,7 +1376,7 @@ export const OOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<OohExpertSchedul
         searchPlaceholder: "Search buy types…",
         normalizePaste: (raw) => normalizeOohBuyTypePaste(raw),
       },
-      { key: "placement", label: "Placement", widthPx: 120, kind: "text" },
+      { key: "placement", label: "Placement", widthPx: 120, kind: "text", multiline: true },
       { key: "type", label: "Type", widthPx: 96, kind: "text" },
       { key: "size", label: "Size", widthPx: 96, kind: "text" },
       // Persisted hydrate field; not shown on card or grid.
@@ -1675,7 +1687,7 @@ export const DIGITALDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Digit
       normalizePaste: (raw) =>
         normalizeOptionPaste(raw, DIGITALDISPLAY_BUY_TYPE_OPTIONS),
     },
-      { key: "creativeTargeting", label: "Targeting", widthPx: 120, kind: "text" },
+      { key: "creativeTargeting", label: "Targeting", widthPx: 120, kind: "text", multiline: true },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
     ],
     descriptorTail: [
@@ -1806,8 +1818,8 @@ export const DIGIVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigiVideoE
       normalizePaste: (raw) =>
         normalizeOptionPaste(raw, DIGIVIDEO_BUY_TYPE_OPTIONS),
     },
-      { key: "creativeTargeting", label: "Targeting", widthPx: 120, kind: "text" },
-      { key: "placement", label: "Placement", widthPx: 110, kind: "text", surfaces: "both" },
+      { key: "creativeTargeting", label: "Targeting", widthPx: 120, kind: "text", multiline: true },
+      { key: "placement", label: "Placement", widthPx: 110, kind: "text", multiline: true, surfaces: "both" },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
       { key: "size", label: "Ad Size", widthPx: 80, kind: "text", surfaces: "both" },
     ],
@@ -1934,8 +1946,8 @@ export const DIGIAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigitalAud
       normalizePaste: (raw) =>
         normalizeOptionPaste(raw, DIGIAUDIO_BUY_TYPE_OPTIONS),
     },
-      { key: "targetingAttribute", label: "Targeting Attribute", widthPx: 120, kind: "text" },
-      { key: "creativeTargeting", label: "Targeting", widthPx: 120, kind: "text" },
+      { key: "targetingAttribute", label: "Targeting Attribute", widthPx: 120, kind: "text", multiline: true },
+      { key: "creativeTargeting", label: "Targeting", widthPx: 120, kind: "text", multiline: true },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
     ],
     descriptorTail: [
@@ -2060,7 +2072,7 @@ export const BVOD_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<BvodExpertSched
       normalizePaste: (raw) =>
         normalizeOptionPaste(raw, BVOD_BUY_TYPE_OPTIONS),
     },
-      { key: "creativeTargeting", label: "Targeting", widthPx: 120, kind: "text" },
+      { key: "creativeTargeting", label: "Targeting", widthPx: 120, kind: "text", multiline: true },
       { key: "creative", label: "Creative", widthPx: 110, kind: "text" },
     ],
     descriptorTail: [
@@ -2178,7 +2190,7 @@ export const TELEVISION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Televisio
       normalizePaste: (raw) =>
         normalizeOptionPaste(raw, TV_BUY_TYPE_OPTIONS),
     },
-      { key: "placement", label: "Placement", widthPx: 110, kind: "text" },
+      { key: "placement", label: "Placement", widthPx: 110, kind: "text", multiline: true },
       { key: "daypart", label: "Daypart", widthPx: 96, kind: "text" },
       {
         key: "size",
@@ -2313,7 +2325,7 @@ export const RADIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<RadioExpertSch
       normalizePaste: (raw) =>
         normalizeOptionPaste(raw, RADIO_BUY_TYPE_OPTIONS),
     },
-      { key: "placement", label: "Placement", widthPx: 110, kind: "text" },
+      { key: "placement", label: "Placement", widthPx: 110, kind: "text", multiline: true },
       { key: "duration", label: "Duration", widthPx: 80, kind: "text" },
       { key: "format", label: "Format", widthPx: 96, kind: "text" },
     ],
@@ -2428,7 +2440,7 @@ export const CINEMA_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<CinemaExpertS
       normalizePaste: (raw) =>
         normalizeOptionPaste(raw, CINEMA_BUY_TYPE_OPTIONS),
     },
-      { key: "placement", label: "Placement", widthPx: 110, kind: "text" },
+      { key: "placement", label: "Placement", widthPx: 110, kind: "text", multiline: true },
       { key: "duration", label: "Duration", widthPx: 80, kind: "text" },
       { key: "format", label: "Format", widthPx: 96, kind: "text" },
     ],
@@ -2543,7 +2555,7 @@ export const NEWSPAPER_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<NewspaperE
       normalizePaste: (raw) =>
         normalizeOptionPaste(raw, NEWSPAPER_BUY_TYPE_OPTIONS),
     },
-      { key: "placement", label: "Placement", widthPx: 110, kind: "text" },
+      { key: "placement", label: "Placement", widthPx: 110, kind: "text", multiline: true },
       { key: "title", label: "Title", widthPx: 120, kind: "combobox-titles" },
       {
         key: "size",
@@ -2666,7 +2678,7 @@ export const MAGAZINES_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<MagazinesE
       normalizePaste: (raw) =>
         normalizeOptionPaste(raw, MAGAZINES_BUY_TYPE_OPTIONS),
     },
-      { key: "placement", label: "Placement", widthPx: 110, kind: "text" },
+      { key: "placement", label: "Placement", widthPx: 110, kind: "text", multiline: true },
       { key: "title", label: "Title", widthPx: 120, kind: "combobox-titles" },
       {
         key: "size",
@@ -2791,75 +2803,86 @@ export const INFLUENCERS_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Influenc
       { key: "endDate", label: "End Date", widthPx: 48, kind: "date-end" },
       { key: "platform", label: "Platform", widthPx: 120, kind: "combobox-publishers" },
       {
-      key: "bidStrategy",
-      label: "Bid Strategy",
-      widthPx: 110,
-      kind: "combobox-static",
-      options: INFLUENCERS_BID_STRATEGY_OPTIONS,
-      normalizePaste: (raw) =>
-        normalizeOptionPaste(raw, INFLUENCERS_BID_STRATEGY_OPTIONS),
-    },
-      {
-      key: "buyType",
-      label: "Buy Type",
-      widthPx: 96,
-      kind: "combobox-static",
-      options: INFLUENCERS_BUY_TYPE_OPTIONS,
-      normalizePaste: (raw) =>
-        normalizeOptionPaste(raw, INFLUENCERS_BUY_TYPE_OPTIONS),
-    },
-      {
-        key: "targetingAttribute",
-        label: "Creative Targeting",
-        widthPx: 120,
-        kind: "text",
-        surfaces: "card",
-      },
-      {
-        key: "creativeTargeting",
-        label: "Placement",
-        widthPx: 120,
-        kind: "text",
-        surfaces: "both",
-      },
-      {
-        key: "creative",
-        label: "Creative",
-        widthPx: 110,
-        kind: "text",
-        surfaces: "both",
-      },
-      {
         key: "objective",
         label: "Objective",
         widthPx: 110,
         kind: "text",
-        surfaces: "none",
+        surfaces: "both",
       },
       {
         key: "campaign",
         label: "Campaign",
         widthPx: 110,
         kind: "text",
+        surfaces: "both",
+      },
+      {
+        key: "buyType",
+        label: "Buy Type",
+        widthPx: 96,
+        kind: "combobox-static",
+        options: INFLUENCERS_BUY_TYPE_OPTIONS,
+        normalizePaste: (raw) =>
+          normalizeOptionPaste(raw, INFLUENCERS_BUY_TYPE_OPTIONS),
+      },
+      {
+        key: "targetingAttribute",
+        label: "Targeting",
+        widthPx: 120,
+        kind: "text",
+        multiline: true,
+        surfaces: "both",
+      },
+      // Persist-only Social-shaped leftovers (not on Influencers card/grid).
+      {
+        key: "bidStrategy",
+        label: "Bid Strategy",
+        widthPx: 110,
+        kind: "combobox-static",
+        options: INFLUENCERS_BID_STRATEGY_OPTIONS,
+        normalizePaste: (raw) =>
+          normalizeOptionPaste(raw, INFLUENCERS_BID_STRATEGY_OPTIONS),
+        surfaces: "none",
+      },
+      {
+        key: "creativeTargeting",
+        label: "Placement",
+        widthPx: 120,
+        kind: "text",
+        multiline: true,
+        surfaces: "none",
+      },
+      {
+        key: "creative",
+        label: "Creative",
+        widthPx: 110,
+        kind: "text",
         surfaces: "none",
       },
     ],
     descriptorTail: [
-      { key: "market", label: "Market", widthPx: 96, kind: "text" },
-      { key: "buyingDemo", label: "Buying Demo", widthPx: 110, kind: "text" },
+      { key: "market", label: "Market", widthPx: 96, kind: "text", surfaces: "none" },
       {
-      key: "unitRate",
-      label: "Unit Rate",
-      widthPx: 88,
-      kind: "unit-rate", surfaces: "grid",
-      headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
-    },
+        key: "buyingDemo",
+        label: "Buying Demo",
+        widthPx: 110,
+        kind: "text",
+        surfaces: "none",
+      },
+      {
+        key: "unitRate",
+        label: "Unit Rate",
+        widthPx: 88,
+        kind: "unit-rate",
+        surfaces: "grid",
+        headerTooltip: "Rate (CPC / CPM / CPV depending on Buy Type)",
+      },
     ],
     trailingColumns: [
-    { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
-    { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
-    { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
-  ],
+      { key: "netMedia", label: "Net Media", widthPx: 88, kind: "text", surfaces: "grid" },
+      { key: "actions", label: "", widthPx: 72, kind: "text", surfaces: "grid" },
+      { key: "sumQty", label: "Σ qty", widthPx: 64, kind: "text", surfaces: "grid" },
+    ],
     trailingHeaderLabels: ["Net Media", "", "Σ qty"],
     createEmptyRow: createEmptyInfluencersExpertRow,
     deriveScheduleYmdFromRow: (
@@ -2981,6 +3004,7 @@ export const INTEGRATION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Integrat
         label: "Creative Targeting",
         widthPx: 120,
         kind: "text",
+        multiline: true,
         surfaces: "card",
       },
       {
@@ -2988,6 +3012,7 @@ export const INTEGRATION_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Integrat
         label: "Placement",
         widthPx: 120,
         kind: "text",
+        multiline: true,
         surfaces: "both",
       },
       {
