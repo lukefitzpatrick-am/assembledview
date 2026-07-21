@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
-import { Textarea } from "@/components/ui/textarea"
+import { AutoGrowField } from "@/components/media-containers/AutoGrowField"
 import {
   CpcFamilyBurstCalculatedField,
   getCpcFamilyBurstCalculatedColumnLabel,
@@ -164,6 +164,47 @@ function isComboboxDescriptorKind(kind: ExpertDescriptorColumn["kind"]): boolean
   )
 }
 
+const EXPERT_CARD_LABEL =
+  "text-[11px] font-medium uppercase tracking-wider text-muted-foreground"
+
+type ExpertCardFieldLayout = "combobox" | "compact-text" | "primary-text" | "default"
+
+type ExpertDescriptorWithCardPrimary = ExpertDescriptorColumn & {
+  cardPrimary?: boolean
+}
+
+/**
+ * Pick the one primary free-text field per channel (right 2 cols on lg).
+ * Prefers explicit `cardPrimary`, then creativeTargeting, then other *targeting* keys,
+ * placement, description, else first text field.
+ */
+export function resolveExpertCardPrimaryTextField(
+  textFields: ExpertDescriptorColumn[]
+): ExpertDescriptorColumn | null {
+  if (textFields.length === 0) return null
+
+  const explicit = textFields.find(
+    (d) => (d as ExpertDescriptorWithCardPrimary).cardPrimary === true
+  )
+  if (explicit) return explicit
+
+  const creativeTargeting = textFields.find((d) => d.key === "creativeTargeting")
+  if (creativeTargeting) return creativeTargeting
+
+  const targeting = textFields.find(
+    (d) => d.key.includes("targeting") && d.key !== "creativeTargeting"
+  )
+  if (targeting) return targeting
+
+  const placement = textFields.find((d) => d.key === "placement")
+  if (placement) return placement
+
+  const description = textFields.find((d) => d.key === "description")
+  if (description) return description
+
+  return textFields[0]
+}
+
 function ExpertCardFieldControl<T extends FieldValues>({
   d,
   form,
@@ -178,6 +219,7 @@ function ExpertCardFieldControl<T extends FieldValues>({
   onFieldValueChange,
   fieldAdornment,
   comboboxProps,
+  fieldLayout = "default",
 }: {
   d: ExpertDescriptorColumn
   form: UseFormReturn<T>
@@ -206,6 +248,7 @@ function ExpertCardFieldControl<T extends FieldValues>({
     searchPlaceholder?: string
     buttonClassName?: string
   }
+  fieldLayout?: ExpertCardFieldLayout
 }) {
   const name = fieldName<T>(itemsKey, lineItemIndex, d.key)
   const publisherOptions = publishers.map((p) => ({
@@ -271,18 +314,17 @@ function ExpertCardFieldControl<T extends FieldValues>({
               }
               disabled={comboboxProps?.disabled}
               emptyText={comboboxProps?.emptyText}
-              buttonClassName={
-                comboboxProps?.buttonClassName ?? "h-9 w-full rounded-md"
-              }
-              className="w-full"
+              buttonClassName={cn(
+                "h-8 w-full truncate rounded-md",
+                comboboxProps?.buttonClassName
+              )}
+              className="w-full truncate"
             />
           )
 
           return (
-            <FormItem className="flex flex-col space-y-1">
-              <FormLabel className="text-xs font-medium text-muted-foreground">
-                {d.label}
-              </FormLabel>
+            <FormItem className="flex w-full flex-col space-y-1">
+              <FormLabel className={EXPERT_CARD_LABEL}>{d.label}</FormLabel>
               {fieldAdornment ? (
                 <div className="flex flex-1 items-center space-x-1">
                   <FormControl>{combobox}</FormControl>
@@ -305,10 +347,8 @@ function ExpertCardFieldControl<T extends FieldValues>({
         control={form.control}
         name={name}
         render={({ field }) => (
-          <FormItem className="flex flex-col space-y-1.5">
-            <FormLabel className="text-sm font-medium text-muted-foreground">
-              {d.label}
-            </FormLabel>
+          <FormItem className="flex flex-col space-y-1">
+            <FormLabel className={EXPERT_CARD_LABEL}>{d.label}</FormLabel>
             <FormControl>
               <SingleDatePicker
                 ref={field.ref}
@@ -316,7 +356,7 @@ function ExpertCardFieldControl<T extends FieldValues>({
                 onBlur={field.onBlur}
                 value={field.value}
                 onChange={field.onChange}
-                className="h-10 w-full pl-2 text-left text-sm font-normal"
+                className="h-8 w-full pl-2 text-left text-sm font-normal"
                 campaignStartDate={campaignStartDate}
                 campaignEndDate={campaignEndDate}
               />
@@ -334,16 +374,14 @@ function ExpertCardFieldControl<T extends FieldValues>({
         control={form.control}
         name={name}
         render={({ field }) => (
-          <FormItem className="flex flex-col space-y-1.5">
-            <FormLabel className="text-sm font-medium text-muted-foreground">
-              {d.label}
-            </FormLabel>
+          <FormItem className="flex flex-col space-y-1">
+            <FormLabel className={EXPERT_CARD_LABEL}>{d.label}</FormLabel>
             <FormControl>
               <Input
                 {...field}
                 type="number"
                 placeholder={d.placeholder}
-                className="h-10 w-full text-sm"
+                className="h-8 w-full text-sm"
                 value={field.value ?? ""}
                 onChange={(e) => {
                   field.onChange(e)
@@ -375,39 +413,45 @@ function ExpertCardFieldControl<T extends FieldValues>({
     )
   }
 
-  // text (and any other kind): multiline descriptors use a taller textarea
-  const useTextarea = d.multiline === true
-  const registerOpts = onFieldValueChange
-    ? {
-        onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-          onFieldValueChange(d.key, lineItemIndex, e.target.value)
-        },
-      }
-    : undefined
-  return (
-    <FormItem className="flex flex-col space-y-1">
-      <FormLabel className="text-xs font-medium text-muted-foreground">
-        {d.label}
-      </FormLabel>
-      <FormControl>
-        {useTextarea ? (
-          <Textarea
-            {...form.register(name, registerOpts)}
-            placeholder={d.placeholder}
-            rows={3}
-            className="min-h-[4.5rem] w-full resize-y rounded-md border border-border/50 bg-muted/30 text-sm transition-colors focus:bg-background"
-          />
-        ) : (
-          <Input
-            {...form.register(name, registerOpts)}
-            placeholder={d.placeholder}
-            className="h-9 w-full text-sm"
-          />
+  if (d.kind === "text") {
+    const isPrimary = fieldLayout === "primary-text"
+    const isCompact = fieldLayout === "compact-text"
+
+    return (
+      <FormField
+        control={form.control}
+        name={name}
+        render={({ field }) => (
+          <FormItem
+            className={cn(
+              "flex w-full flex-col space-y-1",
+              isPrimary && "h-full min-h-[7rem]"
+            )}
+          >
+            <FormLabel className={EXPERT_CARD_LABEL}>{d.label}</FormLabel>
+            <FormControl>
+              <AutoGrowField
+                ref={field.ref}
+                name={field.name}
+                value={(field.value as string | undefined) ?? ""}
+                onBlur={field.onBlur}
+                placeholder={d.placeholder}
+                singleLine={isCompact}
+                className={cn(isPrimary && "h-full min-h-[7rem]")}
+                onChange={(e) => {
+                  field.onChange(e)
+                  onFieldValueChange?.(d.key, lineItemIndex, e.target.value)
+                }}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
         )}
-      </FormControl>
-      <FormMessage />
-    </FormItem>
-  )
+      />
+    )
+  }
+
+  return null
 }
 
 function ExpertCardBursts<T extends FieldValues>({
@@ -724,7 +768,7 @@ function ExpertCardBursts<T extends FieldValues>({
 
 /**
  * Generic expert-mode line-item card driven by channel descriptor config:
- * header (option chips + total), two field zones (dropdowns then text entry),
+ * header (option chips + total), 5-col body (small fields left / primary text right),
  * and shared bursts + media/fee cells.
  */
 export function ExpertCard<T extends FieldValues>({
@@ -762,11 +806,19 @@ export function ExpertCard<T extends FieldValues>({
   const dropdownFields = cardFields.filter((d) =>
     isComboboxDescriptorKind(d.kind)
   )
-  const textEntryFields = cardFields.filter(
-    (d) => !isComboboxDescriptorKind(d.kind)
+  const textFields = cardFields.filter((d) => d.kind === "text")
+  const primaryTextField = resolveExpertCardPrimaryTextField(textFields)
+  const compactTextFields = textFields.filter(
+    (d) => d.key !== primaryTextField?.key
+  )
+  const otherFields = cardFields.filter(
+    (d) => !isComboboxDescriptorKind(d.kind) && d.kind !== "text"
   )
 
-  const renderFieldControl = (d: ExpertDescriptorColumn) => (
+  const renderFieldControl = (
+    d: ExpertDescriptorColumn,
+    fieldLayout: ExpertCardFieldLayout = "default"
+  ) => (
     <ExpertCardFieldControl
       d={d}
       form={form}
@@ -781,6 +833,7 @@ export function ExpertCard<T extends FieldValues>({
       onFieldValueChange={onFieldValueChange}
       fieldAdornment={fieldAdornments?.[d.key]}
       comboboxProps={comboboxPropsByKey?.[d.key]}
+      fieldLayout={fieldLayout}
     />
   )
 
@@ -879,28 +932,36 @@ export function ExpertCard<T extends FieldValues>({
       {!collapsed ? (
         <>
           <div className="px-6 py-3">
-            <CardContent className="space-y-3 p-0">
-              {dropdownFields.length > 0 ? (
-                <div className="grid grid-cols-1 gap-x-4 gap-y-2.5 md:grid-cols-2 lg:grid-cols-4">
-                  {dropdownFields.map((d) => (
-                    <div key={d.key}>{renderFieldControl(d)}</div>
-                  ))}
-                </div>
-              ) : null}
-
-              {textEntryFields.length > 0 ? (
-                <div className="grid grid-cols-1 gap-x-4 gap-y-2.5 sm:grid-cols-3">
-                  {textEntryFields.map((d) => (
+            <CardContent className="p-0">
+              {cardFields.length > 0 ? (
+                <div className="grid grid-cols-1 gap-x-3 gap-y-3 lg:grid-cols-5">
+                  {/* LEFT: dropdowns + small text, 3 across */}
+                  <div className="grid grid-cols-2 content-start gap-x-3 gap-y-3 sm:grid-cols-3 lg:col-span-3">
+                    {dropdownFields.map((d) => (
+                      <div key={d.key} className="min-w-0">
+                        {renderFieldControl(d, "combobox")}
+                      </div>
+                    ))}
+                    {otherFields.map((d) => (
+                      <div key={d.key} className="min-w-0">
+                        {renderFieldControl(d)}
+                      </div>
+                    ))}
+                    {compactTextFields.map((d) => (
+                      <div key={d.key} className="min-w-0">
+                        {renderFieldControl(d, "compact-text")}
+                      </div>
+                    ))}
+                  </div>
+                  {/* RIGHT: the one free-text box, fills 2 columns + full height */}
+                  {primaryTextField ? (
                     <div
-                      key={d.key}
-                      className={cn(
-                        d.multiline && "sm:col-span-2",
-                        d.cardSpan === 2 && !d.multiline && "sm:col-span-2"
-                      )}
+                      key={primaryTextField.key}
+                      className="flex min-h-[7rem] flex-col lg:col-span-2"
                     >
-                      {renderFieldControl(d)}
+                      {renderFieldControl(primaryTextField, "primary-text")}
                     </div>
-                  ))}
+                  ) : null}
                 </div>
               ) : null}
             </CardContent>
