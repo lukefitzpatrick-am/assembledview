@@ -44,6 +44,24 @@ import type {
 } from "./expertChannelMappings.js"
 
 import { formatBurstDateLocal } from "./burstDate"
+import { preservePreviousBurstsIfApplyWouldZeroBudget } from "./cardExpertBudgetSync"
+
+export { preservePreviousBurstsIfApplyWouldZeroBudget }
+
+/** Keep prior card bursts when expert Apply would wipe a non-zero budget to empty/0. */
+function attachBurstPreserve<T extends { bursts?: unknown }>(
+  li: T,
+  prev: T | undefined
+): T {
+  if (!prev) return li
+  return {
+    ...li,
+    bursts: preservePreviousBurstsIfApplyWouldZeroBudget(
+      (li as { bursts?: Array<{ budget?: unknown }> }).bursts,
+      (prev as { bursts?: Array<{ budget?: unknown }> }).bursts
+    ) as T["bursts"],
+  }
+}
 
 function isoDate(d: Date | string | undefined): string {
   if (d === undefined || d === "") return ""
@@ -96,12 +114,12 @@ export function mergeOohStandardFromExpertWithPrevious(
         lineItemId: undefined,
       }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noAdserving: prev.noAdserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -120,7 +138,7 @@ export function mergeTelevisionStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       fixedCostMedia: prev.fixedCostMedia,
       clientPaysForMedia: prev.clientPaysForMedia,
@@ -131,7 +149,7 @@ export function mergeTelevisionStandardFromExpertWithPrevious(
       creative: prev.creative ?? "",
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -148,7 +166,7 @@ export function mergeRadioStandardFromExpertWithPrevious(
     const k = stableStandardLineItemKey(li, i)
     const prev = prevByKey.get(k)
     if (!prev) return li
-    return {
+    return attachBurstPreserve({
       ...li,
       fixedCostMedia: prev.fixedCostMedia,
       clientPaysForMedia: prev.clientPaysForMedia,
@@ -160,7 +178,7 @@ export function mergeRadioStandardFromExpertWithPrevious(
       creative: prev.creative ?? "",
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -185,7 +203,7 @@ export function mergeProductionStandardFromExpertWithPrevious(
         lineItemId: undefined,
       }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       mediaType: prev.mediaType ?? li.mediaType,
       publisher: prev.publisher ?? li.publisher,
@@ -193,7 +211,7 @@ export function mergeProductionStandardFromExpertWithPrevious(
       market: prev.market ?? li.market,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -210,7 +228,7 @@ export function mergeCinemaStandardFromExpertWithPrevious(
     const k = stableStandardLineItemKey(li, i)
     const prev = prevByKey.get(k)
     if (!prev) return li
-    return {
+    return attachBurstPreserve({
       ...li,
       fixedCostMedia: prev.fixedCostMedia,
       clientPaysForMedia: prev.clientPaysForMedia,
@@ -219,7 +237,7 @@ export function mergeCinemaStandardFromExpertWithPrevious(
       bidStrategy: prev.bidStrategy ?? "",
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -238,7 +256,7 @@ export function mergeNewspaperStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       fixedCostMedia: prev.fixedCostMedia,
       clientPaysForMedia: prev.clientPaysForMedia,
@@ -246,7 +264,7 @@ export function mergeNewspaperStandardFromExpertWithPrevious(
       noadserving: prev.noadserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -271,7 +289,7 @@ export function mergeMagazineStandardFromExpertWithPrevious(
         lineItemId: undefined,
       }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       fixedCostMedia: prev.fixedCostMedia,
       clientPaysForMedia: prev.clientPaysForMedia,
@@ -279,7 +297,7 @@ export function mergeMagazineStandardFromExpertWithPrevious(
       noadserving: prev.noadserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -298,12 +316,12 @@ export function mergeBvodStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noadserving: prev.noadserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -322,13 +340,13 @@ export function mergeDigiVideoStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noadserving: prev.noadserving,
       targetingAttribute: prev.targetingAttribute ?? "",
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -353,7 +371,7 @@ export function mergeDigiDisplayStandardFromExpertWithPrevious(
         lineItemId: undefined,
       }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noadserving: prev.noadserving,
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute ?? "",
@@ -361,7 +379,7 @@ export function mergeDigiDisplayStandardFromExpertWithPrevious(
       size: prev.size ?? li.size ?? "",
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -380,12 +398,12 @@ export function mergeDigiAudioStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noadserving: prev.noadserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -404,12 +422,12 @@ export function mergeSocialMediaStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noadserving: prev.noadserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -428,12 +446,12 @@ export function mergeSearchStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noadserving: prev.noadserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -458,13 +476,13 @@ export function mergeInfluencersStandardFromExpertWithPrevious(
         lineItemId: undefined,
       }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noadserving: prev.noadserving,
       creative: prev.creative ?? li.creative,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -483,13 +501,13 @@ export function mergeIntegrationStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noAdserving: prev.noAdserving,
       creative: prev.creative ?? li.creative,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -1423,14 +1441,14 @@ export function mergeProgAudioStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       site: prev.site ?? li.site,
       placement: prev.placement ?? li.placement,
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -1449,11 +1467,11 @@ export function mergeProgBvodStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -1472,7 +1490,7 @@ export function mergeProgDisplayStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       site: prev.site ?? li.site,
       placement: prev.placement ?? li.placement,
@@ -1480,7 +1498,7 @@ export function mergeProgDisplayStandardFromExpertWithPrevious(
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -1499,7 +1517,7 @@ export function mergeProgVideoStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       // NOTE: `placement` and `size` are EDITABLE in the Prog Video
       // expert grid (ProgVideoExpertScheduleRow), so the generated
@@ -1510,7 +1528,7 @@ export function mergeProgVideoStandardFromExpertWithPrevious(
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -1529,7 +1547,7 @@ export function mergeProgOohStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       environment: prev.environment ?? li.environment,
       format: prev.format ?? li.format,
@@ -1539,7 +1557,7 @@ export function mergeProgOohStandardFromExpertWithPrevious(
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
