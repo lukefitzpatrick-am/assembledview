@@ -23,6 +23,7 @@ import {
   type MoneyFormatOptions,
 } from "@/lib/format/money"
 import { weekKeysInSpanInclusive } from "./expertGridShared"
+import { projectLumpSumCardBudgetsOntoExpertRows } from "./cardExpertBudgetSync"
 import {
   burstDatesForExpertSpan,
   burstWindowForWeekColumn,
@@ -1534,7 +1535,7 @@ export function mapStandardOohLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): OohExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeOohBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const bt = coerceBuyTypeWithDevWarn(
@@ -1638,6 +1639,10 @@ export function mapStandardOohLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /**
@@ -1650,7 +1655,7 @@ export function mapStandardRadioLineItemsToExpertRows(
   campaignEndDate: Date,
   importOptions?: StandardImportMapperOptions
 ): RadioExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeRadioBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const budgetIncludesFees = Boolean(
@@ -1767,6 +1772,10 @@ export function mapStandardRadioLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 function coerceProductionBurstCost(rec: Record<string, unknown>): number {
@@ -1846,7 +1855,10 @@ function deriveProductionStandardUnitRateFromBursts(
 }
 
 function sumProductionGrossBursts(bursts: StandardProductionBurst[]): number {
-  return bursts.reduce((s, b) => s + b.cost * b.amount, 0)
+  const product = bursts.reduce((s, b) => s + b.cost * b.amount, 0)
+  if (product > 0) return product
+  // REVIEW: lump-sum card bursts may store money only on `budget` with cost/amount 0.
+  return bursts.reduce((s, b) => s + parseNum(b.budget), 0)
 }
 
 function emptyProductionLineItem(
@@ -2066,7 +2078,7 @@ export function mapStandardProductionLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): ProductionExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeProductionBursts(item)
     const buyType = "production"
 
@@ -2172,6 +2184,10 @@ export function mapStandardProductionLineItemsToExpertRows(
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 function normalizeCinemaBursts(item: StandardCinemaLineItemInput): StandardMediaBurst[] {
@@ -2383,7 +2399,7 @@ export function mapStandardCinemaLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): CinemaExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeCinemaBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const weeklyValues: Record<string, number | ""> = {}
@@ -2471,6 +2487,10 @@ export function mapStandardCinemaLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** TV bursts include ad length and TARPs string (matches form). */
@@ -2789,7 +2809,7 @@ export function mapStandardTvLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): TelevisionExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeTelevisionBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const bt = coerceBuyTypeWithDevWarn(
@@ -2920,6 +2940,10 @@ export function mapStandardTvLineItemsToExpertRows(
       mergedWeekSpans,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 function bvodCalculatedDeliverables(
@@ -3250,7 +3274,7 @@ export function mapStandardBvodLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): BvodExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeBvodBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const bt = coerceBuyTypeWithDevWarn(
@@ -3366,6 +3390,10 @@ export function mapStandardBvodLineItemsToExpertRows(
       mergedWeekSpans,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Digi Video `digivideolineItems` entry shape used by {@link DigitalVideoContainer}. */
@@ -3674,7 +3702,7 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): DigiVideoExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeDigiVideoBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -3808,6 +3836,10 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Digital Display `digidisplaylineItems` entry shape used by {@link DigitalDisplayContainer}. */
@@ -4113,7 +4145,7 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): DigitalDisplayExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeDigiDisplayBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -4243,6 +4275,10 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Digital Audio `digiaudiolineItems` entry shape used by {@link DigitalAudioContainer}. */
@@ -4556,7 +4592,7 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): DigitalAudioExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeDigiAudioBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const bt = coerceBuyTypeWithDevWarn(
@@ -4675,6 +4711,10 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
       mergedWeekSpans,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Social Media `lineItems` entry shape used by {@link SocialMediaContainer}. */
@@ -4969,7 +5009,7 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): SocialMediaExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeSocialMediaBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -5102,6 +5142,10 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Search `lineItems` entry shape used by {@link SearchContainer}. */
@@ -5391,7 +5435,7 @@ export function mapStandardSearchLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): SearchExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeSearchBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -5520,6 +5564,10 @@ export function mapStandardSearchLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Influencers `lineItems` entry shape used by {@link InfluencersContainer}. */
@@ -5819,7 +5867,7 @@ export function mapStandardInfluencersLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): InfluencersExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeInfluencersBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -5957,6 +6005,10 @@ export function mapStandardInfluencersLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Integration `lineItems` entry shape used by {@link IntegrationContainer}. */
@@ -6256,7 +6308,7 @@ export function mapStandardIntegrationLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): IntegrationExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeIntegrationBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -6394,6 +6446,10 @@ export function mapStandardIntegrationLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Newspaper `newspaperlineItems` entry shape used by {@link NewspaperContainer}. */
@@ -6622,7 +6678,7 @@ export function mapStandardNewspaperLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): NewspaperExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeNewspaperBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -6752,6 +6808,10 @@ export function mapStandardNewspaperLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Magazines `magazineslineItems` entry shape used by {@link MagazinesContainer}. */
@@ -6991,7 +7051,7 @@ export function mapStandardMagazineLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): MagazinesExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeMagazineBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -7120,6 +7180,10 @@ export function mapStandardMagazineLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 // --- Programmatic (Audio / BVOD / Display / OOH / Video) expert mappings ---
@@ -7534,7 +7598,7 @@ export function mapStandardProgAudioLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): ProgAudioExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeProgAudioBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
@@ -7593,6 +7657,10 @@ export function mapStandardProgAudioLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Prog BVOD `lineItems` shape (see {@link ProgBVODContainer}). */
@@ -7723,7 +7791,7 @@ export function mapStandardProgBvodLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): ProgBvodExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeProgBvodBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
@@ -7780,6 +7848,10 @@ export function mapStandardProgBvodLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Prog Display `lineItems` shape (see {@link ProgDisplayContainer}). */
@@ -7922,7 +7994,7 @@ export function mapStandardProgDisplayLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): ProgDisplayExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeProgDisplayBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
@@ -7979,6 +8051,10 @@ export function mapStandardProgDisplayLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Prog Video `lineItems` shape (see {@link ProgVideoContainer}). */
@@ -8121,7 +8197,7 @@ export function mapStandardProgVideoLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): ProgVideoExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeProgVideoBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
@@ -8180,6 +8256,10 @@ export function mapStandardProgVideoLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Prog OOH `lineItems` shape (see {@link ProgOOHContainer}). */
@@ -8328,7 +8408,7 @@ export function mapStandardProgOohLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): ProgOohExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeProgOohBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
@@ -8387,4 +8467,8 @@ export function mapStandardProgOohLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
