@@ -210,6 +210,7 @@ import {
   editorBillingStableLineItemId,
 } from "@/lib/finance/buildEditorLineItemInputs"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
+import { stampClientFeePctOnLineItems } from "@/lib/finance/stampClientFeePctOnLineItems"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import { assertCoreScheduleParity } from "@/lib/finance/assertCoreScheduleParity"
 import {
@@ -313,6 +314,7 @@ interface Client {
   feesocial: number
   feebvod: number
   feeintegration: number
+  feeinfluencers?: number
   feeprogdisplay: number
   feeprogvideo: number
   feeprogbvod: number
@@ -3070,7 +3072,11 @@ function CreateMediaPlan() {
       setFeeDigiDisplay(selectedClient.feedigidisplay);
       setFeeDigiVideo(selectedClient.feedigivideo);
       setFeeBVOD(selectedClient.feebvod);
-      setFeeIntegration(selectedClient.feeintegration);
+      // Integration: feeintegration only (absent => 0%). Influencers: feeinfluencers or feecontentcreator.
+      setFeeIntegration(selectedClient.feeintegration ?? null);
+      setFeeInfluencers(
+        selectedClient.feeinfluencers ?? selectedClient.feecontentcreator ?? null
+      );
       setFeeProgDisplay(selectedClient.feeprogdisplay);
       setFeeProgVideo(selectedClient.feeprogvideo);
       setFeeProgBvod(selectedClient.feeprogbvod);
@@ -3112,6 +3118,7 @@ function CreateMediaPlan() {
       setFeeDigiVideo(null);
       setFeeBVOD(null);
       setFeeIntegration(null);
+      setFeeInfluencers(null);
       setFeeProgDisplay(null);
       setFeeProgVideo(null);
       setFeeProgBvod(null);
@@ -5587,7 +5594,11 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            integrationMediaLineItems
+            stampClientFeePctOnLineItems(
+              integrationMediaLineItems,
+              "integration",
+              billingSaveInputs.feeLoading
+            )
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5776,7 +5787,11 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            influencersMediaLineItems
+            stampClientFeePctOnLineItems(
+              influencersMediaLineItems,
+              "influencers",
+              billingSaveInputs.feeLoading
+            )
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
