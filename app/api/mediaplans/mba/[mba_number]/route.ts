@@ -14,6 +14,7 @@ import { extractBillingMonthStart } from "@/lib/spend/billingScheduleExpectedToD
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/monthlyPlanCalendar"
 import { getDraftReturnRejection } from "@/lib/mediaplan/campaignStatusGuard"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
+import { nextMbaVersionNumber } from "@/lib/mediaplan/nextMbaVersionNumber"
 import { fetchBillingOverridesForVersion } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
 import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
@@ -1407,7 +1408,13 @@ export async function PUT(
       pickPublishedVersionRow(versionsForVersioning, publishedVersionNumber) ??
       pickPublishedVersionRow(allVersionsForMBA, publishedVersionNumber)
 
-    const nextVersionNumber = (latestVersionNumber || 0) + 1
+    // Create-page quirk: master is seeded with version_number=1 before any version row
+    // exists. Using published+1 would cut v2 on first save while children still stamp
+    // mp_plannumber=1. First row for an MBA must be version 1.
+    const nextVersionNumber = nextMbaVersionNumber(
+      allVersionsForMBA.length,
+      latestVersionNumber || 0
+    )
     const overwriteTargetRow = previousVersion
     const incomingStatus = normalise(
       data.mp_campaignstatus ??
