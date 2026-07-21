@@ -2,16 +2,24 @@ import type AvaTool from "./types"
 import {
   DECISION_RULES_REF,
   MARKETING_BRAIN_ID,
-  getDecisionRulesBody,
-  getSkillById,
-  loadSkillRegistry,
+  isKnownSkillId,
+  loadSkillRegistrySafe,
+  tryGetDecisionRulesBody,
 } from "@/lib/ava/skills/registry"
 import { asRecord, asString } from "./helpers"
 
 export function buildLoadSkillPayload(skillId: string, reference?: string) {
-  const skill = getSkillById(skillId)
+  const { skills, skipped } = loadSkillRegistrySafe()
+  const skill = skills.find((s) => s.id === skillId)
+
   if (!skill) {
-    const known = loadSkillRegistry().map((s) => s.id)
+    if (isKnownSkillId(skillId) || skipped.some((s) => s.id === skillId)) {
+      return {
+        error:
+          "That skill is temporarily unavailable — I've flagged it",
+      }
+    }
+    const known = skills.map((s) => s.id)
     return {
       error: `Unknown skillId "${skillId}". Known: ${known.join(", ")}`,
     }
@@ -27,13 +35,18 @@ export function buildLoadSkillPayload(skillId: string, reference?: string) {
     parts.push("", "# Learnings", "", skill.learnings.trim())
   }
 
+  let chainedDecisionRules = false
   if (skill.chains?.includes(MARKETING_BRAIN_ID)) {
-    parts.push(
-      "",
-      `# Chained: ${MARKETING_BRAIN_ID} / ${DECISION_RULES_REF}`,
-      "",
-      getDecisionRulesBody().trim(),
-    )
+    const rules = tryGetDecisionRulesBody()
+    if (rules) {
+      chainedDecisionRules = true
+      parts.push(
+        "",
+        `# Chained: ${MARKETING_BRAIN_ID} / ${DECISION_RULES_REF}`,
+        "",
+        rules.trim(),
+      )
+    }
   }
 
   let loadedReference: string | null = null
@@ -60,7 +73,7 @@ export function buildLoadSkillPayload(skillId: string, reference?: string) {
     pairedTools: skill.pairedTools,
     availableReferences: skill.references.map((r) => r.name),
     loadedReference,
-    chainedDecisionRules: Boolean(skill.chains?.includes(MARKETING_BRAIN_ID)),
+    chainedDecisionRules,
     content: parts.join("\n"),
   }
 }

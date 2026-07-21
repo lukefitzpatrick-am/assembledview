@@ -213,9 +213,14 @@ function loadSkillFromDisk(id: string, dir: string): AvaSkillEntry {
 }
 
 let cachedRegistry: AvaSkillEntry[] | null = null
+let cachedSafeRegistry: {
+  skills: AvaSkillEntry[]
+  skipped: Array<{ id: string; reason: string }>
+} | null = null
 
 /**
- * Load all 9 skills. Cached after first successful load in-process.
+ * Load all skills. Cached after first successful load in-process.
+ * Strict — throws on any bad skill. Used by CI / registry tests.
  */
 export function loadSkillRegistry(dir = skillsContentDir()): AvaSkillEntry[] {
   if (cachedRegistry && dir === skillsContentDir()) return cachedRegistry
@@ -231,11 +236,138 @@ export function loadSkillRegistry(dir = skillsContentDir()): AvaSkillEntry[] {
   return entries
 }
 
+function quarantineReason(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
+function validateSkillEntryRelaxed(
+  entry: AvaSkillEntry,
+  version: AvaSkillsVersion | null,
+  decisionRulesChars: number,
+): void {
+  if (!entry.body.trim()) throw new Error(`${entry.id}: empty body`)
+  if (!entry.triggerSummary.trim()) {
+    throw new Error(`${entry.id}: empty triggerSummary`)
+  }
+  const wordCount = entry.triggerSummary.split(/\s+/).filter(Boolean).length
+  if (wordCount > 60) {
+    throw new Error(
+      `${entry.id}: triggerSummary has ${wordCount} words (max 60)`,
+    )
+  }
+
+  for (const chainId of entry.chains ?? []) {
+    if (!EXPECTED_SKILL_IDS.includes(chainId)) {
+      throw new Error(`${entry.id}: chains to unknown skill ${chainId}`)
+    }
+    if (chainId === entry.id) {
+      throw new Error(`${entry.id}: cannot chain to itself`)
+    }
+    // Missing chained skill is allowed at runtime (degraded); do not throw.
+  }
+
+  if (version) {
+    const v = version.skills[entry.id]
+    if (!v) throw new Error(`VERSION.json missing skill ${entry.id}`)
+    if (v !== entry.version) {
+      throw new Error(
+        `VERSION.json ${entry.id}=${v} but SKILL.md version=${entry.version}`,
+      )
+    }
+  }
+
+  const size = skillInjectionChars(entry, decisionRulesChars)
+  if (size > SKILL_INJECTION_BUDGET_CHARS) {
+    throw new Error(
+      `${entry.id}: injection ${size} > ${SKILL_INJECTION_BUDGET_CHARS}`,
+    )
+  }
+}
+
+/**
+ * Fault-tolerant registry load for runtime. Quarantines broken skills instead of
+ * throwing; CI continues to use {@link loadSkillRegistry} (strict).
+ */
+export function loadSkillRegistrySafe(dir = skillsContentDir()): {
+  skills: AvaSkillEntry[]
+  skipped: Array<{ id: string; reason: string }>
+} {
+  if (cachedSafeRegistry && dir === skillsContentDir()) return cachedSafeRegistry
+
+  const loaded: AvaSkillEntry[] = []
+  const skipped: Array<{ id: string; reason: string }> = []
+
+  for (const id of EXPECTED_SKILL_IDS) {
+    try {
+      loaded.push(loadSkillFromDisk(id, dir))
+    } catch (err) {
+      const reason = quarantineReason(err)
+      skipped.push({ id, reason })
+      console.error("[ava] skill quarantined", { id, reason })
+    }
+  }
+
+  let version: AvaSkillsVersion | null = null
+  try {
+    version = loadSkillsVersion(dir)
+  } catch (err) {
+    console.error("[ava] skill VERSION.json unreadable", {
+      reason: quarantineReason(err),
+    })
+  }
+
+  const brain = loaded.find((e) => e.id === MARKETING_BRAIN_ID)
+  const decisionRules =
+    brain?.references.find((r) => r.name === DECISION_RULES_REF)?.body ?? ""
+  if (brain && !decisionRules) {
+    const reason = `Marketing brain missing ${DECISION_RULES_REF}`
+    skipped.push({ id: MARKETING_BRAIN_ID, reason })
+    console.error("[ava] skill quarantined", {
+      id: MARKETING_BRAIN_ID,
+      reason,
+    })
+  }
+  const decisionRulesChars = decisionRules.length
+
+  const skills: AvaSkillEntry[] = []
+  for (const entry of loaded) {
+    if (entry.id === MARKETING_BRAIN_ID && !decisionRules) continue
+    try {
+      validateSkillEntryRelaxed(
+        entry,
+        version,
+        entry.chains?.includes(MARKETING_BRAIN_ID) && !decisionRules
+          ? 0
+          : decisionRulesChars,
+      )
+      skills.push(entry)
+    } catch (err) {
+      const reason = quarantineReason(err)
+      skipped.push({ id: entry.id, reason })
+      console.error("[ava] skill quarantined", { id: entry.id, reason })
+    }
+  }
+
+  if (skipped.some((s) => s.id === MARKETING_BRAIN_ID)) {
+    console.error(
+      "[ava] marketing brain unavailable — chained skills will degrade",
+    )
+  }
+
+  const result = { skills, skipped }
+  if (dir === skillsContentDir()) cachedSafeRegistry = result
+  return result
+}
+
+export function isKnownSkillId(id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(SKILL_META, id)
+}
+
 export function getSkillById(
   id: string,
   dir = skillsContentDir(),
 ): AvaSkillEntry | undefined {
-  return loadSkillRegistry(dir).find((s) => s.id === id)
+  return loadSkillRegistrySafe(dir).skills.find((s) => s.id === id)
 }
 
 export function getDecisionRulesBody(dir = skillsContentDir()): string {
@@ -247,6 +379,20 @@ export function getDecisionRulesBody(dir = skillsContentDir()): string {
     )
   }
   return ref.body
+}
+
+/** Try to load decision rules; returns null when the marketing brain is quarantined. */
+export function tryGetDecisionRulesBody(
+  dir = skillsContentDir(),
+): string | null {
+  try {
+    return getDecisionRulesBody(dir)
+  } catch (err) {
+    console.error("[ava] decision rules unavailable", {
+      reason: quarantineReason(err),
+    })
+    return null
+  }
 }
 
 /** Injection size: body + learnings + chained decision-rules + largest single reference. */
@@ -349,4 +495,5 @@ export function validateSkillRegistry(
 /** Reset cache — tests only. */
 export function __resetSkillRegistryCacheForTests(): void {
   cachedRegistry = null
+  cachedSafeRegistry = null
 }

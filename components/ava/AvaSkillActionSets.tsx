@@ -14,6 +14,8 @@ export const AVA_SKILL_MESSAGES = {
     "Write delivery commentary for what's on this pacing view.",
   writeCampaignCommentary:
     "Write delivery commentary for this campaign — ground in page context and tools, no invented numbers.",
+  campaignRead:
+    "Give me a proactive read on this campaign's delivery: what's going well, what's off-track, and the single most useful next action. Use get_delivery_snapshot (and get_pacing_snapshot if needed), ground every claim in a tool, cite the surface, and never invent numbers. ≤120 words.",
   findInsight:
     "Find the audience insight and planning theme for the audience(s) on screen.",
   draftCopyAsset:
@@ -73,6 +75,16 @@ export function AvaCampaignCommentaryAction() {
     <AvaSkillAction
       label="Write commentary"
       message={AVA_SKILL_MESSAGES.writeCampaignCommentary}
+      className="h-9 min-w-[7.5rem] justify-center rounded-pill border-border bg-card shadow-e0"
+    />
+  )
+}
+
+export function AvaCampaignReadAction() {
+  return (
+    <AvaSkillAction
+      label="Get AVA's read"
+      message={AVA_SKILL_MESSAGES.campaignRead}
       className="h-9 min-w-[7.5rem] justify-center rounded-pill border-border bg-card shadow-e0"
     />
   )

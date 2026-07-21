@@ -10,13 +10,20 @@ export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{ slug: string }>
+  searchParams?: Promise<{ fy?: string | string[] }>
 }
 
-export default async function ClientHubDetailPage({ params }: PageProps) {
+export default async function ClientHubDetailPage({ params, searchParams }: PageProps) {
   const { slug } = await params
   if (!slug?.trim()) {
     notFound()
   }
+
+  const sp = searchParams ? await searchParams : undefined
+  const fyRaw = Array.isArray(sp?.fy) ? sp?.fy[0] : sp?.fy
+  const fyNum = Number(fyRaw)
+  const financialYearStartYear =
+    Number.isInteger(fyNum) && fyNum >= 2015 && fyNum <= 2100 ? fyNum : undefined
 
   const session = await auth0.getSession()
   const user = session?.user
@@ -29,7 +36,7 @@ export default async function ClientHubDetailPage({ params }: PageProps) {
   }
 
   const [clientData, slugRow] = await Promise.all([
-    getClientDashboardData(slug),
+    getClientDashboardData(slug, { financialYearStartYear }),
     fetchXanoClientRowByUrlSlug(slug),
   ])
 

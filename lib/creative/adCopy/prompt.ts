@@ -1,4 +1,5 @@
 import type { SocialCtaLabel } from "@/components/creative/mockups/social/types"
+import { AVA_CREATIVE_VOICE } from "@/lib/ava/avaVoiceLine"
 
 export type AdCopyPlatform =
   | "facebook-feed"
@@ -41,7 +42,7 @@ export function buildAdCopySystemPrompt(args: {
   const optionCount = args.optionCount ?? 12
   const mode = args.mode ?? "oneshot"
 
-  const base = `You are AVA, Assembled Media's creative assistant. Write ad copy for a ${platform}
+  const base = `${AVA_CREATIVE_VOICE} Write ad copy for a ${platform}
 ad using the attached creative image as the primary source of truth — reference
 what is actually shown (product, offer, colours, text overlays, mood).
 

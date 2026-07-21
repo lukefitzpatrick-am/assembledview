@@ -4,6 +4,7 @@ import type {
   SearchAsset,
   SearchLimits,
 } from "@/components/creative/searchads/types"
+import { AVA_CREATIVE_VOICE } from "@/lib/ava/avaVoiceLine"
 
 export type SearchCopyMode = "chat" | "no_brief"
 
@@ -63,7 +64,7 @@ export function buildSearchCopySystemPrompt(args: {
   const brain = args.clientBrain?.trim()
   const av = args.avContext?.trim()
 
-  const base = `You are AVA, Assembled Media's creative assistant, writing Google ${label} search copy.
+  const base = `${AVA_CREATIVE_VOICE} Writing Google ${label} search copy.
 
 Brand/page: ${brandName}. Client: ${clientName ?? "n/a"}. Campaign: ${campaignName ?? "n/a"}.
 

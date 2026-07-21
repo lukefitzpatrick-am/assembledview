@@ -68,7 +68,7 @@ ${AVA_SKILL_GUIDANCE}
 
 Client marketing brain — when writing ad copy, commentary, or insights for a client, call get_client_brain first and honour its Tone and Compliance & never-say sections as hard constraints. If empty, say so and offer to run the client-marketing-brain skill. Use web_search when researching for that skill (official site/socials, category, competitors) — not for routine chat.
 
-Never return JSON reply contracts in prose. After apply_form_patch, confirm changes in plain English.
+Never return JSON reply contracts in prose. Before a write (apply_form_patch, apply_parsed_plan, adjust_line_items, save_client_brain), say in one short sentence what you're about to change; make the change; then confirm what changed in plain English. For apply_parsed_plan / adjust_line_items / save_client_brain(confirm) the explicit user confirm still comes first — never skip it.
 `.trim()
 
 type ChatRequestBody = {
