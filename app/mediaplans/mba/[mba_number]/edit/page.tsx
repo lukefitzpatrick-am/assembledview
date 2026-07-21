@@ -2064,7 +2064,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   /** Channels that have published container media-line-items (or empty/error settle). */
   const [channelHydrationSettled, setChannelHydrationSettled] = useState<
     Partial<Record<MediaTypeKey, boolean>>
-  >({}){})
+  >({})
   const channelHydrationSettledRef = useRef<Partial<Record<MediaTypeKey, boolean>>>({})
   const markChannelHydrationSettled = useCallback((flag: MediaTypeKey) => {
     setChannelHydrationSettled((prev) => {
@@ -10220,9 +10220,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                     <LazyMountWhenVisible
                       label={medium.label}
                       rootMargin="150px 0px"
-                      forceMount={
-                        sectionStatus === "ready" || sectionStatus === "error"
-                      }
+                      forceMount={loadPhase === "ready"}
                     >
                     <Suspense fallback={<MediaContainerSuspenseFallback label={medium.label} />}>
                       {medium.name === "mp_television" && (
