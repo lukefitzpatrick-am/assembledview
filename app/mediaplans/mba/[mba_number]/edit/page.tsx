@@ -152,6 +152,10 @@ import {
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import {
+  computeAllChannelsHydrated,
+  isSaveAllowedAfterHydration,
+} from "@/lib/mediaplan/channelHydrationGate"
+import {
   humaniseBillingSaveError,
   withMbaScopeLineLabels,
 } from "@/lib/finance/humaniseBillingSaveError"
@@ -2057,6 +2061,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [loadPhase, setLoadPhase] = useState<LoadPhase>("bootstrapping")
   const [lineItemLoadItems, setLineItemLoadItems] = useState<SaveStatusItem[]>([])
   const [mediaLoadStatus, setMediaLoadStatus] = useState<Partial<Record<MediaTypeKey, MediaLoadStatus>>>({})
+  /** Channels that have published container media-line-items (or empty/error settle). */
+  const [channelHydrationSettled, setChannelHydrationSettled] = useState<
+    Partial<Record<MediaTypeKey, boolean>>
+  >({}){})
+  const channelHydrationSettledRef = useRef<Partial<Record<MediaTypeKey, boolean>>>({})
+  const markChannelHydrationSettled = useCallback((flag: MediaTypeKey) => {
+    setChannelHydrationSettled((prev) => {
+      if (prev[flag]) return prev
+      const next = { ...prev, [flag]: true }
+      channelHydrationSettledRef.current = next
+      return next
+    })
+  }, [])
   const [loading, setLoading] = useState(true)
   const [isNamingDownloading, setIsNamingDownloading] = useState(false)
   const [searchLineItems, setSearchLineItems] = useState<any[]>([])
@@ -2627,11 +2644,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     form,
   ])
 
-  useEffect(() => {
-    if (!navigationHydratedRef.current) {
-      navigationHydratedRef.current = true
-    }
-  }, [])
+  // Dirty tracking stays closed until allChannelsHydrated flips navigationHydratedRef
+  // (see effect below). Do not open the gate on mount — form.reset + container
+  // passive hydrate would otherwise mark the form dirty.
 
   // Use useWatch to prevent infinite re-renders from form.watch calls
   const mpSearch = useWatch({ control: form.control, name: 'mp_search' })
@@ -2729,6 +2744,41 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     () => MEDIA_TYPE_KEYS.map((k) => (mediaFlagMap[k] ? "1" : "0")).join(""),
     [mediaFlagMap]
   )
+
+  const expectedHydrationFlags = useMemo(
+    () => MEDIA_TYPE_KEYS.filter((k) => mediaFlagMap[k]),
+    [mediaFlagMap]
+  )
+
+  const allChannelsHydrated = useMemo(
+    () =>
+      computeAllChannelsHydrated({
+        loadPhase,
+        expectedFlags: expectedHydrationFlags,
+        mediaLoadStatus,
+        settledFlags: channelHydrationSettled,
+      }),
+    [loadPhase, expectedHydrationFlags, mediaLoadStatus, channelHydrationSettled]
+  )
+
+  const saveHeldForHydration = !isSaveAllowedAfterHydration(allChannelsHydrated)
+
+  // Open dirty tracking only after every expected channel has settled, plus a
+  // short grace so startTransition / form.watch echoes from the final passive
+  // hydrate do not flip hasUnsavedChanges.
+  useEffect(() => {
+    if (!allChannelsHydrated) {
+      navigationHydratedRef.current = false
+      return
+    }
+    setHasUnsavedChanges(false)
+    navigationHydratedRef.current = false
+    const id = window.setTimeout(() => {
+      setHasUnsavedChanges(false)
+      navigationHydratedRef.current = true
+    }, 400)
+    return () => window.clearTimeout(id)
+  }, [allChannelsHydrated])
 
   const enabledSections = useMemo(() => {
     return mediaTypes
@@ -3427,7 +3477,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         
         // Update form with the fetched data
         form.reset(formData)
-        navigationHydratedRef.current = true
+        // Keep dirty gate closed until channel containers finish hydrating.
+        navigationHydratedRef.current = false
         setHasUnsavedChanges(false)
         
         console.log("[DATA LOAD] Form reset completed")
@@ -3597,7 +3648,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const loadSingleMediaTypeLineItems = useCallback(
     async (flag: MediaTypeKey, versionToUse: number, timeoutMs?: number) => {
       const config = lineItemLoaderConfig[flag]
-      if (!config) return
+      if (!config) return 0
 
       const { fetchFn, setter } = config
       const items = await fetchFn(mbaNumber, versionToUse, timeoutMs)
@@ -3615,6 +3666,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       if (flag === "mp_production" && processedItems.length > 0 && !form.getValues("mp_production")) {
         form.setValue("mp_production", true, { shouldDirty: false })
       }
+      return processedItems.length
     },
     [form, lineItemLoaderConfig, mbaNumber]
   )
@@ -3632,19 +3684,40 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       if (!Number.isFinite(versionToUse)) return
 
       setMediaLoadStatus((prev) => ({ ...prev, [flag]: "loading" }))
+      setChannelHydrationSettled((prev) => {
+        if (!prev[flag]) return prev
+        const next = { ...prev }
+        delete next[flag]
+        return next
+      })
       updateLoadStatus(label, "pending")
       try {
-        await loadSingleMediaTypeLineItems(flag, versionToUse, LINE_ITEM_TIMEOUT_MANUAL_RETRY_MS)
+        const count = await loadSingleMediaTypeLineItems(
+          flag,
+          versionToUse,
+          LINE_ITEM_TIMEOUT_MANUAL_RETRY_MS
+        )
         setMediaLoadStatus((prev) => ({ ...prev, [flag]: "ready" }))
         updateLoadStatus(label, "success")
+        if (count === 0) {
+          markChannelHydrationSettled(flag)
+        }
       } catch (err) {
         console.warn(`[DATA LOAD] Manual retry failed for ${flag}:`, err)
         lineItemLoaderConfig[flag]?.setter([])
         setMediaLoadStatus((prev) => ({ ...prev, [flag]: "error" }))
         updateLoadStatus(label, "error", "Failed to load line items")
+        markChannelHydrationSettled(flag)
       }
     },
-    [lineItemLoaderConfig, loadSingleMediaTypeLineItems, mediaPlan?.version_number, updateLoadStatus, versionNumber]
+    [
+      lineItemLoaderConfig,
+      loadSingleMediaTypeLineItems,
+      markChannelHydrationSettled,
+      mediaPlan?.version_number,
+      updateLoadStatus,
+      versionNumber,
+    ]
   )
 
   // Parallel line-item loads (same pattern as save) after campaign metadata loads
@@ -3706,6 +3779,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         initialStatus[flag] = "loading"
       })
       setMediaLoadStatus(initialStatus)
+      setChannelHydrationSettled({})
+      channelHydrationSettledRef.current = {}
 
       console.log(
         `[DATA LOAD] Parallel loading ${enabledInOrder.length} media types (version ${versionToUse})`
@@ -3754,6 +3829,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             if (!cancelled) {
               setMediaLoadStatus((prev) => ({ ...prev, [flag]: "ready" }))
               updateLoadStatus(label, "success")
+              // Empty API payloads never run container useStableHydration — settle now.
+              if (processedItems.length === 0) {
+                setChannelHydrationSettled((prev) => {
+                  if (prev[flag]) return prev
+                  const next = { ...prev, [flag]: true }
+                  channelHydrationSettledRef.current = next
+                  return next
+                })
+              }
               console.log(`[DATA LOAD] ${flag} loaded (${processedItems.length} items)`)
             }
           } catch (loadError) {
@@ -3762,6 +3846,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             setter([])
             setMediaLoadStatus((prev) => ({ ...prev, [flag]: "error" }))
             updateLoadStatus(label, "error", "Failed to load line items")
+            setChannelHydrationSettled((prev) => {
+              if (prev[flag]) return prev
+              const next = { ...prev, [flag]: true }
+              channelHydrationSettledRef.current = next
+              return next
+            })
           }
         })
       )
@@ -5818,7 +5908,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         scrollTargetId: "builder-field-campaign-budget",
       })
     }
-    pushFinanceBuilderIssues(issues, campaignFinancialsForPanels, panelIndicators)
+    // Partial channel hydrate can self-match as billable=MBA — only surface finance
+    // issues once every expected container has settled.
+    if (allChannelsHydrated) {
+      pushFinanceBuilderIssues(issues, campaignFinancialsForPanels, panelIndicators)
+    }
     if (
       campaignFinancials.mbaScopeTotals.adServing > 0 ||
       campaignFinancials.mbaScopeTotals.production > 0
@@ -5851,6 +5945,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     budgetRemaining,
     campaignFinancialsForPanels,
     panelIndicators,
+    allChannelsHydrated,
     campaignFinancials.mbaScopeTotals.adServing,
     campaignFinancials.mbaScopeTotals.production,
     missingPublisherKpiCount,
@@ -6065,6 +6160,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [])
 
   const handleSaveAll = async () => {
+    if (saveHeldForHydration) {
+      toast({
+        title: "Still loading channels",
+        description: "Wait until every media container finishes loading before saving.",
+        variant: "destructive",
+      })
+      return
+    }
     if (budgetRemainingOverspend) {
       const proceed = window.confirm(
         `Budget remaining is ${formatMoney(budgetRemaining)} — this campaign is over budget. Save anyway?`
@@ -7626,76 +7729,100 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   // Callback handlers for media line items
   const handleTelevisionMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setTelevisionMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_television === true
+    markChannelHydrationSettled("mp_television")
+    if (setIfChanged(setTelevisionMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleRadioMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setRadioMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_radio === true
+    markChannelHydrationSettled("mp_radio")
+    if (setIfChanged(setRadioMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleNewspaperMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setNewspaperMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_newspaper === true
+    markChannelHydrationSettled("mp_newspaper")
+    if (setIfChanged(setNewspaperMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleMagazinesMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setMagazinesMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_magazines === true
+    markChannelHydrationSettled("mp_magazines")
+    if (setIfChanged(setMagazinesMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleOohMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setOohMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_ooh === true
+    markChannelHydrationSettled("mp_ooh")
+    if (setIfChanged(setOohMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleCinemaMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setCinemaMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_cinema === true
+    markChannelHydrationSettled("mp_cinema")
+    if (setIfChanged(setCinemaMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleDigitalDisplayMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setDigitalDisplayMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_digidisplay === true
+    markChannelHydrationSettled("mp_digidisplay")
+    if (setIfChanged(setDigitalDisplayMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleDigitalAudioMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setDigitalAudioMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_digiaudio === true
+    markChannelHydrationSettled("mp_digiaudio")
+    if (setIfChanged(setDigitalAudioMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleDigitalVideoMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setDigitalVideoMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_digivideo === true
+    markChannelHydrationSettled("mp_digivideo")
+    if (setIfChanged(setDigitalVideoMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleBvodMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setBvodMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_bvod === true
+    markChannelHydrationSettled("mp_bvod")
+    if (setIfChanged(setBvodMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleIntegrationMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setIntegrationMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_integration === true
+    markChannelHydrationSettled("mp_integration")
+    if (setIfChanged(setIntegrationMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleProductionMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setProductionMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_production === true
+    markChannelHydrationSettled("mp_production")
+    if (setIfChanged(setProductionMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleProductionItemsChange = useCallback((items: LineItem[]) => {
     if (setIfChanged(setProductionItems, items)) {
@@ -7704,22 +7831,28 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [markUnsavedChanges])
 
   const handleSearchMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setSearchMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_search === true
+    markChannelHydrationSettled("mp_search")
+    if (setIfChanged(setSearchMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleSocialMediaMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setSocialMediaMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_socialmedia === true
+    markChannelHydrationSettled("mp_socialmedia")
+    if (setIfChanged(setSocialMediaMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleProgDisplayMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setProgDisplayMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_progdisplay === true
+    markChannelHydrationSettled("mp_progdisplay")
+    if (setIfChanged(setProgDisplayMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   // Ensure Programmatic Display payload always contains the full set of fields
   const buildProgDisplayPayload = useCallback(
@@ -7757,34 +7890,44 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   );
 
   const handleProgVideoMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setProgVideoMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_progvideo === true
+    markChannelHydrationSettled("mp_progvideo")
+    if (setIfChanged(setProgVideoMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleProgBvodMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setProgBvodMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_progbvod === true
+    markChannelHydrationSettled("mp_progbvod")
+    if (setIfChanged(setProgBvodMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleProgAudioMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setProgAudioMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_progaudio === true
+    markChannelHydrationSettled("mp_progaudio")
+    if (setIfChanged(setProgAudioMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleProgOohMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setProgOohMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_progooh === true
+    markChannelHydrationSettled("mp_progooh")
+    if (setIfChanged(setProgOohMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   const handleInfluencersMediaLineItemsChange = useCallback((lineItems: any[]) => {
-    if (setIfChanged(setInfluencersMediaLineItems, lineItems)) {
+    const alreadySettled = channelHydrationSettledRef.current.mp_influencers === true
+    markChannelHydrationSettled("mp_influencers")
+    if (setIfChanged(setInfluencersMediaLineItems, lineItems) && alreadySettled) {
       markUnsavedChanges()
     }
-  }, [markUnsavedChanges])
+  }, [markChannelHydrationSettled, markUnsavedChanges])
 
   // Callback handlers for LineItem[] arrays (for Excel generation)
   const handleSearchItemsChange = useCallback((items: LineItem[]) => {
@@ -9242,10 +9385,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           type="button"
           variant="action"
           onClick={handleSaveAll}
-          disabled={isSaving || isLoading}
+          disabled={isSaving || isLoading || saveHeldForHydration}
           className="h-9 shrink-0 rounded-pill px-4 shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {isSaving ? "Saving..." : "Save"}
+          {isSaving ? "Saving..." : saveHeldForHydration ? "Loading…" : "Save"}
         </Button>
         <Button
           type="button"
@@ -9620,6 +9763,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         onSave={handleSaveAll}
         onExit={handleExit}
         isSaving={isSaving}
+        saveDisabled={isLoading || saveHeldForHydration}
         bottomBar={wizardBottomBar}
       >
           <Form {...form}>
@@ -9974,6 +10118,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 financials={campaignFinancialsForPanels}
                 panelIndicators={panelIndicators}
                 mediaLabelByType={mediaLabelByBillingKey}
+                reconciliationReady={allChannelsHydrated}
               />
               <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" variant="action" onClick={handleMbaBillingModalOpen}>
@@ -10072,7 +10217,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                       </div>
                     )}
                     {!showSectionLoader && !showSectionError && (
-                    <LazyMountWhenVisible label={medium.label} rootMargin="150px 0px">
+                    <LazyMountWhenVisible
+                      label={medium.label}
+                      rootMargin="150px 0px"
+                      forceMount={
+                        sectionStatus === "ready" || sectionStatus === "error"
+                      }
+                    >
                     <Suspense fallback={<MediaContainerSuspenseFallback label={medium.label} />}>
                       {medium.name === "mp_television" && (
                         <TelevisionContainer
@@ -10609,6 +10760,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         versionLabel={`v${selectedVersionNumber ?? mediaPlan?.version_number ?? 1}`}
         financials={campaignFinancialsForPanels}
         panelIndicators={panelIndicators}
+        reconciliationReady={allChannelsHydrated}
         scopeLines={mbaBillingScopeLines}
         onToggleLineApproved={handleMbaBillingToggleLine}
         onToggleContainerApproved={handleMbaBillingToggleContainer}

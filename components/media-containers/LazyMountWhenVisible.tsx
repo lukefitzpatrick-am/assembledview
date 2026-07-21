@@ -17,6 +17,12 @@ export interface LazyMountWhenVisibleProps {
   rootMargin?: string
   /** Custom placeholder to render while the section is not yet mounted. */
   placeholder?: ReactNode
+  /**
+   * When true, mount regardless of viewport (still staggered via enqueueVisibleMount).
+   * Used on edit page after API line-item load so off-screen channels still hydrate
+   * before Save / green reconciliation badges unlock.
+   */
+  forceMount?: boolean
 }
 
 interface Rect {
@@ -51,12 +57,18 @@ export function LazyMountWhenVisible({
   children,
   rootMargin = "150px 0px",
   placeholder,
+  forceMount = false,
 }: LazyMountWhenVisibleProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [mounted, setMounted] = useState(false)
 
   useLayoutEffect(() => {
     if (mounted) return
+
+    if (forceMount) {
+      enqueueVisibleMount(() => setMounted(true))
+      return
+    }
 
     const node = containerRef.current
     if (!node) return
@@ -89,7 +101,7 @@ export function LazyMountWhenVisible({
 
     observer.observe(node)
     return () => observer.disconnect()
-  }, [mounted, rootMargin])
+  }, [mounted, rootMargin, forceMount])
 
   return <div ref={containerRef}>{mounted ? children : placeholder ?? <MediaContainerLoadState loading label={label} />}</div>
 }

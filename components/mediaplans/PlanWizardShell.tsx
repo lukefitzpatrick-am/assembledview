@@ -47,6 +47,8 @@ export type PlanWizardShellProps = {
   onSave: () => void
   onExit: () => void
   isSaving?: boolean
+  /** Extra hold (e.g. channel hydration) — disables Save without showing "Saving...". */
+  saveDisabled?: boolean
   bottomBar: ReactNode
   children: ReactNode
 }
@@ -62,6 +64,7 @@ export function PlanWizardShell({
   onSave,
   onExit,
   isSaving = false,
+  saveDisabled = false,
   bottomBar,
   children,
 }: PlanWizardShellProps) {
@@ -312,9 +315,9 @@ export function PlanWizardShell({
                   size="sm"
                   className="w-full rounded-pill"
                   onClick={onSave}
-                  disabled={isSaving}
+                  disabled={isSaving || saveDisabled}
                 >
-                  {isSaving ? "Saving..." : "Save"}
+                  {isSaving ? "Saving..." : saveDisabled ? "Loading…" : "Save"}
                 </Button>
                 <Button
                   type="button"

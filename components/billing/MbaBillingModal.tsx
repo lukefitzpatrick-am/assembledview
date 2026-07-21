@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils"
 import type { CampaignFinancials } from "@/lib/finance/campaignFinancials.types"
 import type { PanelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import type { BillingDivergenceResult } from "@/lib/billing/compareBillingDivergence"
+import { reconciliationBadgeVisibility } from "@/lib/mediaplan/channelHydrationGate"
 import {
   BillingEqualsMbaPill,
   BillingMismatchMbaPill,
@@ -141,6 +142,11 @@ export type MbaBillingModalProps = {
   showDivergenceBanner?: boolean
   onAcknowledgeDivergence?: () => void
   footer?: ReactNode
+  /**
+   * False while channel containers are still hydrating. Suppresses green/red
+   * billable=MBA badges so a partial channel set cannot self-reconcile as green.
+   */
+  reconciliationReady?: boolean
 }
 
 type ScopeContainerGroup = {
@@ -193,10 +199,12 @@ function HeaderStrip({
   versionLabel,
   financials,
   panelIndicators,
+  reconciliationReady = true,
 }: {
   versionLabel: string
   financials: CampaignFinancials
   panelIndicators: PanelIndicatorsFromCampaignFinancials
+  reconciliationReady?: boolean
 }) {
   const lines = financials.perLine
   const total = lines.length
@@ -208,6 +216,7 @@ function HeaderStrip({
   ).length
   // CORE validation only (subtracts client-pays media). Never compare schedule grand total to MBA nett.
   const billableEquals = financials.validation.billableEqualsMba
+  const rec = reconciliationBadgeVisibility(reconciliationReady, billableEquals)
   const partialLabel = panelIndicators.mbaDetails.partialLabel
 
   const quiet =
@@ -240,12 +249,21 @@ function HeaderStrip({
           billing≠delivery: <span className="num">{billingNeDelivery}</span>
         </Badge>
       ) : null}
-      {billableEquals ? (
+      {!reconciliationReady ? (
+        <Badge
+          variant="secondary"
+          size="sm"
+          className="rounded-pill font-medium text-muted-foreground"
+          title="Waiting for all media channels to finish loading"
+        >
+          Loading channels…
+        </Badge>
+      ) : rec.showEquals ? (
         <Badge variant="good" size="sm" className="rounded-pill font-medium" title="Billable totals match MBA">
           <Check className="mr-1 h-3.5 w-3.5" aria-hidden />
           billable = MBA
         </Badge>
-      ) : total > 0 ? (
+      ) : rec.showMismatch && total > 0 ? (
         <Badge
           variant="blocking"
           size="sm"
@@ -255,7 +273,7 @@ function HeaderStrip({
           billing ≠ MBA
         </Badge>
       ) : null}
-      {quiet && billableEquals && total > 0 ? (
+      {quiet && rec.showEquals && total > 0 ? (
         <span className="text-xs text-muted-foreground">Clean plan</span>
       ) : null}
     </div>
@@ -510,6 +528,7 @@ export function MbaBillingModal({
   showDivergenceBanner = false,
   onAcknowledgeDivergence,
   footer,
+  reconciliationReady = true,
 }: MbaBillingModalProps) {
   const advancedOpen = showAdvancedEditor ?? showManualEditor ?? false
   const draftReady = timingDraftReady ?? advancedOpen
@@ -523,6 +542,14 @@ export function MbaBillingModal({
   const t = financials.mbaScopeTotals
   const schedule = financials.billingSchedule
   const byMedia = panelIndicators.mbaDetails.byMediaType
+  const mbaRec = reconciliationBadgeVisibility(
+    reconciliationReady,
+    panelIndicators.mbaDetails.billableEqualsMba
+  )
+  const billingRec = reconciliationBadgeVisibility(
+    reconciliationReady,
+    panelIndicators.billingSchedule.billableEqualsMba
+  )
 
   const [expandedByMediaType, setExpandedByMediaType] = useState<Record<string, boolean>>(
     () => ({ ...sessionExpandedByMediaType })
@@ -608,6 +635,7 @@ export function MbaBillingModal({
             versionLabel={versionLabel}
             financials={financials}
             panelIndicators={panelIndicators}
+            reconciliationReady={reconciliationReady}
           />
           {showDivergenceBanner && billingDivergence?.isDivergent ? (
             <div className="border-b border-border px-6 py-3">
@@ -790,8 +818,8 @@ export function MbaBillingModal({
                 <div className="flex justify-between border-t border-border pt-2 text-sm font-semibold">
                   <span className="flex items-center">
                     Total investment (ex GST)
-                    <MbaBillableEqualsPill show={panelIndicators.mbaDetails.billableEqualsMba} />
-                    <MbaBillableMismatchPill show={!panelIndicators.mbaDetails.billableEqualsMba} />
+                    <MbaBillableEqualsPill show={mbaRec.showEquals} />
+                    <MbaBillableMismatchPill show={mbaRec.showMismatch} />
                   </span>
                   <span className="num text-foreground">{money.format(t.nettExGst)}</span>
                 </div>
@@ -916,12 +944,8 @@ export function MbaBillingModal({
                             <span className="inline-flex items-center">
                               Grand Total
                               {/* Same core flag as header — not grandTotal vs MBA scope nett. */}
-                              <BillingEqualsMbaPill
-                                show={panelIndicators.billingSchedule.billableEqualsMba}
-                              />
-                              <BillingMismatchMbaPill
-                                show={!panelIndicators.billingSchedule.billableEqualsMba}
-                              />
+                              <BillingEqualsMbaPill show={billingRec.showEquals} />
+                              <BillingMismatchMbaPill show={billingRec.showMismatch} />
                             </span>
                           </TableCell>
                           <TableCell className="num text-right">{money.format(grandMedia)}</TableCell>
