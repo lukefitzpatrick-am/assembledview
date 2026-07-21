@@ -128,6 +128,7 @@ import {
   uploadMediaPlanVersionDocuments,
 } from "@/lib/api"
 import type { BillingMonth, BillingLineItem as BillingLineItemType, BillingBurst } from "@/lib/billing/types"
+import { computeAppendNewMediaTypeBucket } from "@/lib/billing/appendNewMediaTypeBucket"
 import {
   compareBillingDivergence,
   type BillingDivergenceResult,
@@ -651,8 +652,10 @@ function appendNewMediaTypeIntoWorkingMonth(
     (s, t) => s + (t.monthlyAmounts[base.monthYear] || 0),
     0
   )
-  const nextBucket = priorBucket + sumNewLines
-  const bucketDelta = nextBucket - priorBucket
+  // Replace (not prior+sum): C1 schedules often already carry the mediaCosts bucket with
+  // empty lineItems. Adding template line sums on top doubles mediaTotal vs columns.
+  // Shared helper keeps multi-type / multi-burst rollups testable.
+  const { nextBucket, bucketDelta } = computeAppendNewMediaTypeBucket(priorBucket, sumNewLines)
   ;(base.mediaCosts as Record<string, string>)[mediaKey] = formatter.format(nextBucket)
 
   billingAppendDebug("appendNewMediaTypeIntoWorkingMonth", {
@@ -965,6 +968,38 @@ function parseSavedBillingSchedulePayload(
 } | null {
   const parsed = normalizeBillingScheduleToArray(billingSchedule)
   if (!parsed) return null
+
+  // C1 BillingMonth shape (mediaTotal/mediaCosts, no mediaTypes): preserve headers.
+  // Rebuilding via the mediaTypes path zeroes mediaCosts while keeping mediaTotal from
+  // totalAmount−fees; append then seeds the $ line again → doubled subtotal vs columns.
+  const sample = parsed[0] as Record<string, unknown> | undefined
+  const sampleMediaTypes = sample?.mediaTypes ?? (sample as { media_types?: unknown } | undefined)?.media_types
+  if (
+    sample &&
+    typeof sample === "object" &&
+    typeof sample.monthYear === "string" &&
+    !Array.isArray(sampleMediaTypes) &&
+    ("mediaTotal" in sample || "mediaCosts" in sample)
+  ) {
+    const months = JSON.parse(JSON.stringify(parsed)) as BillingMonth[]
+    const total = months.reduce((sum, m) => {
+      return sum + (parseFloat(String(m.totalAmount || "$0").replace(/[^0-9.]/g, "")) || 0)
+    }, 0)
+    const currencyFormatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
+    const partialEntry = parsed.find((e: any) => e?.partialApproval ?? e?.partial_approval)
+    const savedPartial = (partialEntry?.partialApproval ?? partialEntry?.partial_approval) as
+      | PartialApprovalMetadata
+      | undefined
+    const partial =
+      savedPartial?.isPartial === true
+        ? { hydrate: hydratePartialMbaFromSavedMetadata(savedPartial), metadata: savedPartial }
+        : null
+    return {
+      months,
+      billingTotalFormatted: currencyFormatter.format(total),
+      partial,
+    }
+  }
 
   const { searchFee, socialFee } = fees
   const currencyFormatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
