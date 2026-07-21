@@ -16,6 +16,10 @@ import { normalizeDateToMelbourneISO } from '@/lib/dates/normalizeCampaignDateIS
 import { parseDateNativeSafe } from '@/lib/dates/parseDateNativeSafe'
 import { publishedVersionFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
 import {
+  australianFyStartYearForDate,
+  referenceDateForFyStartYear,
+} from '@/lib/finance/months'
+import {
   apiClient,
   isDashboardDebug,
   normalizeStatus,
@@ -33,6 +37,42 @@ import {
   normalizeSchedule,
   computeSpendFromDelivery,
 } from './shared'
+
+/** True when a schedule entry has parseable positive spend (line items or entry total). */
+function scheduleEntryHasPositiveAmount(entry: any): boolean {
+  const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
+  if (mediaTypes.length === 0) {
+    return parseMoney(entry?.amount ?? entry?.total ?? entry?.budget) > 0
+  }
+  return mediaTypes.some((mt: any) => {
+    const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
+    return lineItems.reduce((sum: number, li: any) => sum + parseMoney(li?.amount), 0) > 0
+  })
+}
+
+/** FY start years present in booked schedules, always including current FY. Descending. */
+function collectAvailableFinancialYears(
+  selectedVersionByMBA: Record<string, any>,
+  currentFyStartYear: number,
+): number[] {
+  const years = new Set<number>([currentFyStartYear])
+  for (const version of Object.values(selectedVersionByMBA)) {
+    if (!isBookedApprovedCompleted(version?.campaign_status)) continue
+    const schedule = normalizeSchedule(
+      version?.deliverySchedule ||
+        version?.delivery_schedule ||
+        version?.billingSchedule ||
+        version?.billing_schedule,
+    )
+    for (const entry of schedule) {
+      if (!scheduleEntryHasPositiveAmount(entry)) continue
+      const monthDate = parseMonthYear(getMonthYearValue(entry))
+      if (!monthDate) continue
+      years.add(australianFyStartYearForDate(monthDate))
+    }
+  }
+  return [...years].sort((a, b) => b - a)
+}
 
 function xanoResponseBodyPreview(data: unknown): string {
   try {
@@ -339,8 +379,12 @@ function rawClientToFallbackClient(raw: any): Client | null {
 function emptyDashboardForKnownClient(
   fallbackClient: Client,
   totalCampaignsYTDFromMaster: number | null,
+  financialYearStartYear?: number,
 ): ClientDashboardData {
-  const { months: fyMonths } = getAustralianFinancialYear(new Date())
+  const currentFyStartYear = australianFyStartYearForDate(new Date())
+  const fyStartYear = financialYearStartYear ?? currentFyStartYear
+  const fyReference = referenceDateForFyStartYear(fyStartYear)
+  const { months: fyMonths } = getAustralianFinancialYear(fyReference)
   return {
     clientName: fallbackClient.name,
     brandColour: fallbackClient.brandColour,
@@ -356,6 +400,8 @@ function emptyDashboardForKnownClient(
     spendByCampaign: [],
     monthlySpend: fyMonths.map((month) => ({ month, data: [] })),
     monthlySpendByCampaign: fyMonths.map((month) => ({ month, data: [] })),
+    availableFinancialYears: [currentFyStartYear],
+    selectedFinancialYear: fyStartYear,
   }
 }
 
@@ -368,9 +414,16 @@ function buildClientDashboardDataFromVersions(
     urlSlug: string
     /** Published watermark per MBA — staged-but-unpublished rows must not win. */
     publishedByMba?: Map<string, number>
+    /** Australian FY start year for spend charts; defaults to current FY. */
+    financialYearStartYear?: number
   }
 ): ClientDashboardData | null {
   const { fallbackClient, totalCampaignsYTDFromMaster, urlSlug, publishedByMba } = ctx
+
+  const currentFyStartYear = australianFyStartYearForDate(new Date())
+  const fyStartYear = ctx.financialYearStartYear ?? currentFyStartYear
+  const fyReference = referenceDateForFyStartYear(fyStartYear)
+  const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(fyReference)
 
   const clientVersions = allVersions.filter((version: any) => {
     const nameCandidates = [
@@ -384,8 +437,6 @@ function buildClientDashboardDataFromVersions(
 
     return nameCandidates.some((name: string) => targetSlugs.has(slugifyClientName(name)))
   })
-
-  const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
 
   if (clientVersions.length === 0) {
     console.warn('No media_plan_versions found for slug:', urlSlug)
@@ -406,6 +457,8 @@ function buildClientDashboardDataFromVersions(
         spendByCampaign: [],
         monthlySpend: fyMonths.map((month) => ({ month, data: [] })),
         monthlySpendByCampaign: fyMonths.map((month) => ({ month, data: [] })),
+        availableFinancialYears: [currentFyStartYear],
+        selectedFinancialYear: fyStartYear,
       }
     }
 
@@ -448,6 +501,12 @@ function buildClientDashboardDataFromVersions(
         selectedVersionByMBA[mbaKey] = chosenVersion
       }
     })
+
+    // Independent of selected FY so the dropdown stays stable across years.
+    const availableFinancialYears = collectAvailableFinancialYears(
+      selectedVersionByMBA,
+      currentFyStartYear,
+    )
     
     const selectedVersionPerMBA = Object.values(selectedVersionByMBA)
     
@@ -725,7 +784,9 @@ function buildClientDashboardDataFromVersions(
       spendByMediaType,
       spendByCampaign,
       monthlySpend,
-      monthlySpendByCampaign
+      monthlySpendByCampaign,
+      availableFinancialYears,
+      selectedFinancialYear: fyStartYear,
     }
 
     console.log('Dashboard data built for client:', clientName, {
@@ -755,7 +816,10 @@ function sumYtdAcrossSlugs(
   return any ? sum : null
 }
 
-export async function getClientDashboardData(slug: string): Promise<ClientDashboardData | null> {
+export async function getClientDashboardData(
+  slug: string,
+  options?: { financialYearStartYear?: number },
+): Promise<ClientDashboardData | null> {
   console.log('[dashboard] getClientDashboardData called with slug:', slug, 'ENV check:', {
     XANO_BASE_URL: !!process.env.XANO_BASE_URL,
     XANO_MEDIA_PLANS_BASE_URL: !!process.env.XANO_MEDIA_PLANS_BASE_URL,
@@ -767,7 +831,9 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
   }
 
   const sanitizedSlug = slug.trim()
+  // YTD campaign COUNT KPI — always current FY (do not honour spend chart ?fy=).
   const fyWindow = getAustralianFinancialYearWindow(new Date())
+  const financialYearStartYear = options?.financialYearStartYear
 
   try {
     let targetSlugs = new Set([slugifyClientName(sanitizedSlug)].filter(Boolean))
@@ -823,7 +889,11 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
     } catch (versionsError) {
       console.warn('Dashboard: media_plan_versions fetch failed; using partial dashboard if client is known', versionsError)
       if (fallbackClient) {
-        return emptyDashboardForKnownClient(fallbackClient, totalCampaignsYTDFromMaster)
+        return emptyDashboardForKnownClient(
+          fallbackClient,
+          totalCampaignsYTDFromMaster,
+          financialYearStartYear,
+        )
       }
       return null
     }
@@ -833,6 +903,7 @@ export async function getClientDashboardData(slug: string): Promise<ClientDashbo
       totalCampaignsYTDFromMaster,
       urlSlug: sanitizedSlug,
       publishedByMba,
+      financialYearStartYear,
     })
   } catch (error: any) {
     const msg = error?.message != null ? String(error.message) : String(error)

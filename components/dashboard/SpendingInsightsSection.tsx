@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import {
   DonutChart,
@@ -9,11 +10,19 @@ import {
 } from "@/components/charts/system"
 import { SpendingInsightChartShell } from "@/components/dashboard/SpendingInsightChartShell"
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { EmptyState } from "@/components/ui/states"
 import { buildDonutSlices } from "@/lib/charts-app/donutSlices"
 import { getDeterministicColor, getMediaLabel } from "@/lib/charts/registry"
 import { channelColorFor, fmt } from "@/lib/chart-theme"
 import { formatCurrencyAUD } from "@/lib/format/currency"
+import { fyDisplayLabel } from "@/lib/finance/months"
 
 export type MonthlySpendData = {
   month: string
@@ -62,6 +71,10 @@ interface SpendingInsightsSectionProps {
   campaignData: SpendByCampaignData[]
   mediaTypeData: SpendByMediaTypeData[]
   brandColour?: string
+  /** Australian FY start years with spend (plus current). Selector shown when length > 1. */
+  availableFinancialYears?: number[]
+  selectedFinancialYear?: number
+  slug?: string
 }
 
 function resolveEntryKey(item: MonthlyStackedEntry["data"][number]): string {
@@ -122,12 +135,40 @@ export function SpendingInsightsSection({
   campaignData,
   mediaTypeData,
   brandColour: _brandColour,
+  availableFinancialYears,
+  selectedFinancialYear,
+  slug: _slug,
 }: SpendingInsightsSectionProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [monthlyView, setMonthlyView] = useState<MonthlyView>("mediaType")
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(() => new Set())
   const monthlyChartRef = useRef<HTMLDivElement | null>(null)
   const campaignPieRef = useRef<HTMLDivElement | null>(null)
   const mediaPieRef = useRef<HTMLDivElement | null>(null)
+
+  const showFySelector =
+    Array.isArray(availableFinancialYears) && availableFinancialYears.length > 1
+
+  const fyOptions = useMemo(() => {
+    if (!showFySelector) return []
+    const years = new Set(availableFinancialYears)
+    if (typeof selectedFinancialYear === "number") years.add(selectedFinancialYear)
+    return [...years].sort((a, b) => b - a)
+  }, [availableFinancialYears, selectedFinancialYear, showFySelector])
+
+  const fySubtitle =
+    typeof selectedFinancialYear === "number"
+      ? `FY ${fyDisplayLabel(selectedFinancialYear)}`
+      : "Current financial year"
+
+  const onFyChange = (year: number) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? "")
+    params.set("fy", String(year))
+    const qs = params.toString()
+    router.push(qs ? `${pathname}?${qs}` : pathname)
+  }
 
   useEffect(() => {
     setHiddenKeys(new Set())
@@ -299,19 +340,45 @@ export function SpendingInsightsSection({
       <header className="flex flex-wrap items-center justify-between gap-3 md:gap-4">
         <div className="min-w-0 space-y-1">
           <h2 className="text-lg font-semibold text-foreground">Spending insights</h2>
-          <p className="text-sm text-muted-foreground">Current financial year</p>
+          <p className="text-sm text-muted-foreground">{fySubtitle}</p>
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            setMonthlyView((v) => (v === "mediaType" ? "campaign" : "mediaType"))
-          }
-        >
-          {monthlyView === "mediaType" ? "View by campaign" : "View by media type"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {showFySelector ? (
+            <Select
+              value={
+                typeof selectedFinancialYear === "number"
+                  ? String(selectedFinancialYear)
+                  : undefined
+              }
+              onValueChange={(v) => onFyChange(Number.parseInt(v, 10))}
+            >
+              <SelectTrigger
+                className="h-8 w-[140px]"
+                aria-label="Financial year"
+              >
+                <SelectValue placeholder="FY" />
+              </SelectTrigger>
+              <SelectContent>
+                {fyOptions.map((y) => (
+                  <SelectItem key={y} value={String(y)}>
+                    FY {fyDisplayLabel(y)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setMonthlyView((v) => (v === "mediaType" ? "campaign" : "mediaType"))
+            }
+          >
+            {monthlyView === "mediaType" ? "View by campaign" : "View by media type"}
+          </Button>
+        </div>
       </header>
 
       <div className="flex w-full flex-col gap-4 lg:gap-6">

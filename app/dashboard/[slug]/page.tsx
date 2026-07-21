@@ -11,6 +11,16 @@ interface ClientDashboardProps {
   params: Promise<{
     slug: string
   }>
+  searchParams?: Promise<{
+    fy?: string | string[]
+  }>
+}
+
+function parseFinancialYearStartYear(raw: string | string[] | undefined): number | undefined {
+  const fyRaw = Array.isArray(raw) ? raw[0] : raw
+  const n = Number(fyRaw)
+  if (!Number.isInteger(n) || n < 2015 || n > 2100) return undefined
+  return n
 }
 
 /** Logo from the group anchor row (same branding source as clientName / brandColour). */
@@ -23,8 +33,10 @@ function logoFromClientRecord(clientRecord: Record<string, unknown> | null | und
   return undefined
 }
 
-export default async function ClientDashboard({ params }: ClientDashboardProps) {
+export default async function ClientDashboard({ params, searchParams }: ClientDashboardProps) {
   const { slug } = await params
+  const sp = searchParams ? await searchParams : undefined
+  const financialYearStartYear = parseFinancialYearStartYear(sp?.fy)
   const session = await auth0.getSession()
   const user = session?.user
   const role = getPrimaryRole(user)
@@ -69,7 +81,7 @@ export default async function ClientDashboard({ params }: ClientDashboardProps) 
     // fetchXanoClientRowByUrlSlug resolves via resolveClientGroup → group.anchor
     // so mbaidentifier-slugs (penfold) keep the same logo as name-slugs (penfolds).
     const [data, clientRecord] = await Promise.all([
-      getClientDashboardData(slug),
+      getClientDashboardData(slug, { financialYearStartYear }),
       fetchXanoClientRowByUrlSlug(slug),
     ])
     if (data) {

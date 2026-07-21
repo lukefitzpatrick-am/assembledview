@@ -103,6 +103,10 @@ export interface ClientDashboardData {
       amount: number
     }>
   }>
+  /** Australian FY start years with booked spend (plus current FY). Descending. */
+  availableFinancialYears?: number[]
+  /** FY start year used for spend aggregation on this response. */
+  selectedFinancialYear?: number
 }
 
 export interface GlobalMonthlySpend {

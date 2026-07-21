@@ -311,6 +311,9 @@ export function ClientDashboardPageContent({
               campaignData={clientData.spendByCampaign}
               mediaTypeData={clientData.spendByMediaType}
               brandColour={clientData.brandColour}
+              availableFinancialYears={clientData.availableFinancialYears}
+              selectedFinancialYear={clientData.selectedFinancialYear}
+              slug={slug}
             />
           </Suspense>
         </motion.section>
