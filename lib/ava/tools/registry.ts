@@ -17,6 +17,7 @@ import { getDeliverySnapshotTool } from "./getDeliverySnapshot";
 import { getPlatformSpecsTool } from "./getPlatformSpecs";
 import { startMiInterviewTool } from "./startMiInterview";
 import { generateMiWorkbookTool } from "./generateMiWorkbook";
+import { generateNamingWorkbookTool } from "./generateNamingWorkbook";
 import { loadSkillTool } from "./loadSkill";
 import { generatePerformanceReportTool } from "./generatePerformanceReport";
 import { getClientBrainTool } from "./getClientBrain";
@@ -39,6 +40,7 @@ const AVA_TOOLS: AvaTool[] = [
   getPlatformSpecsTool,
   startMiInterviewTool,
   generateMiWorkbookTool,
+  generateNamingWorkbookTool,
   loadSkillTool,
   generatePerformanceReportTool,
   getClientBrainTool,

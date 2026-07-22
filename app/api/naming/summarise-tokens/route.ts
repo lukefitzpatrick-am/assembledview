@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import type Anthropic from "@anthropic-ai/sdk"
 
-import { AVA_MODEL, getAnthropicClient } from "@/lib/ava/anthropic"
 import { requireRole } from "@/lib/requireRole"
+import type { ChannelFamily } from "@/lib/naming/channelTabs"
+import { suggestAvaNamingTokens } from "@/lib/naming/suggestAvaNamingTokens"
 import {
   applyAvaSuggestions,
-  type AvaTokenSuggestions,
   type TokenSourceItem,
 } from "@/lib/naming/summariseTargetingTokens"
 
@@ -14,7 +13,15 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 const ITEM_CAP = 200
-const RAW_CAP = 200
+const RAW_CAP = 400
+const STR_CAP = 120
+
+function asStr(value: unknown, max = STR_CAP): string {
+  if (value == null) return ""
+  const s = String(value).trim()
+  if (!s) return ""
+  return s.length <= max ? s : s.slice(0, max)
+}
 
 function asItems(raw: unknown): TokenSourceItem[] {
   if (!Array.isArray(raw)) return []
@@ -22,98 +29,48 @@ function asItems(raw: unknown): TokenSourceItem[] {
   for (const row of raw.slice(0, ITEM_CAP)) {
     if (!row || typeof row !== "object") continue
     const o = row as Record<string, unknown>
-    const id = String(o.line_item_id ?? "").trim()
+    const id = asStr(o.line_item_id, 80)
     if (!id) continue
-    out.push({
+
+    const item: TokenSourceItem = {
       line_item_id: id,
-      targeting_raw: String(o.targeting_raw ?? "").trim().slice(0, RAW_CAP),
-      geo_raw: String(o.geo_raw ?? "").trim().slice(0, RAW_CAP),
-    })
+      targeting_raw: asStr(o.targeting_raw, RAW_CAP),
+      geo_raw: asStr(o.geo_raw, RAW_CAP),
+    }
+
+    const channel = asStr(o.channel)
+    if (channel) item.channel = channel
+    const publisher = asStr(o.publisher)
+    if (publisher) item.publisher = publisher
+    const media_type = asStr(o.media_type)
+    if (media_type) item.media_type = media_type
+    const buy_type = asStr(o.buy_type)
+    if (buy_type) item.buy_type = buy_type
+    const creative_name = asStr(o.creative_name)
+    if (creative_name) item.creative_name = creative_name
+    const family = asStr(o.family)
+    if (family) item.family = family as ChannelFamily
+    const brand = asStr(o.brand)
+    if (brand) item.brand = brand
+    const campaign = asStr(o.campaign)
+    if (campaign) item.campaign = campaign
+    const notes = asStr(o.best_practice_notes, RAW_CAP)
+    if (notes) item.best_practice_notes = notes
+    if (Array.isArray(o.element_order)) {
+      item.element_order = o.element_order
+        .map((v) => asStr(v, 200))
+        .filter(Boolean)
+        .slice(0, 20)
+    }
+
+    out.push(item)
   }
   return out
 }
 
-async function suggestWithAva(
-  sources: TokenSourceItem[],
-): Promise<AvaTokenSuggestions> {
-  const client = getAnthropicClient()
-  const tool: Anthropic.Tool = {
-    name: "emit_naming_tokens",
-    description:
-      "Emit cleaned targeting and geo slug tokens for each line item. Tokens must be lowercase, use underscores for spaces, and never include hyphens.",
-    input_schema: {
-      type: "object",
-      properties: {
-        tokens: {
-          type: "array",
-          items: {
-            type: "object",
-            properties: {
-              line_item_id: { type: "string" },
-              targeting: { type: "string" },
-              geo: { type: "string" },
-            },
-            required: ["line_item_id"],
-            additionalProperties: false,
-          },
-        },
-      },
-      required: ["tokens"],
-      additionalProperties: false,
-    },
-  }
-
-  const payload = sources.map((s) => ({
-    line_item_id: s.line_item_id,
-    targeting_raw: s.targeting_raw,
-    geo_raw: s.geo_raw,
-  }))
-
-  const response = await client.messages.create({
-    model: AVA_MODEL,
-    max_tokens: 4096,
-    tools: [tool],
-    tool_choice: { type: "tool", name: "emit_naming_tokens" },
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "text",
-            text:
-              "Clean these media-plan targeting/geo free-text values into short naming tokens for trafficking templates. Prefer concise audience/geo labels (e.g. retargeting, prospecting, nsw, metro). Keep meaning; drop punctuation.\n\n" +
-              JSON.stringify(payload),
-          },
-        ],
-      },
-    ],
-  })
-
-  const suggestions: AvaTokenSuggestions = {}
-  for (const block of response.content) {
-    if (block.type !== "tool_use" || block.name !== "emit_naming_tokens") continue
-    const input = block.input as { tokens?: unknown }
-    if (!Array.isArray(input.tokens)) continue
-    for (const row of input.tokens) {
-      if (!row || typeof row !== "object") continue
-      const o = row as Record<string, unknown>
-      const id = String(o.line_item_id ?? "").trim()
-      if (!id) continue
-      const entry: { targeting?: string; geo?: string } = {}
-      if (typeof o.targeting === "string") entry.targeting = o.targeting
-      if (typeof o.geo === "string") entry.geo = o.geo
-      if (entry.targeting !== undefined || entry.geo !== undefined) {
-        suggestions[id] = entry
-      }
-    }
-  }
-
-  return suggestions
-}
-
 /**
  * Optional AVA pre-fill for naming targeting/geo tokens.
- * Always re-slugifies + validateValue; failures fall back to slugify(raw).
+ * Always re-slugifies + validateValue + length-clamp; failures fall back to clamped slugify(raw).
  */
 export async function POST(request: NextRequest) {
   const gate = await requireRole(request, ["admin", "manager"])
@@ -141,7 +98,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const suggestions = await suggestWithAva(items)
+    const suggestions = await suggestAvaNamingTokens(items)
     const { overrides, appliedCount } = applyAvaSuggestions(items, suggestions)
     return NextResponse.json({
       overrides,
