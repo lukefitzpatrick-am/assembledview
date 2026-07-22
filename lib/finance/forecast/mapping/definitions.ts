@@ -21,6 +21,7 @@ import {
   FINANCE_FORECAST_LINE_KEYS,
   FINANCE_FORECAST_LINE_LABELS,
 } from "@/lib/types/financeForecast"
+import { BILLING_AGENCY_AA, BILLING_AGENCY_AM } from "@/lib/finance/billingAgency"
 import type {
   ForecastLineMappingDefinition,
   ForecastRowDefinition,
@@ -32,10 +33,10 @@ import type {
 // ---------------------------------------------------------------------------
 
 /** `publishers.billingagency` when the publisher bills via Advertising Associates. */
-export const PUBLISHER_BILLING_AGENCY_ADVERTISING_ASSOCIATES = "advertising associates"
+export const PUBLISHER_BILLING_AGENCY_ADVERTISING_ASSOCIATES = BILLING_AGENCY_AA
 
 /** `publishers.billingagency` when the publisher bills via Assembled Media (default agency). */
-export const PUBLISHER_BILLING_AGENCY_ASSEMBLED_MEDIA = "assembled media"
+export const PUBLISHER_BILLING_AGENCY_ASSEMBLED_MEDIA = BILLING_AGENCY_AM
 
 /** `publishers.publishertype` — direct-sold / managed digital suppliers. */
 export const PUBLISHER_TYPE_DIRECT = "direct"
