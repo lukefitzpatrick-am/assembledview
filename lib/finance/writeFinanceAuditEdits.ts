@@ -13,7 +13,12 @@ import type { ScheduleDiffChange } from "@/lib/finance/scheduleDiff"
 export type AuditContext = {
   editedBy: number
   editedByName: string
-  recordType: "schedule_patch" | "status_change" | "accrual_reconcile" | "version_create_diff"
+  recordType:
+    | "schedule_patch"
+    | "status_change"
+    | "accrual_reconcile"
+    | "version_create_diff"
+    | "forecast_target"
 }
 
 export type AuditEditPayload = {

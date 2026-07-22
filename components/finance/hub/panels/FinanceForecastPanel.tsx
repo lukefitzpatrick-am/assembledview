@@ -58,6 +58,12 @@ import {
 } from "@/components/ui/sheet"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
+import { TargetGrid } from "@/components/finance/hub/panels/forecast/TargetGrid"
+import { VarianceTargetVsActualView } from "@/components/finance/hub/panels/forecast/VarianceTargetVsActualView"
+import {
+  forecastLoadResultDisposition,
+  shouldAutoReloadForecast,
+} from "@/lib/finance/forecast/loadForecastGuards"
 
 const money = (n: number) =>
   formatCurrencyFull(n, {
@@ -184,9 +190,47 @@ const SCENARIO_COPY: Record<
   },
 }
 
+export type ForecastPanelMode = "booked" | "target" | "variance"
+
+const FORECAST_MODE_COPY: Record<ForecastPanelMode, { title: string; hint: string }> = {
+  booked: {
+    title: "Booked",
+    hint: "Live booked forecast (unchanged)",
+  },
+  target: {
+    title: "Target",
+    hint: "Target tracker — coming soon",
+  },
+  variance: {
+    title: "Variance",
+    hint: "Target vs billed actual (client × month) — load below",
+  },
+}
+
+function parseForecastPanelMode(raw: string | null | undefined): ForecastPanelMode {
+  if (raw === "target" || raw === "variance") return raw
+  return "booked"
+}
+
+function readFmodeFromLocation(): ForecastPanelMode {
+  if (typeof window === "undefined") return "booked"
+  return parseForecastPanelMode(new URLSearchParams(window.location.search).get("fmode"))
+}
+
+function writeFmodeToLocation(mode: ForecastPanelMode) {
+  if (typeof window === "undefined") return
+  const params = new URLSearchParams(window.location.search)
+  if (mode === "booked") params.delete("fmode")
+  else params.set("fmode", mode)
+  const qs = params.toString()
+  const next = qs ? `${window.location.pathname}?${qs}` : window.location.pathname
+  window.history.replaceState(null, "", next)
+}
+
 export default function FinanceForecastPanel() {
   const fyStart = useFinanceStore((s) => s.filters.financialYear)
   const setFilters = useFinanceStore((s) => s.setFilters)
+  const [panelMode, setPanelMode] = useState<ForecastPanelMode>(() => readFmodeFromLocation())
   const [scenario, setScenario] = useState<FinanceForecastScenario>("confirmed")
   const [clientFilter, setClientFilter] = useState<string>("")
   const [searchInput, setSearchInput] = useState("")
@@ -201,6 +245,7 @@ export default function FinanceForecastPanel() {
   const [exporting, setExporting] = useState(false)
 
   const [snapshotBusy, setSnapshotBusy] = useState(false)
+  const [snapshotConfigured, setSnapshotConfigured] = useState<boolean | null>(null)
   const [snapshotNote, setSnapshotNote] = useState("")
   const [snapshotBanner, setSnapshotBanner] = useState<
     | null
@@ -239,6 +284,11 @@ export default function FinanceForecastPanel() {
 
   const fyLabel = (start: number) => fyDisplayLabel(start)
 
+  const setForecastMode = useCallback((next: ForecastPanelMode) => {
+    setPanelMode(next)
+    writeFmodeToLocation(next)
+  }, [])
+
   const loadForecast = useCallback(async () => {
     const requestSeq = ++requestSeqRef.current
     if (loadAbortRef.current) loadAbortRef.current.abort()
@@ -266,6 +316,13 @@ export default function FinanceForecastPanel() {
         body = null
       }
 
+      const disposition = forecastLoadResultDisposition({
+        requestSeq,
+        currentSeq: requestSeqRef.current,
+        aborted: controller.signal.aborted,
+      })
+      if (disposition === "ignore_superseded") return
+
       if (!res.ok) {
         const msg =
           (body as { message?: string })?.message ||
@@ -278,11 +335,16 @@ export default function FinanceForecastPanel() {
         throw new Error("Invalid response from forecast API")
       }
 
-      if (requestSeq !== requestSeqRef.current) return
       setPayload(body as ForecastApiResponse)
       forecastLoadSucceededRef.current = true
     } catch (e) {
-      if (controller.signal.aborted || requestSeq !== requestSeqRef.current) return
+      const disposition = forecastLoadResultDisposition({
+        requestSeq,
+        currentSeq: requestSeqRef.current,
+        aborted: controller.signal.aborted,
+      })
+      if (disposition === "ignore_superseded") return
+
       forecastLoadSucceededRef.current = false
       const msg = e instanceof Error ? e.message : String(e)
       setError({
@@ -303,10 +365,33 @@ export default function FinanceForecastPanel() {
     setExpandedClientIds(new Set())
   }, [payload?.dataset])
 
+  // Probe snapshot storage once (GET returns configured:false when env unset).
   useEffect(() => {
-    if (!forecastLoadSucceededRef.current) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch("/api/finance/forecast/snapshots", { cache: "no-store" })
+        if (cancelled) return
+        if (!res.ok) {
+          setSnapshotConfigured(false)
+          return
+        }
+        const data = (await res.json()) as { configured?: boolean }
+        setSnapshotConfigured(data.configured !== false)
+      } catch {
+        if (!cancelled) setSnapshotConfigured(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Auto-reload after first successful load when scenario or FY changes (idempotent).
+  useEffect(() => {
+    if (!shouldAutoReloadForecast(forecastLoadSucceededRef.current)) return
     void loadForecastRef.current()
-  }, [scenario])
+  }, [scenario, fyStart])
 
   const toggleClientExpanded = useCallback((clientId: string) => {
     setExpandedClientIds((prev) => {
@@ -459,6 +544,176 @@ export default function FinanceForecastPanel() {
 
   return (
     <div className="space-y-5 p-4 md:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-2xl font-semibold tracking-tight">Finance Forecast</h2>
+          <p className="text-sm text-muted-foreground">
+            Read-only management view — billing vs revenue by client, Australian financial year (July–June).
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium text-muted-foreground">Mode</Label>
+          <div
+            role="tablist"
+            aria-label="Forecast mode"
+            className="inline-flex h-9 rounded-input border border-border bg-surface-panel p-0.5"
+          >
+            {(Object.keys(FORECAST_MODE_COPY) as ForecastPanelMode[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={panelMode === key}
+                className={cn(
+                  "rounded-input px-3 text-sm font-medium transition-colors",
+                  panelMode === key
+                    ? "bg-card text-foreground shadow-e1"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                onClick={() => setForecastMode(key)}
+              >
+                {FORECAST_MODE_COPY[key].title}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {panelMode === "variance" ? (
+        <>
+          <Alert className="rounded-card border-pacing-behind-bg bg-pacing-behind-bg text-status-behind-fg">
+            <Info className="h-4 w-4 text-status-behind-fg" aria-hidden />
+            <AlertTitle className="text-sm font-semibold text-foreground">Financial year only</AlertTitle>
+            <AlertDescription className="text-sm text-muted-foreground">
+              Variance compares targets to billed actuals for the FY below. Booked (schedules) is a
+              reference column only. Actual grain is client × month (not per revenue-line).
+            </AlertDescription>
+          </Alert>
+
+          <Card className="rounded-card border-border shadow-e1">
+            <CardHeader className="space-y-1 pb-3">
+              <CardTitle className="text-base font-medium">Filters</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground">Financial year</Label>
+                <Select value={String(fyStart)} onValueChange={(v) => setFyStart(Number.parseInt(v, 10))}>
+                  <SelectTrigger className="h-9 w-[200px]">
+                    <SelectValue placeholder="FY" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fyOptions.map((y) => (
+                      <SelectItem key={y} value={String(y)}>
+                        FY {fyLabel(y)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground">
+                  Booked scenario (reference)
+                </Label>
+                <div
+                  role="tablist"
+                  aria-label="Booked scenario for variance reference"
+                  className="inline-flex h-9 rounded-input border border-border bg-surface-panel p-0.5"
+                >
+                  {(Object.keys(SCENARIO_COPY) as FinanceForecastScenario[]).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={scenario === key}
+                      className={cn(
+                        "rounded-input px-3 text-sm font-medium transition-colors",
+                        scenario === key
+                          ? "bg-card text-foreground shadow-e1"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      onClick={() => setScenario(key)}
+                    >
+                      {SCENARIO_COPY[key].title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="variance-client-filter" className="text-xs font-medium text-muted-foreground">
+                  Client (optional)
+                </Label>
+                <Input
+                  id="variance-client-filter"
+                  value={clientFilter}
+                  onChange={(e) => setClientFilter(e.target.value)}
+                  placeholder="Client id or name"
+                  className="h-9 w-full sm:w-[220px]"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <VarianceTargetVsActualView
+            fyStart={fyStart}
+            scenario={scenario}
+            clientFilter={clientFilter}
+            expandedClientIds={expandedClientIds}
+            onToggleClient={toggleClientExpanded}
+          />
+        </>
+      ) : null}
+
+      {panelMode === "target" ? (
+        <>
+          <Alert className="rounded-card border-pacing-behind-bg bg-pacing-behind-bg text-status-behind-fg">
+            <Info className="h-4 w-4 text-status-behind-fg" aria-hidden />
+            <AlertTitle className="text-sm font-semibold text-foreground">Financial year only</AlertTitle>
+            <AlertDescription className="text-sm text-muted-foreground">
+              Target amounts are scoped to the financial year below (same FY control as Booked).
+            </AlertDescription>
+          </Alert>
+
+          <Card className="rounded-card border-border shadow-e1">
+            <CardHeader className="space-y-1 pb-3">
+              <CardTitle className="text-base font-medium">Filters</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground">Financial year</Label>
+                <Select value={String(fyStart)} onValueChange={(v) => setFyStart(Number.parseInt(v, 10))}>
+                  <SelectTrigger className="h-9 w-[200px]">
+                    <SelectValue placeholder="FY" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fyOptions.map((y) => (
+                      <SelectItem key={y} value={String(y)}>
+                        FY {fyLabel(y)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="target-client-filter" className="text-xs font-medium text-muted-foreground">
+                  Client (required)
+                </Label>
+                <Input
+                  id="target-client-filter"
+                  value={clientFilter}
+                  onChange={(e) => setClientFilter(e.target.value)}
+                  placeholder="Client id"
+                  className="h-9 w-full sm:w-[220px]"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <TargetGrid fyStart={fyStart} clientId={clientFilter} />
+        </>
+      ) : null}
+
+      {panelMode === "booked" ? (
+        <>
       <Alert className="rounded-card border-pacing-behind-bg bg-pacing-behind-bg text-status-behind-fg">
         <Info className="h-4 w-4 text-status-behind-fg" aria-hidden />
         <AlertTitle className="text-sm font-semibold text-foreground">Financial year only</AlertTitle>
@@ -466,13 +721,6 @@ export default function FinanceForecastPanel() {
           Forecast operates on the financial year, not the month range filter above.
         </AlertDescription>
       </Alert>
-
-      <div className="flex flex-col gap-1">
-        <h2 className="text-2xl font-semibold tracking-tight">Finance Forecast</h2>
-        <p className="text-sm text-muted-foreground">
-          Read-only management view — billing vs revenue by client, Australian financial year (July–June).
-        </p>
-      </div>
 
       <Card className="rounded-card border-border shadow-e1">
         <CardHeader className="space-y-1 pb-3">
@@ -615,8 +863,12 @@ export default function FinanceForecastPanel() {
                   type="button"
                   variant="outline"
                   className="h-9"
-                  disabled={snapshotBusy || loading}
-                  title="Save an immutable snapshot using current FY, scenario, and filters (server-calculated)."
+                  disabled={snapshotBusy || loading || snapshotConfigured === false}
+                  title={
+                    snapshotConfigured === false
+                      ? "Snapshot storage is not configured (XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL)."
+                      : "Save an immutable snapshot using current FY, scenario, and filters (server-calculated)."
+                  }
                   onClick={() => void takeSnapshot(false)}
                 >
                   {snapshotBusy ? (
@@ -632,6 +884,16 @@ export default function FinanceForecastPanel() {
                   )}
                 </Button>
               </div>
+              {snapshotConfigured === false ? (
+                <Alert className="rounded-card border-border bg-surface-panel">
+                  <AlertTitle className="text-sm">Snapshots unavailable</AlertTitle>
+                  <AlertDescription className="text-sm text-muted-foreground">
+                    Snapshot storage is not configured. Set{" "}
+                    <span className="font-mono text-xs">XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL</span> on the
+                    server to enable Take snapshot.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
               <div className="flex max-w-lg flex-col gap-1.5">
                 <Label htmlFor="snapshot-note" className="text-xs font-medium text-muted-foreground">
                   Snapshot note (optional)
@@ -852,6 +1114,8 @@ export default function FinanceForecastPanel() {
           ) : null}
         </SheetContent>
       </Sheet>
+        </>
+      ) : null}
     </div>
   )
 }
