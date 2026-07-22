@@ -228,12 +228,19 @@ export function resolveFeePctFromFeeLoading(
   feeLoading: FeeLoading
 ): number {
   const scheduleKey = normaliseScheduleMediaType(mediaType)
+  // REVIEW: ProductionContainer hardcodes feePct={0}. Do not bill production from
+  // feecontentcreator (that field is the Influencers content-fee fallback only).
+  if (scheduleKey === "production") {
+    return 0
+  }
   const primary = FEE_FIELD_BY_MEDIA[scheduleKey]
   const primaryVal = feeLoading[primary]
   if (typeof primaryVal === "number" && Number.isFinite(primaryVal)) {
     return primaryVal
   }
-  // Influencers historically fall back to feecontentcreator on the client record.
+  // Integration: absent feeintegration => 0% (same as traditional channels). No
+  // feecontentcreator fallback.
+  // Influencers: all clients inherit feecontentcreator when feeinfluencers is absent.
   if (scheduleKey === "influencers") {
     const fallback = feeLoading.feecontentcreator
     if (typeof fallback === "number" && Number.isFinite(fallback)) return fallback

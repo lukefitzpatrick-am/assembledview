@@ -237,6 +237,8 @@ import {
   sumDerivedLineFeesForMonth,
   type SeedLineFeesMediaConfig,
 } from "@/lib/billing/seedLineFees"
+import { collectPersistedFeeBillingMismatchIssues } from "@/lib/billing/assertPersistedLineFeesMatchBilling"
+import { stampClientFeePctOnLineItems } from "@/lib/finance/stampClientFeePctOnLineItems"
 import {
   validateAgencyFeeMonthTotalDrift,
   type FeeDriftValidationResult,
@@ -1733,7 +1735,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setIfDefined(clientData.feedigiaudio, setFeeDigiAudio)
     setIfDefined(clientData.feedigivideo, setFeeDigiVideo)
     setIfDefined(clientData.feebvod, setFeeBvod)
-    setIfDefined(clientData.feeintegration, setFeeIntegration)
     setIfDefined(clientData.feesearch, setFeeSearch)
     setIfDefined(clientData.feesocial, setFeeSocial)
     setIfDefined(clientData.feeprogdisplay, setFeeProgDisplay)
@@ -1746,7 +1747,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setIfDefined(clientData.feecontentcreator, setFeeProduction)
     setIfDefined(clientData.feecontentcreator, setFeeContentCreator)
 
-    // Influencers fee: prefer feeinfluencers, fallback to feecontentcreator
+    // Integration: feeintegration only (absent => leave null => 0%). No content-creator fallback.
+    setIfDefined(clientData.feeintegration, setFeeIntegration)
+    // Influencers: feeinfluencers, else feecontentcreator for all clients.
     if (clientData.feeinfluencers !== undefined) {
       setFeeInfluencers(clientData.feeinfluencers ?? null)
     } else if (clientData.feecontentcreator !== undefined) {
@@ -5346,6 +5349,68 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         maximumFractionDigits: 2,
       })
       const blockingErrors: string[] = [...collectBillingMonthStructuralBlockingIssues(months, fmt)]
+
+      const allMediaLineItemsForFeeGuard: Record<string, unknown>[] = []
+      const feeLoading = buildFeeLoadingFromEditorFees({
+        feetelevision: feeTelevision,
+        feeradio: feeRadio,
+        feenewspapers: feeNewspapers,
+        feemagazines: feeMagazines,
+        feeooh: feeOoh,
+        feecinema: feeCinema,
+        feedigidisplay: feeDigiDisplay,
+        feedigiaudio: feeDigiAudio,
+        feedigivideo: feeDigiVideo,
+        feebvod: feeBvod,
+        feeintegration: feeIntegration,
+        feesearch,
+        feesocial,
+        feeprogdisplay,
+        feeprogvideo,
+        feeprogbvod,
+        feeprogaudio,
+        feeprogooh,
+        feeinfluencers: feeInfluencers,
+        feecontentcreator,
+      })
+      const feeGuardConfigs: { flag: MediaTypeKey; billingKey: string; items: any[] }[] = [
+        { flag: "mp_television", billingKey: "television", items: televisionMediaLineItems },
+        { flag: "mp_radio", billingKey: "radio", items: radioMediaLineItems },
+        { flag: "mp_newspaper", billingKey: "newspaper", items: newspaperMediaLineItems },
+        { flag: "mp_magazines", billingKey: "magazines", items: magazinesMediaLineItems },
+        { flag: "mp_ooh", billingKey: "ooh", items: oohMediaLineItems },
+        { flag: "mp_cinema", billingKey: "cinema", items: cinemaMediaLineItems },
+        { flag: "mp_digidisplay", billingKey: "digiDisplay", items: digitalDisplayMediaLineItems },
+        { flag: "mp_digiaudio", billingKey: "digiAudio", items: digitalAudioMediaLineItems },
+        { flag: "mp_digivideo", billingKey: "digiVideo", items: digitalVideoMediaLineItems },
+        { flag: "mp_bvod", billingKey: "bvod", items: bvodMediaLineItems },
+        { flag: "mp_integration", billingKey: "integration", items: integrationMediaLineItems },
+        { flag: "mp_search", billingKey: "search", items: searchMediaLineItems },
+        { flag: "mp_socialmedia", billingKey: "socialMedia", items: socialMediaMediaLineItems },
+        { flag: "mp_progdisplay", billingKey: "progDisplay", items: progDisplayMediaLineItems },
+        { flag: "mp_progvideo", billingKey: "progVideo", items: progVideoMediaLineItems },
+        { flag: "mp_progbvod", billingKey: "progBvod", items: progBvodMediaLineItems },
+        { flag: "mp_progaudio", billingKey: "progAudio", items: progAudioMediaLineItems },
+        { flag: "mp_progooh", billingKey: "progOoh", items: progOohMediaLineItems },
+        { flag: "mp_influencers", billingKey: "influencers", items: influencersMediaLineItems },
+        // REVIEW: production bursts use formatProductionBurstForPersist (no feeAmount);
+        // agency fee for production is 0 in resolveFeePctFromFeeLoading.
+        { flag: "mp_production", billingKey: "production", items: productionMediaLineItems },
+      ]
+      for (const { flag, billingKey, items } of feeGuardConfigs) {
+        if (!form.getValues(flag as any) || !items?.length) continue
+        allMediaLineItemsForFeeGuard.push(
+          ...stampClientFeePctOnLineItems(items, billingKey, feeLoading)
+        )
+      }
+      blockingErrors.push(
+        ...collectPersistedFeeBillingMismatchIssues({
+          months,
+          lineItems: allMediaLineItemsForFeeGuard,
+          fmt,
+        })
+      )
+
       const preservedManualOverrides: string[] = []
 
       const first = months[0]
@@ -5462,6 +5527,26 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       progAudioMediaLineItems,
       progOohMediaLineItems,
       influencersMediaLineItems,
+      feeTelevision,
+      feeRadio,
+      feeNewspapers,
+      feeMagazines,
+      feeOoh,
+      feeCinema,
+      feeDigiDisplay,
+      feeDigiAudio,
+      feeDigiVideo,
+      feeBvod,
+      feeIntegration,
+      feesearch,
+      feesocial,
+      feeprogdisplay,
+      feeprogvideo,
+      feeprogbvod,
+      feeprogaudio,
+      feeprogooh,
+      feeInfluencers,
+      feecontentcreator,
     ]
   )
 
@@ -6194,26 +6279,107 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         throw new Error("MBA number and media plan ID are required")
       }
 
-      const televisionMediaLineItemsForSave = reassignLineItemNumbers(televisionMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.television)
-      const radioMediaLineItemsForSave = reassignLineItemNumbers(radioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.radio)
-      const newspaperMediaLineItemsForSave = reassignLineItemNumbers(newspaperMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.newspaper)
-      const magazinesMediaLineItemsForSave = reassignLineItemNumbers(magazinesMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.magazines)
-      const oohMediaLineItemsForSave = reassignLineItemNumbers(oohMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.ooh)
-      const cinemaMediaLineItemsForSave = reassignLineItemNumbers(cinemaMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.cinema)
-      const digitalDisplayMediaLineItemsForSave = reassignLineItemNumbers(digitalDisplayMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay)
-      const digitalAudioMediaLineItemsForSave = reassignLineItemNumbers(digitalAudioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio)
-      const digitalVideoMediaLineItemsForSave = reassignLineItemNumbers(digitalVideoMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo)
-      const bvodMediaLineItemsForSave = reassignLineItemNumbers(bvodMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.bvod)
-      const integrationMediaLineItemsForSave = reassignLineItemNumbers(integrationMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.integration)
-      const productionMediaLineItemsForSave = reassignLineItemNumbers(productionMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.production)
-      const searchMediaLineItemsForSave = reassignLineItemNumbers(searchMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.search)
-      const socialMediaMediaLineItemsForSave = reassignLineItemNumbers(socialMediaMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia)
-      const progDisplayMediaLineItemsForSave = reassignLineItemNumbers(progDisplayMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progDisplay)
-      const progVideoMediaLineItemsForSave = reassignLineItemNumbers(progVideoMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progVideo)
-      const progBvodMediaLineItemsForSave = reassignLineItemNumbers(progBvodMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progBVOD)
-      const progAudioMediaLineItemsForSave = reassignLineItemNumbers(progAudioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progAudio)
-      const progOohMediaLineItemsForSave = reassignLineItemNumbers(progOohMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progOOH)
-      const influencersMediaLineItemsForSave = reassignLineItemNumbers(influencersMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.influencers)
+      const feeLoadingForSave = billingSaveInputs.feeLoading
+      const televisionMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(televisionMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.television),
+        "television",
+        feeLoadingForSave
+      )
+      const radioMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(radioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.radio),
+        "radio",
+        feeLoadingForSave
+      )
+      const newspaperMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(newspaperMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.newspaper),
+        "newspaper",
+        feeLoadingForSave
+      )
+      const magazinesMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(magazinesMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.magazines),
+        "magazines",
+        feeLoadingForSave
+      )
+      const oohMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(oohMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.ooh),
+        "ooh",
+        feeLoadingForSave
+      )
+      const cinemaMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(cinemaMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.cinema),
+        "cinema",
+        feeLoadingForSave
+      )
+      const digitalDisplayMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(digitalDisplayMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay),
+        "digiDisplay",
+        feeLoadingForSave
+      )
+      const digitalAudioMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(digitalAudioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio),
+        "digiAudio",
+        feeLoadingForSave
+      )
+      const digitalVideoMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(digitalVideoMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo),
+        "digiVideo",
+        feeLoadingForSave
+      )
+      const bvodMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(bvodMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.bvod),
+        "bvod",
+        feeLoadingForSave
+      )
+      const integrationMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(integrationMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.integration),
+        "integration",
+        feeLoadingForSave
+      )
+      const productionMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(productionMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.production),
+        "production",
+        feeLoadingForSave
+      )
+      const searchMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(searchMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.search),
+        "search",
+        feeLoadingForSave
+      )
+      const socialMediaMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(socialMediaMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia),
+        "socialMedia",
+        feeLoadingForSave
+      )
+      const progDisplayMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(progDisplayMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progDisplay),
+        "progDisplay",
+        feeLoadingForSave
+      )
+      const progVideoMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(progVideoMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progVideo),
+        "progVideo",
+        feeLoadingForSave
+      )
+      const progBvodMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(progBvodMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progBVOD),
+        "progBvod",
+        feeLoadingForSave
+      )
+      const progAudioMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(progAudioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progAudio),
+        "progAudio",
+        feeLoadingForSave
+      )
+      const progOohMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(progOohMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progOOH),
+        "progOoh",
+        feeLoadingForSave
+      )
+      const influencersMediaLineItemsForSave = stampClientFeePctOnLineItems(
+        reassignLineItemNumbers(influencersMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.influencers),
+        "influencers",
+        feeLoadingForSave
+      )
       const lineItemSnapshotsForSave: MediaLineItemSaveSnapshots = {
         television: televisionMediaLineItemsForSave,
         radio: radioMediaLineItemsForSave,
