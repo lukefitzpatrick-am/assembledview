@@ -233,7 +233,7 @@ export const TEMPLATES: NamingTemplate[] = [
     "ad_set",
     [
       plan("campaign_name"),
-      pick("geo", "geo"),
+      free("geo"),
       plan("targeting"),
       free("custom", { optional: true }),
       plan("line_item_id", { isLineItemId: true }),
