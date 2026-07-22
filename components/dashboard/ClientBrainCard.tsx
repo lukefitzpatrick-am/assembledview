@@ -41,7 +41,7 @@ export function ClientBrainCard({
   const brain =
     typeof record?.client_brain === "string" ? record.client_brain.trim() : ""
   const updatedLabel = formatBrainUpdatedAt(record?.client_brain_updated_at)
-  const [open, setOpen] = useState(Boolean(brain))
+  const [open, setOpen] = useState(false)
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
