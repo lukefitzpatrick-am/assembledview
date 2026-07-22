@@ -264,17 +264,8 @@ import {
   planHasAdvertisingAssociatesLineItem,
   shouldIncludeMediaPlanLineItem,
 } from "@/lib/mediaplan/advertisingAssociatesExcel"
-import { NamingAiTokenPrefill } from "@/components/naming/NamingAiTokenPrefill"
-import {
-  buildNamingWorkbook,
-  namingWorkbookFilename,
-} from "@/lib/naming/exportNamingWorkbook"
-import type { TokenOverrides } from "@/lib/naming/channelTabs"
 import { extractPlanGlobals } from "@/lib/naming/fromPlan"
-import {
-  collectTokenSources,
-  normalizeNamingLineItems,
-} from "@/lib/naming/summariseTargetingTokens"
+import { fetchNamingWorkbook } from "@/lib/naming/fetchNamingWorkbook"
 import { saveAs } from 'file-saver'
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
 import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
@@ -2089,7 +2080,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [])
   const [loading, setLoading] = useState(true)
   const [isNamingDownloading, setIsNamingDownloading] = useState(false)
-  const [namingTokenOverrides, setNamingTokenOverrides] = useState<TokenOverrides>({})
   const [searchLineItems, setSearchLineItems] = useState<any[]>([])
   const [socialMediaLineItems, setSocialMediaLineItems] = useState<any[]>([])
   
@@ -7688,9 +7678,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const handleDownloadNamingConventions = async () => {
     setIsNamingDownloading(true);
     try {
-      const { blob, fileName } = await generateNamingConventionsXlsxBlob();
+      const { blob, fileName, tokenPath } = await generateNamingConventionsXlsxBlob();
       saveAs(blob, fileName);
-      toast({ title: "Success", description: "Naming conventions Excel downloaded" });
+      toast({
+        title: "Success",
+        description:
+          tokenPath === "ai"
+            ? "Naming conventions downloaded (AI-cleaned tokens)"
+            : "Naming conventions downloaded (auto slugs)",
+      });
     } catch (error: any) {
       console.error("Naming download error:", error);
       toast({
@@ -7702,23 +7698,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setIsNamingDownloading(false);
     }
   };
-
-  /** Prompt 0 channelKeys only — offline TV/radio/press/cinema/OOH never assembled. */
-  const namingLineItemsBag = () =>
-    normalizeNamingLineItems({
-      digitalDisplay: digitalDisplayItems,
-      digitalAudio: digitalAudioItems,
-      digitalVideo: digitalVideoItems,
-      bvod: bvodItems,
-      integration: integrationItems,
-      progDisplay: progDisplayItems,
-      progVideo: progVideoItems,
-      progBvod: progBvodItems,
-      progAudio: progAudioItems,
-      progOoh: progOohItems,
-      search: searchItems,
-      socialMedia: socialMediaItems,
-    })
 
   const generateNamingConventionsXlsxBlob = async (opts?: { planVersion?: string }) => {
     const fv = form.getValues();
@@ -7734,42 +7713,35 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     const mba = String(fv.mbanumber || fv.mbaidentifier || mbaNumber || "").trim()
     const globals = extractPlanGlobals(
       {
-        mp_client_name: fv.mp_clientname,
-        mp_clientname: fv.mp_clientname,
-        mp_brand: fv.mp_brand,
-        mp_campaignname: fv.mp_campaignname,
-        campaign_start_date: fv.mp_campaigndates_start,
-        mp_campaigndates_start: fv.mp_campaigndates_start,
+        mp_client_name: fv.mp_clientname || "",
+        mp_brand: fv.mp_brand || "",
+        mp_campaignname: fv.mp_campaignname || "",
+        campaign_start_date: toDateOnlyString(fv.mp_campaigndates_start),
       },
-      mba || "mba",
+      mba,
     )
 
-    const publishers = await (async () => {
-      try {
-        const pubRes = await fetch("/api/publishers?full=1")
-        if (pubRes.ok) {
-          const full = await pubRes.json()
-          if (Array.isArray(full)) return full as Publisher[]
-        }
-      } catch {
-        // fall through to light list already in state
-      }
-      return billingPublishers
-    })()
-
-    const workbook = await buildNamingWorkbook({
+    // Server fetches publishers (?full=1) + best-practice; do not ship them in the POST.
+    const { blob, fileName, tokenPath } = await fetchNamingWorkbook({
       globals,
-      lineItems: namingLineItemsBag(),
+      lineItems: {
+        search: searchItems,
+        socialMedia: socialMediaItems,
+        digiAudio: digitalAudioItems,
+        digiDisplay: digitalDisplayItems,
+        digiVideo: digitalVideoItems,
+        bvod: bvodItems,
+        integration: integrationItems,
+        progDisplay: progDisplayItems,
+        progVideo: progVideoItems,
+        progBvod: progBvodItems,
+        progAudio: progAudioItems,
+        progOoh: progOohItems,
+      },
       version: String(namingVersion ?? "1"),
-      publishers,
-      containerBestPractice,
-      tokenOverrides: namingTokenOverrides,
-    });
-
-    const arrayBuffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const fileName = namingWorkbookFilename(globals.mba || mba || "mba", String(namingVersion ?? "1"));
-    return { blob, fileName };
+      options: { useAva: true },
+    })
+    return { blob, fileName, tokenPath }
   };
 
   const handleSaveAndDownloadAll = async () => {
@@ -9653,12 +9625,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           {isLoading ? "Generating..." : "Generate MBA"}
         </Button>
         <div className="flex items-center gap-2 md:hidden">
-          <NamingAiTokenPrefill
-            getSources={() => collectTokenSources(namingLineItemsBag())}
-            overrides={namingTokenOverrides}
-            onOverridesChange={(next) => setNamingTokenOverrides(next)}
-            disabled={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
-          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -9709,7 +9675,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 onClick={handleDownloadNamingConventions}
                 disabled={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
               >
-                Naming Conventions
+                Generate Naming (Ava)
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleSaveAndDownloadAll}
@@ -9770,12 +9736,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           </span>
         </Button>
         <div className="hidden items-center gap-2 md:flex">
-          <NamingAiTokenPrefill
-            getSources={() => collectTokenSources(namingLineItemsBag())}
-            overrides={namingTokenOverrides}
-            onOverridesChange={(next) => setNamingTokenOverrides(next)}
-            disabled={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
-          />
           <Button
             type="button"
             onClick={handleDownloadNamingConventions}
@@ -9788,7 +9748,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <Download className="h-4 w-4" />
             )}
             <span className="ml-2">
-              {isNamingDownloading ? "Generating Names..." : "Naming Conventions"}
+              {isNamingDownloading ? "Generating Names..." : "Generate Naming (Ava)"}
             </span>
           </Button>
         </div>

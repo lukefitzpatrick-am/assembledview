@@ -1,16 +1,36 @@
+import type { MediaContainerBestPractice } from "@/lib/types/publisher"
+import { isEmptyBestPractice } from "@/lib/types/bestPractice"
+
 import { slugify } from "./compose"
 import {
   channelRows,
   deriveChannelTabs,
+  type ChannelFamily,
   type TokenOverrides,
 } from "./channelTabs"
+import { PICKLISTS, TEMPLATES } from "./templates"
 import { validateValue } from "./validate"
 import type { TemplateElement } from "./types"
+
+/** Soft cap for targeting/geo naming tokens (Prompt 2). */
+export const NAMING_TOKEN_MAX_LEN = 24
 
 export type TokenSourceItem = {
   line_item_id: string
   targeting_raw: string
   geo_raw: string
+  /** Enriched context for AVA (optional — thin payloads still work). */
+  channel?: string
+  publisher?: string
+  media_type?: string
+  buy_type?: string
+  creative_name?: string
+  family?: ChannelFamily
+  /** Platform template levels → element keys, for the model. */
+  element_order?: string[]
+  best_practice_notes?: string
+  brand?: string
+  campaign?: string
 }
 
 export type AvaTokenSuggestions = Record<
@@ -21,22 +41,88 @@ export type AvaTokenSuggestions = Record<
 const TARGETING_ELEMENT: TemplateElement = { key: "targeting", source: "free" }
 const GEO_ELEMENT: TemplateElement = { key: "geo", source: "free" }
 
+/**
+ * Common AU geo aliases → PICKLISTS.geo vocabulary.
+ * Free short tokens still allowed when no alias matches (open question flagged).
+ */
+const GEO_ALIASES: Record<string, string> = {
+  au: "au",
+  australia: "au",
+  national: "au",
+  nationwide: "au",
+  nsw: "nsw",
+  new_south_wales: "nsw",
+  vic: "vic",
+  victoria: "vic",
+  qld: "qld",
+  queensland: "qld",
+  sa: "sa",
+  south_australia: "sa",
+  wa: "wa",
+  western_australia: "wa",
+  tas: "tas",
+  tasmania: "tas",
+  nt: "nt",
+  northern_territory: "nt",
+  act: "act",
+  metro: "metro",
+  regional: "regional",
+}
+
+const GEO_PICKLIST = new Set(PICKLISTS.geo)
+
+/**
+ * Truncate a slug to maxLen on a `_` boundary when possible — never mid-segment.
+ */
+export function clampNamingToken(
+  token: string,
+  maxLen: number = NAMING_TOKEN_MAX_LEN,
+): string {
+  const s = String(token ?? "").trim()
+  if (!s) return ""
+  if (s.length <= maxLen) return s
+
+  const head = s.slice(0, maxLen)
+  const lastUnderscore = head.lastIndexOf("_")
+  // Prefer a boundary if we keep a meaningful prefix (≥40% of cap).
+  if (lastUnderscore >= Math.floor(maxLen * 0.4)) {
+    return head.slice(0, lastUnderscore).replace(/_+$/g, "")
+  }
+  return head.replace(/_+$/g, "")
+}
+
+/** Map known geo phrases onto the controlled geo picklist when possible. */
+export function normaliseGeoToken(slug: string): string {
+  const key = slugify(slug)
+  if (!key) return ""
+  if (GEO_PICKLIST.has(key)) return key
+  const aliased = GEO_ALIASES[key]
+  if (aliased) return aliased
+  return key
+}
+
 function fallbackSlug(raw: string): string {
-  return slugify(raw)
+  return clampNamingToken(slugify(raw))
 }
 
 /**
- * Slugify + validateValue an AVA suggestion. On failure, use slugify(raw).
- * Returns undefined when both suggestion and raw yield empty.
+ * Slugify + validateValue + length-clamp an AVA suggestion.
+ * On failure, use clamped slugify(raw). Returns null when both yield empty.
  */
 function resolveToken(
   element: TemplateElement,
   suggested: string | undefined,
   raw: string,
+  opts?: { geo?: boolean },
 ): { token: string; fromAva: boolean } | null {
-  const fallback = fallbackSlug(raw)
+  const finish = (slug: string): string => {
+    const clamped = clampNamingToken(slug)
+    return opts?.geo ? normaliseGeoToken(clamped) : clamped
+  }
+
+  const fallback = finish(slugify(raw))
   if (suggested !== undefined && suggested !== null) {
-    const cleaned = slugify(String(suggested))
+    const cleaned = finish(slugify(String(suggested)))
     if (cleaned && validateValue(element, cleaned).ok) {
       return { token: cleaned, fromAva: true }
     }
@@ -50,9 +136,9 @@ function resolveToken(
 }
 
 /**
- * Merge AVA suggestions into TokenOverrides. Every AVA value is re-slugified;
- * invalid tokens fall back to slugify(raw). Fields with no suggestion are omitted
- * so channelRows uses its default slugify path.
+ * Merge AVA suggestions into TokenOverrides. Every AVA value is re-slugified,
+ * length-clamped, and validated; invalid tokens fall back to clamped slugify(raw).
+ * Fields with no suggestion are omitted so channelRows uses its default slugify path.
  */
 export function sanitiseTokenOverrides(
   sources: TokenSourceItem[],
@@ -92,6 +178,7 @@ export function applyAvaSuggestions(
         GEO_ELEMENT,
         suggestion.geo,
         source.geo_raw,
+        { geo: true },
       )
       if (resolved) {
         entry.geo = resolved.token
@@ -145,16 +232,61 @@ export async function summariseTargetingTokens(
   }
 }
 
-/** Collect targeting_raw / geo_raw for syncable naming rows (Prompt 1 channels). */
+/** Template element-order lines for a naming family / platform. */
+export function elementOrderForFamily(family: ChannelFamily | string): string[] {
+  const platform = String(family || "").trim()
+  if (!platform) return []
+  return TEMPLATES.filter((t) => t.platform === platform).map(
+    (t) => `${t.level}: ${t.elements.map((el) => el.key).join(" - ")}`,
+  )
+}
+
+function compactBestPracticeNotes(
+  containerKey: string,
+  rows?: MediaContainerBestPractice[] | null,
+): string {
+  if (!rows?.length || !containerKey) return ""
+  const match = rows.find(
+    (r) =>
+      r.is_active !== false &&
+      String(r.media_container || "").trim().toLowerCase() ===
+        containerKey.trim().toLowerCase(),
+  )
+  if (!match || isEmptyBestPractice(match.best_practice)) return ""
+  const parts: string[] = []
+  for (const section of match.best_practice?.sections ?? []) {
+    if (section.heading?.trim()) parts.push(section.heading.trim())
+    for (const item of section.items ?? []) {
+      if (item.trim()) parts.push(item.trim())
+    }
+  }
+  return parts.join("; ").slice(0, 400)
+}
+
+export type CollectTokenSourcesOptions = {
+  globals?: { brand?: string; campaign?: string }
+  containerBestPractice?: MediaContainerBestPractice[] | null
+}
+
+/** Collect enriched token sources for syncable naming rows. */
 export function collectTokenSources(
   lineItems: Record<string, unknown[]> | null | undefined,
+  opts?: CollectTokenSourcesOptions,
 ): TokenSourceItem[] {
   const tabs = deriveChannelTabs(lineItems)
   const seen = new Set<string>()
   const out: TokenSourceItem[] = []
+  const brand = opts?.globals?.brand?.trim() || undefined
+  const campaign = opts?.globals?.campaign?.trim() || undefined
 
   for (const tab of tabs) {
     const { rows } = channelRows(tab, lineItems)
+    const notes = compactBestPracticeNotes(
+      tab.containerKey,
+      opts?.containerBestPractice,
+    )
+    const element_order = elementOrderForFamily(tab.family)
+
     for (const row of rows) {
       if (seen.has(row.line_item_id)) continue
       seen.add(row.line_item_id)
@@ -162,6 +294,16 @@ export function collectTokenSources(
         line_item_id: row.line_item_id,
         targeting_raw: row.targeting_raw,
         geo_raw: row.geo_raw,
+        channel: row.channelKey,
+        publisher: row.publisher,
+        media_type: row.media_type,
+        buy_type: row.buy_type,
+        creative_name: row.creative_name,
+        family: row.family,
+        element_order,
+        best_practice_notes: notes || undefined,
+        brand,
+        campaign,
       })
     }
   }

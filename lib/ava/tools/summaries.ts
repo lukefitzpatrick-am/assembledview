@@ -67,6 +67,7 @@ export const AVA_TOOL_NAMES = [
   "get_platform_specs",
   "start_mi_interview",
   "generate_mi_workbook",
+  "generate_naming_workbook",
   "load_skill",
   "generate_performance_report",
   "get_client_brain",

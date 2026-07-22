@@ -3,6 +3,7 @@ import test from "node:test"
 
 import { composeName } from "../compose.js"
 import { slugifyPlanGlobals, type PlanGlobals } from "../fromPlan.js"
+import { parseNamingGenerateBody } from "../generateFromPostedPlan.js"
 import { getTemplate } from "../templates.js"
 
 const MONTH = "jan26"
@@ -70,4 +71,17 @@ test("slugifyPlanGlobals: raw vs slugified globals compose identical names", () 
     nameFromRaw,
     "molicare_annual_performance-spring_push_2026-mba123-jan26",
   )
+})
+
+test("parseNamingGenerateBody: raw and slugified globals yield identical PlanGlobals", () => {
+  const fromRaw = parseNamingGenerateBody({
+    globals: rawGlobals(),
+    lineItems: {},
+  })
+  const fromSlug = parseNamingGenerateBody({
+    globals: alreadySlugifiedGlobals(),
+    lineItems: {},
+  })
+  assert.deepEqual(fromRaw.globals, fromSlug.globals)
+  assert.deepEqual(fromRaw.globals, alreadySlugifiedGlobals())
 })

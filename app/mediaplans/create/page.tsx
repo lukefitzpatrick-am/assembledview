@@ -139,17 +139,8 @@ import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import type { BurstDateLike } from "@/lib/finance/billingOverrideDateBasis"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
-import { NamingAiTokenPrefill } from '@/components/naming/NamingAiTokenPrefill'
-import {
-  buildNamingWorkbook,
-  namingWorkbookFilename,
-} from '@/lib/naming/exportNamingWorkbook'
-import type { TokenOverrides } from '@/lib/naming/channelTabs'
 import { extractPlanGlobals } from '@/lib/naming/fromPlan'
-import {
-  collectTokenSources,
-  normalizeNamingLineItems,
-} from '@/lib/naming/summariseTargetingTokens'
+import { fetchNamingWorkbook } from '@/lib/naming/fetchNamingWorkbook'
 import { MBAData } from '@/lib/generateMBA'
 import { saveAs } from 'file-saver'
 import { useUnsavedChangesPrompt } from "@/hooks/use-unsaved-changes-prompt"
@@ -536,7 +527,6 @@ function CreateMediaPlan() {
   const [isDownloading, setIsDownloading] = useState(false)
   const [isDownloadingAa, setIsDownloadingAa] = useState(false)
   const [isNamingDownloading, setIsNamingDownloading] = useState(false)
-  const [namingTokenOverrides, setNamingTokenOverrides] = useState<TokenOverrides>({})
   const [clientAddress, setClientAddress] = useState("")
   const [clientSuburb, setClientSuburb] = useState("")
   const [clientState, setClientState] = useState("")
@@ -5956,23 +5946,6 @@ const handleSaveAll = async () => {
       .trim()
   }, []);
 
-  /** Prompt 0 channelKeys only — offline TV/radio/press/cinema/OOH never assembled. */
-  const namingLineItemsBag = () =>
-    normalizeNamingLineItems({
-      digitalDisplay: digiDisplayItems,
-      digitalAudio: digiAudioItems,
-      digitalVideo: digiVideoItems,
-      bvod: bvodItems,
-      integration: integrationItems,
-      progDisplay: progDisplayItems,
-      progVideo: progVideoItems,
-      progBvod: progBvodItems,
-      progAudio: progAudioItems,
-      progOoh: progOohItems,
-      search: searchItems,
-      socialMedia: socialMediaItems,
-    })
-
   const generateNamingConventionsXlsxBlob = async (opts?: { planVersion?: string }) => {
     if (typeof waitForStateFlush === "function") {
       await waitForStateFlush();
@@ -5983,27 +5956,35 @@ const handleSaveAll = async () => {
     const mba = String(fv.mba_number || fv.mbaidentifier || "").trim()
     const globals = extractPlanGlobals(
       {
-        mp_client_name: fv.mp_client_name,
-        mp_brand: fv.mp_brand,
-        mp_campaignname: fv.mp_campaignname,
-        campaign_start_date: fv.mp_campaigndates_start,
-        mp_campaigndates_start: fv.mp_campaigndates_start,
+        mp_client_name: fv.mp_client_name || "",
+        mp_brand: fv.mp_brand || "",
+        mp_campaignname: fv.mp_campaignname || "",
+        campaign_start_date: toDateOnlyString(fv.mp_campaigndates_start),
       },
-      mba || "mba",
+      mba,
     )
-    const workbook = await buildNamingWorkbook({
-      globals,
-      lineItems: namingLineItemsBag(),
-      version,
-      publishers: kpiPublishers,
-      containerBestPractice,
-      tokenOverrides: namingTokenOverrides,
-    });
 
-    const arrayBuffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const fileName = namingWorkbookFilename(globals.mba || mba || "mba", version);
-    return { blob, fileName };
+    // Server fetches publishers + best-practice; POST only unsaved form state.
+    const { blob, fileName, tokenPath } = await fetchNamingWorkbook({
+      globals,
+      lineItems: {
+        search: searchItems,
+        socialMedia: socialMediaItems,
+        digiAudio: digiAudioItems,
+        digiDisplay: digiDisplayItems,
+        digiVideo: digiVideoItems,
+        bvod: bvodItems,
+        integration: integrationItems,
+        progDisplay: progDisplayItems,
+        progVideo: progVideoItems,
+        progBvod: progBvodItems,
+        progAudio: progAudioItems,
+        progOoh: progOohItems,
+      },
+      version,
+      options: { useAva: true },
+    })
+    return { blob, fileName, tokenPath }
   };
 
   // Handle Save and Download All - creates a ZIP then runs the normal save modal flow
@@ -6108,9 +6089,15 @@ const handleSaveAll = async () => {
   const handleDownloadNamingConventions = async () => {
     setIsNamingDownloading(true);
     try {
-      const { blob, fileName } = await generateNamingConventionsXlsxBlob();
+      const { blob, fileName, tokenPath } = await generateNamingConventionsXlsxBlob();
       saveAs(blob, fileName);
-      toast({ title: "Success", description: "Naming conventions Excel downloaded" });
+      toast({
+        title: "Success",
+        description:
+          tokenPath === "ai"
+            ? "Naming conventions downloaded (AI-cleaned tokens)"
+            : "Naming conventions downloaded (auto slugs)",
+      });
     } catch (error: any) {
       console.error("Naming download error:", error);
       toast({
@@ -6468,36 +6455,21 @@ const handleSaveAll = async () => {
           {isDownloadingAa ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           <span className="ml-2">{isDownloadingAa ? "Creating AA Plan..." : "Media Plan (AA)"}</span>
         </Button>
-        <div className="flex items-center gap-2">
-          <NamingAiTokenPrefill
-            getSources={() => collectTokenSources(namingLineItemsBag())}
-            overrides={namingTokenOverrides}
-            onOverridesChange={(next) => {
-              setNamingTokenOverrides(next)
-            }}
-            disabled={
-              isDownloading ||
-              isDownloadingAa ||
-              isNamingDownloading ||
-              isWizardSaving
-            }
-          />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={handleDownloadNamingConventions}
-            disabled={
-              isDownloading ||
-              isDownloadingAa ||
-              isNamingDownloading ||
-              isWizardSaving
-            }
-            className="h-9 shrink-0 rounded-pill border-border px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {isNamingDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            <span className="ml-2">{isNamingDownloading ? "Generating Names..." : "Naming Conventions"}</span>
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleDownloadNamingConventions}
+          disabled={
+            isDownloading ||
+            isDownloadingAa ||
+            isNamingDownloading ||
+            isWizardSaving
+          }
+          className="h-9 shrink-0 rounded-pill border-border px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          {isNamingDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          <span className="ml-2">{isNamingDownloading ? "Generating Names..." : "Generate Naming (Ava)"}</span>
+        </Button>
         <Button
           type="button"
           variant="action"
