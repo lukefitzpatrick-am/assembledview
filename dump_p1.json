@@ -1,0 +1,28 @@
+﻿node.exe : npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm 
+help npmrc` for supported config options.
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm warn Unknow...config options.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+weekKeys [ '2026-01-04', '2026-01-11', '2026-01-18', '2026-01-25' ]
+node:fs:2413
+    return binding.writeFileUtf8(
+                   ^
+
+Error: EBUSY: resource busy or locked, open 
+'C:\Projects\avmediaplan\.worktrees\refactor-expertgrid-consolidation\dump_p1.json'
+    at writeFileSync (node:fs:2413:20)
+    at <anonymous> 
+(C:\Projects\avmediaplan\.worktrees\refactor-expertgrid-consolidation\lib\mediaplan\__tests__\_dumpP1Goldens.ts:216:1)
+    at ModuleJob.run (node:internal/modules/esm/module_job:430:25)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:661:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  errno: -4082,
+  code: 'EBUSY',
+  syscall: 'open',
+  path: 'C:\\Projects\\avmediaplan\\.worktrees\\refactor-expertgrid-consolidation\\dump_p1.json'
+}
+
+Node.js v24.14.1
