@@ -3,14 +3,14 @@
  * Trigger summaries are compressed from SKILL.md frontmatter at load time.
  */
 
-import { loadSkillRegistry } from "@/lib/ava/skills/registry"
+import { loadSkillRegistrySafe } from "@/lib/ava/skills/registry"
 
 export const AVA_SKILL_TOOL_HINTS = `
 - load_skill — load ONE Assembled skill (body + learnings; optional single reference). Auto-chains marketing-brain decision rules when the skill declares it. Prefer this before drafting commentary, copy, audience insights, video scripts, or presentation outlines.
 `.trim()
 
 function buildSkillGuidanceTable(): string {
-  const rows = loadSkillRegistry().map((skill) => {
+  const rows = loadSkillRegistrySafe().skills.map((skill) => {
     const when =
       skill.id === "assembled-marketing-brain"
         ? "Never load alone as a button target — it auto-chains via other skills' decision rules. Load only when the user asks for the marketing brain / Assembled POV explicitly."
