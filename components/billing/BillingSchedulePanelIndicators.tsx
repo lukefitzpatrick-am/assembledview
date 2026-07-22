@@ -75,14 +75,20 @@ export function BillingMonthStatusDot({ indicator }: { indicator?: MonthDotIndic
 }
 
 /** Good: quiet tick on Grand Total when billing = MBA. */
-export function BillingEqualsMbaPill({ show }: { show: boolean }) {
+export function BillingEqualsMbaPill({
+  show,
+  title = "Billing totals match MBA",
+}: {
+  show: boolean
+  title?: string
+}) {
   if (!show) return null
   return (
     <Badge
       variant="good"
       size="sm"
       className="ml-2 rounded-pill font-normal"
-      title="Billing totals match MBA"
+      title={title}
     >
       ✓ = MBA
     </Badge>
