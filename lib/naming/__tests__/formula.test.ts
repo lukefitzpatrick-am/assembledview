@@ -121,9 +121,10 @@ test("composeFormula: Meta ad_set — composite campaign_name, geo, optional cus
     line_item_id: FIXED_ROW.line_item_id,
   })
 
+  // geo is free() — wrap in IF so a blank cell does not leave a dangling separator
   assert.equal(
     formula,
-    `=LOWER(${FIXED_ROW.campaign_name}&"-"&${FIXED_ROW.geo}&"-"&${FIXED_ROW.targeting}&IF(${FIXED_ROW.custom}<>"","-"&${FIXED_ROW.custom},"")&"-"&${FIXED_ROW.line_item_id})`,
+    `=LOWER(${FIXED_ROW.campaign_name}&IF(${FIXED_ROW.geo}<>"","-"&${FIXED_ROW.geo},"")&"-"&${FIXED_ROW.targeting}&IF(${FIXED_ROW.custom}<>"","-"&${FIXED_ROW.custom},"")&"-"&${FIXED_ROW.line_item_id})`,
   )
 })
 

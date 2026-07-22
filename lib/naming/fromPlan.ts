@@ -362,6 +362,27 @@ export function baseRowsForPlatform(
   }
 }
 
+/**
+ * Defensively slugify posted / form globals before compose.
+ * Idempotent: already-slugified values pass through unchanged.
+ * Preserves month_start + campaign_start_date (not name tokens).
+ */
+export function slugifyPlanGlobals(globals: PlanGlobals): PlanGlobals {
+  const mba =
+    slugify(globals.mba) || String(globals.mba ?? "").trim().toLowerCase()
+  const brand = slugify(globals.brand)
+  const client = slugify(globals.client)
+  const campaign = slugify(globals.campaign)
+  return {
+    brand: brand || client || mba,
+    client: client || brand || mba,
+    campaign: campaign || mba,
+    mba,
+    month_start: String(globals.month_start ?? "").trim().toLowerCase(),
+    campaign_start_date: String(globals.campaign_start_date ?? "").trim(),
+  }
+}
+
 export function extractPlanGlobals(
   plan: Record<string, unknown>,
   mbaNumber: string,
@@ -380,14 +401,14 @@ export function extractPlanGlobals(
       "",
   ).trim()
 
-  return {
-    brand: slugify(brandRaw) || slugify(clientRaw),
-    client: slugify(clientRaw) || slugify(brandRaw),
-    campaign: slugify(campaignRaw) || slugify(mbaNumber),
-    mba: slugify(mbaNumber) || mbaNumber.toLowerCase(),
+  return slugifyPlanGlobals({
+    brand: brandRaw || clientRaw,
+    client: clientRaw || brandRaw,
+    campaign: campaignRaw || mbaNumber,
+    mba: mbaNumber,
     month_start: monthStartFromDate(startRaw),
     campaign_start_date: startRaw,
-  }
+  })
 }
 
 export function templatesForPlatform(platform: string): NamingTemplate[] {

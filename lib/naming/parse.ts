@@ -1,4 +1,5 @@
 import { isCompositeElement, slugify } from "./compose"
+import { getTemplate } from "./templates"
 import type { NamingTemplate, TemplateElement } from "./types"
 import { validateValue } from "./validate"
 
@@ -27,7 +28,7 @@ export function parseName(
   let result: Record<string, string> | null
 
   if (compositeIdx === 0) {
-    result = parseCompositePrefix(elements, parts, template.separator)
+    result = parseCompositePrefix(template, parts)
   } else if (compositeIdx > 0) {
     return null // composite must be leading when present
   } else {
@@ -116,11 +117,41 @@ function trailingValuesOk(
   return true
 }
 
+function parentTemplateForComposite(
+  platform: string,
+  compositeKey: string,
+): NamingTemplate | undefined {
+  if (compositeKey === "campaign_name") {
+    return getTemplate(platform, "campaign")
+  }
+  if (compositeKey === "io_name") {
+    return getTemplate(platform, "insertion_order")
+  }
+  return undefined
+}
+
+/**
+ * When the leading composite is itself a composed parent name, require the
+ * candidate prefix to parse under that parent template. This disambiguates
+ * optional trailing free tokens (e.g. Meta ad_set geo after free()-ing geo)
+ * without hard picklist rejection at validate/compose time.
+ */
+function compositeParentParses(
+  platform: string,
+  compositeKey: string,
+  compositeName: string,
+): boolean {
+  const parent = parentTemplateForComposite(platform, compositeKey)
+  if (!parent) return true
+  return parseName(parent, compositeName) !== null
+}
+
 function parseCompositePrefix(
-  elements: TemplateElement[],
+  template: NamingTemplate,
   parts: string[],
-  separator: string,
 ): Record<string, string> | null {
+  const elements = template.elements
+  const separator = template.separator
   const composite = elements[0]
   const trailing = elements.slice(1)
 
@@ -130,8 +161,8 @@ function parseCompositePrefix(
   if (parts.length < minTrailing + 1) return null
 
   // Try longest trailing first (optionals filled), then shorter.
-  // Picklist/slug validation disambiguates when a composite token
-  // could otherwise be mistaken for a trailing element.
+  // Parent-template parse + picklist/slug validation disambiguate when a
+  // composite token could otherwise be mistaken for a trailing element.
   const upper = Math.min(maxTrailing, parts.length - 1)
   for (let trailingLen = upper; trailingLen >= minTrailing; trailingLen--) {
     const trailingParts = parts.slice(parts.length - trailingLen)
@@ -142,8 +173,15 @@ function parseCompositePrefix(
     if (!trailingResult) continue
     if (!trailingValuesOk(trailing, trailingResult)) continue
 
+    const compositeName = compositeParts.join(separator)
+    if (
+      !compositeParentParses(template.platform, composite.key, compositeName)
+    ) {
+      continue
+    }
+
     return {
-      [composite.key]: compositeParts.join(separator),
+      [composite.key]: compositeName,
       ...trailingResult,
     }
   }
