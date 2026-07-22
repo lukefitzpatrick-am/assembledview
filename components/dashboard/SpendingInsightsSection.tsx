@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 
 import {
   DonutChart,
@@ -13,6 +14,7 @@ import { EmptyState } from "@/components/ui/states"
 import { buildDonutSlices } from "@/lib/charts-app/donutSlices"
 import { getDeterministicColor, getMediaLabel } from "@/lib/charts/registry"
 import { channelColorFor, fmt } from "@/lib/chart-theme"
+import { fyDisplayLabel } from "@/lib/finance/months"
 import { formatCurrencyAUD } from "@/lib/format/currency"
 
 export type MonthlySpendData = {
@@ -62,6 +64,9 @@ interface SpendingInsightsSectionProps {
   campaignData: SpendByCampaignData[]
   mediaTypeData: SpendByMediaTypeData[]
   brandColour?: string
+  availableFinancialYears?: number[]
+  selectedFinancialYear?: number
+  slug?: string
 }
 
 function resolveEntryKey(item: MonthlyStackedEntry["data"][number]): string {
@@ -122,7 +127,13 @@ export function SpendingInsightsSection({
   campaignData,
   mediaTypeData,
   brandColour: _brandColour,
+  availableFinancialYears,
+  selectedFinancialYear,
+  slug,
 }: SpendingInsightsSectionProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
   const [monthlyView, setMonthlyView] = useState<MonthlyView>("mediaType")
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(() => new Set())
   const monthlyChartRef = useRef<HTMLDivElement | null>(null)
@@ -299,19 +310,43 @@ export function SpendingInsightsSection({
       <header className="flex flex-wrap items-center justify-between gap-3 md:gap-4">
         <div className="min-w-0 space-y-1">
           <h2 className="text-lg font-semibold text-foreground">Spending insights</h2>
-          <p className="text-sm text-muted-foreground">Current financial year</p>
+          <p className="text-sm text-muted-foreground">
+            {selectedFinancialYear
+              ? fyDisplayLabel(selectedFinancialYear)
+              : "Current financial year"}
+          </p>
         </div>
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            setMonthlyView((v) => (v === "mediaType" ? "campaign" : "mediaType"))
-          }
-        >
-          {monthlyView === "mediaType" ? "View by campaign" : "View by media type"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {availableFinancialYears && availableFinancialYears.length > 1 && slug ? (
+            <select
+              aria-label="Financial year"
+              value={selectedFinancialYear ?? availableFinancialYears[0]}
+              onChange={(e) => {
+                const params = new URLSearchParams(searchParams?.toString() ?? "")
+                params.set("fy", e.target.value)
+                router.push(`${pathname}?${params.toString()}`)
+              }}
+              className="h-8 rounded-md border border-input bg-background px-2 text-sm"
+            >
+              {availableFinancialYears.map((y) => (
+                <option key={y} value={y}>
+                  {fyDisplayLabel(y)}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              setMonthlyView((v) => (v === "mediaType" ? "campaign" : "mediaType"))
+            }
+          >
+            {monthlyView === "mediaType" ? "View by campaign" : "View by media type"}
+          </Button>
+        </div>
       </header>
 
       <div className="flex w-full flex-col gap-4 lg:gap-6">

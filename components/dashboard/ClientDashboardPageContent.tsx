@@ -40,13 +40,6 @@ type DashboardCampaign = {
   canEdit: boolean
 }
 
-function normalizeCampaignStatus(rawStatus?: string): CampaignStatus {
-  const status = (rawStatus ?? "").toLowerCase()
-  if (status === "completed") return "completed"
-  if (status === "live" || status === "booked" || status === "approved") return "live"
-  return "planned"
-}
-
 function buildCampaignViewHref(slug: string, mbaNumber: string): string {
   return `/dashboard/${encodeURIComponent(slug)}/${encodeURIComponent(mbaNumber)}`
 }
@@ -55,13 +48,18 @@ function buildCampaignEditHref(mbaNumber: string, versionNumber: number): string
   return `/mediaplans/mba/${encodeURIComponent(mbaNumber)}/edit?version=${versionNumber}`
 }
 
-function toDashboardCampaign(slug: string, mode: CampaignLinkMode, campaign: LegacyCampaign): DashboardCampaign {
+function toDashboardCampaign(
+  slug: string,
+  mode: CampaignLinkMode,
+  campaign: LegacyCampaign,
+  bucketStatus: CampaignStatus, // "live" | "planned" | "completed" — the server list this came from
+): DashboardCampaign {
   const spentApprox =
     typeof campaign.expectedSpendToDate === "number" &&
     Number.isFinite(campaign.expectedSpendToDate) &&
     campaign.expectedSpendToDate > 0
       ? campaign.expectedSpendToDate
-      : normalizeCampaignStatus(campaign.status) === "completed"
+      : bucketStatus === "completed"
         ? campaign.budget
         : null
   const canEdit = mode === "adminHub"
@@ -69,7 +67,7 @@ function toDashboardCampaign(slug: string, mode: CampaignLinkMode, campaign: Leg
     id: `${campaign.mbaNumber}-${campaign.version_number}`,
     name: campaign.campaignName,
     mbaNumber: campaign.mbaNumber,
-    status: normalizeCampaignStatus(campaign.status),
+    status: bucketStatus,
     mediaTypes: campaign.mediaTypes,
     spentAmount: spentApprox,
     totalBudget: campaign.budget,
@@ -95,11 +93,11 @@ export function ClientDashboardPageContent({
   const allCampaigns = useMemo(
     () =>
       [
-        ...clientData.liveCampaignsList,
-        ...clientData.planningCampaignsList,
-        ...clientData.completedCampaignsList,
-      ].map((campaign) => toDashboardCampaign(slug, campaignLinkMode, campaign)),
-    [campaignLinkMode, clientData.completedCampaignsList, clientData.liveCampaignsList, clientData.planningCampaignsList, slug]
+        ...clientData.liveCampaignsList.map((c) => ({ c, bucket: "live" as CampaignStatus })),
+        ...clientData.planningCampaignsList.map((c) => ({ c, bucket: "planned" as CampaignStatus })),
+        ...clientData.completedCampaignsList.map((c) => ({ c, bucket: "completed" as CampaignStatus })),
+      ].map(({ c, bucket }) => toDashboardCampaign(slug, campaignLinkMode, c, bucket)),
+    [campaignLinkMode, clientData.completedCampaignsList, clientData.liveCampaignsList, clientData.planningCampaignsList, slug],
   )
 
   const statusCounts = useMemo(
@@ -311,6 +309,9 @@ export function ClientDashboardPageContent({
               campaignData={clientData.spendByCampaign}
               mediaTypeData={clientData.spendByMediaType}
               brandColour={clientData.brandColour}
+              availableFinancialYears={clientData.availableFinancialYears}
+              selectedFinancialYear={clientData.selectedFinancialYear}
+              slug={slug}
             />
           </Suspense>
         </motion.section>
