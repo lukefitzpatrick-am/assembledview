@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
+import { Loader2 } from "lucide-react"
 
 import {
   DonutChart,
@@ -134,6 +135,7 @@ export function SpendingInsightsSection({
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
+  const [isPending, startTransition] = useTransition()
   const [monthlyView, setMonthlyView] = useState<MonthlyView>("mediaType")
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(() => new Set())
   const monthlyChartRef = useRef<HTMLDivElement | null>(null)
@@ -319,22 +321,33 @@ export function SpendingInsightsSection({
 
         <div className="flex flex-wrap items-center gap-2">
           {availableFinancialYears && availableFinancialYears.length > 1 && slug ? (
-            <select
-              aria-label="Financial year"
-              value={selectedFinancialYear ?? availableFinancialYears[0]}
-              onChange={(e) => {
-                const params = new URLSearchParams(searchParams?.toString() ?? "")
-                params.set("fy", e.target.value)
-                router.push(`${pathname}?${params.toString()}`)
-              }}
-              className="h-8 rounded-md border border-input bg-background px-2 text-sm"
-            >
-              {availableFinancialYears.map((y) => (
-                <option key={y} value={y}>
-                  {fyDisplayLabel(y)}
-                </option>
-              ))}
-            </select>
+            <>
+              <select
+                aria-label="Financial year"
+                value={selectedFinancialYear ?? availableFinancialYears[0]}
+                disabled={isPending}
+                onChange={(e) => {
+                  const params = new URLSearchParams(searchParams?.toString() ?? "")
+                  params.set("fy", e.target.value)
+                  startTransition(() => {
+                    router.push(`${pathname}?${params.toString()}`)
+                  })
+                }}
+                className="h-8 rounded-md border border-input bg-background px-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {availableFinancialYears.map((y) => (
+                  <option key={y} value={y}>
+                    {fyDisplayLabel(y)}
+                  </option>
+                ))}
+              </select>
+              {isPending ? (
+                <Loader2
+                  className="h-4 w-4 animate-spin text-muted-foreground"
+                  aria-hidden
+                />
+              ) : null}
+            </>
           ) : null}
           <Button
             type="button"
@@ -349,7 +362,10 @@ export function SpendingInsightsSection({
         </div>
       </header>
 
-      <div className="flex w-full flex-col gap-4 lg:gap-6">
+      <div
+        className={`flex w-full flex-col gap-4 lg:gap-6${isPending ? " opacity-60 pointer-events-none" : ""}`}
+        aria-busy={isPending || undefined}
+      >
         <SpendingInsightChartShell
           title={monthlyChartTitle}
           description="Australian financial year (Jul–Jun)"
