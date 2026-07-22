@@ -24,6 +24,11 @@ import {
   publishedVersionFromMaster,
 } from "@/lib/mediaplan/publishedVersionGuard"
 import { reapUnpublishedStagedVersions } from "@/lib/mediaplan/reapUnpublishedStagedVersions"
+import {
+  checkPublishLineItemIntegrity,
+  countPublishIntegrityChildren,
+  isPublishVersionAdvance,
+} from "@/lib/mediaplan/publishVersionIntegrity"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -1791,7 +1796,7 @@ export async function PATCH(
     // Only include fields that should be updated to avoid bulk updates
     const masterUpdateData: any = {}
     
-    if (data.version_number !== undefined) {
+    if (isPublishVersionAdvance(data)) {
       // Dev-only: force-fail publish PATCH after children already staged (verify retry UI).
       if (
         process.env.FORCE_FAIL_VERSION_PUBLISH === "1" &&
@@ -1805,6 +1810,36 @@ export async function PATCH(
           { status: 500 },
         )
       }
+
+      // Defense-in-depth: reject empty publishes (enabled mp_* + zero children).
+      // Uses GET-parity mp_plannumber/version_number match; query errors fail open.
+      const targetPublishVersion = parseVersion(data.version_number)
+      if (targetPublishVersion != null && targetPublishVersion > 0) {
+        const integrity = await checkPublishLineItemIntegrity({
+          mbaNumber: mba_number,
+          targetVersionNumber: targetPublishVersion,
+          fetchVersionRow: async (mba, versionNumber) => {
+            const versionResponse = await axios.get(
+              `${mediaPlansBaseUrl}/media_plan_versions?mba_number=${encodeURIComponent(mba)}&version_number=${versionNumber}&page=1&per_page=50`,
+              { headers: xanoAuthHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS }
+            )
+            const rows = parseXanoListPayload(versionResponse.data).filter(
+              (v: any) => normalise(v?.mba_number) === normalise(mba)
+            )
+            return (rows[0] as Record<string, unknown>) || null
+          },
+          countChildrenForChannels: countPublishIntegrityChildren,
+        })
+        if (!integrity.ok) {
+          console.warn("[PATCH] publish blocked — empty staged line items", {
+            mba_number,
+            targetPublishVersion,
+            error: integrity.error,
+          })
+          return NextResponse.json({ error: integrity.error }, { status: integrity.status })
+        }
+      }
+
       masterUpdateData.version_number = data.version_number
     }
     if (data.mp_campaignname !== undefined) {
