@@ -131,10 +131,11 @@ export function projectLumpSumCardBudgetsOntoExpertRows<
     const projected = rateAndQtyForCardGross(row.buyType, cardGross)
     row.unitRate = projected.rate
     if (projected.qty > 0) {
-      const spanQty = (row.mergedWeekSpans ?? []).reduce((s, sp) => {
-        if (!sp) return s
-        return s + (Number.isFinite(sp.totalQty) ? sp.totalQty : 0)
-      }, 0)
+      let spanQty = 0
+      for (const sp of row.mergedWeekSpans ?? []) {
+        if (!sp) continue
+        if (Number.isFinite(sp.totalQty)) spanQty += sp.totalQty
+      }
       if (!(spanQty > 0)) {
         ensureFirstWeekQty(row, weekKeys, projected.qty)
       }

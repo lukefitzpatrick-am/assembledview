@@ -333,14 +333,10 @@ test("Search (biddable) with rate+qty still round-trips normally", () => {
       ],
     } as StandardSearchFormLineItem,
   ]
-  const rows = mapStandardSearchLineItemsToExpertRows(prev as any, cols, CS, CE, {
-    feePct: 0,
-  })
+  const rows = mapStandardSearchLineItemsToExpertRows(prev as any, cols, CS, CE)
   const net = expertRowNetMedia(rows[0]!, weekKeys, 0)
   assert.ok(Math.abs(net - 5000) < 0.02, `Search net expected ~5000 got ${net}`)
-  const standard = mapSearchExpertRowsToStandardLineItems(rows, cols, CS, CE, {
-    feePctSearch: 0,
-  })
+  const standard = mapSearchExpertRowsToStandardLineItems(rows, cols, CS, CE)
   const merged = mergeSearchStandardFromExpertWithPrevious(
     standard as any,
     prev as any
