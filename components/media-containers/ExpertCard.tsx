@@ -272,19 +272,20 @@ function ExpertCardFieldControl<T extends FieldValues>({
               disabled={comboboxProps?.disabled}
               emptyText={comboboxProps?.emptyText}
               buttonClassName={
-                comboboxProps?.buttonClassName ?? "h-9 w-full rounded-md"
+                comboboxProps?.buttonClassName ??
+                "h-9 w-full max-w-[18rem] rounded-md"
               }
-              className="w-full"
+              className="w-full max-w-[18rem]"
             />
           )
 
           return (
-            <FormItem className="flex flex-col space-y-1">
+            <FormItem className="flex flex-col items-start space-y-1">
               <FormLabel className="text-xs font-medium text-muted-foreground">
                 {d.label}
               </FormLabel>
               {fieldAdornment ? (
-                <div className="flex flex-1 items-center space-x-1">
+                <div className="flex w-full max-w-[18rem] items-center space-x-1">
                   <FormControl>{combobox}</FormControl>
                   {fieldAdornment}
                 </div>
@@ -375,8 +376,9 @@ function ExpertCardFieldControl<T extends FieldValues>({
     )
   }
 
-  // text (and any other kind): multiline descriptors use a taller textarea
-  const useTextarea = d.multiline === true
+  // Card surface only: tall textarea for primary targeting field; ignore
+  // descriptor `multiline` (shared with the grid) so Placement etc. stay single-line.
+  const useTextarea = d.key.toLowerCase().includes("targeting")
   const registerOpts = onFieldValueChange
     ? {
         onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -394,8 +396,8 @@ function ExpertCardFieldControl<T extends FieldValues>({
           <Textarea
             {...form.register(name, registerOpts)}
             placeholder={d.placeholder}
-            rows={3}
-            className="min-h-[4.5rem] w-full resize-y rounded-md border border-border/50 bg-muted/30 text-sm transition-colors focus:bg-background"
+            rows={2}
+            className="min-h-[3rem] w-full resize-y rounded-md border border-border/50 bg-muted/30 text-sm transition-colors focus:bg-background"
           />
         ) : (
           <Input
@@ -881,7 +883,7 @@ export function ExpertCard<T extends FieldValues>({
           <div className="px-6 py-3">
             <CardContent className="space-y-3 p-0">
               {dropdownFields.length > 0 ? (
-                <div className="grid grid-cols-1 gap-x-4 gap-y-2.5 md:grid-cols-2 lg:grid-cols-4">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4">
                   {dropdownFields.map((d) => (
                     <div key={d.key}>{renderFieldControl(d)}</div>
                   ))}
@@ -889,13 +891,13 @@ export function ExpertCard<T extends FieldValues>({
               ) : null}
 
               {textEntryFields.length > 0 ? (
-                <div className="grid grid-cols-1 gap-x-4 gap-y-2.5 sm:grid-cols-3">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:grid-cols-4">
                   {textEntryFields.map((d) => (
                     <div
                       key={d.key}
                       className={cn(
-                        d.multiline && "sm:col-span-2",
-                        d.cardSpan === 2 && !d.multiline && "sm:col-span-2"
+                        d.key.toLowerCase().includes("targeting") &&
+                          "md:col-span-2"
                       )}
                     >
                       {renderFieldControl(d)}
