@@ -1,4 +1,6 @@
 import type { ReportLine } from "@/lib/finance/extractReportLinesFromBillingSchedule"
+import type { ReportDimension } from "@/lib/finance/report/types"
+import type { ReportMetricKey } from "@/lib/finance/report/metrics"
 
 /** `payable` = publisher/delivery view from `media_plan_versions.deliverySchedule`, not `billingSchedule`. */
 export type BillingType = "media" | "sow" | "retainer" | "payable"
@@ -137,8 +139,24 @@ export interface FinanceFilters {
   searchQuery: string
 }
 
+/** Optional sibling on saved views — report tab config (not part of FinanceFilters). */
+export interface FinanceSavedReportConfig {
+  groupBy: ReportDimension[]
+  metrics: ReportMetricKey[]
+  showDetailRows: boolean
+}
+
 export interface SavedView {
   id: number
   name: string
   filters: FinanceFilters
+  /** Present when the view also captures Report tab group-by / metrics / detail rows. */
+  report?: FinanceSavedReportConfig
+}
+
+/** Browser localStorage shape for `finance-hub-saved-views-v3` (no server id). */
+export type HubSavedView = {
+  name: string
+  filters: FinanceFilters
+  report?: FinanceSavedReportConfig
 }
