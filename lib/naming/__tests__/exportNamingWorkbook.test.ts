@@ -680,17 +680,21 @@ test("buildNamingWorkbook: needs-input prompt vs INVALID for required free / har
         }
         return
       }
-      campaignDataRow = row
+      campaignDataRow = {
+        getCell: (c) => row.getCell(c),
+        number: row.number,
+      }
     })
     assert.ok(campaignDataRow)
+    const searchDataRow = campaignDataRow
     const valueCol = keys.indexOf("Composed name (value)") + 1
     const formulaCol = keys.indexOf("Composed name (formula)") + 1
     const matchCol = keys.indexOf("match_context") + 1
     assert.equal(
-      campaignDataRow!.getCell(valueCol).value,
+      searchDataRow.getCell(valueCol).value,
       "← add match_context in AV",
     )
-    const formulaCell = campaignDataRow!.getCell(formulaCol).value
+    const formulaCell = searchDataRow.getCell(formulaCol).value
     assert.ok(formulaEquals(formulaCell), "expected live formula for needs-input")
     const withEq = `=${formulaCell.formula}`
     const cells = {
@@ -698,7 +702,7 @@ test("buildNamingWorkbook: needs-input prompt vs INVALID for required free / har
       ...cellMapFromSheet(search),
     }
     assert.equal(evaluateNamingFormula(withEq, cells), "jayco-jayco001-search")
-    const matchRef = `$${String.fromCharCode(64 + matchCol)}$${campaignDataRow!.number}`
+    const matchRef = `$${String.fromCharCode(64 + matchCol)}$${searchDataRow.number}`
     cells[matchRef] = "brand"
     assert.equal(
       evaluateNamingFormula(withEq, cells),
@@ -730,18 +734,22 @@ test("buildNamingWorkbook: needs-input prompt vs INVALID for required free / har
         }
         return
       }
-      adRow = row
+      adRow = {
+        getCell: (c) => row.getCell(c),
+        number: row.number,
+      }
     })
     assert.ok(adRow, `${sheetName} Ad row`)
+    const levelAdRow = adRow
     const valueCol = keys.indexOf("Composed name (value)") + 1
     const formulaCol = keys.indexOf("Composed name (formula)") + 1
     const tokenCol = keys.indexOf("token") + 1
     assert.equal(
-      adRow!.getCell(valueCol).value,
+      levelAdRow.getCell(valueCol).value,
       "← add token in AV",
       `${sheetName} value`,
     )
-    const formulaCell = adRow!.getCell(formulaCol).value
+    const formulaCell = levelAdRow.getCell(formulaCol).value
     assert.ok(formulaEquals(formulaCell), `${sheetName} formula`)
     const withEq = `=${formulaCell.formula}`
     const cells = {
@@ -753,7 +761,7 @@ test("buildNamingWorkbook: needs-input prompt vs INVALID for required free / har
       !evaluatedBlank.endsWith("-"),
       `${sheetName} dangling dash: ${evaluatedBlank}`,
     )
-    const tokenRef = `$${String.fromCharCode(64 + tokenCol)}$${adRow!.number}`
+    const tokenRef = `$${String.fromCharCode(64 + tokenCol)}$${levelAdRow.number}`
     cells[tokenRef] = "bumper"
     const evaluatedFilled = evaluateNamingFormula(withEq, cells)
     assert.ok(
