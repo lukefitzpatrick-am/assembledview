@@ -657,10 +657,11 @@ test("buildNamingWorkbook: needs-input prompt vs INVALID for required free / har
   // Search campaign: empty match_context → needs-input prompt + live formula
   {
     const search = workbook.getWorksheet("Search")!
-    let campaignDataRow: {
+    type SheetRow = {
       getCell: (c: number) => { value: unknown }
       number: number
-    } | null = null
+    }
+    let campaignDataRow: SheetRow | undefined
     let keys: string[] = []
     let sawCampaign = false
     search.eachRow((row) => {
@@ -681,12 +682,13 @@ test("buildNamingWorkbook: needs-input prompt vs INVALID for required free / har
         return
       }
       campaignDataRow = {
-        getCell: (c) => row.getCell(c),
+        getCell: (c: number) => ({ value: row.getCell(c).value }),
         number: row.number,
       }
     })
-    assert.ok(campaignDataRow)
-    const searchDataRow = campaignDataRow
+    // Closure CFA does not retain the assignment through eachRow; assert locally.
+    const searchDataRow = campaignDataRow as SheetRow | undefined
+    assert.ok(searchDataRow)
     const valueCol = keys.indexOf("Composed name (value)") + 1
     const formulaCol = keys.indexOf("Composed name (formula)") + 1
     const matchCol = keys.indexOf("match_context") + 1
@@ -713,10 +715,13 @@ test("buildNamingWorkbook: needs-input prompt vs INVALID for required free / har
   // DV360 + YouTube ad empty token → needs-input
   for (const sheetName of ["Prog Video", "YouTube"]) {
     const sheet = workbook.getWorksheet(sheetName)!
+    type SheetRow = {
+      getCell: (c: number) => { value: unknown }
+      number: number
+    }
     let inAd = false
     let keys: string[] = []
-    let adRow: { getCell: (c: number) => { value: unknown }; number: number } | null =
-      null
+    let adRow: SheetRow | undefined
     sheet.eachRow((row) => {
       if (adRow) return
       const a = String(row.getCell(1).value ?? "")
@@ -735,12 +740,12 @@ test("buildNamingWorkbook: needs-input prompt vs INVALID for required free / har
         return
       }
       adRow = {
-        getCell: (c) => row.getCell(c),
+        getCell: (c: number) => ({ value: row.getCell(c).value }),
         number: row.number,
       }
     })
-    assert.ok(adRow, `${sheetName} Ad row`)
-    const levelAdRow = adRow
+    const levelAdRow = adRow as SheetRow | undefined
+    assert.ok(levelAdRow, `${sheetName} Ad row`)
     const valueCol = keys.indexOf("Composed name (value)") + 1
     const formulaCol = keys.indexOf("Composed name (formula)") + 1
     const tokenCol = keys.indexOf("token") + 1
