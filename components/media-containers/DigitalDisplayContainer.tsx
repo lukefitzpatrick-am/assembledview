@@ -227,6 +227,13 @@ interface DigiDisplaySite {
   platform: string;
 }
 
+function normalizeKey(input: unknown): string {
+  return String(input ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+}
+
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("digidisplay")
 
 interface DigiDisplayContainerProps {
@@ -302,10 +309,13 @@ export function calculateInvestmentPerMonth(form, feedigidisplay) {
   const items = form.getValues("digidisplaylineItems") || []
   const bursts: InvestmentBurstInput[] = []
   items.forEach((lineItem: any) => {
-    (lineItem.bursts || []).forEach((burst: any) => {
+    const includesFees = !!lineItem.budgetIncludesFees
+    ;(lineItem.bursts || []).forEach((burst: any) => {
       const lineMedia = parseFloat(String(burst.budget).replace(/[^0-9.]/g, "")) || 0
       const feePct = feedigidisplay || 0
-      const totalInvestment = lineMedia + ((lineMedia / (100 - feePct)) * feePct)
+      const totalInvestment = includesFees
+        ? lineMedia
+        : lineMedia + ((lineMedia / (100 - feePct)) * feePct)
       bursts.push({ amount: totalInvestment, start: burst.startDate, end: burst.endDate })
     })
   })
@@ -1475,7 +1485,7 @@ useEffect(() => {
                   if (!selectedPublisher) {
                     filteredDigiDisplaySites = digidisplaySites; // Show all sites if no publisher is selected
                   } else {
-                    filteredDigiDisplaySites = digidisplaySites.filter(site => site.platform === selectedPublisher);
+                    filteredDigiDisplaySites = digidisplaySites.filter((site) => normalizeKey(site.platform) === normalizeKey(selectedPublisher));
                   }
 
 

@@ -329,6 +329,23 @@ test("meta round-trips", () => {
     },
     "meta/ad_set with custom",
   )
+  // Free geo tokens (e.g. city metros) must compose — not rejected by PICKLISTS.geo
+  assertRoundTrip(
+    adSet,
+    {
+      campaign_name: campaignName,
+      geo: "sydney_metro",
+      targeting: "lookalike",
+      line_item_id: "jayco001SM1",
+    },
+    "meta/ad_set free geo sydney_metro",
+  )
+  const geoEl = adSet.elements.find((el) => el.key === "geo")
+  assert.ok(geoEl)
+  assert.equal(geoEl.source, "free")
+  assert.equal(validateValue(geoEl, "sydney_metro").ok, true)
+  assert.equal(validateValue(geoEl, "nsw").ok, true)
+  assert.equal(validateValue(geoEl, "au").ok, true)
 
   const ad = mustGet("meta", "ad")
   assertRoundTrip(

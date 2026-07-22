@@ -127,7 +127,7 @@ export function mergeTelevisionStandardFromExpertWithPrevious(
       noadserving: prev.noadserving,
       bidStrategy: prev.bidStrategy ?? "",
       creativeTargeting: prev.creativeTargeting ?? "",
-      creative: prev.creative ?? "",
+      creative: li.creative || (prev.creative ?? ""),
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
     }
@@ -186,10 +186,10 @@ export function mergeProductionStandardFromExpertWithPrevious(
     }
     return {
       ...li,
-      mediaType: prev.mediaType ?? li.mediaType,
-      publisher: prev.publisher ?? li.publisher,
-      description: prev.description ?? li.description,
-      market: prev.market ?? li.market,
+      mediaType: li.mediaType || (prev.mediaType ?? li.mediaType),
+      publisher: li.publisher || (prev.publisher ?? li.publisher),
+      description: li.description || (prev.description ?? li.description),
+      market: li.market || (prev.market ?? li.market),
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
     }
@@ -485,7 +485,7 @@ export function mergeIntegrationStandardFromExpertWithPrevious(
     return {
       ...li,
       noAdserving: prev.noAdserving,
-      creative: prev.creative ?? li.creative,
+      creative: li.creative || (prev.creative ?? li.creative),
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
     }

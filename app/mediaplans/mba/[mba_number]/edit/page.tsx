@@ -255,7 +255,8 @@ import {
   planHasAdvertisingAssociatesLineItem,
   shouldIncludeMediaPlanLineItem,
 } from "@/lib/mediaplan/advertisingAssociatesExcel"
-import { generateNamingWorkbook } from '@/lib/namingConventions'
+import { extractPlanGlobals } from "@/lib/naming/fromPlan"
+import { fetchNamingWorkbook } from "@/lib/naming/fetchNamingWorkbook"
 import { saveAs } from 'file-saver'
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
 import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
@@ -7484,9 +7485,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const handleDownloadNamingConventions = async () => {
     setIsNamingDownloading(true);
     try {
-      const { blob, fileName } = await generateNamingConventionsXlsxBlob();
+      const { blob, fileName, tokenPath } = await generateNamingConventionsXlsxBlob();
       saveAs(blob, fileName);
-      toast({ title: "Success", description: "Naming conventions Excel downloaded" });
+      toast({
+        title: "Success",
+        description:
+          tokenPath === "ai"
+            ? "Naming conventions downloaded (AI-cleaned tokens)"
+            : "Naming conventions downloaded (auto slugs)",
+      });
     } catch (error: any) {
       console.error("Naming download error:", error);
       toast({
@@ -7510,33 +7517,21 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           latestVersionNumber ??
           "1"));
 
-    const mediaFlags = Object.fromEntries(
-      mediaTypes.map(medium => [medium.name, !!fv[medium.name as keyof MediaPlanFormValues]])
-    ) as Record<string, boolean>;
+    const mba = String(fv.mbanumber || fv.mbaidentifier || mbaNumber || "").trim()
+    const globals = extractPlanGlobals(
+      {
+        mp_client_name: fv.mp_clientname || "",
+        mp_brand: fv.mp_brand || "",
+        mp_campaignname: fv.mp_campaignname || "",
+        campaign_start_date: toDateOnlyString(fv.mp_campaigndates_start),
+      },
+      mba,
+    )
 
-    const workbook = await generateNamingWorkbook({
-      advertiser: fv.mp_clientname || "",
-      brand: fv.mp_brand || "",
-      campaignName: fv.mp_campaignname || "",
-      mbaNumber: fv.mbanumber || fv.mbaidentifier || mbaNumber || "",
-      startDate: fv.mp_campaigndates_start,
-      endDate: fv.mp_campaigndates_end,
-      version: String(namingVersion ?? "1"),
-      publishers: await (async () => {
-        try {
-          const pubRes = await fetch("/api/publishers?full=1")
-          if (pubRes.ok) {
-            const full = await pubRes.json()
-            if (Array.isArray(full)) return full as Publisher[]
-          }
-        } catch {
-          // fall through to light list already in state
-        }
-        return billingPublishers
-      })(),
-      containerBestPractice,
-      mediaFlags,
-      items: {
+    // Server fetches publishers (?full=1) + best-practice; do not ship them in the POST.
+    const { blob, fileName, tokenPath } = await fetchNamingWorkbook({
+      globals,
+      lineItems: {
         search: searchItems,
         socialMedia: socialMediaItems,
         digiAudio: digitalAudioItems,
@@ -7550,15 +7545,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         progAudio: progAudioItems,
         progOoh: progOohItems,
       },
-    });
-
-    const arrayBuffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    const clientName = fv.mp_clientname || "client";
-    const campaignName = fv.mp_campaignname || "mediaPlan";
-    const namingBase = `NamingConventions_${campaignName}`;
-    const fileName = `${clientName}-${namingBase}-v${String(namingVersion ?? "1")}.xlsx`;
-    return { blob, fileName };
+      version: String(namingVersion ?? "1"),
+      options: { useAva: true },
+    })
+    return { blob, fileName, tokenPath }
   };
 
   const handleSaveAndDownloadAll = async () => {

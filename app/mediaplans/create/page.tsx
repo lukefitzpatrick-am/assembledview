@@ -130,7 +130,8 @@ import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import type { BurstDateLike } from "@/lib/finance/billingOverrideDateBasis"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
-import { generateNamingWorkbook } from '@/lib/namingConventions'
+import { extractPlanGlobals } from '@/lib/naming/fromPlan'
+import { fetchNamingWorkbook } from '@/lib/naming/fetchNamingWorkbook'
 import { MBAData } from '@/lib/generateMBA'
 import { saveAs } from 'file-saver'
 import { useUnsavedChangesPrompt } from "@/hooks/use-unsaved-changes-prompt"
@@ -5640,22 +5641,21 @@ const handleSaveAll = async () => {
 
     const fv = form.getValues();
     const version = opts?.planVersion ?? (fv.mp_plannumber || "1");
-    const clientName = fv.mp_client_name || "client";
-    const campaignName = fv.mp_campaignname || "mediaPlan";
-    const namingBase = `NamingConventions_${campaignName}`;
-    const fileName = `${clientName}-${namingBase}-v${version}.xlsx`;
-    const workbook = await generateNamingWorkbook({
-      advertiser: fv.mp_client_name || "",
-      brand: fv.mp_brand || "",
-      campaignName: fv.mp_campaignname || "",
-      mbaNumber: fv.mba_number || fv.mbaidentifier || "",
-      startDate: fv.mp_campaigndates_start,
-      endDate: fv.mp_campaigndates_end,
-      version,
-      publishers: kpiPublishers,
-      containerBestPractice,
-      mediaFlags: fv as unknown as Record<string, boolean>,
-      items: {
+    const mba = String(fv.mba_number || fv.mbaidentifier || "").trim()
+    const globals = extractPlanGlobals(
+      {
+        mp_client_name: fv.mp_client_name || "",
+        mp_brand: fv.mp_brand || "",
+        mp_campaignname: fv.mp_campaignname || "",
+        campaign_start_date: toDateOnlyString(fv.mp_campaigndates_start),
+      },
+      mba,
+    )
+
+    // Server fetches publishers + best-practice; POST only unsaved form state.
+    const { blob, fileName, tokenPath } = await fetchNamingWorkbook({
+      globals,
+      lineItems: {
         search: searchItems,
         socialMedia: socialMediaItems,
         digiAudio: digiAudioItems,
@@ -5669,11 +5669,10 @@ const handleSaveAll = async () => {
         progAudio: progAudioItems,
         progOoh: progOohItems,
       },
-    });
-
-    const arrayBuffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([arrayBuffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-    return { blob, fileName };
+      version,
+      options: { useAva: true },
+    })
+    return { blob, fileName, tokenPath }
   };
 
   // Handle Save and Download All - creates a ZIP then runs the normal save modal flow
@@ -5778,9 +5777,15 @@ const handleSaveAll = async () => {
   const handleDownloadNamingConventions = async () => {
     setIsNamingDownloading(true);
     try {
-      const { blob, fileName } = await generateNamingConventionsXlsxBlob();
+      const { blob, fileName, tokenPath } = await generateNamingConventionsXlsxBlob();
       saveAs(blob, fileName);
-      toast({ title: "Success", description: "Naming conventions Excel downloaded" });
+      toast({
+        title: "Success",
+        description:
+          tokenPath === "ai"
+            ? "Naming conventions downloaded (AI-cleaned tokens)"
+            : "Naming conventions downloaded (auto slugs)",
+      });
     } catch (error: any) {
       console.error("Naming download error:", error);
       toast({

@@ -212,10 +212,13 @@ export function calculateInvestmentPerMonth(form, feenewspapers) {
   const items = form.getValues("newspaperlineItems") || []
   const bursts: InvestmentBurstInput[] = []
   items.forEach((lineItem: any) => {
-    (lineItem.bursts || []).forEach((burst: any) => {
+    const includesFees = !!lineItem.budgetIncludesFees
+    ;(lineItem.bursts || []).forEach((burst: any) => {
       const lineMedia = parseFloat(String(burst.budget).replace(/[^0-9.]/g, "")) || 0
       const feePct = feenewspapers || 0
-      const totalInvestment = lineMedia + ((lineMedia / (100 - feePct)) * feePct)
+      const totalInvestment = includesFees
+        ? lineMedia
+        : lineMedia + ((lineMedia / (100 - feePct)) * feePct)
       bursts.push({ amount: totalInvestment, start: burst.startDate, end: burst.endDate })
     })
   })

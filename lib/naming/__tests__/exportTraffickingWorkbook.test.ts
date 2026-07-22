@@ -67,6 +67,31 @@ test("tryComposeName fails on missing required element", () => {
   assert.equal(result.ok, false)
 })
 
+test("tryComposeName accepts free Meta geo tokens (e.g. sydney_metro)", () => {
+  const t = mustGet("meta", "ad_set")
+  const values = {
+    campaign_name: "fbig-jayco-jayco001-fy26q1-traffic",
+    geo: "sydney_metro",
+    targeting: "lookalike",
+    line_item_id: "jayco001sm1",
+  }
+  const result = tryComposeName(t, values)
+  assert.equal(result.ok, true)
+  if (result.ok) {
+    assert.equal(result.name, composeName(t, values))
+    assert.match(result.name, /sydney_metro/)
+  }
+  // Preferred snap-set values still compose
+  assert.equal(
+    tryComposeName(t, { ...values, geo: "au" }).ok,
+    true,
+  )
+  assert.equal(
+    tryComposeName(t, { ...values, geo: "nsw" }).ok,
+    true,
+  )
+})
+
 test("buildTraffickingWorkbook: Input + platform + Rules sheets; invalid cell marker", async () => {
   const campaignTpl = mustGet("meta", "campaign")
   const adSetTpl = mustGet("meta", "ad_set")
