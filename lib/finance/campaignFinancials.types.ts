@@ -179,4 +179,16 @@ export type CampaignFinancials = {
    * refresh. Compensating control for fee (see version spawn on approved MBAs).
    */
   rebill_needed: boolean
+  /**
+   * Populated by {@link computeCampaignFinancials}. Absent on the persisted-schedule
+   * hydrate path ({@link computeCampaignFinancialsFromVersion} without line items).
+   */
+  reconciliation?: {
+    /** ex-GST, MBA-scope media billed to the client directly (0 when none). */
+    clientPaysMedia: number
+    /** nettExGst − clientPaysMedia (what the billing schedule should total). */
+    billableMbaExGst: number
+    /** Core sum already computed for validation. */
+    billingScheduleTotalExGst: number
+  }
 }

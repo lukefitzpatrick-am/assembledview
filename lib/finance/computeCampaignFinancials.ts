@@ -959,5 +959,10 @@ export function computeCampaignFinancials(
     },
     mbaFeeAdjusted,
     rebill_needed,
+    reconciliation: {
+      clientPaysMedia,
+      billableMbaExGst,
+      billingScheduleTotalExGst,
+    },
   }
 }

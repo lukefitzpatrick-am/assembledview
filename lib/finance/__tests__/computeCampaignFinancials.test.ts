@@ -98,11 +98,20 @@ test("computeCampaignFinancials: client-pays zeros billing media; delta reason",
     `billingScheduleTotalExGst (${billingScheduleTotalExGst}) must equal billableMbaExGst (${billableMbaExGst})`
   )
 
+  // Exposed reconciliation reuses the same consts (no recompute).
+  const recon = result.reconciliation!
+  assert.equal(recon.clientPaysMedia, pl.media, "clientPaysMedia === line full media")
+  assert.equal(
+    recon.billableMbaExGst,
+    Math.round((result.mbaScopeTotals.nettExGst - recon.clientPaysMedia) * 100) / 100
+  )
+  assert.equal(recon.billableMbaExGst, recon.billingScheduleTotalExGst)
+  assert.equal(result.validation.billableEqualsMba, true)
+
   assert.ok(result.deliveryVsBillingDelta.length >= 1)
   assert.ok(
     result.deliveryVsBillingDelta.some((d) => d.reasons.includes("client_pays_media"))
   )
-  assert.equal(result.validation.billableEqualsMba, true)
 })
 
 test("computeCampaignFinancials: excluded lines omit from MBA + billing", () => {

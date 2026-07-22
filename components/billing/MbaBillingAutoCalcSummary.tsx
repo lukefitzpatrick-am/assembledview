@@ -196,6 +196,28 @@ export function MbaBillingAutoCalcSummary({
               </TableRow>
             </TableBody>
           </Table>
+          {financials.reconciliation &&
+          financials.reconciliation.clientPaysMedia > 0.005 ? (
+            <p className="mt-2 flex flex-wrap items-center gap-x-1 px-2 text-xs text-muted-foreground">
+              <span>
+                Billing total{" "}
+                <span className="num">
+                  {money.format(financials.reconciliation.billableMbaExGst)}
+                </span>
+                {" + "}
+                client-pays media{" "}
+                <span className="num">
+                  {money.format(financials.reconciliation.clientPaysMedia)}
+                </span>
+                {" = "}
+                total investment <span className="num">{money.format(t.nettExGst)}</span>
+              </span>
+              <BillingEqualsMbaPill
+                show={financials.validation.billableEqualsMba}
+                title="Billing reconciles to MBA total"
+              />
+            </p>
+          ) : null}
         </div>
       </div>
     </div>
