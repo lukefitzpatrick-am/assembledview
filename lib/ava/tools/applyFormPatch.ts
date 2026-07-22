@@ -1,5 +1,5 @@
 import type AvaTool from "./types";
-import type { FormPatch } from "@/lib/ava/types";
+import type { FormPatch, PageField } from "@/lib/ava/types";
 
 type PageFields = NonNullable<import("@/lib/ava/types").PageContext["fields"]>;
 
@@ -15,6 +15,55 @@ function buildEditableFieldIdMap(fields: PageFields): Map<string, true> {
     }
   }
   return map;
+}
+
+function findFieldById(fields: PageFields, fieldId: string): PageField | undefined {
+  return fields.find(
+    (field) => field.fieldId === fieldId || field.id === fieldId,
+  );
+}
+
+function normalisedOptions(field: PageField): string[] {
+  if (!field.options?.length) return [];
+  return field.options.map((o) => (typeof o === "string" ? o : o.value));
+}
+
+function optionMatches(allowed: string[], value: unknown): boolean {
+  if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+    return false;
+  }
+  const needle = String(value).toLowerCase();
+  return allowed.some((opt) => opt.toLowerCase() === needle);
+}
+
+/**
+ * Validate `value` against the field's declared type/options when metadata is present.
+ * Returns an error message, or null if the value is acceptable (or metadata is absent).
+ */
+function validateFieldValue(field: PageField, fieldId: string, value: unknown): string | null {
+  const allowed = normalisedOptions(field);
+  if (allowed.length > 0 && !optionMatches(allowed, value)) {
+    return `"${value}" is not a valid option for "${fieldId}" (allowed: ${allowed.join(", ")})`;
+  }
+
+  const isNumberIsh = field.type === "number" || field.semanticType === "budget";
+  if (isNumberIsh) {
+    if (!Number.isFinite(Number(value))) {
+      return `"${value}" is not a valid number for "${fieldId}".`;
+    }
+  }
+
+  const isBooleanIsh =
+    field.type === "boolean" || field.semanticType === "boolean_toggle";
+  if (isBooleanIsh && typeof value !== "boolean") {
+    return `"${value}" is not a valid boolean for "${fieldId}".`;
+  }
+
+  if (field.required === true && (value === null || value === "")) {
+    return `Field "${fieldId}" is required and cannot be empty.`;
+  }
+
+  return null;
 }
 
 export const applyFormPatchTool: AvaTool = {
@@ -113,9 +162,22 @@ export const applyFormPatchTool: AvaTool = {
           isError: true,
         };
       }
+
+      const value = (item as Record<string, unknown>).value;
+      const field = findFieldById(fields, fieldId);
+      if (field) {
+        const validationError = validateFieldValue(field, fieldId, value);
+        if (validationError) {
+          return {
+            content: validationError,
+            isError: true,
+          };
+        }
+      }
+
       validated.push({
         fieldId,
-        value: (item as Record<string, unknown>).value,
+        value,
       });
     }
 

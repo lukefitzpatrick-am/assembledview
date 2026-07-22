@@ -18,6 +18,7 @@ import { buildLineItemKpiTargetMap } from "@/lib/kpi/lineItemKpiTargets"
 import { clearAssistantContext, setAssistantContext } from "@/lib/assistantBridge"
 import type { PageContext } from "@/lib/ava/types"
 
+import { AvaPacingNudge } from "@/components/ava/AvaPacingNudge"
 import CampaignHeroBanner from "@/components/dashboard/campaign/CampaignHeroBanner"
 import CampaignSummaryRow from "@/components/dashboard/campaign/CampaignSummaryRow"
 import SpendChartsRow from "@/components/dashboard/campaign/SpendChartsRow"
@@ -436,20 +437,22 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     ],
   )
 
+  // Same definition as hero KPIs / assistant pageContext — do not introduce a second pace.
+  const pacePct =
+    typeof expectedSpend === "number" &&
+    Number.isFinite(expectedSpend) &&
+    expectedSpend > 0 &&
+    typeof actualSpend === "number" &&
+    Number.isFinite(actualSpend)
+      ? roundPct((actualSpend / expectedSpend) * 100)
+      : undefined
+
   const pageContext: PageContext | undefined = useMemo(() => {
     if (!slug || !mbaNumber || !campaign) return undefined
 
     const clientSlug = slug
     const clientName = heroCampaign.clientName
     const campaignName = heroCampaign.campaignName
-    const pacePct =
-      typeof expectedSpend === "number" &&
-      Number.isFinite(expectedSpend) &&
-      expectedSpend > 0 &&
-      typeof actualSpend === "number" &&
-      Number.isFinite(actualSpend)
-        ? roundPct((actualSpend / expectedSpend) * 100)
-        : undefined
 
     const channels = channelLinesFromSpend(filteredSpendByChannel)
     const kpis = kpiTargetsSnapshot(savedCampaignKPIs)
@@ -518,6 +521,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     heroCampaign.clientName,
     isUnfiltered,
     mbaNumber,
+    pacePct,
     pathname,
     progressEndYmd,
     progressStartYmd,
@@ -591,6 +595,9 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               }}
               brandColour={brandColour}
             />
+            {pacePct !== undefined ? (
+              <AvaPacingNudge pacePct={pacePct} className="mt-3" />
+            ) : null}
             </div>
           </Suspense>
         </SectionBoundary>
