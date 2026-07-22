@@ -6247,8 +6247,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const handleSaveAll = async () => {
     if (saveHeldForHydration) {
       toast({
-        title: "Still loading channels",
-        description: "Wait until every media container finishes loading before saving.",
+        title: "Line items still loading — please wait",
         variant: "destructive",
       })
       return
@@ -7132,6 +7131,75 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           variant: 'destructive',
           title: 'Save failed — version not published',
           description: `Channel write(s) failed: ${failedChannels.join(', ')}. Master version remains ${publishedVersionBeforeSave}. Staged version ${nextVersion} (id ${versionId ?? 'n/a'}) was not published.`,
+        })
+        setIsSaving(false)
+        return
+      }
+
+      // Integrity: channels enabled but nothing staged → do not publish an empty version.
+      // (savePromises.length === 0 previously skipped the So-Fail path and published anyway.)
+      const enabledMediaTypeCount = [
+        formValues.mp_television,
+        formValues.mp_radio,
+        formValues.mp_newspaper,
+        formValues.mp_magazines,
+        formValues.mp_ooh,
+        formValues.mp_cinema,
+        formValues.mp_digidisplay,
+        formValues.mp_digiaudio,
+        formValues.mp_digivideo,
+        formValues.mp_bvod,
+        formValues.mp_integration,
+        formValues.mp_search,
+        formValues.mp_socialmedia,
+        formValues.mp_progdisplay,
+        formValues.mp_progvideo,
+        formValues.mp_progbvod,
+        formValues.mp_progaudio,
+        formValues.mp_progooh,
+        formValues.mp_influencers,
+        formValues.mp_production,
+      ].filter(Boolean).length
+      const totalStagedLineItems =
+        televisionMediaLineItemsForSave.length +
+        radioMediaLineItemsForSave.length +
+        newspaperMediaLineItemsForSave.length +
+        magazinesMediaLineItemsForSave.length +
+        oohMediaLineItemsForSave.length +
+        cinemaMediaLineItemsForSave.length +
+        digitalDisplayMediaLineItemsForSave.length +
+        digitalAudioMediaLineItemsForSave.length +
+        digitalVideoMediaLineItemsForSave.length +
+        bvodMediaLineItemsForSave.length +
+        integrationMediaLineItemsForSave.length +
+        searchMediaLineItemsForSave.length +
+        socialMediaMediaLineItemsForSave.length +
+        progDisplayPayload.length +
+        progVideoMediaLineItemsForSave.length +
+        progBvodMediaLineItemsForSave.length +
+        progAudioMediaLineItemsForSave.length +
+        progOohMediaLineItemsForSave.length +
+        influencersMediaLineItemsForSave.length +
+        productionMediaLineItemsForSave.length
+
+      if (deferredPublish && enabledMediaTypeCount > 0 && totalStagedLineItems === 0) {
+        console.error('[save integrity] empty staged line items; blocking version publish', {
+          mbaNumber,
+          versionId,
+          stagedVersionNumber: nextVersion,
+          publishedVersionNumber: publishedVersionBeforeSave,
+          enabledMediaTypeCount,
+          totalStagedLineItems,
+        })
+        updateSaveStatus(
+          'Publish version',
+          'error',
+          'No line items staged for enabled channels'
+        )
+        toast({
+          variant: 'destructive',
+          title: 'Version not published — no line items staged',
+          description: `Master remains ${publishedVersionBeforeSave}. Staged version ${nextVersion} left unpublished.`,
         })
         setIsSaving(false)
         return
