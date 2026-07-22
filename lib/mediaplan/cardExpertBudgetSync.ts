@@ -132,7 +132,7 @@ export function projectLumpSumCardBudgetsOntoExpertRows<
     row.unitRate = projected.rate
     if (projected.qty > 0) {
       const spanQty = (row.mergedWeekSpans ?? []).reduce(
-        (s, sp) => s + (Number.isFinite(sp.totalQty) ? sp.totalQty : 0),
+        (s, sp) => s + (sp && Number.isFinite(sp.totalQty) ? sp.totalQty : 0),
         0
       )
       if (!(spanQty > 0)) {
