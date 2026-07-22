@@ -23,6 +23,11 @@ import {
 } from "@/app/finance/receivables/ReceivablesPageClient"
 import { toast } from "@/components/ui/use-toast"
 import type { FinanceFilters } from "@/lib/types/financeBilling"
+import {
+  readHubSavedViews,
+  subscribeHubSavedViews,
+  upsertHubSavedView,
+} from "@/lib/finance/hubSavedViews"
 import { buildFinanceHubWorkbook } from "@/lib/finance/excelFinanceExport"
 import { exportBillingRecordsCsv, exportPayablesDetailCsv } from "@/lib/finance/export"
 import { exportAccrualWorkbook } from "@/lib/finance/accrualExcel"
@@ -74,13 +79,6 @@ function logFinanceHubEffectDepChanges(label: string, names: readonly string[], 
   }
 }
 
-const SAVED_VIEWS_KEY = "finance-hub-saved-views-v3"
-
-type HubSavedView = {
-  name: string
-  filters: FinanceFilters
-}
-
 function HubPanelFallback() {
   return (
     <div className="animate-pulse rounded-card border border-border bg-surface-panel p-8 shadow-e1">
@@ -115,21 +113,6 @@ const FinanceXeroQueuePanel = dynamic(
   { loading: () => <HubPanelFallback /> }
 )
 
-function readSavedViews(): HubSavedView[] {
-  try {
-    const raw = localStorage.getItem(SAVED_VIEWS_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw) as unknown
-    return Array.isArray(parsed) ? (parsed as HubSavedView[]) : []
-  } catch {
-    return []
-  }
-}
-
-function writeSavedViews(views: HubSavedView[]) {
-  localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(views))
-}
-
 function financeErrorCopyBlock(err: FinanceHubFetchError): string {
   return [`Status: ${err.status ?? "unknown"}`, `URL: ${err.requestUrl ?? "unknown"}`, `Message: ${err.error}`].join(
     "\n"
@@ -146,6 +129,11 @@ function buildSearchParams(activeTab: FinanceHubTab, filters: FinanceFilters) {
   if (filters.selectedPublishers.length) params.set("publishers", filters.selectedPublishers.join(","))
   if (filters.searchQuery.trim()) params.set("q", filters.searchQuery.trim())
   params.set("drafts", filters.includeDrafts ? "1" : "0")
+  // Preserve Forecast sub-mode (?fmode=) written by FinanceForecastPanel.
+  if (typeof window !== "undefined") {
+    const fmode = new URLSearchParams(window.location.search).get("fmode")
+    if (fmode === "target" || fmode === "variance") params.set("fmode", fmode)
+  }
   return params
 }
 
@@ -204,11 +192,18 @@ export default function FinanceHubPageClient() {
   )
 
   const [savedViewNames, setSavedViewNames] = useState<string[]>(() =>
-    readSavedViews().map((v) => v.name)
+    readHubSavedViews().map((v) => v.name)
   )
 
   // savedViewNames bumps when user saves/deletes a view so we re-read localStorage
-  const savedViewsList = useMemo(() => readSavedViews(), [savedViewNames]) // eslint-disable-line react-hooks/exhaustive-deps -- intentional invalidation key
+  const savedViewsList = useMemo(() => readHubSavedViews(), [savedViewNames]) // eslint-disable-line react-hooks/exhaustive-deps -- intentional invalidation key
+
+  useEffect(() => {
+    return subscribeHubSavedViews(() => {
+      const views = readHubSavedViews()
+      setSavedViewNames(views.map((v) => v.name))
+    })
+  }, [])
 
   useEffect(() => {
     logFinanceHubEffectDepChanges(
@@ -380,16 +375,14 @@ export default function FinanceHubPageClient() {
     const name = window.prompt("Name this saved view")
     if (!name || !name.trim()) return
     const snap = useFinanceStore.getState().filters
-    const next: HubSavedView = { name: name.trim(), filters: { ...snap } }
-    const prev = readSavedViews().filter((v) => v.name !== next.name)
-    const merged = [next, ...prev]
-    writeSavedViews(merged)
-    setSavedViewNames(merged.map((v) => v.name))
-    toast({ title: "Saved", description: `View â€œ${next.name}â€ stored in this browser.` })
+    // Filters-only save: preserve any existing report block for the same name.
+    const next = upsertHubSavedView({ name: name.trim(), filters: { ...snap } })
+    setSavedViewNames(readHubSavedViews().map((v) => v.name))
+    toast({ title: "Saved", description: `View “${next.name}” stored in this browser.` })
   }, [])
 
   const loadSavedView = useCallback((name: string) => {
-    const views = readSavedViews()
+    const views = readHubSavedViews()
     const view = views.find((v) => v.name === name)
     if (!view) return
     const f = view.filters

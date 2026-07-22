@@ -145,6 +145,8 @@ test("buildReportRows reconciles enriched line rows and month-level services to 
   assert.equal(clientPays.mediaSpend, 0)
   assert.equal(clientPays.agencyFee, 200)
   assert.equal(clientPays.totalBillable, 200)
+  assert.equal(clientPays.billingType, record.billing_type)
+  assert.equal(clientPays.billingStatus, record.status)
 
   assert.ok(rows.find((row) => row.rowKind === "service" && row.serviceType === "production"))
   assert.ok(rows.find((row) => row.rowKind === "service" && row.serviceType === "adServing"))
@@ -209,4 +211,51 @@ test("buildReportRows emits visibly degraded agency fee fallback for legacy sche
   assert.equal(mediaRow.buyType, "Unspecified")
   assert.equal(mediaRow.mediaSpend, 100)
   assert.equal(mediaRow.agencyFee, 0)
+})
+
+test("buildReportRows classifies billingAgency from publisher map (unmatched → AM)", () => {
+  const persisted = buildBillingScheduleJSON(enrichedFixture())
+  const [record] = derivePlanReceivableBillingRecordsForMonth(
+    [
+      {
+        id: 123,
+        clients_id: 456,
+        client_name: "Assembled Client",
+        mba_number: "MBA-3B",
+        campaign_name: "Report Rows",
+        campaign_status: "booked",
+        version_number: 1,
+        billingSchedule: persisted,
+      },
+    ],
+    2026,
+    5,
+    new Map(),
+    new Map(),
+    [],
+    { includeNonBookedCampaigns: false }
+  )
+
+  assert.ok(record)
+  const map = new Map<string, string>([
+    ["Google Ads", "advertising associates"],
+    ["Nova", "assembled media"],
+  ])
+  const rows = buildReportRows([record], { publisherBillingAgencyByName: map })
+
+  const google = rows.find((row) => row.publisher === "Google Ads")
+  assert.ok(google)
+  assert.equal(google.billingAgency, "AA")
+
+  const nova = rows.find((row) => row.publisher === "Nova")
+  assert.ok(nova)
+  assert.equal(nova.billingAgency, "AM")
+
+  const unmatched = rows.find((row) => row.publisher === "DV360")
+  assert.ok(unmatched)
+  assert.equal(unmatched.billingAgency, "AM")
+
+  const service = rows.find((row) => row.rowKind === "service")
+  assert.ok(service)
+  assert.equal(service.billingAgency, "AM")
 })
