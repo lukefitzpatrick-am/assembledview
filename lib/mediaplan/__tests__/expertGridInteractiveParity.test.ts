@@ -7,7 +7,7 @@
  *   - fill-handle drag + double-click (all-below)
  *   - buy-type switch
  *   - keyboard-nav cell ids + Enter/Arrow row deltas
- *   - DigiVideo Placement / Ad Size; TV TARPs / Creative Length
+ *   - DigiVideo Targeting / Creative; TV TARPs / Creative Length
  *
  * Run: npx tsx --test lib/mediaplan/__tests__/expertGridInteractiveParity.test.ts
  */
@@ -439,8 +439,8 @@ function runChannelInteractive(entry: ChannelEntry): ChannelReport {
       const grid = getExpertGridSurfaceFields(config)
       const card = getExpertCardSurfaceFields(config)
       for (const [key, expectedLabel] of [
-        ["placement", "Placement"],
-        ["size", "Ad Size"],
+        ["creativeTargeting", "Targeting"],
+        ["creative", "Creative"],
       ] as const) {
         const g = grid.find((c) => c.key === key)
         const c = card.find((c) => c.key === key)
@@ -450,6 +450,14 @@ function runChannelInteractive(entry: ChannelEntry): ChannelReport {
         assert.equal(c!.label, expectedLabel)
         assert.equal(g!.label, c!.label)
       }
+      assert.ok(
+        !grid.some((c) => c.key === "placement" || c.key === "size"),
+        "DigiVideo must not surface placement/size"
+      )
+      assert.ok(
+        !card.some((c) => c.key === "placement" || c.key === "size"),
+        "DigiVideo card must not surface placement/size"
+      )
     }
 
     if (label === "Television") {

@@ -212,8 +212,6 @@ export interface DigiVideoExpertScheduleRow {
   site: string
   bidStrategy: string
   buyType: string
-  placement: string
-  size: string
   creativeTargeting: string
   creative: string
   buyingDemo: string
@@ -284,7 +282,6 @@ export interface DigitalAudioExpertScheduleRow {
   site: string
   bidStrategy: string
   buyType: string
-  targetingAttribute: string
   creativeTargeting: string
   creative: string
   buyingDemo: string
@@ -622,8 +619,6 @@ export interface ProgVideoExpertScheduleRow {
   buyType: string
   creativeTargeting: string
   creative: string
-  placement: string
-  size: string
   buyingDemo: string
   market: string
   fixedCostMedia: boolean
@@ -638,7 +633,7 @@ export interface ProgVideoExpertScheduleRow {
   mergedWeekSpans?: ProgExpertMergedWeekSpan[]
 }
 
-/** Programmatic OOH — expert schedule row (placement + size after creative). */
+/** Programmatic OOH — expert schedule row. */
 export interface ProgOohExpertScheduleRow {
   id: string
   /**
@@ -655,8 +650,6 @@ export interface ProgOohExpertScheduleRow {
   buyType: string
   creativeTargeting: string
   creative: string
-  placement: string
-  size: string
   buyingDemo: string
   market: string
   fixedCostMedia: boolean

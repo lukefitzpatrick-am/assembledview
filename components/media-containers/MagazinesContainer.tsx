@@ -489,6 +489,15 @@ const form = useForm<MagazinesFormValues>({
     [campaignStartDate, campaignEndDate]
   )
 
+  const magazineAdSizeOptions = useMemo(
+    () =>
+      magazinesAdSizes.map((s) => ({
+        value: s.adsize,
+        label: s.adsize,
+      })),
+    [magazinesAdSizes]
+  )
+
   useLayoutEffect(() => {
     magazineStandardBaselineRef.current =
       serializeMagazineStandardLineItemsBaseline(
@@ -1437,10 +1446,7 @@ useEffect(() => {
                           value: m.title || `title-${m.id}`,
                           label: m.title || "(Untitled)",
                         })),
-                        size: magazinesAdSizes.map((s) => ({
-                          value: s.adsize,
-                          label: s.adsize,
-                        })),
+                        size: magazineAdSizeOptions,
                       }}
                       feePct={feemagazines || 0}
                       calculatedVariant="magazine"
@@ -1644,6 +1650,7 @@ useEffect(() => {
                 onRowsChange={handleExpertMagazinesRowsChange}
                 publishers={publishers}
                 magazines={magazines}
+                adSizes={magazineAdSizeOptions}
                 onReorder={() => {
                   reorderedRef.current = true;
                 }}

@@ -491,6 +491,15 @@ const handleAddNewNewspaperAdSize = async () => {
     [campaignStartDate, campaignEndDate]
   )
 
+  const newspaperAdSizeOptions = useMemo(
+    () =>
+      newspapersAdSizes.map((adSize) => ({
+        value: adSize.adsize || `adsize-${adSize.id}`,
+        label: adSize.adsize || "(Unnamed ad size)",
+      })),
+    [newspapersAdSizes]
+  )
+
   useLayoutEffect(() => {
     newspaperStandardBaselineRef.current =
       serializeNewspaperStandardLineItemsBaseline(
@@ -1435,10 +1444,7 @@ useEffect(() => {
                           value: newspaper.title || `title-${newspaper.id}`,
                           label: newspaper.title || "(Untitled)",
                         })),
-                        size: newspapersAdSizes.map((adSize) => ({
-                          value: adSize.adsize || `adsize-${adSize.id}`,
-                          label: adSize.adsize || "(Unnamed ad size)",
-                        })),
+                        size: newspaperAdSizeOptions,
                       }}
                       feePct={feenewspapers || 0}
                       calculatedVariant="newspaper"
@@ -1640,6 +1646,7 @@ useEffect(() => {
                 onRowsChange={handleExpertNewspaperRowsChange}
                 publishers={publishers}
                 newspapers={newspapers}
+                adSizes={newspaperAdSizeOptions}
                 onReorder={() => {
                   reorderedRef.current = true;
                 }}
