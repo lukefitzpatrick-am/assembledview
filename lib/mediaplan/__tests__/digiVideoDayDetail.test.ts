@@ -15,7 +15,7 @@ const cols = buildWeeklyGanttColumnsFromCampaign(CS, CE)
 function line(bursts: any[]): StandardDigiVideoFormLineItem {
   return {
     platform: "P", publisher: "Pub", site: "S", bidStrategy: "", buyType: "bonus",
-    placement: "", size: "", targetingAttribute: "", creativeTargeting: "", creative: "",
+    targetingAttribute: "", creativeTargeting: "", creative: "",
     buyingDemo: "", market: "", fixedCostMedia: false, clientPaysForMedia: false,
     budgetIncludesFees: false, noadserving: false,
     lineItemId: "a", line_item_id: "a", line_item: 1, lineItem: 1, bursts,

@@ -3403,8 +3403,6 @@ export interface StandardDigiVideoFormLineItem {
   bidStrategy: string
   buyType: string
   publisher: string
-  placement: string
-  size: string
   targetingAttribute: string
   creativeTargeting: string
   creative: string
@@ -3516,8 +3514,6 @@ function emptyDigiVideoLineItem(
     bidStrategy: row.bidStrategy,
     buyType: row.buyType,
     publisher: row.publisher,
-    placement: row.placement,
-    size: row.size,
     targetingAttribute: "",
     creativeTargeting: row.creativeTargeting,
     creative: row.creative,
@@ -3676,8 +3672,6 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
       bidStrategy: row.bidStrategy,
       buyType,
       publisher: row.publisher,
-      placement: row.placement,
-      size: row.size,
       targetingAttribute: "",
       creativeTargeting: row.creativeTargeting,
       creative: row.creative,
@@ -3812,8 +3806,6 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
       site: String(item.site ?? ""),
       bidStrategy: String(item.bidStrategy ?? ""),
       buyType,
-      placement: String(item.placement ?? ""),
-      size: String(item.size ?? ""),
       creativeTargeting: String(
         item.creativeTargeting ?? item.creative_targeting ?? ""
       ),
@@ -4288,7 +4280,6 @@ export interface StandardDigiAudioFormLineItem {
   bidStrategy: string
   buyType: string
   publisher: string
-  targetingAttribute: string
   creativeTargeting: string
   creative: string
   buyingDemo: string
@@ -4308,7 +4299,6 @@ export type StandardDigiAudioLineItemInput = Partial<StandardDigiAudioFormLineIt
   buy_type?: string
   buying_demo?: string
   creative_targeting?: string
-  targeting_attribute?: string
   fixed_cost_media?: boolean
   client_pays_for_media?: boolean
   budget_includes_fees?: boolean
@@ -4399,7 +4389,6 @@ function emptyDigiAudioLineItem(
     bidStrategy: row.bidStrategy,
     buyType: row.buyType,
     publisher: row.publisher,
-    targetingAttribute: row.targetingAttribute,
     creativeTargeting: row.creativeTargeting,
     creative: row.creative,
     buyingDemo: row.buyingDemo,
@@ -4568,7 +4557,6 @@ export function mapDigitalAudioExpertRowsToStandardLineItems(
       bidStrategy: row.bidStrategy,
       buyType,
       publisher: row.publisher,
-      targetingAttribute: row.targetingAttribute,
       creativeTargeting: row.creativeTargeting,
       creative: row.creative,
       buyingDemo: row.buyingDemo,
@@ -4688,9 +4676,6 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
       site: String(item.site ?? ""),
       bidStrategy: String(item.bidStrategy ?? ""),
       buyType,
-      targetingAttribute: String(
-        item.targetingAttribute ?? item.targeting_attribute ?? ""
-      ),
       creativeTargeting: String(
         item.creativeTargeting ?? item.creative_targeting ?? ""
       ),
@@ -8067,8 +8052,6 @@ export interface StandardProgVideoFormLineItem {
   buyingDemo: string
   market: string
   site: string
-  placement: string
-  size: string
   targetingAttribute: string
   fixedCostMedia: boolean
   clientPaysForMedia: boolean
@@ -8106,8 +8089,6 @@ function emptyProgVideoLineItem(
     buyType: row.buyType,
     creativeTargeting: row.creativeTargeting,
     creative: row.creative,
-    placement: row.placement,
-    size: row.size,
     buyingDemo: row.buyingDemo,
     market: row.market,
     site: "",
@@ -8172,8 +8153,6 @@ export function mapProgVideoExpertRowsToStandardLineItems(
       buyType: row.buyType,
       creativeTargeting: row.creativeTargeting,
       creative: row.creative,
-      placement: row.placement,
-      size: row.size,
       buyingDemo: row.buyingDemo,
       market: row.market,
       site: "",
@@ -8240,8 +8219,6 @@ export function mapStandardProgVideoLineItemsToExpertRows(
       buyType,
       creativeTargeting: String(item.creativeTargeting ?? ""),
       creative: String(item.creative ?? ""),
-      placement: String(item.placement ?? ""),
-      size: String(item.size ?? ""),
       buyingDemo: String(item.buyingDemo ?? ""),
       market: String(item.market ?? ""),
       fixedCostMedia: Boolean(item.fixedCostMedia),
@@ -8271,12 +8248,7 @@ export interface StandardProgOohFormLineItem {
   creative: string
   buyingDemo: string
   market: string
-  environment: string
-  format: string
-  location: string
   targetingAttribute: string
-  placement: string
-  size: string
   fixedCostMedia: boolean
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
@@ -8313,13 +8285,8 @@ function emptyProgOohLineItem(
     buyType: row.buyType,
     creativeTargeting: row.creativeTargeting,
     creative: row.creative,
-    placement: row.placement,
-    size: row.size,
     buyingDemo: row.buyingDemo,
     market: row.market,
-    environment: "",
-    format: "",
-    location: "",
     targetingAttribute: "",
     fixedCostMedia: Boolean(row.fixedCostMedia),
     clientPaysForMedia: Boolean(row.clientPaysForMedia),
@@ -8381,13 +8348,8 @@ export function mapProgOohExpertRowsToStandardLineItems(
       buyType: row.buyType,
       creativeTargeting: row.creativeTargeting,
       creative: row.creative,
-      placement: row.placement,
-      size: row.size,
       buyingDemo: row.buyingDemo,
       market: row.market,
-      environment: "",
-      format: "",
-      location: "",
       targetingAttribute: "",
       fixedCostMedia: Boolean(row.fixedCostMedia),
       clientPaysForMedia: Boolean(row.clientPaysForMedia),
@@ -8451,8 +8413,6 @@ export function mapStandardProgOohLineItemsToExpertRows(
       buyType,
       creativeTargeting: String(item.creativeTargeting ?? ""),
       creative: String(item.creative ?? ""),
-      placement: String(item.placement ?? ""),
-      size: String(item.size ?? ""),
       buyingDemo: String(item.buyingDemo ?? ""),
       market: String(item.market ?? ""),
       fixedCostMedia: Boolean(item.fixedCostMedia),

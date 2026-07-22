@@ -49,8 +49,6 @@ function emptyRow(id: string): DigiVideoExpertScheduleRow {
     site: "",
     bidStrategy: "",
     buyType: "",
-    placement: "",
-    size: "",
     creativeTargeting: "",
     creative: "",
     buyingDemo: "",

@@ -1,6 +1,7 @@
 "use client"
 
 import { ExpertGrid } from "@/components/media-containers/ExpertGrid"
+import type { ComboboxOption } from "@/components/ui/combobox"
 import {
   NEWSPAPER_EXPERT_CHANNEL_CONFIG,
   createEmptyNewspaperExpertRow,
@@ -25,12 +26,15 @@ export interface NewspaperExpertGridProps {
   publishers?: { publisher_name: string }[]
   /** Title options (network-filtered) for the title combobox */
   newspapers?: ExpertGridTitleOption[]
+  /** Ad size options for the size combobox-dynamic column */
+  adSizes?: ComboboxOption[]
   onReorder?: () => void
 }
 
 export function NewspaperExpertGrid({
   feenewspapers,
   newspapers = [],
+  adSizes = [],
   ...rest
 }: NewspaperExpertGridProps) {
   return (
@@ -38,6 +42,7 @@ export function NewspaperExpertGrid({
       config={NEWSPAPER_EXPERT_CHANNEL_CONFIG}
       feePercent={feenewspapers}
       titles={newspapers}
+      extraComboboxOptions={{ size: adSizes }}
       {...rest}
     />
   )

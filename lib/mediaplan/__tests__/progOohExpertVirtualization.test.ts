@@ -49,8 +49,6 @@ function emptyRow(id: string): ProgOohExpertScheduleRow {
     buyType: "",
     creativeTargeting: "",
     creative: "",
-    placement: "",
-    size: "",
     buyingDemo: "",
     market: "",
     fixedCostMedia: false,
@@ -105,7 +103,6 @@ test("1. APPLY CORRECTNESS: edit on off-window row survives Apply (full state, n
   let rows = buildRows(300)
   const offWindowIndex = 250
   const patched = updateRowAtIndex(rows, offWindowIndex, {
-    placement: "OFF-WINDOW-PLACEMENT-MARK",
     creative: "OFF-WINDOW-CREATIVE",
     buyType: "cpm",
     unitRate: 100,
@@ -126,16 +123,15 @@ test("1. APPLY CORRECTNESS: edit on off-window row survives Apply (full state, n
   )
 
   assert.equal(standard.length, 300, "Apply must emit all 300 logical rows")
-  assert.equal(standard[offWindowIndex]!.placement, "OFF-WINDOW-PLACEMENT-MARK")
   assert.equal(standard[offWindowIndex]!.creative, "OFF-WINDOW-CREATIVE")
-  assert.equal(standard[0]!.placement, "")
-  assert.notEqual(standard[0]!.placement, "OFF-WINDOW-PLACEMENT-MARK")
+  assert.equal(standard[0]!.creative, "")
+  assert.notEqual(standard[0]!.creative, "OFF-WINDOW-CREATIVE")
 })
 
 test("3. DRAG REORDER across virtual boundary lands on correct logical index", () => {
   const rows = buildRows(300).map((r, i) => ({
     ...r,
-    placement: `P${i}`,
+    creative: `P${i}`,
   }))
   const dropIndex = virtualRowIndexFromOffsetY(
     280 * PROGOOH_EXPERT_ROW_HEIGHT_PX + 1,
@@ -146,8 +142,8 @@ test("3. DRAG REORDER across virtual boundary lands on correct logical index", (
 
   const next = reorderExpertRows(rows, 2, dropIndex)
   assert.ok(next)
-  assert.equal(next![280]!.placement, "P2")
-  assert.equal(next![2]!.placement, "P3")
+  assert.equal(next![280]!.creative, "P2")
+  assert.equal(next![2]!.creative, "P3")
 
   const standard = mapProgOohExpertRowsToStandardLineItems(
     next!,
@@ -156,7 +152,7 @@ test("3. DRAG REORDER across virtual boundary lands on correct logical index", (
     CE,
     { feePctProgOoh: 0 }
   )
-  assert.equal(standard[280]!.placement, "P2")
+  assert.equal(standard[280]!.creative, "P2")
   assert.equal(Number(standard[280]!.line_item ?? standard[280]!.lineItem), 281)
   assert.equal(Number(standard[0]!.line_item ?? standard[0]!.lineItem), 1)
 })

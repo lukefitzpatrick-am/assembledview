@@ -859,8 +859,6 @@ export function serializeDigiVideoStandardLineItemsBaseline(
       bidStrategy: li.bidStrategy,
       buyType: li.buyType,
       publisher: li.publisher,
-      placement: li.placement,
-      size: li.size,
       targetingAttribute: li.targetingAttribute,
       creativeTargeting: li.creativeTargeting,
       creative: li.creative,
@@ -899,8 +897,6 @@ export function serializeDigiVideoExpertRowsBaseline(
       site: r.site,
       bidStrategy: r.bidStrategy,
       buyType: r.buyType,
-      placement: r.placement,
-      size: r.size,
       creativeTargeting: r.creativeTargeting,
       creative: r.creative,
       buyingDemo: r.buyingDemo,
@@ -993,7 +989,6 @@ export function serializeDigiAudioStandardLineItemsBaseline(
       bidStrategy: li.bidStrategy,
       buyType: li.buyType,
       publisher: li.publisher,
-      targetingAttribute: li.targetingAttribute,
       creativeTargeting: li.creativeTargeting,
       creative: li.creative,
       buyingDemo: li.buyingDemo,
@@ -1031,7 +1026,6 @@ export function serializeDigiAudioExpertRowsBaseline(
       site: r.site,
       bidStrategy: r.bidStrategy,
       buyType: r.buyType,
-      targetingAttribute: r.targetingAttribute,
       creativeTargeting: r.creativeTargeting,
       creative: r.creative,
       buyingDemo: r.buyingDemo,
@@ -1519,9 +1513,6 @@ export function mergeProgVideoStandardFromExpertWithPrevious(
     }
     return attachBurstPreserve({
       ...li,
-      // NOTE: `placement` and `size` are EDITABLE in the Prog Video
-      // expert grid (ProgVideoExpertScheduleRow), so the generated
-      // values from `mapProgVideoExpertRowsToStandardLineItems` win.
       // Only `site` and `targetingAttribute` are standard-only and
       // need to be re-applied from the previous form state here.
       site: prev.site ?? li.site,
@@ -1549,11 +1540,6 @@ export function mergeProgOohStandardFromExpertWithPrevious(
     }
     return attachBurstPreserve({
       ...li,
-      environment: prev.environment ?? li.environment,
-      format: prev.format ?? li.format,
-      location: prev.location ?? li.location,
-      placement: prev.placement ?? li.placement,
-      size: prev.size ?? li.size,
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
@@ -1712,8 +1698,6 @@ export function serializeProgVideoStandardLineItemsBaseline(
       buyingDemo: li.buyingDemo,
       market: li.market,
       site: li.site,
-      placement: li.placement,
-      size: li.size,
       targetingAttribute: li.targetingAttribute,
       fixedCostMedia: li.fixedCostMedia,
       clientPaysForMedia: li.clientPaysForMedia,
@@ -1754,12 +1738,7 @@ export function serializeProgOohStandardLineItemsBaseline(
       creative: li.creative,
       buyingDemo: li.buyingDemo,
       market: li.market,
-      environment: li.environment,
-      format: li.format,
-      location: li.location,
       targetingAttribute: li.targetingAttribute,
-      placement: li.placement,
-      size: li.size,
       fixedCostMedia: li.fixedCostMedia,
       clientPaysForMedia: li.clientPaysForMedia,
       budgetIncludesFees: li.budgetIncludesFees,

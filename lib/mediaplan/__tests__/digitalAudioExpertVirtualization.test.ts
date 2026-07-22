@@ -49,7 +49,6 @@ function emptyRow(id: string): DigitalAudioExpertScheduleRow {
     site: "",
     bidStrategy: "",
     buyType: "",
-    targetingAttribute: "",
     creativeTargeting: "",
     creative: "",
     buyingDemo: "",
