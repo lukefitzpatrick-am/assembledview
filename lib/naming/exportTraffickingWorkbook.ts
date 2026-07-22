@@ -8,6 +8,45 @@ import { validateValue } from "./validate"
 
 export const INVALID_NAME_CELL = "INVALID: fix in AV"
 
+/** Value-cell prompt when compose fails only because required free fields are blank. */
+export function NEEDS_INPUT_CELL(keys: string[]): string {
+  return `← add ${keys.join(", ")} in AV`
+}
+
+/**
+ * If the only compose failures are empty required free elements (no hard
+ * validation errors and no missing required plan/picklist fields), return those
+ * keys. Otherwise null — caller should use INVALID_NAME_CELL or the composed name.
+ *
+ * Required free = `source === "free"` and not `optional`.
+ */
+export function emptyRequiredFreeKeysOnly(
+  template: NamingTemplate,
+  values: Record<string, string>,
+): string[] | null {
+  const missingFree: string[] = []
+  let hardFailure = false
+
+  for (const el of template.elements) {
+    if (el.source === "literal") continue
+    const raw = values[el.key] ?? ""
+    if (!String(raw).trim()) {
+      if (el.optional) continue
+      if (el.source === "free") {
+        missingFree.push(el.key)
+        continue
+      }
+      hardFailure = true
+      continue
+    }
+    const check = validateValue(el, raw)
+    if (!check.ok) hardFailure = true
+  }
+
+  if (hardFailure || missingFree.length === 0) return null
+  return missingFree
+}
+
 /** Excel sheet titles for active platform tabs (master workbook labels). */
 export const PLATFORM_SHEET_NAMES: Record<NamingPlatform, string> = {
   cm360: "Campaign Manager",

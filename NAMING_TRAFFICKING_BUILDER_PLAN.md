@@ -32,8 +32,8 @@ header actions. Staff-only (same guard pattern as the creative page).
 ## Base generation source
 The MBA GET (`/api/mediaplans/mba/{mba}`) — same discovery shape the creative page uses:
 client/brand/campaign/mba/dates from the master; per-channel line items with publisher,
-media type, buy type, line_item_id. `lib/namingConventions.ts` remains untouched until a
-later reconciliation build.
+media type, buy type, line_item_id. Legacy `lib/namingConventions.ts` was removed in
+Prompt 5 — create/edit download via `lib/naming/exportNamingWorkbook.ts` (`buildNamingWorkbook`).
 
 ## Open template defaults (greppable `DEFAULT(Qn)` in lib/naming/templates.ts)
 Q1 CM360 campaign case · Q4 DV360 ad token · Q5 YouTube custom slots · Q6 Meta ad elements
