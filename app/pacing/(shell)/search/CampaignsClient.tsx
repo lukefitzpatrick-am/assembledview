@@ -142,13 +142,13 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
           <PanelTitle>Search campaigns</PanelTitle>
         </PanelHeader>
         <PanelContent>
-          {filtersOn && displayed.length === 0 ? (
-            <PacingFilterEmptyState />
-          ) : total === 0 ? (
+          {total === 0 ? (
             <EmptyState
               title="No search campaigns"
               message="No search line items are in scope for this date."
             />
+          ) : filtersOn && displayed.length === 0 ? (
+            <PacingFilterEmptyState />
           ) : (
             <LineItemPacingTable
               rows={displayed}

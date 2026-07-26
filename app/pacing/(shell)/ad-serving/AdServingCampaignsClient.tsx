@@ -136,13 +136,13 @@ export function AdServingCampaignsClient({
           <PanelTitle>Ad serving line items</PanelTitle>
         </PanelHeader>
         <PanelContent>
-          {filtersOn && displayed.length === 0 ? (
-            <PacingFilterEmptyState />
-          ) : total === 0 ? (
+          {total === 0 ? (
             <EmptyState
               title="No ad serving line items"
               message="No ad serving verification data is in scope for this date."
             />
+          ) : filtersOn && displayed.length === 0 ? (
+            <PacingFilterEmptyState />
           ) : (
             <AdServingLineItemTable rows={displayed} asOfDate={data.asOfDate} />
           )}

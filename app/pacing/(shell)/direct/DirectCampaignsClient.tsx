@@ -122,9 +122,13 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
           <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
           {filtersOn ? <PacingFilterCount shown={shown} total={total} /> : null}
         </div>
-        {isFilterPending || loading ? (
+        {isFilterPending ? (
           <span className="text-xs text-muted-foreground" aria-live="polite">
             Updating…
+          </span>
+        ) : loading ? (
+          <span className="text-xs text-muted-foreground" aria-live="polite">
+            Refreshing…
           </span>
         ) : null}
       </div>
@@ -134,13 +138,13 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
           <PanelTitle>Direct campaigns</PanelTitle>
         </PanelHeader>
         <PanelContent>
-          {filtersOn && shown === 0 ? (
-            <PacingFilterEmptyState />
-          ) : total === 0 ? (
+          {total === 0 ? (
             <EmptyState
               title="No direct campaigns"
               message="No direct line items are in scope for this date."
             />
+          ) : filtersOn && shown === 0 ? (
+            <PacingFilterEmptyState />
           ) : (
             <DirectCampaignsTable
               campaigns={displayed}

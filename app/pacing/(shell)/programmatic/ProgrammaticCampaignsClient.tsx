@@ -132,13 +132,13 @@ export function ProgrammaticCampaignsClient({
           <PanelTitle>Programmatic campaigns</PanelTitle>
         </PanelHeader>
         <PanelContent>
-          {filtersOn && displayed.length === 0 ? (
-            <PacingFilterEmptyState />
-          ) : total === 0 ? (
+          {total === 0 ? (
             <EmptyState
               title="No programmatic campaigns"
               message="No programmatic line items are in scope for this date."
             />
+          ) : filtersOn && displayed.length === 0 ? (
+            <PacingFilterEmptyState />
           ) : (
             <LineItemPacingTable rows={displayed} asOfDate={data.asOfDate} />
           )}
