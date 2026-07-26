@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { DirectCampaignGroup } from "@/lib/pacing/direct/types";
 import { DirectCampaignsTable } from "@/components/pacing-direct/DirectCampaignsTable";
-import { Skeleton } from "@/components/ui/skeleton";
 import { filterDirectCampaignGroups } from "@/lib/pacing/filters/applyPacingRowFilters";
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore";
 import {
@@ -14,6 +13,10 @@ import {
   PacingFilterCount,
   PacingFilterEmptyState,
 } from "@/components/pacing/PacingFilterResultMeta";
+import { PacingStatusSummary } from "@/components/pacing/PacingStatusSummary";
+import { countDirectOverviewStatus } from "@/lib/pacing/overview/countChannelOverviewStatus";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
+import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel";
 
 type ApiShape = {
   asOfDate: string;
@@ -84,21 +87,25 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
     );
   }, [data, filters.client_ids, filters.media_types, filters.statuses, filters.search, clientIdToName]);
 
+  const statusCounts = useMemo(() => countDirectOverviewStatus(displayed), [displayed]);
+
+  const deferredFilters = useDeferredValue(filters);
+  const isFilterPending = filters !== deferredFilters;
+
   if (loading && !data) {
     return (
       <div className="space-y-4 p-4">
-        <Skeleton className="h-3 w-48" />
-        <Skeleton className="h-3 w-32" />
-        <div className="rounded border p-2 space-y-2">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-10 w-full" />
-        </div>
+        <LoadingState rows={6} />
       </div>
     );
   }
-  if (error) return <div className="p-6 text-sm text-destructive">Failed to load: {error}</div>;
+  if (error) {
+    return (
+      <div className="p-4">
+        <ErrorState title="Failed to load direct pacing" message={error} />
+      </div>
+    );
+  }
   if (!data) return null;
 
   const total = countLineItems(data.campaigns);
@@ -110,22 +117,39 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
       <div className="text-sm text-muted-foreground">
         Fixed-cost media — reported spend vs platform actuals
       </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
-        {filtersOn ? <PacingFilterCount shown={shown} total={total} /> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
+          {filtersOn ? <PacingFilterCount shown={shown} total={total} /> : null}
+        </div>
+        {isFilterPending || loading ? (
+          <span className="text-xs text-muted-foreground" aria-live="polite">
+            Updating…
+          </span>
+        ) : null}
       </div>
-      {filtersOn && shown === 0 ? (
-        <PacingFilterEmptyState />
-      ) : (
-        <DirectCampaignsTable
-          campaigns={displayed}
-          includeHistorical={includeHistorical}
-          onIncludeHistoricalChange={setIncludeHistorical}
-        />
-      )}
-      {loading ? (
-        <div className="text-xs text-muted-foreground">Refreshing…</div>
-      ) : null}
+      <PacingStatusSummary counts={statusCounts} />
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>Direct campaigns</PanelTitle>
+        </PanelHeader>
+        <PanelContent>
+          {filtersOn && shown === 0 ? (
+            <PacingFilterEmptyState />
+          ) : total === 0 ? (
+            <EmptyState
+              title="No direct campaigns"
+              message="No direct line items are in scope for this date."
+            />
+          ) : (
+            <DirectCampaignsTable
+              campaigns={displayed}
+              includeHistorical={includeHistorical}
+              onIncludeHistoricalChange={setIncludeHistorical}
+            />
+          )}
+        </PanelContent>
+      </Panel>
     </div>
   );
 }

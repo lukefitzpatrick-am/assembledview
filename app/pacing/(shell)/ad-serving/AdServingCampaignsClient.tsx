@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types";
 import { AdServingLineItemTable } from "@/components/pacing-ad-serving/AdServingLineItemTable";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   applyPacingRowFilters,
   mapAdServingChannelFamilyToMediaType,
@@ -18,6 +17,10 @@ import {
   PacingFilterCount,
   PacingFilterEmptyState,
 } from "@/components/pacing/PacingFilterResultMeta";
+import { PacingStatusSummary } from "@/components/pacing/PacingStatusSummary";
+import { countAdServingOverviewStatus } from "@/lib/pacing/overview/countChannelOverviewStatus";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
+import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel";
 
 type ApiShape = { asOfDate: string; rows: AdServingPacingCampaignRow[] };
 
@@ -84,33 +87,28 @@ export function AdServingCampaignsClient({
     );
   }, [data, filters.client_ids, filters.media_types, filters.statuses, filters.search, clientIdToName]);
 
+  const statusCounts = useMemo(
+    () => countAdServingOverviewStatus(displayed),
+    [displayed],
+  );
+
+  const deferredFilters = useDeferredValue(filters);
+  const isFilterPending = filters !== deferredFilters;
+
   if (loading) {
     return (
       <div className="space-y-4 p-4">
-        <Skeleton className="h-3 w-64" />
-        <Skeleton className="h-3 w-32" />
-        <div className="rounded border">
-          <div className="relative max-h-[calc(100vh-220px)] overflow-hidden">
-            <div className="flex gap-2 border-b p-2">
-              <Skeleton className="h-8 w-20" />
-              <Skeleton className="h-8 w-24" />
-              <Skeleton className="h-8 w-36" />
-              <Skeleton className="h-8 w-16" />
-              <Skeleton className="h-8 w-24" />
-              <Skeleton className="h-8 w-16" />
-            </div>
-            <div className="space-y-2 p-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          </div>
-        </div>
+        <LoadingState rows={6} />
       </div>
     );
   }
-  if (error) return <div className="p-6 text-sm text-destructive">Failed to load: {error}</div>;
+  if (error) {
+    return (
+      <div className="p-4">
+        <ErrorState title="Failed to load ad serving pacing" message={error} />
+      </div>
+    );
+  }
   if (!data) return null;
 
   const total = data.rows.length;
@@ -121,15 +119,35 @@ export function AdServingCampaignsClient({
       <div className="text-sm text-muted-foreground">
         Ad server verification (CM360) — delivery counts, no spend data
       </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
-        {filtersOn ? <PacingFilterCount shown={displayed.length} total={total} /> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
+          {filtersOn ? <PacingFilterCount shown={displayed.length} total={total} /> : null}
+        </div>
+        {isFilterPending ? (
+          <span className="text-xs text-muted-foreground" aria-live="polite">
+            Updating…
+          </span>
+        ) : null}
       </div>
-      {filtersOn && displayed.length === 0 ? (
-        <PacingFilterEmptyState />
-      ) : (
-        <AdServingLineItemTable rows={displayed} asOfDate={data.asOfDate} />
-      )}
+      <PacingStatusSummary counts={statusCounts} />
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>Ad serving line items</PanelTitle>
+        </PanelHeader>
+        <PanelContent>
+          {filtersOn && displayed.length === 0 ? (
+            <PacingFilterEmptyState />
+          ) : total === 0 ? (
+            <EmptyState
+              title="No ad serving line items"
+              message="No ad serving verification data is in scope for this date."
+            />
+          ) : (
+            <AdServingLineItemTable rows={displayed} asOfDate={data.asOfDate} />
+          )}
+        </PanelContent>
+      </Panel>
     </div>
   );
 }

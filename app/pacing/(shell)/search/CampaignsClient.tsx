@@ -1,9 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { KpiTargets, SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
 import { LineItemPacingTable } from "@/components/pacing-search";
-import { Skeleton } from "@/components/ui/skeleton";
 import { applyPacingRowFilters } from "@/lib/pacing/filters/applyPacingRowFilters";
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore";
 import {
@@ -14,6 +13,10 @@ import {
   PacingFilterCount,
   PacingFilterEmptyState,
 } from "@/components/pacing/PacingFilterResultMeta";
+import { PacingStatusSummary } from "@/components/pacing/PacingStatusSummary";
+import { countSearchOverviewStatus } from "@/lib/pacing/overview/countChannelOverviewStatus";
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
+import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel";
 
 type ApiShape = { asOfDate: string; rows: SearchPacingCampaignRow[] };
 
@@ -93,36 +96,28 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
     );
   }, [data, filters.client_ids, filters.media_types, filters.statuses, filters.search, clientIdToName]);
 
+  const statusCounts = useMemo(
+    () => countSearchOverviewStatus(displayed, data?.asOfDate ?? filters.as_of_date),
+    [displayed, data?.asOfDate, filters.as_of_date],
+  );
+
+  const deferredFilters = useDeferredValue(filters);
+  const isFilterPending = filters !== deferredFilters;
+
   if (loading) {
     return (
       <div className="space-y-4 p-4">
-        <Skeleton className="h-3 w-32" />
-        <div className="rounded border">
-          <div className="relative max-h-[calc(100vh-220px)] overflow-hidden">
-            <div className="flex gap-2 border-b p-2">
-              <Skeleton className="h-8 w-6 shrink-0" />
-              <Skeleton className="h-8 w-20" />
-              <Skeleton className="h-8 w-16" />
-              <Skeleton className="h-8 w-36" />
-              <Skeleton className="h-8 w-16" />
-              <Skeleton className="h-8 w-24" />
-              <Skeleton className="h-8 w-16" />
-              <Skeleton className="h-8 w-20" />
-            </div>
-            <div className="space-y-2 p-2">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-10 w-full" />
-            </div>
-          </div>
-        </div>
+        <LoadingState rows={6} />
       </div>
     );
   }
-  if (error) return <div className="p-6 text-sm text-destructive">Failed to load: {error}</div>;
+  if (error) {
+    return (
+      <div className="p-4">
+        <ErrorState title="Failed to load search pacing" message={error} />
+      </div>
+    );
+  }
   if (!data) return null;
 
   const total = data.rows.length;
@@ -130,19 +125,39 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
 
   return (
     <div className="space-y-4 p-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
-        {filtersOn ? <PacingFilterCount shown={displayed.length} total={total} /> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
+          {filtersOn ? <PacingFilterCount shown={displayed.length} total={total} /> : null}
+        </div>
+        {isFilterPending ? (
+          <span className="text-xs text-muted-foreground" aria-live="polite">
+            Updating…
+          </span>
+        ) : null}
       </div>
-      {filtersOn && displayed.length === 0 ? (
-        <PacingFilterEmptyState />
-      ) : (
-        <LineItemPacingTable
-          rows={displayed}
-          isAdmin={isAdmin}
-          onRowKpiTargetsUpdated={handleRowKpiTargetsUpdated}
-        />
-      )}
+      <PacingStatusSummary counts={statusCounts} />
+      <Panel>
+        <PanelHeader>
+          <PanelTitle>Search campaigns</PanelTitle>
+        </PanelHeader>
+        <PanelContent>
+          {filtersOn && displayed.length === 0 ? (
+            <PacingFilterEmptyState />
+          ) : total === 0 ? (
+            <EmptyState
+              title="No search campaigns"
+              message="No search line items are in scope for this date."
+            />
+          ) : (
+            <LineItemPacingTable
+              rows={displayed}
+              isAdmin={isAdmin}
+              onRowKpiTargetsUpdated={handleRowKpiTargetsUpdated}
+            />
+          )}
+        </PanelContent>
+      </Panel>
     </div>
   );
 }
