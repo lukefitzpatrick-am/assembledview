@@ -271,7 +271,10 @@ export function AdServingLineItemTable({
       </div>
       <div className="rounded border">
         <div className="relative max-h-[calc(100vh-220px)] overflow-auto">
-          <table className="w-full min-w-[1100px] text-xs" style={{ borderSpacing: 0 }}>
+          <table
+            className={cn("w-full text-xs", moreColumns ? "min-w-[1100px]" : "min-w-[760px]")}
+            style={{ borderSpacing: 0 }}
+          >
             <thead>
               <tr className="text-left">
                 <SortTh

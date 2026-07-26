@@ -17,6 +17,7 @@ import { PacingStatusSummary } from "@/components/pacing/PacingStatusSummary";
 import { countDirectOverviewStatus } from "@/lib/pacing/overview/countChannelOverviewStatus";
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel";
+import { Switch } from "@/components/ui/switch";
 
 type ApiShape = {
   asOfDate: string;
@@ -138,6 +139,19 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
           <PanelTitle>Direct campaigns</PanelTitle>
         </PanelHeader>
         <PanelContent>
+          {/*
+            Lives above the table, not inside it: with nothing in scope the table
+            is replaced by an empty state, and the toggle that widens scope has to
+            stay reachable.
+          */}
+          <label className="mb-3 flex w-fit items-center gap-2 text-xs text-muted-foreground">
+            <Switch
+              checked={includeHistorical}
+              onCheckedChange={setIncludeHistorical}
+              aria-label="Show historical fixed-cost line items"
+            />
+            Show historical (was ever fixed cost)
+          </label>
           {total === 0 ? (
             <EmptyState
               title="No direct campaigns"
@@ -146,11 +160,7 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
           ) : filtersOn && shown === 0 ? (
             <PacingFilterEmptyState />
           ) : (
-            <DirectCampaignsTable
-              campaigns={displayed}
-              includeHistorical={includeHistorical}
-              onIncludeHistoricalChange={setIncludeHistorical}
-            />
+            <DirectCampaignsTable campaigns={displayed} />
           )}
         </PanelContent>
       </Panel>

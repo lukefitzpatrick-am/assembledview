@@ -454,7 +454,10 @@ export function LineItemPacingTable({
       </div>
       <div className="rounded border">
         <div className="relative max-h-[calc(100vh-220px)] overflow-auto">
-          <table className="w-full min-w-[1400px] text-xs" style={{ borderSpacing: 0 }}>
+          <table
+            className={cn("w-full text-xs", moreColumns ? "min-w-[1400px]" : "min-w-[860px]")}
+            style={{ borderSpacing: 0 }}
+          >
             <thead>
               <tr className="text-left">
                 <th className="sticky top-0 z-20 bg-background p-2 text-left border-b" />

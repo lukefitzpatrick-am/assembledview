@@ -16,7 +16,6 @@ import {
 } from "@/components/ui/sortable-table-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { MultiLineChart } from "@/components/charts/system";
 import type {
   DirectBurstStatus,
@@ -63,10 +62,13 @@ const DEFAULT_COLUMNS: readonly TableColumn[] = [
   "lineItemName",
   "totalBudget",
   "totalReported",
+  "totalActual",
+  "variance",
   "lineItemStatus",
 ];
 
-const OPTIONAL_COLUMNS: readonly TableColumn[] = ["buyType", "totalActual", "variance", "bursts"];
+/** Reported-vs-actual variance is the point of this table, so both stay in the default view. */
+const OPTIONAL_COLUMNS: readonly TableColumn[] = ["buyType", "bursts"];
 
 /** Default columns always render; optional only when "More columns" is on; unclassified never render. */
 function isColumnVisible(column: TableColumn, moreColumns: boolean): boolean {
@@ -357,15 +359,7 @@ function ExpandedDetail({ row }: { row: DirectLineItemRow }) {
   );
 }
 
-export function DirectCampaignsTable({
-  campaigns,
-  includeHistorical,
-  onIncludeHistoricalChange,
-}: {
-  campaigns: DirectCampaignGroup[];
-  includeHistorical: boolean;
-  onIncludeHistoricalChange: (v: boolean) => void;
-}) {
+export function DirectCampaignsTable({ campaigns }: { campaigns: DirectCampaignGroup[] }) {
   const [sortColumn, setSortColumn] = useState<SortColumn | null>("clientName");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
@@ -453,25 +447,15 @@ export function DirectCampaignsTable({
           <span className="num text-foreground">{fmtMoney(totals.reported)}</span> · Actual{" "}
           <span className="num text-foreground">{fmtMoney(totals.actual)}</span>
         </div>
-        <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Switch
-              checked={includeHistorical}
-              onCheckedChange={onIncludeHistoricalChange}
-              aria-label="Show historical fixed-cost line items"
-            />
-            Show historical (was ever fixed cost)
-          </label>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7 px-2.5 text-xs"
-            onClick={() => setMoreColumns((v) => !v)}
-          >
-            {moreColumns ? "Fewer columns" : "More columns"}
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 px-2.5 text-xs"
+          onClick={() => setMoreColumns((v) => !v)}
+        >
+          {moreColumns ? "Fewer columns" : "More columns"}
+        </Button>
       </div>
 
       {sorted.length === 0 ? (
@@ -481,7 +465,10 @@ export function DirectCampaignsTable({
       ) : (
         <div className="rounded border">
           <div className="relative max-h-[calc(100vh-260px)] overflow-auto">
-            <table className="w-full min-w-[1200px] text-xs" style={{ borderSpacing: 0 }}>
+            <table
+              className={cn("w-full text-xs", moreColumns ? "min-w-[1200px]" : "min-w-[880px]")}
+              style={{ borderSpacing: 0 }}
+            >
               <thead>
                 <tr className="text-left">
                   <th className="sticky top-0 z-20 bg-background border-b p-2 w-8" />
