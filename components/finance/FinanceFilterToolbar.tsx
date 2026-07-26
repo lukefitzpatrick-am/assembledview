@@ -10,6 +10,14 @@ import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useFinanceStore, type FinanceHubTab } from "@/lib/finance/useFinanceStore"
+import {
+  billingTypeOptionsForTab,
+  mergeTabSelection,
+  statusOptionsForTab,
+  tabOwnedSelection,
+  tabSelectionMeansAll,
+  RECEIVABLE_BILLING_TYPES,
+} from "@/lib/finance/financeTabFilterScope"
 import type { BillingStatus, BillingType, FinanceFilters } from "@/lib/types/financeBilling"
 import { cn } from "@/lib/utils"
 
@@ -32,24 +40,6 @@ type FinanceFilterToolbarProps = {
   activeTab: FinanceHubTab
 }
 
-/** Never includes `payable` — that value is implicit, not a user-selectable filter option. */
-const RECEIVABLE_BILLING_TYPES = ["media", "sow", "retainer"] as const satisfies readonly BillingType[]
-
-/** Store default minus `draft` (Overview's `KPI_RECEIVABLE_STATUSES`) — `cancelled` / `disputed` are typed but unused. */
-const RECEIVABLE_STATUSES = ["booked", "approved", "invoiced", "paid"] as const satisfies readonly BillingStatus[]
-
-/** Matches Overview's `KPI_PAYABLE_STATUSES`. */
-const PAYABLE_STATUSES = ["expected", "invoiced", "paid"] as const satisfies readonly BillingStatus[]
-
-/** Overview / Accrual consume billing *and* payables — union of both status vocabularies. */
-const OVERVIEW_ACCRUAL_STATUSES = [
-  "booked",
-  "approved",
-  "invoiced",
-  "paid",
-  "expected",
-] as const satisfies readonly BillingStatus[]
-
 const BILLING_TYPE_LABELS: Record<(typeof RECEIVABLE_BILLING_TYPES)[number], string> = {
   media: "Media",
   sow: "SOW",
@@ -65,38 +55,6 @@ const STATUS_LABELS: Record<BillingStatus, string> = {
   cancelled: "Cancelled",
   expected: "Expected",
   disputed: "Disputed",
-}
-
-function billingTypeOptionsForTab(tab: FinanceHubTab): readonly BillingType[] {
-  switch (tab) {
-    case "billing":
-    case "report":
-    case "overview":
-    case "accrual":
-      return RECEIVABLE_BILLING_TYPES
-    case "payables":
-    case "forecast":
-    case "queue":
-    default:
-      return []
-  }
-}
-
-function statusOptionsForTab(tab: FinanceHubTab): readonly BillingStatus[] {
-  switch (tab) {
-    case "billing":
-    case "report":
-      return RECEIVABLE_STATUSES
-    case "overview":
-    case "accrual":
-      return OVERVIEW_ACCRUAL_STATUSES
-    case "payables":
-      return PAYABLE_STATUSES
-    case "forecast":
-    case "queue":
-    default:
-      return []
-  }
 }
 
 function monthOptions() {
@@ -200,30 +158,39 @@ export function FinanceFilterToolbar({ receivables, activeTab }: FinanceFilterTo
     [draft.selectedPublishers]
   )
 
+  const tabBillingTypes = useMemo(() => billingTypeOptionsForTab(activeTab), [activeTab])
+  const tabStatuses = useMemo(() => statusOptionsForTab(activeTab), [activeTab])
+
   const billingTypeOptions = useMemo(
     () =>
-      billingTypeOptionsForTab(activeTab).map((value) => ({
+      tabBillingTypes.map((value) => ({
         value,
-        label: BILLING_TYPE_LABELS[value],
+        label: BILLING_TYPE_LABELS[value as (typeof RECEIVABLE_BILLING_TYPES)[number]],
       })),
-    [activeTab]
+    [tabBillingTypes]
   )
   const statusOptions = useMemo(
     () =>
-      statusOptionsForTab(activeTab).map((value) => ({
+      tabStatuses.map((value) => ({
         value,
         label: STATUS_LABELS[value],
       })),
-    [activeTab]
+    [tabStatuses]
   )
-  const billingTypeValues = useMemo(() => {
-    const allowed = new Set<string>(billingTypeOptions.map((o) => o.value))
-    return draft.billingTypes.filter((t) => allowed.has(t))
-  }, [billingTypeOptions, draft.billingTypes])
-  const statusValues = useMemo(() => {
-    const allowed = new Set<string>(statusOptions.map((o) => o.value))
-    return draft.statuses.filter((s) => allowed.has(s))
-  }, [draft.statuses, statusOptions])
+  const billingTypeValues = useMemo(
+    () => tabOwnedSelection(draft.billingTypes, tabBillingTypes),
+    [draft.billingTypes, tabBillingTypes]
+  )
+  const statusValues = useMemo(
+    () => tabOwnedSelection(draft.statuses, tabStatuses),
+    [draft.statuses, tabStatuses]
+  )
+  /**
+   * An empty tab-owned selection only means "All" when nothing at all is
+   * applied — with out-of-tab values still filtering, claiming "All" would lie.
+   */
+  const billingTypeMeansAll = tabSelectionMeansAll(draft.billingTypes)
+  const statusMeansAll = tabSelectionMeansAll(draft.statuses)
 
   const toolbarActions = (
     <div className="flex items-center justify-end gap-2">
@@ -335,14 +302,18 @@ export function FinanceFilterToolbar({ receivables, activeTab }: FinanceFilterTo
             onValuesChange={(values) =>
               setDraft((d) => ({
                 ...d,
-                billingTypes: values as FinanceFilters["billingTypes"],
+                billingTypes: mergeTabSelection(
+                  values as BillingType[],
+                  d.billingTypes,
+                  tabBillingTypes
+                ),
               }))
             }
             placeholder="Billing type"
             allSelectedText="All types"
             searchPlaceholder="Search types..."
             buttonClassName="w-full"
-            emptyMeansAll
+            emptyMeansAll={billingTypeMeansAll}
           />
         </div>
       ) : null}
@@ -358,14 +329,14 @@ export function FinanceFilterToolbar({ receivables, activeTab }: FinanceFilterTo
             onValuesChange={(values) =>
               setDraft((d) => ({
                 ...d,
-                statuses: values as FinanceFilters["statuses"],
+                statuses: mergeTabSelection(values as BillingStatus[], d.statuses, tabStatuses),
               }))
             }
             placeholder="Status"
             allSelectedText="All statuses"
             searchPlaceholder="Search statuses..."
             buttonClassName="w-full"
-            emptyMeansAll
+            emptyMeansAll={statusMeansAll}
           />
         </div>
       ) : null}

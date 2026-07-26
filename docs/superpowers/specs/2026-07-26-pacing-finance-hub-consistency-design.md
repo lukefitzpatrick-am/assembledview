@@ -84,9 +84,9 @@ Pass `activeTab` into the toolbar. Options are always a subset of typed `Billing
 | `payables` (Publisher Invoices) | **Omit** (type is always payable) |
 | `forecast`, `queue` | **Omit** — confirmed inert (`FinanceForecastPanel` only reads `financialYear`; Xero Queue does not read `billingTypes`) |
 
-Values shown = intersection of `draft.billingTypes` with the options for that tab. On change, write the selected receivable types into `draft.billingTypes` (existing Apply path).
+Values shown = intersection of `draft.billingTypes` with the options for that tab. On change, **merge** — write the selected receivable types into `draft.billingTypes` alongside any out-of-tab values already there (e.g. `payable`), which are preserved, never clobbered and never inserted by this control (existing Apply path).
 
-Empty / “all selected” behaviour matches other toolbar multiselects (`emptyMeansAll`). Defaults unchanged at store level.
+Empty / “all selected” behaviour matches other toolbar multiselects (`emptyMeansAll`), with one qualification: an empty intersection only reads as “All” when the whole draft array is empty. An empty intersection with out-of-tab values still applied is a real narrowing filter and shows the placeholder instead. Defaults unchanged at store level.
 
 #### Status — tab-scoped to statuses that can appear; toggle owns drafts
 
@@ -106,7 +106,8 @@ Empty / “all selected” behaviour matches other toolbar multiselects (`emptyM
 | `forecast`, `queue` | **Omit** (same inert tabs as billing-type) |
 
 - **Never** expose `draft` — `includeDrafts` Switch + `include_drafts=0` remain the sole draft gate
-- Displayed values = intersection of `draft.statuses` with that tab’s options; on change, set statuses to the selected list for that tab (do not re-insert `draft` via this control)
+- Displayed values = intersection of `draft.statuses` with that tab’s options; on change, **merge** the selected list for that tab with the out-of-tab statuses already in the draft (e.g. `expected` survives an edit on Client Billing). The control replaces only the values it can offer; it preserves everything else and inserts nothing — in particular it never re-inserts `draft`, though a `draft` already present is left alone for the `includeDrafts` gate to handle
+- “All selected” display follows the same rule as billing type: only an entirely empty `draft.statuses` reads as “All”. An empty intersection with out-of-tab statuses still applied shows the placeholder
 
 ### Out of scope for §2
 
