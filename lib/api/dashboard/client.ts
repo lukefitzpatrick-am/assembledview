@@ -36,21 +36,14 @@ import {
   getMonthYearValue,
   normalizeSchedule,
   computeSpendFromDelivery,
+  normalizeDeliveryEntryMediaBreakdown,
 } from './shared'
 
 function scheduleEntryHasPositiveSpend(entry: any): boolean {
+  if (Object.keys(normalizeDeliveryEntryMediaBreakdown(entry)).length > 0) return true
   const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
-  if (mediaTypes.length === 0) {
-    return parseMoney(entry?.amount ?? entry?.total ?? entry?.budget) > 0
-  }
-  return mediaTypes.some((mt: any) => {
-    const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
-    const totalForType = lineItems.reduce(
-      (sum: number, li: any) => sum + parseMoney(li?.amount),
-      0,
-    )
-    return totalForType > 0
-  })
+  if (mediaTypes.length > 0) return false
+  return parseMoney(entry?.amount ?? entry?.total ?? entry?.budget) > 0
 }
 
 function collectAvailableFinancialYears(selectedVersions: any[]): number[] {
@@ -401,7 +394,7 @@ function emptyDashboardForKnownClient(
   }
 }
 
-function buildClientDashboardDataFromVersions(
+export function buildClientDashboardDataFromVersions(
   targetSlugs: Set<string>,
   allVersions: any[],
   ctx: {
@@ -600,8 +593,11 @@ function buildClientDashboardDataFromVersions(
     )
 
     // Delivery / billing schedules from the same highest-version row per MBA (aligned with campaign cards).
+    // Same isBookedApprovedCompleted filter the charts use below, so a cancelled campaign can't
+    // feed totalSpend/spendPast30Days while being excluded from spendByMediaType/spendByCampaign.
     const deliveryScheduleByMBA: Record<string, any[]> = {}
     Object.entries(selectedVersionByMBA).forEach(([mbaKey, version]: [string, any]) => {
+      if (!isBookedApprovedCompleted(version?.campaign_status)) return
       const schedule =
         version?.deliverySchedule ||
         version?.delivery_schedule ||
@@ -633,14 +629,17 @@ function buildClientDashboardDataFromVersions(
         const monthDate = parseMonthYear(getMonthYearValue(entry))
         if (!monthDate || monthDate < fyStart || monthDate > fyEnd) return
         const monthLabel = monthLabelFromDate(monthDate)
+        const campaignKey = campaign.campaignName || campaign.mbaNumber || 'Campaign'
 
-        const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
-        // If no mediaTypes, try to record the whole entry as unspecified
-        if (mediaTypes.length === 0) {
+        // Handles BOTH deliverySchedule shapes: 'types' (mediaTypes[].lineItems) and
+        // 'costs' (mediaCosts{channelKey}) — mapped onto the same media-type labels.
+        const mediaBreakdown = normalizeDeliveryEntryMediaBreakdown(entry)
+
+        // Legacy shape: no mediaTypes[] and no mediaCosts{} — record the whole entry as unspecified.
+        if (Object.keys(mediaBreakdown).length === 0) {
           const amount = parseMoney(entry?.amount ?? entry?.total ?? entry?.budget)
           if (amount > 0) {
             deliveryMediaTypeSpend['Unspecified'] = (deliveryMediaTypeSpend['Unspecified'] || 0) + amount
-            const campaignKey = campaign.campaignName || campaign.mbaNumber || 'Campaign'
             deliveryCampaignSpend[campaignKey] = (deliveryCampaignSpend[campaignKey] || 0) + amount
             deliveryMonthlyMap[monthLabel]['Unspecified'] = (deliveryMonthlyMap[monthLabel]['Unspecified'] || 0) + amount
             deliveryMonthlyCampaignMap[monthLabel][campaignKey] =
@@ -649,23 +648,9 @@ function buildClientDashboardDataFromVersions(
           return
         }
 
-        mediaTypes.forEach((mt: any) => {
-          const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
-          const totalForType = lineItems.reduce((sum: number, li: any) => sum + parseMoney(li?.amount), 0)
-          if (totalForType <= 0) return
-          const mediaTypeLabel =
-            mt?.mediaType ||
-            mt?.media_type ||
-            mt?.type ||
-            mt?.name ||
-            mt?.channel ||
-            'Unspecified'
-
+        Object.entries(mediaBreakdown).forEach(([mediaTypeLabel, totalForType]) => {
           deliveryMediaTypeSpend[mediaTypeLabel] = (deliveryMediaTypeSpend[mediaTypeLabel] || 0) + totalForType
-
-          const campaignKey = campaign.campaignName || campaign.mbaNumber || 'Campaign'
           deliveryCampaignSpend[campaignKey] = (deliveryCampaignSpend[campaignKey] || 0) + totalForType
-
           deliveryMonthlyMap[monthLabel][mediaTypeLabel] = (deliveryMonthlyMap[monthLabel][mediaTypeLabel] || 0) + totalForType
           deliveryMonthlyCampaignMap[monthLabel][campaignKey] =
             (deliveryMonthlyCampaignMap[monthLabel][campaignKey] || 0) + totalForType

@@ -9,6 +9,7 @@ import {
   parseVersionNumber,
   pickPublishedVersionRow,
 } from '@/lib/mediaplan/publishedVersionGuard'
+import { MEDIA_TYPE_LABELS } from '@/lib/media/mediaTypes'
 
 export const MELBOURNE_TZ = 'Australia/Melbourne'
 export const DAY_MS = 24 * 60 * 60 * 1000
@@ -243,19 +244,78 @@ export function parseMonthYearLabel(label: any): { start: Date; end: Date } | nu
   return { start, end }
 }
 
-export function sumLineItems(entry: any): number {
+/**
+ * `deliverySchedule` entries on `media_plan_versions` come in TWO shapes:
+ * - 'types' (older/booked): `mediaTypes[].lineItems[].amount`; `mediaCosts`/`totalAmount` are 0.
+ * - 'costs' (newer/approved): `mediaCosts{channelKey:"$x"}` + `totalAmount` + `mediaTotal` + `feeTotal`;
+ *   no `mediaTypes` array.
+ *
+ * This normaliser returns a per-media-type-label breakdown for BOTH shapes so downstream readers
+ * (spend totals, charts, expected-spend-to-date) never silently drop 'costs'-shape media.
+ *
+ * `mediaCosts.production` is a documented DUPLICATE of the top-level `production` fee field
+ * (see `lib/billing/types.ts` BillingMonth doc) — it is intentionally excluded here so callers
+ * that add `entry.production` separately (fees stay via feeTotal/production/adservingTechFees)
+ * don't double-count it.
+ */
+export function normalizeDeliveryEntryMediaBreakdown(entry: any): Record<string, number> {
+  const byMediaType: Record<string, number> = {}
+  const add = (label: any, amount: number) => {
+    const key = typeof label === 'string' && label.trim() ? label : 'Unspecified'
+    if (!Number.isFinite(amount) || amount <= 0) return
+    byMediaType[key] = (byMediaType[key] || 0) + amount
+  }
+
   const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
-  const lineItemTotal = mediaTypes.reduce((mtSum: number, mt: any) => {
-    const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
-    const liSum = lineItems.reduce((liAcc: number, li: any) => liAcc + parseMoney(li?.amount), 0)
-    return mtSum + liSum
-  }, 0)
+  if (mediaTypes.length > 0) {
+    mediaTypes.forEach((mt: any) => {
+      const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
+      const totalForType = lineItems.reduce((sum: number, li: any) => sum + parseMoney(li?.amount), 0)
+      if (totalForType <= 0) return
+      const label = mt?.mediaType || mt?.media_type || mt?.type || mt?.name || mt?.channel || 'Unspecified'
+      add(label, totalForType)
+    })
+    return byMediaType
+  }
+
+  const mediaCosts = entry?.mediaCosts
+  if (mediaCosts && typeof mediaCosts === 'object' && !Array.isArray(mediaCosts)) {
+    Object.entries(mediaCosts as Record<string, unknown>).forEach(([channelKey, value]) => {
+      if (channelKey === 'production') return // duplicate of top-level `production` fee — do not double-count
+      const amount = parseMoney(value)
+      if (amount <= 0) return
+      add(MEDIA_TYPE_LABELS[channelKey] || channelKey, amount)
+    })
+
+    if (isDashboardDebug()) {
+      const computedTotal = Object.values(byMediaType).reduce((sum, n) => sum + n, 0)
+      const reportedTotal = parseMoney(entry?.mediaTotal)
+      if (reportedTotal > 0 && Math.abs(reportedTotal - computedTotal) > 0.5) {
+        console.warn('[dashboard] normalizeDeliveryEntryMediaBreakdown: computed media total diverges from entry.mediaTotal', {
+          computedTotal,
+          reportedTotal,
+        })
+      }
+    }
+  }
+
+  return byMediaType
+}
+
+/** Total media spend for one delivery-schedule entry, across BOTH 'types' and 'costs' shapes. */
+export function sumDeliveryEntryMediaTotal(entry: any): number {
+  const breakdown = normalizeDeliveryEntryMediaBreakdown(entry)
+  return Object.values(breakdown).reduce((sum, n) => sum + n, 0)
+}
+
+export function sumLineItems(entry: any): number {
+  const mediaTotal = sumDeliveryEntryMediaTotal(entry)
 
   const feeTotal = parseMoney(entry?.feeTotal)
   const production = parseMoney(entry?.production)
   const adServing = parseMoney(entry?.adservingTechFees ?? entry?.adServingTechFees)
 
-  return lineItemTotal + feeTotal + production + adServing
+  return mediaTotal + feeTotal + production + adServing
 }
 
 export function deliveryLineItemIsClientPaidDirect(li: any): boolean {
