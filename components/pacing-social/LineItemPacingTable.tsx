@@ -94,6 +94,46 @@ const NUMERIC_SORT_COLUMNS = new Set<PacingSortColumn>([
   "deliverableTarget",
 ]);
 
+/**
+ * Column visibility model: every column lives in exactly one of these two
+ * lists. `DEFAULT_COLUMNS` are always rendered; `OPTIONAL_COLUMNS` only when
+ * "More columns" is toggled on. Header cells and body cells both check
+ * `isColumnVisible(id, moreColumns)` against the same named list, so adding a
+ * column to one side without the other is a visible, single-source change
+ * instead of a scattered inline-conditional to keep in sync by hand.
+ */
+const DEFAULT_COLUMNS: readonly PacingSortColumn[] = [
+  "clientName",
+  "campaignName",
+  "lineItemStatus",
+  "kpiStatus",
+  "totalLineItemBudget",
+  "spendToDateLineTotal",
+];
+
+const OPTIONAL_COLUMNS: readonly PacingSortColumn[] = [
+  "socialPlatform",
+  "mbaNumber",
+  "lineItemId",
+  "creativeTargeting",
+  "lineItemStartDate",
+  "lineItemEndDate",
+  "totalBursts",
+  "currentBurstIndex",
+  "burstStartDate",
+  "impressions",
+  "clicks",
+  "deliverableActual",
+  "deliverableTarget",
+];
+
+const OPTIONAL_COLUMN_SET: ReadonlySet<PacingSortColumn> = new Set(OPTIONAL_COLUMNS);
+
+/** A column renders when it's a default column, or an optional column with "More columns" on. */
+function isColumnVisible(column: PacingSortColumn, moreColumns: boolean): boolean {
+  return moreColumns || !OPTIONAL_COLUMN_SET.has(column);
+}
+
 function sortableNumber(value: number | null | undefined): number {
   return value ?? Number.NEGATIVE_INFINITY;
 }
@@ -172,9 +212,9 @@ function SortablePacingTh({
  */
 const STICKY_EDGE_SHADOW = "-1px 0 0 hsl(var(--border)) inset";
 
-const LINE_ITEM_BG = "hsl(var(--card))";
-const PLATFORM_CAMPAIGN_BG = "hsl(var(--surface-panel))";
-const AD_SET_BG = "var(--fill-track)";
+const LINE_ITEM_BG_CLASS = "bg-card";
+const PLATFORM_CAMPAIGN_BG_CLASS = "bg-surface-panel";
+const AD_SET_BG_CLASS = "bg-[var(--fill-track)]";
 
 const statusLabel: Record<SocialPacingCampaignRow["lineItemStatus"], string> = {
   "on-track": "On track",
@@ -231,15 +271,14 @@ function useClientColumnWidth(clientCellRef: RefObject<HTMLTableCellElement | nu
   return width;
 }
 
-function stickyClientCellStyle(background: string): CSSProperties {
-  return { position: "sticky", left: 0, background, zIndex: 10 };
+function stickyClientCellStyle(): CSSProperties {
+  return { position: "sticky", left: 0, zIndex: 10 };
 }
 
-function stickyCampaignCellStyle(clientWidth: number, background: string): CSSProperties {
+function stickyCampaignCellStyle(clientWidth: number): CSSProperties {
   return {
     position: "sticky",
     left: clientWidth,
-    background,
     zIndex: 10,
     boxShadow: STICKY_EDGE_SHADOW,
   };
@@ -427,7 +466,7 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
                   className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
                   style={stickyClientHeaderStyle()}
                 />
-                {moreColumns && (
+                {isColumnVisible("socialPlatform", moreColumns) && (
                   <SortablePacingTh
                     label="Platform"
                     column="socialPlatform"
@@ -446,7 +485,7 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
                   className="sticky bg-background p-2 text-left border-b"
                   style={stickyCampaignHeaderStyle(clientWidth)}
                 />
-                {moreColumns && (
+                {isColumnVisible("mbaNumber", moreColumns) && (
                   <SortablePacingTh
                     label="MBA"
                     column="mbaNumber"
@@ -456,7 +495,7 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
                     className="sticky top-0 z-20 bg-background p-2 whitespace-nowrap text-left border-b"
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("lineItemId", moreColumns) && (
                   <SortablePacingTh
                     label="Line Item ID"
                     column="lineItemId"
@@ -474,7 +513,7 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
                   onToggle={toggleSort}
                   className="sticky top-0 z-20 bg-background p-2 whitespace-nowrap text-left border-b"
                 />
-                {moreColumns && (
+                {isColumnVisible("creativeTargeting", moreColumns) && (
                   <SortablePacingTh
                     label="Targeting"
                     column="creativeTargeting"
@@ -493,7 +532,7 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
                   className="sticky top-0 bg-background p-2 text-left border-b"
                   style={{ zIndex: 20 }}
                 />
-                {moreColumns && (
+                {isColumnVisible("lineItemStartDate", moreColumns) && (
                   <SortablePacingTh
                     label="Line Start"
                     column="lineItemStartDate"
@@ -504,7 +543,7 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("lineItemEndDate", moreColumns) && (
                   <SortablePacingTh
                     label="Line End"
                     column="lineItemEndDate"
@@ -525,7 +564,7 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
                   className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
                   style={{ top: 0, zIndex: 20 }}
                 />
-                {moreColumns && (
+                {isColumnVisible("totalBursts", moreColumns) && (
                   <SortablePacingTh
                     label="Bursts"
                     column="totalBursts"
@@ -537,7 +576,7 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("currentBurstIndex", moreColumns) && (
                   <SortablePacingTh
                     label="Current"
                     column="currentBurstIndex"
@@ -549,7 +588,7 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("burstStartDate", moreColumns) && (
                   <SortablePacingTh
                     label="Burst Start"
                     column="burstStartDate"
@@ -570,7 +609,7 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
                   className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
                   style={{ top: 0, zIndex: 20 }}
                 />
-                {moreColumns && (
+                {isColumnVisible("impressions", moreColumns) && (
                   <SortablePacingTh
                     label="Impressions"
                     column="impressions"
@@ -582,7 +621,7 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("clicks", moreColumns) && (
                   <SortablePacingTh
                     label="Clicks"
                     column="clicks"
@@ -594,7 +633,7 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("deliverableActual", moreColumns) && (
                   <SortablePacingTh
                     label="Delivered"
                     column="deliverableActual"
@@ -606,7 +645,7 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("deliverableTarget", moreColumns) && (
                   <SortablePacingTh
                     label="Target"
                     column="deliverableTarget"
@@ -672,8 +711,12 @@ function FragmentForLineItem({
   return (
     <Fragment>
       <tr
-        className={`border-t ${hasChildren ? "cursor-pointer hover:bg-muted/20" : ""} ${row.currentBurst === null ? "opacity-75" : ""}`}
-        style={{ background: LINE_ITEM_BG }}
+        className={cn(
+          "border-t",
+          LINE_ITEM_BG_CLASS,
+          hasChildren && "cursor-pointer hover:bg-muted/20",
+          row.currentBurst === null && "opacity-75",
+        )}
         title={
           row.currentBurst === null
             ? "Live line item — no burst contains today (gap between bursts)"
@@ -690,27 +733,27 @@ function FragmentForLineItem({
         </td>
         <td
           ref={clientCellRef}
-          className="p-2 font-medium"
-          style={stickyClientCellStyle(LINE_ITEM_BG)}
+          className={cn("p-2 font-medium", LINE_ITEM_BG_CLASS)}
+          style={stickyClientCellStyle()}
         >
           {row.clientName}
         </td>
-        {moreColumns && (
+        {isColumnVisible("socialPlatform", moreColumns) && (
           <td className="p-2">{formatSocialPlatform(row.socialPlatform)}</td>
         )}
-        <td className="p-2" style={stickyCampaignCellStyle(clientWidth, LINE_ITEM_BG)}>
+        <td className={cn("p-2", LINE_ITEM_BG_CLASS)} style={stickyCampaignCellStyle(clientWidth)}>
           {row.campaignName}
         </td>
-        {moreColumns && (
+        {isColumnVisible("mbaNumber", moreColumns) && (
           <td className="p-2 font-mono text-[10px]">{row.mbaNumber}</td>
         )}
-        {moreColumns && (
+        {isColumnVisible("lineItemId", moreColumns) && (
           <td className="p-2 font-mono text-[10px]">{row.lineItemId}</td>
         )}
         <td className="p-2">
           <StatusCell status={row.lineItemStatus} />
         </td>
-        {moreColumns && (
+        {isColumnVisible("creativeTargeting", moreColumns) && (
           <td className="p-2 max-w-[8rem] truncate" title={row.creativeTargeting}>
             {row.creativeTargeting || XANO_MISSING}
           </td>
@@ -721,27 +764,37 @@ function FragmentForLineItem({
             <KpiDrilldownButton row={row} />
           </div>
         </td>
-        {moreColumns && <td className="p-2">{fmtXanoDate(row.lineItemStartDate)}</td>}
-        {moreColumns && <td className="p-2">{fmtXanoDate(row.lineItemEndDate)}</td>}
+        {isColumnVisible("lineItemStartDate", moreColumns) && (
+          <td className="p-2">{fmtXanoDate(row.lineItemStartDate)}</td>
+        )}
+        {isColumnVisible("lineItemEndDate", moreColumns) && (
+          <td className="p-2">{fmtXanoDate(row.lineItemEndDate)}</td>
+        )}
         <td className="p-2 text-right num">{fmtCurrencyOrZero(row.totalLineItemBudget)}</td>
-        {moreColumns && <td className="p-2 text-right num">{row.totalBursts}</td>}
-        {moreColumns && (
+        {isColumnVisible("totalBursts", moreColumns) && (
+          <td className="p-2 text-right num">{row.totalBursts}</td>
+        )}
+        {isColumnVisible("currentBurstIndex", moreColumns) && (
           <td className="p-2 text-right num">
             {row.currentBurstIndex !== null ? row.currentBurstIndex + 1 : XANO_MISSING}
           </td>
         )}
-        {moreColumns && <td className="p-2">{row.currentBurst?.startDate ?? XANO_MISSING}</td>}
+        {isColumnVisible("burstStartDate", moreColumns) && (
+          <td className="p-2">{row.currentBurst?.startDate ?? XANO_MISSING}</td>
+        )}
         <td className="p-2 text-right num">{fmtCurrencyOrZero(row.spendToDateLineTotal)}</td>
-        {moreColumns && (
+        {isColumnVisible("impressions", moreColumns) && (
           <td className="p-2 text-right num">{fmtNumberOrZero(row.impressions)}</td>
         )}
-        {moreColumns && <td className="p-2 text-right num">{fmtNumberOrZero(row.clicks)}</td>}
-        {moreColumns && (
+        {isColumnVisible("clicks", moreColumns) && (
+          <td className="p-2 text-right num">{fmtNumberOrZero(row.clicks)}</td>
+        )}
+        {isColumnVisible("deliverableActual", moreColumns) && (
           <td className={cn("p-2 text-right num", deliveredTint)} title={deliveredTitle}>
             {fmtNumberOrZero(row.deliverableActual)}
           </td>
         )}
-        {moreColumns && (
+        {isColumnVisible("deliverableTarget", moreColumns) && (
           <td className="p-2 text-right num" title={targetTitle}>
             {fmtNumberOrZero(row.deliverableTarget)}
           </td>
@@ -789,8 +842,7 @@ function FragmentForCampaign({
   return (
     <Fragment>
       <tr
-        className={`border-t ${hasAdSets ? "cursor-pointer hover:bg-muted/25" : ""}`}
-        style={{ background: PLATFORM_CAMPAIGN_BG }}
+        className={cn("border-t", PLATFORM_CAMPAIGN_BG_CLASS, hasAdSets && "cursor-pointer hover:bg-muted/25")}
         onClick={hasAdSets ? onToggle : undefined}
       >
         <td className="p-2 pl-6">
@@ -800,35 +852,38 @@ function FragmentForCampaign({
             />
           ) : null}
         </td>
-        <td className="p-2" style={stickyClientCellStyle(PLATFORM_CAMPAIGN_BG)} />
-        {moreColumns && <td className="p-2" />}
+        <td className={cn("p-2", PLATFORM_CAMPAIGN_BG_CLASS)} style={stickyClientCellStyle()} />
+        {isColumnVisible("socialPlatform", moreColumns) && <td className="p-2" />}
         <td
-          className="p-2 italic text-foreground/90"
-          style={stickyCampaignCellStyle(clientWidth, PLATFORM_CAMPAIGN_BG)}
+          className={cn("p-2 italic text-foreground/90", PLATFORM_CAMPAIGN_BG_CLASS)}
+          style={stickyCampaignCellStyle(clientWidth)}
         >
           {campaign.campaignName || campaign.campaignId}
         </td>
-        {moreColumns && <td className="p-2" />}
-        {moreColumns && <td className="p-2" />}
+        {isColumnVisible("mbaNumber", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("lineItemId", moreColumns) && <td className="p-2" />}
         <td className="p-2" />
-        {moreColumns && <td className="p-2" />}
+        {isColumnVisible("creativeTargeting", moreColumns) && <td className="p-2" />}
         <td className="p-2" />
-        {moreColumns && <td className="p-2" />}
-        {moreColumns && <td className="p-2" />}
-        {moreColumns && <td className="p-2" />}
+        {isColumnVisible("lineItemStartDate", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("lineItemEndDate", moreColumns) && <td className="p-2" />}
+        <td className="p-2" />
+        {isColumnVisible("totalBursts", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("currentBurstIndex", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("burstStartDate", moreColumns) && <td className="p-2" />}
         <td className="p-2 text-right num">{fmtCurrencyOrZero(campaign.spend)}</td>
-        {moreColumns && (
+        {isColumnVisible("impressions", moreColumns) && (
           <td className="p-2 text-right num">{fmtNumberOrZero(campaign.impressions)}</td>
         )}
-        {moreColumns && (
+        {isColumnVisible("clicks", moreColumns) && (
           <td className="p-2 text-right num">{fmtNumberOrZero(campaign.clicks)}</td>
         )}
-        {moreColumns && (
+        {isColumnVisible("deliverableActual", moreColumns) && (
           <td className="p-2 text-right num" title={deliveredTitle}>
             {fmtNumberOrZero(delivered)}
           </td>
         )}
-        {moreColumns && <td className="p-2" />}
+        {isColumnVisible("deliverableTarget", moreColumns) && <td className="p-2" />}
       </tr>
 
       {isExpanded &&
@@ -860,37 +915,42 @@ function AdSetRow({
   const deliveredTitle = deliverableMetricTitle(row.deliverableMetric, "delivered");
 
   return (
-    <tr className="border-t" style={{ background: AD_SET_BG }}>
+    <tr className={cn("border-t", AD_SET_BG_CLASS)}>
       <td className="p-2 pl-10" />
-      <td className="p-2" style={stickyClientCellStyle(AD_SET_BG)} />
-      {moreColumns && <td className="p-2" />}
+      <td className={cn("p-2", AD_SET_BG_CLASS)} style={stickyClientCellStyle()} />
+      {isColumnVisible("socialPlatform", moreColumns) && <td className="p-2" />}
       <td
-        className="p-2 pl-4 text-muted-foreground"
-        style={stickyCampaignCellStyle(clientWidth, AD_SET_BG)}
+        className={cn("p-2 pl-4 text-muted-foreground", AD_SET_BG_CLASS)}
+        style={stickyCampaignCellStyle(clientWidth)}
       >
         {adSet.entityName || adSet.entityId}
       </td>
-      {moreColumns && <td className="p-2" />}
-      {moreColumns && (
+      {isColumnVisible("mbaNumber", moreColumns) && <td className="p-2" />}
+      {isColumnVisible("lineItemId", moreColumns) && (
         <td className="p-2 font-mono text-[10px] text-muted-foreground">{adSet.entityId}</td>
       )}
       <td className="p-2" />
-      {moreColumns && <td className="p-2" />}
+      {isColumnVisible("creativeTargeting", moreColumns) && <td className="p-2" />}
       <td className="p-2" />
-      {moreColumns && <td className="p-2" />}
-      {moreColumns && <td className="p-2" />}
-      {moreColumns && <td className="p-2" />}
+      {isColumnVisible("lineItemStartDate", moreColumns) && <td className="p-2" />}
+      {isColumnVisible("lineItemEndDate", moreColumns) && <td className="p-2" />}
+      <td className="p-2" />
+      {isColumnVisible("totalBursts", moreColumns) && <td className="p-2" />}
+      {isColumnVisible("currentBurstIndex", moreColumns) && <td className="p-2" />}
+      {isColumnVisible("burstStartDate", moreColumns) && <td className="p-2" />}
       <td className="p-2 text-right num">{fmtCurrencyOrZero(adSet.spend)}</td>
-      {moreColumns && (
+      {isColumnVisible("impressions", moreColumns) && (
         <td className="p-2 text-right num">{fmtNumberOrZero(adSet.impressions)}</td>
       )}
-      {moreColumns && <td className="p-2 text-right num">{fmtNumberOrZero(adSet.clicks)}</td>}
-      {moreColumns && (
+      {isColumnVisible("clicks", moreColumns) && (
+        <td className="p-2 text-right num">{fmtNumberOrZero(adSet.clicks)}</td>
+      )}
+      {isColumnVisible("deliverableActual", moreColumns) && (
         <td className="p-2 text-right num" title={deliveredTitle}>
           {fmtNumberOrZero(delivered)}
         </td>
       )}
-      {moreColumns && <td className="p-2" />}
+      {isColumnVisible("deliverableTarget", moreColumns) && <td className="p-2" />}
     </tr>
   );
 }

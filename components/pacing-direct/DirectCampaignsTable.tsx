@@ -39,12 +39,41 @@ type SortColumn =
   | "variance"
   | "lineItemStatus";
 
+/** "bursts" has a header cell but isn't sortable, so it lives outside SortColumn. */
+type TableColumn = SortColumn | "bursts";
+
 const NUMERIC = new Set<SortColumn>([
   "totalBudget",
   "totalReported",
   "totalActual",
   "variance",
 ]);
+
+/**
+ * Column visibility model: every column lives in exactly one of these two
+ * lists. `DEFAULT_COLUMNS` are always rendered; `OPTIONAL_COLUMNS` only when
+ * "More columns" is toggled on. Header cells and body cells both check
+ * `isColumnVisible(id, moreColumns)` against the same named list, so adding a
+ * column to one side without the other is a visible, single-source change
+ * instead of a scattered inline-conditional to keep in sync by hand.
+ */
+const DEFAULT_COLUMNS: readonly TableColumn[] = [
+  "clientName",
+  "campaignName",
+  "lineItemName",
+  "totalBudget",
+  "totalReported",
+  "lineItemStatus",
+];
+
+const OPTIONAL_COLUMNS: readonly TableColumn[] = ["buyType", "totalActual", "variance", "bursts"];
+
+const OPTIONAL_COLUMN_SET: ReadonlySet<TableColumn> = new Set(OPTIONAL_COLUMNS);
+
+/** A column renders when it's a default column, or an optional column with "More columns" on. */
+function isColumnVisible(column: TableColumn, moreColumns: boolean): boolean {
+  return moreColumns || !OPTIONAL_COLUMN_SET.has(column);
+}
 
 /**
  * Only Client and Campaign stay pinned on horizontal scroll. Campaign's offset
@@ -71,22 +100,21 @@ function useClientColumnWidth(clientCellRef: RefObject<HTMLTableCellElement | nu
   return width;
 }
 
-function stickyClientCellStyle(background = "hsl(var(--card))"): CSSProperties {
-  return { position: "sticky", left: 0, background, zIndex: 10 };
+function stickyClientCellStyle(): CSSProperties {
+  return { position: "sticky", left: 0, zIndex: 10 };
 }
 
-function stickyCampaignCellStyle(clientWidth: number, background = "hsl(var(--card))"): CSSProperties {
+function stickyCampaignCellStyle(clientWidth: number): CSSProperties {
   return {
     position: "sticky",
     left: clientWidth,
-    background,
     zIndex: 10,
     boxShadow: STICKY_EDGE_SHADOW,
   };
 }
 
 function stickyClientHeaderStyle(): CSSProperties {
-  return { position: "sticky", top: 0, left: 0, zIndex: 30, background: "hsl(var(--background))" };
+  return { position: "sticky", top: 0, left: 0, zIndex: 30 };
 }
 
 function stickyCampaignHeaderStyle(clientWidth: number): CSSProperties {
@@ -95,7 +123,6 @@ function stickyCampaignHeaderStyle(clientWidth: number): CSSProperties {
     top: 0,
     left: clientWidth,
     zIndex: 30,
-    background: "hsl(var(--background))",
     boxShadow: STICKY_EDGE_SHADOW,
   };
 }
@@ -414,7 +441,8 @@ export function DirectCampaignsTable({
     );
   }, [flat]);
 
-  const colSpan = moreColumns ? 11 : 7;
+  const colSpan =
+    1 + DEFAULT_COLUMNS.length + (moreColumns ? OPTIONAL_COLUMNS.length : 0);
 
   return (
     <div className="space-y-3">
@@ -480,7 +508,7 @@ export function DirectCampaignsTable({
                     sortDirection={sortDirection}
                     onToggle={toggleSort}
                   />
-                  {moreColumns && (
+                  {isColumnVisible("buyType", moreColumns) && (
                     <SortTh
                       label="Buy type"
                       column="buyType"
@@ -505,7 +533,7 @@ export function DirectCampaignsTable({
                     onToggle={toggleSort}
                     align="right"
                   />
-                  {moreColumns && (
+                  {isColumnVisible("totalActual", moreColumns) && (
                     <SortTh
                       label="Actual platform"
                       column="totalActual"
@@ -515,7 +543,7 @@ export function DirectCampaignsTable({
                       align="right"
                     />
                   )}
-                  {moreColumns && (
+                  {isColumnVisible("variance", moreColumns) && (
                     <SortTh
                       label="Variance"
                       column="variance"
@@ -525,7 +553,7 @@ export function DirectCampaignsTable({
                       align="right"
                     />
                   )}
-                  {moreColumns && (
+                  {isColumnVisible("bursts", moreColumns) && (
                     <th className="sticky top-0 z-20 bg-background border-b p-2 whitespace-nowrap">
                       Bursts
                     </th>
@@ -558,12 +586,12 @@ export function DirectCampaignsTable({
                         </td>
                         <td
                           ref={rowIndex === 0 ? clientCellRef : undefined}
-                          className="p-2 font-medium"
+                          className="p-2 font-medium bg-card"
                           style={stickyClientCellStyle()}
                         >
                           {group.clientName}
                         </td>
-                        <td className="p-2" style={stickyCampaignCellStyle(clientWidth)}>
+                        <td className="p-2 bg-card" style={stickyCampaignCellStyle(clientWidth)}>
                           {group.campaignName}
                         </td>
                         <td className="p-2">
@@ -574,13 +602,15 @@ export function DirectCampaignsTable({
                             </div>
                           )}
                         </td>
-                        {moreColumns && <td className="p-2">{lineItem.buyType || MISSING}</td>}
+                        {isColumnVisible("buyType", moreColumns) && (
+                          <td className="p-2">{lineItem.buyType || MISSING}</td>
+                        )}
                         <td className="p-2 text-right num">{fmtMoney(lineItem.totalBudget)}</td>
                         <td className="p-2 text-right num">{fmtMoney(lineItem.totalReported)}</td>
-                        {moreColumns && (
+                        {isColumnVisible("totalActual", moreColumns) && (
                           <td className="p-2 text-right num">{fmtMoney(lineItem.totalActual)}</td>
                         )}
-                        {moreColumns && (
+                        {isColumnVisible("variance", moreColumns) && (
                           <td className={cn("p-2 text-right num", varianceTone(lineItem.variance))}>
                             <div>{fmtMoney(lineItem.variance)}</div>
                             <div className="text-[10px] text-muted-foreground">
@@ -588,7 +618,7 @@ export function DirectCampaignsTable({
                             </div>
                           </td>
                         )}
-                        {moreColumns && (
+                        {isColumnVisible("bursts", moreColumns) && (
                           <td className="p-2">
                             <div className="flex flex-wrap items-center gap-1">
                               <span className="num text-muted-foreground">

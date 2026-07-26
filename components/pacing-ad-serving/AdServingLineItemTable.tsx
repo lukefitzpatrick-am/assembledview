@@ -45,6 +45,40 @@ const NUMERIC = new Set<SortColumn>([
   "deliverableProgress",
 ]);
 
+/**
+ * Column visibility model: every column lives in exactly one of these two
+ * lists. `DEFAULT_COLUMNS` are always rendered; `OPTIONAL_COLUMNS` only when
+ * "More columns" is toggled on. Header cells and body cells both check
+ * `isColumnVisible(id, moreColumns)` against the same named list, so adding a
+ * column to one side without the other is a visible, single-source change
+ * instead of a scattered inline-conditional to keep in sync by hand.
+ */
+const DEFAULT_COLUMNS: readonly SortColumn[] = [
+  "clientName",
+  "campaignName",
+  "lineItemStatus",
+  "impressions",
+  "deliverableProgress",
+];
+
+const OPTIONAL_COLUMNS: readonly SortColumn[] = [
+  "channelFamily",
+  "mbaNumber",
+  "lineItemId",
+  "clicks",
+  "ctr",
+  "videoCompletes",
+  "results",
+  "daysActive",
+];
+
+const OPTIONAL_COLUMN_SET: ReadonlySet<SortColumn> = new Set(OPTIONAL_COLUMNS);
+
+/** A column renders when it's a default column, or an optional column with "More columns" on. */
+function isColumnVisible(column: SortColumn, moreColumns: boolean): boolean {
+  return moreColumns || !OPTIONAL_COLUMN_SET.has(column);
+}
+
 const SELECTORS: Record<SortColumn, (r: AdServingPacingCampaignRow) => string | number | null> = {
   clientName: (r) => r.clientName,
   channelFamily: (r) => r.channelFamily,
@@ -86,22 +120,21 @@ function useClientColumnWidth(clientCellRef: RefObject<HTMLTableCellElement | nu
   return width;
 }
 
-function stickyClientCellStyle(background = "hsl(var(--card))"): CSSProperties {
-  return { position: "sticky", left: 0, background, zIndex: 10 };
+function stickyClientCellStyle(): CSSProperties {
+  return { position: "sticky", left: 0, zIndex: 10 };
 }
 
-function stickyCampaignCellStyle(clientWidth: number, background = "hsl(var(--card))"): CSSProperties {
+function stickyCampaignCellStyle(clientWidth: number): CSSProperties {
   return {
     position: "sticky",
     left: clientWidth,
-    background,
     zIndex: 10,
     boxShadow: STICKY_EDGE_SHADOW,
   };
 }
 
 function stickyClientHeaderStyle(): CSSProperties {
-  return { position: "sticky", top: 0, left: 0, zIndex: 30, background: "hsl(var(--background))" };
+  return { position: "sticky", top: 0, left: 0, zIndex: 30 };
 }
 
 function stickyCampaignHeaderStyle(clientWidth: number): CSSProperties {
@@ -110,7 +143,6 @@ function stickyCampaignHeaderStyle(clientWidth: number): CSSProperties {
     top: 0,
     left: clientWidth,
     zIndex: 30,
-    background: "hsl(var(--background))",
     boxShadow: STICKY_EDGE_SHADOW,
   };
 }
@@ -250,7 +282,7 @@ export function AdServingLineItemTable({
                   onToggle={toggleSort}
                   style={stickyClientHeaderStyle()}
                 />
-                {moreColumns && (
+                {isColumnVisible("channelFamily", moreColumns) && (
                   <SortTh
                     label="Channel"
                     column="channelFamily"
@@ -267,7 +299,7 @@ export function AdServingLineItemTable({
                   onToggle={toggleSort}
                   style={stickyCampaignHeaderStyle(clientWidth)}
                 />
-                {moreColumns && (
+                {isColumnVisible("mbaNumber", moreColumns) && (
                   <SortTh
                     label="MBA"
                     column="mbaNumber"
@@ -276,7 +308,7 @@ export function AdServingLineItemTable({
                     onToggle={toggleSort}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("lineItemId", moreColumns) && (
                   <SortTh
                     label="Line Item ID"
                     column="lineItemId"
@@ -300,7 +332,7 @@ export function AdServingLineItemTable({
                   onToggle={toggleSort}
                   align="right"
                 />
-                {moreColumns && (
+                {isColumnVisible("clicks", moreColumns) && (
                   <SortTh
                     label="Clicks"
                     column="clicks"
@@ -310,7 +342,7 @@ export function AdServingLineItemTable({
                     align="right"
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("ctr", moreColumns) && (
                   <SortTh
                     label="CTR"
                     column="ctr"
@@ -320,7 +352,7 @@ export function AdServingLineItemTable({
                     align="right"
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("videoCompletes", moreColumns) && (
                   <SortTh
                     label="Video completes"
                     column="videoCompletes"
@@ -330,7 +362,7 @@ export function AdServingLineItemTable({
                     align="right"
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("results", moreColumns) && (
                   <SortTh
                     label="Results"
                     column="results"
@@ -340,7 +372,7 @@ export function AdServingLineItemTable({
                     align="right"
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("daysActive", moreColumns) && (
                   <SortTh
                     label="Days active"
                     column="daysActive"
@@ -365,19 +397,21 @@ export function AdServingLineItemTable({
                 <tr key={`${row.mbaNumber}|${row.lineItemId}`} className="border-t hover:bg-muted/20">
                   <td
                     ref={rowIndex === 0 ? clientCellRef : undefined}
-                    className="p-2 font-medium"
+                    className="p-2 font-medium bg-card"
                     style={stickyClientCellStyle()}
                   >
                     {row.clientName}
                   </td>
-                  {moreColumns && <td className="p-2">{channelLabel(row.channelFamily)}</td>}
-                  <td className="p-2" style={stickyCampaignCellStyle(clientWidth)}>
+                  {isColumnVisible("channelFamily", moreColumns) && (
+                    <td className="p-2">{channelLabel(row.channelFamily)}</td>
+                  )}
+                  <td className="p-2 bg-card" style={stickyCampaignCellStyle(clientWidth)}>
                     {row.campaignName}
                   </td>
-                  {moreColumns && (
+                  {isColumnVisible("mbaNumber", moreColumns) && (
                     <td className="p-2 font-mono text-[10px]">{row.mbaNumber}</td>
                   )}
-                  {moreColumns && (
+                  {isColumnVisible("lineItemId", moreColumns) && (
                     <td className="p-2 font-mono text-[10px]">{row.lineItemId}</td>
                   )}
                   <td className="p-2">
@@ -390,13 +424,19 @@ export function AdServingLineItemTable({
                     )}
                   </td>
                   <td className="p-2 text-right num">{fmtNum(row.impressions)}</td>
-                  {moreColumns && <td className="p-2 text-right num">{fmtNum(row.clicks)}</td>}
-                  {moreColumns && <td className="p-2 text-right num">{fmtCtr(row.ctr)}</td>}
-                  {moreColumns && (
+                  {isColumnVisible("clicks", moreColumns) && (
+                    <td className="p-2 text-right num">{fmtNum(row.clicks)}</td>
+                  )}
+                  {isColumnVisible("ctr", moreColumns) && (
+                    <td className="p-2 text-right num">{fmtCtr(row.ctr)}</td>
+                  )}
+                  {isColumnVisible("videoCompletes", moreColumns) && (
                     <td className="p-2 text-right num">{fmtNum(row.videoCompletes)}</td>
                   )}
-                  {moreColumns && <td className="p-2 text-right num">{fmtNum(row.results)}</td>}
-                  {moreColumns && (
+                  {isColumnVisible("results", moreColumns) && (
+                    <td className="p-2 text-right num">{fmtNum(row.results)}</td>
+                  )}
+                  {isColumnVisible("daysActive", moreColumns) && (
                     <td className="p-2 text-right num">{fmtNum(row.daysActive)}</td>
                   )}
                   <td

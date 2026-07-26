@@ -118,6 +118,56 @@ const NUMERIC_SORT_COLUMNS = new Set<PacingSortColumn>([
   "conversions",
 ]);
 
+/**
+ * Column visibility model: every column lives in exactly one of these two
+ * lists. `DEFAULT_COLUMNS` are always rendered; `OPTIONAL_COLUMNS` only when
+ * "More columns" is toggled on. Header cells and body cells both check
+ * `isColumnVisible(id, moreColumns)` against the same named list, so adding a
+ * column to one side without the other is a visible, single-source change
+ * instead of a scattered inline-conditional to keep in sync by hand.
+ */
+const DEFAULT_COLUMNS: readonly PacingSortColumn[] = [
+  "clientName",
+  "campaignName",
+  "lineItemStatus",
+  "kpiStatus",
+  "totalLineItemBudget",
+  "spendToDateLineTotal",
+];
+
+const OPTIONAL_COLUMNS: readonly PacingSortColumn[] = [
+  "platform",
+  "mbaNumber",
+  "lineItemId",
+  "creativeTargeting",
+  "lineItemStartDate",
+  "lineItemEndDate",
+  "totalBursts",
+  "currentBurstIndex",
+  "burstStartDate",
+  "burstEndDate",
+  "burstDays",
+  "burstDaysRemaining",
+  "burstBudget",
+  "spendToDateCurrentBurst",
+  "spendYesterday",
+  "spendPerDayRemaining",
+  "spendRemainingCurrentBurst",
+  "spendRemainingLineTotal",
+  "clicks",
+  "cpc",
+  "ctr",
+  "impressions",
+  "conversions",
+];
+
+const OPTIONAL_COLUMN_SET: ReadonlySet<PacingSortColumn> = new Set(OPTIONAL_COLUMNS);
+
+/** A column renders when it's a default column, or an optional column with "More columns" on. */
+function isColumnVisible(column: PacingSortColumn, moreColumns: boolean): boolean {
+  return moreColumns || !OPTIONAL_COLUMN_SET.has(column);
+}
+
 /** Nullable numerics sort after real values (asc and desc). */
 function sortableNumber(value: number | null | undefined): number {
   return value ?? Number.NEGATIVE_INFINITY;
@@ -207,9 +257,9 @@ function SortablePacingTh({
  */
 const STICKY_EDGE_SHADOW = "-1px 0 0 hsl(var(--border)) inset";
 
-const LINE_ITEM_BG = "hsl(var(--card))";
-const PLATFORM_CAMPAIGN_BG = "hsl(var(--surface-panel))";
-const AD_GROUP_BG = "var(--fill-track)";
+const LINE_ITEM_BG_CLASS = "bg-card";
+const PLATFORM_CAMPAIGN_BG_CLASS = "bg-surface-panel";
+const AD_GROUP_BG_CLASS = "bg-[var(--fill-track)]";
 
 const statusLabel: Record<SearchPacingCampaignRow["lineItemStatus"], string> = {
   "on-track": "On track",
@@ -266,15 +316,14 @@ function useClientColumnWidth(clientCellRef: RefObject<HTMLTableCellElement | nu
   return width;
 }
 
-function stickyClientCellStyle(background: string): CSSProperties {
-  return { position: "sticky", left: 0, background, zIndex: 10 };
+function stickyClientCellStyle(): CSSProperties {
+  return { position: "sticky", left: 0, zIndex: 10 };
 }
 
-function stickyCampaignCellStyle(clientWidth: number, background: string): CSSProperties {
+function stickyCampaignCellStyle(clientWidth: number): CSSProperties {
   return {
     position: "sticky",
     left: clientWidth,
-    background,
     zIndex: 10,
     boxShadow: STICKY_EDGE_SHADOW,
   };
@@ -418,7 +467,7 @@ export function LineItemPacingTable({
                   className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
                   style={stickyClientHeaderStyle()}
                 />
-                {moreColumns && (
+                {isColumnVisible("platform", moreColumns) && (
                   <SortablePacingTh
                     label="Platform"
                     column="platform"
@@ -437,7 +486,7 @@ export function LineItemPacingTable({
                   className="sticky bg-background p-2 text-left border-b"
                   style={stickyCampaignHeaderStyle(clientWidth)}
                 />
-                {moreColumns && (
+                {isColumnVisible("mbaNumber", moreColumns) && (
                   <SortablePacingTh
                     label="MBA"
                     column="mbaNumber"
@@ -447,7 +496,7 @@ export function LineItemPacingTable({
                     className="sticky top-0 z-20 bg-background p-2 whitespace-nowrap text-left border-b"
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("lineItemId", moreColumns) && (
                   <SortablePacingTh
                     label="Line Item ID"
                     column="lineItemId"
@@ -465,7 +514,7 @@ export function LineItemPacingTable({
                   onToggle={toggleSort}
                   className="sticky top-0 z-20 bg-background p-2 whitespace-nowrap text-left border-b"
                 />
-                {moreColumns && (
+                {isColumnVisible("creativeTargeting", moreColumns) && (
                   <SortablePacingTh
                     label="Targeting"
                     column="creativeTargeting"
@@ -484,7 +533,7 @@ export function LineItemPacingTable({
                   className="sticky top-0 bg-background p-2 text-left border-b"
                   style={{ zIndex: 20 }}
                 />
-                {moreColumns && (
+                {isColumnVisible("lineItemStartDate", moreColumns) && (
                   <SortablePacingTh
                     label="Line Start"
                     column="lineItemStartDate"
@@ -495,7 +544,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("lineItemEndDate", moreColumns) && (
                   <SortablePacingTh
                     label="Line End"
                     column="lineItemEndDate"
@@ -516,7 +565,7 @@ export function LineItemPacingTable({
                   className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
                   style={{ top: 0, zIndex: 20 }}
                 />
-                {moreColumns && (
+                {isColumnVisible("totalBursts", moreColumns) && (
                   <SortablePacingTh
                     label="Bursts"
                     column="totalBursts"
@@ -528,7 +577,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("currentBurstIndex", moreColumns) && (
                   <SortablePacingTh
                     label="Current"
                     column="currentBurstIndex"
@@ -540,7 +589,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("burstStartDate", moreColumns) && (
                   <SortablePacingTh
                     label="Burst Start"
                     column="burstStartDate"
@@ -551,7 +600,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("burstEndDate", moreColumns) && (
                   <SortablePacingTh
                     label="Burst End"
                     column="burstEndDate"
@@ -562,7 +611,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("burstDays", moreColumns) && (
                   <SortablePacingTh
                     label="Burst Days"
                     column="burstDays"
@@ -574,7 +623,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("burstDaysRemaining", moreColumns) && (
                   <SortablePacingTh
                     label="Days Left"
                     column="burstDaysRemaining"
@@ -586,7 +635,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("burstBudget", moreColumns) && (
                   <SortablePacingTh
                     label="Burst Budget"
                     column="burstBudget"
@@ -598,7 +647,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("spendToDateCurrentBurst", moreColumns) && (
                   <SortablePacingTh
                     label="Spend (Burst)"
                     column="spendToDateCurrentBurst"
@@ -610,7 +659,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("spendYesterday", moreColumns) && (
                   <SortablePacingTh
                     label="Spend Yesterday"
                     column="spendYesterday"
@@ -622,7 +671,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("spendPerDayRemaining", moreColumns) && (
                   <SortablePacingTh
                     label="Per-Day Left"
                     column="spendPerDayRemaining"
@@ -634,7 +683,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("spendRemainingCurrentBurst", moreColumns) && (
                   <SortablePacingTh
                     label="Remaining (Burst)"
                     column="spendRemainingCurrentBurst"
@@ -656,7 +705,7 @@ export function LineItemPacingTable({
                   className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
                   style={{ top: 0, zIndex: 20 }}
                 />
-                {moreColumns && (
+                {isColumnVisible("spendRemainingLineTotal", moreColumns) && (
                   <SortablePacingTh
                     label="Remaining (Line)"
                     column="spendRemainingLineTotal"
@@ -668,7 +717,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("clicks", moreColumns) && (
                   <SortablePacingTh
                     label="Clicks"
                     column="clicks"
@@ -680,7 +729,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("cpc", moreColumns) && (
                   <SortablePacingTh
                     label="CPC"
                     column="cpc"
@@ -692,7 +741,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("ctr", moreColumns) && (
                   <SortablePacingTh
                     label="CTR"
                     column="ctr"
@@ -704,7 +753,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("impressions", moreColumns) && (
                   <SortablePacingTh
                     label="Impressions"
                     column="impressions"
@@ -716,7 +765,7 @@ export function LineItemPacingTable({
                     style={{ top: 0, zIndex: 20 }}
                   />
                 )}
-                {moreColumns && (
+                {isColumnVisible("conversions", moreColumns) && (
                   <SortablePacingTh
                     label="Conversions"
                     column="conversions"
@@ -789,8 +838,12 @@ function FragmentForLineItem({
   return (
     <Fragment>
       <tr
-        className={`border-t ${hasChildren ? "cursor-pointer hover:bg-muted/20" : ""} ${row.currentBurst === null ? "opacity-75" : ""}`}
-        style={{ background: LINE_ITEM_BG }}
+        className={cn(
+          "border-t",
+          LINE_ITEM_BG_CLASS,
+          hasChildren && "cursor-pointer hover:bg-muted/20",
+          row.currentBurst === null && "opacity-75",
+        )}
         title={
           row.currentBurst === null
             ? "Live line item — no burst contains today (gap between bursts)"
@@ -807,25 +860,27 @@ function FragmentForLineItem({
         </td>
         <td
           ref={clientCellRef}
-          className="p-2 font-medium"
-          style={stickyClientCellStyle(LINE_ITEM_BG)}
+          className={cn("p-2 font-medium", LINE_ITEM_BG_CLASS)}
+          style={stickyClientCellStyle()}
         >
           {row.clientName}
         </td>
-        {moreColumns && <td className="p-2">{row.platform || XANO_MISSING}</td>}
-        <td className="p-2" style={stickyCampaignCellStyle(clientWidth, LINE_ITEM_BG)}>
+        {isColumnVisible("platform", moreColumns) && (
+          <td className="p-2">{row.platform || XANO_MISSING}</td>
+        )}
+        <td className={cn("p-2", LINE_ITEM_BG_CLASS)} style={stickyCampaignCellStyle(clientWidth)}>
           {row.campaignName}
         </td>
-        {moreColumns && (
+        {isColumnVisible("mbaNumber", moreColumns) && (
           <td className="p-2 font-mono text-[10px]">{row.mbaNumber}</td>
         )}
-        {moreColumns && (
+        {isColumnVisible("lineItemId", moreColumns) && (
           <td className="p-2 font-mono text-[10px]">{row.lineItemId}</td>
         )}
         <td className="p-2">
           <StatusCell status={row.lineItemStatus} />
         </td>
-        {moreColumns && (
+        {isColumnVisible("creativeTargeting", moreColumns) && (
           <td className="p-2 max-w-[8rem] truncate" title={row.creativeTargeting}>
             {row.creativeTargeting || XANO_MISSING}
           </td>
@@ -840,61 +895,77 @@ function FragmentForLineItem({
             />
           </div>
         </td>
-        {moreColumns && <td className="p-2">{fmtXanoDate(row.lineItemStartDate)}</td>}
-        {moreColumns && <td className="p-2">{fmtXanoDate(row.lineItemEndDate)}</td>}
+        {isColumnVisible("lineItemStartDate", moreColumns) && (
+          <td className="p-2">{fmtXanoDate(row.lineItemStartDate)}</td>
+        )}
+        {isColumnVisible("lineItemEndDate", moreColumns) && (
+          <td className="p-2">{fmtXanoDate(row.lineItemEndDate)}</td>
+        )}
         <td className="p-2 text-right num">{fmtCurrencyOrZero(row.totalLineItemBudget)}</td>
-        {moreColumns && <td className="p-2 text-right num">{row.totalBursts}</td>}
-        {moreColumns && (
+        {isColumnVisible("totalBursts", moreColumns) && (
+          <td className="p-2 text-right num">{row.totalBursts}</td>
+        )}
+        {isColumnVisible("currentBurstIndex", moreColumns) && (
           <td className="p-2 text-right num">
             {row.currentBurstIndex !== null ? row.currentBurstIndex + 1 : XANO_MISSING}
           </td>
         )}
-        {moreColumns && <td className="p-2">{row.currentBurst?.startDate ?? XANO_MISSING}</td>}
-        {moreColumns && <td className="p-2">{row.currentBurst?.endDate ?? XANO_MISSING}</td>}
-        {moreColumns && <td className="p-2 text-right num">{fmtXanoNumber(row.burstDays)}</td>}
-        {moreColumns && (
+        {isColumnVisible("burstStartDate", moreColumns) && (
+          <td className="p-2">{row.currentBurst?.startDate ?? XANO_MISSING}</td>
+        )}
+        {isColumnVisible("burstEndDate", moreColumns) && (
+          <td className="p-2">{row.currentBurst?.endDate ?? XANO_MISSING}</td>
+        )}
+        {isColumnVisible("burstDays", moreColumns) && (
+          <td className="p-2 text-right num">{fmtXanoNumber(row.burstDays)}</td>
+        )}
+        {isColumnVisible("burstDaysRemaining", moreColumns) && (
           <td className="p-2 text-right num">{fmtXanoNumber(row.burstDaysRemaining)}</td>
         )}
-        {moreColumns && (
+        {isColumnVisible("burstBudget", moreColumns) && (
           <td className="p-2 text-right num">
             {fmtCurrencyOrZero(row.currentBurst?.budget ?? null)}
           </td>
         )}
-        {moreColumns && (
+        {isColumnVisible("spendToDateCurrentBurst", moreColumns) && (
           <td className="p-2 text-right num">
             {fmtCurrencyOrZero(row.spendToDateCurrentBurst)}
           </td>
         )}
-        {moreColumns && (
+        {isColumnVisible("spendYesterday", moreColumns) && (
           <td className="p-2 text-right num">{fmtCurrencyOrZero(row.spendYesterday)}</td>
         )}
-        {moreColumns && (
+        {isColumnVisible("spendPerDayRemaining", moreColumns) && (
           <td className="p-2 text-right num">
             {fmtCurrencyOrZero(row.spendPerDayRemaining)}
           </td>
         )}
-        {moreColumns && (
+        {isColumnVisible("spendRemainingCurrentBurst", moreColumns) && (
           <td className="p-2 text-right num">
             {fmtCurrencyOrZero(row.spendRemainingCurrentBurst)}
           </td>
         )}
         <td className="p-2 text-right num">{fmtCurrencyOrZero(row.spendToDateLineTotal)}</td>
-        {moreColumns && (
+        {isColumnVisible("spendRemainingLineTotal", moreColumns) && (
           <td className="p-2 text-right num">
             {fmtCurrencyOrZero(row.spendRemainingLineTotal)}
           </td>
         )}
-        {moreColumns && <td className="p-2 text-right num">{fmtNumberOrZero(row.clicks)}</td>}
-        {moreColumns && <td className="p-2 text-right num">{fmtRatio(row.cpc)}</td>}
-        {moreColumns && (
+        {isColumnVisible("clicks", moreColumns) && (
+          <td className="p-2 text-right num">{fmtNumberOrZero(row.clicks)}</td>
+        )}
+        {isColumnVisible("cpc", moreColumns) && (
+          <td className="p-2 text-right num">{fmtRatio(row.cpc)}</td>
+        )}
+        {isColumnVisible("ctr", moreColumns) && (
           <td className={`p-2 text-right num ${ctrCellTint(row.ctr, row.kpiTargets?.ctr ?? null)}`}>
             {fmtPct(row.ctr)}
           </td>
         )}
-        {moreColumns && (
+        {isColumnVisible("impressions", moreColumns) && (
           <td className="p-2 text-right num">{fmtNumberOrZero(row.impressions)}</td>
         )}
-        {moreColumns && (
+        {isColumnVisible("conversions", moreColumns) && (
           <td className="p-2 text-right num">{fmtNumberOrZero(row.conversions)}</td>
         )}
         <td className="p-2 text-right whitespace-nowrap">
@@ -964,8 +1035,11 @@ function FragmentForCampaign({
   return (
     <Fragment>
       <tr
-        className={`border-t ${hasAdGroups ? "cursor-pointer hover:bg-muted/25" : ""}`}
-        style={{ background: PLATFORM_CAMPAIGN_BG }}
+        className={cn(
+          "border-t",
+          PLATFORM_CAMPAIGN_BG_CLASS,
+          hasAdGroups && "cursor-pointer hover:bg-muted/25",
+        )}
         onClick={hasAdGroups ? onToggle : undefined}
       >
         <td className="p-2 pl-6">
@@ -975,50 +1049,54 @@ function FragmentForCampaign({
             />
           ) : null}
         </td>
-        <td className="p-2" style={stickyClientCellStyle(PLATFORM_CAMPAIGN_BG)} />
-        {moreColumns && <td className="p-2" />}
+        <td className={cn("p-2", PLATFORM_CAMPAIGN_BG_CLASS)} style={stickyClientCellStyle()} />
+        {isColumnVisible("platform", moreColumns) && <td className="p-2" />}
         <td
-          className="p-2 italic text-foreground/90"
-          style={stickyCampaignCellStyle(clientWidth, PLATFORM_CAMPAIGN_BG)}
+          className={cn("p-2 italic text-foreground/90", PLATFORM_CAMPAIGN_BG_CLASS)}
+          style={stickyCampaignCellStyle(clientWidth)}
         >
           {campaign.campaignName || campaign.campaignId}
         </td>
-        {moreColumns && <td className="p-2" />}
-        {moreColumns && <td className="p-2" />}
+        {isColumnVisible("mbaNumber", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("lineItemId", moreColumns) && <td className="p-2" />}
         <td className="p-2" />
-        {moreColumns && <td className="p-2" />}
+        {isColumnVisible("creativeTargeting", moreColumns) && <td className="p-2" />}
         <td className="p-2" />
-        {moreColumns && <td className="p-2" />}
-        {moreColumns && <td className="p-2" />}
+        {isColumnVisible("lineItemStartDate", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("lineItemEndDate", moreColumns) && <td className="p-2" />}
         <td className="p-2" />
-        {moreColumns && <td className="p-2" />}
-        {moreColumns && <td className="p-2" />}
-        {moreColumns && <td className="p-2" />}
-        {moreColumns && <td className="p-2" />}
-        {moreColumns && <td className="p-2" />}
-        {moreColumns && <td className="p-2" />}
-        {moreColumns && <td className="p-2" />}
-        {moreColumns && (
+        {isColumnVisible("totalBursts", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("currentBurstIndex", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("burstStartDate", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("burstEndDate", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("burstDays", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("burstDaysRemaining", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("burstBudget", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("spendToDateCurrentBurst", moreColumns) && (
           <td className="p-2 text-right num">
             {fmtCurrencyOrZero(campaign.spendToDateCurrentBurst)}
           </td>
         )}
-        {moreColumns && (
+        {isColumnVisible("spendYesterday", moreColumns) && (
           <td className="p-2 text-right num">{fmtCurrencyOrZero(campaign.spendYesterday)}</td>
         )}
-        {moreColumns && <td className="p-2" />}
-        {moreColumns && <td className="p-2" />}
+        {isColumnVisible("spendPerDayRemaining", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("spendRemainingCurrentBurst", moreColumns) && <td className="p-2" />}
         <td className="p-2 text-right num">{fmtCurrencyOrZero(campaign.spendToDateLineTotal)}</td>
-        {moreColumns && <td className="p-2" />}
-        {moreColumns && (
+        {isColumnVisible("spendRemainingLineTotal", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("clicks", moreColumns) && (
           <td className="p-2 text-right num">{fmtNumberOrZero(campaign.clicks)}</td>
         )}
-        {moreColumns && <td className="p-2 text-right num">{fmtRatio(campaign.cpc)}</td>}
-        {moreColumns && <td className="p-2 text-right num">{fmtPct(campaign.ctr)}</td>}
-        {moreColumns && (
+        {isColumnVisible("cpc", moreColumns) && (
+          <td className="p-2 text-right num">{fmtRatio(campaign.cpc)}</td>
+        )}
+        {isColumnVisible("ctr", moreColumns) && (
+          <td className="p-2 text-right num">{fmtPct(campaign.ctr)}</td>
+        )}
+        {isColumnVisible("impressions", moreColumns) && (
           <td className="p-2 text-right num">{fmtNumberOrZero(campaign.impressions)}</td>
         )}
-        {moreColumns && (
+        {isColumnVisible("conversions", moreColumns) && (
           <td className="p-2 text-right num">{fmtNumberOrZero(campaign.conversions)}</td>
         )}
         <td className="p-2" />
@@ -1028,58 +1106,61 @@ function FragmentForCampaign({
         campaign.adGroups.map((ag) => (
           <tr
             key={`${row.lineItemId}|${campaign.campaignId}|${ag.platformLineItemId}`}
-            className="border-t"
-            style={{ background: AD_GROUP_BG }}
+            className={cn("border-t", AD_GROUP_BG_CLASS)}
           >
             <td className="p-2 pl-10" />
-            <td className="p-2" style={stickyClientCellStyle(AD_GROUP_BG)} />
-            {moreColumns && <td className="p-2" />}
+            <td className={cn("p-2", AD_GROUP_BG_CLASS)} style={stickyClientCellStyle()} />
+            {isColumnVisible("platform", moreColumns) && <td className="p-2" />}
             <td
-              className="p-2 pl-4 text-muted-foreground"
-              style={stickyCampaignCellStyle(clientWidth, AD_GROUP_BG)}
+              className={cn("p-2 pl-4 text-muted-foreground", AD_GROUP_BG_CLASS)}
+              style={stickyCampaignCellStyle(clientWidth)}
             >
               {ag.lineItemName || ag.platformLineItemId}
             </td>
-            {moreColumns && <td className="p-2" />}
-            {moreColumns && (
+            {isColumnVisible("mbaNumber", moreColumns) && <td className="p-2" />}
+            {isColumnVisible("lineItemId", moreColumns) && (
               <td className="p-2 font-mono text-[10px] text-muted-foreground">
                 {ag.platformLineItemId}
               </td>
             )}
             <td className="p-2" />
-            {moreColumns && <td className="p-2" />}
+            {isColumnVisible("creativeTargeting", moreColumns) && <td className="p-2" />}
             <td className="p-2" />
-            {moreColumns && <td className="p-2" />}
-            {moreColumns && <td className="p-2" />}
+            {isColumnVisible("lineItemStartDate", moreColumns) && <td className="p-2" />}
+            {isColumnVisible("lineItemEndDate", moreColumns) && <td className="p-2" />}
             <td className="p-2" />
-            {moreColumns && <td className="p-2" />}
-            {moreColumns && <td className="p-2" />}
-            {moreColumns && <td className="p-2" />}
-            {moreColumns && <td className="p-2" />}
-            {moreColumns && <td className="p-2" />}
-            {moreColumns && <td className="p-2" />}
-            {moreColumns && <td className="p-2" />}
-            {moreColumns && (
+            {isColumnVisible("totalBursts", moreColumns) && <td className="p-2" />}
+            {isColumnVisible("currentBurstIndex", moreColumns) && <td className="p-2" />}
+            {isColumnVisible("burstStartDate", moreColumns) && <td className="p-2" />}
+            {isColumnVisible("burstEndDate", moreColumns) && <td className="p-2" />}
+            {isColumnVisible("burstDays", moreColumns) && <td className="p-2" />}
+            {isColumnVisible("burstDaysRemaining", moreColumns) && <td className="p-2" />}
+            {isColumnVisible("burstBudget", moreColumns) && <td className="p-2" />}
+            {isColumnVisible("spendToDateCurrentBurst", moreColumns) && (
               <td className="p-2 text-right num">
                 {fmtCurrencyOrZero(ag.spendToDateCurrentBurst)}
               </td>
             )}
-            {moreColumns && (
+            {isColumnVisible("spendYesterday", moreColumns) && (
               <td className="p-2 text-right num">{fmtCurrencyOrZero(ag.spendYesterday)}</td>
             )}
-            {moreColumns && <td className="p-2" />}
-            {moreColumns && <td className="p-2" />}
+            {isColumnVisible("spendPerDayRemaining", moreColumns) && <td className="p-2" />}
+            {isColumnVisible("spendRemainingCurrentBurst", moreColumns) && <td className="p-2" />}
             <td className="p-2 text-right num">{fmtCurrencyOrZero(ag.spendToDateLineTotal)}</td>
-            {moreColumns && <td className="p-2" />}
-            {moreColumns && (
+            {isColumnVisible("spendRemainingLineTotal", moreColumns) && <td className="p-2" />}
+            {isColumnVisible("clicks", moreColumns) && (
               <td className="p-2 text-right num">{fmtNumberOrZero(ag.clicks)}</td>
             )}
-            {moreColumns && <td className="p-2 text-right num">{fmtRatio(ag.cpc)}</td>}
-            {moreColumns && <td className="p-2 text-right num">{fmtPct(ag.ctr)}</td>}
-            {moreColumns && (
+            {isColumnVisible("cpc", moreColumns) && (
+              <td className="p-2 text-right num">{fmtRatio(ag.cpc)}</td>
+            )}
+            {isColumnVisible("ctr", moreColumns) && (
+              <td className="p-2 text-right num">{fmtPct(ag.ctr)}</td>
+            )}
+            {isColumnVisible("impressions", moreColumns) && (
               <td className="p-2 text-right num">{fmtNumberOrZero(ag.impressions)}</td>
             )}
-            {moreColumns && (
+            {isColumnVisible("conversions", moreColumns) && (
               <td className="p-2 text-right num">{fmtNumberOrZero(ag.conversions)}</td>
             )}
             <td className="p-2" />
