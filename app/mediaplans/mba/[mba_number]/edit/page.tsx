@@ -156,6 +156,10 @@ import {
   isSaveAllowedAfterHydration,
 } from "@/lib/mediaplan/channelHydrationGate"
 import {
+  countEnabledPublishIntegrityFlags,
+  shouldBlockEmptyPublish,
+} from "@/lib/mediaplan/publishVersionIntegrity"
+import {
   humaniseBillingSaveError,
   withMbaScopeLineLabels,
 } from "@/lib/finance/humaniseBillingSaveError"
@@ -7139,28 +7143,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
       // Integrity: channels enabled but nothing staged → do not publish an empty version.
       // (savePromises.length === 0 previously skipped the So-Fail path and published anyway.)
-      const enabledMediaTypeCount = [
-        formValues.mp_television,
-        formValues.mp_radio,
-        formValues.mp_newspaper,
-        formValues.mp_magazines,
-        formValues.mp_ooh,
-        formValues.mp_cinema,
-        formValues.mp_digidisplay,
-        formValues.mp_digiaudio,
-        formValues.mp_digivideo,
-        formValues.mp_bvod,
-        formValues.mp_integration,
-        formValues.mp_search,
-        formValues.mp_socialmedia,
-        formValues.mp_progdisplay,
-        formValues.mp_progvideo,
-        formValues.mp_progbvod,
-        formValues.mp_progaudio,
-        formValues.mp_progooh,
-        formValues.mp_influencers,
-        formValues.mp_production,
-      ].filter(Boolean).length
+      // Shared with the server's 409 guard via PUBLISH_INTEGRITY_CHANNEL_FLAGS so the two
+      // checks can't drift apart (see lib/mediaplan/publishVersionIntegrity.ts).
+      const enabledMediaTypeCount = countEnabledPublishIntegrityFlags(formValues)
       const totalStagedLineItems =
         televisionMediaLineItemsForSave.length +
         radioMediaLineItemsForSave.length +
@@ -7183,7 +7168,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         influencersMediaLineItemsForSave.length +
         productionMediaLineItemsForSave.length
 
-      if (deferredPublish && enabledMediaTypeCount > 0 && totalStagedLineItems === 0) {
+      if (shouldBlockEmptyPublish({ deferredPublish, enabledMediaTypeCount, totalStagedLineItems })) {
         console.error('[save integrity] empty staged line items; blocking version publish', {
           mbaNumber,
           versionId,

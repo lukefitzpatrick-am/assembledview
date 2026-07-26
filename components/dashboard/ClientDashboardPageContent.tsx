@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Suspense, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "framer-motion"
 
 import { CampaignCardCompact } from "@/components/dashboard/CampaignCardCompact"
@@ -15,6 +15,8 @@ import { ClientDetailsSlideOver } from "@/components/dashboard/modals/ClientDeta
 import { ClientFinanceSlideOver } from "@/components/dashboard/modals/ClientFinanceSlideOver"
 import { ClientKpiSlideOver } from "@/components/dashboard/modals/ClientKpiSlideOver"
 import { CampaignCardSkeleton, ChartSkeleton } from "@/components/dashboard/skeletons"
+import { computePlannedSpendTotals } from "@/lib/dashboard/plannedSpendConsistency"
+import { EMPTY_DELIVERED_TOTALS_WITH_AS_OF } from "@/lib/delivery/deliveredTotals"
 import type { Campaign as LegacyCampaign, ClientDashboardData as LegacyClientDashboardData } from "@/lib/types/dashboard"
 
 export type CampaignLinkMode = "tenant" | "adminHub"
@@ -26,11 +28,26 @@ export interface ClientDashboardPageContentProps {
   headerDescription?: string
 }
 
+/** `/api/dashboard/[slug]/delivered` response shape — see `getDeliveredTotalsForClient`. */
+type DeliveredTotalsResponse = {
+  spendToDate: number
+  impressions: number
+  hasDelivery: boolean
+  asOf: string
+}
+
 type DashboardCampaign = {
   id: string
   name: string
   mbaNumber: string
   status: CampaignStatus | "paused"
+  /**
+   * Raw server campaign status (booked/approved/completed/draft/planning/...), distinct from
+   * `status` above which is the UI bucket ("live"/"planned"/"completed"). Used to scope the
+   * "Planned to date" / "Budget utilized" KPI tiles to the same campaign set the server used
+   * for `clientData.totalSpend` (see `lib/dashboard/plannedSpendConsistency.ts`).
+   */
+  rawStatus: LegacyCampaign["status"]
   mediaTypes: string[]
   spentAmount: number | null
   totalBudget: number
@@ -68,6 +85,7 @@ function toDashboardCampaign(
     name: campaign.campaignName,
     mbaNumber: campaign.mbaNumber,
     status: bucketStatus,
+    rawStatus: campaign.status,
     mediaTypes: campaign.mediaTypes,
     spentAmount: spentApprox,
     totalBudget: campaign.budget,
@@ -131,6 +149,43 @@ export function ClientDashboardPageContent({
     () => allCampaigns.reduce((sum, campaign) => sum + (campaign.spentAmount ?? 0), 0),
     [allCampaigns]
   )
+
+  /**
+   * KPI-bar self-consistency (Task 2): "Planned to date" (formerly "Total spend") and
+   * "Budget utilized" must agree, so both are derived from the SAME booked/approved/completed
+   * campaign set and the SAME planned-spend basis — see `lib/dashboard/plannedSpendConsistency.ts`.
+   * Do NOT reintroduce `clientData.totalSpend` (a differently-windowed server figure) or the
+   * unfiltered `totalBudget`/`totalSpent` above into either KPI tile.
+   */
+  const { plannedToDate, plannedBudget, budgetUtilizedPct } = useMemo(
+    () => computePlannedSpendTotals(allCampaigns),
+    [allCampaigns]
+  )
+
+  /**
+   * "Delivered" KPI tile (Task 3) — fetched client-side from `/api/dashboard/[slug]/delivered`
+   * so the (Snowflake-backed) read never blocks the SSR paint of the rest of the dashboard.
+   * `undefined` = still loading (`deliveredLoading` below). A non-OK response or fetch failure
+   * settles to `EMPTY_DELIVERED_TOTALS_WITH_AS_OF` (`hasDelivery: false`) — never a fabricated
+   * $0-as-delivered figure, but also never left `undefined` forever, or the tile would spin
+   * indefinitely whenever Snowflake is unavailable.
+   */
+  const [deliveredTotals, setDeliveredTotals] = useState<DeliveredTotalsResponse | undefined>(undefined)
+  useEffect(() => {
+    let cancelled = false
+    setDeliveredTotals(undefined)
+    fetch(`/api/dashboard/${encodeURIComponent(slug)}/delivered`)
+      .then((res) => (res.ok ? (res.json() as Promise<DeliveredTotalsResponse>) : EMPTY_DELIVERED_TOTALS_WITH_AS_OF))
+      .then((data) => {
+        if (!cancelled) setDeliveredTotals(data)
+      })
+      .catch(() => {
+        if (!cancelled) setDeliveredTotals(EMPTY_DELIVERED_TOTALS_WITH_AS_OF)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [slug])
 
   const isClientHub = campaignLinkMode === "adminHub"
   const { campaignsYtdCount, campaignsYtdCaption } = useMemo(() => {
@@ -202,11 +257,13 @@ export function ClientDashboardPageContent({
       >
         <motion.section variants={sectionVariants} className="w-full">
           {/* HeroBanner: averageRoas / performanceVsBenchmark omitted (fabricated); restore with real KPI aggregation (Domain 10). */}
+          {/* totalSpend/spendLabel: "Planned to date" — same basis + campaign set as HeroKPIBar below (Task 2). */}
           <HeroBanner
             clientName={headerDescription ? `${clientData.clientName}` : clientData.clientName}
             clientLogo={clientData.clientLogo ?? undefined}
             brandColour={clientData.brandColour}
-            totalSpend={clientData.totalSpend}
+            totalSpend={plannedToDate}
+            spendLabel="Planned to date"
             activeCampaigns={statusCounts.live}
             onOpenDetails={() => setDetailsModalOpen(true)}
             onOpenFinance={() => setFinanceModalOpen(true)}
@@ -228,14 +285,23 @@ export function ClientDashboardPageContent({
 
         <motion.section variants={sectionVariants} className="mt-6 w-full lg:mt-8">
           {/* HeroKPIBar: averageRoas / roasTrend omitted (fabricated); restore with real KPI aggregation (Domain 10). */}
+          {/* totalSpend/totalBudget/budgetUtilized: same booked/approved/completed campaign set +
+              planned-spend basis as HeroBanner's "Planned to date" above — see
+              lib/dashboard/plannedSpendConsistency.ts. Do NOT swap in clientData.totalSpend or
+              the unfiltered totalBudget/totalSpent (different bases — that was the Task 2 bug). */}
           <HeroKPIBar
-            totalSpend={clientData.totalSpend}
-            totalBudget={totalBudget}
+            totalSpend={plannedToDate}
+            totalBudget={plannedBudget}
+            spendLabel="Planned to date"
             liveCampaigns={statusCounts.live}
             plannedCampaigns={statusCounts.planned}
-            budgetUtilized={totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0}
+            budgetUtilized={budgetUtilizedPct}
             campaignsYtd={isClientHub ? campaignsYtdCount : undefined}
             campaignsYtdCaption={isClientHub ? campaignsYtdCaption : undefined}
+            deliveredLoading={deliveredTotals === undefined}
+            deliveredToDate={deliveredTotals?.spendToDate}
+            deliveredHasData={deliveredTotals?.hasDelivery ?? false}
+            deliveredAsOf={deliveredTotals?.asOf}
           />
         </motion.section>
 

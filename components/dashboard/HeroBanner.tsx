@@ -18,6 +18,10 @@ export interface HeroBannerProps {
   clientLogo?: string | null
   brandColour?: string
   totalSpend: number
+  /** Label for the `totalSpend` figure. Defaults to "Total spend"; callers pass "Planned to
+   * date" when `totalSpend` is a planned (not delivered/actuals) figure — see
+   * `lib/dashboard/plannedSpendConsistency.ts`. */
+  spendLabel?: string
   activeCampaigns: number
   averageRoas?: number
   performanceVsBenchmark?: number
@@ -58,6 +62,7 @@ export function HeroBanner({
   clientLogo,
   brandColour = "var(--pacing-on-track)",
   totalSpend,
+  spendLabel = "Total spend",
   activeCampaigns,
   averageRoas,
   performanceVsBenchmark,
@@ -87,7 +92,7 @@ export function HeroBanner({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-pill" style={{ backgroundColor: brandColour }} aria-hidden />
-          Total spend: {formatCurrencyCompact(totalSpend)}
+          {spendLabel}: {formatCurrencyCompact(totalSpend)}
         </span>
         <span aria-hidden className="text-border">
           •

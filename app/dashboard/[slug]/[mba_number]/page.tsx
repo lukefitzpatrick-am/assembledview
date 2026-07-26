@@ -12,8 +12,8 @@ import {
   resolveCampaignTotalPlannedSpend,
 } from "@/lib/spend/resolveCampaignExpectedSpend"
 import { ErrorState } from "@/components/ui/states"
-import { deliveredSpendFromSnapshot } from "@/lib/delivery/deliveredSpendFromSnapshot"
-import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
+import { hasReportedDeliveredSpend } from "@/lib/delivery/deliveredTotals"
+import { getDeliveredTotalsForCampaign } from "@/lib/delivery/getDeliveredTotalsForCampaign"
 
 export const maxDuration = 60
 
@@ -669,17 +669,30 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
 
   // Plan schedule "spend to date" is planned media, not Snowflake delivery.
   // Delivered spend must match the performance deck: loadDeliverySnapshot /
-  // get_delivery_snapshot. Show a $ only when the snapshot has positive spend;
-  // otherwise leave unset so the UI shows "Not available" (same as the deck).
+  // get_delivery_snapshot, PLUS fixed-cost media (Newspaper/TV/Radio) from
+  // FIXED_COST_LINE_ITEM_FACT — loadDeliverySnapshot alone never covers direct
+  // media, so a TV/Radio/Newspaper-only campaign would otherwise show $0
+  // delivered (Task 3). Show a $ only when there is a real positive figure;
+  // otherwise leave unset so the UI shows "Not available"/"No delivery reported
+  // yet" (never a fabricated $0).
   const deliverySpendToDate = deriveSpendToDate(deliverySchedule)
   let actualSpend: number | undefined
+  let deliveredImpressions: number | undefined
+  let hasDelivery = false
+  let deliveredAsOf: string | undefined
   try {
-    const deliverySnapshot = await loadDeliverySnapshot({
+    const delivered = await getDeliveredTotalsForCampaign({
       mbaNumber: mba_number,
       versionNumber: Number.isFinite(vn) ? vn : undefined,
       mpSearchEnabled,
+      lineItemsMap,
     })
-    actualSpend = deliveredSpendFromSnapshot(deliverySnapshot.planTotals.spendToDate)
+    // Gated on the spend figure itself, not `hasDelivery` (also true for impressions-only
+    // delivery) — an impressions-only campaign must never show a fabricated "$0 delivered".
+    actualSpend = hasReportedDeliveredSpend(delivered.spendToDate) ? delivered.spendToDate : undefined
+    deliveredImpressions = delivered.impressions
+    hasDelivery = delivered.hasDelivery
+    deliveredAsOf = delivered.asOf
   } catch {
     actualSpend = undefined
   }
@@ -763,6 +776,9 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       metrics={metrics}
       budget={budget}
       actualSpend={actualSpend}
+      deliveredImpressions={deliveredImpressions}
+      hasDelivery={hasDelivery}
+      deliveredAsOf={deliveredAsOf}
       expectedSpend={expectedSpend}
       totalPlannedMonthlySpend={totalPlannedMonthlySpend}
       startDate={effectiveStartISO ?? startDate}
