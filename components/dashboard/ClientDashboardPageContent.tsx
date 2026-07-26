@@ -15,6 +15,7 @@ import { ClientDetailsSlideOver } from "@/components/dashboard/modals/ClientDeta
 import { ClientFinanceSlideOver } from "@/components/dashboard/modals/ClientFinanceSlideOver"
 import { ClientKpiSlideOver } from "@/components/dashboard/modals/ClientKpiSlideOver"
 import { CampaignCardSkeleton, ChartSkeleton } from "@/components/dashboard/skeletons"
+import { computePlannedSpendTotals } from "@/lib/dashboard/plannedSpendConsistency"
 import type { Campaign as LegacyCampaign, ClientDashboardData as LegacyClientDashboardData } from "@/lib/types/dashboard"
 
 export type CampaignLinkMode = "tenant" | "adminHub"
@@ -31,6 +32,13 @@ type DashboardCampaign = {
   name: string
   mbaNumber: string
   status: CampaignStatus | "paused"
+  /**
+   * Raw server campaign status (booked/approved/completed/draft/planning/...), distinct from
+   * `status` above which is the UI bucket ("live"/"planned"/"completed"). Used to scope the
+   * "Planned to date" / "Budget utilized" KPI tiles to the same campaign set the server used
+   * for `clientData.totalSpend` (see `lib/dashboard/plannedSpendConsistency.ts`).
+   */
+  rawStatus: LegacyCampaign["status"]
   mediaTypes: string[]
   spentAmount: number | null
   totalBudget: number
@@ -68,6 +76,7 @@ function toDashboardCampaign(
     name: campaign.campaignName,
     mbaNumber: campaign.mbaNumber,
     status: bucketStatus,
+    rawStatus: campaign.status,
     mediaTypes: campaign.mediaTypes,
     spentAmount: spentApprox,
     totalBudget: campaign.budget,
@@ -129,6 +138,22 @@ export function ClientDashboardPageContent({
   const totalBudget = useMemo(() => allCampaigns.reduce((sum, campaign) => sum + campaign.totalBudget, 0), [allCampaigns])
   const totalSpent = useMemo(
     () => allCampaigns.reduce((sum, campaign) => sum + (campaign.spentAmount ?? 0), 0),
+    [allCampaigns]
+  )
+
+  /**
+   * KPI-bar self-consistency (Task 2): "Planned to date" (formerly "Total spend") and
+   * "Budget utilized" must agree, so both are derived from the SAME booked/approved/completed
+   * campaign set and the SAME planned-spend basis — see `lib/dashboard/plannedSpendConsistency.ts`.
+   * Do NOT reintroduce `clientData.totalSpend` (a differently-windowed server figure) or the
+   * unfiltered `totalBudget`/`totalSpent` above into either KPI tile.
+   *
+   * TODO(Task 3 — Delivered tile): add a `deliveredToDate` figure here once a real delivered
+   * (Snowflake) read exists, and surface it as a new "Delivered" tile on `HeroKPIBar` — do not
+   * repurpose this "Planned to date" figure for that.
+   */
+  const { plannedToDate, plannedBudget, budgetUtilizedPct } = useMemo(
+    () => computePlannedSpendTotals(allCampaigns),
     [allCampaigns]
   )
 
@@ -202,11 +227,13 @@ export function ClientDashboardPageContent({
       >
         <motion.section variants={sectionVariants} className="w-full">
           {/* HeroBanner: averageRoas / performanceVsBenchmark omitted (fabricated); restore with real KPI aggregation (Domain 10). */}
+          {/* totalSpend/spendLabel: "Planned to date" — same basis + campaign set as HeroKPIBar below (Task 2). */}
           <HeroBanner
             clientName={headerDescription ? `${clientData.clientName}` : clientData.clientName}
             clientLogo={clientData.clientLogo ?? undefined}
             brandColour={clientData.brandColour}
-            totalSpend={clientData.totalSpend}
+            totalSpend={plannedToDate}
+            spendLabel="Planned to date"
             activeCampaigns={statusCounts.live}
             onOpenDetails={() => setDetailsModalOpen(true)}
             onOpenFinance={() => setFinanceModalOpen(true)}
@@ -228,12 +255,17 @@ export function ClientDashboardPageContent({
 
         <motion.section variants={sectionVariants} className="mt-6 w-full lg:mt-8">
           {/* HeroKPIBar: averageRoas / roasTrend omitted (fabricated); restore with real KPI aggregation (Domain 10). */}
+          {/* totalSpend/totalBudget/budgetUtilized: same booked/approved/completed campaign set +
+              planned-spend basis as HeroBanner's "Planned to date" above — see
+              lib/dashboard/plannedSpendConsistency.ts. Do NOT swap in clientData.totalSpend or
+              the unfiltered totalBudget/totalSpent (different bases — that was the Task 2 bug). */}
           <HeroKPIBar
-            totalSpend={clientData.totalSpend}
-            totalBudget={totalBudget}
+            totalSpend={plannedToDate}
+            totalBudget={plannedBudget}
+            spendLabel="Planned to date"
             liveCampaigns={statusCounts.live}
             plannedCampaigns={statusCounts.planned}
-            budgetUtilized={totalBudget > 0 ? (totalSpent / totalBudget) * 100 : 0}
+            budgetUtilized={budgetUtilizedPct}
             campaignsYtd={isClientHub ? campaignsYtdCount : undefined}
             campaignsYtdCaption={isClientHub ? campaignsYtdCaption : undefined}
           />

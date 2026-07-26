@@ -14,6 +14,11 @@ import { cn } from "@/lib/utils"
 export interface HeroKPIBarProps {
   totalSpend: number
   totalBudget: number
+  /** Label for the `totalSpend` tile. Defaults to "Total Spend"; callers pass "Planned to date"
+   * when `totalSpend` is a planned (not delivered/actuals) figure — see
+   * `lib/dashboard/plannedSpendConsistency.ts`. `totalBudget` and `budgetUtilized` must be
+   * computed over the SAME campaign set as `totalSpend` or the tiles will contradict again. */
+  spendLabel?: string
   liveCampaigns: number
   plannedCampaigns: number
   averageRoas?: number
@@ -66,6 +71,7 @@ function useCountUp(target: number, durationMs = 1000): number {
 export function HeroKPIBar({
   totalSpend,
   totalBudget,
+  spendLabel = "Total Spend",
   liveCampaigns,
   plannedCampaigns,
   averageRoas,
@@ -93,8 +99,11 @@ export function HeroKPIBar({
 
   return (
     <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* TODO(Task 3 — Delivered tile): once a real delivered (Snowflake) read exists, add a
+          fifth tile here (or a variant of this one) for `deliveredToDate`. Keep this tile on the
+          planned basis unless/until Option A (both tiles delivered) is adopted. */}
       <article className="rounded-xl border border-border/60 bg-card p-4">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">Total Spend</p>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">{spendLabel}</p>
         <p className="mt-2 text-2xl font-semibold text-foreground">{formatCurrencyCompact(animatedSpend)}</p>
         <p className="mt-1 text-xs text-muted-foreground">of {formatCurrencyCompact(totalBudget)} budget</p>
       </article>
