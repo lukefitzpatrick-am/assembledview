@@ -187,6 +187,35 @@ export async function checkPublishLineItemIntegrity(
   return { ok: true }
 }
 
+/**
+ * Client-side empty-publish guard (Part A). Counts truthy `mp_*` flags on the
+ * in-memory form values using the same 20-channel map as the server-side
+ * integrity check, so the two checks can never drift apart.
+ */
+export function countEnabledPublishIntegrityFlags(
+  formValues: Record<string, unknown> | null | undefined
+): number {
+  if (!formValues) return 0
+  return Object.values(PUBLISH_INTEGRITY_CHANNEL_FLAGS).filter((flagKey) =>
+    Boolean(formValues[flagKey])
+  ).length
+}
+
+/**
+ * True when a deferred-publish save must be blocked because channels are
+ * enabled but nothing was staged for them. Mirrors the server's 409 guard on
+ * the client so the So-Fail path can fire before the publish PATCH is sent.
+ */
+export function shouldBlockEmptyPublish(args: {
+  deferredPublish: boolean
+  enabledMediaTypeCount: number
+  totalStagedLineItems: number
+}): boolean {
+  return (
+    args.deferredPublish && args.enabledMediaTypeCount > 0 && args.totalStagedLineItems === 0
+  )
+}
+
 /** Default child counter: parallel GET-parity fetches for enabled channels only. */
 export async function countPublishIntegrityChildren(args: {
   mbaNumber: string

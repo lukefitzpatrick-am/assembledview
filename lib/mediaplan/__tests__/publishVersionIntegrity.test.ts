@@ -2,8 +2,10 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import {
   checkPublishLineItemIntegrity,
+  countEnabledPublishIntegrityFlags,
   enabledPublishIntegrityChannels,
   isPublishVersionAdvance,
+  shouldBlockEmptyPublish,
 } from "@/lib/mediaplan/publishVersionIntegrity"
 
 test("isPublishVersionAdvance: skipped when version_number absent", () => {
@@ -109,6 +111,68 @@ test("checkPublishLineItemIntegrity: child-count throws → fail-open allow + wa
   assert.equal(warnings.length, 1)
   assert.match(warnings[0].message, /fail-open allow/i)
   assert.equal(warnings[0].meta?.mbaNumber, "BOSS006")
+})
+
+test("countEnabledPublishIntegrityFlags: counts truthy mp_* flags only", () => {
+  assert.equal(
+    countEnabledPublishIntegrityFlags({
+      mp_search: true,
+      mp_television: true,
+      mp_radio: false,
+      mp_clientname: "Acme", // non-channel field must be ignored
+    }),
+    2
+  )
+})
+
+test("countEnabledPublishIntegrityFlags: zero for null/undefined/empty formValues", () => {
+  assert.equal(countEnabledPublishIntegrityFlags(null), 0)
+  assert.equal(countEnabledPublishIntegrityFlags(undefined), 0)
+  assert.equal(countEnabledPublishIntegrityFlags({}), 0)
+})
+
+test("shouldBlockEmptyPublish: blocks only deferred publish + enabled channels + zero staged", () => {
+  assert.equal(
+    shouldBlockEmptyPublish({
+      deferredPublish: true,
+      enabledMediaTypeCount: 1,
+      totalStagedLineItems: 0,
+    }),
+    true
+  )
+})
+
+test("shouldBlockEmptyPublish: allows when items are staged", () => {
+  assert.equal(
+    shouldBlockEmptyPublish({
+      deferredPublish: true,
+      enabledMediaTypeCount: 1,
+      totalStagedLineItems: 5,
+    }),
+    false
+  )
+})
+
+test("shouldBlockEmptyPublish: allows when no channels enabled (nothing to stage)", () => {
+  assert.equal(
+    shouldBlockEmptyPublish({
+      deferredPublish: true,
+      enabledMediaTypeCount: 0,
+      totalStagedLineItems: 0,
+    }),
+    false
+  )
+})
+
+test("shouldBlockEmptyPublish: never blocks the overwrite/draft path (deferredPublish=false)", () => {
+  assert.equal(
+    shouldBlockEmptyPublish({
+      deferredPublish: false,
+      enabledMediaTypeCount: 1,
+      totalStagedLineItems: 0,
+    }),
+    false
+  )
 })
 
 test("checkPublishLineItemIntegrity: version row fetch throws → fail-open allow", async () => {
