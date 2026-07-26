@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { Suspense, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "framer-motion"
 
 import { CampaignCardCompact } from "@/components/dashboard/CampaignCardCompact"
@@ -25,6 +25,14 @@ export interface ClientDashboardPageContentProps {
   clientData: LegacyClientDashboardData
   campaignLinkMode?: CampaignLinkMode
   headerDescription?: string
+}
+
+/** `/api/dashboard/[slug]/delivered` response shape — see `getDeliveredTotalsForClient`. */
+type DeliveredTotalsResponse = {
+  spendToDate: number
+  impressions: number
+  hasDelivery: boolean
+  asOf: string
 }
 
 type DashboardCampaign = {
@@ -147,15 +155,34 @@ export function ClientDashboardPageContent({
    * campaign set and the SAME planned-spend basis — see `lib/dashboard/plannedSpendConsistency.ts`.
    * Do NOT reintroduce `clientData.totalSpend` (a differently-windowed server figure) or the
    * unfiltered `totalBudget`/`totalSpent` above into either KPI tile.
-   *
-   * TODO(Task 3 — Delivered tile): add a `deliveredToDate` figure here once a real delivered
-   * (Snowflake) read exists, and surface it as a new "Delivered" tile on `HeroKPIBar` — do not
-   * repurpose this "Planned to date" figure for that.
    */
   const { plannedToDate, plannedBudget, budgetUtilizedPct } = useMemo(
     () => computePlannedSpendTotals(allCampaigns),
     [allCampaigns]
   )
+
+  /**
+   * "Delivered" KPI tile (Task 3) — fetched client-side from `/api/dashboard/[slug]/delivered`
+   * so the (Snowflake-backed) read never blocks the SSR paint of the rest of the dashboard.
+   * `undefined` = still loading; a real fetch failure is swallowed to "no data" (never a
+   * fabricated $0) since the rest of the dashboard must not break if Snowflake is unavailable.
+   */
+  const [deliveredTotals, setDeliveredTotals] = useState<DeliveredTotalsResponse | undefined>(undefined)
+  useEffect(() => {
+    let cancelled = false
+    setDeliveredTotals(undefined)
+    fetch(`/api/dashboard/${encodeURIComponent(slug)}/delivered`)
+      .then((res) => (res.ok ? (res.json() as Promise<DeliveredTotalsResponse>) : null))
+      .then((data) => {
+        if (!cancelled && data) setDeliveredTotals(data)
+      })
+      .catch(() => {
+        // Swallow — "Delivered" tile just stays in its loading/empty state.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [slug])
 
   const isClientHub = campaignLinkMode === "adminHub"
   const { campaignsYtdCount, campaignsYtdCaption } = useMemo(() => {
@@ -268,6 +295,10 @@ export function ClientDashboardPageContent({
             budgetUtilized={budgetUtilizedPct}
             campaignsYtd={isClientHub ? campaignsYtdCount : undefined}
             campaignsYtdCaption={isClientHub ? campaignsYtdCaption : undefined}
+            deliveredLoading={deliveredTotals === undefined}
+            deliveredToDate={deliveredTotals?.spendToDate}
+            deliveredHasData={deliveredTotals?.hasDelivery ?? false}
+            deliveredAsOf={deliveredTotals?.asOf}
           />
         </motion.section>
 

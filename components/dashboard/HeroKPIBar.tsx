@@ -28,6 +28,22 @@ export interface HeroKPIBarProps {
   campaignsYtd?: number
   /** Subtitle under the YTD campaigns count. */
   campaignsYtdCaption?: string
+  /** True while `/api/dashboard/[slug]/delivered` is loading (Task 3). Shows a skeleton state. */
+  deliveredLoading?: boolean
+  /** Delivered spend to date (Snowflake, digital + fixed-cost combined) — see `getDeliveredTotalsForClient`. */
+  deliveredToDate?: number
+  /** False means "not yet reported" — render "No delivery reported yet", never a fabricated $0. */
+  deliveredHasData?: boolean
+  /** Melbourne "as of" date (YYYY-MM-DD) — Snowflake facts refresh ~06:30 Melbourne daily. */
+  deliveredAsOf?: string
+}
+
+function formatDeliveredAsOfCaption(asOf: string | undefined): string | null {
+  if (!asOf?.trim()) return null
+  const d = new Date(`${asOf}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return null
+  const label = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short" }).format(d)
+  return `As of ${label} · refreshes ~6:30am (Melbourne)`
 }
 
 function formatNumber(value: number): string {
@@ -79,6 +95,10 @@ export function HeroKPIBar({
   budgetUtilized,
   campaignsYtd,
   campaignsYtdCaption,
+  deliveredLoading = false,
+  deliveredToDate,
+  deliveredHasData = false,
+  deliveredAsOf,
 }: HeroKPIBarProps) {
   const shouldReduceMotion = useReducedMotion()
   const normalizedBudgetUtilized = clampBudgetUtilizationPct(budgetUtilized, 0, 100)
@@ -90,6 +110,9 @@ export function HeroKPIBar({
   const ytdTarget = typeof campaignsYtd === "number" ? campaignsYtd : 0
   const animatedCampaignsYtd = useCountUp(ytdTarget, 1000)
   const animatedBudgetPct = useCountUp(normalizedBudgetUtilized, 1000)
+  const deliveredTarget = deliveredHasData && typeof deliveredToDate === "number" ? deliveredToDate : 0
+  const animatedDelivered = useCountUp(deliveredTarget, 1000)
+  const deliveredAsOfCaption = formatDeliveredAsOfCaption(deliveredAsOf)
 
   const ringRadius = 7
   const ringCircumference = 2 * Math.PI * ringRadius
@@ -98,14 +121,31 @@ export function HeroKPIBar({
   const isRoasPositive = typeof roasTrend === "number" ? roasTrend >= 0 : null
 
   return (
-    <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {/* TODO(Task 3 — Delivered tile): once a real delivered (Snowflake) read exists, add a
-          fifth tile here (or a variant of this one) for `deliveredToDate`. Keep this tile on the
-          planned basis unless/until Option A (both tiles delivered) is adopted. */}
+    <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <article className="rounded-xl border border-border/60 bg-card p-4">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">{spendLabel}</p>
         <p className="mt-2 text-2xl font-semibold text-foreground">{formatCurrencyCompact(animatedSpend)}</p>
         <p className="mt-1 text-xs text-muted-foreground">of {formatCurrencyCompact(totalBudget)} budget</p>
+      </article>
+
+      <article className="rounded-xl border border-border/60 bg-card p-4">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">Delivered</p>
+        {deliveredLoading ? (
+          <>
+            <div className="mt-2 h-8 w-24 animate-pulse rounded bg-muted/60" aria-hidden />
+            <p className="mt-1 text-xs text-muted-foreground">Loading delivery data…</p>
+          </>
+        ) : deliveredHasData ? (
+          <>
+            <p className="mt-2 text-2xl font-semibold text-foreground">{formatCurrencyCompact(animatedDelivered)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{deliveredAsOfCaption ?? "Delivered to date"}</p>
+          </>
+        ) : (
+          <>
+            <p className="mt-2 text-2xl font-semibold text-muted-foreground">—</p>
+            <p className="mt-1 text-xs text-muted-foreground">No delivery reported yet</p>
+          </>
+        )}
       </article>
 
       <article className="rounded-xl border border-border/60 bg-card p-4">

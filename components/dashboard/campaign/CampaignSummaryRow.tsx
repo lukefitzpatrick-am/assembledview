@@ -3,6 +3,7 @@
 import { CircleDollarSign } from "lucide-react"
 
 import { getMediaColor } from "@/lib/charts/registry"
+import { formatNumberCompact } from "@/lib/format/chartFormat"
 import { formatCurrencyCompact } from "@/lib/format/currency"
 import { cn } from "@/lib/utils"
 
@@ -17,17 +18,34 @@ export interface CampaignSummarySectionProps {
   }
   spend: {
     budget: number
-    /** Tracked / invoiced spend (optional; not shown on this summary after UI simplification) */
+    /** Delivered spend to date (Snowflake) — digital + fixed-cost combined. See `delivered` below for the full breakdown. */
     actualSpend?: number
     /** Prorated expectation from monthly plan (full prior months + current month linear) */
     expectedSpend?: number
     /** Sum of all monthly plan rows — full planned media from the plan */
     totalPlannedSpend?: number
   }
+  /** Delivered-to-date detail (Task 3) — spend lives on `spend.actualSpend`; this covers the rest. */
+  delivered?: {
+    /** Digital impressions only (fixed-cost media has no impression metric). */
+    impressions?: number
+    /** True when there is a real positive delivered figure — false means "not yet reported", never a fabricated $0. */
+    hasDelivery: boolean
+    /** Melbourne "as of" date (YYYY-MM-DD) — Snowflake facts refresh ~06:30 Melbourne daily. */
+    asOf?: string
+  }
   brandColour?: string
   layout?: "side-by-side" | "stacked"
   hideStatus?: boolean
   embedded?: boolean
+}
+
+function formatAsOfCaption(asOf: string | undefined): string | null {
+  if (!asOf?.trim()) return null
+  const d = new Date(`${asOf}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return null
+  const label = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short" }).format(d)
+  return `As of ${label} · refreshes ~6:30am (Melbourne)`
 }
 
 function clampPct(value: number): number {
@@ -52,6 +70,7 @@ function formatAxisDate(iso: string): string {
 export default function CampaignSummaryRow({
   time,
   spend,
+  delivered,
   brandColour,
   layout = "side-by-side",
   embedded = false,
@@ -68,6 +87,17 @@ export default function CampaignSummaryRow({
       : undefined
 
   const remaining = expectedSpend !== undefined ? budget - expectedSpend : undefined
+
+  // Campaign has started once any day has elapsed — before that, "no delivery yet" is expected
+  // and unremarkable, so we show the neutral "—" rather than the "No delivery reported yet" nudge.
+  const hasStarted = time.daysElapsed > 0 || timePct > 0
+  const hasDelivery = Boolean(delivered?.hasDelivery)
+  const deliveredSpend = hasDelivery && typeof spend.actualSpend === "number" ? spend.actualSpend : undefined
+  const deliveredImpressions =
+    hasDelivery && typeof delivered?.impressions === "number" && Number.isFinite(delivered.impressions) && delivered.impressions > 0
+      ? delivered.impressions
+      : undefined
+  const asOfCaption = formatAsOfCaption(delivered?.asOf)
 
   const expectedPctOfBudgetLabel =
     budget > 0 && expectedSpend !== undefined && expectedSpend >= 0
@@ -99,7 +129,7 @@ export default function CampaignSummaryRow({
             <h3 className="text-sm font-semibold text-foreground">Budget &amp; Spend</h3>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">Budget</div>
               <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
@@ -121,6 +151,29 @@ export default function CampaignSummaryRow({
               ) : expectedSpend === undefined ? (
                 <div className="text-[11px] text-muted-foreground">Monthly plan data unavailable</div>
               ) : null}
+            </div>
+            <div className="space-y-1">
+              <div className="text-xs font-medium text-muted-foreground">Delivered to date</div>
+              {hasDelivery && deliveredSpend !== undefined ? (
+                <>
+                  <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
+                    {formatCurrencyCompact(deliveredSpend)}
+                  </div>
+                  {deliveredImpressions !== undefined ? (
+                    <div className="text-[11px] text-muted-foreground">
+                      {formatNumberCompact(deliveredImpressions)} impressions
+                    </div>
+                  ) : null}
+                  {asOfCaption ? <div className="text-[11px] text-muted-foreground">{asOfCaption}</div> : null}
+                </>
+              ) : hasStarted ? (
+                <>
+                  <div className="text-xl font-bold tabular-nums text-muted-foreground md:text-2xl">—</div>
+                  <div className="text-[11px] text-muted-foreground">No delivery reported yet</div>
+                </>
+              ) : (
+                <div className="text-xl font-bold tabular-nums text-muted-foreground md:text-2xl">—</div>
+              )}
             </div>
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">Remaining</div>
