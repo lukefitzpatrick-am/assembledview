@@ -1,12 +1,21 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import {
+  Fragment,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type RefObject,
+} from "react";
 import { ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown } from "lucide-react";
 import {
   compareValues,
   type SortDirection,
 } from "@/components/ui/sortable-table-header";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { MultiLineChart } from "@/components/charts/system";
 import type {
@@ -36,6 +45,60 @@ const NUMERIC = new Set<SortColumn>([
   "totalActual",
   "variance",
 ]);
+
+/**
+ * Only Client and Campaign stay pinned on horizontal scroll. Campaign's offset
+ * is the measured width of the Client column; the chevron and everything
+ * after Campaign scroll normally underneath.
+ */
+const STICKY_EDGE_SHADOW = "-1px 0 0 hsl(var(--border)) inset";
+
+function useClientColumnWidth(clientCellRef: RefObject<HTMLTableCellElement | null>): number {
+  const [width, setWidth] = useState(0);
+
+  useLayoutEffect(() => {
+    const cell = clientCellRef.current;
+    if (!cell) return;
+
+    const measure = () => setWidth(cell.getBoundingClientRect().width);
+    measure();
+
+    const observer = new ResizeObserver(() => measure());
+    observer.observe(cell);
+    return () => observer.disconnect();
+  }, [clientCellRef]);
+
+  return width;
+}
+
+function stickyClientCellStyle(background = "hsl(var(--card))"): CSSProperties {
+  return { position: "sticky", left: 0, background, zIndex: 10 };
+}
+
+function stickyCampaignCellStyle(clientWidth: number, background = "hsl(var(--card))"): CSSProperties {
+  return {
+    position: "sticky",
+    left: clientWidth,
+    background,
+    zIndex: 10,
+    boxShadow: STICKY_EDGE_SHADOW,
+  };
+}
+
+function stickyClientHeaderStyle(): CSSProperties {
+  return { position: "sticky", top: 0, left: 0, zIndex: 30, background: "hsl(var(--background))" };
+}
+
+function stickyCampaignHeaderStyle(clientWidth: number): CSSProperties {
+  return {
+    position: "sticky",
+    top: 0,
+    left: clientWidth,
+    zIndex: 30,
+    background: "hsl(var(--background))",
+    boxShadow: STICKY_EDGE_SHADOW,
+  };
+}
 
 function fmtMoney(n: number): string {
   return formatAUD(n);
@@ -114,6 +177,8 @@ function SortTh({
   sortDirection,
   onToggle,
   align = "left",
+  className,
+  style,
 }: {
   label: string;
   column: SortColumn;
@@ -121,6 +186,8 @@ function SortTh({
   sortDirection: SortDirection;
   onToggle: (c: SortColumn) => void;
   align?: "left" | "right";
+  className?: string;
+  style?: CSSProperties;
 }) {
   const active = sortColumn === column;
   const direction = active ? sortDirection : null;
@@ -128,7 +195,10 @@ function SortTh({
     direction === "asc" ? ChevronUp : direction === "desc" ? ChevronDown : ChevronsUpDown;
 
   return (
-    <th className="sticky top-0 z-20 bg-background border-b p-2 whitespace-nowrap">
+    <th
+      className={cn("sticky top-0 z-20 bg-background border-b p-2 whitespace-nowrap", className)}
+      style={style}
+    >
       <button
         type="button"
         onClick={() => onToggle(column)}
@@ -272,6 +342,9 @@ export function DirectCampaignsTable({
   const [sortColumn, setSortColumn] = useState<SortColumn | null>("clientName");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [moreColumns, setMoreColumns] = useState(false);
+  const clientCellRef = useRef<HTMLTableCellElement>(null);
+  const clientWidth = useClientColumnWidth(clientCellRef);
 
   const flat: FlatRow[] = useMemo(() => {
     const rows: FlatRow[] = [];
@@ -341,6 +414,8 @@ export function DirectCampaignsTable({
     );
   }, [flat]);
 
+  const colSpan = moreColumns ? 11 : 7;
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -350,14 +425,25 @@ export function DirectCampaignsTable({
           <span className="num text-foreground">{fmtMoney(totals.reported)}</span> · Actual{" "}
           <span className="num text-foreground">{fmtMoney(totals.actual)}</span>
         </div>
-        <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Switch
-            checked={includeHistorical}
-            onCheckedChange={onIncludeHistoricalChange}
-            aria-label="Show historical fixed-cost line items"
-          />
-          Show historical (was ever fixed cost)
-        </label>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Switch
+              checked={includeHistorical}
+              onCheckedChange={onIncludeHistoricalChange}
+              aria-label="Show historical fixed-cost line items"
+            />
+            Show historical (was ever fixed cost)
+          </label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2.5 text-xs"
+            onClick={() => setMoreColumns((v) => !v)}
+          >
+            {moreColumns ? "Fewer columns" : "More columns"}
+          </Button>
+        </div>
       </div>
 
       {sorted.length === 0 ? (
@@ -377,6 +463,7 @@ export function DirectCampaignsTable({
                     sortColumn={sortColumn}
                     sortDirection={sortDirection}
                     onToggle={toggleSort}
+                    style={stickyClientHeaderStyle()}
                   />
                   <SortTh
                     label="Campaign"
@@ -384,6 +471,7 @@ export function DirectCampaignsTable({
                     sortColumn={sortColumn}
                     sortDirection={sortDirection}
                     onToggle={toggleSort}
+                    style={stickyCampaignHeaderStyle(clientWidth)}
                   />
                   <SortTh
                     label="Line item"
@@ -392,13 +480,15 @@ export function DirectCampaignsTable({
                     sortDirection={sortDirection}
                     onToggle={toggleSort}
                   />
-                  <SortTh
-                    label="Buy type"
-                    column="buyType"
-                    sortColumn={sortColumn}
-                    sortDirection={sortDirection}
-                    onToggle={toggleSort}
-                  />
+                  {moreColumns && (
+                    <SortTh
+                      label="Buy type"
+                      column="buyType"
+                      sortColumn={sortColumn}
+                      sortDirection={sortDirection}
+                      onToggle={toggleSort}
+                    />
+                  )}
                   <SortTh
                     label="Budget"
                     column="totalBudget"
@@ -415,25 +505,31 @@ export function DirectCampaignsTable({
                     onToggle={toggleSort}
                     align="right"
                   />
-                  <SortTh
-                    label="Actual platform"
-                    column="totalActual"
-                    sortColumn={sortColumn}
-                    sortDirection={sortDirection}
-                    onToggle={toggleSort}
-                    align="right"
-                  />
-                  <SortTh
-                    label="Variance"
-                    column="variance"
-                    sortColumn={sortColumn}
-                    sortDirection={sortDirection}
-                    onToggle={toggleSort}
-                    align="right"
-                  />
-                  <th className="sticky top-0 z-20 bg-background border-b p-2 whitespace-nowrap">
-                    Bursts
-                  </th>
+                  {moreColumns && (
+                    <SortTh
+                      label="Actual platform"
+                      column="totalActual"
+                      sortColumn={sortColumn}
+                      sortDirection={sortDirection}
+                      onToggle={toggleSort}
+                      align="right"
+                    />
+                  )}
+                  {moreColumns && (
+                    <SortTh
+                      label="Variance"
+                      column="variance"
+                      sortColumn={sortColumn}
+                      sortDirection={sortDirection}
+                      onToggle={toggleSort}
+                      align="right"
+                    />
+                  )}
+                  {moreColumns && (
+                    <th className="sticky top-0 z-20 bg-background border-b p-2 whitespace-nowrap">
+                      Bursts
+                    </th>
+                  )}
                   <SortTh
                     label="Status"
                     column="lineItemStatus"
@@ -444,78 +540,74 @@ export function DirectCampaignsTable({
                 </tr>
               </thead>
               <tbody>
-                {sorted.map(({ group, lineItem }) => {
+                {sorted.map(({ group, lineItem }, rowIndex) => {
                   const key = `${group.mbaNumber}|${lineItem.lineItemId}`;
                   const isOpen = expanded.has(key);
-                  const colSpan = 11;
                   return (
                     <Fragment key={key}>
                       <tr
                         className="border-t cursor-pointer hover:bg-muted/20"
                         onClick={() => toggleExpand(key)}
                       >
-                        <td className="p-2 border-b">
+                        <td className="p-2">
                           {isOpen ? (
                             <ChevronDown className="h-3 w-3" />
                           ) : (
                             <ChevronRight className="h-3 w-3" />
                           )}
                         </td>
-                        <td className="p-2 border-b font-medium">{group.clientName}</td>
-                        <td className="p-2 border-b">{group.campaignName}</td>
-                        <td className="p-2 border-b">
-                          <div>{lineItem.lineItemName}</div>
-                          <div className="font-mono text-[10px] text-muted-foreground">
-                            {lineItem.lineItemId}
-                          </div>
-                        </td>
-                        <td className="p-2 border-b">{lineItem.buyType || MISSING}</td>
-                        <td className="p-2 border-b text-right num">
-                          {fmtMoney(lineItem.totalBudget)}
-                        </td>
-                        <td className="p-2 border-b text-right num">
-                          {fmtMoney(lineItem.totalReported)}
-                        </td>
-                        <td className="p-2 border-b text-right num">
-                          {fmtMoney(lineItem.totalActual)}
-                        </td>
                         <td
-                          className={cn(
-                            "p-2 border-b text-right num",
-                            varianceTone(lineItem.variance)
-                          )}
+                          ref={rowIndex === 0 ? clientCellRef : undefined}
+                          className="p-2 font-medium"
+                          style={stickyClientCellStyle()}
                         >
-                          <div>{fmtMoney(lineItem.variance)}</div>
-                          <div className="text-[10px] text-muted-foreground">
-                            {fmtPct(lineItem.variancePct)}
-                          </div>
+                          {group.clientName}
                         </td>
-                        <td className="p-2 border-b">
-                          <div className="flex flex-wrap items-center gap-1">
-                            <span className="num text-muted-foreground">
-                              {lineItem.burstCount}
-                            </span>
-                            {lineItem.burstsDeliveredOver > 0 ? (
-                              <Badge
-                                variant="ahead"
-                                size="sm"
-                                className="text-[10px]"
-                              >
-                                {lineItem.burstsDeliveredOver} over
-                              </Badge>
-                            ) : null}
-                            {lineItem.burstsDeliveredUnder > 0 ? (
-                              <Badge
-                                variant="behind"
-                                size="sm"
-                                className="text-[10px]"
-                              >
-                                {lineItem.burstsDeliveredUnder} under
-                              </Badge>
-                            ) : null}
-                          </div>
+                        <td className="p-2" style={stickyCampaignCellStyle(clientWidth)}>
+                          {group.campaignName}
                         </td>
-                        <td className="p-2 border-b">
+                        <td className="p-2">
+                          <div>{lineItem.lineItemName}</div>
+                          {moreColumns && (
+                            <div className="font-mono text-[10px] text-muted-foreground">
+                              {lineItem.lineItemId}
+                            </div>
+                          )}
+                        </td>
+                        {moreColumns && <td className="p-2">{lineItem.buyType || MISSING}</td>}
+                        <td className="p-2 text-right num">{fmtMoney(lineItem.totalBudget)}</td>
+                        <td className="p-2 text-right num">{fmtMoney(lineItem.totalReported)}</td>
+                        {moreColumns && (
+                          <td className="p-2 text-right num">{fmtMoney(lineItem.totalActual)}</td>
+                        )}
+                        {moreColumns && (
+                          <td className={cn("p-2 text-right num", varianceTone(lineItem.variance))}>
+                            <div>{fmtMoney(lineItem.variance)}</div>
+                            <div className="text-[10px] text-muted-foreground">
+                              {fmtPct(lineItem.variancePct)}
+                            </div>
+                          </td>
+                        )}
+                        {moreColumns && (
+                          <td className="p-2">
+                            <div className="flex flex-wrap items-center gap-1">
+                              <span className="num text-muted-foreground">
+                                {lineItem.burstCount}
+                              </span>
+                              {lineItem.burstsDeliveredOver > 0 ? (
+                                <Badge variant="ahead" size="sm" className="text-[10px]">
+                                  {lineItem.burstsDeliveredOver} over
+                                </Badge>
+                              ) : null}
+                              {lineItem.burstsDeliveredUnder > 0 ? (
+                                <Badge variant="behind" size="sm" className="text-[10px]">
+                                  {lineItem.burstsDeliveredUnder} under
+                                </Badge>
+                              ) : null}
+                            </div>
+                          </td>
+                        )}
+                        <td className="p-2">
                           <Badge
                             variant={statusBadgeVariant(lineItem.lineItemStatus)}
                             size="sm"

@@ -200,26 +200,16 @@ function SortablePacingTh({
 }
 
 /**
- * Number of left-side columns that should be sticky on horizontal scroll.
- * Columns 0..STICKY_LEFT_COUNT-1 are sticky; STICKY_LEFT_COUNT onward scroll.
- *
- * Current ordering (after step 1):
- *   0: chevron
- *   1: Client
- *   2: Platform
- *   3: Campaign / Ad Group
- *   4: MBA
- *   5: Line Item ID
- *   6: Status
- *   7: Targeting
+ * Only Client and Campaign stay pinned on horizontal scroll — everything else
+ * (including the expand chevron) scrolls normally. Campaign's offset is the
+ * measured width of the Client column; intervening non-sticky columns (e.g.
+ * Platform, shown via "More columns") simply scroll underneath.
  */
-const STICKY_LEFT_COUNT = 8;
+const STICKY_EDGE_SHADOW = "-1px 0 0 hsl(var(--border)) inset";
 
 const LINE_ITEM_BG = "hsl(var(--card))";
 const PLATFORM_CAMPAIGN_BG = "hsl(var(--surface-panel))";
 const AD_GROUP_BG = "var(--fill-track)";
-
-const TARGETING_COLUMN_SHADOW = "-1px 0 0 hsl(var(--border)) inset";
 
 const statusLabel: Record<SearchPacingCampaignRow["lineItemStatus"], string> = {
   "on-track": "On track",
@@ -257,80 +247,50 @@ function kpiStatusBadgeVariant(status: RowKpiStatus): "secondary" | "on-track" |
   }
 }
 
-/** Returns cumulative left offsets for sticky columns, in px. */
-function computeLeftOffsets(widths: number[]): number[] {
-  const offsets: number[] = [];
-  let running = 0;
-  for (let i = 0; i < widths.length; i++) {
-    offsets.push(running);
-    running += widths[i];
-  }
-  return offsets;
-}
-
-/**
- * Measures the rendered widths of the first STICKY_LEFT_COUNT cells in the
- * first body row, returns cumulative left offsets, and re-measures on resize.
- */
-function useStickyLeftOffsets(
-  firstRowRef: RefObject<HTMLTableRowElement | null>
-): number[] {
-  const [offsets, setOffsets] = useState<number[]>(() =>
-    new Array(STICKY_LEFT_COUNT).fill(0)
-  );
+/** Measures the rendered width of the first row's Client cell (the only thing Campaign's offset depends on). */
+function useClientColumnWidth(clientCellRef: RefObject<HTMLTableCellElement | null>): number {
+  const [width, setWidth] = useState(0);
 
   useLayoutEffect(() => {
-    const row = firstRowRef.current;
-    if (!row) return;
+    const cell = clientCellRef.current;
+    if (!cell) return;
 
-    const measure = () => {
-      const cells = Array.from(row.children) as HTMLTableCellElement[];
-      const widths: number[] = [];
-      for (let i = 0; i < STICKY_LEFT_COUNT; i++) {
-        const cell = cells[i];
-        widths.push(cell ? cell.getBoundingClientRect().width : 0);
-      }
-      setOffsets(computeLeftOffsets(widths));
-    };
-
+    const measure = () => setWidth(cell.getBoundingClientRect().width);
     measure();
 
     const observer = new ResizeObserver(() => measure());
-    observer.observe(row);
-    const cells = Array.from(row.children) as HTMLTableCellElement[];
-    for (let i = 0; i < Math.min(STICKY_LEFT_COUNT, cells.length); i++) {
-      observer.observe(cells[i]);
-    }
-
+    observer.observe(cell);
     return () => observer.disconnect();
-  }, [firstRowRef]);
+  }, [clientCellRef]);
 
-  return offsets;
+  return width;
 }
 
-function stickyLeftCellStyle(
-  columnIndex: number,
-  leftOffsets: number[],
-  background: string
-): CSSProperties {
+function stickyClientCellStyle(background: string): CSSProperties {
+  return { position: "sticky", left: 0, background, zIndex: 10 };
+}
+
+function stickyCampaignCellStyle(clientWidth: number, background: string): CSSProperties {
   return {
     position: "sticky",
-    left: leftOffsets[columnIndex],
+    left: clientWidth,
     background,
     zIndex: 10,
-    ...(columnIndex === 7 ? { boxShadow: TARGETING_COLUMN_SHADOW } : {}),
+    boxShadow: STICKY_EDGE_SHADOW,
   };
 }
 
-function stickyHeaderCornerStyle(
-  columnIndex: number,
-  leftOffsets: number[]
-): CSSProperties {
+function stickyClientHeaderStyle(): CSSProperties {
+  return { position: "sticky", top: 0, left: 0, zIndex: 30 };
+}
+
+function stickyCampaignHeaderStyle(clientWidth: number): CSSProperties {
   return {
+    position: "sticky",
     top: 0,
-    left: leftOffsets[columnIndex],
+    left: clientWidth,
     zIndex: 30,
-    ...(columnIndex === 7 ? { boxShadow: TARGETING_COLUMN_SHADOW } : {}),
+    boxShadow: STICKY_EDGE_SHADOW,
   };
 }
 
@@ -383,8 +343,9 @@ export function LineItemPacingTable({
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [sortColumn, setSortColumn] = useState<PacingSortColumn | null>(null);
   const [sortDirection, setSortDirection] = useState<Exclude<SortDirection, null>>("asc");
-  const firstRowRef = useRef<HTMLTableRowElement>(null);
-  const leftOffsets = useStickyLeftOffsets(firstRowRef);
+  const [moreColumns, setMoreColumns] = useState(false);
+  const clientCellRef = useRef<HTMLTableCellElement>(null);
+  const clientWidth = useClientColumnWidth(clientCellRef);
 
   const sortedRows = useMemo(() => {
     if (!sortColumn) return rows;
@@ -430,318 +391,370 @@ export function LineItemPacingTable({
   }
 
   return (
-    <div className="rounded border">
-      <div className="relative max-h-[calc(100vh-220px)] overflow-auto">
-        <table className="w-full min-w-[1400px] text-xs" style={{ borderSpacing: 0 }}>
-          <thead>
-            <tr className="text-left">
-              <th
-                className="sticky bg-background p-2 text-left border-b"
-                style={stickyHeaderCornerStyle(0, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="Client"
-                column="clientName"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={stickyHeaderCornerStyle(1, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="Platform"
-                column="platform"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={stickyHeaderCornerStyle(2, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="Campaign / Ad Group"
-                column="campaignName"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 text-left border-b"
-                style={stickyHeaderCornerStyle(3, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="MBA"
-                column="mbaNumber"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={stickyHeaderCornerStyle(4, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="Line Item ID"
-                column="lineItemId"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={stickyHeaderCornerStyle(5, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="Status"
-                column="lineItemStatus"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={stickyHeaderCornerStyle(6, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="Targeting"
-                column="creativeTargeting"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 text-left border-b"
-                style={stickyHeaderCornerStyle(7, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="KPI Status"
-                column="kpiStatus"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky top-0 bg-background p-2 text-left border-b"
-                style={{ zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Line Start"
-                column="lineItemStartDate"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Line End"
-                column="lineItemEndDate"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Total Budget"
-                column="totalLineItemBudget"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Bursts"
-                column="totalBursts"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Current"
-                column="currentBurstIndex"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Burst Start"
-                column="burstStartDate"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Burst End"
-                column="burstEndDate"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Burst Days"
-                column="burstDays"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Days Left"
-                column="burstDaysRemaining"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Burst Budget"
-                column="burstBudget"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Spend (Burst)"
-                column="spendToDateCurrentBurst"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Spend Yesterday"
-                column="spendYesterday"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Per-Day Left"
-                column="spendPerDayRemaining"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Remaining (Burst)"
-                column="spendRemainingCurrentBurst"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Spend (Line)"
-                column="spendToDateLineTotal"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Remaining (Line)"
-                column="spendRemainingLineTotal"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Clicks"
-                column="clicks"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="CPC"
-                column="cpc"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="CTR"
-                column="ctr"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Impressions"
-                column="impressions"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Conversions"
-                column="conversions"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <th
-                className="sticky top-0 bg-background p-2 text-right border-b"
-                style={{ zIndex: 20 }}
-              >
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedRows.map((row, rowIndex) => (
-              <FragmentForLineItem
-                key={`${row.mbaNumber}-${row.lineItemId}-${row.xanoRowId}`}
-                row={row}
-                isExpanded={expandedLineItems.has(row.lineItemId)}
-                onToggle={() => toggleLineItem(row.lineItemId)}
-                expandedCampaigns={expandedCampaigns}
-                onToggleCampaign={toggleCampaign}
-                leftOffsets={leftOffsets}
-                firstRowRef={rowIndex === 0 ? firstRowRef : undefined}
-                isAdmin={isAdmin}
-                onRowKpiTargetsUpdated={onRowKpiTargetsUpdated}
-              />
-            ))}
-          </tbody>
-        </table>
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 px-2.5 text-xs"
+          onClick={() => setMoreColumns((v) => !v)}
+        >
+          {moreColumns ? "Fewer columns" : "More columns"}
+        </Button>
+      </div>
+      <div className="rounded border">
+        <div className="relative max-h-[calc(100vh-220px)] overflow-auto">
+          <table className="w-full min-w-[1400px] text-xs" style={{ borderSpacing: 0 }}>
+            <thead>
+              <tr className="text-left">
+                <th className="sticky top-0 z-20 bg-background p-2 text-left border-b" />
+                <SortablePacingTh
+                  label="Client"
+                  column="clientName"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
+                  style={stickyClientHeaderStyle()}
+                />
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Platform"
+                    column="platform"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky top-0 z-20 bg-background p-2 whitespace-nowrap text-left border-b"
+                  />
+                )}
+                <SortablePacingTh
+                  label="Campaign / Ad Group"
+                  column="campaignName"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  className="sticky bg-background p-2 text-left border-b"
+                  style={stickyCampaignHeaderStyle(clientWidth)}
+                />
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="MBA"
+                    column="mbaNumber"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky top-0 z-20 bg-background p-2 whitespace-nowrap text-left border-b"
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Line Item ID"
+                    column="lineItemId"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky top-0 z-20 bg-background p-2 whitespace-nowrap text-left border-b"
+                  />
+                )}
+                <SortablePacingTh
+                  label="Status"
+                  column="lineItemStatus"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  className="sticky top-0 z-20 bg-background p-2 whitespace-nowrap text-left border-b"
+                />
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Targeting"
+                    column="creativeTargeting"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky top-0 z-20 bg-background p-2 text-left border-b"
+                  />
+                )}
+                <SortablePacingTh
+                  label="KPI Status"
+                  column="kpiStatus"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  className="sticky top-0 bg-background p-2 text-left border-b"
+                  style={{ zIndex: 20 }}
+                />
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Line Start"
+                    column="lineItemStartDate"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Line End"
+                    column="lineItemEndDate"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                <SortablePacingTh
+                  label="Total Budget"
+                  column="totalLineItemBudget"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  align="right"
+                  className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
+                  style={{ top: 0, zIndex: 20 }}
+                />
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Bursts"
+                    column="totalBursts"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Current"
+                    column="currentBurstIndex"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Burst Start"
+                    column="burstStartDate"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Burst End"
+                    column="burstEndDate"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Burst Days"
+                    column="burstDays"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Days Left"
+                    column="burstDaysRemaining"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Burst Budget"
+                    column="burstBudget"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Spend (Burst)"
+                    column="spendToDateCurrentBurst"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Spend Yesterday"
+                    column="spendYesterday"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Per-Day Left"
+                    column="spendPerDayRemaining"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Remaining (Burst)"
+                    column="spendRemainingCurrentBurst"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                <SortablePacingTh
+                  label="Spend (Line)"
+                  column="spendToDateLineTotal"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  align="right"
+                  className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
+                  style={{ top: 0, zIndex: 20 }}
+                />
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Remaining (Line)"
+                    column="spendRemainingLineTotal"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Clicks"
+                    column="clicks"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="CPC"
+                    column="cpc"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="CTR"
+                    column="ctr"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Impressions"
+                    column="impressions"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {moreColumns && (
+                  <SortablePacingTh
+                    label="Conversions"
+                    column="conversions"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                <th
+                  className="sticky top-0 bg-background p-2 text-right border-b"
+                  style={{ zIndex: 20 }}
+                >
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedRows.map((row, rowIndex) => (
+                <FragmentForLineItem
+                  key={`${row.mbaNumber}-${row.lineItemId}-${row.xanoRowId}`}
+                  row={row}
+                  isExpanded={expandedLineItems.has(row.lineItemId)}
+                  onToggle={() => toggleLineItem(row.lineItemId)}
+                  expandedCampaigns={expandedCampaigns}
+                  onToggleCampaign={toggleCampaign}
+                  clientWidth={clientWidth}
+                  clientCellRef={rowIndex === 0 ? clientCellRef : undefined}
+                  isAdmin={isAdmin}
+                  onRowKpiTargetsUpdated={onRowKpiTargetsUpdated}
+                  moreColumns={moreColumns}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -753,20 +766,22 @@ function FragmentForLineItem({
   onToggle,
   expandedCampaigns,
   onToggleCampaign,
-  leftOffsets,
-  firstRowRef,
+  clientWidth,
+  clientCellRef,
   isAdmin,
   onRowKpiTargetsUpdated,
+  moreColumns,
 }: {
   row: SearchPacingCampaignRow;
   isExpanded: boolean;
   onToggle: () => void;
   expandedCampaigns: Set<string>;
   onToggleCampaign: (key: string) => void;
-  leftOffsets: number[];
-  firstRowRef?: RefObject<HTMLTableRowElement | null>;
+  clientWidth: number;
+  clientCellRef?: RefObject<HTMLTableCellElement | null>;
   isAdmin: boolean;
   onRowKpiTargetsUpdated: (lineItemId: string, targets: KpiTargets) => void;
+  moreColumns: boolean;
 }) {
   const hasChildren = row.platformCampaigns.length > 0;
   const clientSlug = slugifyClientName(row.clientName);
@@ -774,7 +789,6 @@ function FragmentForLineItem({
   return (
     <Fragment>
       <tr
-        ref={firstRowRef}
         className={`border-t ${hasChildren ? "cursor-pointer hover:bg-muted/20" : ""} ${row.currentBurst === null ? "opacity-75" : ""}`}
         style={{ background: LINE_ITEM_BG }}
         title={
@@ -784,7 +798,7 @@ function FragmentForLineItem({
         }
         onClick={hasChildren ? onToggle : undefined}
       >
-        <td className="p-2 border-b" style={stickyLeftCellStyle(0, leftOffsets, LINE_ITEM_BG)}>
+        <td className="p-2">
           {hasChildren ? (
             <ChevronRight
               className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
@@ -792,40 +806,31 @@ function FragmentForLineItem({
           ) : null}
         </td>
         <td
-          className="p-2 border-b font-medium"
-          style={stickyLeftCellStyle(1, leftOffsets, LINE_ITEM_BG)}
+          ref={clientCellRef}
+          className="p-2 font-medium"
+          style={stickyClientCellStyle(LINE_ITEM_BG)}
         >
           {row.clientName}
         </td>
-        <td className="p-2 border-b" style={stickyLeftCellStyle(2, leftOffsets, LINE_ITEM_BG)}>
-          {row.platform || XANO_MISSING}
-        </td>
-        <td className="p-2 border-b" style={stickyLeftCellStyle(3, leftOffsets, LINE_ITEM_BG)}>
+        {moreColumns && <td className="p-2">{row.platform || XANO_MISSING}</td>}
+        <td className="p-2" style={stickyCampaignCellStyle(clientWidth, LINE_ITEM_BG)}>
           {row.campaignName}
         </td>
-        <td
-          className="p-2 border-b font-mono text-[10px]"
-          style={stickyLeftCellStyle(4, leftOffsets, LINE_ITEM_BG)}
-        >
-          {row.mbaNumber}
-        </td>
-        <td
-          className="p-2 border-b font-mono text-[10px]"
-          style={stickyLeftCellStyle(5, leftOffsets, LINE_ITEM_BG)}
-        >
-          {row.lineItemId}
-        </td>
-        <td className="p-2 border-b" style={stickyLeftCellStyle(6, leftOffsets, LINE_ITEM_BG)}>
+        {moreColumns && (
+          <td className="p-2 font-mono text-[10px]">{row.mbaNumber}</td>
+        )}
+        {moreColumns && (
+          <td className="p-2 font-mono text-[10px]">{row.lineItemId}</td>
+        )}
+        <td className="p-2">
           <StatusCell status={row.lineItemStatus} />
         </td>
-        <td
-          className="p-2 border-b max-w-[8rem] truncate"
-          style={stickyLeftCellStyle(7, leftOffsets, LINE_ITEM_BG)}
-          title={row.creativeTargeting}
-        >
-          {row.creativeTargeting || XANO_MISSING}
-        </td>
-        <td className="p-2 border-b">
+        {moreColumns && (
+          <td className="p-2 max-w-[8rem] truncate" title={row.creativeTargeting}>
+            {row.creativeTargeting || XANO_MISSING}
+          </td>
+        )}
+        <td className="p-2">
           <div className="inline-flex items-center gap-1">
             <KpiStatusPill status={computeRowKpiStatus(row)} />
             <KpiDrilldownButton
@@ -835,46 +840,64 @@ function FragmentForLineItem({
             />
           </div>
         </td>
-        <td className="p-2 border-b">{fmtXanoDate(row.lineItemStartDate)}</td>
-        <td className="p-2 border-b">{fmtXanoDate(row.lineItemEndDate)}</td>
-        <td className="p-2 border-b text-right tabular-nums">
-          {fmtCurrencyOrZero(row.totalLineItemBudget)}
-        </td>
-        <td className="p-2 border-b text-right tabular-nums">{row.totalBursts}</td>
-        <td className="p-2 border-b text-right tabular-nums">
-          {row.currentBurstIndex !== null ? row.currentBurstIndex + 1 : XANO_MISSING}
-        </td>
-        <td className="p-2 border-b">{row.currentBurst?.startDate ?? XANO_MISSING}</td>
-        <td className="p-2 border-b">{row.currentBurst?.endDate ?? XANO_MISSING}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtXanoNumber(row.burstDays)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtXanoNumber(row.burstDaysRemaining)}</td>
-        <td className="p-2 border-b text-right tabular-nums">
-          {fmtCurrencyOrZero(row.currentBurst?.budget ?? null)}
-        </td>
-        <td className="p-2 border-b text-right tabular-nums">
-          {fmtCurrencyOrZero(row.spendToDateCurrentBurst)}
-        </td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtCurrencyOrZero(row.spendYesterday)}</td>
-        <td className="p-2 border-b text-right tabular-nums">
-          {fmtCurrencyOrZero(row.spendPerDayRemaining)}
-        </td>
-        <td className="p-2 border-b text-right tabular-nums">
-          {fmtCurrencyOrZero(row.spendRemainingCurrentBurst)}
-        </td>
-        <td className="p-2 border-b text-right tabular-nums">
-          {fmtCurrencyOrZero(row.spendToDateLineTotal)}
-        </td>
-        <td className="p-2 border-b text-right tabular-nums">
-          {fmtCurrencyOrZero(row.spendRemainingLineTotal)}
-        </td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(row.clicks)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtRatio(row.cpc)}</td>
-        <td className={`p-2 border-b text-right tabular-nums ${ctrCellTint(row.ctr, row.kpiTargets?.ctr ?? null)}`}>
-          {fmtPct(row.ctr)}
-        </td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(row.impressions)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(row.conversions)}</td>
-        <td className="p-2 text-right border-b whitespace-nowrap">
+        {moreColumns && <td className="p-2">{fmtXanoDate(row.lineItemStartDate)}</td>}
+        {moreColumns && <td className="p-2">{fmtXanoDate(row.lineItemEndDate)}</td>}
+        <td className="p-2 text-right num">{fmtCurrencyOrZero(row.totalLineItemBudget)}</td>
+        {moreColumns && <td className="p-2 text-right num">{row.totalBursts}</td>}
+        {moreColumns && (
+          <td className="p-2 text-right num">
+            {row.currentBurstIndex !== null ? row.currentBurstIndex + 1 : XANO_MISSING}
+          </td>
+        )}
+        {moreColumns && <td className="p-2">{row.currentBurst?.startDate ?? XANO_MISSING}</td>}
+        {moreColumns && <td className="p-2">{row.currentBurst?.endDate ?? XANO_MISSING}</td>}
+        {moreColumns && <td className="p-2 text-right num">{fmtXanoNumber(row.burstDays)}</td>}
+        {moreColumns && (
+          <td className="p-2 text-right num">{fmtXanoNumber(row.burstDaysRemaining)}</td>
+        )}
+        {moreColumns && (
+          <td className="p-2 text-right num">
+            {fmtCurrencyOrZero(row.currentBurst?.budget ?? null)}
+          </td>
+        )}
+        {moreColumns && (
+          <td className="p-2 text-right num">
+            {fmtCurrencyOrZero(row.spendToDateCurrentBurst)}
+          </td>
+        )}
+        {moreColumns && (
+          <td className="p-2 text-right num">{fmtCurrencyOrZero(row.spendYesterday)}</td>
+        )}
+        {moreColumns && (
+          <td className="p-2 text-right num">
+            {fmtCurrencyOrZero(row.spendPerDayRemaining)}
+          </td>
+        )}
+        {moreColumns && (
+          <td className="p-2 text-right num">
+            {fmtCurrencyOrZero(row.spendRemainingCurrentBurst)}
+          </td>
+        )}
+        <td className="p-2 text-right num">{fmtCurrencyOrZero(row.spendToDateLineTotal)}</td>
+        {moreColumns && (
+          <td className="p-2 text-right num">
+            {fmtCurrencyOrZero(row.spendRemainingLineTotal)}
+          </td>
+        )}
+        {moreColumns && <td className="p-2 text-right num">{fmtNumberOrZero(row.clicks)}</td>}
+        {moreColumns && <td className="p-2 text-right num">{fmtRatio(row.cpc)}</td>}
+        {moreColumns && (
+          <td className={`p-2 text-right num ${ctrCellTint(row.ctr, row.kpiTargets?.ctr ?? null)}`}>
+            {fmtPct(row.ctr)}
+          </td>
+        )}
+        {moreColumns && (
+          <td className="p-2 text-right num">{fmtNumberOrZero(row.impressions)}</td>
+        )}
+        {moreColumns && (
+          <td className="p-2 text-right num">{fmtNumberOrZero(row.conversions)}</td>
+        )}
+        <td className="p-2 text-right whitespace-nowrap">
           <div className="inline-flex items-center gap-1.5">
             <Button variant="outline" size="sm" className="h-7 px-2.5 text-xs" asChild>
               <Link
@@ -912,7 +935,8 @@ function FragmentForLineItem({
               campaign={pc}
               isExpanded={expandedCampaigns.has(key)}
               onToggle={() => onToggleCampaign(key)}
-              leftOffsets={leftOffsets}
+              clientWidth={clientWidth}
+              moreColumns={moreColumns}
             />
           );
         })}
@@ -925,13 +949,15 @@ function FragmentForCampaign({
   campaign,
   isExpanded,
   onToggle,
-  leftOffsets,
+  clientWidth,
+  moreColumns,
 }: {
   row: SearchPacingCampaignRow;
   campaign: PlatformCampaignBreakdown;
   isExpanded: boolean;
   onToggle: () => void;
-  leftOffsets: number[];
+  clientWidth: number;
+  moreColumns: boolean;
 }) {
   const hasAdGroups = campaign.adGroups.length > 0;
 
@@ -942,57 +968,60 @@ function FragmentForCampaign({
         style={{ background: PLATFORM_CAMPAIGN_BG }}
         onClick={hasAdGroups ? onToggle : undefined}
       >
-        <td
-          className="p-2 border-b pl-6"
-          style={stickyLeftCellStyle(0, leftOffsets, PLATFORM_CAMPAIGN_BG)}
-        >
+        <td className="p-2 pl-6">
           {hasAdGroups ? (
             <ChevronRight
               className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
             />
           ) : null}
         </td>
-        <td className="p-2 border-b" style={stickyLeftCellStyle(1, leftOffsets, PLATFORM_CAMPAIGN_BG)} />
-        <td className="p-2 border-b" style={stickyLeftCellStyle(2, leftOffsets, PLATFORM_CAMPAIGN_BG)} />
+        <td className="p-2" style={stickyClientCellStyle(PLATFORM_CAMPAIGN_BG)} />
+        {moreColumns && <td className="p-2" />}
         <td
-          className="p-2 border-b italic text-foreground/90"
-          style={stickyLeftCellStyle(3, leftOffsets, PLATFORM_CAMPAIGN_BG)}
+          className="p-2 italic text-foreground/90"
+          style={stickyCampaignCellStyle(clientWidth, PLATFORM_CAMPAIGN_BG)}
         >
           {campaign.campaignName || campaign.campaignId}
         </td>
-        <td className="p-2 border-b" style={stickyLeftCellStyle(4, leftOffsets, PLATFORM_CAMPAIGN_BG)} />
-        <td className="p-2 border-b" style={stickyLeftCellStyle(5, leftOffsets, PLATFORM_CAMPAIGN_BG)} />
-        <td className="p-2 border-b" style={stickyLeftCellStyle(6, leftOffsets, PLATFORM_CAMPAIGN_BG)} />
-        <td className="p-2 border-b" style={stickyLeftCellStyle(7, leftOffsets, PLATFORM_CAMPAIGN_BG)} />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b text-right tabular-nums">
-          {fmtCurrencyOrZero(campaign.spendToDateCurrentBurst)}
-        </td>
-        <td className="p-2 border-b text-right tabular-nums">
-          {fmtCurrencyOrZero(campaign.spendYesterday)}
-        </td>
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b text-right tabular-nums">
-          {fmtCurrencyOrZero(campaign.spendToDateLineTotal)}
-        </td>
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(campaign.clicks)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtRatio(campaign.cpc)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtPct(campaign.ctr)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(campaign.impressions)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(campaign.conversions)}</td>
-        <td className="p-2 border-b" />
+        {moreColumns && <td className="p-2" />}
+        {moreColumns && <td className="p-2" />}
+        <td className="p-2" />
+        {moreColumns && <td className="p-2" />}
+        <td className="p-2" />
+        {moreColumns && <td className="p-2" />}
+        {moreColumns && <td className="p-2" />}
+        <td className="p-2" />
+        {moreColumns && <td className="p-2" />}
+        {moreColumns && <td className="p-2" />}
+        {moreColumns && <td className="p-2" />}
+        {moreColumns && <td className="p-2" />}
+        {moreColumns && <td className="p-2" />}
+        {moreColumns && <td className="p-2" />}
+        {moreColumns && <td className="p-2" />}
+        {moreColumns && (
+          <td className="p-2 text-right num">
+            {fmtCurrencyOrZero(campaign.spendToDateCurrentBurst)}
+          </td>
+        )}
+        {moreColumns && (
+          <td className="p-2 text-right num">{fmtCurrencyOrZero(campaign.spendYesterday)}</td>
+        )}
+        {moreColumns && <td className="p-2" />}
+        {moreColumns && <td className="p-2" />}
+        <td className="p-2 text-right num">{fmtCurrencyOrZero(campaign.spendToDateLineTotal)}</td>
+        {moreColumns && <td className="p-2" />}
+        {moreColumns && (
+          <td className="p-2 text-right num">{fmtNumberOrZero(campaign.clicks)}</td>
+        )}
+        {moreColumns && <td className="p-2 text-right num">{fmtRatio(campaign.cpc)}</td>}
+        {moreColumns && <td className="p-2 text-right num">{fmtPct(campaign.ctr)}</td>}
+        {moreColumns && (
+          <td className="p-2 text-right num">{fmtNumberOrZero(campaign.impressions)}</td>
+        )}
+        {moreColumns && (
+          <td className="p-2 text-right num">{fmtNumberOrZero(campaign.conversions)}</td>
+        )}
+        <td className="p-2" />
       </tr>
 
       {isExpanded &&
@@ -1002,56 +1031,58 @@ function FragmentForCampaign({
             className="border-t"
             style={{ background: AD_GROUP_BG }}
           >
+            <td className="p-2 pl-10" />
+            <td className="p-2" style={stickyClientCellStyle(AD_GROUP_BG)} />
+            {moreColumns && <td className="p-2" />}
             <td
-              className="p-2 border-b pl-10"
-              style={stickyLeftCellStyle(0, leftOffsets, AD_GROUP_BG)}
-            />
-            <td className="p-2 border-b" style={stickyLeftCellStyle(1, leftOffsets, AD_GROUP_BG)} />
-            <td className="p-2 border-b" style={stickyLeftCellStyle(2, leftOffsets, AD_GROUP_BG)} />
-            <td
-              className="p-2 border-b pl-4 text-muted-foreground"
-              style={stickyLeftCellStyle(3, leftOffsets, AD_GROUP_BG)}
+              className="p-2 pl-4 text-muted-foreground"
+              style={stickyCampaignCellStyle(clientWidth, AD_GROUP_BG)}
             >
               {ag.lineItemName || ag.platformLineItemId}
             </td>
-            <td className="p-2 border-b" style={stickyLeftCellStyle(4, leftOffsets, AD_GROUP_BG)} />
-            <td
-              className="p-2 border-b font-mono text-[10px] text-muted-foreground"
-              style={stickyLeftCellStyle(5, leftOffsets, AD_GROUP_BG)}
-            >
-              {ag.platformLineItemId}
-            </td>
-            <td className="p-2 border-b" style={stickyLeftCellStyle(6, leftOffsets, AD_GROUP_BG)} />
-            <td className="p-2 border-b" style={stickyLeftCellStyle(7, leftOffsets, AD_GROUP_BG)} />
-            <td className="p-2 border-b" />
-            <td className="p-2 border-b" />
-            <td className="p-2 border-b" />
-            <td className="p-2 border-b" />
-            <td className="p-2 border-b" />
-            <td className="p-2 border-b" />
-            <td className="p-2 border-b" />
-            <td className="p-2 border-b" />
-            <td className="p-2 border-b" />
-            <td className="p-2 border-b" />
-            <td className="p-2 border-b" />
-            <td className="p-2 border-b text-right tabular-nums">
-              {fmtCurrencyOrZero(ag.spendToDateCurrentBurst)}
-            </td>
-            <td className="p-2 border-b text-right tabular-nums">
-              {fmtCurrencyOrZero(ag.spendYesterday)}
-            </td>
-            <td className="p-2 border-b" />
-            <td className="p-2 border-b" />
-            <td className="p-2 border-b text-right tabular-nums">
-              {fmtCurrencyOrZero(ag.spendToDateLineTotal)}
-            </td>
-            <td className="p-2 border-b" />
-            <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(ag.clicks)}</td>
-            <td className="p-2 border-b text-right tabular-nums">{fmtRatio(ag.cpc)}</td>
-            <td className="p-2 border-b text-right tabular-nums">{fmtPct(ag.ctr)}</td>
-            <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(ag.impressions)}</td>
-            <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(ag.conversions)}</td>
-            <td className="p-2 border-b" />
+            {moreColumns && <td className="p-2" />}
+            {moreColumns && (
+              <td className="p-2 font-mono text-[10px] text-muted-foreground">
+                {ag.platformLineItemId}
+              </td>
+            )}
+            <td className="p-2" />
+            {moreColumns && <td className="p-2" />}
+            <td className="p-2" />
+            {moreColumns && <td className="p-2" />}
+            {moreColumns && <td className="p-2" />}
+            <td className="p-2" />
+            {moreColumns && <td className="p-2" />}
+            {moreColumns && <td className="p-2" />}
+            {moreColumns && <td className="p-2" />}
+            {moreColumns && <td className="p-2" />}
+            {moreColumns && <td className="p-2" />}
+            {moreColumns && <td className="p-2" />}
+            {moreColumns && <td className="p-2" />}
+            {moreColumns && (
+              <td className="p-2 text-right num">
+                {fmtCurrencyOrZero(ag.spendToDateCurrentBurst)}
+              </td>
+            )}
+            {moreColumns && (
+              <td className="p-2 text-right num">{fmtCurrencyOrZero(ag.spendYesterday)}</td>
+            )}
+            {moreColumns && <td className="p-2" />}
+            {moreColumns && <td className="p-2" />}
+            <td className="p-2 text-right num">{fmtCurrencyOrZero(ag.spendToDateLineTotal)}</td>
+            {moreColumns && <td className="p-2" />}
+            {moreColumns && (
+              <td className="p-2 text-right num">{fmtNumberOrZero(ag.clicks)}</td>
+            )}
+            {moreColumns && <td className="p-2 text-right num">{fmtRatio(ag.cpc)}</td>}
+            {moreColumns && <td className="p-2 text-right num">{fmtPct(ag.ctr)}</td>}
+            {moreColumns && (
+              <td className="p-2 text-right num">{fmtNumberOrZero(ag.impressions)}</td>
+            )}
+            {moreColumns && (
+              <td className="p-2 text-right num">{fmtNumberOrZero(ag.conversions)}</td>
+            )}
+            <td className="p-2" />
           </tr>
         ))}
     </Fragment>
