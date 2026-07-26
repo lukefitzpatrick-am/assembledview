@@ -6,9 +6,11 @@
 import { describe, expect, it } from "vitest"
 
 import {
+  EMPTY_DELIVERED_TOTALS_WITH_AS_OF,
   combineDeliveredTotals,
   hasFixedCostMediaLineItems,
   hasFixedCostMediaTypeLabel,
+  hasReportedDeliveredSpend,
   sumDeliveredTotals,
 } from "../deliveredTotals"
 
@@ -88,6 +90,40 @@ describe("hasFixedCostMediaLineItems", () => {
     expect(hasFixedCostMediaLineItems({})).toBe(false)
     expect(hasFixedCostMediaLineItems(null)).toBe(false)
     expect(hasFixedCostMediaLineItems(undefined)).toBe(false)
+  })
+})
+
+describe("hasReportedDeliveredSpend", () => {
+  it("is true only for a positive, finite spend figure", () => {
+    expect(hasReportedDeliveredSpend(4_500)).toBe(true)
+    expect(hasReportedDeliveredSpend(0.01)).toBe(true)
+  })
+
+  it("is false for zero spend — even when impressions-only delivery set hasDelivery=true", () => {
+    // Regression for MINOR-1: combineDeliveredTotals({ spendToDate: 0, impressions: 1_200 }, 0)
+    // reports hasDelivery=true, but there is no real spend figure to render as a dollar amount.
+    expect(hasReportedDeliveredSpend(0)).toBe(false)
+  })
+
+  it("is false for missing/non-finite values without throwing", () => {
+    expect(hasReportedDeliveredSpend(null)).toBe(false)
+    expect(hasReportedDeliveredSpend(undefined)).toBe(false)
+    expect(hasReportedDeliveredSpend(Number.NaN)).toBe(false)
+    expect(hasReportedDeliveredSpend(Number.POSITIVE_INFINITY)).toBe(false)
+  })
+})
+
+describe("EMPTY_DELIVERED_TOTALS_WITH_AS_OF", () => {
+  it("is a settled 'no delivery yet' payload, never treated as delivered $0", () => {
+    // Regression for MAJOR-1: client fetchers must settle to this (not leave state `undefined`)
+    // on a non-OK response or fetch failure, so the "Delivered" tile's loading skeleton clears.
+    expect(EMPTY_DELIVERED_TOTALS_WITH_AS_OF).toEqual({
+      spendToDate: 0,
+      impressions: 0,
+      hasDelivery: false,
+      asOf: "",
+    })
+    expect(hasReportedDeliveredSpend(EMPTY_DELIVERED_TOTALS_WITH_AS_OF.spendToDate)).toBe(false)
   })
 })
 

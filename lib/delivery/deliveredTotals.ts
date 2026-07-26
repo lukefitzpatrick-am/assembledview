@@ -54,6 +54,31 @@ export function combineDeliveredTotals(
   return { spendToDate, impressions, hasDelivery }
 }
 
+/**
+ * Whether a delivered figure has a *real, reported* spend to show as a dollar amount —
+ * independent of `hasDelivery`, which is also `true` for impressions-only delivery (digital
+ * media that has started serving but not yet reported spend). Consumers displaying a delivered
+ * spend figure (not just the "has delivery" state) must gate on this, not `hasDelivery`, so an
+ * impressions-only campaign never renders a fabricated "$0 delivered" instead of "not yet
+ * reported".
+ */
+export function hasReportedDeliveredSpend(spendToDate: number | null | undefined): boolean {
+  return typeof spendToDate === "number" && Number.isFinite(spendToDate) && spendToDate > 0
+}
+
+/**
+ * Settled "no delivery yet" payload with an `asOf` field — used by client-side fetchers (e.g.
+ * `ClientDashboardPageContent`) to resolve a failed/non-OK delivered-totals fetch to a real,
+ * settled value instead of leaving state `undefined` forever (which would spin a loading
+ * skeleton indefinitely). Never treat this as "delivered $0" — `hasDelivery` is `false`.
+ */
+export const EMPTY_DELIVERED_TOTALS_WITH_AS_OF: DeliveredTotals & { asOf: string } = {
+  spendToDate: 0,
+  impressions: 0,
+  hasDelivery: false,
+  asOf: "",
+}
+
 /** Sums multiple already-combined `DeliveredTotals` (e.g. across campaigns for a client KPI). */
 export function sumDeliveredTotals(totals: DeliveredTotals[]): DeliveredTotals {
   const spendToDate = totals.reduce((sum, t) => sum + (Number.isFinite(t.spendToDate) ? t.spendToDate : 0), 0)

@@ -2,6 +2,7 @@ import "server-only"
 
 import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
+import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
 import { getAsOfDate } from "@/lib/pacing/maths"
 import { combineDeliveredTotals, hasFixedCostMediaLineItems, type DeliveredTotals } from "@/lib/delivery/deliveredTotals"
 
@@ -50,8 +51,8 @@ export async function getDeliveredTotalsForCampaign(
           asOfDate: getAsOfDate(),
           allowedClientSlugs: null,
           includeHistorical: false,
-        }).catch(() => [])
-      : Promise.resolve([]),
+        }).catch((): DirectCampaignGroup[] => [])
+      : Promise.resolve<DirectCampaignGroup[]>([]),
   ])
 
   const fixedCostGroup = directGroups.find((group) => group.mbaNumber.trim().toLowerCase() === mbaKey)

@@ -8,6 +8,7 @@ import {
   clampBudgetUtilizationPct,
   getBudgetUtilizationKpiTone,
 } from "@/lib/dashboard/budgetUtilKpi"
+import { hasReportedDeliveredSpend } from "@/lib/delivery/deliveredTotals"
 import { formatCurrencyCompact } from "@/lib/format/currency"
 import { cn } from "@/lib/utils"
 
@@ -110,7 +111,13 @@ export function HeroKPIBar({
   const ytdTarget = typeof campaignsYtd === "number" ? campaignsYtd : 0
   const animatedCampaignsYtd = useCountUp(ytdTarget, 1000)
   const animatedBudgetPct = useCountUp(normalizedBudgetUtilized, 1000)
-  const deliveredTarget = deliveredHasData && typeof deliveredToDate === "number" ? deliveredToDate : 0
+  /**
+   * Gated on the spend figure itself (not just `deliveredHasData`, which is also true for
+   * impressions-only delivery) so an impressions-only campaign never renders a fabricated "$0
+   * delivered" — see `hasReportedDeliveredSpend`.
+   */
+  const hasDeliveredSpend = deliveredHasData && hasReportedDeliveredSpend(deliveredToDate)
+  const deliveredTarget = hasDeliveredSpend && typeof deliveredToDate === "number" ? deliveredToDate : 0
   const animatedDelivered = useCountUp(deliveredTarget, 1000)
   const deliveredAsOfCaption = formatDeliveredAsOfCaption(deliveredAsOf)
 
@@ -135,7 +142,7 @@ export function HeroKPIBar({
             <div className="mt-2 h-8 w-24 animate-pulse rounded bg-muted/60" aria-hidden />
             <p className="mt-1 text-xs text-muted-foreground">Loading delivery data…</p>
           </>
-        ) : deliveredHasData ? (
+        ) : hasDeliveredSpend ? (
           <>
             <p className="mt-2 text-2xl font-semibold text-foreground">{formatCurrencyCompact(animatedDelivered)}</p>
             <p className="mt-1 text-xs text-muted-foreground">{deliveredAsOfCaption ?? "Delivered to date"}</p>

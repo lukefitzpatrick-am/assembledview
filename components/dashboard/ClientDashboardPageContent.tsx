@@ -16,6 +16,7 @@ import { ClientFinanceSlideOver } from "@/components/dashboard/modals/ClientFina
 import { ClientKpiSlideOver } from "@/components/dashboard/modals/ClientKpiSlideOver"
 import { CampaignCardSkeleton, ChartSkeleton } from "@/components/dashboard/skeletons"
 import { computePlannedSpendTotals } from "@/lib/dashboard/plannedSpendConsistency"
+import { EMPTY_DELIVERED_TOTALS_WITH_AS_OF } from "@/lib/delivery/deliveredTotals"
 import type { Campaign as LegacyCampaign, ClientDashboardData as LegacyClientDashboardData } from "@/lib/types/dashboard"
 
 export type CampaignLinkMode = "tenant" | "adminHub"
@@ -164,20 +165,22 @@ export function ClientDashboardPageContent({
   /**
    * "Delivered" KPI tile (Task 3) — fetched client-side from `/api/dashboard/[slug]/delivered`
    * so the (Snowflake-backed) read never blocks the SSR paint of the rest of the dashboard.
-   * `undefined` = still loading; a real fetch failure is swallowed to "no data" (never a
-   * fabricated $0) since the rest of the dashboard must not break if Snowflake is unavailable.
+   * `undefined` = still loading (`deliveredLoading` below). A non-OK response or fetch failure
+   * settles to `EMPTY_DELIVERED_TOTALS_WITH_AS_OF` (`hasDelivery: false`) — never a fabricated
+   * $0-as-delivered figure, but also never left `undefined` forever, or the tile would spin
+   * indefinitely whenever Snowflake is unavailable.
    */
   const [deliveredTotals, setDeliveredTotals] = useState<DeliveredTotalsResponse | undefined>(undefined)
   useEffect(() => {
     let cancelled = false
     setDeliveredTotals(undefined)
     fetch(`/api/dashboard/${encodeURIComponent(slug)}/delivered`)
-      .then((res) => (res.ok ? (res.json() as Promise<DeliveredTotalsResponse>) : null))
+      .then((res) => (res.ok ? (res.json() as Promise<DeliveredTotalsResponse>) : EMPTY_DELIVERED_TOTALS_WITH_AS_OF))
       .then((data) => {
-        if (!cancelled && data) setDeliveredTotals(data)
+        if (!cancelled) setDeliveredTotals(data)
       })
       .catch(() => {
-        // Swallow — "Delivered" tile just stays in its loading/empty state.
+        if (!cancelled) setDeliveredTotals(EMPTY_DELIVERED_TOTALS_WITH_AS_OF)
       })
     return () => {
       cancelled = true

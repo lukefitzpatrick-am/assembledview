@@ -12,6 +12,7 @@ import {
   resolveCampaignTotalPlannedSpend,
 } from "@/lib/spend/resolveCampaignExpectedSpend"
 import { ErrorState } from "@/components/ui/states"
+import { hasReportedDeliveredSpend } from "@/lib/delivery/deliveredTotals"
 import { getDeliveredTotalsForCampaign } from "@/lib/delivery/getDeliveredTotalsForCampaign"
 
 export const maxDuration = 60
@@ -686,7 +687,9 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       mpSearchEnabled,
       lineItemsMap,
     })
-    actualSpend = delivered.hasDelivery ? delivered.spendToDate : undefined
+    // Gated on the spend figure itself, not `hasDelivery` (also true for impressions-only
+    // delivery) — an impressions-only campaign must never show a fabricated "$0 delivered".
+    actualSpend = hasReportedDeliveredSpend(delivered.spendToDate) ? delivered.spendToDate : undefined
     deliveredImpressions = delivered.impressions
     hasDelivery = delivered.hasDelivery
     deliveredAsOf = delivered.asOf
