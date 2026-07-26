@@ -1,30 +1,27 @@
 import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
-import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import {
+  parseBillingMonthRangeParams,
   parseBillingTypesQueryParam,
   parseSingleBillingMonthParam,
   type FinanceApiErrorBody,
 } from "@/lib/finance/billingApiParams"
-import { derivePlanReceivableBillingRecordsForMonth, receivableMergeKey } from "@/lib/finance/deriveReceivableRecords"
-import { deriveRetainerBillingRecordsForMonth } from "@/lib/finance/deriveRetainerReceivables"
-import { deriveSowBillingRecordsFromScopes, type ScopeOfWorkRow } from "@/lib/finance/deriveScopeSowReceivables"
 import {
-  applyStatusOverlay,
+  composeBillingRecordsForMonth,
+  type HubQueryFilterParams,
+} from "@/lib/finance/composeFinanceHubRecords"
+import { type ScopeOfWorkRow } from "@/lib/finance/deriveScopeSowReceivables"
+import {
+  fetchAllPersistedFinanceStatusRows,
   fetchPersistedFinanceStatusForMonth,
-  indexPersistedStatusByInvoiceKey,
 } from "@/lib/finance/overlayFinanceStatus"
-import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
-import { getCachedClients, getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
-import type { BillingRecord } from "@/lib/types/financeBilling"
 import {
-  filterByBillingTypes,
-  filterByClients,
-  filterByPublisherIds,
-  filterBySearch,
-  filterByStatuses,
-} from "@/lib/finance/filterBillingRecords"
-import { financeClientNamesMatch } from "@/lib/finance/utils"
+  fetchRelevantPlanVersionsForFinanceMonth,
+  fetchRelevantPlanVersionsForFinanceMonths,
+} from "@/lib/finance/relevantPlanVersions"
+import { getCachedClients, getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
+import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
@@ -40,6 +37,13 @@ const XANO_BASE = process.env.XANO_CLIENTS_BASE_URL
  * schedules, and client `monthlyretainer` (synthetic retainer rows). This route does not read or
  * write Xano `finance_billing_records`; persisting edits
  * is intentionally out of scope for this rebuild.
+ *
+ * Two month shapes:
+ *  - `billing_month=YYYY-MM` (default current month): single-month response `{ records }`.
+ *  - `from=YYYY-MM&to=YYYY-MM`: multi-month response `{ records, failed_months? }` where shared
+ *    inputs (plan-version superset, clients, publishers, scopes, persisted status) are fetched
+ *    ONCE and each month is derived with the same per-month pipeline as the single-month path —
+ *    so the multi-month records are byte-identical to concatenated single-month responses.
  */
 
 function jsonError(body: FinanceApiErrorBody, status: number) {
@@ -68,39 +72,38 @@ function clientErrorFromUpstreamBody(data: unknown, upstreamStatus: number): Fin
   return { error: `Upstream request failed (${upstreamStatus})` }
 }
 
-function buildClientNameMap(clients: Record<string, unknown>[]): Map<string, Record<string, unknown>> {
-  const m = new Map<string, Record<string, unknown>>()
-  for (const c of clients) {
-    const name = String(c.clientname_input ?? c.mp_client_name ?? c.name ?? "").trim()
-    if (name) m.set(name, c)
-  }
-  return m
+function versionsFetchErrorResponse(e: unknown): NextResponse {
+  const ax = axios.isAxiosError(e)
+  const status =
+    ax && e.response?.status != null && e.response.status >= 400 && e.response.status <= 599
+      ? e.response.status
+      : 502
+  const base = ax && e.response?.data != null
+    ? clientErrorFromUpstreamBody(e.response.data, status)
+    : { error: "Failed to load media plan versions" }
+  return NextResponse.json({ ...base, field: "billing_month" }, { status })
 }
 
-function buildClientMbaIdentifierMap(
-  clients: Record<string, unknown>[]
-): Array<{ mbaidentifier: string; id: number; name: string }> {
-  const out: Array<{ mbaidentifier: string; id: number; name: string }> = []
-  for (const c of clients) {
-    const mbaid = String(c.mbaidentifier ?? c.mba_identifier ?? c.mbaIdentifier ?? "").trim()
-    const id = Number(c.id)
-    const name = String(c.mp_client_name ?? c.clientname_input ?? c.name ?? "").trim()
-    if (mbaid && Number.isFinite(id) && id > 0) {
-      out.push({ mbaidentifier: mbaid, id, name })
-    }
+async function fetchScopesOrNull(): Promise<ScopeOfWorkRow[] | null> {
+  try {
+    const scopesResponse = await axios.get(xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL"), { headers: xanoAuthHeaderRecord(), timeout: 15_000, })
+    return Array.isArray(scopesResponse.data) ? scopesResponse.data : []
+  } catch (e: unknown) {
+    console.error("[finance-api] billing scope fetch failed", {
+      message: e instanceof Error ? e.message : String(e),
+    })
+    return null
   }
-  out.sort((a, b) => b.mbaidentifier.length - a.mbaidentifier.length)
-  return out
 }
 
-function buildPublisherIdMap(publishers: Record<string, unknown>[]): Map<number, string> {
-  const m = new Map<number, string>()
-  for (const p of publishers) {
-    const id = Number(p.id)
-    const name = String(p.publisher_name ?? "").trim()
-    if (Number.isFinite(id) && name) m.set(id, name)
+function hubFilterParams(incoming: URLSearchParams, types: BillingType[]): HubQueryFilterParams {
+  return {
+    types,
+    clientsIdParam: incoming.get("clients_id"),
+    searchParam: incoming.get("search"),
+    statusParam: incoming.get("status"),
+    publishersIdParam: incoming.get("publishers_id"),
   }
-  return m
 }
 
 export async function GET(request: NextRequest) {
@@ -123,6 +126,12 @@ export async function GET(request: NextRequest) {
       return jsonError(parsedTypes as FinanceApiErrorBody, 400)
     }
 
+    const fromRaw = incoming.get("from")
+    const toRaw = incoming.get("to")
+    if (fromRaw != null || toRaw != null) {
+      return await handleMultiMonth(incoming, parsedTypes.types, fromRaw, toRaw)
+    }
+
     const monthParsed = parseSingleBillingMonthParam(incoming.get("billing_month"), { defaultWhenMissing: true })
     if (!("ok" in monthParsed && monthParsed.ok)) {
       return jsonError(monthParsed as FinanceApiErrorBody, 400)
@@ -130,11 +139,7 @@ export async function GET(request: NextRequest) {
     const monthStr = monthParsed.month
 
     const includeNonBooked = incoming.get("include_drafts") !== "0"
-    const wantMedia = parsedTypes.types.length === 0 || parsedTypes.types.includes("media")
     const wantSow = parsedTypes.types.length === 0 || parsedTypes.types.includes("sow")
-    const wantRetainer = parsedTypes.types.length === 0 || parsedTypes.types.includes("retainer")
-    const year = Number(monthStr.slice(0, 4))
-    const month = Number(monthStr.slice(5, 7))
 
     let relevantVersions: Record<string, unknown>[] = []
     try {
@@ -148,97 +153,24 @@ export async function GET(request: NextRequest) {
       // Hydration removed because it caused Vercel FUNCTION_INVOCATION_TIMEOUT by fanning out across 19 Xano line-item endpoints per version.
       relevantVersions = versionsResult.relevantVersions as Record<string, unknown>[]
     } catch (e: unknown) {
-      const ax = axios.isAxiosError(e)
-      const status =
-        ax && e.response?.status != null && e.response.status >= 400 && e.response.status <= 599
-          ? e.response.status
-          : 502
-      const base = ax && e.response?.data != null
-        ? clientErrorFromUpstreamBody(e.response.data, status)
-        : { error: "Failed to load media plan versions" }
-      return NextResponse.json({ ...base, field: "billing_month" }, { status })
+      return versionsFetchErrorResponse(e)
     }
 
     const [clients, publishers] = await Promise.all([getCachedClients(), getCachedPublishers()])
-    const clientMap = buildClientNameMap(clients as Record<string, unknown>[])
-    const mbaIdentifiers = buildClientMbaIdentifierMap(clients as Record<string, unknown>[])
-    const publisherNameMap = new Map<string, unknown>()
-    for (const p of publishers as Record<string, unknown>[]) {
-      const name = String(p.publisher_name ?? "").trim()
-      if (name) publisherNameMap.set(name, p)
-    }
-    const publisherIdMap = buildPublisherIdMap(publishers as Record<string, unknown>[])
-
-    const derived: BillingRecord[] = []
-
-    if (wantMedia) {
-      const fromPlans = derivePlanReceivableBillingRecordsForMonth(
-        relevantVersions,
-        year,
-        month,
-        publisherNameMap,
-        clientMap,
-        mbaIdentifiers,
-        { includeNonBookedCampaigns: includeNonBooked }
-      )
-      derived.push(...fromPlans)
-    }
-
-    if (wantSow) {
-      try {
-        const scopesResponse = await axios.get(xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL"), { headers: xanoAuthHeaderRecord(), timeout: 15_000, })
-        const scopes: ScopeOfWorkRow[] = Array.isArray(scopesResponse.data) ? scopesResponse.data : []
-
-        const resolveClientId = (clientName: string): number => {
-          const rec = clientMap.get(clientName)
-          if (rec?.id != null) return Number(rec.id) || 0
-          for (const [name, row] of clientMap.entries()) {
-            if (financeClientNamesMatch(clientName, name) && row.id != null) {
-              return Number(row.id) || 0
-            }
-          }
-          return 0
-        }
-
-        const fromScopes = deriveSowBillingRecordsFromScopes(scopes, year, month, resolveClientId, {
-          includeNonApprovedScopes: includeNonBooked,
-        })
-        derived.push(...fromScopes)
-      } catch (e: unknown) {
-        console.error("[finance-api] billing scope fetch failed", {
-          message: e instanceof Error ? e.message : String(e),
-        })
-      }
-    }
-
-    if (wantRetainer) {
-      derived.push(
-        ...deriveRetainerBillingRecordsForMonth(clients as Record<string, unknown>[], year, month)
-      )
-    }
-
-    const byReceivableKey = new Map<string, BillingRecord>()
-    for (const rec of derived) {
-      const k = receivableMergeKey(rec)
-      if (!byReceivableKey.has(k)) byReceivableKey.set(k, rec)
-    }
-    let merged = [...byReceivableKey.values()].filter((r) => r.billing_month === monthStr)
+    const scopes = wantSow ? await fetchScopesOrNull() : null
     // Domain 5 Stage 2.2a — overlay persisted status onto derived rows.
-    // Read-only: amounts and line structure remain authoritative from schedule JSON.
     const persistedStatusRows = await fetchPersistedFinanceStatusForMonth(monthStr)
-    const statusOverlayMap = indexPersistedStatusByInvoiceKey(persistedStatusRows)
-    merged = merged.map((rec) => applyStatusOverlay(rec, statusOverlayMap))
 
-    const clientsIdParam = incoming.get("clients_id")
-    const searchParam = incoming.get("search")
-    const statusParam = incoming.get("status")
-    const publishersIdParam = incoming.get("publishers_id")
-
-    merged = filterByClients(merged, clientsIdParam)
-    merged = filterBySearch(merged, searchParam)
-    merged = filterByStatuses(merged, statusParam)
-    merged = filterByPublisherIds(merged, publishersIdParam, publisherIdMap)
-    merged = filterByBillingTypes(merged, parsedTypes.types)
+    const merged = composeBillingRecordsForMonth({
+      monthStr,
+      relevantVersions,
+      clients: clients as Record<string, unknown>[],
+      publishers: publishers as Record<string, unknown>[],
+      scopes,
+      persistedStatusRows,
+      includeNonBooked,
+      ...hubFilterParams(incoming, parsedTypes.types),
+    })
 
     return NextResponse.json({ records: merged })
   } catch (error: unknown) {
@@ -253,4 +185,73 @@ export async function GET(request: NextRequest) {
     })
     return NextResponse.json({ error: "Failed to fetch billing records" }, { status: 500 })
   }
+}
+
+/**
+ * Multi-month path: shared inputs fetched once, months derived in a loop with the
+ * exact single-month pipeline. A month whose derivation throws is reported in
+ * `failed_months` instead of failing the whole range — one bad plan must not blank
+ * a full-FY hub load.
+ */
+async function handleMultiMonth(
+  incoming: URLSearchParams,
+  types: BillingType[],
+  fromRaw: string | null,
+  toRaw: string | null
+): Promise<NextResponse> {
+  const rangeParsed = parseBillingMonthRangeParams(fromRaw, toRaw)
+  if (!("ok" in rangeParsed && rangeParsed.ok)) {
+    return jsonError(rangeParsed as FinanceApiErrorBody, 400)
+  }
+  const months = rangeParsed.months
+
+  const includeNonBooked = incoming.get("include_drafts") !== "0"
+  const wantSow = types.length === 0 || types.includes("sow")
+
+  let versionsByMonth: Map<string, { relevantVersions: unknown[] }>
+  try {
+    const result = await fetchRelevantPlanVersionsForFinanceMonths(months)
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error, field: "billing_month" }, { status: result.status })
+    }
+    versionsByMonth = result
+  } catch (e: unknown) {
+    return versionsFetchErrorResponse(e)
+  }
+
+  const [clients, publishers] = await Promise.all([getCachedClients(), getCachedPublishers()])
+  const scopes = wantSow ? await fetchScopesOrNull() : null
+  const persistedStatusRows = await fetchAllPersistedFinanceStatusRows()
+
+  const filterParams = hubFilterParams(incoming, types)
+  const records: BillingRecord[] = []
+  const failedMonths: Array<{ month: string; error: string }> = []
+
+  for (const monthStr of months) {
+    try {
+      const relevantVersions =
+        (versionsByMonth.get(monthStr)?.relevantVersions as Record<string, unknown>[] | undefined) ?? []
+      records.push(
+        ...composeBillingRecordsForMonth({
+          monthStr,
+          relevantVersions,
+          clients: clients as Record<string, unknown>[],
+          publishers: publishers as Record<string, unknown>[],
+          scopes,
+          persistedStatusRows,
+          includeNonBooked,
+          ...filterParams,
+        })
+      )
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e)
+      console.error("[finance-api] billing multi-month derive failed", { month: monthStr, message })
+      failedMonths.push({ month: monthStr, error: message })
+    }
+  }
+
+  return NextResponse.json({
+    records,
+    ...(failedMonths.length > 0 ? { failed_months: failedMonths } : {}),
+  })
 }

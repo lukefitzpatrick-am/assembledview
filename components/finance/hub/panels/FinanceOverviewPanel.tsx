@@ -15,13 +15,15 @@ import { differenceInCalendarDays, parseISO } from "date-fns"
 import { PAGE_HERO_PADDING, PageHeroShell, PageHeroTitleBlock } from "@/components/dashboard/PageHeroShell"
 import {
   BaseChartCard,
+  HorizontalBarChart,
   StackedBarChart,
   TreemapChart,
 } from "@/components/charts/system"
 import { reshapeSpendTreemap } from "@/components/dashboard/dashboardChartReshape"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
-import { ErrorState, LoadingState } from "@/components/ui/states"
+import { Skeleton } from "@/components/ui/skeleton"
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import type {
   BillingRecord,
   BillingStatus,
@@ -38,6 +40,16 @@ import {
   fetchFinanceEditsList,
   fetchFinancePayablesForMonths,
 } from "@/lib/finance/api"
+import {
+  formatCurrentMonthKpiLabel,
+  monthRangeCoversFyToDate,
+  resolveAsyncKpiState,
+  resolveNetAccrualKpiState,
+  resolveOverviewSpendChartMode,
+  type AsyncKpiState,
+  type NetAccrualKpiState,
+  type OverviewSpendChartMode,
+} from "@/lib/finance/financeOverviewDisplay"
 import { formatMoney } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { useFinanceStore, type FinanceHubTab } from "@/lib/finance/useFinanceStore"
@@ -48,6 +60,7 @@ import {
   australianFyStartYearForDate,
   billingMonthsInAustralianFinancialYear,
   fyDisplayLabel,
+  fyMonthRange,
   referenceDateForFyStartYear,
 } from "@/lib/finance/months"
 import { sumPayableRecordsAgencyExpected } from "@/lib/finance/aggregatePayablesPublisherGroups"
@@ -145,13 +158,21 @@ type GlobalMonthlyPublisherRow = { month: string; data: Array<{ publisher: strin
 type FinanceOverviewContextValue = {
   navigateWith: (tab: FinanceHubTab, patch?: Partial<FinanceFilters>) => void
   onAttentionClick: (item: AttentionItem) => void
+  showFullFy: () => void
   loading: boolean
   chartsLoading: boolean
+  chartsError: string | null
   loadError: string | null
   fyStart: number
   currentMonth: string
+  currentMonthLabel: string
   hubRangeLabel: string
   kpiTileClass: string
+  currentMonthKpiState: AsyncKpiState
+  scheduleFytdKpiState: AsyncKpiState
+  netAccrualKpiState: NetAccrualKpiState
+  spendChartMode: OverviewSpendChartMode
+  rangeCoversFyToDate: boolean
   kpiReceivablesThisMonth: number
   kpiReceivablesFytd: number
   kpiPayablesThisMonth: number
@@ -196,12 +217,17 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
   const [monthlyClientSpend, setMonthlyClientSpend] = useState<GlobalMonthlyClientRow[]>([])
   const [clientProfileColors, setClientProfileColors] = useState<Record<string, string>>({})
   const [chartsLoading, setChartsLoading] = useState(true)
+  const [chartsError, setChartsError] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [currentMonthLoading, setCurrentMonthLoading] = useState(true)
   const [scheduleFytd, setScheduleFytd] = useState({ billingYtd: 0, deliveryYtd: 0 })
+  const [scheduleFytdLoading, setScheduleFytdLoading] = useState(true)
+  const [scheduleFytdError, setScheduleFytdError] = useState<string | null>(null)
   const [currentMonthBillingRecords, setCurrentMonthBillingRecords] = useState<BillingRecord[]>([])
   const [currentMonthPayablesRecords, setCurrentMonthPayablesRecords] = useState<BillingRecord[]>([])
 
   const currentMonth = format(new Date(), "yyyy-MM")
+  const currentMonthLabel = formatCurrentMonthKpiLabel(currentMonth)
   const fyStart = filters.financialYear
   const currentFyStart = useMemo(() => australianFyStartYearForDate(new Date()), [])
   const fyMonthSet = useMemo(
@@ -222,9 +248,13 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false
     void (async () => {
+      setScheduleFytdLoading(true)
+      setScheduleFytdError(null)
       try {
         const res = await fetch(`/api/finance/hub-schedule-ytd?fy=${fyStart}`, { cache: "no-store" })
-        if (!res.ok) return
+        if (!res.ok) {
+          throw new Error(`Schedule FYTD unavailable (${res.status})`)
+        }
         const body = (await res.json()) as {
           billingScheduleYtd?: number
           deliveryScheduleYtd?: number
@@ -234,8 +264,13 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
           billingYtd: Math.round(Number(body.billingScheduleYtd ?? 0) * 100) / 100,
           deliveryYtd: Math.round(Number(body.deliveryScheduleYtd ?? 0) * 100) / 100,
         })
-      } catch {
-        if (!cancelled) setScheduleFytd({ billingYtd: 0, deliveryYtd: 0 })
+      } catch (e) {
+        if (!cancelled) {
+          setScheduleFytd({ billingYtd: 0, deliveryYtd: 0 })
+          setScheduleFytdError(e instanceof Error ? e.message : "Failed to load schedule FYTD")
+        }
+      } finally {
+        if (!cancelled) setScheduleFytdLoading(false)
       }
     })()
     return () => {
@@ -247,6 +282,7 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     const ac = new AbortController()
     setLoadError(null)
+    setCurrentMonthLoading(true)
     void (async () => {
       try {
         const months = [currentMonth]
@@ -269,6 +305,8 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
           setCurrentMonthBillingRecords([])
           setCurrentMonthPayablesRecords([])
         }
+      } finally {
+        if (!cancelled) setCurrentMonthLoading(false)
       }
     })()
     return () => {
@@ -311,11 +349,17 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     void (async () => {
       setChartsLoading(true)
+      setChartsError(null)
       try {
         const [monthlyPubResp, monthlyClientResp] = await Promise.all([
           fetch("/api/dashboard/global-monthly-publisher-spend"),
           fetch("/api/dashboard/global-monthly-client-spend"),
         ])
+        if (!monthlyPubResp.ok && !monthlyClientResp.ok) {
+          throw new Error(
+            `Dashboard monthly spend unavailable (${monthlyPubResp.status}/${monthlyClientResp.status})`
+          )
+        }
         const monthlyPub = monthlyPubResp.ok ? await monthlyPubResp.json() : []
         const monthlyClient = monthlyClientResp.ok ? await monthlyClientResp.json() : null
 
@@ -335,11 +379,17 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
             ? (monthlyClient.clientColors as Record<string, string>)
             : {}
         setClientProfileColors(colours)
-      } catch {
+        if (!monthlyPubResp.ok || !monthlyClientResp.ok) {
+          setChartsError(
+            "One or more dashboard_monthly_* spend feeds returned non-OK; showing whatever loaded."
+          )
+        }
+      } catch (e) {
         if (!cancelled) {
           setMonthlyPublisherSpend([])
           setMonthlyClientSpend([])
           setClientProfileColors({})
+          setChartsError(e instanceof Error ? e.message : "Failed to load spend charts")
         }
       } finally {
         if (!cancelled) setChartsLoading(false)
@@ -554,7 +604,39 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
     [navigateWith]
   )
 
+  const showFullFy = useCallback(() => {
+    setFilters({ monthRange: fyMonthRange(fyStart) })
+  }, [fyStart, setFilters])
+
   const loading = billingLoading || payablesLoading
+
+  const rangeCoversFy = useMemo(
+    () => monthRangeCoversFyToDate(filters.monthRange, fyMonthsToDate),
+    [filters.monthRange, fyMonthsToDate]
+  )
+
+  const currentMonthKpiState = resolveAsyncKpiState({
+    loading: currentMonthLoading,
+    error: loadError,
+  })
+  const scheduleFytdKpiState = resolveAsyncKpiState({
+    loading: scheduleFytdLoading,
+    error: scheduleFytdError,
+  })
+  const netAccrualKpiState = resolveNetAccrualKpiState({
+    storeLoading: loading,
+    rangeCoversFyToDate: rangeCoversFy,
+  })
+
+  const treemapHasData = clientSpendData.length > 0 || publisherSpendData.length > 0
+  const fyBillingBarHasData = fyClientBillingRows.length > 0
+  const spendChartMode = resolveOverviewSpendChartMode({
+    chartsLoading,
+    storeLoading: loading,
+    treemapHasData,
+    fyBillingBarHasData,
+    rangeCoversFyToDate: rangeCoversFy,
+  })
 
   const kpiTileClass =
     "group flex w-full flex-col rounded-card border border-border bg-card p-4 text-left shadow-e1 transition hover:bg-table-row-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -571,13 +653,21 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
     (): FinanceOverviewContextValue => ({
       navigateWith,
       onAttentionClick,
+      showFullFy,
       loading,
       chartsLoading,
+      chartsError,
       loadError,
       fyStart,
       currentMonth,
+      currentMonthLabel,
       hubRangeLabel,
       kpiTileClass,
+      currentMonthKpiState,
+      scheduleFytdKpiState,
+      netAccrualKpiState,
+      spendChartMode,
+      rangeCoversFyToDate: rangeCoversFy,
       kpiReceivablesThisMonth,
       kpiReceivablesFytd,
       kpiPayablesThisMonth,
@@ -596,13 +686,21 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
     [
       navigateWith,
       onAttentionClick,
+      showFullFy,
       loading,
       chartsLoading,
+      chartsError,
       loadError,
       fyStart,
       currentMonth,
+      currentMonthLabel,
       hubRangeLabel,
       kpiTileClass,
+      currentMonthKpiState,
+      scheduleFytdKpiState,
+      netAccrualKpiState,
+      spendChartMode,
+      rangeCoversFy,
       kpiReceivablesThisMonth,
       kpiReceivablesFytd,
       kpiPayablesThisMonth,
@@ -688,13 +786,61 @@ export function FinanceOverviewProvider({ children }: { children: ReactNode }) {
   )
 }
 
+function OverviewKpiValue({
+  state,
+  value,
+  deferredAction,
+  signed,
+}: {
+  state: AsyncKpiState | NetAccrualKpiState
+  value: number
+  deferredAction?: ReactNode
+  signed?: boolean
+}) {
+  if (state === "loading") {
+    return <Skeleton className="mt-2 h-8 w-28" aria-label="Loading" />
+  }
+  if (state === "error") {
+    return (
+      <span className="mt-2 text-sm font-medium text-destructive" role="status">
+        Unavailable
+      </span>
+    )
+  }
+  if (state === "deferred") {
+    return (
+      <div className="mt-2 space-y-2">
+        <span className="num block text-2xl font-bold text-muted-foreground">—</span>
+        {deferredAction}
+      </div>
+    )
+  }
+  return (
+    <span
+      className={cn(
+        "num mt-2 text-2xl font-bold text-foreground",
+        signed && value > 0 && "text-status-ahead-fg",
+        signed && value < 0 && "text-destructive"
+      )}
+    >
+      {signed && value > 0 ? "+" : ""}
+      {formatMoney(value)}
+    </span>
+  )
+}
+
 export function FinanceOverviewHero() {
   const {
     navigateWith,
+    showFullFy,
     fyStart,
     currentMonth,
+    currentMonthLabel,
     hubRangeLabel,
     kpiTileClass,
+    currentMonthKpiState,
+    scheduleFytdKpiState,
+    netAccrualKpiState,
     kpiReceivablesThisMonth,
     kpiReceivablesFytd,
     kpiPayablesThisMonth,
@@ -702,6 +848,14 @@ export function FinanceOverviewHero() {
     kpiNetAccrualFytd,
     fytdMonthRange,
   } = useFinanceOverview()
+
+  // The KPI tile is itself a <button>; the deferred affordance must not nest another
+  // button. The tile's onClick runs showFullFy in the deferred state.
+  const showFullFyAffordance = (
+    <span className="inline-flex h-7 items-center rounded-input border border-border bg-surface-panel px-2 text-xs font-medium text-foreground shadow-e0 group-hover:bg-table-row-hover">
+      Show full FY
+    </span>
+  )
 
   return (
     <div className="mb-2">
@@ -757,15 +911,13 @@ export function FinanceOverviewHero() {
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Client Billing (this month)
+                      Client Billing (current month · {currentMonthLabel})
                     </span>
                     <Wallet className="h-4 w-4 shrink-0 text-muted-foreground opacity-70 group-hover:opacity-100" />
                   </span>
-                  <span className="num mt-2 text-2xl font-bold text-foreground">
-                    {formatMoney(kpiReceivablesThisMonth)}
-                  </span>
+                  <OverviewKpiValue state={currentMonthKpiState} value={kpiReceivablesThisMonth} />
                   <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                    {currentMonth} · booked+
+                    Calendar month · booked+
                     <ArrowRight className="h-3 w-3" />
                   </span>
                 </button>
@@ -787,11 +939,9 @@ export function FinanceOverviewHero() {
                     </span>
                     <CalendarRange className="h-4 w-4 shrink-0 text-muted-foreground opacity-70 group-hover:opacity-100" />
                   </span>
-                  <span className="num mt-2 text-2xl font-bold text-foreground">
-                    {formatMoney(kpiReceivablesFytd)}
-                  </span>
+                  <OverviewKpiValue state={scheduleFytdKpiState} value={kpiReceivablesFytd} />
                   <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                    Billing schedule · FY{fyDisplayLabel(fyStart)} · through {currentMonth}
+                    Billing schedule · FY{fyDisplayLabel(fyStart)} · through {currentMonthLabel}
                     <ArrowRight className="h-3 w-3" />
                   </span>
                 </button>
@@ -809,13 +959,11 @@ export function FinanceOverviewHero() {
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Publisher Invoices (this month)
+                      Publisher Invoices (current month · {currentMonthLabel})
                     </span>
                     <BarChart3 className="h-4 w-4 shrink-0 text-muted-foreground opacity-70 group-hover:opacity-100" />
                   </span>
-                  <span className="num mt-2 text-2xl font-bold text-foreground">
-                    {formatMoney(kpiPayablesThisMonth)}
-                  </span>
+                  <OverviewKpiValue state={currentMonthKpiState} value={kpiPayablesThisMonth} />
                   <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
                     Line-item sum · expected / invoiced / paid
                     <ArrowRight className="h-3 w-3" />
@@ -839,11 +987,9 @@ export function FinanceOverviewHero() {
                     </span>
                     <CalendarRange className="h-4 w-4 shrink-0 text-muted-foreground opacity-70 group-hover:opacity-100" />
                   </span>
-                  <span className="num mt-2 text-2xl font-bold text-foreground">
-                    {formatMoney(kpiPayablesFytd)}
-                  </span>
+                  <OverviewKpiValue state={scheduleFytdKpiState} value={kpiPayablesFytd} />
                   <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                    Delivery schedule · FY{fyDisplayLabel(fyStart)} · through {currentMonth}
+                    Delivery schedule · FY{fyDisplayLabel(fyStart)} · through {currentMonthLabel}
                     <ArrowRight className="h-3 w-3" />
                   </span>
                 </button>
@@ -851,11 +997,15 @@ export function FinanceOverviewHero() {
                 <button
                   type="button"
                   className={kpiTileClass}
-                  onClick={() =>
+                  onClick={() => {
+                    if (netAccrualKpiState === "deferred") {
+                      showFullFy()
+                      return
+                    }
                     navigateWith("accrual", {
                       monthRange: { from: fytdMonthRange.from, to: fytdMonthRange.to },
                     })
-                  }
+                  }}
                 >
                   <span className="flex items-center justify-between gap-2">
                     <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -863,18 +1013,16 @@ export function FinanceOverviewHero() {
                     </span>
                     <Scale className="h-4 w-4 shrink-0 text-muted-foreground opacity-70 group-hover:opacity-100" />
                   </span>
-                  <span
-                    className={cn(
-                      "num mt-2 text-2xl font-bold",
-                      kpiNetAccrualFytd > 0 && "text-status-ahead-fg",
-                      kpiNetAccrualFytd < 0 && "text-destructive"
-                    )}
-                  >
-                    {kpiNetAccrualFytd > 0 ? "+" : ""}
-                    {formatMoney(kpiNetAccrualFytd)}
-                  </span>
+                  <OverviewKpiValue
+                    state={netAccrualKpiState}
+                    value={kpiNetAccrualFytd}
+                    signed
+                    deferredAction={showFullFyAffordance}
+                  />
                   <span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
-                    FY to date · {fytdMonthRange.from} → {fytdMonthRange.to}
+                    {netAccrualKpiState === "deferred"
+                      ? "Needs full FY month range in the hub"
+                      : `FY to date · ${fytdMonthRange.from} → ${fytdMonthRange.to}`}
                     <ArrowRight className="h-3 w-3" />
                   </span>
                 </button>
@@ -889,10 +1037,13 @@ export function FinanceOverviewHero() {
 
 export default function FinanceOverviewPanel() {
   const {
-    chartsLoading,
-    loadError,
+    chartsError,
+    spendChartMode,
+    showFullFy,
+    fyStart,
     publisherSpendData,
     clientSpendData,
+    fyClientBillingRows,
     dashboardClientTreemapColors,
     dashboardMonthlyClientSeriesColors,
     monthlyClientSpend,
@@ -980,6 +1131,19 @@ export default function FinanceOverviewPanel() {
     [clientSpendData, dashboardClientTreemapColors],
   )
 
+  const fyClientBillingBarRows = useMemo(
+    () =>
+      fyClientBillingRows.slice(0, 20).map((r) => ({
+        client: r.clientName,
+        total: Math.round(r.total),
+      })),
+    [fyClientBillingRows],
+  )
+
+  const showMonthlyStacks =
+    spendChartMode === "treemap" &&
+    (monthlyClientStackedSeriesColored.length > 0 || monthlyPublisherStackedSeries.length > 0)
+
   return (
     <div className="space-y-10">
       <div className="space-y-3">
@@ -988,69 +1152,129 @@ export default function FinanceOverviewPanel() {
             Performance insights
           </h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Same breakdowns as the admin dashboard — media cost from schedules, current financial year.
+            Schedule spend from the admin dashboard feeds when available; otherwise FY client billing
+            from finance records.
           </p>
         </div>
-        {chartsLoading ? (
+        {spendChartMode === "loading" ? (
           <LoadingState rows={4} />
-        ) : loadError ? (
-          <ErrorState title="Could not load finance overview" message={loadError} />
+        ) : chartsError && spendChartMode === "empty" ? (
+          <ErrorState title="Could not load finance overview charts" message={chartsError} />
+        ) : spendChartMode === "deferred" ? (
+          <EmptyState
+            title="FY client billing needs a full year range"
+            message={`Spend treemaps from dashboard_monthly_* are empty, and hub month range does not yet cover FY${fyDisplayLabel(fyStart)}. Expand to the full financial year to load the client-billing bar from finance records.`}
+            action={
+              <Button type="button" size="sm" onClick={showFullFy}>
+                Show full FY
+              </Button>
+            }
+          />
+        ) : spendChartMode === "empty" ? (
+          <EmptyState
+            title="Spend charts unavailable"
+            message="The upstream dashboard_monthly_client_spend / dashboard_monthly_publisher_spend feed returned empty or non-OK (soft-fail in the API). Finance records for this FY also have no client-billing totals to chart. Follow-up: confirm whether the Xano dashboard_monthly_* tables are unpopulated or the endpoints are broken — these treemaps will not recover until that feed is fixed."
+          />
+        ) : spendChartMode === "fallback-bar" ? (
+          <div className="flex flex-col gap-4">
+            <div className="rounded-card border border-border bg-card px-4 py-3 text-sm text-muted-foreground shadow-e1">
+              Schedule spend treemaps are empty because{" "}
+              <span className="font-medium text-foreground">dashboard_monthly_*</span> returned
+              empty/non-OK. Showing FY client billing from finance records instead. Follow-up: fix
+              the Xano dashboard aggregate so treemaps can return.
+            </div>
+            <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
+              <BaseChartCard
+                title="Client billing by client (FY)"
+                subtitle={`Finance records · FY${fyDisplayLabel(fyStart)} · booked / approved / invoiced / paid`}
+                className={cn("rounded-card border-0 shadow-none", chartCardQuiet)}
+              >
+                <HorizontalBarChart
+                  data={fyClientBillingBarRows}
+                  xKey="client"
+                  series={[{ key: "total", label: "Billing", color: "var(--av-chart-1)" }]}
+                  valueFormat="dollars"
+                  className="min-h-[320px] w-full"
+                />
+              </BaseChartCard>
+            </div>
+          </div>
         ) : (
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
-                <BaseChartCard
-                  title="Spend via Publisher"
-                  subtitle="Media cost only - Current financial year"
-                  className={cn("rounded-card border-0 shadow-none", chartCardQuiet)}
-                >
-                  <TreemapChart
-                    data={publisherTreemapData}
-                    valueFormat="dollars"
-                    className="min-h-[280px] w-full"
+                {publisherSpendData.length === 0 ? (
+                  <EmptyState
+                    className="min-h-[280px] border-0 bg-transparent"
+                    title="No publisher spend"
+                    message="dashboard_monthly_publisher_spend had no positive amounts for the current FY."
                   />
-                </BaseChartCard>
+                ) : (
+                  <BaseChartCard
+                    title="Spend via Publisher"
+                    subtitle="Media cost only - Current financial year"
+                    className={cn("rounded-card border-0 shadow-none", chartCardQuiet)}
+                  >
+                    <TreemapChart
+                      data={publisherTreemapData}
+                      valueFormat="dollars"
+                      className="min-h-[280px] w-full"
+                    />
+                  </BaseChartCard>
+                )}
               </div>
               <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
-                <BaseChartCard
-                  title="Spend via Client"
-                  subtitle="Media cost only - Current financial year"
-                  className={cn("rounded-card border-0 shadow-none", chartCardQuiet)}
-                >
-                  <TreemapChart
-                    data={clientTreemapData}
-                    valueFormat="dollars"
-                    className="min-h-[280px] w-full"
+                {clientSpendData.length === 0 ? (
+                  <EmptyState
+                    className="min-h-[280px] border-0 bg-transparent"
+                    title="No client spend"
+                    message="dashboard_monthly_client_spend had no positive amounts for the current FY."
                   />
-                </BaseChartCard>
+                ) : (
+                  <BaseChartCard
+                    title="Spend via Client"
+                    subtitle="Media cost only - Current financial year"
+                    className={cn("rounded-card border-0 shadow-none", chartCardQuiet)}
+                  >
+                    <TreemapChart
+                      data={clientTreemapData}
+                      valueFormat="dollars"
+                      className="min-h-[280px] w-full"
+                    />
+                  </BaseChartCard>
+                )}
               </div>
             </div>
-            <BaseChartCard
-              title="Monthly Spend by Client"
-              subtitle="Media cost by client per month (current FY, billing schedule)"
-              className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
-            >
-              <StackedBarChart
-                data={monthlyClientStackedRows}
-                xKey="month"
-                series={monthlyClientStackedSeriesColored}
-                valueFormat="dollars"
-                className="min-h-[300px] w-full"
-              />
-            </BaseChartCard>
-            <BaseChartCard
-              title="Monthly Spend by Publisher"
-              subtitle="Media cost by publisher per month (current FY, billing schedule)"
-              className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
-            >
-              <StackedBarChart
-                data={monthlyPublisherStackedRows}
-                xKey="month"
-                series={monthlyPublisherStackedSeries}
-                valueFormat="dollars"
-                className="min-h-[300px] w-full"
-              />
-            </BaseChartCard>
+            {showMonthlyStacks ? (
+              <>
+                <BaseChartCard
+                  title="Monthly Spend by Client"
+                  subtitle="Media cost by client per month (current FY, billing schedule)"
+                  className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
+                >
+                  <StackedBarChart
+                    data={monthlyClientStackedRows}
+                    xKey="month"
+                    series={monthlyClientStackedSeriesColored}
+                    valueFormat="dollars"
+                    className="min-h-[300px] w-full"
+                  />
+                </BaseChartCard>
+                <BaseChartCard
+                  title="Monthly Spend by Publisher"
+                  subtitle="Media cost by publisher per month (current FY, billing schedule)"
+                  className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
+                >
+                  <StackedBarChart
+                    data={monthlyPublisherStackedRows}
+                    xKey="month"
+                    series={monthlyPublisherStackedSeries}
+                    valueFormat="dollars"
+                    className="min-h-[300px] w-full"
+                  />
+                </BaseChartCard>
+              </>
+            ) : null}
           </div>
         )}
       </div>

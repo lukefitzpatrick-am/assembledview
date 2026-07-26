@@ -75,20 +75,42 @@ export async function fetchPersistedFinanceStatusForMonth(
   billingMonth: string
 ): Promise<PersistedFinanceStatusRow[]> {
   if (!billingMonth) return []
+  const rows = await fetchAllPersistedFinanceStatusRows(billingMonth)
+  return filterPersistedStatusRowsForMonth(rows, billingMonth)
+}
+
+/**
+ * Fetch ALL finance_billing_records rows (the upstream request is unfiltered
+ * anyway). The multi-month billing path fetches once and month-filters with
+ * {@link filterPersistedStatusRowsForMonth} per month — identical to what N
+ * single-month calls would have produced. Errors resolve to [] so the read
+ * overlay never breaks the page.
+ */
+export async function fetchAllPersistedFinanceStatusRows(
+  logContextMonth?: string
+): Promise<PersistedFinanceStatusRow[]> {
   try {
     const url = xanoUrl("finance_billing_records", "XANO_CLIENTS_BASE_URL")
     const response = await axios.get(url, { headers: xanoAuthHeaderRecord() })
     const data = response.data
     const rows: PersistedFinanceStatusRow[] = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
-    return rows.filter((r) => r.billing_month === billingMonth)
+    return rows
   } catch (error) {
     console.error("[finance-overlay] failed to fetch persisted status", {
-      billingMonth,
+      billingMonth: logContextMonth ?? null,
       message: error instanceof Error ? error.message : String(error),
     })
     // Read overlay must not break the page. Empty array → derived rows render with defaults.
     return []
   }
+}
+
+/** Month scoping shared by the single-month and multi-month overlay paths. */
+export function filterPersistedStatusRowsForMonth(
+  rows: PersistedFinanceStatusRow[],
+  billingMonth: string
+): PersistedFinanceStatusRow[] {
+  return rows.filter((r) => r.billing_month === billingMonth)
 }
 
 /**

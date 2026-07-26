@@ -1,9 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { KpiTargets, SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
 import { LineItemPacingTable } from "@/components/pacing-search";
 import { Skeleton } from "@/components/ui/skeleton";
+import { applyPacingRowFilters } from "@/lib/pacing/filters/applyPacingRowFilters";
+import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore";
+import {
+  pacingFiltersActive,
+  usePacingClientIdToNameMap,
+} from "@/lib/pacing/usePacingClientIdToNameMap";
+import {
+  PacingFilterCount,
+  PacingFilterEmptyState,
+} from "@/components/pacing/PacingFilterResultMeta";
 
 type ApiShape = { asOfDate: string; rows: SearchPacingCampaignRow[] };
 
@@ -16,11 +26,15 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const filters = usePacingFilterStore((s) => s.filters);
+  const clientIdToName = usePacingClientIdToNameMap();
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetch("/api/pacing/campaigns", { credentials: "include" })
+    const qs = new URLSearchParams({ asOfDate: filters.as_of_date });
+    fetch(`/api/pacing/campaigns?${qs}`, { credentials: "include" })
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         const json = (await r.json()) as ApiShape;
@@ -35,7 +49,7 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [filters.as_of_date]);
 
   const handleRowKpiTargetsUpdated = useCallback(
     (lineItemId: string, targets: KpiTargets) => {
@@ -51,6 +65,33 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
     },
     [],
   );
+
+  const displayed = useMemo(() => {
+    if (!data) return [];
+    return applyPacingRowFilters(
+      data.rows,
+      {
+        client_ids: filters.client_ids,
+        media_types: filters.media_types,
+        statuses: filters.statuses,
+        search: filters.search,
+      },
+      {
+        clientName: (row) => row.clientName,
+        mediaType: () => "search",
+        status: (row) => row.lineItemStatus,
+        searchText: (row) =>
+          [
+            row.clientName,
+            row.campaignName,
+            row.lineItemId,
+            row.mbaNumber,
+            row.creativeTargeting,
+          ].join(" "),
+      },
+      clientIdToName,
+    );
+  }, [data, filters.client_ids, filters.media_types, filters.statuses, filters.search, clientIdToName]);
 
   if (loading) {
     return (
@@ -84,14 +125,24 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
   if (error) return <div className="p-6 text-sm text-destructive">Failed to load: {error}</div>;
   if (!data) return null;
 
+  const total = data.rows.length;
+  const filtersOn = pacingFiltersActive(filters);
+
   return (
     <div className="space-y-4 p-4">
-      <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
-      <LineItemPacingTable
-        rows={data.rows}
-        isAdmin={isAdmin}
-        onRowKpiTargetsUpdated={handleRowKpiTargetsUpdated}
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
+        {filtersOn ? <PacingFilterCount shown={displayed.length} total={total} /> : null}
+      </div>
+      {filtersOn && displayed.length === 0 ? (
+        <PacingFilterEmptyState />
+      ) : (
+        <LineItemPacingTable
+          rows={displayed}
+          isAdmin={isAdmin}
+          onRowKpiTargetsUpdated={handleRowKpiTargetsUpdated}
+        />
+      )}
     </div>
   );
 }

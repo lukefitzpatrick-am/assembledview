@@ -1,29 +1,19 @@
 "use client"
 
 import { createContext, useContext, useRef, type ReactNode } from "react"
-import { endOfMonth, format, startOfMonth } from "date-fns"
 import { createStore, useStore } from "zustand"
+import { getAsOfDate } from "@/lib/pacing/maths"
 import type { PacingFiltersSnapshot } from "@/lib/pacing/pacingFilters"
 
 export type PacingFilterState = PacingFiltersSnapshot
 
-function defaultMonthRange(): Pick<PacingFilterState, "date_from" | "date_to"> {
-  const now = new Date()
-  return {
-    date_from: format(startOfMonth(now), "yyyy-MM-dd"),
-    date_to: format(endOfMonth(now), "yyyy-MM-dd"),
-  }
-}
-
 /** Empty `client_ids` means “all clients in scope” (omit `clients_id` on API; tenant → assigned set). */
 export function createDefaultPacingFilters(): PacingFilterState {
-  const month = defaultMonthRange()
   return {
     client_ids: [],
     media_types: [],
     statuses: [],
-    date_from: month.date_from,
-    date_to: month.date_to,
+    as_of_date: getAsOfDate(),
     search: "",
   }
 }

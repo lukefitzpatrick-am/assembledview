@@ -158,6 +158,7 @@ export function ReceivablesPageClient({ embedded = false, onHubBridge }: Receiva
   const filters = useFinanceStore((s) => s.filters)
   const {
     loading,
+    isStale,
     visibleMonthGroups,
     filterSig,
     loadedSignature,
@@ -171,6 +172,11 @@ export function ReceivablesPageClient({ embedded = false, onHubBridge }: Receiva
   const { toast } = useToast()
 
   const synced = loadedSignature === filterSig
+  const isUpdating = isStale || (loading && visibleMonthGroups.length > 0)
+  const showLoadEmpty =
+    loadedSignature === null && !loading && visibleMonthGroups.length === 0
+  const showNoReceivables =
+    synced && !loading && !isStale && visibleMonthGroups.length === 0
 
   useEffect(() => {
     onHubBridge?.({
@@ -258,8 +264,6 @@ export function ReceivablesPageClient({ embedded = false, onHubBridge }: Receiva
     [updateReceivableLineAmount]
   )
 
-  const awaitingExplicitLoad = !synced
-
   const allRecords = useMemo(
     () => collectBillingRecordsFromMonthGroups(visibleMonthGroups),
     [visibleMonthGroups]
@@ -292,79 +296,110 @@ export function ReceivablesPageClient({ embedded = false, onHubBridge }: Receiva
 
   const body = (
     <>
-      {synced && !loading ? (
-        <ReceivablesSummaryStrip
-          className={embedded ? undefined : "mt-4"}
-          totalToBill={kpi.totalToBill}
-          billed={kpi.billed}
-          outstanding={kpi.outstanding}
-        />
-      ) : null}
-
-      <div className={embedded ? "relative mt-4" : "relative mt-4"}>
-        {loading && visibleMonthGroups.length === 0 ? (
+      {loading && visibleMonthGroups.length === 0 ? (
+        <div className={embedded ? "relative mt-4" : "relative mt-4"}>
           <LoadingState rows={5} />
-        ) : loadError && !loading ? (
+        </div>
+      ) : loadError && !loading ? (
+        <div className={embedded ? "relative mt-4" : "relative mt-4"}>
           <ErrorState title="Could not load receivables" message={loadError} onRetry={bumpReceivablesFetch} />
-        ) : !loading && awaitingExplicitLoad ? (
+        </div>
+      ) : showLoadEmpty ? (
+        <div className={embedded ? "relative mt-4" : "relative mt-4"}>
           <EmptyState
             title="Load receivables"
             message="Use Load or Refresh to fetch receivables for the selected filters."
           />
-        ) : !loading && visibleMonthGroups.length === 0 ? (
-          <EmptyState
-            title="No receivables"
-            message="No receivables for the current filters and billing months in view."
+        </div>
+      ) : showNoReceivables ? (
+        <>
+          <ReceivablesSummaryStrip
+            className={embedded ? undefined : "mt-4"}
+            totalToBill={kpi.totalToBill}
+            billed={kpi.billed}
+            outstanding={kpi.outstanding}
           />
-        ) : (
-          <div className="space-y-6 pt-1">
-            {unbilledInvoiceCount === 0 && billedInvoiceCount > 0 ? (
-              <p className="text-sm text-muted-foreground">All invoices billed for this period.</p>
-            ) : null}
-
-            <ReceivablesMonthSections
-              groups={unbilledGroups}
-              refetch={bumpReceivablesFetch}
-              onToggleBilled={handleToggleBilled}
-              onNotesSaved={handleNotesSaved}
-              onLineAmountCommitted={handleLineAmountCommitted}
+          <div className={embedded ? "relative mt-4" : "relative mt-4"}>
+            <EmptyState
+              title="No receivables"
+              message="No receivables for the current filters and billing months in view."
             />
-
-            {billedInvoiceCount > 0 ? (
-              <Collapsible defaultOpen={false} className="group/billed">
-                <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-card border border-border bg-surface-panel px-4 py-3 text-left hover:bg-table-row-hover">
-                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/billed:rotate-180" />
-                  <span className="text-sm font-medium">
-                    Billed this month · {billedInvoiceCount} {billedInvoiceCount === 1 ? "invoice" : "invoices"} ·{" "}
-                    {formatAUD(billedTotal)}
-                  </span>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-4">
-                  <ReceivablesMonthSections
-                    groups={billedGroups}
-                    refetch={bumpReceivablesFetch}
-                    onToggleBilled={handleToggleBilled}
-                    onNotesSaved={handleNotesSaved}
-                    onLineAmountCommitted={handleLineAmountCommitted}
-                  />
-                </CollapsibleContent>
-              </Collapsible>
-            ) : (
-              <Collapsible defaultOpen={false} className="group/billed">
-                <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-card border border-border bg-surface-panel px-4 py-3 text-left hover:bg-table-row-hover">
-                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]/billed:-rotate-90" />
-                  <span className="text-sm font-medium text-muted-foreground">
-                    Billed this month · 0 invoices · {formatAUD(0)}
-                  </span>
-                </CollapsibleTrigger>
-                <CollapsibleContent className="mt-4">
-                  <p className="text-sm text-muted-foreground">No billed invoices for this period.</p>
-                </CollapsibleContent>
-              </Collapsible>
-            )}
           </div>
-        )}
-      </div>
+        </>
+      ) : (
+        <div
+          className={
+            isUpdating
+              ? "relative opacity-60 pointer-events-none"
+              : undefined
+          }
+          aria-busy={isUpdating || undefined}
+        >
+          {visibleMonthGroups.length > 0 || (synced && !loading) ? (
+            <ReceivablesSummaryStrip
+              className={embedded ? undefined : "mt-4"}
+              totalToBill={kpi.totalToBill}
+              billed={kpi.billed}
+              outstanding={kpi.outstanding}
+            />
+          ) : null}
+
+          <div className={embedded ? "relative mt-4" : "relative mt-4"}>
+            <div className="space-y-6 pt-1">
+              {isUpdating ? (
+                <p className="text-xs font-medium text-muted-foreground" aria-live="polite">
+                  Updating…
+                </p>
+              ) : null}
+
+              {unbilledInvoiceCount === 0 && billedInvoiceCount > 0 ? (
+                <p className="text-sm text-muted-foreground">All invoices billed for this period.</p>
+              ) : null}
+
+              <ReceivablesMonthSections
+                groups={unbilledGroups}
+                refetch={bumpReceivablesFetch}
+                onToggleBilled={handleToggleBilled}
+                onNotesSaved={handleNotesSaved}
+                onLineAmountCommitted={handleLineAmountCommitted}
+              />
+
+              {billedInvoiceCount > 0 ? (
+                <Collapsible defaultOpen={false} className="group/billed">
+                  <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-card border border-border bg-surface-panel px-4 py-3 text-left hover:bg-table-row-hover">
+                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/billed:rotate-180" />
+                    <span className="text-sm font-medium">
+                      Billed this month · {billedInvoiceCount} {billedInvoiceCount === 1 ? "invoice" : "invoices"} ·{" "}
+                      {formatAUD(billedTotal)}
+                    </span>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-4">
+                    <ReceivablesMonthSections
+                      groups={billedGroups}
+                      refetch={bumpReceivablesFetch}
+                      onToggleBilled={handleToggleBilled}
+                      onNotesSaved={handleNotesSaved}
+                      onLineAmountCommitted={handleLineAmountCommitted}
+                    />
+                  </CollapsibleContent>
+                </Collapsible>
+              ) : (
+                <Collapsible defaultOpen={false} className="group/billed">
+                  <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-card border border-border bg-surface-panel px-4 py-3 text-left hover:bg-table-row-hover">
+                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]/billed:-rotate-90" />
+                    <span className="text-sm font-medium text-muted-foreground">
+                      Billed this month · 0 invoices · {formatAUD(0)}
+                    </span>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-4">
+                    <p className="text-sm text-muted-foreground">No billed invoices for this period.</p>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 

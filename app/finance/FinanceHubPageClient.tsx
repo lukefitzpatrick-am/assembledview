@@ -141,7 +141,9 @@ export default function FinanceHubPageClient() {
   const pathname = usePathname()
   const lastWrittenQs = useRef<string>("")
   const initialSearchParamsRef = useRef<URLSearchParams | null>(null)
+  /** Ref: URL sync runs once. State: gate fetch until after that sync commits. */
   const didInitFromUrl = useRef(false)
+  const [urlFiltersReady, setUrlFiltersReady] = useState(false)
   const activeTab = useFinanceStore((s) => s.activeTab)
   const filters = useFinanceStore((s) => s.filters)
   const monthFromKey = filters.monthRange.from
@@ -205,7 +207,74 @@ export default function FinanceHubPageClient() {
     })
   }, [])
 
+  // URL → store must run before the first scheduleFinanceFetchAll so cold loads
+  // do not fetch once with defaults and again with deep-link filters.
   useEffect(() => {
+    if (!didInitFromUrl.current) {
+      didInitFromUrl.current = true
+      if (initialSearchParamsRef.current === null) {
+        initialSearchParamsRef.current = new URLSearchParams(window.location.search)
+      }
+      const sp = initialSearchParamsRef.current
+
+      const { activeTab: curTab, filters: cur, setActiveTab: applyTab, setFilters: applyFilters } =
+        useFinanceStore.getState()
+
+      const tabParam = parseFinanceHubTabParam(sp.get("tab"))
+      if (tabParam !== curTab) applyTab(tabParam)
+
+      const partial: Partial<FinanceFilters> = {}
+      const fyRaw = sp.get("fy")
+      if (fyRaw) {
+        const fy = Number.parseInt(fyRaw, 10)
+        if (Number.isFinite(fy) && fy >= 2000 && fy <= 2100 && fy !== cur.financialYear) {
+          partial.financialYear = fy
+          // Deep-link FY also scopes the month toolbar to that FY unless from/to override.
+          if (!sp.get("from")) {
+            partial.monthRange = fyMonthRange(fy)
+          }
+        }
+      }
+      const from = sp.get("from")
+      const to = sp.get("to")
+      if (from) {
+        const nextTo = to || from
+        if (cur.monthRange.from !== from || cur.monthRange.to !== nextTo) {
+          partial.monthRange = { from, to: nextTo }
+        }
+      }
+      const nextClients = sp.has("clients") ? (sp.get("clients") || "").split(",").filter(Boolean) : []
+      if (nextClients.join(",") !== cur.selectedClients.join(",")) partial.selectedClients = nextClients
+
+      const nextPublishers = sp.has("publishers")
+        ? (sp.get("publishers") || "")
+            .split(",")
+            .map(Number)
+            .filter((n) => Number.isFinite(n))
+        : []
+      if (nextPublishers.join(",") !== cur.selectedPublishers.join(",")) {
+        partial.selectedPublishers = nextPublishers
+      }
+
+      const nextQ = sp.get("q") || ""
+      if (nextQ !== cur.searchQuery) partial.searchQuery = nextQ
+
+      // Only sync drafts from URL when present — missing param keeps store default (excludes drafts).
+      if (sp.has("drafts")) {
+        const nextIncludeDrafts = sp.get("drafts") !== "0"
+        if (nextIncludeDrafts !== cur.includeDrafts) partial.includeDrafts = nextIncludeDrafts
+      }
+      if (Object.keys(partial).length) applyFilters(partial)
+    }
+    // Always arm after URL sync (or Strict remount where the ref already ran).
+    // Next commit's fetch effect sees resolved filters, not store defaults.
+    setUrlFiltersReady(true)
+  }, [])
+
+  useEffect(() => {
+    // Gate until URL-init has committed. Prevents a default-filter fetch racing a
+    // follow-up fetch after deep-link filters land.
+    if (!urlFiltersReady) return
     logFinanceHubEffectDepChanges(
       "scheduleFinanceFetchAll",
       [
@@ -243,6 +312,7 @@ export default function FinanceHubPageClient() {
     }
     void scheduleFinanceFetchAll()
   }, [
+    urlFiltersReady,
     filters.monthRange.from,
     filters.monthRange.to,
     filters.includeDrafts,
@@ -253,64 +323,6 @@ export default function FinanceHubPageClient() {
     filters.searchQuery,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- hubFetchClientsKey, hubFetchPublishersKey, hubFetchBillingTypesKey, and hubFetchStatusesKey are stable string equivalents of filters.selectedClients, filters.selectedPublishers, filters.billingTypes, and filters.statuses
   ])
-
-  useEffect(() => {
-    if (didInitFromUrl.current) return
-    didInitFromUrl.current = true
-    if (initialSearchParamsRef.current === null) {
-      initialSearchParamsRef.current = new URLSearchParams(window.location.search)
-    }
-    const sp = initialSearchParamsRef.current
-
-    const { activeTab: curTab, filters: cur, setActiveTab: applyTab, setFilters: applyFilters } =
-      useFinanceStore.getState()
-
-    const tabParam = parseFinanceHubTabParam(sp.get("tab"))
-    if (tabParam !== curTab) applyTab(tabParam)
-
-    const partial: Partial<FinanceFilters> = {}
-    const fyRaw = sp.get("fy")
-    if (fyRaw) {
-      const fy = Number.parseInt(fyRaw, 10)
-      if (Number.isFinite(fy) && fy >= 2000 && fy <= 2100 && fy !== cur.financialYear) {
-        partial.financialYear = fy
-        // Deep-link FY also scopes the month toolbar to that FY unless from/to override.
-        if (!sp.get("from")) {
-          partial.monthRange = fyMonthRange(fy)
-        }
-      }
-    }
-    const from = sp.get("from")
-    const to = sp.get("to")
-    if (from) {
-      const nextTo = to || from
-      if (cur.monthRange.from !== from || cur.monthRange.to !== nextTo) {
-        partial.monthRange = { from, to: nextTo }
-      }
-    }
-    const nextClients = sp.has("clients") ? (sp.get("clients") || "").split(",").filter(Boolean) : []
-    if (nextClients.join(",") !== cur.selectedClients.join(",")) partial.selectedClients = nextClients
-
-    const nextPublishers = sp.has("publishers")
-      ? (sp.get("publishers") || "")
-          .split(",")
-          .map(Number)
-          .filter((n) => Number.isFinite(n))
-      : []
-    if (nextPublishers.join(",") !== cur.selectedPublishers.join(",")) {
-      partial.selectedPublishers = nextPublishers
-    }
-
-    const nextQ = sp.get("q") || ""
-    if (nextQ !== cur.searchQuery) partial.searchQuery = nextQ
-
-    // Only sync drafts from URL when present â€” missing param keeps store default (excludes drafts).
-    if (sp.has("drafts")) {
-      const nextIncludeDrafts = sp.get("drafts") !== "0"
-      if (nextIncludeDrafts !== cur.includeDrafts) partial.includeDrafts = nextIncludeDrafts
-    }
-    if (Object.keys(partial).length) applyFilters(partial)
-  }, [])
 
   useEffect(() => {
     const params = buildSearchParams(activeTab, useFinanceStore.getState().filters)

@@ -73,6 +73,8 @@ export type MonthGroup = {
 
 export type HubReceivablesHubState = {
   loading: boolean
+  /** True when filters changed after a prior successful load; previous rows may still be shown. */
+  isStale: boolean
   visibleMonthGroups: MonthGroup[]
   filterSig: string
   loadedSignature: string | null
@@ -131,13 +133,15 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
   )
   const statusesKey = useMemo(() => [...filters.statuses].sort().join(","), [filters.statuses])
 
+  // After a successful load, filter changes keep last-visible rows and auto-refetch.
+  // Cold landing (loadedSignature === null, fetchKey === 0) is unchanged — no auto-fetch.
   useEffect(() => {
     if (loadedSignature === null || filterSig === loadedSignature) return
-    setRecords([])
-    setLoadedSignature(null)
-    setFetchKey(0)
     setLoadError(null)
+    setFetchKey((k) => k + 1)
   }, [filterSig, loadedSignature])
+
+  const isStale = loadedSignature !== null && filterSig !== loadedSignature
 
   const bumpReceivablesFetch = useCallback(() => {
     setFetchKey((k) => k + 1)
@@ -423,6 +427,7 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
 
   return {
     loading,
+    isStale,
     visibleMonthGroups,
     filterSig,
     loadedSignature,
