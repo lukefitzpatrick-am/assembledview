@@ -1285,7 +1285,11 @@ export default function FinanceOverviewPanel() {
           Needs attention
         </h3>
         {attentionItems.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nothing flagged for the current data.</p>
+          <EmptyState
+            className="min-h-0 border-0 bg-transparent py-6"
+            title="Nothing flagged"
+            message="Nothing flagged for the current data."
+          />
         ) : (
           <ScrollArea className="h-[min(360px,50vh)] rounded-card border border-border">
             <ul className="divide-y divide-border/60 p-2">

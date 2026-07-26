@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { Download, Loader2 } from "lucide-react"
+import { Download } from "lucide-react"
 import { EditableFinanceGrid } from "@/components/finance/EditableFinanceGrid"
 import type { FinanceColumnMeta } from "@/components/finance/EditableFinanceGrid"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { EmptyState, LoadingState } from "@/components/ui/states"
 import { useToast } from "@/components/ui/use-toast"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import {
@@ -420,15 +421,13 @@ export default function FinanceAccrualPanel() {
         </DropdownMenu>
       </div>
 
-      {loading ? (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          Loading billing & payables…
-        </div>
-      ) : null}
+      {loading ? <LoadingState rows={4} /> : null}
 
       {!loading && accrualRows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No accrual rows for the current filters and month range.</p>
+        <EmptyState
+          title="No accrual rows"
+          message="No accrual rows for the current filters and month range."
+        />
       ) : null}
 
       {gridRecords.length > 0 ? (
