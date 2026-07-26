@@ -418,6 +418,7 @@ export function ReceivablesPageClient({ embedded = false, onHubBridge }: Receiva
 
       <div className="rounded-card border border-border bg-card px-3 py-2 shadow-e1">
         <FinanceFilterToolbar
+          activeTab="billing"
           receivables={{
             synced,
             loading,

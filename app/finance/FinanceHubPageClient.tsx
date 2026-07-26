@@ -690,6 +690,7 @@ export default function FinanceHubPageClient() {
 
           <div className="mt-3 rounded-card border border-border bg-card px-3 py-2 shadow-e1">
             <FinanceFilterToolbar
+              activeTab={activeTab}
               receivables={
                 activeTab === "billing"
                   ? {
