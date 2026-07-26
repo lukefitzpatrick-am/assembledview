@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { PacingStatusSummary } from "@/components/pacing/PacingStatusSummary";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type {
   OverviewAttentionItem,
   OverviewChannel,
   OverviewPayload,
-  OverviewStatusCounts,
 } from "@/lib/pacing/overview/types";
+import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore";
 
 export type OverviewClientProps = {
   isAdmin: boolean;
@@ -32,47 +33,56 @@ function formatMoney(value: number | null): string {
   });
 }
 
-function buildOverviewUrl(page: number): string {
+function buildOverviewUrl(page: number, asOfDate: string): string {
   const params = new URLSearchParams();
   if (page > 1) params.set("page", String(page));
+  params.set("asOfDate", asOfDate);
   const qs = params.toString();
   return qs ? `/api/pacing/overview?${qs}` : "/api/pacing/overview";
 }
 
 export function OverviewClient({ isAdmin: _isAdmin }: OverviewClientProps) {
+  // TODO(pacing-filters): Overview client/media filtering is the follow-up —
+  // this is the one surface where media filtering matters most. Leave pagination
+  // as-is for now; do not apply in-memory row filters here yet.
   const [data, setData] = useState<OverviewPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [isPending, startTransition] = useTransition();
+  const asOfDate = usePacingFilterStore((s) => s.filters.as_of_date);
 
-  const load = useCallback((nextPage: number) => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-    fetch(buildOverviewUrl(nextPage), { credentials: "include" })
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const json = (await r.json()) as OverviewPayload;
-        if (!cancelled) {
-          setData(json);
-          setPage(json.scope?.page ?? nextPage);
-        }
-      })
-      .catch((e) => {
-        if (!cancelled) setError(String(e?.message || e));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const load = useCallback(
+    (nextPage: number) => {
+      let cancelled = false;
+      setLoading(true);
+      setError(null);
+      fetch(buildOverviewUrl(nextPage, asOfDate), { credentials: "include" })
+        .then(async (r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const json = (await r.json()) as OverviewPayload;
+          if (!cancelled) {
+            setData(json);
+            setPage(json.scope?.page ?? nextPage);
+          }
+        })
+        .catch((e) => {
+          if (!cancelled) setError(String(e?.message || e));
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+      return () => {
+        cancelled = true;
+      };
+    },
+    [asOfDate],
+  );
 
   useEffect(() => {
     return load(page);
     // Initial + page changes driven explicitly via load / buttons.
+    // asOfDate changes recreate `load` and refetch the current page.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- page set from load response
   }, [load]);
 
@@ -157,7 +167,7 @@ export function OverviewClient({ isAdmin: _isAdmin }: OverviewClientProps) {
         </div>
       ) : null}
 
-      <StatusSummary counts={data.counts} />
+      <PacingStatusSummary counts={data.counts} />
 
       <AttentionSection
         title="Over-pacing — burning budget too fast"
@@ -189,35 +199,6 @@ export function OverviewClient({ isAdmin: _isAdmin }: OverviewClientProps) {
           collapsible
         />
       ) : null}
-    </div>
-  );
-}
-
-function StatusSummary({ counts }: { counts: OverviewStatusCounts }) {
-  const items: Array<{ label: string; value: number; tone: string }> = [
-    { label: "Behind", value: counts.behind, tone: "text-status-behind-fg" },
-    { label: "On track", value: counts.onTrack, tone: "text-status-on-track-fg" },
-    { label: "Ahead", value: counts.ahead, tone: "text-status-ahead-fg" },
-    {
-      label: "Over-pacing",
-      value: counts.overPacing,
-      tone: "text-status-critical-fg",
-    },
-    { label: "No data", value: counts.noData, tone: "text-muted-foreground" },
-    { label: "KPI Pending", value: counts.kpiPending, tone: "text-muted-foreground" },
-  ];
-  return (
-    <div className="grid grid-cols-2 gap-2 rounded-card border border-border bg-card p-3 shadow-e0 sm:grid-cols-3 lg:grid-cols-6">
-      {items.map((item) => (
-        <div key={item.label} className="flex flex-col">
-          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-            {item.label}
-          </span>
-          <span className={`num text-lg font-semibold ${item.tone}`}>
-            {item.value}
-          </span>
-        </div>
-      ))}
     </div>
   );
 }

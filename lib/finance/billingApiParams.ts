@@ -71,6 +71,61 @@ export function parseSingleBillingMonthParam(
   return { ok: true, month: t }
 }
 
+/** Widest multi-month window a single finance hub request may derive (2 FYs). */
+export const MAX_BILLING_MONTH_RANGE_MONTHS = 24
+
+function isValidYyyyMm(t: string): boolean {
+  if (!YYYY_MM.test(t)) return false
+  const d = parse(t, "yyyy-MM", new Date())
+  return isValid(d) && format(d, "yyyy-MM") === t
+}
+
+/**
+ * Multi-month window for the finance hub list APIs, mirroring the store's
+ * `monthRange { from, to }`. Both params are required together; expansion is
+ * inclusive and ascending. Capped at {@link MAX_BILLING_MONTH_RANGE_MONTHS}.
+ */
+export function parseBillingMonthRangeParams(
+  fromRaw: string | null,
+  toRaw: string | null
+): { ok: true; months: string[] } | FinanceApiErrorBody {
+  const from = String(fromRaw ?? "").trim()
+  const to = String(toRaw ?? "").trim()
+  if (!from || !to) {
+    return {
+      error: "from and to must both be provided as YYYY-MM months.",
+      field: !from ? "from" : "to",
+    }
+  }
+  if (!isValidYyyyMm(from)) {
+    return { error: "from must be a valid calendar month in YYYY-MM format.", field: "from" }
+  }
+  if (!isValidYyyyMm(to)) {
+    return { error: "to must be a valid calendar month in YYYY-MM format.", field: "to" }
+  }
+  if (from > to) {
+    return { error: "from must not be after to.", field: "from" }
+  }
+  const months: string[] = []
+  let [year, month] = from.split("-").map(Number) as [number, number]
+  const [endYear, endMonth] = to.split("-").map(Number) as [number, number]
+  while (year < endYear || (year === endYear && month <= endMonth)) {
+    months.push(`${year}-${String(month).padStart(2, "0")}`)
+    if (months.length > MAX_BILLING_MONTH_RANGE_MONTHS) {
+      return {
+        error: `Month range too wide: maximum ${MAX_BILLING_MONTH_RANGE_MONTHS} months per request.`,
+        field: "from",
+      }
+    }
+    month += 1
+    if (month > 12) {
+      month = 1
+      year += 1
+    }
+  }
+  return { ok: true, months }
+}
+
 export function filterRecordsByBillingTypes<T extends { billing_type?: unknown; billingType?: unknown }>(
   rows: T[],
   types: BillingType[]

@@ -1,6 +1,7 @@
 import { getMelbourneTodayISO } from "@/lib/dates/melbourne"
 import { toMelbourneDateString } from "@/lib/timezone"
 import { roundMoney2 } from "@/lib/format/money"
+import { normalizeDeliveryEntryMediaBreakdown } from "@/lib/api/dashboard/shared"
 
 function parseAmountSafe(value: unknown): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0
@@ -311,30 +312,17 @@ export function monthlySpendArrayFromDeliverySchedule(deliverySchedule: unknown)
       entry?.publisher ||
       "Other"
 
-    const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
+    // Handles BOTH deliverySchedule shapes: 'types' (mediaTypes[].lineItems) and
+    // 'costs' (mediaCosts{channelKey}) — mapped onto the same media-type labels the
+    // dashboard charts use, so 'costs'-shape entries aren't silently dropped here.
+    const mediaBreakdown = normalizeDeliveryEntryMediaBreakdown(entry)
     let fromMediaTypes = false
-
-    if (mediaTypes.length > 0) {
-      for (const mt of mediaTypes) {
-        const channel =
-          mt?.mediaType ||
-          mt?.media_type ||
-          mt?.type ||
-          mt?.name ||
-          mt?.channel ||
-          defaultChannel
-        const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
-        const lineTotal = lineItems.reduce((s: number, li: unknown) => s + lineItemAmount(li), 0)
-        const mtScalar = parseAmountSafe(
-          mt?.amount ?? mt?.totalAmount ?? mt?.budget ?? mt?.value ?? mt?.cost ?? mt?.media_investment,
-        )
-        const amount = lineTotal > 0 ? lineTotal : mtScalar
-        if (amount > 0) {
-          add(monthLabel, channel, amount)
-          fromMediaTypes = true
-        }
+    Object.entries(mediaBreakdown).forEach(([channel, amount]) => {
+      if (amount > 0) {
+        add(monthLabel, channel, amount)
+        fromMediaTypes = true
       }
-    }
+    })
 
     if (topLineSum > 0) {
       add(monthLabel, defaultChannel, topLineSum)
