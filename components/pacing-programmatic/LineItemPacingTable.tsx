@@ -132,11 +132,11 @@ const OPTIONAL_COLUMNS: readonly PacingSortColumn[] = [
   "deliverableTarget",
 ];
 
-const OPTIONAL_COLUMN_SET: ReadonlySet<PacingSortColumn> = new Set(OPTIONAL_COLUMNS);
-
-/** A column renders when it's a default column, or an optional column with "More columns" on. */
+/** Default columns always render; optional only when "More columns" is on; unclassified never render. */
 function isColumnVisible(column: PacingSortColumn, moreColumns: boolean): boolean {
-  return moreColumns || !OPTIONAL_COLUMN_SET.has(column);
+  if (DEFAULT_COLUMNS.includes(column)) return true;
+  if (OPTIONAL_COLUMNS.includes(column)) return moreColumns;
+  return false;
 }
 
 function sortableNumber(value: number | null | undefined): number {
