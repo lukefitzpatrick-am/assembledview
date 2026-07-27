@@ -3,19 +3,26 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react"
 
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
+import { enqueueVisibleMount } from "@/lib/mediaplan/staggerVisibleMount"
 
 export interface LazyMountWhenVisibleProps {
   /** Human-readable label used for the loading placeholder (e.g. "Television"). */
   label: string
   children: ReactNode
   /**
-   * IntersectionObserver rootMargin. Defaults to a generous vertical overscan so
-   * near-viewport sections (and the totals/billing callbacks their containers fire
-   * on mount) preload slightly ahead of the user scrolling into view.
+   * IntersectionObserver rootMargin. Defaults to a modest vertical overscan so
+   * near-viewport sections preload slightly ahead of scroll without mounting
+   * every channel container in one frame on multi-channel plans.
    */
   rootMargin?: string
   /** Custom placeholder to render while the section is not yet mounted. */
   placeholder?: ReactNode
+  /**
+   * When true, mount regardless of viewport (still staggered via enqueueVisibleMount).
+   * Used on edit page after API line-item load so off-screen channels still hydrate
+   * before Save / green reconciliation badges unlock.
+   */
+  forceMount?: boolean
 }
 
 interface Rect {
@@ -45,18 +52,31 @@ function parseRootMarginPx(rootMargin: string): number {
  * grid/form on initial load (UX-6/21 loading-state scaffolding is reused for the
  * "not yet visible" placeholder).
  */
-export function LazyMountWhenVisible({ label, children, rootMargin = "400px 0px", placeholder }: LazyMountWhenVisibleProps) {
+export function LazyMountWhenVisible({
+  label,
+  children,
+  rootMargin = "150px 0px",
+  placeholder,
+  forceMount = false,
+}: LazyMountWhenVisibleProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const [mounted, setMounted] = useState(false)
 
   useLayoutEffect(() => {
     if (mounted) return
 
+    if (forceMount) {
+      enqueueVisibleMount(() => setMounted(true))
+      return
+    }
+
     const node = containerRef.current
     if (!node) return
 
+    const mount = () => enqueueVisibleMount(() => setMounted(true))
+
     if (typeof IntersectionObserver === "undefined") {
-      setMounted(true)
+      mount()
       return
     }
 
@@ -65,14 +85,14 @@ export function LazyMountWhenVisible({ label, children, rootMargin = "400px 0px"
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight
 
     if (shouldMountFromRect(rect, viewportHeight, marginPx)) {
-      setMounted(true)
+      mount()
       return
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
-          setMounted(true)
+          mount()
           observer.disconnect()
         }
       },
@@ -81,7 +101,7 @@ export function LazyMountWhenVisible({ label, children, rootMargin = "400px 0px"
 
     observer.observe(node)
     return () => observer.disconnect()
-  }, [mounted, rootMargin])
+  }, [mounted, rootMargin, forceMount])
 
   return <div ref={containerRef}>{mounted ? children : placeholder ?? <MediaContainerLoadState loading label={label} />}</div>
 }

@@ -6,7 +6,6 @@
 import type { FinanceForecastPublisherInput } from "@/lib/types/financeForecast"
 import type { ForecastBillingAgencyNormalized, ForecastRevenueCommissionBucket } from "./types"
 import {
-  DEFAULT_UNKNOWN_PUBLISHER_BILLING_AGENCY,
   FORECAST_COMMISSION_RATE_GREATER_THAN_ONE_IS_PERCENT,
   FORECAST_DIRECT_MANAGED_DIGITAL_MEDIA_TYPE_KEYS,
   FORECAST_MEDIA_TYPE_TO_PUBLISHER_COMMISSION_FIELDS,
@@ -36,7 +35,7 @@ export function normalizePublisherBillingAgency(
 
 /**
  * Split a billable media amount into Advertising Associates vs Assembled Media billing lines.
- * Unknown publisher agency follows `DEFAULT_UNKNOWN_PUBLISHER_BILLING_AGENCY` (see definitions).
+ * Unknown publisher agency defaults to Assembled Media (`PUBLISHER_BILLING_AGENCY_ASSEMBLED_MEDIA`).
  */
 export function splitBillableAmountByBillingEntity(args: {
   publisher: FinanceForecastPublisherInput
@@ -45,11 +44,7 @@ export function splitBillableAmountByBillingEntity(args: {
   const rawAgency = args.publisher.billingagency
   let bucket = normalizePublisherBillingAgency(rawAgency)
   if (bucket === "unknown") {
-    bucket =
-      norm(DEFAULT_UNKNOWN_PUBLISHER_BILLING_AGENCY) ===
-      norm(PUBLISHER_BILLING_AGENCY_ADVERTISING_ASSOCIATES)
-        ? "advertising_associates"
-        : "assembled_media"
+    bucket = "assembled_media"
   }
 
   if (bucket === "advertising_associates") {

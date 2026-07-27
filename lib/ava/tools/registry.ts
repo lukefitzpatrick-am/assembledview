@@ -20,6 +20,8 @@ import { generateMiWorkbookTool } from "./generateMiWorkbook";
 import { generateNamingWorkbookTool } from "./generateNamingWorkbook";
 import { loadSkillTool } from "./loadSkill";
 import { generatePerformanceReportTool } from "./generatePerformanceReport";
+import { getClientBrainTool } from "./getClientBrain";
+import { saveClientBrainTool } from "./saveClientBrain";
 
 const AVA_TOOLS: AvaTool[] = [
   getMediaPlanSummaryTool,
@@ -41,6 +43,8 @@ const AVA_TOOLS: AvaTool[] = [
   generateNamingWorkbookTool,
   loadSkillTool,
   generatePerformanceReportTool,
+  getClientBrainTool,
+  saveClientBrainTool,
 ];
 
 const registeredNames = AVA_TOOLS.map((t) => t.definition.name);

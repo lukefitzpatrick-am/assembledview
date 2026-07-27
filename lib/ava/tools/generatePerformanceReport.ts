@@ -5,9 +5,16 @@ import {
   type PerformanceReportPayload,
 } from "@/lib/reports/buildPerformanceReport"
 import {
+  buildPerformanceReportHardNumbers,
+  findInventedMoneyInNarrative,
+  plannedToDateFromPageContext,
+  type DeliverySnapshotTotals,
+} from "@/lib/reports/performanceReportHardNumbers"
+import {
   PPTX_CONTENT_TYPE,
   storePerformanceReport,
 } from "@/lib/reports/storePerformanceReport"
+import { getDeliverySnapshotTool } from "./getDeliverySnapshot"
 import { asRecord, asString, jsonContent, resolveScopedMba } from "./helpers"
 
 type CapViolation = { field: string; cap: number; length: number }
@@ -60,10 +67,17 @@ function requireSteps(
   return steps as PerformanceReportPayload["steps"]
 }
 
-function validatePayload(
+/**
+ * Narrative-only validation. Hard number fields (deliverySpend, deliveryDeliverables, kpis)
+ * are injected server-side from reconciled delivery — model input for those is ignored.
+ */
+function validateNarrativePayload(
   args: Record<string, unknown>,
 ):
-  | { ok: true; clientName: string; reportMonth: string; mbaHint?: string; payload: PerformanceReportPayload }
+  | { ok: true; clientName: string; reportMonth: string; mbaHint?: string; narrative: Omit<
+      PerformanceReportPayload,
+      "deliverySpend" | "deliveryDeliverables" | "kpis"
+    > }
   | { ok: false; content: string } {
   const violations: CapViolation[] = []
   const clientName = requireString(args.clientName, "clientName", 40, violations)
@@ -71,7 +85,6 @@ function validatePayload(
   const mbaHint = asString(args.mbaNumber) ?? asString(args.mba)
 
   const channels = requireExactStringArray(args.channels, "channels", 4, 90, violations)
-  const kpis = requireExactStringArray(args.kpis, "kpis", 4, 90, violations)
   const insights = requireExactStringArray(args.insights, "insights", 3, 110, violations)
   const steps = requireSteps(args.steps, violations)
 
@@ -84,9 +97,6 @@ function validatePayload(
   if (!channels) {
     return { ok: false, content: "channels must be an array of exactly 4 strings (≤90 each)." }
   }
-  if (!kpis) {
-    return { ok: false, content: "kpis must be an array of exactly 4 strings (≤90 each)." }
-  }
   if (!insights) {
     return { ok: false, content: "insights must be an array of exactly 3 strings (≤110 each)." }
   }
@@ -97,17 +107,9 @@ function validatePayload(
     }
   }
 
-  const payload: PerformanceReportPayload = {
+  const narrative = {
     execSummary: requireString(args.execSummary, "execSummary", 120, violations),
-    deliverySpend: requireString(args.deliverySpend, "deliverySpend", 140, violations),
-    deliveryDeliverables: requireString(
-      args.deliveryDeliverables,
-      "deliveryDeliverables",
-      140,
-      violations,
-    ),
     channels: channels as PerformanceReportPayload["channels"],
-    kpis: kpis as PerformanceReportPayload["kpis"],
     keyInsight: requireString(args.keyInsight, "keyInsight", 240, violations),
     insights: insights as PerformanceReportPayload["insights"],
     recsInFlight: requireString(args.recsInFlight, "recsInFlight", 140, violations),
@@ -130,14 +132,57 @@ function validatePayload(
     }
   }
 
-  return { ok: true, clientName, reportMonth, mbaHint: mbaHint || undefined, payload }
+  const invented = findInventedMoneyInNarrative({
+    execSummary: narrative.execSummary,
+    channels: [...narrative.channels],
+    keyInsight: narrative.keyInsight,
+    insights: [...narrative.insights],
+    recsInFlight: narrative.recsInFlight,
+    recsNextPeriod: narrative.recsNextPeriod,
+    steps: [...narrative.steps],
+  })
+  if (invented) {
+    return {
+      ok: false,
+      content: jsonContent({
+        error: "invented_money_figure",
+        field: invented.field,
+        match: invented.match,
+        message: `Do not include free-text dollar amounts in narrative (found "${invented.match}" in ${invented.field}). Hard numbers are injected server-side from reconciled delivery; rewrite without $ figures.`,
+      }),
+    }
+  }
+
+  return { ok: true, clientName, reportMonth, mbaHint: mbaHint || undefined, narrative }
+}
+
+function parseDeliveryTotals(raw: string): DeliverySnapshotTotals | null {
+  try {
+    const parsed = JSON.parse(raw) as { planTotals?: DeliverySnapshotTotals }
+    const t = parsed.planTotals
+    if (!t || typeof t !== "object") return null
+    if (typeof t.spendToDate !== "number") return null
+    return {
+      spendToDate: t.spendToDate,
+      impressions: Number(t.impressions) || 0,
+      clicks: Number(t.clicks) || 0,
+      results: Number(t.results) || 0,
+      video3sViews: Number(t.video3sViews) || 0,
+      plannedBudget: typeof t.plannedBudget === "number" ? t.plannedBudget : null,
+      cpm: typeof t.cpm === "number" ? t.cpm : null,
+      ctr: typeof t.ctr === "number" ? t.ctr : null,
+      cpc: typeof t.cpc === "number" ? t.cpc : null,
+    }
+  } catch {
+    return null
+  }
 }
 
 export const generatePerformanceReportTool: AvaTool = {
   definition: {
     name: "generate_performance_report",
     description:
-      "Build the client performance report deck (.pptx) for the campaign on the page and return a download card. Call ONLY after the user has explicitly confirmed the reviewed narrative in chat. All strings single-line.",
+      "Build the client performance report deck (.pptx) for the campaign on the page and return a download card. Call ONLY after the user has explicitly confirmed the reviewed narrative in chat. Hard numbers (spend, deliverables, KPIs) are injected server-side from reconciled delivery — pass narrative only; do not invent $ figures. All strings single-line.",
     input_schema: {
       type: "object",
       properties: {
@@ -157,45 +202,39 @@ export const generatePerformanceReportTool: AvaTool = {
           type: "string",
           description: 'Report month label (≤20), e.g. "Jul 2026".',
         },
-        execSummary: { type: "string", description: "Executive summary (≤120)." },
-        deliverySpend: { type: "string", description: "Spend vs plan line (≤140)." },
-        deliveryDeliverables: {
+        execSummary: {
           type: "string",
-          description: "Deliverables vs plan line (≤140).",
+          description: "Executive summary narrative only — no $ figures (≤120).",
         },
         channels: {
           type: "array",
-          description: "Exactly 4 channel commentary lines (≤90 each).",
+          description: "Exactly 4 channel commentary lines — no $ figures (≤90 each).",
           items: { type: "string" },
           minItems: 4,
           maxItems: 4,
         },
-        kpis: {
-          type: "array",
-          description: "Exactly 4 KPI lines (≤90 each).",
-          items: { type: "string" },
-          minItems: 4,
-          maxItems: 4,
+        keyInsight: {
+          type: "string",
+          description: "Key insight headline — no $ figures (≤240).",
         },
-        keyInsight: { type: "string", description: "Key insight headline (≤240)." },
         insights: {
           type: "array",
-          description: "Exactly 3 insight lines (≤110 each).",
+          description: "Exactly 3 insight lines — no $ figures (≤110 each).",
           items: { type: "string" },
           minItems: 3,
           maxItems: 3,
         },
         recsInFlight: {
           type: "string",
-          description: "In-flight recommendations (≤140).",
+          description: "In-flight recommendations — no $ figures (≤140).",
         },
         recsNextPeriod: {
           type: "string",
-          description: "Next-period recommendations (≤140).",
+          description: "Next-period recommendations — no $ figures (≤140).",
         },
         steps: {
           type: "array",
-          description: "Exactly 4 next steps with when (≤16) and what (≤40).",
+          description: "Exactly 4 next steps with when (≤16) and what (≤40) — no $ figures.",
           items: {
             type: "object",
             properties: {
@@ -213,10 +252,7 @@ export const generatePerformanceReportTool: AvaTool = {
         "clientName",
         "reportMonth",
         "execSummary",
-        "deliverySpend",
-        "deliveryDeliverables",
         "channels",
-        "kpis",
         "keyInsight",
         "insights",
         "recsInFlight",
@@ -236,7 +272,7 @@ export const generatePerformanceReportTool: AvaTool = {
     }
 
     const args = asRecord(input)
-    const validated = validatePayload(args)
+    const validated = validateNarrativePayload(args)
     if (!validated.ok) {
       return { content: validated.content, isError: true }
     }
@@ -250,8 +286,37 @@ export const generatePerformanceReportTool: AvaTool = {
       }
     }
 
+    const snapshotResult = await getDeliverySnapshotTool.execute(
+      { mbaNumber: scopedMba.mba },
+      context,
+    )
+    if (snapshotResult.isError) {
+      return {
+        content: `Cannot build performance report without reconciled delivery: ${snapshotResult.content}`,
+        isError: true,
+      }
+    }
+
+    const totals = parseDeliveryTotals(String(snapshotResult.content ?? ""))
+    if (!totals) {
+      return {
+        content: "Failed to parse reconciled delivery totals for the performance report.",
+        isError: true,
+      }
+    }
+
+    const plannedToDate = plannedToDateFromPageContext(context.pageContext)
+    const hard = buildPerformanceReportHardNumbers({ totals, plannedToDate })
+
+    const payload: PerformanceReportPayload = {
+      ...validated.narrative,
+      deliverySpend: hard.deliverySpend,
+      deliveryDeliverables: hard.deliveryDeliverables,
+      kpis: hard.kpis,
+    }
+
     try {
-      const buffer = await buildPerformanceReport(validated.payload)
+      const buffer = await buildPerformanceReport(payload)
       const fileName = `${validated.clientName} ${scopedMba.mba} performance report ${validated.reportMonth}.pptx`
       const exportResult = await storePerformanceReport(scopedMba.mba, fileName, buffer)
 
@@ -265,8 +330,14 @@ export const generatePerformanceReportTool: AvaTool = {
       return {
         content: jsonContent({
           filename: exportResult.filename,
+          reconciled: hard.reconciled,
+          injected: {
+            deliverySpend: hard.deliverySpend,
+            deliveryDeliverables: hard.deliveryDeliverables,
+            kpis: hard.kpis,
+          },
           note:
-            "A download card is shown in the chat UI — reply briefly (e.g. Report ready); do not paste a download URL or markdown link.",
+            "A download card is shown in the chat UI — reply briefly (e.g. Report ready); do not paste a download URL or markdown link. Hard numbers were injected from reconciled delivery.",
         }),
         attachments: [attachment],
         isError: false,

@@ -1,4 +1,4 @@
-import { xanoUrl } from "@/lib/api/xano";
+import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano";
 
 const MEDIA_PLANS_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const;
 
@@ -27,7 +27,7 @@ export async function createPacingOrphanFix(
   const url = xanoUrl("pacing_orphan_fixes", [...MEDIA_PLANS_KEYS]);
   const resp = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify({
       admin_user_email: input.adminUserEmail,
       channel: input.channel,

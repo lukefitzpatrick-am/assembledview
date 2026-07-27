@@ -8,6 +8,7 @@ import os from "os"
 import path from "path"
 import { Automizer, ModifyTextHelper } from "pptx-automizer"
 import { summariseInsight } from "@/lib/planning/insightText"
+import { PLANNING_CHANNEL_BENCH_VERSION } from "@/lib/planning/planningChannelBench"
 
 export { summariseInsight } from "@/lib/planning/insightText"
 
@@ -256,6 +257,8 @@ export async function buildPlannerDeck(input: PlannerDeckInput): Promise<Buffer>
       campaign,
       `Wave ${input.waveLabel}`,
       input.generatedAtLabel,
+      // Provenance: bench version for attn/B/D/cpm (never Roy Morgan).
+      `Bench ${PLANNING_CHANNEL_BENCH_VERSION}`,
     ]
     setText(slide, "Text Placeholder 1", lines.join("\n"))
   })

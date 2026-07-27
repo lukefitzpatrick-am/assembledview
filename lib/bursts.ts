@@ -44,5 +44,3 @@ export function formatBurstLabel(
   const monthLabel = start.toLocaleString("default", { month: "short" });
   return `${baseLabel} - ${monthLabel}`;
 }
-
-export default formatBurstLabel;

@@ -256,9 +256,3 @@ export function assignEntityColors(
 
   return map
 }
-
-/** @deprecated use getMediaColor */
-export const getMediaChannelColor = getMediaColor
-
-/** @deprecated use getMediaBadgeStyle */
-export const getMediaChannelBadgeStyle = getMediaBadgeStyle

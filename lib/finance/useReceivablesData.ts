@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import { fetchFinanceBillingForMonths, type FinanceBillingQuery } from "@/lib/finance/api"
+import { detectBilledDrift, toBilledLineSnapshots } from "@/lib/finance/billedDrift"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 import {
   buildFinanceFetchAllSignature,
@@ -72,6 +73,8 @@ export type MonthGroup = {
 
 export type HubReceivablesHubState = {
   loading: boolean
+  /** True when filters changed after a prior successful load; previous rows may still be shown. */
+  isStale: boolean
   visibleMonthGroups: MonthGroup[]
   filterSig: string
   loadedSignature: string | null
@@ -84,6 +87,10 @@ export type HubReceivablesHubState = {
       billed_at: number | null
       billed_by: number | null
       persisted_record_id?: number | null
+      billed_amount?: number | null
+      billed_lines_hash?: string | null
+      billed_drift?: boolean
+      billed_drift_delta?: number | null
     }
   ) => void
   updateNotesByInvoiceKey: (
@@ -126,13 +133,15 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
   )
   const statusesKey = useMemo(() => [...filters.statuses].sort().join(","), [filters.statuses])
 
+  // After a successful load, filter changes keep last-visible rows and auto-refetch.
+  // Cold landing (loadedSignature === null, fetchKey === 0) is unchanged — no auto-fetch.
   useEffect(() => {
     if (loadedSignature === null || filterSig === loadedSignature) return
-    setRecords([])
-    setLoadedSignature(null)
-    setFetchKey(0)
     setLoadError(null)
+    setFetchKey((k) => k + 1)
   }, [filterSig, loadedSignature])
+
+  const isStale = loadedSignature !== null && filterSig !== loadedSignature
 
   const bumpReceivablesFetch = useCallback(() => {
     setFetchKey((k) => k + 1)
@@ -149,6 +158,16 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
                 billed: fields.billed,
                 billed_at: fields.billed_at,
                 billed_by: fields.billed_by,
+                billed_amount: fields.billed
+                  ? (fields.billed_amount ?? r.billed_amount ?? null)
+                  : null,
+                billed_lines_hash: fields.billed
+                  ? (fields.billed_lines_hash ?? r.billed_lines_hash ?? null)
+                  : null,
+                billed_drift: fields.billed ? (fields.billed_drift ?? false) : false,
+                billed_drift_delta: fields.billed
+                  ? (fields.billed_drift_delta ?? 0)
+                  : null,
                 persisted_record_id:
                   fields.persisted_record_id ?? r.persisted_record_id ?? null,
               }
@@ -206,7 +225,20 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
           })
           if (!changed) return r
           const total = Math.round(line_items.reduce((s, li) => s + li.amount, 0) * 100) / 100
-          return { ...r, line_items, total }
+          const drift = detectBilledDrift({
+            billed: r.billed === true,
+            billedAmount: r.billed_amount,
+            billedLinesHash: r.billed_lines_hash,
+            currentTotal: total,
+            currentLines: toBilledLineSnapshots(line_items),
+          })
+          return {
+            ...r,
+            line_items,
+            total,
+            billed_drift: drift.drift,
+            billed_drift_delta: drift.delta,
+          }
         })
       )
     },
@@ -395,6 +427,7 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
 
   return {
     loading,
+    isStale,
     visibleMonthGroups,
     filterSig,
     loadedSignature,
@@ -405,6 +438,3 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
     updateReceivableLineAmount,
   }
 }
-
-/** @deprecated Use `useReceivablesData` — kept for hub import compatibility. */
-export const useFinanceHubReceivablesData = useReceivablesData

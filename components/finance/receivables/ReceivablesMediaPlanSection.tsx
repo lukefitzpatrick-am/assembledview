@@ -164,6 +164,8 @@ export function ReceivablesMediaPlanSection({
         <div className="flex flex-wrap items-center gap-1.5">
           <BilledStatusPill
             billed={mp.records[0]?.billed}
+            drift={mp.records[0]?.billed_drift}
+            driftDelta={mp.records[0]?.billed_drift_delta}
             onToggle={(next) => onToggleBilled(mp.records[0], next)}
             disabled={!mp.records[0]?.invoice_key}
           />

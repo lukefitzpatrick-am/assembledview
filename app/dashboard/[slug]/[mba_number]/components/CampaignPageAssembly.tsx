@@ -18,6 +18,7 @@ import { buildLineItemKpiTargetMap } from "@/lib/kpi/lineItemKpiTargets"
 import { clearAssistantContext, setAssistantContext } from "@/lib/assistantBridge"
 import type { PageContext } from "@/lib/ava/types"
 
+import { AvaPacingNudge } from "@/components/ava/AvaPacingNudge"
 import CampaignHeroBanner from "@/components/dashboard/campaign/CampaignHeroBanner"
 import CampaignSummaryRow from "@/components/dashboard/campaign/CampaignSummaryRow"
 import SpendChartsRow from "@/components/dashboard/campaign/SpendChartsRow"
@@ -174,7 +175,14 @@ type CampaignPageAssemblyProps = {
   campaign: any
   metrics: any
   budget: number
-  actualSpend: number
+  /** Real delivered spend only when the API provides it — never plan schedule. */
+  actualSpend?: number
+  /** Delivered impressions (digital only — fixed-cost media has no impression metric). */
+  deliveredImpressions?: number
+  /** True when `getDeliveredTotalsForCampaign` found a real positive delivered figure. */
+  hasDelivery?: boolean
+  /** Melbourne "as of" date for the delivered figures (facts refresh ~06:30 Melbourne). */
+  deliveredAsOf?: string
   expectedSpend: number
   totalPlannedMonthlySpend: number
   startDate?: string | null
@@ -218,6 +226,9 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     metrics,
     budget,
     actualSpend,
+    deliveredImpressions,
+    hasDelivery,
+    deliveredAsOf,
     expectedSpend,
     totalPlannedMonthlySpend,
     startDate,
@@ -435,20 +446,22 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     ],
   )
 
+  // Same definition as hero KPIs / assistant pageContext — do not introduce a second pace.
+  const pacePct =
+    typeof expectedSpend === "number" &&
+    Number.isFinite(expectedSpend) &&
+    expectedSpend > 0 &&
+    typeof actualSpend === "number" &&
+    Number.isFinite(actualSpend)
+      ? roundPct((actualSpend / expectedSpend) * 100)
+      : undefined
+
   const pageContext: PageContext | undefined = useMemo(() => {
     if (!slug || !mbaNumber || !campaign) return undefined
 
     const clientSlug = slug
     const clientName = heroCampaign.clientName
     const campaignName = heroCampaign.campaignName
-    const pacePct =
-      typeof expectedSpend === "number" &&
-      Number.isFinite(expectedSpend) &&
-      expectedSpend > 0 &&
-      typeof actualSpend === "number" &&
-      Number.isFinite(actualSpend)
-        ? roundPct((actualSpend / expectedSpend) * 100)
-        : undefined
 
     const channels = channelLinesFromSpend(filteredSpendByChannel)
     const kpis = kpiTargetsSnapshot(savedCampaignKPIs)
@@ -461,7 +474,10 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
         end: campaignEndISO ?? endDate ?? null,
       },
       spend: {
-        delivered: Number.isFinite(actualSpend) ? actualSpend : undefined,
+        // Only set when real delivery is known — do not mirror plan as delivered.
+        ...(typeof actualSpend === "number" && Number.isFinite(actualSpend)
+          ? { delivered: actualSpend }
+          : {}),
         plannedToDate: Number.isFinite(expectedSpend) ? expectedSpend : undefined,
         ...(pacePct !== undefined ? { pacePct } : {}),
       },
@@ -514,6 +530,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     heroCampaign.clientName,
     isUnfiltered,
     mbaNumber,
+    pacePct,
     pathname,
     progressEndYmd,
     progressStartYmd,
@@ -585,15 +602,23 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
                 expectedSpend,
                 totalPlannedSpend: totalPlannedMonthlySpend,
               }}
+              delivered={{
+                impressions: deliveredImpressions,
+                hasDelivery: Boolean(hasDelivery),
+                asOf: deliveredAsOf,
+              }}
               brandColour={brandColour}
             />
+            {pacePct !== undefined ? (
+              <AvaPacingNudge pacePct={pacePct} className="mt-3" />
+            ) : null}
             </div>
           </Suspense>
         </SectionBoundary>
       </section>
 
       <section className="mt-8">
-        <SectionBoundary title="Spend and delivery insights">
+        <SectionBoundary title="Planned media insights">
           <Suspense fallback={<SpendChartsRowSkeleton />}>
             <div className="campaign-section-enter" style={{ animationDelay: "200ms" }}>
             <SpendChartsRow

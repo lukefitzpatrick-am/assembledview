@@ -4,26 +4,31 @@ import ExcelJS from "exceljs"
 
 import { exportReportExcel } from "../exportReportExcel.js"
 import type { SubtotalNode } from "../groupAndSubtotal.js"
+import { emptyReportMeasures, type ReportMetricKey } from "../metrics.js"
+
+function measures(partial: Partial<Record<ReportMetricKey, number>>) {
+  return { ...emptyReportMeasures(), ...partial }
+}
 
 const root: SubtotalNode = {
   dimension: null,
   key: "Grand Total",
   rowCount: 3,
-  measures: { totalBillable: 175, mediaSpend: 140, agencyFee: 35 },
+  measures: measures({ totalBillable: 175, mediaSpend: 140, agencyFee: 35, gst: 17.5, nettIncGst: 192.5, rowCount: 3 }),
   leafRows: [],
   children: [
     {
       dimension: "mediaType",
       key: "Search",
       rowCount: 2,
-      measures: { totalBillable: 125, mediaSpend: 100, agencyFee: 25 },
+      measures: measures({ totalBillable: 125, mediaSpend: 100, agencyFee: 25, gst: 12.5, nettIncGst: 137.5, rowCount: 2 }),
       leafRows: [],
       children: [
         {
           dimension: "publisher",
           key: "Google",
           rowCount: 2,
-          measures: { totalBillable: 125, mediaSpend: 100, agencyFee: 25 },
+          measures: measures({ totalBillable: 125, mediaSpend: 100, agencyFee: 25, gst: 12.5, nettIncGst: 137.5, rowCount: 2 }),
           leafRows: [],
           children: [],
         },
@@ -33,7 +38,7 @@ const root: SubtotalNode = {
       dimension: "mediaType",
       key: "Radio",
       rowCount: 1,
-      measures: { totalBillable: 50, mediaSpend: 40, agencyFee: 10 },
+      measures: measures({ totalBillable: 50, mediaSpend: 40, agencyFee: 10, gst: 5, nettIncGst: 55, rowCount: 1 }),
       leafRows: [],
       children: [],
     },
@@ -47,9 +52,14 @@ async function loadWorkbook(blob: Blob): Promise<ExcelJS.Workbook> {
 }
 
 test("exportReportExcel writes grouped subtotal rows and numeric grand total cells", async () => {
-  const blob = await exportReportExcel(root, ["mediaType", "publisher"], {
-    filterLabel: "May 2026 · media/booked",
-  })
+  const blob = await exportReportExcel(
+    root,
+    ["mediaType", "publisher"],
+    ["totalBillable", "mediaSpend", "agencyFee"],
+    {
+      filterLabel: "May 2026 · media/booked",
+    }
+  )
 
   const workbook = await loadWorkbook(blob)
   const sheet = workbook.getWorksheet("Report")
@@ -58,6 +68,11 @@ test("exportReportExcel writes grouped subtotal rows and numeric grand total cel
   assert.equal(sheet.getCell("A1").value, "Finance subtotal report")
   assert.equal(sheet.getCell("B3").value, "mediaType → publisher")
   assert.equal(sheet.getCell("B4").value, "May 2026 · media/booked")
+
+  assert.equal(sheet.getCell("A6").value, "Group")
+  assert.equal(sheet.getCell("C6").value, "Total billable")
+  assert.equal(sheet.getCell("D6").value, "Media spend")
+  assert.equal(sheet.getCell("E6").value, "Agency fee")
 
   assert.equal(sheet.getCell("A7").value, "Search")
   assert.equal(sheet.getCell("B7").value, "mediaType")
@@ -75,4 +90,26 @@ test("exportReportExcel writes grouped subtotal rows and numeric grand total cel
   assert.equal(sheet.getCell("D11").value, 140)
   assert.equal(sheet.getCell("E11").value, 35)
   assert.equal(sheet.getCell("E11").numFmt, '"$"#,##0.00')
+})
+
+test("exportReportExcel renders a custom metric selection in order", async () => {
+  const blob = await exportReportExcel(root, ["mediaType"], ["gst", "rowCount", "nettIncGst"])
+  const workbook = await loadWorkbook(blob)
+  const sheet = workbook.getWorksheet("Report")
+  assert.ok(sheet)
+
+  assert.equal(sheet.getCell("C6").value, "GST")
+  assert.equal(sheet.getCell("D6").value, "Rows")
+  assert.equal(sheet.getCell("E6").value, "Nett inc GST")
+
+  assert.equal(sheet.getCell("C7").value, 12.5)
+  assert.equal(sheet.getCell("C7").numFmt, '"$"#,##0.00')
+  assert.equal(sheet.getCell("D7").value, 2)
+  assert.equal(sheet.getCell("D7").numFmt, "#,##0")
+  assert.equal(sheet.getCell("E7").value, 137.5)
+
+  assert.equal(sheet.getCell("A11").value, "Grand total")
+  assert.equal(sheet.getCell("C11").value, 17.5)
+  assert.equal(sheet.getCell("D11").value, 3)
+  assert.equal(sheet.getCell("E11").value, 192.5)
 })

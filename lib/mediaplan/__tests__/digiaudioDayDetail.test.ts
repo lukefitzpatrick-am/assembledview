@@ -15,7 +15,7 @@ const cols = buildWeeklyGanttColumnsFromCampaign(CS, CE)
 function line(bursts: any[]): StandardDigiAudioFormLineItem {
   return {
     platform: "P", publisher: "Pub", site: "S", bidStrategy: "", buyType: "cpm",
-    targetingAttribute: "", creativeTargeting: "", creative: "", buyingDemo: "", market: "",
+    creativeTargeting: "", creative: "", buyingDemo: "", market: "",
     fixedCostMedia: false, clientPaysForMedia: false, budgetIncludesFees: false,
     noadserving: false,
     lineItemId: "a", line_item_id: "a", line_item: 1, lineItem: 1, bursts,

@@ -1,5 +1,5 @@
 import axios from "axios"
-import { parseXanoListPayload } from "@/lib/api/xano"
+import { parseXanoListPayload, xanoPostHeaderRecord } from "@/lib/api/xano"
 
 /**
  * Fetch all pages from a Xano endpoint using either page/per_page or offset/limit.
@@ -55,13 +55,7 @@ export async function fetchAllXanoPagesWithCompleteness(
   const results: any[] = []
   const seenKeys = new Set<string>()
   let complete = true
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    Accept: "application/json",
-    ...(process.env.XANO_API_KEY
-      ? { Authorization: `Bearer ${process.env.XANO_API_KEY}` }
-      : {}),
-  }
+  const headers = xanoPostHeaderRecord()
 
   const buildKey = (item: any): string => {
     if (!item || typeof item !== "object") {

@@ -1,10 +1,10 @@
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import type { ClientKpi, ClientKpiInput } from "./types"
 
 const apiClient = axios.create({
   timeout: 10000,
-  headers: { "Content-Type": "application/json" },
+  headers: xanoPostHeaderRecord(),
 })
 
 export async function fetchClientKpis(clientName: string): Promise<ClientKpi[]> {

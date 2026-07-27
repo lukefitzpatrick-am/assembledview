@@ -7,7 +7,7 @@ import {
   mergeFinanceLineItems,
   financeClientNamesMatch,
 } from "@/lib/finance/utils"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
@@ -39,8 +39,8 @@ export async function GET(request: NextRequest) {
 
     // Fetch clients and publishers in parallel
     const [clientsResponse, publishersResponse] = await Promise.all([
-      axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL")).catch(() => ({ data: [] })),
-      axios.get(xanoUrl("get_publishers", "XANO_PUBLISHERS_BASE_URL")).catch(() => ({ data: [] })),
+      axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL"), { headers: xanoAuthHeaderRecord() }).catch(() => ({ data: [] })),
+      axios.get(xanoUrl("get_publishers", "XANO_PUBLISHERS_BASE_URL"), { headers: xanoAuthHeaderRecord() }).catch(() => ({ data: [] })),
     ])
 
     const clients = Array.isArray(clientsResponse.data) ? clientsResponse.data : []

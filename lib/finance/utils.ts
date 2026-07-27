@@ -1,4 +1,5 @@
 import { parse, format, startOfMonth, endOfMonth, isWithinInterval, getDaysInMonth } from "date-fns"
+import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 
 export interface FinanceLineItem {
   itemCode: string
@@ -266,11 +267,11 @@ export function calculateMonthlyAmountFromBursts(
     if (!burst.startDate && !burst.start_date) return
     if (!burst.endDate && !burst.end_date) return
 
-    const burstStart = new Date(burst.startDate || burst.start_date)
-    const burstEnd = new Date(burst.endDate || burst.end_date)
+    const burstStart = coerceBurstDateLocal(burst.startDate || burst.start_date)
+    const burstEnd = coerceBurstDateLocal(burst.endDate || burst.end_date)
 
     // Validate dates
-    if (isNaN(burstStart.getTime()) || isNaN(burstEnd.getTime())) return
+    if (!burstStart || !burstEnd) return
 
     // Check if burst overlaps with selected month
     if (burstEnd < monthStart || burstStart > monthEnd) return

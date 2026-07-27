@@ -131,9 +131,6 @@ export function normalizeProgrammaticLineItems(items: unknown[] | undefined): Pr
     })
 }
 
-/** @deprecated Prefer {@link normalizeProgrammaticLineItems}. */
-export const normalizeDv360ProgrammaticLineItems = normalizeProgrammaticLineItems
-
 function startOfDay(date: Date) {
   const d = new Date(date)
   d.setHours(0, 0, 0, 0)

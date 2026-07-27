@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
-import { getXanoBaseUrl, parseXanoListPayload } from "@/lib/api/xano"
+import { getXanoBaseUrl, parseXanoListPayload, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 
 export const dynamic = "force-dynamic"
@@ -30,14 +30,12 @@ export async function GET(request: NextRequest) {
     }
 
     const baseUrl = getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
-    const response = await axios.get(`${baseUrl}/mba_line_approvals`, {
-      params: {
+    const response = await axios.get(`${baseUrl}/mba_line_approvals`, { headers: xanoAuthHeaderRecord(), params: {
         mba_number: mbaNumber,
         media_plan_version: version,
       },
       timeout: XANO_TIMEOUT_MS,
-      validateStatus: (s) => s >= 200 && s < 500,
-    })
+      validateStatus: (s) => s >= 200 && s < 500, })
 
     if (response.status === 404) {
       return NextResponse.json({ lines: [], available: false })
@@ -87,18 +85,12 @@ export async function PATCH(request: NextRequest) {
     }
 
     const baseUrl = getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
-    const response = await axios.patch(
-      `${baseUrl}/mba_line_approvals`,
-      {
+    const response = await axios.patch(`${baseUrl}/mba_line_approvals`, {
         mba_number: body.mba_number,
         media_plan_version: body.media_plan_version,
         lines: body.lines,
-      },
-      {
-        timeout: XANO_TIMEOUT_MS,
-        validateStatus: (s) => s >= 200 && s < 500,
-      }
-    )
+      }, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS,
+        validateStatus: (s) => s >= 200 && s < 500, })
 
     if (response.status === 404) {
       return NextResponse.json(

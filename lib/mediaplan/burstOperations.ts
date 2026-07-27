@@ -1,5 +1,6 @@
 import type { UseFormReturn } from "react-hook-form"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
+import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 
 const MAX_BURSTS = 12
 
@@ -26,9 +27,9 @@ function defaultComputeDates({
   let endDate = defaultMediaBurstEndDate(campaignStartDate, campaignEndDate)
   if (currentBursts.length > 0) {
     const lastBurst = currentBursts[currentBursts.length - 1]
-    if (lastBurst?.endDate) {
-      startDate = new Date(lastBurst.endDate)
-      startDate.setDate(startDate.getDate() + 1)
+    const lastEnd = coerceBurstDateLocal(lastBurst?.endDate)
+    if (lastEnd) {
+      startDate = new Date(lastEnd.getFullYear(), lastEnd.getMonth(), lastEnd.getDate() + 1)
       endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0)
     }
   }
@@ -160,9 +161,9 @@ export function duplicateBurst({
 
   const lastBurst = currentBursts[currentBursts.length - 1]
   let startDate = new Date()
-  if (lastBurst?.endDate) {
-    startDate = new Date(lastBurst.endDate)
-    startDate.setDate(startDate.getDate() + 1)
+  const lastEnd = coerceBurstDateLocal(lastBurst?.endDate)
+  if (lastEnd) {
+    startDate = new Date(lastEnd.getFullYear(), lastEnd.getMonth(), lastEnd.getDate() + 1)
   }
   const endDate = new Date(startDate.getFullYear(), startDate.getMonth() + 1, 0)
 

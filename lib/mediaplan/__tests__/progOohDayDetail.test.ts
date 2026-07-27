@@ -14,7 +14,7 @@ const cols = buildWeeklyGanttColumnsFromCampaign(CS, CE)
 
 function line(bursts: any[]): StandardProgOohFormLineItem {
   return {
-    platform: "P", bidStrategy: "", buyType: "bonus", creativeTargeting: "", creative: "", buyingDemo: "", market: "", environment: "", format: "", location: "", targetingAttribute: "", placement: "", size: "",
+    platform: "P", bidStrategy: "", buyType: "bonus", creativeTargeting: "", creative: "", buyingDemo: "", market: "", targetingAttribute: "",
     fixedCostMedia: false, clientPaysForMedia: false, budgetIncludesFees: false, noadserving: false,
     lineItemId: "a", line_item_id: "a", line_item: 1, lineItem: 1, bursts,
   }

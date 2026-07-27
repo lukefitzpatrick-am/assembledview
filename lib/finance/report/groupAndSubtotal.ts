@@ -1,9 +1,15 @@
+import { australianFyStartYearForDate, fyDisplayLabel } from "@/lib/finance/months"
+import {
+  addReportMeasures,
+  emptyReportMeasures,
+  type ReportMetricKey,
+} from "./metrics"
 import type { ReportDimension, ReportRow } from "./types"
 
 export interface SubtotalNode {
   dimension: ReportDimension | null
   key: string
-  measures: { totalBillable: number; mediaSpend: number; agencyFee: number }
+  measures: Record<ReportMetricKey, number>
   children: SubtotalNode[]
   leafRows: ReportRow[]
   rowCount: number
@@ -12,21 +18,21 @@ export interface SubtotalNode {
 const GRAND_TOTAL = "Grand Total"
 const UNSPECIFIED = "Unspecified"
 
-function round2(value: number): number {
-  return Math.round(value * 100) / 100
+function financialYearKey(billingMonth: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(billingMonth.trim())
+  if (!match) return UNSPECIFIED
+  const year = Number(match[1])
+  const month = Number(match[2])
+  if (!Number.isFinite(year) || month < 1 || month > 12) return UNSPECIFIED
+  return fyDisplayLabel(australianFyStartYearForDate(new Date(year, month - 1, 1)))
 }
 
-function emptyMeasures(): SubtotalNode["measures"] {
-  return { totalBillable: 0, mediaSpend: 0, agencyFee: 0 }
-}
-
-function addMeasures(
-  measures: SubtotalNode["measures"],
-  row: Pick<ReportRow, "totalBillable" | "mediaSpend" | "agencyFee">
-): void {
-  measures.totalBillable = round2(measures.totalBillable + row.totalBillable)
-  measures.mediaSpend = round2(measures.mediaSpend + row.mediaSpend)
-  measures.agencyFee = round2(measures.agencyFee + row.agencyFee)
+function billingTypeKey(billingType: string): string {
+  const trimmed = billingType.trim()
+  if (!trimmed) return UNSPECIFIED
+  const lower = trimmed.toLowerCase()
+  if (lower === "sow") return "SOW"
+  return lower.charAt(0).toUpperCase() + lower.slice(1)
 }
 
 function compareKeys(a: string, b: string): number {
@@ -56,6 +62,16 @@ function compareDetailRows(a: ReportRow, b: ReportRow): number {
 }
 
 function dimensionKey(row: ReportRow, dimension: ReportDimension): string {
+  if (dimension === "financialYear") return financialYearKey(row.billingMonth)
+  if (dimension === "mbaNumber") return row.mbaNumber.trim() || UNSPECIFIED
+  if (dimension === "billingType") return billingTypeKey(row.billingType)
+  if (dimension === "billingStatus") return row.billingStatus.trim() || UNSPECIFIED
+  if (dimension === "rowKind") return row.rowKind === "service" ? "Service" : "Media"
+  if (dimension === "clientPays") return row.clientPays ? "Client pays media" : "Agency billed"
+  if (dimension === "billingAgency") {
+    return row.billingAgency === "AA" ? "Advertising Associates" : "Assembled Media"
+  }
+
   const value =
     dimension === "mediaType"
       ? row.mediaType
@@ -80,10 +96,12 @@ function buildNode(
   dimension: ReportDimension | null,
   key: string
 ): SubtotalNode {
-  const measures = emptyMeasures()
+  const measures = emptyReportMeasures()
   for (const row of rows) {
-    addMeasures(measures, row)
+    addReportMeasures(measures, row)
   }
+  // rowCount measure mirrors node.rowCount (leaf row count under this node).
+  measures.rowCount = rows.length
 
   if (depth >= order.length) {
     return {

@@ -21,7 +21,7 @@ import type {
 } from "@/lib/mediaplan/expertModeWeeklySchedule"
 import {
   OOH_EXPERT_ROW_HEIGHT_PX,
-  OOH_EXPERT_ROW_OVERSCAN,
+  EXPERT_GRID_ROW_OVERSCAN_DEFAULT,
   expectedMountedRowRange,
   mountedRowCount,
   virtualRowIndexFromOffsetY,
@@ -29,7 +29,7 @@ import {
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 
 const SOCIALMEDIA_EXPERT_ROW_HEIGHT_PX = OOH_EXPERT_ROW_HEIGHT_PX
-const SOCIALMEDIA_EXPERT_ROW_OVERSCAN = OOH_EXPERT_ROW_OVERSCAN
+const SOCIALMEDIA_EXPERT_ROW_OVERSCAN = EXPERT_GRID_ROW_OVERSCAN_DEFAULT
 
 const CS = new Date(2026, 0, 1)
 const CE = new Date(2026, 11, 31)

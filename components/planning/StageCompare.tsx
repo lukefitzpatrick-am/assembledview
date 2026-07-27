@@ -10,6 +10,8 @@ import type { AllocatedChannel, ScoredChannel } from "@/app/tools/behavioural-pl
 import type { AdapterResult } from "@/lib/planning/adapter"
 import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
 import { buildCreateCampaignHref } from "@/lib/mediaplan/createPrefill"
+import { PLANNING_CHANNEL_BENCH_VERSION } from "@/lib/planning/planningChannelBench"
+import { buildRecommendedSplitV1 } from "@/lib/planning/recommendedSplit"
 import { cn } from "@/lib/utils"
 import { CompareAudienceInsight } from "./CompareAudienceInsight"
 import { ExportDeckButton } from "./ExportDeckButton"
@@ -42,6 +44,8 @@ export type SavedAudienceDefinition = {
   diagnosis: DiagnosisState
   exclusions: string[]
   wave_id: string
+  /** Frozen Stage E → create handoff snapshot (lives in freeform definition_json). */
+  recommended_split?: ReturnType<typeof buildRecommendedSplitV1>
 }
 
 type StageCompareProps = {
@@ -100,49 +104,70 @@ export function StageCompare({
   const colCount = bundles.length
   const showDollars = brief.budget > 0
   const [savingId, setSavingId] = useState<string | null>(null)
-  const [lastSavedName, setLastSavedName] = useState<string | null>(null)
+  /** draft.id → saved planning audience id (for Start campaign handoff). */
+  const [lastSavedByDraftId, setLastSavedByDraftId] = useState<Record<string, number>>(
+    {}
+  )
 
   const canSave = Boolean(brief.clientId && brief.clientName.trim())
   const insightByAudienceId = Object.fromEntries(
     bundles.map((b) => [b.draft.id, insightFor(b.draft.id).cachedInsight])
   )
 
-  async function handleUseAudience(bundle: AudienceCompareBundle) {
+  async function saveAudienceWithSplit(
+    bundle: AudienceCompareBundle
+  ): Promise<PlanningAudienceRow | null> {
     if (!brief.clientId) {
       toast({
         title: "Select a client first",
         description: "Stage A needs a client before saving an audience.",
         variant: "destructive",
       })
-      return
+      return null
     }
+    const recommended_split = buildRecommendedSplitV1({
+      allocated: bundle.allocated.map((a) => ({
+        engineChannelId: a.ch.id,
+        pct: a.pct,
+        dollars: a.dollars,
+      })),
+      budget: brief.budget,
+      benchVersion: PLANNING_CHANNEL_BENCH_VERSION,
+    })
+    const definition: SavedAudienceDefinition = {
+      audience: bundle.draft,
+      brief,
+      diagnosis,
+      exclusions: excludedChannelIds,
+      wave_id: waveId,
+      recommended_split,
+    }
+    const res = await fetch("/api/planning/audiences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clients_id: brief.clientId,
+        name: bundle.draft.name,
+        definition_json: definition,
+        composed_wc: bundle.adapted?.audienceWc ?? 0,
+        client_visible: false,
+      }),
+    })
+    if (!res.ok) {
+      const errBody = (await res.json().catch(() => null)) as { error?: string } | null
+      throw new Error(errBody?.error ?? `Save failed (${res.status})`)
+    }
+    const saved = (await res.json()) as PlanningAudienceRow
+    setLastSavedByDraftId((prev) => ({ ...prev, [bundle.draft.id]: saved.id }))
+    onAudienceSaved()
+    return saved
+  }
+
+  async function handleUseAudience(bundle: AudienceCompareBundle) {
     setSavingId(bundle.draft.id)
     try {
-      const definition: SavedAudienceDefinition = {
-        audience: bundle.draft,
-        brief,
-        diagnosis,
-        exclusions: excludedChannelIds,
-        wave_id: waveId,
-      }
-      const res = await fetch("/api/planning/audiences", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          clients_id: brief.clientId,
-          name: bundle.draft.name,
-          definition_json: definition,
-          composed_wc: bundle.adapted?.audienceWc ?? 0,
-          client_visible: false,
-        }),
-      })
-      if (!res.ok) {
-        const errBody = (await res.json().catch(() => null)) as { error?: string } | null
-        throw new Error(errBody?.error ?? `Save failed (${res.status})`)
-      }
-      const saved = (await res.json()) as PlanningAudienceRow
-      setLastSavedName(saved.name)
-      onAudienceSaved()
+      const saved = await saveAudienceWithSplit(bundle)
+      if (!saved) return
       toast({
         title: `Saved “${saved.name}”`,
         description:
@@ -151,6 +176,32 @@ export function StageCompare({
     } catch (err) {
       toast({
         title: "Could not save audience",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      })
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  async function handleStartCampaign(bundle: AudienceCompareBundle) {
+    setSavingId(bundle.draft.id)
+    try {
+      // Always re-freeze current allocation so create gets a fresh snapshot.
+      const saved = await saveAudienceWithSplit(bundle)
+      if (!saved?.id) return
+      router.push(
+        buildCreateCampaignHref({
+          audienceId: saved.id,
+          clientId: brief.clientId,
+          campaignName: brief.campaignName,
+          start: brief.startDate,
+          end: brief.endDate,
+        })
+      )
+    } catch (err) {
+      toast({
+        title: "Could not start campaign",
         description: err instanceof Error ? err.message : "Unknown error",
         variant: "destructive",
       })
@@ -269,25 +320,21 @@ export function StageCompare({
                   >
                     {busy ? "Saving…" : "Use audience →"}
                   </Button>
-                  {lastSavedName === b.draft.name ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      onClick={() =>
-                        router.push(
-                          buildCreateCampaignHref({
-                            clientId: brief.clientId,
-                            campaignName: brief.campaignName,
-                            start: brief.startDate,
-                            end: brief.endDate,
-                          })
-                        )
-                      }
-                    >
-                      Start campaign
-                    </Button>
-                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={
+                      !canSave || busy || !b.adapted || b.allocated.length === 0
+                    }
+                    onClick={() => void handleStartCampaign(b)}
+                  >
+                    {busy && lastSavedByDraftId[b.draft.id]
+                      ? "Starting…"
+                      : busy
+                        ? "Saving…"
+                        : "Start campaign"}
+                  </Button>
                 </div>
                 {!canSave ? (
                   <p className="text-[10px] text-muted-foreground">

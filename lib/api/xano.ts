@@ -54,10 +54,29 @@ export function parseXanoListPayload(payload: unknown): any[] {
   return []
 }
 
+/**
+ * Server-side Xano API key (`process.env.XANO_API_KEY` only — never NEXT_PUBLIC_*).
+ * Single read path for all outbound Xano auth. Empty/missing → no Authorization header.
+ */
+function readXanoApiKey(): string | undefined {
+  const key = process.env.XANO_API_KEY?.trim()
+  return key || undefined
+}
+
+/**
+ * Authorization header fragment when the key is set.
+ * Choke point for every outbound Xano request — prefer this (or the helpers below)
+ * over inlining `Bearer ${process.env.XANO_API_KEY}`.
+ */
+export function xanoAuthHeader(): Record<string, string> {
+  const key = readXanoApiKey()
+  return key ? { Authorization: `Bearer ${key}` } : {}
+}
+
 export function xanoAuthHeaders(): HeadersInit {
   return {
     Accept: "application/json",
-    ...(process.env.XANO_API_KEY ? { Authorization: `Bearer ${process.env.XANO_API_KEY}` } : {}),
+    ...xanoAuthHeader(),
   }
 }
 
@@ -65,7 +84,7 @@ export function xanoAuthHeaders(): HeadersInit {
 export function xanoAuthHeaderRecord(): Record<string, string> {
   return {
     Accept: "application/json",
-    ...(process.env.XANO_API_KEY ? { Authorization: `Bearer ${process.env.XANO_API_KEY}` } : {}),
+    ...xanoAuthHeader(),
   }
 }
 
@@ -73,6 +92,24 @@ export function xanoPostHeaders(): HeadersInit {
   return {
     "Content-Type": "application/json",
     Accept: "application/json",
-    ...(process.env.XANO_API_KEY ? { Authorization: `Bearer ${process.env.XANO_API_KEY}` } : {}),
+    ...xanoAuthHeader(),
   }
+}
+
+/** Plain-object form of `xanoPostHeaders` for axios / Record merges. */
+export function xanoPostHeaderRecord(): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    ...xanoAuthHeader(),
+  }
+}
+
+/** Like `xanoAuthHeaderRecord`, but throws when `XANO_API_KEY` is unset (strict modules). */
+export function requireXanoAuthHeaderRecord(): Record<string, string> {
+  const headers = xanoAuthHeaderRecord()
+  if (!headers.Authorization) {
+    throw new Error("Missing required environment variable: XANO_API_KEY")
+  }
+  return headers
 }

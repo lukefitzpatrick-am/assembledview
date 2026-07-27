@@ -8,6 +8,7 @@ import {
   PageHeroShell,
   PageHeroTitleBlock,
 } from "@/components/dashboard/PageHeroShell"
+import { ClientProfileLinks } from "@/components/dashboard/ClientProfileLinks"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { formatCurrencyCompact } from "@/lib/format/currency"
 import { cn } from "@/lib/utils"
@@ -17,6 +18,10 @@ export interface HeroBannerProps {
   clientLogo?: string | null
   brandColour?: string
   totalSpend: number
+  /** Label for the `totalSpend` figure. Defaults to "Total spend"; callers pass "Planned to
+   * date" when `totalSpend` is a planned (not delivered/actuals) figure — see
+   * `lib/dashboard/plannedSpendConsistency.ts`. */
+  spendLabel?: string
   activeCampaigns: number
   averageRoas?: number
   performanceVsBenchmark?: number
@@ -26,6 +31,8 @@ export interface HeroBannerProps {
   isAdmin?: boolean
   /** Client hub (/client/[slug]): omit benchmark line and Avg ROAS meta. */
   clientHubLayout?: boolean
+  /** Raw Xano client row — used for profile link icons on admin hub. */
+  clientRecord?: Record<string, unknown> | null
 }
 
 function getClientInitials(clientName: string): string {
@@ -55,6 +62,7 @@ export function HeroBanner({
   clientLogo,
   brandColour = "var(--pacing-on-track)",
   totalSpend,
+  spendLabel = "Total spend",
   activeCampaigns,
   averageRoas,
   performanceVsBenchmark,
@@ -63,8 +71,10 @@ export function HeroBanner({
   onOpenKPIs,
   isAdmin = false,
   clientHubLayout = false,
+  clientRecord = null,
 }: HeroBannerProps) {
   const showBenchmarkLine = !clientHubLayout
+  const showProfileLinks = clientHubLayout && isAdmin
 
   const detail = (
     <>
@@ -82,7 +92,7 @@ export function HeroBanner({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-pill" style={{ backgroundColor: brandColour }} aria-hidden />
-          Total spend: {formatCurrencyCompact(totalSpend)}
+          {spendLabel}: {formatCurrencyCompact(totalSpend)}
         </span>
         <span aria-hidden className="text-border">
           •
@@ -146,6 +156,12 @@ export function HeroBanner({
           />
         </div>
       </div>
+
+      {showProfileLinks ? (
+        <div className={cn("relative z-10 mt-4", PAGE_HERO_PADDING, isAdmin && "pr-14 sm:pr-16 md:pr-20")}>
+          <ClientProfileLinks record={clientRecord} />
+        </div>
+      ) : null}
 
       {isAdmin ? (
         <div className="absolute right-3 top-1/2 z-20 -translate-y-1/2 sm:right-4 md:right-6 lg:right-7">

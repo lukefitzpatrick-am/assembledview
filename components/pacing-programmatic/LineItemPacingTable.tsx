@@ -15,6 +15,7 @@ import {
   type SortDirection,
 } from "@/components/ui/sortable-table-header";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import type { DeliverableMetric } from "@/lib/pacing/deliverables/mapDeliverableMetric";
 import { inclusiveDaysBetween } from "@/lib/pacing/burst/currentBurst";
@@ -96,6 +97,48 @@ const NUMERIC_SORT_COLUMNS = new Set<PacingSortColumn>([
   "deliverableTarget",
 ]);
 
+/**
+ * Column visibility model: every column lives in exactly one of these two
+ * lists. `DEFAULT_COLUMNS` are always rendered; `OPTIONAL_COLUMNS` only when
+ * "More columns" is toggled on. Header cells and body cells both check
+ * `isColumnVisible(id, moreColumns)` against the same named list, so adding a
+ * column to one side without the other is a visible, single-source change
+ * instead of a scattered inline-conditional to keep in sync by hand.
+ */
+const DEFAULT_COLUMNS: readonly PacingSortColumn[] = [
+  "clientName",
+  "campaignName",
+  "lineItemStatus",
+  "kpiStatus",
+  "totalLineItemBudget",
+  "spendToDateLineTotal",
+];
+
+const OPTIONAL_COLUMNS: readonly PacingSortColumn[] = [
+  "platformLabel",
+  "mbaNumber",
+  "lineItemId",
+  "creativeTargeting",
+  "lineItemStartDate",
+  "lineItemEndDate",
+  "totalBursts",
+  "currentBurstIndex",
+  "burstStartDate",
+  "impressions",
+  "clicks",
+  "cpm",
+  "cpv",
+  "deliverableActual",
+  "deliverableTarget",
+];
+
+/** Default columns always render; optional only when "More columns" is on; unclassified never render. */
+function isColumnVisible(column: PacingSortColumn, moreColumns: boolean): boolean {
+  if (DEFAULT_COLUMNS.includes(column)) return true;
+  if (OPTIONAL_COLUMNS.includes(column)) return moreColumns;
+  return false;
+}
+
 function sortableNumber(value: number | null | undefined): number {
   return value ?? Number.NEGATIVE_INFINITY;
 }
@@ -169,23 +212,16 @@ function SortablePacingTh({
 }
 
 /**
- * Sticky left columns:
- *   0: chevron
- *   1: Client
- *   2: Platform
- *   3: Campaign / Entity
- *   4: MBA
- *   5: Line Item ID
- *   6: Status
- *   7: Targeting
+ * Only Client and Campaign stay pinned on horizontal scroll — everything else
+ * (including the expand chevron and Platform) scrolls normally. Campaign's
+ * offset is the measured width of the Client column; intervening non-sticky
+ * columns simply scroll underneath.
  */
-const STICKY_LEFT_COUNT = 8;
+const STICKY_EDGE_SHADOW = "-1px 0 0 hsl(var(--border)) inset";
 
-const LINE_ITEM_BG = "hsl(var(--card))";
-const PLATFORM_CAMPAIGN_BG = "hsl(var(--surface-panel))";
-const AD_SET_BG = "var(--fill-track)";
-
-const TARGETING_COLUMN_SHADOW = "-1px 0 0 hsl(var(--border)) inset";
+const LINE_ITEM_BG_CLASS = "bg-card";
+const PLATFORM_CAMPAIGN_BG_CLASS = "bg-surface-panel";
+const AD_SET_BG_CLASS = "bg-[var(--fill-track)]";
 
 const statusLabel: Record<ProgrammaticPacingCampaignRow["lineItemStatus"], string> = {
   "on-track": "On track",
@@ -223,75 +259,49 @@ function kpiStatusBadgeVariant(status: RowKpiStatus): "secondary" | "on-track" |
   }
 }
 
-function computeLeftOffsets(widths: number[]): number[] {
-  const offsets: number[] = [];
-  let running = 0;
-  for (let i = 0; i < widths.length; i++) {
-    offsets.push(running);
-    running += widths[i];
-  }
-  return offsets;
-}
-
-function useStickyLeftOffsets(
-  firstRowRef: RefObject<HTMLTableRowElement | null>,
-): number[] {
-  const [offsets, setOffsets] = useState<number[]>(() =>
-    new Array(STICKY_LEFT_COUNT).fill(0),
-  );
+/** Measures the rendered width of the first row's Client cell (the only thing Campaign's offset depends on). */
+function useClientColumnWidth(clientCellRef: RefObject<HTMLTableCellElement | null>): number {
+  const [width, setWidth] = useState(0);
 
   useLayoutEffect(() => {
-    const row = firstRowRef.current;
-    if (!row) return;
+    const cell = clientCellRef.current;
+    if (!cell) return;
 
-    const measure = () => {
-      const cells = Array.from(row.children) as HTMLTableCellElement[];
-      const widths: number[] = [];
-      for (let i = 0; i < STICKY_LEFT_COUNT; i++) {
-        const cell = cells[i];
-        widths.push(cell ? cell.getBoundingClientRect().width : 0);
-      }
-      setOffsets(computeLeftOffsets(widths));
-    };
-
+    const measure = () => setWidth(cell.getBoundingClientRect().width);
     measure();
 
     const observer = new ResizeObserver(() => measure());
-    observer.observe(row);
-    const cells = Array.from(row.children) as HTMLTableCellElement[];
-    for (let i = 0; i < Math.min(STICKY_LEFT_COUNT, cells.length); i++) {
-      observer.observe(cells[i]);
-    }
-
+    observer.observe(cell);
     return () => observer.disconnect();
-  }, [firstRowRef]);
+  }, [clientCellRef]);
 
-  return offsets;
+  return width;
 }
 
-function stickyLeftCellStyle(
-  columnIndex: number,
-  leftOffsets: number[],
-  background: string,
-): CSSProperties {
+function stickyClientCellStyle(): CSSProperties {
+  return { position: "sticky", left: 0, zIndex: 10 };
+}
+
+function stickyCampaignCellStyle(clientWidth: number): CSSProperties {
   return {
     position: "sticky",
-    left: leftOffsets[columnIndex],
-    background,
+    left: clientWidth,
     zIndex: 10,
-    ...(columnIndex === 7 ? { boxShadow: TARGETING_COLUMN_SHADOW } : {}),
+    boxShadow: STICKY_EDGE_SHADOW,
   };
 }
 
-function stickyHeaderCornerStyle(
-  columnIndex: number,
-  leftOffsets: number[],
-): CSSProperties {
+function stickyClientHeaderStyle(): CSSProperties {
+  return { position: "sticky", top: 0, left: 0, zIndex: 30 };
+}
+
+function stickyCampaignHeaderStyle(clientWidth: number): CSSProperties {
   return {
+    position: "sticky",
     top: 0,
-    left: leftOffsets[columnIndex],
+    left: clientWidth,
     zIndex: 30,
-    ...(columnIndex === 7 ? { boxShadow: TARGETING_COLUMN_SHADOW } : {}),
+    boxShadow: STICKY_EDGE_SHADOW,
   };
 }
 
@@ -393,8 +403,9 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
   const [expandedCampaigns, setExpandedCampaigns] = useState<Set<string>>(new Set());
   const [sortColumn, setSortColumn] = useState<PacingSortColumn | null>(null);
   const [sortDirection, setSortDirection] = useState<Exclude<SortDirection, null>>("asc");
-  const firstRowRef = useRef<HTMLTableRowElement>(null);
-  const leftOffsets = useStickyLeftOffsets(firstRowRef);
+  const [moreColumns, setMoreColumns] = useState(false);
+  const clientCellRef = useRef<HTMLTableCellElement>(null);
+  const clientWidth = useClientColumnWidth(clientCellRef);
 
   const sortedRows = useMemo(() => {
     if (!sortColumn) return rows;
@@ -438,232 +449,271 @@ export function LineItemPacingTable({ rows, asOfDate }: LineItemPacingTableProps
   }
 
   return (
-    <div className="rounded border">
-      <div className="relative max-h-[calc(100vh-220px)] overflow-auto">
-        <table className="w-full min-w-[1200px] text-xs" style={{ borderSpacing: 0 }}>
-          <thead>
-            <tr className="text-left">
-              <th
-                className="sticky bg-background p-2 text-left border-b"
-                style={stickyHeaderCornerStyle(0, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="Client"
-                column="clientName"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={stickyHeaderCornerStyle(1, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="Platform"
-                column="platformLabel"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={stickyHeaderCornerStyle(2, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="Campaign / Entity"
-                column="campaignName"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 text-left border-b"
-                style={stickyHeaderCornerStyle(3, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="MBA"
-                column="mbaNumber"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={stickyHeaderCornerStyle(4, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="Line Item ID"
-                column="lineItemId"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={stickyHeaderCornerStyle(5, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="Status"
-                column="lineItemStatus"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={stickyHeaderCornerStyle(6, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="Targeting"
-                column="creativeTargeting"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 text-left border-b"
-                style={stickyHeaderCornerStyle(7, leftOffsets)}
-              />
-              <SortablePacingTh
-                label="KPI Status"
-                column="kpiStatus"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky top-0 bg-background p-2 text-left border-b"
-                style={{ zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Line Start"
-                column="lineItemStartDate"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Line End"
-                column="lineItemEndDate"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Total Budget"
-                column="totalLineItemBudget"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Bursts"
-                column="totalBursts"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Current"
-                column="currentBurstIndex"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Burst Start"
-                column="burstStartDate"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Spend"
-                column="spendToDateLineTotal"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Impressions"
-                column="impressions"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Clicks"
-                column="clicks"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="CPM"
-                column="cpm"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="CPV"
-                column="cpv"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Delivered"
-                column="deliverableActual"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-              <SortablePacingTh
-                label="Target"
-                column="deliverableTarget"
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onToggle={toggleSort}
-                align="right"
-                className="sticky bg-background p-2 text-right border-b"
-                style={{ top: 0, zIndex: 20 }}
-              />
-            </tr>
-          </thead>
-          <tbody>
-            {sortedRows.map((row, rowIndex) => (
-              <FragmentForLineItem
-                key={`${row.mbaNumber}-${row.lineItemId}-${row.xanoRowId}`}
-                row={row}
-                asOfDate={asOfDate}
-                isExpanded={expandedLineItems.has(row.lineItemId)}
-                onToggle={() => toggleLineItem(row.lineItemId)}
-                expandedCampaigns={expandedCampaigns}
-                onToggleCampaign={toggleCampaign}
-                leftOffsets={leftOffsets}
-                firstRowRef={rowIndex === 0 ? firstRowRef : undefined}
-              />
-            ))}
-          </tbody>
-        </table>
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 px-2.5 text-xs"
+          onClick={() => setMoreColumns((v) => !v)}
+        >
+          {moreColumns ? "Fewer columns" : "More columns"}
+        </Button>
+      </div>
+      <div className="rounded border">
+        <div className="relative max-h-[calc(100vh-220px)] overflow-auto">
+          <table
+            className={cn("w-full text-xs", moreColumns ? "min-w-[1200px]" : "min-w-[860px]")}
+            style={{ borderSpacing: 0 }}
+          >
+            <thead>
+              <tr className="text-left">
+                <th className="sticky top-0 z-20 bg-background p-2 text-left border-b" />
+                <SortablePacingTh
+                  label="Client"
+                  column="clientName"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
+                  style={stickyClientHeaderStyle()}
+                />
+                {isColumnVisible("platformLabel", moreColumns) && (
+                  <SortablePacingTh
+                    label="Platform"
+                    column="platformLabel"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky top-0 z-20 bg-background p-2 whitespace-nowrap text-left border-b"
+                  />
+                )}
+                <SortablePacingTh
+                  label="Campaign / Entity"
+                  column="campaignName"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  className="sticky bg-background p-2 text-left border-b"
+                  style={stickyCampaignHeaderStyle(clientWidth)}
+                />
+                {isColumnVisible("mbaNumber", moreColumns) && (
+                  <SortablePacingTh
+                    label="MBA"
+                    column="mbaNumber"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky top-0 z-20 bg-background p-2 whitespace-nowrap text-left border-b"
+                  />
+                )}
+                {isColumnVisible("lineItemId", moreColumns) && (
+                  <SortablePacingTh
+                    label="Line Item ID"
+                    column="lineItemId"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky top-0 z-20 bg-background p-2 whitespace-nowrap text-left border-b"
+                  />
+                )}
+                <SortablePacingTh
+                  label="Status"
+                  column="lineItemStatus"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  className="sticky top-0 z-20 bg-background p-2 whitespace-nowrap text-left border-b"
+                />
+                {isColumnVisible("creativeTargeting", moreColumns) && (
+                  <SortablePacingTh
+                    label="Targeting"
+                    column="creativeTargeting"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky top-0 z-20 bg-background p-2 text-left border-b"
+                  />
+                )}
+                <SortablePacingTh
+                  label="KPI Status"
+                  column="kpiStatus"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  className="sticky top-0 bg-background p-2 text-left border-b"
+                  style={{ zIndex: 20 }}
+                />
+                {isColumnVisible("lineItemStartDate", moreColumns) && (
+                  <SortablePacingTh
+                    label="Line Start"
+                    column="lineItemStartDate"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {isColumnVisible("lineItemEndDate", moreColumns) && (
+                  <SortablePacingTh
+                    label="Line End"
+                    column="lineItemEndDate"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                <SortablePacingTh
+                  label="Total Budget"
+                  column="totalLineItemBudget"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  align="right"
+                  className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
+                  style={{ top: 0, zIndex: 20 }}
+                />
+                {isColumnVisible("totalBursts", moreColumns) && (
+                  <SortablePacingTh
+                    label="Bursts"
+                    column="totalBursts"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {isColumnVisible("currentBurstIndex", moreColumns) && (
+                  <SortablePacingTh
+                    label="Current"
+                    column="currentBurstIndex"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {isColumnVisible("burstStartDate", moreColumns) && (
+                  <SortablePacingTh
+                    label="Burst Start"
+                    column="burstStartDate"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    className="sticky bg-background p-2 whitespace-nowrap text-left border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                <SortablePacingTh
+                  label="Spend"
+                  column="spendToDateLineTotal"
+                  sortColumn={sortColumn}
+                  sortDirection={sortDirection}
+                  onToggle={toggleSort}
+                  align="right"
+                  className="sticky bg-background p-2 text-right whitespace-nowrap border-b"
+                  style={{ top: 0, zIndex: 20 }}
+                />
+                {isColumnVisible("impressions", moreColumns) && (
+                  <SortablePacingTh
+                    label="Impressions"
+                    column="impressions"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {isColumnVisible("clicks", moreColumns) && (
+                  <SortablePacingTh
+                    label="Clicks"
+                    column="clicks"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {isColumnVisible("cpm", moreColumns) && (
+                  <SortablePacingTh
+                    label="CPM"
+                    column="cpm"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {isColumnVisible("cpv", moreColumns) && (
+                  <SortablePacingTh
+                    label="CPV"
+                    column="cpv"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {isColumnVisible("deliverableActual", moreColumns) && (
+                  <SortablePacingTh
+                    label="Delivered"
+                    column="deliverableActual"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+                {isColumnVisible("deliverableTarget", moreColumns) && (
+                  <SortablePacingTh
+                    label="Target"
+                    column="deliverableTarget"
+                    sortColumn={sortColumn}
+                    sortDirection={sortDirection}
+                    onToggle={toggleSort}
+                    align="right"
+                    className="sticky bg-background p-2 text-right border-b"
+                    style={{ top: 0, zIndex: 20 }}
+                  />
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedRows.map((row, rowIndex) => (
+                <FragmentForLineItem
+                  key={`${row.mbaNumber}-${row.lineItemId}-${row.xanoRowId}`}
+                  row={row}
+                  asOfDate={asOfDate}
+                  isExpanded={expandedLineItems.has(row.lineItemId)}
+                  onToggle={() => toggleLineItem(row.lineItemId)}
+                  expandedCampaigns={expandedCampaigns}
+                  onToggleCampaign={toggleCampaign}
+                  clientWidth={clientWidth}
+                  clientCellRef={rowIndex === 0 ? clientCellRef : undefined}
+                  moreColumns={moreColumns}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -676,8 +726,9 @@ function FragmentForLineItem({
   onToggle,
   expandedCampaigns,
   onToggleCampaign,
-  leftOffsets,
-  firstRowRef,
+  clientWidth,
+  clientCellRef,
+  moreColumns,
 }: {
   row: ProgrammaticPacingCampaignRow;
   asOfDate: string;
@@ -685,8 +736,9 @@ function FragmentForLineItem({
   onToggle: () => void;
   expandedCampaigns: Set<string>;
   onToggleCampaign: (key: string) => void;
-  leftOffsets: number[];
-  firstRowRef?: RefObject<HTMLTableRowElement | null>;
+  clientWidth: number;
+  clientCellRef?: RefObject<HTMLTableCellElement | null>;
+  moreColumns: boolean;
 }) {
   const hasChildren = row.platformCampaigns.length > 0;
   const deliveredTitle = deliverableMetricTitle(row.deliverableMetric, "delivered");
@@ -696,9 +748,12 @@ function FragmentForLineItem({
   return (
     <Fragment>
       <tr
-        ref={firstRowRef}
-        className={`border-t ${hasChildren ? "cursor-pointer hover:bg-muted/20" : ""} ${row.currentBurst === null ? "opacity-75" : ""}`}
-        style={{ background: LINE_ITEM_BG }}
+        className={cn(
+          "border-t",
+          LINE_ITEM_BG_CLASS,
+          hasChildren && "cursor-pointer hover:bg-muted/20",
+          row.currentBurst === null && "opacity-75",
+        )}
         title={
           row.currentBurst === null
             ? "Live line item — no burst contains today (gap between bursts)"
@@ -706,7 +761,7 @@ function FragmentForLineItem({
         }
         onClick={hasChildren ? onToggle : undefined}
       >
-        <td className="p-2 border-b" style={stickyLeftCellStyle(0, leftOffsets, LINE_ITEM_BG)}>
+        <td className="p-2">
           {hasChildren ? (
             <ChevronRight
               className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
@@ -714,71 +769,79 @@ function FragmentForLineItem({
           ) : null}
         </td>
         <td
-          className="p-2 border-b font-medium"
-          style={stickyLeftCellStyle(1, leftOffsets, LINE_ITEM_BG)}
+          ref={clientCellRef}
+          className={cn("p-2 font-medium", LINE_ITEM_BG_CLASS)}
+          style={stickyClientCellStyle()}
         >
           {row.clientName}
         </td>
-        <td className="p-2 border-b" style={stickyLeftCellStyle(2, leftOffsets, LINE_ITEM_BG)}>
-          {formatPlatformLabel(row.platformLabel)}
-        </td>
-        <td className="p-2 border-b" style={stickyLeftCellStyle(3, leftOffsets, LINE_ITEM_BG)}>
+        {isColumnVisible("platformLabel", moreColumns) && (
+          <td className="p-2">{formatPlatformLabel(row.platformLabel)}</td>
+        )}
+        <td className={cn("p-2", LINE_ITEM_BG_CLASS)} style={stickyCampaignCellStyle(clientWidth)}>
           {row.campaignName}
         </td>
-        <td
-          className="p-2 border-b font-mono text-[10px]"
-          style={stickyLeftCellStyle(4, leftOffsets, LINE_ITEM_BG)}
-        >
-          {row.mbaNumber}
-        </td>
-        <td
-          className="p-2 border-b font-mono text-[10px]"
-          style={stickyLeftCellStyle(5, leftOffsets, LINE_ITEM_BG)}
-        >
-          {row.lineItemId}
-        </td>
-        <td className="p-2 border-b" style={stickyLeftCellStyle(6, leftOffsets, LINE_ITEM_BG)}>
+        {isColumnVisible("mbaNumber", moreColumns) && (
+          <td className="p-2 font-mono text-[10px]">{row.mbaNumber}</td>
+        )}
+        {isColumnVisible("lineItemId", moreColumns) && (
+          <td className="p-2 font-mono text-[10px]">{row.lineItemId}</td>
+        )}
+        <td className="p-2">
           <StatusCell status={row.lineItemStatus} />
         </td>
-        <td
-          className="p-2 border-b max-w-[8rem] truncate"
-          style={stickyLeftCellStyle(7, leftOffsets, LINE_ITEM_BG)}
-          title={row.creativeTargeting}
-        >
-          {row.creativeTargeting || XANO_MISSING}
-        </td>
-        <td className="p-2 border-b">
+        {isColumnVisible("creativeTargeting", moreColumns) && (
+          <td className="p-2 max-w-[8rem] truncate" title={row.creativeTargeting}>
+            {row.creativeTargeting || XANO_MISSING}
+          </td>
+        )}
+        <td className="p-2">
           <div className="inline-flex items-center gap-1">
             <KpiStatusPill status={computeProgrammaticRowKpiStatus(row)} />
             <KpiDrilldownButton row={row} />
           </div>
         </td>
-        <td className="p-2 border-b">{fmtXanoDate(row.lineItemStartDate)}</td>
-        <td className="p-2 border-b">{fmtXanoDate(row.lineItemEndDate)}</td>
-        <td className="p-2 border-b text-right tabular-nums">
-          {fmtCurrencyOrZero(row.totalLineItemBudget)}
-        </td>
-        <td className="p-2 border-b text-right tabular-nums">{row.totalBursts}</td>
-        <td className="p-2 border-b text-right tabular-nums">
-          {row.currentBurstIndex !== null ? row.currentBurstIndex + 1 : XANO_MISSING}
-        </td>
-        <td className="p-2 border-b">{row.currentBurst?.startDate ?? XANO_MISSING}</td>
-        <td className="p-2 border-b text-right tabular-nums">
-          {fmtCurrencyOrZero(row.spendToDateLineTotal)}
-        </td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(row.impressions)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(row.clicks)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtCpm(row.cpm)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtCpv(row.cpv)}</td>
-        <td
-          className={cn("p-2 border-b text-right tabular-nums", deliveredTint)}
-          title={deliveredTitle}
-        >
-          {fmtNumberOrZero(row.deliverableActual)}
-        </td>
-        <td className="p-2 border-b text-right tabular-nums" title={targetTitle}>
-          {fmtNumberOrZero(row.deliverableTarget)}
-        </td>
+        {isColumnVisible("lineItemStartDate", moreColumns) && (
+          <td className="p-2">{fmtXanoDate(row.lineItemStartDate)}</td>
+        )}
+        {isColumnVisible("lineItemEndDate", moreColumns) && (
+          <td className="p-2">{fmtXanoDate(row.lineItemEndDate)}</td>
+        )}
+        <td className="p-2 text-right num">{fmtCurrencyOrZero(row.totalLineItemBudget)}</td>
+        {isColumnVisible("totalBursts", moreColumns) && (
+          <td className="p-2 text-right num">{row.totalBursts}</td>
+        )}
+        {isColumnVisible("currentBurstIndex", moreColumns) && (
+          <td className="p-2 text-right num">
+            {row.currentBurstIndex !== null ? row.currentBurstIndex + 1 : XANO_MISSING}
+          </td>
+        )}
+        {isColumnVisible("burstStartDate", moreColumns) && (
+          <td className="p-2">{row.currentBurst?.startDate ?? XANO_MISSING}</td>
+        )}
+        <td className="p-2 text-right num">{fmtCurrencyOrZero(row.spendToDateLineTotal)}</td>
+        {isColumnVisible("impressions", moreColumns) && (
+          <td className="p-2 text-right num">{fmtNumberOrZero(row.impressions)}</td>
+        )}
+        {isColumnVisible("clicks", moreColumns) && (
+          <td className="p-2 text-right num">{fmtNumberOrZero(row.clicks)}</td>
+        )}
+        {isColumnVisible("cpm", moreColumns) && (
+          <td className="p-2 text-right num">{fmtCpm(row.cpm)}</td>
+        )}
+        {isColumnVisible("cpv", moreColumns) && (
+          <td className="p-2 text-right num">{fmtCpv(row.cpv)}</td>
+        )}
+        {isColumnVisible("deliverableActual", moreColumns) && (
+          <td className={cn("p-2 text-right num", deliveredTint)} title={deliveredTitle}>
+            {fmtNumberOrZero(row.deliverableActual)}
+          </td>
+        )}
+        {isColumnVisible("deliverableTarget", moreColumns) && (
+          <td className="p-2 text-right num" title={targetTitle}>
+            {fmtNumberOrZero(row.deliverableTarget)}
+          </td>
+        )}
       </tr>
 
       {isExpanded &&
@@ -791,7 +854,8 @@ function FragmentForLineItem({
               campaign={pc}
               isExpanded={expandedCampaigns.has(key)}
               onToggle={() => onToggleCampaign(key)}
-              leftOffsets={leftOffsets}
+              clientWidth={clientWidth}
+              moreColumns={moreColumns}
             />
           );
         })}
@@ -804,13 +868,15 @@ function FragmentForCampaign({
   campaign,
   isExpanded,
   onToggle,
-  leftOffsets,
+  clientWidth,
+  moreColumns,
 }: {
   row: ProgrammaticPacingCampaignRow;
   campaign: ProgrammaticPlatformCampaignBreakdown;
   isExpanded: boolean;
   onToggle: () => void;
-  leftOffsets: number[];
+  clientWidth: number;
+  moreColumns: boolean;
 }) {
   const hasEntities = campaign.entities.length > 0;
   const delivered = deliverableActualFromMetrics(campaign, row.deliverableMetric);
@@ -819,53 +885,65 @@ function FragmentForCampaign({
   return (
     <Fragment>
       <tr
-        className={`border-t ${hasEntities ? "cursor-pointer hover:bg-muted/25" : ""}`}
-        style={{ background: PLATFORM_CAMPAIGN_BG }}
+        className={cn("border-t", PLATFORM_CAMPAIGN_BG_CLASS, hasEntities && "cursor-pointer hover:bg-muted/25")}
         onClick={hasEntities ? onToggle : undefined}
       >
-        <td
-          className="p-2 border-b pl-6"
-          style={stickyLeftCellStyle(0, leftOffsets, PLATFORM_CAMPAIGN_BG)}
-        >
+        <td className="p-2 pl-6">
           {hasEntities ? (
             <ChevronRight
               className={`h-3 w-3 transition-transform ${isExpanded ? "rotate-90" : ""}`}
             />
           ) : null}
         </td>
-        <td className="p-2 border-b" style={stickyLeftCellStyle(1, leftOffsets, PLATFORM_CAMPAIGN_BG)} />
-        <td className="p-2 border-b" style={stickyLeftCellStyle(2, leftOffsets, PLATFORM_CAMPAIGN_BG)} />
+        <td className={cn("p-2", PLATFORM_CAMPAIGN_BG_CLASS)} style={stickyClientCellStyle()} />
+        {isColumnVisible("platformLabel", moreColumns) && <td className="p-2" />}
         <td
-          className="p-2 border-b italic text-foreground/90"
-          style={stickyLeftCellStyle(3, leftOffsets, PLATFORM_CAMPAIGN_BG)}
+          className={cn("p-2 italic text-foreground/90", PLATFORM_CAMPAIGN_BG_CLASS)}
+          style={stickyCampaignCellStyle(clientWidth)}
         >
           {campaign.campaignName || campaign.campaignId}
         </td>
-        <td className="p-2 border-b" style={stickyLeftCellStyle(4, leftOffsets, PLATFORM_CAMPAIGN_BG)} />
-        <td className="p-2 border-b" style={stickyLeftCellStyle(5, leftOffsets, PLATFORM_CAMPAIGN_BG)} />
-        <td className="p-2 border-b" style={stickyLeftCellStyle(6, leftOffsets, PLATFORM_CAMPAIGN_BG)} />
-        <td className="p-2 border-b" style={stickyLeftCellStyle(7, leftOffsets, PLATFORM_CAMPAIGN_BG)} />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b" />
-        <td className="p-2 border-b text-right tabular-nums">{fmtCurrencyOrZero(campaign.spend)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(campaign.impressions)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(campaign.clicks)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtCpm(campaign.cpm)}</td>
-        <td className="p-2 border-b text-right tabular-nums">{fmtCpv(campaign.cpv)}</td>
-        <td className="p-2 border-b text-right tabular-nums" title={deliveredTitle}>
-          {fmtNumberOrZero(delivered)}
-        </td>
-        <td className="p-2 border-b" />
+        {isColumnVisible("mbaNumber", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("lineItemId", moreColumns) && <td className="p-2" />}
+        <td className="p-2" />
+        {isColumnVisible("creativeTargeting", moreColumns) && <td className="p-2" />}
+        <td className="p-2" />
+        {isColumnVisible("lineItemStartDate", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("lineItemEndDate", moreColumns) && <td className="p-2" />}
+        <td className="p-2" />
+        {isColumnVisible("totalBursts", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("currentBurstIndex", moreColumns) && <td className="p-2" />}
+        {isColumnVisible("burstStartDate", moreColumns) && <td className="p-2" />}
+        <td className="p-2 text-right num">{fmtCurrencyOrZero(campaign.spend)}</td>
+        {isColumnVisible("impressions", moreColumns) && (
+          <td className="p-2 text-right num">{fmtNumberOrZero(campaign.impressions)}</td>
+        )}
+        {isColumnVisible("clicks", moreColumns) && (
+          <td className="p-2 text-right num">{fmtNumberOrZero(campaign.clicks)}</td>
+        )}
+        {isColumnVisible("cpm", moreColumns) && (
+          <td className="p-2 text-right num">{fmtCpm(campaign.cpm)}</td>
+        )}
+        {isColumnVisible("cpv", moreColumns) && (
+          <td className="p-2 text-right num">{fmtCpv(campaign.cpv)}</td>
+        )}
+        {isColumnVisible("deliverableActual", moreColumns) && (
+          <td className="p-2 text-right num" title={deliveredTitle}>
+            {fmtNumberOrZero(delivered)}
+          </td>
+        )}
+        {isColumnVisible("deliverableTarget", moreColumns) && <td className="p-2" />}
       </tr>
 
       {isExpanded &&
         campaign.entities.map((adSet) => (
-          <AdSetRow key={`${row.lineItemId}|${campaign.campaignId}|${adSet.entityId}`} row={row} adSet={adSet} leftOffsets={leftOffsets} />
+          <AdSetRow
+            key={`${row.lineItemId}|${campaign.campaignId}|${adSet.entityId}`}
+            row={row}
+            adSet={adSet}
+            clientWidth={clientWidth}
+            moreColumns={moreColumns}
+          />
         ))}
     </Fragment>
   );
@@ -874,51 +952,60 @@ function FragmentForCampaign({
 function AdSetRow({
   row,
   adSet,
-  leftOffsets,
+  clientWidth,
+  moreColumns,
 }: {
   row: ProgrammaticPacingCampaignRow;
   adSet: ProgrammaticEntityBreakdown;
-  leftOffsets: number[];
+  clientWidth: number;
+  moreColumns: boolean;
 }) {
   const delivered = deliverableActualFromMetrics(adSet, row.deliverableMetric);
   const deliveredTitle = deliverableMetricTitle(row.deliverableMetric, "delivered");
 
   return (
-    <tr className="border-t" style={{ background: AD_SET_BG }}>
-      <td className="p-2 border-b pl-10" style={stickyLeftCellStyle(0, leftOffsets, AD_SET_BG)} />
-      <td className="p-2 border-b" style={stickyLeftCellStyle(1, leftOffsets, AD_SET_BG)} />
-      <td className="p-2 border-b" style={stickyLeftCellStyle(2, leftOffsets, AD_SET_BG)} />
+    <tr className={cn("border-t", AD_SET_BG_CLASS)}>
+      <td className="p-2 pl-10" />
+      <td className={cn("p-2", AD_SET_BG_CLASS)} style={stickyClientCellStyle()} />
+      {isColumnVisible("platformLabel", moreColumns) && <td className="p-2" />}
       <td
-        className="p-2 border-b pl-4 text-muted-foreground"
-        style={stickyLeftCellStyle(3, leftOffsets, AD_SET_BG)}
+        className={cn("p-2 pl-4 text-muted-foreground", AD_SET_BG_CLASS)}
+        style={stickyCampaignCellStyle(clientWidth)}
       >
         {adSet.entityName || adSet.entityId}
       </td>
-      <td className="p-2 border-b" style={stickyLeftCellStyle(4, leftOffsets, AD_SET_BG)} />
-      <td
-        className="p-2 border-b font-mono text-[10px] text-muted-foreground"
-        style={stickyLeftCellStyle(5, leftOffsets, AD_SET_BG)}
-      >
-        {adSet.entityId}
-      </td>
-      <td className="p-2 border-b" style={stickyLeftCellStyle(6, leftOffsets, AD_SET_BG)} />
-      <td className="p-2 border-b" style={stickyLeftCellStyle(7, leftOffsets, AD_SET_BG)} />
-      <td className="p-2 border-b" />
-      <td className="p-2 border-b" />
-      <td className="p-2 border-b" />
-      <td className="p-2 border-b" />
-      <td className="p-2 border-b" />
-      <td className="p-2 border-b" />
-      <td className="p-2 border-b" />
-      <td className="p-2 border-b text-right tabular-nums">{fmtCurrencyOrZero(adSet.spend)}</td>
-      <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(adSet.impressions)}</td>
-      <td className="p-2 border-b text-right tabular-nums">{fmtNumberOrZero(adSet.clicks)}</td>
-      <td className="p-2 border-b text-right tabular-nums">{fmtCpm(adSet.cpm)}</td>
-      <td className="p-2 border-b text-right tabular-nums">{fmtCpv(adSet.cpv)}</td>
-      <td className="p-2 border-b text-right tabular-nums" title={deliveredTitle}>
-        {fmtNumberOrZero(delivered)}
-      </td>
-      <td className="p-2 border-b" />
+      {isColumnVisible("mbaNumber", moreColumns) && <td className="p-2" />}
+      {isColumnVisible("lineItemId", moreColumns) && (
+        <td className="p-2 font-mono text-[10px] text-muted-foreground">{adSet.entityId}</td>
+      )}
+      <td className="p-2" />
+      {isColumnVisible("creativeTargeting", moreColumns) && <td className="p-2" />}
+      <td className="p-2" />
+      {isColumnVisible("lineItemStartDate", moreColumns) && <td className="p-2" />}
+      {isColumnVisible("lineItemEndDate", moreColumns) && <td className="p-2" />}
+      <td className="p-2" />
+      {isColumnVisible("totalBursts", moreColumns) && <td className="p-2" />}
+      {isColumnVisible("currentBurstIndex", moreColumns) && <td className="p-2" />}
+      {isColumnVisible("burstStartDate", moreColumns) && <td className="p-2" />}
+      <td className="p-2 text-right num">{fmtCurrencyOrZero(adSet.spend)}</td>
+      {isColumnVisible("impressions", moreColumns) && (
+        <td className="p-2 text-right num">{fmtNumberOrZero(adSet.impressions)}</td>
+      )}
+      {isColumnVisible("clicks", moreColumns) && (
+        <td className="p-2 text-right num">{fmtNumberOrZero(adSet.clicks)}</td>
+      )}
+      {isColumnVisible("cpm", moreColumns) && (
+        <td className="p-2 text-right num">{fmtCpm(adSet.cpm)}</td>
+      )}
+      {isColumnVisible("cpv", moreColumns) && (
+        <td className="p-2 text-right num">{fmtCpv(adSet.cpv)}</td>
+      )}
+      {isColumnVisible("deliverableActual", moreColumns) && (
+        <td className="p-2 text-right num" title={deliveredTitle}>
+          {fmtNumberOrZero(delivered)}
+        </td>
+      )}
+      {isColumnVisible("deliverableTarget", moreColumns) && <td className="p-2" />}
     </tr>
   );
 }

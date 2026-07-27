@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { getPublisherByPublisherId } from "@/lib/api/publishers"
 import { bodyForPublisherPut } from "@/lib/publisher/normalizePublisher"
 
@@ -27,10 +27,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ publishe
     }
     const body = await req.json()
     const payload = bodyForPublisherPut(body)
-    const response = await axios.put(
-      `${xanoUrl("edit_publishers", "XANO_PUBLISHERS_BASE_URL")}/${existing.id}`,
-      payload,
-    )
+    const response = await axios.put(`${xanoUrl("edit_publishers", "XANO_PUBLISHERS_BASE_URL")}/${existing.id}`, payload, { headers: xanoPostHeaderRecord() })
     return NextResponse.json(response.data)
   } catch (error) {
     console.error("Failed to update publisher:", error)

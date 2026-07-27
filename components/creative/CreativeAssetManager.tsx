@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2, Search } from "lucide-react"
 
 import { CreativeAssetTable } from "@/components/creative/CreativeAssetTable"
 import { CreativeUploadZone } from "@/components/creative/CreativeUploadZone"
+import { SearchAdWorkshopDialog } from "@/components/creative/searchads/SearchAdWorkshopDialog"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { AvaCreativeSkillActions } from "@/components/ava/AvaSkillActionSets"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,6 +25,7 @@ import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridg
 import type { PageContext } from "@/lib/ava/types"
 import { getClientDisplayName } from "@/lib/clients/slug"
 import { flattenLineItemOptions, type LineItemOption } from "@/lib/creative/lineItemOptions"
+import { SEARCH_LIMITS_RSA } from "@/lib/creative/searchCopy/limits"
 import type { CreativeAsset } from "@/lib/creative/types"
 
 const AVA_LIST_CAP = 20
@@ -90,6 +92,12 @@ export function CreativeAssetManager({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active")
   const [nameFilter, setNameFilter] = useState("")
   const [uploadLineItemKey, setUploadLineItemKey] = useState("none")
+  const [searchOpen, setSearchOpen] = useState(false)
+
+  const searchLineItems = useMemo(
+    () => lineItemOptions.filter((option) => option.source_table === "media_plan_search"),
+    [lineItemOptions],
+  )
 
   const uploadLineItemLink = useMemo(() => {
     if (uploadLineItemKey === "none") return null
@@ -457,7 +465,17 @@ export function CreativeAssetManager({
       <Card className="shadow-e1">
         <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <CardTitle className="text-base">Campaign assets</CardTitle>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              type="button"
+              className="text-xs"
+              onClick={() => setSearchOpen(true)}
+            >
+              <Search className="mr-1.5 h-3.5 w-3.5" aria-hidden />
+              Search ads
+            </Button>
             <Input
               value={nameFilter}
               onChange={(event) => setNameFilter(event.target.value)}
@@ -494,6 +512,17 @@ export function CreativeAssetManager({
           />
         </CardContent>
       </Card>
+
+      <SearchAdWorkshopDialog
+        open={searchOpen}
+        onOpenChange={setSearchOpen}
+        mbaNumber={mbaNumber}
+        clientName={clientName || undefined}
+        campaignName={campaignName || undefined}
+        brandName={clientName || "Brand"}
+        searchLineItems={searchLineItems}
+        limits={SEARCH_LIMITS_RSA}
+      />
     </div>
   )
 }

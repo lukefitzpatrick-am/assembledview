@@ -1,13 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server"
 import { syncCampaignKpis } from "@/lib/kpi/campaignKpi"
-import { campaignKpiSyncBodySchema } from "@/lib/kpi/types"
+import { campaignKpiCreateBodySchema } from "@/lib/kpi/types"
 
 export const runtime = "nodejs"
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const parsed = campaignKpiSyncBodySchema.safeParse(body)
+    const parsed = campaignKpiCreateBodySchema.safeParse(body)
     if (!parsed.success) {
       const msg =
         parsed.error.issues.map((i) => i.message).join("; ") || "Validation failed"

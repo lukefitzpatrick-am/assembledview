@@ -1,3 +1,5 @@
+import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
+
 const MS_PER_DAY = 1000 * 60 * 60 * 24
 
 const MONTH_INDEX: Record<string, number> = {
@@ -16,9 +18,7 @@ const MONTH_INDEX: Record<string, number> = {
 }
 
 function toLocalMidnight(value: Date | string): Date | null {
-  const date = value instanceof Date ? value : new Date(value)
-  if (isNaN(date.getTime())) return null
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  return coerceBurstDateLocal(value)
 }
 
 function monthBoundsFromKey(monthKey: string): { start: Date; end: Date } | null {

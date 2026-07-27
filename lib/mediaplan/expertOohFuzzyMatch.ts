@@ -19,8 +19,8 @@ export const OOH_BUY_TYPE_OPTIONS = [
   "panels",
 ] as const
 
-export type OohFormatOption = (typeof OOH_FORMAT_OPTIONS)[number]
-export type OohBuyTypeOption = (typeof OOH_BUY_TYPE_OPTIONS)[number]
+type OohFormatOption = (typeof OOH_FORMAT_OPTIONS)[number]
+type OohBuyTypeOption = (typeof OOH_BUY_TYPE_OPTIONS)[number]
 
 /** Labels mirror OOH standard-mode combobox (OOHContainer). */
 export const OOH_FORMAT_LABEL_BY_VALUE: Record<string, string> = {

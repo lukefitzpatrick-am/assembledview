@@ -1,10 +1,16 @@
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import type { ReportLine } from "@/lib/finance/extractReportLinesFromBillingSchedule"
+import { classifyBillingAgency } from "@/lib/finance/billingAgency"
 import type { ReportRow } from "./types"
 
 const UNSPECIFIED = "Unspecified"
 
-type ScheduleLookup = Map<string, unknown> | Record<string, unknown>
+export type PublisherBillingAgencyByName = Map<string, string> | Record<string, string>
+
+export type BuildReportRowsOptions = {
+  /** `publisher_name` → raw `publishers.billingagency` from `/api/publishers`. */
+  publisherBillingAgencyByName?: PublisherBillingAgencyByName
+}
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100
@@ -20,19 +26,51 @@ function dimension(value: unknown): string {
   return text || UNSPECIFIED
 }
 
-function mediaRowFromReportLine(record: BillingRecord, line: ReportLine): ReportRow {
+function lookupBillingAgency(
+  publisher: string,
+  map: PublisherBillingAgencyByName | undefined
+): string | null | undefined {
+  if (!map || !publisher || publisher === UNSPECIFIED) return undefined
+  if (map instanceof Map) return map.get(publisher)
+  return map[publisher]
+}
+
+function resolveBillingAgency(
+  publisher: string,
+  map: PublisherBillingAgencyByName | undefined,
+  rowKind: ReportRow["rowKind"]
+): "AA" | "AM" {
+  if (rowKind === "service") return "AM"
+  return classifyBillingAgency(lookupBillingAgency(publisher, map))
+}
+
+function recordBillingDims(record: BillingRecord): Pick<ReportRow, "billingType" | "billingStatus"> {
+  return {
+    billingType: record.billing_type,
+    billingStatus: record.status,
+  }
+}
+
+function mediaRowFromReportLine(
+  record: BillingRecord,
+  line: ReportLine,
+  map: PublisherBillingAgencyByName | undefined
+): ReportRow {
   const mediaSpend = round2(line.mediaAmount)
   const agencyFee = round2(line.feeAmount)
+  const publisher = dimension(line.publisher)
   return {
     mbaNumber: record.mba_number ?? "",
     billingMonth: record.billing_month,
     client: record.client_name,
     mediaType: dimension(line.mediaType),
-    publisher: dimension(line.publisher),
+    publisher,
     buyType: dimension(line.buyType),
     format: dimension(line.format),
     station: dimension(line.station),
     rowKind: "media",
+    ...recordBillingDims(record),
+    billingAgency: resolveBillingAgency(publisher, map, "media"),
     totalBillable: round2(mediaSpend + agencyFee),
     mediaSpend,
     agencyFee,
@@ -40,19 +78,26 @@ function mediaRowFromReportLine(record: BillingRecord, line: ReportLine): Report
   }
 }
 
-function mediaRowFromLineItem(record: BillingRecord, line: BillingLineItem): ReportRow {
+function mediaRowFromLineItem(
+  record: BillingRecord,
+  line: BillingLineItem,
+  map: PublisherBillingAgencyByName | undefined
+): ReportRow {
   const clientPays = line.client_pays_media === true
   const mediaSpend = clientPays ? 0 : round2(line.amount)
+  const publisher = dimension(line.publisher_name ?? line.description)
   return {
     mbaNumber: record.mba_number ?? "",
     billingMonth: record.billing_month,
     client: record.client_name,
     mediaType: dimension(line.media_type),
-    publisher: dimension(line.publisher_name ?? line.description),
+    publisher,
     buyType: UNSPECIFIED,
     format: UNSPECIFIED,
     station: UNSPECIFIED,
     rowKind: "media",
+    ...recordBillingDims(record),
+    billingAgency: resolveBillingAgency(publisher, map, "media"),
     totalBillable: mediaSpend,
     mediaSpend,
     agencyFee: 0,
@@ -79,6 +124,8 @@ function serviceRow(
     station: UNSPECIFIED,
     rowKind: "service",
     serviceType,
+    ...recordBillingDims(record),
+    billingAgency: "AM",
     totalBillable: round2(totalBillable),
     mediaSpend: 0,
     agencyFee: round2(agencyFee),
@@ -106,8 +153,9 @@ function serviceRowFromLineItem(
 
 export function buildReportRows(
   records: BillingRecord[],
-  schedulesByMba?: ScheduleLookup
+  options: BuildReportRowsOptions = {}
 ): ReportRow[] {
+  const map = options.publisherBillingAgencyByName
   const rows: ReportRow[] = []
 
   for (const record of records) {
@@ -116,12 +164,12 @@ export function buildReportRows(
 
     if (hasReportLines) {
       for (const line of reportLines) {
-        rows.push(mediaRowFromReportLine(record, line))
+        rows.push(mediaRowFromReportLine(record, line, map))
       }
     } else {
       for (const line of record.line_items) {
         if (line.line_type === "media") {
-          rows.push(mediaRowFromLineItem(record, line))
+          rows.push(mediaRowFromLineItem(record, line, map))
         }
       }
     }

@@ -15,7 +15,7 @@ import {
   roundDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
 
-export type NetMediaForBurstFn = (
+type NetMediaForBurstFn = (
   rawBudget: number,
   budgetIncludesFees: boolean,
   feePct: number

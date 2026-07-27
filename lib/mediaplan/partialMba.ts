@@ -17,7 +17,7 @@ export type PartialApprovalLineItem = {
   amount: number
 }
 
-export type PartialApprovalChannel = {
+type PartialApprovalChannel = {
   mediaKey: string
   mediaType: string
   selectedLineItemIds: string[]

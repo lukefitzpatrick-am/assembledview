@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
 import {
+  parseBillingMonthRangeParams,
   parseBillingTypesQueryParam,
   parseSingleBillingMonthParam,
   type FinanceApiErrorBody,
 } from "@/lib/finance/billingApiParams"
-import { derivePayableRecordsForMonth } from "@/lib/finance/derivePayableRecords"
+import { composePayableRecordsForMonth } from "@/lib/finance/composeFinanceHubRecords"
 import {
-  filterByBillingTypes,
-  filterByClients,
-  filterByPublisherIds,
-  filterBySearch,
-  filterPlanVersionsByIncludeDrafts,
-} from "@/lib/finance/filterBillingRecords"
-import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
+  fetchRelevantPlanVersionsForFinanceMonth,
+  fetchRelevantPlanVersionsForFinanceMonths,
+} from "@/lib/finance/relevantPlanVersions"
 import { getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
-import type { BillingRecord } from "@/lib/types/financeBilling"
+import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
@@ -30,6 +27,12 @@ const XANO_BASE = process.env.XANO_CLIENTS_BASE_URL
  * (and `delivery_schedule`). This route does not read or write Xano `finance_billing_records`.
  * Client + publisher + MBA grouping matches the legacy `/finance/publishers` view and is performed
  * inside `derivePayableRecordsForMonth`.
+ *
+ * Two month shapes:
+ *  - `billing_month=YYYY-MM` (default current month): single-month response `{ records }`.
+ *  - `from=YYYY-MM&to=YYYY-MM`: multi-month response `{ records, failed_months? }` where the
+ *    plan-version superset is fetched ONCE and each month is derived with the same per-month
+ *    pipeline as the single-month path.
  */
 
 function jsonError(body: FinanceApiErrorBody, status: number) {
@@ -58,14 +61,17 @@ function clientErrorFromUpstreamBody(data: unknown, upstreamStatus: number): Fin
   return { error: `Upstream request failed (${upstreamStatus})` }
 }
 
-function buildPublisherIdMap(publishers: Record<string, unknown>[]): Map<number, string> {
-  const m = new Map<number, string>()
-  for (const p of publishers) {
-    const id = Number(p.id)
-    const name = String(p.publisher_name ?? "").trim()
-    if (Number.isFinite(id) && name) m.set(id, name)
-  }
-  return m
+function versionsFetchErrorResponse(e: unknown): NextResponse {
+  const ax = axios.isAxiosError(e)
+  const status =
+    ax && e.response?.status != null && e.response.status >= 400 && e.response.status <= 599
+      ? e.response.status
+      : 502
+  const base =
+    ax && e.response?.data != null
+      ? clientErrorFromUpstreamBody(e.response.data, status)
+      : { error: "Failed to load media plan versions" }
+  return NextResponse.json({ ...base, field: "billing_month" }, { status })
 }
 
 export async function GET(request: NextRequest) {
@@ -86,6 +92,12 @@ export async function GET(request: NextRequest) {
     const parsedTypes = parseBillingTypesQueryParam(billingTypeRaw)
     if (!("ok" in parsedTypes && parsedTypes.ok)) {
       return jsonError(parsedTypes as FinanceApiErrorBody, 400)
+    }
+
+    const fromRaw = searchParams.get("from")
+    const toRaw = searchParams.get("to")
+    if (fromRaw != null || toRaw != null) {
+      return await handleMultiMonth(searchParams, parsedTypes.types, fromRaw, toRaw)
     }
 
     const billingMonthParam = searchParams.get("billing_month")
@@ -111,36 +123,24 @@ export async function GET(request: NextRequest) {
       }
       year = versionsResult.year
       month = versionsResult.month
-      relevantVersions = filterPlanVersionsByIncludeDrafts(
-        versionsResult.relevantVersions as Record<string, unknown>[],
-        includeNonBooked
-      )
+      relevantVersions = versionsResult.relevantVersions as Record<string, unknown>[]
     } catch (e: unknown) {
-      const ax = axios.isAxiosError(e)
-      const status =
-        ax && e.response?.status != null && e.response.status >= 400 && e.response.status <= 599
-          ? e.response.status
-          : 502
-      const base =
-        ax && e.response?.data != null
-          ? clientErrorFromUpstreamBody(e.response.data, status)
-          : { error: "Failed to load media plan versions" }
-      return NextResponse.json({ ...base, field: "billing_month" }, { status })
+      return versionsFetchErrorResponse(e)
     }
 
     const publishers = (await getCachedPublishers()) as Record<string, unknown>[]
-    const publisherIdMap = buildPublisherIdMap(publishers)
 
-    let derived = derivePayableRecordsForMonth(relevantVersions, year, month)
-
-    const clientsIdParam = searchParams.get("clients_id")
-    const searchParam = searchParams.get("search")
-    const publishersIdParam = searchParams.get("publishers_id")
-
-    derived = filterByClients(derived, clientsIdParam)
-    derived = filterBySearch(derived, searchParam)
-    derived = filterByPublisherIds(derived, publishersIdParam, publisherIdMap)
-    derived = filterByBillingTypes(derived, parsedTypes.types)
+    const derived = composePayableRecordsForMonth({
+      year,
+      month,
+      relevantVersions,
+      publishers,
+      includeNonBooked,
+      types: parsedTypes.types,
+      clientsIdParam: searchParams.get("clients_id"),
+      searchParam: searchParams.get("search"),
+      publishersIdParam: searchParams.get("publishers_id"),
+    })
 
     return NextResponse.json({ records: derived })
   } catch (error: unknown) {
@@ -155,4 +155,71 @@ export async function GET(request: NextRequest) {
     })
     return NextResponse.json({ error: "Failed to build payables" }, { status: 500 })
   }
+}
+
+/**
+ * Multi-month path: plan-version superset fetched once, months derived in a loop
+ * with the exact single-month pipeline. A month whose derivation throws is reported
+ * in `failed_months` instead of failing the whole range.
+ */
+async function handleMultiMonth(
+  searchParams: URLSearchParams,
+  types: BillingType[],
+  fromRaw: string | null,
+  toRaw: string | null
+): Promise<NextResponse> {
+  const rangeParsed = parseBillingMonthRangeParams(fromRaw, toRaw)
+  if (!("ok" in rangeParsed && rangeParsed.ok)) {
+    return jsonError(rangeParsed as FinanceApiErrorBody, 400)
+  }
+  const months = rangeParsed.months
+
+  const includeNonBooked = searchParams.get("include_drafts") !== "0"
+
+  let versionsByMonth: Map<string, { year: number; month: number; relevantVersions: unknown[] }>
+  try {
+    const result = await fetchRelevantPlanVersionsForFinanceMonths(months)
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error, field: "billing_month" }, { status: result.status })
+    }
+    versionsByMonth = result
+  } catch (e: unknown) {
+    return versionsFetchErrorResponse(e)
+  }
+
+  const publishers = (await getCachedPublishers()) as Record<string, unknown>[]
+
+  const records: BillingRecord[] = []
+  const failedMonths: Array<{ month: string; error: string }> = []
+
+  for (const monthStr of months) {
+    try {
+      const entry = versionsByMonth.get(monthStr)
+      const year = entry?.year ?? Number(monthStr.slice(0, 4))
+      const month = entry?.month ?? Number(monthStr.slice(5, 7))
+      const relevantVersions = (entry?.relevantVersions as Record<string, unknown>[] | undefined) ?? []
+      records.push(
+        ...composePayableRecordsForMonth({
+          year,
+          month,
+          relevantVersions,
+          publishers,
+          includeNonBooked,
+          types,
+          clientsIdParam: searchParams.get("clients_id"),
+          searchParam: searchParams.get("search"),
+          publishersIdParam: searchParams.get("publishers_id"),
+        })
+      )
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e)
+      console.error("[finance-api] payables multi-month derive failed", { month: monthStr, message })
+      failedMonths.push({ month: monthStr, error: message })
+    }
+  }
+
+  return NextResponse.json({
+    records,
+    ...(failedMonths.length > 0 ? { failed_months: failedMonths } : {}),
+  })
 }

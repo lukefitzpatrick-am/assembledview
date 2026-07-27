@@ -1,11 +1,16 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { getCachedGlobalMonthlyPublisherSpend } from "@/lib/api/dashboard/globalSpendCache"
+import { requireRole } from "@/lib/requireRole"
 
 export const dynamic = "force-dynamic"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // Auth is enforced by middleware; keep it outside unstable_cache.
+    // AuthZ: book-wide spend is staff-only (admin|manager); client role must not see the whole book.
+    const gate = await requireRole(request, ["admin", "manager"])
+    if ("response" in gate) return gate.response
+
+    // Auth outside unstable_cache (requireRole above).
     const result = await getCachedGlobalMonthlyPublisherSpend()
     return NextResponse.json(result)
   } catch (error) {

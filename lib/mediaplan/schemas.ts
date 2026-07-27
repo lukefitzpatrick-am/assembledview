@@ -96,29 +96,8 @@ export const televisionBurstSchema = z
     path: ["endDate"],
   })
 
-// Per-channel burst aliases (most are simply baseBurstSchema, exported with the
-// channel-specific name preserved from the original Container declarations so
-// that imports can stay textually obvious).
-
-export const digidisplayburstSchema = baseBurstSchema
-export const digiaudioburstSchema = baseBurstSchema
-export const digivideoBurstSchema = baseBurstSchema
-export const bvodburstSchema = baseBurstSchema
-export const newspaperburstSchema = baseBurstSchema
-export const magazinesburstSchema = baseBurstSchema
-export const oohburstSchema = baseBurstSchema
-export const cinemaBurstSchema = baseBurstSchema
-export const searchBurstSchema = baseBurstSchema
-export const radioBurstSchema = baseBurstSchema
-export const socialMediaBurstSchema = baseBurstSchema
-export const influencersBurstSchema = baseBurstSchema
-export const integrationBurstSchema = baseBurstSchema
-export const progDisplayBurstSchema = baseBurstSchema
-export const progVideoBurstSchema = baseBurstSchema
-export const progBvodBurstSchema = baseBurstSchema
-export const progAudioBurstSchema = baseBurstSchema
-export const progOOHBurstSchema = baseBurstSchema
-// televisionBurstSchema is exported above (refined variant).
+// Channel containers reuse baseBurstSchema (televisionBurstSchema / productionBurstSchema
+// are the only refined variants and are defined above/below).
 
 /**
  * Production burst — unit cost × quantity (numbers), not budget/buyAmount strings.
@@ -150,7 +129,7 @@ export const digidisplaylineItemSchema = z.object({
   clientPaysForMedia: z.boolean().default(false),
   budgetIncludesFees: z.boolean().default(false),
   noadserving: z.boolean().default(false),
-  bursts: z.array(digidisplayburstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemIdFields,
   ...lineItemTotalsShape,
 })
@@ -163,7 +142,6 @@ export const digiaudiolineItemSchema = z.object({
   bidStrategy: z.string().min(1, "Bid Strategy is required"),
   buyType: z.string().min(1, "Buy Type is required"),
   publisher: z.string().min(1, "Publisher is required"),
-  targetingAttribute: z.string(),
   creativeTargeting: z.string().min(1, "Creative Targeting is required"),
   creative: z.string().min(1, "Creative is required"),
   buyingDemo: z.string().min(1, "Buying Demo is required"),
@@ -172,7 +150,7 @@ export const digiaudiolineItemSchema = z.object({
   clientPaysForMedia: z.boolean(),
   budgetIncludesFees: z.boolean(),
   noadserving: z.boolean(),
-  bursts: z.array(digiaudioburstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -184,8 +162,6 @@ export const digivideoLineItemSchema = z.object({
   bidStrategy: z.string().min(1, "Bid Strategy is required"),
   buyType: z.string().min(1, "Buy Type is required"),
   publisher: z.string().min(1, "Publisher is required"),
-  placement: z.string(),
-  size: z.string(),
   targetingAttribute: z.string(),
   creativeTargeting: z.string().min(1, "Creative Targeting is required"),
   creative: z.string().min(1, "Creative is required"),
@@ -195,7 +171,7 @@ export const digivideoLineItemSchema = z.object({
   clientPaysForMedia: z.boolean(),
   budgetIncludesFees: z.boolean(),
   noadserving: z.boolean(),
-  bursts: z.array(digivideoBurstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -215,7 +191,7 @@ export const bvodlineItemSchema = z.object({
   clientPaysForMedia: z.boolean(),
   budgetIncludesFees: z.boolean(),
   noadserving: z.boolean(),
-  bursts: z.array(bvodburstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -231,6 +207,10 @@ export const televisionlineItemSchema = z.object({
   buyType: z.string().min(1, "Buy Type is required"),
   creativeTargeting: z.string().default("").optional(),
   creative: z.string().default("").optional(),
+  /** Line-level Ad Size mirror (synced to burst.size for save). */
+  size: z.string().default("").optional(),
+  /** Line-level TARPs summary (expert/card surface; bursts keep per-burst tarps). */
+  tarps: z.string().default("").optional(),
   buyingDemo: z.string().default(""),
   fixedCostMedia: z.boolean().default(false),
   clientPaysForMedia: z.boolean().default(false),
@@ -259,7 +239,7 @@ export const newspaperlineItemSchema = z.object({
   budgetIncludesFees: z.boolean(),
   noadserving: z.boolean(),
   ...lineItemIdFields,
-  bursts: z.array(newspaperburstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -279,7 +259,7 @@ export const magazineslineItemSchema = z.object({
   budgetIncludesFees: z.boolean(),
   noadserving: z.boolean(),
   ...lineItemIdFields,
-  bursts: z.array(magazinesburstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -299,7 +279,7 @@ export const oohlineItemSchema = z.object({
   clientPaysForMedia: z.boolean().default(false),
   budgetIncludesFees: z.boolean().default(false),
   ...lineItemIdFields,
-  bursts: z.array(oohburstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   totalMedia: z.number().optional(),
   noAdserving: z.boolean().default(false),
   totalDeliverables: z.number().optional(),
@@ -323,7 +303,7 @@ export const cinemaLineItemSchema = z.object({
   budgetIncludesFees: z.boolean().default(false),
   noadserving: z.boolean().default(false),
   ...lineItemIdFields,
-  bursts: z.array(cinemaBurstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -341,7 +321,7 @@ export const searchLineItemSchema = z.object({
   clientPaysForMedia: z.boolean().default(false),
   budgetIncludesFees: z.boolean().default(false),
   noadserving: z.boolean().default(false),
-  bursts: z.array(searchBurstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -365,7 +345,7 @@ export const radioLineItemSchema = z.object({
   budgetIncludesFees: z.boolean().default(false),
   noadserving: z.boolean().default(false),
   ...lineItemIdFields,
-  bursts: z.array(radioBurstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -383,7 +363,7 @@ export const socialMediaLineItemSchema = z.object({
   clientPaysForMedia: z.boolean().default(false),
   budgetIncludesFees: z.boolean().default(false),
   noadserving: z.boolean().default(false),
-  bursts: z.array(socialMediaBurstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemIdFields,
   ...lineItemTotalsShape,
 })
@@ -394,7 +374,8 @@ export const influencersLineItemSchema = z.object({
   platform: z.string().min(1, "Platform is required"),
   objective: z.string(),
   campaign: z.string(),
-  bidStrategy: z.string().min(1, "Bid Strategy is required"),
+  // Persist-only leftover; not shown on Influencers card (Social-shaped).
+  bidStrategy: z.string(),
   buyType: z.string().min(1, "Buy Type is required"),
   targetingAttribute: z.string(),
   creativeTargeting: z.string(),
@@ -405,7 +386,7 @@ export const influencersLineItemSchema = z.object({
   clientPaysForMedia: z.boolean(),
   budgetIncludesFees: z.boolean(),
   noadserving: z.boolean(),
-  bursts: z.array(influencersBurstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -427,7 +408,7 @@ export const integrationLineItemSchema = z.object({
   clientPaysForMedia: z.boolean().default(false),
   budgetIncludesFees: z.boolean().default(false),
   noAdserving: z.boolean().default(false),
-  bursts: z.array(integrationBurstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -449,7 +430,7 @@ export const progDisplayLineItemSchema = z.object({
   clientPaysForMedia: z.boolean().default(false),
   budgetIncludesFees: z.boolean().default(false),
   noadserving: z.boolean().default(false),
-  bursts: z.array(progDisplayBurstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -464,14 +445,12 @@ export const progVideoLineItemSchema = z.object({
   buyingDemo: z.string().default(""),
   market: z.string().default(""),
   site: z.string().default(""),
-  placement: z.string().default(""),
-  size: z.string().default(""),
   targetingAttribute: z.string().default(""),
   fixedCostMedia: z.boolean().default(false),
   clientPaysForMedia: z.boolean().default(false),
   budgetIncludesFees: z.boolean().default(false),
   noadserving: z.boolean().default(false),
-  bursts: z.array(progVideoBurstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -489,7 +468,7 @@ export const progBvodLineItemSchema = z.object({
   clientPaysForMedia: z.boolean().default(false),
   budgetIncludesFees: z.boolean().default(false),
   noadserving: z.boolean().default(false),
-  bursts: z.array(progBvodBurstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -510,7 +489,7 @@ export const progAudioLineItemSchema = z.object({
   clientPaysForMedia: z.boolean().default(false),
   budgetIncludesFees: z.boolean().default(false),
   noadserving: z.boolean().default(false),
-  bursts: z.array(progAudioBurstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -524,17 +503,12 @@ export const progOOHLineItemSchema = z.object({
   creative: z.string().default(""),
   buyingDemo: z.string().default(""),
   market: z.string().default(""),
-  environment: z.string().default(""),
-  format: z.string().default(""),
-  location: z.string().default(""),
   targetingAttribute: z.string().default(""),
-  placement: z.string().default(""),
-  size: z.string().default(""),
   fixedCostMedia: z.boolean().default(false),
   clientPaysForMedia: z.boolean().default(false),
   budgetIncludesFees: z.boolean().default(false),
   noadserving: z.boolean().default(false),
-  bursts: z.array(progOOHBurstSchema).min(1, "At least one burst is required"),
+  bursts: z.array(baseBurstSchema).min(1, "At least one burst is required"),
   ...lineItemTotalsShape,
 })
 
@@ -682,6 +656,8 @@ export const productionLineItemSchema = z.object({
   publisher: z.string().optional(),
   description: z.string().optional(),
   market: z.string().optional(),
+  /** Line-level unit cost; synced to burst `.cost` when edited on the card. */
+  unitRate: z.union([z.number(), z.string()]).optional(),
   bursts: z.array(productionBurstSchema).min(1, "At least one burst is required"),
   lineItemId: z.string().optional(),
 })

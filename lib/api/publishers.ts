@@ -1,5 +1,5 @@
 import axios, { isAxiosError } from "axios"
-import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
+import { parseXanoListPayload, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import type { Publisher, PublisherMediaTypeShare } from "@/lib/types/publisher"
 
 /** Same resolution as `getXanoClientsCollectionUrl`: Clients API group, then generic base. */
@@ -12,9 +12,11 @@ function marketSharePathCandidates(publishersId: number): string[] {
   ]
 }
 
+// REVIEW: Imported from app pages; auth header is empty in the browser (no XANO_API_KEY /
+// never NEXT_PUBLIC). Prefer calling via server route handlers for market-share fetches.
 const apiClient = axios.create({
   timeout: 10000,
-  headers: { "Content-Type": "application/json" },
+  headers: xanoPostHeaderRecord(),
 })
 
 function finiteNumberFromUnknown(value: unknown): number | null {

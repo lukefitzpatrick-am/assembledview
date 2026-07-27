@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getXanoBaseUrl } from "@/lib/api/xano"
+import { getXanoBaseUrl, xanoAuthHeader } from "@/lib/api/xano"
 
 type FileLike = Blob & { name?: string }
 
@@ -103,11 +103,7 @@ export async function POST(
 
     const baseUrl = getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
     const saveFileBaseUrl = getXanoBaseUrl("XANO_SAVE_FILE_BASE_URL")
-    const apiKey = process.env.XANO_API_KEY
-
-    const authHeaders = {
-      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-    }
+    const authHeaders = xanoAuthHeader()
 
     // Xano-recommended approach:
     // 1) Upload file to a dedicated upload endpoint -> returns Public File metadata

@@ -9,8 +9,16 @@ import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { useFinanceStore } from "@/lib/finance/useFinanceStore"
-import type { FinanceFilters } from "@/lib/types/financeBilling"
+import { useFinanceStore, type FinanceHubTab } from "@/lib/finance/useFinanceStore"
+import {
+  billingTypeOptionsForTab,
+  mergeTabSelection,
+  statusOptionsForTab,
+  tabOwnedSelection,
+  tabSelectionMeansAll,
+  RECEIVABLE_BILLING_TYPES,
+} from "@/lib/finance/financeTabFilterScope"
+import type { BillingStatus, BillingType, FinanceFilters } from "@/lib/types/financeBilling"
 import { cn } from "@/lib/utils"
 
 type RangeMode = "single" | "range"
@@ -28,6 +36,25 @@ export type FinanceFilterToolbarReceivablesProps = {
 type FinanceFilterToolbarProps = {
   /** When set (e.g. finance hub Receivables tab), Load/Refresh receivables uses the same control row as filter apply. */
   receivables?: FinanceFilterToolbarReceivablesProps | null
+  /** Drives which billing-type / status options are offered — never a superset of what the tab can consume. */
+  activeTab: FinanceHubTab
+}
+
+const BILLING_TYPE_LABELS: Record<(typeof RECEIVABLE_BILLING_TYPES)[number], string> = {
+  media: "Media",
+  sow: "SOW",
+  retainer: "Retainer",
+}
+
+const STATUS_LABELS: Record<BillingStatus, string> = {
+  draft: "Draft",
+  booked: "Booked",
+  approved: "Approved",
+  invoiced: "Invoiced",
+  paid: "Paid",
+  cancelled: "Cancelled",
+  expected: "Expected",
+  disputed: "Disputed",
 }
 
 function monthOptions() {
@@ -38,7 +65,7 @@ function monthOptions() {
   })
 }
 
-export function FinanceFilterToolbar({ receivables }: FinanceFilterToolbarProps) {
+export function FinanceFilterToolbar({ receivables, activeTab }: FinanceFilterToolbarProps) {
   const storeFilters = useFinanceStore((s) => s.filters)
   const setFilters = useFinanceStore((s) => s.setFilters)
   const [draft, setDraft] = useState<FinanceFilters>(() => storeFilters)
@@ -130,6 +157,40 @@ export function FinanceFilterToolbar({ receivables }: FinanceFilterToolbarProps)
     () => draft.selectedPublishers.map(String),
     [draft.selectedPublishers]
   )
+
+  const tabBillingTypes = useMemo(() => billingTypeOptionsForTab(activeTab), [activeTab])
+  const tabStatuses = useMemo(() => statusOptionsForTab(activeTab), [activeTab])
+
+  const billingTypeOptions = useMemo(
+    () =>
+      tabBillingTypes.map((value) => ({
+        value,
+        label: BILLING_TYPE_LABELS[value as (typeof RECEIVABLE_BILLING_TYPES)[number]],
+      })),
+    [tabBillingTypes]
+  )
+  const statusOptions = useMemo(
+    () =>
+      tabStatuses.map((value) => ({
+        value,
+        label: STATUS_LABELS[value],
+      })),
+    [tabStatuses]
+  )
+  const billingTypeValues = useMemo(
+    () => tabOwnedSelection(draft.billingTypes, tabBillingTypes),
+    [draft.billingTypes, tabBillingTypes]
+  )
+  const statusValues = useMemo(
+    () => tabOwnedSelection(draft.statuses, tabStatuses),
+    [draft.statuses, tabStatuses]
+  )
+  /**
+   * An empty tab-owned selection only means "All" when nothing at all is
+   * applied — with out-of-tab values still filtering, claiming "All" would lie.
+   */
+  const billingTypeMeansAll = tabSelectionMeansAll(draft.billingTypes)
+  const statusMeansAll = tabSelectionMeansAll(draft.statuses)
 
   const toolbarActions = (
     <div className="flex items-center justify-end gap-2">
@@ -226,6 +287,59 @@ export function FinanceFilterToolbar({ receivables }: FinanceFilterToolbarProps)
           emptyMeansAll
         />
       </div>
+      {billingTypeOptions.length > 0 ? (
+        <div className="flex flex-col gap-2 lg:col-span-2">
+          <Label
+            htmlFor="finance-filter-billing-type"
+            className="text-xs font-medium text-muted-foreground"
+          >
+            Billing type
+          </Label>
+          <MultiSelectCombobox
+            id="finance-filter-billing-type"
+            options={billingTypeOptions}
+            values={billingTypeValues}
+            onValuesChange={(values) =>
+              setDraft((d) => ({
+                ...d,
+                billingTypes: mergeTabSelection(
+                  values as BillingType[],
+                  d.billingTypes,
+                  tabBillingTypes
+                ),
+              }))
+            }
+            placeholder="Billing type"
+            allSelectedText="All types"
+            searchPlaceholder="Search types..."
+            buttonClassName="w-full"
+            emptyMeansAll={billingTypeMeansAll}
+          />
+        </div>
+      ) : null}
+      {statusOptions.length > 0 ? (
+        <div className="flex flex-col gap-2 lg:col-span-2">
+          <Label htmlFor="finance-filter-status" className="text-xs font-medium text-muted-foreground">
+            Status
+          </Label>
+          <MultiSelectCombobox
+            id="finance-filter-status"
+            options={statusOptions}
+            values={statusValues}
+            onValuesChange={(values) =>
+              setDraft((d) => ({
+                ...d,
+                statuses: mergeTabSelection(values as BillingStatus[], d.statuses, tabStatuses),
+              }))
+            }
+            placeholder="Status"
+            allSelectedText="All statuses"
+            searchPlaceholder="Search statuses..."
+            buttonClassName="w-full"
+            emptyMeansAll={statusMeansAll}
+          />
+        </div>
+      ) : null}
       <div className="flex flex-col gap-2 lg:col-span-2">
         <Label htmlFor="finance-hub-search" className="text-xs font-medium text-muted-foreground">
           Search

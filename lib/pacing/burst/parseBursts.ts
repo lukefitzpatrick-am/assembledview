@@ -1,12 +1,11 @@
 import type { NormalisedBurst } from "@/lib/pacing/campaigns/types";
+import { formatBurstDateLocal } from "@/lib/mediaplan/burstDate";
 
 function normalizeISODate(value: unknown): string | null {
   const trimmed = String(value ?? "").trim();
   if (!trimmed) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
-  const parsed = new Date(trimmed);
-  if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toISOString().slice(0, 10);
+  const ymd = formatBurstDateLocal(trimmed);
+  return ymd || null;
 }
 
 function parseNumber(value: unknown): number {

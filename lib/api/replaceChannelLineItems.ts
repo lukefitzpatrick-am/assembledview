@@ -1,5 +1,5 @@
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
-import { getXanoBaseUrl, xanoPostHeaders } from "@/lib/api/xano"
+import { getXanoBaseUrl, xanoAuthHeaders, xanoPostHeaders } from "@/lib/api/xano"
 import {
   buildReplaceListQueryParams,
   collectRowsForVersionReplace,
@@ -81,7 +81,8 @@ export async function replaceChannelLineItems(
       media_plan_version: String(listParams.media_plan_version),
     })
     const response = await fetch(`${baseUrl}?${qs.toString()}`, {
-      headers: { Accept: "application/json" },
+      // Server→Xano needs Bearer; browser→/api proxy is fine with empty auth (proxy injects).
+      headers: xanoAuthHeaders(),
     })
     if (!response.ok && response.status !== 404) {
       const message = await extractErrorMessage(response)
@@ -97,7 +98,10 @@ export async function replaceChannelLineItems(
   await Promise.all(
     toDelete.map(async (row) => {
       const id = row.id
-      const response = await fetch(`${baseUrl}/${id}`, { method: "DELETE" })
+      const response = await fetch(`${baseUrl}/${id}`, {
+        method: "DELETE",
+        headers: xanoAuthHeaders(),
+      })
       if (!response.ok) {
         const message = await extractErrorMessage(response)
         deleteFailures.push(`${slug}/${id}: ${message}`)

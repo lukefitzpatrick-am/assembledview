@@ -6,22 +6,59 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Combobox } from "@/components/ui/combobox"
 import { SavingModal } from "@/components/ui/saving-modal"
 import { SuccessModal } from "@/components/ui/success-modal"
 import { Badge } from "@/components/ui/badge"
+import { useAuthContext } from "@/contexts/AuthContext"
 import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { DEFAULT_CLIENT_BRAND_COLOUR } from "@/lib/clients/brandColour"
 
 const optionalString = z.string().optional().or(z.literal(""))
+
+/** Empty string or a parseable URL (protocol optional — https:// is assumed). */
+const optionalUrlOrEmpty = z
+  .string()
+  .optional()
+  .or(z.literal(""))
+  .superRefine((val, ctx) => {
+    if (val == null || val.trim() === "") return
+    const trimmed = val.trim()
+    const candidate = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`
+    try {
+      new URL(candidate)
+    } catch {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Must be a valid URL or empty",
+      })
+    }
+  })
+
+const BRAIN_LINK_FIELDS = [
+  "website",
+  "facebook_url",
+  "instagram_url",
+  "linkedin_url",
+  "tiktok_url",
+  "client_brain",
+] as const
+
 const clientSchema = z.object({
   id: z.number(),
   clientname_input: z.string().min(1, "Client name is required"),
   mbaidentifier: z.string().min(1, "MBA Identifier is required"),
   clientcategory: optionalString,
+  website: optionalUrlOrEmpty,
+  facebook_url: optionalUrlOrEmpty,
+  instagram_url: optionalUrlOrEmpty,
+  linkedin_url: optionalUrlOrEmpty,
+  tiktok_url: optionalUrlOrEmpty,
+  client_brain: optionalString,
   abn: z
     .string()
     .regex(/^[A-Za-z0-9]{11}$/, "ABN must contain 11 letters or numbers after removing spaces or symbols")
@@ -108,9 +145,15 @@ interface EditClientFormProps {
   layout?: "page" | "panel"
 }
 
+function asOptionalString(value: unknown): string {
+  if (value == null) return ""
+  return String(value)
+}
+
 export function EditClientForm({ client, onSuccess, layout = "page" }: EditClientFormProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
+  const { isAdmin } = useAuthContext()
 
   // Handle both mp_client_name and clientname_input field names
   const formData = {
@@ -125,7 +168,15 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
     // Convert phone numbers to strings to preserve leading zeros
     keyphone: client.keyphone ? String(client.keyphone) : '',
     billingphone: client.billingphone ? String(client.billingphone) : '',
+    website: asOptionalString((client as any).website),
+    facebook_url: asOptionalString((client as any).facebook_url),
+    instagram_url: asOptionalString((client as any).instagram_url),
+    linkedin_url: asOptionalString((client as any).linkedin_url),
+    tiktok_url: asOptionalString((client as any).tiktok_url),
+    client_brain: asOptionalString((client as any).client_brain),
   }
+
+  const initialClientBrain = asOptionalString((client as any).client_brain)
 
   const form = useForm<ClientFormValues>({
     resolver: zodResolver(clientSchema),
@@ -137,11 +188,23 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
     try {
       // Transform clientname_input to mp_client_name for API
       const { clientname_input, ...restData } = data
-      const apiPayload = {
+      const apiPayload: Record<string, unknown> = {
         ...restData,
         mp_client_name: clientname_input,
       }
-      
+
+      // UI-gate only: non-admins must never write brain/link fields (even if defaults rode along).
+      if (!isAdmin) {
+        for (const field of BRAIN_LINK_FIELDS) {
+          delete apiPayload[field]
+        }
+      } else {
+        const nextBrain = data.client_brain ?? ""
+        if (nextBrain !== initialClientBrain) {
+          apiPayload.client_brain_updated_at = Date.now()
+        }
+      }
+
       const response = await fetch(`/api/clients/${data.id}`, {
         method: "PUT",
         headers: {
@@ -749,6 +812,71 @@ export function EditClientForm({ client, onSuccess, layout = "page" }: EditClien
               ))}
             </div>
           </div>
+
+          {isAdmin ? (
+            <div className="min-w-0 rounded-md border p-4">
+              <h3 className="mb-1 text-lg font-semibold">Marketing brain &amp; links</h3>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Profile links and the markdown marketing brain used by Ava copy tools. Admins only.
+              </p>
+              <div className={cn(grid2, "mb-4")}>
+                {(
+                  [
+                    { name: "website" as const, label: "Website", placeholder: "https://example.com" },
+                    { name: "facebook_url" as const, label: "Facebook", placeholder: "https://facebook.com/…" },
+                    { name: "instagram_url" as const, label: "Instagram", placeholder: "https://instagram.com/…" },
+                    { name: "linkedin_url" as const, label: "LinkedIn", placeholder: "https://linkedin.com/…" },
+                    { name: "tiktok_url" as const, label: "TikTok", placeholder: "https://tiktok.com/@…" },
+                  ] as const
+                ).map((link) => (
+                  <FormField
+                    key={link.name}
+                    control={form.control}
+                    name={link.name}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{link.label}</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={field.value ?? ""}
+                            type="text"
+                            inputMode="url"
+                            autoComplete="url"
+                            placeholder={link.placeholder}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ))}
+              </div>
+              <FormField
+                control={form.control}
+                name="client_brain"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Client marketing brain</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        {...field}
+                        value={field.value ?? ""}
+                        rows={12}
+                        className="min-h-[12rem] font-mono text-sm"
+                        placeholder="Markdown marketing brain (tone, compliance, never-say, positioning…)"
+                      />
+                    </FormControl>
+                    <p className="text-sm text-muted-foreground">
+                      Saved as plain text. Changing this sets{" "}
+                      <span className="num">client_brain_updated_at</span> to now (epoch ms).
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          ) : null}
 
           <FormField
             control={form.control}

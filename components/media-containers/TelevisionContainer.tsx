@@ -1,11 +1,17 @@
 "use client"
 
 import { publishMediaLineItemsIfChanged } from "@/lib/mediaplan/publishMediaLineItems"
+import { coerceBurstDateLocal } from '@/lib/mediaplan/burstDate'
 
 import { subscribeMediaPlanPageSaved } from "@/lib/mediaplan/expertApplyDirtyBridge"
 import { ContainerEmptyLinesPlaceholder } from "@/components/media-containers/ContainerEmptyLinesPlaceholder"
 import { ExpertIncompleteRowsSummary } from "@/components/media-containers/ExpertIncompleteRowsSummary"
-import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
+import {
+  TELEVISION_CONTAINER_CONFIG,
+  buildDefaultLineItem,
+  mapHydrationToForm,
+  mapFormToApi,
+} from "@/lib/mediaplan/containerChannelConfig"
 import {
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
@@ -19,6 +25,7 @@ import {
   useCallback,
 } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
+import { allCollapsedIndices } from "@/lib/mediaplan/collapsedLineItems"
 import { useForm, useFieldArray, UseFormReturn } from "react-hook-form"
 import { useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -89,6 +96,8 @@ import {
   mediaTypeTotalsRowStyle,
   rgbaFromHex,
 } from "@/lib/mediaplan/mediaTypeAccents"
+import { ExpertCard } from "@/components/media-containers/ExpertCard"
+import { TELEVISION_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
   TelevisionExpertGrid,
   createEmptyTelevisionExpertRow,
@@ -249,7 +258,7 @@ export default function TelevisionContainer({
   const hasProcessedInitialLineItemsRef = useRef(false);
   const lastProcessedLineItemsRef = useRef<string>('');
   const [publishers, setPublishers] = useState<Publisher[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
   const [tvStations, setTvStations] = useState<TVStation[]>([]);
   const { toast } = useToast()
   const { mbaNumber } = useMediaPlanContext()
@@ -376,21 +385,7 @@ export default function TelevisionContainer({
     defaultValues: {
       televisionlineItems: [
         {
-          // Line Item Level Defaults
-          market: "",
-          network: "",
-          station: "",
-          daypart: "",
-          placement: "",
-          bidStrategy: "", // Default if kept
-          buyType: "CPP",  // Example default
-          creativeTargeting: "", // Default if kept
-          creative: "",         // Default if kept
-          buyingDemo: "",
-          fixedCostMedia: false,
-          clientPaysForMedia: false,
-          budgetIncludesFees: false,
-          noadserving: false,
+          ...buildDefaultLineItem(TELEVISION_CONTAINER_CONFIG.fieldMap),
           ...(() => {
             const id = createLineItemId(1);
             return { lineItemId: id, line_item_id: id };
@@ -617,8 +612,8 @@ export default function TelevisionContainer({
         const bursts = parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
           budget: burst.budget || "",
           buyAmount: burst.buyAmount || "",
-          startDate: burst.startDate ? new Date(burst.startDate) : (campaignStartDate || new Date()),
-          endDate: burst.endDate ? new Date(burst.endDate) : (campaignEndDate || new Date()),
+          startDate: coerceBurstDateLocal(burst.startDate) ?? (campaignStartDate || new Date()),
+          endDate: coerceBurstDateLocal(burst.endDate) ?? (campaignEndDate || new Date()),
           size: burst.size || "",
           tarps: burst.tarps || "",
           calculatedValue: computeLoadedDeliverables(
@@ -653,21 +648,30 @@ export default function TelevisionContainer({
         const normalizedNetwork = item.network || item.platform || item.publisher || "";
         const normalizedStation = item.station || item.site || item.publisher || "";
 
+        const sizeFromBurst =
+          bursts.find((b) => b.size)?.size || bursts[0]?.size || "30s"
+        const tarpsFromBursts = bursts.reduce((sum, b) => {
+          const n = parseFloat(String(b.tarps ?? "").replace(/[^0-9.]/g, "") || "0")
+          return sum + (Number.isFinite(n) ? n : 0)
+        }, 0)
+
         return {
-          market: item.market || "",
+          ...mapHydrationToForm(TELEVISION_CONTAINER_CONFIG.fieldMap, item),
+          // TV overlays: network/station aliases + creativeLength shim + size/tarps from bursts
           network: normalizedNetwork,
           station: normalizedStation,
-          daypart: item.daypart || "",
-          placement: item.placement || "",
-          bidStrategy: item.bid_strategy || "",
-          buyType: item.buy_type || "",
-          creativeTargeting: item.creative_targeting || "",
-          creative: item.creative || "",
-          buyingDemo: item.buying_demo || "",
-          fixedCostMedia: item.fixed_cost_media || false,
-          clientPaysForMedia: item.client_pays_for_media || false,
-          budgetIncludesFees: item.budget_includes_fees || false,
-          noadserving: item.no_adserving || false,
+          creative:
+            item.creative ||
+            (item as { creativeLength?: string }).creativeLength ||
+            (item as { creative_length?: string }).creative_length ||
+            "",
+          size: item.size || sizeFromBurst,
+          tarps:
+            item.tarps != null && String(item.tarps) !== ""
+              ? String(item.tarps)
+              : tarpsFromBursts > 0
+                ? String(tarpsFromBursts)
+                : "",
           lineItemId,
           line_item_id: lineItemId,
           line_item: item.line_item ?? item.lineItem ?? index + 1,
@@ -682,6 +686,7 @@ export default function TelevisionContainer({
         televisionlineItems: stampBurstReactKeys(transformedLineItems),
         overallDeliverables: 0,
       });
+      setCollapsedLineItems(allCollapsedIndices(transformedLineItems.length))
     },
     tvExpertModalOpenRef,
   )
@@ -749,8 +754,8 @@ export default function TelevisionContainer({
       lineItem: nextLineNumber,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
-        startDate: burst?.startDate ? new Date(burst.startDate) : new Date(),
-        endDate: burst?.endDate ? new Date(burst.endDate) : new Date(),
+        startDate: coerceBurstDateLocal(burst?.startDate) ?? new Date(),
+        endDate: coerceBurstDateLocal(burst?.endDate) ?? new Date(),
         tarps: burst?.tarps ?? "",
         size: burst?.size ?? "30s",
         calculatedValue: burst?.calculatedValue ?? 0,
@@ -1106,18 +1111,8 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
       mba_number: mbaNumber || "",
       mp_client_name: "", // Will be set by parent component
       mp_plannumber: "", // Will be set by parent component
-      market: lineItem.market || "",
-      network: lineItem.network || "",
-      station: lineItem.station || "",
-      daypart: lineItem.daypart || "",
-      placement: lineItem.placement || "",
-      buy_type: lineItem.buyType || "",
-      buying_demo: lineItem.buyingDemo || "",
-      fixed_cost_media: lineItem.fixedCostMedia || false,
-      client_pays_for_media: lineItem.clientPaysForMedia || false,
-      budget_includes_fees: lineItem.budgetIncludesFees || false,
+      ...mapFormToApi(TELEVISION_CONTAINER_CONFIG.fieldMap, lineItem),
       line_item_id: lineItemId,
-      creative: lineItem.creative || "",
       bursts: lineItem.bursts,
       feePct: feetelevision || 0,
       line_item: lineNumber,
@@ -1328,29 +1323,14 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
       </div>
   
       <div>
-        {isLoading ? (
-          <MediaContainerLoadState loading label="Television" />
-        ) : (
-          <div className="space-y-6">
+                  <div className="space-y-6">
             <Form {...form}>
               <div className="space-y-6">
                 {lineItemFields.length === 0 ? (
                   <ContainerEmptyLinesPlaceholder
                     onAdd={() => appendLineItem({
-                                                          network: "",
-                                                          bidStrategy: "",
-                                                          station: "",
-                                                          daypart: "",
-                                                          placement: "",
+                                                          ...buildDefaultLineItem(TELEVISION_CONTAINER_CONFIG.fieldMap),
                                                           buyType: "",
-                                                          creativeTargeting: "",
-                                                          creative: "",
-                                                          buyingDemo: "",
-                                                          market: "",
-                                                          fixedCostMedia: false,
-                                                          clientPaysForMedia: false,
-                                                          budgetIncludesFees: false,
-                                                          noadserving: false,
                                                         ...(() => {
                                                           const nextNum = lineItemFields.length + 1;
                                                           const id = createLineItemId(nextNum);
@@ -1408,309 +1388,126 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                   const { totalMedia, totalTarps } = getTotals(lineItemIndex);
 
                   return (
-                    <Card key={field.id} className="overflow-hidden border border-border/50 shadow-sm hover:shadow-md transition-shadow duration-200 space-y-6">
-                      <CardHeader className="pb-2 bg-muted/30">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold"
-                              style={mediaTypeLineItemBadgeStyle(MEDIA_ACCENT_HEX)}
-                            >
-                              {lineItemIndex + 1}
+                    <ExpertCard<TelevisionFormValues>
+                      key={field.id}
+                      config={TELEVISION_EXPERT_CHANNEL_CONFIG}
+                      form={form}
+                      itemsKey="televisionlineItems"
+                      lineItemIndex={lineItemIndex}
+                      lineItemId={lineItemId}
+                      collapsed={collapsedLineItems.has(lineItemIndex)}
+                      onToggleCollapsed={() => toggleLineItemCollapsed(lineItemIndex)}
+                      totalDisplay={formatMoney(
+                        form.getValues(`televisionlineItems.${lineItemIndex}.budgetIncludesFees`)
+                          ? totalMedia
+                          : totalMedia + (totalMedia / (100 - (feetelevision || 0))) * (feetelevision || 0),
+                        { locale: "en-AU", currency: "AUD" }
+                      )}
+                      publishers={publishers}
+                      stationOptions={filteredTvStations.map((tvStation) => ({
+                        value: tvStation.station || `station-${tvStation.id}`,
+                        label: tvStation.station || "(Unnamed station)",
+                      }))}
+                      feePct={feetelevision || 0}
+                      calculatedVariant="cpcCpvCpm"
+                      campaignStartDate={campaignStartDate}
+                      campaignEndDate={campaignEndDate}
+                      onBurstValueChange={handleValueChange}
+                      onAppendBurst={handleAppendBurst}
+                      onDuplicateBurst={(li) => handleDuplicateBurst(li)}
+                      onRemoveBurst={handleRemoveBurst}
+                      onBudgetIncludesFeesChange={(li, checked) => {
+                        const bursts = form.getValues(`televisionlineItems.${li}.bursts`) || [];
+                        bursts.forEach((_, bi) => handleValueChange(li, bi));
+                      }}
+                      onComboboxValueChange={(key, li, value) => {
+                        if (key === "buyType") handleBuyTypeChange(li, value);
+                      }}
+                      onFieldValueChange={(key, li, value) => {
+                        if (key !== "size") return;
+                        const bursts = form.getValues(`televisionlineItems.${li}.bursts`) || [];
+                        bursts.forEach((_, bi) => {
+                          form.setValue(
+                            `televisionlineItems.${li}.bursts.${bi}.size`,
+                            value,
+                            { shouldDirty: true }
+                          );
+                        });
+                      }}
+                      fieldAdornments={{
+                        station: (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-auto p-1"
+                            onClick={() => {
+                              const currentNetworkInForm = form.getValues(
+                                `televisionlineItems.${lineItemIndex}.network`
+                              );
+                              if (!currentNetworkInForm) {
+                                toast({
+                                  title: "Select a Network First",
+                                  description: "Please select a network before adding a station.",
+                                  variant: "default",
+                                });
+                                return;
+                              }
+                              setCurrentLineItemIndexForNewStation(lineItemIndex);
+                              setNewStationName("");
+                              setNewStationNetwork(currentNetworkInForm);
+                              setIsAddStationDialogOpen(true);
+                            }}
+                          >
+                            <PlusCircle className="h-5 w-5 text-primary" />
+                          </Button>
+                        ),
+                      }}
+                      comboboxPropsByKey={{
+                        station: {
+                          disabled: !selectedNetwork,
+                          placeholder: selectedNetwork
+                            ? "Select Station"
+                            : "Select Network first",
+                          searchPlaceholder: "Search stations...",
+                          emptyText: selectedNetwork
+                            ? `No stations found for "${selectedNetwork}".`
+                            : "Select Network first",
+                          buttonClassName: "h-9 w-full rounded-md",
+                        },
+                      }}
+                      summaryRow={
+                        <div className="border-b px-6 py-2">
+                          <div className="grid grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <span className="font-medium">Network:</span>{" "}
+                              {form.watch(`televisionlineItems.${lineItemIndex}.network`) ||
+                                "Not selected"}
                             </div>
                             <div>
-                              <CardTitle className="text-sm font-semibold tracking-tight">Television Line Item</CardTitle>
-                              <span className="font-mono text-[11px] text-muted-foreground">{lineItemId}</span>
+                              <span className="font-medium">Buy Type:</span>{" "}
+                              {formatBuyTypeForDisplay(
+                                form.watch(`televisionlineItems.${lineItemIndex}.buyType`)
+                              )}
                             </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="text-right">
-                              <span className="block text-[11px] text-muted-foreground">Total</span>
-                              <span className="text-sm font-bold tabular-nums">
-                                {formatMoney(
-                                  form.getValues(`televisionlineItems.${lineItemIndex}.budgetIncludesFees`)
-                                    ? totalMedia
-                                    : totalMedia + (totalMedia / (100 - (feetelevision || 0))) * (feetelevision || 0),
-                                  { locale: "en-AU", currency: "AUD" }
-                                )}
-                              </span>
+                            <div>
+                              <span className="font-medium">Station:</span>{" "}
+                              {form.watch(`televisionlineItems.${lineItemIndex}.station`) ||
+                                "Not selected"}
                             </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 shrink-0 rounded-full p-0"
-                              aria-expanded={!collapsedLineItems.has(lineItemIndex)}
-                              aria-label={
-                                collapsedLineItems.has(lineItemIndex)
-                                  ? `Expand details for television line item ${lineItemIndex + 1}`
-                                  : `Collapse details for television line item ${lineItemIndex + 1}`
+                            <div>
+                              <span className="font-medium">Bursts:</span>{" "}
+                              {
+                                form.watch(
+                                  `televisionlineItems.${lineItemIndex}.bursts`,
+                                  []
+                                ).length
                               }
-                              onClick={() => toggleLineItemCollapsed(lineItemIndex)}
-                            >
-                              <ChevronDown
-                                className={cn(
-                                  "h-4 w-4 transition-transform",
-                                  collapsedLineItems.has(lineItemIndex) && "-rotate-90"
-                                )}
-                                aria-hidden
-                              />
-                            </Button>
+                            </div>
                           </div>
                         </div>
-                      </CardHeader>
-                      
-                      {/* Summary Row - Always visible */}
-                      <div className="px-6 py-2 border-b">
-                        <div className="grid grid-cols-4 gap-4 text-sm">
-                          <div>
-                            <span className="font-medium">Network:</span> {form.watch(`televisionlineItems.${lineItemIndex}.network`) || 'Not selected'}
-                          </div>
-                          <div>
-                            <span className="font-medium">Buy Type:</span> {formatBuyTypeForDisplay(form.watch(`televisionlineItems.${lineItemIndex}.buyType`))}
-                          </div>
-                          <div>
-                            <span className="font-medium">Station:</span> {form.watch(`televisionlineItems.${lineItemIndex}.station`) || 'Not selected'}
-                          </div>
-                          <div>
-                            <span className="font-medium">Bursts:</span> {form.watch(`televisionlineItems.${lineItemIndex}.bursts`, []).length}
-                          </div>
-                        </div>
-                      </div>
-                      
-                      {!collapsedLineItems.has(lineItemIndex) && (
-                      <>
-                      <div className="px-6 py-5">
-                        <CardContent className="space-y-5 p-0">
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-4">
-                            
-                            {/* Column 1 - Dropdowns */}
-                            <div className="space-y-4">
-                              <FormField
-                                control={form.control}
-                                name={`televisionlineItems.${lineItemIndex}.network`}
-                                render={({ field }) => (
-                                  <FormItem className="flex flex-col space-y-1.5">
-                                    <FormLabel className="text-sm text-muted-foreground font-medium">Network</FormLabel>
-                                    <FormControl>
-                                      <Combobox
-                                        value={field.value}
-                                        onValueChange={(value) => {
-                                          field.onChange(value)
-                                        }}
-                                        placeholder="Select Network"
-                                        searchPlaceholder="Search networks..."
-                                        emptyText={publishers.length === 0 ? "No networks available." : "No networks found."}
-                                        buttonClassName="h-9 w-full flex-1 rounded-md"
-                                        options={publishers.map((publisher) => ({
-                                          value: publisher.publisher_name,
-                                          label: publisher.publisher_name,
-                                        }))}
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-
-                                <FormField
-                                    control={form.control}
-                                    name={`televisionlineItems.${lineItemIndex}.station`}
-                                    render={({ field }) => (
-                                      <FormItem className="flex flex-col space-y-1.5">
-                                        <FormLabel className="text-sm text-muted-foreground font-medium">Station</FormLabel>
-                                        <div className="flex flex-1 items-center space-x-1">
-                                          <FormControl>
-                                            <Combobox
-                                              value={field.value}
-                                              onValueChange={field.onChange}
-                                              disabled={!selectedNetwork}
-                                              placeholder={selectedNetwork ? "Select Station" : "Select Network first"}
-                                              searchPlaceholder="Search stations..."
-                                              emptyText={
-                                                selectedNetwork
-                                                  ? `No stations found for \"${selectedNetwork}\".`
-                                                  : "Select Network first"
-                                              }
-                                              buttonClassName="h-9 w-full rounded-md"
-                                              options={filteredTvStations.map((tvStation) => ({
-                                                value: tvStation.station || `station-${tvStation.id}`,
-                                                label: tvStation.station || "(Unnamed station)",
-                                              }))}
-                                            />
-                                          </FormControl>
-                                            <Button
-                                              type="button"
-                                              variant="ghost"
-                                              size="sm"
-                                              className="p-1 h-auto"
-                                              onClick={() => {
-                                                const currentNetworkInForm = form.getValues(`televisionlineItems.${lineItemIndex}.network`); //
-                                                if (!currentNetworkInForm) {
-                                                  toast({ //
-                                                    title: "Select a Network First",
-                                                    description: "Please select a network before adding a station.",
-                                                    variant: "default", 
-                                                  });
-                                                  return;
-                                                }
-                                                setCurrentLineItemIndexForNewStation(lineItemIndex); //
-                                                setNewStationName(""); //
-                                                setNewStationNetwork(currentNetworkInForm); //
-                                                setIsAddStationDialogOpen(true); //
-                                              }}
-                                            >
-                                              <PlusCircle className="h-5 w-5 text-primary" />
-                                            </Button>
-                                           </div>
-                                        <FormMessage />
-                                      </FormItem>
-                                )}
-                              />
-
-                              <FormField
-                                control={form.control}
-                                name={`televisionlineItems.${lineItemIndex}.buyType`}
-                                render={({ field }) => (
-                                  <FormItem className="flex flex-col space-y-1.5">
-                                    <FormLabel className="text-sm text-muted-foreground font-medium">Buy Type</FormLabel>
-                                    <FormControl>
-                                      <Combobox
-                                        value={field.value}
-                                        onValueChange={(value) => handleBuyTypeChange(lineItemIndex, value)}
-                                        placeholder="Select"
-                                        searchPlaceholder="Search buy types..."
-                                        buttonClassName="h-9 w-full flex-1 rounded-md"
-                                        options={[
-                                          { value: "bonus", label: "Bonus" },
-                                          { value: "cpm", label: "CPM" },
-                                          { value: "cpt", label: "CPT" },
-                                          { value: "fixed_cost", label: "Fixed Cost" },
-                                          { value: "package", label: "Package" },
-                                          { value: "spots", label: "Spots" },
-                                        ]}
-                                      />
-                                    </FormControl>
-                                    <FormMessage />
-                                  </FormItem>
-                                )}
-                              />
-                            </div>
-
-                            {/* Column 2 - Targeting and Buying Demo */}
-                            <div className="space-y-4">
-                              <FormItem className="flex flex-col space-y-1.5">
-                                <FormLabel className="text-sm text-muted-foreground font-medium">Placement</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    {...form.register(`televisionlineItems.${lineItemIndex}.placement`)}
-                                    placeholder="Enter placement details"
-                                    className="w-full h-24 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-
-                              <FormItem className="flex flex-col space-y-1.5">
-                                <FormLabel className="text-sm text-muted-foreground font-medium">Buying Demo</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    {...form.register(`televisionlineItems.${lineItemIndex}.buyingDemo`)}
-                                    placeholder="Enter buying demo details"
-                                    className="w-full min-h-0 h-10 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            </div>
-
-                            {/* Column 3 - Creative */}
-                            <div className="space-y-4">
-                              <FormItem className="flex flex-col space-y-1.5">
-                                <FormLabel className="text-sm text-muted-foreground font-medium">Daypart</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    {...form.register(`televisionlineItems.${lineItemIndex}.daypart`)}
-                                    placeholder="Enter daypart details"
-                                    className="w-full min-h-0 h-10 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-
-                              <FormItem className="flex flex-col space-y-1.5">
-                                <FormLabel className="text-sm text-muted-foreground font-medium">Creative Length</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    {...form.register(`televisionlineItems.${lineItemIndex}.creative`)}
-                                    placeholder="Enter creative length details"
-                                    className="w-full min-h-0 h-10 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-
-                              <FormItem className="flex flex-col space-y-1.5">
-                                <FormLabel className="text-sm text-muted-foreground font-medium">Market</FormLabel>
-                                <FormControl>
-                                  <Textarea
-                                    {...form.register(`televisionlineItems.${lineItemIndex}.market`)}
-                                    placeholder="Enter market or Geo Targeting"
-                                    className="w-full min-h-0 h-10 text-sm rounded-md border border-border/50 bg-muted/30 transition-colors focus:bg-background"
-                                  />
-                                </FormControl>
-                                <FormMessage />
-                              </FormItem>
-                            </div>
-
-                            {/* Column 4 - Options */}
-                            <div className="space-y-4">
-                              <div className="space-y-3 rounded-lg border border-border/30 bg-muted/20 p-4">
-                                <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Options</span>
-                                <FormField
-                                  control={form.control}
-                                  name={`televisionlineItems.${lineItemIndex}.fixedCostMedia`}
-                                  render={({ field }) => (
-                                    <FormItem className="flex items-center space-x-2">
-                                      <FormControl>
-                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                      </FormControl>
-                                      <FormLabel className="text-sm">Fixed Cost Media</FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-
-                                <FormField
-                                  control={form.control}
-                                  name={`televisionlineItems.${lineItemIndex}.clientPaysForMedia`}
-                                  render={({ field }) => (
-                                    <FormItem className="flex items-center space-x-2">
-                                      <FormControl>
-                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                      </FormControl>
-                                      <FormLabel className="text-sm">Client Pays for Media</FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-
-                                <FormField
-                                  control={form.control}
-                                  name={`televisionlineItems.${lineItemIndex}.budgetIncludesFees`}
-                                  render={({ field }) => (
-                                    <FormItem className="flex items-center space-x-2">
-                                      <FormControl>
-                                        <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                                      </FormControl>
-                                      <FormLabel className="text-sm">Budget Includes Fees</FormLabel>
-                                    </FormItem>
-                                  )}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </div>
-
+                      }
+                      burstsSlot={
                       <BurstSection>
                         {form.watch(`televisionlineItems.${lineItemIndex}.bursts`, []).map((burstField, burstIndex) => {
                           const buyType = form.watch(`televisionlineItems.${lineItemIndex}.buyType`);
@@ -1914,81 +1711,75 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                           );
                         })}
                       </BurstSection>
-                      </>
-                      )}
-
-                      <CardFooter className="flex items-center justify-between pt-4 pb-4 bg-muted/20 border-t border-border/40">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive/70 hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => removeLineItem(lineItemIndex)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-                          Remove
-                        </Button>
-                        <div className="flex items-center gap-2">
-                          <Button type="button" variant="outline" size="sm" onClick={() => handleDuplicateLineItem(lineItemIndex)}>
-                            <Copy className="h-3.5 w-3.5 mr-1.5" />
-                            Duplicate
+                      }
+                      footer={
+                        <>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive/70 hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => removeLineItem(lineItemIndex)}
+                          >
+                            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                            Remove
                           </Button>
-                          {lineItemIndex === lineItemFields.length - 1 && (
-                                                    <Button
-                                                      type="button"
-                                                      size="sm"
-                                                      onClick={() =>
-                                                        appendLineItem({
-                                                          network: "",
-                                                          bidStrategy: "",
-                                                          station: "",
-                                                          daypart: "",
-                                                          placement: "",
-                                                          buyType: "",
-                                                          creativeTargeting: "",
-                                                          creative: "",
-                                                          buyingDemo: "",
-                                                          market: "",
-                                                          fixedCostMedia: false,
-                                                          clientPaysForMedia: false,
-                                                          budgetIncludesFees: false,
-                                                          noadserving: false,
-                                                        ...(() => {
-                                                          const nextNum = lineItemFields.length + 1;
-                                                          const id = createLineItemId(nextNum);
-                                                          return { lineItemId: id, line_item_id: id };
-                                                        })(),
-                                                        line_item: lineItemFields.length + 1,
-                                                        lineItem: lineItemFields.length + 1,
-                                                          bursts: [
-                                                            {
-                                                              budget: "",
-                                                              buyAmount: "",
-                                                              startDate: new Date(),
-                                                              endDate: new Date(),
-                                                              size: "30s",
-                                                              tarps: "",
-                                                              calculatedValue: 0,
-                                                              fee: 0,
-                                                              _reactKey: newBurstReactKey(),
-                                                            },
-                                                          ],
-                                                        })
-                                                      }
-                                                    >
-                                                      <Plus className="h-3.5 w-3.5 mr-1.5" />
-                                                      Add Line Item
-                                                    </Button>
-                                                  )}
-                        </div>
-                      </CardFooter>
-                    </Card>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDuplicateLineItem(lineItemIndex)}
+                            >
+                              <Copy className="mr-1.5 h-3.5 w-3.5" />
+                              Duplicate
+                            </Button>
+                            {lineItemIndex === lineItemFields.length - 1 && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                onClick={() =>
+                                  appendLineItem({
+                                    ...buildDefaultLineItem(TELEVISION_CONTAINER_CONFIG.fieldMap),
+                                    buyType: "",
+                                    size: "30s",
+                                    tarps: "",
+                                    ...(() => {
+                                      const nextNum = lineItemFields.length + 1;
+                                      const id = createLineItemId(nextNum);
+                                      return { lineItemId: id, line_item_id: id };
+                                    })(),
+                                    line_item: lineItemFields.length + 1,
+                                    lineItem: lineItemFields.length + 1,
+                                    bursts: [
+                                      {
+                                        budget: "",
+                                        buyAmount: "",
+                                        startDate: new Date(),
+                                        endDate: new Date(),
+                                        size: "30s",
+                                        tarps: "",
+                                        calculatedValue: 0,
+                                        fee: 0,
+                                        _reactKey: newBurstReactKey(),
+                                      },
+                                    ],
+                                  })
+                                }
+                              >
+                                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                                Add Line Item
+                              </Button>
+                            )}
+                          </div>
+                        </>
+                      }
+                    />
                   );
                 })}
               </div>
             </Form>
           </div>
-        )}
       </div>
       {/* Add Station Dialog */}
 <Dialog open={isAddStationDialogOpen} onOpenChange={setIsAddStationDialogOpen}>

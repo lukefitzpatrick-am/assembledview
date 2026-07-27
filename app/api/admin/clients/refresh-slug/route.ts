@@ -8,6 +8,7 @@ import {
 } from "@/lib/api/auth0Management"
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
 import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
+import { xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 
 export const runtime = "nodejs"
 
@@ -25,7 +26,7 @@ const payloadSchema = z.object({
 
 async function fetchLatestClients(): Promise<any[]> {
   const timeoutMs = Number(process.env.XANO_TIMEOUT_MS ?? 5000)
-  const res = await axios.get(clientsUrl, { timeout: timeoutMs })
+  const res = await axios.get(clientsUrl, { headers: xanoAuthHeaderRecord(), timeout: timeoutMs })
   return Array.isArray(res.data) ? res.data : []
 }
 

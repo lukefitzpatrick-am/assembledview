@@ -5,7 +5,7 @@
  */
 import axios from "axios"
 import { NextRequest, NextResponse } from "next/server"
-import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
+import { parseXanoListPayload, xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest) {
     const targetMonths = rangeMode === "range" ? enumerateMonths(monthFrom, monthTo || monthFrom) : [monthFrom]
     const monthSet = new Set(targetMonths)
 
-    const xanoRes = await axios.get(xanoUrl("finance_billing_records", "XANO_CLIENTS_BASE_URL"))
+    const xanoRes = await axios.get(xanoUrl("finance_billing_records", "XANO_CLIENTS_BASE_URL"), { headers: xanoAuthHeaderRecord() })
     const rawRecords = parseXanoListPayload(xanoRes.data) as BillingRecord[]
 
     const filteredRecords = rawRecords.filter((record) => {

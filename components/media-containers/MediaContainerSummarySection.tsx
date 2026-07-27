@@ -14,7 +14,7 @@ import {
   rgbaFromHex,
 } from "@/lib/mediaplan/mediaTypeAccents"
 
-export type SummaryLine = {
+type SummaryLine = {
   index: number
   deliverables: number
   buyType: string

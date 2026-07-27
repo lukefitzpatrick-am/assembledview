@@ -3,6 +3,7 @@ import { internalMediaPlanByMbaUrl } from "@/lib/api/internalBaseUrl"
 import { normaliseLineItemsByType } from "@/lib/mediaplan/normalizeLineItem"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 import { parseDateSafe } from "@/lib/dates/parseDateSafe"
+import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -85,8 +86,8 @@ function computeExpectedSpendToDate(params: {
   const todayEnd = endOfDay(today)
 
   const total = bursts.reduce((sum, burst) => {
-    const burstStartRaw = parseDateSafe(burst.startDate)
-    const burstEndRaw = parseDateSafe(burst.endDate) ?? burstStartRaw
+    const burstStartRaw = coerceBurstDateLocal(burst.startDate)
+    const burstEndRaw = coerceBurstDateLocal(burst.endDate) ?? burstStartRaw
     if (!burstStartRaw || !burstEndRaw) return sum
 
     const burstStart = startOfDay(burstStartRaw)

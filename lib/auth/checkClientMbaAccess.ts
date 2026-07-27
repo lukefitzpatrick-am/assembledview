@@ -68,7 +68,8 @@ export async function checkClientMbaAccess(
       return { ok: false, response: forbiddenResponse() }
     }
 
-    if (mbaNumber.toLowerCase().startsWith(mbaidentifier.toLowerCase())) {
+    // AuthZ: exact MBA match only (startsWith was overly broad / fail-open).
+    if (mbaNumber.toLowerCase() === mbaidentifier.toLowerCase()) {
       return { ok: true, isClient: true }
     }
 

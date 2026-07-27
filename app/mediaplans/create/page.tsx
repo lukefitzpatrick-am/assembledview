@@ -54,6 +54,15 @@ import { UnsavedChangesDialog } from "@/components/mediaplans/UnsavedChangesDial
 import { toast } from "@/components/ui/use-toast"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { parsePrefillYmd } from "@/lib/mediaplan/createPrefill"
+import { PlannerCreateTargetsStrip } from "@/components/mediaplans/PlannerCreateTargetsStrip"
+import {
+  mapEngineSplitToCreateTargets,
+  normalizeFrozenCreateTargets,
+  UNMAPPED_MP_KEY,
+  type CreateTargetRow,
+} from "@/lib/planning/mapEngineSplitToCreateTargets"
+import { isRecommendedSplitV1 } from "@/lib/planning/recommendedSplit"
+import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { SavingModal, type SaveStatusItem } from "@/components/ui/saving-modal"
 import { OutcomeModal } from "@/components/outcome-modal"
@@ -189,6 +198,11 @@ import {
 } from "@/lib/mediaplan/advertisingAssociatesExcel"
 import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
 import {
+  CREATE_MEDIA_TYPE_CATALOG,
+  CREATE_MEDIA_TOGGLE_KEYS,
+  type CreateMediaTypeCatalogName,
+} from "@/lib/mediaplan/createMediaToggleKeys"
+import {
   attachOverridesToLineInputs,
 } from "@/lib/finance/billingOverrides"
 import {
@@ -197,6 +211,7 @@ import {
   editorBillingStableLineItemId,
 } from "@/lib/finance/buildEditorLineItemInputs"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
+import { stampClientFeePctOnLineItems } from "@/lib/finance/stampClientFeePctOnLineItems"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import {
   computeChannelDuplicateStats,
@@ -305,6 +320,7 @@ interface Client {
   feesocial: number
   feebvod: number
   feeintegration: number
+  feeinfluencers?: number
   feeprogdisplay: number
   feeprogvideo: number
   feeprogbvod: number
@@ -376,6 +392,34 @@ const ProgAudioContainer = lazyWithChunkRetry(() => import("@/components/media-c
 const ProgOOHContainer = lazyWithChunkRetry(() => import("@/components/media-containers/ProgOOHContainer"))
 const InfluencersContainer = lazyWithChunkRetry(() => import("@/components/media-containers/InfluencersContainer"))
 const ProductionContainer = lazyWithChunkRetry(() => import("@/components/media-containers/ProductionContainer"))
+
+/** Components keyed by catalog name — form iterates CREATE_MEDIA_TYPE_CATALOG. */
+const CREATE_MEDIA_COMPONENTS: Record<
+  CreateMediaTypeCatalogName,
+  LazyExoticComponent<ComponentType<any>> | null
+> = {
+  mp_fixedfee: null,
+  mp_television: TelevisionContainer,
+  mp_radio: RadioContainer,
+  mp_newspaper: NewspaperContainer,
+  mp_magazines: MagazinesContainer,
+  mp_ooh: OOHContainer,
+  mp_cinema: CinemaContainer,
+  mp_digidisplay: DigitalDisplayContainer,
+  mp_digiaudio: DigitalAudioContainer,
+  mp_digivideo: DigitalVideoContainer,
+  mp_bvod: BVODContainer,
+  mp_integration: IntegrationContainer,
+  mp_search: SearchContainer,
+  mp_socialmedia: SocialMediaContainer,
+  mp_progdisplay: ProgDisplayContainer,
+  mp_progvideo: ProgVideoContainer,
+  mp_progbvod: ProgBVODContainer,
+  mp_progaudio: ProgAudioContainer,
+  mp_progooh: ProgOOHContainer,
+  mp_influencers: InfluencersContainer,
+  mp_production: ProductionContainer,
+}
 
 // Place this inside your CreateMediaPlan component, after the state declarations
 const mediaKeyMap: { [key: string]: string } = {
@@ -494,6 +538,14 @@ function CreateMediaPlan() {
   const [clientPostcode, setClientPostcode] = useState("")
   const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([]);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  /** Children saved but master.version_number bump failed — retry publish PATCH only. */
+  const [pendingPublishRetry, setPendingPublishRetry] = useState<{
+    mbaNumber: string
+    versionNumber: number
+    versionId: number | null
+    publishedBefore: number
+  } | null>(null)
+  const [isRetryingPublish, setIsRetryingPublish] = useState(false)
   const [modalOpen, setModalOpen] = useState(false);
   const [modalTitle, setModalTitle] = useState("");
   const [modalOutcome, setModalOutcome] = useState("");
@@ -501,6 +553,10 @@ function CreateMediaPlan() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const navigationHydratedRef = useRef(false);
   const prefillDoneRef = useRef(false);
+  /** Frozen planner create_targets for the “From planner” strip (not MEDIA lines). */
+  const [plannerCreateTargets, setPlannerCreateTargets] = useState<CreateTargetRow[]>(
+    []
+  );
   const markUnsavedChanges = useCallback(() => {
     if (!navigationHydratedRef.current) return;
     setHasUnsavedChanges(true);
@@ -800,26 +856,8 @@ function CreateMediaPlan() {
       mbaidentifier: "",
       mba_number: "",
       mp_plannumber: "1",
-      mp_television: false,
-      mp_radio: false,
+      ...Object.fromEntries(CREATE_MEDIA_TOGGLE_KEYS.map((k) => [k, false])),
       mp_production: false,
-      mp_newspaper: false,
-      mp_magazines: false,
-      mp_ooh: false,
-      mp_cinema: false,
-      mp_digidisplay: false,
-      mp_digiaudio: false,
-      mp_digivideo: false,
-      mp_bvod: false,
-      mp_integration: false,
-      mp_search: false,
-      mp_socialmedia: false,
-      mp_progdisplay: false,
-      mp_progvideo: false,
-      mp_progbvod: false,
-      mp_progaudio: false,
-      mp_progooh: false,
-      mp_influencers: false,
       mp_fixedfee: false,
       billingSchedule: [],
     },
@@ -1197,30 +1235,14 @@ function CreateMediaPlan() {
     ]
   )
 
+  // Media toggles — names/order from CREATE_MEDIA_TYPE_CATALOG (single source with planner keys).
   const mediaTypes = useMemo(
-    () => [
-      { name: "mp_fixedfee", label: "Fixed Fee", component: null },
-      { name: "mp_television", label: "Television", component: TelevisionContainer },
-      { name: "mp_radio", label: "Radio", component: RadioContainer },
-      { name: "mp_newspaper", label: "Newspaper", component: NewspaperContainer },
-      { name: "mp_magazines", label: "Magazines", component: MagazinesContainer },
-      { name: "mp_ooh", label: "OOH", component: OOHContainer },
-      { name: "mp_cinema", label: "Cinema", component: CinemaContainer },
-      { name: "mp_digidisplay", label: "Digital Display", component: DigitalDisplayContainer },
-      { name: "mp_digiaudio", label: "Digital Audio", component: DigitalAudioContainer },
-      { name: "mp_digivideo", label: "Digital Video", component: DigitalVideoContainer },
-      { name: "mp_bvod", label: "BVOD", component: BVODContainer },
-      { name: "mp_integration", label: "Integration", component: IntegrationContainer },
-      { name: "mp_search", label: "Search", component: SearchContainer },
-      { name: "mp_socialmedia", label: "Social Media", component: SocialMediaContainer },
-      { name: "mp_progdisplay", label: "Prog Display", component: ProgDisplayContainer },
-      { name: "mp_progvideo", label: "Prog Video", component: ProgVideoContainer },
-      { name: "mp_progbvod", label: "Prog BVOD", component: ProgBVODContainer },
-      { name: "mp_progaudio", label: "Prog Audio", component: ProgAudioContainer },
-      { name: "mp_progooh", label: "Prog OOH", component: ProgOOHContainer },
-      { name: "mp_influencers", label: "Influencers", component: InfluencersContainer },
-      { name: "mp_production", label: "Production", component: ProductionContainer },
-    ],
+    () =>
+      CREATE_MEDIA_TYPE_CATALOG.map((entry) => ({
+        name: entry.name,
+        label: entry.label,
+        component: CREATE_MEDIA_COMPONENTS[entry.name],
+      })),
     []
   )
 
@@ -3119,7 +3141,11 @@ function CreateMediaPlan() {
       setFeeDigiDisplay(selectedClient.feedigidisplay);
       setFeeDigiVideo(selectedClient.feedigivideo);
       setFeeBVOD(selectedClient.feebvod);
-      setFeeIntegration(selectedClient.feeintegration);
+      // Integration: feeintegration only (absent => 0%). Influencers: feeinfluencers or feecontentcreator.
+      setFeeIntegration(selectedClient.feeintegration ?? null);
+      setFeeInfluencers(
+        selectedClient.feeinfluencers ?? selectedClient.feecontentcreator ?? null
+      );
       setFeeProgDisplay(selectedClient.feeprogdisplay);
       setFeeProgVideo(selectedClient.feeprogvideo);
       setFeeProgBvod(selectedClient.feeprogbvod);
@@ -3161,6 +3187,7 @@ function CreateMediaPlan() {
       setFeeDigiVideo(null);
       setFeeBVOD(null);
       setFeeIntegration(null);
+      setFeeInfluencers(null);
       setFeeProgDisplay(null);
       setFeeProgVideo(null);
       setFeeProgBvod(null);
@@ -3178,7 +3205,7 @@ function CreateMediaPlan() {
     }
   }
 
-  // Planning handoff: ?clientId=&campaignName=&start=&end= — once, while pristine only.
+  // Planning handoff: ?audienceId=&clientId=&campaignName=&start=&end= — once, while pristine only.
   useEffect(() => {
     if (prefillDoneRef.current) return
     if (!clientsReady) return
@@ -3189,43 +3216,162 @@ function CreateMediaPlan() {
       return
     }
 
+    const audienceIdParam = (searchParams.get("audienceId") ?? "").trim()
     const clientIdParam = searchParams.get("clientId")
     const campaignName = (searchParams.get("campaignName") ?? "").trim()
     const startParam = searchParams.get("start")
     const endParam = searchParams.get("end")
 
-    if (!clientIdParam && !campaignName && !startParam && !endParam) {
+    if (
+      !audienceIdParam &&
+      !clientIdParam &&
+      !campaignName &&
+      !startParam &&
+      !endParam
+    ) {
       prefillDoneRef.current = true
       return
     }
 
-    const prevHydrated = navigationHydratedRef.current
-    navigationHydratedRef.current = false
-    try {
-      if (campaignName) {
-        form.setValue("mp_campaignname", campaignName, { shouldDirty: false })
+    let cancelled = false
+
+    async function applyPlannerAudience(audienceId: string) {
+      const res = await fetch(`/api/planning/audiences/${encodeURIComponent(audienceId)}`)
+      if (cancelled) return
+      if (!res.ok) {
+        toast({
+          title: "Could not load planner audience",
+          description:
+            res.status === 404
+              ? "Audience not found — continue manually."
+              : res.status === 403
+                ? "You do not have access to that audience — continue manually."
+                : `Load failed (${res.status}) — continue manually.`,
+          variant: "destructive",
+        })
+        return
       }
-      const startDate = parsePrefillYmd(startParam)
-      const endDate = parsePrefillYmd(endParam)
-      if (startDate) {
-        form.setValue("mp_campaigndates_start", startDate, { shouldDirty: false })
+
+      const row = (await res.json()) as PlanningAudienceRow
+      const def =
+        row.definition_json && typeof row.definition_json === "object"
+          ? (row.definition_json as Record<string, unknown>)
+          : null
+      const brief =
+        def?.brief && typeof def.brief === "object"
+          ? (def.brief as Record<string, unknown>)
+          : null
+
+      // Fail-open identity from saved brief when query params omit fields.
+      if (!campaignName && typeof brief?.campaignName === "string" && brief.campaignName.trim()) {
+        form.setValue("mp_campaignname", brief.campaignName.trim(), { shouldDirty: false })
       }
-      if (endDate) {
-        form.setValue("mp_campaigndates_end", endDate, { shouldDirty: false })
-      }
-      if (clientIdParam) {
-        const known = clients.some((c) => c.id.toString() === clientIdParam)
-        if (known) {
-          handleClientChange(clientIdParam)
+      if (!startParam && typeof brief?.startDate === "string") {
+        const startDate = parsePrefillYmd(brief.startDate)
+        if (startDate) {
+          form.setValue("mp_campaigndates_start", startDate, { shouldDirty: false })
         }
       }
-    } finally {
-      navigationHydratedRef.current = prevHydrated
-      prefillDoneRef.current = true
+      if (!endParam && typeof brief?.endDate === "string") {
+        const endDate = parsePrefillYmd(brief.endDate)
+        if (endDate) {
+          form.setValue("mp_campaigndates_end", endDate, { shouldDirty: false })
+        }
+      }
+      if (!clientIdParam && brief?.clientId != null) {
+        const idStr = String(brief.clientId)
+        const known = clients.some((c) => c.id.toString() === idStr)
+        if (known) handleClientChange(idStr)
+      } else if (!clientIdParam && row.clients_id != null) {
+        const idStr = String(row.clients_id)
+        const known = clients.some((c) => c.id.toString() === idStr)
+        if (known) handleClientChange(idStr)
+      }
+
+      const rawSplit = def?.recommended_split
+      if (!isRecommendedSplitV1(rawSplit)) {
+        toast({
+          title: "No frozen planner split",
+          description: "Audience loaded without recommended_split — set media manually.",
+        })
+        return
+      }
+
+      const knownCreateKeys = new Set<string>(mediaTypes.map((m) => m.name))
+      let rows: CreateTargetRow[] = rawSplit.create_targets
+      let campaignBudget = rawSplit.campaign_budget
+
+      if (!Array.isArray(rows) || rows.length === 0) {
+        const mapped = mapEngineSplitToCreateTargets(rawSplit.channels, {
+          campaignBudget: rawSplit.budget,
+          knownCreateKeys,
+        })
+        rows = mapped.create_targets
+        campaignBudget = mapped.campaign_budget
+      } else {
+        const normalized = normalizeFrozenCreateTargets(
+          rows,
+          knownCreateKeys,
+          campaignBudget
+        )
+        rows = normalized.create_targets
+        campaignBudget = normalized.campaign_budget
+      }
+
+      form.setValue("mp_campaignbudget", campaignBudget, { shouldDirty: false })
+      for (const rowTarget of rows) {
+        if (rowTarget.mp_key === UNMAPPED_MP_KEY) continue
+        if (!knownCreateKeys.has(rowTarget.mp_key)) continue
+        if (rowTarget.dollars > 0) {
+          form.setValue(
+            rowTarget.mp_key as (typeof CREATE_MEDIA_TOGGLE_KEYS)[number],
+            true,
+            { shouldDirty: false }
+          )
+        }
+      }
+      setPlannerCreateTargets(rows)
+    }
+
+    async function run() {
+      const prevHydrated = navigationHydratedRef.current
+      navigationHydratedRef.current = false
+      try {
+        if (campaignName) {
+          form.setValue("mp_campaignname", campaignName, { shouldDirty: false })
+        }
+        const startDate = parsePrefillYmd(startParam)
+        const endDate = parsePrefillYmd(endParam)
+        if (startDate) {
+          form.setValue("mp_campaigndates_start", startDate, { shouldDirty: false })
+        }
+        if (endDate) {
+          form.setValue("mp_campaigndates_end", endDate, { shouldDirty: false })
+        }
+        if (clientIdParam) {
+          const known = clients.some((c) => c.id.toString() === clientIdParam)
+          if (known) {
+            handleClientChange(clientIdParam)
+          }
+        }
+        if (audienceIdParam) {
+          await applyPlannerAudience(audienceIdParam)
+        }
+      } finally {
+        if (!cancelled) {
+          navigationHydratedRef.current = prevHydrated
+          prefillDoneRef.current = true
+        }
+      }
+    }
+
+    void run()
+    return () => {
+      cancelled = true
     }
     // handleClientChange is stable enough for one-shot mount; omit to avoid re-runs.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- pristine one-shot prefill
-  }, [clientsReady, clients, selectedClientId, searchParams, form])
+  }, [clientsReady, clients, selectedClientId, searchParams, form, mediaTypes])
 
   const normalizeBursts = (bursts: BillingBurst[]): BillingBurst[] =>
     bursts.map((burst) => {
@@ -4600,20 +4746,109 @@ function CreateMediaPlan() {
   const { isOpen: isUnsavedPromptOpen, confirmNavigation, stayOnPage, requestNavigation } = useUnsavedChangesPrompt(shouldBlockNavigation)
   const isSavingInProgress = isPlanSaving || isVersionSaving;
   const hasSaveErrors = saveStatus.some(item => item.status === 'error');
-  const shouldShowSaveModal = isSaveModalOpen && (isSavingInProgress || hasSaveErrors || saveStatus.length > 0);
+  const shouldShowSaveModal =
+    isSaveModalOpen &&
+    (isSavingInProgress ||
+      isRetryingPublish ||
+      hasSaveErrors ||
+      saveStatus.length > 0 ||
+      Boolean(pendingPublishRetry));
 
   useEffect(() => {
-    if (!isSavingInProgress && isSaveModalOpen && saveStatus.length > 0 && !hasSaveErrors) {
+    if (
+      !isSavingInProgress &&
+      !isRetryingPublish &&
+      !pendingPublishRetry &&
+      isSaveModalOpen &&
+      saveStatus.length > 0 &&
+      !hasSaveErrors
+    ) {
       setIsSaveModalOpen(false);
       setSaveStatus([]);
     }
-  }, [hasSaveErrors, isSaveModalOpen, isSavingInProgress, saveStatus]);
+  }, [
+    hasSaveErrors,
+    isSaveModalOpen,
+    isSavingInProgress,
+    isRetryingPublish,
+    pendingPublishRetry,
+    saveStatus,
+  ]);
 
   const handleCloseSaveModal = useCallback(() => {
-    if (isSavingInProgress) return;
+    if (isSavingInProgress || isRetryingPublish) return;
     setIsSaveModalOpen(false);
-    setSaveStatus([]);
-  }, [isSavingInProgress]);
+    if (!pendingPublishRetry) {
+      setSaveStatus([]);
+    }
+  }, [isSavingInProgress, isRetryingPublish, pendingPublishRetry]);
+
+  const patchPublishStatus = useCallback(
+    (status: SaveStatusItem["status"], error?: string) => {
+      setSaveStatus((prev) => {
+        const name = "Publish version"
+        const existing = prev.find((item) => item.name === name)
+        if (!existing) return [...prev, { name, status, error }]
+        return prev.map((item) =>
+          item.name === name ? { ...item, status, error } : item
+        )
+      })
+    },
+    []
+  )
+
+  const handleRetryPublish = useCallback(async () => {
+    if (!pendingPublishRetry || isRetryingPublish) return
+    const { mbaNumber, versionNumber, publishedBefore } = pendingPublishRetry
+    setIsRetryingPublish(true)
+    setIsSaveModalOpen(true)
+    patchPublishStatus("pending")
+    try {
+      const publishResponse = await fetch(
+        `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ version_number: versionNumber }),
+        }
+      )
+      if (!publishResponse.ok) {
+        let publishError = "Failed to publish version number"
+        try {
+          const body = await publishResponse.json()
+          publishError = body.error || body.message || publishError
+        } catch {
+          /* ignore */
+        }
+        patchPublishStatus("error", publishError)
+        toast({
+          variant: "destructive",
+          title: "Publish retry failed",
+          description: `${publishError}. Master version remains ${publishedBefore}.`,
+        })
+        return
+      }
+      patchPublishStatus("success")
+      setPendingPublishRetry(null)
+      toast({
+        title: "Version published",
+        description: `Version ${versionNumber} is now live.`,
+      })
+      setHasUnsavedChanges(false)
+      form.reset(form.getValues())
+      router.push("/mediaplans")
+    } catch (err: any) {
+      const message = err?.message || String(err)
+      patchPublishStatus("error", message)
+      toast({
+        variant: "destructive",
+        title: "Publish retry failed",
+        description: message,
+      })
+    } finally {
+      setIsRetryingPublish(false)
+    }
+  }, [pendingPublishRetry, isRetryingPublish, patchPublishStatus, toast, form, router])
 
   const handleSaveMediaPlan = async () => {
     const existingId = mediaPlanIdRef.current
@@ -4758,6 +4993,9 @@ function CreateMediaPlan() {
         billingSchedule?: unknown
       }
       let usedPutPath = false
+      // REVIEW (integrity P0): track deferred publish from MBA PUT for stage-then-publish
+      let deferredPublish = false
+      let publishedVersionBeforeSave: number | string | undefined = planVersionNumber
 
       const omitModeBody = () => {
         const values = form.getValues()
@@ -4783,6 +5021,9 @@ function CreateMediaPlan() {
                       : partialApprovalMetadata.selectedMonthYears,
                 }
               : null,
+          // Stage the version row without flipping media_plans.version yet.
+          // Finalise via POST .../versions/{id}/publish after channel writes.
+          deferMasterVersionPublish: true,
         }
       }
 
@@ -4870,6 +5111,10 @@ function CreateMediaPlan() {
             versionData.version?.billingSchedule ?? versionData.billingSchedule,
         }
         usedPutPath = true
+        deferredPublish =
+          Boolean(versionData.deferredPublish) && versionData.mode !== "overwrite"
+        publishedVersionBeforeSave =
+          versionData.publishedVersionNumber ?? planVersionNumber
       } catch (putErr: unknown) {
         // Finance C1/C2 gates must surface — never fall back to a divergent local create.
         if (
@@ -5477,7 +5722,11 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            integrationMediaLineItems
+            stampClientFeePctOnLineItems(
+              integrationMediaLineItems,
+              "integration",
+              billingSaveInputs.feeLoading
+            )
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5666,7 +5915,11 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            influencersMediaLineItems
+            stampClientFeePctOnLineItems(
+              influencersMediaLineItems,
+              "influencers",
+              billingSaveInputs.feeLoading
+            )
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5678,27 +5931,75 @@ function CreateMediaPlan() {
       }
 
       // Execute all media type saves in parallel
+      // REVIEW (integrity P0): So-Fail — any channel error blocks success toast/navigation/publish
       if (mediaTypeSavePromises.length > 0) {
-        try {
-          const results = await Promise.all(mediaTypeSavePromises);
-          const errors = results.filter((result): result is { type: string; error: any; } => 
-            result && typeof result === 'object' && 'error' in result
-          );
+        const results = await Promise.all(mediaTypeSavePromises);
+        const errors = results.filter((result): result is { type: string; error: any; } => 
+          result && typeof result === 'object' && 'error' in result
+        );
           
-          if (errors.length > 0) {
-            toast({
-              title: 'Partial Success',
-              description: `Media plan saved but some media types failed to save.`,
-              variant: 'destructive'
-            });
-          }
-        } catch (error) {
+        if (errors.length > 0) {
+          const failedChannels = errors.map((e) => e.type || 'unknown')
+          console.error('[save integrity] create channel writes failed; blocking publish', {
+            mba_number: fv.mba_number,
+            versionId: version.id,
+            stagedVersionNumber: version.version_number,
+            publishedVersionNumber: publishedVersionBeforeSave,
+            deferredPublish,
+            usedPutPath,
+            failedChannels,
+            partialStateNote:
+              'Staged version / partial channel children may need cleanup; master.version_number was not advanced when deferred.',
+            errors,
+          })
           toast({
-            title: 'Warning',
-            description: 'Media plan saved but some media data could not be saved. Please try again.',
+            title: 'Save failed — version not published',
+            description: `Channel write(s) failed: ${failedChannels.join(', ')}. Master version was not advanced.`,
             variant: 'destructive'
           });
+          throw new Error(
+            `Channel write(s) failed: ${failedChannels.join(', ')}. Version not published.`
+          )
         }
+      }
+
+      if (deferredPublish && usedPutPath && version.version_number != null) {
+        updateSaveStatus('Publish version', 'pending')
+        const publishResponse = await fetch(
+          `/api/mediaplans/mba/${encodeURIComponent(String(fv.mba_number))}`,
+          {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ version_number: version.version_number }),
+          }
+        )
+        if (!publishResponse.ok) {
+          const body = await publishResponse.json().catch(() => ({} as { error?: string }))
+          const publishError = body.error || 'Failed to publish version after channel saves'
+          const stagedVn =
+            typeof version.version_number === 'string'
+              ? parseInt(version.version_number, 10)
+              : Number(version.version_number)
+          setPendingPublishRetry({
+            mbaNumber: String(fv.mba_number),
+            versionNumber: Number.isFinite(stagedVn) ? stagedVn : 0,
+            versionId: version.id ?? null,
+            publishedBefore:
+              typeof publishedVersionBeforeSave === 'number'
+                ? publishedVersionBeforeSave
+                : Number(publishedVersionBeforeSave) || 0,
+          })
+          updateSaveStatus('Publish version', 'error', publishError)
+          toast({
+            title: 'Saved but not published — retry publish',
+            description: `${publishError}. Channel data is staged as version ${version.version_number}. Master remains ${publishedVersionBeforeSave}. Use Retry publish to finish.`,
+            variant: 'destructive',
+          })
+          // Do not throw — leave modal open for retry; handleSaveAll must not navigate away.
+          return 'publish_pending' as const
+        }
+        updateSaveStatus('Publish version', 'success')
+        setPendingPublishRetry(null)
       }
 
       // Wait for document generation+upload (do not throw; errors already handled above)
@@ -5706,6 +6007,7 @@ function CreateMediaPlan() {
   
       // 7. Notify user
       toast({ title: 'Version saved', description: `Version ID ${version.id}` });
+      return 'ok' as const
     } catch (err: any) {
       // Update Media Plan Version status to error
       updateSaveStatus('Media Plan Version', 'error', err.message || 'Failed to save version');
@@ -5752,12 +6054,16 @@ const handleSaveAll = async () => {
 
     // 2️⃣ Save version (Media Plan Version status will be initialized in handleSaveMediaPlanVersion)
     try {
-      await handleSaveMediaPlanVersion(newMediaPlanId); // ✅ Pass the ID as an argument
-      setHasUnsavedChanges(false);
-      form.reset(form.getValues());
-      router.push('/mediaplans');
+      const versionResult = await handleSaveMediaPlanVersion(newMediaPlanId)
+      // Children saved but publish PATCH failed — keep user on page for Retry publish.
+      if (versionResult === 'publish_pending') {
+        return
+      }
+      setHasUnsavedChanges(false)
+      form.reset(form.getValues())
+      router.push('/mediaplans')
     } catch {
-      return;
+      return
     }
   } finally {
     saveAllInFlightRef.current = false
@@ -6312,7 +6618,7 @@ const handleSaveAll = async () => {
           className="h-9 shrink-0 rounded-pill border-border px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
         >
           {isNamingDownloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          <span className="ml-2">{isNamingDownloading ? "Generating Names..." : "Naming Conventions"}</span>
+          <span className="ml-2">{isNamingDownloading ? "Generating Names..." : "Generate Naming (Ava)"}</span>
         </Button>
         <Button
           type="button"
@@ -6634,6 +6940,13 @@ const handleSaveAll = async () => {
                 )}
               />
 
+              {plannerCreateTargets.length > 0 ? (
+                <PlannerCreateTargetsStrip
+                  rows={plannerCreateTargets}
+                  className="mt-2"
+                />
+              ) : null}
+
               <FormField
                 control={form.control}
                 name="mbaidentifier"
@@ -6825,6 +7138,11 @@ const handleSaveAll = async () => {
   items={saveStatus}
   isSaving={isSavingInProgress}
   onClose={handleCloseSaveModal}
+  onRetryPublish={handleRetryPublish}
+  isRetryingPublish={isRetryingPublish}
+  publishRetryPending={Boolean(pendingPublishRetry)}
+  titleRetryPublish="Saved but not published"
+  descriptionRetryPublish="Channel data was saved to a staged version, but the master version was not advanced. Retry publish to finish — this only re-issues the version publish PATCH."
 />
 
 <OutcomeModal

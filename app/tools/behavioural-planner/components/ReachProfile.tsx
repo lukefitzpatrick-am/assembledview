@@ -42,11 +42,12 @@ export function ReachProfile({ rows, show18Base }: ReachProfileProps) {
                     18+ base
                   </Badge>
                 ) : null}
-                {!r.isRmMeasured ? (
-                  <Badge variant="outline" size="sm" className="text-[10px]">
-                    Benchmark-based — not Roy Morgan
-                  </Badge>
-                ) : null}
+                <Badge variant="outline" size="sm" className="text-[10px]">
+                  Source:{" "}
+                  {r.isRmMeasured
+                    ? "Roy Morgan"
+                    : "Assembled seed — pending warehouse source"}
+                </Badge>
               </div>
               <ProgressBar value={r.reachPct * 100} max={100} size="sm" color="default" />
             </div>

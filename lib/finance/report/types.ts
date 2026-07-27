@@ -6,6 +6,13 @@ export type ReportDimension =
   | "station"
   | "client"
   | "billingMonth"
+  | "financialYear"
+  | "mbaNumber"
+  | "billingType"
+  | "billingStatus"
+  | "rowKind"
+  | "clientPays"
+  | "billingAgency"
 
 export interface ReportRow {
   mbaNumber: string
@@ -18,6 +25,10 @@ export interface ReportRow {
   station: string
   rowKind: "media" | "service"
   serviceType?: "production" | "adServing" | string
+  billingType: string
+  billingStatus: string
+  /** AA/AM from publishers.billingagency lookup; unmatched defaults to AM. */
+  billingAgency: "AA" | "AM"
   totalBillable: number
   mediaSpend: number
   agencyFee: number

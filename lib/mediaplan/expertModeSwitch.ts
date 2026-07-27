@@ -43,10 +43,29 @@ import type {
   StandardProductionFormLineItem,
 } from "./expertChannelMappings.js"
 
+import { formatBurstDateLocal } from "./burstDate"
+import { preservePreviousBurstsIfApplyWouldZeroBudget } from "./cardExpertBudgetSync"
+
+export { preservePreviousBurstsIfApplyWouldZeroBudget }
+
+/** Keep prior card bursts when expert Apply would wipe a non-zero budget to empty/0. */
+function attachBurstPreserve<T extends { bursts?: unknown }>(
+  li: T,
+  prev: T | undefined
+): T {
+  if (!prev) return li
+  return {
+    ...li,
+    bursts: preservePreviousBurstsIfApplyWouldZeroBudget(
+      (li as { bursts?: Array<{ budget?: unknown }> }).bursts,
+      (prev as { bursts?: Array<{ budget?: unknown }> }).bursts
+    ) as T["bursts"],
+  }
+}
+
 function isoDate(d: Date | string | undefined): string {
-  if (d === undefined) return ""
-  const x = d instanceof Date ? d : new Date(d)
-  return Number.isNaN(x.getTime()) ? "" : x.toISOString()
+  if (d === undefined || d === "") return ""
+  return formatBurstDateLocal(d)
 }
 
 /** Stable key for matching standard line items across expert ↔ standard conversions. */
@@ -95,12 +114,12 @@ export function mergeOohStandardFromExpertWithPrevious(
         lineItemId: undefined,
       }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noAdserving: prev.noAdserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -119,7 +138,7 @@ export function mergeTelevisionStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       fixedCostMedia: prev.fixedCostMedia,
       clientPaysForMedia: prev.clientPaysForMedia,
@@ -130,7 +149,7 @@ export function mergeTelevisionStandardFromExpertWithPrevious(
       creative: li.creative || (prev.creative ?? ""),
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -147,7 +166,7 @@ export function mergeRadioStandardFromExpertWithPrevious(
     const k = stableStandardLineItemKey(li, i)
     const prev = prevByKey.get(k)
     if (!prev) return li
-    return {
+    return attachBurstPreserve({
       ...li,
       fixedCostMedia: prev.fixedCostMedia,
       clientPaysForMedia: prev.clientPaysForMedia,
@@ -159,7 +178,7 @@ export function mergeRadioStandardFromExpertWithPrevious(
       creative: prev.creative ?? "",
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -184,7 +203,7 @@ export function mergeProductionStandardFromExpertWithPrevious(
         lineItemId: undefined,
       }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       mediaType: li.mediaType || (prev.mediaType ?? li.mediaType),
       publisher: li.publisher || (prev.publisher ?? li.publisher),
@@ -192,7 +211,7 @@ export function mergeProductionStandardFromExpertWithPrevious(
       market: li.market || (prev.market ?? li.market),
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -209,7 +228,7 @@ export function mergeCinemaStandardFromExpertWithPrevious(
     const k = stableStandardLineItemKey(li, i)
     const prev = prevByKey.get(k)
     if (!prev) return li
-    return {
+    return attachBurstPreserve({
       ...li,
       fixedCostMedia: prev.fixedCostMedia,
       clientPaysForMedia: prev.clientPaysForMedia,
@@ -218,7 +237,7 @@ export function mergeCinemaStandardFromExpertWithPrevious(
       bidStrategy: prev.bidStrategy ?? "",
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -237,7 +256,7 @@ export function mergeNewspaperStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       fixedCostMedia: prev.fixedCostMedia,
       clientPaysForMedia: prev.clientPaysForMedia,
@@ -245,7 +264,7 @@ export function mergeNewspaperStandardFromExpertWithPrevious(
       noadserving: prev.noadserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -270,7 +289,7 @@ export function mergeMagazineStandardFromExpertWithPrevious(
         lineItemId: undefined,
       }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       fixedCostMedia: prev.fixedCostMedia,
       clientPaysForMedia: prev.clientPaysForMedia,
@@ -278,7 +297,7 @@ export function mergeMagazineStandardFromExpertWithPrevious(
       noadserving: prev.noadserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -297,12 +316,12 @@ export function mergeBvodStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noadserving: prev.noadserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -321,13 +340,13 @@ export function mergeDigiVideoStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noadserving: prev.noadserving,
       targetingAttribute: prev.targetingAttribute ?? "",
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -352,7 +371,7 @@ export function mergeDigiDisplayStandardFromExpertWithPrevious(
         lineItemId: undefined,
       }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noadserving: prev.noadserving,
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute ?? "",
@@ -360,7 +379,7 @@ export function mergeDigiDisplayStandardFromExpertWithPrevious(
       size: prev.size ?? li.size ?? "",
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -379,12 +398,12 @@ export function mergeDigiAudioStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noadserving: prev.noadserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -403,12 +422,12 @@ export function mergeSocialMediaStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noadserving: prev.noadserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -427,12 +446,12 @@ export function mergeSearchStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noadserving: prev.noadserving,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -457,13 +476,13 @@ export function mergeInfluencersStandardFromExpertWithPrevious(
         lineItemId: undefined,
       }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noadserving: prev.noadserving,
       creative: prev.creative ?? li.creative,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -482,13 +501,13 @@ export function mergeIntegrationStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       noAdserving: prev.noAdserving,
       creative: li.creative || (prev.creative ?? li.creative),
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -840,8 +859,6 @@ export function serializeDigiVideoStandardLineItemsBaseline(
       bidStrategy: li.bidStrategy,
       buyType: li.buyType,
       publisher: li.publisher,
-      placement: li.placement,
-      size: li.size,
       targetingAttribute: li.targetingAttribute,
       creativeTargeting: li.creativeTargeting,
       creative: li.creative,
@@ -880,8 +897,6 @@ export function serializeDigiVideoExpertRowsBaseline(
       site: r.site,
       bidStrategy: r.bidStrategy,
       buyType: r.buyType,
-      placement: r.placement,
-      size: r.size,
       creativeTargeting: r.creativeTargeting,
       creative: r.creative,
       buyingDemo: r.buyingDemo,
@@ -974,7 +989,6 @@ export function serializeDigiAudioStandardLineItemsBaseline(
       bidStrategy: li.bidStrategy,
       buyType: li.buyType,
       publisher: li.publisher,
-      targetingAttribute: li.targetingAttribute,
       creativeTargeting: li.creativeTargeting,
       creative: li.creative,
       buyingDemo: li.buyingDemo,
@@ -1012,7 +1026,6 @@ export function serializeDigiAudioExpertRowsBaseline(
       site: r.site,
       bidStrategy: r.bidStrategy,
       buyType: r.buyType,
-      targetingAttribute: r.targetingAttribute,
       creativeTargeting: r.creativeTargeting,
       creative: r.creative,
       buyingDemo: r.buyingDemo,
@@ -1422,14 +1435,14 @@ export function mergeProgAudioStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       site: prev.site ?? li.site,
       placement: prev.placement ?? li.placement,
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -1448,11 +1461,11 @@ export function mergeProgBvodStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -1471,7 +1484,7 @@ export function mergeProgDisplayStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
       site: prev.site ?? li.site,
       placement: prev.placement ?? li.placement,
@@ -1479,7 +1492,7 @@ export function mergeProgDisplayStandardFromExpertWithPrevious(
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -1498,18 +1511,15 @@ export function mergeProgVideoStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
-      // NOTE: `placement` and `size` are EDITABLE in the Prog Video
-      // expert grid (ProgVideoExpertScheduleRow), so the generated
-      // values from `mapProgVideoExpertRowsToStandardLineItems` win.
       // Only `site` and `targetingAttribute` are standard-only and
       // need to be re-applied from the previous form state here.
       site: prev.site ?? li.site,
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -1528,17 +1538,12 @@ export function mergeProgOohStandardFromExpertWithPrevious(
     if (!prev) {
       return { ...li, line_item: undefined, lineItem: undefined, line_item_id: undefined, lineItemId: undefined }
     }
-    return {
+    return attachBurstPreserve({
       ...li,
-      environment: prev.environment ?? li.environment,
-      format: prev.format ?? li.format,
-      location: prev.location ?? li.location,
-      placement: prev.placement ?? li.placement,
-      size: prev.size ?? li.size,
       targetingAttribute: prev.targetingAttribute ?? li.targetingAttribute,
       line_item: prev.line_item ?? prev.lineItem ?? li.line_item,
       lineItem: prev.lineItem ?? prev.line_item ?? li.lineItem,
-    }
+    }, prev)
   })
 }
 
@@ -1693,8 +1698,6 @@ export function serializeProgVideoStandardLineItemsBaseline(
       buyingDemo: li.buyingDemo,
       market: li.market,
       site: li.site,
-      placement: li.placement,
-      size: li.size,
       targetingAttribute: li.targetingAttribute,
       fixedCostMedia: li.fixedCostMedia,
       clientPaysForMedia: li.clientPaysForMedia,
@@ -1735,12 +1738,7 @@ export function serializeProgOohStandardLineItemsBaseline(
       creative: li.creative,
       buyingDemo: li.buyingDemo,
       market: li.market,
-      environment: li.environment,
-      format: li.format,
-      location: li.location,
       targetingAttribute: li.targetingAttribute,
-      placement: li.placement,
-      size: li.size,
       fixedCostMedia: li.fixedCostMedia,
       clientPaysForMedia: li.clientPaysForMedia,
       budgetIncludesFees: li.budgetIncludesFees,

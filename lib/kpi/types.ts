@@ -393,9 +393,6 @@ const campaignKpiItemSchema = z.object({
 
 export const campaignKpiCreateBodySchema = z.array(campaignKpiItemSchema)
 
-export const campaignKpiSyncBodySchema = campaignKpiCreateBodySchema
-export type CampaignKpiSyncInput = z.infer<typeof campaignKpiSyncBodySchema>
-
 export const campaignKpiPatchBodySchema = z.object({
   id: z.coerce.number(),
   mp_client_name: z.string().trim().min(1).optional(),

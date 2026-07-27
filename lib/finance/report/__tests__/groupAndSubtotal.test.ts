@@ -2,7 +2,9 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { groupAndSubtotal } from "../groupAndSubtotal.js"
+import { emptyReportMeasures } from "../metrics.js"
 import type { ReportRow } from "../types.js"
+import { addGst, gstAmount } from "../../gst.js"
 
 function row(overrides: Partial<ReportRow>): ReportRow {
   return {
@@ -15,6 +17,9 @@ function row(overrides: Partial<ReportRow>): ReportRow {
     format: "Unspecified",
     station: "Unspecified",
     rowKind: "media",
+    billingType: "media",
+    billingStatus: "booked",
+    billingAgency: "AM",
     totalBillable: 100,
     mediaSpend: 80,
     agencyFee: 20,
@@ -185,7 +190,7 @@ test("groupAndSubtotal supports empty input", () => {
   assert.equal(root.dimension, null)
   assert.equal(root.key, "Grand Total")
   assert.equal(root.rowCount, 0)
-  assert.deepEqual(root.measures, { totalBillable: 0, mediaSpend: 0, agencyFee: 0 })
+  assert.deepEqual(root.measures, emptyReportMeasures())
   assert.deepEqual(root.children, [])
 })
 
@@ -205,4 +210,136 @@ test("groupAndSubtotal grand total is invariant across grouping order", () => {
     const root = groupAndSubtotal(rows, [...order])
     assert.equal(root.measures.totalBillable, sumTotal(rows))
   }
+})
+
+test("groupAndSubtotal groups by financialYear from Australian FY of billingMonth", () => {
+  const rows = [
+    row({ billingMonth: "2026-05", totalBillable: 100 }),
+    row({ billingMonth: "2026-07", totalBillable: 50 }),
+    row({ billingMonth: "2026-06", totalBillable: 25 }),
+  ]
+
+  const root = groupAndSubtotal(rows, ["financialYear"])
+  assert.deepEqual(
+    root.children.map((child) => `${child.dimension}:${child.key}:${child.measures.totalBillable}`),
+    ["financialYear:2025–26:125", "financialYear:2026–27:50"]
+  )
+})
+
+test("groupAndSubtotal groups by mbaNumber and maps blank to Unspecified", () => {
+  const rows = [
+    row({ mbaNumber: "MBA-A", totalBillable: 100 }),
+    row({ mbaNumber: "", totalBillable: 40 }),
+    row({ mbaNumber: "MBA-A", totalBillable: 10 }),
+  ]
+
+  const root = groupAndSubtotal(rows, ["mbaNumber"])
+  assert.deepEqual(
+    root.children.map((child) => `${child.dimension}:${child.key}:${child.measures.totalBillable}`),
+    ["mbaNumber:MBA-A:110", "mbaNumber:Unspecified:40"]
+  )
+})
+
+test("groupAndSubtotal groups by billingType with SOW title-case", () => {
+  const rows = [
+    row({ billingType: "media", totalBillable: 100 }),
+    row({ billingType: "sow", totalBillable: 40 }),
+    row({ billingType: "retainer", totalBillable: 30 }),
+    row({ billingType: "payable", totalBillable: 20 }),
+  ]
+
+  const root = groupAndSubtotal(rows, ["billingType"])
+  assert.deepEqual(
+    root.children.map((child) => `${child.dimension}:${child.key}:${child.measures.totalBillable}`),
+    [
+      "billingType:Media:100",
+      "billingType:Payable:20",
+      "billingType:Retainer:30",
+      "billingType:SOW:40",
+    ]
+  )
+})
+
+test("groupAndSubtotal groups by billingStatus", () => {
+  const rows = [
+    row({ billingStatus: "booked", totalBillable: 100 }),
+    row({ billingStatus: "invoiced", totalBillable: 50 }),
+    row({ billingStatus: "", totalBillable: 25 }),
+  ]
+
+  const root = groupAndSubtotal(rows, ["billingStatus"])
+  assert.deepEqual(
+    root.children.map((child) => `${child.dimension}:${child.key}:${child.measures.totalBillable}`),
+    ["billingStatus:booked:100", "billingStatus:invoiced:50", "billingStatus:Unspecified:25"]
+  )
+})
+
+test("groupAndSubtotal groups by rowKind as Media vs Service", () => {
+  const rows = [
+    row({ rowKind: "media", totalBillable: 100 }),
+    row({
+      rowKind: "service",
+      serviceType: "production",
+      mediaType: "Production",
+      totalBillable: 40,
+      mediaSpend: 0,
+      agencyFee: 40,
+    }),
+    row({ rowKind: "media", totalBillable: 10 }),
+  ]
+
+  const root = groupAndSubtotal(rows, ["rowKind"])
+  assert.deepEqual(
+    root.children.map((child) => `${child.dimension}:${child.key}:${child.measures.totalBillable}`),
+    ["rowKind:Media:110", "rowKind:Service:40"]
+  )
+})
+
+test("groupAndSubtotal groups by clientPays labels", () => {
+  const rows = [
+    row({ clientPays: false, totalBillable: 100 }),
+    row({ clientPays: true, totalBillable: 40, mediaSpend: 0, agencyFee: 40 }),
+    row({ clientPays: false, totalBillable: 10 }),
+  ]
+
+  const root = groupAndSubtotal(rows, ["clientPays"])
+  assert.deepEqual(
+    root.children.map((child) => `${child.dimension}:${child.key}:${child.measures.totalBillable}`),
+    ["clientPays:Agency billed:110", "clientPays:Client pays media:40"]
+  )
+})
+
+test("groupAndSubtotal groups by billingAgency as Advertising Associates vs Assembled Media", () => {
+  const rows = [
+    row({ billingAgency: "AA", publisher: "AA Pub", totalBillable: 100 }),
+    row({ billingAgency: "AM", publisher: "AM Pub", totalBillable: 50 }),
+    row({ billingAgency: "AA", publisher: "Other AA", totalBillable: 25 }),
+  ]
+
+  const root = groupAndSubtotal(rows, ["billingAgency"])
+  assert.deepEqual(
+    root.children.map((child) => `${child.dimension}:${child.key}:${child.measures.totalBillable}`),
+    [
+      "billingAgency:Advertising Associates:125",
+      "billingAgency:Assembled Media:50",
+    ]
+  )
+})
+
+test("groupAndSubtotal keeps default currency measures identical and adds computed GST metrics", () => {
+  const rows = [
+    row({ totalBillable: 100, mediaSpend: 80, agencyFee: 20 }),
+    row({ totalBillable: 50.55, mediaSpend: 40.4, agencyFee: 10.15 }),
+  ]
+
+  const root = groupAndSubtotal(rows, ["mediaType"])
+  assert.equal(root.measures.totalBillable, 150.55)
+  assert.equal(root.measures.mediaSpend, 120.4)
+  assert.equal(root.measures.agencyFee, 30.15)
+  assert.equal(root.measures.rowCount, 2)
+  assert.equal(root.measures.gst, 15.06)
+  assert.equal(root.measures.nettIncGst, 165.61)
+  // Linear GST: sum-of-row GST equals GST of subtotal after money rounding.
+  assert.equal(root.measures.gst, gstAmount(root.measures.totalBillable))
+  assert.equal(root.measures.nettIncGst, addGst(root.measures.totalBillable))
 })

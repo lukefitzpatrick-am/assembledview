@@ -6,11 +6,12 @@
     "assembled-insight-commentary": "1.1.0",
     "assembled-audience-insight": "1.1.0",
     "assembled-meta-copy": "1.2.0",
-    "assembled-search-copy": "1.2.0",
+    "assembled-search-copy": "1.3.0",
     "assembled-linkedin-copy": "1.1.0",
     "assembled-video-scripts": "1.1.0",
     "assembled-presentations": "1.2.0",
     "assembled-performance-review-report": "1.0.1",
-    "assembled-media-plan-autopopulate": "1.0.0"
+    "assembled-media-plan-autopopulate": "1.0.0",
+    "client-marketing-brain": "1.0.0"
   }
 }

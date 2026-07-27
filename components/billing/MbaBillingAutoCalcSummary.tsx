@@ -46,6 +46,11 @@ export type MbaBillingAutoCalcSummaryProps = {
    * channel rows are inflated vs distinct line_item_ids.
    */
   duplicatesDetected?: boolean
+  /**
+   * False while channel containers are still hydrating. Suppresses green/red
+   * billable=MBA badges so a partial channel set cannot self-reconcile as green.
+   */
+  reconciliationReady?: boolean
 }
 
 /**
@@ -59,16 +64,17 @@ export function MbaBillingAutoCalcSummary({
   panelIndicators,
   mediaLabelByType = {},
   duplicatesDetected = false,
+  reconciliationReady = true,
 }: MbaBillingAutoCalcSummaryProps) {
   const t = financials.mbaScopeTotals
   const schedule = financials.billingSchedule
   const mbaRec = reconciliationBadgeVisibility(
-    true,
+    reconciliationReady,
     panelIndicators.mbaDetails.billableEqualsMba,
     { duplicatesDetected }
   )
   const billingRec = reconciliationBadgeVisibility(
-    true,
+    reconciliationReady,
     panelIndicators.billingSchedule.billableEqualsMba,
     { duplicatesDetected }
   )
@@ -100,7 +106,16 @@ export function MbaBillingAutoCalcSummary({
             MBA scope
             <MbaPartialScopePill label={panelIndicators.mbaDetails.partialLabel} />
           </h3>
-          {mbaRec.showEquals ? (
+          {!reconciliationReady ? (
+            <Badge
+              variant="secondary"
+              size="sm"
+              className="rounded-pill font-medium text-muted-foreground"
+              title="Waiting for all media channels to finish loading"
+            >
+              Loading channels…
+            </Badge>
+          ) : mbaRec.showEquals ? (
             <Badge variant="good" size="sm" className="rounded-pill font-medium" title="Billable totals match MBA">
               <Check className="mr-1 h-3.5 w-3.5" aria-hidden />
               billable = MBA

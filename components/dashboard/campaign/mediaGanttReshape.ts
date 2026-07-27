@@ -5,7 +5,6 @@ import {
   endOfDay,
   endOfMonth,
   format,
-  parseISO,
   startOfDay,
   startOfMonth,
 } from "date-fns"
@@ -13,6 +12,7 @@ import {
 import type { GanttBurst, GanttRow } from "@/components/charts/system"
 import { channelColorFor } from "@/lib/chart-theme"
 import { getMediaLabel } from "@/lib/charts/registry"
+import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import {
   buildGanttSidelineLabel,
   groupByLineItemId,
@@ -30,13 +30,7 @@ export type ReshapedMediaGantt = {
 }
 
 function safeParseDate(value?: string) {
-  if (!value) return null
-  try {
-    const parsed = parseISO(value)
-    return Number.isNaN(parsed.getTime()) ? null : parsed
-  } catch {
-    return null
-  }
+  return coerceBurstDateLocal(value)
 }
 
 function safeNumber(value: number | undefined) {

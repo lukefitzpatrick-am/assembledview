@@ -1,3 +1,4 @@
+import { xanoPostHeaderRecord } from "@/lib/api/xano"
 import type { FinanceForecastSnapshotStagingPayload } from "@/lib/types/financeForecastSnapshot"
 
 const createPath = "finance_forecast_snapshots_create"
@@ -18,16 +19,11 @@ export async function persistFinanceForecastSnapshotToXano(
     throw new Error("XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL is not set")
   }
 
-  const apiKey = process.env.XANO_API_KEY
   const url = `${base}/${createPath}`
 
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-    },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify({
       header: payload.header,
       lines: payload.lines,

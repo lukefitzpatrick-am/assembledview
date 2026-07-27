@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
-import { xanoUrl } from "@/lib/api/xano"
+import { createChannelLineItemsGetHandler } from "@/lib/api/channelLineItemsGetHandler"
+import { isChannelLineItemEndpoint } from "@/lib/api/fetchChannelLineItemsByMba"
+import { xanoAuthHeader, xanoUrl } from "@/lib/api/xano"
 import { checkMediaPlansProxyPath } from "@/lib/security/proxyAllowlist"
 
 export const dynamic = "force-dynamic"
@@ -31,7 +33,7 @@ async function proxy(request: Request, ctx: Ctx) {
     method: request.method,
     headers: {
       "Content-Type": request.headers.get("content-type") || "application/json",
-      ...(process.env.XANO_API_KEY ? { Authorization: `Bearer ${process.env.XANO_API_KEY}` } : {}),
+      ...xanoAuthHeader(),
     },
     body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.text(),
   }
@@ -62,6 +64,16 @@ async function proxy(request: Request, ctx: Ctx) {
 }
 
 export async function GET(request: Request, context: Ctx) {
+  const { path: parts } = await context.params
+  const path = (parts || []).join("/")
+  const mbaNumber = new URL(request.url).searchParams.get("mba_number")
+
+  // Channel line-item GETs: FK-first (same as dedicated routes / MBA GET).
+  // Skip proxy mba_number+version_number filters that miss skewed plans.
+  if (path && isChannelLineItemEndpoint(path) && mbaNumber) {
+    return createChannelLineItemsGetHandler(path, `CATCHALL_${path}`)(request)
+  }
+
   return proxy(request, context)
 }
 

@@ -1,5 +1,6 @@
 import { prorateAcrossMonths } from "./prorateAcrossMonths"
 import { formatMoney } from "@/lib/format/money"
+import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 
 export type InvestmentBurstInput = { amount: number; start: Date | string; end: Date | string }
 export type InvestmentDisplayRow = { monthYear: string; amount: string }
@@ -31,9 +32,9 @@ export function monthKeyToDate(key: string): Date {
 export function aggregateInvestmentShares(bursts: InvestmentBurstInput[]): Record<string, number> {
   const totals: Record<string, number> = {}
   for (const b of bursts) {
-    const start = b.start instanceof Date ? b.start : new Date(b.start)
-    const end = b.end instanceof Date ? b.end : new Date(b.end)
-    if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) continue
+    const start = coerceBurstDateLocal(b.start)
+    const end = coerceBurstDateLocal(b.end)
+    if (!start || !end || start > end) continue
     const shares = prorateAcrossMonths({
       amount: b.amount, burstStart: start, burstEnd: end, monthKeys: monthKeysForRange(start, end),
     })

@@ -1,4 +1,6 @@
 import type { ReportLine } from "@/lib/finance/extractReportLinesFromBillingSchedule"
+import type { ReportDimension } from "@/lib/finance/report/types"
+import type { ReportMetricKey } from "@/lib/finance/report/metrics"
 
 /** `payable` = publisher/delivery view from `media_plan_versions.deliverySchedule`, not `billingSchedule`. */
 export type BillingType = "media" | "sow" | "retainer" | "payable"
@@ -88,6 +90,17 @@ export interface BillingRecord {
   billed?: boolean
   billed_at?: number | null
   billed_by?: number | null
+  /** Invoiced amount snapshotted when marked billed; never overwritten by schedule recompute. */
+  billed_amount?: number | null
+  /** Hash of the line set at bill time (see `hashBilledLineSet`). */
+  billed_lines_hash?: string | null
+  /**
+   * True when this month is billed and the current recomputed total / line set
+   * differs from the snapshotted billed amount / hash. Derived at overlay time.
+   */
+  billed_drift?: boolean
+  /** currentTotal - billed_amount when drift is computable; else null. */
+  billed_drift_delta?: number | null
   notes?: string | null
   exported_at?: number | null
   exported_by?: number | null
@@ -126,8 +139,24 @@ export interface FinanceFilters {
   searchQuery: string
 }
 
+/** Optional sibling on saved views — report tab config (not part of FinanceFilters). */
+export interface FinanceSavedReportConfig {
+  groupBy: ReportDimension[]
+  metrics: ReportMetricKey[]
+  showDetailRows: boolean
+}
+
 export interface SavedView {
   id: number
   name: string
   filters: FinanceFilters
+  /** Present when the view also captures Report tab group-by / metrics / detail rows. */
+  report?: FinanceSavedReportConfig
+}
+
+/** Browser localStorage shape for `finance-hub-saved-views-v3` (no server id). */
+export type HubSavedView = {
+  name: string
+  filters: FinanceFilters
+  report?: FinanceSavedReportConfig
 }

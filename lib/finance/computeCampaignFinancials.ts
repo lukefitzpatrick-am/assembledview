@@ -12,6 +12,7 @@
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import type { BillingBurst, BillingMonth } from "@/lib/billing/types"
+import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import {
   coerceBuyTypeWithDevWarn,
@@ -232,12 +233,19 @@ export function resolveFeePctFromFeeLoading(
   feeLoading: FeeLoading
 ): number {
   const scheduleKey = normaliseScheduleMediaType(mediaType)
+  // REVIEW: ProductionContainer hardcodes feePct={0}. Do not bill production from
+  // feecontentcreator (that field is the Influencers content-fee fallback only).
+  if (scheduleKey === "production") {
+    return 0
+  }
   const primary = FEE_FIELD_BY_MEDIA[scheduleKey]
   const primaryVal = feeLoading[primary]
   if (typeof primaryVal === "number" && Number.isFinite(primaryVal)) {
     return primaryVal
   }
-  // Influencers historically fall back to feecontentcreator on the client record.
+  // Integration: absent feeintegration => 0% (same as traditional channels). No
+  // feecontentcreator fallback.
+  // Influencers: all clients inherit feecontentcreator when feeinfluencers is absent.
   if (scheduleKey === "influencers") {
     const fallback = feeLoading.feecontentcreator
     if (typeof fallback === "number" && Number.isFinite(fallback)) return fallback
@@ -253,12 +261,7 @@ function resolveLineFeePct(line: LineItemInput, feeLoading: FeeLoading): number 
 }
 
 function toDate(value: string | Date | undefined, fallback: Date): Date {
-  if (value instanceof Date && !Number.isNaN(value.getTime())) return value
-  if (typeof value === "string" && value.trim()) {
-    const d = new Date(value)
-    if (!Number.isNaN(d.getTime())) return d
-  }
-  return fallback
+  return coerceBurstDateLocal(value) ?? fallback
 }
 
 function parseAmount(value: unknown): number {
@@ -539,7 +542,7 @@ function buildResolvedLine(
       feeAmount: amounts.feeAmount,
       totalAmount: amounts.totalAmount,
       mediaType: scheduleMediaType,
-      noAdserving: false,
+      noAdserving: line.noAdserving ?? false,
       feePercentage: feePct,
       clientPaysForMedia,
       budgetIncludesFees,

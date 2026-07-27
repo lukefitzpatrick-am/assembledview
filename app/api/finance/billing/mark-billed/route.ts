@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles } from "@/lib/rbac"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import { hashBilledLineSet, toBilledLineSnapshots } from "@/lib/finance/billedDrift"
 import { ensureFinanceBillingRecord } from "@/lib/finance/materialiseFinanceBillingRecord"
 import { composeInvoiceKey } from "@/lib/finance/overlayFinanceStatus"
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
-import { FINANCE_BILLING_RECORDS_PATH, xanoFinancePatch } from "@/lib/finance/xanoFinanceApi"
+import {
+  FINANCE_BILLING_RECORDS_PATH,
+  xanoFinanceGet,
+  xanoFinancePatch,
+} from "@/lib/finance/xanoFinanceApi"
 
 export const maxDuration = 60
 
@@ -111,6 +116,16 @@ export async function POST(request: NextRequest) {
 
     const total = typeof raw.total === "number" ? raw.total : undefined
 
+    const lineSnapshots = Array.isArray(raw.line_items)
+      ? toBilledLineSnapshots(
+          raw.line_items as Array<{
+            item_code?: string | null
+            amount?: number | null
+            schedule_line_item_id?: string | null
+          }>
+        )
+      : []
+
     const invoice_key = composeInvoiceKey(
       billing_type,
       clients_id,
@@ -142,11 +157,94 @@ export async function POST(request: NextRequest) {
     }
 
     const now = Date.now()
+
+    // When marking billed, both snapshot fields must be written. Xano's dynamic
+    // PATCH mapping can drop null/undefined silently — refuse the request rather
+    // than persist a half-snapshot that breaks detectBilledDrift on reload.
+    if (billed) {
+      if (typeof total !== "number" || !Number.isFinite(total)) {
+        return NextResponse.json(
+          {
+            error: "bad_request",
+            message: "total is required and must be a finite number when marking billed.",
+          },
+          { status: 400 }
+        )
+      }
+      if (lineSnapshots.length === 0) {
+        return NextResponse.json(
+          {
+            error: "bad_request",
+            message:
+              "line_items is required (non-empty) when marking billed so billed_lines_hash can be stored.",
+          },
+          { status: 400 }
+        )
+      }
+    }
+
+    const billed_amount = billed ? (total as number) : null
+    const billed_lines_hash = billed ? hashBilledLineSet(lineSnapshots) : null
+
     const patch = billed
-      ? { billed: true, billed_at: now, billed_by: currentUser.id }
-      : { billed: false, billed_at: null, billed_by: null }
+      ? {
+          billed: true,
+          billed_at: now,
+          billed_by: currentUser.id,
+          billed_amount: billed_amount as number,
+          billed_lines_hash: billed_lines_hash as string,
+        }
+      : {
+          billed: false,
+          billed_at: null,
+          billed_by: null,
+          billed_amount: null,
+          billed_lines_hash: null,
+        }
 
     await xanoFinancePatch(`${FINANCE_BILLING_RECORDS_PATH}/${recordId}`, patch)
+
+    if (billed) {
+      let echoed: Record<string, unknown>
+      try {
+        echoed = (await xanoFinanceGet(
+          `${FINANCE_BILLING_RECORDS_PATH}/${recordId}`
+        )) as Record<string, unknown>
+      } catch (error: unknown) {
+        const details = error instanceof Error ? error.message : String(error)
+        return NextResponse.json(
+          {
+            error: "billed_snapshot_echo_failed",
+            message:
+              "Marked billed but could not re-read finance_billing_records to verify snapshot fields.",
+            details,
+          },
+          { status: 502 }
+        )
+      }
+
+      const echoAmount = Number(echoed.billed_amount)
+      const echoHash =
+        typeof echoed.billed_lines_hash === "string" ? echoed.billed_lines_hash : ""
+      const amountOk = Number.isFinite(echoAmount) && echoAmount === billed_amount
+      const hashOk = echoHash.length > 0 && echoHash === billed_lines_hash
+
+      if (!amountOk || !hashOk) {
+        return NextResponse.json(
+          {
+            error: "billed_snapshot_not_persisted",
+            message:
+              "Xano PATCH did not persist billed_amount and/or billed_lines_hash. Check the finance_billing_records PATCH input map.",
+            expected: { billed_amount, billed_lines_hash },
+            echoed: {
+              billed_amount: echoed.billed_amount ?? null,
+              billed_lines_hash: echoed.billed_lines_hash ?? null,
+            },
+          },
+          { status: 502 }
+        )
+      }
+    }
 
     await writeStatusChangeEdit(
       {
@@ -168,6 +266,10 @@ export async function POST(request: NextRequest) {
       billed,
       billed_at: patch.billed_at,
       billed_by: patch.billed_by,
+      billed_amount: patch.billed_amount,
+      billed_lines_hash: patch.billed_lines_hash,
+      billed_drift: false,
+      billed_drift_delta: billed ? 0 : null,
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)

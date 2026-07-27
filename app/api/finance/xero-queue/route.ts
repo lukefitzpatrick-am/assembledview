@@ -3,7 +3,7 @@ import axios from "axios"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles } from "@/lib/rbac"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
-import { xanoUrl, parseXanoListPayload } from "@/lib/api/xano"
+import { parseXanoListPayload, xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
 import {
   FINANCE_BILLING_RECORDS_PATH,
@@ -131,11 +131,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "resolve_exception") {
-      await axios.patch(
-        xanoUrl(`xero_sync_exceptions/${id}`, "XANO_CLIENTS_BASE_URL"),
-        { resolved: true },
-        { timeout: 15_000 }
-      )
+      await axios.patch(xanoUrl(`xero_sync_exceptions/${id}`, "XANO_CLIENTS_BASE_URL"), { resolved: true }, { headers: xanoPostHeaderRecord(), timeout: 15_000 })
       await writeStatusChangeEdit(
         {
           finance_billing_records_id: null,
@@ -189,10 +185,7 @@ export async function POST(request: NextRequest) {
       }
       const mba_number = raw.mba_number.trim()
 
-      const mastersRes = await axios.get(
-        xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
-        { timeout: 15_000 }
-      )
+      const mastersRes = await axios.get(xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), { headers: xanoAuthHeaderRecord(), timeout: 15_000 })
       const masters = parseXanoListPayload(mastersRes.data)
       const found = masters.some((m) => {
         const row = asRecord(m)

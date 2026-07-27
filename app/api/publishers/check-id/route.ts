@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -12,9 +12,7 @@ export async function GET(req: Request) {
 
   try {
     // Use the correct endpoint for fetching publishers
-    const response = await axios.get(xanoUrl("publishers", "XANO_PUBLISHERS_BASE_URL"), {
-      params: { publisherid: id },
-    })
+    const response = await axios.get(xanoUrl("publishers", "XANO_PUBLISHERS_BASE_URL"), { headers: xanoAuthHeaderRecord(), params: { publisherid: id }, })
 
     const publishers = response.data
     const isUnique = publishers.length === 0

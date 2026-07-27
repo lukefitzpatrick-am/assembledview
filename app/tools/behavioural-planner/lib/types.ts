@@ -5,6 +5,17 @@ export type FlightId = "q1-2026" | "q3-2026" | "q4-2026";
 /** Kept for CulturalMoments seed geo tags (deferred calendar). */
 export type GeoId = "au" | "nsw" | "vic" | "qld" | "wa" | "sa" | "tas" | "act" | "nt";
 
+export interface ChannelPillarSources {
+  /** Affinity A: Roy Morgan when measured; else assembled seed. */
+  A: string;
+  /** Attention T: always bench (never RM). */
+  T: string;
+  /** Effect E (from B/D): always bench. */
+  E: string;
+  /** Cost C (from CPM): always bench. */
+  C: string;
+}
+
 export interface Channel {
   id: string;
   name: string;
@@ -25,6 +36,8 @@ export interface Channel {
   reachWc?: number;
   isRmMeasured: boolean;
   ageBase: number;
+  /** Per-pillar provenance for UI/deck (not BCS weights). */
+  pillarSources?: ChannelPillarSources;
 }
 
 export interface CulturalMoment {

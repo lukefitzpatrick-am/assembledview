@@ -26,6 +26,18 @@ describe("createPrefill", () => {
     )
   })
 
+  it("includes audienceId and omits empty fields", () => {
+    assert.equal(
+      buildCreateCampaignHref({
+        audienceId: 99,
+        clientId: 42,
+        campaignName: "  Spring launch  ",
+      }),
+      "/mediaplans/create?audienceId=99&clientId=42&campaignName=Spring+launch"
+    )
+    assert.equal(buildCreateCampaignHref({ audienceId: "  " }), "/mediaplans/create")
+  })
+
   it("parses valid YMD and rejects malformed", () => {
     const d = parsePrefillYmd("2026-07-11")
     assert.ok(d)

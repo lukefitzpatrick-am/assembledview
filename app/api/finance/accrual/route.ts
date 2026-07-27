@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles } from "@/lib/rbac"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import {
   collectClientPaysForMediaFlagsFromSchedule,
   computeAccrualRows,
@@ -168,11 +168,8 @@ async function fetchXanoJson<T>(
   timeoutMs: number = 15_000
 ): Promise<T> {
   const headers: Record<string, string> = {
-    Accept: "application/json",
+    ...xanoAuthHeaderRecord(),
   }
-
-  const apiKey = process.env.XANO_API_KEY
-  if (apiKey) headers.Authorization = `Bearer ${apiKey}`
 
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)

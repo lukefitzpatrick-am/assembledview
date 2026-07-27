@@ -38,7 +38,12 @@ export function PacingShell({ children, isAdmin = false }: PacingShellProps) {
 
       <MediaPlanEditorHero
         title="Pacing"
-        detail={<p>Portfolio pacing across all clients in your scope.</p>}
+        detail={
+          <p>
+            Portfolio pacing across all clients and channels in your scope
+            (Search, Social, Programmatic, Ad Serving, Direct).
+          </p>
+        }
         actions={<AvaPacingCommentaryAction />}
       />
 

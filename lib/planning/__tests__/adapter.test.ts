@@ -5,6 +5,10 @@ import {
   scoreableChannels,
   type TaxonomyRow,
 } from "../adapter.js"
+import {
+  PLANNING_CHANNEL_BENCH,
+  ROY_MORGAN_SOURCE,
+} from "../planningChannelBench.js"
 import type { AudienceResponse, PlanningMeta } from "../types.js"
 
 const emptyBench = {
@@ -194,6 +198,13 @@ test("scoreableChannels: skips rollups and null-engine leaves", () => {
         reachPctTotal: 0.35,
         isRmMeasured: true,
         ageBase: 14,
+        // Mirrors pillarSourcesFor(true, PLANNING_CHANNEL_BENCH.tv)
+        pillarSources: {
+          A: ROY_MORGAN_SOURCE,
+          T: PLANNING_CHANNEL_BENCH.tv.attn.source,
+          E: PLANNING_CHANNEL_BENCH.tv.brand_effect.source,
+          C: PLANNING_CHANNEL_BENCH.tv.cpm.source,
+        },
       },
     },
   ]

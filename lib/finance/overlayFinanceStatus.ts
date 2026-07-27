@@ -1,5 +1,6 @@
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { detectBilledDrift, toBilledLineSnapshots } from "@/lib/finance/billedDrift"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 
 /**
@@ -21,6 +22,9 @@ export type PersistedFinanceStatusRow = {
   billed: boolean
   billed_at: number | null
   billed_by: number | null
+  /** Present after mark-billed stores an amount snapshot; may be absent on legacy rows. */
+  billed_amount?: number | null
+  billed_lines_hash?: string | null
   notes: string | null
   exported_at: number | null
   exported_by: number | null
@@ -71,20 +75,42 @@ export async function fetchPersistedFinanceStatusForMonth(
   billingMonth: string
 ): Promise<PersistedFinanceStatusRow[]> {
   if (!billingMonth) return []
+  const rows = await fetchAllPersistedFinanceStatusRows(billingMonth)
+  return filterPersistedStatusRowsForMonth(rows, billingMonth)
+}
+
+/**
+ * Fetch ALL finance_billing_records rows (the upstream request is unfiltered
+ * anyway). The multi-month billing path fetches once and month-filters with
+ * {@link filterPersistedStatusRowsForMonth} per month — identical to what N
+ * single-month calls would have produced. Errors resolve to [] so the read
+ * overlay never breaks the page.
+ */
+export async function fetchAllPersistedFinanceStatusRows(
+  logContextMonth?: string
+): Promise<PersistedFinanceStatusRow[]> {
   try {
     const url = xanoUrl("finance_billing_records", "XANO_CLIENTS_BASE_URL")
-    const response = await axios.get(url)
+    const response = await axios.get(url, { headers: xanoAuthHeaderRecord() })
     const data = response.data
     const rows: PersistedFinanceStatusRow[] = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
-    return rows.filter((r) => r.billing_month === billingMonth)
+    return rows
   } catch (error) {
     console.error("[finance-overlay] failed to fetch persisted status", {
-      billingMonth,
+      billingMonth: logContextMonth ?? null,
       message: error instanceof Error ? error.message : String(error),
     })
     // Read overlay must not break the page. Empty array → derived rows render with defaults.
     return []
   }
+}
+
+/** Month scoping shared by the single-month and multi-month overlay paths. */
+export function filterPersistedStatusRowsForMonth(
+  rows: PersistedFinanceStatusRow[],
+  billingMonth: string
+): PersistedFinanceStatusRow[] {
+  return rows.filter((r) => r.billing_month === billingMonth)
 }
 
 /**
@@ -126,6 +152,10 @@ export function applyStatusOverlay(
       billed: false,
       billed_at: null,
       billed_by: null,
+      billed_amount: null,
+      billed_lines_hash: null,
+      billed_drift: false,
+      billed_drift_delta: null,
       notes: null,
       exported_at: null,
       exported_by: null,
@@ -140,18 +170,43 @@ export function applyStatusOverlay(
       billed: false,
       billed_at: null,
       billed_by: null,
+      billed_amount: null,
+      billed_lines_hash: null,
+      billed_drift: false,
+      billed_drift_delta: null,
       notes: null,
       exported_at: null,
       exported_by: null,
       invoice_key: key,
     }
   }
+  const billed = persisted.billed === true
+  const billed_amount =
+    typeof persisted.billed_amount === "number" && Number.isFinite(persisted.billed_amount)
+      ? persisted.billed_amount
+      : null
+  const billed_lines_hash =
+    typeof persisted.billed_lines_hash === "string" && persisted.billed_lines_hash.length > 0
+      ? persisted.billed_lines_hash
+      : null
+  // Schedule-derived total / line_items stay authoritative; drift is derived only.
+  const drift = detectBilledDrift({
+    billed,
+    billedAmount: billed_amount,
+    billedLinesHash: billed_lines_hash,
+    currentTotal: record.total,
+    currentLines: toBilledLineSnapshots(record.line_items ?? []),
+  })
   return {
     ...record,
     persisted_record_id: persisted.id,
-    billed: persisted.billed === true,
+    billed,
     billed_at: persisted.billed_at ?? null,
     billed_by: persisted.billed_by ?? null,
+    billed_amount,
+    billed_lines_hash,
+    billed_drift: drift.drift,
+    billed_drift_delta: drift.delta,
     notes: persisted.notes ?? null,
     exported_at: persisted.exported_at ?? null,
     exported_by: persisted.exported_by ?? null,

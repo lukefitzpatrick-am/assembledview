@@ -107,6 +107,12 @@ function resolveClientPaysForMedia(lineItem: Record<string, unknown>): boolean {
   )
 }
 
+function resolveNoAdserving(lineItem: Record<string, unknown>): boolean {
+  return Boolean(
+    lineItem.no_adserving ?? lineItem.noadserving ?? lineItem.noAdserving ?? false
+  )
+}
+
 function mapBurst(burst: any, mediaType: string): BurstInput {
   const isProduction = mediaType === "production"
   const production = isProduction ? resolveProductionBurstBudget(burst) : null
@@ -211,6 +217,7 @@ export function buildEditorLineItemInputs(
         enteredAmount,
         budgetIncludesFees: resolveBudgetIncludesFees(lineItem),
         clientPaysForMedia: resolveClientPaysForMedia(lineItem),
+        noAdserving: resolveNoAdserving(lineItem),
         bursts,
         approval: resolveApproval(billingKey, lineItemId, opts),
       }

@@ -23,6 +23,7 @@ import {
   type MoneyFormatOptions,
 } from "@/lib/format/money"
 import { weekKeysInSpanInclusive } from "./expertGridShared"
+import { projectLumpSumCardBudgetsOntoExpertRows } from "./cardExpertBudgetSync"
 import {
   burstDatesForExpertSpan,
   burstWindowForWeekColumn,
@@ -74,7 +75,7 @@ const BURST_JSON_MONEY_FORMAT: MoneyFormatOptions = {
 }
 
 /** OOH/Radio form burst shape (matches container schemas). */
-export interface StandardMediaBurst {
+interface StandardMediaBurst {
   budget: string
   buyAmount: string
   startDate: Date
@@ -152,7 +153,7 @@ export type StandardRadioLineItemInput = Partial<StandardRadioFormLineItem> & {
 }
 
 /** Production burst — unit cost × quantity; dual-write standard keys optional on read. */
-export interface StandardProductionBurst {
+interface StandardProductionBurst {
   cost: number
   amount: number
   budget?: string
@@ -168,6 +169,8 @@ export interface StandardProductionFormLineItem {
   publisher: string
   description: string
   market: string
+  /** Line-level unit cost (form key `unitRate`; legacy persisted as `unitCost`). */
+  unitRate?: number | string
   lineItemId?: string
   line_item_id?: string
   line_item?: number | string
@@ -177,6 +180,9 @@ export interface StandardProductionFormLineItem {
 
 export type StandardProductionLineItemInput = Partial<StandardProductionFormLineItem> & {
   media_type?: string
+  /** Legacy persisted key — hydrate into `unitRate`. */
+  unitCost?: number | string
+  unit_cost?: number | string
   bursts_json?: string | object
 }
 
@@ -283,7 +289,7 @@ export type StandardImportMapperOptions = {
  * via {@link computeLoadedDeliverables}. Skips fallback when budgetIncludesFees is
  * true but feePct was not supplied (caller must pass channel fee).
  */
-export function resolveBurstDeliverablesForStandardImport(
+function resolveBurstDeliverablesForStandardImport(
   burst: StandardMediaBurst,
   buyType: string,
   budgetIncludesFees: boolean,
@@ -1529,7 +1535,7 @@ export function mapStandardOohLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): OohExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeOohBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const bt = coerceBuyTypeWithDevWarn(
@@ -1633,6 +1639,10 @@ export function mapStandardOohLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /**
@@ -1645,7 +1655,7 @@ export function mapStandardRadioLineItemsToExpertRows(
   campaignEndDate: Date,
   importOptions?: StandardImportMapperOptions
 ): RadioExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeRadioBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const budgetIncludesFees = Boolean(
@@ -1762,6 +1772,10 @@ export function mapStandardRadioLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 function coerceProductionBurstCost(rec: Record<string, unknown>): number {
@@ -1841,7 +1855,10 @@ function deriveProductionStandardUnitRateFromBursts(
 }
 
 function sumProductionGrossBursts(bursts: StandardProductionBurst[]): number {
-  return bursts.reduce((s, b) => s + b.cost * b.amount, 0)
+  const product = bursts.reduce((s, b) => s + b.cost * b.amount, 0)
+  if (product > 0) return product
+  // REVIEW: lump-sum card bursts may store money only on `budget` with cost/amount 0.
+  return bursts.reduce((s, b) => s + parseNum(b.budget), 0)
 }
 
 function emptyProductionLineItem(
@@ -2042,6 +2059,7 @@ export function mapProductionExpertRowsToStandardLineItems(
       publisher: row.publisher,
       description: row.description,
       market: row.market,
+      unitRate,
       lineItemId: id,
       line_item_id: id,
       line_item: lineNo,
@@ -2060,7 +2078,7 @@ export function mapStandardProductionLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): ProductionExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeProductionBursts(item)
     const buyType = "production"
 
@@ -2134,6 +2152,18 @@ export function mapStandardProductionLineItemsToExpertRows(
         ? crypto.randomUUID()
         : `production-expert-import-${Date.now()}-${index}`
 
+    const legacyUnitCost = (item as StandardProductionLineItemInput).unitCost
+    const legacyUnitCostSnake = (item as StandardProductionLineItemInput).unit_cost
+    const lineUnitRateRaw =
+      item.unitRate ?? legacyUnitCost ?? legacyUnitCostSnake
+    const lineUnitRateParsed =
+      lineUnitRateRaw === undefined || lineUnitRateRaw === ""
+        ? NaN
+        : parseNum(lineUnitRateRaw)
+    const unitRate = Number.isFinite(lineUnitRateParsed) && lineUnitRateParsed > 0
+      ? lineUnitRateParsed
+      : deriveProductionStandardUnitRateFromBursts(bursts)
+
     return {
       id: _reactKey,
       sourceLineItemId: id,
@@ -2148,12 +2178,16 @@ export function mapStandardProductionLineItemsToExpertRows(
       description: String(item.description ?? ""),
       market: String(item.market ?? ""),
       buyType,
-      unitRate: deriveProductionStandardUnitRateFromBursts(bursts),
+      unitRate,
       grossCost: sumProductionGrossBursts(bursts),
       weeklyValues,
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 function normalizeCinemaBursts(item: StandardCinemaLineItemInput): StandardMediaBurst[] {
@@ -2365,7 +2399,7 @@ export function mapStandardCinemaLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): CinemaExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeCinemaBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const weeklyValues: Record<string, number | ""> = {}
@@ -2453,10 +2487,14 @@ export function mapStandardCinemaLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** TV bursts include ad length and TARPs string (matches form). */
-export type StandardTelevisionBurst = StandardMediaBurst & {
+type StandardTelevisionBurst = StandardMediaBurst & {
   size?: string
   tarps?: string
 }
@@ -2473,6 +2511,10 @@ export interface StandardTelevisionFormLineItem {
   bidStrategy?: string
   creativeTargeting?: string
   creative?: string
+  /** Line-level Ad Size (mirrored on bursts; surfaces both). */
+  size?: string
+  /** Line-level TARPs summary (surfaces both; bursts keep per-burst tarps). */
+  tarps?: string
   fixedCostMedia: boolean
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
@@ -2492,6 +2534,9 @@ export type StandardTelevisionLineItemInput = Partial<StandardTelevisionFormLine
   budget_includes_fees?: boolean
   no_adserving?: boolean
   bursts_json?: string | object
+  /** Legacy hydrate keys → map to `creative`. */
+  creativeLength?: string
+  creative_length?: string
 }
 
 function normalizeTelevisionBursts(item: StandardTelevisionLineItemInput): StandardTelevisionBurst[] {
@@ -2590,7 +2635,9 @@ function emptyTelevisionLineItem(
     buyingDemo: row.buyingDemo,
     bidStrategy: "",
     creativeTargeting: "",
-    creative: "",
+    creative: String(row.creative ?? ""),
+    size: String(row.size || "30s"),
+    tarps: String(row.tarps ?? ""),
     fixedCostMedia: Boolean(row.fixedCostMedia),
     clientPaysForMedia: Boolean(row.clientPaysForMedia),
     budgetIncludesFees: Boolean(row.budgetIncludesFees ?? budgetIncludesFees),
@@ -2740,7 +2787,9 @@ export function mapTvExpertRowsToStandardLineItems(
       buyingDemo: row.buyingDemo,
       bidStrategy: "",
       creativeTargeting: "",
-      creative: "",
+      creative: String(row.creative ?? ""),
+      size: String(row.size || "30s"),
+      tarps: String(row.tarps ?? ""),
       fixedCostMedia: Boolean(row.fixedCostMedia),
       clientPaysForMedia: Boolean(row.clientPaysForMedia),
       budgetIncludesFees,
@@ -2760,7 +2809,7 @@ export function mapStandardTvLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): TelevisionExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeTelevisionBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const bt = coerceBuyTypeWithDevWarn(
@@ -2849,6 +2898,12 @@ export function mapStandardTvLineItemsToExpertRows(
       (s, col) => s + parseNum(weeklyValues[col.weekKey]),
       0
     )
+    const creativeFromItem = String(
+      item.creative ??
+        item.creativeLength ??
+        item.creative_length ??
+        ""
+    )
 
     return {
       id: _reactKey,
@@ -2866,8 +2921,11 @@ export function mapStandardTvLineItemsToExpertRows(
       placement: String(item.placement ?? ""),
       buyType,
       buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),
-      size: sizeFromBurst,
-      tarps: tarpsSum > 0 ? String(tarpsSum) : "",
+      creative: creativeFromItem,
+      size: String(item.size || sizeFromBurst),
+      tarps: String(
+        item.tarps ?? (tarpsSum > 0 ? String(tarpsSum) : "")
+      ),
       fixedCostMedia: Boolean(item.fixed_cost_media ?? item.fixedCostMedia),
       clientPaysForMedia: Boolean(
         item.client_pays_for_media ?? item.clientPaysForMedia
@@ -2882,6 +2940,10 @@ export function mapStandardTvLineItemsToExpertRows(
       mergedWeekSpans,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 function bvodCalculatedDeliverables(
@@ -3212,7 +3274,7 @@ export function mapStandardBvodLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): BvodExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeBvodBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const bt = coerceBuyTypeWithDevWarn(
@@ -3328,6 +3390,10 @@ export function mapStandardBvodLineItemsToExpertRows(
       mergedWeekSpans,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Digi Video `digivideolineItems` entry shape used by {@link DigitalVideoContainer}. */
@@ -3337,8 +3403,6 @@ export interface StandardDigiVideoFormLineItem {
   bidStrategy: string
   buyType: string
   publisher: string
-  placement: string
-  size: string
   targetingAttribute: string
   creativeTargeting: string
   creative: string
@@ -3450,8 +3514,6 @@ function emptyDigiVideoLineItem(
     bidStrategy: row.bidStrategy,
     buyType: row.buyType,
     publisher: row.publisher,
-    placement: row.placement,
-    size: row.size,
     targetingAttribute: "",
     creativeTargeting: row.creativeTargeting,
     creative: row.creative,
@@ -3460,7 +3522,7 @@ function emptyDigiVideoLineItem(
     fixedCostMedia: Boolean(row.fixedCostMedia),
     clientPaysForMedia: Boolean(row.clientPaysForMedia),
     budgetIncludesFees: Boolean(row.budgetIncludesFees ?? budgetIncludesFees),
-    noadserving: false,
+    noadserving: Boolean(row.noadserving),
     lineItemId: id,
     line_item_id: id,
     line_item: lineNo,
@@ -3610,8 +3672,6 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
       bidStrategy: row.bidStrategy,
       buyType,
       publisher: row.publisher,
-      placement: row.placement,
-      size: row.size,
       targetingAttribute: "",
       creativeTargeting: row.creativeTargeting,
       creative: row.creative,
@@ -3620,7 +3680,7 @@ export function mapDigiVideoExpertRowsToStandardLineItems(
       fixedCostMedia: Boolean(row.fixedCostMedia),
       clientPaysForMedia: Boolean(row.clientPaysForMedia),
       budgetIncludesFees,
-      noadserving: false,
+      noadserving: Boolean(row.noadserving),
       lineItemId: id,
       line_item_id: id,
       line_item: lineNo,
@@ -3636,7 +3696,7 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): DigiVideoExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeDigiVideoBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -3746,8 +3806,6 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
       site: String(item.site ?? ""),
       bidStrategy: String(item.bidStrategy ?? ""),
       buyType,
-      placement: String(item.placement ?? ""),
-      size: String(item.size ?? ""),
       creativeTargeting: String(
         item.creativeTargeting ?? item.creative_targeting ?? ""
       ),
@@ -3761,6 +3819,7 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
       budgetIncludesFees: Boolean(
         item.budget_includes_fees ?? item.budgetIncludesFees
       ),
+      noadserving: Boolean(item.no_adserving ?? item.noadserving),
       unitRate: deriveUnitRateFromBursts(bursts),
       grossCost: sumGrossBursts(bursts),
       weeklyValues,
@@ -3769,6 +3828,10 @@ export function mapStandardDigiVideoLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Digital Display `digidisplaylineItems` entry shape used by {@link DigitalDisplayContainer}. */
@@ -4074,7 +4137,7 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): DigitalDisplayExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeDigiDisplayBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -4204,6 +4267,10 @@ export function mapStandardDigiDisplayLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Digital Audio `digiaudiolineItems` entry shape used by {@link DigitalAudioContainer}. */
@@ -4213,7 +4280,6 @@ export interface StandardDigiAudioFormLineItem {
   bidStrategy: string
   buyType: string
   publisher: string
-  targetingAttribute: string
   creativeTargeting: string
   creative: string
   buyingDemo: string
@@ -4233,7 +4299,6 @@ export type StandardDigiAudioLineItemInput = Partial<StandardDigiAudioFormLineIt
   buy_type?: string
   buying_demo?: string
   creative_targeting?: string
-  targeting_attribute?: string
   fixed_cost_media?: boolean
   client_pays_for_media?: boolean
   budget_includes_fees?: boolean
@@ -4324,7 +4389,6 @@ function emptyDigiAudioLineItem(
     bidStrategy: row.bidStrategy,
     buyType: row.buyType,
     publisher: row.publisher,
-    targetingAttribute: row.targetingAttribute,
     creativeTargeting: row.creativeTargeting,
     creative: row.creative,
     buyingDemo: row.buyingDemo,
@@ -4493,7 +4557,6 @@ export function mapDigitalAudioExpertRowsToStandardLineItems(
       bidStrategy: row.bidStrategy,
       buyType,
       publisher: row.publisher,
-      targetingAttribute: row.targetingAttribute,
       creativeTargeting: row.creativeTargeting,
       creative: row.creative,
       buyingDemo: row.buyingDemo,
@@ -4517,7 +4580,7 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): DigitalAudioExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeDigiAudioBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const bt = coerceBuyTypeWithDevWarn(
@@ -4613,9 +4676,6 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
       site: String(item.site ?? ""),
       bidStrategy: String(item.bidStrategy ?? ""),
       buyType,
-      targetingAttribute: String(
-        item.targetingAttribute ?? item.targeting_attribute ?? ""
-      ),
       creativeTargeting: String(
         item.creativeTargeting ?? item.creative_targeting ?? ""
       ),
@@ -4636,6 +4696,10 @@ export function mapStandardDigiAudioLineItemsToExpertRows(
       mergedWeekSpans,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Social Media `lineItems` entry shape used by {@link SocialMediaContainer}. */
@@ -4651,6 +4715,8 @@ export interface StandardSocialMediaFormLineItem {
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
   noadserving: boolean
+  /** Hydration shim: older saves used `placement` for creativeTargeting. */
+  placement?: string
   lineItemId?: string
   line_item_id?: string
   line_item?: number | string
@@ -4928,7 +4994,7 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): SocialMediaExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeSocialMediaBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -5037,7 +5103,11 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
       bidStrategy: String(item.bidStrategy ?? ""),
       buyType,
       creativeTargeting: String(
-        item.creativeTargeting ?? item.creative_targeting ?? ""
+        item.creativeTargeting ??
+          item.creative_targeting ??
+          // Hydration shim: older saves used `placement` for this field.
+          item.placement ??
+          ""
       ),
       creative: String(item.creative ?? ""),
       buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),
@@ -5057,6 +5127,10 @@ export function mapStandardSocialMediaLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Search `lineItems` entry shape used by {@link SearchContainer}. */
@@ -5346,7 +5420,7 @@ export function mapStandardSearchLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): SearchExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeSearchBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -5475,6 +5549,10 @@ export function mapStandardSearchLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Influencers `lineItems` entry shape used by {@link InfluencersContainer}. */
@@ -5493,6 +5571,8 @@ export interface StandardInfluencersFormLineItem {
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
   noadserving: boolean
+  /** Hydration shim: older saves used `placement` for creativeTargeting. */
+  placement?: string
   lineItemId?: string
   line_item_id?: string
   line_item?: number | string
@@ -5772,7 +5852,7 @@ export function mapStandardInfluencersLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): InfluencersExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeInfluencersBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -5886,7 +5966,11 @@ export function mapStandardInfluencersLineItemsToExpertRows(
         item.targetingAttribute ?? item.targeting_attribute ?? ""
       ),
       creativeTargeting: String(
-        item.creativeTargeting ?? item.creative_targeting ?? ""
+        item.creativeTargeting ??
+          item.creative_targeting ??
+          // Hydration shim: older saves used `placement` for this field.
+          item.placement ??
+          ""
       ),
       creative: String(item.creative ?? ""),
       buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),
@@ -5906,6 +5990,10 @@ export function mapStandardInfluencersLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Integration `lineItems` entry shape used by {@link IntegrationContainer}. */
@@ -5924,6 +6012,8 @@ export interface StandardIntegrationFormLineItem {
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
   noAdserving: boolean
+  /** Hydration shim: older saves used `placement` for creativeTargeting. */
+  placement?: string
   lineItemId?: string
   line_item_id?: string
   line_item?: number | string
@@ -6203,7 +6293,7 @@ export function mapStandardIntegrationLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): IntegrationExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeIntegrationBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -6317,7 +6407,11 @@ export function mapStandardIntegrationLineItemsToExpertRows(
         item.targetingAttribute ?? item.targeting_attribute ?? ""
       ),
       creativeTargeting: String(
-        item.creativeTargeting ?? item.creative_targeting ?? ""
+        item.creativeTargeting ??
+          item.creative_targeting ??
+          // Hydration shim: older saves used `placement` for this field.
+          item.placement ??
+          ""
       ),
       creative: String(item.creative ?? ""),
       buyingDemo: String(item.buyingDemo ?? item.buying_demo ?? ""),
@@ -6337,6 +6431,10 @@ export function mapStandardIntegrationLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : [],
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Newspaper `newspaperlineItems` entry shape used by {@link NewspaperContainer}. */
@@ -6565,7 +6663,7 @@ export function mapStandardNewspaperLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): NewspaperExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeNewspaperBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -6695,6 +6793,10 @@ export function mapStandardNewspaperLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Magazines `magazineslineItems` entry shape used by {@link MagazinesContainer}. */
@@ -6934,7 +7036,7 @@ export function mapStandardMagazineLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): MagazinesExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeMagazineBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
 
@@ -7063,6 +7165,10 @@ export function mapStandardMagazineLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 // --- Programmatic (Audio / BVOD / Display / OOH / Video) expert mappings ---
@@ -7477,7 +7583,7 @@ export function mapStandardProgAudioLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): ProgAudioExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeProgAudioBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
@@ -7536,6 +7642,10 @@ export function mapStandardProgAudioLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Prog BVOD `lineItems` shape (see {@link ProgBVODContainer}). */
@@ -7666,7 +7776,7 @@ export function mapStandardProgBvodLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): ProgBvodExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeProgBvodBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
@@ -7723,6 +7833,10 @@ export function mapStandardProgBvodLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Prog Display `lineItems` shape (see {@link ProgDisplayContainer}). */
@@ -7865,7 +7979,7 @@ export function mapStandardProgDisplayLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): ProgDisplayExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeProgDisplayBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
@@ -7922,6 +8036,10 @@ export function mapStandardProgDisplayLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Prog Video `lineItems` shape (see {@link ProgVideoContainer}). */
@@ -7934,8 +8052,6 @@ export interface StandardProgVideoFormLineItem {
   buyingDemo: string
   market: string
   site: string
-  placement: string
-  size: string
   targetingAttribute: string
   fixedCostMedia: boolean
   clientPaysForMedia: boolean
@@ -7973,8 +8089,6 @@ function emptyProgVideoLineItem(
     buyType: row.buyType,
     creativeTargeting: row.creativeTargeting,
     creative: row.creative,
-    placement: row.placement,
-    size: row.size,
     buyingDemo: row.buyingDemo,
     market: row.market,
     site: "",
@@ -8039,8 +8153,6 @@ export function mapProgVideoExpertRowsToStandardLineItems(
       buyType: row.buyType,
       creativeTargeting: row.creativeTargeting,
       creative: row.creative,
-      placement: row.placement,
-      size: row.size,
       buyingDemo: row.buyingDemo,
       market: row.market,
       site: "",
@@ -8064,7 +8176,7 @@ export function mapStandardProgVideoLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): ProgVideoExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeProgVideoBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
@@ -8107,8 +8219,6 @@ export function mapStandardProgVideoLineItemsToExpertRows(
       buyType,
       creativeTargeting: String(item.creativeTargeting ?? ""),
       creative: String(item.creative ?? ""),
-      placement: String(item.placement ?? ""),
-      size: String(item.size ?? ""),
       buyingDemo: String(item.buyingDemo ?? ""),
       market: String(item.market ?? ""),
       fixedCostMedia: Boolean(item.fixedCostMedia),
@@ -8123,6 +8233,10 @@ export function mapStandardProgVideoLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }
 
 /** Prog OOH `lineItems` shape (see {@link ProgOOHContainer}). */
@@ -8134,12 +8248,7 @@ export interface StandardProgOohFormLineItem {
   creative: string
   buyingDemo: string
   market: string
-  environment: string
-  format: string
-  location: string
   targetingAttribute: string
-  placement: string
-  size: string
   fixedCostMedia: boolean
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
@@ -8176,13 +8285,8 @@ function emptyProgOohLineItem(
     buyType: row.buyType,
     creativeTargeting: row.creativeTargeting,
     creative: row.creative,
-    placement: row.placement,
-    size: row.size,
     buyingDemo: row.buyingDemo,
     market: row.market,
-    environment: "",
-    format: "",
-    location: "",
     targetingAttribute: "",
     fixedCostMedia: Boolean(row.fixedCostMedia),
     clientPaysForMedia: Boolean(row.clientPaysForMedia),
@@ -8244,13 +8348,8 @@ export function mapProgOohExpertRowsToStandardLineItems(
       buyType: row.buyType,
       creativeTargeting: row.creativeTargeting,
       creative: row.creative,
-      placement: row.placement,
-      size: row.size,
       buyingDemo: row.buyingDemo,
       market: row.market,
-      environment: "",
-      format: "",
-      location: "",
       targetingAttribute: "",
       fixedCostMedia: Boolean(row.fixedCostMedia),
       clientPaysForMedia: Boolean(row.clientPaysForMedia),
@@ -8271,7 +8370,7 @@ export function mapStandardProgOohLineItemsToExpertRows(
   campaignStartDate: Date,
   campaignEndDate: Date
 ): ProgOohExpertScheduleRow[] {
-  return lineItems.map((item, index) => {
+  const __expertImportRows = lineItems.map((item, index) => {
     const bursts = normalizeProgOohBursts(item)
     const buyType = String(item.buyType ?? item.buy_type ?? "")
     const { weeklyValues, dailyValues, mergedWeekSpans } = progAccumulateWeeklyFromBursts(
@@ -8314,8 +8413,6 @@ export function mapStandardProgOohLineItemsToExpertRows(
       buyType,
       creativeTargeting: String(item.creativeTargeting ?? ""),
       creative: String(item.creative ?? ""),
-      placement: String(item.placement ?? ""),
-      size: String(item.size ?? ""),
       buyingDemo: String(item.buyingDemo ?? ""),
       market: String(item.market ?? ""),
       fixedCostMedia: Boolean(item.fixedCostMedia),
@@ -8330,4 +8427,8 @@ export function mapStandardProgOohLineItemsToExpertRows(
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
     }
   })
+  return projectLumpSumCardBudgetsOntoExpertRows(
+    __expertImportRows,
+    weekColumns.map((c) => c.weekKey)
+  )
 }

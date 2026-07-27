@@ -59,7 +59,7 @@ export interface OohExpertScheduleRow {
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for radio expert weekly merges. */
-export type RadioExpertMergedWeekSpan = OohExpertMergedWeekSpan
+type RadioExpertMergedWeekSpan = OohExpertMergedWeekSpan
 
 export interface RadioExpertScheduleRow {
   id: string
@@ -93,7 +93,7 @@ export interface RadioExpertScheduleRow {
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for cinema expert weekly merges. */
-export type CinemaExpertMergedWeekSpan = OohExpertMergedWeekSpan
+type CinemaExpertMergedWeekSpan = OohExpertMergedWeekSpan
 
 export interface CinemaExpertScheduleRow {
   id: string
@@ -121,7 +121,7 @@ export interface CinemaExpertScheduleRow {
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for television expert weekly merges. */
-export type TelevisionExpertMergedWeekSpan = OohExpertMergedWeekSpan
+type TelevisionExpertMergedWeekSpan = OohExpertMergedWeekSpan
 
 export interface TelevisionExpertScheduleRow {
   id: string
@@ -142,6 +142,8 @@ export interface TelevisionExpertScheduleRow {
   size: string
   /** Line-level TARPs / deliverable summary (burst-level tarps set on apply). */
   tarps: string
+  /** Creative length (e.g. "30s"); form key remains `creative`. */
+  creative: string
   fixedCostMedia: boolean
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
@@ -156,7 +158,7 @@ export interface TelevisionExpertScheduleRow {
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for BVOD expert weekly merges. */
-export type BvodExpertMergedWeekSpan = OohExpertMergedWeekSpan
+type BvodExpertMergedWeekSpan = OohExpertMergedWeekSpan
 
 export interface BvodExpertScheduleRow {
   id: string
@@ -191,7 +193,7 @@ export interface BvodExpertScheduleRow {
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for Digi Video expert weekly merges. */
-export type DigiVideoExpertMergedWeekSpan = OohExpertMergedWeekSpan
+type DigiVideoExpertMergedWeekSpan = OohExpertMergedWeekSpan
 
 export interface DigiVideoExpertScheduleRow {
   id: string
@@ -210,8 +212,6 @@ export interface DigiVideoExpertScheduleRow {
   site: string
   bidStrategy: string
   buyType: string
-  placement: string
-  size: string
   creativeTargeting: string
   creative: string
   buyingDemo: string
@@ -219,6 +219,7 @@ export interface DigiVideoExpertScheduleRow {
   fixedCostMedia: boolean
   clientPaysForMedia: boolean
   budgetIncludesFees: boolean
+  noadserving: boolean
   unitRate: number | string
   grossCost: number | string
   weeklyValues: ExpertWeeklyValues
@@ -228,7 +229,7 @@ export interface DigiVideoExpertScheduleRow {
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for Digital Display expert weekly merges. */
-export type DigitalDisplayExpertMergedWeekSpan = OohExpertMergedWeekSpan
+type DigitalDisplayExpertMergedWeekSpan = OohExpertMergedWeekSpan
 
 export interface DigitalDisplayExpertScheduleRow {
   id: string
@@ -262,7 +263,7 @@ export interface DigitalDisplayExpertScheduleRow {
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for Digital Audio expert weekly merges. */
-export type DigitalAudioExpertMergedWeekSpan = OohExpertMergedWeekSpan
+type DigitalAudioExpertMergedWeekSpan = OohExpertMergedWeekSpan
 
 export interface DigitalAudioExpertScheduleRow {
   id: string
@@ -281,7 +282,6 @@ export interface DigitalAudioExpertScheduleRow {
   site: string
   bidStrategy: string
   buyType: string
-  targetingAttribute: string
   creativeTargeting: string
   creative: string
   buyingDemo: string
@@ -298,7 +298,7 @@ export interface DigitalAudioExpertScheduleRow {
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for Social Media expert weekly merges. */
-export type SocialMediaExpertMergedWeekSpan = OohExpertMergedWeekSpan
+type SocialMediaExpertMergedWeekSpan = OohExpertMergedWeekSpan
 
 export interface SocialMediaExpertScheduleRow {
   id: string
@@ -331,7 +331,7 @@ export interface SocialMediaExpertScheduleRow {
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for Search expert weekly merges. */
-export type SearchExpertMergedWeekSpan = OohExpertMergedWeekSpan
+type SearchExpertMergedWeekSpan = OohExpertMergedWeekSpan
 
 export interface SearchExpertScheduleRow {
   id: string
@@ -364,7 +364,7 @@ export interface SearchExpertScheduleRow {
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for Influencers expert weekly merges. */
-export type InfluencersExpertMergedWeekSpan = OohExpertMergedWeekSpan
+type InfluencersExpertMergedWeekSpan = OohExpertMergedWeekSpan
 
 export interface InfluencersExpertScheduleRow {
   id: string
@@ -401,7 +401,7 @@ export interface InfluencersExpertScheduleRow {
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for Integration expert weekly merges. */
-export type IntegrationExpertMergedWeekSpan = OohExpertMergedWeekSpan
+type IntegrationExpertMergedWeekSpan = OohExpertMergedWeekSpan
 
 export interface IntegrationExpertScheduleRow {
   id: string
@@ -438,7 +438,7 @@ export interface IntegrationExpertScheduleRow {
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for Newspaper expert weekly merges. */
-export type NewspaperExpertMergedWeekSpan = OohExpertMergedWeekSpan
+type NewspaperExpertMergedWeekSpan = OohExpertMergedWeekSpan
 
 export interface NewspaperExpertScheduleRow {
   id: string
@@ -473,7 +473,7 @@ export interface NewspaperExpertScheduleRow {
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for Magazines expert weekly merges. */
-export type MagazinesExpertMergedWeekSpan = OohExpertMergedWeekSpan
+type MagazinesExpertMergedWeekSpan = OohExpertMergedWeekSpan
 
 export interface MagazinesExpertScheduleRow {
   id: string
@@ -619,8 +619,6 @@ export interface ProgVideoExpertScheduleRow {
   buyType: string
   creativeTargeting: string
   creative: string
-  placement: string
-  size: string
   buyingDemo: string
   market: string
   fixedCostMedia: boolean
@@ -635,7 +633,7 @@ export interface ProgVideoExpertScheduleRow {
   mergedWeekSpans?: ProgExpertMergedWeekSpan[]
 }
 
-/** Programmatic OOH — expert schedule row (placement + size after creative). */
+/** Programmatic OOH — expert schedule row. */
 export interface ProgOohExpertScheduleRow {
   id: string
   /**
@@ -652,8 +650,6 @@ export interface ProgOohExpertScheduleRow {
   buyType: string
   creativeTargeting: string
   creative: string
-  placement: string
-  size: string
   buyingDemo: string
   market: string
   fixedCostMedia: boolean
@@ -669,7 +665,7 @@ export interface ProgOohExpertScheduleRow {
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for production expert weekly merges. */
-export type ProductionExpertMergedWeekSpan = OohExpertMergedWeekSpan
+type ProductionExpertMergedWeekSpan = OohExpertMergedWeekSpan
 
 export interface ProductionExpertScheduleRow {
   id: string

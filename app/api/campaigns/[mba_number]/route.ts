@@ -3,7 +3,7 @@ import axios from "axios"
 import { fetchAllMediaContainerLineItems, MEDIA_CONTAINER_ENDPOINTS } from "@/lib/api/media-containers"
 import { filterLineItemsByPlanNumber } from "@/lib/api/mediaPlanVersionHelper"
 import { normalizeCampaignLineItems } from "@/lib/mediaplan/normalizeCampaignLineItems"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 
@@ -505,7 +505,7 @@ export async function GET(
     
     // Fetch media plan version data (similar to existing MBA route)
     const masterQueryUrl = `${xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${encodeURIComponent(mba_number)}`
-    const masterResponse = await axios.get(masterQueryUrl)
+    const masterResponse = await axios.get(masterQueryUrl, { headers: xanoAuthHeaderRecord() })
     
     let masterData: any = null
     if (Array.isArray(masterResponse.data)) {

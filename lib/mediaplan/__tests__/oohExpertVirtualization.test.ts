@@ -26,9 +26,9 @@ import type {
   OohExpertScheduleRow,
 } from "@/lib/mediaplan/expertModeWeeklySchedule"
 import {
-  OOH_EXPERT_COL_OVERSCAN,
+  EXPERT_GRID_COL_OVERSCAN_DEFAULT,
   OOH_EXPERT_ROW_HEIGHT_PX,
-  OOH_EXPERT_ROW_OVERSCAN,
+  EXPERT_GRID_ROW_OVERSCAN_DEFAULT,
   computeOohExpertWeeklyTotals,
   computeOohExpertWeeklyTotalsIncremental,
   cumulativeColumnOffsets,
@@ -124,7 +124,7 @@ test("1. APPLY CORRECTNESS: edit on off-window row survives Apply (full state, n
 
 test("2. FIXED ROW HEIGHT: estimate constant is positive and shared", () => {
   assert.equal(OOH_EXPERT_ROW_HEIGHT_PX, 41)
-  assert.ok(OOH_EXPERT_ROW_OVERSCAN >= 8)
+  assert.ok(EXPERT_GRID_ROW_OVERSCAN_DEFAULT >= 8)
 })
 
 test("shared spacer paddings subtract scrollMargin (thead in same scroller)", () => {
@@ -324,21 +324,21 @@ test("8. PERF: mounted DOM window stays bounded while scrolling 300 rows", () =>
     viewportHeight,
     OOH_EXPERT_ROW_HEIGHT_PX,
     rowCount,
-    OOH_EXPERT_ROW_OVERSCAN
+    EXPERT_GRID_ROW_OVERSCAN_DEFAULT
   )
   const mid = expectedMountedRowRange(
     150 * OOH_EXPERT_ROW_HEIGHT_PX,
     viewportHeight,
     OOH_EXPERT_ROW_HEIGHT_PX,
     rowCount,
-    OOH_EXPERT_ROW_OVERSCAN
+    EXPERT_GRID_ROW_OVERSCAN_DEFAULT
   )
   const nearBottom = expectedMountedRowRange(
     280 * OOH_EXPERT_ROW_HEIGHT_PX,
     viewportHeight,
     OOH_EXPERT_ROW_HEIGHT_PX,
     rowCount,
-    OOH_EXPERT_ROW_OVERSCAN
+    EXPERT_GRID_ROW_OVERSCAN_DEFAULT
   )
 
   const topCount = mountedRowCount(nearTop)
@@ -347,7 +347,7 @@ test("8. PERF: mounted DOM window stays bounded while scrolling 300 rows", () =>
 
   // Window ≈ viewport/rowHeight + 2*overscan — far below 300.
   const maxWindow = Math.ceil(viewportHeight / OOH_EXPERT_ROW_HEIGHT_PX) +
-    2 * OOH_EXPERT_ROW_OVERSCAN +
+    2 * EXPERT_GRID_ROW_OVERSCAN_DEFAULT +
     2
   assert.ok(topCount <= maxWindow, `top ${topCount} > ${maxWindow}`)
   assert.ok(midCount <= maxWindow, `mid ${midCount} > ${maxWindow}`)
@@ -377,23 +377,23 @@ test("9. COLUMN WINDOW: 12-month (~52) weeks mounts a bounded horizontal window"
     0,
     viewportWidth,
     widths,
-    OOH_EXPERT_COL_OVERSCAN
+    EXPERT_GRID_COL_OVERSCAN_DEFAULT
   )
   const mid = expectedMountedColRange(
     26 * WEEK_COL_WIDTH_PX,
     viewportWidth,
     widths,
-    OOH_EXPERT_COL_OVERSCAN
+    EXPERT_GRID_COL_OVERSCAN_DEFAULT
   )
   const nearRight = expectedMountedColRange(
     45 * WEEK_COL_WIDTH_PX,
     viewportWidth,
     widths,
-    OOH_EXPERT_COL_OVERSCAN
+    EXPERT_GRID_COL_OVERSCAN_DEFAULT
   )
 
   const maxWindow =
-    Math.ceil(viewportWidth / WEEK_COL_WIDTH_PX) + 2 * OOH_EXPERT_COL_OVERSCAN + 2
+    Math.ceil(viewportWidth / WEEK_COL_WIDTH_PX) + 2 * EXPERT_GRID_COL_OVERSCAN_DEFAULT + 2
   assert.ok(mountedColCount(nearLeft) <= maxWindow)
   assert.ok(mountedColCount(mid) <= maxWindow)
   assert.ok(mountedColCount(nearRight) <= maxWindow)
@@ -413,7 +413,7 @@ test("9b. COLUMN SPACERS: left+visible+right widths equal total week band", () =
   const widths = weekKeys.map(() => WEEK_COL_WIDTH_PX)
   const offsets = cumulativeColumnOffsets(widths)
   const total = offsets[widths.length]!
-  const range = expectedMountedColRange(500, 700, widths, OOH_EXPERT_COL_OVERSCAN)
+  const range = expectedMountedColRange(500, 700, widths, EXPERT_GRID_COL_OVERSCAN_DEFAULT)
   const { paddingLeft, paddingRight } = expertGridColSpacerWidths(range, widths)
   let visible = 0
   for (let i = range.start; i <= range.end; i++) visible += widths[i]!
@@ -432,13 +432,13 @@ test("9b2. COLUMN WINDOW: sticky-left shrinks week viewport; spacer never includ
     0,
     weekViewport,
     widths,
-    OOH_EXPERT_COL_OVERSCAN
+    EXPERT_GRID_COL_OVERSCAN_DEFAULT
   )
   const withoutSticky = expectedMountedColRange(
     0,
     clientWidth,
     widths,
-    OOH_EXPERT_COL_OVERSCAN
+    EXPERT_GRID_COL_OVERSCAN_DEFAULT
   )
   assert.ok(weekViewport < clientWidth)
   assert.ok(mountedColCount(withSticky) <= mountedColCount(withoutSticky))

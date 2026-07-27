@@ -4,10 +4,24 @@
  */
 
 import {
-  BENCHMARK_DEFAULTS,
+  ASSEMBLED_SEED_SOURCE,
+  PLANNING_CHANNEL_BENCH,
+  ROY_MORGAN_SOURCE,
   SEARCH_ENGINE_CHANNEL_ID,
-  type BenchmarkDefault,
-} from "./benchmarkDefaults"
+  type PlanningChannelBenchRow,
+} from "./planningChannelBench"
+
+/** Provenance labels for BCS pillars — not influence weights. */
+export type ChannelPillarSources = {
+  /** Affinity A: Roy Morgan when measured; else assembled seed. */
+  A: string
+  /** Attention T: always bench (never RM). */
+  T: string
+  /** Effect E (from B/D): always bench. */
+  E: string
+  /** Cost C (from CPM): always bench. */
+  C: string
+}
 import type {
   AudienceChannelResult,
   AudienceResponse,
@@ -37,6 +51,8 @@ export type AdaptedChannel = {
   reachPctTotal: number
   isRmMeasured: boolean
   ageBase: number
+  /** Per-pillar provenance strings for UI/deck (A may be RM; T/E/C always bench). */
+  pillarSources: ChannelPillarSources
 }
 
 export type ReachProfileRow = {
@@ -107,15 +123,29 @@ export function scoreableChannels(taxonomy: TaxonomyRow[]): AdaptedChannel[] {
   return out
 }
 
+function pillarSourcesFor(
+  isRmMeasured: boolean,
+  fallback: PlanningChannelBenchRow | undefined
+): ChannelPillarSources {
+  const benchSrc = (p: { source: string } | undefined) =>
+    p?.source ?? ASSEMBLED_SEED_SOURCE
+  return {
+    A: isRmMeasured ? ROY_MORGAN_SOURCE : benchSrc(fallback?.attn),
+    T: benchSrc(fallback?.attn),
+    E: benchSrc(fallback?.brand_effect),
+    C: benchSrc(fallback?.cpm),
+  }
+}
+
 function resolveBench(
   engineId: string,
   apiBench: AudienceChannelResult["bench"] | PlanningChannelMeta["bench"] | null | undefined,
-  fallback: BenchmarkDefault | undefined
+  fallback: PlanningChannelBenchRow | undefined
 ): { attn: number; B: number; D: number; cpm: number; name: string; color: string } | null {
-  const attn = apiBench?.attn ?? fallback?.attn ?? null
-  const B = apiBench?.brand_effect ?? fallback?.B ?? null
-  const D = apiBench?.direct_effect ?? fallback?.D ?? null
-  const cpm = apiBench?.cpm ?? fallback?.cpm ?? null
+  const attn = apiBench?.attn ?? fallback?.attn.value ?? null
+  const B = apiBench?.brand_effect ?? fallback?.brand_effect.value ?? null
+  const D = apiBench?.direct_effect ?? fallback?.direct_effect.value ?? null
+  const cpm = apiBench?.cpm ?? fallback?.cpm.value ?? null
   if (attn == null || B == null || D == null || cpm == null) return null
   return {
     attn,
@@ -227,7 +257,7 @@ export function adaptAudienceToEngine(opts: {
     const resolved = resolveBench(
       engineId,
       row.bench ?? metaRow?.bench,
-      BENCHMARK_DEFAULTS[engineId]
+      PLANNING_CHANNEL_BENCH[engineId]
     )
     if (!resolved) {
       skippedEngineIds.push(engineId)
@@ -265,6 +295,10 @@ export function adaptAudienceToEngine(opts: {
       reachPctTotal: row.reach_pct_total,
       isRmMeasured: row.is_rm_measured,
       ageBase: row.age_base,
+      pillarSources: pillarSourcesFor(
+        row.is_rm_measured,
+        PLANNING_CHANNEL_BENCH[engineId]
+      ),
     }
 
     taxonomy.push({
@@ -283,15 +317,15 @@ export function adaptAudienceToEngine(opts: {
   }
 
   // Search — benchmark-only constant (affinity 100 neutral). Own group for Stage C.
-  const searchDefaults = BENCHMARK_DEFAULTS[SEARCH_ENGINE_CHANNEL_ID]
+  const searchDefaults = PLANNING_CHANNEL_BENCH[SEARCH_ENGINE_CHANNEL_ID]
   if (searchDefaults) {
     const engine: AdaptedChannel = {
       id: SEARCH_ENGINE_CHANNEL_ID,
       name: searchDefaults.name,
-      attn: searchDefaults.attn,
-      B: searchDefaults.B,
-      D: searchDefaults.D,
-      cpm: searchDefaults.cpm,
+      attn: searchDefaults.attn.value,
+      B: searchDefaults.brand_effect.value,
+      D: searchDefaults.direct_effect.value,
+      cpm: searchDefaults.cpm.value,
       color: searchDefaults.color,
       aff: { [segmentId]: 100 },
       ageMod: 1,
@@ -302,6 +336,7 @@ export function adaptAudienceToEngine(opts: {
       reachPctTotal: 0,
       isRmMeasured: false,
       ageBase: 14,
+      pillarSources: pillarSourcesFor(false, searchDefaults),
     }
     taxonomy.push({
       rowType: "injected",

@@ -92,6 +92,7 @@ function perLineFromScheduleMonths(months: BillingMonth[]): PerLineResult[] {
               clientPaysForMedia: item.clientPaysForMedia === true,
               manualBilling: item.billingMode === "manual",
               manualFee: item.feeBillingMode === "manual",
+              prepaid: item.preBill === true,
               excluded: false,
             },
           })

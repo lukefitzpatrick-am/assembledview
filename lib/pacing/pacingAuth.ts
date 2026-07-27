@@ -4,7 +4,7 @@ import axios from "axios"
 import type { NextRequest, NextResponse } from "next/server"
 import type { User } from "@auth0/nextjs-auth0/types"
 import { auth0 } from "@/lib/auth0"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
 import { getCachedClients } from "@/lib/cache/clientsCache"
 import { getUserClientSlugs, getUserRoles } from "@/lib/rbac"
@@ -17,10 +17,10 @@ export type RequirePacingAccessResult =
   | { ok: false; response: NextResponse }
 
 /**
- * Resolves tenant client scope the same way as Finance Forecast:
- * - `null` allowedClientIds → no restriction (admin, or user without `client_slugs` claims).
+ * Resolves tenant client scope:
+ * - `null` allowedClientIds → unrestricted (admin only).
  * - non-null array → only those numeric Xano `get_clients.id` values.
- * - empty array → no accessible clients (all Snowflake list queries return empty).
+ * - empty array → no accessible clients (fail closed; list queries return empty).
  */
 export async function requirePacingAccess(request: NextRequest): Promise<RequirePacingAccessResult> {
   const session = await auth0.getSession(request)
@@ -32,8 +32,12 @@ export async function requirePacingAccess(request: NextRequest): Promise<Require
   const isAdmin = roles.includes("admin")
   const tenantSlugs = getUserClientSlugs(session.user)
 
-  if (isAdmin || tenantSlugs.length === 0) {
+  // AuthZ: unrestricted pacing is admin-only; non-admin with no slug scope → empty, not book-wide.
+  if (isAdmin) {
     return { ok: true, session, allowedClientIds: null }
+  }
+  if (tenantSlugs.length === 0) {
+    return { ok: true, session, allowedClientIds: [] }
   }
 
   const ids = await resolveXanoClientIdsFromUrlSlugs(tenantSlugs)
@@ -63,7 +67,9 @@ async function loadClientsRows(): Promise<Record<string, unknown>[]> {
   if (cached?.length) return cached as Record<string, unknown>[]
 
   try {
-    const response = await axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL"))
+    const response = await axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL"), {
+      headers: xanoAuthHeaderRecord(),
+    })
     const data = response.data
     if (Array.isArray(data)) return data as Record<string, unknown>[]
     if (data && typeof data === "object" && Array.isArray((data as { data?: unknown }).data)) {
@@ -161,8 +167,8 @@ export function assertClientsIdsAllowed(
 
 /**
  * Mirrors `requirePacingAccess` tenant rules using an Auth0-style profile (Management API GET /users/{id}).
- * - Admin (or equivalent) → `null` (unscoped).
- * - No client slug claims → `null` (unscoped).
+ * - Admin → `null` (unscoped).
+ * - No client slug claims → `[]` (fail closed / empty).
  * - Otherwise → numeric Xano client ids for those slugs (possibly empty).
  */
 export async function resolvePacingTenantNumericIdsFromAuth0LikeUser(user: {
@@ -171,7 +177,8 @@ export async function resolvePacingTenantNumericIdsFromAuth0LikeUser(user: {
 }): Promise<number[] | null> {
   const roles = getUserRoles(user as User)
   if (roles.includes("admin")) return null
+  // AuthZ: non-admin with no slug scope → empty, not unrestricted.
   const slugs = getUserClientSlugs(user as User)
-  if (slugs.length === 0) return null
+  if (slugs.length === 0) return []
   return resolveXanoClientIdsFromUrlSlugs(slugs)
 }

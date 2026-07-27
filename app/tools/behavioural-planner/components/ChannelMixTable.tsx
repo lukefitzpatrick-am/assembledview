@@ -46,11 +46,13 @@ export function ChannelMixTable({ allocated, show18Base }: ChannelMixTableProps)
               <span className="truncate">{a.ch.name}</span>
             </span>
             <span className="flex flex-wrap gap-1 pl-3">
-              {!a.ch.isRmMeasured ? (
-                <Badge variant="outline" size="sm" className="text-[10px] font-normal">
-                  Benchmark-based — not Roy Morgan
-                </Badge>
-              ) : null}
+              <Badge variant="outline" size="sm" className="text-[10px] font-normal">
+                Source:{" "}
+                {a.ch.pillarSources?.A ??
+                  (a.ch.isRmMeasured
+                    ? "Roy Morgan"
+                    : "Assembled seed — pending warehouse source")}
+              </Badge>
               {show18Base && a.ch.ageBase === 18 ? (
                 <Badge variant="outline" size="sm" className="text-[10px] font-normal">
                   18+ base

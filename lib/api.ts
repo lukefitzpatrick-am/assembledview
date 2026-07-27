@@ -1,6 +1,6 @@
 import { toMelbourneDateString } from "@/lib/timezone"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
-import { getXanoBaseUrl } from "@/lib/api/xano"
+import { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { coalescedGetJson, invalidateCoalescedGetJson } from "@/lib/api/coalescedGetJson"
 import {
   MEDIA_TYPE_ID_CODES,
@@ -27,7 +27,10 @@ const MEDIA_PLANS_BASE_URL = isBrowser
   ? "/api/media_plans"
   : getXanoBaseUrl(["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
 const publishersEndpoint = isBrowser ? "/api/publishers" : `${PUBLISHERS_BASE_URL}/get_publishers`
-const XANO_API_KEY = process.env.XANO_API_KEY || ""
+// REVIEW: This module is imported from client components too. In the browser,
+// MEDIA_*_BASE_URL is rewritten to /api/... proxies (no XANO_API_KEY in the client
+// bundle — key is server-only via process.env, never NEXT_PUBLIC). Proxies must
+// attach xanoAuthHeader()/xanoAuthHeaderRecord() when forwarding to Xano.
 
 async function extractResponseMessage(response: Response): Promise<string> {
   const contentType = response.headers.get("content-type") || ""
@@ -799,9 +802,7 @@ export async function createMediaPlan(data: {
     const mbaTrimmed = typeof data.mba_number === "string" ? data.mba_number.trim() : String(data.mba_number ?? "").trim()
     const response = await fetch('/api/mediaplans', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: xanoPostHeaderRecord(),
       body: JSON.stringify({
         mp_client_name: data.mp_client_name,
         mp_campaignname: data.mp_campaignname,
@@ -939,10 +940,7 @@ export async function createMediaPlanVersion(data: MediaPlanVersion) {
     
     const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
+      headers: xanoPostHeaderRecord(),
       body: JSON.stringify(sanitizedData), 
     });
     
@@ -1033,9 +1031,7 @@ export async function createMediaPlanVersion(data: MediaPlanVersion) {
 export async function editMediaPlan(id: number, data: any) { 
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan/${id}`, { 
     method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) {
@@ -1062,7 +1058,7 @@ export async function getMediaPlanVersions() {
       50
     )
   } catch {
-    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?page=1&per_page=100`);
+    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?page=1&per_page=100`, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       throw new Error("Failed to fetch media plan versions");
     }
@@ -1073,7 +1069,7 @@ export async function getMediaPlanVersions() {
 export async function getMediaPlanVersionById(id: number) {
   try {
     const { parseXanoListPayload } = await import("@/lib/api/xano")
-    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?id=${id}&page=1&per_page=50`);
+    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?id=${id}&page=1&per_page=50`, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       throw new Error("Failed to fetch media plan version");
     }
@@ -1088,7 +1084,7 @@ export async function getMediaPlanVersionById(id: number) {
 export async function getMediaPlanVersionByMasterId(masterId: number) {
   try {
     const { parseXanoListPayload } = await import("@/lib/api/xano")
-    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?media_plan_master_id=${masterId}&page=1&per_page=100`);
+    const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_versions?media_plan_master_id=${masterId}&page=1&per_page=100`, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       throw new Error("Failed to fetch media plan versions by master ID");
     }
@@ -1117,7 +1113,7 @@ export async function getMediaPlanByMBA(mba_number: string) {
   const url = isBrowser
     ? `/api/media_plans/media_plan?${q}`
     : `${MEDIA_PLANS_BASE_URL}/media_plan?${q}`
-  return fetch(url)
+  return fetch(url, isBrowser ? undefined : { headers: xanoAuthHeaderRecord() })
 }
 
 export async function getMediaPlanVersionByMBA(mba_number: string) {
@@ -1125,12 +1121,12 @@ export async function getMediaPlanVersionByMBA(mba_number: string) {
   const url = isBrowser
     ? `/api/media_plans/media_plan_version?${q}`
     : `${MEDIA_PLANS_BASE_URL}/media_plan_version?${q}`
-  return fetch(url)
+  return fetch(url, isBrowser ? undefined : { headers: xanoAuthHeaderRecord() })
 }
 
 async function fetchMediaDetail(path: string) {
   const url = isBrowser ? `/api/media-details/${path}` : `${MEDIA_DETAILS_BASE_URL}/${path}`
-  const response = await fetch(url)
+  const response = await fetch(url, { headers: xanoAuthHeaderRecord() })
   if (!response.ok) {
     throw new Error(`Failed to fetch media details: ${path}`)
   }
@@ -1175,7 +1171,7 @@ export async function getDisplaySites(): Promise<DisplaySite[]> {
 }
 
 export async function getBVODSites(): Promise<BVODSite[]> {
-  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/bvod_site`);
+  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/bvod_site`, { headers: xanoAuthHeaderRecord() });
   if (!response.ok) {
     throw new Error("Failed to fetch BVOD sites");
   }
@@ -1187,9 +1183,7 @@ export async function getBVODSites(): Promise<BVODSite[]> {
 export async function createTVStation(stationData: { station: string; network: string }): Promise<TVStation> {
   const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/POST_tv_stations`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(stationData),
   });
   if (!response.ok) {
@@ -1201,9 +1195,7 @@ export async function createTVStation(stationData: { station: string; network: s
 export async function createRadioStation(stationData: { station: string; network: string }): Promise<RadioStation> {
   const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/POST_radio_stations`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(stationData),
   });
   if (!response.ok) {
@@ -1215,9 +1207,7 @@ export async function createRadioStation(stationData: { station: string; network
 export async function createNewspaper(newspaperData: { title: string; network: string }): Promise<Newspapers> {
   const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/POST_newspapers`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(newspaperData),
   });
   if (!response.ok) {
@@ -1229,9 +1219,7 @@ export async function createNewspaper(newspaperData: { title: string; network: s
 export async function createNewspaperAdSize(adSizeData: { adsize: string }): Promise<NewspapersAdSizes> {
   const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/POST_newspaper_adsizes`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(adSizeData),
   });
   if (!response.ok) {
@@ -1243,9 +1231,7 @@ export async function createNewspaperAdSize(adSizeData: { adsize: string }): Pro
 export async function createMagazine(magazineData: { title: string; network: string }): Promise<Magazines> {
   const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/POST_magazines`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(magazineData),
   });
   if (!response.ok) {
@@ -1258,9 +1244,7 @@ export async function createMagazine(magazineData: { title: string; network: str
 export async function createMagazineAdSize(adSizeData: { adsize: string }): Promise<MagazinesAdSizes> {
   const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/POST_magazines_adsizes`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(adSizeData),
   });
   if (!response.ok) {
@@ -1272,9 +1256,7 @@ export async function createMagazineAdSize(adSizeData: { adsize: string }): Prom
 export async function createAudioSite(siteData: { platform: string; site: string }): Promise<AudioSite> {
   const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/audio_site`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(siteData),
   });
   if (!response.ok) {
@@ -1286,9 +1268,7 @@ export async function createAudioSite(siteData: { platform: string; site: string
 export async function createVideoSite(siteData: { platform: string; site: string }): Promise<VideoSite> {
   const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/video_site`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(siteData),
   });
   if (!response.ok) {
@@ -1300,9 +1280,7 @@ export async function createVideoSite(siteData: { platform: string; site: string
 export async function createDisplaySite(siteData: { platform: string; site: string }): Promise<DisplaySite> {
   const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/display_site`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(siteData),
   });
   if (!response.ok) {
@@ -1314,9 +1292,7 @@ export async function createDisplaySite(siteData: { platform: string; site: stri
 export async function createBVODSite(siteData: { platform: string; site: string }): Promise<BVODSite> {
   const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/bvod_site`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(siteData),
   });
   if (!response.ok) {
@@ -1358,7 +1334,7 @@ async function fetchAllPublishers(): Promise<PublisherRow[]> {
         });
         rows = Array.isArray(data) ? data : [];
       } else {
-        const response = await fetch(publishersEndpoint);
+        const response = await fetch(publishersEndpoint, { headers: xanoAuthHeaderRecord() });
         if (!response.ok) {
           throw new Error(`Failed to fetch publishers (status ${response.status})`);
         }
@@ -1416,7 +1392,8 @@ export async function getPublishersForSearch(): Promise<Publisher[]> {
 export async function getClientInfo(clientId: string): Promise<ClientInfo | null> {
   try {
     const response = await fetch(
-      isBrowser ? `/api/clients/${clientId}` : `${CLIENTS_BASE_URL}/clients/${clientId}`
+      isBrowser ? `/api/clients/${clientId}` : `${CLIENTS_BASE_URL}/clients/${clientId}`,
+      isBrowser ? undefined : { headers: xanoAuthHeaderRecord() },
     );
     if (!response.ok) {
       throw new Error("Failed to fetch client information");
@@ -1628,10 +1605,7 @@ export async function saveTelevisionData(televisionData: any) {
   try {
     const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_television`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${XANO_API_KEY}`,
-      },
+      headers: xanoPostHeaderRecord(),
       body: JSON.stringify(televisionData),
     });
     
@@ -1691,10 +1665,7 @@ export async function saveNewspaperData(newspaperData: any) {
   try {
     const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_newspaper`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${XANO_API_KEY}`,
-      },
+      headers: xanoPostHeaderRecord(),
       body: JSON.stringify(newspaperData),
     });
     
@@ -1754,10 +1725,7 @@ export async function saveSocialMediaData(socialMediaData: any) {
   try {
     const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_social`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${XANO_API_KEY}`,
-      },
+      headers: xanoPostHeaderRecord(),
       body: JSON.stringify(socialMediaData),
     });
     
@@ -1914,7 +1882,7 @@ async function fetchLineItemsFromApi(
   let shared = lineItemInflight.get(url)
   if (!shared) {
     shared = (async () => {
-      const response = await fetch(url)
+      const response = await fetch(url, { headers: xanoAuthHeaderRecord() })
       if (!response.ok) {
         if (response.status === 404) {
           return []
@@ -1979,10 +1947,7 @@ export async function getCinemaLineItemsByMBA(mbaNumber: string, mediaPlanVersio
       console.log(`[API] Fetching cinema line items for MBA ${mbaNumber} without version number`);
     }
     const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${XANO_API_KEY}`,
-      }
+      headers: xanoPostHeaderRecord()
     });
     if (!response.ok) {
       // Handle 404 gracefully - just means no line items exist yet
@@ -2003,10 +1968,7 @@ export async function getCinemaLineItemsByMBA(mbaNumber: string, mediaPlanVersio
 export async function createCinemaLineItem(data: Partial<CinemaLineItem>): Promise<CinemaLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_cinema`, {
     method: 'POST',
-    headers: { 
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${XANO_API_KEY}`,
-    },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create cinema line item");
@@ -2016,10 +1978,7 @@ export async function createCinemaLineItem(data: Partial<CinemaLineItem>): Promi
 export async function updateCinemaLineItem(id: number, data: Partial<CinemaLineItem>): Promise<CinemaLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_cinema/${id}`, {
     method: 'PUT',
-    headers: { 
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${XANO_API_KEY}`,
-    },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to update cinema line item");
@@ -2029,9 +1988,7 @@ export async function updateCinemaLineItem(id: number, data: Partial<CinemaLineI
 export async function deleteCinemaLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_cinema/${id}`, {
     method: 'DELETE',
-    headers: {
-      'Authorization': `Bearer ${XANO_API_KEY}`,
-    },
+    headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete cinema line item");
 }
@@ -2050,10 +2007,7 @@ export async function getDigitalAudioLineItemsByMBA(mbaNumber: string, mediaPlan
       console.log(`[API] Fetching digital audio line items for MBA ${mbaNumber} without version number`);
     }
     const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${XANO_API_KEY}`,
-      }
+      headers: xanoPostHeaderRecord()
     });
     if (!response.ok) {
       throw new Error("Failed to fetch digital audio line items");
@@ -2068,7 +2022,7 @@ export async function getDigitalAudioLineItemsByMBA(mbaNumber: string, mediaPlan
 export async function createDigitalAudioLineItem(data: Partial<DigitalAudioLineItem>): Promise<DigitalAudioLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_audio`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create digital audio line item");
@@ -2080,7 +2034,7 @@ export async function updateDigitalAudioLineItem(id: number, data: Partial<Digit
 
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_audio/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update digital audio line item");
@@ -2090,6 +2044,7 @@ export async function updateDigitalAudioLineItem(id: number, data: Partial<Digit
 export async function deleteDigitalAudioLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_audio/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete digital audio line item");
 }
@@ -2107,7 +2062,7 @@ export async function getBVODLineItemsByMBA(mbaNumber: string, mediaPlanVersion?
     } else {
       console.log(`[API] Fetching BVOD line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       throw new Error("Failed to fetch BVOD line items");
     }
@@ -2121,6 +2076,7 @@ export async function getBVODLineItemsByMBA(mbaNumber: string, mediaPlanVersion?
 export async function deleteBVODLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_bvod/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete BVOD line item");
 }
@@ -2138,7 +2094,7 @@ export async function getDigitalDisplayLineItemsByMBA(mbaNumber: string, mediaPl
     } else {
       console.log(`[API] Fetching digital display line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       throw new Error("Failed to fetch digital display line items");
     }
@@ -2152,7 +2108,7 @@ export async function getDigitalDisplayLineItemsByMBA(mbaNumber: string, mediaPl
 export async function createDigitalDisplayLineItem(data: Partial<DigitalDisplayLineItem>): Promise<DigitalDisplayLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_display`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create digital display line item");
@@ -2164,7 +2120,7 @@ export async function updateDigitalDisplayLineItem(id: number, data: Partial<Dig
 
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_display/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update digital display line item");
@@ -2174,6 +2130,7 @@ export async function updateDigitalDisplayLineItem(id: number, data: Partial<Dig
 export async function deleteDigitalDisplayLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_display/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete digital display line item");
 }
@@ -2191,7 +2148,7 @@ export async function getDigitalVideoLineItemsByMBA(mbaNumber: string, mediaPlan
     } else {
       console.log(`[API] Fetching digital video line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       throw new Error("Failed to fetch digital video line items");
     }
@@ -2205,7 +2162,7 @@ export async function getDigitalVideoLineItemsByMBA(mbaNumber: string, mediaPlan
 export async function createDigitalVideoLineItem(data: Partial<DigitalVideoLineItem>): Promise<DigitalVideoLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_video`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create digital video line item");
@@ -2217,7 +2174,7 @@ export async function updateDigitalVideoLineItem(id: number, data: Partial<Digit
 
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_video/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update digital video line item");
@@ -2227,6 +2184,7 @@ export async function updateDigitalVideoLineItem(id: number, data: Partial<Digit
 export async function deleteDigitalVideoLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_video/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete digital video line item");
 }
@@ -2244,7 +2202,7 @@ export async function getMagazinesLineItemsByMBA(mbaNumber: string, mediaPlanVer
     } else {
       console.log(`[API] Fetching magazines line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       throw new Error("Failed to fetch magazines line items");
     }
@@ -2258,7 +2216,7 @@ export async function getMagazinesLineItemsByMBA(mbaNumber: string, mediaPlanVer
 export async function createMagazinesLineItem(data: Partial<MagazinesLineItem>): Promise<MagazinesLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_magazines`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create magazines line item");
@@ -2270,7 +2228,7 @@ export async function updateMagazinesLineItem(id: number, data: Partial<Magazine
 
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_magazines/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update magazines line item");
@@ -2280,6 +2238,7 @@ export async function updateMagazinesLineItem(id: number, data: Partial<Magazine
 export async function deleteMagazinesLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_magazines/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete magazines line item");
 }
@@ -2297,7 +2256,7 @@ export async function getNewspaperLineItemsByMBA(mbaNumber: string, mediaPlanVer
     } else {
       console.log(`[API] Fetching newspaper line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       throw new Error("Failed to fetch newspaper line items");
     }
@@ -2311,7 +2270,7 @@ export async function getNewspaperLineItemsByMBA(mbaNumber: string, mediaPlanVer
 export async function createNewspaperLineItem(data: Partial<NewspaperLineItem>): Promise<NewspaperLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_newspaper`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create newspaper line item");
@@ -2321,7 +2280,7 @@ export async function createNewspaperLineItem(data: Partial<NewspaperLineItem>):
 export async function updateNewspaperLineItem(id: number, data: Partial<NewspaperLineItem>): Promise<NewspaperLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_newspaper/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to update newspaper line item");
@@ -2331,6 +2290,7 @@ export async function updateNewspaperLineItem(id: number, data: Partial<Newspape
 export async function deleteNewspaperLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_newspaper/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete newspaper line item");
 }
@@ -2348,7 +2308,7 @@ export async function getOOHLineItemsByMBA(mbaNumber: string, mediaPlanVersion?:
     } else {
       console.log(`[API] Fetching OOH line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       throw new Error("Failed to fetch OOH line items");
     }
@@ -2362,7 +2322,7 @@ export async function getOOHLineItemsByMBA(mbaNumber: string, mediaPlanVersion?:
 export async function createOOHLineItem(data: Partial<OOHLineItem>): Promise<OOHLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_ooh`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create OOH line item");
@@ -2374,7 +2334,7 @@ export async function updateOOHLineItem(id: number, data: Partial<OOHLineItem>):
 
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_ooh/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update OOH line item");
@@ -2384,6 +2344,7 @@ export async function updateOOHLineItem(id: number, data: Partial<OOHLineItem>):
 export async function deleteOOHLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_ooh/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete OOH line item");
 }
@@ -2401,7 +2362,7 @@ export async function getProgAudioLineItemsByMBA(mbaNumber: string, mediaPlanVer
     } else {
       console.log(`[API] Fetching programmatic audio line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       throw new Error("Failed to fetch programmatic audio line items");
     }
@@ -2415,7 +2376,7 @@ export async function getProgAudioLineItemsByMBA(mbaNumber: string, mediaPlanVer
 export async function createProgAudioLineItem(data: Partial<ProgAudioLineItem>): Promise<ProgAudioLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_audio`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create programmatic audio line item");
@@ -2427,7 +2388,7 @@ export async function updateProgAudioLineItem(id: number, data: Partial<ProgAudi
 
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_audio/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update programmatic audio line item");
@@ -2437,6 +2398,7 @@ export async function updateProgAudioLineItem(id: number, data: Partial<ProgAudi
 export async function deleteProgAudioLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_audio/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete programmatic audio line item");
 }
@@ -2454,7 +2416,7 @@ export async function getProgBVODLineItemsByMBA(mbaNumber: string, mediaPlanVers
     } else {
       console.log(`[API] Fetching programmatic BVOD line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       throw new Error("Failed to fetch programmatic BVOD line items");
     }
@@ -2468,7 +2430,7 @@ export async function getProgBVODLineItemsByMBA(mbaNumber: string, mediaPlanVers
 export async function createProgBVODLineItem(data: Partial<ProgBVODLineItem>): Promise<ProgBVODLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_bvod`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create programmatic BVOD line item");
@@ -2480,7 +2442,7 @@ export async function updateProgBVODLineItem(id: number, data: Partial<ProgBVODL
 
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_bvod/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update programmatic BVOD line item");
@@ -2490,6 +2452,7 @@ export async function updateProgBVODLineItem(id: number, data: Partial<ProgBVODL
 export async function deleteProgBVODLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_bvod/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete programmatic BVOD line item");
 }
@@ -2507,7 +2470,7 @@ export async function getProgDisplayLineItemsByMBA(mbaNumber: string, mediaPlanV
     } else {
       console.log(`[API] Fetching programmatic display line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       throw new Error("Failed to fetch programmatic display line items");
     }
@@ -2521,7 +2484,7 @@ export async function getProgDisplayLineItemsByMBA(mbaNumber: string, mediaPlanV
 export async function createProgDisplayLineItem(data: Partial<ProgDisplayLineItem>): Promise<ProgDisplayLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_display`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create programmatic display line item");
@@ -2533,7 +2496,7 @@ export async function updateProgDisplayLineItem(id: number, data: Partial<ProgDi
 
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_display/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update programmatic display line item");
@@ -2543,6 +2506,7 @@ export async function updateProgDisplayLineItem(id: number, data: Partial<ProgDi
 export async function deleteProgDisplayLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_display/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete programmatic display line item");
 }
@@ -2560,7 +2524,7 @@ export async function getProgOOHLineItemsByMBA(mbaNumber: string, mediaPlanVersi
     } else {
       console.log(`[API] Fetching programmatic OOH line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       throw new Error("Failed to fetch programmatic OOH line items");
     }
@@ -2574,7 +2538,7 @@ export async function getProgOOHLineItemsByMBA(mbaNumber: string, mediaPlanVersi
 export async function createProgOOHLineItem(data: Partial<ProgOOHLineItem>): Promise<ProgOOHLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_ooh`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create programmatic OOH line item");
@@ -2586,7 +2550,7 @@ export async function updateProgOOHLineItem(id: number, data: Partial<ProgOOHLin
 
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_ooh/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update programmatic OOH line item");
@@ -2596,6 +2560,7 @@ export async function updateProgOOHLineItem(id: number, data: Partial<ProgOOHLin
 export async function deleteProgOOHLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_ooh/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete programmatic OOH line item");
 }
@@ -2632,6 +2597,7 @@ export async function getProgVideoLineItemsByMBA(mbaNumber: string, mediaPlanVer
 export async function deleteProgVideoLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_video/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete programmatic video line item");
 }
@@ -2649,7 +2615,7 @@ export async function getRadioLineItemsByMBA(mbaNumber: string, mediaPlanVersion
     } else {
       console.log(`[API] Fetching radio line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       // Handle 404 gracefully - just means no line items exist yet
       if (response.status === 404) {
@@ -2669,7 +2635,7 @@ export async function getRadioLineItemsByMBA(mbaNumber: string, mediaPlanVersion
 export async function createRadioLineItem(data: Partial<RadioLineItem>): Promise<RadioLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_radio`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create radio line item");
@@ -2681,7 +2647,7 @@ export async function updateRadioLineItem(id: number, data: Partial<RadioLineIte
 
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_radio/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update radio line item");
@@ -2691,6 +2657,7 @@ export async function updateRadioLineItem(id: number, data: Partial<RadioLineIte
 export async function deleteRadioLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_radio/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete radio line item");
 }
@@ -2708,7 +2675,7 @@ export async function getSearchLineItemsByMBA(mbaNumber: string, mediaPlanVersio
     } else {
       console.log(`[API] Fetching search line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       // Handle 404 gracefully - just means no line items exist yet
       if (response.status === 404) {
@@ -2729,7 +2696,7 @@ export async function getSearchLineItemsByMBA(mbaNumber: string, mediaPlanVersio
 export async function createSearchLineItem(data: Partial<SearchLineItem>): Promise<SearchLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_search`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create search line item");
@@ -2741,7 +2708,7 @@ export async function updateSearchLineItem(id: number, data: Partial<SearchLineI
 
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_search/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(payload),
   });
   if (!response.ok) throw new Error("Failed to update search line item");
@@ -2751,6 +2718,7 @@ export async function updateSearchLineItem(id: number, data: Partial<SearchLineI
 export async function deleteSearchLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_search/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete search line item");
 }
@@ -2769,7 +2737,7 @@ export async function getProductionLineItemsByMBA(mbaNumber: string, mediaPlanVe
       console.log(`[API] Fetching production line items for MBA ${mbaNumber} without version number`);
     }
 
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       if (response.status === 404) {
         console.log(`[API] No production line items found for MBA ${mbaNumber} (404)`);
@@ -2899,7 +2867,7 @@ export async function getSocialMediaLineItemsByMBA(mbaNumber: string, mediaPlanV
     } else {
       console.log(`[API] Fetching social media line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       // Handle 404 gracefully - just means no line items exist yet
       if (response.status === 404) {
@@ -2930,7 +2898,7 @@ export async function getSocialMediaLineItemsByMBA(mbaNumber: string, mediaPlanV
 export async function createSocialMediaLineItem(data: Partial<SocialMediaLineItem>): Promise<SocialMediaLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_social`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create social media line item");
@@ -2940,7 +2908,7 @@ export async function createSocialMediaLineItem(data: Partial<SocialMediaLineIte
 export async function updateSocialMediaLineItem(id: number, data: Partial<SocialMediaLineItem>): Promise<SocialMediaLineItem> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_social/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to update social media line item");
@@ -2950,6 +2918,7 @@ export async function updateSocialMediaLineItem(id: number, data: Partial<Social
 export async function deleteSocialMediaLineItem(id: number): Promise<void> {
   const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_social/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete social media line item");
 }
@@ -2967,7 +2936,7 @@ export async function getTelevisionLineItemsByMBA(mbaNumber: string, mediaPlanVe
     } else {
       console.log(`[API] Fetching television line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       // Handle 404 gracefully - just means no line items exist yet
       if (response.status === 404) {
@@ -2996,7 +2965,7 @@ export async function getTelevisionLineItemsByMBA(mbaNumber: string, mediaPlanVe
 export async function createTelevisionLineItem(data: Partial<TelevisionLineItem>): Promise<TelevisionLineItem> {
   const response = await fetch(`/api/media_plans/television`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to create television line item");
@@ -3006,7 +2975,7 @@ export async function createTelevisionLineItem(data: Partial<TelevisionLineItem>
 export async function updateTelevisionLineItem(id: number, data: Partial<TelevisionLineItem>): Promise<TelevisionLineItem> {
   const response = await fetch(`/api/media_plans/television/${id}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
+    headers: xanoPostHeaderRecord(),
     body: JSON.stringify(data),
   });
   if (!response.ok) throw new Error("Failed to update television line item");
@@ -3016,6 +2985,7 @@ export async function updateTelevisionLineItem(id: number, data: Partial<Televis
 export async function deleteTelevisionLineItem(id: number): Promise<void> {
   const response = await fetch(`/api/media_plans/television/${id}`, {
     method: 'DELETE',
+  headers: xanoAuthHeaderRecord(),
   });
   if (!response.ok) throw new Error("Failed to delete television line item");
 }
@@ -3033,7 +3003,7 @@ export async function getIntegrationLineItemsByMBA(mbaNumber: string, mediaPlanV
     } else {
       console.log(`[API] Fetching integration line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       // Handle 404 gracefully - just means no line items exist yet
       if (response.status === 404) {
@@ -3062,7 +3032,7 @@ export async function getInfluencersLineItemsByMBA(mbaNumber: string, mediaPlanV
     } else {
       console.log(`[API] Fetching influencers line items for MBA ${mbaNumber} without version number`);
     }
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() });
     if (!response.ok) {
       // Handle 404 gracefully - just means no line items exist yet
       if (response.status === 404) {

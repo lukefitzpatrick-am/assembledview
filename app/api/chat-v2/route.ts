@@ -5,7 +5,6 @@
  */
 
 import { NextRequest, NextResponse } from "next/server"
-import type { ChatCompletionMessageParam } from "openai/resources/index.mjs"
 import type Anthropic from "@anthropic-ai/sdk"
 import { type ChatMode } from "@/src/ava/modes"
 import { auth0 } from "@/lib/auth0"
@@ -28,6 +27,12 @@ export const dynamic = "force-dynamic"
 /** Multi-tool Claude turns can exceed the default serverless limit; streaming is a later phase. */
 export const maxDuration = 60
 
+/** Minimal inbound chat message shape (previously openai ChatApiMessage). */
+type ChatApiMessage = {
+  role: string
+  content?: unknown
+}
+
 const AVA_V2_APPENDIX = `
 You are AVA, the AssembledView AI assistant. Respond in Australian English — short, direct sentences with a warm, personable voice (see voice rules).
 
@@ -37,6 +42,8 @@ Reach for this when:
 - get_campaign_context — need MBA master/version summary or compact line items; start here when page context already has client/MBA identifiers
 - get_media_plan_summary — lighter plan text summary when full line-item detail is not needed
 - get_client_details — client fees, brand colour, or whether platform IDs are populated
+- get_client_brain — marketing brain + profile links; call BEFORE writing ad copy, commentary, or insights for a client. Honour Tone and Compliance & never-say as hard constraints. If empty, offer the client-marketing-brain skill.
+- save_client_brain — persist a drafted marketing brain (and empty link fields only unless overwrite_links)
 - get_pacing_snapshot — pacing/delivery story for a client or MBA (cached channel rows)
 - get_creative_assets — creative files attached to an MBA
 - get_naming_rules — naming template order or a composed name preview
@@ -59,11 +66,13 @@ ${AVA_MI_INTERVIEW_GUIDANCE}
 
 ${AVA_SKILL_GUIDANCE}
 
-Never return JSON reply contracts in prose. After apply_form_patch, confirm changes in plain English.
+Client marketing brain — when writing ad copy, commentary, or insights for a client, call get_client_brain first and honour its Tone and Compliance & never-say sections as hard constraints. If empty, say so and offer to run the client-marketing-brain skill. Use web_search when researching for that skill (official site/socials, category, competitors) — not for routine chat.
+
+Never return JSON reply contracts in prose. Before a write (apply_form_patch, apply_parsed_plan, adjust_line_items, save_client_brain), say in one short sentence what you're about to change; make the change; then confirm what changed in plain English. For apply_parsed_plan / adjust_line_items / save_client_brain(confirm) the explicit user confirm still comes first — never skip it.
 `.trim()
 
 type ChatRequestBody = {
-  messages?: ChatCompletionMessageParam[]
+  messages?: ChatApiMessage[]
   pageContext?: PageContext
   mode?: ChatMode
   /** Pending parsed plan from AVA xlsx attach (same-turn confirm → apply_parsed_plan). */
@@ -163,6 +172,7 @@ export async function POST(req: NextRequest) {
       systemPrompt,
       messages: anthropicMessages,
       context,
+      enableWebSearch: true,
     })
 
     return NextResponse.json({
@@ -256,7 +266,7 @@ function deriveAvaIdentifiers(pageContext?: PageContext): {
   return fromEntities
 }
 
-function sanitiseMessages(messages: ChatCompletionMessageParam[]): ChatCompletionMessageParam[] {
+function sanitiseMessages(messages: ChatApiMessage[]): ChatApiMessage[] {
   if (!Array.isArray(messages)) return []
   return messages.filter((message) => {
     const role = message?.role
@@ -264,7 +274,7 @@ function sanitiseMessages(messages: ChatCompletionMessageParam[]): ChatCompletio
   })
 }
 
-function extractOpenAiMessageText(msg: ChatCompletionMessageParam): string {
+function extractOpenAiMessageText(msg: ChatApiMessage): string {
   const raw = msg as { content?: unknown }
   const c = raw.content
   if (typeof c === "string") return c
@@ -285,7 +295,7 @@ function extractOpenAiMessageText(msg: ChatCompletionMessageParam): string {
   return parts.join("")
 }
 
-function toAnthropicMessages(messages: ChatCompletionMessageParam[]): Anthropic.MessageParam[] {
+function toAnthropicMessages(messages: ChatApiMessage[]): Anthropic.MessageParam[] {
   const out: Anthropic.MessageParam[] = []
   for (const msg of messages) {
     const role = msg.role

@@ -1,5 +1,6 @@
 import { formatMoney, parseMoneyInput, type MoneyFormatOptions } from "@/lib/format/money"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
+import { formatBurstDateLocal } from "@/lib/mediaplan/burstDate"
 
 const MONEY_FORMAT_OPTIONS: MoneyFormatOptions = {
   locale: "en-AU",
@@ -35,8 +36,10 @@ function formatStringOrMoney(value: string | number | undefined): string {
 }
 
 function formatBurstDate(value: Date | string | undefined): string {
-  if (value instanceof Date) return value.toISOString()
-  if (typeof value === "string") return value
+  if (value == null || value === "") return ""
+  if (value instanceof Date || typeof value === "string") {
+    return formatBurstDateLocal(value)
+  }
   return ""
 }
 

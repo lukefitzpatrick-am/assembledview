@@ -3,7 +3,7 @@
  * Sources fold existing warnings — this does not invent a second validation engine.
  */
 
-export type BuilderIssueSeverity = "warning" | "error"
+type BuilderIssueSeverity = "warning" | "error"
 
 export type BuilderIssue = {
   id: string

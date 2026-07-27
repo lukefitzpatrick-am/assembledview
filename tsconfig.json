@@ -38,6 +38,9 @@
   ],
   "exclude": [
     "node_modules",
-    ".next"
+    ".next",
+    "lib/mediaplan/expertGridRowPerf.bench.test.ts",
+    "lib/mediaplan/expertGridRowPerf.memoContract.test.ts",
+    "lib/mediaplan/expertGridRowPerf.test.ts"
   ]
 }

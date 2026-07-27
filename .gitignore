@@ -46,3 +46,5 @@ lint-full.txt
 tmp-slide16-test.pptx
 *.zip
 xano-metadata-token.txt
+
+.worktrees/

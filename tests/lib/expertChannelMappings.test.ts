@@ -256,8 +256,6 @@ test("OOH and ProgOOH expert CPM gross budget match for same qty and rate", () =
         buyType: "cpm",
         creativeTargeting: "",
         creative: "",
-        placement: "",
-        size: "",
         buyingDemo: "",
         market: "",
         fixedCostMedia: false,

@@ -105,8 +105,14 @@ export function Combobox({
           disabled={disabled}
           onFocus={() => onTriggerFocus?.()}
         >
-          <span className={cn("truncate", !selected ? "text-muted-foreground" : undefined, className)}>
-            {selected ? selected.label : placeholder}
+          <span
+            className={cn(
+              "truncate",
+              !selected && !value ? "text-muted-foreground" : undefined,
+              className
+            )}
+          >
+            {selected ? selected.label : value ? value : placeholder}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>

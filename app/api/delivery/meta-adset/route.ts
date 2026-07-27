@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
+import { auth0 } from "@/lib/auth0"
+import { getUserRoles, getUserMbaNumbers } from "@/lib/rbac"
+import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { querySnowflake } from "@/lib/snowflake/query"
 
 export const dynamic = "force-dynamic"
@@ -37,42 +40,89 @@ function isSnowflakeConfigured() {
   return { ok: missing.length === 0 && hasKey, missing, hasKey }
 }
 
+function emptyMetaResponse(
+  limit: number,
+  filters: { mbaNumber: string | null; startDate: string | null; endDate: string | null },
+  extra?: Record<string, unknown>
+) {
+  return NextResponse.json({ rows: [], limit, filters, ...extra })
+}
+
 export async function GET(request: NextRequest) {
   try {
+    const session = await auth0.getSession(request)
+    if (!session?.user) {
+      return NextResponse.json({ error: "unauthorised" }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
-    const mbaNumber = searchParams.get("mbaNumber")
+    let mbaNumber = searchParams.get("mbaNumber")?.trim() || null
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
     const limit = clampLimit(searchParams.get("limit"))
+    const filters = { mbaNumber, startDate, endDate }
+
+    const roles = getUserRoles(session.user)
+    const isAdmin = roles.includes("admin")
+    const isManager = roles.includes("manager")
+
+    // AuthZ: no bare "return all" — tenant/MBA scope required except admin; clients must pass access check.
+    if (roles.includes("client")) {
+      if (!mbaNumber) return emptyMetaResponse(limit, filters)
+      const access = await checkClientMbaAccess(request, mbaNumber)
+      if (!access.ok) return access.response
+    } else if (!isAdmin) {
+      if (!isManager) return emptyMetaResponse(limit, filters)
+      if (!mbaNumber) {
+        const assigned = getUserMbaNumbers(session.user)
+        if (assigned.length === 1) {
+          mbaNumber = assigned[0]
+          filters.mbaNumber = mbaNumber
+        } else {
+          // Fail closed: managers without a single MBA must not see the whole book.
+          return emptyMetaResponse(limit, filters, {
+            warning: assigned.length > 1 ? "mbaNumber is required when multiple MBAs are assigned" : undefined,
+          })
+        }
+      } else {
+        const assigned = getUserMbaNumbers(session.user)
+        if (
+          assigned.length > 0 &&
+          !assigned.some((mba) => mba.toLowerCase() === mbaNumber!.toLowerCase())
+        ) {
+          return NextResponse.json({ error: "forbidden" }, { status: 403 })
+        }
+      }
+    }
 
     const snowflakeState = isSnowflakeConfigured()
     if (!snowflakeState.ok) {
       console.warn("[api/delivery/meta-adset] Snowflake not configured, returning empty set", snowflakeState)
-      return NextResponse.json({
-        rows: [],
-        limit,
-        filters: { mbaNumber, startDate, endDate },
+      return emptyMetaResponse(limit, filters, {
         warning: "Snowflake not configured; returning empty results",
       })
     }
 
-    const filters: string[] = []
-    const binds: any[] = []
+    const sqlFilters: string[] = []
+    const binds: unknown[] = []
 
     if (mbaNumber) {
-      filters.push(`LOWER("ADSET_NAME") LIKE ?`)
+      sqlFilters.push(`LOWER("ADSET_NAME") LIKE ?`)
       binds.push(`%${mbaNumber.toLowerCase()}%`)
+    } else if (!isAdmin) {
+      return emptyMetaResponse(limit, filters)
     }
+
     if (startDate) {
-      filters.push(`"DATE" >= ?`)
+      sqlFilters.push(`"DATE" >= ?`)
       binds.push(startDate)
     }
     if (endDate) {
-      filters.push(`"DATE" <= ?`)
+      sqlFilters.push(`"DATE" <= ?`)
       binds.push(endDate)
     }
 
-    const whereClause = filters.length ? `WHERE ${filters.join(" AND ")}` : ""
+    const whereClause = sqlFilters.length ? `WHERE ${sqlFilters.join(" AND ")}` : ""
 
     const sql = `
       SELECT
@@ -96,20 +146,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       rows,
       limit,
-      filters: {
-        mbaNumber,
-        startDate,
-        endDate,
-      },
+      filters: { mbaNumber, startDate, endDate },
     })
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("[api/delivery/meta-adset]", err)
-    const message = err?.message ?? String(err)
+    const message = err instanceof Error ? err.message : String(err)
     return NextResponse.json(
-      {
-        error: "Failed to fetch Meta delivery rows",
-        message,
-      },
+      { error: "Failed to fetch Meta delivery rows", message },
       { status: 500 }
     )
   }

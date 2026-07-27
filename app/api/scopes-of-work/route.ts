@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
 import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { requireRole } from "@/lib/requireRole"
 
 const PER_ATTEMPT_TIMEOUT_MS = 8_000
 const MAX_ATTEMPTS = 2
@@ -51,8 +52,12 @@ async function retryApiCall<T>(apiCall: () => Promise<T>): Promise<T> {
   throw lastError
 }
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   try {
+    // AuthZ: SOWs are internal; client role must not list the book (403).
+    const gate = await requireRole(req, ["admin", "manager"])
+    if ("response" in gate) return gate.response
+
     const { searchParams } = new URL(req.url)
     const status = searchParams.get("status")
 
@@ -79,8 +84,12 @@ export async function GET(req: Request) {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    // AuthZ: SOW create is internal; client role must not create (403).
+    const gate = await requireRole(req, ["admin", "manager"])
+    if ("response" in gate) return gate.response
+
     const body = await req.json()
     console.log("Request body:", JSON.stringify(body, null, 2))
 

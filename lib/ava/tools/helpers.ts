@@ -26,10 +26,9 @@ export function jsonContent(payload: unknown): string {
   }
 }
 
-/** Admin or empty tenant claims → unscoped (matches pacingAuth). */
+/** Admin only → unscoped; empty tenant claims fail closed (matches pacingAuth). */
 export function isUnscopedAvaAccess(context: AvaToolContext): boolean {
-  if (context.roles.includes("admin")) return true
-  return !context.clientSlugs?.length
+  return context.roles.includes("admin")
 }
 
 export function resolveScopedClientSlug(
@@ -61,8 +60,15 @@ export function resolveScopedMba(
   requested?: string | null,
 ): { ok: true; mba?: string } | { ok: false; error: string } {
   const want = (requested || context.mbaNumber || "").trim()
-  if (isUnscopedAvaAccess(context) || !context.mbaNumbers?.length) {
+  // AuthZ: only admin is unscoped; empty MBA claims do not open the book.
+  if (isUnscopedAvaAccess(context)) {
     return { ok: true, mba: want || undefined }
+  }
+  if (!context.mbaNumbers?.length) {
+    return {
+      ok: false,
+      error: "No MBA numbers on this session; cannot resolve scoped MBA access.",
+    }
   }
   if (!want) {
     return {

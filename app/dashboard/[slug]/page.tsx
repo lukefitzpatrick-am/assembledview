@@ -11,10 +11,26 @@ interface ClientDashboardProps {
   params: Promise<{
     slug: string
   }>
+  searchParams?: Promise<{ fy?: string | string[] }>
 }
 
-export default async function ClientDashboard({ params }: ClientDashboardProps) {
+/** Logo from the group anchor row (same branding source as clientName / brandColour). */
+function logoFromClientRecord(clientRecord: Record<string, unknown> | null | undefined): string | undefined {
+  if (!clientRecord) return undefined
+  if (typeof clientRecord.logo === 'string' && clientRecord.logo.trim()) return clientRecord.logo
+  if (typeof clientRecord.client_logo === 'string' && clientRecord.client_logo.trim()) {
+    return clientRecord.client_logo
+  }
+  return undefined
+}
+
+export default async function ClientDashboard({ params, searchParams }: ClientDashboardProps) {
   const { slug } = await params
+  const sp = searchParams ? await searchParams : undefined
+  const fyRaw = Array.isArray(sp?.fy) ? sp?.fy[0] : sp?.fy
+  const fyNum = Number(fyRaw)
+  const financialYearStartYear =
+    Number.isInteger(fyNum) && fyNum >= 2015 && fyNum <= 2100 ? fyNum : undefined
   const session = await auth0.getSession()
   const user = session?.user
   const role = getPrimaryRole(user)
@@ -56,18 +72,16 @@ export default async function ClientDashboard({ params }: ClientDashboardProps) 
   let error: string | null = null
 
   try {
+    // fetchXanoClientRowByUrlSlug resolves via resolveClientGroup → group.anchor
+    // so mbaidentifier-slugs (penfold) keep the same logo as name-slugs (penfolds).
     const [data, clientRecord] = await Promise.all([
-      getClientDashboardData(slug),
+      getClientDashboardData(slug, { financialYearStartYear }),
       fetchXanoClientRowByUrlSlug(slug),
     ])
     if (data) {
-      const clientLogo =
-        typeof clientRecord?.logo === 'string' && clientRecord.logo.trim()
-          ? clientRecord.logo
-          : typeof clientRecord?.client_logo === 'string' && clientRecord.client_logo.trim()
-            ? clientRecord.client_logo
-            : undefined
-      clientData = { ...data, clientRecord, ...(clientLogo !== undefined ? { clientLogo } : {}) }
+      // Tenant surface: logo only — never ship clientRecord into RSC props.
+      const clientLogo = logoFromClientRecord(clientRecord)
+      clientData = { ...data, ...(clientLogo !== undefined ? { clientLogo } : {}) }
     } else {
       clientData = null
     }

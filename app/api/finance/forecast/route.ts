@@ -68,7 +68,10 @@ export async function GET(request: NextRequest) {
 
   const isAdmin = roles.includes("admin")
   const tenantSlugs = getUserClientSlugs(session.user)
-  const allowedClientSlugs = !isAdmin && tenantSlugs.length > 0 ? new Set(tenantSlugs) : null
+  // AuthZ: unrestricted forecast is admin-only; non-admin with no slug scope → empty set (fail closed).
+  const allowedClientSlugs = isAdmin
+    ? null
+    : new Set(tenantSlugs)
 
   const debugParam = sp.get("debug")
   const includeRowDebug = debugParam === "1" || debugParam === "true" || debugParam === "yes"

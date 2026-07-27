@@ -33,7 +33,7 @@ type SpendChartsRowProps = {
   brandColour?: string
   /** Line items by media type — used for spend-by-publisher chart */
   lineItemsMap?: Record<string, NormalisedLineItem[] | any[]>
-  /** Prorated planned spend to date (matches campaign summary when monthly data exists) */
+  /** Prorated planned media to date (matches campaign summary Expected Spend) */
   campaignSpendToDate?: number
 }
 
@@ -464,12 +464,12 @@ export default function SpendChartsRow({
     return (
       <Panel className="border-border/60 bg-card shadow-none">
         <PanelHeader className="p-4">
-          <PanelTitle className="text-base">Spend &amp; delivery insights</PanelTitle>
+          <PanelTitle className="text-base">Planned media insights</PanelTitle>
         </PanelHeader>
         <PanelContent standalone>
           <EmptyState
             className="border-0 bg-transparent"
-            title="No spend data available for this period"
+            title="No planned media data available for this period"
             message="Try adjusting your selected date range and refresh."
           />
         </PanelContent>
@@ -481,8 +481,8 @@ export default function SpendChartsRow({
     <section className="w-full space-y-4 rounded-2xl border border-border/60 bg-card p-4 md:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
-          <h3 className="text-lg font-semibold tracking-tight text-foreground">Spend &amp; delivery insights</h3>
-          <p className="text-sm text-muted-foreground">Channel distribution and monthly trends</p>
+          <h3 className="text-lg font-semibold tracking-tight text-foreground">Planned media insights</h3>
+          <p className="text-sm text-muted-foreground">Planned channel mix and monthly media (not delivered spend)</p>
         </div>
         {dateRangeLabel ? (
           <span className="inline-flex rounded-full border border-border/60 bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
@@ -494,19 +494,19 @@ export default function SpendChartsRow({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Panel className="border-border/60 bg-background/80 shadow-none">
           <PanelContent standalone className="p-4">
-            <p className="text-xs text-muted-foreground">Total spend to date</p>
+            <p className="text-xs text-muted-foreground">Planned to date</p>
             <p className="text-lg font-semibold">{currency(totalSpendToDate)}</p>
           </PanelContent>
         </Panel>
         <Panel className="border-border/60 bg-background/80 shadow-none">
           <PanelContent standalone className="p-4">
-            <p className="text-xs text-muted-foreground">Largest channel</p>
+            <p className="text-xs text-muted-foreground">Largest planned channel</p>
             <p className="text-lg font-semibold">{largestChannel}</p>
           </PanelContent>
         </Panel>
         <Panel className="border-border/60 bg-background/80 shadow-none">
           <PanelContent standalone className="p-4">
-            <p className="text-xs text-muted-foreground">Month with highest spend</p>
+            <p className="text-xs text-muted-foreground">Month with highest planned media</p>
             <p className="text-lg font-semibold">{monthWithHighestSpend}</p>
           </PanelContent>
         </Panel>
@@ -514,7 +514,7 @@ export default function SpendChartsRow({
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
         <BaseChartCard
-          title="Spend by Media Type"
+          title="Planned media by type"
           subtitle={`Total: ${chartFmt.currencyCompact(mediaChannelTotal)}`}
         >
           {mediaChannelTotal > 0 ? (
@@ -529,21 +529,21 @@ export default function SpendChartsRow({
           ) : (
             <EmptyState
               className={`${CHART_EMPTY_CLASS} border-0 bg-transparent`}
-              title="No spend data available"
+              title="No planned media data available"
               message={null}
             />
           )}
         </BaseChartCard>
 
         <BaseChartCard
-          title="Spend by Publisher"
-          subtitle="Top publishers by gross media investment"
+          title="Planned media by publisher"
+          subtitle="Top publishers by planned gross media"
         >
           {publisherBarData.length > 0 && publisherTotal > 0 ? (
             <HorizontalBarChart
               data={publisherBarData}
               xKey="cat"
-              series={[{ key: "value", label: "Spend" }]}
+              series={[{ key: "value", label: "Planned" }]}
               valueFormat="dollars"
               plotHeight={CHART_PLOT_HEIGHT}
               className="w-full"
@@ -551,7 +551,7 @@ export default function SpendChartsRow({
           ) : (
             <EmptyState
               className={`${CHART_EMPTY_CLASS} border-0 bg-transparent`}
-              title="No publisher spend from line items"
+              title="No publisher plan from line items"
               message={null}
             />
           )}
@@ -559,8 +559,8 @@ export default function SpendChartsRow({
       </div>
 
       <BaseChartCard
-        title="Monthly spend by channel"
-        subtitle={`Stacked gross media by month · As at ${asAtDate}`}
+        title="Planned media by month"
+        subtitle={`gross media by month, planned · As at ${asAtDate}`}
       >
         <StackedBarChart
           data={pivotedMonthly}

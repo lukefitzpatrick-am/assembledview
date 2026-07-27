@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import axios from "axios"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import {
   getCachedMediaContainerBestPractice,
@@ -26,13 +26,10 @@ export async function POST(req: Request) {
   try {
     const body = await req.json()
     const currentUser = await getCurrentUser(req)
-    const response = await axios.post(
-      xanoUrl("media_container_best_practice", "XANO_PUBLISHERS_BASE_URL"),
-      {
+    const response = await axios.post(xanoUrl("media_container_best_practice", "XANO_PUBLISHERS_BASE_URL"), {
         ...body,
         _name: currentUser?.email ?? currentUser?.name ?? null,
-      },
-    )
+      }, { headers: xanoPostHeaderRecord() })
     invalidateMediaContainerBestPracticeCache()
     return NextResponse.json(response.data, { status: 201 })
   } catch (error) {

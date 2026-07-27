@@ -1,8 +1,14 @@
 import type ExcelJS from "exceljs"
+import {
+  DEFAULT_REPORT_METRICS,
+  metricDef,
+  type ReportMetricKey,
+} from "./metrics"
 import type { ReportDimension } from "./types"
 import type { SubtotalNode } from "./groupAndSubtotal"
 
 const currencyFmt = '"$"#,##0.00'
+const countFmt = "#,##0"
 const workbookMimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 const titleFill: ExcelJS.Fill = {
@@ -54,22 +60,29 @@ function styleMeasureCells(
   sheet: ExcelJS.Worksheet,
   row: number,
   measures: SubtotalNode["measures"],
+  metrics: ReportMetricKey[],
   options: { bold?: boolean; fill?: ExcelJS.Fill; fontSize?: number } = {}
 ) {
-  const values = [measures.totalBillable, measures.mediaSpend, measures.agencyFee]
-  values.forEach((value, index) => {
+  metrics.forEach((key, index) => {
+    const def = metricDef(key)
     styleCell(sheet.getCell(row, 3 + index), {
-      value,
+      value: measures[key] ?? 0,
       align: "right",
       bold: options.bold,
       fill: options.fill,
       fontSize: options.fontSize,
-      numFmt: currencyFmt,
+      numFmt: def.kind === "count" ? countFmt : currencyFmt,
     })
   })
 }
 
-function writeGroupRows(sheet: ExcelJS.Worksheet, node: SubtotalNode, depth: number, row: number): number {
+function writeGroupRows(
+  sheet: ExcelJS.Worksheet,
+  node: SubtotalNode,
+  depth: number,
+  row: number,
+  metrics: ReportMetricKey[]
+): number {
   const fill = subtotalFills[Math.min(depth, subtotalFills.length - 1)]
   styleCell(sheet.getCell(row, 1), {
     value: node.key,
@@ -82,11 +95,11 @@ function writeGroupRows(sheet: ExcelJS.Worksheet, node: SubtotalNode, depth: num
     bold: true,
     fill,
   })
-  styleMeasureCells(sheet, row, node.measures, { bold: true, fill })
+  styleMeasureCells(sheet, row, node.measures, metrics, { bold: true, fill })
 
   let nextRow = row + 1
   for (const child of node.children) {
-    nextRow = writeGroupRows(sheet, child, depth + 1, nextRow)
+    nextRow = writeGroupRows(sheet, child, depth + 1, nextRow, metrics)
   }
   return nextRow
 }
@@ -98,6 +111,7 @@ export type ReportExcelMeta = {
 export async function exportReportExcel(
   root: SubtotalNode,
   order: ReportDimension[],
+  metrics: ReportMetricKey[] = DEFAULT_REPORT_METRICS,
   meta: ReportExcelMeta = {}
 ): Promise<Blob> {
   const ExcelJS = (await import("exceljs")).default
@@ -106,15 +120,16 @@ export async function exportReportExcel(
     views: [{ state: "normal", showGridLines: false }],
   })
 
+  const selected = metrics.length > 0 ? metrics : DEFAULT_REPORT_METRICS
+  const colCount = 2 + selected.length
+
   sheet.columns = [
     { width: 34 },
     { width: 18 },
-    { width: 16 },
-    { width: 16 },
-    { width: 16 },
+    ...selected.map(() => ({ width: 16 })),
   ]
 
-  sheet.mergeCells(1, 1, 1, 5)
+  sheet.mergeCells(1, 1, 1, colCount)
   styleCell(sheet.getCell(1, 1), {
     value: "Finance subtotal report",
     bold: true,
@@ -128,10 +143,14 @@ export async function exportReportExcel(
     fill: headerFill,
   })
   styleCell(sheet.getCell(4, 1), { value: "Filter scope", bold: true, align: "right" })
-  styleCell(sheet.getCell(4, 2), { value: meta.filterLabel ?? "Current finance hub filters", fill: headerFill })
+  styleCell(sheet.getCell(4, 2), {
+    value: meta.filterLabel ?? "Current finance hub filters",
+    fill: headerFill,
+  })
 
   const headerRow = 6
-  ;["Group", "Dimension", "Total billable", "Media spend", "Agency fee"].forEach((label, index) => {
+  const headers = ["Group", "Dimension", ...selected.map((key) => metricDef(key).label)]
+  headers.forEach((label, index) => {
     styleCell(sheet.getCell(headerRow, index + 1), {
       value: label,
       bold: true,
@@ -142,7 +161,7 @@ export async function exportReportExcel(
 
   let row = headerRow + 1
   for (const child of root.children) {
-    row = writeGroupRows(sheet, child, 0, row)
+    row = writeGroupRows(sheet, child, 0, row, selected)
   }
 
   row += 1
@@ -158,7 +177,11 @@ export async function exportReportExcel(
     fontSize: 12,
     fill: headerFill,
   })
-  styleMeasureCells(sheet, row, root.measures, { bold: true, fill: headerFill, fontSize: 12 })
+  styleMeasureCells(sheet, row, root.measures, selected, {
+    bold: true,
+    fill: headerFill,
+    fontSize: 12,
+  })
 
   const buffer = await workbook.xlsx.writeBuffer()
   return new Blob([buffer], { type: workbookMimeType })

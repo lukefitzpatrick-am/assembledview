@@ -46,14 +46,19 @@ export function parsePersistedBillingScheduleToMonths(
 
   const sample = parsed[0] as Record<string, unknown> | undefined
   const mediaTypesRaw = sample?.mediaTypes ?? (sample as { media_types?: unknown }).media_types
+  // C1 / computeCampaignFinancials shape: month headers already present (mediaTotal +
+  // mediaCosts), optionally with lineItems. Must preserve as-is — the legacy mediaTypes
+  // rebuild path zeroes mediaCosts while keeping mediaTotal from totalAmount−fees, which
+  // then double-counts when edit-page append seeds line items (20k subtotal vs 10k columns).
   if (
     sample &&
     typeof sample === "object" &&
     typeof sample.monthYear === "string" &&
-    sample.lineItems &&
-    typeof sample.lineItems === "object" &&
-    !Array.isArray(sample.lineItems) &&
-    !Array.isArray(mediaTypesRaw)
+    !Array.isArray(mediaTypesRaw) &&
+    ("mediaTotal" in sample || "mediaCosts" in sample ||
+      (sample.lineItems &&
+        typeof sample.lineItems === "object" &&
+        !Array.isArray(sample.lineItems)))
   ) {
     return JSON.parse(JSON.stringify(parsed)) as BillingMonth[]
   }

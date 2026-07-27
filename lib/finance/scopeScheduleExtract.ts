@@ -82,6 +82,23 @@ export function extractLineItemsFromScopeSchedule(
     }
   }
 
+  // Flat monthly schedule (SOW create/edit): `{ month, cost }` with no nested lineItems/mediaTypes.
+  // Use that month's scheduled amount — do not fall through to the full scope cost total.
+  if (lineItems.length === 0) {
+    const flatAmount = parseBillingScheduleAmount(
+      (monthEntry.cost ?? monthEntry.amount) as string | number
+    )
+    if (flatAmount > 0) {
+      lineItems.push({
+        itemCode: "SOW",
+        mediaType: "Scope of Work",
+        description: String(monthEntry.month ?? monthEntry.monthYear ?? "Scope of Work"),
+        amount: flatAmount,
+        publisherName: null,
+      })
+    }
+  }
+
   return lineItems
 }
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
-import { getXanoBaseUrl } from "@/lib/api/xano"
+import { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { fetchBillingOverridesForVersion } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
@@ -48,10 +48,7 @@ export async function PATCH(
     let oldSchedule: unknown = null
     let versionRow: Record<string, unknown> | null = null
     try {
-      const currentVersionRes = await axios.get(
-        `${mediaPlansBaseUrl}/media_plan_versions/${encodeURIComponent(id)}`,
-        { timeout: XANO_LONG_TIMEOUT_MS }
-      )
+      const currentVersionRes = await axios.get(`${mediaPlansBaseUrl}/media_plan_versions/${encodeURIComponent(id)}`, { headers: xanoAuthHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS })
       versionRow =
         currentVersionRes.data && typeof currentVersionRes.data === "object"
           ? (currentVersionRes.data as Record<string, unknown>)
@@ -139,11 +136,7 @@ export async function PATCH(
       )
     }
 
-    const xanoResponse = await axios.patch(
-      `${mediaPlansBaseUrl}/media_plan_versions/${encodeURIComponent(id)}`,
-      patchPayload,
-      { timeout: XANO_LONG_TIMEOUT_MS }
-    )
+    const xanoResponse = await axios.patch(`${mediaPlansBaseUrl}/media_plan_versions/${encodeURIComponent(id)}`, patchPayload, { headers: xanoPostHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS })
 
     clearRelevantPlanVersionsCache()
 

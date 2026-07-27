@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoUrl, xanoAuthHeader } from '@/lib/api/xano'
 import { checkMediaDetailsProxyPath } from "@/lib/security/proxyAllowlist"
 
 type Params = { params: Promise<{ path: string[] }> }
@@ -32,10 +32,12 @@ async function proxyRequest(request: Request, { params }: Params, method: string
     const body =
       method === "GET" || method === "HEAD" ? undefined : await request.text()
 
+    // REVIEW: Route handler proxy — server-only; auth from process.env via xanoAuthHeader().
     const upstream = await fetch(url.toString(), {
       method,
       headers: {
-        "Content-Type": request.headers.get("content-type") || "application/json"
+        "Content-Type": request.headers.get("content-type") || "application/json",
+        ...xanoAuthHeader(),
       },
       body: body && body.length > 0 ? body : undefined
     })

@@ -6,7 +6,7 @@
 import type { BillingMonth } from "@/lib/billing/types"
 import type { BillingOverrideReason } from "@/lib/finance/campaignFinancials.types"
 import {
-  computeBillingOverrideDateBasisAsync,
+  computeBillingOverrideDateBasis,
   type BurstDateLike,
 } from "@/lib/finance/billingOverrideDateBasis"
 import {
@@ -102,7 +102,7 @@ export async function persistManualBillingOverrides(args: {
 
   for (const billingRowId of current.media) {
     const lineItemId = toBillingOverrideLineItemId(billingRowId)
-    const dateBasis = await computeBillingOverrideDateBasisAsync(getBurstsForLine(billingRowId))
+    const dateBasis = await computeBillingOverrideDateBasis(getBurstsForLine(billingRowId))
     await replaceBillingOverrideLineClient({
       media_plan_version_id: versionId,
       mba_number: mba,
@@ -118,7 +118,7 @@ export async function persistManualBillingOverrides(args: {
 
   for (const billingRowId of current.fee) {
     const lineItemId = toBillingOverrideLineItemId(billingRowId)
-    const dateBasis = await computeBillingOverrideDateBasisAsync(getBurstsForLine(billingRowId))
+    const dateBasis = await computeBillingOverrideDateBasis(getBurstsForLine(billingRowId))
     await replaceBillingOverrideLineClient({
       media_plan_version_id: versionId,
       mba_number: mba,

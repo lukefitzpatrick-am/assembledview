@@ -107,6 +107,61 @@ function monthLabelFromIso(monthIso: string): string {
   return monthDate.toLocaleString("en-AU", { month: "long", year: "numeric" })
 }
 
+/**
+ * True when `months` is exactly the inclusive ascending expansion of its own
+ * first..last — the only shape the server's `from`/`to` multi-month path can
+ * represent. Non-contiguous lists fall back to per-month requests.
+ */
+function isContiguousAscendingMonths(months: string[]): boolean {
+  if (months.length < 2) return false
+  const expanded = expandMonthRange({ from: months[0]!, to: months[months.length - 1]! })
+  if (expanded.length !== months.length) return false
+  return expanded.every((m, i) => m === months[i])
+}
+
+type MultiMonthPayload = {
+  records?: BillingRecord[]
+  failed_months?: Array<{ month: string; error: string }>
+}
+
+function multiMonthQuery(
+  months: string[],
+  params: Omit<FinanceBillingQuery, "billing_month">
+): string {
+  const sp = new URLSearchParams()
+  sp.set("from", months[0]!)
+  sp.set("to", months[months.length - 1]!)
+  if (params.clients_id) sp.set("clients_id", params.clients_id)
+  if (params.publishers_id) sp.set("publishers_id", params.publishers_id)
+  if (params.include_drafts === false) sp.set("include_drafts", "0")
+  if (params.billing_type) sp.set("billing_type", params.billing_type)
+  if (params.status) sp.set("status", params.status)
+  if (params.search) sp.set("search", params.search)
+  return sp.toString()
+}
+
+/**
+ * Multi-month responses are resilient per month on the server: months that failed
+ * to derive arrive in `failed_months` instead of failing the request. All months
+ * failing still throws (nothing usable came back); a partial failure only warns so
+ * one bad plan cannot blank the hub.
+ */
+function handleFailedMonths(
+  payload: MultiMonthPayload,
+  requestedMonthCount: number,
+  endpoint: string
+): void {
+  const failed = payload.failed_months ?? []
+  if (failed.length === 0) return
+  if (failed.length >= requestedMonthCount) {
+    const first = failed[0]!
+    throw new Error(`Failed to load ${monthLabelFromIso(first.month)} finance data`, {
+      cause: new Error(first.error),
+    })
+  }
+  console.warn(`[finance-api] ${endpoint}: some months failed to derive`, failed)
+}
+
 async function jsonOrThrow<T>(response: Response, pathForUrl: string): Promise<T> {
   const requestUrl = absoluteRequestUrl(pathForUrl)
   if (!response.ok) {
@@ -152,19 +207,37 @@ export async function fetchFinanceBillingForMonths(
   params: Omit<FinanceBillingQuery, "billing_month"> = {},
   signal?: AbortSignal
 ): Promise<BillingRecord[]> {
-  const results = await Promise.all(
-    months.map(async (m) => {
-      try {
-        return await fetchFinanceBilling({ ...params, billing_month: m }, { signal })
-      } catch (err) {
-        if (isAbortError(err)) throw err
-        throw new Error(`Failed to load ${monthLabelFromIso(m)} finance data`, { cause: err })
-      }
-    })
-  )
+  let flat: BillingRecord[]
+  if (isContiguousAscendingMonths(months)) {
+    // Full ranges go as ONE from/to request: the server fetches shared inputs once
+    // and derives every month in a loop (no 12-request stampede for a FY view).
+    const path = `/api/finance/billing?${multiMonthQuery(months, params)}`
+    let payload: MultiMonthPayload
+    try {
+      const response = await fetch(path, { signal })
+      payload = await jsonOrThrow<MultiMonthPayload>(response, path)
+    } catch (err) {
+      if (isAbortError(err)) throw err
+      throw new Error(`Failed to load ${monthLabelFromIso(months[0]!)} finance data`, { cause: err })
+    }
+    handleFailedMonths(payload, months.length, "billing")
+    flat = recordsFromPayload(payload as { records?: BillingRecord[] })
+  } else {
+    const results = await Promise.all(
+      months.map(async (m) => {
+        try {
+          return await fetchFinanceBilling({ ...params, billing_month: m }, { signal })
+        } catch (err) {
+          if (isAbortError(err)) throw err
+          throw new Error(`Failed to load ${monthLabelFromIso(m)} finance data`, { cause: err })
+        }
+      })
+    )
+    flat = results.flat()
+  }
   const seen = new Set<string>()
   const out: BillingRecord[] = []
-  for (const rec of results.flat()) {
+  for (const rec of flat) {
     const key = rec.id
       ? `id:${rec.id}`
       : `${rec.clients_id}|${rec.mba_number ?? ""}|${rec.billing_type}|${rec.billing_month}`
@@ -194,19 +267,35 @@ export async function fetchFinancePayablesForMonths(
   months: string[],
   params: Omit<FinanceBillingQuery, "billing_month"> = {}
 ): Promise<BillingRecord[]> {
-  const results = await Promise.all(
-    months.map(async (m) => {
-      try {
-        return await fetchFinancePayable({ ...params, billing_month: m })
-      } catch (err) {
-        if (isAbortError(err)) throw err
-        throw new Error(`Failed to load ${monthLabelFromIso(m)} finance data`, { cause: err })
-      }
-    })
-  )
+  let flat: BillingRecord[]
+  if (isContiguousAscendingMonths(months)) {
+    const path = `/api/finance/payables?${multiMonthQuery(months, params)}`
+    let payload: MultiMonthPayload
+    try {
+      const response = await fetch(path)
+      payload = await jsonOrThrow<MultiMonthPayload>(response, path)
+    } catch (err) {
+      if (isAbortError(err)) throw err
+      throw new Error(`Failed to load ${monthLabelFromIso(months[0]!)} finance data`, { cause: err })
+    }
+    handleFailedMonths(payload, months.length, "payables")
+    flat = recordsFromPayload(payload as { records?: BillingRecord[] })
+  } else {
+    const results = await Promise.all(
+      months.map(async (m) => {
+        try {
+          return await fetchFinancePayable({ ...params, billing_month: m })
+        } catch (err) {
+          if (isAbortError(err)) throw err
+          throw new Error(`Failed to load ${monthLabelFromIso(m)} finance data`, { cause: err })
+        }
+      })
+    )
+    flat = results.flat()
+  }
   const seen = new Set<string>()
   const out: BillingRecord[] = []
-  for (const rec of results.flat()) {
+  for (const rec of flat) {
     const key = rec.id
       ? `id:${rec.id}`
       : `${rec.clients_id}|${rec.mba_number ?? ""}|${rec.billing_type}|${rec.billing_month}|${rec.line_items?.[0]?.publisher_name ?? ""}`
@@ -290,12 +379,21 @@ export async function markBilled(params: {
   billing_month: string
   billed: boolean
   total?: number
+  line_items?: Array<{
+    item_code: string
+    amount: number
+    schedule_line_item_id?: string | null
+  }>
 }): Promise<{
   persisted_record_id: number
   invoice_key: string
   billed: boolean
   billed_at: number | null
   billed_by: number | null
+  billed_amount: number | null
+  billed_lines_hash: string | null
+  billed_drift: boolean
+  billed_drift_delta: number | null
 }> {
   const path = "/api/finance/billing/mark-billed"
   const response = await fetch(path, {

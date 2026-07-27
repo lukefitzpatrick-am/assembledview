@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { xanoUrl } from '@/lib/api/xano'
+import { xanoPostHeaderRecord, xanoUrl } from '@/lib/api/xano'
 import { sortLineItemsByLineItemNumber } from '@/lib/mediaplan/lineItemIds'
 
 // Track which "no data" messages have already been logged to avoid spam
@@ -25,12 +25,10 @@ function buildMediaContainerUrl(
   return `${xanoUrl(MEDIA_CONTAINER_ENDPOINTS[mediaType], ["XANO_MEDIA_CONTAINERS_BASE_URL", "XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?${params.toString()}`
 }
 
-// Create axios instance with timeout
+// REVIEW: Used from dashboard/server paths; header is empty client-side (no key in browser).
 const apiClient = axios.create({
   timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  }
+  headers: xanoPostHeaderRecord(),
 })
 
 export interface MediaContainerLineItem {

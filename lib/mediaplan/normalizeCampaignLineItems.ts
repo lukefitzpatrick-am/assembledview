@@ -1,8 +1,8 @@
-import { parseDateNativeSafe as parseDateSafe } from "../dates/parseDateNativeSafe"
+import { coerceBurstDateLocal, formatBurstDateLocal } from "./burstDate"
 import { parseBurstArray } from "./deriveBursts"
 
 function toIso(date: Date | null | undefined) {
-  return date ? date.toISOString() : undefined
+  return date ? formatBurstDateLocal(date) : undefined
 }
 
 function ensureBurstsJson(item: any) {
@@ -17,8 +17,8 @@ function deriveDatesFromBursts(bursts: any[]) {
   const ends: Date[] = []
 
   bursts.forEach((burst) => {
-    const start = parseDateSafe(burst?.start_date ?? burst?.startDate ?? burst?.start)
-    const end = parseDateSafe(burst?.end_date ?? burst?.endDate ?? burst?.end ?? start)
+    const start = coerceBurstDateLocal(burst?.start_date ?? burst?.startDate ?? burst?.start)
+    const end = coerceBurstDateLocal(burst?.end_date ?? burst?.endDate ?? burst?.end ?? start)
     if (start) starts.push(start)
     if (end) ends.push(end)
   })
@@ -59,13 +59,13 @@ export function normalizeCampaignLineItems(
         item?.start_date ??
         item?.startDate ??
         toIso(derivedDates.start) ??
-        toIso(parseDateSafe(fallbackStart))
+        toIso(coerceBurstDateLocal(fallbackStart))
 
       const endDate =
         item?.end_date ??
         item?.endDate ??
         toIso(derivedDates.end) ??
-        toIso(parseDateSafe(fallbackEnd))
+        toIso(coerceBurstDateLocal(fallbackEnd))
 
       const burstsJson = ensureBurstsJson(item)
       const finalBurstsJson =

@@ -32,7 +32,7 @@ import {
   CLIENT_FIELD_FEE_SOCIAL,
   CLIENT_FIELD_MONTHLY_RETAINER,
   CLIENT_PROG_FEE_FIELDS,
-  DEFAULT_UNKNOWN_PUBLISHER_BILLING_AGENCY,
+  PUBLISHER_BILLING_AGENCY_ASSEMBLED_MEDIA,
   FORECAST_BILLING_LINE_ORDER,
   FORECAST_MAPPING_SCHEMA_GAPS,
   FORECAST_REVENUE_BODY_LINE_ORDER,
@@ -612,7 +612,7 @@ function buildLinesForCampaign(args: {
     if (lineRows.length === 0 && monthMedia > 0) {
       const unknownPublisher: FinanceForecastPublisherInput = {
         publisher_name: "Unknown",
-        billingagency: DEFAULT_UNKNOWN_PUBLISHER_BILLING_AGENCY,
+        billingagency: PUBLISHER_BILLING_AGENCY_ASSEMBLED_MEDIA,
       }
       lineRows.push({
         publisher: unknownPublisher,
@@ -726,7 +726,7 @@ function buildLinesForCampaign(args: {
       source: baseSource("billing_schedule_am_publisher_media"),
       debug: baseDebug(
         "billing_am",
-        "Assembled Media billing line — see getForecastLineMappingDefinition(assembled_media_billing_for_publisher); unknown publisher uses DEFAULT_UNKNOWN_PUBLISHER_BILLING_AGENCY."
+        "Assembled Media billing line — see getForecastLineMappingDefinition(assembled_media_billing_for_publisher); unknown publisher uses PUBLISHER_BILLING_AGENCY_ASSEMBLED_MEDIA."
       ),
     }),
   ]
@@ -879,7 +879,7 @@ function extractBillableLinesForMonth(
         resolvePublisher(publisherName, publisherByName) ??
         ({
           publisher_name: publisherName || "Unknown",
-          billingagency: DEFAULT_UNKNOWN_PUBLISHER_BILLING_AGENCY,
+          billingagency: PUBLISHER_BILLING_AGENCY_ASSEMBLED_MEDIA,
         } as FinanceForecastPublisherInput)
 
       out.push({

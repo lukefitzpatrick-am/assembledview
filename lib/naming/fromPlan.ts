@@ -191,18 +191,32 @@ function resolveTargeting(item: Record<string, unknown>): string {
   return ""
 }
 
-function looksLikeYoutube(item: Record<string, unknown>): boolean {
-  const hay = [item.publisher, item.platform, item.site, item.network]
-    .map((v) => String(v ?? "").toLowerCase())
-    .join(" ")
-  return hay.includes("youtube") || hay.includes("yt ")
+function namingFieldValues(item: Record<string, unknown>): string[] {
+  return [item.publisher, item.platform, item.site, item.network].map((v) =>
+    String(v ?? "").toLowerCase(),
+  )
 }
 
-function looksLikeNative(item: Record<string, unknown>): boolean {
-  const hay = [item.publisher, item.platform, item.site, item.network]
-    .map((v) => String(v ?? "").toLowerCase())
-    .join(" ")
-  return hay.includes("taboola") || hay.includes("native") || hay.includes("outbrain")
+function fieldTokens(fields: string[]): string[] {
+  const tokens: string[] = []
+  for (const field of fields) {
+    for (const token of field.split(/[^a-z0-9]+/).filter(Boolean)) {
+      tokens.push(token)
+    }
+  }
+  return tokens
+}
+
+export function looksLikeYoutube(item: Record<string, unknown>): boolean {
+  const fields = namingFieldValues(item)
+  if (fields.some((f) => f.includes("youtube"))) return true
+  return fieldTokens(fields).some((t) => t === "yt")
+}
+
+export function looksLikeNative(item: Record<string, unknown>): boolean {
+  const fields = namingFieldValues(item)
+  if (fields.some((f) => f.includes("taboola") || f.includes("outbrain"))) return true
+  return fieldTokens(fields).some((t) => t === "native")
 }
 
 function activeChannelKeys(lineItems: Record<string, unknown[]> | null | undefined): string[] {
