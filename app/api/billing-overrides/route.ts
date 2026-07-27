@@ -10,7 +10,7 @@ const XANO_TIMEOUT_MS = 15_000
 
 /**
  * GET /api/billing-overrides?media_plan_version_id=
- * Proxies Xano GET /billing_overrides.
+ * Proxies Xano GET /billing_overrides with required query `media_plan_version`.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -28,9 +28,10 @@ export async function GET(request: NextRequest) {
     }
 
     const baseUrl = getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
+    // Xano GET /billing_overrides requires `media_plan_version` (not `_id` / `_versions_id`).
     const response = await axios.get(`${baseUrl}/billing_overrides`, {
       params: {
-        media_plan_version_id: versionId,
+        media_plan_version: versionId,
         page: 1,
         per_page: 500,
       },
@@ -51,6 +52,7 @@ export async function GET(request: NextRequest) {
     const rows = parseXanoListPayload(response.data)
     const overrides = rows.filter((r: Record<string, unknown>) => {
       const candidates = [
+        r.media_plan_version,
         r.media_plan_version_id,
         r.media_plan_versions_id,
         r.version_id,

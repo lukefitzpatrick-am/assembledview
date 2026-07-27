@@ -8,6 +8,7 @@ import type { BillingOverrideComponent, BillingOverrideRow } from "@/lib/finance
 
 export type ReplaceBillingOverrideLineBody = {
   media_plan_version_id: string | number
+  mba_number: string
   line_item_id: string
   component: BillingOverrideComponent
   mode?: "manual" | "auto"
@@ -18,6 +19,7 @@ export type ReplaceBillingOverrideLineBody = {
 
 export type ResetBillingOverrideLineBody = {
   media_plan_version_id: string | number
+  mba_number: string
   line_item_id: string
   component?: BillingOverrideComponent
 }
@@ -30,8 +32,17 @@ export async function fetchBillingOverridesClient(
     { method: "GET", cache: "no-store" }
   )
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.error || `Failed to load billing overrides (${res.status})`)
+    const err = (await res.json().catch(() => ({}))) as {
+      error?: string
+      upstream?: { message?: string }
+    }
+    const upstreamMsg =
+      typeof err.upstream?.message === "string" ? err.upstream.message.trim() : ""
+    throw new Error(
+      upstreamMsg
+        ? `${err.error || "Failed to load billing overrides"}: ${upstreamMsg}`
+        : err.error || `Failed to load billing overrides (${res.status})`
+    )
   }
   const data = await res.json()
   return Array.isArray(data?.overrides) ? data.overrides : Array.isArray(data) ? data : []

@@ -22,6 +22,7 @@ export type BillingOverrideComponent = "media" | "fee"
 /** Raw row shape from GET /billing_overrides (Xano). */
 export type BillingOverrideRow = {
   id?: number | string
+  media_plan_version?: number | string
   media_plan_version_id?: number | string
   media_plan_versions_id?: number | string
   version_id?: number | string
@@ -79,6 +80,7 @@ function rowDateBasis(row: BillingOverrideRow): string {
 
 function versionIdMatches(row: BillingOverrideRow, versionId: string | number): boolean {
   const candidates = [
+    row.media_plan_version,
     row.media_plan_version_id,
     row.media_plan_versions_id,
     row.version_id,
@@ -105,9 +107,10 @@ export async function fetchBillingOverridesForVersion(
   }
 
   try {
+    // Xano requires `media_plan_version` (confirmed: `_id` aliases → 400 Missing param).
     const response = await axios.get(`${baseUrl}/billing_overrides`, {
       params: {
-        media_plan_version_id: versionId,
+        media_plan_version: versionId,
         page: 1,
         per_page: 200,
       },
@@ -119,6 +122,7 @@ export async function fetchBillingOverridesForVersion(
       console.warn("[billingOverrides] GET failed", {
         versionId,
         status: response.status,
+        upstream: response.data,
       })
       return []
     }
