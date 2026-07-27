@@ -24,6 +24,7 @@ import {
 } from "@/components/billing/MbaDetailsPanelIndicators"
 import type { CampaignFinancials } from "@/lib/finance/campaignFinancials.types"
 import type { PanelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
+import { reconciliationBadgeVisibility } from "@/lib/mediaplan/channelHydrationGate"
 
 const money = new Intl.NumberFormat("en-AU", {
   style: "currency",
@@ -40,6 +41,11 @@ export type MbaBillingAutoCalcSummaryProps = {
   financials: CampaignFinancials
   panelIndicators: PanelIndicatorsFromCampaignFinancials
   mediaLabelByType?: Record<string, string>
+  /**
+   * When true, suppress billable=MBA green ticks (header + Grand Total) because
+   * channel rows are inflated vs distinct line_item_ids.
+   */
+  duplicatesDetected?: boolean
 }
 
 /**
@@ -52,9 +58,20 @@ export function MbaBillingAutoCalcSummary({
   financials,
   panelIndicators,
   mediaLabelByType = {},
+  duplicatesDetected = false,
 }: MbaBillingAutoCalcSummaryProps) {
   const t = financials.mbaScopeTotals
   const schedule = financials.billingSchedule
+  const mbaRec = reconciliationBadgeVisibility(
+    true,
+    panelIndicators.mbaDetails.billableEqualsMba,
+    { duplicatesDetected }
+  )
+  const billingRec = reconciliationBadgeVisibility(
+    true,
+    panelIndicators.billingSchedule.billableEqualsMba,
+    { duplicatesDetected }
+  )
 
   const mediaBreakdown: { mediaType: string; media: number }[] = []
   if (financials.perLine.length > 0) {
@@ -83,12 +100,12 @@ export function MbaBillingAutoCalcSummary({
             MBA scope
             <MbaPartialScopePill label={panelIndicators.mbaDetails.partialLabel} />
           </h3>
-          {panelIndicators.mbaDetails.billableEqualsMba ? (
+          {mbaRec.showEquals ? (
             <Badge variant="good" size="sm" className="rounded-pill font-medium" title="Billable totals match MBA">
               <Check className="mr-1 h-3.5 w-3.5" aria-hidden />
               billable = MBA
             </Badge>
-          ) : (
+          ) : mbaRec.showMismatch ? (
             <Badge
               variant="blocking"
               size="sm"
@@ -97,7 +114,7 @@ export function MbaBillingAutoCalcSummary({
             >
               billing ≠ MBA
             </Badge>
-          )}
+          ) : null}
         </div>
         <div className="space-y-2 px-5 py-4">
           {mediaBreakdown.map(({ mediaType, media }) => (
@@ -131,8 +148,8 @@ export function MbaBillingAutoCalcSummary({
             <div className="flex items-center justify-between">
               <span className="flex items-center text-sm font-semibold text-foreground">
                 Total Investment (ex GST)
-                <MbaBillableEqualsPill show={panelIndicators.mbaDetails.billableEqualsMba} />
-                <MbaBillableMismatchPill show={!panelIndicators.mbaDetails.billableEqualsMba} />
+                <MbaBillableEqualsPill show={mbaRec.showEquals} />
+                <MbaBillableMismatchPill show={mbaRec.showMismatch} />
               </span>
               <span className="num text-sm font-semibold text-foreground">
                 {money.format(t.nettExGst)}
@@ -182,12 +199,8 @@ export function MbaBillingAutoCalcSummary({
                 <TableCell>
                   <span className="inline-flex items-center">
                     Grand Total
-                    <BillingEqualsMbaPill
-                      show={panelIndicators.billingSchedule.billableEqualsMba}
-                    />
-                    <BillingMismatchMbaPill
-                      show={!panelIndicators.billingSchedule.billableEqualsMba}
-                    />
+                    <BillingEqualsMbaPill show={billingRec.showEquals} />
+                    <BillingMismatchMbaPill show={billingRec.showMismatch} />
                   </span>
                 </TableCell>
                 <TableCell className="num text-right">{money.format(grandMedia)}</TableCell>
@@ -213,7 +226,7 @@ export function MbaBillingAutoCalcSummary({
                 total investment <span className="num">{money.format(t.nettExGst)}</span>
               </span>
               <BillingEqualsMbaPill
-                show={financials.validation.billableEqualsMba}
+                show={!duplicatesDetected && financials.validation.billableEqualsMba}
                 title="Billing reconciles to MBA total"
               />
             </p>

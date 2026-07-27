@@ -198,6 +198,11 @@ import {
 } from "@/lib/finance/buildEditorLineItemInputs"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
+import {
+  computeChannelDuplicateStats,
+  formatSaveModeLabel,
+  isSaveAllowedAfterHydration,
+} from "@/lib/mediaplan/channelHydrationGate"
 import { assertCoreScheduleParity } from "@/lib/finance/assertCoreScheduleParity"
 import {
   humaniseBillingSaveError,
@@ -763,6 +768,7 @@ function CreateMediaPlan() {
   })
   const [isPartialMBA, setIsPartialMBA] = useState(false);
   const [isMbaBillingModalOpen, setIsMbaBillingModalOpen] = useState(false);
+  const [saveModeLabel, setSaveModeLabel] = useState<string | null>(null)
   const [dateWarning, setDateWarning] = useState<{
     hasViolation: boolean
     offendingCount: number
@@ -1879,8 +1885,10 @@ function CreateMediaPlan() {
     return computeCampaignFinancials(lineItems, { feeLoading }, {
       campaignStart: start,
       campaignEnd: end,
+      selectedMonthYears:
+        partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
     })
-  }, [billingSaveInputs, campaignStart, campaignEnd])
+  }, [billingSaveInputs, campaignStart, campaignEnd, partialMBAMonthYears])
 
   const campaignFinancialsMediaByKey = useMemo(() => {
     const out: Record<string, number> = {}
@@ -1892,9 +1900,71 @@ function CreateMediaPlan() {
   }, [campaignFinancials])
 
   const panelIndicators = useMemo(
-    () => panelIndicatorsFromCampaignFinancials(campaignFinancials, { isPartialMBA }),
-    [campaignFinancials, isPartialMBA]
+    () =>
+      panelIndicatorsFromCampaignFinancials(campaignFinancials, {
+        isPartialMBA,
+        selectedMonthYears: partialMBAMonthYears,
+      }),
+    [campaignFinancials, isPartialMBA, partialMBAMonthYears]
   )
+
+  const channelDuplicateSummary = useMemo(
+    () =>
+      computeChannelDuplicateStats({
+        television: televisionMediaLineItems,
+        radio: radioMediaLineItems,
+        newspaper: newspaperMediaLineItems,
+        magazines: magazineMediaLineItems,
+        ooh: oohMediaLineItems,
+        cinema: cinemaMediaLineItems,
+        digitalDisplay: digiDisplayMediaLineItems,
+        digitalAudio: digiAudioMediaLineItems,
+        digitalVideo: digiVideoMediaLineItems,
+        bvod: bvodMediaLineItems,
+        integration: integrationMediaLineItems,
+        production: productionMediaLineItems,
+        search: searchMediaLineItems,
+        socialMedia: socialMediaMediaLineItems,
+        progDisplay: progDisplayMediaLineItems,
+        progVideo: progVideoMediaLineItems,
+        progBvod: progBvodMediaLineItems,
+        progAudio: progAudioMediaLineItems,
+        progOoh: progOohMediaLineItems,
+        influencers: influencersMediaLineItems,
+      }),
+    [
+      televisionMediaLineItems,
+      radioMediaLineItems,
+      newspaperMediaLineItems,
+      magazineMediaLineItems,
+      oohMediaLineItems,
+      cinemaMediaLineItems,
+      digiDisplayMediaLineItems,
+      digiAudioMediaLineItems,
+      digiVideoMediaLineItems,
+      bvodMediaLineItems,
+      integrationMediaLineItems,
+      productionMediaLineItems,
+      searchMediaLineItems,
+      socialMediaMediaLineItems,
+      progDisplayMediaLineItems,
+      progVideoMediaLineItems,
+      progBvodMediaLineItems,
+      progAudioMediaLineItems,
+      progOohMediaLineItems,
+      influencersMediaLineItems,
+    ]
+  )
+  const duplicatesDetected = channelDuplicateSummary.duplicatesDetected
+  const saveBlockedByDuplicates = !isSaveAllowedAfterHydration(true, {
+    duplicatesDetected,
+  })
+
+  const predictedSaveModeLabel = useMemo(() => {
+    if (saveModeLabel) return saveModeLabel
+    return formatSaveModeLabel("increment", 1)
+  }, [saveModeLabel])
+
 
 
   const mediaLabelByBillingKey = useMemo(() => {
@@ -3430,7 +3500,11 @@ function CreateMediaPlan() {
     const provisionalFinancials = computeCampaignFinancials(
       provisionalLineItems,
       { feeLoading: billingSaveInputs.feeLoading },
-      { campaignStart: start, campaignEnd: end }
+      {
+        campaignStart: start,
+        campaignEnd: end,
+        selectedMonthYears: nextMonthYears.length > 0 ? nextMonthYears : undefined,
+      }
     )
 
     void nextEnabledMedia
@@ -4170,7 +4244,22 @@ function CreateMediaPlan() {
     })
   }
 
+  function handlePartialMBAMonthsChange(nextMonthYears: string[]) {
+    const deliveryMonthsRaw = autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths
+    if (!nextMonthYears.length) return
+    setPartialMBAMonthYears(nextMonthYears)
+    const allMonths = deliveryMonthsRaw.map((m) => m.monthYear)
+    const monthPartial =
+      allMonths.length > 0 &&
+      (nextMonthYears.length < allMonths.length ||
+        !allMonths.every((m) => nextMonthYears.includes(m)))
+    if (monthPartial) setIsPartialMBA(true)
+    if (!deliveryMonthsRaw.length) return
+    recomputePartialMBAFromLineItems(nextMonthYears, partialMBASelectedLineItemIds)
+  }
+
   function handleMbaBillingToggleLine(lineItemId: string, mediaType: string, approved: boolean) {
+
     const existing = new Set(partialMBASelectedLineItemIds[mediaType] || [])
     if (approved) existing.add(lineItemId)
     else existing.delete(lineItemId)
@@ -4684,6 +4773,16 @@ function CreateMediaPlan() {
           billingSchedule: undefined,
           deliverySchedule: undefined,
           delivery_schedule: undefined,
+          partialApproval:
+            isPartialMBA && partialApprovalMetadata
+              ? {
+                  ...partialApprovalMetadata,
+                  selectedMonthYears:
+                    partialMBAMonthYears.length > 0
+                      ? partialMBAMonthYears
+                      : partialApprovalMetadata.selectedMonthYears,
+                }
+              : null,
         }
       }
 
@@ -4728,6 +4827,39 @@ function CreateMediaPlan() {
           typeof savedVersionNumberRaw === "string"
             ? parseInt(savedVersionNumberRaw, 10)
             : savedVersionNumberRaw
+
+        const numericSavedVersion = savedVersionNumber
+        const mode = versionData.mode
+        setSaveModeLabel(
+          mode === "overwrite"
+            ? formatSaveModeLabel("overwrite", Number(numericSavedVersion) || 1)
+            : formatSaveModeLabel(
+                "increment",
+                (Number(numericSavedVersion) || 0) + 1
+              )
+        )
+        if (versionData.duplicateWarning) {
+          const channels = Array.isArray(versionData.duplicateWarning.channels)
+            ? versionData.duplicateWarning.channels
+            : []
+          const rows = channels.reduce(
+            (sum: number, c: { rows?: number }) => sum + (Number(c.rows) || 0),
+            0
+          )
+          const ids = channels.reduce(
+            (sum: number, c: { distinctLineItemIds?: number }) =>
+              sum + (Number(c.distinctLineItemIds) || 0),
+            0
+          )
+          toast({
+            title: "Duplicate line-item rows detected",
+            description:
+              rows > 0
+                ? `${rows} rows / ${ids} ids — totals may be inflated. Do not rely on this save.`
+                : "Channel rows exceed distinct line_item_ids after save.",
+            variant: "destructive",
+          })
+        }
 
         version = {
           id: versionId,
@@ -4888,6 +5020,7 @@ function CreateMediaPlan() {
         try {
           persistResult = await persistManualBillingOverrides({
             versionId: version.id,
+            mbaNumber: String(fv.mba_number || ""),
             months: manualBillingMonths,
             autoMonthsForMediaTotals,
             metaByLine: manualBillingOverrideMetaRef.current,
@@ -5586,6 +5719,15 @@ function CreateMediaPlan() {
   // in page.tsx
 
 const handleSaveAll = async () => {
+    if (saveBlockedByDuplicates) {
+      toast({
+        title: "Save disabled",
+        description: "Duplicate line-item rows detected — fix before saving.",
+        variant: "destructive",
+      })
+      return
+    }
+
   if (saveAllInFlightRef.current) return
   if (budgetRemaining < 0) {
     const proceed = window.confirm(
@@ -6071,6 +6213,20 @@ const handleSaveAll = async () => {
   const wizardBottomBar = (
     <>
       <BuilderIssuesBadge issues={builderIssues} />
+
+      {duplicatesDetected ? (
+        <div
+          role="alert"
+          className="w-full rounded-card border border-pacing-critical bg-pacing-critical-bg px-3 py-2 text-sm font-medium text-status-critical-fg"
+        >
+          Duplicate line-item rows detected ({channelDuplicateSummary.inflatedRows}{" "}
+          rows / {channelDuplicateSummary.inflatedDistinctIds} ids) — do not save;
+          totals are inflated
+        </div>
+      ) : null}
+      {predictedSaveModeLabel ? (
+        <p className="text-xs text-muted-foreground">{predictedSaveModeLabel}</p>
+      ) : null}
       {dateWarning.hasViolation ? (
         <div className="rounded-card border border-pacing-critical bg-pacing-critical-bg px-3 py-2 text-xs font-medium text-status-critical-fg">
           {dateWarning.offendingCount === 1
@@ -6106,7 +6262,7 @@ const handleSaveAll = async () => {
           type="button"
           variant="action"
           onClick={handleSaveAll}
-          disabled={isWizardSaving}
+          disabled={isWizardSaving || saveBlockedByDuplicates}
           className="h-9 shrink-0 rounded-pill px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
         >
           {isWizardSaving ? "Saving..." : "Save draft"}
@@ -6612,6 +6768,7 @@ const handleSaveAll = async () => {
                     financials={campaignFinancials}
                     panelIndicators={panelIndicators}
                     mediaLabelByType={mediaLabelByBillingKey}
+                    duplicatesDetected={duplicatesDetected}
                   />
                   <div className="flex flex-wrap items-center gap-2">
                     <Button type="button" variant="action" onClick={handleMbaBillingModalOpen}>
@@ -6695,6 +6852,17 @@ const handleSaveAll = async () => {
         onToggleLineApproved={handleMbaBillingToggleLine}
         onToggleContainerApproved={handleMbaBillingToggleContainer}
         onResetApprovalsToAllIn={handleMbaBillingResetApprovalsToAllIn}
+        monthYears={(autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths).map(
+          (m) => m.monthYear
+        )}
+        selectedMonthYears={
+          partialMBAMonthYears.length > 0
+            ? partialMBAMonthYears
+            : (autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths).map(
+                (m) => m.monthYear
+              )
+        }
+        onSelectedMonthYearsChange={handlePartialMBAMonthsChange}
         onDownloadExcel={handleDownloadBillingScheduleExcel}
         downloadDisabled={campaignFinancials.billingSchedule.length === 0}
         onResetBillingToAuto={() => setFullBillingResetConfirmOpen(true)}
@@ -7760,7 +7928,7 @@ const handleSaveAll = async () => {
       <UnsavedChangesDialog
         open={isUnsavedPromptOpen}
         onStay={stayOnPage}
-        onSave={handleSaveAll}
+        onSave={saveBlockedByDuplicates ? stayOnPage : handleSaveAll}
         onLeave={confirmNavigation}
         isSaving={isLoading || isPlanSaving || isVersionSaving}
       />

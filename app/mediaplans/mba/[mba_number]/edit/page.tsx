@@ -151,6 +151,12 @@ import {
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import {
+  computeChannelDuplicateStats,
+  formatSaveModeLabel,
+  isSaveAllowedAfterHydration,
+  type ChannelDuplicateSummary,
+} from "@/lib/mediaplan/channelHydrationGate"
+import {
   humaniseBillingSaveError,
   withMbaScopeLineLabels,
 } from "@/lib/finance/humaniseBillingSaveError"
@@ -262,7 +268,6 @@ import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
 import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { normaliseStatus } from "@/lib/mediaplan/campaignStatusGuard"
-import { clearVersionChildren, clearVersionKpis } from "@/lib/mediaplan/clearVersionChildren"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
 import { reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
@@ -1614,6 +1619,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [latestVersionNumber, setLatestVersionNumber] = useState<number>(1)
   const [nextSaveVersionNumber, setNextSaveVersionNumber] = useState<number | null>(null)
   const [selectedVersionNumber, setSelectedVersionNumber] = useState<number | null>(null)
+  const [saveModeLabel, setSaveModeLabel] = useState<string | null>(null)
   /** DB row id of the current `media_plan_versions` record — NOT `version_number`. */
   const [mediaPlanVersionId, setMediaPlanVersionId] = useState<string | number | null>(null)
   const [rollbackModalOpen, setRollbackModalOpen] = useState(false)
@@ -1855,6 +1861,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [billingOverrideRowsForPanels, setBillingOverrideRowsForPanels] = useState<
     BillingOverrideRow[]
   >([])
+  /**
+   * Non-blocking amber notice when overrides GET fails (shown once — not per line).
+   * Upstream error stays in console.warn.
+   */
+  const [billingOverridesLoadNotice, setBillingOverridesLoadNotice] = useState<string | null>(
+    null
+  )
   /** Stale dateBasis overrides — resolved inline in Adjust timing (not a stacked dialog). */
   const [dateBasisStaleOverrides, setDateBasisStaleOverrides] = useState<StaleDateBasisOverride[]>([])
   const autoReferenceBillingMonthsRef = useRef<BillingMonth[]>([])
@@ -3813,9 +3826,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       try {
         const rows = await fetchBillingOverridesClient(id)
         setBillingOverrideRowsForPanels(Array.isArray(rows) ? rows : [])
+        setBillingOverridesLoadNotice(null)
       } catch (err) {
-        console.warn("[panels] failed to load billing overrides for indicators", err)
+        console.warn(
+          "[panels] failed to load billing overrides for indicators",
+          err instanceof Error ? err.message : err
+        )
         setBillingOverrideRowsForPanels([])
+        setBillingOverridesLoadNotice(
+          "Manual billing overrides could not be loaded — manual timing may display as auto"
+        )
       }
     },
     [mediaPlanVersionId]
@@ -3989,20 +4009,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         monthsForModal = months
         manualBillingOverrideMetaRef.current = metaByLine
         setBillingOverrideRowsForPanels(rows)
+        setBillingOverridesLoadNotice(null)
       } catch (err: any) {
-        toast({
-          variant: "destructive",
-          title: "Could not load billing overrides",
-          description: err?.message || "Opening modal with schedule only.",
-        })
+        console.warn(
+          "[manual-billing] failed to load billing overrides on modal open",
+          err?.message || err
+        )
+        setBillingOverridesLoadNotice(
+          "Manual billing overrides could not be loaded — manual timing may display as auto"
+        )
       }
     } else {
-      toast({
-        variant: "destructive",
-        title: "Missing media plan version id",
-        description:
-          "Billing overrides could not be loaded — APIs key on the version row id, not the version number.",
-      })
+      console.warn(
+        "[manual-billing] missing media_plan_versions row id; overrides cannot load"
+      )
+      setBillingOverridesLoadNotice(
+        "Manual billing overrides could not be loaded — manual timing may display as auto"
+      )
     }
 
     setManualBillingMonths(monthsForModal)
@@ -4737,6 +4760,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       try {
         await resetBillingOverrideLineClient({
           media_plan_version_id: versionId,
+          mba_number: mbaNumber,
           line_item_id: toBillingOverrideLineItemId(lineItemId),
           // omit component → clear both media and fee override rows
         })
@@ -4794,7 +4818,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     recalculateManualBillingTotals(copyWithAutoMode, formatter)
     setManualBillingMonths(copyWithAutoMode)
-  }, [manualBillingMonths, resolveMediaPlanVersionRowId])
+  }, [manualBillingMonths, resolveMediaPlanVersionRowId, mbaNumber])
 
   const attachLineItemsToMonths = useCallback((
     months: BillingMonth[],
@@ -5402,6 +5426,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             : await fetchBillingOverridesClient(versionId)
         await applyDateBasisKeepOrReset({
           versionId,
+          mbaNumber,
           decision: "keep",
           stale,
           overrideRows: rows,
@@ -5427,6 +5452,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       billingOverrideRowsForPanels,
       resolveMediaPlanVersionRowId,
       refreshBillingOverrideRowsForPanels,
+      mbaNumber,
     ]
   )
 
@@ -5444,6 +5470,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               : await fetchBillingOverridesClient(versionId)
           await applyDateBasisKeepOrReset({
             versionId,
+            mbaNumber,
             decision: "reset",
             stale,
             overrideRows: rows,
@@ -5469,6 +5496,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       resolveMediaPlanVersionRowId,
       refreshBillingOverrideRowsForPanels,
       handleManualBillingLineItemResetToAuto,
+      mbaNumber,
     ]
   )
 
@@ -5550,8 +5578,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return computeCampaignFinancials(lineItems, { feeLoading }, {
       campaignStart: start,
       campaignEnd: end,
+      selectedMonthYears:
+        partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
     })
-  }, [billingSaveInputs, campaignStartDate, campaignEndDate])
+  }, [billingSaveInputs, campaignStartDate, campaignEndDate, partialMBAMonthYears])
 
   const campaignFinancialsMediaByKey = useMemo(() => {
     const out: Record<string, number> = {}
@@ -5585,11 +5615,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return computeCampaignFinancials(lineItems, { feeLoading: billingSaveInputs.feeLoading }, {
       campaignStart: start,
       campaignEnd: end,
+      selectedMonthYears:
+        partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
     })
   }, [
     billingFeeSeedEnabledConfigs,
     isPartialMBA,
     partialMBASelectedLineItemIds,
+    partialMBAMonthYears,
     billingOverrideRowsForPanels,
     billingSaveInputs.feeLoading,
     campaignStartDate,
@@ -5606,9 +5639,103 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [campaignFinancialsForPanels])
 
   const panelIndicators = useMemo(
-    () => panelIndicatorsFromCampaignFinancials(campaignFinancialsForPanels, { isPartialMBA }),
-    [campaignFinancialsForPanels, isPartialMBA]
+    () =>
+      panelIndicatorsFromCampaignFinancials(campaignFinancialsForPanels, {
+        isPartialMBA,
+        selectedMonthYears: partialMBAMonthYears,
+      }),
+    [campaignFinancialsForPanels, isPartialMBA, partialMBAMonthYears]
   )
+
+  // Live editor stats — Save gate re-evaluates as the user prunes/edits rows.
+  const liveChannelDuplicateSummary = useMemo(
+    () =>
+      computeChannelDuplicateStats({
+        television: televisionMediaLineItems,
+        radio: radioMediaLineItems,
+        newspaper: newspaperMediaLineItems,
+        magazines: magazinesMediaLineItems,
+        ooh: oohMediaLineItems,
+        cinema: cinemaMediaLineItems,
+        digitalDisplay: digitalDisplayMediaLineItems,
+        digitalAudio: digitalAudioMediaLineItems,
+        digitalVideo: digitalVideoMediaLineItems,
+        bvod: bvodMediaLineItems,
+        integration: integrationMediaLineItems,
+        production: productionMediaLineItems,
+        search: searchMediaLineItems,
+        socialMedia: socialMediaMediaLineItems,
+        progDisplay: progDisplayMediaLineItems,
+        progVideo: progVideoMediaLineItems,
+        progBvod: progBvodMediaLineItems,
+        progAudio: progAudioMediaLineItems,
+        progOoh: progOohMediaLineItems,
+        influencers: influencersMediaLineItems,
+      }),
+    [
+      televisionMediaLineItems,
+      radioMediaLineItems,
+      newspaperMediaLineItems,
+      magazinesMediaLineItems,
+      oohMediaLineItems,
+      cinemaMediaLineItems,
+      digitalDisplayMediaLineItems,
+      digitalAudioMediaLineItems,
+      digitalVideoMediaLineItems,
+      bvodMediaLineItems,
+      integrationMediaLineItems,
+      productionMediaLineItems,
+      searchMediaLineItems,
+      socialMediaMediaLineItems,
+      progDisplayMediaLineItems,
+      progVideoMediaLineItems,
+      progBvodMediaLineItems,
+      progAudioMediaLineItems,
+      progOohMediaLineItems,
+      influencersMediaLineItems,
+    ]
+  )
+
+  // Load-time banner snapshot — freeze once after hydrate so the warning stays
+  // visible while the user repairs; Save uses liveChannelDuplicateSummary only.
+  const [loadTimeDuplicateSummary, setLoadTimeDuplicateSummary] =
+    useState<ChannelDuplicateSummary | null>(null)
+  useEffect(() => {
+    setLoadTimeDuplicateSummary(null)
+  }, [mbaNumber, selectedVersionNumber])
+  useEffect(() => {
+    if (loadPhase !== "ready") return
+    setLoadTimeDuplicateSummary((prev) => prev ?? liveChannelDuplicateSummary)
+  }, [loadPhase, liveChannelDuplicateSummary])
+
+  const channelDuplicateSummary = loadTimeDuplicateSummary ?? liveChannelDuplicateSummary
+  const duplicatesDetected = channelDuplicateSummary.duplicatesDetected
+  const saveBlockedByDuplicates = !isSaveAllowedAfterHydration(true, {
+    duplicatesDetected: liveChannelDuplicateSummary.duplicatesDetected,
+  })
+
+  const predictedSaveModeLabel = useMemo(() => {
+    if (saveModeLabel) return saveModeLabel
+    const status = normaliseStatus(
+      watchedCampaignStatus ?? mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
+    )
+    if (status === "draft") {
+      const v = selectedVersionNumber ?? mediaPlan?.version_number ?? 1
+      return formatSaveModeLabel("overwrite", Number(v) || 1)
+    }
+    const next = nextSaveVersionNumber ?? ((latestVersionNumber || 0) + 1)
+    return formatSaveModeLabel("increment", next)
+  }, [
+    saveModeLabel,
+    watchedCampaignStatus,
+    mediaPlan?.campaign_status,
+    mediaPlan?.mp_campaignstatus,
+    mediaPlan?.version_number,
+    selectedVersionNumber,
+    nextSaveVersionNumber,
+    latestVersionNumber,
+  ])
+
 
   const builderIssues = useMemo(() => {
     const issues: BuilderIssue[] = []
@@ -5810,6 +5937,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     try {
       result = await persistManualBillingOverrides({
         versionId,
+        mbaNumber,
         months: manualBillingMonths,
         autoMonthsForMediaTotals:
           manualBillingAutoReferenceMonths ?? autoReferenceBillingMonths,
@@ -5898,6 +6026,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [])
 
   const handleSaveAll = async () => {
+    if (saveBlockedByDuplicates) {
+      toast({
+        title: "Save disabled",
+        description: "Duplicate line-item rows detected — fix before saving.",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (budgetRemainingOverspend) {
       const proceed = window.confirm(
         `Budget remaining is ${formatMoney(budgetRemaining)} — this campaign is over budget. Save anyway?`
@@ -6076,6 +6213,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             // Unresolved stale overrides: auto-keep (timing UI already offered Keep / Reset).
             await applyDateBasisKeepOrReset({
               versionId: preflightVersionId,
+              mbaNumber,
               decision: "keep",
               stale,
               overrideRows,
@@ -6156,6 +6294,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           billingSchedule: undefined,
           deliverySchedule: undefined,
           delivery_schedule: undefined,
+          partialApproval:
+            isPartialMBA && partialApprovalMetadata
+              ? {
+                  ...partialApprovalMetadata,
+                  selectedMonthYears:
+                    partialMBAMonthYears.length > 0
+                      ? partialMBAMonthYears
+                      : partialApprovalMetadata.selectedMonthYears,
+                }
+              : null,
           ...(forceIncrementForApprovals ? { forceIncrement: true } : {}),
         }),
       })
@@ -6200,6 +6348,37 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setNextSaveVersionNumber(updatedLatest + 1)
       setSelectedVersionNumber(typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber)
       const numericSavedVersion = typeof savedVersionNumber === 'string' ? parseInt(savedVersionNumber, 10) : savedVersionNumber
+
+      setSaveModeLabel(
+        mode === "overwrite"
+          ? formatSaveModeLabel("overwrite", Number(numericSavedVersion) || 1)
+          : formatSaveModeLabel(
+              "increment",
+              (Number(numericSavedVersion) || 0) + 1
+            )
+      )
+      if (versionData.duplicateWarning) {
+        const channels = Array.isArray(versionData.duplicateWarning.channels)
+          ? versionData.duplicateWarning.channels
+          : []
+        const rows = channels.reduce(
+          (sum: number, c: { rows?: number }) => sum + (Number(c.rows) || 0),
+          0
+        )
+        const ids = channels.reduce(
+          (sum: number, c: { distinctLineItemIds?: number }) =>
+            sum + (Number(c.distinctLineItemIds) || 0),
+          0
+        )
+        toast({
+          title: "Duplicate line-item rows detected",
+          description:
+            rows > 0
+              ? `${rows} rows / ${ids} ids — totals may be inflated. Do not rely on this save.`
+              : "Channel rows exceed distinct line_item_ids after save.",
+          variant: "destructive",
+        })
+      }
       const isOverwriteMode = mode === "overwrite"
       if (isOverwriteMode && !versionId) {
         throw new Error("Missing version 1 ID for draft overwrite")
@@ -6412,18 +6591,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         })
       }
 
-      if (isOverwriteMode) {
-        updateSaveStatus("Version 1 Children Clear", "pending")
-        const childClearResult = await clearVersionChildren(mbaNumber, versionId)
-        console.log("[draft-overwrite] version 1 child clear result", childClearResult)
-        updateSaveStatus("Version 1 Children Clear", "success")
+      // Draft overwrite no longer runs clearVersionChildren/clearVersionKpis here —
+      // those hard-coded version-1 deletes were no-ops for v2+ and burned ~20
+      // requests per save. Channel replace is owned by replaceChannelLineItems
+      // (GET mba-scoped → DELETE by media_plan_version id → POST). The unpublished
+      // version reaper still mirrors clearVersionChildren for abandoned drafts.
 
-        updateSaveStatus("Campaign KPI Clear", "pending")
-        const kpiClearResult = await clearVersionKpis(mbaNumber, versionId)
-        console.log("[draft-overwrite] version 1 KPI clear result", kpiClearResult)
-        updateSaveStatus("Campaign KPI Clear", "success")
-      }
-      
       // Initialize save status for enabled media types
       if (formValues.mp_search && searchMediaLineItemsForSave.length > 0) {
         updateSaveStatus(mediaTypeDisplayNames.mp_search, 'pending')
@@ -8091,7 +8264,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     const provisionalFinancials = computeCampaignFinancials(
       provisionalLineItems,
       { feeLoading: billingSaveInputs.feeLoading },
-      { campaignStart: start, campaignEnd: end }
+      {
+        campaignStart: start,
+        campaignEnd: end,
+        selectedMonthYears: nextMonthYears.length > 0 ? nextMonthYears : undefined,
+      }
     )
 
     void nextEnabledMedia
@@ -8310,8 +8487,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   function handlePartialMBAMonthsChange(nextMonthYears: string[]) {
     const deliveryMonthsRaw = getPartialMbaRawMonthsForBaseline()
+    if (!nextMonthYears.length) return
 
     setPartialMBAMonthYears(nextMonthYears)
+    const allMonths = deliveryMonthsRaw.map((m) => m.monthYear)
+    const monthPartial =
+      allMonths.length > 0 &&
+      (nextMonthYears.length < allMonths.length ||
+        !allMonths.every((m) => nextMonthYears.includes(m)))
+    if (monthPartial) setIsPartialMBA(true)
     if (!deliveryMonthsRaw.length) return
 
     recomputePartialMBAFromLineItems(nextMonthYears, partialMBASelectedLineItemIds)
@@ -9351,6 +9535,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const wizardBottomBar = (
     <>
       <BuilderIssuesBadge issues={builderIssues} />
+
+      {duplicatesDetected ? (
+        <div
+          role="alert"
+          className="w-full rounded-card border border-pacing-critical bg-pacing-critical-bg px-3 py-2 text-sm font-medium text-status-critical-fg"
+        >
+          Duplicate line-item rows detected ({channelDuplicateSummary.inflatedRows}{" "}
+          rows / {channelDuplicateSummary.inflatedDistinctIds} ids) — do not save;
+          totals are inflated
+        </div>
+      ) : null}
+      {predictedSaveModeLabel ? (
+        <p className="text-xs text-muted-foreground">{predictedSaveModeLabel}</p>
+      ) : null}
       {dateWarning.hasViolation ? (
         <div className="flex items-center gap-2 text-sm font-medium text-destructive">
           <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-destructive" />
@@ -9371,7 +9569,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           type="button"
           variant="action"
           onClick={handleSaveAll}
-          disabled={isSaving || isLoading}
+          disabled={isSaving || isLoading || saveBlockedByDuplicates}
           className="h-9 shrink-0 rounded-pill px-4 shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
         >
           {isSaving ? "Saving..." : "Save"}
@@ -10097,12 +10295,21 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           </div>
 
             <section id="mba-billing" className="scroll-mt-[18px]">
+          {billingOverridesLoadNotice ? (
+            <div
+              role="status"
+              className="mb-4 rounded-card border border-status-attention-fg/20 bg-status-attention-bg px-4 py-3 text-status-attention-fg"
+            >
+              <p className="text-sm">{billingOverridesLoadNotice}</p>
+            </div>
+          ) : null}
           <div className="grid grid-cols-1 gap-6 xl:grid-cols-3 xl:gap-7 2xl:gap-8 xl:items-stretch">
             <div className="flex min-w-0 flex-col gap-4 xl:col-span-2">
               <MbaBillingAutoCalcSummary
                 financials={campaignFinancialsForPanels}
                 panelIndicators={panelIndicators}
                 mediaLabelByType={mediaLabelByBillingKey}
+                duplicatesDetected={liveChannelDuplicateSummary.duplicatesDetected}
               />
               <div className="flex flex-wrap items-center gap-2">
                 <Button type="button" variant="action" onClick={handleMbaBillingModalOpen}>
@@ -10582,7 +10789,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       <UnsavedChangesDialog
         open={isUnsavedPromptOpen}
         onStay={stayOnPage}
-        onSave={handleSaveAll}
+        onSave={saveBlockedByDuplicates ? stayOnPage : handleSaveAll}
         onLeave={confirmNavigation}
         isSaving={isLoading || isSaving}
       />
@@ -10731,6 +10938,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         onToggleLineApproved={handleMbaBillingToggleLine}
         onToggleContainerApproved={handleMbaBillingToggleContainer}
         onResetApprovalsToAllIn={handleMbaBillingResetApprovalsToAllIn}
+        monthYears={(
+          (autoDeliveryMonths.length > 0 ? autoDeliveryMonths : workingBillingMonths).map(
+            (m) => m.monthYear
+          )
+        )}
+        selectedMonthYears={
+          partialMBAMonthYears.length > 0
+            ? partialMBAMonthYears
+            : (autoDeliveryMonths.length > 0 ? autoDeliveryMonths : workingBillingMonths).map(
+                (m) => m.monthYear
+              )
+        }
+        onSelectedMonthYearsChange={handlePartialMBAMonthsChange}
         onDownloadExcel={handleDownloadBillingScheduleExcel}
         downloadDisabled={campaignFinancialsForPanels.billingSchedule.length === 0}
         onResetBillingToAuto={() => setFullBillingResetConfirmOpen(true)}
@@ -10739,6 +10959,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           FF_BILLING_DIVERGENCE_ENABLED && showDivergenceBanner
         }
         onAcknowledgeDivergence={handleAcknowledgeDivergence}
+        overridesLoadNotice={billingOverridesLoadNotice}
         timingDraftReady={manualBillingDraftReady}
         onEnsureTimingDraft={() => {
           void handleManualBillingOpen()
