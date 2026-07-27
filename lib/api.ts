@@ -4,14 +4,18 @@ import { getXanoBaseUrl } from "@/lib/api/xano"
 import { coalescedGetJson, invalidateCoalescedGetJson } from "@/lib/api/coalescedGetJson"
 import {
   MEDIA_TYPE_ID_CODES,
+  assignLineItemIdentities,
   buildLineItemIdentity,
   buildLineItemId,
   pickLineItemNumber,
   sortLineItemsByLineItemNumber,
 } from "@/lib/mediaplan/lineItemIds"
+import { replaceChannelLineItems } from "@/lib/api/replaceChannelLineItems"
 import { extractAndFormatBursts } from "@/lib/mediaplan/formatBurstsForPersist"
 import { formatProductionBurstForPersist } from "@/lib/mediaplan/resolveProductionBurstBudget"
 import { getBooleanField } from "@/lib/util/getBooleanField"
+
+export { replaceChannelLineItems }
 
 const isBrowser = typeof window !== "undefined"
 const PUBLISHERS_BASE_URL = getXanoBaseUrl("XANO_PUBLISHERS_BASE_URL")
@@ -1645,12 +1649,12 @@ export async function saveTelevisionData(televisionData: any) {
 
 export async function saveTelevisionLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, televisionLineItems: any[]) {
   try {
-    const savePromises = televisionLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(televisionLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.television)
+    const rows = (televisionLineItems || []).map((lineItem, index) => {
       // Format bursts data to ensure dates are properly serialized
       // Television has special fields (size, tarps) which will be preserved by extractAndFormatBursts
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.television, index)
-
+      const { line_item_id, line_item } = identities[index];
       const televisionData = {
         media_plan_version: mediaPlanVersionId,
         mba_number: mbaNumber,
@@ -1672,11 +1676,10 @@ export async function saveTelevisionLineItems(mediaPlanVersionId: number, mbaNum
         line_item,
       };
 
-      return await saveTelevisionData(televisionData);
+      return televisionData;
     });
 
-    const results = await Promise.all(savePromises);
-    return results;
+    return await replaceChannelLineItems("media_plan_television", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error("Error saving television line items:", error);
     throw error;
@@ -1709,11 +1712,11 @@ export async function saveNewspaperData(newspaperData: any) {
 
 export async function saveNewspaperLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, newspaperLineItems: any[]) {
   try {
-    const savePromises = newspaperLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(newspaperLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.newspaper)
+    const rows = (newspaperLineItems || []).map((lineItem, index) => {
       // Format bursts data to ensure dates are properly serialized
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.newspaper, index)
-
+      const { line_item_id, line_item } = identities[index];
       const newspaperData = {
         media_plan_version: mediaPlanVersionId,
         mba_number: mbaNumber,
@@ -1736,11 +1739,10 @@ export async function saveNewspaperLineItems(mediaPlanVersionId: number, mbaNumb
         line_item,
       };
 
-      return await saveNewspaperData(newspaperData);
+      return newspaperData;
     });
 
-    const results = await Promise.all(savePromises);
-    return results;
+    return await replaceChannelLineItems("media_plan_newspaper", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error("Error saving newspaper line items:", error);
     throw error;
@@ -1809,11 +1811,11 @@ function applyDeterministicIdForUpdate<T extends { mba_number?: string }>(
 
 export async function saveSocialMediaLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, socialMediaLineItems: any[]) {
   try {
-    const savePromises = socialMediaLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(socialMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia)
+    const rows = (socialMediaLineItems || []).map((lineItem, index) => {
       // Format bursts data to ensure dates are properly serialized
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia, index)
-
+      const { line_item_id, line_item } = identities[index];
       const socialMediaData = {
         media_plan_version: mediaPlanVersionId,
         mba_number: mbaNumber,
@@ -1834,11 +1836,10 @@ export async function saveSocialMediaLineItems(mediaPlanVersionId: number, mbaNu
         line_item,
       };
 
-      return await saveSocialMediaData(socialMediaData);
+      return socialMediaData;
     });
 
-    const results = await Promise.all(savePromises);
-    return results;
+    return await replaceChannelLineItems("media_plan_social", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error("Error saving social media line items:", error);
     throw error;
@@ -2819,7 +2820,6 @@ export async function saveProductionLineItems(
           console.warn('Failed to parse production bursts_json', err)
         }
       } else if (lineItem.startDate || lineItem.endDate) {
-        // Handle flattened line item payloads (one burst per line item)
         bursts = [{
           cost: lineItem.cost ?? lineItem.deliverablesAmount ?? 0,
           amount: lineItem.amount ?? lineItem.deliverables ?? 0,
@@ -2850,9 +2850,10 @@ export async function saveProductionLineItems(
       return defaultValue
     }
 
-    const savePromises = productionLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(productionLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.production)
+    const rows = (productionLineItems || []).map((lineItem, index) => {
       const formattedBursts = normalizeBursts(lineItem)
-      const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'PROD');
+      const { line_item_id, line_item } = identities[index]
 
       const mediaType = pickField(lineItem, ['media_type', 'mediaType'], '')
       const publisher = pickField(lineItem, ['publisher', 'network', 'site'], '')
@@ -2873,35 +2874,15 @@ export async function saveProductionLineItems(
         bursts: formattedBursts,
         bursts_json: formattedBursts,
         line_item,
-      };
-
-      const endpoint = isBrowser
-        ? "/api/media_plans/production"
-        : `${MEDIA_PLANS_BASE_URL}/media_plan_production`
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(productionData),
-      });
-
-      if (!response.ok) {
-        const message = await extractResponseMessage(response)
-        throw new Error(`Failed to save production line item ${index + 1}: ${message}`);
       }
 
-      return await parseJsonOrText(response);
-    });
+      return productionData
+    })
 
-    const results = await Promise.all(savePromises);
-    console.log('Production line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_production", mediaPlanVersionId, rows, mbaNumber)
   } catch (error) {
-    console.error('Error saving production line items:', error);
-    throw error;
+    console.error('Error saving production line items:', error)
+    throw error
   }
 }
 
@@ -3101,10 +3082,11 @@ export async function getInfluencersLineItemsByMBA(mbaNumber: string, mediaPlanV
 // Additional Save Functions for Bulk Operations
 export async function saveRadioLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, radioLineItems: any[]) {
   try {
-    const savePromises = radioLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(radioLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.radio)
+    const rows = (radioLineItems || []).map((lineItem, index) => {
       // Format bursts data to ensure dates are properly serialized
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const idMeta = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.radio, index);
+      const idMeta = identities[index];
       
       // Log for debugging
       console.log(`[Radio] Saving line item ${index + 1}:`, {
@@ -3142,25 +3124,10 @@ export async function saveRadioLineItems(mediaPlanVersionId: number, mbaNumber: 
         line_item: idMeta.line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_radio`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(radioData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save radio line item ${index + 1}: ${response.statusText}`);
-      }
-
-      return await response.json();
+      return radioData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('Radio line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_radio", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving radio line items:', error);
     throw error;
@@ -3169,9 +3136,10 @@ export async function saveRadioLineItems(mediaPlanVersionId: number, mbaNumber: 
 
 export async function saveMagazinesLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, magazinesLineItems: any[]) {
   try {
-    const savePromises = magazinesLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(magazinesLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.magazines)
+    const rows = (magazinesLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.magazines, index);
+      const { line_item_id, line_item } = identities[index];
 
       const magazinesData = {
         media_plan_version: mediaPlanVersionId,
@@ -3197,25 +3165,10 @@ export async function saveMagazinesLineItems(mediaPlanVersionId: number, mbaNumb
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_magazines`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(magazinesData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save magazines line item ${index + 1}: ${response.statusText}`);
-      }
-
-      return await response.json();
+      return magazinesData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('Magazines line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_magazines", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving magazines line items:', error);
     throw error;
@@ -3224,9 +3177,10 @@ export async function saveMagazinesLineItems(mediaPlanVersionId: number, mbaNumb
 
 export async function saveOOHLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, oohLineItems: any[]) {
   try {
-    const savePromises = oohLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(oohLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.ooh)
+    const rows = (oohLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.ooh, index);
+      const { line_item_id, line_item } = identities[index];
 
       const oohData = {
         media_plan_version: mediaPlanVersionId,
@@ -3253,25 +3207,10 @@ export async function saveOOHLineItems(mediaPlanVersionId: number, mbaNumber: st
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_ooh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(oohData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save OOH line item ${index + 1}: ${response.statusText}`);
-      }
-
-      return await response.json();
+      return oohData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('OOH line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_ooh", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving OOH line items:', error);
     throw error;
@@ -3280,9 +3219,10 @@ export async function saveOOHLineItems(mediaPlanVersionId: number, mbaNumber: st
 
 export async function saveCinemaLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, cinemaLineItems: any[], versionNumber?: number) {
   try {
-    const savePromises = cinemaLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(cinemaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.cinema)
+    const rows = (cinemaLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.cinema, index);
+      const { line_item_id, line_item } = identities[index];
 
       const cinemaData = {
         media_plan_version: mediaPlanVersionId,
@@ -3309,25 +3249,10 @@ export async function saveCinemaLineItems(mediaPlanVersionId: number, mbaNumber:
         bid_strategy: getField(lineItem, 'bid_strategy', 'bidStrategy', ''),
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_cinema`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(cinemaData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save cinema line item ${index + 1}: ${response.statusText}`);
-      }
-
-      return await response.json();
+      return cinemaData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('Cinema line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_cinema", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving cinema line items:', error);
     throw error;
@@ -3336,9 +3261,10 @@ export async function saveCinemaLineItems(mediaPlanVersionId: number, mbaNumber:
 
 export async function saveDigitalDisplayLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, digitalDisplayLineItems: any[]) {
   try {
-    const savePromises = digitalDisplayLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(digitalDisplayLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay)
+    const rows = (digitalDisplayLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, index);
+      const { line_item_id, line_item } = identities[index];
 
       const digitalDisplayData = {
         media_plan_version: mediaPlanVersionId,
@@ -3364,25 +3290,10 @@ export async function saveDigitalDisplayLineItems(mediaPlanVersionId: number, mb
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_display`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(digitalDisplayData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save digital display line item ${index + 1}: ${response.statusText}`);
-      }
-
-      return await response.json();
+      return digitalDisplayData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('Digital display line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_digi_display", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving digital display line items:', error);
     throw error;
@@ -3391,9 +3302,10 @@ export async function saveDigitalDisplayLineItems(mediaPlanVersionId: number, mb
 
 export async function saveDigitalAudioLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, digitalAudioLineItems: any[]) {
   try {
-    const savePromises = digitalAudioLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(digitalAudioLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio)
+    const rows = (digitalAudioLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio, index);
+      const { line_item_id, line_item } = identities[index];
 
       const digitalAudioData = {
         media_plan_version: mediaPlanVersionId,
@@ -3419,25 +3331,10 @@ export async function saveDigitalAudioLineItems(mediaPlanVersionId: number, mbaN
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_audio`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(digitalAudioData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save digital audio line item ${index + 1}: ${response.statusText}`);
-      }
-
-      return await response.json();
+      return digitalAudioData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('Digital audio line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_digi_audio", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving digital audio line items:', error);
     throw error;
@@ -3446,9 +3343,10 @@ export async function saveDigitalAudioLineItems(mediaPlanVersionId: number, mbaN
 
 export async function saveDigitalVideoLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, digitalVideoLineItems: any[]) {
   try {
-    const savePromises = digitalVideoLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(digitalVideoLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo)
+    const rows = (digitalVideoLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo, index);
+      const { line_item_id, line_item } = identities[index];
 
       const digitalVideoData = {
         media_plan_version: mediaPlanVersionId,
@@ -3476,25 +3374,10 @@ export async function saveDigitalVideoLineItems(mediaPlanVersionId: number, mbaN
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_digi_video`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(digitalVideoData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save digital video line item ${index + 1}: ${response.statusText}`);
-      }
-
-      return await response.json();
+      return digitalVideoData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('Digital video line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_digi_video", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving digital video line items:', error);
     throw error;
@@ -3503,9 +3386,10 @@ export async function saveDigitalVideoLineItems(mediaPlanVersionId: number, mbaN
 
 export async function saveBVODLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, bvodLineItems: any[]) {
   try {
-    const savePromises = bvodLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(bvodLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.bvod)
+    const rows = (bvodLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.bvod, index);
+      const { line_item_id, line_item } = identities[index];
 
       const bvodData = {
         media_plan_version: mediaPlanVersionId,
@@ -3533,30 +3417,10 @@ export async function saveBVODLineItems(mediaPlanVersionId: number, mbaNumber: s
         line_item,
       };
 
-      const endpoint = isBrowser
-        ? "/api/media_plans/digi-bvod"
-        : `${MEDIA_PLANS_BASE_URL}/media_plan_digi_bvod`
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(bvodData),
-      });
-
-      if (!response.ok) {
-        const message = await extractResponseMessage(response)
-        throw new Error(`Failed to save BVOD line item ${index + 1}: ${message}`);
-      }
-
-      return await parseJsonOrText(response);
+      return bvodData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('BVOD line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_digi_bvod", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving BVOD line items:', error);
     throw error;
@@ -3565,14 +3429,10 @@ export async function saveBVODLineItems(mediaPlanVersionId: number, mbaNumber: s
 
 export async function saveIntegrationLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, integrationLineItems: any[]) {
   try {
-    const savePromises = integrationLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(integrationLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.integration)
+    const rows = (integrationLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(
-        lineItem,
-        mbaNumber,
-        MEDIA_TYPE_ID_CODES.integration,
-        index
-      );
+      const { line_item_id, line_item } = identities[index];
 
       const integrationData = {
         media_plan_version: mediaPlanVersionId,
@@ -3598,30 +3458,10 @@ export async function saveIntegrationLineItems(mediaPlanVersionId: number, mbaNu
         line_item,
       };
 
-      const endpoint = isBrowser
-        ? "/api/media_plans/integration"
-        : `${MEDIA_PLANS_BASE_URL}/media_plan_integrations`
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(integrationData),
-      });
-
-      if (!response.ok) {
-        const message = await extractResponseMessage(response)
-        throw new Error(`Failed to save integration line item ${index + 1}: ${message}`);
-      }
-
-      return await parseJsonOrText(response);
+      return integrationData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('Integration line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_integrations", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving integration line items:', error);
     throw error;
@@ -3630,9 +3470,10 @@ export async function saveIntegrationLineItems(mediaPlanVersionId: number, mbaNu
 
 export async function saveSearchLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, searchLineItems: any[]) {
   try {
-    const savePromises = searchLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(searchLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.search)
+    const rows = (searchLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.search, index);
+      const { line_item_id, line_item } = identities[index];
 
       const searchData = {
         media_plan_version: mediaPlanVersionId,
@@ -3658,25 +3499,10 @@ export async function saveSearchLineItems(mediaPlanVersionId: number, mbaNumber:
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_search`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(searchData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save search line item ${index + 1}: ${response.statusText}`);
-      }
-
-      return await response.json();
+      return searchData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('Search line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_search", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving search line items:', error);
     throw error;
@@ -3685,9 +3511,10 @@ export async function saveSearchLineItems(mediaPlanVersionId: number, mbaNumber:
 
 export async function saveProgDisplayLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progDisplayLineItems: any[]) {
   try {
-    const savePromises = progDisplayLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(progDisplayLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progDisplay)
+    const rows = (progDisplayLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progDisplay, index);
+      const { line_item_id, line_item } = identities[index];
 
       const progDisplayData = {
         media_plan_version: mediaPlanVersionId,
@@ -3714,25 +3541,10 @@ export async function saveProgDisplayLineItems(mediaPlanVersionId: number, mbaNu
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_display`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(progDisplayData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save programmatic display line item ${index + 1}: ${response.statusText}`);
-      }
-
-      return await response.json();
+      return progDisplayData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('Programmatic display line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_prog_display", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving programmatic display line items:', error);
     throw error;
@@ -3741,9 +3553,10 @@ export async function saveProgDisplayLineItems(mediaPlanVersionId: number, mbaNu
 
 export async function saveProgVideoLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progVideoLineItems: any[]) {
   try {
-    const savePromises = progVideoLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(progVideoLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progVideo)
+    const rows = (progVideoLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progVideo, index);
+      const { line_item_id, line_item } = identities[index];
 
       const progVideoData = {
         media_plan_version: mediaPlanVersionId,
@@ -3770,30 +3583,10 @@ export async function saveProgVideoLineItems(mediaPlanVersionId: number, mbaNumb
         line_item,
       };
 
-      const endpoint = isBrowser
-        ? "/api/media_plans/prog-video"
-        : `${MEDIA_PLANS_BASE_URL}/media_plan_prog_video`
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(progVideoData),
-      });
-
-      if (!response.ok) {
-        const message = await extractResponseMessage(response)
-        throw new Error(`Failed to save programmatic video line item ${index + 1}: ${message}`);
-      }
-
-      return await parseJsonOrText(response);
+      return progVideoData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('Programmatic video line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_prog_video", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving programmatic video line items:', error);
     throw error;
@@ -3802,9 +3595,10 @@ export async function saveProgVideoLineItems(mediaPlanVersionId: number, mbaNumb
 
 export async function saveProgBVODLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progBVODLineItems: any[]) {
   try {
-    const savePromises = progBVODLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(progBVODLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progBVOD)
+    const rows = (progBVODLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progBVOD, index);
+      const { line_item_id, line_item } = identities[index];
 
       const progBVODData = {
         media_plan_version: mediaPlanVersionId,
@@ -3831,25 +3625,10 @@ export async function saveProgBVODLineItems(mediaPlanVersionId: number, mbaNumbe
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_bvod`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(progBVODData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save programmatic BVOD line item ${index + 1}: ${response.statusText}`);
-      }
-
-      return await response.json();
+      return progBVODData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('Programmatic BVOD line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_prog_bvod", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving programmatic BVOD line items:', error);
     throw error;
@@ -3858,9 +3637,10 @@ export async function saveProgBVODLineItems(mediaPlanVersionId: number, mbaNumbe
 
 export async function saveProgAudioLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progAudioLineItems: any[]) {
   try {
-    const savePromises = progAudioLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(progAudioLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progAudio)
+    const rows = (progAudioLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progAudio, index);
+      const { line_item_id, line_item } = identities[index];
 
       const progAudioData = {
         media_plan_version: mediaPlanVersionId,
@@ -3886,25 +3666,10 @@ export async function saveProgAudioLineItems(mediaPlanVersionId: number, mbaNumb
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_audio`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(progAudioData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save programmatic audio line item ${index + 1}: ${response.statusText}`);
-      }
-
-      return await response.json();
+      return progAudioData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('Programmatic audio line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_prog_audio", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving programmatic audio line items:', error);
     throw error;
@@ -3913,9 +3678,10 @@ export async function saveProgAudioLineItems(mediaPlanVersionId: number, mbaNumb
 
 export async function saveProgOOHLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progOOHLineItems: any[]) {
   try {
-    const savePromises = progOOHLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(progOOHLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progOOH)
+    const rows = (progOOHLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progOOH, index);
+      const { line_item_id, line_item } = identities[index];
 
       const progOOHData = {
         media_plan_version: mediaPlanVersionId,
@@ -3942,25 +3708,10 @@ export async function saveProgOOHLineItems(mediaPlanVersionId: number, mbaNumber
         line_item,
       };
 
-      const response = await fetch(`${MEDIA_PLANS_BASE_URL}/media_plan_prog_ooh`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(progOOHData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to save programmatic OOH line item ${index + 1}: ${response.statusText}`);
-      }
-
-      return await response.json();
+      return progOOHData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('Programmatic OOH line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_prog_ooh", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving programmatic OOH line items:', error);
     throw error;
@@ -3969,14 +3720,10 @@ export async function saveProgOOHLineItems(mediaPlanVersionId: number, mbaNumber
 
 export async function saveInfluencersLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, influencersLineItems: any[]) {
   try {
-    const savePromises = influencersLineItems.map(async (lineItem, index) => {
+    const identities = assignLineItemIdentities(influencersLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.influencers)
+    const rows = (influencersLineItems || []).map((lineItem, index) => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
-      const { line_item_id, line_item } = buildLineItemIdentity(
-        lineItem,
-        mbaNumber,
-        MEDIA_TYPE_ID_CODES.influencers,
-        index
-      );
+      const { line_item_id, line_item } = identities[index];
 
       const influencersData = {
         media_plan_version: mediaPlanVersionId,
@@ -3997,30 +3744,10 @@ export async function saveInfluencersLineItems(mediaPlanVersionId: number, mbaNu
         line_item,
       };
 
-      const endpoint = isBrowser
-        ? "/api/media_plans/influencers"
-        : `${MEDIA_PLANS_BASE_URL}/media_plan_influencers`
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${XANO_API_KEY}`,
-        },
-        body: JSON.stringify(influencersData),
-      });
-
-      if (!response.ok) {
-        const message = await extractResponseMessage(response)
-        throw new Error(`Failed to save influencers line item ${index + 1}: ${message}`);
-      }
-
-      return await parseJsonOrText(response);
+      return influencersData;
     });
 
-    const results = await Promise.all(savePromises);
-    console.log('Influencers line items saved successfully:', results);
-    return results;
+    return await replaceChannelLineItems("media_plan_influencers", mediaPlanVersionId, rows, mbaNumber);
   } catch (error) {
     console.error('Error saving influencers line items:', error);
     throw error;
