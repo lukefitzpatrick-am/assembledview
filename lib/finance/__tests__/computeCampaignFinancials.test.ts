@@ -216,3 +216,43 @@ test("computeCampaignFinancials: fee/12 penny reconciliation keeps billableEqual
   assert.equal(result.validation.billableEqualsMba, true)
   assert.equal(result.validation.deltaExGst, 0)
 })
+
+test("computeCampaignFinancials: selectedMonthYears scopes billing+MBA, keeps delivery full", () => {
+  const line: LineItemInput = {
+    lineItemId: "TV1",
+    mediaType: "television",
+    buyType: "cpm",
+    rate: 10,
+    enteredAmount: 2000,
+    budgetIncludesFees: false,
+    clientPaysForMedia: false,
+    bursts: [
+      {
+        startDate: "2026-08-01",
+        endDate: "2026-09-30",
+        budget: 2000,
+        buyAmount: 10,
+      },
+    ],
+    approval: "approved",
+  }
+
+  const full = computeCampaignFinancials([line], { feeLoading: { feetelevision: 0 } }, {
+    campaignStart: new Date(2026, 7, 1),
+    campaignEnd: new Date(2026, 8, 30),
+  })
+  assert.ok(full.deliverySchedule.length >= 2)
+  assert.ok(full.billingSchedule.length >= 2)
+
+  const augOnly = computeCampaignFinancials([line], { feeLoading: { feetelevision: 0 } }, {
+    campaignStart: new Date(2026, 7, 1),
+    campaignEnd: new Date(2026, 8, 30),
+    selectedMonthYears: ["August 2026"],
+  })
+
+  assert.equal(augOnly.deliverySchedule.length, full.deliverySchedule.length)
+  assert.equal(augOnly.billingSchedule.length, 1)
+  assert.equal(augOnly.billingSchedule[0]?.monthYear, "August 2026")
+  assert.ok(augOnly.mbaScopeTotals.grossMedia < full.mbaScopeTotals.grossMedia)
+  assert.ok(augOnly.mbaScopeTotals.grossMedia > 0)
+})

@@ -69,18 +69,39 @@ function reasonLabel(reasons: string[]): string {
  * Map core financials → panel indicator view-models.
  * `@param opts.isPartialMBA` gates the Partial MBA header when the form flag is on
  * even before any line is marked excluded in the engine result.
+ * `@param opts.selectedMonthYears` / campaign month count also mark month partiality.
  */
 export function panelIndicatorsFromCampaignFinancials(
   financials: CampaignFinancials,
-  opts?: { isPartialMBA?: boolean }
+  opts?: {
+    isPartialMBA?: boolean
+    /** Selected MBA month keys; when a proper subset of delivery months → month partial. */
+    selectedMonthYears?: readonly string[]
+  }
 ): PanelIndicatorsFromCampaignFinancials {
   const perLine = financials.perLine
   const inMba = perLine.filter((l) => !l.flags.excluded)
   const excluded = perLine.filter((l) => l.flags.excluded)
   const total = perLine.length
   const inCount = inMba.length
-  const showPartial =
+
+  const deliveryMonths = financials.deliverySchedule.map((m) => m.monthYear)
+  const selectedMonths = opts?.selectedMonthYears ?? []
+  const monthPartial =
+    selectedMonths.length > 0 &&
+    deliveryMonths.length > 0 &&
+    (selectedMonths.length < deliveryMonths.length ||
+      !deliveryMonths.every((m) => selectedMonths.includes(m)))
+
+  const linePartial =
     Boolean(opts?.isPartialMBA) || excluded.length > 0 || (total > 0 && inCount < total)
+
+  let partialLabel: string | null = null
+  if (linePartial && total > 0) {
+    partialLabel = `Partial MBA · ${inCount} of ${total}`
+  } else if (monthPartial) {
+    partialLabel = `Partial MBA · ${selectedMonths.length} of ${deliveryMonths.length} months`
+  }
 
   const byMediaType: Record<string, MediaTypeRowIndicators> = {}
   const linesByMedia = new Map<string, typeof perLine>()
@@ -156,7 +177,7 @@ export function panelIndicatorsFromCampaignFinancials(
 
   return {
     mbaDetails: {
-      partialLabel: showPartial && total > 0 ? `Partial MBA · ${inCount} of ${total}` : null,
+      partialLabel,
       byMediaType,
       billableEqualsMba: financials.validation.billableEqualsMba,
       mbaFeeAdjusted: financials.mbaFeeAdjusted,

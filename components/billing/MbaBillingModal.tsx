@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { Check, ChevronDown, Download, X } from "lucide-react"
+import { AlertTriangle, Check, ChevronDown, Download, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -44,6 +44,12 @@ import {
   LineTimingInlineEditor,
   type LineDateBasisChoice,
 } from "@/components/billing/LineTimingInlineEditor"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 const money = new Intl.NumberFormat("en-AU", {
   style: "currency",
@@ -101,6 +107,15 @@ export type MbaBillingModalProps = {
   /** Approve/exclude every line in a media-type container (batched). */
   onToggleContainerApproved?: (mediaType: string, approved: boolean) => void
   onResetApprovalsToAllIn?: () => void
+  /**
+   * Campaign month keys (e.g. "August 2026") for the MBA covers chips.
+   * Defaults to all selected via `selectedMonthYears`.
+   */
+  monthYears?: string[]
+  /** Currently selected MBA month keys (subset of `monthYears`). */
+  selectedMonthYears?: string[]
+  /** Toggle month membership — parent enforces min-one and recomputes. */
+  onSelectedMonthYearsChange?: (next: string[]) => void
   onDownloadExcel?: () => void
   downloadDisabled?: boolean
   /**
@@ -140,6 +155,10 @@ export type MbaBillingModalProps = {
   billingDivergence?: BillingDivergenceResult | null
   showDivergenceBanner?: boolean
   onAcknowledgeDivergence?: () => void
+  /**
+   * Non-blocking amber notice when billing_overrides GET failed (once, not per line).
+   */
+  overridesLoadNotice?: string | null
   footer?: ReactNode
 }
 
@@ -189,14 +208,26 @@ function groupScopeLinesByContainer(scopeLines: MbaBillingScopeLine[]): ScopeCon
   })
 }
 
+function shortMonthChipLabel(monthYear: string): string {
+  const m = /^([A-Za-z]+)\s+(\d{4})$/.exec(String(monthYear).trim())
+  if (!m) return monthYear
+  return `${m[1]!.slice(0, 3)} ${m[2]!.slice(2)}`
+}
+
 function HeaderStrip({
   versionLabel,
   financials,
   panelIndicators,
+  monthYears,
+  selectedMonthYears,
+  onSelectedMonthYearsChange,
 }: {
   versionLabel: string
   financials: CampaignFinancials
   panelIndicators: PanelIndicatorsFromCampaignFinancials
+  monthYears?: string[]
+  selectedMonthYears?: string[]
+  onSelectedMonthYearsChange?: (next: string[]) => void
 }) {
   const lines = financials.perLine
   const total = lines.length
@@ -213,50 +244,110 @@ function HeaderStrip({
   const quiet =
     !partialLabel && manual === 0 && clientPays === 0 && billingNeDelivery === 0
 
+  const months = monthYears ?? []
+  const selected = selectedMonthYears ?? months
+  const selectedSet = new Set(selected)
+  const showMonthChips = months.length > 0 && Boolean(onSelectedMonthYearsChange)
+
+  function toggleMonth(monthYear: string) {
+    if (!onSelectedMonthYearsChange) return
+    const isOn = selectedSet.has(monthYear)
+    if (isOn) {
+      if (selected.length <= 1) return
+      onSelectedMonthYearsChange(selected.filter((m) => m !== monthYear))
+      return
+    }
+    onSelectedMonthYearsChange([...selected, monthYear])
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-panel px-6 py-3">
-      <Badge variant="secondary" size="sm" className="rounded-pill font-medium">
-        MBA {versionLabel}
-      </Badge>
-      {/* Core signal — same Partial MBA · X of Y as MBA Details panel */}
-      <MbaPartialScopePill label={partialLabel} />
-      {!partialLabel && total > 0 ? (
-        <Badge variant="good" size="sm" className="rounded-pill font-medium">
-          <span className="num">{`${approved} of ${total} approved`}</span>
+    <div className="space-y-2 border-b border-border bg-surface-panel px-6 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary" size="sm" className="rounded-pill font-medium">
+          MBA {versionLabel}
         </Badge>
-      ) : null}
-      {manual > 0 ? (
-        <Badge variant="attention" size="sm" className="rounded-pill font-medium">
-          <span className="num">{manual}</span> manual
-        </Badge>
-      ) : null}
-      {clientPays > 0 ? (
-        <Badge variant="secondary" size="sm" className="rounded-pill font-medium text-muted-foreground">
-          client-pays: <span className="num">{clientPays}</span>
-        </Badge>
-      ) : null}
-      {billingNeDelivery > 0 ? (
-        <Badge variant="attention" size="sm" className="rounded-pill font-medium">
-          billing≠delivery: <span className="num">{billingNeDelivery}</span>
-        </Badge>
-      ) : null}
-      {billableEquals ? (
-        <Badge variant="good" size="sm" className="rounded-pill font-medium" title="Billable totals match MBA">
-          <Check className="mr-1 h-3.5 w-3.5" aria-hidden />
-          billable = MBA
-        </Badge>
-      ) : total > 0 ? (
-        <Badge
-          variant="blocking"
-          size="sm"
-          className="rounded-pill font-medium"
-          title="Billable totals do not match MBA"
-        >
-          billing ≠ MBA
-        </Badge>
-      ) : null}
-      {quiet && billableEquals && total > 0 ? (
-        <span className="text-xs text-muted-foreground">Clean plan</span>
+        {/* Core signal — same Partial MBA · X of Y as MBA Details panel */}
+        <MbaPartialScopePill label={partialLabel} />
+        {!partialLabel && total > 0 ? (
+          <Badge variant="good" size="sm" className="rounded-pill font-medium">
+            <span className="num">{`${approved} of ${total} approved`}</span>
+          </Badge>
+        ) : null}
+        {manual > 0 ? (
+          <Badge variant="attention" size="sm" className="rounded-pill font-medium">
+            <span className="num">{manual}</span> manual
+          </Badge>
+        ) : null}
+        {clientPays > 0 ? (
+          <Badge variant="secondary" size="sm" className="rounded-pill font-medium text-muted-foreground">
+            client-pays: <span className="num">{clientPays}</span>
+          </Badge>
+        ) : null}
+        {billingNeDelivery > 0 ? (
+          <Badge variant="attention" size="sm" className="rounded-pill font-medium">
+            billing≠delivery: <span className="num">{billingNeDelivery}</span>
+          </Badge>
+        ) : null}
+        {billableEquals ? (
+          <Badge variant="good" size="sm" className="rounded-pill font-medium" title="Billable totals match MBA">
+            <Check className="mr-1 h-3.5 w-3.5" aria-hidden />
+            billable = MBA
+          </Badge>
+        ) : total > 0 ? (
+          <Badge
+            variant="blocking"
+            size="sm"
+            className="rounded-pill font-medium"
+            title="Billable totals do not match MBA"
+          >
+            billing ≠ MBA
+          </Badge>
+        ) : null}
+        {quiet && billableEquals && total > 0 ? (
+          <span className="text-xs text-muted-foreground">Clean plan</span>
+        ) : null}
+      </div>
+      {showMonthChips ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">MBA covers:</span>
+          <TooltipProvider delayDuration={200}>
+            {months.map((monthYear) => {
+              const isSelected = selectedSet.has(monthYear)
+              const isLastSelected = isSelected && selected.length === 1
+              const chipClass = cn(
+                "interactive-tint rounded-pill border px-2.5 py-1 text-xs font-medium transition-colors",
+                isSelected
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "border-border bg-card text-muted-foreground",
+                isLastSelected && "cursor-not-allowed opacity-70"
+              )
+              const chip = (
+                <button
+                  type="button"
+                  aria-pressed={isSelected}
+                  disabled={isLastSelected}
+                  onClick={() => toggleMonth(monthYear)}
+                  className={chipClass}
+                >
+                  {shortMonthChipLabel(monthYear)}
+                </button>
+              )
+              if (!isLastSelected) {
+                return <span key={monthYear}>{chip}</span>
+              }
+              return (
+                <Tooltip key={monthYear}>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">{chip}</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    Keep at least one month in the MBA
+                  </TooltipContent>
+                </Tooltip>
+              )
+            })}
+          </TooltipProvider>
+        </div>
       ) : null}
     </div>
   )
@@ -494,6 +585,9 @@ export function MbaBillingModal({
   onToggleLineApproved,
   onToggleContainerApproved,
   onResetApprovalsToAllIn,
+  monthYears,
+  selectedMonthYears,
+  onSelectedMonthYearsChange,
   onDownloadExcel,
   downloadDisabled,
   onResetBillingToAuto,
@@ -509,6 +603,7 @@ export function MbaBillingModal({
   billingDivergence = null,
   showDivergenceBanner = false,
   onAcknowledgeDivergence,
+  overridesLoadNotice = null,
   footer,
 }: MbaBillingModalProps) {
   const advancedOpen = showAdvancedEditor ?? showManualEditor ?? false
@@ -608,7 +703,23 @@ export function MbaBillingModal({
             versionLabel={versionLabel}
             financials={financials}
             panelIndicators={panelIndicators}
+            monthYears={monthYears}
+            selectedMonthYears={selectedMonthYears}
+            onSelectedMonthYearsChange={onSelectedMonthYearsChange}
           />
+          {overridesLoadNotice ? (
+            <div className="border-b border-border px-6 py-3">
+              <div
+                role="status"
+                className="rounded-card border border-status-attention-fg/20 bg-status-attention-bg px-4 py-3 text-status-attention-fg"
+              >
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                  <p className="text-sm">{overridesLoadNotice}</p>
+                </div>
+              </div>
+            </div>
+          ) : null}
           {showDivergenceBanner && billingDivergence?.isDivergent ? (
             <div className="border-b border-border px-6 py-3">
               <BillingDivergenceBanner

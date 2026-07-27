@@ -129,6 +129,11 @@ export type ComputeCampaignFinancialsOpts = {
   getRateForMediaType?: (mediaType: string) => number
   /** Passed through to schedule compute (parity with editor); unused numerically. */
   isManualBilling?: boolean
+  /**
+   * When set to a proper subset of campaign months, MBA + billingSchedule shrink to
+   * those months while deliverySchedule stays full-campaign.
+   */
+  selectedMonthYears?: readonly string[]
 }
 
 type ResolvedLine = {
@@ -943,7 +948,7 @@ export function computeCampaignFinancials(
     billingScheduleTotalExGst,
   })
 
-  return {
+  const full: CampaignFinancials = {
     perLine: resolved.map(toPerLineResult),
     deliverySchedule,
     billingSchedule,
@@ -959,6 +964,114 @@ export function computeCampaignFinancials(
     },
     mbaFeeAdjusted,
     rebill_needed,
+    reconciliation: {
+      clientPaysMedia,
+      billableMbaExGst,
+      billingScheduleTotalExGst,
+    },
+  }
+
+  return scopeCampaignFinancialsToSelectedMonths(full, opts?.selectedMonthYears)
+}
+
+/**
+ * Narrow MBA + billing to selected months; leave delivery full-campaign.
+ * No-op when selection is empty or covers every delivery month.
+ */
+export function scopeCampaignFinancialsToSelectedMonths(
+  financials: CampaignFinancials,
+  selectedMonthYears: readonly string[] | undefined | null
+): CampaignFinancials {
+  if (!selectedMonthYears || selectedMonthYears.length === 0) return financials
+
+  const selectedSet = new Set(selectedMonthYears)
+  const campaignMonths = financials.deliverySchedule.map((m) => m.monthYear)
+  if (campaignMonths.length === 0) {
+    const billingMonths = financials.billingSchedule.map((m) => m.monthYear)
+    if (
+      billingMonths.length === 0 ||
+      (billingMonths.every((m) => selectedSet.has(m)) &&
+        selectedMonthYears.length >= billingMonths.length)
+    ) {
+      return financials
+    }
+  } else if (
+    campaignMonths.every((m) => selectedSet.has(m)) &&
+    selectedMonthYears.length >= campaignMonths.length
+  ) {
+    return financials
+  }
+
+  const billingSchedule = financials.billingSchedule.filter((m) =>
+    selectedSet.has(m.monthYear)
+  )
+  const deliverySchedule = financials.deliverySchedule
+
+  const perLine = financials.perLine.map((line) => {
+    if (line.flags.excluded) return line
+    const scopedBillingMonths = line.billingMonths.filter((m) => selectedSet.has(m.month))
+    const media = roundMoney2(scopedBillingMonths.reduce((s, m) => s + m.amount, 0))
+    const fullBillingMedia = roundMoney2(
+      line.billingMonths.reduce((s, m) => s + m.amount, 0)
+    )
+    const fee =
+      fullBillingMedia > 0.005
+        ? roundMoney2(line.fee * (media / fullBillingMedia))
+        : 0
+    return {
+      ...line,
+      media,
+      fee,
+      nett: roundMoney2(media + fee),
+      billingMonths: scopedBillingMonths,
+    }
+  })
+
+  const approved = perLine.filter((l) => !l.flags.excluded)
+  const grossMedia = roundMoney2(approved.reduce((s, l) => s + l.media, 0))
+  const fee = roundMoney2(approved.reduce((s, l) => s + l.fee, 0))
+  const adServing = sumScheduleField(billingSchedule, "adservingTechFees")
+  const production = sumScheduleField(billingSchedule, "production")
+  const nettExGst = roundMoney2(grossMedia + fee + adServing + production)
+  const nettIncGst = addGst(nettExGst)
+
+  const mbaScopeTotals: MbaScopeTotals = {
+    grossMedia,
+    fee,
+    adServing,
+    production,
+    nettExGst,
+    nettIncGst,
+  }
+
+  const clientPaysMedia = roundMoney2(
+    approved.filter((l) => l.flags.clientPaysForMedia).reduce((s, l) => s + l.media, 0)
+  )
+  const billableMbaExGst = roundMoney2(nettExGst - clientPaysMedia)
+  const billingScheduleTotalExGst = roundMoney2(
+    billingSchedule.reduce(
+      (s, m) => s + monthExGstFromScheduleEntry(m as unknown as Record<string, unknown>),
+      0
+    )
+  )
+  const validationResult = validateBillableEqualsMba({
+    mbaTotalExGst: billableMbaExGst,
+    billingScheduleTotalExGst,
+  })
+
+  return {
+    perLine,
+    deliverySchedule,
+    billingSchedule,
+    mbaScopeTotals,
+    deliveryVsBillingDelta: buildDeliveryVsBillingDelta(deliverySchedule, billingSchedule, []),
+    validation: {
+      billableEqualsMba: validationResult.ok,
+      deltaExGst: validationResult.deltaExGst,
+    },
+    // Fee-adjusted flag is campaign-level; keep prior when month-scoping.
+    mbaFeeAdjusted: financials.mbaFeeAdjusted,
+    rebill_needed: financials.rebill_needed,
     reconciliation: {
       clientPaysMedia,
       billableMbaExGst,
