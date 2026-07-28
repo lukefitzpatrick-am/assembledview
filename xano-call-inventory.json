@@ -1,0 +1,4506 @@
+{
+  "summary": {
+    "generatedAt": "2026-07-28T04:35:02.178Z",
+    "catalogTotals": {
+      "groups": 13,
+      "endpoints": 340,
+      "authRequired": 32,
+      "public": 308
+    },
+    "appCallCount": 106,
+    "uniquePaths": 71,
+    "authHelperCoverage": {
+      "withHelper": 100,
+      "withoutHelper": 6
+    },
+    "authMechanism": {
+      "envVar": "XANO_API_KEY",
+      "header": "Authorization: Bearer <token>",
+      "helpers": [
+        "lib/api/xano.ts → xanoAuthHeader / xanoAuthHeaderRecord / xanoPostHeaderRecord / requireXanoAuthHeaderRecord"
+      ],
+      "note": "Server-only. Never expose via NEXT_PUBLIC_*. Empty key omits the header (current public-group behaviour)."
+    }
+  },
+  "calls": [
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "billing_overrides",
+      "method": "GET",
+      "callingFile": "app/api/billing-overrides/route.ts",
+      "hasAuthHelper": true,
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "billing_overrides/replace_line",
+      "method": "POST",
+      "callingFile": "app/api/billing-overrides/replace_line/route.ts",
+      "hasAuthHelper": true,
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "billing_overrides/reset_line",
+      "method": "DELETE",
+      "callingFile": "app/api/billing-overrides/reset_line/route.ts",
+      "hasAuthHelper": true,
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "billing_overrides/reset_line",
+      "method": "POST",
+      "callingFile": "app/api/billing-overrides/reset_line/route.ts",
+      "hasAuthHelper": true,
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "clients",
+      "method": "GET",
+      "callingFile": "lib/api/xanoClients.ts",
+      "hasAuthHelper": false,
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "mba_line_approvals",
+      "method": "GET",
+      "callingFile": "app/api/mba-line-approvals/route.ts",
+      "hasAuthHelper": true,
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "mba_line_approvals",
+      "method": "PATCH",
+      "callingFile": "app/api/mba-line-approvals/route.ts",
+      "hasAuthHelper": true,
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "media_plan_master",
+      "method": "GET",
+      "callingFile": "lib/api/fetchChannelLineItemsByMba.ts",
+      "hasAuthHelper": true,
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "media_plan_search",
+      "method": "GET",
+      "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
+      "hasAuthHelper": false,
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "media_plan_social",
+      "method": "GET",
+      "callingFile": "lib/pacing/social/resolveLiveSocialLineItems.ts",
+      "hasAuthHelper": false,
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "media_plan_versions",
+      "method": "GET",
+      "callingFile": "lib/api/fetchChannelLineItemsByMba.ts",
+      "hasAuthHelper": true,
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "media_plan_versions",
+      "method": "GET",
+      "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
+      "hasAuthHelper": false,
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "pacing_orphan_fixes",
+      "method": "POST",
+      "callingFile": "lib/xano/pacingOrphanFixes.ts",
+      "hasAuthHelper": true,
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "{id}/{id}",
+      "method": "GET",
+      "callingFile": "lib/creative/xanoCreativeAssets.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "{id}/{id}",
+      "method": "PATCH",
+      "callingFile": "lib/creative/xanoCreativeAssets.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "{id}/{id}",
+      "method": "DELETE",
+      "callingFile": "lib/creative/xanoCreativeAssets.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "campaign_kpi",
+      "method": "GET",
+      "callingFile": "lib/kpi/campaignKpi.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "campaign_kpi",
+      "method": "GET",
+      "callingFile": "lib/xano/campaignKpi.ts",
+      "hasAuthHelper": false,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "campaign_kpi/{id}",
+      "method": "PATCH",
+      "callingFile": "lib/kpi/campaignKpi.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "campaign_kpi/{id}",
+      "method": "DELETE",
+      "callingFile": "lib/kpi/campaignKpi.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "client_kpi",
+      "method": "GET",
+      "callingFile": "lib/kpi/clientKpi.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "client_kpi",
+      "method": "POST",
+      "callingFile": "lib/kpi/clientKpi.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "client_kpi/{id}",
+      "method": "PATCH",
+      "callingFile": "lib/kpi/clientKpi.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "client_kpi/{id}",
+      "method": "DELETE",
+      "callingFile": "lib/kpi/clientKpi.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "clients/{id}",
+      "method": "GET",
+      "callingFile": "lib/api.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "creative_asset",
+      "method": "GET",
+      "callingFile": "lib/creative/xanoCreativeAssets.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "creative_asset",
+      "method": "POST",
+      "callingFile": "lib/creative/xanoCreativeAssets.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "finance_billing_records",
+      "method": "GET",
+      "callingFile": "app/api/finance/publishers/route.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "finance_billing_records",
+      "method": "GET",
+      "callingFile": "lib/finance/materialiseFinanceBillingRecord.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "finance_billing_records",
+      "method": "GET",
+      "callingFile": "lib/finance/overlayFinanceStatus.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "finance_edits",
+      "method": "GET",
+      "callingFile": "lib/finance/writeFinanceAuditEdits.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "get_clients",
+      "method": "GET",
+      "callingFile": "app/api/finance/data/route.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "get_clients",
+      "method": "GET",
+      "callingFile": "lib/finance/forecast/server/loadFinanceForecastDataset.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "get_clients",
+      "method": "GET",
+      "callingFile": "lib/pacing/pacingAuth.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "get_clients",
+      "method": "GET",
+      "callingFile": "lib/pacing/pacingScopeServer.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "get_clients",
+      "method": "GET",
+      "callingFile": "lib/pacing/scope/resolveClientSlugs.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "get_publishers",
+      "method": "GET",
+      "callingFile": "lib/finance/xanoReferenceCache.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "planning_audiences",
+      "method": "GET",
+      "callingFile": "lib/planning/xanoPlanningAudiences.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "planning_audiences",
+      "method": "POST",
+      "callingFile": "lib/planning/xanoPlanningAudiences.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "planning_audiences",
+      "method": "PATCH",
+      "callingFile": "lib/planning/xanoPlanningAudiences.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "xero_sync_exceptions",
+      "method": "GET",
+      "callingFile": "app/api/finance/xero-queue/route.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "xero_sync_exceptions/{id}",
+      "method": "PATCH",
+      "callingFile": "app/api/finance/xero-queue/route.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL",
+      "path": "{id}",
+      "method": "POST",
+      "callingFile": "lib/finance/forecast/snapshot/xanoPersistSnapshot.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL",
+      "path": "{id}",
+      "method": "GET",
+      "callingFile": "lib/finance/forecast/snapshot/xanoSnapshotQuery.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL",
+      "path": "finance_forecast_snapshots_create",
+      "method": "POST",
+      "callingFile": "lib/finance/forecast/snapshot/xanoPersistSnapshot.ts",
+      "hasAuthHelper": true,
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_SAVE_FILE_BASE_URL",
+      "path": "{id}",
+      "method": "GET",
+      "callingFile": "app/api/mediaplans/versions/[id]/documents/route.ts",
+      "hasAuthHelper": true,
+      "group": "File_Uploads"
+    },
+    {
+      "envVar": "XANO_MEDIA_DETAILS_BASE_URL",
+      "path": "{proxy-path}",
+      "method": "ANY",
+      "callingFile": "app/api/media-details/[...path]/route.ts",
+      "hasAuthHelper": true,
+      "group": "media details"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "cinema_line_items",
+      "method": "POST",
+      "callingFile": "app/api/media_plans/cinema/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_digi_bvod",
+      "method": "POST",
+      "callingFile": "app/api/media_plans/digi-bvod/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_influencers",
+      "method": "POST",
+      "callingFile": "app/api/media_plans/influencers/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_integrations",
+      "method": "POST",
+      "callingFile": "app/api/media_plans/integration/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_master",
+      "method": "GET",
+      "callingFile": "app/api/campaigns/[mba_number]/billing-schedule/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_master",
+      "method": "GET",
+      "callingFile": "app/api/campaigns/[mba_number]/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_master",
+      "method": "GET",
+      "callingFile": "app/api/finance/xero-queue/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_master",
+      "method": "GET",
+      "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_master",
+      "method": "GET",
+      "callingFile": "app/api/mediaplans/mbanumber/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_master",
+      "method": "POST",
+      "callingFile": "app/api/mediaplans/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_master",
+      "method": "GET",
+      "callingFile": "lib/api/mediaPlanMasterLookup.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_master",
+      "method": "GET",
+      "callingFile": "lib/api/mediaPlanVersionHelper.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_master",
+      "method": "GET",
+      "callingFile": "lib/finance/relevantPlanVersions.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_master/{id}",
+      "method": "PATCH",
+      "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_master/{id}",
+      "method": "GET",
+      "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_newspaper",
+      "method": "POST",
+      "callingFile": "app/api/media_plans/newspaper/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_production",
+      "method": "POST",
+      "callingFile": "app/api/media_plans/production/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_prog_video",
+      "method": "POST",
+      "callingFile": "app/api/media_plans/prog-video/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_social",
+      "method": "POST",
+      "callingFile": "app/api/media_plans/social/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_television",
+      "method": "POST",
+      "callingFile": "app/api/media_plans/television/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_versions",
+      "method": "GET",
+      "callingFile": "app/api/campaigns/[mba_number]/billing-schedule/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_versions",
+      "method": "GET",
+      "callingFile": "app/api/campaigns/[mba_number]/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_versions",
+      "method": "GET",
+      "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_versions",
+      "method": "POST",
+      "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_versions",
+      "method": "GET",
+      "callingFile": "app/mediaplans/[id]/edit/page.tsx",
+      "hasAuthHelper": false,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_versions",
+      "method": "GET",
+      "callingFile": "lib/api/mediaPlanVersionHelper.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_versions",
+      "method": "GET",
+      "callingFile": "lib/finance/relevantPlanVersions.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_versions/{id}",
+      "method": "PATCH",
+      "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_versions/{id}",
+      "method": "PATCH",
+      "callingFile": "app/api/mediaplans/versions/[id]/documents/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "search_line_items",
+      "method": "POST",
+      "callingFile": "app/api/media_plans/search/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "television_line_items",
+      "method": "PUT",
+      "callingFile": "app/api/media_plans/television/[id]/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "television_line_items",
+      "method": "DELETE",
+      "callingFile": "app/api/media_plans/television/[id]/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIAPLANS_BASE_URL",
+      "path": "download_mediaplan",
+      "method": "GET",
+      "callingFile": "app/api/mediaplans/[id]/download/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIAPLANS_BASE_URL",
+      "path": "generate_mbanumber",
+      "method": "POST",
+      "callingFile": "app/api/mediaplans/[id]/mbanumber/route.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_MEDIAPLANS_BASE_URL",
+      "path": "get_mediaplan_topline",
+      "method": "POST",
+      "callingFile": "lib/api/mediaPlansListCache.ts",
+      "hasAuthHelper": true,
+      "group": "media_plans"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "edit_publishers",
+      "method": "PUT",
+      "callingFile": "app/api/publishers/[publisherId]/route.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "get_publishers",
+      "method": "GET",
+      "callingFile": "app/api/finance/data/route.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "get_publishers",
+      "method": "GET",
+      "callingFile": "lib/api.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "get_publishers",
+      "method": "GET",
+      "callingFile": "lib/api/publishers.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "get_publishers",
+      "method": "GET",
+      "callingFile": "lib/api/publishersCache.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "get_publishers",
+      "method": "GET",
+      "callingFile": "lib/finance/forecast/server/loadFinanceForecastDataset.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "media_container_best_practice",
+      "method": "PUT",
+      "callingFile": "app/api/media-container-best-practice/[id]/route.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "media_container_best_practice",
+      "method": "POST",
+      "callingFile": "app/api/media-container-best-practice/route.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "media_container_best_practice",
+      "method": "GET",
+      "callingFile": "lib/api/mediaContainerBestPracticeCache.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "media_container_best_practice",
+      "method": "GET",
+      "callingFile": "lib/ava/tools/getBestPractice.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "post_publishers",
+      "method": "POST",
+      "callingFile": "app/api/publishers/route.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "publisher_kpi",
+      "method": "GET",
+      "callingFile": "lib/api/publisherKpiCache.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "publisher_kpi",
+      "method": "GET",
+      "callingFile": "lib/kpi/publisherKpi.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "publisher_kpi",
+      "method": "POST",
+      "callingFile": "lib/kpi/publisherKpi.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "publisher_kpi/{id}",
+      "method": "PATCH",
+      "callingFile": "lib/kpi/publisherKpi.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "publisher_kpi/{id}",
+      "method": "DELETE",
+      "callingFile": "lib/kpi/publisherKpi.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_PUBLISHERS_BASE_URL",
+      "path": "publishers",
+      "method": "GET",
+      "callingFile": "app/api/publishers/check-id/route.ts",
+      "hasAuthHelper": true,
+      "group": "Publishers"
+    },
+    {
+      "envVar": "XANO_SCOPES_BASE_URL",
+      "path": "scope_of_work",
+      "method": "GET",
+      "callingFile": "app/api/finance/billing/route.ts",
+      "hasAuthHelper": true,
+      "group": "scopes_of_work"
+    },
+    {
+      "envVar": "XANO_SCOPES_BASE_URL",
+      "path": "scope_of_work",
+      "method": "GET",
+      "callingFile": "app/api/finance/sow/route.ts",
+      "hasAuthHelper": true,
+      "group": "scopes_of_work"
+    },
+    {
+      "envVar": "XANO_SCOPES_BASE_URL",
+      "path": "scope_of_work",
+      "method": "GET",
+      "callingFile": "app/api/scopes-of-work/[id]/route.ts",
+      "hasAuthHelper": true,
+      "group": "scopes_of_work"
+    },
+    {
+      "envVar": "XANO_SCOPES_BASE_URL",
+      "path": "scope_of_work",
+      "method": "PUT",
+      "callingFile": "app/api/scopes-of-work/[id]/route.ts",
+      "hasAuthHelper": true,
+      "group": "scopes_of_work"
+    },
+    {
+      "envVar": "XANO_SCOPES_BASE_URL",
+      "path": "scope_of_work",
+      "method": "GET",
+      "callingFile": "app/api/scopes-of-work/generate-scope-id/route.ts",
+      "hasAuthHelper": true,
+      "group": "scopes_of_work"
+    },
+    {
+      "envVar": "XANO_SCOPES_BASE_URL",
+      "path": "scope_of_work",
+      "method": "GET",
+      "callingFile": "app/api/scopes-of-work/route.ts",
+      "hasAuthHelper": true,
+      "group": "scopes_of_work"
+    },
+    {
+      "envVar": "XANO_SCOPES_BASE_URL",
+      "path": "scope_of_work",
+      "method": "POST",
+      "callingFile": "app/api/scopes-of-work/route.ts",
+      "hasAuthHelper": true,
+      "group": "scopes_of_work"
+    }
+  ],
+  "byGroup": {
+    "(generic)": [
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "billing_overrides",
+        "method": "GET",
+        "callingFile": "app/api/billing-overrides/route.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "billing_overrides/replace_line",
+        "method": "POST",
+        "callingFile": "app/api/billing-overrides/replace_line/route.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "billing_overrides/reset_line",
+        "method": "DELETE",
+        "callingFile": "app/api/billing-overrides/reset_line/route.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "billing_overrides/reset_line",
+        "method": "POST",
+        "callingFile": "app/api/billing-overrides/reset_line/route.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "clients",
+        "method": "GET",
+        "callingFile": "lib/api/xanoClients.ts",
+        "hasAuthHelper": false,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "mba_line_approvals",
+        "method": "GET",
+        "callingFile": "app/api/mba-line-approvals/route.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "mba_line_approvals",
+        "method": "PATCH",
+        "callingFile": "app/api/mba-line-approvals/route.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "lib/api/fetchChannelLineItemsByMba.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "media_plan_search",
+        "method": "GET",
+        "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
+        "hasAuthHelper": false,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "media_plan_social",
+        "method": "GET",
+        "callingFile": "lib/pacing/social/resolveLiveSocialLineItems.ts",
+        "hasAuthHelper": false,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "lib/api/fetchChannelLineItemsByMba.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
+        "hasAuthHelper": false,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "pacing_orphan_fixes",
+        "method": "POST",
+        "callingFile": "lib/xano/pacingOrphanFixes.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      }
+    ],
+    "Clients": [
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "{id}/{id}",
+        "method": "GET",
+        "callingFile": "lib/creative/xanoCreativeAssets.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "{id}/{id}",
+        "method": "PATCH",
+        "callingFile": "lib/creative/xanoCreativeAssets.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "{id}/{id}",
+        "method": "DELETE",
+        "callingFile": "lib/creative/xanoCreativeAssets.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "campaign_kpi",
+        "method": "GET",
+        "callingFile": "lib/kpi/campaignKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "campaign_kpi",
+        "method": "GET",
+        "callingFile": "lib/xano/campaignKpi.ts",
+        "hasAuthHelper": false,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "campaign_kpi/{id}",
+        "method": "PATCH",
+        "callingFile": "lib/kpi/campaignKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "campaign_kpi/{id}",
+        "method": "DELETE",
+        "callingFile": "lib/kpi/campaignKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "client_kpi",
+        "method": "GET",
+        "callingFile": "lib/kpi/clientKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "client_kpi",
+        "method": "POST",
+        "callingFile": "lib/kpi/clientKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "client_kpi/{id}",
+        "method": "PATCH",
+        "callingFile": "lib/kpi/clientKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "client_kpi/{id}",
+        "method": "DELETE",
+        "callingFile": "lib/kpi/clientKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "clients/{id}",
+        "method": "GET",
+        "callingFile": "lib/api.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "creative_asset",
+        "method": "GET",
+        "callingFile": "lib/creative/xanoCreativeAssets.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "creative_asset",
+        "method": "POST",
+        "callingFile": "lib/creative/xanoCreativeAssets.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "finance_billing_records",
+        "method": "GET",
+        "callingFile": "app/api/finance/publishers/route.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "finance_billing_records",
+        "method": "GET",
+        "callingFile": "lib/finance/materialiseFinanceBillingRecord.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "finance_billing_records",
+        "method": "GET",
+        "callingFile": "lib/finance/overlayFinanceStatus.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "finance_edits",
+        "method": "GET",
+        "callingFile": "lib/finance/writeFinanceAuditEdits.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "get_clients",
+        "method": "GET",
+        "callingFile": "app/api/finance/data/route.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "get_clients",
+        "method": "GET",
+        "callingFile": "lib/finance/forecast/server/loadFinanceForecastDataset.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "get_clients",
+        "method": "GET",
+        "callingFile": "lib/pacing/pacingAuth.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "get_clients",
+        "method": "GET",
+        "callingFile": "lib/pacing/pacingScopeServer.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "get_clients",
+        "method": "GET",
+        "callingFile": "lib/pacing/scope/resolveClientSlugs.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "get_publishers",
+        "method": "GET",
+        "callingFile": "lib/finance/xanoReferenceCache.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "planning_audiences",
+        "method": "GET",
+        "callingFile": "lib/planning/xanoPlanningAudiences.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "planning_audiences",
+        "method": "POST",
+        "callingFile": "lib/planning/xanoPlanningAudiences.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "planning_audiences",
+        "method": "PATCH",
+        "callingFile": "lib/planning/xanoPlanningAudiences.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "xero_sync_exceptions",
+        "method": "GET",
+        "callingFile": "app/api/finance/xero-queue/route.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "xero_sync_exceptions/{id}",
+        "method": "PATCH",
+        "callingFile": "app/api/finance/xero-queue/route.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL",
+        "path": "{id}",
+        "method": "POST",
+        "callingFile": "lib/finance/forecast/snapshot/xanoPersistSnapshot.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL",
+        "path": "{id}",
+        "method": "GET",
+        "callingFile": "lib/finance/forecast/snapshot/xanoSnapshotQuery.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL",
+        "path": "finance_forecast_snapshots_create",
+        "method": "POST",
+        "callingFile": "lib/finance/forecast/snapshot/xanoPersistSnapshot.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      }
+    ],
+    "File_Uploads": [
+      {
+        "envVar": "XANO_SAVE_FILE_BASE_URL",
+        "path": "{id}",
+        "method": "GET",
+        "callingFile": "app/api/mediaplans/versions/[id]/documents/route.ts",
+        "hasAuthHelper": true,
+        "group": "File_Uploads"
+      }
+    ],
+    "media details": [
+      {
+        "envVar": "XANO_MEDIA_DETAILS_BASE_URL",
+        "path": "{proxy-path}",
+        "method": "ANY",
+        "callingFile": "app/api/media-details/[...path]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media details"
+      }
+    ],
+    "media_plans": [
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "cinema_line_items",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/cinema/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_digi_bvod",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/digi-bvod/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_influencers",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/influencers/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_integrations",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/integration/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "app/api/campaigns/[mba_number]/billing-schedule/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "app/api/campaigns/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "app/api/finance/xero-queue/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "app/api/mediaplans/mbanumber/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "POST",
+        "callingFile": "app/api/mediaplans/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "lib/api/mediaPlanMasterLookup.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "lib/api/mediaPlanVersionHelper.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "lib/finance/relevantPlanVersions.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master/{id}",
+        "method": "PATCH",
+        "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master/{id}",
+        "method": "GET",
+        "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_newspaper",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/newspaper/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_production",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/production/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_prog_video",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/prog-video/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_social",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/social/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_television",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/television/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "app/api/campaigns/[mba_number]/billing-schedule/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "app/api/campaigns/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "POST",
+        "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "app/mediaplans/[id]/edit/page.tsx",
+        "hasAuthHelper": false,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "lib/api/mediaPlanVersionHelper.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "lib/finance/relevantPlanVersions.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions/{id}",
+        "method": "PATCH",
+        "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions/{id}",
+        "method": "PATCH",
+        "callingFile": "app/api/mediaplans/versions/[id]/documents/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "search_line_items",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/search/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "television_line_items",
+        "method": "PUT",
+        "callingFile": "app/api/media_plans/television/[id]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "television_line_items",
+        "method": "DELETE",
+        "callingFile": "app/api/media_plans/television/[id]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIAPLANS_BASE_URL",
+        "path": "download_mediaplan",
+        "method": "GET",
+        "callingFile": "app/api/mediaplans/[id]/download/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIAPLANS_BASE_URL",
+        "path": "generate_mbanumber",
+        "method": "POST",
+        "callingFile": "app/api/mediaplans/[id]/mbanumber/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIAPLANS_BASE_URL",
+        "path": "get_mediaplan_topline",
+        "method": "POST",
+        "callingFile": "lib/api/mediaPlansListCache.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      }
+    ],
+    "Publishers": [
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "edit_publishers",
+        "method": "PUT",
+        "callingFile": "app/api/publishers/[publisherId]/route.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "get_publishers",
+        "method": "GET",
+        "callingFile": "app/api/finance/data/route.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "get_publishers",
+        "method": "GET",
+        "callingFile": "lib/api.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "get_publishers",
+        "method": "GET",
+        "callingFile": "lib/api/publishers.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "get_publishers",
+        "method": "GET",
+        "callingFile": "lib/api/publishersCache.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "get_publishers",
+        "method": "GET",
+        "callingFile": "lib/finance/forecast/server/loadFinanceForecastDataset.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "media_container_best_practice",
+        "method": "PUT",
+        "callingFile": "app/api/media-container-best-practice/[id]/route.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "media_container_best_practice",
+        "method": "POST",
+        "callingFile": "app/api/media-container-best-practice/route.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "media_container_best_practice",
+        "method": "GET",
+        "callingFile": "lib/api/mediaContainerBestPracticeCache.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "media_container_best_practice",
+        "method": "GET",
+        "callingFile": "lib/ava/tools/getBestPractice.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "post_publishers",
+        "method": "POST",
+        "callingFile": "app/api/publishers/route.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "publisher_kpi",
+        "method": "GET",
+        "callingFile": "lib/api/publisherKpiCache.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "publisher_kpi",
+        "method": "GET",
+        "callingFile": "lib/kpi/publisherKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "publisher_kpi",
+        "method": "POST",
+        "callingFile": "lib/kpi/publisherKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "publisher_kpi/{id}",
+        "method": "PATCH",
+        "callingFile": "lib/kpi/publisherKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "publisher_kpi/{id}",
+        "method": "DELETE",
+        "callingFile": "lib/kpi/publisherKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "publishers",
+        "method": "GET",
+        "callingFile": "app/api/publishers/check-id/route.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      }
+    ],
+    "scopes_of_work": [
+      {
+        "envVar": "XANO_SCOPES_BASE_URL",
+        "path": "scope_of_work",
+        "method": "GET",
+        "callingFile": "app/api/finance/billing/route.ts",
+        "hasAuthHelper": true,
+        "group": "scopes_of_work"
+      },
+      {
+        "envVar": "XANO_SCOPES_BASE_URL",
+        "path": "scope_of_work",
+        "method": "GET",
+        "callingFile": "app/api/finance/sow/route.ts",
+        "hasAuthHelper": true,
+        "group": "scopes_of_work"
+      },
+      {
+        "envVar": "XANO_SCOPES_BASE_URL",
+        "path": "scope_of_work",
+        "method": "GET",
+        "callingFile": "app/api/scopes-of-work/[id]/route.ts",
+        "hasAuthHelper": true,
+        "group": "scopes_of_work"
+      },
+      {
+        "envVar": "XANO_SCOPES_BASE_URL",
+        "path": "scope_of_work",
+        "method": "PUT",
+        "callingFile": "app/api/scopes-of-work/[id]/route.ts",
+        "hasAuthHelper": true,
+        "group": "scopes_of_work"
+      },
+      {
+        "envVar": "XANO_SCOPES_BASE_URL",
+        "path": "scope_of_work",
+        "method": "GET",
+        "callingFile": "app/api/scopes-of-work/generate-scope-id/route.ts",
+        "hasAuthHelper": true,
+        "group": "scopes_of_work"
+      },
+      {
+        "envVar": "XANO_SCOPES_BASE_URL",
+        "path": "scope_of_work",
+        "method": "GET",
+        "callingFile": "app/api/scopes-of-work/route.ts",
+        "hasAuthHelper": true,
+        "group": "scopes_of_work"
+      },
+      {
+        "envVar": "XANO_SCOPES_BASE_URL",
+        "path": "scope_of_work",
+        "method": "POST",
+        "callingFile": "app/api/scopes-of-work/route.ts",
+        "hasAuthHelper": true,
+        "group": "scopes_of_work"
+      }
+    ]
+  },
+  "crossReference": {
+    "(a) appCallsThatArePublicInXano": [
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "clients",
+        "method": "GET",
+        "callingFile": "lib/api/xanoClients.ts",
+        "hasAuthHelper": false,
+        "group": "(generic)",
+        "catalogMatch": "POST clients"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "lib/api/fetchChannelLineItemsByMba.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)",
+        "catalogMatch": "GET media_plan_master"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "media_plan_search",
+        "method": "GET",
+        "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
+        "hasAuthHelper": false,
+        "group": "(generic)",
+        "catalogMatch": "POST media_plan_search"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "media_plan_social",
+        "method": "GET",
+        "callingFile": "lib/pacing/social/resolveLiveSocialLineItems.ts",
+        "hasAuthHelper": false,
+        "group": "(generic)",
+        "catalogMatch": "POST media_plan_social"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "lib/api/fetchChannelLineItemsByMba.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)",
+        "catalogMatch": "POST media_plan_versions"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
+        "hasAuthHelper": false,
+        "group": "(generic)",
+        "catalogMatch": "POST media_plan_versions"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "pacing_orphan_fixes",
+        "method": "POST",
+        "callingFile": "lib/xano/pacingOrphanFixes.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)",
+        "catalogMatch": "POST pacing_orphan_fixes"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "campaign_kpi",
+        "method": "GET",
+        "callingFile": "lib/kpi/campaignKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "GET campaign_kpi"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "campaign_kpi",
+        "method": "GET",
+        "callingFile": "lib/xano/campaignKpi.ts",
+        "hasAuthHelper": false,
+        "group": "Clients",
+        "catalogMatch": "GET campaign_kpi"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "campaign_kpi/{id}",
+        "method": "PATCH",
+        "callingFile": "lib/kpi/campaignKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "PATCH campaign_kpi/{campaign_kpi_id}"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "campaign_kpi/{id}",
+        "method": "DELETE",
+        "callingFile": "lib/kpi/campaignKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "DELETE campaign_kpi/{campaign_kpi_id}"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "client_kpi",
+        "method": "GET",
+        "callingFile": "lib/kpi/clientKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "GET client_kpi"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "client_kpi",
+        "method": "POST",
+        "callingFile": "lib/kpi/clientKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "POST client_kpi"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "client_kpi/{id}",
+        "method": "PATCH",
+        "callingFile": "lib/kpi/clientKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "PATCH client_kpi/{client_kpi_id}"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "client_kpi/{id}",
+        "method": "DELETE",
+        "callingFile": "lib/kpi/clientKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "DELETE client_kpi/{client_kpi_id}"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "clients/{id}",
+        "method": "GET",
+        "callingFile": "lib/api.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "GET clients/{clients_id}"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "creative_asset",
+        "method": "POST",
+        "callingFile": "lib/creative/xanoCreativeAssets.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "POST creative_asset"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "finance_billing_records",
+        "method": "GET",
+        "callingFile": "app/api/finance/publishers/route.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "GET finance_billing_records"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "finance_billing_records",
+        "method": "GET",
+        "callingFile": "lib/finance/materialiseFinanceBillingRecord.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "GET finance_billing_records"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "finance_billing_records",
+        "method": "GET",
+        "callingFile": "lib/finance/overlayFinanceStatus.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "GET finance_billing_records"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "finance_edits",
+        "method": "GET",
+        "callingFile": "lib/finance/writeFinanceAuditEdits.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "GET finance_edits"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "get_publishers",
+        "method": "GET",
+        "callingFile": "lib/finance/xanoReferenceCache.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "GET get_publishers"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_digi_bvod",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/digi-bvod/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "POST media_plan_digi_bvod"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_influencers",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/influencers/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "POST media_plan_influencers"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_integrations",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/integration/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "POST media_plan_integrations"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "app/api/campaigns/[mba_number]/billing-schedule/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_master"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "app/api/campaigns/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_master"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "app/api/finance/xero-queue/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_master"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_master"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "app/api/mediaplans/mbanumber/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_master"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "POST",
+        "callingFile": "app/api/mediaplans/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "POST media_plan_master"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "lib/api/mediaPlanMasterLookup.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_master"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "lib/api/mediaPlanVersionHelper.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_master"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master",
+        "method": "GET",
+        "callingFile": "lib/finance/relevantPlanVersions.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_master"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master/{id}",
+        "method": "PATCH",
+        "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "PATCH media_plan_master/{media_plan_master_id}"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_master/{id}",
+        "method": "GET",
+        "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_master"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_newspaper",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/newspaper/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "POST media_plan_newspaper"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_production",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/production/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "POST media_plan_production"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_prog_video",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/prog-video/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "POST media_plan_prog_video"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_social",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/social/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "POST media_plan_social"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_television",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/television/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "POST media_plan_television"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "app/api/campaigns/[mba_number]/billing-schedule/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_versions"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "app/api/campaigns/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_versions"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_versions"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "POST",
+        "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "POST media_plan_versions"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "app/mediaplans/[id]/edit/page.tsx",
+        "hasAuthHelper": false,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_versions"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "lib/api/mediaPlanVersionHelper.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_versions"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions",
+        "method": "GET",
+        "callingFile": "lib/finance/relevantPlanVersions.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "GET media_plan_versions"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions/{id}",
+        "method": "PATCH",
+        "callingFile": "app/api/mediaplans/mba/[mba_number]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "PATCH media_plan_versions/{media_plan_versions_id}"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "media_plan_versions/{id}",
+        "method": "PATCH",
+        "callingFile": "app/api/mediaplans/versions/[id]/documents/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans",
+        "catalogMatch": "PATCH media_plan_versions/{media_plan_versions_id}"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "get_publishers",
+        "method": "GET",
+        "callingFile": "app/api/finance/data/route.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "GET get_publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "get_publishers",
+        "method": "GET",
+        "callingFile": "lib/api.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "GET get_publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "get_publishers",
+        "method": "GET",
+        "callingFile": "lib/api/publishers.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "GET get_publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "get_publishers",
+        "method": "GET",
+        "callingFile": "lib/api/publishersCache.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "GET get_publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "get_publishers",
+        "method": "GET",
+        "callingFile": "lib/finance/forecast/server/loadFinanceForecastDataset.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "GET get_publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "media_container_best_practice",
+        "method": "PUT",
+        "callingFile": "app/api/media-container-best-practice/[id]/route.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "GET media_container_best_practice"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "media_container_best_practice",
+        "method": "POST",
+        "callingFile": "app/api/media-container-best-practice/route.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "POST media_container_best_practice"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "media_container_best_practice",
+        "method": "GET",
+        "callingFile": "lib/api/mediaContainerBestPracticeCache.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "GET media_container_best_practice"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "media_container_best_practice",
+        "method": "GET",
+        "callingFile": "lib/ava/tools/getBestPractice.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "GET media_container_best_practice"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "post_publishers",
+        "method": "POST",
+        "callingFile": "app/api/publishers/route.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "POST post_publishers"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "publisher_kpi",
+        "method": "GET",
+        "callingFile": "lib/api/publisherKpiCache.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "GET publisher_kpi"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "publisher_kpi",
+        "method": "GET",
+        "callingFile": "lib/kpi/publisherKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "GET publisher_kpi"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "publisher_kpi",
+        "method": "POST",
+        "callingFile": "lib/kpi/publisherKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "POST publisher_kpi"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "publisher_kpi/{id}",
+        "method": "PATCH",
+        "callingFile": "lib/kpi/publisherKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "PATCH publisher_kpi/{publisher_kpi_id}"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "publisher_kpi/{id}",
+        "method": "DELETE",
+        "callingFile": "lib/kpi/publisherKpi.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "DELETE publisher_kpi/{publisher_kpi_id}"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "publishers",
+        "method": "GET",
+        "callingFile": "app/api/publishers/check-id/route.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers",
+        "catalogMatch": "GET publishers"
+      },
+      {
+        "envVar": "XANO_SCOPES_BASE_URL",
+        "path": "scope_of_work",
+        "method": "GET",
+        "callingFile": "app/api/finance/billing/route.ts",
+        "hasAuthHelper": true,
+        "group": "scopes_of_work",
+        "catalogMatch": "GET scope_of_work"
+      },
+      {
+        "envVar": "XANO_SCOPES_BASE_URL",
+        "path": "scope_of_work",
+        "method": "GET",
+        "callingFile": "app/api/finance/sow/route.ts",
+        "hasAuthHelper": true,
+        "group": "scopes_of_work",
+        "catalogMatch": "GET scope_of_work"
+      },
+      {
+        "envVar": "XANO_SCOPES_BASE_URL",
+        "path": "scope_of_work",
+        "method": "GET",
+        "callingFile": "app/api/scopes-of-work/[id]/route.ts",
+        "hasAuthHelper": true,
+        "group": "scopes_of_work",
+        "catalogMatch": "GET scope_of_work"
+      },
+      {
+        "envVar": "XANO_SCOPES_BASE_URL",
+        "path": "scope_of_work",
+        "method": "PUT",
+        "callingFile": "app/api/scopes-of-work/[id]/route.ts",
+        "hasAuthHelper": true,
+        "group": "scopes_of_work",
+        "catalogMatch": "POST scope_of_work"
+      },
+      {
+        "envVar": "XANO_SCOPES_BASE_URL",
+        "path": "scope_of_work",
+        "method": "GET",
+        "callingFile": "app/api/scopes-of-work/generate-scope-id/route.ts",
+        "hasAuthHelper": true,
+        "group": "scopes_of_work",
+        "catalogMatch": "GET scope_of_work"
+      },
+      {
+        "envVar": "XANO_SCOPES_BASE_URL",
+        "path": "scope_of_work",
+        "method": "GET",
+        "callingFile": "app/api/scopes-of-work/route.ts",
+        "hasAuthHelper": true,
+        "group": "scopes_of_work",
+        "catalogMatch": "GET scope_of_work"
+      },
+      {
+        "envVar": "XANO_SCOPES_BASE_URL",
+        "path": "scope_of_work",
+        "method": "POST",
+        "callingFile": "app/api/scopes-of-work/route.ts",
+        "hasAuthHelper": true,
+        "group": "scopes_of_work",
+        "catalogMatch": "POST scope_of_work"
+      }
+    ],
+    "(a2) appCallsThatAlreadyRequireAuthInXano": [
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "creative_asset",
+        "method": "GET",
+        "callingFile": "lib/creative/xanoCreativeAssets.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "GET creative_asset"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "planning_audiences",
+        "method": "GET",
+        "callingFile": "lib/planning/xanoPlanningAudiences.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "GET planning_audiences"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "planning_audiences",
+        "method": "POST",
+        "callingFile": "lib/planning/xanoPlanningAudiences.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "POST planning_audiences"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "planning_audiences",
+        "method": "PATCH",
+        "callingFile": "lib/planning/xanoPlanningAudiences.ts",
+        "hasAuthHelper": true,
+        "group": "Clients",
+        "catalogMatch": "POST planning_audiences"
+      }
+    ],
+    "(a3) appCallsUnmatchedToCatalog": [
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "billing_overrides",
+        "method": "GET",
+        "callingFile": "app/api/billing-overrides/route.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "billing_overrides/replace_line",
+        "method": "POST",
+        "callingFile": "app/api/billing-overrides/replace_line/route.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "billing_overrides/reset_line",
+        "method": "DELETE",
+        "callingFile": "app/api/billing-overrides/reset_line/route.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "billing_overrides/reset_line",
+        "method": "POST",
+        "callingFile": "app/api/billing-overrides/reset_line/route.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "mba_line_approvals",
+        "method": "GET",
+        "callingFile": "app/api/mba-line-approvals/route.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_BASE_URL",
+        "path": "mba_line_approvals",
+        "method": "PATCH",
+        "callingFile": "app/api/mba-line-approvals/route.ts",
+        "hasAuthHelper": true,
+        "group": "(generic)"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "{id}/{id}",
+        "method": "GET",
+        "callingFile": "lib/creative/xanoCreativeAssets.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "{id}/{id}",
+        "method": "PATCH",
+        "callingFile": "lib/creative/xanoCreativeAssets.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "{id}/{id}",
+        "method": "DELETE",
+        "callingFile": "lib/creative/xanoCreativeAssets.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "get_clients",
+        "method": "GET",
+        "callingFile": "app/api/finance/data/route.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "get_clients",
+        "method": "GET",
+        "callingFile": "lib/finance/forecast/server/loadFinanceForecastDataset.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "get_clients",
+        "method": "GET",
+        "callingFile": "lib/pacing/pacingAuth.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "get_clients",
+        "method": "GET",
+        "callingFile": "lib/pacing/pacingScopeServer.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "get_clients",
+        "method": "GET",
+        "callingFile": "lib/pacing/scope/resolveClientSlugs.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "xero_sync_exceptions",
+        "method": "GET",
+        "callingFile": "app/api/finance/xero-queue/route.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_CLIENTS_BASE_URL",
+        "path": "xero_sync_exceptions/{id}",
+        "method": "PATCH",
+        "callingFile": "app/api/finance/xero-queue/route.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL",
+        "path": "{id}",
+        "method": "POST",
+        "callingFile": "lib/finance/forecast/snapshot/xanoPersistSnapshot.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL",
+        "path": "{id}",
+        "method": "GET",
+        "callingFile": "lib/finance/forecast/snapshot/xanoSnapshotQuery.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL",
+        "path": "finance_forecast_snapshots_create",
+        "method": "POST",
+        "callingFile": "lib/finance/forecast/snapshot/xanoPersistSnapshot.ts",
+        "hasAuthHelper": true,
+        "group": "Clients"
+      },
+      {
+        "envVar": "XANO_SAVE_FILE_BASE_URL",
+        "path": "{id}",
+        "method": "GET",
+        "callingFile": "app/api/mediaplans/versions/[id]/documents/route.ts",
+        "hasAuthHelper": true,
+        "group": "File_Uploads"
+      },
+      {
+        "envVar": "XANO_MEDIA_DETAILS_BASE_URL",
+        "path": "{proxy-path}",
+        "method": "ANY",
+        "callingFile": "app/api/media-details/[...path]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media details"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "cinema_line_items",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/cinema/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "search_line_items",
+        "method": "POST",
+        "callingFile": "app/api/media_plans/search/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "television_line_items",
+        "method": "PUT",
+        "callingFile": "app/api/media_plans/television/[id]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+        "path": "television_line_items",
+        "method": "DELETE",
+        "callingFile": "app/api/media_plans/television/[id]/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIAPLANS_BASE_URL",
+        "path": "download_mediaplan",
+        "method": "GET",
+        "callingFile": "app/api/mediaplans/[id]/download/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIAPLANS_BASE_URL",
+        "path": "generate_mbanumber",
+        "method": "POST",
+        "callingFile": "app/api/mediaplans/[id]/mbanumber/route.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_MEDIAPLANS_BASE_URL",
+        "path": "get_mediaplan_topline",
+        "method": "POST",
+        "callingFile": "lib/api/mediaPlansListCache.ts",
+        "hasAuthHelper": true,
+        "group": "media_plans"
+      },
+      {
+        "envVar": "XANO_PUBLISHERS_BASE_URL",
+        "path": "edit_publishers",
+        "method": "PUT",
+        "callingFile": "app/api/publishers/[publisherId]/route.ts",
+        "hasAuthHelper": true,
+        "group": "Publishers"
+      }
+    ],
+    "(b) xanoEndpointsWithNoAppCall": [
+      {
+        "group": "Authentication",
+        "verb": "POST",
+        "name": "auth/login",
+        "auth": false
+      },
+      {
+        "group": "Authentication",
+        "verb": "GET",
+        "name": "auth/me",
+        "auth": true
+      },
+      {
+        "group": "Authentication",
+        "verb": "POST",
+        "name": "auth/signup",
+        "auth": true
+      },
+      {
+        "group": "client_dashboards",
+        "verb": "PUT",
+        "name": "edit_clientdashboard/{clientdashboard_id}",
+        "auth": false
+      },
+      {
+        "group": "client_dashboards",
+        "verb": "GET",
+        "name": "get_clientdashboard",
+        "auth": false
+      },
+      {
+        "group": "client_dashboards",
+        "verb": "POST",
+        "name": "post_clientdashboard",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "POST",
+        "name": "campaign_kpi",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PUT",
+        "name": "campaign_kpi/{campaign_kpi_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "campaign_kpi/{campaign_kpi_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PUT",
+        "name": "client_kpi/{client_kpi_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "client_kpi/{client_kpi_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "clients",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PATCH",
+        "name": "clients/{clients_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "DELETE",
+        "name": "clients/{clients_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PUT",
+        "name": "clients/{clients_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "creative_asset/{creative_asset_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PUT",
+        "name": "creative_asset/{creative_asset_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "DELETE",
+        "name": "creative_asset/{creative_asset_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PATCH",
+        "name": "creative_asset/{creative_asset_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "finance_billing_line_items",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "POST",
+        "name": "finance_billing_line_items",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PUT",
+        "name": "finance_billing_line_items/{finance_billing_line_items_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PATCH",
+        "name": "finance_billing_line_items/{finance_billing_line_items_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "DELETE",
+        "name": "finance_billing_line_items/{finance_billing_line_items_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "finance_billing_line_items/{finance_billing_line_items_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "POST",
+        "name": "finance_billing_records",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "DELETE",
+        "name": "finance_billing_records/{finance_billing_records_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "finance_billing_records/{finance_billing_records_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PUT",
+        "name": "finance_billing_records/{finance_billing_records_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PATCH",
+        "name": "finance_billing_records/{finance_billing_records_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "POST",
+        "name": "finance_edits",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PATCH",
+        "name": "finance_edits/{finance_edits_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "DELETE",
+        "name": "finance_edits/{finance_edits_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PUT",
+        "name": "finance_edits/{finance_edits_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "finance_edits/{finance_edits_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "POST",
+        "name": "finance_saved_views",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "finance_saved_views",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "DELETE",
+        "name": "finance_saved_views/{finance_saved_views_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PATCH",
+        "name": "finance_saved_views/{finance_saved_views_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PUT",
+        "name": "finance_saved_views/{finance_saved_views_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "finance_saved_views/{finance_saved_views_id}",
+        "auth": false
+      },
+      {
+        "group": "Clients",
+        "verb": "PATCH",
+        "name": "planning_audiences/{planning_audiences_id}",
+        "auth": true
+      },
+      {
+        "group": "Clients",
+        "verb": "DELETE",
+        "name": "planning_audiences/{planning_audiences_id}",
+        "auth": true
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "planning_audiences/{planning_audiences_id}",
+        "auth": true
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "revenue_forecast_lines",
+        "auth": true
+      },
+      {
+        "group": "Clients",
+        "verb": "POST",
+        "name": "revenue_forecast_lines",
+        "auth": true
+      },
+      {
+        "group": "Clients",
+        "verb": "PUT",
+        "name": "revenue_forecast_lines/{revenue_forecast_lines_id}",
+        "auth": true
+      },
+      {
+        "group": "Clients",
+        "verb": "DELETE",
+        "name": "revenue_forecast_lines/{revenue_forecast_lines_id}",
+        "auth": true
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "revenue_forecast_lines/{revenue_forecast_lines_id}",
+        "auth": true
+      },
+      {
+        "group": "Clients",
+        "verb": "POST",
+        "name": "revenue_line_catalog",
+        "auth": true
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "revenue_line_catalog",
+        "auth": true
+      },
+      {
+        "group": "Clients",
+        "verb": "DELETE",
+        "name": "revenue_line_catalog/{revenue_line_catalog_id}",
+        "auth": true
+      },
+      {
+        "group": "Clients",
+        "verb": "PUT",
+        "name": "revenue_line_catalog/{revenue_line_catalog_id}",
+        "auth": true
+      },
+      {
+        "group": "Clients",
+        "verb": "GET",
+        "name": "revenue_line_catalog/{revenue_line_catalog_id}",
+        "auth": true
+      },
+      {
+        "group": "codex",
+        "verb": "PATCH",
+        "name": "checklist/{checklist_id}",
+        "auth": true
+      },
+      {
+        "group": "codex",
+        "verb": "DELETE",
+        "name": "checklist/{checklist_id}",
+        "auth": true
+      },
+      {
+        "group": "codex",
+        "verb": "GET",
+        "name": "client_domains",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "POST",
+        "name": "client_domains",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "DELETE",
+        "name": "client_domains/{domain_id}",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "POST",
+        "name": "client_notes",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "GET",
+        "name": "client_notes",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "PATCH",
+        "name": "client_notes/{note_id}",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "DELETE",
+        "name": "client_notes/{note_id}",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "GET",
+        "name": "client_notes/{note_id}",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "DELETE",
+        "name": "comments/{comment_id}",
+        "auth": true
+      },
+      {
+        "group": "codex",
+        "verb": "GET",
+        "name": "task_templates",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "POST",
+        "name": "task_templates",
+        "auth": true
+      },
+      {
+        "group": "codex",
+        "verb": "GET",
+        "name": "task_templates/{template_id}",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "PATCH",
+        "name": "task_templates/{template_id}",
+        "auth": true
+      },
+      {
+        "group": "codex",
+        "verb": "DELETE",
+        "name": "task_templates/{template_id}",
+        "auth": true
+      },
+      {
+        "group": "codex",
+        "verb": "POST",
+        "name": "task_templates/{template_id}/items",
+        "auth": true
+      },
+      {
+        "group": "codex",
+        "verb": "GET",
+        "name": "task_templates/{template_id}/items",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "POST",
+        "name": "tasks",
+        "auth": true
+      },
+      {
+        "group": "codex",
+        "verb": "GET",
+        "name": "tasks",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "PATCH",
+        "name": "tasks/{task_id}",
+        "auth": true
+      },
+      {
+        "group": "codex",
+        "verb": "GET",
+        "name": "tasks/{task_id}",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "DELETE",
+        "name": "tasks/{task_id}",
+        "auth": true
+      },
+      {
+        "group": "codex",
+        "verb": "POST",
+        "name": "tasks/{task_id}/checklist",
+        "auth": true
+      },
+      {
+        "group": "codex",
+        "verb": "GET",
+        "name": "tasks/{task_id}/checklist",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "POST",
+        "name": "tasks/{task_id}/comments",
+        "auth": true
+      },
+      {
+        "group": "codex",
+        "verb": "GET",
+        "name": "tasks/{task_id}/comments",
+        "auth": false
+      },
+      {
+        "group": "codex",
+        "verb": "PATCH",
+        "name": "template_items/{item_id}",
+        "auth": true
+      },
+      {
+        "group": "codex",
+        "verb": "DELETE",
+        "name": "template_items/{item_id}",
+        "auth": true
+      },
+      {
+        "group": "dashboards",
+        "verb": "GET",
+        "name": "dashboard_monthly_client_spend",
+        "auth": false
+      },
+      {
+        "group": "dashboards",
+        "verb": "GET",
+        "name": "dashboard_monthly_publisher_spend",
+        "auth": false
+      },
+      {
+        "group": "File_Uploads",
+        "verb": "POST",
+        "name": "upload_mba",
+        "auth": false
+      },
+      {
+        "group": "File_Uploads",
+        "verb": "POST",
+        "name": "upload_mediaplan",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "POST",
+        "name": "audio_site",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "audio_site",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "audio_site/{audio_site_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "DELETE",
+        "name": "audio_site/{audio_site_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "PATCH",
+        "name": "audio_site/{audio_site_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "POST",
+        "name": "bvod_site",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "bvod_site",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "bvod_site/{bvod_site_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "PATCH",
+        "name": "bvod_site/{bvod_site_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "DELETE",
+        "name": "bvod_site/{bvod_site_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "display_site",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "POST",
+        "name": "display_site",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "PATCH",
+        "name": "display_site/{display_site_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "DELETE",
+        "name": "display_site/{display_site_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "display_site/{display_site_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "magazines",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "magazines_adsizes",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "PATCH",
+        "name": "magazines_adsizes/{magazines_adsizes_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "DELETE",
+        "name": "magazines_adsizes/{magazines_adsizes_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "magazines_adsizes/{magazines_adsizes_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "PATCH",
+        "name": "magazines/{magazines_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "DELETE",
+        "name": "magazines/{magazines_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "magazines/{magazines_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "POST",
+        "name": "media_plan_production",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "media_plan_production",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "DELETE",
+        "name": "media_plan_production/{media_plan_production_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "PUT",
+        "name": "media_plan_production/{media_plan_production_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "PATCH",
+        "name": "media_plan_production/{media_plan_production_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "media_plan_production/{media_plan_production_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "newspaper_adsizes",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "DELETE",
+        "name": "newspaper_adsizes/{newspaper_adsizes_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "newspaper_adsizes/{newspaper_adsizes_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "PATCH",
+        "name": "newspaper_adsizes/{newspaper_adsizes_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "newspapers",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "newspapers/{newspapers_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "PATCH",
+        "name": "newspapers/{newspapers_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "DELETE",
+        "name": "newspapers/{newspapers_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "POST",
+        "name": "POST_magazines",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "POST",
+        "name": "POST_magazines_adsizes",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "POST",
+        "name": "POST_newspaper_adsizes",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "POST",
+        "name": "POST_newspapers",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "POST",
+        "name": "POST_radio_stations",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "POST",
+        "name": "POST_tv_stations",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "radio_stations",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "DELETE",
+        "name": "radio_stations/{radio_stations_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "PATCH",
+        "name": "radio_stations/{radio_stations_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "radio_stations/{radio_stations_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "tv_stations",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "PATCH",
+        "name": "tv_stations/{tv_stations_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "tv_stations/{tv_stations_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "DELETE",
+        "name": "tv_stations/{tv_stations_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "video_site",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "POST",
+        "name": "video_site",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "DELETE",
+        "name": "video_site/{video_site_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "PATCH",
+        "name": "video_site/{video_site_id}",
+        "auth": false
+      },
+      {
+        "group": "media details",
+        "verb": "GET",
+        "name": "video_site/{video_site_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "fixed_cost_line_items",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_cinema",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "POST",
+        "name": "media_plan_cinema",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_cinema/{media_plan_cinema_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_cinema/{media_plan_cinema_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_cinema/{media_plan_cinema_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_cinema/{media_plan_cinema_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_digi_audio",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "POST",
+        "name": "media_plan_digi_audio",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_digi_audio/{media_plan_digi_audio_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_digi_audio/{media_plan_digi_audio_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_digi_audio/{media_plan_digi_audio_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_digi_audio/{media_plan_digi_audio_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_digi_bvod",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_digi_bvod/{media_plan_digi_bvod_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_digi_bvod/{media_plan_digi_bvod_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_digi_bvod/{media_plan_digi_bvod_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_digi_bvod/{media_plan_digi_bvod_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "POST",
+        "name": "media_plan_digi_display",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_digi_display",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_digi_display/{media_plan_digi_display_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_digi_display/{media_plan_digi_display_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_digi_display/{media_plan_digi_display_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_digi_display/{media_plan_digi_display_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "POST",
+        "name": "media_plan_digi_video",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_digi_video",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_digi_video/{media_plan_digi_video_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_digi_video/{media_plan_digi_video_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_digi_video/{media_plan_digi_video_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_digi_video/{media_plan_digi_video_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_influencers",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_influencers/{media_plan_influencers_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_influencers/{media_plan_influencers_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_influencers/{media_plan_influencers_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_influencers/{media_plan_influencers_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_integrations",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_integrations/{media_plan_integrations_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_integrations/{media_plan_integrations_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_integrations/{media_plan_integrations_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_integrations/{media_plan_integrations_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "POST",
+        "name": "media_plan_magazines",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_magazines",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_magazines/{media_plan_magazines_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_magazines/{media_plan_magazines_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_magazines/{media_plan_magazines_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_magazines/{media_plan_magazines_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_master/{media_plan_master_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_master/{media_plan_master_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_master/{media_plan_master_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_newspaper",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_newspaper/{media_plan_newspaper_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_newspaper/{media_plan_newspaper_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_newspaper/{media_plan_newspaper_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_newspaper/{media_plan_newspaper_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "POST",
+        "name": "media_plan_ooh",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_ooh",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_ooh/{media_plan_ooh_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_ooh/{media_plan_ooh_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_ooh/{media_plan_ooh_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_ooh/{media_plan_ooh_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_production",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_production/{media_plan_production_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_production/{media_plan_production_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_production/{media_plan_production_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_production/{media_plan_production_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_prog_audio",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "POST",
+        "name": "media_plan_prog_audio",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_prog_audio/{media_plan_prog_audio_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_prog_audio/{media_plan_prog_audio_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_prog_audio/{media_plan_prog_audio_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_prog_audio/{media_plan_prog_audio_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "POST",
+        "name": "media_plan_prog_bvod",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_prog_bvod",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_prog_bvod/{media_plan_prog_bvod_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_prog_bvod/{media_plan_prog_bvod_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_prog_bvod/{media_plan_prog_bvod_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_prog_bvod/{media_plan_prog_bvod_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_prog_display",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "POST",
+        "name": "media_plan_prog_display",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_prog_display/{media_plan_prog_display_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_prog_display/{media_plan_prog_display_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_prog_display/{media_plan_prog_display_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_prog_display/{media_plan_prog_display_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "POST",
+        "name": "media_plan_prog_ooh",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_prog_ooh",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_prog_ooh/{media_plan_prog_ooh_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_prog_ooh/{media_plan_prog_ooh_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_prog_ooh/{media_plan_prog_ooh_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_prog_ooh/{media_plan_prog_ooh_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_prog_video",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_prog_video/{media_plan_prog_video_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_prog_video/{media_plan_prog_video_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_prog_video/{media_plan_prog_video_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_prog_video/{media_plan_prog_video_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "POST",
+        "name": "media_plan_radio",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_radio",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_radio/{media_plan_radio_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_radio/{media_plan_radio_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_radio/{media_plan_radio_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_radio/{media_plan_radio_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_search",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_search/{media_plan_search_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_search/{media_plan_search_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_search/{media_plan_search_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_search/{media_plan_search_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_social",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_social/{media_plan_social_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_social/{media_plan_social_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_social/{media_plan_social_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_social/{media_plan_social_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_television",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "media_plan_television/{media_plan_television_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_television/{media_plan_television_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_television/{media_plan_television_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_television/{media_plan_television_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_versions_latest",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_versions_trimmed",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "media_plan_versions/{media_plan_versions_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "media_plan_versions/{media_plan_versions_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "media_plan_versions/{media_plan_versions_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "pacing_orphan_fixes",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PUT",
+        "name": "pacing_orphan_fixes/{pacing_orphan_fixes_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "GET",
+        "name": "pacing_orphan_fixes/{pacing_orphan_fixes_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "DELETE",
+        "name": "pacing_orphan_fixes/{pacing_orphan_fixes_id}",
+        "auth": false
+      },
+      {
+        "group": "media_plans",
+        "verb": "PATCH",
+        "name": "pacing_orphan_fixes/{pacing_orphan_fixes_id}",
+        "auth": false
+      },
+      {
+        "group": "Publishers",
+        "verb": "PUT",
+        "name": "edit_publishers/{publishers_id}",
+        "auth": false
+      },
+      {
+        "group": "Publishers",
+        "verb": "DELETE",
+        "name": "media_container_best_practice/{media_container_best_practice_id}",
+        "auth": false
+      },
+      {
+        "group": "Publishers",
+        "verb": "GET",
+        "name": "media_container_best_practice/{media_container_best_practice_id}",
+        "auth": false
+      },
+      {
+        "group": "Publishers",
+        "verb": "PUT",
+        "name": "media_container_best_practice/{media_container_best_practice_id}",
+        "auth": false
+      },
+      {
+        "group": "Publishers",
+        "verb": "PATCH",
+        "name": "media_container_best_practice/{media_container_best_practice_id}",
+        "auth": false
+      },
+      {
+        "group": "Publishers",
+        "verb": "PUT",
+        "name": "publisher_kpi/{publisher_kpi_id}",
+        "auth": false
+      },
+      {
+        "group": "Publishers",
+        "verb": "GET",
+        "name": "publisher_kpi/{publisher_kpi_id}",
+        "auth": false
+      },
+      {
+        "group": "Publishers",
+        "verb": "POST",
+        "name": "publishers",
+        "auth": false
+      },
+      {
+        "group": "Publishers",
+        "verb": "DELETE",
+        "name": "publishers/{publishers_id}",
+        "auth": false
+      },
+      {
+        "group": "Publishers",
+        "verb": "PATCH",
+        "name": "publishers/{publishers_id}",
+        "auth": false
+      },
+      {
+        "group": "Publishers",
+        "verb": "PUT",
+        "name": "publishers/{publishers_id}",
+        "auth": false
+      },
+      {
+        "group": "Publishers",
+        "verb": "GET",
+        "name": "publishers/{publishers_id}",
+        "auth": false
+      },
+      {
+        "group": "scopes_of_work",
+        "verb": "PUT",
+        "name": "scope_of_work/{scope_of_work_id}",
+        "auth": false
+      },
+      {
+        "group": "scopes_of_work",
+        "verb": "GET",
+        "name": "scope_of_work/{scope_of_work_id}",
+        "auth": false
+      },
+      {
+        "group": "scopes_of_work",
+        "verb": "DELETE",
+        "name": "scope_of_work/{scope_of_work_id}",
+        "auth": false
+      },
+      {
+        "group": "scopes_of_work",
+        "verb": "PATCH",
+        "name": "scope_of_work/{scope_of_work_id}",
+        "auth": false
+      },
+      {
+        "group": "search_api_group",
+        "verb": "PUT",
+        "name": "EDIT_search_bursts_history/{search_bursts_history_id}",
+        "auth": false
+      },
+      {
+        "group": "search_api_group",
+        "verb": "PUT",
+        "name": "EDIT_search_bursts/{search_bursts_id}",
+        "auth": false
+      },
+      {
+        "group": "search_api_group",
+        "verb": "PUT",
+        "name": "EDIT_search_line_items_history/{search_line_items_history_id}",
+        "auth": false
+      },
+      {
+        "group": "search_api_group",
+        "verb": "PUT",
+        "name": "EDIT_search_line_items/{search_line_items_id}",
+        "auth": false
+      },
+      {
+        "group": "search_api_group",
+        "verb": "GET",
+        "name": "GET_search_bursts",
+        "auth": false
+      },
+      {
+        "group": "search_api_group",
+        "verb": "GET",
+        "name": "GET_search_bursts_history",
+        "auth": false
+      },
+      {
+        "group": "search_api_group",
+        "verb": "GET",
+        "name": "GET_search_line_items",
+        "auth": false
+      },
+      {
+        "group": "search_api_group",
+        "verb": "GET",
+        "name": "GET_search_line_items_history",
+        "auth": false
+      },
+      {
+        "group": "search_api_group",
+        "verb": "POST",
+        "name": "POST_search_bursts",
+        "auth": false
+      },
+      {
+        "group": "search_api_group",
+        "verb": "POST",
+        "name": "POST_search_bursts_history",
+        "auth": false
+      },
+      {
+        "group": "search_api_group",
+        "verb": "POST",
+        "name": "POST_search_line_items",
+        "auth": false
+      },
+      {
+        "group": "search_api_group",
+        "verb": "POST",
+        "name": "POST_search_line_items_history",
+        "auth": false
+      },
+      {
+        "group": "Xero",
+        "verb": "GET",
+        "name": "get_invoices",
+        "auth": false
+      },
+      {
+        "group": "Xero",
+        "verb": "POST",
+        "name": "test_connection",
+        "auth": false
+      }
+    ]
+  },
+  "authHeaderBypasses": [
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "clients",
+      "method": "GET",
+      "callingFile": "lib/api/xanoClients.ts",
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "media_plan_search",
+      "method": "GET",
+      "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "media_plan_social",
+      "method": "GET",
+      "callingFile": "lib/pacing/social/resolveLiveSocialLineItems.ts",
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_BASE_URL",
+      "path": "media_plan_versions",
+      "method": "GET",
+      "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
+      "group": "(generic)"
+    },
+    {
+      "envVar": "XANO_CLIENTS_BASE_URL",
+      "path": "campaign_kpi",
+      "method": "GET",
+      "callingFile": "lib/xano/campaignKpi.ts",
+      "group": "Clients"
+    },
+    {
+      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
+      "path": "media_plan_versions",
+      "method": "GET",
+      "callingFile": "app/mediaplans/[id]/edit/page.tsx",
+      "group": "media_plans"
+    }
+  ]
+}
