@@ -29,6 +29,14 @@ test("humaniseBillingSaveError branches on code", () => {
     "Couldn't recompute billing — reopen MBA & billing and try again."
   )
   assert.equal(
+    humaniseBillingSaveError({
+      code: "PLANC_C3_SCHEDULE_REQUIRED",
+      userMessage: "Radio and OOH have line items but no billing schedule was saved",
+      error: "raw",
+    }),
+    "Radio and OOH have line items but no billing schedule was saved"
+  )
+  assert.equal(
     humaniseBillingSaveError({ error: "verbatim", message: "msg" }),
     "verbatim"
   )
@@ -54,6 +62,7 @@ test("humaniseBillingSaveError names adserving component from delta lines", () =
 
 test("isBillingSaveGateError recognises finance codes", () => {
   assert.equal(isBillingSaveGateError({ code: "BILLING_SCHEDULE_DIVERGENCE" }), true)
+  assert.equal(isBillingSaveGateError({ code: "PLANC_C3_SCHEDULE_REQUIRED" }), true)
   assert.equal(isBillingSaveGateError({ code: "OTHER" }), false)
 })
 

@@ -37,6 +37,14 @@ import {
   type FeeRatesChangedNotice,
 } from "@/lib/finance/feeSnapshots"
 import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
+import {
+  applyC3ScheduleRequiredGate,
+  channelLabelsFromLineItems,
+  channelLabelsFromTables,
+  resolvePlanCC3ScheduleRequiredMode,
+} from "@/lib/finance/c3ScheduleRequiredGate"
+import { getBillingSchedule } from "@/lib/finance/normalizeFields"
+import { CHANNEL_LINE_ITEM_ENDPOINTS } from "@/lib/api/fetchChannelLineItemsByMba"
 import { appendPartialApprovalToBillingSchedule } from "@/lib/mediaplan/partialMba"
 import { ensureLineUids, pickLineUid } from "@/lib/mediaplan/lineUid"
 import {
@@ -763,6 +771,45 @@ async function fetchXanoTableForMediaType(
   }
 
   return bestFiltered
+}
+
+/**
+ * Plan C C3 — which channel/production tables have live rows for a version id.
+ * Used when PUT has no lineItems payload (status-transition / legacy) and for PATCH.
+ */
+async function channelTablesWithRowsForVersion(
+  mediaPlanVersionId: number
+): Promise<string[]> {
+  const hit: string[] = []
+  await Promise.all(
+    CHANNEL_LINE_ITEM_ENDPOINTS.map(async (table) => {
+      try {
+        const response = await axios.get(xanoUrl(table, ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), {
+          params: {
+            media_plan_version: mediaPlanVersionId,
+            page: 1,
+            per_page: 5,
+          },
+          headers: xanoAuthHeaderRecord(),
+          timeout: XANO_TIMEOUT_MS,
+          validateStatus: (s) => s >= 200 && s < 500,
+        })
+        if (response.status >= 400) return
+        const rows = parseXanoListPayload(response.data).filter((row: any) => {
+          if (!row || typeof row !== "object") return false
+          if (Number(row.media_plan_version) !== Number(mediaPlanVersionId)) return false
+          if (row.superseded === true || row.superseded === "true" || row.superseded === 1) {
+            return false
+          }
+          return true
+        })
+        if (rows.length > 0) hit.push(table)
+      } catch {
+        // fail open for this table — C3 will only see tables that respond
+      }
+    })
+  )
+  return hit
 }
 
 /**
@@ -1790,6 +1837,44 @@ export async function PUT(
     const resolvedClientName =
       data.mp_client_name || data.mp_clientname || data.client_name || masterData.mp_client_name
     const resolvedCampaignStatus = normalise(data.mp_campaignstatus || masterData.campaign_status)
+
+    // Plan C C3 — booked/approved requires billing schedule line detail when lines exist.
+    // Default PLANC_C3_SCHEDULE_REQUIRED=off. Prefer lineItems from the request; fall back
+    // to existing channel/production rows on draft overwrite.
+    {
+      const c3Mode = resolvePlanCC3ScheduleRequiredMode()
+      let c3Labels = channelLabelsFromLineItems(financialLineItems)
+      if (
+        c3Mode !== "off" &&
+        c3Labels.length === 0 &&
+        overwriteMode &&
+        overwriteTargetId != null
+      ) {
+        try {
+          const tables = await channelTablesWithRowsForVersion(Number(overwriteTargetId))
+          c3Labels = channelLabelsFromTables(tables)
+        } catch (c3ScanError) {
+          console.warn("[mba-put] C3 channel scan failed", {
+            mba_number,
+            message: c3ScanError instanceof Error ? c3ScanError.message : String(c3ScanError),
+          })
+        }
+      }
+      const c3 = applyC3ScheduleRequiredGate({
+        mode: c3Mode,
+        targetStatus: resolvedCampaignStatus,
+        billingSchedule: billingScheduleToPersist,
+        channelLabels: c3Labels,
+        meta: {
+          mba_number,
+          version: overwriteMode ? overwriteTargetVersionNumber : nextVersionNumber,
+        },
+      })
+      if (c3.shouldReject && c3.mode === "enforce") {
+        return NextResponse.json(c3.body, { status: c3.status })
+      }
+    }
+
     const newVersionData = {
       media_plan_master_id: masterData.id,
       version_number: nextVersionNumber,
@@ -2240,6 +2325,54 @@ export async function PATCH(
     if (data.campaign_status !== undefined) {
       masterUpdateData.campaign_status = data.campaign_status
     }
+
+    // Plan C C3 — status transition to booked/approved without schedule line detail.
+    if (
+      data.campaign_status !== undefined &&
+      resolvePlanCC3ScheduleRequiredMode() !== "off"
+    ) {
+      const c3Mode = resolvePlanCC3ScheduleRequiredMode()
+      const publishedVn = publishedVersionFromMaster(masterData)
+      const currentVersion =
+        pickPublishedVersionRow(
+          (
+            await fetchAllXanoPages(
+              `${mediaPlansBaseUrl}/media_plan_versions`,
+              { mba_number },
+              "MBA_versions_for_c3_patch",
+              100,
+              20
+            )
+          ).filter((v: any) => normalise(v?.mba_number) === requestedNormalized),
+          publishedVn
+        ) ?? null
+      if (currentVersion?.id != null) {
+        let c3Labels: string[] = []
+        try {
+          const tables = await channelTablesWithRowsForVersion(Number(currentVersion.id))
+          c3Labels = channelLabelsFromTables(tables)
+        } catch (c3ScanError) {
+          console.warn("[mba-patch] C3 channel scan failed", {
+            mba_number,
+            message: c3ScanError instanceof Error ? c3ScanError.message : String(c3ScanError),
+          })
+        }
+        const c3 = applyC3ScheduleRequiredGate({
+          mode: c3Mode,
+          targetStatus: String(data.campaign_status),
+          billingSchedule: getBillingSchedule(currentVersion),
+          channelLabels: c3Labels,
+          meta: {
+            mba_number,
+            version: currentVersion.version_number,
+          },
+        })
+        if (c3.shouldReject && c3.mode === "enforce") {
+          return NextResponse.json(c3.body, { status: c3.status })
+        }
+      }
+    }
+
     if (data.campaign_start_date !== undefined) {
       masterUpdateData.campaign_start_date = data.campaign_start_date
         ? toMelbourneDateString(data.campaign_start_date)

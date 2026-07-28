@@ -37,6 +37,7 @@ export default defineConfig({
       "lib/finance/rows/__tests__/scheduleShape.test.ts",
       "lib/finance/__tests__/billingBalancer.test.ts",
       "lib/finance/__tests__/perLineFromSchedules.test.ts",
+      "lib/finance/__tests__/c3ScheduleRequiredGate.test.ts",
       "components/billing/__tests__/LineTimingInlineEditor.balancer.test.tsx",
       "app/api/mba/generate/route.auth.test.ts",
       "app/api/mediaplans/generate-pdf/route.auth.test.ts",

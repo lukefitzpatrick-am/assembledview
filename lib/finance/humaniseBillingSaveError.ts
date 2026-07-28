@@ -73,6 +73,12 @@ export function humaniseBillingSaveError(
     }
     case "BILLING_RECOMPUTE_MISSING_LINE_ITEMS":
       return "Couldn't recompute billing — reopen MBA & billing and try again."
+    case "PLANC_C3_SCHEDULE_REQUIRED":
+      return (
+        body.userMessage ||
+        body.error ||
+        "Channel line items exist but no billing schedule was saved"
+      )
     default:
       return body.error || body.message || fallback
   }
@@ -84,7 +90,8 @@ export function isBillingSaveGateError(errorData: BillingSaveErrorBody | null | 
   return (
     code === "BILLING_OVERRIDE_SUM_VIOLATION" ||
     code === "BILLING_SCHEDULE_DIVERGENCE" ||
-    code === "BILLING_RECOMPUTE_MISSING_LINE_ITEMS"
+    code === "BILLING_RECOMPUTE_MISSING_LINE_ITEMS" ||
+    code === "PLANC_C3_SCHEDULE_REQUIRED"
   )
 }
 
