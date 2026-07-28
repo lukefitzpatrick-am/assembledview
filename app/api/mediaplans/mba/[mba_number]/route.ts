@@ -1560,6 +1560,13 @@ export async function PUT(
             ? { selectedMonthYears }
             : {}),
         },
+        meta: { mba_number, version: nextVersionNumber },
+        version: {
+          mba_number,
+          ...(previousVersion && typeof previousVersion === "object"
+            ? (previousVersion as Record<string, unknown>)
+            : {}),
+        },
       })
 
       if (!recompute.ok) {

@@ -14,6 +14,13 @@ import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { parsePersistedBillingScheduleToMonths } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
 import { assembleCampaignFinancialsWithOverrides } from "@/lib/finance/authority/assembleWithOverrides"
 import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
+import {
+  applyC1FullScopeGate,
+  formatFullScopeUserMessage,
+  resolvePlanCC1FullScopeMode,
+  type FullScopeDelta,
+  type FullScopeGateMeta,
+} from "@/lib/finance/c1FullScopeGate"
 import type {
   CampaignFinancials,
   FeeLoading,
@@ -28,10 +35,11 @@ export const BILLING_AUTO_EQUALITY_TOLERANCE = 0.01
 
 export type AutoLineDelta = {
   lineItemId: string
-  field: "media" | "fee"
+  field: "media" | "fee" | "adserving" | "production" | "campaign_total"
   clientTotal: number
   serverTotal: number
   delta: number
+  label?: string
 }
 
 export type ManualSumViolation = {
@@ -294,6 +302,10 @@ export function recomputeAndValidateBillingScheduleOnSave(args: {
   clientBillingSchedule: unknown
   overrideRows: BillingOverrideRow[]
   opts?: ComputeCampaignFinancialsOpts
+  /** Optional identity for Plan C full-scope log lines. */
+  meta?: FullScopeGateMeta
+  /** Optional version bag for client-pays aligned campaign total. */
+  version?: Record<string, unknown>
 }): RecomputeBillingScheduleOnSaveResult {
   if (!args.lineItems.length) {
     return {
@@ -381,6 +393,45 @@ export function recomputeAndValidateBillingScheduleOnSave(args: {
         delta: {
           lines: lineDeltas,
           totalDeltaExGst: totalDelta,
+        },
+      },
+    }
+  }
+
+  // Plan C S1-P2 — full-scope gate (adserving + production + campaign total).
+  // Classic media+fee gate above is unchanged; this only runs when it passed.
+  const fullScopeMode = resolvePlanCC1FullScopeMode()
+  const fullScope = applyC1FullScopeGate({
+    mode: fullScopeMode,
+    clientSchedule,
+    lineItems,
+    financials,
+    opts: args.opts,
+    version: args.version,
+    meta: args.meta,
+  })
+  if (fullScope.shouldReject && fullScope.deltas.length > 0) {
+    const asAutoLines: AutoLineDelta[] = fullScope.deltas.map((d: FullScopeDelta) => ({
+      lineItemId: d.lineItemId,
+      field: d.field,
+      clientTotal: d.clientTotal,
+      serverTotal: d.serverTotal,
+      delta: d.delta,
+      label: d.label,
+    }))
+    const totalDeltaExGst = roundMoney2(
+      asAutoLines.reduce((s, d) => s + d.delta, 0)
+    )
+    return {
+      ok: false,
+      status: 409,
+      body: {
+        error: "Client billing schedule diverges from server recompute (full-scope)",
+        code: "BILLING_SCHEDULE_DIVERGENCE",
+        userMessage: formatFullScopeUserMessage(fullScope.deltas),
+        delta: {
+          lines: asAutoLines,
+          totalDeltaExGst,
         },
       },
     }

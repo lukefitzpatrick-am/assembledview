@@ -115,6 +115,12 @@ export async function PATCH(
           ...(startRaw ? { campaignStart: new Date(String(startRaw)) } : {}),
           ...(endRaw ? { campaignEnd: new Date(String(endRaw)) } : {}),
         },
+        meta: {
+          mba_number:
+            versionRow?.mba_number != null ? String(versionRow.mba_number) : undefined,
+          version: versionRow?.version_number as string | number | undefined,
+        },
+        version: versionRow ?? undefined,
       })
       if (!recompute.ok) {
         return NextResponse.json(recompute.body, { status: recompute.status })

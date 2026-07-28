@@ -6,6 +6,7 @@ import {
   isBillingSaveGateError,
   withMbaScopeLineLabels,
 } from "@/lib/finance/humaniseBillingSaveError"
+import { formatAUD } from "@/lib/format/money"
 
 test("humaniseBillingSaveError branches on code", () => {
   assert.equal(
@@ -31,6 +32,24 @@ test("humaniseBillingSaveError branches on code", () => {
     humaniseBillingSaveError({ error: "verbatim", message: "msg" }),
     "verbatim"
   )
+})
+
+test("humaniseBillingSaveError names adserving component from delta lines", () => {
+  const msg = humaniseBillingSaveError({
+    code: "BILLING_SCHEDULE_DIVERGENCE",
+    error: "raw",
+    delta: {
+      lines: [
+        {
+          lineItemId: "OH3",
+          field: "adserving",
+          delta: 141,
+          label: "OH3",
+        },
+      ],
+    },
+  })
+  assert.equal(msg, `Ad serving on line OH3 differs from the approved MBA by ${formatAUD(141)}`)
 })
 
 test("isBillingSaveGateError recognises finance codes", () => {
