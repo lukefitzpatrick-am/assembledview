@@ -1,0 +1,31 @@
+{
+  "mba": "BOSS007",
+  "version_id": 1098,
+  "mode": "dry-recompute",
+  "write_performed": false,
+  "note": "Live PATCH skipped (approval declined). Dry-recompute uses the same C1 path the editor save hits today (billingSchedule: undefined → server generate).",
+  "before": {
+    "has_line_detail": false,
+    "backfill_status": "no-line-detail",
+    "billing_shape": "array(10)",
+    "schedule_has_month_totals": true,
+    "schedule_has_per_line_lineItems": false,
+    "channel_row_count": 5,
+    "migratable_clean": false
+  },
+  "projected_after_c1_server_generate": {
+    "has_line_detail": false,
+    "backfill_status": "no-line-detail",
+    "billing_shape": "array(10)",
+    "schedule_has_month_totals": true,
+    "schedule_has_per_line_lineItems": false,
+    "perLine_in_memory": 5,
+    "migratable_clean": false
+  },
+  "finding": "A planner re-save on current branch sends billingSchedule/deliverySchedule as undefined (edit/page.tsx). C1 then persists computeCampaignFinancials month aggregates WITHOUT month.lineItems. Re-publish therefore does NOT move BOSS007 to has_line_detail=yes or backfill clean/migratable. Financials.perLine exists in memory (5 lines) but is not embedded in the schedule blob. Restoring line detail requires either (a) client-sent schedule with lineItems that passes C1 equality, or (b) server generate that embeds per-line lineItems into BillingMonth.lineItems.",
+  "channel_lines": {
+    "media_plan_digi_display": 2,
+    "media_plan_search": 1,
+    "media_plan_prog_display": 2
+  }
+}

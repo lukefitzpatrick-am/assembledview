@@ -1,9 +1,14 @@
 /**
- * LIVE-P1 — live campaign conformance report (read-only; --dry-run only).
+ * LIVE-P2 — live campaign conformance report (read-only; --dry-run only).
  *
  * Scope: the CURRENT (highest / master.version_number) version of every campaign
  * whose master campaign_status normalises to booked / approved / planned.
  * Superseded versions are ignored entirely.
+ *
+ * Gates:
+ *   conformant_today — health (line detail + clean backfill + no C1/integrity)
+ *   planc_ready — rollout (fee snapshot + complete line_uid); expected ~0% until
+ *     Stage 0–1 deploys (measures rollout, not health)
  *
  * Usage:
  *   npx tsx scripts/live-campaign-conformance.ts --dry-run
@@ -86,7 +91,13 @@ type CsvRow = {
   c1_fullscope_drift: string
   in_integrity_findings: string
   integrity_kinds: string
-  conformant: string
+  /** Health: line detail + clean backfill + no C1 drift + no integrity findings. */
+  conformant_today: string
+  /**
+   * Rollout: fee snapshot + complete line_uid coverage.
+   * Expected ~0% until Stage 0–1 deploys — measures rollout, not health.
+   */
+  planc_ready: string
 }
 
 type ChannelAgg = {
@@ -389,22 +400,30 @@ function hasC1FullScopeDrift(version: Record<string, unknown>): boolean {
   return deltas.length > 0
 }
 
-function isConformant(row: {
+/** Health gate — schedule/backfill integrity today (no Plan C rollout deps). */
+function isConformantToday(row: {
   backfill_status: string
   has_line_detail: boolean
   c1_drift: boolean
   in_integrity: boolean
+}): boolean {
+  return (
+    row.has_line_detail &&
+    row.backfill_status === "clean" &&
+    !row.c1_drift &&
+    !row.in_integrity
+  )
+}
+
+/**
+ * Plan C rollout gate — fee snapshots + line_uid coverage.
+ * Expected 0% until Stage 0–1 deploys; measures rollout, not health.
+ */
+function isPlancReady(row: {
   line_uid_coverage_ok: boolean
   has_fee_snapshot: boolean
 }): boolean {
-  return (
-    row.backfill_status === "clean" &&
-    row.has_line_detail &&
-    !row.c1_drift &&
-    !row.in_integrity &&
-    row.line_uid_coverage_ok &&
-    row.has_fee_snapshot
-  )
+  return row.has_fee_snapshot && row.line_uid_coverage_ok
 }
 
 async function main() {
@@ -445,7 +464,10 @@ async function main() {
     120
   )
 
-  const currentVersions: Record<string, unknown>[] = []
+  // Collect matches then dedupe by MBA. Some campaigns (BICAU004) have multiple
+  // version rows at the same version_number with null media_plan_master_id —
+  // that inflated live scope 110→112 (approved 49→51) before dedupe.
+  const matchesByMba = new Map<string, Record<string, unknown>[]>()
   for (const v of allVersions) {
     if (!v || typeof v !== "object") continue
     const row = v as Record<string, unknown>
@@ -461,11 +483,36 @@ async function main() {
     ) {
       continue
     }
-    currentVersions.push(row)
+    let list = matchesByMba.get(mba)
+    if (!list) {
+      list = []
+      matchesByMba.set(mba, list)
+    }
+    list.push(row)
+  }
+  const currentVersions: Record<string, unknown>[] = []
+  let duplicateVersionRowsCollapsed = 0
+  for (const [mba, rows] of matchesByMba) {
+    if (rows.length > 1) {
+      duplicateVersionRowsCollapsed += rows.length - 1
+      console.error(
+        `[live-conformance] collapsing ${rows.length} version rows for ${mba} → 1 (ids ${rows.map((r) => r.id).join(",")})`
+      )
+    }
+    const info = mbaToVersion.get(mba)
+    const preferred =
+      rows.find(
+        (r) =>
+          info?.masterId != null &&
+          r.media_plan_master_id != null &&
+          Number(r.media_plan_master_id) === Number(info.masterId)
+      ) ??
+      [...rows].sort((a, b) => Number(a.id) - Number(b.id))[0]!
+    currentVersions.push(preferred)
   }
 
   console.error(
-    `[live-conformance] current versions matched=${currentVersions.length} (superseded ignored)`
+    `[live-conformance] current versions matched=${currentVersions.length} (superseded ignored; collapsed_dup_rows=${duplicateVersionRowsCollapsed})`
   )
 
   const knownVersionIds = new Set<number>()
@@ -522,6 +569,7 @@ async function main() {
 
   const csvRows: CsvRow[] = []
   const failDims = {
+    /** has_line_detail=no OR backfill_status=no-line-detail — counted once (same fact). */
     no_line_detail: 0,
     schedule_fallback: 0,
     asymmetric: 0,
@@ -535,9 +583,24 @@ async function main() {
     integrity_findings: 0,
     missing_fee_snapshot: 0,
     incomplete_line_uid: 0,
-    not_clean_backfill: 0,
+    /** backfill not clean, excluding no-line-detail (already in no_line_detail). */
+    not_clean_backfill_other: 0,
   }
-  let conformantCount = 0
+  let conformantTodayCount = 0
+  let plancReadyCount = 0
+
+  // Scope reconciliation: masters vs matched current versions
+  const scopedStatusCounts = new Map<string, number>()
+  for (const m of scopedMasters) {
+    const s = normaliseStatus((m as { campaign_status?: string }).campaign_status)
+    scopedStatusCounts.set(s, (scopedStatusCounts.get(s) ?? 0) + 1)
+  }
+  const mbaDupInScoped = new Map<string, number>()
+  for (const m of scopedMasters) {
+    const mba = String((m as { mba_number?: string }).mba_number ?? "").trim()
+    mbaDupInScoped.set(mba, (mbaDupInScoped.get(mba) ?? 0) + 1)
+  }
+  const duplicateMbaMasters = [...mbaDupInScoped.entries()].filter(([, n]) => n > 1)
 
   for (const version of currentVersions) {
     const mba = String(version.mba_number ?? "").trim()
@@ -586,18 +649,26 @@ async function main() {
     const kinds = integrityByVersion.get(versionId)
     const inIntegrity = kinds != null && kinds.size > 0
 
-    const conformant = isConformant({
+    const conformantToday = isConformantToday({
       backfill_status: backfillStatus,
       has_line_detail: hasLineDetail,
       c1_drift: c1Drift,
       in_integrity: inIntegrity,
+    })
+    const plancReady = isPlancReady({
       line_uid_coverage_ok: lineUidOk,
       has_fee_snapshot: hasFee,
     })
 
-    if (conformant) conformantCount++
-    else {
-      if (!hasLineDetail) failDims.no_line_detail++
+    if (conformantToday) conformantTodayCount++
+    if (plancReady) plancReadyCount++
+
+    // Failing dims relative to conformant_today (health) + rollout dims separately
+    if (!conformantToday) {
+      // Same fact: missing line detail ↔ backfill no-line-detail — count once
+      if (!hasLineDetail || backfillStatus === "no-line-detail") {
+        failDims.no_line_detail++
+      }
       if (backfillStatus === "schedule-fallback") failDims.schedule_fallback++
       if (backfillStatus === "asymmetric") failDims.asymmetric++
       if (backfillStatus === "parse-failure") failDims.parse_failure++
@@ -606,12 +677,14 @@ async function main() {
       if (backfillStatus === "amount-mismatch") failDims.amount_mismatch++
       if (backfillStatus === "rounding") failDims.rounding++
       if (backfillStatus === "structural") failDims.structural++
-      if (backfillStatus !== "clean") failDims.not_clean_backfill++
+      if (backfillStatus !== "clean" && backfillStatus !== "no-line-detail") {
+        failDims.not_clean_backfill_other++
+      }
       if (c1Drift) failDims.c1_fullscope_drift++
       if (inIntegrity) failDims.integrity_findings++
-      if (!hasFee) failDims.missing_fee_snapshot++
-      if (!lineUidOk) failDims.incomplete_line_uid++
     }
+    if (!hasFee) failDims.missing_fee_snapshot++
+    if (!lineUidOk) failDims.incomplete_line_uid++
 
     csvRows.push({
       mba,
@@ -628,7 +701,8 @@ async function main() {
       c1_fullscope_drift: c1Drift ? "yes" : "no",
       in_integrity_findings: inIntegrity ? "yes" : "no",
       integrity_kinds: kinds ? [...kinds].sort().join("|") : "",
-      conformant: conformant ? "yes" : "no",
+      conformant_today: conformantToday ? "yes" : "no",
+      planc_ready: plancReady ? "yes" : "no",
     })
   }
 
@@ -647,9 +721,13 @@ async function main() {
     "c1_fullscope_drift",
     "in_integrity_findings",
     "integrity_kinds",
-    "conformant",
+    "conformant_today",
+    "planc_ready",
   ]
   const csvLines = [
+    // Note row: planc_ready expected 0% until Stage 0–1 — rollout, not health
+    "# planc_ready = has_fee_snapshot AND complete line_uid_coverage; expected ~0% until Stage 0-1 deploys (rollout metric, not health)",
+    "# conformant_today = has_line_detail AND backfill clean AND NOT c1_drift AND NOT integrity findings",
     header.join(","),
     ...csvRows.map((r) =>
       [
@@ -667,21 +745,25 @@ async function main() {
         r.c1_fullscope_drift,
         r.in_integrity_findings,
         csvEscape(r.integrity_kinds),
-        r.conformant,
+        r.conformant_today,
+        r.planc_ready,
       ].join(",")
     ),
   ]
   writeFileSync(CSV_PATH, csvLines.join("\n"), "utf8")
   console.error(`[live-conformance] wrote ${CSV_PATH} (${csvRows.length} rows)`)
 
+  const pct = (n: number, d: number) =>
+    d === 0 ? "n/a" : `${((100 * n) / d).toFixed(1)}%`
+
   // Human summary for someone who hasn't followed Plan C
   console.log("")
-  console.log("=== Live campaign conformance (LIVE-P1) ===")
+  console.log("=== Live campaign conformance (LIVE-P2) ===")
   console.log(
-    "Question: do live campaigns match the new Plan C process (typed rows, fee"
+    "Two gates: conformant_today (health) and planc_ready (Plan C rollout)."
   )
   console.log(
-    "snapshots, line_uid identity, full-scope billable=MBA, schedule line detail)?"
+    "planc_ready is expected ~0% until Stage 0–1 deploys — it measures rollout, not health."
   )
   console.log("")
   console.log(
@@ -697,13 +779,48 @@ async function main() {
     console.log(`  ${JSON.stringify(s)}: ${n}`)
   }
   console.log("")
-  console.log(`Live campaigns in scope:     ${csvRows.length}`)
-  console.log(`Fully conformant (all-green): ${conformantCount}`)
-  console.log(`Not conformant:              ${csvRows.length - conformantCount}`)
+  console.log("Scoped masters by normalised status:")
+  for (const [s, n] of [...scopedStatusCounts.entries()].sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${s}: ${n}`)
+  }
+  console.log(
+    `Scoped masters total: ${scopedMasters.length}; matched current versions: ${csvRows.length}`
+  )
+  if (scopedMasters.length !== csvRows.length) {
+    console.log(
+      `NOTE: master/version count mismatch (${scopedMasters.length} vs ${csvRows.length}).`
+    )
+    console.log(
+      `When media_plan_master_id is null, multiple version rows can share the same`
+    )
+    console.log(
+      `version_number (observed: BICAU004 v1 ids 456/457/458). Report now dedupes by MBA.`
+    )
+  }
+  if (duplicateMbaMasters.length > 0) {
+    console.log(
+      `Duplicate mba_number in scoped masters (${duplicateMbaMasters.length}):`
+    )
+    for (const [mba, n] of duplicateMbaMasters) {
+      console.log(`  ${mba}: ${n} master rows`)
+    }
+  }
   console.log("")
-  console.log("Failing dimensions (count of non-conformant campaigns with each issue;")
-  console.log("a campaign can appear in multiple dimensions):")
-  console.log(`  no line detail on billing schedule:  ${failDims.no_line_detail}`)
+  console.log(`Live campaigns in scope:     ${csvRows.length}`)
+  console.log(
+    `conformant_today:            ${conformantTodayCount} (${pct(conformantTodayCount, csvRows.length)})`
+  )
+  console.log(
+    `planc_ready (rollout):       ${plancReadyCount} (${pct(plancReadyCount, csvRows.length)}) — expected ~0% until Stage 0–1`
+  )
+  console.log(
+    `not conformant_today:        ${csvRows.length - conformantTodayCount}`
+  )
+  console.log("")
+  console.log("Failing dimensions (health / conformant_today; a campaign can appear in")
+  console.log("multiple dimensions). no-line-detail counted once (has_line_detail=no")
+  console.log("and backfill_status=no-line-detail are the same fact):")
+  console.log(`  no line detail (once):               ${failDims.no_line_detail}`)
   console.log(`  backfill schedule-fallback:          ${failDims.schedule_fallback}`)
   console.log(`  backfill asymmetric:                 ${failDims.asymmetric}`)
   console.log(`  backfill parse-failure:              ${failDims.parse_failure}`)
@@ -712,9 +829,11 @@ async function main() {
   console.log(`  backfill amount-mismatch:            ${failDims.amount_mismatch}`)
   console.log(`  backfill rounding:                   ${failDims.rounding}`)
   console.log(`  backfill structural:                 ${failDims.structural}`)
-  console.log(`  backfill not clean (any):            ${failDims.not_clean_backfill}`)
+  console.log(`  backfill not clean (excl no-line):   ${failDims.not_clean_backfill_other}`)
   console.log(`  C1 full-scope drift:                 ${failDims.c1_fullscope_drift}`)
   console.log(`  in integrity findings:               ${failDims.integrity_findings}`)
+  console.log("")
+  console.log("Rollout dimensions (planc_ready; independent of health):")
   console.log(`  missing fee snapshot:                ${failDims.missing_fee_snapshot}`)
   console.log(`  incomplete line_uid coverage:        ${failDims.incomplete_line_uid}`)
   console.log("")
@@ -722,7 +841,10 @@ async function main() {
     "C1 drift join: mba → buildMbaToLatestVersionMap(scoped masters) → version_number"
   )
   console.log(
-    "match (same as scripts/c1-fullscope-drift-report.ts); deltas via collectFullScopeDeltas."
+    "match; deltas via collectFullScopeDeltas. Note: c1-fullscope-drift-report.ts"
+  )
+  console.log(
+    "scopes booked|approved only (isLiveCampaignStatus); this report also includes planned."
   )
   console.log(`csv: ${CSV_PATH}`)
   console.log(`mode: dry-run (no writes)`)
