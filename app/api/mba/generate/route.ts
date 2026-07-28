@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generateMBA, MBAData } from '@/lib/generateMBA';
 import { format } from 'date-fns';
 import { addGst } from '@/lib/finance/gst';
+import { requireRole } from '@/lib/requireRole';
 
 export async function POST(req: NextRequest) {
   try {
-    // For now, allow access for development
-    // In production, you would validate the Auth0 session here
-    
+    const gate = await requireRole(req, ['admin', 'manager']);
+    if ('response' in gate) return gate.response;
+
     const body = await req.json();
 
     // Basic validation - support both mbanumber and mba_number for backwards compatibility

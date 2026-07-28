@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
 import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { requireRole } from "@/lib/requireRole"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -9,10 +10,13 @@ export const maxDuration = 60
 const XANO_LONG_TIMEOUT_MS = 30_000
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const gate = await requireRole(request, ["admin", "manager"])
+    if ("response" in gate) return gate.response
+
     const { id } = await params
     const response = await axios.get(`${xanoUrl("download_mediaplan", "XANO_MEDIAPLANS_BASE_URL")}/${id}`, { headers: xanoAuthHeaderRecord(), responseType: "arraybuffer",
         timeout: XANO_LONG_TIMEOUT_MS, })

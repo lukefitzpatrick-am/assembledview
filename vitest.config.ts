@@ -6,7 +6,7 @@ const root = path.dirname(fileURLToPath(import.meta.url))
 
 /**
  * Vitest only runs suites listed under `test.include` below.
- * Other `**/__tests__/**` files may still use `node:test` via
+ * Other suites under __tests__ dirs may still use `node:test` via
  * `npx tsx --test <path>` — they are intentionally excluded here.
  */
 export default defineConfig({
@@ -31,6 +31,11 @@ export default defineConfig({
       "lib/mediaplan/__tests__/lineItemIdentity.test.ts",
       "lib/mediaplan/__tests__/mergeSavedChannelLineItems.test.ts",
       "lib/mediaplan/__tests__/savedPlanChannelHydration.test.ts",
+      "app/api/mba/generate/route.auth.test.ts",
+      "app/api/mediaplans/generate-pdf/route.auth.test.ts",
+      "app/api/mediaplans/[id]/download/route.auth.test.ts",
+      "app/api/mediaplans/versions/[id]/documents/route.auth.test.ts",
+      "app/api/scopes-of-work/generate-pdf/route.auth.test.ts",
     ],
     exclude: [
       "**/node_modules/**",

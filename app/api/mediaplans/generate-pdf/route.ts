@@ -1,12 +1,16 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { generateMediaPlan, MediaPlanHeader } from '@/lib/generateMediaPlan'
+import { requireRole } from "@/lib/requireRole"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const maxDuration = 60
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
+    const gate = await requireRole(request, ["admin", "manager"])
+    if ("response" in gate) return gate.response
+
     const data = await request.json()
     
     // Prepare the header data for the Excel generation

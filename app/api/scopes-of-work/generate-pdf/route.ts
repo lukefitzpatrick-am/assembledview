@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { generateScopeOfWork } from "@/lib/generateScopeOfWork"
+import { requireRole } from "@/lib/requireRole"
 
 const SMART_DOUBLE_QUOTES = new Set(["\u201C", "\u201D", "\u201E", "\u201F", "\u2033", "\u2036"])
 const SMART_SINGLE_QUOTES = new Set(["\u2018", "\u2019", "\u201A", "\u201B", "\u2032", "\u2035"])
@@ -64,6 +65,9 @@ function sanitizeFilename(name: string): string {
 
 export async function POST(req: NextRequest) {
   try {
+    const gate = await requireRole(req, ["admin", "manager"])
+    if ("response" in gate) return gate.response
+
     const body = await req.json();
 
     // Basic validation
