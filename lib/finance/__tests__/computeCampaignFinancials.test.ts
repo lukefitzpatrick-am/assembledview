@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import { billingMonthsHaveDetailedLineItems } from "../../mediaplan/partialMba.js"
 import { computeCampaignFinancials } from "../computeCampaignFinancials.js"
 import type { LineItemInput } from "../campaignFinancials.types.js"
 
@@ -255,4 +256,173 @@ test("computeCampaignFinancials: selectedMonthYears scopes billing+MBA, keeps de
   assert.equal(augOnly.billingSchedule[0]?.monthYear, "August 2026")
   assert.ok(augOnly.mbaScopeTotals.grossMedia < full.mbaScopeTotals.grossMedia)
   assert.ok(augOnly.mbaScopeTotals.grossMedia > 0)
+})
+
+test("computeCampaignFinancials: mixed fixture schedules carry detailed lineItems", () => {
+  const lines: LineItemInput[] = [
+    {
+      lineItemId: "AUTO-SEARCH",
+      mediaType: "search",
+      buyType: "cpc",
+      rate: 1,
+      enteredAmount: 10_000,
+      budgetIncludesFees: false,
+      clientPaysForMedia: false,
+      feePct: 20,
+      bursts: [
+        { startDate: "2026-06-01", endDate: "2026-07-31", budget: 10_000, buyAmount: 1 },
+      ],
+      approval: "approved",
+    },
+    {
+      lineItemId: "MANUAL-SOCIAL",
+      mediaType: "socialMedia",
+      buyType: "cpm",
+      rate: 10,
+      enteredAmount: 6_000,
+      budgetIncludesFees: false,
+      clientPaysForMedia: false,
+      feePct: 15,
+      bursts: [
+        { startDate: "2026-06-01", endDate: "2026-07-31", budget: 6_000, buyAmount: 10 },
+      ],
+      approval: "approved",
+      billingOverride: {
+        mode: "manual",
+        reason: "prepayment",
+        dateBasis: "2026-06-01|2026-07-31",
+        months: [
+          { month: "2026-06", amount: 6_000 },
+          { month: "2026-07", amount: 0 },
+        ],
+      },
+    },
+    {
+      lineItemId: "CLIENT-PAYS-TV",
+      mediaType: "television",
+      buyType: "cpm",
+      rate: 20,
+      enteredAmount: 8_000,
+      budgetIncludesFees: false,
+      clientPaysForMedia: true,
+      feePct: 10,
+      bursts: [
+        { startDate: "2026-06-01", endDate: "2026-07-31", budget: 8_000, buyAmount: 20 },
+      ],
+      approval: "approved",
+    },
+    {
+      lineItemId: "ADSERV-DISPLAY",
+      mediaType: "digiDisplay",
+      buyType: "cpm",
+      rate: 5,
+      enteredAmount: 4_000,
+      budgetIncludesFees: false,
+      clientPaysForMedia: false,
+      feePct: 12,
+      bursts: [
+        {
+          startDate: "2026-06-01",
+          endDate: "2026-07-31",
+          budget: 4_000,
+          buyAmount: 5,
+          adServingRatePct: 2,
+          adServingImpressions: 800_000,
+        },
+      ],
+      approval: "approved",
+    },
+    {
+      lineItemId: "PROD-1",
+      mediaType: "production",
+      buyType: "fixed cost",
+      rate: 1,
+      enteredAmount: 2_500,
+      budgetIncludesFees: false,
+      clientPaysForMedia: false,
+      feePct: 0,
+      bursts: [
+        { startDate: "2026-06-01", endDate: "2026-06-30", budget: 2_500, buyAmount: 1 },
+      ],
+      approval: "approved",
+    },
+  ]
+
+  const result = computeCampaignFinancials(
+    lines,
+    {
+      feeLoading: {
+        feesearch: 20,
+        feesocial: 15,
+        feetelevision: 10,
+        feedigidisplay: 12,
+      },
+    },
+    {
+      campaignStart: new Date("2026-06-01"),
+      campaignEnd: new Date("2026-07-31"),
+      getRateForMediaType: () => 0.5,
+    }
+  )
+
+  assert.ok(
+    billingMonthsHaveDetailedLineItems(result.billingSchedule),
+    "billing schedule must have detailed lineItems"
+  )
+  assert.ok(
+    billingMonthsHaveDetailedLineItems(result.deliverySchedule),
+    "delivery schedule must have detailed lineItems"
+  )
+
+  const expectedIds = new Set(
+    result.perLine.filter((p) => !p.flags.excluded).map((p) => p.lineItemId)
+  )
+
+  for (const month of result.billingSchedule) {
+    const ids = new Set<string>()
+    for (const [mediaKey, items] of Object.entries(month.lineItems ?? {})) {
+      assert.ok(Array.isArray(items))
+      for (const item of items!) {
+        ids.add(item.id)
+        const pl = result.perLine.find((p) => p.lineItemId === item.id)
+        assert.ok(pl, `missing perLine for ${item.id}`)
+        assert.equal(pl!.mediaType, mediaKey)
+        const expectedMedia =
+          pl!.billingMonths.find((m) => m.month === month.monthYear)?.amount ?? 0
+        assert.ok(
+          Math.abs((item.monthlyAmounts[month.monthYear] ?? 0) - expectedMedia) <= 0.02,
+          `${item.id} ${month.monthYear} media`
+        )
+        assert.ok(item.feeMonthlyAmounts, `${item.id} feeMonthlyAmounts`)
+        assert.ok(item.adServingMonthlyAmounts, `${item.id} adServingMonthlyAmounts`)
+        if (pl!.flags.clientPaysForMedia) {
+          assert.equal(item.clientPaysForMedia, true)
+          assert.ok(Math.abs(expectedMedia) < 0.02, "client-pays billing media is 0")
+        }
+        if (pl!.flags.manualBilling) {
+          assert.equal(item.billingMode, "manual")
+        }
+        if (pl!.flags.prepaid) {
+          assert.equal(item.preBill, true)
+        }
+      }
+    }
+    assert.deepEqual([...ids].sort(), [...expectedIds].sort())
+  }
+
+  const june = result.billingSchedule.find((m) => m.monthYear === "June 2026")!
+  const ads = june.lineItems!.digiDisplay!.find((i) => i.id === "ADSERV-DISPLAY")!
+  assert.ok(
+    (ads.adServingMonthlyAmounts!["June 2026"] ?? 0) > 0,
+    "adserving line must carry per-month adServing"
+  )
+  assert.ok(june.lineItems!.production!.some((i) => i.id === "PROD-1"))
+  assert.ok(june.lineItems!.search!.some((i) => i.id === "AUTO-SEARCH"))
+
+  // Delivery keeps full client-pays media while billing zeros it.
+  const delJune = result.deliverySchedule.find((m) => m.monthYear === "June 2026")!
+  const tvDel = delJune.lineItems!.television!.find((i) => i.id === "CLIENT-PAYS-TV")!
+  const tvBill = june.lineItems!.television!.find((i) => i.id === "CLIENT-PAYS-TV")!
+  assert.ok((tvDel.monthlyAmounts["June 2026"] ?? 0) > 0)
+  assert.ok(Math.abs(tvBill.monthlyAmounts["June 2026"] ?? 0) < 0.02)
 })

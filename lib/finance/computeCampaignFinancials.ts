@@ -9,9 +9,10 @@
  * - {@link validateBillableEqualsMba} for the billable≠MBA gate
  */
 
+import { computeAdServingCost } from "@/lib/billing/computeAdServingCost"
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
-import type { BillingBurst, BillingMonth } from "@/lib/billing/types"
+import type { BillingBurst, BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import {
@@ -633,6 +634,197 @@ function groupBurstsByMediaType(lines: ResolvedLine[]): Record<string, BillingBu
   return out
 }
 
+const ADSERVING_SCHEDULE_MEDIA = new Set<ScheduleMediaTypeKey>([
+  "digiAudio",
+  "digiDisplay",
+  "digiVideo",
+  "bvod",
+  "progAudio",
+  "progVideo",
+  "progBvod",
+  "progOoh",
+  "progDisplay",
+])
+
+function monthAmountsToRecord(
+  months: MonthAmount[],
+  allMonthKeys: string[]
+): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const key of allMonthKeys) out[key] = 0
+  for (const m of months) {
+    const k = String(m.month ?? "").trim()
+    if (!k) continue
+    out[k] = roundMoney2((out[k] ?? 0) + (Number(m.amount) || 0))
+  }
+  return out
+}
+
+function recordTotal(amounts: Record<string, number>): number {
+  return roundMoney2(Object.values(amounts).reduce((s, v) => s + v, 0))
+}
+
+/** Auto fee shares from burst.feeAmount, scaled to the line's effective fee. */
+function feeMonthlyAmountsForLine(
+  line: ResolvedLine,
+  monthKeys: string[]
+): Record<string, number> {
+  if (line.feeBillingMonths.length > 0) {
+    return monthAmountsToRecord(line.feeBillingMonths, monthKeys)
+  }
+
+  const feeShares: Record<string, number> = {}
+  for (const key of monthKeys) feeShares[key] = 0
+  for (const burst of line.bursts) {
+    const shares = prorateAcrossMonths({
+      amount: burst.feeAmount,
+      burstStart: burst.startDate,
+      burstEnd: burst.endDate,
+      monthKeys,
+    })
+    for (const [m, v] of Object.entries(shares)) {
+      feeShares[m] = (feeShares[m] ?? 0) + v
+    }
+  }
+  const burstSum = recordTotal(feeShares)
+  const feeTotal = roundMoney2(line.fee)
+  if (Math.abs(feeTotal - burstSum) <= 0.02) return feeShares
+  if (burstSum > 0.005) {
+    const scaled: Record<string, number> = {}
+    for (const key of monthKeys) {
+      scaled[key] = roundMoney2(((feeShares[key] ?? 0) / burstSum) * feeTotal)
+    }
+    return scaled
+  }
+  // No burst fee weight — dump into first delivery month (or zeros).
+  const out: Record<string, number> = {}
+  for (const key of monthKeys) out[key] = 0
+  if (Math.abs(feeTotal) < 1e-9) return out
+  const first = line.deliveryMonths[0]?.month ?? monthKeys[0]
+  if (first) out[first] = feeTotal
+  return out
+}
+
+function adServingMonthlyAmountsForLine(
+  line: ResolvedLine,
+  monthKeys: string[],
+  opts: {
+    getRateForMediaType: (mediaType: string) => number
+    adservaudio: number
+  }
+): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const key of monthKeys) out[key] = 0
+  if (line.input.noAdserving) return out
+  if (!ADSERVING_SCHEDULE_MEDIA.has(line.scheduleMediaType)) return out
+
+  for (const burst of line.bursts) {
+    if (burst.noAdserving) continue
+    const deliverableShares = prorateAcrossMonths({
+      amount: burst.deliverables,
+      burstStart: burst.startDate,
+      burstEnd: burst.endDate,
+      monthKeys,
+    })
+    for (const monthKey of monthKeys) {
+      const share = deliverableShares[monthKey] ?? 0
+      if (!share) continue
+      const cost = computeAdServingCost({
+        quantity: share,
+        buyType: burst.buyType || line.input.buyType || "",
+        mediaType: line.scheduleMediaType,
+        rate: opts.getRateForMediaType(line.scheduleMediaType),
+        adservaudio: opts.adservaudio,
+        adServingRatePct: burst.adServingRatePct,
+        adServingImpressions: burst.adServingImpressions,
+      })
+      out[monthKey] = (out[monthKey] ?? 0) + cost
+    }
+  }
+  for (const key of monthKeys) {
+    out[key] = roundMoney2(out[key] ?? 0)
+  }
+  return out
+}
+
+/**
+ * Stamp per-line detail onto schedule months — same shape the client persists via
+ * `attachLineItemsToMonths` / `generateBillingLineItems` + fee seed:
+ * keyed by schedule media type; each month carries the full monthlyAmounts maps.
+ */
+function attachResolvedLineItemsToMonths(
+  months: BillingMonth[],
+  lines: ResolvedLine[],
+  mode: "billing" | "delivery",
+  opts: {
+    getRateForMediaType: (mediaType: string) => number
+    adservaudio: number
+  }
+): BillingMonth[] {
+  if (!months.length || !lines.length) return months
+
+  const monthKeys = months.map((m) => m.monthYear)
+  const byMedia = new Map<ScheduleMediaTypeKey, BillingLineItem[]>()
+
+  for (const line of lines) {
+    if (mode === "billing" && line.excluded) continue
+
+    const mediaMonths =
+      mode === "billing" ? line.billingMonths : line.deliveryMonths
+    const monthlyAmounts = monthAmountsToRecord(mediaMonths, monthKeys)
+    const feeMonthlyAmounts = feeMonthlyAmountsForLine(line, monthKeys)
+    const adServingMonthlyAmounts = adServingMonthlyAmountsForLine(line, monthKeys, opts)
+
+    const manualBilling = line.billingOverride?.mode === "manual"
+    const manualFee = line.feeOverride?.mode === "manual"
+    const prepaid = line.billingOverride?.reason === "prepayment"
+
+    const item: BillingLineItem = {
+      id: line.input.lineItemId,
+      header1: String(line.input.label ?? "").trim(),
+      header2: "",
+      monthlyAmounts,
+      totalAmount: recordTotal(monthlyAmounts),
+      feeMonthlyAmounts,
+      totalFeeAmount: recordTotal(feeMonthlyAmounts),
+      adServingMonthlyAmounts,
+      totalAdServingAmount: recordTotal(adServingMonthlyAmounts),
+      mediaType: line.scheduleMediaType,
+      buyType: line.input.buyType,
+      billingMode: manualBilling ? "manual" : "auto",
+      feeBillingMode: manualFee ? "manual" : "auto",
+      ...(line.clientPaysForMedia ? { clientPaysForMedia: true } : {}),
+      ...(prepaid ? { preBill: true } : {}),
+    }
+
+    const list = byMedia.get(line.scheduleMediaType) ?? []
+    list.push(item)
+    byMedia.set(line.scheduleMediaType, list)
+  }
+
+  if (byMedia.size === 0) return months
+
+  return months.map((month) => {
+    const lineItems: NonNullable<BillingMonth["lineItems"]> = {
+      ...(month.lineItems ? { ...month.lineItems } : {}),
+    }
+    for (const [mediaKey, items] of byMedia) {
+      ;(lineItems as Record<string, BillingLineItem[]>)[mediaKey] = items.map((item) => ({
+        ...item,
+        monthlyAmounts: { ...item.monthlyAmounts },
+        feeMonthlyAmounts: item.feeMonthlyAmounts
+          ? { ...item.feeMonthlyAmounts }
+          : item.feeMonthlyAmounts,
+        adServingMonthlyAmounts: item.adServingMonthlyAmounts
+          ? { ...item.adServingMonthlyAmounts }
+          : item.adServingMonthlyAmounts,
+        ...(item.preBillSnapshot ? { preBillSnapshot: { ...item.preBillSnapshot } } : {}),
+      }))
+    }
+    return { ...month, lineItems }
+  })
+}
+
 function applyManualBillingOverrides(
   billingSchedule: BillingMonth[],
   lines: ResolvedLine[]
@@ -911,9 +1103,21 @@ export function computeCampaignFinancials(
       isManualBilling,
     })
 
-  const billingSchedule = applyManualFeeOverrides(
-    applyManualBillingOverrides(autoBillingSchedule, approvedForBilling),
-    approvedForBilling
+  const billingSchedule = attachResolvedLineItemsToMonths(
+    applyManualFeeOverrides(
+      applyManualBillingOverrides(autoBillingSchedule, approvedForBilling),
+      approvedForBilling
+    ),
+    approvedForBilling,
+    "billing",
+    { getRateForMediaType, adservaudio }
+  )
+
+  const deliveryScheduleWithLines = attachResolvedLineItemsToMonths(
+    deliverySchedule,
+    allLinesForDelivery,
+    "delivery",
+    { getRateForMediaType, adservaudio }
   )
 
   const approved = resolved.filter((l) => !l.excluded)
@@ -953,11 +1157,11 @@ export function computeCampaignFinancials(
 
   const full: CampaignFinancials = {
     perLine: resolved.map(toPerLineResult),
-    deliverySchedule,
+    deliverySchedule: deliveryScheduleWithLines,
     billingSchedule,
     mbaScopeTotals,
     deliveryVsBillingDelta: buildDeliveryVsBillingDelta(
-      deliverySchedule,
+      deliveryScheduleWithLines,
       billingSchedule,
       resolved
     ),

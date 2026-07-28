@@ -5,6 +5,7 @@ import { parseMoneyInput, roundMoney2 } from "@/lib/format/money"
 import type { BillingMonth } from "@/lib/billing/types"
 import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
+import { billingMonthsHaveDetailedLineItems } from "@/lib/mediaplan/partialMba"
 import {
   applyPlanCServerAuthority,
   computeAuthoritativeFinancials,
@@ -270,6 +271,79 @@ test("fixture: off/log/enforce persist identical money for a clean client schedu
   assertScheduleMoneyEqual(off.billingSchedule, log.billingSchedule, "off vs log")
   assertScheduleMoneyEqual(log.billingSchedule, enforce.billingSchedule, "log vs enforce")
   assert.equal(log.diffLogged, false)
+})
+
+test("enforce persist shape retains per-line lineItems (S1-P1b regression)", () => {
+  const lineItems = mixedFixtureLineItems()
+  const auth = computeAuthoritativeFinancials({
+    lineItems,
+    feeLoading: FEE_LOADING,
+    overrides: MANUAL_OVERRIDE_ROWS,
+    monthScope: {
+      campaignStart: new Date("2026-06-01"),
+      campaignEnd: new Date("2026-07-31"),
+    },
+    client: {
+      getRateForMediaType: () => 0.5,
+      adservaudio: 0,
+    },
+  })
+
+  assert.ok(
+    billingMonthsHaveDetailedLineItems(auth.billingSchedule),
+    "authoritative billing must carry line detail before enforce"
+  )
+  assert.ok(
+    billingMonthsHaveDetailedLineItems(auth.deliverySchedule),
+    "authoritative delivery must carry line detail before enforce"
+  )
+
+  // Simulate a header-only client schedule (the pre-fix hole): totals only, no lineItems.
+  const headerOnlyClient: BillingMonth[] = auth.billingSchedule.map((m) => {
+    const { lineItems: _drop, ...rest } = m
+    return { ...rest, mediaCosts: { ...m.mediaCosts } }
+  })
+  assert.equal(
+    billingMonthsHaveDetailedLineItems(headerOnlyClient),
+    false,
+    "precondition: header-only client has no line detail"
+  )
+
+  const enforce = applyPlanCServerAuthority({
+    mode: "enforce",
+    clientBillingSchedule: headerOnlyClient,
+    clientDeliverySchedule: auth.deliverySchedule.map((m) => {
+      const { lineItems: _drop, ...rest } = m
+      return { ...rest, mediaCosts: { ...m.mediaCosts } }
+    }),
+    authoritative: auth,
+    meta: { mba_number: "MBA-LINEDETAIL", version: 9 },
+  })
+
+  assert.equal(enforce.billingSchedule, auth.billingSchedule)
+  assert.ok(
+    billingMonthsHaveDetailedLineItems(enforce.billingSchedule),
+    "enforce must persist server schedule WITH lineItems — not strip them"
+  )
+  assert.ok(
+    billingMonthsHaveDetailedLineItems(enforce.deliverySchedule),
+    "enforce delivery must retain lineItems"
+  )
+
+  const june = enforce.billingSchedule.find((m) => m.monthYear === "June 2026")!
+  const ids = new Set<string>()
+  for (const items of Object.values(june.lineItems ?? {})) {
+    for (const item of items ?? []) ids.add(item.id)
+  }
+  for (const id of [
+    "AUTO-SEARCH",
+    "MANUAL-SOCIAL",
+    "CLIENT-PAYS-TV",
+    "ADSERV-DISPLAY",
+    "PROD-1",
+  ]) {
+    assert.ok(ids.has(id), `enforce schedule missing ${id}`)
+  }
 })
 
 test("enforce corrects a deliberately drifted client schedule", () => {

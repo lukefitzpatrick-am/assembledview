@@ -62,6 +62,15 @@ Flip `PLANC_SERVER_AUTHORITY=enforce` and/or `PLANC_C1_FULL_SCOPE=enforce` only 
 1. **Zero unexplained** `[planc-authority-diff]` lines for a full week of real saves (any remaining diffs understood + accepted or fixed).
 2. **`c1-fullscope-drift-report.ts` triaged** — no open unexplained campaign/line violations (or each has an owner + ticket).
 3. Smoke (a) still green with flags off on a control campaign after the log week (regression check).
+4. **S1-P1b line detail is live** — server-computed schedules must carry `month.lineItems` (see regression in `lib/finance/authority/__tests__/computeAndPersist.test.ts`). **Do not enable `PLANC_SERVER_AUTHORITY=enforce` anywhere until this lands** — enforce previously replaced client schedules that had per-line detail with header-only schedules (totals intact, permanently un-migratable to `plan_billing_rows`).
+
+### Enforce smoke — line-detail assertion
+
+After a save with `PLANC_SERVER_AUTHORITY=enforce` on a campaign that has channel lines:
+
+1. Load the persisted version `billingSchedule` (Xano / network response).
+2. Assert `billingMonthsHaveDetailedLineItems(months) === true` (at least one month has a non-empty `lineItems[mediaKey]` array).
+3. Spot-check one line id under the expected media key with non-zero `monthlyAmounts[monthYear]` (or intentionally zero for client-pays billing media).
 
 Do **not** flip `PLANC_DOCS_FROM_PERSISTED=on` in the same change-set as first enforce; docs flag is a separate cutover (callers send identifiers; MBA approval gate 422s drafts).
 
