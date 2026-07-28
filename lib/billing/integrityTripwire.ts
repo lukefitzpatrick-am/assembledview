@@ -4,7 +4,15 @@
  * production accumulation, and orphan version FKs.
  */
 
-export type IntegrityKind = "duplicate" | "version_less" | "orphan"
+export type IntegrityKind =
+  | "duplicate"
+  | "version_less"
+  | "orphan"
+  /** Plan C S2-P6 — recomputed plan_*_rows hash ≠ stored snapshot_checksum */
+  | "checksum_drift"
+  /** Plan C S2-P6 — plan_*_rows exist while billing_rows_migrated=false */
+  | "writer_bypass"
+
 export type IntegritySeverity = "live" | "history"
 
 export type IntegrityRow = {
@@ -23,6 +31,9 @@ export type IntegrityFinding = {
   distinctIds: number
   kind: IntegrityKind
   severity: IntegritySeverity
+  /** checksum_drift only */
+  storedChecksum?: string | null
+  recomputedChecksum?: string | null
 }
 
 export type VersionMeta = {
@@ -219,6 +230,12 @@ export function logIntegrityFinding(finding: IntegrityFinding): void {
       distinctIds: finding.distinctIds,
       kind: finding.kind,
       severity: finding.severity,
+      ...(finding.kind === "checksum_drift"
+        ? {
+            storedChecksum: finding.storedChecksum ?? null,
+            recomputedChecksum: finding.recomputedChecksum ?? null,
+          }
+        : {}),
     })}`
   )
 }
