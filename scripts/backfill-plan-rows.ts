@@ -35,10 +35,16 @@ import {
   type BackfillVersionStatus,
 } from "@/lib/finance/rows/backfillCompare"
 import { checksumForPlanRows } from "@/lib/finance/rows/dualWrite"
-import { classifyScheduleShape } from "@/lib/finance/rows/scheduleShape"
+import {
+  classifyScheduleShape,
+  isEmptyScheduleShape,
+  isScheduleFallbackPair,
+} from "@/lib/finance/rows/scheduleShape"
 import { CHANNEL_LINE_ITEM_ENDPOINTS } from "@/lib/api/fetchChannelLineItemsByMba"
 import { MEDIA_PLAN_TABLES } from "@/lib/xano/mediaPlanTables"
 import { buildMbaToLatestVersionMap } from "@/lib/finance/relevantPlanVersions"
+import { billingMonthsHaveDetailedLineItems } from "@/lib/mediaplan/partialMba"
+import type { CampaignFinancials } from "@/lib/finance/campaignFinancials.types"
 
 const MEDIA_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
 const XANO_TIMEOUT_MS = 60_000
@@ -112,6 +118,18 @@ function csvEscape(value: string): string {
 function isMigrated(version: Record<string, unknown>): boolean {
   const v = version.billing_rows_migrated ?? version.billingRowsMigrated
   return v === true || v === "true" || v === 1 || v === "1"
+}
+
+/**
+ * Zero billing rows is correct when every line is client-pays and fee +
+ * adserving are zero (buildRows only emits billing on non-zero media/fee/adserving).
+ */
+function isLegitimateZeroBilling(financials: CampaignFinancials): boolean {
+  if (financials.perLine.length === 0) return false
+  if (Math.abs(financials.mbaScopeTotals.adServing) > 1e-9) return false
+  return financials.perLine.every(
+    (p) => p.flags.clientPaysForMedia && Math.abs(p.fee) < 1e-9
+  )
 }
 
 async function loadKnownDupVersionIds(
@@ -312,6 +330,8 @@ async function main(): Promise<void> {
     skippedMigrated: 0,
     skippedAsymmetric: 0,
     skippedEmpty: 0,
+    skippedScheduleFallback: 0,
+    skippedNoLineDetail: 0,
     parseFailure: 0,
     amountMismatch: 0,
     rounding: 0,
@@ -413,12 +433,41 @@ async function main(): Promise<void> {
             anomalyClass = "known-dup"
             summary.knownDup++
           } else if (compared.status === "clean") {
-            // Asymmetric / empty sides look "clean" (zero deltas) but must not
-            // stamp migrated — S2-P5 readers stop falling back to blobs.
-            if (billingRows === 0 && deliveryRows === 0) {
+            // Guards: shape fallback first (row counts look fine after substitution),
+            // then empty / no-line-detail / asymmetric (with client-pays exemption).
+            const hasLineDetail =
+              billingMonthsHaveDetailedLineItems(financials.billingSchedule) ||
+              billingMonthsHaveDetailedLineItems(financials.deliverySchedule)
+
+            if (isScheduleFallbackPair(billingShape, deliveryShape)) {
+              status = "skipped-schedule-fallback"
+              summary.skippedScheduleFallback++
+            } else if (
+              isEmptyScheduleShape(billingShape) &&
+              isEmptyScheduleShape(deliveryShape)
+            ) {
               status = "skipped-empty"
               summary.skippedEmpty++
-            } else if (billingRows === 0 || deliveryRows === 0) {
+            } else if (
+              billingRows === 0 &&
+              deliveryRows === 0 &&
+              !hasLineDetail
+            ) {
+              status = "skipped-no-line-detail"
+              summary.skippedNoLineDetail++
+            } else if (billingRows === 0 && deliveryRows === 0) {
+              status = "skipped-empty"
+              summary.skippedEmpty++
+            } else if (billingRows === 0 && deliveryRows > 0) {
+              if (isLegitimateZeroBilling(financials)) {
+                status = "clean"
+                anomalyClass = ""
+                summary.clean++
+              } else {
+                status = "skipped-asymmetric"
+                summary.skippedAsymmetric++
+              }
+            } else if (deliveryRows === 0 && billingRows > 0) {
               status = "skipped-asymmetric"
               summary.skippedAsymmetric++
             } else {
@@ -523,6 +572,8 @@ async function main(): Promise<void> {
     skippedMigrated: summary.skippedMigrated,
     skippedAsymmetric: summary.skippedAsymmetric,
     skippedEmpty: summary.skippedEmpty,
+    skippedScheduleFallback: summary.skippedScheduleFallback,
+    skippedNoLineDetail: summary.skippedNoLineDetail,
     parseFailure: summary.parseFailure,
     amountMismatch: summary.amountMismatch,
     rounding: summary.rounding,
@@ -539,8 +590,10 @@ async function main(): Promise<void> {
   console.log(`anomaly:     ${summary.anomaly}`)
   console.log(`known-dup:   ${summary.knownDup}`)
   console.log(`skipped:     ${summary.skippedMigrated} (already migrated)`)
-  console.log(`skipped-asymmetric: ${summary.skippedAsymmetric}`)
-  console.log(`skipped-empty:      ${summary.skippedEmpty}`)
+  console.log(`skipped-asymmetric:         ${summary.skippedAsymmetric}`)
+  console.log(`skipped-empty:              ${summary.skippedEmpty}`)
+  console.log(`skipped-schedule-fallback:  ${summary.skippedScheduleFallback}`)
+  console.log(`skipped-no-line-detail:     ${summary.skippedNoLineDetail}`)
   console.log(`  parse-failure:     ${summary.parseFailure}`)
   console.log(`  amount-mismatch:   ${summary.amountMismatch}`)
   console.log(`  rounding:          ${summary.rounding}`)

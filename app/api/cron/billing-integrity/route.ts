@@ -4,15 +4,19 @@ import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import {
   countFindingsBySeverity,
   flagIntegrityFindings,
+  flagNoScheduleWithLines,
   logIntegrityFinding,
   projectIntegrityRow,
   type IntegrityFinding,
   type IntegrityRow,
+  type NoScheduleVersionInput,
   type VersionMeta,
 } from "@/lib/billing/integrityTripwire"
 import { fetchAllXanoPagesWithCompleteness } from "@/lib/api/xanoPagination"
 import { xanoUrl } from "@/lib/api/xano"
 import { buildMbaToLatestVersionMap } from "@/lib/finance/relevantPlanVersions"
+import { normalizeBillingScheduleToArray } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
+import { getBillingSchedule, getDeliverySchedule } from "@/lib/finance/normalizeFields"
 import {
   canonicalizeBillingRow,
   canonicalizeDeliveryRow,
@@ -65,6 +69,7 @@ async function loadKnownVersions(): Promise<{
   knownVersions: Map<number, VersionMeta>
   currentVersionByMba: Map<string, number>
   rowsVersionMetas: RowsChecksumVersionMeta[]
+  noScheduleVersions: NoScheduleVersionInput[]
   versionsComplete: boolean
 }> {
   const [mastersResult, versionsResult] = await Promise.all([
@@ -93,6 +98,7 @@ async function loadKnownVersions(): Promise<{
   const knownVersionIds = new Set<number>()
   const knownVersions = new Map<number, VersionMeta>()
   const rowsVersionMetas: RowsChecksumVersionMeta[] = []
+  const noScheduleVersions: NoScheduleVersionInput[] = []
   for (const v of versionsResult.items) {
     if (!v || typeof v !== "object") continue
     const raw = v as Record<string, unknown>
@@ -109,6 +115,15 @@ async function loadKnownVersions(): Promise<{
     })
     const meta = versionMetaFromRaw(raw, currentVersionByMba)
     if (meta) rowsVersionMetas.push(meta)
+
+    const billingNorm = normalizeBillingScheduleToArray(getBillingSchedule(raw))
+    const deliveryNorm = normalizeBillingScheduleToArray(getDeliverySchedule(raw))
+    noScheduleVersions.push({
+      id,
+      mba_number: mba,
+      version_number: versionNumber,
+      schedulesEmpty: billingNorm == null && deliveryNorm == null,
+    })
   }
 
   return {
@@ -116,6 +131,7 @@ async function loadKnownVersions(): Promise<{
     knownVersions,
     currentVersionByMba,
     rowsVersionMetas,
+    noScheduleVersions,
     versionsComplete: versionsResult.complete && mastersResult.complete,
   }
 }
@@ -219,6 +235,7 @@ export async function GET(request: Request) {
       knownVersions,
       currentVersionByMba,
       rowsVersionMetas,
+      noScheduleVersions,
       versionsComplete,
     } = await loadKnownVersions()
 
@@ -234,7 +251,7 @@ export async function GET(request: Request) {
           currentVersionByMba,
           checkVersionLess: table.table_name === "media_plan_production",
         })
-        return { table: table.table_name, complete, rowCount: rows.length, findings }
+        return { table: table.table_name, complete, rowCount: rows.length, findings, rows }
       },
       TABLE_CONCURRENCY
     )
@@ -242,6 +259,7 @@ export async function GET(request: Request) {
     const findings: IntegrityFinding[] = []
     const incompleteTables: string[] = []
     let rowsScanned = 0
+    const rowCountByVersion = new Map<number, number>()
 
     for (const result of tableResults) {
       rowsScanned += result.rowCount
@@ -250,6 +268,21 @@ export async function GET(request: Request) {
         logIntegrityFinding(finding)
         findings.push(finding)
       }
+      for (const row of result.rows) {
+        const vid = Number(row.media_plan_version)
+        if (!Number.isFinite(vid) || vid <= 0) continue
+        rowCountByVersion.set(vid, (rowCountByVersion.get(vid) ?? 0) + 1)
+      }
+    }
+
+    const noScheduleFindings = flagNoScheduleWithLines({
+      versions: noScheduleVersions,
+      rowCountByVersion,
+      currentVersionByMba,
+    })
+    for (const finding of noScheduleFindings) {
+      logIntegrityFinding(finding)
+      findings.push(finding)
     }
 
     let rowsAudit: {
@@ -288,6 +321,8 @@ export async function GET(request: Request) {
       checksum_drift: findings.filter((f) => f.kind === "checksum_drift").length,
       writer_bypass: findings.filter((f) => f.kind === "writer_bypass").length,
       migrated_empty_side: findings.filter((f) => f.kind === "migrated_empty_side")
+        .length,
+      no_schedule_with_lines: findings.filter((f) => f.kind === "no_schedule_with_lines")
         .length,
     }
 

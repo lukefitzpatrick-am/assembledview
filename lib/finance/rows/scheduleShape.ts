@@ -38,3 +38,31 @@ export function classifyScheduleShape(raw: unknown): ScheduleShape {
   }
   return "unparseable"
 }
+
+/** Shapes that mean "no usable schedule blob" (before cross-side substitution). */
+export function isEmptyScheduleShape(shape: ScheduleShape): boolean {
+  return (
+    shape === "absent" ||
+    shape === "empty-string" ||
+    shape === "empty-array" ||
+    shape === "empty-object"
+  )
+}
+
+export function isPopulatedArrayShape(shape: ScheduleShape): boolean {
+  return shape.startsWith("array(")
+}
+
+/**
+ * One side empty, the other array(n) — financialsFromPersistedSchedules will
+ * substitute, fabricating rows on the empty side from the populated one.
+ */
+export function isScheduleFallbackPair(
+  billingShape: ScheduleShape,
+  deliveryShape: ScheduleShape
+): boolean {
+  return (
+    (isEmptyScheduleShape(billingShape) && isPopulatedArrayShape(deliveryShape)) ||
+    (isPopulatedArrayShape(billingShape) && isEmptyScheduleShape(deliveryShape))
+  )
+}

@@ -42,6 +42,8 @@ export type BackfillVersionStatus =
   | "skipped-migrated"
   | "skipped-asymmetric"
   | "skipped-empty"
+  | "skipped-schedule-fallback"
+  | "skipped-no-line-detail"
 
 export type BlobLineMonthTotals = {
   lineItemId: string

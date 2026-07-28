@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest"
-import { classifyScheduleShape } from "@/lib/finance/rows/scheduleShape"
+import {
+  classifyScheduleShape,
+  isEmptyScheduleShape,
+  isScheduleFallbackPair,
+} from "@/lib/finance/rows/scheduleShape"
 
 describe("classifyScheduleShape", () => {
   it("classifies absent / empty forms", () => {
@@ -22,5 +26,14 @@ describe("classifyScheduleShape", () => {
     expect(classifyScheduleShape("[]")).toBe("empty-array")
     expect(classifyScheduleShape('{"months":[{}]}')).toBe("array(1)")
     expect(classifyScheduleShape("not-json")).toBe("unparseable")
+  })
+
+  it("detects schedule-fallback pairs", () => {
+    expect(isEmptyScheduleShape("empty-object")).toBe(true)
+    expect(isEmptyScheduleShape("array(3)")).toBe(false)
+    expect(isScheduleFallbackPair("array(6)", "empty-object")).toBe(true)
+    expect(isScheduleFallbackPair("absent", "array(2)")).toBe(true)
+    expect(isScheduleFallbackPair("array(2)", "array(2)")).toBe(false)
+    expect(isScheduleFallbackPair("empty-array", "empty-object")).toBe(false)
   })
 })

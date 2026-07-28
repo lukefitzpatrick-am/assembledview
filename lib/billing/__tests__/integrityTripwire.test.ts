@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   countFindingsBySeverity,
   flagIntegrityFindings,
+  flagNoScheduleWithLines,
   type IntegrityRow,
   type VersionMeta,
 } from "@/lib/billing/integrityTripwire"
@@ -219,5 +220,52 @@ describe("flagIntegrityFindings", () => {
       },
     ])
     expect(counts).toEqual({ live: 2, history: 1 })
+  })
+})
+
+describe("flagNoScheduleWithLines", () => {
+  it("flags versions with channel rows and empty schedules", () => {
+    const findings = flagNoScheduleWithLines({
+      versions: [
+        {
+          id: 912,
+          mba_number: "jayco016",
+          version_number: 4,
+          schedulesEmpty: true,
+        },
+        {
+          id: 1,
+          mba_number: "ok",
+          version_number: 1,
+          schedulesEmpty: true,
+        },
+        {
+          id: 2,
+          mba_number: "has-sched",
+          version_number: 1,
+          schedulesEmpty: false,
+        },
+      ],
+      rowCountByVersion: new Map([
+        [912, 2],
+        [2, 5],
+      ]),
+      currentVersionByMba: new Map([
+        ["jayco016", 4],
+        ["ok", 1],
+        ["has-sched", 1],
+      ]),
+    })
+    expect(findings).toEqual([
+      {
+        table: "media_plan_versions+channel",
+        mba_number: "jayco016",
+        version: 912,
+        rows: 2,
+        distinctIds: 0,
+        kind: "no_schedule_with_lines",
+        severity: "live",
+      },
+    ])
   })
 })

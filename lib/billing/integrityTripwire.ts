@@ -14,6 +14,8 @@ export type IntegrityKind =
   | "writer_bypass"
   /** Plan C S2-P6 — migrated version with zero rows on either side */
   | "migrated_empty_side"
+  /** Channel/production rows exist while both schedules normalise to empty */
+  | "no_schedule_with_lines"
 
 export type IntegritySeverity = "live" | "history"
 
@@ -190,6 +192,45 @@ export function flagIntegrityFindings(input: FlagIntegrityInput): IntegrityFindi
     }
   }
 
+  return findings
+}
+
+export type NoScheduleVersionInput = {
+  id: number
+  mba_number: string
+  version_number: number
+  /** True when both billing and delivery schedules normalise to empty. */
+  schedulesEmpty: boolean
+}
+
+/**
+ * Version has channel (or production) line rows while both schedules normalise
+ * to empty — money in channel tables, nothing in finance. Matches S2-P4d class-(c).
+ */
+export function flagNoScheduleWithLines(args: {
+  versions: readonly NoScheduleVersionInput[]
+  /** version id → channel/production row count */
+  rowCountByVersion: ReadonlyMap<number, number>
+  currentVersionByMba: ReadonlyMap<string, number>
+}): IntegrityFinding[] {
+  const findings: IntegrityFinding[] = []
+  for (const v of args.versions) {
+    if (!v.schedulesEmpty) continue
+    const rows = args.rowCountByVersion.get(v.id) ?? 0
+    if (rows <= 0) continue
+    const current = args.currentVersionByMba.get(v.mba_number)
+    const severity: IntegritySeverity =
+      current != null && v.version_number === current ? "live" : "history"
+    findings.push({
+      table: "media_plan_versions+channel",
+      mba_number: v.mba_number,
+      version: v.id,
+      rows,
+      distinctIds: 0,
+      kind: "no_schedule_with_lines",
+      severity,
+    })
+  }
   return findings
 }
 
