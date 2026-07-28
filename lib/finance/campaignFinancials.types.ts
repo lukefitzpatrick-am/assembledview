@@ -43,6 +43,12 @@ export type FeeLoading = Partial<Record<ClientFeeField, number>>
 export type MonthAmount = {
   month: string
   amount: number
+  /**
+   * Plan C S2b — optional per-month provenance on `billing_overrides.months[]`.
+   * `balancing` marks the read-only balancer month (line total − Σ others).
+   * Omitted → treated as manual when the parent override is manual.
+   */
+  source?: "auto" | "manual" | "balancing"
 }
 
 /**

@@ -142,14 +142,20 @@ import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncL
 import { resolveLineDimensions } from "@/lib/finance/resolveLineDimensions"
 import {
   attachOverridesToLineInputs,
+  billingOverrideFromRow,
   type BillingOverrideRow,
 } from "@/lib/finance/billingOverrides"
+import {
+  applyKeepShapePlusDelta,
+  pickDefaultBalancerMonth,
+} from "@/lib/finance/billingBalancer"
+import { isPlanCBalancerEnabled } from "@/lib/finance/planCBalancerFlag"
 import {
   buildEditorLineItemInputs,
   buildFeeLoadingFromEditorFees,
   editorBillingStableLineItemId,
 } from "@/lib/finance/buildEditorLineItemInputs"
-import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
+import { computeCampaignFinancials, isoMonthToScheduleMonthYear, scheduleMonthYearToIso } from "@/lib/finance/computeCampaignFinancials"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import {
   computeAllChannelsHydrated,
@@ -179,6 +185,7 @@ import {
   billingOverrideLineIdsMatch,
   buildPrepaymentOverrideMonths,
   clearLineOverrideMeta,
+  extractOverrideMonthsFromSchedule,
   listManualOverrideLineIds,
   removeOptimisticMediaOverrideRow,
   sumLineMediaAcrossMonths,
@@ -1910,6 +1917,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }>({})
   /** Reason / dateBasis from billing_overrides rows (keyed by line_item_id). */
   const manualBillingOverrideMetaRef = useRef<Map<string, LineOverrideMeta[]>>(new Map())
+  /** Plan C S2b — canonical line_item_id → ISO balancer month for source=balancing stamp. */
+  const balancerMonthByLineIdRef = useRef<Map<string, string>>(new Map())
   /** Canonical line ids present on last hydrated / saved billing baseline (C3 preserve-prior). */
   const persistedBillingLineIdsRef = useRef<Set<string>>(new Set())
   /** Table overrides for panel indicators only (save path still attaches server-side). */
@@ -5845,6 +5854,183 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     ]
   )
 
+  const resolveKeepShapePlusDeltaMonths = useCallback(
+    (lineItemId: string) => {
+      const canon = toBillingOverrideLineItemId(lineItemId)
+      const autoMonths =
+        (manualBillingAutoReferenceMonths?.length ?? 0) > 0
+          ? (manualBillingAutoReferenceMonths as BillingMonth[])
+          : autoReferenceBillingMonths
+      const row = billingOverrideRowsForPanels.find((r) => {
+        const id = toBillingOverrideLineItemId(
+          String(r.line_item_id ?? r.lineItemId ?? "")
+        )
+        const component =
+          String(r.component ?? "media").trim().toLowerCase() === "fee" ? "fee" : "media"
+        return id === canon && component === "media"
+      })
+      const media = row ? billingOverrideFromRow(row) : null
+      const preservedMonths =
+        media?.months?.length
+          ? media.months
+          : extractOverrideMonthsFromSchedule(manualBillingMonths, lineItemId, "media")
+      const newAutoMonths = extractOverrideMonthsFromSchedule(
+        autoMonths,
+        lineItemId,
+        "media"
+      )
+      const newLineTotal = sumLineMediaAcrossMonths(autoMonths, lineItemId)
+      const monthYears =
+        manualBillingMonths.map((m) => m.monthYear).length > 0
+          ? manualBillingMonths.map((m) => m.monthYear)
+          : autoMonths.map((m) => m.monthYear)
+      const autoAmountByMonth: Record<string, number> = {}
+      for (const my of monthYears) {
+        const list = autoMonths[0]?.lineItems
+        let amt = 0
+        if (list) {
+          for (const items of Object.values(list)) {
+            if (!Array.isArray(items)) continue
+            const li = items.find((l) =>
+              billingOverrideLineIdsMatch(String(l.id ?? ""), lineItemId)
+            )
+            if (li) {
+              amt = Number(li.monthlyAmounts?.[my] ?? 0) || 0
+              break
+            }
+          }
+        }
+        autoAmountByMonth[my] = amt
+      }
+      const storedIso = balancerMonthByLineIdRef.current.get(canon)
+      const balancerMonthYear =
+        (storedIso ? isoMonthToScheduleMonthYear(storedIso) : null) &&
+        monthYears.includes(isoMonthToScheduleMonthYear(storedIso!))
+          ? isoMonthToScheduleMonthYear(storedIso!)
+          : pickDefaultBalancerMonth({ monthYears, autoAmountByMonth })
+      if (!balancerMonthYear) return null
+      const balancerMonthIso = scheduleMonthYearToIso(balancerMonthYear)
+      const months = applyKeepShapePlusDelta({
+        preservedMonths,
+        newAutoMonths,
+        balancerMonth: balancerMonthIso,
+        newLineTotal,
+      })
+      return { months, balancerMonthIso }
+    },
+    [
+      billingOverrideRowsForPanels,
+      manualBillingAutoReferenceMonths,
+      autoReferenceBillingMonths,
+      manualBillingMonths,
+    ]
+  )
+
+  const handleDateBasisKeepShapePlusDeltaForLine = useCallback(
+    async (mediaKey: string, lineItemId: string) => {
+      if (!isPlanCBalancerEnabled()) return
+      const stale = dateBasisStaleOverrides.filter((s) =>
+        billingOverrideLineIdsMatch(s.lineItemId, lineItemId)
+      )
+      if (!stale.length) return
+      const computed = resolveKeepShapePlusDeltaMonths(lineItemId)
+      if (!computed?.months?.length) {
+        toast({
+          variant: "destructive",
+          title: "Cannot apply keep shape + delta",
+          description: "Could not compute balancer residual for this line.",
+        })
+        return
+      }
+      const versionId = await resolveMediaPlanVersionRowId()
+      if (!isUsableBillingVersionId(versionId)) {
+        toast({
+          variant: "destructive",
+          title: "Cannot apply keep shape + delta",
+          description: "Missing media plan version id.",
+        })
+        return
+      }
+      try {
+        const rows =
+          billingOverrideRowsForPanels.length > 0
+            ? billingOverrideRowsForPanels
+            : await fetchBillingOverridesClient(versionId)
+        const canon = toBillingOverrideLineItemId(lineItemId)
+        await applyDateBasisKeepOrReset({
+          versionId,
+          mbaNumber,
+          decision: "keep_shape_plus_delta",
+          stale,
+          overrideRows: rows,
+          keepShapePlusDeltaMonthsByLine: new Map([[canon, computed.months]]),
+        })
+        await refreshBillingOverrideRowsForPanels(versionId)
+
+        const copy = deepCloneBillingMonthsState(manualBillingMonths)
+        const formatter = new Intl.NumberFormat("en-AU", {
+          style: "currency",
+          currency: "AUD",
+        })
+        for (const { month, amount } of computed.months) {
+          const monthYear = isoMonthToScheduleMonthYear(month)
+          syncLineItemMonthlyAmountAcrossAllMonthRows(
+            copy,
+            mediaKey,
+            lineItemId,
+            monthYear,
+            amount
+          )
+        }
+        copy.forEach((month) => {
+          const monthLineItems = month?.lineItems?.[
+            mediaKey as keyof typeof month.lineItems
+          ] as BillingLineItemType[] | undefined
+          if (!monthLineItems) return
+          const mediaTypeTotal = monthLineItems.reduce(
+            (sum, li) => sum + (li.monthlyAmounts?.[month.monthYear] || 0),
+            0
+          )
+          if (month.mediaCosts && mediaKey in month.mediaCosts) {
+            ;(month.mediaCosts as Record<string, string>)[mediaKey] =
+              formatter.format(mediaTypeTotal)
+          }
+        })
+        recalculateManualBillingTotals(copy, formatter)
+        setManualBillingMonths(applyBillingLineMode(copy, lineItemId, "manual"))
+        balancerMonthByLineIdRef.current.set(canon, computed.balancerMonthIso)
+        upsertLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, {
+          mode: "manual",
+          reason: "manual",
+          dateBasis: "",
+          component: "media",
+        })
+        setDateBasisStaleOverrides((prev) =>
+          prev.filter((s) => !billingOverrideLineIdsMatch(s.lineItemId, lineItemId))
+        )
+        toast({
+          title: "Shape kept + delta applied",
+          description: "Manual months preserved; residual landed on the balancer month.",
+        })
+      } catch (err: any) {
+        toast({
+          variant: "destructive",
+          title: "Could not apply keep shape + delta",
+          description: err?.message || "Try again.",
+        })
+      }
+    },
+    [
+      dateBasisStaleOverrides,
+      billingOverrideRowsForPanels,
+      resolveMediaPlanVersionRowId,
+      refreshBillingOverrideRowsForPanels,
+      mbaNumber,
+      resolveKeepShapePlusDeltaMonths,
+      manualBillingMonths,
+    ]
+  )
+
   /**
    * Shared line/fee inputs for panel financials and version-save bodies (C1 omit mode).
    * Overrides: pass [] — the server attaches billing_overrides on save.
@@ -6295,6 +6481,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           manualBillingAutoReferenceMonths ?? autoReferenceBillingMonths,
         metaByLine: manualBillingOverrideMetaRef.current,
         getBurstsForLine,
+        balancerMonthByLineId: balancerMonthByLineIdRef.current,
       })
     } catch (err: any) {
       toast({
@@ -11246,12 +11433,31 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 : manualBillingMonths,
               lineItemId
             ),
+          getAutoAmount: (mediaKey, lineItemId, monthYear) => {
+            const months =
+              (manualBillingAutoReferenceMonths?.length ?? 0) > 0
+                ? (manualBillingAutoReferenceMonths as BillingMonth[])
+                : autoReferenceBillingMonths
+            const list = months[0]?.lineItems?.[
+              mediaKey as keyof NonNullable<(typeof months)[0]["lineItems"]>
+            ] as BillingLineItemType[] | undefined
+            const li = list?.find((l) =>
+              billingOverrideLineIdsMatch(String(l.id ?? ""), lineItemId)
+            )
+            return li?.monthlyAmounts?.[monthYear] ?? 0
+          },
           onCommit: manualBillingSpreadsheetCallbacks.onLineItemPaste,
           onResetLine: (mediaKey, lineItemId) => {
             void handleManualBillingLineItemResetToAuto(mediaKey, lineItemId)
           },
           onPrebillLine: (mediaKey, lineItemId) => {
             void handleManualBillingLineItemPrebill(mediaKey, lineItemId)
+          },
+          onBalancerMonthChange: (_mediaKey, lineItemId, balancerMonthIso) => {
+            balancerMonthByLineIdRef.current.set(
+              toBillingOverrideLineItemId(lineItemId),
+              balancerMonthIso
+            )
           },
           getDateBasisChoice: (lineItemId) => {
             const stale = dateBasisStaleOverrides.filter((s) =>
@@ -11270,6 +11476,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               mbaBillingScopeLines.find((l) =>
                 billingOverrideLineIdsMatch(l.lineItemId, lineItemId)
               )?.mediaType ?? ""
+            const keepShape = isPlanCBalancerEnabled()
+              ? resolveKeepShapePlusDeltaMonths(lineItemId)
+              : null
             return {
               labels,
               onKeepTiming: () => {
@@ -11279,6 +11488,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 if (!mediaKey) return
                 void handleDateBasisResetForLine(mediaKey, lineItemId)
               },
+              ...(keepShape
+                ? {
+                    onKeepShapePlusDelta: () => {
+                      if (!mediaKey) return
+                      void handleDateBasisKeepShapePlusDeltaForLine(mediaKey, lineItemId)
+                    },
+                    keepShapePlusDeltaPreview: keepShape.months.map((m) => ({
+                      month: m.month,
+                      amount: m.amount,
+                    })),
+                  }
+                : {}),
             }
           },
           formatter: mbaCurrencyFormatter,

@@ -1,0 +1,9 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`DateBasisKeepResetDialog keep-shape+delta option > flag off — only keep + reset (no third option) > date-basis-flag-off-text 1`] = `"Billing dates changedOne or more manual billing overrides were set against different burst dates. Choose whether to keep the amounts as entered or reset to the new schedule.Line ACancel saveKeep the prepayment as setReset to the new schedule"`;
+
+exports[`DateBasisKeepResetDialog keep-shape+delta option > flag on — third option + preview > date-basis-flag-on-text 1`] = `"Billing dates changedOne or more manual billing overrides were set against different burst dates. Choose whether to keep the amounts as entered or reset to the new schedule, or keep the month shape and put any delta on the balancer month.Line AKeep shape + delta preview2026-07$40.00Cancel saveKeep the prepayment as setKeep shape + deltaReset to the new schedule"`;
+
+exports[`LineTimingInlineEditor Plan C balancer flag > flag off — no balancer glyph, no distribute evenly, editable months (today) > flag-off-text 1`] = `"Months $1,000.00 / line $1,000.00months = line media⚡ PrebillReset to autoMay 2026June 2026July 2026"`;
+
+exports[`LineTimingInlineEditor Plan C balancer flag > flag on — balancer month read-only with ⚖ and distribute evenly > flag-on-text 1`] = `"Months $1,000.00 / line $1,000.00✓months = line mediaDistribute evenly⚡ PrebillReset to autoMay 2026Move balancerJune 2026Move balancer⚖July 2026$300.00"`;

@@ -115,11 +115,13 @@ export function sumLineFeeAcrossMonths(months: BillingMonth[], lineItemId: strin
 /**
  * Extract ISO month amounts for replace_line from the modal schedule.
  * `component: 'media'` → monthlyAmounts; `component: 'fee'` → feeMonthlyAmounts.
+ * When `balancerMonthIso` is set (Plan C S2b), that month is stamped `source: 'balancing'`.
  */
 export function extractOverrideMonthsFromSchedule(
   months: BillingMonth[],
   lineItemId: string,
-  component: "media" | "fee"
+  component: "media" | "fee",
+  opts?: { balancerMonthIso?: string | null }
 ): MonthAmount[] {
   const id = String(lineItemId).trim()
   const byIso = new Map<string, number>()
@@ -141,8 +143,20 @@ export function extractOverrideMonthsFromSchedule(
     }
   }
 
+  const balancerIso = opts?.balancerMonthIso
+    ? String(opts.balancerMonthIso).trim()
+    : ""
+
   return [...byIso.entries()]
-    .map(([month, amount]) => ({ month, amount }))
+    .map(([month, amount]) => ({
+      month,
+      amount,
+      ...(balancerIso && month === balancerIso
+        ? { source: "balancing" as const }
+        : balancerIso
+          ? { source: "manual" as const }
+          : {}),
+    }))
     .sort((a, b) => a.month.localeCompare(b.month))
 }
 

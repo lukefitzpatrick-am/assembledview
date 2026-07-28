@@ -54,6 +54,11 @@ export async function persistManualBillingOverrides(args: {
   autoMonthsForMediaTotals: BillingMonth[]
   metaByLine: Map<string, LineOverrideMeta[]>
   getBurstsForLine: (billingRowId: string) => BurstDateLike[]
+  /**
+   * Plan C S2b — canonical line_item_id → ISO balancer month (`YYYY-MM`).
+   * When set, that month is stamped `source: 'balancing'` on the overrides payload.
+   */
+  balancerMonthByLineId?: Map<string, string> | Record<string, string>
 }): Promise<PersistManualBillingOverridesResult> {
   const {
     versionId,
@@ -62,7 +67,21 @@ export async function persistManualBillingOverrides(args: {
     autoMonthsForMediaTotals,
     metaByLine,
     getBurstsForLine,
+    balancerMonthByLineId,
   } = args
+
+  const balancerLookup = (billingRowId: string): string | null => {
+    if (!balancerMonthByLineId) return null
+    const canon = toBillingOverrideLineItemId(billingRowId)
+    if (balancerMonthByLineId instanceof Map) {
+      return (
+        balancerMonthByLineId.get(canon) ??
+        balancerMonthByLineId.get(billingRowId) ??
+        null
+      )
+    }
+    return balancerMonthByLineId[canon] ?? balancerMonthByLineId[billingRowId] ?? null
+  }
 
   const mba = String(mbaNumber ?? "").trim()
   if (!mba) {
@@ -85,7 +104,9 @@ export async function persistManualBillingOverrides(args: {
 
   // Validate all media manuals before any writes.
   for (const billingRowId of current.media) {
-    const monthsIso = extractOverrideMonthsFromSchedule(months, billingRowId, "media")
+    const monthsIso = extractOverrideMonthsFromSchedule(months, billingRowId, "media", {
+      balancerMonthIso: balancerLookup(billingRowId),
+    })
     const expected = sumLineMediaAcrossMonths(autoMonthsForMediaTotals, billingRowId)
     const gate = validateManualMediaMonthsSum(monthsIso, expected)
     if (!gate.ok) {
@@ -110,7 +131,9 @@ export async function persistManualBillingOverrides(args: {
       component: "media",
       mode: "manual",
       reason: reasonFromMeta(metaByLine, billingRowId, "media"),
-      months: extractOverrideMonthsFromSchedule(months, billingRowId, "media"),
+      months: extractOverrideMonthsFromSchedule(months, billingRowId, "media", {
+        balancerMonthIso: balancerLookup(billingRowId),
+      }),
       date_basis: dateBasis,
     })
     replacedMedia += 1

@@ -287,6 +287,53 @@ describe("buildRows invariants", () => {
     expect(Math.abs(june!.media_amount - 6_000)).toBeLessThanOrEqual(0.01)
   })
 
+  it("MonthAmount.source=balancing stamps plan_billing_rows.source=balancing", () => {
+    const balancingOverrides: BillingOverrideRow[] = [
+      {
+        id: 902,
+        line_item_id: "MANUAL-SOCIAL",
+        component: "media",
+        mode: "manual",
+        reason: "manual",
+        date_basis: "2026-06-01|2026-07-31",
+        months: [
+          { month: "2026-06", amount: 4_000, source: "manual" },
+          { month: "2026-07", amount: 2_000, source: "balancing" },
+        ],
+      },
+    ]
+    const lines = mixedFixtureLineItems()
+    const authLocal = computeAuthoritativeFinancials({
+      lineItems: lines,
+      feeLoading: FEE_LOADING,
+      overrides: balancingOverrides,
+      monthScope: {
+        campaignStart: new Date("2026-06-01"),
+        campaignEnd: new Date("2026-07-31"),
+      },
+      client: {
+        getRateForMediaType: () => 0.5,
+        adservaudio: 0,
+      },
+    })
+    const local = buildRows({
+      authorityResult: authLocal,
+      lineItems: authLocal.lineItems,
+      overrides: balancingOverrides,
+      meta: { media_plan_version: 42, mba_number: "MBA-ROWS" },
+      adserving: { getRateForMediaType: () => 0.5, adservaudio: 0 },
+    })
+    const social = authLocal.lineItems.find((l) => l.lineItemId === "MANUAL-SOCIAL")!
+    const july = local.billingRows.find(
+      (r) => r.line_uid === social.line_uid && r.month === "2026-07"
+    )
+    const june = local.billingRows.find(
+      (r) => r.line_uid === social.line_uid && r.month === "2026-06"
+    )
+    expect(july!.source).toBe("balancing")
+    expect(june!.source).toBe("manual")
+  })
+
   it("production lines use line_source=production", () => {
     const prod = auth.lineItems.find((l) => l.lineItemId === "PROD-1")!
     const rows = built.billingRows.filter((r) => r.line_uid === prod.line_uid)

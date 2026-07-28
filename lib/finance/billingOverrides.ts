@@ -54,7 +54,18 @@ function parseMonths(raw: unknown): MonthAmount[] {
     const month = String((entry as { month?: unknown }).month ?? "").trim()
     const amount = parseMoneyInput((entry as { amount?: string | number | null | undefined }).amount) ?? 0
     if (!month) continue
-    out.push({ month, amount: roundMoney2(amount) })
+    const sourceRaw = String((entry as { source?: unknown }).source ?? "")
+      .trim()
+      .toLowerCase()
+    const source =
+      sourceRaw === "balancing" || sourceRaw === "manual" || sourceRaw === "auto"
+        ? (sourceRaw as MonthAmount["source"])
+        : undefined
+    out.push({
+      month,
+      amount: roundMoney2(amount),
+      ...(source ? { source } : {}),
+    })
   }
   return out
 }

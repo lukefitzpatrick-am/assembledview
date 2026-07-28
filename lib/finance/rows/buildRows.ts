@@ -253,8 +253,21 @@ function overrideIdForLine(
   return null
 }
 
-function resolveSource(isManual: boolean): PlanBillingRowSource {
-  return isManual ? "manual" : "auto"
+/** Per-month source: honour MonthAmount.source=balancing when present on the override. */
+function resolveSourceForMonth(
+  isManual: boolean,
+  monthIso: string,
+  overrideMonths: MonthAmount[] | undefined
+): PlanBillingRowSource {
+  if (!isManual) return "auto"
+  if (overrideMonths?.length) {
+    const hit = overrideMonths.find((m) => {
+      const key = String(m.month ?? "").trim()
+      return key === monthIso || scheduleMonthYearToIso(key) === monthIso
+    })
+    if (hit?.source === "balancing") return "balancing"
+  }
+  return "manual"
 }
 
 function lineSourceFor(mediaType: string): PlanRowLineSource {
@@ -309,7 +322,7 @@ export function buildRows(args: BuildRowsArgs): BuildRowsResult {
     const isManual = perLine.flags.manualBilling || perLine.flags.manualFee
     const line_source = lineSourceFor(perLine.mediaType)
     const override_id = overrideIdForLine(perLine.lineItemId, overrides)
-    const source = resolveSource(isManual)
+    const mediaOverrideMonths = line.billingOverride?.months
 
     for (const iso of months) {
       const bucket: MonthBucket = {
@@ -343,7 +356,7 @@ export function buildRows(args: BuildRowsArgs): BuildRowsResult {
           billable_amount,
           client_pays_for_media: perLine.flags.clientPaysForMedia,
           is_manual_override: isManual,
-          source,
+          source: resolveSourceForMonth(isManual, iso, mediaOverrideMonths),
           override_id: isManual ? override_id : null,
         })
       }

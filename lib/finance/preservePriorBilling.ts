@@ -42,7 +42,7 @@ export type StaleDateBasisOverride = {
   label: string
 }
 
-export type DateBasisDecision = "keep" | "reset"
+export type DateBasisDecision = "keep" | "reset" | "keep_shape_plus_delta"
 
 function rowLineId(row: BillingOverrideRow): string {
   return toBillingOverrideLineItemId(String(row.line_item_id ?? row.lineItemId ?? "").trim())

@@ -86,12 +86,20 @@ export type MbaBillingLineTimingApi = {
   getAmount: (mediaKey: string, lineItemId: string, monthYear: string) => number
   /** Expected media total for the sum gate (auto / booked line media). */
   getExpectedMediaTotal: (mediaKey: string, lineItemId: string) => number
+  /** Auto/reference month amount — default balancer pick (Plan C S2b). */
+  getAutoAmount?: (mediaKey: string, lineItemId: string, monthYear: string) => number
   onCommit: (mediaKey: string, lineItemId: string, monthYear: string, raw: string) => void
   onResetLine: (mediaKey: string, lineItemId: string) => void
   /** Bill full line-media into the earliest campaign/draft month as reason=prepayment. */
   onPrebillLine: (mediaKey: string, lineItemId: string) => void
   /** Stale dateBasis keep/reset choice for a line (inline in timing editor). */
   getDateBasisChoice?: (lineItemId: string) => LineDateBasisChoice | null
+  /** Persist stamp for source=balancing (ISO month). */
+  onBalancerMonthChange?: (
+    mediaKey: string,
+    lineItemId: string,
+    balancerMonthIso: string
+  ) => void
   formatter: Intl.NumberFormat
 }
 
@@ -539,9 +547,11 @@ function ScopeLineRow({
           expectedMediaTotal={lineTiming.getExpectedMediaTotal(line.mediaType, line.lineItemId)}
           monthYears={lineTiming.monthYears}
           getAmount={lineTiming.getAmount}
+          getAutoAmount={lineTiming.getAutoAmount}
           onCommit={lineTiming.onCommit}
           onResetToAuto={lineTiming.onResetLine}
           onPrebill={lineTiming.onPrebillLine}
+          onBalancerMonthChange={lineTiming.onBalancerMonthChange}
           isPrepaid={line.flags.prepaid}
           dateBasisChoice={dateBasisChoice}
           formatter={lineTiming.formatter}
