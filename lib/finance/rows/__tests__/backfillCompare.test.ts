@@ -192,7 +192,7 @@ describe("backfillCompare", () => {
     expect(result.billingRowCount).toBeGreaterThan(0)
   })
 
-  it("flags cent-drift when billing media disagrees", () => {
+  it("flags amount-mismatch when billing media disagrees by more than $1", () => {
     const billing = [
       month("June 2026", [
         { id: "L1", mediaType: "search", media: 1000, fee: 0 },
@@ -200,9 +200,9 @@ describe("backfillCompare", () => {
     ]
     const financials = financialsFromMonths(billing)
     // Corrupt perLine media months so buildRows emits different media than blob line stamp
-    financials.perLine[0].billingMonths = [{ month: "June 2026", amount: 999 }]
-    financials.perLine[0].deliveryMonths = [{ month: "June 2026", amount: 999 }]
-    financials.perLine[0].media = 999
+    financials.perLine[0].billingMonths = [{ month: "June 2026", amount: 990 }]
+    financials.perLine[0].deliveryMonths = [{ month: "June 2026", amount: 990 }]
+    financials.perLine[0].media = 990
 
     const result = compareBackfillRowsToBlob({
       financials,
@@ -210,11 +210,34 @@ describe("backfillCompare", () => {
       media_plan_version: 10,
     })
     expect(result.status).toBe("anomaly")
-    expect(result.anomalyClass).toBe("cent-drift")
+    expect(result.anomalyClass).toBe("amount-mismatch")
     expect(result.deltas.length).toBeGreaterThan(0)
     expect(
       result.deltas.some((d) => Math.abs(d.delta) > BACKFILL_TOLERANCE)
     ).toBe(true)
+  })
+
+  it("flags rounding when largest delta is at most $1.00", () => {
+    const billing = [
+      month("June 2026", [
+        { id: "L1", mediaType: "search", media: 1000, fee: 0 },
+      ]),
+    ]
+    const financials = financialsFromMonths(billing)
+    financials.perLine[0].billingMonths = [{ month: "June 2026", amount: 1000.5 }]
+    financials.perLine[0].deliveryMonths = [{ month: "June 2026", amount: 1000.5 }]
+    financials.perLine[0].media = 1000.5
+
+    const result = compareBackfillRowsToBlob({
+      financials,
+      mba_number: "MBA1",
+      media_plan_version: 10,
+    })
+    expect(result.status).toBe("anomaly")
+    expect(result.anomalyClass).toBe("rounding")
+    expect(result.deltas.length).toBeGreaterThan(0)
+    const maxAbs = Math.max(...result.deltas.map((d) => Math.abs(d.delta)))
+    expect(maxAbs).toBeLessThanOrEqual(1)
   })
 
   it("marks known-dup when isKnownDupVersion is set", () => {

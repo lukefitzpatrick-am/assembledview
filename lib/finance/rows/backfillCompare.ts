@@ -27,9 +27,13 @@ export const BACKFILL_TOLERANCE = 0.01
 
 export type BackfillAnomalyClass =
   | "parse-failure"
-  | "cent-drift"
+  | "amount-mismatch"
+  | "rounding"
   | "structural"
   | "known-dup"
+
+/** Largest absolute delta at or below this → `rounding`; above → `amount-mismatch`. */
+export const BACKFILL_ROUNDING_MAX_ABS_DELTA = 1
 
 export type BackfillVersionStatus = "clean" | "anomaly" | "known-dup" | "skipped-migrated"
 
@@ -572,9 +576,12 @@ export function compareBackfillRowsToBlob(args: {
   }
 
   if (deltas.length > 0) {
+    const maxAbs = deltas.reduce((m, d) => Math.max(m, Math.abs(d.delta)), 0)
+    const anomalyClass: BackfillAnomalyClass =
+      maxAbs <= BACKFILL_ROUNDING_MAX_ABS_DELTA ? "rounding" : "amount-mismatch"
     return {
       status: "anomaly",
-      anomalyClass: "cent-drift",
+      anomalyClass,
       deltas,
       billingRowCount: built.billingRows.length,
       deliveryRowCount: built.deliveryRows.length,

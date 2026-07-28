@@ -58,7 +58,7 @@ npx tsx scripts/backfill-plan-rows.ts --dry-run
 npx tsx scripts/backfill-plan-rows.ts --apply   # clean versions only
 ```
 
-1. Dry-run first; **Luke reviews** recon CSV (parse-failure / cent-drift / structural).
+1. Dry-run first; **Luke reviews** recon CSV (parse-failure / amount-mismatch / rounding / structural).
 2. `--apply` only for **clean** versions (`billing_rows_migrated` stamped).
 3. Spot-check: migrated version has rows + checksum; anomaly versions remain unmigrated (blob fallback).
 

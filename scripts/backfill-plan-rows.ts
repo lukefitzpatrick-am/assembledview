@@ -308,7 +308,8 @@ async function main(): Promise<void> {
     knownDup: 0,
     skippedMigrated: 0,
     parseFailure: 0,
-    centDrift: 0,
+    amountMismatch: 0,
+    rounding: 0,
     structural: 0,
     applied: 0,
     applyFailed: 0,
@@ -407,9 +408,10 @@ async function main(): Promise<void> {
             summary.clean++
           } else {
             status = "anomaly"
-            anomalyClass = compared.anomalyClass ?? "cent-drift"
+            anomalyClass = compared.anomalyClass ?? "amount-mismatch"
             summary.anomaly++
-            if (anomalyClass === "cent-drift") summary.centDrift++
+            if (anomalyClass === "amount-mismatch") summary.amountMismatch++
+            else if (anomalyClass === "rounding") summary.rounding++
             else if (anomalyClass === "structural") summary.structural++
             else if (anomalyClass === "parse-failure") summary.parseFailure++
           }
@@ -494,7 +496,8 @@ async function main(): Promise<void> {
     knownDup: summary.knownDup,
     skippedMigrated: summary.skippedMigrated,
     parseFailure: summary.parseFailure,
-    centDrift: summary.centDrift,
+    amountMismatch: summary.amountMismatch,
+    rounding: summary.rounding,
     structural: summary.structural,
     applied: summary.applied,
     applyFailed: summary.applyFailed,
@@ -508,9 +511,10 @@ async function main(): Promise<void> {
   console.log(`anomaly:     ${summary.anomaly}`)
   console.log(`known-dup:   ${summary.knownDup}`)
   console.log(`skipped:     ${summary.skippedMigrated} (already migrated)`)
-  console.log(`  parse-failure: ${summary.parseFailure}`)
-  console.log(`  cent-drift:    ${summary.centDrift}`)
-  console.log(`  structural:    ${summary.structural}`)
+  console.log(`  parse-failure:     ${summary.parseFailure}`)
+  console.log(`  amount-mismatch:   ${summary.amountMismatch}`)
+  console.log(`  rounding:          ${summary.rounding}`)
+  console.log(`  structural:        ${summary.structural}`)
   console.log(`processed:   ${summary.processed}`)
   console.log(`csv:         ${CSV_PATH}`)
 }
