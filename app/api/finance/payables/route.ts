@@ -11,6 +11,7 @@ import {
   fetchRelevantPlanVersionsForFinanceMonth,
   fetchRelevantPlanVersionsForFinanceMonths,
 } from "@/lib/finance/relevantPlanVersions"
+import { attachPlanRowSchedulesForSurface } from "@/lib/finance/rows/attachPlanRowSchedules"
 import { getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import { requireFinanceAdmin } from "@/lib/requireRole"
@@ -124,6 +125,7 @@ export async function GET(request: NextRequest) {
       year = versionsResult.year
       month = versionsResult.month
       relevantVersions = versionsResult.relevantVersions as Record<string, unknown>[]
+      await attachPlanRowSchedulesForSurface(relevantVersions, "finance")
     } catch (e: unknown) {
       return versionsFetchErrorResponse(e)
     }
@@ -198,6 +200,7 @@ async function handleMultiMonth(
       const year = entry?.year ?? Number(monthStr.slice(0, 4))
       const month = entry?.month ?? Number(monthStr.slice(5, 7))
       const relevantVersions = (entry?.relevantVersions as Record<string, unknown>[] | undefined) ?? []
+      await attachPlanRowSchedulesForSurface(relevantVersions, "finance")
       records.push(
         ...composePayableRecordsForMonth({
           year,

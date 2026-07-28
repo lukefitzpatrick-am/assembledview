@@ -25,6 +25,10 @@ import type {
 } from "@/lib/finance/campaignFinancials.types"
 import { addGst } from "@/lib/finance/gst"
 import { getBillingSchedule, getDeliverySchedule } from "@/lib/finance/normalizeFields"
+import {
+  getAttachedBillingMonths,
+  getAttachedDeliveryMonths,
+} from "@/lib/finance/rows/attachPlanRowSchedules"
 import { MEDIA_PLAN_VERSION_LINE_ITEM_TABLE_KEYS } from "@/lib/finance/planLineItemEnrichment"
 import { matchMonthYear } from "@/lib/finance/utils"
 import { parseMoneyInput, roundMoney2 } from "@/lib/format/money"
@@ -183,10 +187,19 @@ export function computeCampaignFinancialsFromVersion(
     return computeCampaignFinancials(lineItems, { feeLoading }, campaignOptsFromVersion(version))
   }
 
+  // Plan C S2-P5 — prefer schedules attached from plan_*_rows (per-surface hydrate).
+  // Absent attach → instant blob fallback.
+  const attachedBilling = getAttachedBillingMonths(version)
+  const attachedDelivery = getAttachedDeliveryMonths(version)
+
   const billingSchedule =
-    parsePersistedBillingScheduleToMonths(getBillingSchedule(version)) ?? []
+    attachedBilling && attachedBilling.length > 0
+      ? attachedBilling
+      : parsePersistedBillingScheduleToMonths(getBillingSchedule(version)) ?? []
   const deliverySchedule =
-    parsePersistedBillingScheduleToMonths(getDeliverySchedule(version)) ?? []
+    attachedDelivery && attachedDelivery.length > 0
+      ? attachedDelivery
+      : parsePersistedBillingScheduleToMonths(getDeliverySchedule(version)) ?? []
 
   if (billingSchedule.length === 0 && deliverySchedule.length === 0) {
     return null

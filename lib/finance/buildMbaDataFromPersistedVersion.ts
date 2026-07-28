@@ -11,6 +11,8 @@ import { addGst } from "@/lib/finance/gst"
 import { computeCampaignFinancialsFromVersion } from "@/lib/finance/computeCampaignFinancialsFromVersion"
 import type { FeeLoading } from "@/lib/finance/campaignFinancials.types"
 import { getBillingSchedule } from "@/lib/finance/normalizeFields"
+import { getAttachedRowsChecksum } from "@/lib/finance/rows/attachPlanRowSchedules"
+import { shouldReadPlanRows } from "@/lib/finance/rows/readFlags"
 import { snapshotChecksum, snapshotChecksumShort } from "@/lib/finance/snapshotChecksum"
 import type { MBAData } from "@/lib/generateMBA"
 import { toMelbourneDateString } from "@/lib/timezone"
@@ -153,9 +155,24 @@ export function buildMbaDataFromPersistedVersion(args: {
     totalAmount: m.totalAmount,
   }))
 
+  // Plan C S2-P5 docs: when reading rows, footer matches stored snapshot_checksum.
+  const attachedChecksum = getAttachedRowsChecksum(version)
+  const storedChecksum =
+    typeof version.snapshot_checksum === "string" && version.snapshot_checksum.length > 0
+      ? version.snapshot_checksum
+      : typeof version.snapshotChecksum === "string" && version.snapshotChecksum.length > 0
+        ? version.snapshotChecksum
+        : null
+  const preferStored = Boolean(attachedChecksum) || shouldReadPlanRows("docs", version)
   const checksumSource = getBillingSchedule(version) ?? financials.billingSchedule
-  const checksumShort = snapshotChecksumShort(checksumSource)
-  const checksum = snapshotChecksum(checksumSource)
+  const checksum =
+    preferStored && (attachedChecksum || storedChecksum)
+      ? (attachedChecksum ?? storedChecksum)!
+      : snapshotChecksum(checksumSource)
+  const checksumShort =
+    preferStored && (attachedChecksum || storedChecksum)
+      ? checksum.slice(0, 8)
+      : snapshotChecksumShort(checksumSource)
 
   const clientName = String(
     version.mp_client_name ?? version.client_name ?? version.mp_clientname ?? ""

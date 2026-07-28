@@ -10,6 +10,9 @@ import { buildMbaDataFromPersistedVersion } from "@/lib/finance/buildMbaDataFrom
 import { versionCarriesMbaApproval } from "@/lib/finance/mbaApprovalGate"
 import { readFeeSnapshot } from "@/lib/finance/feeSnapshots"
 import { resolvePlanCDocsFromPersistedMode } from "@/lib/finance/planCDocsFromPersisted"
+import { attachPlanRowSchedulesForSurface } from "@/lib/finance/rows/attachPlanRowSchedules"
+import { resolveMbaClientAddress } from "@/lib/finance/rows/resolveMbaClientAddress"
+import { resolvePlanCReadRowsMode } from "@/lib/finance/rows/readFlags"
 
 const MEDIA_PLANS_ENV_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
 const XANO_TIMEOUT_MS = 15_000
@@ -18,6 +21,26 @@ function pickVersionRow(rows: unknown[], versionNumber: number): Record<string, 
   const list = rows.filter((r): r is Record<string, unknown> => !!r && typeof r === "object")
   const exact = list.find((r) => Number(r.version_number) === versionNumber)
   return exact ?? null
+}
+
+async function loadMediaPlanMaster(
+  mbaNumber: string,
+  baseUrl: string
+): Promise<Record<string, unknown> | null> {
+  try {
+    const response = await axios.get(`${baseUrl}/media_plan_master`, {
+      params: { mba_number: mbaNumber, page: 1, per_page: 5 },
+      headers: xanoAuthHeaderRecord(),
+      timeout: XANO_TIMEOUT_MS,
+      validateStatus: (s) => s >= 200 && s < 500,
+    })
+    if (response.status >= 400) return null
+    const rows = parseXanoListPayload(response.data)
+    const first = rows.find((r): r is Record<string, unknown> => !!r && typeof r === "object")
+    return first ?? null
+  } catch {
+    return null
+  }
 }
 
 async function loadMediaPlanVersion(args: {
@@ -46,37 +69,6 @@ async function loadMediaPlanVersion(args: {
   }
   const rows = parseXanoListPayload(response.data)
   return pickVersionRow(rows, args.versionNumber)
-}
-
-function matchClientAddress(
-  clients: any[],
-  clientName: string
-): {
-  streetaddress?: string
-  suburb?: string
-  state?: string
-  postcode?: string
-} | null {
-  const target = clientName.trim().toLowerCase()
-  if (!target) return null
-  const hit = clients.find((c) => {
-    const names = [
-      c?.clientname_input,
-      c?.client_name,
-      c?.name,
-      c?.mp_client_name,
-    ]
-      .filter(Boolean)
-      .map((n: string) => String(n).trim().toLowerCase())
-    return names.includes(target)
-  })
-  if (!hit) return null
-  return {
-    streetaddress: hit.streetaddress ?? hit.street_address ?? hit.address ?? "",
-    suburb: hit.suburb ?? "",
-    state: hit.state ?? "",
-    postcode: String(hit.postcode ?? hit.post_code ?? ""),
-  }
 }
 
 function legacyMbaDataFromBody(body: Record<string, unknown>): MBAData {
@@ -183,10 +175,36 @@ export async function POST(req: NextRequest) {
       } | null = null
       try {
         const clients = await getCachedClients()
-        clientAddress = matchClientAddress(clients, clientName)
+        const master = await loadMediaPlanMaster(mbaNumber, baseUrl)
+        const preferId = resolvePlanCReadRowsMode("docs") === "on"
+        const resolved = resolveMbaClientAddress({
+          clients: clients as Record<string, unknown>[],
+          version,
+          master,
+          clientName,
+          preferId,
+        })
+        clientAddress = resolved.address
+        if (preferId && resolved.resolvedVia !== "id") {
+          console.warn("[mba/generate] client address: prefer id but resolved via", {
+            resolvedVia: resolved.resolvedVia,
+            clientsId: resolved.clientsId,
+            mba: mbaNumber,
+            version: versionNumber,
+            hasVersionClientId: Boolean(
+              version.clients_id ?? version.mp_clients_id ?? version.client_id
+            ),
+            hasMasterClientId: Boolean(
+              master?.clients_id ?? master?.mp_clients_id ?? master?.client_id
+            ),
+          })
+        }
       } catch (e) {
         console.warn("[mba/generate] client address lookup failed", e)
       }
+
+      // Plan C S2-P5 — optional plan_*_rows hydrate behind PLANC_READ_ROWS_DOCS
+      await attachPlanRowSchedulesForSurface([version], "docs")
 
       const versionId = version.id as string | number | undefined
       const feeLoading =

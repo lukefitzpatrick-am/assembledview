@@ -496,6 +496,13 @@ function usedFinanceHubSheetNames() {
   }
 }
 
+/**
+ * Invoice-style finance hub workbook.
+ *
+ * Line/month amounts come from {@link BillingRecord}s. For Plan C S2-P5, compose those
+ * records via {@link composeBillingRecordsForExportMonth} (PLANC_READ_ROWS_EXPORT) so
+ * migrated versions source amounts from plan_billing_rows; workbook layout is unchanged.
+ */
 export async function buildFinanceHubWorkbook(
   monthGroups: FinanceHubWorkbookMonthGroup[]
 ): Promise<ArrayBuffer> {

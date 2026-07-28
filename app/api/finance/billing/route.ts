@@ -20,6 +20,7 @@ import {
   fetchRelevantPlanVersionsForFinanceMonth,
   fetchRelevantPlanVersionsForFinanceMonths,
 } from "@/lib/finance/relevantPlanVersions"
+import { attachPlanRowSchedulesForSurface } from "@/lib/finance/rows/attachPlanRowSchedules"
 import { getCachedClients, getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import { requireFinanceAdmin } from "@/lib/requireRole"
@@ -152,6 +153,8 @@ export async function GET(request: NextRequest) {
       }
       // Hydration removed because it caused Vercel FUNCTION_INVOCATION_TIMEOUT by fanning out across 19 Xano line-item endpoints per version.
       relevantVersions = versionsResult.relevantVersions as Record<string, unknown>[]
+      // Plan C S2-P5 — optional plan_billing_rows hydrate behind PLANC_READ_ROWS_FINANCE
+      await attachPlanRowSchedulesForSurface(relevantVersions, "finance")
     } catch (e: unknown) {
       return versionsFetchErrorResponse(e)
     }
@@ -231,6 +234,7 @@ async function handleMultiMonth(
     try {
       const relevantVersions =
         (versionsByMonth.get(monthStr)?.relevantVersions as Record<string, unknown>[] | undefined) ?? []
+      await attachPlanRowSchedulesForSurface(relevantVersions, "finance")
       records.push(
         ...composeBillingRecordsForMonth({
           monthStr,

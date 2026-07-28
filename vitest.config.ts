@@ -32,6 +32,7 @@ export default defineConfig({
       "lib/finance/rows/__tests__/buildRows.test.ts",
       "lib/finance/rows/__tests__/backfillCompare.test.ts",
       "lib/finance/rows/__tests__/dualWrite.test.ts",
+      "lib/finance/rows/__tests__/readRowsSurfaces.test.ts",
       "app/api/mba/generate/route.auth.test.ts",
       "app/api/mediaplans/generate-pdf/route.auth.test.ts",
       "app/api/mediaplans/[id]/download/route.auth.test.ts",

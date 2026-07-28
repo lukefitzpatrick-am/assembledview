@@ -16,6 +16,7 @@ import {
   indexPersistedStatusByInvoiceKey,
   type PersistedFinanceStatusRow,
 } from "@/lib/finance/overlayFinanceStatus"
+import { attachPlanRowSchedulesForSurface } from "@/lib/finance/rows/attachPlanRowSchedules"
 import { financeClientNamesMatch } from "@/lib/finance/utils"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 
@@ -174,6 +175,17 @@ export function composeBillingRecordsForMonth(inputs: ComposeBillingMonthInputs)
   merged = filterByBillingTypes(merged, types)
 
   return merged
+}
+
+/**
+ * Plan C S2-P5 export surface — hydrate plan_billing_rows behind PLANC_READ_ROWS_EXPORT,
+ * then run the same compose pipeline (workbook layout unchanged).
+ */
+export async function composeBillingRecordsForExportMonth(
+  inputs: ComposeBillingMonthInputs
+): Promise<BillingRecord[]> {
+  await attachPlanRowSchedulesForSurface(inputs.relevantVersions, "export")
+  return composeBillingRecordsForMonth(inputs)
 }
 
 export type ComposePayablesMonthInputs = {

@@ -16,6 +16,10 @@ import { getDraftReturnRejection } from "@/lib/mediaplan/campaignStatusGuard"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 import { nextMbaVersionNumber } from "@/lib/mediaplan/nextMbaVersionNumber"
 import {
+  attachPlanRowSchedulesForSurface,
+  resolveDeliveryScheduleForPacing,
+} from "@/lib/finance/rows/attachPlanRowSchedules"
+import {
   applyPlanCServerAuthority,
   computeAuthoritativeFinancials,
   resolvePlanCServerAuthorityMode,
@@ -1111,13 +1115,18 @@ export async function GET(
         parsedBillingSchedule = innerMonths
       }
     }
-    
-    const deliveryScheduleSource =
+
+    // Plan C S2-P5 — optional plan_delivery_rows hydrate behind PLANC_READ_ROWS_PACING
+    await attachPlanRowSchedulesForSurface([versionData as Record<string, unknown>], "pacing")
+
+    const deliveryScheduleSource = resolveDeliveryScheduleForPacing(
+      versionData as Record<string, unknown>,
       versionData.deliverySchedule ||
-      versionData.delivery_schedule ||
-      masterData.deliverySchedule ||
-      masterData.delivery_schedule ||
-      null
+        versionData.delivery_schedule ||
+        masterData.deliverySchedule ||
+        masterData.delivery_schedule ||
+        null
+    )
 
     let parsedDeliverySchedule = deliveryScheduleSource
     if (typeof deliveryScheduleSource === "string" && deliveryScheduleSource.trim() !== "") {
