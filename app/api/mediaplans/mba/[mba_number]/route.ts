@@ -19,6 +19,7 @@ import {
   applyPlanCServerAuthority,
   computeAuthoritativeFinancials,
   resolvePlanCServerAuthorityMode,
+  type AuthoritativeFinancials,
 } from "@/lib/finance/authority/computeAndPersist"
 import { fetchBillingOverridesForVersion } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
@@ -34,6 +35,10 @@ import {
 import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
 import { appendPartialApprovalToBillingSchedule } from "@/lib/mediaplan/partialMba"
 import { ensureLineUids } from "@/lib/mediaplan/lineUid"
+import {
+  dualWritePlanRowsForVersion,
+  resolvePlanCRowsDualWriteMode,
+} from "@/lib/finance/rows/dualWrite"
 import {
   isUnpublishedStagedVersion,
   pickPublishedVersionRow,
@@ -1522,6 +1527,10 @@ export async function PUT(
       data.deliverySchedule ?? data.delivery_schedule ?? null
     let inputsHashToPersist: string | undefined
     let rebillNeededToPersist: boolean | undefined
+    let authoritativeForRows: AuthoritativeFinancials | null = null
+    let overrideRowsForDualWrite: Awaited<
+      ReturnType<typeof fetchBillingOverridesForVersion>
+    > = []
 
     const financialLineItemsRaw = (Array.isArray(data.lineItems)
       ? data.lineItems
@@ -1623,8 +1632,11 @@ export async function PUT(
       rebillNeededToPersist = false
 
       // Plan C S1 — server financial authority (after C1 validation passes).
+      // Plan C S2 — also compute when PLANC_ROWS_DUAL_WRITE=on (independent of enforce).
       const authorityMode = resolvePlanCServerAuthorityMode()
-      if (authorityMode !== "off") {
+      const rowsDualWriteOn = resolvePlanCRowsDualWriteMode() === "on"
+      overrideRowsForDualWrite = overrideRows
+      if (authorityMode !== "off" || rowsDualWriteOn) {
         const authoritative = computeAuthoritativeFinancials({
           lineItems: financialLineItems,
           feeLoading,
@@ -1645,34 +1657,37 @@ export async function PUT(
               : {}),
           },
         })
-        const clientBilling = Array.isArray(billingScheduleToPersist)
-          ? billingScheduleToPersist
-          : authoritative.billingSchedule
-        const decision = applyPlanCServerAuthority({
-          mode: authorityMode,
-          clientBillingSchedule: clientBilling as typeof authoritative.billingSchedule,
-          clientDeliverySchedule: deliveryScheduleToPersist,
-          authoritative,
-          meta: {
-            mba_number,
-            version: nextVersionNumber,
-          },
-        })
-        if (authorityMode === "enforce") {
-          billingScheduleToPersist = decision.billingSchedule
-          deliveryScheduleToPersist = decision.deliverySchedule
-          if (partialApprovalMeta) {
-            billingScheduleToPersist = appendPartialApprovalToBillingSchedule({
-              billingSchedule: decision.billingSchedule as unknown as Record<string, unknown>[],
-              metadata: {
-                ...partialApprovalMeta,
-                selectedMonthYears:
-                  selectedMonthYears && selectedMonthYears.length > 0
-                    ? selectedMonthYears
-                    : partialApprovalMeta.selectedMonthYears ?? [],
-                isPartial: true,
-              },
-            })
+        authoritativeForRows = authoritative
+        if (authorityMode !== "off") {
+          const clientBilling = Array.isArray(billingScheduleToPersist)
+            ? billingScheduleToPersist
+            : authoritative.billingSchedule
+          const decision = applyPlanCServerAuthority({
+            mode: authorityMode,
+            clientBillingSchedule: clientBilling as typeof authoritative.billingSchedule,
+            clientDeliverySchedule: deliveryScheduleToPersist,
+            authoritative,
+            meta: {
+              mba_number,
+              version: nextVersionNumber,
+            },
+          })
+          if (authorityMode === "enforce") {
+            billingScheduleToPersist = decision.billingSchedule
+            deliveryScheduleToPersist = decision.deliverySchedule
+            if (partialApprovalMeta) {
+              billingScheduleToPersist = appendPartialApprovalToBillingSchedule({
+                billingSchedule: decision.billingSchedule as unknown as Record<string, unknown>[],
+                metadata: {
+                  ...partialApprovalMeta,
+                  selectedMonthYears:
+                    selectedMonthYears && selectedMonthYears.length > 0
+                      ? selectedMonthYears
+                      : partialApprovalMeta.selectedMonthYears ?? [],
+                  isPartial: true,
+                },
+              })
+            }
           }
         }
       }
@@ -1870,6 +1885,33 @@ export async function PUT(
           mba_number,
           versionId: savedVersionId,
           message: snapError instanceof Error ? snapError.message : String(snapError),
+        })
+      }
+    }
+
+    // Plan C S2-P2 — dual-write typed rows + snapshot_checksum (soft-fail).
+    if (
+      savedVersionId != null &&
+      authoritativeForRows &&
+      financialLineItems &&
+      financialLineItems.length > 0
+    ) {
+      try {
+        await dualWritePlanRowsForVersion({
+          versionId: savedVersionId,
+          mba_number,
+          authoritative: authoritativeForRows,
+          lineItems: authoritativeForRows.lineItems.length
+            ? authoritativeForRows.lineItems
+            : financialLineItems,
+          overrides: overrideRowsForDualWrite,
+          baseUrl: mediaPlansBaseUrl,
+        })
+      } catch (rowsError) {
+        console.warn("[mba-put] plan rows dual-write failed (non-fatal)", {
+          mba_number,
+          versionId: savedVersionId,
+          message: rowsError instanceof Error ? rowsError.message : String(rowsError),
         })
       }
     }

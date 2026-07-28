@@ -6,12 +6,17 @@ import {
   applyPlanCServerAuthority,
   computeAuthoritativeFinancials,
   resolvePlanCServerAuthorityMode,
+  type AuthoritativeFinancials,
 } from "@/lib/finance/authority/computeAndPersist"
 import { fetchBillingOverridesForVersion } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
 import { resolveFeeLoadingForVersion } from "@/lib/finance/feeSnapshots"
 import { clearRelevantPlanVersionsCache } from "@/lib/finance/relevantPlanVersions"
 import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
+import {
+  dualWritePlanRowsForVersion,
+  resolvePlanCRowsDualWriteMode,
+} from "@/lib/finance/rows/dualWrite"
 import { diffBillingSchedules } from "@/lib/finance/scheduleDiff"
 import { writeScheduleDiffEdits } from "@/lib/finance/writeFinanceAuditEdits"
 import { requireFinanceAdmin } from "@/lib/requireRole"
@@ -91,6 +96,10 @@ export async function PATCH(
     let scheduleToPersist: unknown = clientBillingSchedule
     let inputsHash: string | undefined
     const patchPayload: Record<string, unknown> = {}
+    let authoritativeForRows: AuthoritativeFinancials | null = null
+    let overrideRowsForDualWrite: Awaited<
+      ReturnType<typeof fetchBillingOverridesForVersion>
+    > = []
 
     const financialLineItems = (Array.isArray(bodyRecord.lineItems)
       ? bodyRecord.lineItems
@@ -119,6 +128,7 @@ export async function PATCH(
       const overrideRows = await fetchBillingOverridesForVersion(id, {
         baseUrl: mediaPlansBaseUrl,
       })
+      overrideRowsForDualWrite = overrideRows
       const startRaw = versionRow?.campaign_start_date
       const endRaw = versionRow?.campaign_end_date
       const recompute = recomputeAndValidateBillingScheduleOnSave({
@@ -147,8 +157,10 @@ export async function PATCH(
         : undefined
 
       // Plan C S1 — server financial authority (after C1 validation passes).
+      // Plan C S2 — also compute when PLANC_ROWS_DUAL_WRITE=on (independent of enforce).
       const authorityMode = resolvePlanCServerAuthorityMode()
-      if (authorityMode !== "off") {
+      const rowsDualWriteOn = resolvePlanCRowsDualWriteMode() === "on"
+      if (authorityMode !== "off" || rowsDualWriteOn) {
         const authoritative = computeAuthoritativeFinancials({
           lineItems: financialLineItems,
           feeLoading,
@@ -158,25 +170,28 @@ export async function PATCH(
             ...(endRaw ? { campaignEnd: new Date(String(endRaw)) } : {}),
           },
         })
-        const clientBilling = Array.isArray(scheduleToPersist)
-          ? scheduleToPersist
-          : authoritative.billingSchedule
-        const decision = applyPlanCServerAuthority({
-          mode: authorityMode,
-          clientBillingSchedule: clientBilling as typeof authoritative.billingSchedule,
-          clientDeliverySchedule: deliveryToPersist ?? authoritative.deliverySchedule,
-          authoritative,
-          meta: {
-            mba_number:
-              versionRow?.mba_number != null
-                ? String(versionRow.mba_number)
-                : undefined,
-            version: versionRow?.version_number as string | number | undefined,
-          },
-        })
-        if (authorityMode === "enforce") {
-          scheduleToPersist = decision.billingSchedule
-          deliveryToPersist = decision.deliverySchedule
+        authoritativeForRows = authoritative
+        if (authorityMode !== "off") {
+          const clientBilling = Array.isArray(scheduleToPersist)
+            ? scheduleToPersist
+            : authoritative.billingSchedule
+          const decision = applyPlanCServerAuthority({
+            mode: authorityMode,
+            clientBillingSchedule: clientBilling as typeof authoritative.billingSchedule,
+            clientDeliverySchedule: deliveryToPersist ?? authoritative.deliverySchedule,
+            authoritative,
+            meta: {
+              mba_number:
+                versionRow?.mba_number != null
+                  ? String(versionRow.mba_number)
+                  : undefined,
+              version: versionRow?.version_number as string | number | undefined,
+            },
+          })
+          if (authorityMode === "enforce") {
+            scheduleToPersist = decision.billingSchedule
+            deliveryToPersist = decision.deliverySchedule
+          }
         }
       }
 
@@ -203,6 +218,30 @@ export async function PATCH(
     const xanoResponse = await axios.patch(`${mediaPlansBaseUrl}/media_plan_versions/${encodeURIComponent(id)}`, patchPayload, { headers: xanoPostHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS })
 
     clearRelevantPlanVersionsCache()
+
+    // Plan C S2-P2 — dual-write typed rows + snapshot_checksum (soft-fail).
+    if (authoritativeForRows && financialLineItems && financialLineItems.length > 0) {
+      try {
+        await dualWritePlanRowsForVersion({
+          versionId: id,
+          mba_number:
+            versionRow?.mba_number != null
+              ? String(versionRow.mba_number)
+              : "",
+          authoritative: authoritativeForRows,
+          lineItems: authoritativeForRows.lineItems.length
+            ? authoritativeForRows.lineItems
+            : financialLineItems,
+          overrides: overrideRowsForDualWrite,
+          baseUrl: mediaPlansBaseUrl,
+        })
+      } catch (rowsError) {
+        console.warn("[billing-schedule-patch] plan rows dual-write failed (non-fatal)", {
+          id,
+          message: rowsError instanceof Error ? rowsError.message : String(rowsError),
+        })
+      }
+    }
 
     // Domain 5 Stage 2.2b — audit writes after successful PATCH.
     // Failures are logged, not propagated. Schedule save remains authoritative.

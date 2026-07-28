@@ -28,6 +28,8 @@ export default defineConfig({
       "lib/mediaplan/__tests__/channelDuplicateStats.test.ts",
       "lib/mediaplan/__tests__/draftSaveReplaceInvariants.test.ts",
       "lib/mediaplan/__tests__/lineUid.test.ts",
+      "lib/finance/rows/__tests__/buildRows.test.ts",
+      "lib/finance/rows/__tests__/dualWrite.test.ts",
       "app/api/mba/generate/route.auth.test.ts",
       "app/api/mediaplans/generate-pdf/route.auth.test.ts",
       "app/api/mediaplans/[id]/download/route.auth.test.ts",
