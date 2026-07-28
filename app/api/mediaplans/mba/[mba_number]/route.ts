@@ -15,6 +15,11 @@ import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/mont
 import { getDraftReturnRejection } from "@/lib/mediaplan/campaignStatusGuard"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 import { nextMbaVersionNumber } from "@/lib/mediaplan/nextMbaVersionNumber"
+import {
+  applyPlanCServerAuthority,
+  computeAuthoritativeFinancials,
+  resolvePlanCServerAuthorityMode,
+} from "@/lib/finance/authority/computeAndPersist"
 import { fetchBillingOverridesForVersion } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
 import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
@@ -1584,6 +1589,61 @@ export async function PUT(
       }
       inputsHashToPersist = recompute.inputs_hash
       rebillNeededToPersist = false
+
+      // Plan C S1 — server financial authority (after C1 validation passes).
+      const authorityMode = resolvePlanCServerAuthorityMode()
+      if (authorityMode !== "off") {
+        const authoritative = computeAuthoritativeFinancials({
+          lineItems: financialLineItems,
+          feeLoading,
+          overrides: overrideRows,
+          approvalState:
+            selectedMonthYears && selectedMonthYears.length > 0
+              ? { selectedMonthYears }
+              : undefined,
+          monthScope: {
+            ...(normalizedCampaignStartDate
+              ? { campaignStart: new Date(String(normalizedCampaignStartDate)) }
+              : {}),
+            ...(normalizedCampaignEndDate
+              ? { campaignEnd: new Date(String(normalizedCampaignEndDate)) }
+              : {}),
+            ...(selectedMonthYears && selectedMonthYears.length > 0
+              ? { selectedMonthYears }
+              : {}),
+          },
+        })
+        const clientBilling = Array.isArray(billingScheduleToPersist)
+          ? billingScheduleToPersist
+          : authoritative.billingSchedule
+        const decision = applyPlanCServerAuthority({
+          mode: authorityMode,
+          clientBillingSchedule: clientBilling as typeof authoritative.billingSchedule,
+          clientDeliverySchedule: deliveryScheduleToPersist,
+          authoritative,
+          meta: {
+            mba_number,
+            version: nextVersionNumber,
+          },
+        })
+        if (authorityMode === "enforce") {
+          billingScheduleToPersist = decision.billingSchedule
+          deliveryScheduleToPersist = decision.deliverySchedule
+          if (partialApprovalMeta) {
+            billingScheduleToPersist = appendPartialApprovalToBillingSchedule({
+              billingSchedule: decision.billingSchedule as unknown as Record<string, unknown>[],
+              metadata: {
+                ...partialApprovalMeta,
+                selectedMonthYears:
+                  selectedMonthYears && selectedMonthYears.length > 0
+                    ? selectedMonthYears
+                    : partialApprovalMeta.selectedMonthYears ?? [],
+                isPartial: true,
+              },
+            })
+          }
+        }
+      }
     } else if (billingScheduleToPersist == null) {
       // Never store null when the client omitted the schedule but also sent no
       // line inputs to regenerate from — fall back to previous version schedule.

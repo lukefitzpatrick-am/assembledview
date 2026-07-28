@@ -12,20 +12,15 @@
 
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { parsePersistedBillingScheduleToMonths } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
-import {
-  attachOverridesToLineInputs,
-  type BillingOverrideRow,
-} from "@/lib/finance/billingOverrides"
+import { assembleCampaignFinancialsWithOverrides } from "@/lib/finance/authority/assembleWithOverrides"
+import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import type {
   CampaignFinancials,
   FeeLoading,
   LineItemInput,
   PerLineResult,
 } from "@/lib/finance/campaignFinancials.types"
-import {
-  computeCampaignFinancials,
-  type ComputeCampaignFinancialsOpts,
-} from "@/lib/finance/computeCampaignFinancials"
+import type { ComputeCampaignFinancialsOpts } from "@/lib/finance/computeCampaignFinancials"
 import { computeBillingInputsHash } from "@/lib/finance/computeBillingInputsHash"
 import { formatAUD, roundMoney2 } from "@/lib/format/money"
 
@@ -311,12 +306,12 @@ export function recomputeAndValidateBillingScheduleOnSave(args: {
     }
   }
 
-  const lineItems = attachOverridesToLineInputs(args.lineItems, args.overrideRows)
-  const financials = computeCampaignFinancials(
-    lineItems,
-    { feeLoading: args.feeLoading },
-    args.opts
-  )
+  const { lineItems, financials } = assembleCampaignFinancialsWithOverrides({
+    lineItems: args.lineItems,
+    feeLoading: args.feeLoading,
+    overrideRows: args.overrideRows,
+    opts: args.opts,
+  })
   const inputs_hash = computeBillingInputsHash(lineItems)
   const omitted = clientScheduleOmitted(args.clientBillingSchedule)
 

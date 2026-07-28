@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
 import { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import {
+  applyPlanCServerAuthority,
+  computeAuthoritativeFinancials,
+  resolvePlanCServerAuthorityMode,
+} from "@/lib/finance/authority/computeAndPersist"
 import { fetchBillingOverridesForVersion } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
 import { clearRelevantPlanVersionsCache } from "@/lib/finance/relevantPlanVersions"
@@ -116,12 +121,50 @@ export async function PATCH(
       }
       scheduleToPersist = recompute.billingSchedule
       inputsHash = recompute.inputs_hash
+      let deliveryToPersist = recompute.generatedFromServer
+        ? recompute.deliverySchedule
+        : undefined
+
+      // Plan C S1 — server financial authority (after C1 validation passes).
+      const authorityMode = resolvePlanCServerAuthorityMode()
+      if (authorityMode !== "off") {
+        const authoritative = computeAuthoritativeFinancials({
+          lineItems: financialLineItems,
+          feeLoading,
+          overrides: overrideRows,
+          monthScope: {
+            ...(startRaw ? { campaignStart: new Date(String(startRaw)) } : {}),
+            ...(endRaw ? { campaignEnd: new Date(String(endRaw)) } : {}),
+          },
+        })
+        const clientBilling = Array.isArray(scheduleToPersist)
+          ? scheduleToPersist
+          : authoritative.billingSchedule
+        const decision = applyPlanCServerAuthority({
+          mode: authorityMode,
+          clientBillingSchedule: clientBilling as typeof authoritative.billingSchedule,
+          clientDeliverySchedule: deliveryToPersist ?? authoritative.deliverySchedule,
+          authoritative,
+          meta: {
+            mba_number:
+              versionRow?.mba_number != null
+                ? String(versionRow.mba_number)
+                : undefined,
+            version: versionRow?.version_number as string | number | undefined,
+          },
+        })
+        if (authorityMode === "enforce") {
+          scheduleToPersist = decision.billingSchedule
+          deliveryToPersist = decision.deliverySchedule
+        }
+      }
+
       patchPayload.billingSchedule = scheduleToPersist
       patchPayload.inputs_hash = inputsHash
       patchPayload.rebill_needed = false
-      if (recompute.generatedFromServer) {
-        patchPayload.deliverySchedule = recompute.deliverySchedule
-        patchPayload.delivery_schedule = recompute.deliverySchedule
+      if (deliveryToPersist != null) {
+        patchPayload.deliverySchedule = deliveryToPersist
+        patchPayload.delivery_schedule = deliveryToPersist
       }
     } else {
       if (scheduleToPersist == null) {
