@@ -35,7 +35,13 @@ export type BackfillAnomalyClass =
 /** Largest absolute delta at or below this → `rounding`; above → `amount-mismatch`. */
 export const BACKFILL_ROUNDING_MAX_ABS_DELTA = 1
 
-export type BackfillVersionStatus = "clean" | "anomaly" | "known-dup" | "skipped-migrated"
+export type BackfillVersionStatus =
+  | "clean"
+  | "anomaly"
+  | "known-dup"
+  | "skipped-migrated"
+  | "skipped-asymmetric"
+  | "skipped-empty"
 
 export type BlobLineMonthTotals = {
   lineItemId: string

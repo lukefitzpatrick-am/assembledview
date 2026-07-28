@@ -34,6 +34,7 @@ export default defineConfig({
       "lib/finance/rows/__tests__/dualWrite.test.ts",
       "lib/finance/rows/__tests__/readRowsSurfaces.test.ts",
       "lib/finance/rows/__tests__/checksumAudit.test.ts",
+      "lib/finance/rows/__tests__/scheduleShape.test.ts",
       "lib/finance/__tests__/billingBalancer.test.ts",
       "lib/finance/__tests__/perLineFromSchedules.test.ts",
       "components/billing/__tests__/LineTimingInlineEditor.balancer.test.tsx",

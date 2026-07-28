@@ -6,6 +6,7 @@ import { checksumForPlanRows } from "@/lib/finance/rows/dualWrite"
 import {
   canonicalizeBillingRow,
   flagChecksumDrift,
+  flagMigratedEmptySide,
   flagRowsChecksumFindings,
   flagWriterBypass,
   recomputeRowsChecksum,
@@ -164,6 +165,50 @@ describe("flagWriterBypass", () => {
   })
 })
 
+describe("flagMigratedEmptySide", () => {
+  it("flags migrated versions with zero rows on either side", () => {
+    expect(
+      flagMigratedEmptySide({
+        meta: meta(),
+        billingRowCount: 5,
+        deliveryRowCount: 0,
+      })
+    ).toMatchObject({
+      kind: "migrated_empty_side",
+      rows: 5,
+      severity: "live",
+    })
+    expect(
+      flagMigratedEmptySide({
+        meta: meta({ isCurrent: false }),
+        billingRowCount: 0,
+        deliveryRowCount: 0,
+      })
+    ).toMatchObject({
+      kind: "migrated_empty_side",
+      rows: 0,
+      severity: "history",
+    })
+  })
+
+  it("ignores unmigrated and both-sides-populated versions", () => {
+    expect(
+      flagMigratedEmptySide({
+        meta: meta({ billing_rows_migrated: false }),
+        billingRowCount: 0,
+        deliveryRowCount: 0,
+      })
+    ).toBeNull()
+    expect(
+      flagMigratedEmptySide({
+        meta: meta(),
+        billingRowCount: 2,
+        deliveryRowCount: 3,
+      })
+    ).toBeNull()
+  })
+})
+
 describe("flagRowsChecksumFindings", () => {
   it("emits bypass + drift together when both apply across versions", () => {
     const goodChecksum = checksumForPlanRows({
@@ -191,5 +236,14 @@ describe("flagRowsChecksumFindings", () => {
     })
     expect(findings.map((f) => f.kind).sort()).toEqual(["writer_bypass"])
     expect(findings[0]?.version).toBe(2)
+  })
+
+  it("emits migrated_empty_side for migrated versions missing a side", () => {
+    const findings = flagRowsChecksumFindings({
+      versions: [meta({ id: 9, snapshot_checksum: null })],
+      billingByVersion: new Map([[9, [billing]]]),
+      deliveryByVersion: new Map([[9, []]]),
+    })
+    expect(findings.map((f) => f.kind)).toContain("migrated_empty_side")
   })
 })

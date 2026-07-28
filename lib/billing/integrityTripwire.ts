@@ -12,6 +12,8 @@ export type IntegrityKind =
   | "checksum_drift"
   /** Plan C S2-P6 — plan_*_rows exist while billing_rows_migrated=false */
   | "writer_bypass"
+  /** Plan C S2-P6 — migrated version with zero rows on either side */
+  | "migrated_empty_side"
 
 export type IntegritySeverity = "live" | "history"
 

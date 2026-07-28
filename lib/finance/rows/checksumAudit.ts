@@ -3,6 +3,7 @@
  *
  * - checksum_drift: recomputed rows hash ≠ stored snapshot_checksum (migrated current versions)
  * - writer_bypass: plan_*_rows exist for a version with billing_rows_migrated=false
+ * - migrated_empty_side: migrated version with zero billing or zero delivery rows
  *
  * Runs weekly (Monday UTC) inside `/api/cron/billing-integrity`, or on demand via
  * `?rows_checksum=1`. Soft-fails when plan_* tables are missing.
@@ -167,6 +168,30 @@ export function flagWriterBypass(args: {
   }
 }
 
+/**
+ * Migrated version with zero rows on either side — slipped past the backfill
+ * asymmetric/empty guard, or was migrated before that guard existed.
+ */
+export function flagMigratedEmptySide(args: {
+  meta: RowsChecksumVersionMeta
+  billingRowCount: number
+  deliveryRowCount: number
+}): IntegrityFinding | null {
+  const { meta, billingRowCount, deliveryRowCount } = args
+  if (!meta.billing_rows_migrated) return null
+  if (billingRowCount > 0 && deliveryRowCount > 0) return null
+
+  return {
+    table: "plan_billing_rows+plan_delivery_rows",
+    mba_number: meta.mba_number,
+    version: meta.id,
+    rows: billingRowCount + deliveryRowCount,
+    distinctIds: 0,
+    kind: "migrated_empty_side",
+    severity: severityFor(meta),
+  }
+}
+
 export function versionMetaFromRaw(
   raw: Record<string, unknown>,
   currentVersionByMba: ReadonlyMap<string, number>
@@ -215,6 +240,13 @@ export function flagRowsChecksumFindings(args: {
       deliveryRowCount: delivery.length,
     })
     if (bypass) out.push(bypass)
+
+    const emptySide = flagMigratedEmptySide({
+      meta,
+      billingRowCount: billing.length,
+      deliveryRowCount: delivery.length,
+    })
+    if (emptySide) out.push(emptySide)
 
     const drift = flagChecksumDrift({
       meta,

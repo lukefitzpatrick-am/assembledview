@@ -287,6 +287,8 @@ export async function GET(request: Request) {
       orphan: findings.filter((f) => f.kind === "orphan").length,
       checksum_drift: findings.filter((f) => f.kind === "checksum_drift").length,
       writer_bypass: findings.filter((f) => f.kind === "writer_bypass").length,
+      migrated_empty_side: findings.filter((f) => f.kind === "migrated_empty_side")
+        .length,
     }
 
     const durationMs = Date.now() - started

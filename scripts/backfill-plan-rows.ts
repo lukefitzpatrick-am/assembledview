@@ -35,6 +35,7 @@ import {
   type BackfillVersionStatus,
 } from "@/lib/finance/rows/backfillCompare"
 import { checksumForPlanRows } from "@/lib/finance/rows/dualWrite"
+import { classifyScheduleShape } from "@/lib/finance/rows/scheduleShape"
 import { CHANNEL_LINE_ITEM_ENDPOINTS } from "@/lib/api/fetchChannelLineItemsByMba"
 import { MEDIA_PLAN_TABLES } from "@/lib/xano/mediaPlanTables"
 import { buildMbaToLatestVersionMap } from "@/lib/finance/relevantPlanVersions"
@@ -60,6 +61,8 @@ type ReconRow = {
   parse_errors: string
   billing_rows: string
   delivery_rows: string
+  billing_shape: string
+  delivery_shape: string
 }
 
 function loadEnvLocal(): void {
@@ -307,6 +310,8 @@ async function main(): Promise<void> {
     anomaly: 0,
     knownDup: 0,
     skippedMigrated: 0,
+    skippedAsymmetric: 0,
+    skippedEmpty: 0,
     parseFailure: 0,
     amountMismatch: 0,
     rounding: 0,
@@ -332,6 +337,9 @@ async function main(): Promise<void> {
       args.forceMba != null &&
       mba.toUpperCase() === args.forceMba.toUpperCase()
 
+    const billingShape = classifyScheduleShape(getBillingSchedule(version))
+    const deliveryShape = classifyScheduleShape(getDeliverySchedule(version))
+
     if (isMigrated(version) && !forceThis) {
       summary.skippedMigrated++
       recon.push({
@@ -344,6 +352,8 @@ async function main(): Promise<void> {
         parse_errors: "",
         billing_rows: "",
         delivery_rows: "",
+        billing_shape: billingShape,
+        delivery_shape: deliveryShape,
       })
       continue
     }
@@ -403,9 +413,19 @@ async function main(): Promise<void> {
             anomalyClass = "known-dup"
             summary.knownDup++
           } else if (compared.status === "clean") {
-            status = "clean"
-            anomalyClass = ""
-            summary.clean++
+            // Asymmetric / empty sides look "clean" (zero deltas) but must not
+            // stamp migrated — S2-P5 readers stop falling back to blobs.
+            if (billingRows === 0 && deliveryRows === 0) {
+              status = "skipped-empty"
+              summary.skippedEmpty++
+            } else if (billingRows === 0 || deliveryRows === 0) {
+              status = "skipped-asymmetric"
+              summary.skippedAsymmetric++
+            } else {
+              status = "clean"
+              anomalyClass = ""
+              summary.clean++
+            }
           } else {
             status = "anomaly"
             anomalyClass = compared.anomalyClass ?? "amount-mismatch"
@@ -435,8 +455,12 @@ async function main(): Promise<void> {
       parse_errors: parseErrors,
       billing_rows: String(billingRows),
       delivery_rows: String(deliveryRows),
+      billing_shape: billingShape,
+      delivery_shape: deliveryShape,
     })
 
+    // Guard already reclassified asymmetric/empty away from "clean", so apply
+    // only runs for versions with rows on both sides.
     if (args.apply && status === "clean") {
       try {
         await writeRowsForVersion({
@@ -453,8 +477,6 @@ async function main(): Promise<void> {
           error instanceof Error ? error.message : String(error)
         )
       }
-    } else if (args.apply && forceThis && status === "clean") {
-      // already handled
     }
   }
 
@@ -468,6 +490,8 @@ async function main(): Promise<void> {
     "parse_errors",
     "billing_rows",
     "delivery_rows",
+    "billing_shape",
+    "delivery_shape",
   ]
   const csvLines = [
     header.join(","),
@@ -482,6 +506,8 @@ async function main(): Promise<void> {
         csvEscape(r.parse_errors),
         r.billing_rows,
         r.delivery_rows,
+        r.billing_shape,
+        r.delivery_shape,
       ].join(",")
     ),
   ]
@@ -495,6 +521,8 @@ async function main(): Promise<void> {
     anomaly: summary.anomaly,
     knownDup: summary.knownDup,
     skippedMigrated: summary.skippedMigrated,
+    skippedAsymmetric: summary.skippedAsymmetric,
+    skippedEmpty: summary.skippedEmpty,
     parseFailure: summary.parseFailure,
     amountMismatch: summary.amountMismatch,
     rounding: summary.rounding,
@@ -511,6 +539,8 @@ async function main(): Promise<void> {
   console.log(`anomaly:     ${summary.anomaly}`)
   console.log(`known-dup:   ${summary.knownDup}`)
   console.log(`skipped:     ${summary.skippedMigrated} (already migrated)`)
+  console.log(`skipped-asymmetric: ${summary.skippedAsymmetric}`)
+  console.log(`skipped-empty:      ${summary.skippedEmpty}`)
   console.log(`  parse-failure:     ${summary.parseFailure}`)
   console.log(`  amount-mismatch:   ${summary.amountMismatch}`)
   console.log(`  rounding:          ${summary.rounding}`)
