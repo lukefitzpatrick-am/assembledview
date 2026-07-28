@@ -1,5 +1,5 @@
 /**
- * Plan C S2-P4b — classify backfill parse-failures (read-only; writes nothing).
+ * Plan C S2-P4b/P4d — classify backfill parse-failures (read-only; writes nothing to Xano).
  *
  * Usage:
  *   npx tsx scripts/diagnose-backfill-parse-failures.ts
@@ -10,13 +10,23 @@
  *   (a) genuinely no schedule — benign history
  *   (b) schedule present but unparseable — LIVE PARSER BUG
  *   (c) channel line items exist but no schedule
+ *
+ * S2-P4d: also writes parse-failure-diagnosis.csv with budget quantification,
+ * fee-snapshot presence, and a cross-ref against /api/cron/billing-integrity.
  */
 
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
 
+import axios from "axios"
+import { GET as billingIntegrityGet } from "@/app/api/cron/billing-integrity/route"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
-import { getXanoBaseUrl, xanoUrl } from "@/lib/api/xano"
+import {
+  getXanoBaseUrl,
+  parseXanoListPayload,
+  xanoAuthHeaderRecord,
+  xanoUrl,
+} from "@/lib/api/xano"
 import { CHANNEL_LINE_ITEM_ENDPOINTS } from "@/lib/api/fetchChannelLineItemsByMba"
 import {
   normalizeBillingScheduleToArray,
@@ -28,8 +38,13 @@ import {
 } from "@/lib/finance/computeCampaignFinancialsFromVersion"
 import { getBillingSchedule, getDeliverySchedule } from "@/lib/finance/normalizeFields"
 import { buildMbaToLatestVersionMap } from "@/lib/finance/relevantPlanVersions"
+import { classifyScheduleShape } from "@/lib/finance/rows/scheduleShape"
+import { roundMoney2 } from "@/lib/format/money"
 
 const MEDIA_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
+const CSV_PATH = resolve(process.cwd(), "parse-failure-diagnosis.csv")
+const XANO_TIMEOUT_MS = 60_000
+const PRODUCTION_TABLE = "media_plan_production"
 
 /** Latest-version parse-failures called out in S2-P4b brief. */
 const FOCUS_LATEST: ReadonlyArray<{ mba: string; version: number }> = [
@@ -58,6 +73,20 @@ type RawPresence =
   | "non_empty_unparseable"
 
 type FailureClass = "a_benign_empty" | "b_parser_bug" | "c_channel_no_schedule"
+type CsvClass = "a" | "b" | "c"
+
+type ChannelAgg = {
+  channel_row_count: number
+  channel_tables_hit: string[]
+  sum_channel_budget: number
+  /** Per-table field used for the sum (budget vs buy_amount). */
+  budget_fields_by_table: Map<string, string>
+  ambiguous_tables: string[]
+  production_row_count: number
+  sum_production_budget: number
+  /** Full rows for jayco016 v4 dump. */
+  rowsByTable: Map<string, Array<Record<string, unknown>>>
+}
 
 type DiagRow = {
   mba: string
@@ -68,6 +97,8 @@ type DiagRow = {
   is_focus_latest: boolean
   billing_presence: RawPresence
   delivery_presence: RawPresence
+  billing_shape: string
+  delivery_shape: string
   billing_preview: string
   delivery_preview: string
   billing_choke_shape: string
@@ -75,6 +106,18 @@ type DiagRow = {
   versionHasChannelLineItems: boolean
   hasChannelTableRows: boolean
   class: FailureClass
+  csv_class: CsvClass
+  channel_row_count: number
+  channel_tables_hit: string
+  sum_channel_budget: number
+  budget_field_note: string
+  production_row_count: number
+  sum_production_budget: number
+  has_mba_fee_snapshot: boolean
+  created_at: string
+  updated_at: string
+  in_integrity_findings: boolean
+  integrity_kinds: string
 }
 
 function loadEnvLocal(): void {
@@ -102,6 +145,88 @@ function parseArgs(argv: string[]): { mbaFilter: string | null } {
     if (arg.startsWith("--mba=")) mbaFilter = arg.slice("--mba=".length).trim()
   }
   return { mbaFilter }
+}
+
+function csvEscape(value: string): string {
+  if (/[",\n\r]/.test(value)) return `"${value.replace(/"/g, '""')}"`
+  return value
+}
+
+function parseMoney(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return roundMoney2(value)
+  const n = parseFloat(String(value ?? "").replace(/[^0-9.-]/g, ""))
+  return roundMoney2(Number.isFinite(n) ? n : 0)
+}
+
+/**
+ * Channel money lives primarily in `bursts_json[].budget` (currency strings).
+ * Fallbacks: top-level `budget`, then `buy_amount`/`buyAmount`.
+ */
+function sumBurstsJsonBudget(raw: unknown): number {
+  let bursts: unknown = raw
+  if (typeof bursts === "string") {
+    const t = bursts.trim()
+    if (!t) return 0
+    try {
+      bursts = JSON.parse(t) as unknown
+    } catch {
+      return 0
+    }
+  }
+  if (!Array.isArray(bursts)) return 0
+  let sum = 0
+  for (const burst of bursts) {
+    if (!burst || typeof burst !== "object") continue
+    const b = burst as Record<string, unknown>
+    // Prefer budget (line total); mediaAmount is net-of-fee and understates.
+    sum += parseMoney(b.budget ?? b.mediaAmount ?? b.media_amount)
+  }
+  return roundMoney2(sum)
+}
+
+function rowBudgetAmount(
+  row: Record<string, unknown>,
+  table: string
+): { amount: number; field: string; ambiguous: boolean } {
+  const burstsSum = sumBurstsJsonBudget(row.bursts_json ?? row.burstsJson)
+  if (burstsSum > 0) {
+    const topBudget = parseMoney(row.budget)
+    const ambiguous = topBudget > 0 && Math.abs(topBudget - burstsSum) > 0.01
+    return {
+      amount: burstsSum,
+      field: "bursts_json[].budget",
+      ambiguous,
+    }
+  }
+
+  const budget = parseMoney(row.budget)
+  const buy = parseMoney(row.buy_amount ?? row.buyAmount)
+  if (budget > 0 && buy > 0 && Math.abs(budget - buy) > 0.01) {
+    return {
+      amount: budget,
+      field: "budget",
+      ambiguous: true,
+    }
+  }
+  if (row.budget != null && String(row.budget).trim() !== "") {
+    return { amount: budget, field: "budget", ambiguous: false }
+  }
+  if (buy !== 0 || row.buy_amount != null || row.buyAmount != null) {
+    return { amount: buy, field: "buy_amount", ambiguous: false }
+  }
+  // Production sometimes stores unit cost × qty without a budget field.
+  if (table === PRODUCTION_TABLE) {
+    const amount = parseMoney(row.amount)
+    const rate = parseMoney(row.rate ?? row.unit_cost ?? row.unitCost)
+    if (amount > 0 && rate > 0) {
+      return {
+        amount: roundMoney2(amount * rate),
+        field: "amount*rate(ambiguous)",
+        ambiguous: true,
+      }
+    }
+  }
+  return { amount: 0, field: "none", ambiguous: false }
 }
 
 function previewRaw(raw: unknown, max = 200): string {
@@ -165,7 +290,6 @@ function classifyPresence(raw: unknown): {
   if (Array.isArray(raw) && raw.length === 0) {
     return { presence: "empty_array", choke: "" }
   }
-  // String that JSON-parses to [] → treat as empty_array for classification.
   if (typeof raw === "string") {
     try {
       const parsed = JSON.parse(raw.trim()) as unknown
@@ -181,7 +305,7 @@ function classifyPresence(raw: unknown): {
         return { presence: "empty_array", choke: "" }
       }
     } catch {
-      // fall through to unparseable
+      // fall through
     }
   }
 
@@ -190,12 +314,7 @@ function classifyPresence(raw: unknown): {
   if (normalized && months && months.length > 0) {
     return { presence: "non_empty_ok", choke: "" }
   }
-  // Present but normalize/parse failed, OR normalize succeeded with months that
-  // somehow didn't survive (shouldn't happen) — treat as unparseable when raw
-  // clearly has content.
   if (normalized == null || months == null || months.length === 0) {
-    // Empty after normalize — if raw was a wrapper with empty months, already
-    // handled above. Remaining = live parser choke.
     return { presence: "non_empty_unparseable", choke: chokeShape(raw) }
   }
   return { presence: "non_empty_ok", choke: "" }
@@ -207,33 +326,10 @@ function focusKey(mba: string, version: number): string {
 
 const FOCUS_SET = new Set(FOCUS_LATEST.map((f) => focusKey(f.mba, f.version)))
 
-async function loadVersionIdsWithChannelRows(
-  knownVersionIds: Set<number>
-): Promise<Set<number>> {
-  const withRows = new Set<number>()
-  for (const table of CHANNEL_LINE_ITEM_ENDPOINTS) {
-    try {
-      const rows = await fetchAllXanoPages(
-        xanoUrl(table, [...MEDIA_KEYS]),
-        {},
-        `diagnose-parse:${table}`,
-        100,
-        40
-      )
-      for (const row of rows) {
-        const vid = Number(
-          (row as { media_plan_version?: unknown }).media_plan_version
-        )
-        if (Number.isFinite(vid) && knownVersionIds.has(vid)) withRows.add(vid)
-      }
-    } catch (e) {
-      console.error(
-        `[diagnose] channel scan skipped ${table}:`,
-        e instanceof Error ? e.message : String(e)
-      )
-    }
-  }
-  return withRows
+function toCsvClass(c: FailureClass): CsvClass {
+  if (c === "b_parser_bug") return "b"
+  if (c === "c_channel_no_schedule") return "c"
+  return "a"
 }
 
 function classifyFailure(args: {
@@ -254,13 +350,169 @@ function classifyFailure(args: {
   return "a_benign_empty"
 }
 
+function emptyAgg(): ChannelAgg {
+  return {
+    channel_row_count: 0,
+    channel_tables_hit: [],
+    sum_channel_budget: 0,
+    budget_fields_by_table: new Map(),
+    ambiguous_tables: [],
+    production_row_count: 0,
+    sum_production_budget: 0,
+    rowsByTable: new Map(),
+  }
+}
+
+async function loadChannelAggregates(
+  knownVersionIds: Set<number>
+): Promise<Map<number, ChannelAgg>> {
+  const byVersion = new Map<number, ChannelAgg>()
+
+  for (const table of CHANNEL_LINE_ITEM_ENDPOINTS) {
+    try {
+      const rows = await fetchAllXanoPages(
+        xanoUrl(table, [...MEDIA_KEYS]),
+        {},
+        `diagnose-parse:${table}`,
+        100,
+        40
+      )
+      for (const item of rows) {
+        if (!item || typeof item !== "object") continue
+        const row = item as Record<string, unknown>
+        const vid = Number(row.media_plan_version)
+        if (!Number.isFinite(vid) || !knownVersionIds.has(vid)) continue
+
+        let agg = byVersion.get(vid)
+        if (!agg) {
+          agg = emptyAgg()
+          byVersion.set(vid, agg)
+        }
+
+        const { amount, field, ambiguous } = rowBudgetAmount(row, table)
+        const isProduction = table === PRODUCTION_TABLE
+
+        if (isProduction) {
+          agg.production_row_count++
+          agg.sum_production_budget = roundMoney2(agg.sum_production_budget + amount)
+        } else {
+          agg.channel_row_count++
+          agg.sum_channel_budget = roundMoney2(agg.sum_channel_budget + amount)
+          if (!agg.channel_tables_hit.includes(table)) {
+            agg.channel_tables_hit.push(table)
+          }
+        }
+
+        const prevField = agg.budget_fields_by_table.get(table)
+        if (!prevField) agg.budget_fields_by_table.set(table, field)
+        else if (prevField !== field && !prevField.includes(field)) {
+          agg.budget_fields_by_table.set(table, `${prevField}|${field}`)
+        }
+        if (ambiguous && !agg.ambiguous_tables.includes(table)) {
+          agg.ambiguous_tables.push(table)
+        }
+
+        const list = agg.rowsByTable.get(table) ?? []
+        list.push(row)
+        agg.rowsByTable.set(table, list)
+      }
+    } catch (e) {
+      console.error(
+        `[diagnose] channel scan skipped ${table}:`,
+        e instanceof Error ? e.message : String(e)
+      )
+    }
+  }
+  return byVersion
+}
+
+async function versionsWithFeeSnapshots(
+  versionIds: number[]
+): Promise<Set<number>> {
+  const out = new Set<number>()
+  if (versionIds.length === 0) return out
+  let baseUrl: string
+  try {
+    baseUrl = getXanoBaseUrl([...MEDIA_KEYS])
+  } catch {
+    return out
+  }
+  const auth = xanoAuthHeaderRecord()
+  // Batch by querying each version — fee snapshot volume is small for the 68.
+  for (const versionId of versionIds) {
+    try {
+      const response = await axios.get(`${baseUrl}/mba_fee_snapshots`, {
+        params: { media_plan_version: versionId, page: 1, per_page: 50 },
+        headers: auth,
+        timeout: XANO_TIMEOUT_MS,
+        validateStatus: (s) => s >= 200 && s < 500,
+      })
+      if (response.status >= 400) continue
+      const rows = parseXanoListPayload(response.data) as Array<{
+        media_plan_version?: unknown
+      }>
+      if (
+        rows.some((r) => Number(r.media_plan_version) === versionId) ||
+        rows.length > 0
+      ) {
+        out.add(versionId)
+      }
+    } catch {
+      // soft-fail
+    }
+  }
+  return out
+}
+
+async function runIntegrityCron(): Promise<{
+  findings: Array<{ version: number | null; kind: string; mba_number?: string }>
+  kindCounts: Record<string, number>
+  detectClassC: boolean
+}> {
+  const secret = process.env.CRON_SECRET?.trim()
+  if (!secret) {
+    console.error("[diagnose] CRON_SECRET missing — skipping integrity route call")
+    return { findings: [], kindCounts: {}, detectClassC: false }
+  }
+  const req = new Request("http://localhost/api/cron/billing-integrity", {
+    headers: { "x-cron-secret": secret },
+  })
+  const res = await billingIntegrityGet(req)
+  const body = (await res.json()) as {
+    ok?: boolean
+    findings?: Array<{ version?: number | null; kind?: string; mba_number?: string }>
+    kindCounts?: Record<string, number>
+    error?: string
+  }
+  if (!res.ok || !body.ok) {
+    console.error(
+      `[diagnose] billing-integrity failed status=${res.status}`,
+      body.error ?? body
+    )
+    return { findings: [], kindCounts: {}, detectClassC: false }
+  }
+  const findings = (body.findings ?? []).map((f) => ({
+    version: f.version ?? null,
+    kind: String(f.kind ?? ""),
+    mba_number: f.mba_number,
+  }))
+  // Tripwire kinds: duplicate | version_less | orphan | checksum_* | writer_bypass | migrated_empty_side
+  // None encode "channel rows exist but schedule empty".
+  const detectClassC = false
+  return {
+    findings,
+    kindCounts: body.kindCounts ?? {},
+    detectClassC,
+  }
+}
+
 async function main(): Promise<void> {
   loadEnvLocal()
   const { mbaFilter } = parseArgs(process.argv.slice(2))
   getXanoBaseUrl([...MEDIA_KEYS]) // validate env early
 
   console.error(
-    `[diagnose-parse] mba=${mbaFilter ?? "*"} (read-only; no writes)`
+    `[diagnose-parse] mba=${mbaFilter ?? "*"} (read-only; no Xano writes)`
   )
 
   const masters = await fetchAllXanoPages(
@@ -297,10 +549,26 @@ async function main(): Promise<void> {
     if (Number.isFinite(id)) knownVersionIds.add(id)
   }
 
-  console.error("[diagnose-parse] scanning channel tables for line-item presence…")
-  const channelVersionIds = await loadVersionIdsWithChannelRows(knownVersionIds)
+  console.error("[diagnose-parse] scanning channel tables (counts + budgets)…")
+  const channelByVersion = await loadChannelAggregates(knownVersionIds)
   console.error(
-    `[diagnose-parse] versions with channel rows: ${channelVersionIds.size}`
+    `[diagnose-parse] versions with channel/production rows: ${channelByVersion.size}`
+  )
+
+  console.error("[diagnose-parse] running billing-integrity cron against same env…")
+  const integrity = await runIntegrityCron()
+  const integrityByVersion = new Map<number, Set<string>>()
+  for (const f of integrity.findings) {
+    if (f.version == null) continue
+    let set = integrityByVersion.get(f.version)
+    if (!set) {
+      set = new Set()
+      integrityByVersion.set(f.version, set)
+    }
+    set.add(f.kind)
+  }
+  console.error(
+    `[diagnose-parse] integrity findings=${integrity.findings.length} kinds=${JSON.stringify(integrity.kindCounts)}`
   )
 
   const rows: DiagRow[] = []
@@ -325,11 +593,30 @@ async function main(): Promise<void> {
     // empty raw schedules OR hydrate returns null (neither schedule usable).
     if (!bothEmptyRaw && financials != null) continue
 
+    const agg = channelByVersion.get(versionId)
     const hasEmbedded = versionHasChannelLineItems(version)
-    const hasTableRows = channelVersionIds.has(versionId)
+    const hasTableRows = (agg?.channel_row_count ?? 0) + (agg?.production_row_count ?? 0) > 0
     const latestVn = latestByMba.get(mba.toUpperCase())
     const isLatest = latestVn != null && latestVn === versionNumber
     const isFocus = FOCUS_SET.has(focusKey(mba, versionNumber))
+    const failureClass = classifyFailure({
+      billing: billing.presence,
+      delivery: delivery.presence,
+      hasChannelEmbedded: hasEmbedded,
+      hasChannelTableRows: hasTableRows,
+    })
+
+    const fieldNotes: string[] = []
+    if (agg) {
+      for (const [table, field] of agg.budget_fields_by_table) {
+        fieldNotes.push(`${table}:${field}`)
+      }
+      if (agg.ambiguous_tables.length > 0) {
+        fieldNotes.push(`AMBIGUOUS:${agg.ambiguous_tables.join("|")}`)
+      }
+    }
+
+    const kinds = integrityByVersion.get(versionId)
 
     rows.push({
       mba,
@@ -340,18 +627,27 @@ async function main(): Promise<void> {
       is_focus_latest: isFocus,
       billing_presence: billing.presence,
       delivery_presence: delivery.presence,
+      billing_shape: classifyScheduleShape(billingRaw),
+      delivery_shape: classifyScheduleShape(deliveryRaw),
       billing_preview: previewRaw(billingRaw),
       delivery_preview: previewRaw(deliveryRaw),
       billing_choke_shape: billing.choke,
       delivery_choke_shape: delivery.choke,
       versionHasChannelLineItems: hasEmbedded,
       hasChannelTableRows: hasTableRows,
-      class: classifyFailure({
-        billing: billing.presence,
-        delivery: delivery.presence,
-        hasChannelEmbedded: hasEmbedded,
-        hasChannelTableRows: hasTableRows,
-      }),
+      class: failureClass,
+      csv_class: toCsvClass(failureClass),
+      channel_row_count: agg?.channel_row_count ?? 0,
+      channel_tables_hit: (agg?.channel_tables_hit ?? []).join(";"),
+      sum_channel_budget: agg?.sum_channel_budget ?? 0,
+      budget_field_note: fieldNotes.join(";"),
+      production_row_count: agg?.production_row_count ?? 0,
+      sum_production_budget: agg?.sum_production_budget ?? 0,
+      has_mba_fee_snapshot: false, // filled below
+      created_at: String(version.created_at ?? ""),
+      updated_at: String(version.updated_at ?? ""),
+      in_integrity_findings: kinds != null && kinds.size > 0,
+      integrity_kinds: kinds ? [...kinds].sort().join(";") : "",
     })
   }
 
@@ -360,6 +656,12 @@ async function main(): Promise<void> {
     if (mba !== 0) return mba
     return a.version_number - b.version_number || a.version_id - b.version_id
   })
+
+  console.error("[diagnose-parse] checking mba_fee_snapshots for parse-failure versions…")
+  const feeSet = await versionsWithFeeSnapshots(rows.map((r) => r.version_id))
+  for (const r of rows) {
+    r.has_mba_fee_snapshot = feeSet.has(r.version_id)
+  }
 
   const counts = {
     total: rows.length,
@@ -370,6 +672,67 @@ async function main(): Promise<void> {
     mbaLatest: rows.filter((r) => r.is_mba_latest).length,
   }
 
+  const classC = rows.filter((r) => r.class === "c_channel_no_schedule")
+  const classCMoney = roundMoney2(
+    classC.reduce((s, r) => s + r.sum_channel_budget + r.sum_production_budget, 0)
+  )
+  const moneyByStatus = new Map<string, { n: number; money: number }>()
+  for (const r of classC) {
+    const st = r.campaign_status
+    const cur = moneyByStatus.get(st) ?? { n: 0, money: 0 }
+    cur.n++
+    cur.money = roundMoney2(cur.money + r.sum_channel_budget + r.sum_production_budget)
+    moneyByStatus.set(st, cur)
+  }
+
+  const header = [
+    "mba",
+    "version",
+    "version_id",
+    "campaign_status",
+    "class",
+    "billing_shape",
+    "delivery_shape",
+    "channel_row_count",
+    "channel_tables_hit",
+    "sum_channel_budget",
+    "budget_field_note",
+    "production_row_count",
+    "sum_production_budget",
+    "has_mba_fee_snapshot",
+    "created_at",
+    "updated_at",
+    "in_integrity_findings",
+    "integrity_kinds",
+  ]
+  const csvLines = [
+    header.join(","),
+    ...rows.map((r) =>
+      [
+        r.mba,
+        String(r.version_number),
+        String(r.version_id),
+        csvEscape(r.campaign_status),
+        r.csv_class,
+        r.billing_shape,
+        r.delivery_shape,
+        String(r.channel_row_count),
+        csvEscape(r.channel_tables_hit),
+        String(r.sum_channel_budget),
+        csvEscape(r.budget_field_note),
+        String(r.production_row_count),
+        String(r.sum_production_budget),
+        r.has_mba_fee_snapshot ? "true" : "false",
+        csvEscape(r.created_at),
+        csvEscape(r.updated_at),
+        r.in_integrity_findings ? "true" : "false",
+        csvEscape(r.integrity_kinds),
+      ].join(",")
+    ),
+  ]
+  writeFileSync(CSV_PATH, csvLines.join("\n"), "utf8")
+  console.error(`[diagnose-parse] wrote ${CSV_PATH} (${rows.length} rows)`)
+
   console.log("")
   console.log("=== parse-failure diagnostic ===")
   console.log(`total parse-failures: ${counts.total}`)
@@ -379,6 +742,50 @@ async function main(): Promise<void> {
   console.log(`  of which MBA latest version:        ${counts.mbaLatest}`)
   console.log(`  of which S2-P4b focus latest list:  ${counts.focusLatest}`)
   console.log("")
+  console.log("=== S2-P4d class-(c) money ===")
+  console.log(`class-(c) versions: ${classC.length}`)
+  console.log(
+    `total money in channel+production rows: ${classCMoney.toFixed(2)}`
+  )
+  console.log("by campaign_status:")
+  for (const [st, v] of [...moneyByStatus.entries()].sort((a, b) =>
+    a[0].localeCompare(b[0])
+  )) {
+    console.log(`  ${st}: n=${v.n} money=${v.money.toFixed(2)}`)
+  }
+  console.log("")
+  console.log("=== budget field convention ===")
+  console.log(
+    "Primary: sum of bursts_json[].budget (channel line money). Fallback: top-level budget, then buy_amount. Production may use amount*rate (flagged ambiguous)."
+  )
+  console.log(
+    "See budget_field_note column for per-table field + AMBIGUOUS:… tags."
+  )
+  console.log("")
+  console.log("=== integrity tripwire cross-ref ===")
+  console.log(`integrity kindCounts: ${JSON.stringify(integrity.kindCounts)}`)
+  const classCInIntegrity = classC.filter((r) => r.in_integrity_findings)
+  console.log(
+    `class-(c) also in integrity findings: ${classCInIntegrity.length}/${classC.length}`
+  )
+  if (classCInIntegrity.length > 0) {
+    for (const r of classCInIntegrity.slice(0, 20)) {
+      console.log(
+        `  ${r.mba} v${r.version_number} id=${r.version_id} kinds=${r.integrity_kinds}`
+      )
+    }
+  }
+  console.log("")
+  console.log(
+    "Does the tripwire detect class-(c) (channel rows, empty schedule)? NO."
+  )
+  console.log(
+    "Current finding classes are duplicate / version_less / orphan (+ rows checksum kinds)."
+  )
+  console.log(
+    "None encode 'version has channel rows but no usable schedule' — that is a gap."
+  )
+  console.log(`detectClassC=${integrity.detectClassC}`)
 
   // Per-row dump
   for (const r of rows) {
@@ -393,15 +800,18 @@ async function main(): Promise<void> {
       `--- ${r.mba} v${r.version_number} id=${r.version_id} status=${r.campaign_status} [${tags}]`
     )
     console.log(
-      `  billing:  ${r.billing_presence}${r.billing_choke_shape ? ` | choke: ${r.billing_choke_shape}` : ""}`
+      `  billing:  ${r.billing_presence} shape=${r.billing_shape}${r.billing_choke_shape ? ` | choke: ${r.billing_choke_shape}` : ""}`
     )
     console.log(`  billing preview: ${r.billing_preview}`)
     console.log(
-      `  delivery: ${r.delivery_presence}${r.delivery_choke_shape ? ` | choke: ${r.delivery_choke_shape}` : ""}`
+      `  delivery: ${r.delivery_presence} shape=${r.delivery_shape}${r.delivery_choke_shape ? ` | choke: ${r.delivery_choke_shape}` : ""}`
     )
     console.log(`  delivery preview: ${r.delivery_preview}`)
     console.log(
-      `  versionHasChannelLineItems=${r.versionHasChannelLineItems} hasChannelTableRows=${r.hasChannelTableRows}`
+      `  versionHasChannelLineItems=${r.versionHasChannelLineItems} hasChannelTableRows=${r.hasChannelTableRows}` +
+        ` channelRows=${r.channel_row_count} channelBudget=${r.sum_channel_budget}` +
+        ` prodRows=${r.production_row_count} prodBudget=${r.sum_production_budget}` +
+        ` feeSnap=${r.has_mba_fee_snapshot}`
     )
   }
 
@@ -421,9 +831,6 @@ async function main(): Promise<void> {
     }
   }
 
-  // Related: deliverySchedule = {} (or billing) that chokes normalize while the
-  // other side still hydrates — not a backfill parse-failure, but a live parser
-  // footgun (empty object ≠ empty array).
   console.log("")
   console.log(
     "=== related: non-empty-unparseable on a version that still hydrates (not in the 68) ==="
@@ -472,11 +879,65 @@ async function main(): Promise<void> {
         `${r.mba} v${r.version_number} id=${r.version_id} → ${r.class}` +
           ` billing=${r.billing_presence} delivery=${r.delivery_presence}` +
           ` embeddedLines=${r.versionHasChannelLineItems} tableLines=${r.hasChannelTableRows}` +
-          ` status=${r.campaign_status} isMbaLatest=${r.is_mba_latest}`
+          ` status=${r.campaign_status} isMbaLatest=${r.is_mba_latest}` +
+          ` channelBudget=${r.sum_channel_budget} prodBudget=${r.sum_production_budget}`
       )
     }
   }
 
+  // jayco016 v4 full detail
+  console.log("")
+  console.log("=== jayco016 v4 full detail ===")
+  const jaycoVersion = versions.find(
+    (v) =>
+      String(v.mba_number ?? "").trim().toUpperCase() === "JAYCO016" &&
+      Number(v.version_number) === 4
+  )
+  if (!jaycoVersion) {
+    console.log("(jayco016 v4 not found among versions)")
+  } else {
+    const vid = Number(jaycoVersion.id)
+    const diag = rows.find((r) => r.version_id === vid)
+    const financials = computeCampaignFinancialsFromVersion(jaycoVersion)
+    console.log(
+      `version_id=${vid} campaign_status=${String(jaycoVersion.campaign_status ?? "")}` +
+        ` billing_shape=${classifyScheduleShape(getBillingSchedule(jaycoVersion))}` +
+        ` delivery_shape=${classifyScheduleShape(getDeliverySchedule(jaycoVersion))}`
+    )
+    console.log(
+      `computeCampaignFinancialsFromVersion: ${financials == null ? "null (finance shows nothing)" : "hydrated"}`
+    )
+    if (diag) {
+      console.log(
+        `parse-failure class=${diag.class} channelRows=${diag.channel_row_count}` +
+          ` channelBudget=${diag.sum_channel_budget} prodRows=${diag.production_row_count}` +
+          ` prodBudget=${diag.sum_production_budget} feeSnap=${diag.has_mba_fee_snapshot}` +
+          ` integrity=${diag.integrity_kinds || "(none)"}`
+      )
+    }
+    const agg = channelByVersion.get(vid)
+    if (!agg || (agg.channel_row_count === 0 && agg.production_row_count === 0)) {
+      console.log("(no channel/production rows for this version id)")
+    } else {
+      for (const [table, tableRows] of [...agg.rowsByTable.entries()].sort((a, b) =>
+        a[0].localeCompare(b[0])
+      )) {
+        console.log(`  table=${table} rows=${tableRows.length}`)
+        for (const row of tableRows) {
+          const { amount, field, ambiguous } = rowBudgetAmount(row, table)
+          console.log(
+            `    id=${row.id} line_item_id=${row.line_item_id ?? ""}` +
+              ` amount=${amount} via=${field}${ambiguous ? " AMBIGUOUS" : ""}` +
+              ` budget=${JSON.stringify(row.budget)} buy_amount=${JSON.stringify(row.buy_amount ?? row.buyAmount)}` +
+              ` bursts_json=${previewRaw(row.bursts_json ?? row.burstsJson, 160)}`
+          )
+        }
+      }
+    }
+  }
+
+  console.log("")
+  console.log(`csv: ${CSV_PATH}`)
 }
 
 main().catch((error) => {
