@@ -24,8 +24,9 @@ export default defineConfig({
   },
   test: {
     include: [
-      "lib/billing/__tests__/clientPaysMediaFilter.test.ts",
-      "lib/billing/__tests__/billingScheduleUtils.test.ts",
+    "lib/billing/__tests__/clientPaysMediaFilter.test.ts",
+    "lib/billing/__tests__/billingScheduleUtils.test.ts",
+    "lib/billing/__tests__/integrityTripwire.test.ts",
       "lib/finance/__tests__/panelIndicatorsFromCampaignFinancials.test.ts",
       "lib/mediaplan/__tests__/channelHydrationGate.test.ts",
       "lib/mediaplan/__tests__/lineItemIdentity.test.ts",

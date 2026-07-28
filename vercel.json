@@ -5,6 +5,10 @@
       "schedule": "0 19 * * *"
     },
     {
+      "path": "/api/cron/billing-integrity",
+      "schedule": "0 17 * * *"
+    },
+    {
       "path": "/api/cron/ops-health",
       "schedule": "0 22 * * *"
     },
