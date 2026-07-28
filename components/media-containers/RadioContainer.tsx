@@ -57,6 +57,7 @@ import {
 } from "@/lib/billing/prorateInvestmentDisplay"
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { mintLineUid } from "@/lib/mediaplan/lineUid"
 import {
   assignStableLineItemNumbers,
   reassignLineItemNumbers,
@@ -530,6 +531,8 @@ export default function RadioContainer({
 
     const clone = {
       ...source,
+      line_uid: mintLineUid(),
+      lineUid: undefined,
       lineItemId: newId,
       line_item_id: newId,
       line_item: lineNumber,

@@ -3,6 +3,7 @@ import type {
   MappedLineItem,
   MapperResult,
 } from "./types"
+import { ensureLineUids } from "@/lib/mediaplan/lineUid"
 
 function boolField(fields: Record<string, string>, key: string): boolean {
   const v = (fields[key] ?? "").trim().toLowerCase()
@@ -104,9 +105,11 @@ export function mapperResultToFormItems(
   const paid = result.line_items.filter(
     (li) => li.channel === channel && !li.needs_review,
   )
-  return paid.map((li, i) =>
+  const mapped = paid.map((li, i) =>
     channel === "radio" ? mappedRadioToFormItem(li, i) : mappedOohToFormItem(li, i),
   )
+  // Plan C S2-P1 — mint line_uid at AVA creation (never remint later).
+  return ensureLineUids(mapped)
 }
 
 export function summariseMapperResult(result: MapperResult): string {

@@ -104,6 +104,7 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { mintLineUid } from "@/lib/mediaplan/lineUid"
 import { assignStableLineItemNumbers, normalizeLineItemsForSave, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   coerceBuyTypeWithDevWarn,
@@ -859,6 +860,8 @@ const handleAddNewNewspaperAdSize = async () => {
 
     const clone = {
       ...source,
+      line_uid: mintLineUid(),
+      lineUid: undefined,
       lineItemId: newId,
       line_item_id: newId,
       line_item: nextLineItemNumber,

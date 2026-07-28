@@ -58,6 +58,7 @@ import {
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatMoney } from "@/lib/format/money"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { mintLineUid } from "@/lib/mediaplan/lineUid"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   getMediaTypeThemeHex,
@@ -783,6 +784,8 @@ export default function IntegrationContainer({
     if (!source) return
     const clone = {
       ...source,
+      line_uid: mintLineUid(),
+      lineUid: undefined,
       // Path A: a duplicate is a NEW line - clear identity so assignStableLineItemNumbers
       // mints a fresh number above max at save (source keeps its id).
       line_item: undefined,

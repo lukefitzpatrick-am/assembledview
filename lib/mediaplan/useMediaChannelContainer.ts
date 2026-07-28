@@ -21,6 +21,7 @@ import {
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
+import { mintLineUid, pickLineUid } from "@/lib/mediaplan/lineUid"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
@@ -437,6 +438,8 @@ export function useMediaChannelContainer(
 
       const clone = {
         ...source,
+        line_uid: mintLineUid(),
+        lineUid: undefined,
         bursts: (source.bursts || []).map((burst: any) => ({
           ...burst,
           startDate: coerceBurstDateLocal(burst?.startDate) ?? new Date(),
@@ -469,6 +472,7 @@ export function useMediaChannelContainer(
           lineItem: item.lineItem ?? item.line_item,
           line_item_id: item.line_item_id || item.lineItemId,
           lineItemId: item.line_item_id || item.lineItemId,
+          ...(pickLineUid(item) ? { line_uid: pickLineUid(item) } : {}),
           bursts:
             parsedBursts.length > 0
               ? parsedBursts.map((burst: any) => ({
@@ -544,6 +548,7 @@ export function useMediaChannelContainer(
         mp_plannumber: "",
         ...mapFormToApi(config.fieldMap, lineItem),
         line_item_id: lineItem.line_item_id,
+        ...(pickLineUid(lineItem) ? { line_uid: pickLineUid(lineItem) } : {}),
         bursts: lineItem.bursts,
         feePct: feePct || 0,
         line_item: lineItem.line_item,

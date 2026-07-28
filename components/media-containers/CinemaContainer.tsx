@@ -58,6 +58,7 @@ import MediaContainerTimelineCollapsible from "@/components/media-containers/Med
 import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
 import { getMediaTypeThemeHex } from "@/lib/mediaplan/mediaTypeAccents"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { mintLineUid } from "@/lib/mediaplan/lineUid"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { ComboboxModalProvider } from "@/components/ui/combobox"
 import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
@@ -514,6 +515,8 @@ export default function CinemaContainer({
 
     const clone = {
       ...source,
+      line_uid: mintLineUid(),
+      lineUid: undefined,
       lineItemId: newId,
       line_item_id: newId,
       line_item: lineNumber,

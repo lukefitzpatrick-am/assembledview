@@ -114,6 +114,7 @@ import {
 } from "@/lib/mediaplan/expertModeSwitch"
 import type { MediaTypeThemeKey } from "@/lib/mediaplan/mediaTypeAccents"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
+import { mintLineUid, pickLineUid } from "@/lib/mediaplan/lineUid"
 import {
   bvodFormSchema,
   cinemaFormSchema,
@@ -208,6 +209,8 @@ export function buildDefaultLineItem(fieldMap: FieldMapEntry[]): any {
     if (!entry.inDefaults) continue
     out[entry.camel] = entry.default
   }
+  // Plan C S2-P1 — mint once at creation; never remint in ensureLineUids.
+  out.line_uid = mintLineUid()
   return out
 }
 
@@ -231,6 +234,8 @@ export function mapHydrationToForm(
       out[entry.camel] = (raw as string | undefined) || ""
     }
   }
+  const existingUid = pickLineUid(src)
+  if (existingUid) out.line_uid = existingUid
   return out
 }
 
@@ -253,6 +258,8 @@ export function mapFormToApi(
       out[entry.snake] = (raw as string | undefined) || ""
     }
   }
+  const existingUid = pickLineUid(src)
+  if (existingUid) out.line_uid = existingUid
   return out
 }
 

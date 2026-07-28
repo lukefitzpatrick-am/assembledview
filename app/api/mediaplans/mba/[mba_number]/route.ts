@@ -33,6 +33,7 @@ import {
 } from "@/lib/finance/feeSnapshots"
 import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
 import { appendPartialApprovalToBillingSchedule } from "@/lib/mediaplan/partialMba"
+import { ensureLineUids } from "@/lib/mediaplan/lineUid"
 import {
   isUnpublishedStagedVersion,
   pickPublishedVersionRow,
@@ -1522,11 +1523,15 @@ export async function PUT(
     let inputsHashToPersist: string | undefined
     let rebillNeededToPersist: boolean | undefined
 
-    const financialLineItems = (Array.isArray(data.lineItems)
+    const financialLineItemsRaw = (Array.isArray(data.lineItems)
       ? data.lineItems
       : Array.isArray(data.financialLineItems)
         ? data.financialLineItems
-        : null) as LineItemInput[] | null
+        : null) as Array<LineItemInput & Record<string, unknown>> | null
+    // Plan C S2-P1 — defensive: mint line_uid only where absent before writes.
+    const financialLineItems = financialLineItemsRaw
+      ? (ensureLineUids(financialLineItemsRaw) as LineItemInput[])
+      : null
     const liveFeeLoading = (data.feeLoading ?? data.fee_loading ?? null) as FeeLoading | null
     // Plan C S1-P3 — draft overwrite reuses frozen rates; increment uses live (frozen after create).
     let feeLoading = liveFeeLoading

@@ -54,6 +54,7 @@ import {
   pickLineItemNumber,
   sortLineItemsByLineItemNumber,
 } from "@/lib/mediaplan/lineItemIds"
+import { mintLineUid } from "@/lib/mediaplan/lineUid"
 import {
   assignStableLineItemNumbers,
   reassignOohLineItemNumbers,
@@ -453,6 +454,8 @@ export default function OohContainer({
 
     const clone = {
       ...source,
+      line_uid: mintLineUid(),
+      lineUid: undefined,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),

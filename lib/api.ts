@@ -14,6 +14,7 @@ import { replaceChannelLineItems } from "@/lib/api/replaceChannelLineItems"
 import { extractAndFormatBursts } from "@/lib/mediaplan/formatBurstsForPersist"
 import { formatProductionBurstForPersist } from "@/lib/mediaplan/resolveProductionBurstBudget"
 import { getBooleanField } from "@/lib/util/getBooleanField"
+import { stampLineUidsFromSources } from "@/lib/mediaplan/lineUid"
 
 export { replaceChannelLineItems }
 
@@ -1653,7 +1654,7 @@ export async function saveTelevisionLineItems(mediaPlanVersionId: number, mbaNum
       return televisionData;
     });
 
-    return await replaceChannelLineItems("media_plan_television", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_television", mediaPlanVersionId, stampLineUidsFromSources(rows, televisionLineItems || []), mbaNumber);
   } catch (error) {
     console.error("Error saving television line items:", error);
     throw error;
@@ -1713,7 +1714,7 @@ export async function saveNewspaperLineItems(mediaPlanVersionId: number, mbaNumb
       return newspaperData;
     });
 
-    return await replaceChannelLineItems("media_plan_newspaper", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_newspaper", mediaPlanVersionId, stampLineUidsFromSources(rows, newspaperLineItems || []), mbaNumber);
   } catch (error) {
     console.error("Error saving newspaper line items:", error);
     throw error;
@@ -1807,7 +1808,7 @@ export async function saveSocialMediaLineItems(mediaPlanVersionId: number, mbaNu
       return socialMediaData;
     });
 
-    return await replaceChannelLineItems("media_plan_social", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_social", mediaPlanVersionId, stampLineUidsFromSources(rows, socialMediaLineItems || []), mbaNumber);
   } catch (error) {
     console.error("Error saving social media line items:", error);
     throw error;
@@ -2847,7 +2848,7 @@ export async function saveProductionLineItems(
       return productionData
     })
 
-    return await replaceChannelLineItems("media_plan_production", mediaPlanVersionId, rows, mbaNumber)
+    return await replaceChannelLineItems("media_plan_production", mediaPlanVersionId, stampLineUidsFromSources(rows, productionLineItems || []), mbaNumber)
   } catch (error) {
     console.error('Error saving production line items:', error)
     throw error
@@ -3097,7 +3098,7 @@ export async function saveRadioLineItems(mediaPlanVersionId: number, mbaNumber: 
       return radioData;
     });
 
-    return await replaceChannelLineItems("media_plan_radio", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_radio", mediaPlanVersionId, stampLineUidsFromSources(rows, radioLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving radio line items:', error);
     throw error;
@@ -3138,7 +3139,7 @@ export async function saveMagazinesLineItems(mediaPlanVersionId: number, mbaNumb
       return magazinesData;
     });
 
-    return await replaceChannelLineItems("media_plan_magazines", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_magazines", mediaPlanVersionId, stampLineUidsFromSources(rows, magazinesLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving magazines line items:', error);
     throw error;
@@ -3180,7 +3181,7 @@ export async function saveOOHLineItems(mediaPlanVersionId: number, mbaNumber: st
       return oohData;
     });
 
-    return await replaceChannelLineItems("media_plan_ooh", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_ooh", mediaPlanVersionId, stampLineUidsFromSources(rows, oohLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving OOH line items:', error);
     throw error;
@@ -3222,7 +3223,7 @@ export async function saveCinemaLineItems(mediaPlanVersionId: number, mbaNumber:
       return cinemaData;
     });
 
-    return await replaceChannelLineItems("media_plan_cinema", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_cinema", mediaPlanVersionId, stampLineUidsFromSources(rows, cinemaLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving cinema line items:', error);
     throw error;
@@ -3263,7 +3264,7 @@ export async function saveDigitalDisplayLineItems(mediaPlanVersionId: number, mb
       return digitalDisplayData;
     });
 
-    return await replaceChannelLineItems("media_plan_digi_display", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_digi_display", mediaPlanVersionId, stampLineUidsFromSources(rows, digitalDisplayLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving digital display line items:', error);
     throw error;
@@ -3304,7 +3305,7 @@ export async function saveDigitalAudioLineItems(mediaPlanVersionId: number, mbaN
       return digitalAudioData;
     });
 
-    return await replaceChannelLineItems("media_plan_digi_audio", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_digi_audio", mediaPlanVersionId, stampLineUidsFromSources(rows, digitalAudioLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving digital audio line items:', error);
     throw error;
@@ -3347,7 +3348,7 @@ export async function saveDigitalVideoLineItems(mediaPlanVersionId: number, mbaN
       return digitalVideoData;
     });
 
-    return await replaceChannelLineItems("media_plan_digi_video", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_digi_video", mediaPlanVersionId, stampLineUidsFromSources(rows, digitalVideoLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving digital video line items:', error);
     throw error;
@@ -3390,7 +3391,7 @@ export async function saveBVODLineItems(mediaPlanVersionId: number, mbaNumber: s
       return bvodData;
     });
 
-    return await replaceChannelLineItems("media_plan_digi_bvod", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_digi_bvod", mediaPlanVersionId, stampLineUidsFromSources(rows, bvodLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving BVOD line items:', error);
     throw error;
@@ -3431,7 +3432,7 @@ export async function saveIntegrationLineItems(mediaPlanVersionId: number, mbaNu
       return integrationData;
     });
 
-    return await replaceChannelLineItems("media_plan_integrations", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_integrations", mediaPlanVersionId, stampLineUidsFromSources(rows, integrationLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving integration line items:', error);
     throw error;
@@ -3472,7 +3473,7 @@ export async function saveSearchLineItems(mediaPlanVersionId: number, mbaNumber:
       return searchData;
     });
 
-    return await replaceChannelLineItems("media_plan_search", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_search", mediaPlanVersionId, stampLineUidsFromSources(rows, searchLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving search line items:', error);
     throw error;
@@ -3514,7 +3515,7 @@ export async function saveProgDisplayLineItems(mediaPlanVersionId: number, mbaNu
       return progDisplayData;
     });
 
-    return await replaceChannelLineItems("media_plan_prog_display", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_prog_display", mediaPlanVersionId, stampLineUidsFromSources(rows, progDisplayLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving programmatic display line items:', error);
     throw error;
@@ -3556,7 +3557,7 @@ export async function saveProgVideoLineItems(mediaPlanVersionId: number, mbaNumb
       return progVideoData;
     });
 
-    return await replaceChannelLineItems("media_plan_prog_video", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_prog_video", mediaPlanVersionId, stampLineUidsFromSources(rows, progVideoLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving programmatic video line items:', error);
     throw error;
@@ -3598,7 +3599,7 @@ export async function saveProgBVODLineItems(mediaPlanVersionId: number, mbaNumbe
       return progBVODData;
     });
 
-    return await replaceChannelLineItems("media_plan_prog_bvod", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_prog_bvod", mediaPlanVersionId, stampLineUidsFromSources(rows, progBVODLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving programmatic BVOD line items:', error);
     throw error;
@@ -3639,7 +3640,7 @@ export async function saveProgAudioLineItems(mediaPlanVersionId: number, mbaNumb
       return progAudioData;
     });
 
-    return await replaceChannelLineItems("media_plan_prog_audio", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_prog_audio", mediaPlanVersionId, stampLineUidsFromSources(rows, progAudioLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving programmatic audio line items:', error);
     throw error;
@@ -3681,7 +3682,7 @@ export async function saveProgOOHLineItems(mediaPlanVersionId: number, mbaNumber
       return progOOHData;
     });
 
-    return await replaceChannelLineItems("media_plan_prog_ooh", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_prog_ooh", mediaPlanVersionId, stampLineUidsFromSources(rows, progOOHLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving programmatic OOH line items:', error);
     throw error;
@@ -3717,7 +3718,7 @@ export async function saveInfluencersLineItems(mediaPlanVersionId: number, mbaNu
       return influencersData;
     });
 
-    return await replaceChannelLineItems("media_plan_influencers", mediaPlanVersionId, rows, mbaNumber);
+    return await replaceChannelLineItems("media_plan_influencers", mediaPlanVersionId, stampLineUidsFromSources(rows, influencersLineItems || []), mbaNumber);
   } catch (error) {
     console.error('Error saving influencers line items:', error);
     throw error;

@@ -48,6 +48,7 @@ import {
   pickLineItemNumber,
   sortLineItemsByLineItemNumber,
 } from "@/lib/mediaplan/lineItemIds"
+import { mintLineUid } from "@/lib/mediaplan/lineUid"
 import { assignStableLineItemNumbers, reassignDigiDisplayLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
@@ -680,6 +681,8 @@ export default function DigiDisplayContainer({
 
     const clone = {
       ...source,
+      line_uid: mintLineUid(),
+      lineUid: undefined,
       lineItemId: newId,
       line_item_id: newId,
       line_item: nextNumber,

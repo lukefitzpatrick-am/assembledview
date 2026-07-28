@@ -90,6 +90,7 @@ import {
   rgbaFromHex,
 } from "@/lib/mediaplan/mediaTypeAccents"
 import { buildLineItemId, MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
+import { mintLineUid } from "@/lib/mediaplan/lineUid"
 import {
   assignStableLineItemNumbers,
   reassignLineItemNumbers,
@@ -615,8 +616,10 @@ export default function ProductionContainer({
       insertLineItem(index + 1, {
         ...current,
         lineItemId: "",
+        line_uid: mintLineUid(),
+        lineUid: undefined,
         bursts: current.bursts.map((b) => ({ ...b, _reactKey: newBurstReactKey() })),
-      })
+      } as typeof current)
     }
   }
 

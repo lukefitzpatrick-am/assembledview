@@ -39,6 +39,7 @@ import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstR
 import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { mintLineUid } from "@/lib/mediaplan/lineUid"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   coerceBuyTypeWithDevWarn,
@@ -641,6 +642,8 @@ const form = useForm<MagazinesFormValues>({
 
     const clone = {
       ...source,
+      line_uid: mintLineUid(),
+      lineUid: undefined,
       lineItemId: newId,
       line_item_id: newId,
       line_item: lineNumber,

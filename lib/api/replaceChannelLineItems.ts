@@ -4,6 +4,7 @@ import {
   buildReplaceListQueryParams,
   collectRowsForVersionReplace,
 } from "@/lib/api/replaceChannelLineItems.pure"
+import { ensureLineUids } from "@/lib/mediaplan/lineUid"
 
 export {
   buildReplaceListQueryParams,
@@ -116,7 +117,8 @@ export async function replaceChannelLineItems(
   }
 
   // (c) POST the new rows (empty array = delete-only replace).
-  const payload = Array.isArray(rows) ? rows : []
+  // Plan C S2-P1 — defensive mint where line_uid still absent (never remint).
+  const payload = ensureLineUids(Array.isArray(rows) ? rows : [])
   if (payload.length === 0) return []
 
   const headers = xanoPostHeaders()

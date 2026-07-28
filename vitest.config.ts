@@ -27,6 +27,7 @@ export default defineConfig({
       "lib/billing/__tests__/integrityTripwire.test.ts",
       "lib/mediaplan/__tests__/channelDuplicateStats.test.ts",
       "lib/mediaplan/__tests__/draftSaveReplaceInvariants.test.ts",
+      "lib/mediaplan/__tests__/lineUid.test.ts",
       "app/api/mba/generate/route.auth.test.ts",
       "app/api/mediaplans/generate-pdf/route.auth.test.ts",
       "app/api/mediaplans/[id]/download/route.auth.test.ts",

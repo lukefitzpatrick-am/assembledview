@@ -90,6 +90,8 @@ export type LineItemApproval = "approved" | "excluded"
 
 export type LineItemInput = {
   lineItemId: string
+  /** Plan C durable identity — optional until minted / backfilled. */
+  line_uid?: string
   mediaType: string
   buyType: string
   rate: number

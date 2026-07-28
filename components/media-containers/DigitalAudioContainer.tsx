@@ -50,6 +50,7 @@ import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstR
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { mintLineUid } from "@/lib/mediaplan/lineUid"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -577,6 +578,8 @@ export default function DigiAudioContainer({
 
     const clone = {
       ...source,
+      line_uid: mintLineUid(),
+      lineUid: undefined,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),

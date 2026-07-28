@@ -64,6 +64,7 @@ import {
 import type { LineItem } from '@/lib/generateMediaPlan'
 import { formatAUD, formatMoney, parseMoneyInput } from "@/lib/format/money"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { mintLineUid } from "@/lib/mediaplan/lineUid"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
   getSocialBurstCalculatedColumnLabel,
@@ -469,6 +470,8 @@ export default function SocialMediaContainer({
 
     const clone = {
       ...source,
+      line_uid: mintLineUid(),
+      lineUid: undefined,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),

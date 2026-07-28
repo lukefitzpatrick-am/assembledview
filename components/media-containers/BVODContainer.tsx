@@ -48,6 +48,7 @@ import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { expertApplyClearedAdServingOverride } from "@/lib/mediaplan/adServingOverrideNotice"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { mintLineUid } from "@/lib/mediaplan/lineUid"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { resolveBillingBurstLineItemId } from "@/lib/billing/resolveBillingBurstLineItemId"
 import { format } from "date-fns"
@@ -571,6 +572,8 @@ export default function BVODContainer({
 
     const clone = {
       ...source,
+      line_uid: mintLineUid(),
+      lineUid: undefined,
       bursts: (source.bursts || []).map((burst: any) => ({
         ...burst,
         _reactKey: newBurstReactKey(),
