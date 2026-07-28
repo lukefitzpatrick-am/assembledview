@@ -1,3 +1,14 @@
+/**
+ * Replace all channel rows for a media_plan_versions.id.
+ *
+ * PLANC_REPLACE_SET:
+ *   off  — legacy GET→DELETE→POST (today's path)
+ *   log  — shadow replace-set checks, then legacy write
+ *   on   — stage→verify→bulk_supersede protocol (S2-P1)
+ *
+ * Matching uses media_plan_version === id ONLY — never mp_plannumber/version_number.
+ */
+
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getXanoBaseUrl, xanoAuthHeaders, xanoPostHeaders } from "@/lib/api/xano"
 import {
@@ -5,10 +16,16 @@ import {
   collectRowsForVersionReplace,
 } from "@/lib/api/replaceChannelLineItems.pure"
 import { ensureLineUids } from "@/lib/mediaplan/lineUid"
+import {
+  logReplaceSetShadow,
+  replaceSetForChannel,
+  resolvePlanCReplaceSetMode,
+} from "@/lib/mediaplan/replaceSet"
 
 export {
   buildReplaceListQueryParams,
   collectRowsForVersionReplace,
+  isLiveChannelRow,
   matchesMediaPlanVersionId,
 } from "@/lib/api/replaceChannelLineItems.pure"
 
@@ -39,14 +56,8 @@ async function extractErrorMessage(response: Response): Promise<string> {
   }
 }
 
-/**
- * Replace all channel rows for a media_plan_versions.id:
- * GET existing (scoped by mba_number) → DELETE matching version-id rows → POST new rows.
- * Aborts before POST if any DELETE fails (no partial replace).
- *
- * Matching uses media_plan_version === id ONLY — never mp_plannumber/version_number.
- */
-export async function replaceChannelLineItems(
+/** Legacy path: GET existing → DELETE matching version-id rows → POST new rows. */
+export async function legacyReplaceChannelLineItems(
   endpoint: string,
   mediaPlanVersionId: number,
   rows: any[],
@@ -70,19 +81,15 @@ export async function replaceChannelLineItems(
   const baseUrl = `${getMediaPlansBaseUrl()}/${slug}`
   const listParams = buildReplaceListQueryParams(versionId, mba)
 
-  // (a) GET existing rows scoped by mba_number (+ media_plan_version query),
-  // then filter strictly by media_plan_version === id for deletion.
   let existing: any[] = []
   try {
     existing = await fetchAllXanoPages(baseUrl, listParams, `replace_${slug}`)
   } catch {
-    // Fallback single-page fetch (browser proxies / endpoints without pagination).
     const qs = new URLSearchParams({
       mba_number: listParams.mba_number,
       media_plan_version: String(listParams.media_plan_version),
     })
     const response = await fetch(`${baseUrl}?${qs.toString()}`, {
-      // Server→Xano needs Bearer; browser→/api proxy is fine with empty auth (proxy injects).
       headers: xanoAuthHeaders(),
     })
     if (!response.ok && response.status !== 404) {
@@ -94,7 +101,6 @@ export async function replaceChannelLineItems(
 
   const toDelete = collectRowsForVersionReplace(existing, versionId)
 
-  // (b) DELETE all collected ids; abort before POST if any fail.
   const deleteFailures: string[] = []
   await Promise.all(
     toDelete.map(async (row) => {
@@ -116,8 +122,6 @@ export async function replaceChannelLineItems(
     )
   }
 
-  // (c) POST the new rows (empty array = delete-only replace).
-  // Plan C S2-P1 — defensive mint where line_uid still absent (never remint).
   const payload = ensureLineUids(Array.isArray(rows) ? rows : [])
   if (payload.length === 0) return []
 
@@ -142,4 +146,44 @@ export async function replaceChannelLineItems(
   )
 
   return results
+}
+
+/**
+ * Replace all channel rows for a media_plan_versions.id.
+ * Dispatches on PLANC_REPLACE_SET (see module doc).
+ */
+export async function replaceChannelLineItems(
+  endpoint: string,
+  mediaPlanVersionId: number,
+  rows: any[],
+  mbaNumber: string
+): Promise<any[]> {
+  const mode = resolvePlanCReplaceSetMode()
+  const slug = String(endpoint || "").replace(/^\/+|\/+$/g, "")
+
+  if (mode === "log") {
+    try {
+      await logReplaceSetShadow({
+        table: slug,
+        mediaPlanVersionId,
+        mbaNumber,
+        rows,
+      })
+    } catch {
+      // shadow must never block legacy write
+    }
+    return legacyReplaceChannelLineItems(endpoint, mediaPlanVersionId, rows, mbaNumber)
+  }
+
+  if (mode === "on") {
+    const result = await replaceSetForChannel({
+      table: slug,
+      mediaPlanVersionId,
+      mbaNumber,
+      rows,
+    })
+    return result.staged
+  }
+
+  return legacyReplaceChannelLineItems(endpoint, mediaPlanVersionId, rows, mbaNumber)
 }

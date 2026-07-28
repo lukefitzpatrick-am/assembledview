@@ -162,3 +162,22 @@ One endpoint **per table** (or one shared if Luke prefers a table-name input —
 - [ ] Bulk POST + GET-by-version for both rows tables  
 - [ ] `bulk_supersede` PATCH per channel/production table  
 - [ ] Auth ON; Media Plans group  
+
+---
+
+## 7. Idempotency (S2-P3)
+
+**Choice: columns on `media_plan_master`** (not a separate table) — one last-processed key per MBA.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `last_idempotency_key` | text | UUID from client per save click |
+| `last_idempotency_result` | json | Cached PUT response body |
+
+When `PLANC_REPLACE_SET=on` and the incoming `idempotencyKey` matches, PUT returns the cached result and writes nothing.
+
+---
+
+## 8. Replace-set flag
+
+`PLANC_REPLACE_SET=off|log|on` — see `lib/mediaplan/replaceSet.ts`. Channel writers go through `replaceChannelLineItems` → replace-set when `on`.

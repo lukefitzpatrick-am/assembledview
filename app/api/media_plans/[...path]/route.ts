@@ -88,3 +88,7 @@ export async function PUT(request: Request, context: Ctx) {
 export async function DELETE(request: Request, context: Ctx) {
   return proxy(request, context)
 }
+
+export async function PATCH(request: Request, context: Ctx) {
+  return proxy(request, context)
+}

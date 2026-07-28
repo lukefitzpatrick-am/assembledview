@@ -25,11 +25,24 @@ export function matchesMediaPlanVersionId(row: any, mediaPlanVersionId: number):
   return Number(raw) === Number(mediaPlanVersionId)
 }
 
+/** Live = not superseded. Missing `superseded` treated as live (legacy rows). */
+export function isLiveChannelRow(row: any): boolean {
+  if (!row || typeof row !== "object") return false
+  return row.superseded !== true && row.superseded !== "true" && row.superseded !== 1
+}
+
+/**
+ * Rows eligible for replace (legacy delete or replace-set supersede).
+ * Version-id match only; excludes superseded rows so history is preserved.
+ */
 export function collectRowsForVersionReplace(
   rows: any[],
   mediaPlanVersionId: number
 ): any[] {
   return (Array.isArray(rows) ? rows : []).filter(
-    (row) => row?.id != null && matchesMediaPlanVersionId(row, mediaPlanVersionId)
+    (row) =>
+      row?.id != null &&
+      matchesMediaPlanVersionId(row, mediaPlanVersionId) &&
+      isLiveChannelRow(row)
   )
 }

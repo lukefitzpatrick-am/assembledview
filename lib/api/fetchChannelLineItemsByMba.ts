@@ -91,6 +91,10 @@ export function filterByMbaAndVersion(
 
   return items.filter((item) => {
     const row = item as Record<string, unknown>
+    // Plan C S2-P3 — superseded history must not surface as live lines.
+    if (row?.superseded === true || row?.superseded === "true" || row?.superseded === 1) {
+      return false
+    }
     if (normalise(row?.mba_number) !== normalizedMba) return false
 
     const mpPlanNumber = row?.mp_plannumber ?? row?.mp_plan_number ?? row?.mpPlanNumber

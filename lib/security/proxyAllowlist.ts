@@ -66,6 +66,12 @@ export function checkMediaPlansProxyPath(pathSegments: string[], method: string)
   if (pathSegments.length === 1) {
     return entry.base.has(method) ? { allowed: true } : { allowed: false, reason: "method_not_allowed" }
   }
+  // Plan C S2-P3 — bulk_supersede action path (non-numeric second segment).
+  if (pathSegments[1] === "bulk_supersede") {
+    return method === "PATCH"
+      ? { allowed: true }
+      : { allowed: false, reason: "method_not_allowed" }
+  }
   // depth 2: second segment must be a numeric id
   if (!/^\d+$/.test(pathSegments[1])) return { allowed: false, reason: "invalid_id" }
   return entry.withId.has(method) ? { allowed: true } : { allowed: false, reason: "method_not_allowed" }

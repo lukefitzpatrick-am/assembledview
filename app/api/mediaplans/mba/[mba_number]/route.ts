@@ -34,11 +34,20 @@ import {
 } from "@/lib/finance/feeSnapshots"
 import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
 import { appendPartialApprovalToBillingSchedule } from "@/lib/mediaplan/partialMba"
-import { ensureLineUids } from "@/lib/mediaplan/lineUid"
+import { ensureLineUids, pickLineUid } from "@/lib/mediaplan/lineUid"
 import {
   dualWritePlanRowsForVersion,
   resolvePlanCRowsDualWriteMode,
 } from "@/lib/finance/rows/dualWrite"
+import {
+  pickIdempotencyKey,
+  readIdempotencyFromMaster,
+  storeIdempotencyOnMaster,
+} from "@/lib/mediaplan/idempotency"
+import {
+  PLANC_REPLACESET_LOG_PREFIX,
+  resolvePlanCReplaceSetMode,
+} from "@/lib/mediaplan/replaceSet"
 import {
   isUnpublishedStagedVersion,
   pickPublishedVersionRow,
@@ -669,6 +678,10 @@ function filterByMbaAndVersion(
       : null
 
   return items.filter((item) => {
+    // Plan C S2-P3 — superseded history must not surface as live lines.
+    if (item?.superseded === true || item?.superseded === "true" || item?.superseded === 1) {
+      return false
+    }
     if (normalise(item?.mba_number) !== normalizedMba) return false
 
     const mpPlanNumber = item?.mp_plannumber ?? item?.mp_plan_number ?? item?.mpPlanNumber
@@ -749,8 +762,9 @@ async function fetchXanoTableForMediaType(
 }
 
 /**
- * After channel rows exist for a version id, detect duplicate line_item_id stamps
- * (rows > distinct line_item_ids). Used as a draft-save integrity signal.
+ * After channel rows exist for a version id, detect duplicate line identity
+ * (rows > distinct line_uids, falling back to line_item_id for legacy rows).
+ * Used as a draft-save integrity signal; PLANC_REPLACE_SET=on makes it blocking.
  */
 async function detectDuplicateLineItemWarning(
   mbaNumber: string,
@@ -777,13 +791,22 @@ async function detectDuplicateLineItemWarning(
         const versionScoped = rows.filter((row) => {
           const raw = row?.media_plan_version
           if (raw === undefined || raw === null || String(raw).trim() === "") return false
-          return Number(raw) === Number(mediaPlanVersionId)
+          if (Number(raw) !== Number(mediaPlanVersionId)) return false
+          // Live rows only (superseded excluded by readers; belt-and-braces here).
+          if (row?.superseded === true || row?.superseded === "true" || row?.superseded === 1) {
+            return false
+          }
+          return true
         })
         if (versionScoped.length === 0) return
 
         const distinct = new Set(
           versionScoped
-            .map((row) => String(row?.line_item_id ?? row?.lineItemId ?? "").trim())
+            .map((row) => {
+              const uid = pickLineUid(row)
+              if (uid) return uid
+              return String(row?.line_item_id ?? row?.lineItemId ?? "").trim()
+            })
             .filter(Boolean)
         )
         if (versionScoped.length > distinct.size) {
@@ -1430,6 +1453,23 @@ export async function PUT(
       )
     }
 
+    // Plan C S2-P3 — idempotency: duplicate key returns prior result, writes nothing.
+    const replaceSetMode = resolvePlanCReplaceSetMode()
+    const idempotencyKey = pickIdempotencyKey(
+      data && typeof data === "object" ? (data as Record<string, unknown>) : null
+    )
+    if (replaceSetMode === "on" && idempotencyKey) {
+      const prior = readIdempotencyFromMaster(masterData as Record<string, unknown>)
+      if (prior && prior.key === idempotencyKey && prior.result != null) {
+        console.warn(PLANC_REPLACESET_LOG_PREFIX, {
+          phase: "idempotent-replay",
+          mba_number,
+          idempotencyKey,
+        })
+        return NextResponse.json(prior.result)
+      }
+    }
+
     const draftReturnRejection = getDraftReturnRejection(
       masterData.campaign_status,
       data.mp_campaignstatus ?? data.campaign_status
@@ -1514,6 +1554,42 @@ export async function PUT(
       overwriteTargetRow != null && incomingStatus === "draft" && !forceIncrement
     const overwriteTargetId = overwriteTargetRow?.id
     const overwriteTargetVersionNumber = parseVersion(overwriteTargetRow?.version_number) || 1
+
+    // Plan C S2-P3 — duplicate line_uid check before any write when flag=on|log.
+    // Overwrite: inspect live rows on the working version. Increment: nothing yet.
+    if (replaceSetMode !== "off" && overwriteMode && overwriteTargetId != null) {
+      try {
+        const preflightDup = await detectDuplicateLineItemWarning(
+          mba_number,
+          overwriteTargetVersionNumber,
+          overwriteTargetId,
+          overwriteTargetRow
+        )
+        if (preflightDup) {
+          console.warn(PLANC_REPLACESET_LOG_PREFIX, {
+            phase: "duplicate-preflight",
+            mba_number,
+            versionId: overwriteTargetId,
+            ...preflightDup,
+          })
+          if (replaceSetMode === "on") {
+            return NextResponse.json(
+              {
+                error:
+                  "Duplicate line rows detected (rows > distinct line_uids). Fix before saving.",
+                duplicateWarning: preflightDup,
+              },
+              { status: 409 }
+            )
+          }
+        }
+      } catch (dupError) {
+        console.warn(PLANC_REPLACESET_LOG_PREFIX, {
+          phase: "duplicate-preflight-failed",
+          message: dupError instanceof Error ? dupError.message : String(dupError),
+        })
+      }
+    }
     
     const campaignStartDate = data.mp_campaigndates_start ?? masterData.campaign_start_date
     const campaignEndDate = data.mp_campaigndates_end ?? masterData.campaign_end_date
@@ -1919,26 +1995,29 @@ export async function PUT(
     let duplicateWarning: {
       channels: Array<{ channel: string; rows: number; distinctLineItemIds: number }>
     } | null = null
-    try {
-      duplicateWarning = await detectDuplicateLineItemWarning(
-        mba_number,
-        savedVersionNumber,
-        savedVersionId,
-        overwriteMode ? { ...newVersionData, version_number: overwriteTargetVersionNumber } : newVersionData
-      )
-      if (duplicateWarning) {
-        console.warn("[mba-put] duplicateWarning: channel rows exceed distinct line_item_ids", {
+    // When flag=on, preflight already blocked; post-write check remains warn-only for off/log.
+    if (replaceSetMode !== "on") {
+      try {
+        duplicateWarning = await detectDuplicateLineItemWarning(
           mba_number,
-          versionId: savedVersionId,
-          versionNumber: savedVersionNumber,
-          ...duplicateWarning,
-        })
+          savedVersionNumber,
+          savedVersionId,
+          overwriteMode ? { ...newVersionData, version_number: overwriteTargetVersionNumber } : newVersionData
+        )
+        if (duplicateWarning) {
+          console.warn("[mba-put] duplicateWarning: channel rows exceed distinct line_uids", {
+            mba_number,
+            versionId: savedVersionId,
+            versionNumber: savedVersionNumber,
+            ...duplicateWarning,
+          })
+        }
+      } catch (dupError) {
+        console.warn("[mba-put] duplicateWarning check failed", dupError)
       }
-    } catch (dupError) {
-      console.warn("[mba-put] duplicateWarning check failed", dupError)
     }
 
-    return NextResponse.json({
+    const responseBody = {
       version: versionResponse.data,
       master: masterUpdateResponse.data,
       mode: overwriteMode ? "overwrite" : "increment",
@@ -1955,7 +2034,20 @@ export async function PUT(
         : deferMasterVersionPublish
           ? latestVersionNumber || masterData.version_number
           : savedVersionNumber,
-    })
+      ...(idempotencyKey ? { idempotencyKey } : {}),
+    }
+
+    // Plan C S2-P3 — store last-processed idempotency key on media_plan_master.
+    if (replaceSetMode === "on" && idempotencyKey && masterData?.id != null) {
+      await storeIdempotencyOnMaster({
+        masterId: masterData.id,
+        key: idempotencyKey,
+        result: responseBody,
+        baseUrl: mediaPlansBaseUrl,
+      })
+    }
+
+    return NextResponse.json(responseBody)
   } catch (error) {
     console.error("Error creating new media plan version:", error)
     

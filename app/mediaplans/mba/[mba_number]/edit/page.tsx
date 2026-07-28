@@ -6750,6 +6750,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               : undefined,
           deferMasterVersionPublish: true,
           ...(forceIncrementForApprovals ? { forceIncrement: true } : {}),
+          idempotencyKey: crypto.randomUUID(),
         }),
       })
 
@@ -7061,7 +7062,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       // version reaper still mirrors clearVersionChildren for abandoned drafts.
 
       // Initialize save status for enabled media types
-      if (formValues.mp_search && searchMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_search) {
         updateSaveStatus(mediaTypeDisplayNames.mp_search, 'pending')
         savePromises.push(
           saveSearchLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), searchMediaLineItemsForSave)
@@ -7072,7 +7073,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_socialmedia && socialMediaMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_socialmedia) {
         updateSaveStatus(mediaTypeDisplayNames.mp_socialmedia, 'pending')
         savePromises.push(
           saveSocialMediaLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), socialMediaMediaLineItemsForSave)
@@ -7083,7 +7084,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_television && televisionMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_television) {
         updateSaveStatus(mediaTypeDisplayNames.mp_television, 'pending')
         savePromises.push(
           saveTelevisionLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), televisionMediaLineItemsForSave)
@@ -7094,7 +7095,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_radio && radioMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_radio) {
         updateSaveStatus(mediaTypeDisplayNames.mp_radio, 'pending')
         savePromises.push(
           saveRadioLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), radioMediaLineItemsForSave)
@@ -7105,7 +7106,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_newspaper && newspaperMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_newspaper) {
         updateSaveStatus(mediaTypeDisplayNames.mp_newspaper, 'pending')
         savePromises.push(
           saveNewspaperLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), newspaperMediaLineItemsForSave)
@@ -7116,7 +7117,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_magazines && magazinesMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_magazines) {
         updateSaveStatus(mediaTypeDisplayNames.mp_magazines, 'pending')
         savePromises.push(
           saveMagazinesLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), magazinesMediaLineItemsForSave)
@@ -7127,7 +7128,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_ooh && oohMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_ooh) {
         updateSaveStatus(mediaTypeDisplayNames.mp_ooh, 'pending')
         savePromises.push(
           saveOOHLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), oohMediaLineItemsForSave)
@@ -7138,7 +7139,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_cinema && cinemaMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_cinema) {
         updateSaveStatus(mediaTypeDisplayNames.mp_cinema, 'pending')
         savePromises.push(
           saveCinemaLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), cinemaMediaLineItemsForSave, nextVersion)
@@ -7149,7 +7150,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_digidisplay && digitalDisplayMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_digidisplay) {
         updateSaveStatus(mediaTypeDisplayNames.mp_digidisplay, 'pending')
         savePromises.push(
           saveDigitalDisplayLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), digitalDisplayMediaLineItemsForSave)
@@ -7160,7 +7161,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_digiaudio && digitalAudioMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_digiaudio) {
         updateSaveStatus(mediaTypeDisplayNames.mp_digiaudio, 'pending')
         savePromises.push(
           saveDigitalAudioLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), digitalAudioMediaLineItemsForSave)
@@ -7171,7 +7172,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_digivideo && digitalVideoMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_digivideo) {
         updateSaveStatus(mediaTypeDisplayNames.mp_digivideo, 'pending')
         savePromises.push(
           saveDigitalVideoLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), digitalVideoMediaLineItemsForSave)
@@ -7182,7 +7183,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_bvod && bvodMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_bvod) {
         updateSaveStatus(mediaTypeDisplayNames.mp_bvod, 'pending')
         savePromises.push(
           saveBVODLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), bvodMediaLineItemsForSave)
@@ -7193,7 +7194,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_integration && integrationMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_integration) {
         updateSaveStatus(mediaTypeDisplayNames.mp_integration, 'pending')
         savePromises.push(
           saveIntegrationLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), integrationMediaLineItemsForSave)
@@ -7204,7 +7205,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (shouldEnableProduction && productionMediaLineItemsForSave.length > 0) {
+      if (shouldEnableProduction) {
         updateSaveStatus(mediaTypeDisplayNames.mp_production, 'pending')
         savePromises.push(
           saveProductionLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), productionMediaLineItemsForSave)
@@ -7216,7 +7217,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         )
       }
       const progDisplayPayload = buildProgDisplayPayload(progDisplayMediaLineItemsForSave);
-      if (formValues.mp_progdisplay && progDisplayPayload.length > 0) {
+      if (formValues.mp_progdisplay) {
         updateSaveStatus(mediaTypeDisplayNames.mp_progdisplay, 'pending')
         savePromises.push(
           saveProgDisplayLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progDisplayPayload)
@@ -7227,7 +7228,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_progvideo && progVideoMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_progvideo) {
         updateSaveStatus(mediaTypeDisplayNames.mp_progvideo, 'pending')
         savePromises.push(
           saveProgVideoLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progVideoMediaLineItemsForSave)
@@ -7238,7 +7239,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_progbvod && progBvodMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_progbvod) {
         updateSaveStatus(mediaTypeDisplayNames.mp_progbvod, 'pending')
         savePromises.push(
           saveProgBVODLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progBvodMediaLineItemsForSave)
@@ -7249,7 +7250,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_progaudio && progAudioMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_progaudio) {
         updateSaveStatus(mediaTypeDisplayNames.mp_progaudio, 'pending')
         savePromises.push(
           saveProgAudioLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progAudioMediaLineItemsForSave)
@@ -7260,7 +7261,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_progooh && progOohMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_progooh) {
         updateSaveStatus(mediaTypeDisplayNames.mp_progooh, 'pending')
         savePromises.push(
           saveProgOOHLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), progOohMediaLineItemsForSave)
@@ -7271,7 +7272,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             })
         )
       }
-      if (formValues.mp_influencers && influencersMediaLineItemsForSave.length > 0) {
+      if (formValues.mp_influencers) {
         updateSaveStatus(mediaTypeDisplayNames.mp_influencers, 'pending')
         savePromises.push(
           saveInfluencersLineItems(versionId, mbaNumber, clientName, nextVersion.toString(), influencersMediaLineItemsForSave)

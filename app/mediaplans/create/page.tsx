@@ -5036,6 +5036,7 @@ function CreateMediaPlan() {
           // Stage the version row without flipping media_plans.version yet.
           // Finalise via POST .../versions/{id}/publish after channel writes.
           deferMasterVersionPublish: true,
+          idempotencyKey: crypto.randomUUID(),
         }
       }
 
@@ -5515,7 +5516,7 @@ function CreateMediaPlan() {
       };
 
       // Television
-      if (fv.mp_television && televisionMediaLineItems && televisionMediaLineItems.length > 0) {
+      if (fv.mp_television) {
         const displayName = mediaTypeDisplayNames.mp_television;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5524,7 +5525,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            televisionMediaLineItems
+            televisionMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5536,7 +5537,7 @@ function CreateMediaPlan() {
       }
 
       // Radio
-      if (fv.mp_radio && radioMediaLineItems && radioMediaLineItems.length > 0) {
+      if (fv.mp_radio) {
         const displayName = mediaTypeDisplayNames.mp_radio;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5545,7 +5546,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            radioMediaLineItems
+            radioMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5557,7 +5558,7 @@ function CreateMediaPlan() {
       }
 
       // Newspaper
-      if (fv.mp_newspaper && newspaperMediaLineItems && newspaperMediaLineItems.length > 0) {
+      if (fv.mp_newspaper) {
         const displayName = mediaTypeDisplayNames.mp_newspaper;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5566,7 +5567,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            newspaperMediaLineItems
+            newspaperMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5578,7 +5579,7 @@ function CreateMediaPlan() {
       }
 
       // Magazines
-      if (fv.mp_magazines && magazineMediaLineItems && magazineMediaLineItems.length > 0) {
+      if (fv.mp_magazines) {
         const displayName = mediaTypeDisplayNames.mp_magazines;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5587,7 +5588,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            magazineMediaLineItems
+            magazineMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5599,7 +5600,7 @@ function CreateMediaPlan() {
       }
 
       // OOH
-      if (fv.mp_ooh && oohMediaLineItems && oohMediaLineItems.length > 0) {
+      if (fv.mp_ooh) {
         const displayName = mediaTypeDisplayNames.mp_ooh;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5608,7 +5609,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            oohMediaLineItems
+            oohMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5620,7 +5621,7 @@ function CreateMediaPlan() {
       }
 
       // Cinema
-      if (fv.mp_cinema && cinemaMediaLineItems && cinemaMediaLineItems.length > 0) {
+      if (fv.mp_cinema) {
         const displayName = mediaTypeDisplayNames.mp_cinema;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5629,7 +5630,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            cinemaMediaLineItems
+            cinemaMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5641,7 +5642,7 @@ function CreateMediaPlan() {
       }
 
       // Digital Display
-      if (fv.mp_digidisplay && digiDisplayMediaLineItems && digiDisplayMediaLineItems.length > 0) {
+      if (fv.mp_digidisplay) {
         const displayName = mediaTypeDisplayNames.mp_digidisplay;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5650,7 +5651,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            digiDisplayMediaLineItems
+            digiDisplayMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5662,7 +5663,7 @@ function CreateMediaPlan() {
       }
 
       // Digital Audio
-      if (fv.mp_digiaudio && digiAudioMediaLineItems && digiAudioMediaLineItems.length > 0) {
+      if (fv.mp_digiaudio) {
         const displayName = mediaTypeDisplayNames.mp_digiaudio;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5671,7 +5672,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            digiAudioMediaLineItems
+            digiAudioMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5683,7 +5684,7 @@ function CreateMediaPlan() {
       }
 
       // Digital Video
-      if (fv.mp_digivideo && digiVideoMediaLineItems && digiVideoMediaLineItems.length > 0) {
+      if (fv.mp_digivideo) {
         const displayName = mediaTypeDisplayNames.mp_digivideo;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5692,7 +5693,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            digiVideoMediaLineItems
+            digiVideoMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5704,7 +5705,7 @@ function CreateMediaPlan() {
       }
 
       // BVOD
-      if (fv.mp_bvod && bvodMediaLineItems && bvodMediaLineItems.length > 0) {
+      if (fv.mp_bvod) {
         const displayName = mediaTypeDisplayNames.mp_bvod;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5713,7 +5714,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            bvodMediaLineItems
+            bvodMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5725,7 +5726,7 @@ function CreateMediaPlan() {
       }
 
       // Integration
-      if (fv.mp_integration && integrationMediaLineItems && integrationMediaLineItems.length > 0) {
+      if (fv.mp_integration) {
         const displayName = mediaTypeDisplayNames.mp_integration;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5750,7 +5751,7 @@ function CreateMediaPlan() {
       }
 
       // Production / Consulting
-      if (shouldEnableProduction && productionMediaLineItems && productionMediaLineItems.length > 0) {
+      if (shouldEnableProduction) {
         const displayName = mediaTypeDisplayNames.mp_production;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5759,7 +5760,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            productionMediaLineItems
+            productionMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5771,7 +5772,7 @@ function CreateMediaPlan() {
       }
 
       // Search
-      if (fv.mp_search && searchMediaLineItems && searchMediaLineItems.length > 0) {
+      if (fv.mp_search) {
         const displayName = mediaTypeDisplayNames.mp_search;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5780,7 +5781,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            searchMediaLineItems
+            searchMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5792,7 +5793,7 @@ function CreateMediaPlan() {
       }
 
       // Social Media
-      if (fv.mp_socialmedia && socialMediaMediaLineItems && socialMediaMediaLineItems.length > 0) {
+      if (fv.mp_socialmedia) {
         const displayName = mediaTypeDisplayNames.mp_socialmedia;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5801,7 +5802,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            socialMediaMediaLineItems
+            socialMediaMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5813,7 +5814,7 @@ function CreateMediaPlan() {
       }
 
       // Programmatic Display
-      if (fv.mp_progdisplay && progDisplayMediaLineItems && progDisplayMediaLineItems.length > 0) {
+      if (fv.mp_progdisplay) {
         const displayName = mediaTypeDisplayNames.mp_progdisplay;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5822,7 +5823,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            progDisplayMediaLineItems
+            progDisplayMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5834,7 +5835,7 @@ function CreateMediaPlan() {
       }
 
       // Programmatic Video
-      if (fv.mp_progvideo && progVideoMediaLineItems && progVideoMediaLineItems.length > 0) {
+      if (fv.mp_progvideo) {
         const displayName = mediaTypeDisplayNames.mp_progvideo;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5843,7 +5844,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            progVideoMediaLineItems
+            progVideoMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5855,7 +5856,7 @@ function CreateMediaPlan() {
       }
 
       // Programmatic BVOD
-      if (fv.mp_progbvod && progBvodMediaLineItems && progBvodMediaLineItems.length > 0) {
+      if (fv.mp_progbvod) {
         const displayName = mediaTypeDisplayNames.mp_progbvod;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5864,7 +5865,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            progBvodMediaLineItems
+            progBvodMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5876,7 +5877,7 @@ function CreateMediaPlan() {
       }
 
       // Programmatic Audio
-      if (fv.mp_progaudio && progAudioMediaLineItems && progAudioMediaLineItems.length > 0) {
+      if (fv.mp_progaudio) {
         const displayName = mediaTypeDisplayNames.mp_progaudio;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5885,7 +5886,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            progAudioMediaLineItems
+            progAudioMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5897,7 +5898,7 @@ function CreateMediaPlan() {
       }
 
       // Programmatic OOH
-      if (fv.mp_progooh && progOohMediaLineItems && progOohMediaLineItems.length > 0) {
+      if (fv.mp_progooh) {
         const displayName = mediaTypeDisplayNames.mp_progooh;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
@@ -5906,7 +5907,7 @@ function CreateMediaPlan() {
             fv.mba_number,
             fv.mp_client_name,
             fv.mp_plannumber,
-            progOohMediaLineItems
+            progOohMediaLineItems || []
           ).then(result => {
             updateSaveStatus(displayName, 'success');
             return result;
@@ -5918,7 +5919,7 @@ function CreateMediaPlan() {
       }
 
       // Influencers
-      if (fv.mp_influencers && influencersMediaLineItems && influencersMediaLineItems.length > 0) {
+      if (fv.mp_influencers) {
         const displayName = mediaTypeDisplayNames.mp_influencers;
         updateSaveStatus(displayName, 'pending');
         mediaTypeSavePromises.push(
