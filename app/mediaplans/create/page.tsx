@@ -141,7 +141,7 @@ import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import { extractPlanGlobals } from '@/lib/naming/fromPlan'
 import { fetchNamingWorkbook } from '@/lib/naming/fetchNamingWorkbook'
-import { MBAData } from '@/lib/generateMBA'
+import type { MBAData } from '@/lib/generateMBA'
 import { saveAs } from 'file-saver'
 import { useUnsavedChangesPrompt } from "@/hooks/use-unsaved-changes-prompt"
 import { 
@@ -2807,12 +2807,24 @@ function CreateMediaPlan() {
       billingMonths: billingMonthsExGST,
     };
 
+    // Plan C S1-P4: when NEXT_PUBLIC_PLANC_DOCS_FROM_PERSISTED=on, send identifiers only.
+    const docsFromPersisted =
+      String(process.env.NEXT_PUBLIC_PLANC_DOCS_FROM_PERSISTED ?? "")
+        .trim()
+        .toLowerCase() === "on"
     const response = await fetch("/api/mba/generate", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(apiData),
+      body: JSON.stringify(
+        docsFromPersisted
+          ? {
+              mba_number: fv.mba_number,
+              version_number: Number(resolvedPlanVersion) || resolvedPlanVersion,
+            }
+          : apiData
+      ),
     });
 
     if (!response.ok) {

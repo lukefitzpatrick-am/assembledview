@@ -152,18 +152,17 @@ import {
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import {
-import {
   computeAllChannelsHydrated,
   computeChannelDuplicateStats,
   formatSaveModeLabel,
   isSaveAllowedAfterHydration,
-  reconciliationBadgeVisibility,
   type ChannelDuplicateSummary,
 } from "@/lib/mediaplan/channelHydrationGate"
 import {
   countEnabledPublishIntegrityFlags,
   shouldBlockEmptyPublish,
 } from "@/lib/mediaplan/publishVersionIntegrity"
+import {
   humaniseBillingSaveError,
   withMbaScopeLineLabels,
 } from "@/lib/finance/humaniseBillingSaveError"
@@ -6383,9 +6382,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       toast({
         title: "Save disabled",
         description: "Duplicate line-item rows detected — fix before saving.",
+        variant: "destructive",
+      })
+      return
+    }
+
     if (saveHeldForHydration) {
       toast({
-        title: "Line items still loading — please wait",
+        title: "Still loading",
+        description: "Line items are still loading — wait a moment and try again.",
         variant: "destructive",
       })
       return
@@ -6733,7 +6738,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           billingSchedule: undefined,
           deliverySchedule: undefined,
           delivery_schedule: undefined,
-partialApproval:
+          partialApproval:
             isPartialMBA && partialApprovalMetadata
               ? {
                   ...partialApprovalMetadata,
@@ -6742,15 +6747,16 @@ partialApproval:
                       ? partialMBAMonthYears
                       : partialApprovalMetadata.selectedMonthYears,
                 }
+              : undefined,
           deferMasterVersionPublish: true,
           ...(forceIncrementForApprovals ? { forceIncrement: true } : {}),
         }),
       })
-      
+
       if (!versionResponse.ok) {
         const error = await versionResponse.json().catch(() => ({} as { error?: string }))
         const human = humaniseBillingSaveError(error, "Failed to create new version")
-        updateSaveStatus('Media Plan Version', 'error', human)
+        updateSaveStatus("Media Plan Version", "error", human)
         throw new Error(human)
       }
       
@@ -7568,10 +7574,22 @@ partialApproval:
       billingMonths: billingMonthsExGST,
     }
 
+    // Plan C S1-P4: when NEXT_PUBLIC_PLANC_DOCS_FROM_PERSISTED=on, send identifiers only.
+    const docsFromPersisted =
+      String(process.env.NEXT_PUBLIC_PLANC_DOCS_FROM_PERSISTED ?? "")
+        .trim()
+        .toLowerCase() === "on"
     const response = await fetch("/api/mba/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(apiData),
+      body: JSON.stringify(
+        docsFromPersisted
+          ? {
+              mba_number: mbaNum,
+              version_number: Number(resolvedPlanVersion) || resolvedPlanVersion,
+            }
+          : apiData
+      ),
     })
 
     if (!response.ok) {

@@ -1,17 +1,33 @@
 import { NextRequest, NextResponse } from "next/server"
 import { generateMediaPlan, MediaPlanHeader } from '@/lib/generateMediaPlan'
 import { requireRole } from "@/lib/requireRole"
+import { resolvePlanCDocsFromPersistedMode } from "@/lib/finance/planCDocsFromPersisted"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const maxDuration = 60
 
 export async function POST(request: NextRequest) {
-  try {
+    try {
     const gate = await requireRole(request, ["admin", "manager"])
     if ("response" in gate) return gate.response
 
     const data = await request.json()
+
+    // Plan C S1-P4: this route historically accepted client-computed line money.
+    // UI create/edit generate Excel in-browser (generateMediaPlan) — they do not
+    // call this API. Under the flag we refuse client totals rather than invent a
+    // channel→MediaItems mapper (that would risk approximating line money).
+    if (resolvePlanCDocsFromPersistedMode() === "on") {
+      return NextResponse.json(
+        {
+          error:
+            "PLANC_DOCS_FROM_PERSISTED: /api/mediaplans/generate-pdf client totals are disabled. Media plan Excel is produced client-side; server Excel-from-version is not wired (no channel→MediaItems mapper). MBA PDF uses POST /api/mba/generate with { mba_number, version_number }.",
+          code: "docs_from_persisted_excel_unwired",
+        },
+        { status: 422 }
+      )
+    }
     
     // Prepare the header data for the Excel generation
     const header: MediaPlanHeader = {

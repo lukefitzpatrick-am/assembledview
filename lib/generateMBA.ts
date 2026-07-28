@@ -1,6 +1,7 @@
 // /lib/generateMBA.ts
 
 import { jsPDF } from "jspdf";
+import { createHash } from "node:crypto";
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { formatAUD } from "./format/money";
@@ -34,6 +35,8 @@ export interface MBAData {
     total_inc_gst: number;
   };
   billingSchedule: { monthYear: string; totalAmount: string }[];
+  /** Plan C footer stamp — e.g. `v3 · a1b2c3d4`. Omitted on legacy path. */
+  documentStamp?: string;
 }
 
 const parseCurrency = (value: string | number | null | undefined): number => {
@@ -257,6 +260,37 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
   doc.setFont("helvetica", "normal");
   doc.text(formatAUD(mbaData.totals.total_inc_gst), billingValueX, y, { align: 'right' });
 
+  // Plan C provenance footer (optional — layout otherwise unchanged).
+  if (mbaData.documentStamp) {
+    const pageCount = doc.getNumberOfPages()
+    for (let p = 1; p <= pageCount; p++) {
+      doc.setPage(p)
+      doc.setFont("helvetica", "normal")
+      doc.setFontSize(7)
+      const footerY = doc.internal.pageSize.getHeight() - 8
+      doc.text(mbaData.documentStamp, margin.left, footerY)
+    }
+  }
+
   // Return the generated PDF as a Blob.
-  return doc.output('blob');
+  // When stamped (Plan C), replace jsPDF's random /ID with a checksum-derived
+  // pair so two renders of the same version produce identical bytes.
+  let out = doc.output("arraybuffer")
+  if (mbaData.documentStamp) {
+    out = deterministicPdfFileId(out, mbaData.documentStamp)
+  }
+  return new Blob([out], { type: "application/pdf" })
+}
+
+function deterministicPdfFileId(pdf: ArrayBuffer, seed: string): ArrayBuffer {
+  const hex = createHash("sha256").update(seed, "utf8").digest("hex").toUpperCase()
+  const id1 = hex.slice(0, 32)
+  const id2 = hex.slice(32, 64) || id1
+  const latin1 = Buffer.from(pdf).toString("latin1")
+  const replaced = latin1.replace(
+    /\/ID\s*\[\s*<[0-9A-Fa-f]+>\s*<[0-9A-Fa-f]+>\s*\]/,
+    `/ID [<${id1}> <${id2}>]`
+  )
+  const out = Buffer.from(replaced, "latin1")
+  return out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength)
 }
