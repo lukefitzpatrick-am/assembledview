@@ -9,6 +9,7 @@ import {
 } from "@/lib/finance/authority/computeAndPersist"
 import { fetchBillingOverridesForVersion } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
+import { resolveFeeLoadingForVersion } from "@/lib/finance/feeSnapshots"
 import { clearRelevantPlanVersionsCache } from "@/lib/finance/relevantPlanVersions"
 import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
 import { diffBillingSchedules } from "@/lib/finance/scheduleDiff"
@@ -96,9 +97,23 @@ export async function PATCH(
       : Array.isArray(bodyRecord.financialLineItems)
         ? bodyRecord.financialLineItems
         : null) as LineItemInput[] | null
-    const feeLoading = (bodyRecord.feeLoading ??
+    const liveFeeLoading = (bodyRecord.feeLoading ??
       bodyRecord.fee_loading ??
       null) as FeeLoading | null
+    let feeLoading = liveFeeLoading
+    if (liveFeeLoading) {
+      const resolved = await resolveFeeLoadingForVersion({
+        versionId: id,
+        liveFeeLoading,
+        meta: {
+          mba_number:
+            versionRow?.mba_number != null ? String(versionRow.mba_number) : undefined,
+          version: versionRow?.version_number as string | number | undefined,
+        },
+        baseUrl: mediaPlansBaseUrl,
+      })
+      feeLoading = resolved.feeLoading
+    }
 
     if (financialLineItems && financialLineItems.length > 0 && feeLoading) {
       const overrideRows = await fetchBillingOverridesForVersion(id, {

@@ -22,6 +22,15 @@ import {
 } from "@/lib/finance/authority/computeAndPersist"
 import { fetchBillingOverridesForVersion } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
+import {
+  buildFeeRatesChangedNotice,
+  feeSnapshotClientFromRequestBody,
+  readFeeSnapshotBundle,
+  resolveFeeLoadingForVersion,
+  writeFeeSnapshot,
+  writeFeeSnapshotOnce,
+  type FeeRatesChangedNotice,
+} from "@/lib/finance/feeSnapshots"
 import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
 import { appendPartialApprovalToBillingSchedule } from "@/lib/mediaplan/partialMba"
 import {
@@ -1518,7 +1527,18 @@ export async function PUT(
       : Array.isArray(data.financialLineItems)
         ? data.financialLineItems
         : null) as LineItemInput[] | null
-    const feeLoading = (data.feeLoading ?? data.fee_loading ?? null) as FeeLoading | null
+    const liveFeeLoading = (data.feeLoading ?? data.fee_loading ?? null) as FeeLoading | null
+    // Plan C S1-P3 — draft overwrite reuses frozen rates; increment uses live (frozen after create).
+    let feeLoading = liveFeeLoading
+    if (liveFeeLoading && overwriteMode && overwriteTargetId != null) {
+      const resolved = await resolveFeeLoadingForVersion({
+        versionId: overwriteTargetId,
+        liveFeeLoading,
+        meta: { mba_number, version: overwriteTargetVersionNumber },
+        baseUrl: mediaPlansBaseUrl,
+      })
+      feeLoading = resolved.feeLoading
+    }
 
     if (financialLineItems && financialLineItems.length > 0 && feeLoading) {
       const overridesVersionId = previousVersion?.id
@@ -1808,6 +1828,47 @@ export async function PUT(
     }
 
     const savedVersionId = overwriteMode ? overwriteTargetId : versionResponse.data?.id
+    let feeRatesChangedNotice: FeeRatesChangedNotice | null = null
+    // Plan C S1-P3 — freeze fee provenance after the version row exists.
+    // Increment: always write. Draft overwrite: write only on first save (reuse thereafter).
+    if (savedVersionId != null && liveFeeLoading) {
+      const snapshotClient = feeSnapshotClientFromRequestBody(
+        data as Record<string, unknown>,
+        liveFeeLoading
+      )
+      try {
+        if (overwriteMode) {
+          await writeFeeSnapshotOnce(savedVersionId, snapshotClient, {
+            baseUrl: mediaPlansBaseUrl,
+          })
+        } else {
+          const written = await writeFeeSnapshot(savedVersionId, snapshotClient, {
+            baseUrl: mediaPlansBaseUrl,
+          })
+          const prevId = previousVersion?.id
+          if (prevId != null) {
+            const previousBundle = await readFeeSnapshotBundle(prevId, {
+              baseUrl: mediaPlansBaseUrl,
+            })
+            feeRatesChangedNotice = buildFeeRatesChangedNotice({
+              previousVersionId: prevId,
+              previousVersionNumber:
+                (previousVersion as { version_number?: number | string } | null)
+                  ?.version_number ?? null,
+              previous: previousBundle,
+              next: written,
+            })
+          }
+        }
+      } catch (snapError) {
+        console.warn("[mba-put] fee snapshot write failed (non-fatal)", {
+          mba_number,
+          versionId: savedVersionId,
+          message: snapError instanceof Error ? snapError.message : String(snapError),
+        })
+      }
+    }
+
     let duplicateWarning: {
       channels: Array<{ channel: string; rows: number; distinctLineItemIds: number }>
     } | null = null
@@ -1839,6 +1900,7 @@ export async function PUT(
       latestVersionNumber,
       nextVersionNumber: overwriteMode ? overwriteTargetVersionNumber : nextVersionNumber,
       ...(duplicateWarning ? { duplicateWarning } : {}),
+      ...(feeRatesChangedNotice ? { feeRatesChangedNotice } : {}),
       // REVIEW: when true, master.version_number was intentionally left unpublished
       deferredPublish: !overwriteMode && deferMasterVersionPublish,
       publishedVersionNumber: overwriteMode
