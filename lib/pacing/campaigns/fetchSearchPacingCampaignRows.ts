@@ -1,7 +1,7 @@
 import "server-only";
 
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination";
-import { xanoUrl } from "@/lib/api/xano";
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano";
 import { aggregateForLineItem } from "@/lib/pacing/campaigns/aggregate";
 import { findCurrentBurstIndex, inclusiveDaysBetween } from "@/lib/pacing/burst/currentBurst";
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts";
@@ -177,7 +177,14 @@ export async function fetchAllMasters(): Promise<MediaPlanMaster[]> {
   for (const endpoint of endpoints) {
     try {
       const url = xanoUrl(endpoint, [...MEDIA_PLANS_KEYS]);
-      const raw = await fetchAllXanoPages(url, {}, `PACING_${endpoint}`, 200, 50);
+      const raw = await fetchAllXanoPages(
+        url,
+        {},
+        `PACING_${endpoint}`,
+        200,
+        50,
+        xanoAuthHeaderRecord()
+      );
       return (raw ?? [])
         .map((r) => toMaster(r as Record<string, unknown>))
         .filter((m): m is MediaPlanMaster => m !== null);
@@ -194,7 +201,14 @@ export async function fetchCurrentVersionRowsForMasters(
   masters: MediaPlanMaster[]
 ): Promise<Map<string, VersionRow>> {
   const versionsUrl = xanoUrl("media_plan_versions", [...MEDIA_PLANS_KEYS]);
-  const allVersions = await fetchAllXanoPages(versionsUrl, {}, "PACING_VERSIONS_CAMPAIGNS", 200, 50);
+  const allVersions = await fetchAllXanoPages(
+    versionsUrl,
+    {},
+    "PACING_VERSIONS_CAMPAIGNS",
+    200,
+    50,
+    xanoAuthHeaderRecord()
+  );
 
   const wantMba = new Set(masters.map((m) => norm(m.mba_number)));
   const wantVersion = new Map(
@@ -235,7 +249,14 @@ export async function fetchSearchLineItemsForMba(args: {
   let bestRawCount = Number.POSITIVE_INFINITY;
 
   for (const params of attempts) {
-    const raw = await fetchAllXanoPages(url, params, "PACING_media_plan_search", 200, 20);
+    const raw = await fetchAllXanoPages(
+      url,
+      params,
+      "PACING_media_plan_search",
+      200,
+      20,
+      xanoAuthHeaderRecord()
+    );
     const filtered = filterByMbaAndVersion(raw, args.mba_number, args.versionNumber, args.versionRowId);
     if (
       filtered.length > best.length ||

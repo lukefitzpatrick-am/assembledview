@@ -50,12 +50,13 @@ export async function fetchAllXanoPagesWithCompleteness(
   baseParams: Record<string, string | number | boolean | null | undefined> = {},
   label = "xano",
   pageSize = 200,
-  maxPages = 50
+  maxPages = 50,
+  extraHeaders: Record<string, string> = {}
 ): Promise<FetchAllXanoPagesResult<any>> {
   const results: any[] = []
   const seenKeys = new Set<string>()
   let complete = true
-  const headers = xanoPostHeaderRecord()
+  const headers = { ...xanoPostHeaderRecord(), ...extraHeaders }
 
   const buildKey = (item: any): string => {
     if (!item || typeof item !== "object") {
@@ -175,14 +176,16 @@ export async function fetchAllXanoPages(
   baseParams: Record<string, string | number | boolean | null | undefined> = {},
   label = "xano",
   pageSize = 200,
-  maxPages = 50
+  maxPages = 50,
+  extraHeaders: Record<string, string> = {}
 ): Promise<any[]> {
   const result = await fetchAllXanoPagesWithCompleteness(
     baseUrl,
     baseParams,
     label,
     pageSize,
-    maxPages
+    maxPages,
+    extraHeaders
   )
   return result.items
 }

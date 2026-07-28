@@ -31,21 +31,12 @@ Empty/missing `XANO_API_KEY` omits the Authorization header (current public-grou
 
 1. [ ] `XANO_API_KEY` present in the environment you will smoke-test.
 2. [ ] Inventory regenerated and reviewed (`npx tsx scripts/xano-call-inventory.ts`).
-3. [ ] Follow-up: fix **auth header bypasses** below (or accept risk for those paths until fixed).
+3. [x] **DONE (S0-P4):** auth header bypasses routed through shared helpers (`xanoAuthHeader*` / `requireXanoAuthHeaderRecord` / `xanoPostHeaderRecord`). Inventory bypasses = 0.
 4. [ ] Flip **one group per window**; smoke-test; only then proceed.
 
-### Auth header bypasses (follow-up — do not mass-refactor in S0-P3)
+### Auth header bypasses — DONE (S0-P4)
 
-These call sites do **not** use the shared auth helpers. They will break once their group requires auth:
-
-| File | Method | Path | Env |
-|------|--------|------|-----|
-| `lib/api/xanoClients.ts` | GET | `clients` | `XANO_BASE_URL` |
-| `lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts` | GET | `media_plan_search` | `XANO_BASE_URL` |
-| `lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts` | GET | `media_plan_versions` | `XANO_BASE_URL` |
-| `lib/pacing/social/resolveLiveSocialLineItems.ts` | GET | `media_plan_social` | `XANO_BASE_URL` |
-| `lib/xano/campaignKpi.ts` | GET | `campaign_kpi` | `XANO_CLIENTS_BASE_URL` |
-| `app/mediaplans/[id]/edit/page.tsx` | GET | `media_plan_versions` | `XANO_MEDIA_PLANS_BASE_URL` |
+Previously listed call sites now use shared auth helpers. Re-run `npx tsx scripts/xano-call-inventory.ts` and confirm `bypasses` is empty before flipping groups.
 
 ---
 
@@ -82,7 +73,7 @@ Recommended order:
 | POST | `cinema_line_items`, `search_line_items`, `generate_mbanumber`, `get_mediaplan_topline` |
 | PUT / DELETE | `television_line_items` |
 
-Also used via `XANO_BASE_URL` (generic): `media_plan_search`, `media_plan_social`, `media_plan_versions` — fix bypasses before relying on auth.
+Also used via `XANO_BASE_URL` (generic): `media_plan_search`, `media_plan_social`, `media_plan_versions` — auth helpers applied (S0-P4 DONE).
 
 ### Smoke test (after flip)
 

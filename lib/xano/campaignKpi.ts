@@ -1,7 +1,7 @@
 import "server-only";
 
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination";
-import { xanoUrl } from "@/lib/api/xano";
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano";
 
 /**
  * Raw shape of a campaign_kpi row from Xano. Mirrors the table schema.
@@ -67,7 +67,8 @@ export async function fetchCampaignKpisForMbas(
         { mba_number: mbaNumber, version_number: versionNumber },
         `campaign_kpi_${mbaNumber}_v${versionNumber}`,
         200,
-        50
+        50,
+        xanoAuthHeaderRecord()
       );
       results.push(...(rows as CampaignKpiRow[]));
     } catch (err: unknown) {

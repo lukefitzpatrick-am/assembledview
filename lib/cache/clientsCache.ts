@@ -1,8 +1,10 @@
 import axios from "axios"
 import { omitClientBrain } from "@/lib/clients/omitClientBrain"
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
-import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
-import { xanoAuthHeaderRecord } from "@/lib/api/xano"
+import {
+  getXanoClientsAuthHeaderRecord,
+  getXanoClientsCollectionUrl,
+} from "@/lib/api/xanoClients"
 
 /**
  * Coalesced TTL cache for `/api/clients`.
@@ -53,7 +55,7 @@ async function fetchUpstream(): Promise<any[]> {
     timeout: 60_000,
     headers: {
       "Content-Type": "application/json",
-      ...xanoAuthHeaderRecord(),
+      ...getXanoClientsAuthHeaderRecord(),
     },
   })
   const payload = Array.isArray(response.data)

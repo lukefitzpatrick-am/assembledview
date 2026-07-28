@@ -1,7 +1,7 @@
 import "server-only";
 
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination";
-import { xanoUrl } from "@/lib/api/xano";
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano";
 import { findCurrentBurstIndex, inclusiveDaysBetween } from "@/lib/pacing/burst/currentBurst";
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts";
 import {
@@ -93,7 +93,14 @@ export async function fetchSocialLineItemsForMba(args: {
   let bestRawCount = Number.POSITIVE_INFINITY;
 
   for (const params of attempts) {
-    const raw = await fetchAllXanoPages(url, params, "PACING_media_plan_social", 200, 20);
+    const raw = await fetchAllXanoPages(
+      url,
+      params,
+      "PACING_media_plan_social",
+      200,
+      20,
+      xanoAuthHeaderRecord()
+    );
     const filtered = filterByMbaAndVersion(raw, args.mba_number, args.versionNumber, args.versionRowId);
     if (
       filtered.length > best.length ||

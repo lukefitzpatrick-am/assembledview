@@ -1,10 +1,15 @@
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 
 const CLIENTS_BASE_ENV_KEYS = ["XANO_CLIENTS_BASE_URL", "XANO_BASE_URL"] as const
 
 /** Xano `clients` table base URL (no trailing slash). Requires env like other `xanoUrl` callers. */
 export function getXanoClientsCollectionUrl(): string {
   return xanoUrl("clients", [...CLIENTS_BASE_ENV_KEYS])
+}
+
+/** Auth headers for clients-collection requests (Authorization omitted when `XANO_API_KEY` unset). */
+export function getXanoClientsAuthHeaderRecord(): Record<string, string> {
+  return xanoAuthHeaderRecord()
 }
 
 /**

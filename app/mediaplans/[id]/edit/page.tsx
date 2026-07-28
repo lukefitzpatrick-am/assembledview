@@ -1,6 +1,6 @@
 import axios from "axios"
 import { notFound, redirect } from "next/navigation"
-import { xanoUrl } from "@/lib/api/xano"
+import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 
 export const dynamic = "force-dynamic"
 
@@ -25,10 +25,7 @@ export default async function LegacyMediaPlanEditRedirect({
   let mediaPlanVersion: MediaPlanVersion | undefined
   try {
     const response = await axios.get(versionsUrl, {
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
+      headers: xanoPostHeaderRecord(),
       timeout: 55_000,
     })
     const data = response.data

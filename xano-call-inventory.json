@@ -1,6 +1,6 @@
 {
   "summary": {
-    "generatedAt": "2026-07-28T04:35:02.178Z",
+    "generatedAt": "2026-07-28T04:54:38.259Z",
     "catalogTotals": {
       "groups": 13,
       "endpoints": 340,
@@ -10,8 +10,8 @@
     "appCallCount": 106,
     "uniquePaths": 71,
     "authHelperCoverage": {
-      "withHelper": 100,
-      "withoutHelper": 6
+      "withHelper": 106,
+      "withoutHelper": 0
     },
     "authMechanism": {
       "envVar": "XANO_API_KEY",
@@ -60,7 +60,7 @@
       "path": "clients",
       "method": "GET",
       "callingFile": "lib/api/xanoClients.ts",
-      "hasAuthHelper": false,
+      "hasAuthHelper": true,
       "group": "(generic)"
     },
     {
@@ -92,7 +92,7 @@
       "path": "media_plan_search",
       "method": "GET",
       "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
-      "hasAuthHelper": false,
+      "hasAuthHelper": true,
       "group": "(generic)"
     },
     {
@@ -100,7 +100,7 @@
       "path": "media_plan_social",
       "method": "GET",
       "callingFile": "lib/pacing/social/resolveLiveSocialLineItems.ts",
-      "hasAuthHelper": false,
+      "hasAuthHelper": true,
       "group": "(generic)"
     },
     {
@@ -116,7 +116,7 @@
       "path": "media_plan_versions",
       "method": "GET",
       "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
-      "hasAuthHelper": false,
+      "hasAuthHelper": true,
       "group": "(generic)"
     },
     {
@@ -164,7 +164,7 @@
       "path": "campaign_kpi",
       "method": "GET",
       "callingFile": "lib/xano/campaignKpi.ts",
-      "hasAuthHelper": false,
+      "hasAuthHelper": true,
       "group": "Clients"
     },
     {
@@ -596,7 +596,7 @@
       "path": "media_plan_versions",
       "method": "GET",
       "callingFile": "app/mediaplans/[id]/edit/page.tsx",
-      "hasAuthHelper": false,
+      "hasAuthHelper": true,
       "group": "media_plans"
     },
     {
@@ -911,7 +911,7 @@
         "path": "clients",
         "method": "GET",
         "callingFile": "lib/api/xanoClients.ts",
-        "hasAuthHelper": false,
+        "hasAuthHelper": true,
         "group": "(generic)"
       },
       {
@@ -943,7 +943,7 @@
         "path": "media_plan_search",
         "method": "GET",
         "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
-        "hasAuthHelper": false,
+        "hasAuthHelper": true,
         "group": "(generic)"
       },
       {
@@ -951,7 +951,7 @@
         "path": "media_plan_social",
         "method": "GET",
         "callingFile": "lib/pacing/social/resolveLiveSocialLineItems.ts",
-        "hasAuthHelper": false,
+        "hasAuthHelper": true,
         "group": "(generic)"
       },
       {
@@ -967,7 +967,7 @@
         "path": "media_plan_versions",
         "method": "GET",
         "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
-        "hasAuthHelper": false,
+        "hasAuthHelper": true,
         "group": "(generic)"
       },
       {
@@ -1017,7 +1017,7 @@
         "path": "campaign_kpi",
         "method": "GET",
         "callingFile": "lib/xano/campaignKpi.ts",
-        "hasAuthHelper": false,
+        "hasAuthHelper": true,
         "group": "Clients"
       },
       {
@@ -1455,7 +1455,7 @@
         "path": "media_plan_versions",
         "method": "GET",
         "callingFile": "app/mediaplans/[id]/edit/page.tsx",
-        "hasAuthHelper": false,
+        "hasAuthHelper": true,
         "group": "media_plans"
       },
       {
@@ -1743,7 +1743,7 @@
         "path": "clients",
         "method": "GET",
         "callingFile": "lib/api/xanoClients.ts",
-        "hasAuthHelper": false,
+        "hasAuthHelper": true,
         "group": "(generic)",
         "catalogMatch": "POST clients"
       },
@@ -1761,7 +1761,7 @@
         "path": "media_plan_search",
         "method": "GET",
         "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
-        "hasAuthHelper": false,
+        "hasAuthHelper": true,
         "group": "(generic)",
         "catalogMatch": "POST media_plan_search"
       },
@@ -1770,7 +1770,7 @@
         "path": "media_plan_social",
         "method": "GET",
         "callingFile": "lib/pacing/social/resolveLiveSocialLineItems.ts",
-        "hasAuthHelper": false,
+        "hasAuthHelper": true,
         "group": "(generic)",
         "catalogMatch": "POST media_plan_social"
       },
@@ -1788,7 +1788,7 @@
         "path": "media_plan_versions",
         "method": "GET",
         "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
-        "hasAuthHelper": false,
+        "hasAuthHelper": true,
         "group": "(generic)",
         "catalogMatch": "POST media_plan_versions"
       },
@@ -1815,7 +1815,7 @@
         "path": "campaign_kpi",
         "method": "GET",
         "callingFile": "lib/xano/campaignKpi.ts",
-        "hasAuthHelper": false,
+        "hasAuthHelper": true,
         "group": "Clients",
         "catalogMatch": "GET campaign_kpi"
       },
@@ -2148,7 +2148,7 @@
         "path": "media_plan_versions",
         "method": "GET",
         "callingFile": "app/mediaplans/[id]/edit/page.tsx",
-        "hasAuthHelper": false,
+        "hasAuthHelper": true,
         "group": "media_plans",
         "catalogMatch": "GET media_plan_versions"
       },
@@ -4459,48 +4459,5 @@
       }
     ]
   },
-  "authHeaderBypasses": [
-    {
-      "envVar": "XANO_BASE_URL",
-      "path": "clients",
-      "method": "GET",
-      "callingFile": "lib/api/xanoClients.ts",
-      "group": "(generic)"
-    },
-    {
-      "envVar": "XANO_BASE_URL",
-      "path": "media_plan_search",
-      "method": "GET",
-      "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
-      "group": "(generic)"
-    },
-    {
-      "envVar": "XANO_BASE_URL",
-      "path": "media_plan_social",
-      "method": "GET",
-      "callingFile": "lib/pacing/social/resolveLiveSocialLineItems.ts",
-      "group": "(generic)"
-    },
-    {
-      "envVar": "XANO_BASE_URL",
-      "path": "media_plan_versions",
-      "method": "GET",
-      "callingFile": "lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts",
-      "group": "(generic)"
-    },
-    {
-      "envVar": "XANO_CLIENTS_BASE_URL",
-      "path": "campaign_kpi",
-      "method": "GET",
-      "callingFile": "lib/xano/campaignKpi.ts",
-      "group": "Clients"
-    },
-    {
-      "envVar": "XANO_MEDIA_PLANS_BASE_URL",
-      "path": "media_plan_versions",
-      "method": "GET",
-      "callingFile": "app/mediaplans/[id]/edit/page.tsx",
-      "group": "media_plans"
-    }
-  ]
+  "authHeaderBypasses": []
 }
