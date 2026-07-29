@@ -1,9 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { ChevronDown, ChevronUp, Check, X, AlertCircle } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import type { SaveStatusItem } from "@/components/ui/saving-modal"
 
@@ -21,7 +20,12 @@ export function MediaPlanLoadStatusPill({
   onDismiss,
   onItemClick,
 }: MediaPlanLoadStatusPillProps) {
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(true)
+
+  // Keep per-channel progress visible while loading so a long wait is legible.
+  useEffect(() => {
+    if (isLoading) setExpanded(true)
+  }, [isLoading])
 
   if (items.length === 0) return null
 
@@ -101,6 +105,7 @@ export function MediaPlanLoadStatusPill({
           <ul className="flex flex-col gap-1.5">
             {items.map((item, idx) => {
               const clickable = item.status === "error" && !!onItemClick
+              const pendingDetail = item.error || "loading…"
               return (
                 <li
                   key={`${item.name}-${idx}`}
@@ -133,9 +138,9 @@ export function MediaPlanLoadStatusPill({
                         {clickable && " — click to jump to section"}
                       </div>
                     )}
-                    {item.status === "pending" && item.error && (
+                    {item.status === "pending" && (
                       <div className="mt-0.5 text-xs text-muted-foreground">
-                        {item.error}
+                        {pendingDetail}
                       </div>
                     )}
                   </div>

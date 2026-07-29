@@ -1635,11 +1635,18 @@ function setIfChanged<T>(setter: Dispatch<SetStateAction<T>>, next: T): boolean 
   return didChange
 }
 
-const LINE_ITEM_TIMEOUT_INITIAL_MS = 8_000
-const LINE_ITEM_TIMEOUT_AUTO_RETRY_MS = 15_000
+const LINE_ITEM_TIMEOUT_INITIAL_MS = 15_000
+const LINE_ITEM_TIMEOUT_AUTO_RETRY_MS = 25_000
 const LINE_ITEM_TIMEOUT_MANUAL_RETRY_MS = 180_000
-/** Hard ceiling: never leave Save disabled with no recovery path. */
-const HYDRATION_WATCHDOG_MS = 20_000
+/**
+ * Hard ceiling for stuck container settle (not for slow fetches).
+ * Must exceed initial + auto-retry so a live retry is never pre-empted.
+ */
+const HYDRATION_WATCHDOG_MS = 50_000
+
+if (HYDRATION_WATCHDOG_MS <= LINE_ITEM_TIMEOUT_INITIAL_MS + LINE_ITEM_TIMEOUT_AUTO_RETRY_MS) {
+  throw new Error("HYDRATION_WATCHDOG_MS must exceed initial + auto-retry timeouts")
+}
 
 /**
  * Stage 2 divergence UI (banner + first-visit modal). Re-enabled after C2
@@ -3123,6 +3130,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
       // Allow line-item fetch to run again for this MBA/version + enabled-media set
       lastLineItemsLoadKeyRef.current = ""
+      hydrationWatchdogFiredRef.current = false
 
       try {
         // Include version parameter if available
@@ -3620,6 +3628,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [applyClientFees, clients, selectedClientId, mediaPlan, selectedClient, form])
 
   const lastLineItemsLoadKeyRef = useRef("")
+  /** True after the hydration watchdog forces ready — late fetch success still applies and clears warnings. */
+  const hydrationWatchdogFiredRef = useRef(false)
   const lastCampaignDatesRef = useRef<{ start: string; end: string } | null>(null)
 
   const lineItemLoaderConfig = useMemo(
@@ -3765,6 +3775,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           return
         }
         lastLineItemsLoadKeyRef.current = loadKey
+        hydrationWatchdogFiredRef.current = false
 
         const formValues = form.getValues()
         const enabledInOrder = mediaTypes
@@ -3781,7 +3792,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
 
         for (const { label } of enabledInOrder) {
-          updateLoadStatus(label, "pending")
+          updateLoadStatus(label, "pending", "loading…")
         }
         const initialStatus: Partial<Record<MediaTypeKey, MediaLoadStatus>> = {}
         enabledInOrder.forEach(({ flag }) => {
@@ -3829,6 +3840,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 ...item,
                 bursts_json: item.bursts_json || item.bursts || null,
               }))
+              // Late success after watchdog: still apply data and clear the stale warning.
               setter(processedItems)
               if (
                 flag === "mp_production" &&
@@ -3850,10 +3862,24 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                     return next
                   })
                 }
-                console.log(`[DATA LOAD] ${flag} loaded (${processedItems.length} items)`)
+                if (hydrationWatchdogFiredRef.current) {
+                  console.log(
+                    `[DATA LOAD] ${flag} late success after watchdog — cleared warning (${processedItems.length} items)`
+                  )
+                } else {
+                  console.log(`[DATA LOAD] ${flag} loaded (${processedItems.length} items)`)
+                }
               }
             } catch (loadError) {
               if (cancelled) return
+              // After watchdog, channel is already force-settled with a warning — ignore late failure noise.
+              if (hydrationWatchdogFiredRef.current) {
+                console.warn(
+                  `[DATA LOAD] Ignoring late failure for ${flag} after hydration watchdog:`,
+                  loadError
+                )
+                return
+              }
               console.warn(`[DATA LOAD] Both attempts failed for ${flag} line items:`, loadError)
               setter([])
               setMediaLoadStatus((prev) => ({ ...prev, [flag]: "error" }))
@@ -3872,7 +3898,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           console.log("[DATA LOAD] Parallel line item load complete")
         }
       } finally {
-        if (!cancelled) {
+        // Watchdog may already have forced ready; don't regress phase if we were cancelled mid-flight.
+        if (!cancelled && !hydrationWatchdogFiredRef.current) {
           setLoadPhase("ready")
           setIsLoading(false)
         }
@@ -3907,6 +3934,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         (flag) => channelHydrationSettledRef.current[flag] !== true
       )
 
+      hydrationWatchdogFiredRef.current = true
       setIsLoading(false)
       setLoadPhase("ready")
 
