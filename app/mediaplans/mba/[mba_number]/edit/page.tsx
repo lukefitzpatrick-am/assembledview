@@ -2797,6 +2797,44 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return () => window.clearTimeout(id)
   }, [allChannelsHydrated])
 
+  /**
+   * P5: A channel toggled on after initial hydration never enters the
+   * loadingLineItems loader, so mediaLoadStatus stays undefined/idle and
+   * computeAllChannelsHydrated stays false → Save latches on "Loading…".
+   * Empty newly-enabled channels have nothing to fetch — mark them ready + settled.
+   * Do not touch flags that are already loading (manual retry / in-flight).
+   */
+  useEffect(() => {
+    if (loadPhase !== "ready") return
+
+    const idleNewFlags = expectedHydrationFlags.filter((flag) => {
+      const status = mediaLoadStatus[flag]
+      return status === undefined || status === "idle"
+    })
+    if (idleNewFlags.length === 0) return
+
+    setMediaLoadStatus((prev) => {
+      let changed = false
+      const next = { ...prev }
+      for (const flag of idleNewFlags) {
+        const status = prev[flag]
+        if (status === undefined || status === "idle") {
+          next[flag] = "ready"
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+    for (const flag of idleNewFlags) {
+      markChannelHydrationSettled(flag)
+    }
+  }, [
+    expectedHydrationFlags,
+    loadPhase,
+    markChannelHydrationSettled,
+    mediaLoadStatus,
+  ])
+
   const enabledSections = useMemo(() => {
     return mediaTypes
       .filter((medium) => mediaFlagMap[medium.name])
@@ -3630,6 +3668,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const lastLineItemsLoadKeyRef = useRef("")
   /** True after the hydration watchdog forces ready — late fetch success still applies and clears warnings. */
   const hydrationWatchdogFiredRef = useRef(false)
+  /** Rising-edge arm for hydration watchdog (re-arms each time hold begins again). */
+  const hydrationWatchActiveRef = useRef(false)
+  const hydrationWatchTimerRef = useRef<number | null>(null)
+  const expectedHydrationFlagsRef = useRef(expectedHydrationFlags)
+  expectedHydrationFlagsRef.current = expectedHydrationFlags
   const lastCampaignDatesRef = useRef<{ start: string; end: string } | null>(null)
 
   const lineItemLoaderConfig = useMemo(
@@ -3924,60 +3967,78 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   // Never leave Save permanently disabled: if line-item load or container settle
   // stalls, degrade to save-allowed + visible warning after a hard ceiling.
+  // Re-arm on every false→true of (loadingLineItems || saveHeldForHydration);
+  // clear on the reverse transition and on unmount. Do not reset the timer when
+  // expectedHydrationFlags identity churns while already held.
   useEffect(() => {
-    if (loadPhase !== "loadingLineItems" && !saveHeldForHydration) {
+    const shouldWatch = loadPhase === "loadingLineItems" || saveHeldForHydration
+
+    if (shouldWatch && !hydrationWatchActiveRef.current) {
+      hydrationWatchActiveRef.current = true
+      hydrationWatchdogFiredRef.current = false
+      hydrationWatchTimerRef.current = window.setTimeout(() => {
+        const unsettledFlags = expectedHydrationFlagsRef.current.filter(
+          (flag) => channelHydrationSettledRef.current[flag] !== true
+        )
+
+        hydrationWatchdogFiredRef.current = true
+        setIsLoading(false)
+        setLoadPhase("ready")
+
+        if (unsettledFlags.length === 0) return
+
+        setMediaLoadStatus((prev) => {
+          const next = { ...prev }
+          for (const flag of unsettledFlags) {
+            if (next[flag] !== "ready") {
+              next[flag] = "error"
+            }
+          }
+          return next
+        })
+        setChannelHydrationSettled((prev) => {
+          const next = { ...prev }
+          for (const flag of unsettledFlags) {
+            next[flag] = true
+          }
+          channelHydrationSettledRef.current = next
+          return next
+        })
+        for (const flag of unsettledFlags) {
+          const label = mediaTypes.find((m) => m.name === flag)?.label ?? flag
+          updateLoadStatus(
+            label,
+            "error",
+            "did not finish loading — check line items before saving"
+          )
+        }
+        console.warn(
+          `[DATA LOAD] Hydration watchdog fired after ${HYDRATION_WATCHDOG_MS}ms; unsettled:`,
+          unsettledFlags
+        )
+      }, HYDRATION_WATCHDOG_MS)
       return
     }
 
-    const timer = window.setTimeout(() => {
-      const unsettledFlags = expectedHydrationFlags.filter(
-        (flag) => channelHydrationSettledRef.current[flag] !== true
-      )
-
-      hydrationWatchdogFiredRef.current = true
-      setIsLoading(false)
-      setLoadPhase("ready")
-
-      if (unsettledFlags.length === 0) return
-
-      setMediaLoadStatus((prev) => {
-        const next = { ...prev }
-        for (const flag of unsettledFlags) {
-          if (next[flag] !== "ready") {
-            next[flag] = "error"
-          }
-        }
-        return next
-      })
-      setChannelHydrationSettled((prev) => {
-        const next = { ...prev }
-        for (const flag of unsettledFlags) {
-          next[flag] = true
-        }
-        channelHydrationSettledRef.current = next
-        return next
-      })
-      for (const flag of unsettledFlags) {
-        const label = mediaTypes.find((m) => m.name === flag)?.label ?? flag
-        updateLoadStatus(
-          label,
-          "error",
-          "did not finish loading — check line items before saving"
-        )
+    if (!shouldWatch && hydrationWatchActiveRef.current) {
+      hydrationWatchActiveRef.current = false
+      if (hydrationWatchTimerRef.current != null) {
+        window.clearTimeout(hydrationWatchTimerRef.current)
+        hydrationWatchTimerRef.current = null
       }
-      console.warn(
-        `[DATA LOAD] Hydration watchdog fired after ${HYDRATION_WATCHDOG_MS}ms; unsettled:`,
-        unsettledFlags
-      )
-    }, HYDRATION_WATCHDOG_MS)
+    }
+  }, [loadPhase, saveHeldForHydration, updateLoadStatus])
 
-    return () => window.clearTimeout(timer)
-  }, [
-    expectedHydrationFlags,
-    loadPhase,
-    saveHeldForHydration,
-    updateLoadStatus,
-  ])
+  // Unmount-only: clear any armed hydration watchdog timer.
+  useEffect(() => {
+    return () => {
+      if (hydrationWatchTimerRef.current != null) {
+        window.clearTimeout(hydrationWatchTimerRef.current)
+        hydrationWatchTimerRef.current = null
+      }
+      hydrationWatchActiveRef.current = false
+    }
+  }, [])
 
   const handleClientSelect = (client: Client | null) => {
     if (client) {

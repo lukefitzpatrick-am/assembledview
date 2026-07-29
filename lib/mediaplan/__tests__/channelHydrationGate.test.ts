@@ -89,6 +89,36 @@ test("computeAllChannelsHydrated: still-loading status blocks even if settled fl
   )
 })
 
+test("computeAllChannelsHydrated: newly toggled channel with undefined/idle status blocks Save", () => {
+  assert.equal(
+    computeAllChannelsHydrated({
+      loadPhase: "ready",
+      expectedFlags: ["mp_search", "mp_radio"],
+      mediaLoadStatus: { mp_search: "ready" },
+      settledFlags: { mp_search: true },
+    }),
+    false
+  )
+  assert.equal(
+    computeAllChannelsHydrated({
+      loadPhase: "ready",
+      expectedFlags: ["mp_search", "mp_radio"],
+      mediaLoadStatus: { mp_search: "ready", mp_radio: "idle" },
+      settledFlags: { mp_search: true },
+    }),
+    false
+  )
+  assert.equal(
+    computeAllChannelsHydrated({
+      loadPhase: "ready",
+      expectedFlags: ["mp_search", "mp_radio"],
+      mediaLoadStatus: { mp_search: "ready", mp_radio: "ready" },
+      settledFlags: { mp_search: true, mp_radio: true },
+    }),
+    true
+  )
+})
+
 test("reconciliationBadgeVisibility: neither green nor red before hydration", () => {
   assert.deepEqual(reconciliationBadgeVisibility(false, true), {
     showEquals: false,
