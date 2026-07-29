@@ -12,6 +12,7 @@ import {
 import { extractAndFormatBursts } from "@/lib/mediaplan/formatBurstsForPersist"
 import { formatProductionBurstForPersist } from "@/lib/mediaplan/resolveProductionBurstBudget"
 import { getBooleanField } from "@/lib/util/getBooleanField"
+import { lineItemWriteSemaphore } from "@/lib/utils/createSemaphore"
 
 const isBrowser = typeof window !== "undefined"
 const PUBLISHERS_BASE_URL = getXanoBaseUrl("XANO_PUBLISHERS_BASE_URL")
@@ -1619,7 +1620,8 @@ export async function saveTelevisionData(televisionData: any) {
 
 export async function saveTelevisionLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, televisionLineItems: any[]) {
   try {
-    const savePromises = televisionLineItems.map(async (lineItem, index) => {
+    const savePromises = televisionLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       // Format bursts data to ensure dates are properly serialized
       // Television has special fields (size, tarps) which will be preserved by extractAndFormatBursts
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
@@ -1647,7 +1649,8 @@ export async function saveTelevisionLineItems(mediaPlanVersionId: number, mbaNum
       };
 
       return await saveTelevisionData(televisionData);
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     return results;
@@ -1680,7 +1683,8 @@ export async function saveNewspaperData(newspaperData: any) {
 
 export async function saveNewspaperLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, newspaperLineItems: any[]) {
   try {
-    const savePromises = newspaperLineItems.map(async (lineItem, index) => {
+    const savePromises = newspaperLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       // Format bursts data to ensure dates are properly serialized
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.newspaper, index)
@@ -1708,7 +1712,8 @@ export async function saveNewspaperLineItems(mediaPlanVersionId: number, mbaNumb
       };
 
       return await saveNewspaperData(newspaperData);
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     return results;
@@ -1777,7 +1782,8 @@ function applyDeterministicIdForUpdate<T extends { mba_number?: string }>(
 
 export async function saveSocialMediaLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, socialMediaLineItems: any[]) {
   try {
-    const savePromises = socialMediaLineItems.map(async (lineItem, index) => {
+    const savePromises = socialMediaLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       // Format bursts data to ensure dates are properly serialized
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia, index)
@@ -1803,7 +1809,8 @@ export async function saveSocialMediaLineItems(mediaPlanVersionId: number, mbaNu
       };
 
       return await saveSocialMediaData(socialMediaData);
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     return results;
@@ -2818,7 +2825,8 @@ export async function saveProductionLineItems(
       return defaultValue
     }
 
-    const savePromises = productionLineItems.map(async (lineItem, index) => {
+    const savePromises = productionLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = normalizeBursts(lineItem)
       const { line_item_id, line_item } = buildLineItemMeta(lineItem, mbaNumber, index, 'PROD');
 
@@ -2859,7 +2867,8 @@ export async function saveProductionLineItems(
       }
 
       return await parseJsonOrText(response);
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Production line items saved successfully:', results);
@@ -3068,7 +3077,8 @@ export async function getInfluencersLineItemsByMBA(mbaNumber: string, mediaPlanV
 // Additional Save Functions for Bulk Operations
 export async function saveRadioLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, radioLineItems: any[]) {
   try {
-    const savePromises = radioLineItems.map(async (lineItem, index) => {
+    const savePromises = radioLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       // Format bursts data to ensure dates are properly serialized
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const idMeta = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.radio, index);
@@ -3120,7 +3130,8 @@ export async function saveRadioLineItems(mediaPlanVersionId: number, mbaNumber: 
       }
 
       return await response.json();
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Radio line items saved successfully:', results);
@@ -3133,7 +3144,8 @@ export async function saveRadioLineItems(mediaPlanVersionId: number, mbaNumber: 
 
 export async function saveMagazinesLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, magazinesLineItems: any[]) {
   try {
-    const savePromises = magazinesLineItems.map(async (lineItem, index) => {
+    const savePromises = magazinesLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.magazines, index);
 
@@ -3172,7 +3184,8 @@ export async function saveMagazinesLineItems(mediaPlanVersionId: number, mbaNumb
       }
 
       return await response.json();
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Magazines line items saved successfully:', results);
@@ -3185,7 +3198,8 @@ export async function saveMagazinesLineItems(mediaPlanVersionId: number, mbaNumb
 
 export async function saveOOHLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, oohLineItems: any[]) {
   try {
-    const savePromises = oohLineItems.map(async (lineItem, index) => {
+    const savePromises = oohLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.ooh, index);
 
@@ -3225,7 +3239,8 @@ export async function saveOOHLineItems(mediaPlanVersionId: number, mbaNumber: st
       }
 
       return await response.json();
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('OOH line items saved successfully:', results);
@@ -3238,7 +3253,8 @@ export async function saveOOHLineItems(mediaPlanVersionId: number, mbaNumber: st
 
 export async function saveCinemaLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, cinemaLineItems: any[], versionNumber?: number) {
   try {
-    const savePromises = cinemaLineItems.map(async (lineItem, index) => {
+    const savePromises = cinemaLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.cinema, index);
 
@@ -3278,7 +3294,8 @@ export async function saveCinemaLineItems(mediaPlanVersionId: number, mbaNumber:
       }
 
       return await response.json();
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Cinema line items saved successfully:', results);
@@ -3291,7 +3308,8 @@ export async function saveCinemaLineItems(mediaPlanVersionId: number, mbaNumber:
 
 export async function saveDigitalDisplayLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, digitalDisplayLineItems: any[]) {
   try {
-    const savePromises = digitalDisplayLineItems.map(async (lineItem, index) => {
+    const savePromises = digitalDisplayLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay, index);
 
@@ -3330,7 +3348,8 @@ export async function saveDigitalDisplayLineItems(mediaPlanVersionId: number, mb
       }
 
       return await response.json();
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Digital display line items saved successfully:', results);
@@ -3343,7 +3362,8 @@ export async function saveDigitalDisplayLineItems(mediaPlanVersionId: number, mb
 
 export async function saveDigitalAudioLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, digitalAudioLineItems: any[]) {
   try {
-    const savePromises = digitalAudioLineItems.map(async (lineItem, index) => {
+    const savePromises = digitalAudioLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio, index);
 
@@ -3382,7 +3402,8 @@ export async function saveDigitalAudioLineItems(mediaPlanVersionId: number, mbaN
       }
 
       return await response.json();
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Digital audio line items saved successfully:', results);
@@ -3395,7 +3416,8 @@ export async function saveDigitalAudioLineItems(mediaPlanVersionId: number, mbaN
 
 export async function saveDigitalVideoLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, digitalVideoLineItems: any[]) {
   try {
-    const savePromises = digitalVideoLineItems.map(async (lineItem, index) => {
+    const savePromises = digitalVideoLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo, index);
 
@@ -3436,7 +3458,8 @@ export async function saveDigitalVideoLineItems(mediaPlanVersionId: number, mbaN
       }
 
       return await response.json();
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Digital video line items saved successfully:', results);
@@ -3449,7 +3472,8 @@ export async function saveDigitalVideoLineItems(mediaPlanVersionId: number, mbaN
 
 export async function saveBVODLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, bvodLineItems: any[]) {
   try {
-    const savePromises = bvodLineItems.map(async (lineItem, index) => {
+    const savePromises = bvodLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.bvod, index);
 
@@ -3495,7 +3519,8 @@ export async function saveBVODLineItems(mediaPlanVersionId: number, mbaNumber: s
       }
 
       return await parseJsonOrText(response);
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('BVOD line items saved successfully:', results);
@@ -3508,7 +3533,8 @@ export async function saveBVODLineItems(mediaPlanVersionId: number, mbaNumber: s
 
 export async function saveIntegrationLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, integrationLineItems: any[]) {
   try {
-    const savePromises = integrationLineItems.map(async (lineItem, index) => {
+    const savePromises = integrationLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(
         lineItem,
@@ -3557,7 +3583,8 @@ export async function saveIntegrationLineItems(mediaPlanVersionId: number, mbaNu
       }
 
       return await parseJsonOrText(response);
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Integration line items saved successfully:', results);
@@ -3570,7 +3597,8 @@ export async function saveIntegrationLineItems(mediaPlanVersionId: number, mbaNu
 
 export async function saveSearchLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, searchLineItems: any[]) {
   try {
-    const savePromises = searchLineItems.map(async (lineItem, index) => {
+    const savePromises = searchLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.search, index);
 
@@ -3609,7 +3637,8 @@ export async function saveSearchLineItems(mediaPlanVersionId: number, mbaNumber:
       }
 
       return await response.json();
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Search line items saved successfully:', results);
@@ -3622,7 +3651,8 @@ export async function saveSearchLineItems(mediaPlanVersionId: number, mbaNumber:
 
 export async function saveProgDisplayLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progDisplayLineItems: any[]) {
   try {
-    const savePromises = progDisplayLineItems.map(async (lineItem, index) => {
+    const savePromises = progDisplayLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progDisplay, index);
 
@@ -3662,7 +3692,8 @@ export async function saveProgDisplayLineItems(mediaPlanVersionId: number, mbaNu
       }
 
       return await response.json();
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Programmatic display line items saved successfully:', results);
@@ -3675,7 +3706,8 @@ export async function saveProgDisplayLineItems(mediaPlanVersionId: number, mbaNu
 
 export async function saveProgVideoLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progVideoLineItems: any[]) {
   try {
-    const savePromises = progVideoLineItems.map(async (lineItem, index) => {
+    const savePromises = progVideoLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progVideo, index);
 
@@ -3720,7 +3752,8 @@ export async function saveProgVideoLineItems(mediaPlanVersionId: number, mbaNumb
       }
 
       return await parseJsonOrText(response);
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Programmatic video line items saved successfully:', results);
@@ -3733,7 +3766,8 @@ export async function saveProgVideoLineItems(mediaPlanVersionId: number, mbaNumb
 
 export async function saveProgBVODLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progBVODLineItems: any[]) {
   try {
-    const savePromises = progBVODLineItems.map(async (lineItem, index) => {
+    const savePromises = progBVODLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progBVOD, index);
 
@@ -3773,7 +3807,8 @@ export async function saveProgBVODLineItems(mediaPlanVersionId: number, mbaNumbe
       }
 
       return await response.json();
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Programmatic BVOD line items saved successfully:', results);
@@ -3786,7 +3821,8 @@ export async function saveProgBVODLineItems(mediaPlanVersionId: number, mbaNumbe
 
 export async function saveProgAudioLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progAudioLineItems: any[]) {
   try {
-    const savePromises = progAudioLineItems.map(async (lineItem, index) => {
+    const savePromises = progAudioLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progAudio, index);
 
@@ -3825,7 +3861,8 @@ export async function saveProgAudioLineItems(mediaPlanVersionId: number, mbaNumb
       }
 
       return await response.json();
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Programmatic audio line items saved successfully:', results);
@@ -3838,7 +3875,8 @@ export async function saveProgAudioLineItems(mediaPlanVersionId: number, mbaNumb
 
 export async function saveProgOOHLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, progOOHLineItems: any[]) {
   try {
-    const savePromises = progOOHLineItems.map(async (lineItem, index) => {
+    const savePromises = progOOHLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(lineItem, mbaNumber, MEDIA_TYPE_ID_CODES.progOOH, index);
 
@@ -3878,7 +3916,8 @@ export async function saveProgOOHLineItems(mediaPlanVersionId: number, mbaNumber
       }
 
       return await response.json();
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Programmatic OOH line items saved successfully:', results);
@@ -3891,7 +3930,8 @@ export async function saveProgOOHLineItems(mediaPlanVersionId: number, mbaNumber
 
 export async function saveInfluencersLineItems(mediaPlanVersionId: number, mbaNumber: string, clientName: string, planNumber: string, influencersLineItems: any[]) {
   try {
-    const savePromises = influencersLineItems.map(async (lineItem, index) => {
+    const savePromises = influencersLineItems.map((lineItem, index) =>
+      lineItemWriteSemaphore.run(async () => {
       const formattedBursts = extractAndFormatBursts(lineItem, lineItem.feePct ?? lineItem.feePercentage ?? lineItem.fee_percentage);
       const { line_item_id, line_item } = buildLineItemIdentity(
         lineItem,
@@ -3935,7 +3975,8 @@ export async function saveInfluencersLineItems(mediaPlanVersionId: number, mbaNu
       }
 
       return await parseJsonOrText(response);
-    });
+      })
+    );
 
     const results = await Promise.all(savePromises);
     console.log('Influencers line items saved successfully:', results);
