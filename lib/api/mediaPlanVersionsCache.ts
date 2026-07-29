@@ -9,9 +9,9 @@ import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
  * stripped client-side after fetch so dashboard/list payloads stay small even if
  * Xano ignores the flag.
  *
- * Serves stale-while-revalidate: when a populated entry is past TTL, callers get
- * the cached value immediately and a background refresh runs. Only a true cold
- * start (never filled) blocks on the upstream round-trip.
+ * Past-TTL hits await a refresh (upstream is ~400ms post-upgrade). Fire-and-forget
+ * background refresh was suspended by the serverless runtime and produced phantom
+ * 15s timeouts while serving a frozen last-known-good as if it were fresh.
  *
  * Consumers of this cache must treat the value as a latest-version-per-MBA list
  * of scalar fields only. Call sites that need schedules or version history must
@@ -19,8 +19,9 @@ import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
  */
 
 const DEFAULT_TTL_MS = 60_000
-/** per_page ceiling on _latest measured 12 Jul 2026: 100 ✅ / 150 ❌ timeout. 171-row latest set = 2 requests. */
-const PAGE_SIZE = 100
+/** Halved from 100: page 1 at per_page=50 measured ~429ms vs ~844ms at 100 (29 Jul 2026). */
+const PAGE_SIZE = 50
+const FAILURE_BACKOFF_MS = 30_000
 
 const SCHEDULE_KEYS = [
   "deliverySchedule",
@@ -32,6 +33,8 @@ const SCHEDULE_KEYS = [
 export type MediaPlanVersionsCacheResult = {
   data: any[]
   stale: boolean
+  /** Epoch ms of the last successful upstream fill (undefined if never filled). */
+  fetchedAt?: number
 }
 
 type CacheEntry = {
@@ -41,6 +44,8 @@ type CacheEntry = {
 
 let cacheEntry: CacheEntry | null = null
 let inFlightPromise: Promise<MediaPlanVersionsCacheResult> | null = null
+/** Set when a refresh fails; cleared on success. Gates retry hammering. */
+let lastRefreshFailedAt: number | null = null
 
 function cacheTtlMs(): number {
   const raw = process.env.MEDIA_PLAN_VERSIONS_CACHE_TTL_MS
@@ -95,14 +100,20 @@ function startRefresh(): Promise<MediaPlanVersionsCacheResult> {
     try {
       const data = await fetchUpstream()
       cacheEntry = { data, fetchedAt: Date.now() }
-      return { data, stale: false }
+      lastRefreshFailedAt = null
+      return { data, stale: false, fetchedAt: cacheEntry.fetchedAt }
     } catch (err) {
+      lastRefreshFailedAt = Date.now()
       if (cacheEntry) {
         console.warn(
           "[mediaPlanVersionsCache] upstream failed; serving last-known-good",
           err instanceof Error ? err.message : err,
         )
-        return { data: cacheEntry.data, stale: true }
+        return {
+          data: cacheEntry.data,
+          stale: true,
+          fetchedAt: cacheEntry.fetchedAt,
+        }
       }
       throw err
     } finally {
@@ -114,31 +125,47 @@ function startRefresh(): Promise<MediaPlanVersionsCacheResult> {
   return promise
 }
 
+function serveCached(stale: boolean): MediaPlanVersionsCacheResult {
+  return {
+    data: cacheEntry!.data,
+    stale,
+    fetchedAt: cacheEntry!.fetchedAt,
+  }
+}
+
 /**
  * Returns the latest-per-MBA media_plan_versions list, coalescing concurrent
- * callers onto one upstream walk. Past-TTL hits return immediately and refresh
- * in the background. Serves last-known-good on failure (`stale: true`);
- * rejects only when there has never been a successful fetch.
+ * callers onto one upstream walk. Past-TTL hits await a refresh (safe in both
+ * request scope and instrumentation boot). Serves last-known-good on failure
+ * (`stale: true`); rejects only when there has never been a successful fetch.
  */
 export async function getCachedMediaPlanVersions(): Promise<MediaPlanVersionsCacheResult> {
   const now = Date.now()
+  const ttl = cacheTtlMs()
+  const fresh =
+    cacheEntry != null &&
+    now - cacheEntry.fetchedAt < ttl &&
+    lastRefreshFailedAt == null
 
-  if (cacheEntry && now - cacheEntry.fetchedAt < cacheTtlMs()) {
-    return { data: cacheEntry.data, stale: false }
+  if (fresh) {
+    return serveCached(false)
   }
 
-  // Populated but past TTL: serve immediately, revalidate in the background.
-  if (cacheEntry) {
-    if (!inFlightPromise) {
-      void startRefresh()
-    }
-    return { data: cacheEntry.data, stale: false }
+  // Failure backoff: do not kick another doomed upstream call for 30s.
+  if (
+    cacheEntry &&
+    lastRefreshFailedAt != null &&
+    now - lastRefreshFailedAt < FAILURE_BACKOFF_MS
+  ) {
+    return serveCached(true)
   }
 
-  // Cold start — never filled; block until upstream succeeds or rejects.
   if (inFlightPromise) {
     return inFlightPromise
   }
 
+  // Past TTL (or cold): await refresh. Prefer await over after()/waitUntil so
+  // boot-time instrumentation and request paths share one safe code path, and
+  // so Vercel cannot suspend mid-refresh after the response is sent.
   return startRefresh()
 }
