@@ -10,6 +10,7 @@ import {
   sumDeliveredTotals,
   type DeliveredTotals,
 } from "@/lib/delivery/deliveredTotals"
+import { boundedMap } from "@/lib/utils/boundedMap"
 
 export type ClientDeliveredTotalsCampaignInput = {
   mbaNumber: string
@@ -56,10 +57,20 @@ export async function getDeliveredTotalsForClient(
   const needsFixedCost = campaigns.some((c) => hasFixedCostMediaTypeLabel(c.mediaTypes))
 
   const [snapshots, directGroups] = await Promise.all([
-    Promise.all(
-      campaigns.map((c) =>
-        loadDeliverySnapshot({ mbaNumber: c.mbaNumber, versionNumber: c.versionNumber }).catch(() => null),
-      ),
+    // Bound campaign fan-out; wrap so one failing campaign cannot reject the whole tile.
+    boundedMap(
+      campaigns,
+      async (c) => {
+        try {
+          return await loadDeliverySnapshot({
+            mbaNumber: c.mbaNumber,
+            versionNumber: c.versionNumber,
+          })
+        } catch {
+          return null
+        }
+      },
+      3
     ),
     needsFixedCost
       ? fetchDirectPacingRows({ asOfDate: getAsOfDate(), allowedClientSlugs: null, includeHistorical: false }).catch(

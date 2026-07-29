@@ -35,6 +35,7 @@ const SCHEDULE_KEYS = [
 export type MediaPlansListCacheResult = {
   data: any[]
   stale: boolean
+  fetchedAt?: number
 }
 
 type CacheEntry = {
@@ -65,11 +66,14 @@ function mediaPlansUrl(path: string): string {
   return xanoUrl(path, ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])
 }
 
-async function fetchVersionsForList(): Promise<any[]> {
-  // Shared `_latest` walk (PAGE_SIZE=100, include_schedules=false). Schedules
+async function fetchVersionsForList(): Promise<{
+  data: any[]
+  stale: boolean
+  fetchedAt?: number
+}> {
+  // Shared `_latest` walk (PAGE_SIZE=50, include_schedules=false). Schedules
   // are already stripped by mediaPlanVersionsCache.
-  const { data } = await getCachedMediaPlanVersions()
-  return data
+  return getCachedMediaPlanVersions()
 }
 
 async function fetchMasters(): Promise<any[]> {
@@ -177,17 +181,18 @@ async function mergeLatestVersionsWithMasters(
   return merged.filter((row): row is any => row != null)
 }
 
-async function fetchUpstream(): Promise<any[]> {
-  // Sequential on purpose: two concurrent multi-page walks contend on the shared Xano Launch instance and can push one past the 15s timeout.
-  const versionsData = await fetchVersionsForList()
+async function fetchUpstream(): Promise<{ data: any[]; stale: boolean; fetchedAt?: number }> {
+  // Sequential on purpose: two concurrent multi-page walks contend on the shared Xano instance and can push one past the 15s timeout.
+  const versions = await fetchVersionsForList()
   const mastersData = await fetchMasters()
-  return mergeLatestVersionsWithMasters(versionsData, mastersData)
+  const data = await mergeLatestVersionsWithMasters(versions.data, mastersData)
+  return { data, stale: versions.stale, fetchedAt: versions.fetchedAt }
 }
 
 export async function getCachedMediaPlansList(): Promise<MediaPlansListCacheResult> {
   const now = Date.now()
   if (cacheEntry && now - cacheEntry.fetchedAt < cacheTtlMs()) {
-    return { data: cacheEntry.data, stale: false }
+    return { data: cacheEntry.data, stale: false, fetchedAt: cacheEntry.fetchedAt }
   }
 
   if (inFlightPromise) {
@@ -196,16 +201,20 @@ export async function getCachedMediaPlansList(): Promise<MediaPlansListCacheResu
 
   const promise = (async (): Promise<MediaPlansListCacheResult> => {
     try {
-      const data = await fetchUpstream()
+      const { data, stale, fetchedAt } = await fetchUpstream()
       cacheEntry = { data, fetchedAt: Date.now() }
-      return { data, stale: false }
+      return {
+        data,
+        stale,
+        fetchedAt: fetchedAt ?? cacheEntry.fetchedAt,
+      }
     } catch (err) {
       if (cacheEntry) {
         console.warn(
           "[mediaPlansListCache] upstream failed; serving last-known-good",
           err instanceof Error ? err.message : err
         )
-        return { data: cacheEntry.data, stale: true }
+        return { data: cacheEntry.data, stale: true, fetchedAt: cacheEntry.fetchedAt }
       }
       throw err
     } finally {

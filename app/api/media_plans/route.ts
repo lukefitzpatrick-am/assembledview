@@ -39,7 +39,7 @@ type MediaPlan = {
 export async function GET() {
   const t0 = Date.now()
   try {
-    const { data, stale } = await getCachedMediaPlanVersions()
+    const { data, stale, fetchedAt } = await getCachedMediaPlanVersions()
 
     // Idempotent safeguard: latest-endpoint already returns one row per MBA.
     // Keep the JS highest-version reduction so an env override to a full-history
@@ -64,14 +64,18 @@ export async function GET() {
       `[media_plans] served ${filteredData.length} rows in ${Date.now() - t0}ms stale=${stale}`
     )
 
+    const headers: Record<string, string> = {}
+    if (fetchedAt != null) {
+      headers["x-cache-fetched-at"] = String(fetchedAt)
+    }
     if (stale) {
-      return NextResponse.json(filteredData, {
-        status: 200,
-        headers: { 'x-warning': 'served-stale-after-upstream-failure' },
-      })
+      headers["x-warning"] = "served-stale-after-upstream-failure"
     }
 
-    return NextResponse.json(filteredData)
+    return NextResponse.json(filteredData, {
+      status: 200,
+      headers: Object.keys(headers).length > 0 ? headers : undefined,
+    })
   } catch {
     // No last-known-good has ever existed (or cache rejected with no entry)
     return NextResponse.json({ error: "upstream unavailable" }, { status: 502 })

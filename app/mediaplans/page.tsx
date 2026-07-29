@@ -95,6 +95,8 @@ export default function MediaPlansPage() {
   const [filteredPlans, setFilteredPlans] = useState<MediaPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [listMayBeStale, setListMayBeStale] = useState(false)
+  const [listFetchedAt, setListFetchedAt] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [sortStates, setSortStates] = useState<Record<string, SortState>>({})
 
@@ -147,6 +149,11 @@ export default function MediaPlansPage() {
         if (!response.ok) {
           throw new Error("Failed to fetch media plans");
         }
+        const warning = response.headers.get("x-warning")
+        const fetchedAtRaw = response.headers.get("x-cache-fetched-at")
+        const fetchedAtMs = fetchedAtRaw ? Number(fetchedAtRaw) : NaN
+        setListMayBeStale(warning === "served-stale-after-upstream-failure")
+        setListFetchedAt(Number.isFinite(fetchedAtMs) ? fetchedAtMs : null)
         const data = await response.json();
         console.log("Fetched media plans data:", data);
   
@@ -380,6 +387,19 @@ export default function MediaPlansPage() {
           >
           {error && (
             <Panel variant="error" errorMessage={error} className="border-border/60" />
+          )}
+
+          {listMayBeStale && (
+            <div
+              role="status"
+              className="rounded-card border border-pacing-behind bg-pacing-behind-bg px-4 py-3 text-sm text-status-behind-fg"
+            >
+              Campaign list may be out of date
+              {listFetchedAt
+                ? ` (last refreshed ${format(new Date(listFetchedAt), "HH:mm")})`
+                : ""}
+              {" — "}a newly saved campaign may not appear yet.
+            </div>
           )}
 
           {loading ? (
