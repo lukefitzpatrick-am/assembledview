@@ -1635,9 +1635,11 @@ function setIfChanged<T>(setter: Dispatch<SetStateAction<T>>, next: T): boolean 
   return didChange
 }
 
-const LINE_ITEM_TIMEOUT_INITIAL_MS = 30_000
-const LINE_ITEM_TIMEOUT_AUTO_RETRY_MS = 90_000
+const LINE_ITEM_TIMEOUT_INITIAL_MS = 8_000
+const LINE_ITEM_TIMEOUT_AUTO_RETRY_MS = 15_000
 const LINE_ITEM_TIMEOUT_MANUAL_RETRY_MS = 180_000
+/** Hard ceiling: never leave Save disabled with no recovery path. */
+const HYDRATION_WATCHDOG_MS = 20_000
 
 /**
  * Stage 2 divergence UI (banner + first-visit modal). Re-enabled after C2
@@ -3734,140 +3736,146 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       return
     }
     if (!mbaNumber || mediaPlan?.version_number == null) {
+      // Never leave Save stuck on Loading… when master version is missing/null.
+      setIsLoading(false)
       return
     }
 
     let cancelled = false
 
     const loadLineItemsInParallel = async () => {
-      const versionToUse =
-        versionNumber != null && versionNumber !== ""
-          ? typeof versionNumber === "string"
-            ? parseInt(versionNumber, 10)
-            : Number(versionNumber)
-          : mediaPlan.version_number != null
-            ? typeof mediaPlan.version_number === "string"
-              ? parseInt(mediaPlan.version_number, 10)
-              : Number(mediaPlan.version_number)
-            : NaN
+      try {
+        const versionToUse =
+          versionNumber != null && versionNumber !== ""
+            ? typeof versionNumber === "string"
+              ? parseInt(versionNumber, 10)
+              : Number(versionNumber)
+            : mediaPlan.version_number != null
+              ? typeof mediaPlan.version_number === "string"
+                ? parseInt(mediaPlan.version_number, 10)
+                : Number(mediaPlan.version_number)
+              : NaN
 
-      if (!Number.isFinite(versionToUse)) {
-        return
-      }
+        if (!Number.isFinite(versionToUse)) {
+          return
+        }
 
-      const loadKey = `${mbaNumber}|${versionToUse}|${enabledMediaFlagsFingerprint}`
-      if (lastLineItemsLoadKeyRef.current === loadKey) {
-        return
-      }
-      lastLineItemsLoadKeyRef.current = loadKey
+        const loadKey = `${mbaNumber}|${versionToUse}|${enabledMediaFlagsFingerprint}`
+        if (lastLineItemsLoadKeyRef.current === loadKey) {
+          return
+        }
+        lastLineItemsLoadKeyRef.current = loadKey
 
-      const formValues = form.getValues()
-      const enabledInOrder = mediaTypes
-        .filter((medium) => formValues[medium.name])
-        .map((medium) => ({
-          flag: medium.name,
-          label: medium.label,
-          ...lineItemLoaderConfig[medium.name],
-        }))
+        const formValues = form.getValues()
+        const enabledInOrder = mediaTypes
+          .filter((medium) => formValues[medium.name])
+          .map((medium) => ({
+            flag: medium.name,
+            label: medium.label,
+            ...lineItemLoaderConfig[medium.name],
+          }))
 
-      if (enabledInOrder.length === 0) {
-        console.log("[DATA LOAD] No enabled media types to load")
+        if (enabledInOrder.length === 0) {
+          console.log("[DATA LOAD] No enabled media types to load")
+          return
+        }
+
+        for (const { label } of enabledInOrder) {
+          updateLoadStatus(label, "pending")
+        }
+        const initialStatus: Partial<Record<MediaTypeKey, MediaLoadStatus>> = {}
+        enabledInOrder.forEach(({ flag }) => {
+          initialStatus[flag] = "loading"
+        })
+        setMediaLoadStatus(initialStatus)
+        setChannelHydrationSettled({})
+        channelHydrationSettledRef.current = {}
+
+        console.log(
+          `[DATA LOAD] Parallel loading ${enabledInOrder.length} media types (version ${versionToUse})`
+        )
+
+        await Promise.all(
+          enabledInOrder.map(async ({ flag, label, fetchFn, setter }) => {
+            if (cancelled) return
+
+            const attemptFetch = async (timeoutMs: number) => {
+              const items = await fetchFn(mbaNumber, versionToUse, timeoutMs)
+              return items
+            }
+
+            try {
+              let items: any[]
+              try {
+                items = await attemptFetch(LINE_ITEM_TIMEOUT_INITIAL_MS)
+              } catch (firstErr) {
+                if (cancelled) return
+                console.warn(
+                  `[DATA LOAD] First attempt failed for ${flag}, auto-retrying with longer timeout:`,
+                  firstErr
+                )
+                updateLoadStatus(label, "pending", "retrying…")
+                items = await attemptFetch(LINE_ITEM_TIMEOUT_AUTO_RETRY_MS)
+              }
+              if (cancelled) return
+
+              const filteredItems = filterLineItemsByPlanNumber(
+                items,
+                mbaNumber,
+                versionToUse.toString(),
+                flag
+              )
+              const processedItems = filteredItems.map((item: any) => ({
+                ...item,
+                bursts_json: item.bursts_json || item.bursts || null,
+              }))
+              setter(processedItems)
+              if (
+                flag === "mp_production" &&
+                processedItems.length > 0 &&
+                !form.getValues("mp_production")
+              ) {
+                form.setValue("mp_production", true, { shouldDirty: false })
+              }
+
+              if (!cancelled) {
+                setMediaLoadStatus((prev) => ({ ...prev, [flag]: "ready" }))
+                updateLoadStatus(label, "success")
+                // Empty API payloads never run container useStableHydration — settle now.
+                if (processedItems.length === 0) {
+                  setChannelHydrationSettled((prev) => {
+                    if (prev[flag]) return prev
+                    const next = { ...prev, [flag]: true }
+                    channelHydrationSettledRef.current = next
+                    return next
+                  })
+                }
+                console.log(`[DATA LOAD] ${flag} loaded (${processedItems.length} items)`)
+              }
+            } catch (loadError) {
+              if (cancelled) return
+              console.warn(`[DATA LOAD] Both attempts failed for ${flag} line items:`, loadError)
+              setter([])
+              setMediaLoadStatus((prev) => ({ ...prev, [flag]: "error" }))
+              updateLoadStatus(label, "error", "Failed to load line items")
+              setChannelHydrationSettled((prev) => {
+                if (prev[flag]) return prev
+                const next = { ...prev, [flag]: true }
+                channelHydrationSettledRef.current = next
+                return next
+              })
+            }
+          })
+        )
+
+        if (!cancelled) {
+          console.log("[DATA LOAD] Parallel line item load complete")
+        }
+      } finally {
         if (!cancelled) {
           setLoadPhase("ready")
           setIsLoading(false)
         }
-        return
-      }
-
-      for (const { label } of enabledInOrder) {
-        updateLoadStatus(label, "pending")
-      }
-      const initialStatus: Partial<Record<MediaTypeKey, MediaLoadStatus>> = {}
-      enabledInOrder.forEach(({ flag }) => {
-        initialStatus[flag] = "loading"
-      })
-      setMediaLoadStatus(initialStatus)
-      setChannelHydrationSettled({})
-      channelHydrationSettledRef.current = {}
-
-      console.log(
-        `[DATA LOAD] Parallel loading ${enabledInOrder.length} media types (version ${versionToUse})`
-      )
-
-      await Promise.all(
-        enabledInOrder.map(async ({ flag, label, fetchFn, setter }) => {
-          if (cancelled) return
-
-          const attemptFetch = async (timeoutMs: number) => {
-            const items = await fetchFn(mbaNumber, versionToUse, timeoutMs)
-            return items
-          }
-
-          try {
-            let items: any[]
-            try {
-              items = await attemptFetch(LINE_ITEM_TIMEOUT_INITIAL_MS)
-            } catch (firstErr) {
-              if (cancelled) return
-              console.warn(`[DATA LOAD] First attempt failed for ${flag}, auto-retrying with longer timeout:`, firstErr)
-              // Silent auto-retry with longer timeout
-              items = await attemptFetch(LINE_ITEM_TIMEOUT_AUTO_RETRY_MS)
-            }
-            if (cancelled) return
-
-            const filteredItems = filterLineItemsByPlanNumber(
-              items,
-              mbaNumber,
-              versionToUse.toString(),
-              flag
-            )
-            const processedItems = filteredItems.map((item: any) => ({
-              ...item,
-              bursts_json: item.bursts_json || item.bursts || null,
-            }))
-            setter(processedItems)
-            if (
-              flag === "mp_production" &&
-              processedItems.length > 0 &&
-              !form.getValues("mp_production")
-            ) {
-              form.setValue("mp_production", true, { shouldDirty: false })
-            }
-
-            if (!cancelled) {
-              setMediaLoadStatus((prev) => ({ ...prev, [flag]: "ready" }))
-              updateLoadStatus(label, "success")
-              // Empty API payloads never run container useStableHydration — settle now.
-              if (processedItems.length === 0) {
-                setChannelHydrationSettled((prev) => {
-                  if (prev[flag]) return prev
-                  const next = { ...prev, [flag]: true }
-                  channelHydrationSettledRef.current = next
-                  return next
-                })
-              }
-              console.log(`[DATA LOAD] ${flag} loaded (${processedItems.length} items)`)
-            }
-          } catch (loadError) {
-            if (cancelled) return
-            console.warn(`[DATA LOAD] Both attempts failed for ${flag} line items:`, loadError)
-            setter([])
-            setMediaLoadStatus((prev) => ({ ...prev, [flag]: "error" }))
-            updateLoadStatus(label, "error", "Failed to load line items")
-            setChannelHydrationSettled((prev) => {
-              if (prev[flag]) return prev
-              const next = { ...prev, [flag]: true }
-              channelHydrationSettledRef.current = next
-              return next
-            })
-          }
-        })
-      )
-
-      if (!cancelled) {
-        setLoadPhase("ready")
-        setIsLoading(false)
-        console.log("[DATA LOAD] Parallel line item load complete")
       }
     }
 
@@ -3885,6 +3893,62 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     mediaPlan?.version_number,
     updateLoadStatus,
     versionNumber,
+  ])
+
+  // Never leave Save permanently disabled: if line-item load or container settle
+  // stalls, degrade to save-allowed + visible warning after a hard ceiling.
+  useEffect(() => {
+    if (loadPhase !== "loadingLineItems" && !saveHeldForHydration) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      const unsettledFlags = expectedHydrationFlags.filter(
+        (flag) => channelHydrationSettledRef.current[flag] !== true
+      )
+
+      setIsLoading(false)
+      setLoadPhase("ready")
+
+      if (unsettledFlags.length === 0) return
+
+      setMediaLoadStatus((prev) => {
+        const next = { ...prev }
+        for (const flag of unsettledFlags) {
+          if (next[flag] !== "ready") {
+            next[flag] = "error"
+          }
+        }
+        return next
+      })
+      setChannelHydrationSettled((prev) => {
+        const next = { ...prev }
+        for (const flag of unsettledFlags) {
+          next[flag] = true
+        }
+        channelHydrationSettledRef.current = next
+        return next
+      })
+      for (const flag of unsettledFlags) {
+        const label = mediaTypes.find((m) => m.name === flag)?.label ?? flag
+        updateLoadStatus(
+          label,
+          "error",
+          "did not finish loading — check line items before saving"
+        )
+      }
+      console.warn(
+        `[DATA LOAD] Hydration watchdog fired after ${HYDRATION_WATCHDOG_MS}ms; unsettled:`,
+        unsettledFlags
+      )
+    }, HYDRATION_WATCHDOG_MS)
+
+    return () => window.clearTimeout(timer)
+  }, [
+    expectedHydrationFlags,
+    loadPhase,
+    saveHeldForHydration,
+    updateLoadStatus,
   ])
 
   const handleClientSelect = (client: Client | null) => {

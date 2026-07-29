@@ -133,6 +133,11 @@ export function MediaPlanLoadStatusPill({
                         {clickable && " — click to jump to section"}
                       </div>
                     )}
+                    {item.status === "pending" && item.error && (
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        {item.error}
+                      </div>
+                    )}
                   </div>
                 </li>
               )
