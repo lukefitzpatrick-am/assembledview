@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { eq } from "drizzle-orm"
 
+import { getDb, schema } from "@/db"
 import { LINE_CHANNELS } from "@/db/schema"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { getWriteBackend } from "@/lib/data/backend"
+import {
+  mirrorInputFromSave,
+  mirrorPlanToXano,
+} from "@/lib/data/mirrorToXano"
 import { SavePlanError, savePlanVersion } from "@/lib/data/savePlan"
 import { requireRole } from "@/lib/requireRole"
 
@@ -82,8 +88,9 @@ const bodySchema = z.object({
 })
 
 /**
- * POST /api/plans/save — Postgres transactional save (T4a).
- * Inactive for users while WRITE_BACKEND=xano (default). Page wiring is T4c.
+ * POST /api/plans/save — Postgres transactional save (T4a) + best-effort Xano
+ * mirror (T4b). Inactive for users while WRITE_BACKEND=xano (default).
+ * Page wiring is T4c. Mirror failure never rolls back Postgres.
  */
 export async function POST(request: NextRequest) {
   const gate = await requireRole(request, ["admin", "manager"])
@@ -118,39 +125,63 @@ export async function POST(request: NextRequest) {
   const access = await checkClientMbaAccess(request, body.mbaNumber)
   if (!access.ok) return access.response
 
+  const saveInput = {
+    masterId: body.masterId,
+    mbaNumber: body.mbaNumber,
+    versionNumber: body.versionNumber,
+    mode: body.mode,
+    campaignName: body.campaignName,
+    campaignStatus: body.campaignStatus,
+    campaignStartDate: body.campaignStartDate,
+    campaignEndDate: body.campaignEndDate,
+    brand: body.brand,
+    clientContact: body.clientContact,
+    poNumber: body.poNumber,
+    campaignBudgetCents: body.campaignBudgetCents,
+    fixedFee: body.fixedFee,
+    channelFlags: body.channelFlags,
+    mediaPlanFile: body.mediaPlanFile,
+    mbaPdfFile: body.mbaPdfFile,
+    aaMediaPlanFile: body.aaMediaPlanFile,
+    feeLoading: body.feeLoading,
+    feeSnapshot: body.feeSnapshot,
+    adservaudio: body.adservaudio,
+    lineItems: body.lineItems.map((l) => ({
+      ...l,
+      channel: l.channel as (typeof LINE_CHANNELS)[number],
+      bursts: l.bursts ?? [],
+    })),
+  }
+
   try {
-    const result = await savePlanVersion({
-      masterId: body.masterId,
-      mbaNumber: body.mbaNumber,
-      versionNumber: body.versionNumber,
-      mode: body.mode,
-      campaignName: body.campaignName,
-      campaignStatus: body.campaignStatus,
-      campaignStartDate: body.campaignStartDate,
-      campaignEndDate: body.campaignEndDate,
-      brand: body.brand,
-      clientContact: body.clientContact,
-      poNumber: body.poNumber,
-      campaignBudgetCents: body.campaignBudgetCents,
-      fixedFee: body.fixedFee,
-      channelFlags: body.channelFlags,
-      mediaPlanFile: body.mediaPlanFile,
-      mbaPdfFile: body.mbaPdfFile,
-      aaMediaPlanFile: body.aaMediaPlanFile,
-      feeLoading: body.feeLoading,
-      feeSnapshot: body.feeSnapshot,
-      adservaudio: body.adservaudio,
-      lineItems: body.lineItems.map((l) => ({
-        ...l,
-        channel: l.channel as (typeof LINE_CHANNELS)[number],
-        bursts: l.bursts ?? [],
-      })),
-    })
+    const result = await savePlanVersion(saveInput)
+
+    // T4b — best-effort Xano mirror AFTER Postgres commit. Never throws.
+    let clientName = body.mbaNumber
+    try {
+      const db = getDb()
+      const [master] = await db
+        .select({ mpClientName: schema.mediaPlanMasters.mpClientName })
+        .from(schema.mediaPlanMasters)
+        .where(eq(schema.mediaPlanMasters.id, body.masterId))
+        .limit(1)
+      if (master?.mpClientName?.trim()) clientName = master.mpClientName.trim()
+    } catch {
+      // fall through with mba as client name
+    }
+
+    const mirror = await mirrorPlanToXano(
+      mirrorInputFromSave(saveInput, result.versionId, clientName)
+    )
+
     return NextResponse.json({
       versionId: result.versionId,
       lineCount: result.lineCount,
       scheduleRowCount: result.scheduleRowCount,
       published: result.published,
+      mirror: mirror.mirror,
+      mirrorDurationMs: mirror.durationMs,
+      ...(mirror.mirror === "failed" ? { mirrorError: mirror.error } : {}),
     })
   } catch (err) {
     if (err instanceof SavePlanError) {

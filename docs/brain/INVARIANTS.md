@@ -22,6 +22,7 @@ pct === 100 → fee = 0 (division guard)
 - `billingMode?: "auto" | "manual"` lives inside `billingSchedule` JSON (no Xano column). Missing = auto. Sibling-stamp rule: marking a line manual materializes undefined siblings as explicit `auto`. Manual rows are protected from resync/backfill/seeding. Extend `billingMode`; never add a parallel `manuallyEdited` flag.
 - Server-generated schedules must carry `month.lineItems` with stable `id`, `monthlyAmounts`, and `feeMonthlyAmounts` that sum to month headers (±$0.01). Fee months reuse `prorateBurstFeesToMonths` / burst `feeAmount` proration — do not invent a second fee-spread. `PLANC_SERVER_AUTHORITY=enforce` stays OFF until explicitly flipped.
 - Postgres plan save (`lib/data/savePlan.ts`) is one transaction: version + replace-set `line_items` + server-computed `schedule_months` + `legacy_schedules` mirror (+ publish `mba_fee_snapshots`). `line_item_id` is always client-supplied; publish with zero lines aborts inside the txn (BOSS006). `WRITE_BACKEND` default remains `xano`.
+- After Postgres plan commit, Xano is a non-authoritative mirror (`lib/data/mirrorToXano.ts`): failures log + surface `{ mirror: "failed" }` and never roll back or throw into the save caller; repair via `POST /api/admin/xano-mirror/retry`.
 - Partial MBA: screen panel and Excel export must both read the same `partialMBAValues`; export must never fall through to `calculateAssembledFee()` while partial approval is active.
 
 ## Deliverable math (canonical: `lib/mediaplan/deliverableBudget.ts`)
