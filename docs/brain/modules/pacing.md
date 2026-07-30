@@ -16,6 +16,9 @@ Tracks actual delivery (Snowflake facts) against plan (Xano media plans) at line
 - `lib/snowflake/pacing-fact.ts` (`queryPacingFact` — fuzzy `LOWER(CHANNEL) LIKE` matching; 50k limit with shrinking-window fallback), `search-campaigns-pacing.ts`, `pool.ts` (1.9k lines, serverless/pool modes), `syncXanoLineItems.ts` + cron.
 - `lib/delivery/**` — plan × delivery join for dashboards/AVA/reports (`loadDeliverySnapshot`, `deliveredTotals` — the client dashboard's "delivered" money).
 - `components/pacing-{search,social,programmatic}/LineItemPacingTable.tsx` — ~1.2k lines each, ~90% duplicated.
+- `lib/pacing/status.ts` — UI vocabulary: `pacingStatus()` maps maths `PacingStatus` → six spend/KPI bands + label + colour role (`ok` / `attention` / `problem`). Tiles, Status cells, filters, and legend share this helper. Ahead ≠ success green (attention); over-pacing stays distinct from ahead; No delivery (KPI) is problem.
+- `components/pacing/StatusLegend.tsx` + `PacingStatusSummary` — six-state definitions (±5% on-track band, ≥15% over-pacing) sit with the summary tiles.
+- `components/pacing/pacingTableScroll.ts` — shared `PACING_TABLE_SCROLL_CLASSNAME` (`max-h-[calc(100dvh-36rem)]`) for all five channel tables.
 
 ## Snowflake tables
 
@@ -23,7 +26,7 @@ Tracks actual delivery (Snowflake facts) against plan (Xano media plans) at line
 
 ## Data flow (search, representative)
 
-Masters (full crawl via `readPacingMasters`) → live filter (status + date window + allowed slugs) → versions (full crawl via `readPacingVersions`) → per-MBA channel line items (**still Xano** until T2e; concurrency 8, 5 param-shape attempts) → parse bursts → current burst by asOfDate → campaign KPIs (`readKpi` / T2b) → Snowflake facts bucketed by line_item_id → `computePacing` on current burst → 4-state pill.
+Masters (full crawl via `readPacingMasters`) → live filter (status + date window + allowed slugs) → versions (full crawl via `readPacingVersions`) → per-MBA channel line items (**still Xano** until T2e; concurrency 8, 5 param-shape attempts) → parse bursts → current burst by asOfDate → campaign KPIs (`readKpi` / T2b) → Snowflake facts bucketed by line_item_id → `computePacing` on current burst → `pacingStatus()` → 5-band Status pill (on-track / ahead / behind / over-pacing / no-data) + orthogonal KPI Pending tile.
 
 ## Consumed by
 
@@ -36,7 +39,8 @@ AVA (`getPacingSnapshot`, `getDeliverySnapshot`), ops digest email (`buildPacing
 - **Two Snowflake read stacks** with different clamps/semantics: pacing pages vs `/api/pacing/bulk` + campaign dashboard — same MBA can show different numbers.
 - **Security:** the 4 per-channel POST routes (prog display/video, social meta/tiktok) use the same `checkClientMbaAccess` + line-item MBA-prefix gate as `/api/pacing/bulk` (SEC-7 FIXED).
 - Direct re-implements the warehouse proc's 3-day rolling lock window in TS (`isOutsideRollingWindow`) — drift risk.
-- Duplication: `lineItemStatusFromPacing` ×3 identical, KPI-target block ×3, `resolveLive*LineItems` ×3, page clients ×5, `count*OverviewStatus` ×5. Aggregators social vs programmatic have drifted (prog computes cpm, social doesn't; social passes 0 conversions/revenue → ROAS/CPA structurally absent).
+- Duplication: `lineItemStatusFromPacing` ×3 thin wrappers over `pacingStatus()`; KPI-target block ×3; `resolveLive*LineItems` ×3; page clients ×5; `count*OverviewStatus` ×5. Aggregators social vs programmatic have drifted (prog computes cpm, social doesn't; social passes 0 conversions/revenue → ROAS/CPA structurally absent).
+- Sticky-column freeze patterns diverge sharply across the five channel tables (search densest; ad-serving/direct thinnest) — unify in a later commit; height maths already shared via `pacingTableScroll.ts`.
 - `PERF-DISCOVERY-*` docs are stale on caching — trust `pacingRowsCache.ts`, not them.
 - Genuine differences — don't unify blindly: direct's grouped shape + `includeHistorical`; ad-serving's ZERO-$ LAW; social's absent revenue.
 - **Migration cutover risk:** most pacing *facts* are Snowflake; Xano deps are masters/versions (T2d), channel lines (T2e), clients (T2a), campaign_kpi (T2b), orphan_fixes audit (T2d list / Xano POST).

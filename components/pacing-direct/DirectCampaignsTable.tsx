@@ -23,6 +23,7 @@ import type {
   DirectLineItemRow,
 } from "@/lib/pacing/direct/types";
 import { formatAUD } from "@/lib/format/money";
+import { PACING_TABLE_SCROLL_CLASSNAME } from "@/components/pacing/pacingTableScroll";
 import { cn } from "@/lib/utils";
 
 const MISSING = "\u2014";
@@ -464,7 +465,7 @@ export function DirectCampaignsTable({ campaigns }: { campaigns: DirectCampaignG
         </div>
       ) : (
         <div className="rounded border">
-          <div className="relative max-h-[calc(100vh-260px)] overflow-auto">
+          <div className={PACING_TABLE_SCROLL_CLASSNAME}>
             <table
               className={cn("w-full text-xs", moreColumns ? "min-w-[1200px]" : "min-w-[880px]")}
               style={{ borderSpacing: 0 }}

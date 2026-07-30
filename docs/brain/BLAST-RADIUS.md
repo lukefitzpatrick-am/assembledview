@@ -109,7 +109,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 
 - Create page ↔ edit page (near-parallel mega-pages)
 - 14 bespoke containers ↔ 6 `MediaChannelContainer`-based (half-finished refactor); 9 local `computeLoadedDeliverables` copies with a rounding split (5 rounded / 4 raw)
-- Pacing composers: `lineItemStatusFromPacing` ×3 identical copies; KPI-target block ×3; `resolveLive*LineItems` ×3; per-channel `LineItemPacingTable.tsx` ~1.2k lines each, ~90% identical; page clients structurally identical ×5
+- Pacing composers: `lineItemStatusFromPacing` ×3 thin wrappers over `lib/pacing/status.ts` `pacingStatus()`; KPI-target block ×3; `resolveLive*LineItems` ×3; per-channel `LineItemPacingTable.tsx` ~1.2k lines each, ~90% identical (Status cells + scroll height now shared via `status.ts` / `pacingTableScroll.ts`); page clients structurally identical ×5; sticky-column freeze still diverges (search densest)
 - Channel-key naming: 4 conventions coexist (`progBVOD`/`progBvod`/`digiDisplay`/`mp_*`) — alias tables `FANOUT_LINE_ITEM_MAP_ALIASES` and `MEDIA_TYPE_ALIASES` paper over it
 - Two Snowflake read stacks with different semantics: `pacing-fact`/`search-campaigns-pacing` (pacing pages) vs `pacing-service`/`search-pacing-service` (dashboard, `/api/pacing/bulk`) — same MBA can show different numbers on /pacing vs /dashboard
 - Two clients caches; duplicate 194-line toast hook (`hooks/use-toast` vs `components/ui/use-toast` — separate module state); three Melbourne-date helpers; two Auth0 client instances (`lib/utils/auth.ts` vs `lib/auth0.ts`); two saved-view stores (localStorage + Xano)

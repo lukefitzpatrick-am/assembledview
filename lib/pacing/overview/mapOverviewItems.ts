@@ -6,6 +6,7 @@ import type {
   OverviewPayload,
   OverviewStatusCounts,
 } from "@/lib/pacing/overview/types";
+import { pacingStatus } from "@/lib/pacing/status";
 
 const CHANNEL_HREF: Record<OverviewChannel, string> = {
   search: "/pacing/search",
@@ -17,26 +18,7 @@ const CHANNEL_HREF: Record<OverviewChannel, string> = {
 
 /** Map raw maths status → Overview bands (does not change maths). */
 export function overviewStatusFromPacing(status: PacingStatus): OverviewAttentionStatus {
-  switch (status) {
-    case "over_pacing":
-      return "over-pacing";
-    case "slightly_over":
-      return "ahead";
-    case "on_track":
-    case "completed":
-      return "on-track";
-    case "slightly_under":
-    case "under_pacing":
-    case "no_delivery":
-      return "behind";
-    case "not_started":
-    case "unknown":
-      return "no-data";
-    default: {
-      const _exhaustive: never = status;
-      return _exhaustive;
-    }
-  }
+  return pacingStatus(status).status;
 }
 
 export type SpendWindowInput = {

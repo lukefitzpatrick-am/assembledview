@@ -17,7 +17,8 @@ import {
  * thresholds; hard-stop rules say reuse existing.
  *
  * Mapping from maths PacingStatus → pill (already done in fetchers):
- *   ahead: slightly_over | over_pacing
+ *   ahead: slightly_over
+ *   over-pacing: over_pacing (kept distinct in UI; digest treats as ahead burn signal)
  *   on-track: on_track | completed
  *   behind: slightly_under | under_pacing | no_delivery  ← digest "at-risk"
  *   no-data: not_started | unknown | no current burst
@@ -31,7 +32,7 @@ export type DigestSourceRow = {
   campaignName: string
   campaignStatus: string
   lineItemId: string
-  lineItemStatus: "on-track" | "ahead" | "behind" | "no-data"
+  lineItemStatus: "on-track" | "ahead" | "behind" | "over-pacing" | "no-data"
   totalLineItemBudget: number
   spendToDateLineTotal: number
   spendToDateCurrentBurst: number
@@ -57,7 +58,8 @@ export type DigestCampaignRow = {
 export function pillToDigestBand(
   status: DigestSourceRow["lineItemStatus"],
 ): DigestBand {
-  if (status === "ahead") return "ahead"
+  // Preserve prior digest behaviour when over_pacing collapsed into ahead.
+  if (status === "ahead" || status === "over-pacing") return "ahead"
   if (status === "on-track") return "on"
   if (status === "behind") return "at-risk"
   return "no-data"

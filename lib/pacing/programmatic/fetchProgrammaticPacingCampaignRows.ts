@@ -21,6 +21,7 @@ import {
   getMelbourneYesterdayISO,
   type PacingStatus,
 } from "@/lib/pacing/maths";
+import { pacingStatus } from "@/lib/pacing/status";
 import { queryPacingFact } from "@/lib/snowflake/pacing-fact";
 
 export type FetchProgrammaticPacingCampaignRowsArgs = GetLiveProgrammaticLineItemsArgs;
@@ -55,17 +56,11 @@ function aggregateProgrammaticSpendWindows(
   return { spendToDateLineTotal, spendToDateCurrentBurst, spendYesterday };
 }
 
-/** Maps 7-state computePacing output to the 4-state campaigns table pill. */
+/** Maps maths PacingStatus → UI spend band (keeps over-pacing distinct from ahead). */
 function lineItemStatusFromPacing(
   status: PacingStatus
 ): ProgrammaticPacingCampaignRow["lineItemStatus"] {
-  if (status === "on_track" || status === "completed") return "on-track";
-  if (status === "not_started") return "no-data";
-  if (status === "slightly_under" || status === "under_pacing" || status === "no_delivery") {
-    return "behind";
-  }
-  if (status === "slightly_over" || status === "over_pacing") return "ahead";
-  return "no-data";
+  return pacingStatus(status).status;
 }
 
 async function fetchFactsForChannel(

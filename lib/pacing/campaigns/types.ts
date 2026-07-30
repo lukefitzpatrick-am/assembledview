@@ -94,7 +94,7 @@ export type SearchPacingCampaignRow = {
   currentBurst: NormalisedBurst | null;
 
   // --- Calculated pacing (Part 2: real values) ---
-  lineItemStatus: "on-track" | "ahead" | "behind" | "no-data";
+  lineItemStatus: "on-track" | "ahead" | "behind" | "over-pacing" | "no-data";
   burstDays: number | null;
   burstDaysRemaining: number | null;
   spendPerDayRemaining: number | null;

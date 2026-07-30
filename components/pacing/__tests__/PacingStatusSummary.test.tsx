@@ -13,12 +13,21 @@ const SAMPLE: OverviewStatusCounts = {
   kpiPending: 0,
 }
 
-const GOLDEN =
-  `<div class="grid grid-cols-2 gap-2 rounded-card border border-border bg-card p-3 shadow-e0 sm:grid-cols-3 lg:grid-cols-6"><div class="flex flex-col"><span class="text-[10px] uppercase tracking-wide text-muted-foreground">Behind</span><span class="num text-lg font-semibold text-status-behind-fg">2</span></div><div class="flex flex-col"><span class="text-[10px] uppercase tracking-wide text-muted-foreground">On track</span><span class="num text-lg font-semibold text-status-on-track-fg">5</span></div><div class="flex flex-col"><span class="text-[10px] uppercase tracking-wide text-muted-foreground">Ahead</span><span class="num text-lg font-semibold text-status-ahead-fg">1</span></div><div class="flex flex-col"><span class="text-[10px] uppercase tracking-wide text-muted-foreground">Over-pacing</span><span class="num text-lg font-semibold text-status-critical-fg">3</span></div><div class="flex flex-col"><span class="text-[10px] uppercase tracking-wide text-muted-foreground">No data</span><span class="num text-lg font-semibold text-muted-foreground">4</span></div><div class="flex flex-col"><span class="text-[10px] uppercase tracking-wide text-muted-foreground">KPI Pending</span><span class="num text-lg font-semibold text-muted-foreground">0</span></div></div>`
-
 describe("PacingStatusSummary", () => {
-  it("matches Overview counts-row markup for fixed counts", () => {
+  it("renders six tile labels from pacingStatus vocabulary plus StatusLegend", () => {
     const html = renderToStaticMarkup(<PacingStatusSummary counts={SAMPLE} />)
-    expect(html).toBe(GOLDEN)
+    expect(html).toContain("Behind")
+    expect(html).toContain("On track")
+    expect(html).toContain("Ahead")
+    expect(html).toContain("Over-pacing")
+    expect(html).toContain("No data")
+    expect(html).toContain("KPI Pending")
+    expect(html).toContain('aria-label="Pacing status definitions"')
+    expect(html).toContain("Status legend")
+    // Ahead is attention (not success green); no-data is problem (critical).
+    expect(html).toContain("text-status-attention-fg")
+    expect(html).toContain("text-status-critical-fg")
+    expect(html).toContain("±5%")
+    expect(html).toContain("≥15%")
   })
 })

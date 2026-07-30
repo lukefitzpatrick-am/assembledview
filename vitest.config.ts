@@ -35,6 +35,8 @@ export default defineConfig({
       "tests/learning/evaluator.test.ts",
       "lib/dashboard/__tests__/budgetSpendTiles.test.ts",
       "lib/dashboard/__tests__/homeDashboardFilters.test.ts",
+      "lib/pacing/__tests__/statusUi.test.ts",
+      "components/pacing/__tests__/PacingStatusSummary.test.tsx",
     ],
     exclude: [
       "**/node_modules/**",
