@@ -32,6 +32,7 @@ export default defineConfig({
       "lib/mediaplan/__tests__/mergeSavedChannelLineItems.test.ts",
       "lib/mediaplan/__tests__/savedPlanChannelHydration.test.ts",
       "tests/format/money-date.test.ts",
+      "tests/learning/evaluator.test.ts",
     ],
     exclude: [
       "**/node_modules/**",

@@ -286,13 +286,35 @@ const KNOWN_FORMULAS: Record<string, FormulaDSL> = {
   },
   "gross margin": {
     calculatorId: "gross-margin",
-    expression: "(revenue - cogs) / revenue",
+    expression: "((revenue - cogs) / revenue) * 100",
     variables: [
       { key: "revenue", label: "Revenue", unit: "$", required: true },
       { key: "cogs", label: "COGS", unit: "$", required: true },
     ],
-    output: { label: "Gross Margin", unit: "" },
+    output: { label: "Gross Margin", unit: "%" },
     format: "percent",
+  },
+  cpv: {
+    calculatorId: "cpv",
+    expression: "cost / views",
+    variables: [
+      { key: "cost", label: "Cost", unit: "$", required: true },
+      { key: "views", label: "Views", required: true },
+    ],
+    output: { label: "CPV", unit: "$" },
+    format: "currency",
+  },
+  ltv: {
+    calculatorId: "ltv",
+    expression: "aov * frequency * margin * lifetime",
+    variables: [
+      { key: "aov", label: "AOV", unit: "$", required: true },
+      { key: "frequency", label: "Frequency", required: true },
+      { key: "margin", label: "Margin", unit: "%", required: true },
+      { key: "lifetime", label: "Lifetime", unit: "years", required: true },
+    ],
+    output: { label: "LTV", unit: "$" },
+    format: "currency",
   },
   grp: {
     calculatorId: "grp",
@@ -326,22 +348,22 @@ const KNOWN_FORMULAS: Record<string, FormulaDSL> = {
   },
   "net margin": {
     calculatorId: "net-margin",
-    expression: "net_profit / revenue",
+    expression: "(net_profit / revenue) * 100",
     variables: [
       { key: "net_profit", label: "Net Profit", unit: "$", required: true },
       { key: "revenue", label: "Revenue", unit: "$", required: true },
     ],
-    output: { label: "Net Margin", unit: "" },
+    output: { label: "Net Margin", unit: "%" },
     format: "percent",
   },
   "profit margin": {
     calculatorId: "profit-margin",
-    expression: "(revenue - cost) / revenue",
+    expression: "((revenue - cost) / revenue) * 100",
     variables: [
       { key: "revenue", label: "Revenue", unit: "$", required: true },
       { key: "cost", label: "Cost", unit: "$", required: true },
     ],
-    output: { label: "Profit Margin", unit: "" },
+    output: { label: "Profit Margin", unit: "%" },
     format: "percent",
   },
   roas: {
@@ -356,12 +378,12 @@ const KNOWN_FORMULAS: Record<string, FormulaDSL> = {
   },
   roi: {
     calculatorId: "roi",
-    expression: "(ret - cost) / cost",
+    expression: "((ret - cost) / cost) * 100",
     variables: [
       { key: "ret", label: "Return", unit: "$", required: true },
       { key: "cost", label: "Cost", unit: "$", required: true },
     ],
-    output: { label: "ROI", unit: "" },
+    output: { label: "ROI", unit: "%" },
     format: "percent",
   },
   vcpm: {
