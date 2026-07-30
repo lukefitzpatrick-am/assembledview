@@ -13,6 +13,8 @@ export type DataBackendDomain =
   | "clients"
   | "kpi"
   | "finance"
+  | "pacing"
+  | "pacing"
 
 function parseDataBackend(raw: string | undefined): DataBackend {
   const v = (raw ?? "xano").trim().toLowerCase()

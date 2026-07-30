@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/requireRole"
 import { getDataBackend, getDataBackendFor } from "@/lib/data/backend"
 import { summarizeShadowDiffs } from "@/lib/data/shadowDiff"
 import { probeFinanceShadowDiffs } from "@/lib/data/readFinance"
+import { probePacingShadowDiffs } from "@/lib/data/readPacing"
 
 export const runtime = "nodejs"
 
@@ -13,6 +14,7 @@ export const runtime = "nodejs"
  * Finance: `unexpected` vs `duplicate-class` (PG deduped / Xano duplicated — EXPECTED)
  * are split in byDomain/byTable totals. Optional `?probe=finance` triggers a
  * read of all finance tables so cold processes accumulate diffs.
+ * Optional `?probe=pacing` probes pacing-owned Xano tables (masters/versions/orphan_fixes).
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request)
@@ -26,6 +28,13 @@ export async function GET(request: NextRequest) {
       await probeFinanceShadowDiffs()
     } catch (err) {
       console.error("[migration-diffs] finance probe failed", err)
+    }
+  }
+  if (probe === "pacing" && getDataBackendFor("pacing") === "shadow") {
+    try {
+      await probePacingShadowDiffs()
+    } catch (err) {
+      console.error("[migration-diffs] pacing probe failed", err)
     }
   }
 
@@ -50,6 +59,7 @@ export async function GET(request: NextRequest) {
       clients: getDataBackendFor("clients"),
       kpi: getDataBackendFor("kpi"),
       finance: getDataBackendFor("finance"),
+      pacing: getDataBackendFor("pacing"),
     },
     financeDiffSplit: financeSplit,
     ...summary,

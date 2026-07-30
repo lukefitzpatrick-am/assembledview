@@ -93,6 +93,18 @@ Covered by pre-agreed ACCEPT (see decision log). No ETL change.
 
 ---
 
+## T6 — `XANO_LINE_ITEMS_SNAPSHOT` repoint (deferred)
+
+| Field | Value |
+|---|---|
+| Current source | `lib/xano/fetchAllLineItems.ts` → cron `app/api/cron/xano-line-item-sync` → `lib/snowflake/syncXanoLineItems.ts` → `MART.XANO_LINE_ITEMS_SNAPSHOT` |
+| T2d decision | **FROZEN on Xano.** Do not wire through `DATA_BACKEND_PACING` / Postgres. Pacing overview + campaign delivery keep reading plan lines from Xano channel tables until T2e; the warehouse snapshot stays Xano-fed until deployment. |
+| Where the repoint happens | **T6 deployment campaign** (handoff §5 T6): after domain flips + soak, repoint the snapshot ingest to Postgres `line_items` (or a view), dual-run parity, then disable the Xano crawl. |
+| Related | Channel `media_plan_*` GETs used by `resolveLive*LineItems` / burst context → **T2e media-plans** (reassemble from consolidated `line_items`). |
+| Who / date | Cursor (T2d) · 2026-07-30 |
+
+---
+
 ## Recon gate (must hold after every reload)
 
 - 0 count mismatches (Xano snapshot vs Supabase)

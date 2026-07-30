@@ -2,6 +2,7 @@ import "server-only";
 
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination";
 import { xanoUrl } from "@/lib/api/xano";
+import { readPacingMasters, readPacingVersions } from "@/lib/data/readPacing";
 import { aggregateForLineItem } from "@/lib/pacing/campaigns/aggregate";
 import { findCurrentBurstIndex, inclusiveDaysBetween } from "@/lib/pacing/burst/currentBurst";
 import { parseBurstsToNormalised } from "@/lib/pacing/burst/parseBursts";
@@ -173,28 +174,18 @@ function filterByMbaAndVersion(
 }
 
 export async function fetchAllMasters(): Promise<MediaPlanMaster[]> {
-  const endpoints = ["media_plan_master", "media_plans_master"];
-  for (const endpoint of endpoints) {
-    try {
-      const url = xanoUrl(endpoint, [...MEDIA_PLANS_KEYS]);
-      const raw = await fetchAllXanoPages(url, {}, `PACING_${endpoint}`, 200, 50);
-      return (raw ?? [])
-        .map((r) => toMaster(r as Record<string, unknown>))
-        .filter((m): m is MediaPlanMaster => m !== null);
-    } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      if (status === 404) continue;
-      throw err;
-    }
-  }
-  return [];
+  // DATA_BACKEND_PACING — masters crawl for all pacing composers (T2d).
+  const raw = await readPacingMasters();
+  return (raw ?? [])
+    .map((r) => toMaster(r as Record<string, unknown>))
+    .filter((m): m is MediaPlanMaster => m !== null);
 }
 
 export async function fetchCurrentVersionRowsForMasters(
   masters: MediaPlanMaster[]
 ): Promise<Map<string, VersionRow>> {
-  const versionsUrl = xanoUrl("media_plan_versions", [...MEDIA_PLANS_KEYS]);
-  const allVersions = await fetchAllXanoPages(versionsUrl, {}, "PACING_VERSIONS_CAMPAIGNS", 200, 50);
+  // DATA_BACKEND_PACING — versions crawl (T2d). Channel line tables remain Xano until T2e.
+  const allVersions = await readPacingVersions();
 
   const wantMba = new Set(masters.map((m) => norm(m.mba_number)));
   const wantVersion = new Map(

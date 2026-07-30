@@ -4,6 +4,15 @@ import { fetchAllXanoPagesWithCompleteness } from "@/lib/api/xanoPagination"
 import { xanoUrl } from "@/lib/api/xano"
 import { MEDIA_PLAN_TABLES, type XanoMediaPlanTable } from "@/lib/xano/mediaPlanTables"
 
+/**
+ * Frozen feed for Snowflake `MART.XANO_LINE_ITEMS_SNAPSHOT` (cron
+ * `xano-line-item-sync` → `syncLineItemsToSnowflake`).
+ *
+ * DO NOT repoint through `DATA_BACKEND_PACING` / Postgres in T2d — this remains
+ * a direct Xano crawl until the T6 deployment campaign (see
+ * `scripts/migration/DISPOSITIONS.md` § T6 — XANO_LINE_ITEMS_SNAPSHOT).
+ */
+
 const MEDIA_PLANS_BASE_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]
 const PAGE_SIZE = 200
 const MAX_PAGES = 500
