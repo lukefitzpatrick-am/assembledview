@@ -163,6 +163,14 @@ import {
   countEnabledPublishIntegrityFlags,
   shouldBlockEmptyPublish,
 } from "@/lib/mediaplan/publishVersionIntegrity"
+import { useWriteBackend } from "@/lib/data/WriteBackendContext"
+import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
+import {
+  POSTGRES_SAVE_MODAL_STEPS,
+  buildSavePlanLineItemsFromSnapshots,
+  dollarsToCampaignBudgetCents,
+  postPlansSave,
+} from "@/lib/mediaplan/buildPostgresSavePayload"
 import {
   humaniseBillingSaveError,
   withMbaScopeLineLabels,
@@ -1684,6 +1692,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [nextSaveVersionNumber, setNextSaveVersionNumber] = useState<number | null>(null)
   const [selectedVersionNumber, setSelectedVersionNumber] = useState<number | null>(null)
   const [saveModeLabel, setSaveModeLabel] = useState<string | null>(null)
+  /** Server-injected via edit layout — `WRITE_BACKEND` (not derived from DATA_BACKEND). */
+  const writeBackend = useWriteBackend()
   /** DB row id of the current `media_plan_versions` record — NOT `version_number`. */
   const [mediaPlanVersionId, setMediaPlanVersionId] = useState<string | number | null>(null)
   const [rollbackModalOpen, setRollbackModalOpen] = useState(false)
@@ -6739,6 +6749,308 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
       }
 
+      // Approval-set change after a persisted baseline → force version cut (even on draft).
+      const selectedFromSaveInputs: Record<string, string[]> = {}
+      for (const line of billingSaveInputs.lineItems) {
+        if (line.approval === "excluded") continue
+        if (!selectedFromSaveInputs[line.mediaType]) selectedFromSaveInputs[line.mediaType] = []
+        selectedFromSaveInputs[line.mediaType].push(line.lineItemId)
+      }
+      const approvalFpNow = approvalSelectionFingerprint(selectedFromSaveInputs)
+      const lastApprovalFp = lastPersistedApprovalFingerprintRef.current
+      const forceIncrementForApprovals =
+        Boolean(lastApprovalFp) && lastApprovalFp !== approvalFpNow
+
+      const shouldEnableProduction = Boolean(
+        formValues.mp_production || (productionMediaLineItemsForSave?.length ?? 0) > 0
+      )
+
+      // --- T4c: WRITE_BACKEND=postgres → one transactional save (Xano path below stays byte-identical) ---
+      if (writeBackend === "postgres") {
+        setSaveStatus(
+          POSTGRES_SAVE_MODAL_STEPS.map((name) => ({
+            name,
+            status: "pending" as const,
+          }))
+        )
+
+        const publishedVersionNumber =
+          typeof latestVersionNumber === "number"
+            ? latestVersionNumber
+            : typeof mediaPlan?.version_number === "number"
+              ? mediaPlan.version_number
+              : 0
+        const modeResolved = resolvePostgresSaveMode({
+          campaignStatus: formValues.mp_campaignstatus,
+          forceIncrement: forceIncrementForApprovals,
+          publishedVersionNumber,
+          versionRowCount: availableVersions.length,
+        })
+
+        setSaveModeLabel(
+          modeResolved.uiMode === "overwrite"
+            ? formatSaveModeLabel("overwrite", modeResolved.versionNumber)
+            : formatSaveModeLabel("increment", modeResolved.versionNumber)
+        )
+
+        let lineItemsForSave
+        try {
+          lineItemsForSave = buildSavePlanLineItemsFromSnapshots(
+            {
+              television: televisionMediaLineItemsForSave,
+              radio: radioMediaLineItemsForSave,
+              newspaper: newspaperMediaLineItemsForSave,
+              magazines: magazinesMediaLineItemsForSave,
+              ooh: oohMediaLineItemsForSave,
+              cinema: cinemaMediaLineItemsForSave,
+              digiDisplay: digitalDisplayMediaLineItemsForSave,
+              digiAudio: digitalAudioMediaLineItemsForSave,
+              digiVideo: digitalVideoMediaLineItemsForSave,
+              bvod: bvodMediaLineItemsForSave,
+              integration: integrationMediaLineItemsForSave,
+              production: productionMediaLineItemsForSave,
+              search: searchMediaLineItemsForSave,
+              socialMedia: socialMediaMediaLineItemsForSave,
+              progDisplay: progDisplayMediaLineItemsForSave,
+              progVideo: progVideoMediaLineItemsForSave,
+              progBvod: progBvodMediaLineItemsForSave,
+              progAudio: progAudioMediaLineItemsForSave,
+              progOoh: progOohMediaLineItemsForSave,
+              influencers: influencersMediaLineItemsForSave,
+            },
+            billingSaveInputs.lineItems
+          )
+        } catch (buildErr: any) {
+          updateSaveStatus(
+            "Save plan (transactional)",
+            "error",
+            buildErr?.message || String(buildErr)
+          )
+          throw buildErr
+        }
+
+        if (
+          modeResolved.mode === "publish" &&
+          lineItemsForSave.length === 0 &&
+          countEnabledPublishIntegrityFlags(formValues) > 0
+        ) {
+          updateSaveStatus(
+            "Save plan (transactional)",
+            "error",
+            "Cannot publish version with 0 line items (BOSS006)"
+          )
+          toast({
+            variant: "destructive",
+            title: "Publish rejected — no line items",
+            description: "Enable channels need at least one line item before publish.",
+          })
+          setIsSaving(false)
+          return
+        }
+
+        updateSaveStatus("Save plan (transactional)", "pending")
+        const saveResult = await postPlansSave({
+          masterId: Number(mediaPlan.id),
+          mbaNumber: String(mbaNumber),
+          versionNumber: modeResolved.versionNumber,
+          mode: modeResolved.mode,
+          campaignName: formValues.mp_campaignname ?? null,
+          campaignStatus: formValues.mp_campaignstatus ?? null,
+          campaignStartDate: toDateOnlyString(formValues.mp_campaigndates_start),
+          campaignEndDate: toDateOnlyString(formValues.mp_campaigndates_end),
+          brand: formValues.mp_brand ?? null,
+          clientContact: formValues.mp_clientcontact ?? null,
+          poNumber: formValues.mp_ponumber ?? null,
+          campaignBudgetCents: dollarsToCampaignBudgetCents(formValues.mp_campaignbudget),
+          fixedFee: Boolean(formValues.mp_fixedfee),
+          channelFlags: {
+            mp_television: Boolean(formValues.mp_television),
+            mp_radio: Boolean(formValues.mp_radio),
+            mp_newspaper: Boolean(formValues.mp_newspaper),
+            mp_magazines: Boolean(formValues.mp_magazines),
+            mp_ooh: Boolean(formValues.mp_ooh),
+            mp_cinema: Boolean(formValues.mp_cinema),
+            mp_digidisplay: Boolean(formValues.mp_digidisplay),
+            mp_digiaudio: Boolean(formValues.mp_digiaudio),
+            mp_digivideo: Boolean(formValues.mp_digivideo),
+            mp_bvod: Boolean(formValues.mp_bvod),
+            mp_integration: Boolean(formValues.mp_integration),
+            mp_search: Boolean(formValues.mp_search),
+            mp_socialmedia: Boolean(formValues.mp_socialmedia),
+            mp_progdisplay: Boolean(formValues.mp_progdisplay),
+            mp_progvideo: Boolean(formValues.mp_progvideo),
+            mp_progbvod: Boolean(formValues.mp_progbvod),
+            mp_progaudio: Boolean(formValues.mp_progaudio),
+            mp_progooh: Boolean(formValues.mp_progooh),
+            mp_influencers: Boolean(formValues.mp_influencers),
+            mp_production: shouldEnableProduction,
+            television: Boolean(formValues.mp_television),
+            radio: Boolean(formValues.mp_radio),
+            newspaper: Boolean(formValues.mp_newspaper),
+            magazines: Boolean(formValues.mp_magazines),
+            ooh: Boolean(formValues.mp_ooh),
+            cinema: Boolean(formValues.mp_cinema),
+            digi_display: Boolean(formValues.mp_digidisplay),
+            digi_audio: Boolean(formValues.mp_digiaudio),
+            digi_video: Boolean(formValues.mp_digivideo),
+            digi_bvod: Boolean(formValues.mp_bvod),
+            integrations: Boolean(formValues.mp_integration),
+            search: Boolean(formValues.mp_search),
+            social: Boolean(formValues.mp_socialmedia),
+            prog_display: Boolean(formValues.mp_progdisplay),
+            prog_video: Boolean(formValues.mp_progvideo),
+            prog_bvod: Boolean(formValues.mp_progbvod),
+            prog_audio: Boolean(formValues.mp_progaudio),
+            prog_ooh: Boolean(formValues.mp_progooh),
+            influencers: Boolean(formValues.mp_influencers),
+            production: shouldEnableProduction,
+          },
+          lineItems: lineItemsForSave,
+          feeLoading: billingSaveInputs.feeLoading,
+          feeSnapshot: billingSaveInputs.feeLoading as Record<string, unknown>,
+        })
+
+        if (!saveResult.ok) {
+          const human =
+            saveResult.data.code === "BOSS006_EMPTY_PUBLISH"
+              ? "Cannot publish version with 0 line items (BOSS006)"
+              : saveResult.data.code === "DUPLICATE_LINE_ITEM_ID"
+                ? `Duplicate line_item_id rejected: ${saveResult.data.lineItemId ?? "(unknown)"}`
+                : saveResult.data.error || "Postgres save failed"
+          updateSaveStatus("Save plan (transactional)", "error", human)
+          toast({
+            variant: "destructive",
+            title: "Save failed",
+            description: human,
+          })
+          setIsSaving(false)
+          return
+        }
+
+        updateSaveStatus("Save plan (transactional)", "success")
+        const versionId = saveResult.data.versionId
+        const numericSavedVersion = modeResolved.versionNumber
+
+        if (saveResult.data.mirror === "failed") {
+          updateSaveStatus(
+            "Mirror to Xano",
+            "error",
+            saveResult.data.mirrorError || "Xano mirror failed (Postgres commit kept)"
+          )
+          toast({
+            variant: "destructive",
+            title: "Saved to Postgres — Xano mirror failed",
+            description:
+              saveResult.data.mirrorError ||
+              "Retry via admin xano-mirror. Postgres is authoritative.",
+          })
+        } else {
+          updateSaveStatus("Mirror to Xano", "success")
+        }
+
+        setMediaPlanVersionId(versionId)
+        const updatedLatest = Math.max(latestVersionNumber || 0, numericSavedVersion)
+        setLatestVersionNumber(updatedLatest)
+        setNextSaveVersionNumber(updatedLatest + 1)
+        setSelectedVersionNumber(numericSavedVersion)
+        setAvailableVersions((prev) => {
+          const existing = prev.some((v) => v.version_number === numericSavedVersion)
+          const newEntry = {
+            id: versionId,
+            version_number: numericSavedVersion,
+            created_at: Date.now(),
+          }
+          if (existing) {
+            return prev.map((v) =>
+              v.version_number === numericSavedVersion ? { ...v, ...newEntry } : v
+            )
+          }
+          return [...prev, newEntry]
+        })
+
+        const snapshotAfterSave = deepCloneBillingMonthsState(workingBillingMonths)
+        setSavedBillingMonths(snapshotAfterSave)
+        savedBillingMonthsRef.current = snapshotAfterSave
+        persistedBillingLineIdsRef.current = collectPersistedBillingLineIds(snapshotAfterSave)
+        billingLineItemsFollowAutoRef.current = false
+        if (snapshotAfterSave.length > 0) {
+          hasPersistedBillingScheduleRef.current = true
+          setHasPersistedBillingSchedule(true)
+        }
+
+        updateSaveStatus("KPI sync", "pending")
+        if (kpiRows.length > 0 && Number.isFinite(numericSavedVersion)) {
+          const lineItemsByMediaType = buildKpiLineItemsByMediaType({
+            search: { media: searchMediaLineItemsForSave, export: searchItems },
+            socialMedia: { media: socialMediaMediaLineItemsForSave, export: socialMediaItems },
+            progDisplay: { media: progDisplayMediaLineItemsForSave, export: progDisplayItems },
+            progVideo: { media: progVideoMediaLineItemsForSave, export: progVideoItems },
+            progBvod: { media: progBvodMediaLineItemsForSave, export: progBvodItems },
+            progAudio: { media: progAudioMediaLineItemsForSave, export: progAudioItems },
+            progOoh: { media: progOohMediaLineItemsForSave, export: progOohItems },
+            digiDisplay: { media: digitalDisplayMediaLineItemsForSave, export: digitalDisplayItems },
+            digiAudio: { media: digitalAudioMediaLineItemsForSave, export: digitalAudioItems },
+            digiVideo: { media: digitalVideoMediaLineItemsForSave, export: digitalVideoItems },
+            bvod: { media: bvodMediaLineItemsForSave, export: bvodItems },
+            integration: { media: integrationMediaLineItemsForSave, export: integrationItems },
+            television: { media: televisionMediaLineItemsForSave, export: televisionItems },
+            radio: { media: radioMediaLineItemsForSave, export: radioItems },
+            newspaper: { media: newspaperMediaLineItemsForSave, export: newspaperItems },
+            magazines: { media: magazinesMediaLineItemsForSave, export: magazinesItems },
+            ooh: { media: oohMediaLineItemsForSave, export: oohItems },
+            cinema: { media: cinemaMediaLineItemsForSave, export: cinemaItems },
+            influencers: { media: influencersMediaLineItemsForSave, export: influencersItems },
+            production: { media: productionMediaLineItemsForSave, export: productionItems },
+          })
+          const kpiPayload: CampaignKPI[] = fanOutKpiPayload(
+            kpiRows,
+            {
+              mp_client_name: formValues.mp_clientname,
+              mba_number: mbaNumber,
+              version_number: numericSavedVersion,
+              campaign_name: formValues.mp_campaignname,
+            },
+            lineItemsByMediaType
+          )
+          const kpiResult = await saveCampaignKpisFromRows(kpiRows, kpiPayload)
+          if (kpiResult.status === "error") {
+            updateSaveStatus("KPI sync", "error", kpiResult.message)
+          } else {
+            updateSaveStatus("KPI sync", "success")
+          }
+        } else {
+          updateSaveStatus("KPI sync", "success")
+        }
+
+        if (
+          mbaNumber &&
+          (isPartialMBA || forceIncrementForApprovals || Boolean(lastApprovalFp))
+        ) {
+          const approvalLines = billingSaveInputs.lineItems.map((line) => ({
+            line_item_id: line.lineItemId,
+            media_type: line.mediaType,
+            approved: line.approval !== "excluded",
+          }))
+          const patch = await patchMbaLineApprovalsClient({
+            mbaNumber: String(mbaNumber),
+            mediaPlanVersion: Number(numericSavedVersion),
+            lines: approvalLines,
+          })
+          if (patch.ok) {
+            lastPersistedApprovalFingerprintRef.current = approvalFpNow
+          }
+        }
+
+        toast({
+          title: "Success",
+          description: `Saved as version ${numericSavedVersion}`,
+        })
+        setHasUnsavedChanges(false)
+        router.push("/mediaplans")
+        setIsSaving(false)
+        return
+      }
+
       // 1. Update media_plan_master (campaign fields only, NOT version_number)
       updateSaveStatus('Media Plan Master', 'pending')
       let masterUpdateResponse: Response
@@ -6849,23 +7161,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           firstMonthYear: workingBillingMonths[0]?.monthYear,
         })
       }
-
-      const shouldEnableProduction = Boolean(
-        formValues.mp_production || (productionMediaLineItemsForSave?.length ?? 0) > 0
-      )
-
-      // Approval-set change after a persisted baseline → force version cut (even on draft).
-      // Fingerprint from save inputs (core approval), not modal-only selection state.
-      const selectedFromSaveInputs: Record<string, string[]> = {}
-      for (const line of billingSaveInputs.lineItems) {
-        if (line.approval === "excluded") continue
-        if (!selectedFromSaveInputs[line.mediaType]) selectedFromSaveInputs[line.mediaType] = []
-        selectedFromSaveInputs[line.mediaType].push(line.lineItemId)
-      }
-      const approvalFpNow = approvalSelectionFingerprint(selectedFromSaveInputs)
-      const lastApprovalFp = lastPersistedApprovalFingerprintRef.current
-      const forceIncrementForApprovals =
-        Boolean(lastApprovalFp) && lastApprovalFp !== approvalFpNow
 
       // 3. Create new media_plan_versions record using PUT.
       // REVIEW (integrity P0): deferMasterVersionPublish stages the version row without

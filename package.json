@@ -41,7 +41,8 @@
     "test:line-item-attrs": "tsx --test db/schema/__tests__/lineItemAttrs.test.ts",
     "test:shadow-diff": "tsx --test lib/data/__tests__/shadowDiff.test.ts",
     "test:save-plan": "tsx --test lib/data/__tests__/savePlan.test.ts",
-    "test:xano-mirror": "tsx --test lib/data/__tests__/mirrorToXano.test.ts lib/utils/__tests__/createSemaphore.test.ts lib/utils/__tests__/lineItemWriteConcurrency.test.ts"
+    "test:xano-mirror": "tsx --test lib/data/__tests__/mirrorToXano.test.ts lib/utils/__tests__/createSemaphore.test.ts lib/utils/__tests__/lineItemWriteConcurrency.test.ts",
+    "test:postgres-save-mode": "tsx --test lib/mediaplan/__tests__/postgresSaveMode.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",

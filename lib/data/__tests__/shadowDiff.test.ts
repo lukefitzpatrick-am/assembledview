@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import { describe, it, beforeEach, afterEach } from "node:test"
-import { getDataBackend, getDataBackendFor } from "../backend"
+import { getDataBackend, getDataBackendFor, getWriteBackend } from "../backend"
 import {
   __resetShadowDiffStoreForTests,
   compareReferenceRows,
@@ -11,6 +11,35 @@ import {
   summarizeShadowDiffs,
   valuesEqualForCompare,
 } from "../shadowDiff"
+
+describe("getWriteBackend", () => {
+  let prev: string | undefined
+
+  beforeEach(() => {
+    prev = process.env.WRITE_BACKEND
+  })
+
+  afterEach(() => {
+    if (prev === undefined) delete process.env.WRITE_BACKEND
+    else process.env.WRITE_BACKEND = prev
+  })
+
+  it("defaults to xano and is independent of DATA_BACKEND", () => {
+    delete process.env.WRITE_BACKEND
+    process.env.DATA_BACKEND = "postgres"
+    assert.equal(getWriteBackend(), "xano")
+  })
+
+  it("accepts postgres", () => {
+    process.env.WRITE_BACKEND = "POSTGRES"
+    assert.equal(getWriteBackend(), "postgres")
+  })
+
+  it("falls back to xano on unknown values", () => {
+    process.env.WRITE_BACKEND = "mysql"
+    assert.equal(getWriteBackend(), "xano")
+  })
+})
 
 describe("getDataBackend", () => {
   let prev: string | undefined

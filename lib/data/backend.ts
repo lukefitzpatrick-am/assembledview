@@ -7,7 +7,8 @@
  *
  * Write path (T4a+): `WRITE_BACKEND` is independent of reads. Default `xano`
  * keeps the editor on the legacy fan-out; `postgres` enables
- * `POST /api/plans/save` → `savePlanVersion` (page wiring is T4c).
+ * `POST /api/plans/save` → `savePlanVersion`. Create/edit layouts inject the
+ * value via `WriteBackendProvider` (T4c).
  */
 export type DataBackend = "xano" | "shadow" | "postgres"
 

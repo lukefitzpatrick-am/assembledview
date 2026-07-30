@@ -63,6 +63,17 @@ const lineItemSchema = z.object({
   feeOverride: feeOverrideSchema.optional(),
 })
 
+const ensureMasterSchema = z.object({
+  mbaNumber: z.string().min(1),
+  mpClientName: z.string().nullable().optional(),
+  campaignName: z.string().nullable().optional(),
+  campaignStatus: z.string().nullable().optional(),
+  campaignStartDate: z.string().nullable().optional(),
+  campaignEndDate: z.string().nullable().optional(),
+  campaignBudgetCents: z.number().int().nullable().optional(),
+  clientId: z.number().int().positive().nullable().optional(),
+})
+
 const bodySchema = z.object({
   masterId: z.number().int().positive(),
   mbaNumber: z.string().min(1),
@@ -85,6 +96,8 @@ const bodySchema = z.object({
   feeLoading: z.record(z.string(), z.number()),
   feeSnapshot: z.record(z.string(), z.unknown()).optional(),
   adservaudio: z.number().optional(),
+  /** Create-path: insert PG master with Xano-aligned id when missing. */
+  ensureMaster: ensureMasterSchema.optional(),
 })
 
 /**
@@ -124,6 +137,43 @@ export async function POST(request: NextRequest) {
   const body = parsed.data
   const access = await checkClientMbaAccess(request, body.mbaNumber)
   if (!access.ok) return access.response
+
+  // Create-path: dual-write PG master with the Xano-aligned id before savePlanVersion.
+  if (body.ensureMaster) {
+    const db = getDb()
+    const [existing] = await db
+      .select({ id: schema.mediaPlanMasters.id })
+      .from(schema.mediaPlanMasters)
+      .where(eq(schema.mediaPlanMasters.id, body.masterId))
+      .limit(1)
+    if (!existing) {
+      try {
+        await db.insert(schema.mediaPlanMasters).values({
+          id: body.masterId,
+          mbaNumber: body.ensureMaster.mbaNumber,
+          mpClientName: body.ensureMaster.mpClientName ?? null,
+          campaignName: body.ensureMaster.campaignName ?? null,
+          campaignStatus: body.ensureMaster.campaignStatus ?? null,
+          campaignStartDate: body.ensureMaster.campaignStartDate ?? null,
+          campaignEndDate: body.ensureMaster.campaignEndDate ?? null,
+          campaignBudgetCents: body.ensureMaster.campaignBudgetCents ?? null,
+          clientId: body.ensureMaster.clientId ?? null,
+        })
+      } catch (err) {
+        console.error("[plans/save] ensureMaster insert failed", err)
+        return NextResponse.json(
+          {
+            error:
+              err instanceof Error
+                ? err.message
+                : "Failed to insert media_plan_masters for create-path save",
+            code: "ENSURE_MASTER_FAILED",
+          },
+          { status: 500 }
+        )
+      }
+    }
+  }
 
   const saveInput = {
     masterId: body.masterId,

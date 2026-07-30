@@ -218,6 +218,15 @@ import {
   formatSaveModeLabel,
   isSaveAllowedAfterHydration,
 } from "@/lib/mediaplan/channelHydrationGate"
+import { useWriteBackend } from "@/lib/data/WriteBackendContext"
+import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
+import {
+  POSTGRES_SAVE_MODAL_STEPS,
+  buildSavePlanLineItemsFromSnapshots,
+  dollarsToCampaignBudgetCents,
+  postPlansSave,
+} from "@/lib/mediaplan/buildPostgresSavePayload"
+import { reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { assertCoreScheduleParity } from "@/lib/finance/assertCoreScheduleParity"
 import {
   humaniseBillingSaveError,
@@ -538,6 +547,8 @@ function CreateMediaPlan() {
   const [clientPostcode, setClientPostcode] = useState("")
   const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([]);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  /** Server-injected via create layout — `WRITE_BACKEND` (not derived from DATA_BACKEND). */
+  const writeBackend = useWriteBackend()
   /** Children saved but master.version_number bump failed — retry publish PATCH only. */
   const [pendingPublishRetry, setPendingPublishRetry] = useState<{
     mbaNumber: string
@@ -4976,6 +4987,329 @@ function CreateMediaPlan() {
         fv.mp_production || (productionMediaLineItems?.length ?? 0) > 0
       )
       const planVersionNumber = parseInt(fv.mp_plannumber ?? "1", 10) || 1
+      const mbaNum = String(fv.mba_number)
+
+      // --- T4c: WRITE_BACKEND=postgres → one transactional save ---
+      if (writeBackend === "postgres") {
+        setSaveStatus(
+          POSTGRES_SAVE_MODAL_STEPS.map((name) => ({
+            name,
+            status: "pending" as const,
+          }))
+        )
+
+        const feeLoadingForSave = billingSaveInputs.feeLoading
+        const snapshots = {
+          television: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(televisionMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.television),
+            "television",
+            feeLoadingForSave
+          ),
+          radio: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(radioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.radio),
+            "radio",
+            feeLoadingForSave
+          ),
+          newspaper: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(newspaperMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.newspaper),
+            "newspaper",
+            feeLoadingForSave
+          ),
+          magazines: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(magazineMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.magazines),
+            "magazines",
+            feeLoadingForSave
+          ),
+          ooh: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(oohMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.ooh),
+            "ooh",
+            feeLoadingForSave
+          ),
+          cinema: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(cinemaMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.cinema),
+            "cinema",
+            feeLoadingForSave
+          ),
+          digiDisplay: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(digiDisplayMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalDisplay),
+            "digiDisplay",
+            feeLoadingForSave
+          ),
+          digiAudio: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(digiAudioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalAudio),
+            "digiAudio",
+            feeLoadingForSave
+          ),
+          digiVideo: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(digiVideoMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalVideo),
+            "digiVideo",
+            feeLoadingForSave
+          ),
+          bvod: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(bvodMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.bvod),
+            "bvod",
+            feeLoadingForSave
+          ),
+          integration: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(integrationMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.integration),
+            "integration",
+            feeLoadingForSave
+          ),
+          production: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(productionMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.production),
+            "production",
+            feeLoadingForSave
+          ),
+          search: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(searchMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.search),
+            "search",
+            feeLoadingForSave
+          ),
+          socialMedia: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(socialMediaMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.socialMedia),
+            "socialMedia",
+            feeLoadingForSave
+          ),
+          progDisplay: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(progDisplayMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progDisplay),
+            "progDisplay",
+            feeLoadingForSave
+          ),
+          progVideo: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(progVideoMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progVideo),
+            "progVideo",
+            feeLoadingForSave
+          ),
+          progBvod: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(progBvodMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progBVOD),
+            "progBvod",
+            feeLoadingForSave
+          ),
+          progAudio: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(progAudioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progAudio),
+            "progAudio",
+            feeLoadingForSave
+          ),
+          progOoh: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(progOohMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progOOH),
+            "progOoh",
+            feeLoadingForSave
+          ),
+          influencers: stampClientFeePctOnLineItems(
+            reassignLineItemNumbers(influencersMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.influencers),
+            "influencers",
+            feeLoadingForSave
+          ),
+        }
+
+        const modeResolved = resolvePostgresSaveMode({
+          campaignStatus: fv.mp_campaignstatus,
+          forceIncrement: false,
+          publishedVersionNumber: 0,
+          versionRowCount: 0,
+        })
+
+        setSaveModeLabel(
+          modeResolved.uiMode === "overwrite"
+            ? formatSaveModeLabel("overwrite", modeResolved.versionNumber)
+            : formatSaveModeLabel("increment", modeResolved.versionNumber)
+        )
+
+        const lineItemsForSave = buildSavePlanLineItemsFromSnapshots(
+          snapshots,
+          billingSaveInputs.lineItems
+        )
+
+        if (
+          modeResolved.mode === "publish" &&
+          lineItemsForSave.length === 0 &&
+          [
+            fv.mp_television,
+            fv.mp_radio,
+            fv.mp_newspaper,
+            fv.mp_magazines,
+            fv.mp_ooh,
+            fv.mp_cinema,
+            fv.mp_digidisplay,
+            fv.mp_digiaudio,
+            fv.mp_digivideo,
+            fv.mp_bvod,
+            fv.mp_integration,
+            fv.mp_search,
+            fv.mp_socialmedia,
+            fv.mp_progdisplay,
+            fv.mp_progvideo,
+            fv.mp_progbvod,
+            fv.mp_progaudio,
+            fv.mp_progooh,
+            fv.mp_influencers,
+            shouldEnableProduction,
+          ].some(Boolean)
+        ) {
+          updateSaveStatus(
+            "Save plan (transactional)",
+            "error",
+            "Cannot publish version with 0 line items (BOSS006)"
+          )
+          toast({
+            variant: "destructive",
+            title: "Publish rejected — no line items",
+            description: "Enable channels need at least one line item before publish.",
+          })
+          return
+        }
+
+        updateSaveStatus("Save plan (transactional)", "pending")
+        const budgetCents = dollarsToCampaignBudgetCents(fv.mp_campaignbudget)
+        const saveResult = await postPlansSave({
+          masterId: Number(masterId),
+          mbaNumber: mbaNum,
+          versionNumber: modeResolved.versionNumber,
+          mode: modeResolved.mode,
+          campaignName: fv.mp_campaignname ?? null,
+          campaignStatus: fv.mp_campaignstatus ?? null,
+          campaignStartDate: toDateOnlyString(fv.mp_campaigndates_start),
+          campaignEndDate: toDateOnlyString(fv.mp_campaigndates_end),
+          brand: fv.mp_brand ?? null,
+          clientContact: fv.mp_clientcontact ?? null,
+          poNumber: fv.mp_ponumber ?? null,
+          campaignBudgetCents: budgetCents,
+          fixedFee: Boolean(fv.mp_fixedfee),
+          channelFlags: {
+            mp_television: Boolean(fv.mp_television),
+            mp_radio: Boolean(fv.mp_radio),
+            mp_newspaper: Boolean(fv.mp_newspaper),
+            mp_magazines: Boolean(fv.mp_magazines),
+            mp_ooh: Boolean(fv.mp_ooh),
+            mp_cinema: Boolean(fv.mp_cinema),
+            mp_digidisplay: Boolean(fv.mp_digidisplay),
+            mp_digiaudio: Boolean(fv.mp_digiaudio),
+            mp_digivideo: Boolean(fv.mp_digivideo),
+            mp_bvod: Boolean(fv.mp_bvod),
+            mp_integration: Boolean(fv.mp_integration),
+            mp_search: Boolean(fv.mp_search),
+            mp_socialmedia: Boolean(fv.mp_socialmedia),
+            mp_progdisplay: Boolean(fv.mp_progdisplay),
+            mp_progvideo: Boolean(fv.mp_progvideo),
+            mp_progbvod: Boolean(fv.mp_progbvod),
+            mp_progaudio: Boolean(fv.mp_progaudio),
+            mp_progooh: Boolean(fv.mp_progooh),
+            mp_influencers: Boolean(fv.mp_influencers),
+            mp_production: shouldEnableProduction,
+            television: Boolean(fv.mp_television),
+            radio: Boolean(fv.mp_radio),
+            newspaper: Boolean(fv.mp_newspaper),
+            magazines: Boolean(fv.mp_magazines),
+            ooh: Boolean(fv.mp_ooh),
+            cinema: Boolean(fv.mp_cinema),
+            digi_display: Boolean(fv.mp_digidisplay),
+            digi_audio: Boolean(fv.mp_digiaudio),
+            digi_video: Boolean(fv.mp_digivideo),
+            digi_bvod: Boolean(fv.mp_bvod),
+            integrations: Boolean(fv.mp_integration),
+            search: Boolean(fv.mp_search),
+            social: Boolean(fv.mp_socialmedia),
+            prog_display: Boolean(fv.mp_progdisplay),
+            prog_video: Boolean(fv.mp_progvideo),
+            prog_bvod: Boolean(fv.mp_progbvod),
+            prog_audio: Boolean(fv.mp_progaudio),
+            prog_ooh: Boolean(fv.mp_progooh),
+            influencers: Boolean(fv.mp_influencers),
+            production: shouldEnableProduction,
+          },
+          lineItems: lineItemsForSave,
+          feeLoading: feeLoadingForSave,
+          feeSnapshot: feeLoadingForSave as Record<string, unknown>,
+          ensureMaster: {
+            mbaNumber: mbaNum,
+            mpClientName: clientName,
+            campaignName: fv.mp_campaignname ?? null,
+            campaignStatus: fv.mp_campaignstatus ?? null,
+            campaignStartDate: toDateOnlyString(fv.mp_campaigndates_start),
+            campaignEndDate: toDateOnlyString(fv.mp_campaigndates_end),
+            campaignBudgetCents: budgetCents,
+          },
+        })
+
+        if (!saveResult.ok) {
+          const human =
+            saveResult.data.code === "BOSS006_EMPTY_PUBLISH"
+              ? "Cannot publish version with 0 line items (BOSS006)"
+              : saveResult.data.error || "Postgres save failed"
+          updateSaveStatus("Save plan (transactional)", "error", human)
+          toast({ variant: "destructive", title: "Save failed", description: human })
+          return
+        }
+
+        updateSaveStatus("Save plan (transactional)", "success")
+        if (saveResult.data.mirror === "failed") {
+          updateSaveStatus(
+            "Mirror to Xano",
+            "error",
+            saveResult.data.mirrorError || "Xano mirror failed (Postgres commit kept)"
+          )
+          toast({
+            variant: "destructive",
+            title: "Saved to Postgres — Xano mirror failed",
+            description:
+              saveResult.data.mirrorError ||
+              "Retry via admin xano-mirror. Postgres is authoritative.",
+          })
+        } else {
+          updateSaveStatus("Mirror to Xano", "success")
+        }
+
+        setMediaPlanVersionId(saveResult.data.versionId)
+        updateSaveStatus("KPI sync", "pending")
+        if (kpiRows.length > 0) {
+          const lineItemsByMediaType = buildKpiLineItemsByMediaType({
+            search: { media: snapshots.search, export: searchItems },
+            socialMedia: { media: snapshots.socialMedia, export: socialMediaItems },
+            progDisplay: { media: snapshots.progDisplay, export: progDisplayItems },
+            progVideo: { media: snapshots.progVideo, export: progVideoItems },
+            progBvod: { media: snapshots.progBvod, export: progBvodItems },
+            progAudio: { media: snapshots.progAudio, export: progAudioItems },
+            progOoh: { media: snapshots.progOoh, export: progOohItems },
+            digiDisplay: { media: snapshots.digiDisplay, export: digiDisplayItems },
+            digiAudio: { media: snapshots.digiAudio, export: digiAudioItems },
+            digiVideo: { media: snapshots.digiVideo, export: digiVideoItems },
+            bvod: { media: snapshots.bvod, export: bvodItems },
+            integration: { media: snapshots.integration, export: integrationItems },
+            television: { media: snapshots.television, export: televisionItems },
+            radio: { media: snapshots.radio, export: radioItems },
+            newspaper: { media: snapshots.newspaper, export: newspaperItems },
+            magazines: { media: snapshots.magazines, export: magazineItems },
+            ooh: { media: snapshots.ooh, export: oohItems },
+            cinema: { media: snapshots.cinema, export: cinemaItems },
+            influencers: { media: snapshots.influencers, export: influencersItems },
+            production: { media: snapshots.production, export: productionItems },
+          })
+          const kpiPayload: CampaignKPI[] = fanOutKpiPayload(
+            kpiRows,
+            {
+              mp_client_name: clientName,
+              mba_number: mbaNum,
+              version_number: modeResolved.versionNumber,
+              campaign_name: fv.mp_campaignname ?? "",
+            },
+            lineItemsByMediaType
+          )
+          const kpiResult = await saveCampaignKpisFromRows(kpiRows, kpiPayload)
+          updateSaveStatus(
+            "KPI sync",
+            kpiResult.status === "error" ? "error" : "success",
+            kpiResult.status === "error" ? kpiResult.message : undefined
+          )
+        } else {
+          updateSaveStatus("KPI sync", "success")
+        }
+
+        toast({
+          title: "Success",
+          description: `Saved as version ${modeResolved.versionNumber}`,
+        })
+        return
+      }
 
       console.log("Form values for media plan version:", {
         mp_client_name: clientName,
