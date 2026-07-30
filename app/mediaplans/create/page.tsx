@@ -118,6 +118,11 @@ import {
   defaultManualBillingAccordionExpanded,
   useManualBillingSpreadsheetCallbacks,
 } from "@/lib/billing/useManualBillingSpreadsheetCallbacks"
+import { isBillingBalancerEnabled } from "@/lib/billing/balancer"
+import {
+  getLineBalancingMonth,
+  rebalanceLineOnSchedule,
+} from "@/lib/billing/rebalanceLineOnSchedule"
 import { getMediaTypeHeadersForSchedule } from "@/lib/billing/mediaTypeHeaders"
 import { persistManualBillingOverrides } from "@/lib/finance/persistManualBillingOverrides"
 import {
@@ -4001,10 +4006,23 @@ function CreateMediaPlan() {
       0
     )
 
-    const nextMonths =
+    const nextMonthsRaw =
       type === "lineItem" && lineItemId && lineItemValueChanged
         ? applyBillingLineMode(copy, lineItemId, "manual")
         : copy
+    let nextMonths = nextMonthsRaw
+    if (
+      isBillingBalancerEnabled() &&
+      type === "lineItem" &&
+      lineItemId &&
+      monthYear &&
+      lineItemValueChanged
+    ) {
+      nextMonths = rebalanceLineOnSchedule({
+        months: nextMonthsRaw,
+        lineItemId,
+      })
+    }
     setManualBillingTotal(formatter.format(grandTotal))
     setManualBillingMonths(nextMonths)
   }
@@ -7647,6 +7665,14 @@ const handleSaveAll = async () => {
                                     {manualBillingMonths.map((month, monthIndex) => {
                                       const monthAmount =
                                         lineItem.monthlyAmounts?.[month.monthYear] || 0
+                                      const balOn = isBillingBalancerEnabled()
+                                      const balMonth = balOn
+                                        ? getLineBalancingMonth(
+                                            lineItem.id,
+                                            manualBillingMonths.map((m) => m.monthYear)
+                                          )
+                                        : ""
+                                      const isBal = balOn && month.monthYear === balMonth
                                       return (
                                         <TableCell key={month.monthYear} align="right">
                                           <ManualBillingSpreadsheetLineItemInput
@@ -7660,7 +7686,9 @@ const handleSaveAll = async () => {
                                             className="w-28 text-right"
                                             amount={monthAmount}
                                             formatter={mbaCurrencyFormatter}
+                                            isBalancingMonth={isBal}
                                             onAmountChange={(numericValue) => {
+                                              if (isBal) return
                                               const tempCopy = [...manualBillingMonths]
                                               syncLineItemMonthlyAmountAcrossAllMonthRows(
                                                 tempCopy,
@@ -7671,7 +7699,8 @@ const handleSaveAll = async () => {
                                               )
                                               setManualBillingMonths(tempCopy)
                                             }}
-                                            onCommit={(raw) =>
+                                            onCommit={(raw) => {
+                                              if (isBal) return
                                               handleManualBillingChange(
                                                 monthIndex,
                                                 "lineItem",
@@ -7680,7 +7709,7 @@ const handleSaveAll = async () => {
                                                 lineItem.id,
                                                 month.monthYear
                                               )
-                                            }
+                                            }}
                                           />
                                         </TableCell>
                                       )

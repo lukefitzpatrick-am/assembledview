@@ -14,6 +14,9 @@ type Props = Readonly<{
   className?: string
   onAmountChange: (numericValue: number) => void
   onCommit: (rawValue: string) => void
+  /** PC4: when set, cell is the ⚖ balancing month (read-only). */
+  isBalancingMonth?: boolean
+  disabled?: boolean
 }>
 
 export function ManualBillingSpreadsheetLineItemInput({
@@ -23,6 +26,8 @@ export function ManualBillingSpreadsheetLineItemInput({
   className,
   onAmountChange,
   onCommit,
+  isBalancingMonth = false,
+  disabled = false,
 }: Props) {
   const ctx = useManualBillingSpreadsheetCell()
   const serialized = serializeSpreadsheetCellKey(cellKey)
@@ -32,15 +37,20 @@ export function ManualBillingSpreadsheetLineItemInput({
       ? ctx.getLineItemCellAdjustmentKind(cellKey.rowId, cellKey.monthYear)
       : null
 
+  const locked = disabled || isBalancingMonth
+
   const input = (
     <EditableLineItemMonthInput
       id={coords ? spreadsheetCellDomId(serialized) : undefined}
       className={cn(
         className,
-        adjustmentKind === "divergent" && "underline decoration-dashed decoration-muted-foreground underline-offset-4"
+        adjustmentKind === "divergent" &&
+          "underline decoration-dashed decoration-muted-foreground underline-offset-4",
+        isBalancingMonth && "bg-muted"
       )}
       amount={amount}
       formatter={formatter}
+      disabled={locked}
       onAmountChange={onAmountChange}
       onCommit={onCommit}
       onKeyDown={

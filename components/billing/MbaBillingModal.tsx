@@ -543,6 +543,7 @@ function ScopeLineRow({
           onResetToAuto={lineTiming.onResetLine}
           onPrebill={lineTiming.onPrebillLine}
           isPrepaid={line.flags.prepaid}
+          clientPaysForMedia={line.flags.clientPaysForMedia}
           dateBasisChoice={dateBasisChoice}
           formatter={lineTiming.formatter}
         />

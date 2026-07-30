@@ -70,7 +70,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | `relevantPlanVersions` | Which version is authoritative per month, across receivables/payables/finance data. Staged-unpublished versions must never become relevant |
 | Forecast `line_key`/`group_key` taxonomy | Breaks comparability of **existing persisted snapshots** (variance joins on those keys) and target-row validation |
 | `billedDrift` hash functions | Every already-billed record's stored hash mismatches → whole book flags as drifted |
-| `parsePersistedBillingScheduleToMonths` | Legacy-shape inference — silently rewrites historic campaign months for hydrate paths |
+| `lib/billing/balancer.ts` / `collisionWorksheet.ts` | Timing editors + edit postgres save collision pause when `NEXT_PUBLIC_BILLING_BALANCER=on`; C2 gates unchanged |
 
 ### KPI
 | Touch | Also check |

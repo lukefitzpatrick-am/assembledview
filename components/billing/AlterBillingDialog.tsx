@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, Fragment } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion"
 import {
@@ -18,6 +18,18 @@ import {
   applyScheduleLineAmountEdit,
   applyScheduleMonthCostEdit,
 } from "@/lib/billing/applyScheduleLineAmountEdit"
+import { BillingBalancerChrome } from "@/components/billing/BillingBalancerChrome"
+import {
+  applyBalancer,
+  distributeEvenly,
+  isBillingBalancerEnabled,
+  reassignBalancer,
+} from "@/lib/billing/balancer"
+import {
+  getLineBalancingMonth,
+  rebalanceLineOnSchedule,
+  setLineBalancingMonth,
+} from "@/lib/billing/rebalanceLineOnSchedule"
 import { formatBillingCurrency } from "@/lib/billing/recalculateBillingMonths"
 import type { BillingMonth, BillingLineItem as BillingLineItemType } from "@/lib/billing/types"
 
@@ -97,13 +109,24 @@ export function AlterBillingDialog({
   ) => {
     const numericValue = parseCurrency(rawValue)
     setMonths((prev) => {
-      const next = applyScheduleLineAmountEdit(prev, {
+      let next = applyScheduleLineAmountEdit(prev, {
         lineItemId,
         monthYear,
         amount: numericValue,
         stampManual: false,
       })
-      return next ?? prev
+      if (!next) return prev
+      if (isBillingBalancerEnabled()) {
+        const monthYears = next.map((m) => m.monthYear)
+        // Lock typed edits on the balancing month — ignore (recompute instead).
+        const bal = getLineBalancingMonth(lineItemId, monthYears)
+        if (monthYear === bal) {
+          next = rebalanceLineOnSchedule({ months: prev, lineItemId })
+        } else {
+          next = rebalanceLineOnSchedule({ months: next, lineItemId })
+        }
+      }
+      return next
     })
     setValidationError(null)
   }
@@ -193,35 +216,122 @@ export function AlterBillingDialog({
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {items.map((lineItem) => (
-                                <TableRow key={lineItem.id}>
-                                  <TableCell className="font-medium">
-                                    {lineItem.header1 || lineItem.header2 || lineItem.id}
-                                  </TableCell>
-                                  {months.map((month) => {
-                                    const amount = lineItem.monthlyAmounts?.[month.monthYear] || 0
-                                    return (
-                                      <TableCell key={month.monthYear} align="right">
-                                        <Input
-                                          className="w-28 text-right"
-                                          defaultValue={formatBillingCurrency(amount)}
-                                          onBlur={(e) =>
-                                            handleLineItemAmountChange(
-                                              mediaKey,
-                                              lineItem.id,
-                                              month.monthYear,
-                                              e.target.value
-                                            )
-                                          }
-                                        />
+                              {items.map((lineItem) => {
+                                const monthYears = months.map((m) => m.monthYear)
+                                const balOn = isBillingBalancerEnabled()
+                                const bal = balOn
+                                  ? getLineBalancingMonth(lineItem.id, monthYears)
+                                  : ""
+                                const lineTotal = Number(lineItem.totalAmount) || 0
+                                const pairs = monthYears.map((monthYear) => ({
+                                  month: monthYear,
+                                  amount: lineItem.monthlyAmounts?.[monthYear] || 0,
+                                }))
+                                const balResult = balOn
+                                  ? applyBalancer({
+                                      months: pairs,
+                                      balancingMonth: bal,
+                                      lineTotal,
+                                    })
+                                  : null
+                                return (
+                                  <Fragment key={lineItem.id}>
+                                    <TableRow>
+                                      <TableCell className="font-medium">
+                                        {lineItem.header1 || lineItem.header2 || lineItem.id}
                                       </TableCell>
-                                    )
-                                  })}
-                                  <TableCell className="text-right font-semibold">
-                                    {formatBillingCurrency(lineItem.totalAmount || 0)}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
+                                      {months.map((month) => {
+                                        const amount =
+                                          lineItem.monthlyAmounts?.[month.monthYear] || 0
+                                        const isBal = balOn && month.monthYear === bal
+                                        return (
+                                          <TableCell key={month.monthYear} align="right">
+                                            <Input
+                                              key={`${lineItem.id}-${month.monthYear}-${amount}`}
+                                              className="w-28 text-right"
+                                              defaultValue={formatBillingCurrency(amount)}
+                                              readOnly={isBal}
+                                              title={
+                                                isBal
+                                                  ? "⚖ Balancing month (computed)"
+                                                  : undefined
+                                              }
+                                              onBlur={(e) =>
+                                                handleLineItemAmountChange(
+                                                  mediaKey,
+                                                  lineItem.id,
+                                                  month.monthYear,
+                                                  e.target.value
+                                                )
+                                              }
+                                            />
+                                          </TableCell>
+                                        )
+                                      })}
+                                      <TableCell className="text-right font-semibold">
+                                        {formatBillingCurrency(lineItem.totalAmount || 0)}
+                                      </TableCell>
+                                    </TableRow>
+                                    {balOn && balResult ? (
+                                      <TableRow>
+                                        <TableCell colSpan={months.length + 2}>
+                                          <BillingBalancerChrome
+                                            monthYears={monthYears}
+                                            balancingMonth={balResult.balancingMonth}
+                                            balancingAmount={balResult.balancingAmount}
+                                            negativeBalancer={balResult.negativeBalancer}
+                                            footerLabel={balResult.footerLabel}
+                                            onReassign={(m) => {
+                                              setLineBalancingMonth(lineItem.id, m)
+                                              const result = reassignBalancer(
+                                                {
+                                                  months: pairs,
+                                                  balancingMonth: bal,
+                                                  lineTotal,
+                                                },
+                                                m
+                                              )
+                                              setMonths((prev) =>
+                                                rebalanceLineOnSchedule({
+                                                  months: prev,
+                                                  lineItemId: lineItem.id,
+                                                  lineTotal,
+                                                  balancingMonth: result.balancingMonth,
+                                                })
+                                              )
+                                            }}
+                                            onDistributeEvenly={() => {
+                                              const result = distributeEvenly({
+                                                months: pairs,
+                                                balancingMonth: bal,
+                                                lineTotal,
+                                              })
+                                              setMonths((prev) =>
+                                                rebalanceLineOnSchedule({
+                                                  months: prev,
+                                                  lineItemId: lineItem.id,
+                                                  lineTotal,
+                                                  balancingMonth: result.balancingMonth,
+                                                })
+                                              )
+                                            }}
+                                            onResetToAuto={() => {
+                                              setMonths((prev) =>
+                                                rebalanceLineOnSchedule({
+                                                  months: prev,
+                                                  lineItemId: lineItem.id,
+                                                  lineTotal,
+                                                  balancingMonth: bal,
+                                                })
+                                              )
+                                            }}
+                                          />
+                                        </TableCell>
+                                      </TableRow>
+                                    ) : null}
+                                  </Fragment>
+                                )
+                              })}
                             </TableBody>
                             <TableFooter>
                               <TableRow className="border-t-2 bg-muted/30 font-bold">

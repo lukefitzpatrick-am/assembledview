@@ -149,7 +149,7 @@ import {
   buildFeeLoadingFromEditorFees,
   editorBillingStableLineItemId,
 } from "@/lib/finance/buildEditorLineItemInputs"
-import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
+import { computeCampaignFinancials, scheduleMonthYearToIso } from "@/lib/finance/computeCampaignFinancials"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import {
   computeAllChannelsHydrated,
@@ -197,6 +197,19 @@ import {
   validateManualMediaMonthsSum,
   type LineOverrideMeta,
 } from "@/lib/finance/manualBillingOverridesUi"
+import {
+  applyCollisionDecision,
+  detectBillingCollisions,
+  type CollisionDecision,
+  type CollisionRow,
+} from "@/lib/billing/collisionWorksheet"
+import {
+  collectLineMonthPairs,
+  getLineBalancingMonth,
+  rebalanceLineOnSchedule,
+} from "@/lib/billing/rebalanceLineOnSchedule"
+import { isBillingBalancerEnabled, reanchorOutOfSpanToBalancer } from "@/lib/billing/balancer"
+import { writeCollisionDecisionEdits } from "@/lib/billing/writeCollisionAuditEdits"
 import { persistManualBillingOverrides } from "@/lib/finance/persistManualBillingOverrides"
 import {
   collectPersistedBillingLineIds,
@@ -230,6 +243,7 @@ import {
 import { ManualBillingSpreadsheetCostInput } from "@/components/billing/ManualBillingSpreadsheetCostInput"
 import { ManualBillingSpreadsheetLineItemInput } from "@/components/billing/ManualBillingSpreadsheetLineItemInput"
 import { ManualBillingSpreadsheetProvider } from "@/components/billing/manualBillingSpreadsheetContext"
+import { BillingCollisionWorksheet } from "@/components/billing/BillingCollisionWorksheet"
 import {
   buildManualBillingMediaSections,
   defaultManualBillingAccordionExpanded,
@@ -1945,6 +1959,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   )
   /** Stale dateBasis overrides — resolved inline in Adjust timing (not a stacked dialog). */
   const [dateBasisStaleOverrides, setDateBasisStaleOverrides] = useState<StaleDateBasisOverride[]>([])
+  const [billingCollisionRows, setBillingCollisionRows] = useState<CollisionRow[]>([])
+  const [billingCollisionOpen, setBillingCollisionOpen] = useState(false)
+  const billingCollisionResolveRef = useRef<
+    ((choices: { lineItemId: string; decision: CollisionDecision }[] | null) => void) | null
+  >(null)
   const autoReferenceBillingMonthsRef = useRef<BillingMonth[]>([])
   const [autoDeliveryMonths, setAutoDeliveryMonths] = useState<BillingMonth[]>([])
   const deliveryScheduleSnapshotRef = useRef<BillingMonth[] | null>(null)
@@ -4679,10 +4698,33 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     copy[index].totalAmount = formatter.format(mediaTotal + feeTotal + adServingTotal + productionTotal);
 
     recalculateManualBillingTotals(copy, formatter)
-    const nextMonths =
+    let nextMonths =
       type === "lineItem" && lineItemId && lineItemValueChanged
         ? applyBillingLineMode(copy, lineItemId, "manual")
         : copy
+    if (
+      isBillingBalancerEnabled() &&
+      type === "lineItem" &&
+      lineItemId &&
+      monthYear &&
+      lineItemValueChanged
+    ) {
+      const scope = mbaBillingScopeLines.find((l) =>
+        billingOverrideLineIdsMatch(l.lineItemId, lineItemId)
+      )
+      const expected = sumLineMediaAcrossMonths(
+        (manualBillingAutoReferenceMonths?.length ?? 0) > 0
+          ? (manualBillingAutoReferenceMonths as BillingMonth[])
+          : nextMonths,
+        lineItemId
+      )
+      nextMonths = rebalanceLineOnSchedule({
+        months: nextMonths,
+        lineItemId,
+        lineTotal: expected,
+        clientPaysForMedia: Boolean(scope?.flags.clientPaysForMedia),
+      })
+    }
     setManualBillingMonths(nextMonths)
   }
 
@@ -4706,6 +4748,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setManualBillingMonths,
     handleManualBillingChange,
     setLineBillingMode: setManualBillingLineMode,
+    isClientPaysLine: (lineItemId) =>
+      Boolean(
+        mbaBillingScopeLines.find((l) =>
+          billingOverrideLineIdsMatch(l.lineItemId, lineItemId)
+        )?.flags.clientPaysForMedia
+      ),
+    getExpectedMediaTotal: (lineItemId) =>
+      sumLineMediaAcrossMonths(
+        (manualBillingAutoReferenceMonths?.length ?? 0) > 0
+          ? (manualBillingAutoReferenceMonths as BillingMonth[])
+          : manualBillingMonths,
+        lineItemId
+      ),
   })
 
   const recalculateManualBillingTotals = (months: BillingMonth[], formatter: Intl.NumberFormat) => {
@@ -5933,6 +5988,53 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           billingOverrideRowsForPanels.length > 0
             ? billingOverrideRowsForPanels
             : await fetchBillingOverridesClient(versionId)
+
+        // PC4: when balancer is on, re-anchor out-of-span months into the balancing
+        // month before refreshing date_basis (compose with DateBasis keep).
+        if (isBillingBalancerEnabled()) {
+          for (const s of stale) {
+            if (s.component !== "media") continue
+            const row = rows.find(
+              (r) =>
+                toBillingOverrideLineItemId(String(r.line_item_id ?? r.lineItemId ?? "")) ===
+                  s.lineItemId &&
+                String(r.component ?? "media").toLowerCase() !== "fee"
+            )
+            if (!row) continue
+            const monthsRaw = (row.months ?? []) as { month?: string; amount?: number }[]
+            const pairs = monthsRaw.map((m) => ({
+              month: String(m.month ?? ""),
+              amount: Number(m.amount) || 0,
+            }))
+            const allowed = workingBillingMonthsRef.current.map((m) => m.monthYear)
+            const lineTotal = sumLineMediaAcrossMonths(
+              autoReferenceBillingMonthsRef.current,
+              s.lineItemId
+            )
+            const { preview, movedFrom } = reanchorOutOfSpanToBalancer({
+              months: pairs,
+              allowedMonths: allowed,
+              balancingMonth: getLineBalancingMonth(s.lineItemId, allowed),
+              lineTotal,
+            })
+            if (movedFrom.length > 0 || preview.months.length > 0) {
+              await replaceBillingOverrideLineClient({
+                media_plan_version_id: versionId,
+                mba_number: mbaNumber,
+                line_item_id: s.lineItemId,
+                component: "media",
+                mode: "manual",
+                reason: "manual",
+                months: preview.months.map((m) => ({
+                  month: scheduleMonthYearToIso(m.month),
+                  amount: m.amount,
+                })),
+                date_basis: s.currentDateBasis,
+              })
+            }
+          }
+        }
+
         await applyDateBasisKeepOrReset({
           versionId,
           mbaNumber,
@@ -6749,6 +6851,162 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
       }
 
+      // PC4: collision worksheet — pause before WRITE_BACKEND=postgres when manual
+      // lines' booked media totals diverged from current override shape.
+      let billingMonthsForSave = workingBillingMonths
+      const getBurstsForLineOnSave = (billingRowId: string): BurstDateLike[] => {
+        const canon = toBillingOverrideLineItemId(billingRowId)
+        for (const config of billingFeeSeedEnabledConfigs) {
+          const items = config.lineItems ?? []
+          for (let i = 0; i < items.length; i++) {
+            const stableId = editorBillingStableLineItemId(config.billingKey, items[i], i)
+            if (
+              billingOverrideLineIdsMatch(stableId, billingRowId) ||
+              toBillingOverrideLineItemId(stableId) === canon
+            ) {
+              return resolveLineItemBursts(items[i]).map((b: any) => ({
+                startDate: String(b?.startDate ?? b?.start_date ?? ""),
+                endDate: String(b?.endDate ?? b?.end_date ?? ""),
+              }))
+            }
+          }
+        }
+        return []
+      }
+      if (
+        isBillingBalancerEnabled() &&
+        writeBackend === "postgres" &&
+        workingBillingMonths.length > 0 &&
+        autoReferenceBillingMonths.length > 0
+      ) {
+        const manualIds = listManualOverrideLineIds(workingBillingMonths).media
+        const collisionInputs = manualIds.map((lineItemId) => {
+          const oldTotal = sumLineMediaAcrossMonths(workingBillingMonths, lineItemId)
+          const newTotal = sumLineMediaAcrossMonths(autoReferenceBillingMonths, lineItemId)
+          const label =
+            mbaBillingScopeLines.find((l) =>
+              billingOverrideLineIdsMatch(l.lineItemId, lineItemId)
+            )?.title ?? toBillingOverrideLineItemId(lineItemId)
+          const months = collectLineMonthPairs(workingBillingMonths, lineItemId)
+          return {
+            lineItemId: toBillingOverrideLineItemId(lineItemId),
+            label,
+            oldTotal,
+            newTotal,
+            months,
+            balancingMonth: getLineBalancingMonth(
+              lineItemId,
+              months.map((m) => m.month)
+            ),
+          }
+        })
+        const rows = detectBillingCollisions(collisionInputs)
+        if (rows.length > 0) {
+          const choices = await new Promise<
+            { lineItemId: string; decision: CollisionDecision }[] | null
+          >((resolve) => {
+            billingCollisionResolveRef.current = resolve
+            setBillingCollisionRows(rows)
+            setBillingCollisionOpen(true)
+          })
+          setBillingCollisionOpen(false)
+          setBillingCollisionRows([])
+          billingCollisionResolveRef.current = null
+          if (!choices) {
+            setIsSaving(false)
+            return
+          }
+          let nextMonths = deepCloneBillingMonthsState(workingBillingMonths)
+          for (const choice of choices) {
+            const row = rows.find((r) => r.lineItemId === choice.lineItemId)
+            if (!row) continue
+            const applied = applyCollisionDecision(row, choice.decision)
+            if (applied.months == null) {
+              // recalc auto — pull from auto reference for this line
+              nextMonths = rebalanceLineOnSchedule({
+                months: nextMonths,
+                lineItemId: choice.lineItemId,
+                lineTotal: row.newTotal,
+                balancingMonth: applied.balancingMonth,
+              })
+              // Prefer exact auto month amounts when available
+              const autoPairs = collectLineMonthPairs(autoReferenceBillingMonths, choice.lineItemId)
+              if (autoPairs.length) {
+                for (const p of autoPairs) {
+                  const mediaKey =
+                    mbaBillingScopeLines.find((l) =>
+                      billingOverrideLineIdsMatch(l.lineItemId, choice.lineItemId)
+                    )?.mediaType
+                  if (!mediaKey) continue
+                  syncLineItemMonthlyAmountAcrossAllMonthRows(
+                    nextMonths,
+                    mediaKey,
+                    choice.lineItemId,
+                    p.month,
+                    p.amount
+                  )
+                }
+              }
+            } else {
+              nextMonths = rebalanceLineOnSchedule({
+                months: (() => {
+                  const copy = deepCloneBillingMonthsState(nextMonths)
+                  const mediaKey =
+                    mbaBillingScopeLines.find((l) =>
+                      billingOverrideLineIdsMatch(l.lineItemId, choice.lineItemId)
+                    )?.mediaType
+                  if (!mediaKey) return copy
+                  for (const p of applied.months!) {
+                    syncLineItemMonthlyAmountAcrossAllMonthRows(
+                      copy,
+                      mediaKey,
+                      choice.lineItemId,
+                      p.month,
+                      p.amount
+                    )
+                  }
+                  return copy
+                })(),
+                lineItemId: choice.lineItemId,
+                lineTotal: row.newTotal,
+                balancingMonth: applied.balancingMonth,
+              })
+            }
+          }
+          billingMonthsForSave = nextMonths
+          workingBillingMonthsRef.current = nextMonths
+          setWorkingBillingMonths(nextMonths)
+          setManualBillingMonths(deepCloneBillingMonthsState(nextMonths))
+          void writeCollisionDecisionEdits(
+            choices.map((c) => {
+              const row = rows.find((r) => r.lineItemId === c.lineItemId)
+              return {
+                lineItemId: c.lineItemId,
+                decision: c.decision,
+                oldTotal: row?.oldTotal ?? 0,
+                newTotal: row?.newTotal ?? 0,
+              }
+            }),
+            { editedBy: 0, editedByName: "editor" }
+          )
+          try {
+            const versionIdForOverrides = await resolveMediaPlanVersionRowId()
+            if (isUsableBillingVersionId(versionIdForOverrides)) {
+              await persistManualBillingOverrides({
+                versionId: versionIdForOverrides,
+                mbaNumber,
+                months: nextMonths,
+                autoMonthsForMediaTotals: autoReferenceBillingMonths,
+                metaByLine: manualBillingOverrideMetaRef.current,
+                getBurstsForLine: getBurstsForLineOnSave,
+              })
+            }
+          } catch (persistErr) {
+            console.warn("[PC4 collision] override persist failed", persistErr)
+          }
+        }
+      }
+
       // Approval-set change after a persisted baseline → force version cut (even on draft).
       const selectedFromSaveInputs: Record<string, string[]> = {}
       for (const line of billingSaveInputs.lineItems) {
@@ -6968,7 +7226,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           return [...prev, newEntry]
         })
 
-        const snapshotAfterSave = deepCloneBillingMonthsState(workingBillingMonths)
+        const snapshotAfterSave = deepCloneBillingMonthsState(
+          billingMonthsForSave.length > 0 ? billingMonthsForSave : workingBillingMonths
+        )
         setSavedBillingMonths(snapshotAfterSave)
         savedBillingMonthsRef.current = snapshotAfterSave
         persistedBillingLineIdsRef.current = collectPersistedBillingLineIds(snapshotAfterSave)
@@ -11485,6 +11745,21 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         isLoading={modalLoading}
       />
 
+      <BillingCollisionWorksheet
+        open={billingCollisionOpen}
+        rows={billingCollisionRows}
+        onCancel={() => {
+          billingCollisionResolveRef.current?.(null)
+          billingCollisionResolveRef.current = null
+          setBillingCollisionOpen(false)
+        }}
+        onConfirm={(choices) => {
+          billingCollisionResolveRef.current?.(choices)
+          billingCollisionResolveRef.current = null
+          setBillingCollisionOpen(false)
+        }}
+      />
+
       <AlertDialog open={fullBillingResetConfirmOpen} onOpenChange={setFullBillingResetConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -11676,8 +11951,32 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               mbaBillingScopeLines.find((l) =>
                 billingOverrideLineIdsMatch(l.lineItemId, lineItemId)
               )?.mediaType ?? ""
+            let balancerReanchorPreview: string | null = null
+            if (isBillingBalancerEnabled() && manualBillingMonths.length > 0) {
+              const allowed = manualBillingMonths.map((m) => m.monthYear)
+              const pairs = collectLineMonthPairs(manualBillingMonths, lineItemId)
+              const lineTotal = sumLineMediaAcrossMonths(
+                (manualBillingAutoReferenceMonths?.length ?? 0) > 0
+                  ? (manualBillingAutoReferenceMonths as BillingMonth[])
+                  : manualBillingMonths,
+                lineItemId
+              )
+              const { preview, movedFrom } = reanchorOutOfSpanToBalancer({
+                months: pairs,
+                allowedMonths: allowed,
+                balancingMonth: getLineBalancingMonth(lineItemId, allowed),
+                lineTotal,
+              })
+              if (movedFrom.length > 0) {
+                balancerReanchorPreview = `Keep will move ${movedFrom.join(", ")} into ⚖ ${preview.balancingMonth} (${mbaCurrencyFormatter.format(preview.balancingAmount)}).`
+              } else {
+                balancerReanchorPreview =
+                  "Keep will re-anchor any out-of-span amounts into the ⚖ balancing month."
+              }
+            }
             return {
               labels,
+              balancerReanchorPreview,
               onKeepTiming: () => {
                 void handleDateBasisKeepForLine(lineItemId)
               },
@@ -11827,6 +12126,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                 <TableCell>{lineItem.header2}</TableCell>
                                 {manualBillingMonths.map((month, monthIndex) => {
                                   const monthAmount = lineItem.monthlyAmounts?.[month.monthYear] || 0
+                                  const balOn = isBillingBalancerEnabled()
+                                  const balMonth = balOn
+                                    ? getLineBalancingMonth(
+                                        lineItem.id,
+                                        manualBillingMonths.map((m) => m.monthYear)
+                                      )
+                                    : ""
+                                  const isBal = balOn && month.monthYear === balMonth
+                                  const clientPays = Boolean(
+                                    mbaBillingScopeLines.find((l) =>
+                                      billingOverrideLineIdsMatch(l.lineItemId, lineItem.id)
+                                    )?.flags.clientPaysForMedia
+                                  )
                                   return (
                                     <TableCell key={month.monthYear} align="right">
                                       <ManualBillingSpreadsheetLineItemInput
@@ -11840,7 +12152,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                         className="text-right w-28"
                                         amount={monthAmount}
                                         formatter={mbaCurrencyFormatter}
+                                        isBalancingMonth={isBal}
+                                        disabled={clientPays}
                                         onAmountChange={(numericValue) => {
+                                          if (isBal || clientPays) return
                                           const tempCopy = [...manualBillingMonths]
                                           syncLineItemMonthlyAmountAcrossAllMonthRows(
                                             tempCopy,
@@ -11851,7 +12166,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                           )
                                           setManualBillingMonths(tempCopy)
                                         }}
-                                        onCommit={(raw) =>
+                                        onCommit={(raw) => {
+                                          if (isBal || clientPays) return
                                           handleManualBillingChange(
                                             monthIndex,
                                             "lineItem",
@@ -11860,7 +12176,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                                             lineItem.id,
                                             month.monthYear
                                           )
-                                        }
+                                        }}
                                       />
                                     </TableCell>
                                   )
