@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { requireRole } from "@/lib/requireRole"
 import { getCachedPublisherKpis } from "@/lib/api/publisherKpiCache"
 import {
   createPublisherKpi,
@@ -32,6 +33,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const gate = await requireRole(request, ["admin", "manager"])
+  if ("response" in gate) return gate.response
+
   try {
     const body = await request.json()
     const parsed = publisherKpiCreateBodySchema.safeParse(body)
@@ -56,6 +60,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const gate = await requireRole(request, ["admin", "manager"])
+  if ("response" in gate) return gate.response
+
   try {
     const body = await request.json()
     const parsed = publisherKpiPatchBodySchema.safeParse(body)
@@ -83,6 +90,9 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const gate = await requireRole(request, ["admin", "manager"])
+  if ("response" in gate) return gate.response
+
   try {
     const id = request.nextUrl.searchParams.get("id")
     if (id === null || id.trim() === "") {

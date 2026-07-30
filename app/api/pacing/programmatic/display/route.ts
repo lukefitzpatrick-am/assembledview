@@ -1,5 +1,6 @@
 import crypto from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
+import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { buildPacingCacheKey, getPacingCache } from "@/lib/pacing/pacingCache"
 import { queryPacingFact } from "@/lib/snowflake/pacing-fact"
 import { getMelbourneYesterdayISO } from "@/lib/dates/melbourne"
@@ -90,6 +91,16 @@ export async function POST(request: NextRequest) {
 
     if (!mbaNumber) {
       return NextResponse.json({ error: "Missing mbaNumber" }, { status: 400 })
+    }
+
+    const access = await checkClientMbaAccess(request, mbaNumber)
+    if (!access.ok) return access.response
+    if (access.isClient) {
+      const prefix = mbaNumber.toLowerCase()
+      const foreign = rawLineItemIds.filter((id) => !String(id).toLowerCase().startsWith(prefix))
+      if (foreign.length > 0) {
+        return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 })
+      }
     }
 
     const normalizedLineItemIds = Array.from(

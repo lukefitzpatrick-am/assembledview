@@ -38,7 +38,7 @@ Editor → `buildEditorLineItemInputs` → `PATCH /api/mediaplans/versions/[id]/
 - Two engines produce `CampaignFinancials` (line items vs persisted JSON) with silently different completeness. `mbaScopeFromSchedules` prefers the **delivery** schedule to avoid double client-pays subtraction — fragile, untested boundary.
 - `receivableMergeKey`/`composeInvoiceKey` changes orphan persisted status rows (billed reappears as unbilled).
 - Payment terms "Net 30" hardcoded ×4; GST 10% centralised in `lib/finance/gst.ts` (good).
-- Synthetic client IDs from djb2 name-hash fallback (C-10); synthetic record ids are per-request counters — store updates can't address derived rows.
+- Synthetic client IDs from djb2 name-hash fallback (C-16); synthetic record ids are per-request counters — store updates can't address derived rows.
 - Three caches (relevantPlanVersions 30s / forecast raw 30s / forecast dataset 20s) with no shared invalidation; snapshot duplicate guard is process-local.
 - Saved views exist in BOTH localStorage (`hubSavedViews`) and Xano (`finance_saved_views`).
 - Fee overrides are un-gated by construction; media overrides are gated — asymmetric.

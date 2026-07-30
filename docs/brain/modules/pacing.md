@@ -34,7 +34,7 @@ AVA (`getPacingSnapshot`, `getDeliverySnapshot`), ops digest email (`buildPacing
 - **Caching:** 4h TTL; only invalidation = orphan assign. Key includes `asOfDate` → cold full-crawl each Melbourne midnight. Overview deliberately passes the auth scope (not live-client scope) to hit the tabs' warm cache entries. Three parallel cache mechanisms (unstable_cache, module Map in `pacingCache.ts`, private Map in avaSnowflake) — only the first is tag-invalidatable. `getDeliveredTotalsFor*` bypass the cache entirely.
 - **Fuzzy channel matching** in SQL — a warehouse channel rename yields zero rows silently; ad-serving and social composers swallow Snowflake failures and return `[]` (outage looks like "no campaigns").
 - **Two Snowflake read stacks** with different clamps/semantics: pacing pages vs `/api/pacing/bulk` + campaign dashboard — same MBA can show different numbers.
-- **Security:** the 4 per-channel POST routes (prog display/video, social meta/tiktok) have no authz gate (SEC-7).
+- **Security:** the 4 per-channel POST routes (prog display/video, social meta/tiktok) use the same `checkClientMbaAccess` + line-item MBA-prefix gate as `/api/pacing/bulk` (SEC-7 FIXED).
 - Direct re-implements the warehouse proc's 3-day rolling lock window in TS (`isOutsideRollingWindow`) — drift risk.
 - Duplication: `lineItemStatusFromPacing` ×3 identical, KPI-target block ×3, `resolveLive*LineItems` ×3, page clients ×5, `count*OverviewStatus` ×5. Aggregators social vs programmatic have drifted (prog computes cpm, social doesn't; social passes 0 conversions/revenue → ROAS/CPA structurally absent).
 - `PERF-DISCOVERY-*` docs are stale on caching — trust `pacingRowsCache.ts`, not them.

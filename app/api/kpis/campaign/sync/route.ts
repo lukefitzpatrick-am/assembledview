@@ -1,10 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server"
+import { requireRole } from "@/lib/requireRole"
 import { syncCampaignKpis } from "@/lib/kpi/campaignKpi"
 import { campaignKpiCreateBodySchema } from "@/lib/kpi/types"
 
 export const runtime = "nodejs"
 
 export async function POST(request: NextRequest) {
+  const gate = await requireRole(request, ["admin", "manager"])
+  if ("response" in gate) return gate.response
+
   try {
     const body = await request.json()
     const parsed = campaignKpiCreateBodySchema.safeParse(body)

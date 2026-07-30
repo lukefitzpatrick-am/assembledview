@@ -12,7 +12,7 @@ Three-tier KPI target resolution — publisher benchmark → client override →
 - `lib/kpi/lineItemKpiTargets.ts` — cpm/cpv rate targets derived from bursts at render time (not stored).
 - `lib/kpi/normaliseRatioTarget.ts` + `metrics.ts` — percent-scale heuristics (see INVARIANTS; recurring live bug class).
 - `lib/data/readKpi.ts` — Phase 2 read choke point (`DATA_BACKEND_KPI` / `DATA_BACKEND`); shadow diffs use money cents for `cpv` and rate epsilon `1e-6` for ctr/vtr/conversion_rate/frequency. Writes remain on Xano until T4.
-- `app/api/kpis/{campaign,campaign/sync,client,publisher}` — CRUD; campaign route uses `checkClientMbaAccess`; several write methods lack authz (SEC-6).
+- `app/api/kpis/{campaign,campaign/sync,client,publisher}` — CRUD; campaign GET uses `checkClientMbaAccess`; all writes (`POST`/`PATCH`/`DELETE` + `campaign/sync` POST) are `requireRole(["admin","manager"])` (SEC-6 FIXED; KpiHost pacing writes are admin-surface only).
 - `components/kpis/{KPIEditModal,KPISection,kpiHost}` — shared modal + the `KpiHost` contract with two deliberately different persistence semantics (media-plan host defers to campaign save; pacing host syncs immediately).
 
 ## Consumed by (41 files)

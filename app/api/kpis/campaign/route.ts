@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
+import { requireRole } from "@/lib/requireRole"
 import {
   createCampaignKpis,
   deleteCampaignKpi,
@@ -40,6 +41,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const gate = await requireRole(request, ["admin", "manager"])
+  if ("response" in gate) return gate.response
+
   try {
     const body = await request.json()
     const parsed = campaignKpiCreateBodySchema.safeParse(body)
@@ -58,6 +62,9 @@ export async function POST(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
+  const gate = await requireRole(request, ["admin", "manager"])
+  if ("response" in gate) return gate.response
+
   try {
     const body = await request.json()
     const parsed = campaignKpiPatchBodySchema.safeParse(body)
@@ -82,6 +89,9 @@ export async function PATCH(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const gate = await requireRole(request, ["admin", "manager"])
+  if ("response" in gate) return gate.response
+
   try {
     const id = request.nextUrl.searchParams.get("id")
     if (!id?.trim()) {

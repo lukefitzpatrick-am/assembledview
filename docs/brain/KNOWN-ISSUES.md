@@ -9,10 +9,10 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | SEC-1 | Two catch-all Xano proxies (`/api/media_plans/[...path]`, `/api/media-details/[...path]`) accept any authenticated session and forward with server `XANO_API_KEY`. Allowlist (`proxyAllowlist.ts`) constrains paths/methods but not tenant | Open |
 | SEC-2 | `GET /api/mediaplans` returns ALL clients' plans to any admin/manager — no per-caller filter (role-gated only) | Open |
 | SEC-3 | `PUT`/`PATCH` on `/api/mediaplans/mba/[mba_number]` skip the `checkClientMbaAccess` that GET enforces | Verify — a WIP-TRIAGE fix was staged; confirm it landed |
-| SEC-4 | `GET /api/dashboard/[slug]` has no tenant match for client users | Open |
+| SEC-4 | `GET /api/dashboard/[slug]` has no tenant match for client users | FIXED (SEC-A) — slug must be in caller's `getUserClientSlugs`; admin unscoped (gate landed earlier; register closed in SEC-A) |
 | SEC-5 | Finance + client admin APIs are session-only in places; two routes carry literal `// allow access for development` comments (`app/api/clients/route.ts`, `app/api/mba/generate/route.ts`) | Doc-route half FIXED (PC3): `/api/mba/generate` + mediaplans generate-pdf / download / documents + scopes-of-work/generate-pdf now `requireRole(admin\|manager)`; MBA accepts `{mba_number,version_number}` only from persisted rows. Clients-route half remains Open (SEC pack). |
-| SEC-6 | Most `/api/kpis/*` write methods have no authz | Open |
-| SEC-7 | `/api/pacing/programmatic/{display,video}` and `/api/pacing/social/{meta,tiktok}` have **no authorization gate** — any authenticated client user can read another tenant's delivery data (compare `/api/pacing/bulk` which checks) | Open |
+| SEC-6 | Most `/api/kpis/*` write methods have no authz | FIXED (SEC-A) — all writes `requireRole(["admin","manager"])` |
+| SEC-7 | `/api/pacing/programmatic/{display,video}` and `/api/pacing/social/{meta,tiktok}` have **no authorization gate** — any authenticated client user can read another tenant's delivery data (compare `/api/pacing/bulk` which checks) | FIXED (SEC-A) — same `checkClientMbaAccess` + line-item prefix gate as `/api/pacing/bulk` |
 | SEC-8 | Middleware enforces authentication only on `/api/*`; tenant isolation is per-handler and only ~13 routes check. `/api/cron/*` bypasses middleware entirely (protected only by `assertCronSecret`) | By design — but every new API route must add its own tenant check |
 | SEC-9 | `checkClientMbaAccess` fallback uses exact equality `mbaNumber === mbaidentifier` (e.g. `PENFOLD001` vs `PENFOLD`) so it effectively always denies — client users MUST have `app_metadata.mba_numbers`. The working prefix-matcher `mbaNumberMatchesClientIdentifier.ts` exists but is imported only by its own test | Open |
 
@@ -43,7 +43,7 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | C-8 | `computeDerivedCampaignFeeAmount` is a second campaign-fee total reconciled only within $10 (vs $0.01 everywhere else) | FIXED (PC2) |
 | C-9 | `normaliseScheduleMediaType` defaults unknown media types to `"search"` — misspelled channel silently inherits search fee % | FIXED (PC2) |
 | C-10 | Search (and other non-empty channels) could stall at hydration: loader effect discarded 200s on `cancelled` while `loadKey` blocked re-run, and `LazyMountWhenVisible` only force-mounted after global `loadPhase === "ready"` so off-screen Search never published settle → watchdog "did not finish loading" | FIXED (edit loader generation + clear loadKey on cleanup; forceMount once past section loader) |
-| C-10 | `deriveReceivableRecords` falls back to a djb2 hash of client name as synthetic client ID (100000–999999) flowing into grouping/filters/exports | Open |
+| C-16 | `deriveReceivableRecords` falls back to a djb2 hash of client name as synthetic client ID (100000–999999) flowing into grouping/filters/exports | Open |
 | C-11 | `checkPublishLineItemIntegrity` fails open on Xano errors (client-side `shouldBlockEmptyPublish` is the primary gate) | By design — know it |
 | C-12 | `filterByMbaAndVersion` treats `media_plan_version` as both FK id and version number depending on row shape; channel GETs try up to 5 param shapes and keep the "best" result heuristically | By design (legacy rows) — fragile |
 | C-13 | Payment terms hardcoded "Net 30 days" in 4 places; ad-serving `BASELINE_CTR=0.001` / `BASELINE_VTR=0.25` hardcoded; RAG bands hardcoded; forecast labels say "20%/40%" but rates come from data | Open |
