@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { createChannelLineItemsGetHandler } from "@/lib/api/channelLineItemsGetHandler"
 import { isChannelLineItemEndpoint } from "@/lib/api/fetchChannelLineItemsByMba"
+import { getDataBackendFor } from "@/lib/data/backend"
 import { xanoAuthHeader, xanoUrl } from "@/lib/api/xano"
 import { checkMediaPlansProxyPath } from "@/lib/security/proxyAllowlist"
 
@@ -63,6 +64,39 @@ async function proxy(request: Request, ctx: Ctx) {
   })
 }
 
+/** Plan master / version GETs honor DATA_BACKEND_PLANS (shadow serves Xano + async diff). */
+async function handlePlansDomainGet(request: Request, path: string): Promise<Response | null> {
+  const backend = getDataBackendFor("plans")
+  if (backend === "xano") return null
+
+  const mbaNumber = new URL(request.url).searchParams.get("mba_number")
+
+  if (
+    path === "media_plan_master" ||
+    path === "media_plans_master" ||
+    path === "media_plan"
+  ) {
+    const { readPlanMasters, readPlanMasterByMba } = await import("@/lib/data/readMediaPlans")
+    if (mbaNumber) {
+      const row = await readPlanMasterByMba(mbaNumber)
+      return NextResponse.json(row ? [row] : [])
+    }
+    return NextResponse.json(await readPlanMasters())
+  }
+
+  if (path === "media_plan_versions" || path === "media_plan_version") {
+    const { readPlanVersions, readPlanVersionsByMba } = await import(
+      "@/lib/data/readMediaPlans"
+    )
+    if (mbaNumber) {
+      return NextResponse.json(await readPlanVersionsByMba(mbaNumber))
+    }
+    return NextResponse.json(await readPlanVersions())
+  }
+
+  return null
+}
+
 export async function GET(request: Request, context: Ctx) {
   const { path: parts } = await context.params
   const path = (parts || []).join("/")
@@ -73,6 +107,9 @@ export async function GET(request: Request, context: Ctx) {
   if (path && isChannelLineItemEndpoint(path) && mbaNumber) {
     return createChannelLineItemsGetHandler(path, `CATCHALL_${path}`)(request)
   }
+
+  const plansResponse = path ? await handlePlansDomainGet(request, path) : null
+  if (plansResponse) return plansResponse
 
   return proxy(request, context)
 }

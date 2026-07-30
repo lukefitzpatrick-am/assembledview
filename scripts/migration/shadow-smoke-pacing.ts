@@ -29,7 +29,8 @@ function createdAtMs(value: unknown): number | undefined {
 
 function mapMaster(
   master: Record<string, unknown>,
-  publishedVersion: Record<string, unknown> | null
+  publishedVersion: Record<string, unknown> | null,
+  maxVersionNumber: number | null = null
 ): Record<string, unknown> {
   const api = coerceNumericStringsToNumbers(toApiRow(master))
   const cents = api.campaign_budget_cents
@@ -39,14 +40,17 @@ function mapMaster(
     const n = Number(cents)
     if (Number.isFinite(n)) mpCampaignbudget = n / 100
   }
-  const versionNumber =
-    publishedVersion != null
-      ? Number(
-          publishedVersion.version_number ??
-            (publishedVersion as { versionNumber?: unknown }).versionNumber ??
-            0
-        )
-      : 0
+  let versionNumber = 0
+  if (publishedVersion != null) {
+    const fromPub = Number(
+      publishedVersion.version_number ??
+        (publishedVersion as { versionNumber?: unknown }).versionNumber ??
+        0
+    )
+    versionNumber = Number.isFinite(fromPub) ? fromPub : 0
+  } else if (maxVersionNumber != null && Number.isFinite(maxVersionNumber)) {
+    versionNumber = maxVersionNumber
+  }
   const created = createdAtMs(api.created_at)
   return {
     id: api.id,
@@ -54,7 +58,7 @@ function mapMaster(
     mp_client_name: api.mp_client_name ?? "",
     mp_campaignname: api.campaign_name ?? "",
     campaign_name: api.campaign_name ?? "",
-    version_number: Number.isFinite(versionNumber) ? versionNumber : 0,
+    version_number: versionNumber,
     campaign_status: api.campaign_status ?? "",
     campaign_start_date:
       typeof api.campaign_start_date === "string"
@@ -164,8 +168,18 @@ async function main() {
   const versionById = new Map(
     pgVersions.map((v) => [v.id, v as Record<string, unknown>] as const)
   )
+  const maxVnByMasterId = new Map<number, number>()
+  for (const v of pgVersions) {
+    const row = v as Record<string, unknown>
+    const masterId = Number(row.masterId ?? row.master_id)
+    const vn = Number(row.versionNumber ?? row.version_number)
+    if (!Number.isFinite(masterId) || !Number.isFinite(vn)) continue
+    const prev = maxVnByMasterId.get(masterId)
+    if (prev == null || vn > prev) maxVnByMasterId.set(masterId, vn)
+  }
   const pgMastersMapped = pgMasters.map((m) => {
     const row = m as Record<string, unknown>
+    const masterId = Number(row.id)
     const pubId = row.publishedVersionId ?? row.published_version_id
     const published =
       pubId != null && Number.isFinite(Number(pubId))
@@ -174,7 +188,11 @@ async function main() {
     const publishedApi = published
       ? coerceNumericStringsToNumbers(toApiRow(published))
       : null
-    return mapMaster(row, publishedApi)
+    const maxVn =
+      published == null && Number.isFinite(masterId)
+        ? maxVnByMasterId.get(masterId) ?? null
+        : null
+    return mapMaster(row, publishedApi, maxVn)
   })
 
   const xanoVersions = (xanoVersionsRaw ?? [])

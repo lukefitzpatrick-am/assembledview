@@ -1047,6 +1047,15 @@ export async function getPublishers(): Promise<Publisher[]> {
 }
 
 export async function getMediaPlanVersions() {
+  if (!isBrowser) {
+    const { getDataBackendFor } = await import("@/lib/data/backend")
+    if (getDataBackendFor("plans") !== "xano") {
+      const { readPlanVersions } = await import(
+        /* webpackIgnore: true */ "@/lib/data/readMediaPlans"
+      )
+      return readPlanVersions()
+    }
+  }
   const { fetchAllXanoPages } = await import("@/lib/api/xanoPagination")
   const { parseXanoListPayload } = await import("@/lib/api/xano")
   try {
@@ -1109,6 +1118,19 @@ export async function getMediaPlanVersionByMasterId(masterId: number) {
 
 
 export async function getMediaPlanByMBA(mba_number: string) {
+  if (!isBrowser) {
+    const { getDataBackendFor } = await import("@/lib/data/backend")
+    if (getDataBackendFor("plans") !== "xano") {
+      const { readPlanMasterByMba } = await import(
+        /* webpackIgnore: true */ "@/lib/data/readMediaPlans"
+      )
+      const row = await readPlanMasterByMba(mba_number)
+      return new Response(JSON.stringify(row ? [row] : []), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
+  }
   const q = `mba_number=${encodeURIComponent(mba_number)}`
   const url = isBrowser
     ? `/api/media_plans/media_plan?${q}`
@@ -1117,6 +1139,19 @@ export async function getMediaPlanByMBA(mba_number: string) {
 }
 
 export async function getMediaPlanVersionByMBA(mba_number: string) {
+  if (!isBrowser) {
+    const { getDataBackendFor } = await import("@/lib/data/backend")
+    if (getDataBackendFor("plans") !== "xano") {
+      const { readPlanVersionsByMba } = await import(
+        /* webpackIgnore: true */ "@/lib/data/readMediaPlans"
+      )
+      const rows = await readPlanVersionsByMba(mba_number)
+      return new Response(JSON.stringify(rows), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    }
+  }
   const q = `mba_number=${encodeURIComponent(mba_number)}`
   const url = isBrowser
     ? `/api/media_plans/media_plan_version?${q}`

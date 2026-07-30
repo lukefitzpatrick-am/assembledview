@@ -86,6 +86,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | `lib/ava/types.ts` (`PageContext`, `FormPatch`) | 13+ files outside AVA: trafficking, creative, dashboard, finance, planning, both mega-pages |
 | `lib/assistantBridge.ts` | 12 provider call sites; `__AV_ASSISTANT__` is a window global — breakage is silent, no compile error |
 | Adding an AVA tool | `tools/registry.ts` **throws at module load** if order/names diverge from `AVA_TOOL_NAMES` in `summaries.ts` (same index) → 500s the whole chat route |
+| AVA `fy` / `fyToRange.ts` | Ending-year AU FY for all five Postgres tools; responses echo `range`. Finance hub `fyMonthRange` remains start-year — do not unify blindly |
 | `lib/ava/anthropic.ts` (`AVA_MODEL`) | NOT AVA-only: ad-copy + search-copy routes and `researchClient` share it |
 | `lib/creative/getPrivateBlob.ts` | Shared by three download routes: creative, MI specs, performance reports |
 | `lib/naming/templates.ts` | THE law for composed names + trafficking Excel; changes break round-trip parse/validate + 13 tests |
@@ -94,7 +95,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | Touch | Also check |
 |---|---|
 | Env-key fallback chains in `lib/api/xano.ts` / `xanoClients.ts` | Order matters; `XANO_MEDIA_PLANS_BASE_URL` vs `XANO_MEDIAPLANS_BASE_URL` are live aliases; `XANO_BASE_URL` doubles as the assistant endpoint — see shared-core module page |
-| `DATA_BACKEND` / `lib/data/readReferenceMediaDetail.ts` / `readPublishers.ts` / `readClients.ts` / `readKpi.ts` / `readFinance.ts` / `readPacing.ts` | Shadow must never change response body; `postgres` needs ETL-loaded Supabase; `/api/admin/migration-diffs` is process-local; per-domain env `DATA_BACKEND_PUBLISHERS` / `DATA_BACKEND_CLIENTS` / `DATA_BACKEND_KPI` / `DATA_BACKEND_FINANCE` / `DATA_BACKEND_PACING`; finance admin summary splits `unexpected` vs `duplicate-class` (PG deduped / Xano duplicated); pacing wires masters/versions/`pacing_orphan_fixes` only — channel line tables + `XANO_LINE_ITEMS_SNAPSHOT` stay Xano until T2e/T6 |
+| `DATA_BACKEND` / `lib/data/readReferenceMediaDetail.ts` / `readPublishers.ts` / `readClients.ts` / `readKpi.ts` / `readFinance.ts` / `readPacing.ts` / `readMediaPlans.ts` | Shadow must never change response body; `postgres` needs ETL-loaded Supabase; `/api/admin/migration-diffs` is process-local; per-domain env `DATA_BACKEND_PUBLISHERS` / `DATA_BACKEND_CLIENTS` / `DATA_BACKEND_KPI` / `DATA_BACKEND_FINANCE` / `DATA_BACKEND_PACING` / `DATA_BACKEND_PLANS`; finance admin summary splits `unexpected` vs `duplicate-class` (PG deduped / Xano duplicated); plans reassembles channel shapes from `line_items` (attrs spread + bursts); plans duplicate-class tags PENFOLD015/013/014 + BOSS001; `XANO_LINE_ITEMS_SNAPSHOT` stays Xano until T6; full MBA GET `!skipLineItems` fan-out stays Xano |
 | `app/api/media-details/[...path]/route.ts` | Allowlist + reference read path; POST create endpoints still Xano-only |
 | `middleware.ts` | Auth-only for `/api/*`; `/api/cron/*` bypassed entirely (only `assertCronSecret`); client-role tenant confinement logic |
 | Any cache module | Two independent clients caches (10min vs 30s) with separate invalidation; 4 of 7 coalesced caches have NO invalidation path; caches are per-lambda on Vercel |

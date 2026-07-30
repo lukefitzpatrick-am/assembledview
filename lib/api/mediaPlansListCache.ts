@@ -77,6 +77,11 @@ async function fetchVersionsForList(): Promise<{
 }
 
 async function fetchMasters(): Promise<any[]> {
+  const { getDataBackendFor } = await import("@/lib/data/backend")
+  if (getDataBackendFor("plans") !== "xano") {
+    const { readPlanMasters } = await import("@/lib/data/readMediaPlans")
+    return readPlanMasters()
+  }
   const { items, complete } = await fetchAllXanoPagesWithCompleteness(
     mediaPlansUrl("media_plan_master"),
     {},

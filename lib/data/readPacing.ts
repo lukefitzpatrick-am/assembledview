@@ -71,11 +71,15 @@ function runPacingShadowCompare(
 /**
  * Map Postgres master (+ published version join) → Xano/pacing MediaPlanMaster fields.
  * `campaign_budget_cents` → `mp_campaignbudget` dollars; `version_number` from
- * published version row (watermark), never max(versions).
+ * published version row (watermark). When `published_version_id` is null (debris
+ * masters: golf022 / krusty009 / test123001), fall back to
+ * `COALESCE(published, max(version_number), 0)` so shadow/postgres never emit a
+ * spurious `version_number` diff — does not invent a published pointer.
  */
 export function mapPacingMasterFromPostgres(
   master: Record<string, unknown>,
-  publishedVersion: Record<string, unknown> | null
+  publishedVersion: Record<string, unknown> | null,
+  maxVersionNumber: number | null = null
 ): Record<string, unknown> {
   const api = coerceNumericStringsToNumbers(toApiRow(master))
   const cents = api.campaign_budget_cents
@@ -87,15 +91,18 @@ export function mapPacingMasterFromPostgres(
     if (Number.isFinite(n)) mpCampaignbudget = n / 100
   }
 
-  const versionNumber =
-    publishedVersion != null
-      ? Number(
-          (publishedVersion as { version_number?: unknown; versionNumber?: unknown })
-            .version_number ??
-            (publishedVersion as { versionNumber?: unknown }).versionNumber ??
-            0
-        )
-      : 0
+  let versionNumber = 0
+  if (publishedVersion != null) {
+    const fromPub = Number(
+      (publishedVersion as { version_number?: unknown; versionNumber?: unknown })
+        .version_number ??
+        (publishedVersion as { versionNumber?: unknown }).versionNumber ??
+        0
+    )
+    versionNumber = Number.isFinite(fromPub) ? fromPub : 0
+  } else if (maxVersionNumber != null && Number.isFinite(maxVersionNumber)) {
+    versionNumber = maxVersionNumber
+  }
 
   const created = createdAtMs(api.created_at)
 
@@ -105,7 +112,7 @@ export function mapPacingMasterFromPostgres(
     mp_client_name: api.mp_client_name ?? "",
     mp_campaignname: api.campaign_name ?? "",
     campaign_name: api.campaign_name ?? "",
-    version_number: Number.isFinite(versionNumber) ? versionNumber : 0,
+    version_number: versionNumber,
     campaign_status: api.campaign_status ?? "",
     campaign_start_date:
       typeof api.campaign_start_date === "string"
@@ -129,8 +136,18 @@ export async function fetchPacingMastersFromPostgres(): Promise<Record<string, u
   const versionById = new Map(
     versions.map((v) => [v.id, v as Record<string, unknown>] as const)
   )
+  const maxVnByMasterId = new Map<number, number>()
+  for (const v of versions) {
+    const row = v as Record<string, unknown>
+    const masterId = Number(row.masterId ?? row.master_id)
+    const vn = Number(row.versionNumber ?? row.version_number)
+    if (!Number.isFinite(masterId) || !Number.isFinite(vn)) continue
+    const prev = maxVnByMasterId.get(masterId)
+    if (prev == null || vn > prev) maxVnByMasterId.set(masterId, vn)
+  }
   return masters.map((m) => {
     const row = m as Record<string, unknown>
+    const masterId = Number(row.id)
     const pubId = row.publishedVersionId ?? row.published_version_id
     const published =
       pubId != null && Number.isFinite(Number(pubId))
@@ -139,7 +156,11 @@ export async function fetchPacingMastersFromPostgres(): Promise<Record<string, u
     const publishedApi = published
       ? coerceNumericStringsToNumbers(toApiRow(published))
       : null
-    return mapPacingMasterFromPostgres(row, publishedApi)
+    const maxVn =
+      published == null && Number.isFinite(masterId)
+        ? maxVnByMasterId.get(masterId) ?? null
+        : null
+    return mapPacingMasterFromPostgres(row, publishedApi, maxVn)
   })
 }
 

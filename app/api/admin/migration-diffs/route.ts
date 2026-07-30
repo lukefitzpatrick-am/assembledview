@@ -4,6 +4,7 @@ import { getDataBackend, getDataBackendFor } from "@/lib/data/backend"
 import { summarizeShadowDiffs } from "@/lib/data/shadowDiff"
 import { probeFinanceShadowDiffs } from "@/lib/data/readFinance"
 import { probePacingShadowDiffs } from "@/lib/data/readPacing"
+import { probePlansShadowDiffs } from "@/lib/data/readMediaPlans"
 
 export const runtime = "nodejs"
 
@@ -15,6 +16,7 @@ export const runtime = "nodejs"
  * are split in byDomain/byTable totals. Optional `?probe=finance` triggers a
  * read of all finance tables so cold processes accumulate diffs.
  * Optional `?probe=pacing` probes pacing-owned Xano tables (masters/versions/orphan_fixes).
+ * Optional `?probe=plans` probes media-plan masters/versions + sample channel line items.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request)
@@ -37,10 +39,16 @@ export async function GET(request: NextRequest) {
       console.error("[migration-diffs] pacing probe failed", err)
     }
   }
+  if (probe === "plans" && getDataBackendFor("plans") === "shadow") {
+    try {
+      await probePlansShadowDiffs()
+    } catch (err) {
+      console.error("[migration-diffs] plans probe failed", err)
+    }
+  }
 
   const summary = summarizeShadowDiffs(24 * 60 * 60 * 1000)
 
-  // Surface finance unexpected vs duplicate-class split at top level for the admin UI.
   const financeDomain = summary.byDomain.find((d) => d.domain === "finance")
   const financeSplit = financeDomain
     ? {
@@ -60,6 +68,7 @@ export async function GET(request: NextRequest) {
       kpi: getDataBackendFor("kpi"),
       finance: getDataBackendFor("finance"),
       pacing: getDataBackendFor("pacing"),
+      plans: getDataBackendFor("plans"),
     },
     financeDiffSplit: financeSplit,
     ...summary,

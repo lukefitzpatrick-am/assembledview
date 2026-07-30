@@ -89,7 +89,30 @@ Covered by pre-agreed ACCEPT (see decision log). No ETL change.
 |---|---|---|
 | `duplicates.csv` | ~270+ groups (grows when remapped lines collapse onto kept) | Collapse to highest Xano id; dropped $ logged — not silent |
 | `version-duplicates.csv` | 14 rows | Keep highest id per (mba, version_number); feed `versionRemap` |
-| `schedule-divergence.csv` | ~47 | Billing vs delivery divergence — review before finance cutover; not a load blocker |
+| `schedule-divergence.csv` | 53 (was ~47) | See §E — ACCEPT; empty in Xano too (parity, not regression) |
+
+---
+
+## E — `schedule-divergence.csv` class breakdown (53 rows)
+
+Billing vs delivery divergence from recon. **All ACCEPT** — schedules are empty in Xano too; Postgres parity, not a regression. Not a finance/pacing cutover blocker.
+
+| Campaign status class | Count |
+|---|---|
+| draft | 8 |
+| planned | 19 |
+| completed | 13 |
+| cancelled | 1 |
+| approved-historic | 9 |
+| booked | 6 |
+| **Total** | **53** |
+
+Booked MBAs in this class (empty both sides): **BOSS002** v1, **buxton003** v3, **hartm002** v2, **jayco016** v4, **PENFOLD004** v1, **PGAAUS002** v1.
+
+| Field | Value |
+|---|---|
+| Decision | **ACCEPT** — empty-in-Xano parity |
+| Who / date | Luke · 2026-07-30 |
 
 ---
 
@@ -102,6 +125,17 @@ Covered by pre-agreed ACCEPT (see decision log). No ETL change.
 | Where the repoint happens | **T6 deployment campaign** (handoff §5 T6): after domain flips + soak, repoint the snapshot ingest to Postgres `line_items` (or a view), dual-run parity, then disable the Xano crawl. |
 | Related | Channel `media_plan_*` GETs used by `resolveLive*LineItems` / burst context → **T2e media-plans** (reassemble from consolidated `line_items`). |
 | Who / date | Cursor (T2d) · 2026-07-30 |
+
+---
+
+## F — `readPacingMasters` null `published_version_id` version_number fallback
+
+| Field | Value |
+|---|---|
+| Symptom | Masters with null `published_version_id` (golf022 zero-versions debris, krusty009 test, test123001 orphan synth) emitted `version_number: 0` while Xano still had a watermark / max(vn) → spurious shadow field diffs; blocked `DATA_BACKEND_PACING=postgres` pre-flip |
+| Fix | Resolve `version_number` as `COALESCE(published version_number, max(version_number) for master, 0)` in map — **does not invent a published_version_id pointer** |
+| Decision | **FIX** (read-layer only; no data touch) |
+| Who / date | Cursor (T2e carry-in) · 2026-07-30 |
 
 ---
 

@@ -50,6 +50,8 @@ describe("getDataBackendFor", () => {
     "DATA_BACKEND_CLIENTS",
     "DATA_BACKEND_KPI",
     "DATA_BACKEND_FINANCE",
+    "DATA_BACKEND_PACING",
+    "DATA_BACKEND_PLANS",
   ] as const
   const prev: Record<string, string | undefined> = {}
 
@@ -76,10 +78,12 @@ describe("getDataBackendFor", () => {
     process.env.DATA_BACKEND_CLIENTS = "postgres"
     process.env.DATA_BACKEND_KPI = "shadow"
     process.env.DATA_BACKEND_FINANCE = "shadow"
+    process.env.DATA_BACKEND_PLANS = "shadow"
     assert.equal(getDataBackendFor("publishers"), "shadow")
     assert.equal(getDataBackendFor("clients"), "postgres")
     assert.equal(getDataBackendFor("kpi"), "shadow")
     assert.equal(getDataBackendFor("finance"), "shadow")
+    assert.equal(getDataBackendFor("plans"), "shadow")
     assert.equal(getDataBackendFor("reference"), "xano")
   })
 

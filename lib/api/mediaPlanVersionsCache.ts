@@ -77,8 +77,40 @@ function stripScheduleFields(row: any): any {
 /**
  * Fetch the versions list. Prefer paged walk via fetchAllXanoPages; also accept a
  * bare array if an env override points at a non-paged endpoint.
+ * Honors DATA_BACKEND_PLANS: postgres rebuilds latest-per-MBA from consolidated versions.
  */
 async function fetchUpstream(): Promise<any[]> {
+  const { getDataBackendFor } = await import("@/lib/data/backend")
+  if (getDataBackendFor("plans") === "postgres") {
+    const { readPlanVersions } = await import("@/lib/data/readMediaPlans")
+    const all = await readPlanVersions()
+    const latestByMba = new Map<string, any>()
+    for (const plan of all) {
+      const mba = plan?.mba_number
+      if (!mba) continue
+      const existing = latestByMba.get(String(mba))
+      const planVn = Number(plan.version_number) || 0
+      const existingVn = Number(existing?.version_number) || 0
+      if (
+        !existing ||
+        existingVn < planVn ||
+        (existingVn === planVn && Number(existing?.id || 0) < Number(plan.id || 0))
+      ) {
+        latestByMba.set(String(mba), plan)
+      }
+    }
+    return Array.from(latestByMba.values()).map(stripScheduleFields)
+  }
+
+  // shadow / xano: serve Xano `_latest` (shadow compare happens via readPlanVersions elsewhere)
+  if (getDataBackendFor("plans") === "shadow") {
+    void import("@/lib/data/readMediaPlans").then(({ readPlanVersions }) =>
+      readPlanVersions().catch((err) =>
+        console.error("[mediaPlanVersionsCache] plans shadow compare failed", err)
+      )
+    )
+  }
+
   const { items, complete } = await fetchAllXanoPagesWithCompleteness(
     versionsUrl(),
     { include_schedules: false },
