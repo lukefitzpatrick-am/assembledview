@@ -877,3 +877,21 @@ export const xeroSyncLog = pgTable(
   },
 )
 
+/** Manual alias map: normalised Xero contact name → clients.id (T5). */
+export const xeroClientAliases = pgTable(
+  "xero_client_aliases",
+  {
+    id: bigint("id", { mode: "number" }).generatedByDefaultAsIdentity().primaryKey(),
+    contactKey: text("contact_key").notNull(),
+    clientId: bigint("client_id", { mode: "number" })
+      .notNull()
+      .references(() => clients.id),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("idx_xero_client_aliases_contact_key").on(table.contactKey),
+  ],
+)
+

@@ -35,6 +35,9 @@
     "db:studio": "drizzle-kit studio",
     "db:etl": "tsx scripts/migration/etl-xano-to-supabase.ts",
     "db:recon": "tsx scripts/migration/recon.ts",
+    "db:xero-parity": "tsx scripts/migration/xero-parity.ts",
+    "db:xero-sync": "tsx scripts/migration/run-xero-sync.ts",
+    "test:xero": "tsx --test lib/xero/__tests__/xeroHelpers.test.ts",
     "test:line-item-attrs": "tsx --test db/schema/__tests__/lineItemAttrs.test.ts",
     "test:shadow-diff": "tsx --test lib/data/__tests__/shadowDiff.test.ts",
     "test:save-plan": "tsx --test lib/data/__tests__/savePlan.test.ts"
