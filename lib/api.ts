@@ -1126,11 +1126,13 @@ export async function getMediaPlanVersionByMBA(mba_number: string) {
 
 async function fetchMediaDetail(path: string) {
   // Server: reference tables honor DATA_BACKEND via shared reader (same as proxy).
+  // webpackIgnore keeps the server-only module out of client chunks of this
+  // isomorphic file (create/edit pages import getTVStations etc. from here).
   if (!isBrowser) {
     const { isReferenceTablePath } = await import("@/lib/data/referenceTablePaths")
     if (isReferenceTablePath(path)) {
       const { readReferenceMediaDetail } = await import(
-        "@/lib/data/readReferenceMediaDetail"
+        /* webpackIgnore: true */ "@/lib/data/readReferenceMediaDetail"
       )
       const result = await readReferenceMediaDetail(path)
       if (result.status < 200 || result.status >= 300) {
