@@ -217,7 +217,6 @@ export function ClientDashboardPageContent({
   const financeData = {
     totalBudget,
     ytdSpend: totalSpent,
-    currency: "AUD",
     budgetByQuarter: [],
     spendByMediaType: clientData.spendByMediaType.map((m) => ({
       mediaType: m.mediaType,

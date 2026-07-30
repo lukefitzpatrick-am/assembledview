@@ -29,7 +29,7 @@ export interface ClientFinanceSlideOverProps {
   finance: {
     totalBudget: number
     ytdSpend: number
-    currency: string
+    /** Display is always AUD via `formatMoney` / `formatMoneyCompact` — no per-client currency switch. */
     budgetByQuarter: Array<{
       quarter: string
       budget: number

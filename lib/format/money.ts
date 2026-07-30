@@ -60,8 +60,8 @@ function normalizeFractionDigits({
 }
 
 function getNumberFormat({
-  locale = "en-US",
-  currency = "USD",
+  locale = AUD_LOCALE,
+  currency = AUD_CURRENCY,
   minimumFractionDigits,
   maximumFractionDigits,
 }: MoneyFormatOptions): Intl.NumberFormat {
@@ -211,8 +211,10 @@ export function formatPercent(
   if (value === null || value === undefined || Number.isNaN(value)) return "—"
   if (!Number.isFinite(value)) return "—"
   const decimals = opts?.decimals ?? 1
+  // min = max when decimals are specified so tabular columns don't ragged
+  // between "58%" and "58.1%".
   const formatted = new Intl.NumberFormat(AUD_LOCALE, {
-    minimumFractionDigits: 0,
+    minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(value)
   return `${formatted}%`

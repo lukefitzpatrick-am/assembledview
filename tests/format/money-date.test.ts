@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 
 import { formatDateLong, formatDateRange, formatDateShort } from "@/lib/format/date"
-import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format/money"
+import { formatMoney, formatMoneyCompact, formatPercent, formatRate } from "@/lib/format/money"
 
 describe("formatMoney", () => {
   it("returns em dash for null, undefined, and NaN", () => {
@@ -38,7 +38,15 @@ describe("formatPercent", () => {
 
   it("treats the value as an already-scaled percentage", () => {
     expect(formatPercent(58.1)).toBe("58.1%")
+    expect(formatPercent(58)).toBe("58.0%")
     expect(formatPercent(58, { decimals: 0 })).toBe("58%")
+  })
+})
+
+describe("formatRate", () => {
+  it("defaults to en-AU / AUD when no options are passed", () => {
+    // AUD en-AU uses "$" with grouping; must not be USD-shaped differently for whole dollars.
+    expect(formatRate(12.5)).toBe("$12.50")
   })
 })
 
