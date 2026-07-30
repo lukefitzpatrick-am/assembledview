@@ -29,7 +29,11 @@
     "test:ava-tools": "tsx --test lib/ava/tools/__tests__/registry.test.ts",
     "test:ava-autopopulate": "tsx --test lib/ava/autopopulate/__tests__/*.test.ts",
     "test:ava-detect-goldens": "tsx --test lib/ava/autopopulate/__tests__/detectPlanStructure.fixtures.test.ts",
-    "xano:export": "tsx scripts/migration/export-xano.ts"
+    "xano:export": "tsx scripts/migration/export-xano.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "test:line-item-attrs": "tsx --test db/schema/__tests__/lineItemAttrs.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",
@@ -67,6 +71,8 @@
     "cmdk": "1.0.4",
     "core-js": "^3.42.0",
     "date-fns": "^3.6.0",
+    "drizzle-orm": "^0.45.2",
+    "drizzle-zod": "^0.8.3",
     "eslint-config-next": "^15.5.14",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
@@ -82,6 +88,7 @@
     "next-themes": "^0.4.4",
     "nodemailer": "^9.0.3",
     "pdf-parse": "^1.1.1",
+    "postgres": "^3.4.9",
     "pptx-automizer": "^0.8.2",
     "react": "^18.3.1",
     "react-day-picker": "8.10.1",
@@ -114,6 +121,7 @@
     "@types/node": "^22",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "drizzle-kit": "^0.31.10",
     "jsdom": "^29.1.1",
     "knip": "^6.23.0",
     "postcss": "^8",
