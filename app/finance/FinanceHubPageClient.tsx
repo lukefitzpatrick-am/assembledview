@@ -580,46 +580,46 @@ export default function FinanceHubPageClient() {
 
         <Tabs value={activeTab} onValueChange={onTabChange}>
           <div className="mt-4 flex items-end justify-between gap-3 border-b border-border/50">
-            <TabsList className="h-auto gap-1 bg-transparent p-0">
+            <TabsList className="h-auto bg-transparent p-0">
               <TabsTrigger
                 value="overview"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                className="rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none [&[data-state=active]>span]:border-foreground"
               >
                 Overview
               </TabsTrigger>
               <TabsTrigger
                 value="billing"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                className="rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none [&[data-state=active]>span]:border-foreground"
               >
                 Client Billing
               </TabsTrigger>
               <TabsTrigger
                 value="payables"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                className="rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none [&[data-state=active]>span]:border-foreground"
               >
                 Publisher Invoices
               </TabsTrigger>
               <TabsTrigger
                 value="accrual"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                className="rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none [&[data-state=active]>span]:border-foreground"
               >
                 Accrual
               </TabsTrigger>
               <TabsTrigger
                 value="forecast"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                className="rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none [&[data-state=active]>span]:border-foreground"
               >
                 Forecast
               </TabsTrigger>
               <TabsTrigger
                 value="report"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                className="rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none [&[data-state=active]>span]:border-foreground"
               >
                 Report
               </TabsTrigger>
               <TabsTrigger
                 value="queue"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:shadow-none"
+                className="rounded-none data-[state=active]:bg-transparent data-[state=active]:shadow-none [&[data-state=active]>span]:border-foreground"
               >
                 Xero Queue
               </TabsTrigger>
