@@ -4,8 +4,9 @@ Admin-only finance hub (`/finance`, 7 tabs: overview, billing, payables, accrual
 
 ## The fee engine — the seam that matters most
 
-- **`lib/finance/computeCampaignFinancials.ts` (971 lines) is the shared planning+finance engine** — it merely lives under `lib/finance/`. Both mega-pages import it; `recomputeBillingScheduleOnSave` gates every schedule PATCH with it ($0.01 equality → 409 `BILLING_SCHEDULE_DIVERGENCE`).
+- **`lib/finance/computeCampaignFinancials.ts` is the shared planning+finance engine** — it merely lives under `lib/finance/`. Both mega-pages import it; `recomputeBillingScheduleOnSave` gates every schedule PATCH with it ($0.01 equality → 409 `BILLING_SCHEDULE_DIVERGENCE`).
 - It composes the canonical primitives from the planning domain: `computeBurstAmounts` (fee math — see INVARIANTS), `computeBillingAndDeliveryMonths`, `prorateAcrossMonths`, `deliverableBudget`.
+- **Plan-C S1-P1b:** server-generated `billingSchedule` / `deliverySchedule` attach `month.lineItems` via `attachScheduleLineDetail` (id = stable line id, `monthlyAmounts` + `feeMonthlyAmounts` from resolved lines / `prorateBurstFeesToMonths`). Header ↔ lineItems sum invariant (±$0.01); assert throws when `PLANC_LINE_DETAIL_ASSERT=1`. `PLANC_SERVER_AUTHORITY=enforce` remains OFF — separate flip.
 - Fee % resolution: `resolveFeePctFromFeeLoading` → `FEE_FIELD_BY_MEDIA` (client `fee*` columns per channel). production→0; influencers→`feecontentcreator` fallback; integration→no fallback. `normaliseScheduleMediaType` defaults unknown types to **search** (C-9).
 - Ad serving + production are deliberately excluded from the save-time equality gate.
 - Known divergent re-implementations: `generateBillingLineItems.ts:89` (C-7) and `computeDerivedCampaignFeeAmount` ($10 tolerance, C-8).

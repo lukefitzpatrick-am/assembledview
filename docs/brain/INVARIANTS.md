@@ -20,6 +20,7 @@ pct === 100 → fee = 0 (division guard)
 - **`client_pays_for_media` is a media gate only** — agency fees always flow to the agency invoice. Media rollup keeps `effectiveBudget = 0`; fee proration does not.
 - Fee seed idempotency is **by value** (skip when equal within $0.01), not by-defined. Agency-fee month-total drift tolerance = $10 (modal save only).
 - `billingMode?: "auto" | "manual"` lives inside `billingSchedule` JSON (no Xano column). Missing = auto. Sibling-stamp rule: marking a line manual materializes undefined siblings as explicit `auto`. Manual rows are protected from resync/backfill/seeding. Extend `billingMode`; never add a parallel `manuallyEdited` flag.
+- Server-generated schedules must carry `month.lineItems` with stable `id`, `monthlyAmounts`, and `feeMonthlyAmounts` that sum to month headers (±$0.01). Fee months reuse `prorateBurstFeesToMonths` / burst `feeAmount` proration — do not invent a second fee-spread. `PLANC_SERVER_AUTHORITY=enforce` stays OFF until explicitly flipped.
 - Partial MBA: screen panel and Excel export must both read the same `partialMBAValues`; export must never fall through to `calculateAssembledFee()` while partial approval is active.
 
 ## Deliverable math (canonical: `lib/mediaplan/deliverableBudget.ts`)

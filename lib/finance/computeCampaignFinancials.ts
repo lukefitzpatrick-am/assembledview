@@ -21,6 +21,10 @@ import {
   type BuyType,
 } from "@/lib/mediaplan/deliverableBudget"
 import { formatAUD, parseMoneyInput, roundMoney2 } from "@/lib/format/money"
+import {
+  attachScheduleLineDetail,
+  type ScheduleLineDetailSource,
+} from "@/lib/finance/attachScheduleLineDetail"
 import { addGst } from "@/lib/finance/gst"
 import { monthExGstFromScheduleEntry } from "@/lib/finance/computeBillableAlignedMbaTotal"
 import { validateBillableEqualsMba } from "@/lib/finance/validateBillableEqualsMba"
@@ -842,6 +846,23 @@ function toPerLineResult(line: ResolvedLine): PerLineResult {
   }
 }
 
+function toScheduleLineDetailSource(line: ResolvedLine): ScheduleLineDetailSource {
+  return {
+    lineItemId: line.input.lineItemId,
+    scheduleMediaType: line.scheduleMediaType,
+    buyType: line.input.buyType,
+    clientPaysForMedia: line.clientPaysForMedia,
+    excluded: line.excluded,
+    label: line.input.label,
+    billingMonths: line.billingMonths,
+    deliveryMonths: line.deliveryMonths,
+    feeBillingMonths: line.feeBillingMonths,
+    bursts: line.bursts,
+    billingOverride: line.billingOverride,
+    feeOverride: line.feeOverride,
+  }
+}
+
 /**
  * Compute campaign financials from line inputs + client fee loading.
  *
@@ -911,9 +932,30 @@ export function computeCampaignFinancials(
       isManualBilling,
     })
 
-  const billingSchedule = applyManualFeeOverrides(
+  const billingScheduleHeaders = applyManualFeeOverrides(
     applyManualBillingOverrides(autoBillingSchedule, approvedForBilling),
     approvedForBilling
+  )
+
+  const lineDetailSources = resolved.map(toScheduleLineDetailSource)
+  const lineDetailOpts = {
+    getRateForMediaType,
+    adservaudio,
+  }
+  // Plan-C S1-P1b: populate month.lineItems (media + fee monthly maps) so
+  // server-generated blobs are byte-compatible with the editor shape and
+  // explode into real line_item_id schedule_months rows.
+  const billingSchedule = attachScheduleLineDetail(
+    billingScheduleHeaders,
+    lineDetailSources,
+    "billing",
+    lineDetailOpts
+  )
+  const deliveryScheduleWithLines = attachScheduleLineDetail(
+    deliverySchedule,
+    lineDetailSources,
+    "delivery",
+    lineDetailOpts
   )
 
   const approved = resolved.filter((l) => !l.excluded)
@@ -953,11 +995,11 @@ export function computeCampaignFinancials(
 
   const full: CampaignFinancials = {
     perLine: resolved.map(toPerLineResult),
-    deliverySchedule,
+    deliverySchedule: deliveryScheduleWithLines,
     billingSchedule,
     mbaScopeTotals,
     deliveryVsBillingDelta: buildDeliveryVsBillingDelta(
-      deliverySchedule,
+      deliveryScheduleWithLines,
       billingSchedule,
       resolved
     ),
