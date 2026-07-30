@@ -1,6 +1,6 @@
 # `db/` — Supabase schema (migration)
 
-**Source of truth for what is live:** `db/migrations/0001_ported_tables.sql` + `0002_plan_core.sql` + `0004_clients_missing_columns.sql` (apply via Supabase SQL Editor; do not `db:migrate` the drizzle baseline).
+**Source of truth for what is live:** `db/migrations/0001_ported_tables.sql` + `0002_plan_core.sql` + `0003_ava_readonly.sql` + `0004_clients_missing_columns.sql` + `0005_finance_billing_amount_hash.sql` (apply via Supabase SQL Editor; do not `db:migrate` the drizzle baseline).
 
 **Drizzle mirror:** `db/schema/*.ts` — generated from those SQL files (`node scripts/migration/_gen-drizzle-schema.mjs`), then hand-kept in sync.
 
@@ -12,10 +12,21 @@
 
 | Var | Use |
 |-----|-----|
-| `DATABASE_URL` | Runtime pooler (port **6543**) — `db/index.ts` |
+| `DATABASE_URL` | Runtime pooler (port **6543**) — `db/index.ts` (app/owner path) |
 | `DIRECT_URL` | drizzle-kit migrations / introspect (port **5432**) |
+| `AVA_DATABASE_URL` | AVA-only pooler (port **6543**) as role `ava_readonly` — **never** postgres/owner |
 | `DATA_BACKEND` | `xano` (default) \| `shadow` \| `postgres` — see `lib/data/backend.ts` |
 | `DATA_BACKEND_REFERENCE` / `DATA_BACKEND_PUBLISHERS` / `DATA_BACKEND_CLIENTS` / `DATA_BACKEND_KPI` | Optional per-domain override of `DATA_BACKEND` |
+
+## `ava_readonly` role (0003)
+
+Apply `db/migrations/0003_ava_readonly.sql` via SQL Editor, then set the real password (the migration uses placeholder `<SET_IN_DASHBOARD>` only on first create and does not reset it on re-run):
+
+```sql
+ALTER ROLE ava_readonly PASSWORD '<new-secret>';
+```
+
+Wire `AVA_DATABASE_URL` to the **transaction pooler** host with that password. Rotate by re-running `ALTER ROLE` and updating `AVA_DATABASE_URL` in Vercel + `.env.local` together. SELECT grants are an explicit table list — adding a table for AVA requires a new migration that `GRANT SELECT` + `CREATE POLICY ava_read` (future tables stay excluded by default).
 
 ## Scripts
 

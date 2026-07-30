@@ -90,6 +90,7 @@ pct === 100 → fee = 0 (division guard)
 - Tools enforce scope internally from session roles/slugs/MBAs.
 - `attachments` and `questions` are display-only — never write them back into Anthropic message history.
 - MI runtime never writes `lib/specs/mi-library/` (vendored) — runtime output is Blob + email only.
+- AVA Postgres reads use `AVA_DATABASE_URL` / role `ava_readonly` only — never the owner/`DATABASE_URL` connection.
 
 ## UI / design system
 
