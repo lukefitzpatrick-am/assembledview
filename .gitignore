@@ -47,4 +47,7 @@ tmp-slide16-test.pptx
 *.zip
 xano-metadata-token.txt
 
+# Xano / migration snapshots (large; regenerate via npm run xano:export)
+/exports/
+
 .worktrees/
