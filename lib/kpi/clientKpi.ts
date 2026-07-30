@@ -9,11 +9,10 @@ const apiClient = axios.create({
 
 export async function fetchClientKpis(clientName: string): Promise<ClientKpi[]> {
   try {
-    const response = await apiClient.get(xanoUrl("client_kpi", "XANO_CLIENTS_BASE_URL"), {
-      params: { mp_client_name: clientName },
-    })
-    const data = response.data
-    return Array.isArray(data) ? data : []
+    const { readClientKpis } = await import(
+      /* webpackIgnore: true */ "@/lib/data/readKpi"
+    )
+    return await readClientKpis(clientName)
   } catch (e) {
     console.error("fetchClientKpis", e)
     return []

@@ -22,6 +22,7 @@ export async function GET(request: NextRequest) {
       reference: getDataBackendFor("reference"),
       publishers: getDataBackendFor("publishers"),
       clients: getDataBackendFor("clients"),
+      kpi: getDataBackendFor("kpi"),
     },
     ...summary,
   })

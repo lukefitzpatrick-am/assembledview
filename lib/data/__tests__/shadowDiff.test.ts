@@ -4,9 +4,12 @@ import { getDataBackend, getDataBackendFor } from "../backend"
 import {
   __resetShadowDiffStoreForTests,
   compareReferenceRows,
+  dollarsToCents,
+  KPI_RATE_EPSILON,
   normalizeComparableValue,
   recordShadowDiff,
   summarizeShadowDiffs,
+  valuesEqualForCompare,
 } from "../shadowDiff"
 
 describe("getDataBackend", () => {
@@ -45,6 +48,7 @@ describe("getDataBackendFor", () => {
     "DATA_BACKEND_REFERENCE",
     "DATA_BACKEND_PUBLISHERS",
     "DATA_BACKEND_CLIENTS",
+    "DATA_BACKEND_KPI",
   ] as const
   const prev: Record<string, string | undefined> = {}
 
@@ -69,8 +73,10 @@ describe("getDataBackendFor", () => {
     process.env.DATA_BACKEND = "xano"
     process.env.DATA_BACKEND_PUBLISHERS = "shadow"
     process.env.DATA_BACKEND_CLIENTS = "postgres"
+    process.env.DATA_BACKEND_KPI = "shadow"
     assert.equal(getDataBackendFor("publishers"), "shadow")
     assert.equal(getDataBackendFor("clients"), "postgres")
+    assert.equal(getDataBackendFor("kpi"), "shadow")
     assert.equal(getDataBackendFor("reference"), "xano")
   })
 
@@ -183,5 +189,51 @@ describe("compareReferenceRows + shadow store", () => {
     assert.equal(summary.byTable.length, 2)
     assert.equal(summary.byTable.find((t) => t.table === "radio_stations")?.domain, "reference")
     assert.equal(summary.byTable.find((t) => t.table === "radio_stations")!.lastEvent.rowsWithFieldDiffs, 1)
+  })
+
+  it("kpiNumericCompare: money in cents, rates within epsilon", () => {
+    assert.equal(dollarsToCents(1.234), 123)
+    assert.equal(dollarsToCents("2.005"), 201)
+
+    const moneyOpts = { kpiNumericCompare: true }
+    assert.equal(
+      valuesEqualForCompare("cpv", 1.0, 1.009, moneyOpts),
+      true,
+      "cpv within 1 cent"
+    )
+    assert.equal(
+      valuesEqualForCompare("cpv", 1.0, 1.02, moneyOpts),
+      false,
+      "cpv beyond 1 cent"
+    )
+
+    const rateOpts = { kpiNumericCompare: true, rateEpsilon: KPI_RATE_EPSILON }
+    assert.equal(
+      valuesEqualForCompare("ctr", 0.05, 0.0500000005, rateOpts),
+      true,
+      "ctr within epsilon"
+    )
+    assert.equal(
+      valuesEqualForCompare("vtr", 0.1, 0.10001, rateOpts),
+      false,
+      "vtr beyond epsilon"
+    )
+
+    const event = compareReferenceRows(
+      "campaign_kpi",
+      [{ id: 1, cpv: 1.0, ctr: 0.05 }],
+      [{ id: 1, cpv: 1.009, ctr: 0.0500000005 }],
+      { domain: "kpi", kpiNumericCompare: true }
+    )
+    assert.equal(event.fieldDiffs.length, 0)
+
+    const eventMismatch = compareReferenceRows(
+      "campaign_kpi",
+      [{ id: 1, cpv: 1.0, ctr: 0.05 }],
+      [{ id: 1, cpv: 1.02, ctr: 0.05 }],
+      { domain: "kpi", kpiNumericCompare: true }
+    )
+    assert.equal(eventMismatch.fieldDiffs.length, 1)
+    assert.equal(eventMismatch.fieldDiffs[0]!.fields[0]!.field, "cpv")
   })
 })

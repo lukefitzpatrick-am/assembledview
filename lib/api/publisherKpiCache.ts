@@ -1,5 +1,4 @@
-import axios from "axios"
-import { parseXanoListPayload, xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { readAllPublisherKpis } from "@/lib/data/readKpi"
 import type { PublisherKpi } from "@/lib/kpi/types"
 
 /**
@@ -31,13 +30,7 @@ function cacheTtlMs(): number {
 }
 
 async function fetchUpstream(): Promise<PublisherKpi[]> {
-  const response = await axios.get(xanoUrl("publisher_kpi", "XANO_PUBLISHERS_BASE_URL"), {
-    timeout: 60_000,
-    headers: xanoAuthHeaderRecord(),
-  })
-  const data = response.data
-  if (Array.isArray(data)) return data as PublisherKpi[]
-  return parseXanoListPayload(data) as PublisherKpi[]
+  return readAllPublisherKpis()
 }
 
 /**

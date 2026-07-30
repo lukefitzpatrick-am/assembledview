@@ -94,6 +94,27 @@ function asRecordList(payload: unknown): Record<string, unknown>[] {
   )
 }
 
+export const KPI_RATE_EPSILON = 1e-6
+export const KPI_MONEY_EPS_CENTS = 1
+
+const DEFAULT_KPI_MONEY_FIELDS = ["cpv"] as const
+const DEFAULT_KPI_RATE_FIELDS = [
+  "ctr",
+  "vtr",
+  "conversion_rate",
+  "frequency",
+] as const
+
+/** Convert a dollar amount to integer cents for KPI money-field compare. */
+export function dollarsToCents(value: unknown): number | null {
+  const n = normalizeComparableValue(value)
+  if (n == null) return null
+  if (typeof n === "number" && Number.isFinite(n)) {
+    return Math.round(n * 100)
+  }
+  return null
+}
+
 export type CompareRowsOptions = {
   /** Defaults to `table` when omitted (legacy reference-table callers). */
   domain?: string
@@ -102,6 +123,50 @@ export type CompareRowsOptions = {
    * columns not yet ported).
    */
   postgresKeysOnly?: boolean
+  /** KPI shadow mode: money fields compare in cents; rates within epsilon. */
+  kpiNumericCompare?: boolean
+  /** Dollar fields compared as integer cents (default `cpv`). */
+  moneyFields?: string[]
+  /** Max allowed cent delta for money fields (default 1). */
+  moneyEpsCents?: number
+  /** Rate/ratio fields compared with absolute epsilon (default ctr/vtr/conversion_rate/frequency). */
+  rateFields?: string[]
+  /** Absolute tolerance for rate fields (default `1e-6`). */
+  rateEpsilon?: number
+}
+
+export function valuesEqualForCompare(
+  field: string,
+  xanoRaw: unknown,
+  pgRaw: unknown,
+  options: CompareRowsOptions = {}
+): boolean {
+  const xv = normalizeComparableValue(xanoRaw)
+  const pv = normalizeComparableValue(pgRaw)
+
+  if (options.kpiNumericCompare) {
+    const moneyFields = options.moneyFields ?? [...DEFAULT_KPI_MONEY_FIELDS]
+    const rateFields = options.rateFields ?? [...DEFAULT_KPI_RATE_FIELDS]
+    const moneyEpsCents = options.moneyEpsCents ?? KPI_MONEY_EPS_CENTS
+    const rateEpsilon = options.rateEpsilon ?? KPI_RATE_EPSILON
+
+    if (moneyFields.includes(field)) {
+      const xc = dollarsToCents(xanoRaw)
+      const pc = dollarsToCents(pgRaw)
+      if (xc == null && pc == null) return true
+      if (xc == null || pc == null) return false
+      return Math.abs(xc - pc) <= moneyEpsCents
+    }
+
+    if (rateFields.includes(field)) {
+      if (xv == null && pv == null) return true
+      if (typeof xv !== "number" || typeof pv !== "number") return xv === pv
+      if (!Number.isFinite(xv) || !Number.isFinite(pv)) return xv === pv
+      return Math.abs(xv - pv) <= rateEpsilon
+    }
+  }
+
+  return xv === pv
 }
 
 export function compareReferenceRows(
@@ -147,9 +212,7 @@ export function compareReferenceRows(
       // null vs absent is known-benign (Xano omits nulls; Postgres returns nulls).
       if (!(field in xanoRow) && normalizeComparableValue(pgRow[field]) == null) continue
       if (!(field in pgRow) && normalizeComparableValue(xanoRow[field]) == null) continue
-      const xv = normalizeComparableValue(xanoRow[field])
-      const pv = normalizeComparableValue(pgRow[field])
-      if (xv !== pv) {
+      if (!valuesEqualForCompare(field, xanoRow[field], pgRow[field], options)) {
         fields.push({ field, xano: xanoRow[field] ?? null, postgres: pgRow[field] ?? null })
       }
     }

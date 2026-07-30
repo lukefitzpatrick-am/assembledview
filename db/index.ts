@@ -6,7 +6,7 @@ import * as schema from "./schema"
  * Runtime DB client — uses the Supabase **transaction pooler** URL
  * (`DATABASE_URL`, port 6543). Migrations use `DIRECT_URL` via drizzle-kit.
  *
- * App imports: reference / publishers / clients shadow-postgres reads
+ * App imports: reference / publishers / clients / kpi shadow-postgres reads
  * (`lib/data/read*.ts`). Expand per Phase 2 domain.
  */
 function requireDatabaseUrl(): string {

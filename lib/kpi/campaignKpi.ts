@@ -7,27 +7,38 @@ const apiClient = axios.create({
   headers: xanoPostHeaderRecord(),
 })
 
+/** Xano-only GET for syncCampaignKpis pre-read — writes stay Xano until T4. */
+async function fetchCampaignKpisFromXanoForSync(
+  mbaNumber: string,
+  versionNumber: number,
+): Promise<CampaignKPI[]> {
+  const response = await apiClient.get(xanoUrl("campaign_kpi", "XANO_CLIENTS_BASE_URL"), {
+    params: {
+      mba_number: mbaNumber,
+      version_number: versionNumber,
+    },
+  })
+  const data = response.data
+  const list: Record<string, unknown>[] = Array.isArray(data)
+    ? (data as Record<string, unknown>[])
+    : parseXanoListPayload(data)
+  const mba = mbaNumber
+  return list.filter((row) => {
+    const rowMba = String(row.mba_number ?? row.mbaNumber ?? "")
+    const ver = Number(row.version_number ?? row.versionNumber ?? NaN)
+    return rowMba === mba && ver === versionNumber
+  }) as unknown as CampaignKPI[]
+}
+
 export async function fetchCampaignKpis(
   mbaNumber: string,
   versionNumber: number,
 ): Promise<CampaignKPI[]> {
   try {
-    const response = await apiClient.get(xanoUrl("campaign_kpi", "XANO_CLIENTS_BASE_URL"), {
-      params: {
-        mba_number: mbaNumber,
-        version_number: versionNumber,
-      },
-    })
-    const data = response.data
-    const list: Record<string, unknown>[] = Array.isArray(data)
-      ? (data as Record<string, unknown>[])
-      : parseXanoListPayload(data)
-    const mba = mbaNumber
-    return list.filter((row) => {
-      const rowMba = String(row.mba_number ?? row.mbaNumber ?? "")
-      const ver = Number(row.version_number ?? row.versionNumber ?? NaN)
-      return rowMba === mba && ver === versionNumber
-    }) as unknown as CampaignKPI[]
+    const { readCampaignKpis } = await import(
+      /* webpackIgnore: true */ "@/lib/data/readKpi"
+    )
+    return await readCampaignKpis(mbaNumber, versionNumber)
   } catch (e) {
     console.error("fetchCampaignKpis", e)
     return []
@@ -99,7 +110,10 @@ export async function syncCampaignKpis(
     desired.add(lineItemId.toLowerCase())
 
     if (!fetchedPairs.has(pairKey)) {
-      const existing = await fetchCampaignKpis(item.mba_number, item.version_number)
+      const existing = await fetchCampaignKpisFromXanoForSync(
+        item.mba_number,
+        item.version_number,
+      )
       existingRowsByPair.set(pairKey, existing)
       for (const row of existing) {
         const rowLineItemId = String(row.line_item_id ?? "").trim()

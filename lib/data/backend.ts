@@ -7,7 +7,11 @@
  */
 export type DataBackend = "xano" | "shadow" | "postgres"
 
-export type DataBackendDomain = "reference" | "publishers" | "clients"
+export type DataBackendDomain =
+  | "reference"
+  | "publishers"
+  | "clients"
+  | "kpi"
 
 function parseDataBackend(raw: string | undefined): DataBackend {
   const v = (raw ?? "xano").trim().toLowerCase()
