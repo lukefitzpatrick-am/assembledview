@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // postgres uses Node builtins (crypto/stream/net). Keep it out of webpack
+  // bundles — especially Edge instrumentation, which still traces dynamic imports
+  // from instrumentation.ts unless warmers live in instrumentation.node.ts.
+  serverExternalPackages: ["postgres"],
   async redirects() {
     return [
       { source: "/finance/billing", destination: "/finance?tab=billing", permanent: true },

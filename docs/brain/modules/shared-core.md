@@ -38,7 +38,7 @@ The server-side data-access + identity layer everything sits on: Xano URL/auth c
 2. **`unstable_cache`** (survives lambdas): pacingRowsCache (4h, tag `pacing-campaigns` — the repo's only `revalidateTag` caller is orphan-assign), globalSpendCache (300s, tag never revalidated), planning metaCache (never revalidated).
 3. **Browser**: `coalescedGetJson` (60s, collapses Strict-Mode double mounts).
 
-Boot warming via `instrumentation.ts` — skipped on Vercel unless `WARM_CACHES_ON_BOOT=true` (deliberate: concurrent cold starts would starve Xano). Background refresh was removed on purpose (serverless suspension caused phantom timeouts) — don't reintroduce fire-and-forget refresh.
+Boot warming via `instrumentation.ts` → dynamic `instrumentation.node.ts` only when `NEXT_RUNTIME === "nodejs"` — skipped on Vercel unless `WARM_CACHES_ON_BOOT=true` (deliberate: concurrent cold starts would starve Xano). Do not put postgres-touching imports (`lib/cache/clientsCache` → `lib/data/readClients` → `db/index.ts`) directly in `instrumentation.ts`; Edge instrumentation still resolves that graph and breaks `npm run build` (Module not found: crypto/stream). `db/index.ts` is `server-only`; `postgres` is in `serverExternalPackages`. Background refresh was removed on purpose (serverless suspension caused phantom timeouts) — don't reintroduce fire-and-forget refresh.
 
 ## Cross-cutting utils
 
@@ -48,8 +48,8 @@ Boot warming via `instrumentation.ts` — skipped on Vercel unless `WARM_CACHES_
 - `lib/clients/slug.ts` (24) — slugs ARE tenant identity; `legalsuper → legal_super` override is load-bearing. NOTE: pacing uses a different slugifier (`slugifyPlanClientName`).
 - Dates: `lib/dates/parseDateSafe` (LOCAL midnight) vs `parseDateNativeSafe` (UTC midnight) are NOT interchangeable — swapping shifts dates by a day. Three Melbourne-date helper families exist (lib/timezone, lib/dates/melbourne, lib/pacing/maths). Presentation formatting for client dashboards goes through `lib/format/date.ts`.
 - Duplicate toast hook with separate state: `components/ui/use-toast` (52 importers) vs `hooks/use-toast` (2).
-- `tsconfig`: `strict: false` + `strictNullChecks: true`; three perf test files excluded from typecheck.
+- `tsconfig`: `strict: false` + `strictNullChecks: true`; three perf test files + WIP `scripts/live-*` / `_s1p1b-*` probes excluded from typecheck (they break `next build` typecheck while untracked).
 
 ## Deploy config
 
-`vercel.json` crons: xano-line-item-sync (daily 19:00 UTC), ops-health (22:00), pacing-digest (Mon/Thu 22:30), creative-upload-digest (hourly). `next.config.mjs`: snowflake-sdk externalised, finance redirects, pdfkit fs fallbacks. Regions iad1/syd1/sin1.
+`vercel.json` crons: xano-line-item-sync (daily 19:00 UTC), ops-health (22:00), pacing-digest (Mon/Thu 22:30), creative-upload-digest (hourly). `next.config.mjs`: `serverExternalPackages: ["postgres"]`, snowflake-sdk externalised, finance redirects, pdfkit fs fallbacks. Regions iad1/syd1/sin1.

@@ -162,7 +162,7 @@ import {
 import {
   countEnabledPublishIntegrityFlags,
   shouldBlockEmptyPublish,
-} from "@/lib/mediaplan/publishVersionIntegrity"
+} from "@/lib/mediaplan/publishVersionIntegrityClient"
 import { useWriteBackend } from "@/lib/data/WriteBackendContext"
 import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
 import {

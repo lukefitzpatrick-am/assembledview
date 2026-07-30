@@ -51,6 +51,12 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | C-14 | `monthYear` vs `YYYY-MM` normalisation before `isBillingMonthLocked`; UTC vs AU-local lock cutoff; super-admin override contract — all unresolved | FIXED (PC5): keys → `YYYY-MM` via `lib/finance/periods/monthKey.ts`; lock = `finance_periods.status` / Sydney last-day 23:59; admin amend = warning → mandatory reason → before/after audit → `amended_after_lock` + immutable v2 sheet |
 | C-15 | Plan-C S1-P1b: `computeCampaignFinancials` / `recomputeBillingScheduleOnSave` emitted month-header schedules with no `lineItems` (fee scalar on `perLine` only) — blocked Postgres `schedule_months` explode + enforce | FIXED (`attachScheduleLineDetail`; `PLANC_SERVER_AUTHORITY=enforce` still OFF) |
 
+## Build / tooling (B-*)
+
+| ID | Issue | Status |
+|---|---|---|
+| B-1 | `npm run build` failed: Edge instrumentation traced `instrumentation.ts` → `clientsCache` → `readClients` → `db/index.ts` → `postgres` (Module not found: crypto/stream/tls/net). Latent follow-ons once that cleared: client `edit/page.tsx` imported `publishVersionIntegrity` → `readMediaPlans` (`server-only`); `lib/finance/c1FullScopeGate.ts` UTF-16 LE → ESLint "File appears to be binary"; WIP `scripts/live-*` / `_s1p1b-*` pulled into `tsc` via `**/*.ts` | FIXED — Node warmers in `instrumentation.node.ts` via `webpackIgnore`; `serverExternalPackages: ["postgres"]`; `db/index.ts` is `server-only`; client helpers in `publishVersionIntegrityClient.ts`; `c1FullScopeGate.ts` re-encoded UTF-8; WIP probes excluded from `tsconfig.json` |
+
 ## Performance / caching (P-*)
 
 | ID | Issue | Status |
