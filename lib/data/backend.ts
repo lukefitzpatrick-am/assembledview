@@ -4,8 +4,14 @@
  *
  * Per-domain override: `DATA_BACKEND_<DOMAIN>` (e.g. `DATA_BACKEND_PUBLISHERS`)
  * falls back to global `DATA_BACKEND`, then `xano`.
+ *
+ * Write path (T4a+): `WRITE_BACKEND` is independent of reads. Default `xano`
+ * keeps the editor on the legacy fan-out; `postgres` enables
+ * `POST /api/plans/save` → `savePlanVersion` (page wiring is T4c).
  */
 export type DataBackend = "xano" | "shadow" | "postgres"
+
+export type WriteBackend = "xano" | "postgres"
 
 export type DataBackendDomain =
   | "reference"
@@ -38,4 +44,10 @@ export function getDataBackendFor(domain: DataBackendDomain | string): DataBacke
     return parseDataBackend(specific)
   }
   return getDataBackend()
+}
+
+/** Plan write sink. Default `xano` — no user-facing change until flipped. */
+export function getWriteBackend(): WriteBackend {
+  const v = (process.env.WRITE_BACKEND ?? "xano").trim().toLowerCase()
+  return v === "postgres" ? "postgres" : "xano"
 }

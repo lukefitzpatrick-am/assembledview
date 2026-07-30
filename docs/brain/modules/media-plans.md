@@ -13,14 +13,19 @@ The campaign builder. Creates an MBA-numbered plan (`media_plan_master`), cuts i
 - `lib/api.ts` — client data layer (`save<Channel>LineItems` ×20, fetch caches). Channel GETs honor `DATA_BACKEND_PLANS` via `fetchChannelLineItemsForMbaGet` → `lib/data/readMediaPlans.ts` (Postgres reassembles from `line_items`).
 - `lib/generateMediaPlan.ts` (2.3k lines) — Excel workbook AND the `LineItem`/`MediaItems` type hub (32 importers).
 - `lib/data/readMediaPlans.ts` — plans-domain shadow/postgres readers: masters, versions (`legacy_schedules` → top-level billing/delivery blobs + `channel_flags` → `mp_*`), per-channel line-item reassembly (typed commons + attrs zod spread + `bursts`/`bursts_json`).
+- `lib/data/savePlan.ts` — T4a Postgres transactional save (`savePlanVersion`): one Drizzle txn over `DATABASE_URL` (version upsert → replace-set `line_items` → server-compute `schedule_months` via `computeCampaignFinancials` + `_scheduleTransform.explodeScheduleToMonthRows` → `billing_overrides` → `source='override'` → `legacy_schedules` mirror → publish BOSS006 gate + `mba_fee_snapshots`). Gated by `WRITE_BACKEND` (default `xano`); `POST /api/plans/save` returns 501 until flipped. Editor wiring is T4c.
 
 ## Save protocol (verified)
+
+**Xano path (current default, `WRITE_BACKEND=xano`):**
 
 1. Compute `approvalSelectionFingerprint`; approval-set change → `forceIncrement`.
 2. `PUT` with `deferMasterVersionPublish: true` → server: reap staged orphans → `nextMbaVersionNumber` → `recomputeAndValidateBillingScheduleOnSave` (authoritative; 409 on $0.01 divergence) → POST new version row (or PATCH in place while `status === "draft"` && !forceIncrement).
 3. ~20 conditional per-channel `save*LineItems` writes. Any failure → abort, master NOT advanced.
 4. Docs generated + uploaded in parallel.
 5. `PATCH` publish (advance `master.version_number`). Failure → Retry-publish button. Xano has no multi-table transactions — stage-then-publish is the closest contract; abandoned failures leave staged rows until the next save reaps them.
+
+**Postgres path (`WRITE_BACKEND=postgres`, T4a service ready; page not wired):** `POST /api/plans/save` → `savePlanVersion` — draft updates `(master_id, version_number)` in place; `new_version`/`publish` insert; line ids are client-stable (never regenerated); publish aborts if `count(line_items)=0` (BOSS006); mid-txn failure rolls back version + lines + schedules (PENFOLD016 kill-shot).
 
 ## Load
 

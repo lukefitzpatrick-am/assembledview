@@ -51,4 +51,13 @@ export const db = new Proxy({} as ReturnType<typeof getDb>, {
 })
 
 export type Db = ReturnType<typeof getDb>
+
+/** End the pooled client (tests / scripts). Safe to call when unused. */
+export async function closeDb(): Promise<void> {
+  const client = globalForDb.__avPostgres
+  globalForDb.__avPostgres = undefined
+  globalForDb.__avDb = undefined
+  if (client) await client.end({ timeout: 5 })
+}
+
 export { schema }

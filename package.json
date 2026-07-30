@@ -36,7 +36,8 @@
     "db:etl": "tsx scripts/migration/etl-xano-to-supabase.ts",
     "db:recon": "tsx scripts/migration/recon.ts",
     "test:line-item-attrs": "tsx --test db/schema/__tests__/lineItemAttrs.test.ts",
-    "test:shadow-diff": "tsx --test lib/data/__tests__/shadowDiff.test.ts"
+    "test:shadow-diff": "tsx --test lib/data/__tests__/shadowDiff.test.ts",
+    "test:save-plan": "tsx --test lib/data/__tests__/savePlan.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",

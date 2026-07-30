@@ -20,7 +20,7 @@ export type ScheduleMonthInsert = {
   basis: ScheduleBasis
   month: string // YYYY-MM-01
   amountCents: number
-  source: "computed"
+  source: "computed" | "override"
 }
 
 export type ScheduleExplodeResult = {
