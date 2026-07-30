@@ -18,6 +18,7 @@ import {
   computeCampaignFinancials,
 } from "@/lib/finance/computeCampaignFinancials"
 import { computeApprovedSlice, type ApprovedSlice } from "@/lib/finance/approvedSlice"
+import { computeSnapshotChecksum } from "@/lib/docs/snapshotChecksum"
 import {
   evaluateFullScopeGate,
   getSaveGateFullScopeMode,
@@ -599,6 +600,25 @@ export async function savePlanVersion(
               },
             })
         }
+
+        // PC3: snapshot_checksum over schedule_months + approved_slice + fee snapshot.
+        const checksumRows = scheduleRows.map((r) => ({
+          lineItemId: r.lineItemId,
+          component: r.component,
+          basis: r.basis,
+          month: String(r.month).slice(0, 10),
+          amountCents: Number(r.amountCents) || 0,
+          source: String(r.source ?? "computed"),
+        }))
+        const checksumHex = computeSnapshotChecksum({
+          scheduleMonths: checksumRows,
+          approvedSlice: approvedSlice as ApprovedSlice,
+          feeSnapshot: fees,
+        })
+        await tx
+          .update(schema.mediaPlanVersions)
+          .set({ snapshotChecksum: checksumHex })
+          .where(eq(schema.mediaPlanVersions.id, versionId))
       }
 
       const [finalLineCount] = await tx

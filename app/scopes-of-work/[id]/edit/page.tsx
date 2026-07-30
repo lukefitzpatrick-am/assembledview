@@ -392,6 +392,7 @@ export default function EditScopePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          id: Number(id) || undefined,
           ...formData,
           scope_date: format(formData.scope_date, "yyyy-MM-dd"),
         }),

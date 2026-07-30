@@ -10,7 +10,7 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | SEC-2 | `GET /api/mediaplans` returns ALL clients' plans to any admin/manager — no per-caller filter (role-gated only) | Open |
 | SEC-3 | `PUT`/`PATCH` on `/api/mediaplans/mba/[mba_number]` skip the `checkClientMbaAccess` that GET enforces | Verify — a WIP-TRIAGE fix was staged; confirm it landed |
 | SEC-4 | `GET /api/dashboard/[slug]` has no tenant match for client users | Open |
-| SEC-5 | Finance + client admin APIs are session-only in places; two routes carry literal `// allow access for development` comments (`app/api/clients/route.ts`, `app/api/mba/generate/route.ts`) | Open |
+| SEC-5 | Finance + client admin APIs are session-only in places; two routes carry literal `// allow access for development` comments (`app/api/clients/route.ts`, `app/api/mba/generate/route.ts`) | Doc-route half FIXED (PC3): `/api/mba/generate` + mediaplans generate-pdf / download / documents + scopes-of-work/generate-pdf now `requireRole(admin\|manager)`; MBA accepts `{mba_number,version_number}` only from persisted rows. Clients-route half remains Open (SEC pack). |
 | SEC-6 | Most `/api/kpis/*` write methods have no authz | Open |
 | SEC-7 | `/api/pacing/programmatic/{display,video}` and `/api/pacing/social/{meta,tiktok}` have **no authorization gate** — any authenticated client user can read another tenant's delivery data (compare `/api/pacing/bulk` which checks) | Open |
 | SEC-8 | Middleware enforces authentication only on `/api/*`; tenant isolation is per-handler and only ~13 routes check. `/api/cron/*` bypasses middleware entirely (protected only by `assertCronSecret`) | By design — but every new API route must add its own tenant check |

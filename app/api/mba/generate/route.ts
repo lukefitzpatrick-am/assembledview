@@ -1,75 +1,88 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { generateMBA, MBAData } from '@/lib/generateMBA';
-import { format } from 'date-fns';
-import { addGst } from '@/lib/finance/gst';
+import { NextRequest, NextResponse } from "next/server"
+import { generateMBA } from "@/lib/generateMBA"
+import { requireRole } from "@/lib/requireRole"
+import {
+  buildMbaFromPersisted,
+  PersistedDocError,
+} from "@/lib/docs/buildMbaFromPersisted"
 
+export const dynamic = "force-dynamic"
+export const revalidate = 0
+export const maxDuration = 60
+
+/**
+ * PC3 — MBA PDF from persisted schedule_months + approved_slice + fee snapshot.
+ * Body: { mba_number, version_number } ONLY. Admin/manager. Approved-or-beyond.
+ */
 export async function POST(req: NextRequest) {
-  try {
-    // For now, allow access for development
-    // In production, you would validate the Auth0 session here
-    
-    const body = await req.json();
+  const gate = await requireRole(req, ["admin", "manager"])
+  if ("response" in gate) return gate.response
 
-    // Basic validation - support both mbanumber and mba_number for backwards compatibility
-    const mbaNumber = body.mba_number || body.mbanumber;
-    if (!mbaNumber || !body.mp_client_name) {
-      return NextResponse.json({ error: 'Missing required MBA data' }, { status: 400 });
+  try {
+    let body: unknown
+    try {
+      body = await req.json()
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
     }
 
-    const exGst = Number(body.totalInvestment) || 0
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    }
 
-    // Transform the incoming request body to fit the MBAData interface
-    const dataForPdf: MBAData = {
-      date: format(new Date(), 'dd/MM/yyyy'),
-      mba_number: mbaNumber,
-      campaign_name: body.mp_campaignname,
-      campaign_brand: body.mp_brand,
-      po_number: body.mp_ponumber,
-      media_plan_version: body.mp_plannumber,
-      client: {
-        name: body.mp_client_name,
-        streetaddress: body.clientAddress,
-        suburb: body.clientSuburb,
-        state: body.clientState,
-        postcode: body.clientPostcode,
-      },
-      campaign: {
-        date_start: format(new Date(body.mp_campaigndates_start), 'dd/MM/yyyy'),
-        date_end: format(new Date(body.mp_campaigndates_end), 'dd/MM/yyyy'),
-      },
-      gross_media: body.gross_media,
-      totals: {
-        gross_media: body.grossMediaTotal,
-        service_fee: body.calculateAssembledFee,
-        production: body.calculateProductionCosts,
-        adserving: body.calculateAdServingFees,
-        totals_ex_gst: exGst,
-        total_inc_gst: addGst(exGst),
-      },
-      // Map the detailed billing months to the simpler structure needed for the MBA
-      billingSchedule: body.billingMonths.map((m: { monthYear: string, totalAmount: string }) => ({
-        monthYear: m.monthYear,
-        totalAmount: m.totalAmount, 
-      })),
-    };
+    const raw = body as Record<string, unknown>
+    const allowed = new Set(["mba_number", "version_number", "mbanumber"])
+    const extra = Object.keys(raw).filter((k) => !allowed.has(k))
+    if (extra.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Client-sent totals rejected — pass mba_number and version_number only",
+          extra_keys: extra,
+          code: "CLIENT_TOTALS_REJECTED",
+        },
+        { status: 400 }
+      )
+    }
 
-    // Generate the PDF buffer
-    const pdfBuffer = await generateMBA(dataForPdf);
+    const mbaNumber = String(raw.mba_number ?? raw.mbanumber ?? "").trim()
+    const versionNumber = Number(raw.version_number)
+    if (!mbaNumber || !Number.isFinite(versionNumber) || versionNumber <= 0) {
+      return NextResponse.json(
+        { error: "mba_number and version_number are required" },
+        { status: 400 }
+      )
+    }
 
-    // Return the PDF in the response
-    const filename = `MBA_${body.mp_client_name}_${body.mp_campaignname}.pdf`;
+    const rendered = await buildMbaFromPersisted({ mbaNumber, versionNumber })
+    const pdfBuffer = await generateMBA(rendered.mbaData)
+
     return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${rendered.filename}"`,
+        "X-Snapshot-Checksum": rendered.checksumHex,
+        "X-Snapshot-Footer": rendered.footer,
       },
-    });
-
+    })
   } catch (error) {
-    console.error('Error generating MBA PDF:', error);
-    // It's good practice to check if error is an instance of Error
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return NextResponse.json({ error: 'Failed to generate PDF', details: errorMessage }, { status: 500 });
+    if (error instanceof PersistedDocError) {
+      const status =
+        error.code === "NOT_FOUND"
+          ? 404
+          : error.code === "BAD_REQUEST"
+            ? 400
+            : 422
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status }
+      )
+    }
+    console.error("Error generating MBA PDF:", error)
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred"
+    return NextResponse.json(
+      { error: "Failed to generate PDF", details: errorMessage },
+      { status: 500 }
+    )
   }
-} 
+}

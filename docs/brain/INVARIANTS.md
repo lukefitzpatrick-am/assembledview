@@ -51,6 +51,7 @@ pct === 100 → fee = 0 (division guard)
 - Draft saves overwrite the version row in place; leaving draft or changing the approval set increments (stage-then-publish: `deferMasterVersionPublish` → write children → PATCH master). Cannot return to Draft.
 - Staged-but-unpublished rows are invisible (`filterPublishedVersions`) and reaped on next save of the same master.
 - Clients see the last published version; doc downloads are disabled while a working draft exists.
+- MBA / media-plan doc APIs render from persisted `schedule_months` + `approved_slice` + fee snapshot only (`{mba_number, version_number}`); require admin|manager; 422 unless campaign_status is approved/booked/completed. Footer `v{n} · {hash8}` from `snapshot_checksum` (sha256; written on publish).
 - Version filtering accepts 6 column spellings as equivalent (`media_plan_version`, `media_plan_version_number`, `version_number`, `versionNumber`, `mp_plannumber`, `mp_plan_number`) — do not add a 7th.
 - `media_plan_production` has no version FK — its MBA-only fallback must stay until Xano gains one (KI D4-K1).
 - Forecast snapshots are immutable (INSERT only). Natural comparison key: `client_id + media_plan_version_id + group_key + line_key + month_key`. Forecast month amount priority: billingSchedule → deliverySchedule → bursts.

@@ -64,6 +64,8 @@ export const mediaPlanVersions = pgTable(
   legacySchedules: jsonb('legacy_schedules'),
   /** PC2: frozen approved billing law at publish. Never mutate after write. */
   approvedSlice: jsonb('approved_slice'),
+  /** PC3: sha256 hex of canonical schedule_months + approved_slice + fee snapshot. */
+  snapshotChecksum: text('snapshot_checksum'),
   mediaPlanFile: jsonb('media_plan_file'),
   mbaPdfFile: jsonb('mba_pdf_file'),
   aaMediaPlanFile: jsonb('aa_media_plan_file'),

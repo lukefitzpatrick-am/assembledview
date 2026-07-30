@@ -7400,12 +7400,29 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
         const planVersionForDocs = String(numericSavedVersion || nextVersion || targetSaveVersion)
 
-        const [{ blob: mbaBlob, fileName: mbaFileName }, { blob: mpBlob, fileName: mpFileName }] = await Promise.all([
-          generateMbaPdfBlob({ planVersion: planVersionForDocs }),
-          generateMediaPlanXlsxBlob({ planVersion: planVersionForDocs }),
-        ])
+        let mbaBlob: Blob | null = null
+        let mbaFileName = ""
+        try {
+          const mba = await generateMbaPdfBlob({ planVersion: planVersionForDocs })
+          mbaBlob = mba.blob
+          mbaFileName = mba.fileName
+        } catch (mbaErr: any) {
+          // PC3: draft/unapproved → 422; skip MBA upload, keep Excel path.
+          console.warn("MBA PDF skipped (persisted-render gate):", mbaErr?.message || mbaErr)
+          updateSaveStatus(
+            "MBA PDF Upload",
+            "error",
+            mbaErr?.message || "MBA requires approved-or-beyond published version"
+          )
+        }
 
-        const mbaPdfFile = new File([mbaBlob], mbaFileName, { type: "application/pdf" })
+        const { blob: mpBlob, fileName: mpFileName } = await generateMediaPlanXlsxBlob({
+          planVersion: planVersionForDocs,
+        })
+
+        const mbaPdfFile = mbaBlob
+          ? new File([mbaBlob], mbaFileName, { type: "application/pdf" })
+          : undefined
         const mediaPlanFile = new File([mpBlob], mpFileName, {
           type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         })
@@ -7476,7 +7493,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             mpClientName: formValues.mp_clientname || selectedClient?.clientname_input || "",
           })
 
-          updateSaveStatus("MBA PDF Upload", "success")
+          if (mbaPdfFile) updateSaveStatus("MBA PDF Upload", "success")
           updateSaveStatus("Media Plan Upload", "success")
           if (aaMediaPlanFile) {
             updateSaveStatus("AA Media Plan Upload", "success")
@@ -7960,35 +7977,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       throw new Error("MBA number is required to generate MBA")
     }
 
-    // Single source: core financials (partial selection already applied via billingSaveInputs).
-    const t = campaignFinancials.mbaScopeTotals
-    const finalVisibleMedia = mediaTypes
-      .filter((medium) => medium.name !== "mp_production")
-      .filter((medium) => Boolean(fv[medium.name as keyof MediaPlanFormValues]))
-      .map((medium) => {
-        const billingKey = mediaKeyMap[medium.name]
-        const gross_amount =
-          billingKey !== undefined ? (campaignFinancialsMediaByKey[billingKey] ?? 0) : 0
-        return {
-          media_type: medium.label,
-          gross_amount,
-        }
-      })
-
-    const finalTotals = {
-      gross_media: t.grossMedia,
-      service_fee: t.fee,
-      production: t.production,
-      adserving: t.adServing,
-      totals_ex_gst: t.nettExGst,
-      total_inc_gst: t.nettIncGst,
-    }
-
-    const billingMonthsExGST = campaignFinancials.billingSchedule.map((month) => ({
-      monthYear: month.monthYear,
-      totalAmount: month.totalAmount,
-    }))
-
     const resolvedPlanVersion = String(
       opts?.planVersion ||
         fv.mp_plannumber ||
@@ -7999,45 +7987,29 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         1
     )
 
-    const apiData = {
-      mba_number: mbaNum,
-      mp_client_name: fv.mp_clientname,
-      mp_campaignname: fv.mp_campaignname,
-      mp_brand: fv.mp_brand,
-      mp_ponumber: fv.mp_ponumber,
-      mp_plannumber: resolvedPlanVersion,
-      mp_campaigndates_start: toDateOnlyString(fv.mp_campaigndates_start),
-      mp_campaigndates_end: toDateOnlyString(fv.mp_campaigndates_end),
-      clientAddress: clientAddress,
-      clientSuburb: clientSuburb,
-      clientState: clientState,
-      clientPostcode: clientPostcode,
-      gross_media: finalVisibleMedia,
-      grossMediaTotal: finalTotals.gross_media,
-      calculateAssembledFee: finalTotals.service_fee,
-      calculateProductionCosts: finalTotals.production,
-      calculateAdServingFees: finalTotals.adserving,
-      totalInvestment: finalTotals.totals_ex_gst,
-      billingMonths: billingMonthsExGST,
-    }
-
+    // PC3: server renders from persisted rows — no client totals.
     const response = await fetch("/api/mba/generate", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(apiData),
+      body: JSON.stringify({
+        mba_number: mbaNum,
+        version_number: Number(resolvedPlanVersion),
+      }),
     })
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({} as any))
-      throw new Error(errorData.error || errorData.details || "Failed to generate MBA")
+      const errBody = await response.json().catch(() => ({} as any))
+      const msg =
+        errBody?.error ||
+        errBody?.details ||
+        `MBA generate failed (${response.status})`
+      throw new Error(msg)
     }
 
     const blob = await response.blob()
-    const clientName = fv.mp_clientname || "client"
-    const campaignName = fv.mp_campaignname || "campaign"
-    const mbaBase = `MBA_${campaignName}`
-    const fileName = `${clientName}-${mbaBase}-v${resolvedPlanVersion}.pdf`
-
+    const fileName =
+      response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] ||
+      `MBA_${fv.mp_clientname || "client"}_${fv.mp_campaignname || "campaign"}_v${resolvedPlanVersion}.pdf`
     return { blob, fileName, planVersion: resolvedPlanVersion }
   }
 
