@@ -1,4 +1,4 @@
-import { and, eq, gte, ilike, lte, or, sql, type SQL } from "drizzle-orm"
+import { and, eq, gte, ilike, lt, lte, or, sql, type SQL } from "drizzle-orm"
 import { z } from "zod"
 import {
   getAvaDb,
@@ -9,6 +9,7 @@ import {
 import { LINE_CHANNELS, type LineChannel } from "@/db/schema/enums"
 import { slugifyClientNameForUrl } from "@/lib/clients/slug"
 import type AvaTool from "./types"
+import { fyToRange } from "./fyToRange"
 import {
   asRecord,
   asString,
@@ -36,6 +37,7 @@ export const searchLineItemsInput = z
       .optional(),
     publisher: z.string().min(1).optional(),
     market: z.string().min(1).optional(),
+    fy: z.number().int().min(2000).max(2100).optional(),
     dateRange: z
       .object({
         from: z.string().min(4).optional(),
@@ -51,7 +53,7 @@ export const searchLineItemsTool: AvaTool = {
   definition: {
     name: "search_line_items",
     description:
-      "Postgres: cross-campaign search over line_items joined to versions/masters (and clients). Filter by client, channel, publisher, market, campaign dateRange, minBudget (AUD from bursts). Prefer for \"which campaigns have X lines\" questions across MBAs. Amounts AUD. Hard cap 200 rows.",
+      "Postgres: cross-campaign search over line_items joined to versions/masters (and clients). Filter by client, channel, publisher, market, optional fy = Australian FY ENDING year (fy=2026 means Jul 2025 – Jun 2026; campaign overlap), dateRange, minBudget (AUD from bursts). Prefer for \"which campaigns have X lines\" questions across MBAs. Amounts AUD. Hard cap 200 rows.",
     input_schema: {
       type: "object",
       properties: {
@@ -65,6 +67,11 @@ export const searchLineItemsTool: AvaTool = {
         },
         publisher: { type: "string", description: "Publisher substring (ilike)." },
         market: { type: "string", description: "Market substring (ilike)." },
+        fy: {
+          type: "number",
+          description:
+            "Australian FY ending year. fy=2026 means Jul 2025 – Jun 2026 (use for \"this FY\" / FY26). Campaign must overlap the FY.",
+        },
         dateRange: {
           type: "object",
           properties: {
@@ -102,6 +109,8 @@ export const searchLineItemsTool: AvaTool = {
     const market = parsed.data.market ?? asString(args.market)
     const minBudget =
       parsed.data.minBudget ?? asNumber(args.minBudget)
+    const fy = parsed.data.fy ?? asNumber(args.fy)
+    const fyRange = fy != null ? fyToRange(fy) : null
     const dateRange =
       parsed.data.dateRange ??
       (args.dateRange && typeof args.dateRange === "object"
@@ -125,6 +134,11 @@ export const searchLineItemsTool: AvaTool = {
       }
       if (market) {
         conditions.push(ilike(lineItems.market, `%${market}%`))
+      }
+      if (fyRange) {
+        // Campaign overlaps [startDate, endDateExclusive)
+        conditions.push(lt(mediaPlanVersions.campaignStartDate, fyRange.endDateExclusive))
+        conditions.push(gte(mediaPlanVersions.campaignEndDate, fyRange.startDate))
       }
       if (dateRange?.from) {
         conditions.push(gte(mediaPlanVersions.campaignStartDate, dateRange.from))
@@ -199,11 +213,14 @@ export const searchLineItemsTool: AvaTool = {
       return {
         content: jsonContent({
           currency: "AUD",
+          fy: fy ?? null,
+          range: fyRange?.range ?? null,
           filters: {
             client: clientArg ?? null,
             channel: channel ?? null,
             publisher: publisher ?? null,
             market: market ?? null,
+            fy: fy ?? null,
             dateRange: dateRange ?? null,
             minBudget: minBudget ?? null,
           },

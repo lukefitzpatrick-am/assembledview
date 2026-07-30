@@ -1,7 +1,7 @@
-import { and, eq, gte, lte, type SQL } from "drizzle-orm"
+import { and, eq, gte, lt, type SQL } from "drizzle-orm"
 import { z } from "zod"
 import { getAvaDb, withRowCap, AVA_ROW_CAP, schema } from "@/db/avaClient"
-import { fyMonthRange } from "@/lib/finance/months"
+import { fyToRange } from "./fyToRange"
 import type AvaTool from "./types"
 import {
   asRecord,
@@ -91,7 +91,7 @@ export const queryScheduleMonthsTool: AvaTool = {
   definition: {
     name: "query_schedule_months",
     description:
-      "Postgres: planned schedule_months for an MBA — amounts in AUD dollars (converted from cents). Aggregates per month and per line. Optional fy (AU FY start year, Jul–Jun), component (media|fee), basis (billing|delivery). Prefer over get_media_plan_summary for monthly planned spend. Note: jayco016 and ~47 accepted divergence versions have no schedule rows. Capped at 500 line-month rows.",
+      "Postgres: planned schedule_months for an MBA — amounts in AUD dollars (converted from cents). Aggregates per month and per line. Optional fy = Australian FY ENDING year (fy=2026 means Jul 2025 – Jun 2026), component (media|fee), basis (billing|delivery). Prefer over get_media_plan_summary for monthly planned spend. Note: jayco016 and ~47 accepted divergence versions have no schedule rows. Capped at 500 line-month rows.",
     input_schema: {
       type: "object",
       properties: {
@@ -101,7 +101,8 @@ export const queryScheduleMonthsTool: AvaTool = {
         },
         fy: {
           type: "number",
-          description: "Australian FY start year (e.g. 2025 = Jul 2025–Jun 2026).",
+          description:
+            "Australian FY ending year. fy=2026 means Jul 2025 – Jun 2026 (use for \"this FY\" / FY26).",
         },
         component: {
           type: "string",
@@ -158,10 +159,10 @@ export const queryScheduleMonthsTool: AvaTool = {
         eq(scheduleMonths.basis, basis),
       ]
       if (component) conditions.push(eq(scheduleMonths.component, component))
-      if (fy != null) {
-        const range = fyMonthRange(fy)
-        conditions.push(gte(scheduleMonths.month, `${range.from}-01`))
-        conditions.push(lte(scheduleMonths.month, `${range.to}-01`))
+      const fyRange = fy != null ? fyToRange(fy) : null
+      if (fyRange) {
+        conditions.push(gte(scheduleMonths.month, fyRange.startDate))
+        conditions.push(lt(scheduleMonths.month, fyRange.endDateExclusive))
       }
 
       const db = getAvaDb()
@@ -206,6 +207,7 @@ export const queryScheduleMonthsTool: AvaTool = {
           basis,
           component: component ?? "all",
           fy: fy ?? null,
+          range: fyRange?.range ?? null,
           currency: "AUD",
           total_planned_aud: totalAud,
           per_month: perMonth,

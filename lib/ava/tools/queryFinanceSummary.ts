@@ -1,7 +1,7 @@
-import { and, eq, gte, ilike, lte, or, sql, type SQL } from "drizzle-orm"
+import { and, eq, gte, ilike, lt, or, sql, type SQL } from "drizzle-orm"
 import { z } from "zod"
 import { getAvaDb, withRowCap, AVA_ROW_CAP, schema } from "@/db/avaClient"
-import { fyMonthRange } from "@/lib/finance/months"
+import { fyToRange } from "./fyToRange"
 import { slugifyClientNameForUrl } from "@/lib/clients/slug"
 import type AvaTool from "./types"
 import {
@@ -47,7 +47,7 @@ export const queryFinanceSummaryTool: AvaTool = {
   definition: {
     name: "query_finance_summary",
     description:
-      "Postgres: billed (finance_billing_records) vs planned (schedule_months billing basis) rollup per month in AUD. Pass mba and/or client; optional fy (AU FY start year). Prefer for finance \"billed vs planned\" questions. Full allowlist is Luke's call — note jayco016 + ~47 accepted divergence versions have no schedule rows. Compact monthly rows; capped.",
+      "Postgres: billed (finance_billing_records) vs planned (schedule_months billing basis) rollup per month in AUD. Pass mba and/or client; optional fy = Australian FY ENDING year (fy=2026 means Jul 2025 – Jun 2026). Prefer for finance \"billed vs planned\" questions. Full allowlist is Luke's call — note jayco016 + ~47 accepted divergence versions have no schedule rows. Compact monthly rows; capped.",
     input_schema: {
       type: "object",
       properties: {
@@ -58,7 +58,8 @@ export const queryFinanceSummaryTool: AvaTool = {
         },
         fy: {
           type: "number",
-          description: "Australian FY start year (Jul–Jun).",
+          description:
+            "Australian FY ending year. fy=2026 means Jul 2025 – Jun 2026 (use for \"this FY\" / FY26).",
         },
       },
       required: [],
@@ -99,7 +100,7 @@ export const queryFinanceSummaryTool: AvaTool = {
 
     try {
       const db = getAvaDb()
-      const fyRange = fy != null ? fyMonthRange(fy) : null
+      const fyRange = fy != null ? fyToRange(fy) : null
 
       // --- billed from finance_billing_records ---
       const billConds: SQL[] = []
@@ -108,8 +109,8 @@ export const queryFinanceSummaryTool: AvaTool = {
         billConds.push(ilike(financeBillingRecords.clientName, `%${client.trim()}%`))
       }
       if (fyRange) {
-        billConds.push(gte(financeBillingRecords.billingMonth, fyRange.from))
-        billConds.push(lte(financeBillingRecords.billingMonth, fyRange.to))
+        billConds.push(gte(financeBillingRecords.billingMonth, fyRange.startMonth))
+        billConds.push(lt(financeBillingRecords.billingMonth, fyRange.endMonthExclusive))
       }
 
       const billRows = await db
@@ -158,8 +159,8 @@ export const queryFinanceSummaryTool: AvaTool = {
         )
       }
       if (fyRange) {
-        planConds.push(gte(scheduleMonths.month, `${fyRange.from}-01`))
-        planConds.push(lte(scheduleMonths.month, `${fyRange.to}-01`))
+        planConds.push(gte(scheduleMonths.month, fyRange.startDate))
+        planConds.push(lt(scheduleMonths.month, fyRange.endDateExclusive))
       }
 
       const planRaw = await db
@@ -216,6 +217,7 @@ export const queryFinanceSummaryTool: AvaTool = {
           mba: mba ?? null,
           client: client ?? null,
           fy: fy ?? null,
+          range: fyRange?.range ?? null,
           currency: "AUD",
           billed_total_aud: billedTotalAll,
           planned_total_aud: plannedTotal,

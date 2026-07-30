@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm"
 import { z } from "zod"
 import { getAvaDb, withRowCap, AVA_ROW_CAP, schema } from "@/db/avaClient"
 import type AvaTool from "./types"
+import { fyToRange } from "./fyToRange"
 import {
   asRecord,
   asString,
@@ -23,6 +24,7 @@ export const queryCampaignLinesInput = z
     mba: z.string().min(1).optional(),
     mbaNumber: z.string().min(1).optional(),
     version: z.number().int().positive().optional(),
+    fy: z.number().int().min(2000).max(2100).optional(),
   })
   .strict()
 
@@ -105,7 +107,7 @@ export const queryCampaignLinesTool: AvaTool = {
   definition: {
     name: "query_campaign_lines",
     description:
-      "Postgres: list line items for an MBA (channel, publisher, market, burst budget AUD, key attrs). Uses the published version unless version is passed. Prefer this over get_media_plan_summary / get_campaign_context for \"how much / list lines\" questions. Amounts are AUD. Capped at 500 rows.",
+      "Postgres: list line items for an MBA (channel, publisher, market, burst budget AUD, key attrs). Uses the published version unless version is passed. Optional fy = Australian FY ENDING year (fy=2026 means Jul 2025 – Jun 2026) filters lines whose bursts overlap that FY. Prefer this over get_media_plan_summary / get_campaign_context for \"how much / list lines\" questions. Amounts are AUD. Capped at 500 rows.",
     input_schema: {
       type: "object",
       properties: {
@@ -117,6 +119,11 @@ export const queryCampaignLinesTool: AvaTool = {
           type: "number",
           description:
             "Optional version_number. Defaults to the master's published version (not max version).",
+        },
+        fy: {
+          type: "number",
+          description:
+            "Australian FY ending year. fy=2026 means Jul 2025 – Jun 2026 (use for \"this FY\" / FY26). Keeps lines whose bursts overlap the FY.",
         },
       },
       required: [],
@@ -146,6 +153,8 @@ export const queryCampaignLinesTool: AvaTool = {
 
     const versionArg =
       parsed.data.version ?? asNumber(args.version) ?? context.versionNumber
+    const fy = parsed.data.fy ?? asNumber(args.fy)
+    const fyRange = fy != null ? fyToRange(fy) : null
 
     try {
       const resolved = await resolveVersionId(mba, versionArg)
@@ -169,7 +178,7 @@ export const queryCampaignLinesTool: AvaTool = {
         .where(eq(lineItems.versionId, resolved.versionId))
         .limit(AVA_ROW_CAP + 1)
 
-      const mapped = raw.map((row) => {
+      let mapped = raw.map((row) => {
         const burst = summariseBursts(row.bursts)
         return {
           line_item_id: row.lineItemId,
@@ -188,6 +197,17 @@ export const queryCampaignLinesTool: AvaTool = {
         }
       })
 
+      if (fyRange) {
+        mapped = mapped.filter((row) => {
+          const start = row.start_date
+          const end = row.end_date
+          if (!start && !end) return false
+          const s = start ?? end!
+          const e = end ?? start!
+          return s < fyRange.endDateExclusive && e >= fyRange.startDate
+        })
+      }
+
       const { rows, truncated, total } = withRowCap(mapped, AVA_ROW_CAP)
 
       return {
@@ -195,6 +215,8 @@ export const queryCampaignLinesTool: AvaTool = {
           mba,
           version_number: resolved.versionNumber,
           published: resolved.published,
+          fy: fy ?? null,
+          range: fyRange?.range ?? null,
           currency: "AUD",
           total,
           truncated,

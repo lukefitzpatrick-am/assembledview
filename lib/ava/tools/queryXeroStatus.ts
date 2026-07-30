@@ -1,10 +1,12 @@
-import { and, eq, gt, ilike, inArray, isNotNull, lt, ne, or, sql, type SQL } from "drizzle-orm"
+import { and, eq, gte, gt, ilike, inArray, isNotNull, lt, ne, or, sql, type SQL } from "drizzle-orm"
 import { z } from "zod"
 import { getAvaDb, schema } from "@/db/avaClient"
 import type AvaTool from "./types"
+import { fyToRange } from "./fyToRange"
 import {
   asRecord,
   asString,
+  asNumber,
   resolveScopedClientSlug,
 } from "./helpers"
 import {
@@ -19,6 +21,7 @@ export const queryXeroStatusInput = z
   .object({
     client: z.string().min(1).optional(),
     overdueOnly: z.boolean().optional(),
+    fy: z.number().int().min(2000).max(2100).optional(),
   })
   .strict()
 
@@ -32,7 +35,7 @@ export const queryXeroStatusTool: AvaTool = {
   definition: {
     name: "query_xero_status",
     description:
-      "Postgres: compact xero_ar_invoices summary — invoice counts, totals AUD, amount due, oldest overdue. Optional client filter (via MBA→client join or invoice reference) and overdueOnly. Prefer for AR / overdue questions. Keep answers compact.",
+      "Postgres: compact xero_ar_invoices summary — invoice counts, totals AUD, amount due, oldest overdue. Optional client filter (via MBA→client join or invoice reference), overdueOnly, and fy = Australian FY ENDING year (fy=2026 means Jul 2025 – Jun 2026; filters on issue_date). Prefer for AR / overdue questions. Keep answers compact.",
     input_schema: {
       type: "object",
       properties: {
@@ -43,6 +46,11 @@ export const queryXeroStatusTool: AvaTool = {
         overdueOnly: {
           type: "boolean",
           description: "If true, only invoices with amount_due > 0 and due_date before today.",
+        },
+        fy: {
+          type: "number",
+          description:
+            "Australian FY ending year. fy=2026 means Jul 2025 – Jun 2026 (use for \"this FY\" / FY26). Filters issue_date into that FY.",
         },
       },
       required: [],
@@ -65,6 +73,8 @@ export const queryXeroStatusTool: AvaTool = {
     }
     const overdueOnly =
       parsed.data.overdueOnly === true || args.overdueOnly === true
+    const fy = parsed.data.fy ?? asNumber(args.fy)
+    const fyRange = fy != null ? fyToRange(fy) : null
 
     try {
       const db = getAvaDb()
@@ -80,6 +90,11 @@ export const queryXeroStatusTool: AvaTool = {
           ),
         )!,
       ]
+
+      if (fyRange) {
+        conditions.push(gte(xeroArInvoices.issueDate, fyRange.startDate))
+        conditions.push(lt(xeroArInvoices.issueDate, fyRange.endDateExclusive))
+      }
 
       if (overdueOnly) {
         conditions.push(gt(sql`coalesce(${xeroArInvoices.amountDue}::numeric, 0)`, 0))
@@ -120,6 +135,8 @@ export const queryXeroStatusTool: AvaTool = {
             content: jsonContent({
               client: clientArg,
               overdueOnly,
+              fy: fy ?? null,
+              range: fyRange?.range ?? null,
               currency: "AUD",
               invoice_count: 0,
               total_aud: 0,
@@ -184,6 +201,8 @@ export const queryXeroStatusTool: AvaTool = {
         content: jsonContent({
           client: clientArg ?? null,
           overdueOnly,
+          fy: fy ?? null,
+          range: fyRange?.range ?? null,
           currency: "AUD",
           invoice_count: rows.length,
           truncated: rows.length >= 500,

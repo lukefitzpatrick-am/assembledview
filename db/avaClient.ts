@@ -58,6 +58,15 @@ export function getAvaDb() {
   return globalForAva.__avAvaDb
 }
 
+/** Close the AVA pool (tests / scripts). Safe no-op if never opened. */
+export async function endAvaClient(): Promise<void> {
+  const client = globalForAva.__avAvaPostgres
+  if (!client) return
+  globalForAva.__avAvaPostgres = undefined
+  globalForAva.__avAvaDb = undefined
+  await client.end({ timeout: 5 })
+}
+
 export type AvaDb = ReturnType<typeof getAvaDb>
 
 /**
