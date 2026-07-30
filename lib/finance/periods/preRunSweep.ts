@@ -29,6 +29,7 @@ export function buildPreRunSweepCard(args: {
   periodMonth: string
   blockers: PreRunBlocker[]
   nudges?: PreRunNudge[]
+  referenceHitRate?: number | null
 }): PreRunSweepCard {
   const blockers = args.blockers
   const hard = blockers.filter(
@@ -37,10 +38,19 @@ export function buildPreRunSweepCard(args: {
       b.kind === "missing_legal_name" ||
       b.kind === "missing_po"
   )
+  const nudges: PreRunNudge[] = [...(args.nudges ?? [])]
+  // PC6: attach last-month reference hit-rate when provided
+  if (args.referenceHitRate != null) {
+    nudges.push({
+      kind: "reference_hit_rate",
+      detail: `Reference hit-rate last month: ${(args.referenceHitRate * 100).toFixed(1)}%`,
+      value: args.referenceHitRate,
+    })
+  }
   return {
     periodMonth: args.periodMonth,
     blockers,
-    nudges: args.nudges ?? [],
+    nudges,
     hardBlockerCount: hard.length,
   }
 }

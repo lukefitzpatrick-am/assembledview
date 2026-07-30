@@ -48,10 +48,17 @@ export async function GET(request: Request) {
             processed: result.stages.sync_pdfs.processed,
             ok: result.stages.sync_pdfs.ok,
           },
-          contacts: {
+            contacts: {
             upserted: result.stages.contacts_refresh.contacts_upserted,
             pages: result.stages.contacts_refresh.pages_fetched,
             ok: result.stages.contacts_refresh.ok,
+          },
+          match: {
+            auto_matched: result.stages.match_run_items.auto_matched,
+            cards: result.stages.match_run_items.cards,
+            hit_rate: result.stages.match_run_items.reference_hit_rate,
+            skipped: result.stages.match_run_items.skipped,
+            ok: result.stages.match_run_items.ok,
           },
         },
       }),

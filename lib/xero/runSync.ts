@@ -17,6 +17,10 @@ import {
   type IngestInvoicesResult,
 } from "./stages/ingestInvoices"
 import { stageSyncPdfs, type SyncPdfsResult } from "./stages/syncPdfs"
+import {
+  stageMatchRunItems,
+  type MatchRunItemsResult,
+} from "./stages/matchRunItems"
 import { rowsOf } from "./dbRows"
 import { parseNotesJson } from "./watermark"
 
@@ -29,6 +33,7 @@ export type XeroSyncRunResult = {
     import_billing_records: ImportBillingResult
     sync_pdfs: SyncPdfsResult
     contacts_refresh: ContactsRefreshResult
+    match_run_items: MatchRunItemsResult
   }
   sync_log_id?: number
 }
@@ -65,8 +70,14 @@ export async function runXeroSync(opts?: {
     console.error("[xero-sync] contacts_refresh failed", contacts.error, contacts.errors)
   }
 
+  // PC6: append matcher after ingest substrate is warm (contacts + AR rows).
+  const match = await stageMatchRunItems()
+  if (!match.ok) {
+    console.error("[xero-sync] match_run_items failed", match.error)
+  }
+
   const runFinishedAt = new Date()
-  const anyFail = !ingest.ok || !billing.ok || !pdfs.ok || !contacts.ok
+  const anyFail = !ingest.ok || !billing.ok || !pdfs.ok || !contacts.ok || !match.ok
   const status = anyFail ? "partial_error" : "success"
 
   // Merge notes: invoice resume + contacts resume keys (same protocol as Xano).
@@ -108,6 +119,14 @@ export async function runXeroSync(opts?: {
       pages_fetched: contacts.pages_fetched,
       contacts_upserted: contacts.contacts_upserted,
     },
+    match_run_items: {
+      ok: match.ok,
+      auto_matched: match.auto_matched,
+      cards: match.cards,
+      reference_hit_rate: match.reference_hit_rate,
+      skipped: match.skipped,
+      stats: match.stats,
+    },
   }
 
   const invoicesUpserted = ingest.ar_upserted + ingest.ap_upserted
@@ -142,6 +161,7 @@ export async function runXeroSync(opts?: {
       import_billing_records: billing,
       sync_pdfs: pdfs,
       contacts_refresh: contacts,
+      match_run_items: match,
     },
     sync_log_id: syncLogId || undefined,
   }

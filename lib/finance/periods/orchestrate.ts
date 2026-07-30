@@ -280,11 +280,38 @@ export async function executePreRunSweep(args: {
       })
     )
   }
-  const card = buildPreRunSweepCard({ periodMonth, blockers })
+  const card = buildPreRunSweepCard({
+    periodMonth,
+    blockers,
+    referenceHitRate: await loadLastMonthReferenceHitRate(periodMonth),
+  })
   await insertNotificationPg({
     audience: "finance",
     kind: "finance_pre_run_sweep",
     payload: card as unknown as Record<string, unknown>,
   })
   return { ok: true, card }
+}
+
+async function loadLastMonthReferenceHitRate(
+  periodMonth: string
+): Promise<number | null> {
+  try {
+    const { addPeriodMonths, toPeriodMonthDate } = await import(
+      "@/lib/finance/periods/monthKey"
+    )
+    const prev = addPeriodMonths(periodMonth, -1)
+    const db = getDb()
+    const res = await db.execute(sql`
+      SELECT reference_hit_rate
+      FROM xero_match_month_metrics
+      WHERE period_month = ${toPeriodMonthDate(prev)}::date
+      LIMIT 1
+    `)
+    const rows = (res as { rows?: { reference_hit_rate: number }[] }).rows ?? []
+    if (!rows[0]) return null
+    return Number(rows[0].reference_hit_rate)
+  } catch {
+    return null
+  }
 }
