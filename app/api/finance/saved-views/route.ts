@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import {
   FINANCE_SAVED_VIEWS_PATH,
-  parseList,
-  xanoFinanceGet,
   xanoFinancePost,
 } from "@/lib/finance/xanoFinanceApi"
+import { readFinanceSavedViews } from "@/lib/data/readFinance"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
@@ -14,8 +13,8 @@ export async function GET(request: NextRequest) {
   if ("response" in gate) return gate.response
 
   try {
-    const data = await xanoFinanceGet(FINANCE_SAVED_VIEWS_PATH)
-    return NextResponse.json(parseList(data))
+    const data = await readFinanceSavedViews()
+    return NextResponse.json(data)
   } catch (error: any) {
     return NextResponse.json(
       { error: "Failed to fetch saved views", details: error?.message || String(error) },

@@ -3,10 +3,9 @@
  * The finance hub **Payables** tab is the successor for **delivery-schedule** amounts (`media_plan_versions.deliverySchedule`);
  * see `GET /api/finance/payables` and `aggregatePayablesToPublisherGroups`.
  */
-import axios from "axios"
 import { NextRequest, NextResponse } from "next/server"
-import { parseXanoListPayload, xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { requireFinanceAdmin } from "@/lib/requireRole"
+import { readFinanceBillingRecords } from "@/lib/data/readFinance"
 
 export const maxDuration = 60
 
@@ -75,8 +74,7 @@ export async function GET(request: NextRequest) {
     const targetMonths = rangeMode === "range" ? enumerateMonths(monthFrom, monthTo || monthFrom) : [monthFrom]
     const monthSet = new Set(targetMonths)
 
-    const xanoRes = await axios.get(xanoUrl("finance_billing_records", "XANO_CLIENTS_BASE_URL"), { headers: xanoAuthHeaderRecord() })
-    const rawRecords = parseXanoListPayload(xanoRes.data) as BillingRecord[]
+    const rawRecords = (await readFinanceBillingRecords()) as unknown as BillingRecord[]
 
     const filteredRecords = rawRecords.filter((record) => {
       if (!monthSet.has(record.billing_month)) return false

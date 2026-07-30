@@ -305,6 +305,9 @@ export const financeBillingRecords = pgTable(
   billed: boolean('billed'),
   billedAt: timestamp('billed_at', { withTimezone: true, mode: "string" }),
   billedBy: bigint('billed_by', { mode: "number" }),
+  /** Integer cents (Xano `billed_amount` dollars × 100). */
+  billedAmountCents: bigint('billed_amount_cents', { mode: "number" }),
+  billedLinesHash: text('billed_lines_hash'),
   notes: text('notes'),
   exportedAt: timestamp('exported_at', { withTimezone: true, mode: "string" }),
   exportedBy: bigint('exported_by', { mode: "number" }),

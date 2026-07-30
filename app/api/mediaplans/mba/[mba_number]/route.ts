@@ -15,7 +15,8 @@ import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/mont
 import { getDraftReturnRejection } from "@/lib/mediaplan/campaignStatusGuard"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 import { nextMbaVersionNumber } from "@/lib/mediaplan/nextMbaVersionNumber"
-import { fetchBillingOverridesForVersion } from "@/lib/finance/billingOverrides"
+import { readBillingOverridesForVersion } from "@/lib/data/readFinance"
+import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
 import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
 import { appendPartialApprovalToBillingSchedule } from "@/lib/mediaplan/partialMba"
@@ -1518,9 +1519,9 @@ export async function PUT(
     if (financialLineItems && financialLineItems.length > 0 && feeLoading) {
       const overridesVersionId = previousVersion?.id
       const overrideRows = overridesVersionId
-        ? await fetchBillingOverridesForVersion(overridesVersionId, {
+        ? ((await readBillingOverridesForVersion(overridesVersionId, {
             baseUrl: mediaPlansBaseUrl,
-          })
+          })) as BillingOverrideRow[])
         : []
 
       const partialApprovalMeta =

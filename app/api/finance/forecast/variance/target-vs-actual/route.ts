@@ -2,15 +2,13 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles } from "@/lib/rbac"
 import {
-  FINANCE_BILLING_RECORDS_PATH,
-  parseList,
-  xanoFinanceGet,
-} from "@/lib/finance/xanoFinanceApi"
-import {
   loadFinanceForecastDataset,
   normalizeScenario,
 } from "@/lib/finance/forecast/server/loadFinanceForecastDataset"
-import { fetchRevenueForecastTargetLinesFromXano } from "@/lib/finance/forecast/targets/xanoTargetLines"
+import {
+  readFinanceBillingRecords,
+  readRevenueForecastTargetLines,
+} from "@/lib/data/readFinance"
 import {
   aggregateBilledActualsToClientMonth,
   bookedMonthlyFromDataset,
@@ -102,12 +100,12 @@ export async function POST(request: NextRequest) {
   const fyMonthSet = new Set(fyMonths)
 
   try {
-    const [targetLines, billingRaw, bookedResult] = await Promise.all([
-      fetchRevenueForecastTargetLinesFromXano({
+    const [targetLines, billingRows, bookedResult] = await Promise.all([
+      readRevenueForecastTargetLines({
         financial_year_start_year: fy,
         client_id: clientFilter ?? null,
       }),
-      xanoFinanceGet(FINANCE_BILLING_RECORDS_PATH),
+      readFinanceBillingRecords(),
       loadFinanceForecastDataset({
         financialYearStartYear: fy,
         scenario,
@@ -118,8 +116,8 @@ export async function POST(request: NextRequest) {
       }),
     ])
 
-    const billingRows = parseList(billingRaw) as PersistedFinanceStatusRow[]
-    let actuals = aggregateBilledActualsToClientMonth(billingRows, fyMonthSet)
+    const billingStatusRows = billingRows as unknown as PersistedFinanceStatusRow[]
+    let actuals = aggregateBilledActualsToClientMonth(billingStatusRows, fyMonthSet)
     let targets = rollTargetsToClientMonth(targetLines)
     let booked = bookedMonthlyFromDataset(bookedResult.dataset)
 

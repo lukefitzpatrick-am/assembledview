@@ -8,6 +8,7 @@ import {
 } from "@/lib/finance/scopeScheduleExtract"
 import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { requireFinanceAdmin } from "@/lib/requireRole"
+import { readScopeOfWork } from "@/lib/data/readFinance"
 
 export const maxDuration = 60
 
@@ -62,9 +63,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Invalid month format. Use YYYY-MM" }, { status: 400 })
     }
 
-    const scopesResponse = await axios.get(xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL"), { headers: xanoAuthHeaderRecord() })
-    const scopes: ScopeOfWork[] = Array.isArray(scopesResponse.data) ? scopesResponse.data : []
-
+    const scopes = (await readScopeOfWork()) as unknown as ScopeOfWork[]
     const bookedApproved: FinanceCampaignData[] = []
     const other: FinanceCampaignData[] = []
 

@@ -193,6 +193,27 @@ function mapPortedRow(
     out.created_at = tsFromXano(row.created_at)
   }
 
+  // finance_billing_records: Xano `billed_amount` (dollars) → `billed_amount_cents`
+  if (tableName === "finance_billing_records" && cols.has("billed_amount_cents")) {
+    if (out.billed_amount_cents == null && row.billed_amount != null) {
+      const dollars =
+        typeof row.billed_amount === "number"
+          ? row.billed_amount
+          : typeof row.billed_amount === "string"
+            ? Number(row.billed_amount)
+            : NaN
+      if (Number.isFinite(dollars)) {
+        out.billed_amount_cents = Math.round(dollars * 100)
+      }
+    }
+    if (out.billed_lines_hash == null && row.billed_lines_hash != null) {
+      out.billed_lines_hash =
+        typeof row.billed_lines_hash === "string"
+          ? row.billed_lines_hash
+          : String(row.billed_lines_hash)
+    }
+  }
+
   if (!hasId) return null
   return out
 }

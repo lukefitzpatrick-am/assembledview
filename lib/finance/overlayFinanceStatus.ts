@@ -1,6 +1,5 @@
-import axios from "axios"
-import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { detectBilledDrift, toBilledLineSnapshots } from "@/lib/finance/billedDrift"
+import { readFinanceBillingRecords } from "@/lib/data/readFinance"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 
 /**
@@ -90,11 +89,9 @@ export async function fetchAllPersistedFinanceStatusRows(
   logContextMonth?: string
 ): Promise<PersistedFinanceStatusRow[]> {
   try {
-    const url = xanoUrl("finance_billing_records", "XANO_CLIENTS_BASE_URL")
-    const response = await axios.get(url, { headers: xanoAuthHeaderRecord() })
-    const data = response.data
-    const rows: PersistedFinanceStatusRow[] = Array.isArray(data) ? data : Array.isArray(data?.items) ? data.items : []
-    return rows
+    // DATA_BACKEND_FINANCE / DATA_BACKEND — writes stay on Xano.
+    const rows = await readFinanceBillingRecords()
+    return rows as unknown as PersistedFinanceStatusRow[]
   } catch (error) {
     console.error("[finance-overlay] failed to fetch persisted status", {
       billingMonth: logContextMonth ?? null,

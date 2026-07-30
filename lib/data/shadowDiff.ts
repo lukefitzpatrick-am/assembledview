@@ -14,6 +14,13 @@ export type RowFieldDiff = {
   fields: FieldDiff[]
 }
 
+/**
+ * Diff class for finance shadow mode.
+ * `duplicate-class` = Postgres deduped / Xano still has collapsed extras (EXPECTED).
+ * `unexpected` = real parity regressions.
+ */
+export type ShadowDiffClass = "unexpected" | "duplicate-class"
+
 export type ShadowDiffEvent = {
   at: number
   /** Logical migration domain (e.g. reference / publishers / clients). */
@@ -24,6 +31,13 @@ export type ShadowDiffEvent = {
   missingInPostgres: Array<string | number>
   missingInXano: Array<string | number>
   fieldDiffs: RowFieldDiff[]
+  /**
+   * Subset of `missingInPostgres` tagged as the $3.79M-style double-count class
+   * (Postgres = deduped, Xano = duplicated). Only set for domain=finance.
+   */
+  duplicateClassMissingInPostgres?: Array<string | number>
+  /** Diff class when domain=finance and duplicate-class rows were split out. */
+  diffClass?: ShadowDiffClass
 }
 
 const MAX_EVENTS = 2000
@@ -133,6 +147,19 @@ export type CompareRowsOptions = {
   rateFields?: string[]
   /** Absolute tolerance for rate fields (default `1e-6`). */
   rateEpsilon?: number
+  /**
+   * Finance shadow: when Xano has extras that Postgres collapsed (dedupe),
+   * tag those missingInPostgres ids as duplicate-class (EXPECTED).
+   */
+  financeDuplicateClass?: boolean
+  /**
+   * Natural-key field for duplicate detection (default `invoice_key` for
+   * finance_billing_records; `version_id`+`line_item_id`+`component` handled
+   * via `duplicateNaturalKey`).
+   */
+  duplicateKeyField?: string
+  /** Build a natural key for duplicate-class detection. */
+  duplicateNaturalKey?: (row: Record<string, unknown>) => string | null
 }
 
 export function valuesEqualForCompare(
@@ -167,6 +194,88 @@ export function valuesEqualForCompare(
   }
 
   return xv === pv
+}
+
+function defaultFinanceNaturalKey(
+  table: string,
+  row: Record<string, unknown>
+): string | null {
+  if (table === "finance_billing_records") {
+    const k = row.invoice_key
+    return typeof k === "string" && k.trim() !== "" ? `invoice_key:${k}` : null
+  }
+  if (table === "billing_overrides") {
+    const version =
+      row.version_id ??
+      row.media_plan_version ??
+      row.media_plan_version_id ??
+      row.media_plan_versions_id
+    const line = row.line_item_id ?? row.lineItemId
+    const component = String(row.component ?? "media").trim().toLowerCase() || "media"
+    if (version == null || line == null || String(line).trim() === "") return null
+    return `override:${version}:${String(line).trim()}:${component}`
+  }
+  return null
+}
+
+/**
+ * Split missingInPostgres into duplicate-class (EXPECTED: PG deduped, Xano still
+ * has collapsed extras) vs unexpected. Heuristic for finance domain:
+ * 1) natural-key collision with a kept Postgres row, or
+ * 2) xanoCount > postgresCount with no missingInXano (pure extras on Xano).
+ */
+export function classifyFinanceDuplicateClass(
+  table: string,
+  xanoRows: Record<string, unknown>[],
+  postgresRows: Record<string, unknown>[],
+  missingInPostgres: Array<string | number>,
+  missingInXano: Array<string | number>,
+  options: CompareRowsOptions = {}
+): Array<string | number> {
+  if (missingInPostgres.length === 0) return []
+
+  const naturalKey =
+    options.duplicateNaturalKey ??
+    ((row: Record<string, unknown>) => {
+      if (options.duplicateKeyField) {
+        const v = row[options.duplicateKeyField]
+        return v == null || String(v).trim() === ""
+          ? null
+          : `${options.duplicateKeyField}:${String(v)}`
+      }
+      return defaultFinanceNaturalKey(table, row)
+    })
+
+  const pgKeys = new Set<string>()
+  for (const row of postgresRows) {
+    const k = naturalKey(row)
+    if (k) pgKeys.add(k)
+  }
+
+  const xanoById = new Map<string | number, Record<string, unknown>>()
+  for (const row of xanoRows) {
+    const id = rowId(row)
+    if (id != null) xanoById.set(id, row)
+  }
+
+  const tagged = new Set<string | number>()
+  for (const id of missingInPostgres) {
+    const row = xanoById.get(id)
+    if (!row) continue
+    const k = naturalKey(row)
+    if (k && pgKeys.has(k)) tagged.add(id)
+  }
+
+  // Pure count skew: Xano has extras, Postgres has none missing → duplicate-class.
+  if (
+    tagged.size === 0 &&
+    missingInXano.length === 0 &&
+    xanoRows.length > postgresRows.length
+  ) {
+    for (const id of missingInPostgres) tagged.add(id)
+  }
+
+  return [...tagged]
 }
 
 export function compareReferenceRows(
@@ -219,7 +328,7 @@ export function compareReferenceRows(
     if (fields.length > 0) fieldDiffs.push({ id, fields })
   }
 
-  return {
+  const event: ShadowDiffEvent = {
     at: Date.now(),
     domain,
     table,
@@ -229,6 +338,35 @@ export function compareReferenceRows(
     missingInXano,
     fieldDiffs,
   }
+
+  if (options.financeDuplicateClass || domain === "finance") {
+    const dup = classifyFinanceDuplicateClass(
+      table,
+      xanoRows,
+      postgresRows,
+      missingInPostgres,
+      missingInXano,
+      options
+    )
+    if (dup.length > 0) {
+      event.duplicateClassMissingInPostgres = dup
+      const unexpectedMissing = missingInPostgres.filter((id) => !dup.includes(id))
+      event.diffClass =
+        unexpectedMissing.length === 0 &&
+        missingInXano.length === 0 &&
+        fieldDiffs.length === 0
+          ? "duplicate-class"
+          : "unexpected"
+    } else if (
+      missingInPostgres.length > 0 ||
+      missingInXano.length > 0 ||
+      fieldDiffs.length > 0
+    ) {
+      event.diffClass = "unexpected"
+    }
+  }
+
+  return event
 }
 
 export function recordShadowDiff(event: ShadowDiffEvent): void {
@@ -241,14 +379,18 @@ export function recordShadowDiff(event: ShadowDiffEvent): void {
     event.missingInXano.length +
     event.fieldDiffs.length
   if (mismatchCount > 0) {
+    const dupCount = event.duplicateClassMissingInPostgres?.length ?? 0
     console.warn("[migration-shadow-diff]", {
       domain: event.domain,
       table: event.table,
+      diffClass: event.diffClass ?? "unexpected",
       xanoCount: event.xanoCount,
       postgresCount: event.postgresCount,
       missingInPostgres: event.missingInPostgres.length,
       missingInXano: event.missingInXano.length,
       rowsWithFieldDiffs: event.fieldDiffs.length,
+      duplicateClassMissingInPostgres: dupCount,
+      unexpectedMissingInPostgres: event.missingInPostgres.length - dupCount,
       sampleFieldDiffs: event.fieldDiffs.slice(0, 5),
     })
   }
@@ -260,30 +402,49 @@ type ShadowDiffGroupSummary = {
   totalMissingInPostgres: number
   totalMissingInXano: number
   totalRowsWithFieldDiffs: number
+  /** Finance: EXPECTED double-count class (PG deduped, Xano duplicated). */
+  totalDuplicateClassMissingInPostgres: number
+  /** Finance: missingInPostgres minus duplicate-class. */
+  totalUnexpectedMissingInPostgres: number
   lastEvent: {
     xanoCount: number
     postgresCount: number
     missingInPostgres: number
     missingInXano: number
     rowsWithFieldDiffs: number
+    duplicateClassMissingInPostgres: number
+    unexpectedMissingInPostgres: number
+    diffClass?: ShadowDiffClass
     sampleFieldDiffs: RowFieldDiff[]
   }
 }
 
 function summarizeEventGroup(events: ShadowDiffEvent[]): ShadowDiffGroupSummary {
   const last = events[events.length - 1]!
+  const lastDup = last.duplicateClassMissingInPostgres?.length ?? 0
   return {
     events: events.length,
     lastAt: new Date(last.at).toISOString(),
     totalMissingInPostgres: events.reduce((n, e) => n + e.missingInPostgres.length, 0),
     totalMissingInXano: events.reduce((n, e) => n + e.missingInXano.length, 0),
     totalRowsWithFieldDiffs: events.reduce((n, e) => n + e.fieldDiffs.length, 0),
+    totalDuplicateClassMissingInPostgres: events.reduce(
+      (n, e) => n + (e.duplicateClassMissingInPostgres?.length ?? 0),
+      0
+    ),
+    totalUnexpectedMissingInPostgres: events.reduce((n, e) => {
+      const dup = e.duplicateClassMissingInPostgres?.length ?? 0
+      return n + Math.max(0, e.missingInPostgres.length - dup)
+    }, 0),
     lastEvent: {
       xanoCount: last.xanoCount,
       postgresCount: last.postgresCount,
       missingInPostgres: last.missingInPostgres.length,
       missingInXano: last.missingInXano.length,
       rowsWithFieldDiffs: last.fieldDiffs.length,
+      duplicateClassMissingInPostgres: lastDup,
+      unexpectedMissingInPostgres: Math.max(0, last.missingInPostgres.length - lastDup),
+      diffClass: last.diffClass,
       sampleFieldDiffs: last.fieldDiffs.slice(0, 10),
     },
   }

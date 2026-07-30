@@ -6,11 +6,11 @@ import {
   isFinanceForecastLineKey,
   isFinanceForecastMonthKey,
   isTargetStorageConfigured,
-  fetchRevenueForecastTargetLinesFromXano,
   targetLineNaturalKey,
   upsertRevenueForecastTargetLine,
   upsertRevenueForecastTargetLinesBatch,
 } from "@/lib/finance/forecast/targets/xanoTargetLines"
+import { readRevenueForecastTargetLines } from "@/lib/data/readFinance"
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
 import type {
   FinanceForecastTargetUpsertCell,
@@ -156,7 +156,7 @@ export async function GET(request: NextRequest) {
   const client_id = sp.get("client_id")?.trim() || null
 
   try {
-    const lines = await fetchRevenueForecastTargetLinesFromXano({
+    const lines = await readRevenueForecastTargetLines({
       financial_year_start_year: fy,
       client_id,
     })

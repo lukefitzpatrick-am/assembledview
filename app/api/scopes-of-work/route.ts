@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
 import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { requireRole } from "@/lib/requireRole"
+import { readScopeOfWork } from "@/lib/data/readFinance"
 
 const PER_ATTEMPT_TIMEOUT_MS = 8_000
 const MAX_ATTEMPTS = 2
@@ -61,14 +62,9 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const status = searchParams.get("status")
 
-    let url = xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL")
-    if (status) {
-      url += `?project_status=${status}`
-    }
+    const data = await readScopeOfWork({ projectStatus: status })
 
-    const response = await retryApiCall(() => apiClient.get(url))
-
-    return NextResponse.json(response.data)
+    return NextResponse.json(data)
   } catch (error) {
     console.error("Failed to fetch scopes of work:", error)
     if (axios.isAxiosError(error)) {

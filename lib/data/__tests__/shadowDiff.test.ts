@@ -49,6 +49,7 @@ describe("getDataBackendFor", () => {
     "DATA_BACKEND_PUBLISHERS",
     "DATA_BACKEND_CLIENTS",
     "DATA_BACKEND_KPI",
+    "DATA_BACKEND_FINANCE",
   ] as const
   const prev: Record<string, string | undefined> = {}
 
@@ -74,9 +75,11 @@ describe("getDataBackendFor", () => {
     process.env.DATA_BACKEND_PUBLISHERS = "shadow"
     process.env.DATA_BACKEND_CLIENTS = "postgres"
     process.env.DATA_BACKEND_KPI = "shadow"
+    process.env.DATA_BACKEND_FINANCE = "shadow"
     assert.equal(getDataBackendFor("publishers"), "shadow")
     assert.equal(getDataBackendFor("clients"), "postgres")
     assert.equal(getDataBackendFor("kpi"), "shadow")
+    assert.equal(getDataBackendFor("finance"), "shadow")
     assert.equal(getDataBackendFor("reference"), "xano")
   })
 
@@ -235,5 +238,28 @@ describe("compareReferenceRows + shadow store", () => {
     )
     assert.equal(eventMismatch.fieldDiffs.length, 1)
     assert.equal(eventMismatch.fieldDiffs[0]!.fields[0]!.field, "cpv")
+  })
+
+  it("finance duplicate-class: extras sharing invoice_key tagged EXPECTED", () => {
+    const event = compareReferenceRows(
+      "finance_billing_records",
+      [
+        { id: 1, invoice_key: "media:MBA001:2026-01", total: 100 },
+        { id: 2, invoice_key: "media:MBA001:2026-01", total: 100 },
+      ],
+      [{ id: 1, invoice_key: "media:MBA001:2026-01", total: 100 }],
+      { domain: "finance", financeDuplicateClass: true, postgresKeysOnly: true }
+    )
+    assert.deepEqual(event.missingInPostgres, [2])
+    assert.deepEqual(event.duplicateClassMissingInPostgres, [2])
+    assert.equal(event.diffClass, "duplicate-class")
+    assert.equal(event.fieldDiffs.length, 0)
+
+    recordShadowDiff(event)
+    const summary = summarizeShadowDiffs()
+    const finance = summary.byDomain.find((d) => d.domain === "finance")
+    assert.ok(finance)
+    assert.equal(finance!.totalDuplicateClassMissingInPostgres, 1)
+    assert.equal(finance!.totalUnexpectedMissingInPostgres, 0)
   })
 })

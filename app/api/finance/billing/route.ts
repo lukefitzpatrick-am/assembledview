@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
-import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import {
   parseBillingMonthRangeParams,
   parseBillingTypesQueryParam,
@@ -21,6 +20,7 @@ import {
   fetchRelevantPlanVersionsForFinanceMonths,
 } from "@/lib/finance/relevantPlanVersions"
 import { getCachedClients, getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
+import { readScopeOfWork } from "@/lib/data/readFinance"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
@@ -86,8 +86,8 @@ function versionsFetchErrorResponse(e: unknown): NextResponse {
 
 async function fetchScopesOrNull(): Promise<ScopeOfWorkRow[] | null> {
   try {
-    const scopesResponse = await axios.get(xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL"), { headers: xanoAuthHeaderRecord(), timeout: 15_000, })
-    return Array.isArray(scopesResponse.data) ? scopesResponse.data : []
+    const scopes = await readScopeOfWork()
+    return scopes as unknown as ScopeOfWorkRow[]
   } catch (e: unknown) {
     console.error("[finance-api] billing scope fetch failed", {
       message: e instanceof Error ? e.message : String(e),
