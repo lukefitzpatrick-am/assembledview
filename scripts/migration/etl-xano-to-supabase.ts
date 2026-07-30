@@ -788,6 +788,7 @@ async function main(): Promise<void> {
       ["xero_ap_bills", schema.xeroApBills],
       ["xero_sync_exceptions", schema.xeroSyncExceptions],
       ["xero_sync_log", schema.xeroSyncLog],
+      ["mba_line_approvals", schema.mbaLineApprovals],
     ]
     if (!DRY) await truncateTables(tx, tables.map(([n]) => n))
     for (const [name, table] of tables) {
@@ -823,6 +824,7 @@ async function main(): Promise<void> {
       "tasks",
       "creative_asset",
       "scope_of_work",
+      "mba_line_approvals",
     ]
     for (const t of seqTables) {
       await sql.unsafe(`

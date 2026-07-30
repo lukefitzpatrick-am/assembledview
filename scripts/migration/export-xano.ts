@@ -296,6 +296,18 @@ async function main(): Promise<void> {
 
   console.log(`Found ${tables.length} tables`)
 
+  /** Must appear in every snapshot (PC0+). Fail loud if Metadata API omits them. */
+  const REQUIRED_TABLES = ["mba_line_approvals"] as const
+  const tableNames = new Set(tables.map((t) => t.name))
+  for (const required of REQUIRED_TABLES) {
+    if (!tableNames.has(required)) {
+      console.error(
+        `REQUIRED table missing from workspace export set: ${required}`
+      )
+      process.exit(1)
+    }
+  }
+
   type ManifestTable = {
     id: number
     name: string

@@ -1,6 +1,6 @@
 # `db/` — Supabase schema (migration)
 
-**Source of truth for what is live:** `db/migrations/0001_ported_tables.sql` + `0002_plan_core.sql` + `0003_ava_readonly.sql` + `0004_clients_missing_columns.sql` + `0005_finance_billing_amount_hash.sql` (apply via Supabase SQL Editor; do not `db:migrate` the drizzle baseline).
+**Source of truth for what is live:** `db/migrations/0001_ported_tables.sql` + `0002_plan_core.sql` + `0003_ava_readonly.sql` + `0004_clients_missing_columns.sql` + `0005_finance_billing_amount_hash.sql` + `0006_xero_client_aliases.sql` + `0007_mba_line_approvals.sql` (apply via Supabase SQL Editor; do not `db:migrate` the drizzle baseline).
 
 **Drizzle mirror:** `db/schema/*.ts` — generated from those SQL files (`node scripts/migration/_gen-drizzle-schema.mjs`), then hand-kept in sync.
 
@@ -16,7 +16,7 @@
 | `DIRECT_URL` | drizzle-kit migrations / introspect (port **5432**) |
 | `AVA_DATABASE_URL` | AVA-only pooler (port **6543**) as role `ava_readonly` — **never** postgres/owner |
 | `DATA_BACKEND` | `xano` (default) \| `shadow` \| `postgres` — see `lib/data/backend.ts` |
-| `DATA_BACKEND_REFERENCE` / `DATA_BACKEND_PUBLISHERS` / `DATA_BACKEND_CLIENTS` / `DATA_BACKEND_KPI` | Optional per-domain override of `DATA_BACKEND` |
+| `DATA_BACKEND_REFERENCE` / `DATA_BACKEND_PUBLISHERS` / `DATA_BACKEND_CLIENTS` / `DATA_BACKEND_KPI` / `DATA_BACKEND_FINANCE` / `DATA_BACKEND_PACING` / `DATA_BACKEND_PLANS` / `DATA_BACKEND_APPROVALS` | Optional per-domain override of `DATA_BACKEND` |
 
 ## `ava_readonly` role (0003)
 
@@ -35,6 +35,7 @@ Wire `AVA_DATABASE_URL` to the **transaction pooler** host with that password. R
 - `npm run db:studio`
 - `npm run test:line-item-attrs`
 - `npm run test:shadow-diff`
+- `npm run test:approvals`
 
 ## Naming deviations (ETL)
 

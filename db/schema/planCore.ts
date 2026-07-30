@@ -150,3 +150,33 @@ export const billingOverrides = pgTable(
   ],
 )
 
+/** X5.1 MBA line include/exclude. Absence of a row = approved (all-in). */
+export const mbaLineApprovals = pgTable(
+  "mba_line_approvals",
+  {
+    id: bigint("id", { mode: "number" }).generatedByDefaultAsIdentity().primaryKey(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+    mbaNumber: text("mba_number").notNull(),
+    mediaPlanVersion: integer("media_plan_version").notNull(),
+    lineItemId: text("line_item_id").notNull(),
+    mediaType: text("media_type").notNull(),
+    approved: boolean("approved").notNull().default(true),
+    approvedInVersion: integer("approved_in_version"),
+  },
+  (table) => [
+    unique().on(
+      table.mbaNumber,
+      table.mediaPlanVersion,
+      table.lineItemId,
+      table.mediaType
+    ),
+    index("idx_mba_line_approvals_mba_version").on(
+      table.mbaNumber,
+      table.mediaPlanVersion
+    ),
+    index("idx_mba_line_approvals_line_item_id").on(table.lineItemId),
+  ]
+)
+

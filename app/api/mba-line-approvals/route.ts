@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
-import axios from "axios"
-import { getXanoBaseUrl, parseXanoListPayload, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import { readMbaLineApprovals } from "@/lib/data/readApprovals"
+import { writeMbaLineApprovals } from "@/lib/data/writeApprovals"
 
 export const dynamic = "force-dynamic"
 
-const MEDIA_PLANS_ENV_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
-const XANO_TIMEOUT_MS = 15_000
-
 /**
  * GET /api/mba-line-approvals?mba_number=&media_plan_version=
- * Proxies Xano GET /mba_line_approvals. Absence of rows = all approved.
- * 404 upstream → { lines: [], available: false } (fail-soft).
+ * DATA_BACKEND_APPROVALS / DATA_BACKEND switch (default xano).
+ * Absence of rows = all approved. 404 upstream → { lines: [], available: false }.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -29,30 +26,23 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const baseUrl = getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
-    const response = await axios.get(`${baseUrl}/mba_line_approvals`, { headers: xanoAuthHeaderRecord(), params: {
-        mba_number: mbaNumber,
-        media_plan_version: version,
-      },
-      timeout: XANO_TIMEOUT_MS,
-      validateStatus: (s) => s >= 200 && s < 500, })
-
-    if (response.status === 404) {
-      return NextResponse.json({ lines: [], available: false })
-    }
-    if (response.status >= 400) {
+    const mediaPlanVersion = Number(version)
+    if (!Number.isFinite(mediaPlanVersion)) {
       return NextResponse.json(
-        {
-          error: "Failed to load mba_line_approvals",
-          upstream: response.data,
-          available: false,
-        },
-        { status: response.status }
+        { error: "media_plan_version must be a number" },
+        { status: 400 }
       )
     }
 
-    const rows = parseXanoListPayload(response.data)
-    return NextResponse.json({ lines: rows, available: true })
+    const result = await readMbaLineApprovals(mbaNumber, mediaPlanVersion)
+    if (!result.available) {
+      return NextResponse.json({
+        lines: [],
+        available: false,
+        ...(result.error ? { error: result.error } : {}),
+      })
+    }
+    return NextResponse.json({ lines: result.lines, available: true })
   } catch (error) {
     console.error("[api/mba-line-approvals GET]", error)
     return NextResponse.json(
@@ -65,6 +55,7 @@ export async function GET(request: NextRequest) {
 /**
  * PATCH /api/mba-line-approvals
  * Body: { mba_number, media_plan_version, lines:[{ line_item_id, media_type, approved }] }
+ * Writes follow WRITE_BACKEND (default xano).
  */
 export async function PATCH(request: NextRequest) {
   try {
@@ -84,28 +75,24 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "lines array is required" }, { status: 400 })
     }
 
-    const baseUrl = getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
-    const response = await axios.patch(`${baseUrl}/mba_line_approvals`, {
-        mba_number: body.mba_number,
-        media_plan_version: body.media_plan_version,
-        lines: body.lines,
-      }, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS,
-        validateStatus: (s) => s >= 200 && s < 500, })
+    const result = await writeMbaLineApprovals({
+      mbaNumber: String(body.mba_number),
+      mediaPlanVersion: Number(body.media_plan_version),
+      lines: body.lines,
+    })
 
-    if (response.status === 404) {
+    if (!result.ok) {
       return NextResponse.json(
-        { error: "Approvals API unavailable", available: false },
-        { status: 404 }
-      )
-    }
-    if (response.status >= 400) {
-      return NextResponse.json(
-        { error: "Failed to patch mba_line_approvals", upstream: response.data },
-        { status: response.status }
+        {
+          error: result.error,
+          available: false,
+          ...(result.upstream !== undefined ? { upstream: result.upstream } : {}),
+        },
+        { status: result.status }
       )
     }
 
-    return NextResponse.json({ ok: true, available: true, data: response.data })
+    return NextResponse.json({ ok: true, available: true, data: result.data })
   } catch (error) {
     console.error("[api/mba-line-approvals PATCH]", error)
     return NextResponse.json(

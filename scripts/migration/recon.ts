@@ -72,6 +72,7 @@ const ONE_TO_ONE: Array<{ xano: string; supabase: string; table: keyof typeof sc
   { xano: "xero_ap_bills", supabase: "xero_ap_bills", table: "xeroApBills" },
   { xano: "xero_sync_exceptions", supabase: "xero_sync_exceptions", table: "xeroSyncExceptions" },
   { xano: "xero_sync_log", supabase: "xero_sync_log", table: "xeroSyncLog" },
+  { xano: "mba_line_approvals", supabase: "mba_line_approvals", table: "mbaLineApprovals" },
 ]
 
 async function countTable(db: ReturnType<typeof getDb>, tableName: string): Promise<number> {

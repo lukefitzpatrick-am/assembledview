@@ -22,6 +22,7 @@ export type DataBackendDomain =
   | "finance"
   | "pacing"
   | "plans"
+  | "approvals"
 
 function parseDataBackend(raw: string | undefined): DataBackend {
   const v = (raw ?? "xano").trim().toLowerCase()
