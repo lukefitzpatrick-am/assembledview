@@ -23,7 +23,7 @@ const globalForDb = globalThis as unknown as {
   __avDb?: ReturnType<typeof drizzle<typeof schema>>
 }
 
-function getClient() {
+export function getClient() {
   if (!globalForDb.__avPostgres) {
     globalForDb.__avPostgres = postgres(requireDatabaseUrl(), {
       prepare: false, // required for PgBouncer transaction mode
