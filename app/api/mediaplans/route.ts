@@ -104,17 +104,21 @@ export async function GET(request: NextRequest) {
     if ("response" in gate) return gate.response
 
     try {
-      const { data, stale } = await getCachedMediaPlansList()
+      const { data, stale, fetchedAt } = await getCachedMediaPlansList()
       console.log(
         `[MEDIAPLANS_LIST] cache hit/fresh in ${Date.now() - t0}ms count=${data.length} stale=${stale}`
       )
-      if (stale) {
-        return NextResponse.json(data, {
-          status: 200,
-          headers: { "x-warning": "served-stale-after-upstream-failure" },
-        })
+      const headers: Record<string, string> = {}
+      if (fetchedAt != null) {
+        headers["x-cache-fetched-at"] = String(fetchedAt)
       }
-      return NextResponse.json(data)
+      if (stale) {
+        headers["x-warning"] = "served-stale-after-upstream-failure"
+      }
+      return NextResponse.json(data, {
+        status: 200,
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
+      })
     } catch (versionsError) {
       console.log(
         "MediaPlanVersions failed, trying original endpoint:",

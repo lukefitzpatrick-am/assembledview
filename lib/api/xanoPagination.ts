@@ -151,7 +151,7 @@ export async function fetchAllXanoPagesWithCompleteness(
 
       page += 1
     } catch (error: any) {
-      // Treat 404 as empty, otherwise log and stop.
+      // Treat 404 as empty, otherwise retry once with a short backoff before discarding the walk.
       const status = error?.response?.status
       if (status === 404) {
         break
@@ -162,8 +162,57 @@ export async function fetchAllXanoPagesWithCompleteness(
         status || "",
         error?.message || error
       )
-      complete = false
-      break
+
+      try {
+        await new Promise((r) => setTimeout(r, 400))
+        const retryResponse = await axios.get(url, { headers, timeout: 15000 })
+        const { items: data, nextPage, hasPagedMeta } = extractPagedItems(retryResponse.data)
+        console.warn(`[${label}] Pagination retry succeeded on page ${page}`)
+
+        if (data.length === 0) {
+          break
+        }
+
+        let addedThisPage = 0
+        for (const item of data) {
+          const key = buildKey(item)
+          if (seenKeys.has(key)) continue
+          seenKeys.add(key)
+          results.push(item)
+          addedThisPage++
+        }
+
+        if (i > 0 && addedThisPage === 0) {
+          console.warn(`[${label}] Pagination appears unsupported; stopping early after page ${page}`)
+          break
+        }
+
+        if (hasPagedMeta) {
+          if (nextPage != null && nextPage !== page) {
+            page = nextPage
+            continue
+          }
+          break
+        }
+
+        if (data.length < pageSize) {
+          break
+        }
+
+        page += 1
+      } catch (retryError: any) {
+        const retryStatus = retryError?.response?.status
+        if (retryStatus === 404) {
+          break
+        }
+        console.warn(
+          `[${label}] Pagination retry failed on page ${page}:`,
+          retryStatus || "",
+          retryError?.message || retryError
+        )
+        complete = false
+        break
+      }
     }
   }
 

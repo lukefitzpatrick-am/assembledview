@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { xanoPostHeaderRecord, xanoUrl } from '@/lib/api/xano'
 import { sortLineItemsByLineItemNumber } from '@/lib/mediaplan/lineItemIds'
+import { boundedMap } from '@/lib/utils/boundedMap'
 
 // Track which "no data" messages have already been logged to avoid spam
 const missingLineItemsLogCache = new Set<string>()
@@ -149,9 +150,15 @@ export async function fetchMediaContainerLineItems(
       ? allItems.filter((item: any) => matchesVersion(item, versionNumber) && item.mba_number === mbaNumber)
       : allItems.filter((item: any) => item.mba_number === mbaNumber)
     
-    // Fallback: if we expected a version match but got nothing, refetch without version filters.
-    // Keep MBA matches, preferring version matches but allowing items with missing version fields as last resort.
-    if ((versionNumber !== undefined && versionNumber !== null) && filteredPrimary.length === 0) {
+    // Fallback: if the primary (version-filtered) response had rows but none matched
+    // this version, refetch without version filters. Skip when the unfiltered primary
+    // was empty — the normal case for channels a campaign does not use.
+    if (
+      versionNumber !== undefined &&
+      versionNumber !== null &&
+      filteredPrimary.length === 0 &&
+      allItems.length > 0
+    ) {
       try {
         const fallbackUrl = buildMediaContainerUrl(mediaType, mbaNumber, undefined)
         const fallbackResponse = await apiClient.get(fallbackUrl)
@@ -200,6 +207,32 @@ export async function fetchMediaContainerLineItems(
 }
 
 /**
+ * Bounded per-channel fan-out that never rejects: a single failing channel
+ * returns [] and the rest still resolve (same degradation as the old Promise.all
+ * + per-item catch inside fetchMediaContainerLineItems).
+ * Exported for unit tests.
+ */
+export async function mapMediaContainerFetches<T extends string>(
+  mediaTypes: readonly T[],
+  fetchOne: (mediaType: T) => Promise<MediaContainerLineItem[]>,
+  concurrency = 4
+): Promise<Array<{ mediaType: T; lineItems: MediaContainerLineItem[] }>> {
+  return boundedMap(
+    mediaTypes,
+    async (mediaType) => {
+      try {
+        const lineItems = await fetchOne(mediaType)
+        return { mediaType, lineItems }
+      } catch (e) {
+        console.error(`Error fetching ${mediaType} line items:`, e)
+        return { mediaType, lineItems: [] as MediaContainerLineItem[] }
+      }
+    },
+    concurrency
+  )
+}
+
+/**
  * Fetch all line items for a given MBA number across all media types
  */
 export async function fetchAllMediaContainerLineItems(
@@ -209,23 +242,17 @@ export async function fetchAllMediaContainerLineItems(
 ): Promise<Record<string, MediaContainerLineItem[]>> {
   const results: Record<string, MediaContainerLineItem[]> = {}
   const mediaTypes = mediaTypeFilter && mediaTypeFilter.length > 0 ? mediaTypeFilter : (Object.keys(MEDIA_CONTAINER_ENDPOINTS) as Array<keyof typeof MEDIA_CONTAINER_ENDPOINTS>)
-  
-  // Fetch selected media types in parallel
-  const promises = mediaTypes.map(async (mediaType) => {
-    const lineItems = await fetchMediaContainerLineItems(
-      mediaType,
-      mbaNumber,
-      versionNumber
-    )
-    return { mediaType, lineItems }
-  })
-  
-  const responses = await Promise.all(promises)
-  
+
+  const responses = await mapMediaContainerFetches(
+    mediaTypes,
+    (mediaType) => fetchMediaContainerLineItems(mediaType, mbaNumber, versionNumber),
+    4
+  )
+
   responses.forEach(({ mediaType, lineItems }) => {
     results[mediaType] = lineItems
   })
-  
+
   return results
 }
 
