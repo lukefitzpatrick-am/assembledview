@@ -1,7 +1,7 @@
 import "server-only"
 
 import { xanoUrl, xanoAuthHeader } from "@/lib/api/xano"
-import { getDataBackend } from "@/lib/data/backend"
+import { getDataBackendFor } from "@/lib/data/backend"
 import {
   fetchReferenceTableFromPostgres,
   isReferenceTablePath,
@@ -32,7 +32,9 @@ async function fetchReferenceFromXano(path: ReferenceTablePath): Promise<{
 async function runShadowCompare(path: ReferenceTablePath, xanoBody: unknown): Promise<void> {
   try {
     const postgresRows = await fetchReferenceTableFromPostgres(path)
-    const event = compareReferenceRows(path, xanoBody, postgresRows)
+    const event = compareReferenceRows(path, xanoBody, postgresRows, {
+      domain: "reference",
+    })
     recordShadowDiff(event)
   } catch (err) {
     console.error("[migration-shadow-diff] compare failed", { path, err })
@@ -54,7 +56,7 @@ export async function readReferenceMediaDetail(path: string): Promise<{
     throw new Error(`Not a reference table path: ${path}`)
   }
 
-  const backend = getDataBackend()
+  const backend = getDataBackendFor("reference")
 
   if (backend === "postgres") {
     const rows = await fetchReferenceTableFromPostgres(path)

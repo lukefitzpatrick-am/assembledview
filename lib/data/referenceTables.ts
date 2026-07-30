@@ -5,22 +5,13 @@ import {
   isReferenceTablePath,
   type ReferenceTablePath,
 } from "@/lib/data/referenceTablePaths"
+import { toApiRow } from "@/lib/data/toApiRow"
 
 export {
   REFERENCE_TABLE_PATHS,
   isReferenceTablePath,
   type ReferenceTablePath,
 } from "@/lib/data/referenceTablePaths"
-
-/** Drizzle camelCase → Xano/API snake_case keys clients already consume. */
-function toApiRow(row: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(row)) {
-    const snake = key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
-    out[snake] = value
-  }
-  return out
-}
 
 const TABLE_BY_PATH = {
   tv_stations: schema.tvStations,

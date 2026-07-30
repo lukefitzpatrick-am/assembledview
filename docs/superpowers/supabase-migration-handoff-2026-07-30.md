@@ -34,6 +34,7 @@ Guardrails that make this safe (learned from July, when fixes stranded on localh
 | `270ba7b8` | Prompt 2 — Drizzle schema `db/schema/*` (45 tables, matches live DB, empty-diff gate passed), `db/index.ts`, drizzle.config, `db:generate/migrate/studio`, per-channel `attrs` zod validators + golden test |
 | `235ac76a` | Prompt 3 — ETL (`db:etl`, truncate-and-reload, --dry-run) + recon gate (`db:recon`); helpers reuse billing/finance parsers |
 | `b77d7f52` | Prompt 4 — `DATA_BACKEND` switch, shadow-read for reference tables (`lib/data/backend.ts`, `readReferenceMediaDetail.ts`, `shadowDiff.ts`), `/api/admin/migration-diffs`, 6/6 tests |
+| T2a | `getDataBackendFor(domain)` + `DATA_BACKEND_<DOMAIN>`; shadow-read publishers + clients (`readPublishers.ts`, `readClients.ts`); wired via publishersCache / clientsCache / fetchClientById / lib/api.ts; migration-diffs `byDomain` |
 
 Infra: Supabase project `slpdibnxtpdlttbbczvg` (Sydney, **Free plan** — upgrade to Pro before any production traffic), schema applied via `db/migrations/0001/0002.sql`, **fully loaded and reconciled**: 13,305 line_items / 1,013 versions / 48,026 schedule_months; 0 count mismatches; 0 money deltas >$0.01. $3.79M duplicated budget excluded (270 groups, logged). `.env.local` has `DATABASE_URL`, `DIRECT_URL`, `DATA_BACKEND=shadow` (local diffs collecting). Xero sync XanoScript fully read → rebuild spec: `av-review/xero-sync-rebuild-spec-2026-07-30.md` (~90% conf, 2–4 days).
 
@@ -77,7 +78,7 @@ Freeze Xano writes → final export archive → cancel after 30 days. Confirm ac
 1. jayco016 repair timing (blocks trusting finance data). 2. AVA table allowlist — include finance tables or not at first (recommend: not). 3. PITR add-on at Pro upgrade. 4. Xero contacts-refresh stage (recommend yes). 5. Whether the Xano write-back mirror also covers `media_plan_production` (recommend: yes until finance reads flip).
 
 ## 7. Cherry-pick ledger (append every migration commit here)
-`4252f4e3` → `270ba7b8` → `235ac76a` → `b77d7f52` → T1 disposition close (version=0 fallback + transitive remap + `{}` no-delivery + DISPOSITIONS.md; synthesized master = test123001) → (append SHA after commit; keep hotfixes out of this chain)
+`4252f4e3` → `270ba7b8` → `235ac76a` → `b77d7f52` → T1 disposition close (`5681a493`) → T2a publishers/clients shadow → (record SHA with `git log --grep=T2a -1`; keep hotfixes out of this chain)
 
 ## 8. Key references
 - Kickoff pack (schema Part B + original prompts + addendum): `docs/superpowers/supabase-migration-kickoff-pack-2026-07-30.md`

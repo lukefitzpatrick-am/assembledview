@@ -16,6 +16,8 @@ export type RowFieldDiff = {
 
 export type ShadowDiffEvent = {
   at: number
+  /** Logical migration domain (e.g. reference / publishers / clients). */
+  domain: string
   table: string
   xanoCount: number
   postgresCount: number
@@ -34,20 +36,33 @@ function rowId(row: Record<string, unknown>): string | number | null {
   return null
 }
 
-/** Normalize timestamps so unix vs ISO do not flood the diff log. */
+/** Normalize timestamps / numeric strings so benign Xano↔Postgres shape drift does not flood diffs. */
 export function normalizeComparableValue(value: unknown): unknown {
   if (value == null) return null
   if (typeof value === "boolean") return value
   if (typeof value === "number") {
-    if (value > 1e12) return new Date(value).toISOString()
-    if (value > 1e9) return new Date(value * 1000).toISOString()
+    // Unset Xano timestamps often arrive as 0; Postgres stores epoch.
+    if (value === 0) return null
+    // Unix ms (~1.7e12). Upper-bound keeps 11-digit ABNs out.
+    if (value > 1e12 && value < 1e14) return new Date(value).toISOString()
+    // Unix seconds (~1.7e9). Cap below 1e10 so ABNs (typically 11 digits) stay numeric.
+    if (value > 1e9 && value < 1e10) return new Date(value * 1000).toISOString()
     return value
   }
   if (typeof value === "string") {
     const trimmed = value.trim()
+    if (trimmed === "") return null
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+      const n = Number(trimmed)
+      if (Number.isFinite(n)) return normalizeComparableValue(n)
+    }
     if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
       const t = Date.parse(trimmed)
-      if (!Number.isNaN(t)) return new Date(t).toISOString()
+      if (!Number.isNaN(t)) {
+        // Epoch / unset timestamps → null (matches Xano `created_at: 0`)
+        if (t === 0) return null
+        return new Date(t).toISOString()
+      }
     }
     return trimmed
   }
@@ -79,11 +94,23 @@ function asRecordList(payload: unknown): Record<string, unknown>[] {
   )
 }
 
+export type CompareRowsOptions = {
+  /** Defaults to `table` when omitted (legacy reference-table callers). */
+  domain?: string
+  /**
+   * When true, only compare fields present on the Postgres row (skip Xano-only
+   * columns not yet ported — e.g. clients.facebook_url / client_brain).
+   */
+  postgresKeysOnly?: boolean
+}
+
 export function compareReferenceRows(
   table: string,
   xanoPayload: unknown,
-  postgresRows: Record<string, unknown>[]
+  postgresRows: Record<string, unknown>[],
+  options: CompareRowsOptions = {}
 ): ShadowDiffEvent {
+  const domain = options.domain ?? table
   const xanoRows = asRecordList(xanoPayload)
   const xanoById = new Map<string | number, Record<string, unknown>>()
   const pgById = new Map<string | number, Record<string, unknown>>()
@@ -112,9 +139,14 @@ export function compareReferenceRows(
     const pgRow = pgById.get(id)
     if (!pgRow) continue
     const fields: FieldDiff[] = []
-    const keys = new Set([...Object.keys(xanoRow), ...Object.keys(pgRow)])
+    const keys = options.postgresKeysOnly
+      ? Object.keys(pgRow)
+      : [...new Set([...Object.keys(xanoRow), ...Object.keys(pgRow)])]
     for (const field of keys) {
       if (field === "id") continue
+      // null vs absent is known-benign (Xano omits nulls; Postgres returns nulls).
+      if (!(field in xanoRow) && normalizeComparableValue(pgRow[field]) == null) continue
+      if (!(field in pgRow) && normalizeComparableValue(xanoRow[field]) == null) continue
       const xv = normalizeComparableValue(xanoRow[field])
       const pv = normalizeComparableValue(pgRow[field])
       if (xv !== pv) {
@@ -126,6 +158,7 @@ export function compareReferenceRows(
 
   return {
     at: Date.now(),
+    domain,
     table,
     xanoCount: xanoRows.length,
     postgresCount: postgresRows.length,
@@ -146,6 +179,7 @@ export function recordShadowDiff(event: ShadowDiffEvent): void {
     event.fieldDiffs.length
   if (mismatchCount > 0) {
     console.warn("[migration-shadow-diff]", {
+      domain: event.domain,
       table: event.table,
       xanoCount: event.xanoCount,
       postgresCount: event.postgresCount,
@@ -157,26 +191,47 @@ export function recordShadowDiff(event: ShadowDiffEvent): void {
   }
 }
 
+type ShadowDiffGroupSummary = {
+  events: number
+  lastAt: string
+  totalMissingInPostgres: number
+  totalMissingInXano: number
+  totalRowsWithFieldDiffs: number
+  lastEvent: {
+    xanoCount: number
+    postgresCount: number
+    missingInPostgres: number
+    missingInXano: number
+    rowsWithFieldDiffs: number
+    sampleFieldDiffs: RowFieldDiff[]
+  }
+}
+
+function summarizeEventGroup(events: ShadowDiffEvent[]): ShadowDiffGroupSummary {
+  const last = events[events.length - 1]!
+  return {
+    events: events.length,
+    lastAt: new Date(last.at).toISOString(),
+    totalMissingInPostgres: events.reduce((n, e) => n + e.missingInPostgres.length, 0),
+    totalMissingInXano: events.reduce((n, e) => n + e.missingInXano.length, 0),
+    totalRowsWithFieldDiffs: events.reduce((n, e) => n + e.fieldDiffs.length, 0),
+    lastEvent: {
+      xanoCount: last.xanoCount,
+      postgresCount: last.postgresCount,
+      missingInPostgres: last.missingInPostgres.length,
+      missingInXano: last.missingInXano.length,
+      rowsWithFieldDiffs: last.fieldDiffs.length,
+      sampleFieldDiffs: last.fieldDiffs.slice(0, 10),
+    },
+  }
+}
+
 export type ShadowDiffSummary = {
   since: string
   until: string
   eventCount: number
-  byTable: Array<{
-    table: string
-    events: number
-    lastAt: string
-    totalMissingInPostgres: number
-    totalMissingInXano: number
-    totalRowsWithFieldDiffs: number
-    lastEvent: {
-      xanoCount: number
-      postgresCount: number
-      missingInPostgres: number
-      missingInXano: number
-      rowsWithFieldDiffs: number
-      sampleFieldDiffs: RowFieldDiff[]
-    }
-  }>
+  byDomain: Array<{ domain: string } & ShadowDiffGroupSummary>
+  byTable: Array<{ table: string; domain: string } & ShadowDiffGroupSummary>
 }
 
 export function summarizeShadowDiffs(windowMs = 24 * 60 * 60 * 1000): ShadowDiffSummary {
@@ -184,38 +239,45 @@ export function summarizeShadowDiffs(windowMs = 24 * 60 * 60 * 1000): ShadowDiff
   const since = until - windowMs
   const recent = store.filter((e) => e.at >= since)
   const byTableMap = new Map<string, ShadowDiffEvent[]>()
+  const byDomainMap = new Map<string, ShadowDiffEvent[]>()
   for (const event of recent) {
-    const list = byTableMap.get(event.table) ?? []
-    list.push(event)
-    byTableMap.set(event.table, list)
+    const tableKey = `${event.domain}::${event.table}`
+    const tableList = byTableMap.get(tableKey) ?? []
+    tableList.push(event)
+    byTableMap.set(tableKey, tableList)
+
+    const domainList = byDomainMap.get(event.domain) ?? []
+    domainList.push(event)
+    byDomainMap.set(event.domain, domainList)
   }
 
   const byTable = [...byTableMap.entries()]
-    .map(([table, events]) => {
+    .map(([, events]) => {
       const last = events[events.length - 1]!
       return {
-        table,
-        events: events.length,
-        lastAt: new Date(last.at).toISOString(),
-        totalMissingInPostgres: events.reduce((n, e) => n + e.missingInPostgres.length, 0),
-        totalMissingInXano: events.reduce((n, e) => n + e.missingInXano.length, 0),
-        totalRowsWithFieldDiffs: events.reduce((n, e) => n + e.fieldDiffs.length, 0),
-        lastEvent: {
-          xanoCount: last.xanoCount,
-          postgresCount: last.postgresCount,
-          missingInPostgres: last.missingInPostgres.length,
-          missingInXano: last.missingInXano.length,
-          rowsWithFieldDiffs: last.fieldDiffs.length,
-          sampleFieldDiffs: last.fieldDiffs.slice(0, 10),
-        },
+        table: last.table,
+        domain: last.domain,
+        ...summarizeEventGroup(events),
       }
     })
-    .sort((a, b) => a.table.localeCompare(b.table))
+    .sort((a, b) =>
+      a.domain === b.domain
+        ? a.table.localeCompare(b.table)
+        : a.domain.localeCompare(b.domain)
+    )
+
+  const byDomain = [...byDomainMap.entries()]
+    .map(([domain, events]) => ({
+      domain,
+      ...summarizeEventGroup(events),
+    }))
+    .sort((a, b) => a.domain.localeCompare(b.domain))
 
   return {
     since: new Date(since).toISOString(),
     until: new Date(until).toISOString(),
     eventCount: recent.length,
+    byDomain,
     byTable,
   }
 }

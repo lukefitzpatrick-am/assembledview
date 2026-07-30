@@ -1347,12 +1347,15 @@ async function fetchAllPublishers(): Promise<PublisherRow[]> {
         });
         rows = Array.isArray(data) ? data : [];
       } else {
-        const response = await fetch(publishersEndpoint, { headers: xanoAuthHeaderRecord() });
-        if (!response.ok) {
-          throw new Error(`Failed to fetch publishers (status ${response.status})`);
+        // Server: honor DATA_BACKEND_PUBLISHERS via shared reader (same as /api/publishers).
+        const { readPublishersList } = await import(
+          /* webpackIgnore: true */ "@/lib/data/readPublishers"
+        )
+        const result = await readPublishersList()
+        if (result.status >= 400) {
+          throw new Error(`Failed to fetch publishers (status ${result.status})`)
         }
-        const data = await response.json();
-        rows = Array.isArray(data) ? data : [];
+        rows = Array.isArray(result.body) ? (result.body as PublisherRow[]) : []
       }
       publishersCache = {
         data: rows,
@@ -1404,14 +1407,23 @@ export async function getPublishersForSearch(): Promise<Publisher[]> {
 
 export async function getClientInfo(clientId: string): Promise<ClientInfo | null> {
   try {
-    const response = await fetch(
-      isBrowser ? `/api/clients/${clientId}` : `${CLIENTS_BASE_URL}/clients/${clientId}`,
-      isBrowser ? undefined : { headers: xanoAuthHeaderRecord() },
-    );
-    if (!response.ok) {
-      throw new Error("Failed to fetch client information");
+    let clientInfo: ClientInfo
+    if (isBrowser) {
+      const response = await fetch(`/api/clients/${clientId}`)
+      if (!response.ok) {
+        throw new Error("Failed to fetch client information")
+      }
+      clientInfo = await response.json()
+    } else {
+      const { readClientById } = await import(
+        /* webpackIgnore: true */ "@/lib/data/readClients"
+      )
+      const result = await readClientById(clientId)
+      if (result.status >= 400) {
+        throw new Error("Failed to fetch client information")
+      }
+      clientInfo = result.body as ClientInfo
     }
-    const clientInfo = await response.json();
 
     if (typeof (clientInfo as any).feesearch !== "number") {
       console.warn("feesearch is not a number:", (clientInfo as any).feesearch);

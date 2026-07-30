@@ -94,7 +94,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | Touch | Also check |
 |---|---|
 | Env-key fallback chains in `lib/api/xano.ts` / `xanoClients.ts` | Order matters; `XANO_MEDIA_PLANS_BASE_URL` vs `XANO_MEDIAPLANS_BASE_URL` are live aliases; `XANO_BASE_URL` doubles as the assistant endpoint — see shared-core module page |
-| `DATA_BACKEND` / `lib/data/readReferenceMediaDetail.ts` | Reference-table GETs only today; `shadow` must never change response body; `postgres` needs ETL-loaded Supabase; `/api/admin/migration-diffs` is process-local |
+| `DATA_BACKEND` / `lib/data/readReferenceMediaDetail.ts` / `readPublishers.ts` / `readClients.ts` | Shadow must never change response body; `postgres` needs ETL-loaded Supabase; `/api/admin/migration-diffs` is process-local; per-domain env `DATA_BACKEND_PUBLISHERS` / `DATA_BACKEND_CLIENTS` |
 | `app/api/media-details/[...path]/route.ts` | Allowlist + reference read path; POST create endpoints still Xano-only |
 | `middleware.ts` | Auth-only for `/api/*`; `/api/cron/*` bypassed entirely (only `assertCronSecret`); client-role tenant confinement logic |
 | Any cache module | Two independent clients caches (10min vs 30s) with separate invalidation; 4 of 7 coalesced caches have NO invalidation path; caches are per-lambda on Vercel |
