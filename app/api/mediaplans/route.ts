@@ -4,6 +4,7 @@ import { toMelbourneDateString } from "@/lib/timezone"
 import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { findExistingMasterByMbaNumber } from "@/lib/api/mediaPlanMasterLookup"
 import { requireRole } from "@/lib/requireRole"
+import { resolveClientMbaScope } from "@/lib/auth/checkClientMbaAccess"
 import {
   fetchMediaPlansListFallback,
   getCachedMediaPlansList,
@@ -97,16 +98,33 @@ export async function POST(request: NextRequest) {
   }
 }
 
+function planMbaNumber(plan: unknown): string {
+  if (!plan || typeof plan !== "object") return ""
+  const raw = (plan as { mba_number?: unknown }).mba_number
+  return typeof raw === "string" ? raw.trim() : String(raw ?? "").trim()
+}
+
 export async function GET(request: NextRequest) {
   const t0 = Date.now()
   try {
-    const gate = await requireRole(request, ["admin", "manager"])
-    if ("response" in gate) return gate.response
+    // Staff: full list (unchanged). Clients: same list source, filtered to MBA scope.
+    const scope = await resolveClientMbaScope(request)
+    if (!scope.ok) return scope.response
+    if (!scope.isClient) {
+      // Non-client must still be admin/manager (role-less sessions fail closed).
+      const gate = await requireRole(request, ["admin", "manager"])
+      if ("response" in gate) return gate.response
+    }
 
     try {
       const { data, stale, fetchedAt } = await getCachedMediaPlansList()
+      const plans = scope.isClient
+        ? data.filter((plan) => scope.allows(planMbaNumber(plan)))
+        : data
       console.log(
-        `[MEDIAPLANS_LIST] cache hit/fresh in ${Date.now() - t0}ms count=${data.length} stale=${stale}`
+        `[MEDIAPLANS_LIST] cache hit/fresh in ${Date.now() - t0}ms count=${plans.length}` +
+          (scope.isClient ? ` (client-filtered from ${data.length})` : "") +
+          ` stale=${stale}`
       )
       const headers: Record<string, string> = {}
       if (fetchedAt != null) {
@@ -115,7 +133,7 @@ export async function GET(request: NextRequest) {
       if (stale) {
         headers["x-warning"] = "served-stale-after-upstream-failure"
       }
-      return NextResponse.json(data, {
+      return NextResponse.json(plans, {
         status: 200,
         headers: Object.keys(headers).length > 0 ? headers : undefined,
       })
@@ -127,10 +145,13 @@ export async function GET(request: NextRequest) {
 
       try {
         const mergedFallbackData = await fetchMediaPlansListFallback()
+        const plans = scope.isClient
+          ? mergedFallbackData.filter((plan) => scope.allows(planMbaNumber(plan)))
+          : mergedFallbackData
         console.log(
-          `[MEDIAPLANS_LIST] fallback in ${Date.now() - t0}ms count=${mergedFallbackData.length}`
+          `[MEDIAPLANS_LIST] fallback in ${Date.now() - t0}ms count=${plans.length}`
         )
-        return NextResponse.json(mergedFallbackData)
+        return NextResponse.json(plans)
       } catch (fallbackError) {
         console.error("Fallback endpoint also failed:", fallbackError)
         throw versionsError

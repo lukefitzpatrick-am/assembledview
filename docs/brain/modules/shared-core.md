@@ -28,7 +28,7 @@ The server-side data-access + identity layer everything sits on: Xano URL/auth c
 - `lib/auth0.ts` — singleton; throws at import on missing env (app-wide outage). `beforeSessionSaved` persists namespaced custom claims (dual-domain `.com`/`.com.au` + env-overridable).
 - `lib/rbac.ts` (53 importers, edge-safe) — roles admin/manager/client; 4-tier resolution (namespaced claim → app_metadata → user_metadata → permission inference); numeric-only client slugs rejected; role-less valid session = authenticated but every requireRole 403s (Auth0 Post-Login Action must be enabled).
 - `middleware.ts` — Auth0 session roll → `/api/*` 401 JSON if no session; pages redirect to login; client-role users confined to `/dashboard/{their-slug}`. **Authentication only — tenant isolation is per-handler** (SEC-8). Bypasses: `/auth/*`, `/api/auth/*`, **`/api/cron/*`** (only `assertCronSecret` protects crons), static.
-- Gates: `requireAdmin`, `requireFinanceAdmin` (all finance routes), `requireRole(["admin","manager"])`, `checkClientMbaAccess` (bulk + per-channel pacing POSTs, campaign KPI GET, MBA/creative/delivery reads; its exact-equality fallback effectively always denies — SEC-9).
+- Gates: `requireAdmin`, `requireFinanceAdmin` (all finance routes), `requireRole(["admin","manager"])`, `checkClientMbaAccess` / `resolveClientMbaScope` (bulk + per-channel pacing POSTs, campaign KPI GET, MBA/creative/delivery, mediaplans list filter; fallback uses `mbaNumberMatchesClientIdentifier` — SEC-9 FIXED).
 - `lib/auth/getCurrentUser.ts` — audit identity; numeric id is always 0 (no Xano users table); identity lives in `*_name` fields.
 - Known: two Auth0 client instances exist (`lib/utils/auth.ts` vs `lib/auth0.ts`) — unresolved which new helpers should use.
 

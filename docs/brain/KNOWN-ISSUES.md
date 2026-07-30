@@ -7,14 +7,14 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | ID | Issue | Status |
 |---|---|---|
 | SEC-1 | Two catch-all Xano proxies (`/api/media_plans/[...path]`, `/api/media-details/[...path]`) accept any authenticated session and forward with server `XANO_API_KEY`. Allowlist (`proxyAllowlist.ts`) constrains paths/methods but not tenant | Open |
-| SEC-2 | `GET /api/mediaplans` returns ALL clients' plans to any admin/manager — no per-caller filter (role-gated only) | Open |
-| SEC-3 | `PUT`/`PATCH` on `/api/mediaplans/mba/[mba_number]` skip the `checkClientMbaAccess` that GET enforces | Verify — a WIP-TRIAGE fix was staged; confirm it landed |
+| SEC-2 | `GET /api/mediaplans` returns ALL clients' plans to any admin/manager — no per-caller filter (role-gated only) | FIXED (SEC-B) — clients get MBA-scoped list via `resolveClientMbaScope`; admin/manager still see all |
+| SEC-3 | `PUT`/`PATCH` on `/api/mediaplans/mba/[mba_number]` skip the `checkClientMbaAccess` that GET enforces | Verified FIXED (`ff648830`) — both PUT and PATCH call `checkClientMbaAccess` |
 | SEC-4 | `GET /api/dashboard/[slug]` has no tenant match for client users | FIXED (SEC-A) — slug must be in caller's `getUserClientSlugs`; admin unscoped (gate landed earlier; register closed in SEC-A) |
 | SEC-5 | Finance + client admin APIs are session-only in places; two routes carry literal `// allow access for development` comments (`app/api/clients/route.ts`, `app/api/mba/generate/route.ts`) | Doc-route half FIXED (PC3): `/api/mba/generate` + mediaplans generate-pdf / download / documents + scopes-of-work/generate-pdf now `requireRole(admin\|manager)`; MBA accepts `{mba_number,version_number}` only from persisted rows. Clients-route half remains Open (SEC pack). |
 | SEC-6 | Most `/api/kpis/*` write methods have no authz | FIXED (SEC-A) — all writes `requireRole(["admin","manager"])` |
 | SEC-7 | `/api/pacing/programmatic/{display,video}` and `/api/pacing/social/{meta,tiktok}` have **no authorization gate** — any authenticated client user can read another tenant's delivery data (compare `/api/pacing/bulk` which checks) | FIXED (SEC-A) — same `checkClientMbaAccess` + line-item prefix gate as `/api/pacing/bulk` |
 | SEC-8 | Middleware enforces authentication only on `/api/*`; tenant isolation is per-handler and only ~13 routes check. `/api/cron/*` bypasses middleware entirely (protected only by `assertCronSecret`) | By design — but every new API route must add its own tenant check |
-| SEC-9 | `checkClientMbaAccess` fallback uses exact equality `mbaNumber === mbaidentifier` (e.g. `PENFOLD001` vs `PENFOLD`) so it effectively always denies — client users MUST have `app_metadata.mba_numbers`. The working prefix-matcher `mbaNumberMatchesClientIdentifier.ts` exists but is imported only by its own test | Open |
+| SEC-9 | `checkClientMbaAccess` fallback uses exact equality `mbaNumber === mbaidentifier` (e.g. `PENFOLD001` vs `PENFOLD`) so it effectively always denies — client users MUST have `app_metadata.mba_numbers`. The working prefix-matcher `mbaNumberMatchesClientIdentifier.ts` exists but is imported only by its own test | FIXED (SEC-B) — fallback uses `mbaNumberMatchesClientIdentifier`; `mba_numbers` remains primary |
 
 ## Data integrity (DI-*)
 
@@ -74,7 +74,7 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | D-3 | `lib/billing.ts` (legacy) — no importers |
 | D-4 | `lib/pacing/calcExpected.ts` — types only, no importers; `lib/pacing/mockMetaPacing.ts` is NOT mock — canonical home of production types |
 | D-5 | `lib/delivery/programmatic/_prog_extract.txt` — 780 lines of live-looking TS checked in as .txt |
-| D-6 | `lib/auth/mbaNumberMatchesClientIdentifier.ts` — working prefix matcher imported only by its own test (see SEC-9) |
+| D-6 | `lib/auth/mbaNumberMatchesClientIdentifier.ts` — FIXED (SEC-B): wired into `checkClientMbaAccess` / `resolveClientMbaScope` (was test-only; see SEC-9) | FIXED (SEC-B) — wired into `checkClientMbaAccess` / `resolveClientMbaScope` |
 | D-7 | Several channel routes import axios unused; cinema route POSTs to `cinema_line_items` while GET reads `media_plan_cinema` |
 | D-8 | `app/management/page.tsx` is a stub; `docs/design-refresh/BASELINE.md` is an unfilled template |
 | D-9 | `lib/codex/**` is the Tasks domain, not AVA — naming is misleading |

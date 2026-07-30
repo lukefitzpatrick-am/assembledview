@@ -17,6 +17,13 @@ test("PENFOLD identifier allows PENFOLD001 and PENFOLD021", () => {
   assert.equal(mbaNumberMatchesClientIdentifier("penfold001", "PENFOLD"), true)
 })
 
+test("PEN vs PENFOLD-A: short prefix must not over-grant", () => {
+  // Identifier PEN must not open PENFOLD* or hyphenated near-matches
+  assert.equal(mbaNumberMatchesClientIdentifier("PENFOLD-A", "PEN"), false)
+  assert.equal(mbaNumberMatchesClientIdentifier("PENFOLD001", "PEN"), false)
+  assert.equal(mbaNumberMatchesClientIdentifier("PEN001", "PEN"), true)
+})
+
 test("no prefix bleed between PENF and PENFOLD", () => {
   // PENF caller must not open PENFOLD* MBAs
   assert.equal(mbaNumberMatchesClientIdentifier("PENFOLD001", "PENF"), false)

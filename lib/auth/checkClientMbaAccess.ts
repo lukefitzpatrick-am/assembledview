@@ -2,19 +2,36 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles, getUserClientIdentifier, getUserMbaNumbers } from "@/lib/rbac"
 import { fetchXanoClientRowByUrlSlug } from "@/lib/clients/fetchClientRowByUrlSlug"
+import { mbaNumberMatchesClientIdentifier } from "@/lib/auth/mbaNumberMatchesClientIdentifier"
 
 export type ClientMbaAccess =
   | { ok: true; isClient: boolean }
   | { ok: false; response: NextResponse }
 
+export type ClientMbaScope =
+  | { ok: false; response: NextResponse }
+  | {
+      ok: true
+      isClient: boolean
+      /** True when the caller may access this MBA number. */
+      allows: (mbaNumber: string) => boolean
+    }
+
 function forbiddenResponse(): NextResponse {
   return NextResponse.json({ error: "forbidden" }, { status: 403 })
 }
 
-export async function checkClientMbaAccess(
-  request: NextRequest,
-  mbaNumber: string
-): Promise<ClientMbaAccess> {
+/**
+ * Resolve the caller's MBA scope once (staff = unrestricted; client = mba_numbers
+ * list or mbaidentifier prefix matcher). Prefer this for list endpoints so the
+ * Xano client-row lookup is not repeated per row.
+ *
+ * Primary path: `app_metadata.mba_numbers` (exact membership).
+ * Fallback: `mbaNumberMatchesClientIdentifier` against the client's `mbaidentifier`.
+ */
+export async function resolveClientMbaScope(
+  request: NextRequest
+): Promise<ClientMbaScope> {
   const session = await auth0.getSession(request)
   if (!session?.user) {
     return {
@@ -25,32 +42,25 @@ export async function checkClientMbaAccess(
 
   const roles = getUserRoles(session.user)
   if (!roles.includes("client")) {
-    return { ok: true, isClient: false }
+    return { ok: true, isClient: false, allows: () => true }
   }
 
   const email = (session.user as { email?: string }).email
 
   const mbaList = getUserMbaNumbers(session.user)
   if (mbaList.length > 0) {
-    const mbaMatches = mbaList.some(
-      (mba) => mba.toLowerCase() === mbaNumber.toLowerCase()
-    )
-    if (mbaMatches) {
-      return { ok: true, isClient: true }
+    const normalized = new Set(mbaList.map((mba) => mba.toLowerCase()))
+    return {
+      ok: true,
+      isClient: true,
+      allows: (mbaNumber: string) => normalized.has(mbaNumber.toLowerCase()),
     }
-    console.warn("[checkClientMbaAccess] MBA number not assigned to user", {
-      email,
-      requestedMba: mbaNumber,
-      assignedMbaNumbers: mbaList,
-    })
-    return { ok: false, response: forbiddenResponse() }
   }
 
   const slug = getUserClientIdentifier(session.user)
   if (!slug) {
     console.warn("[checkClientMbaAccess] Client user missing client identifier", {
       email,
-      requestedMba: mbaNumber,
     })
     return { ok: false, response: forbiddenResponse() }
   }
@@ -63,30 +73,42 @@ export async function checkClientMbaAccess(
       console.warn("[checkClientMbaAccess] Client row missing mbaidentifier", {
         email,
         userClientSlug: slug,
-        requestedMba: mbaNumber,
       })
       return { ok: false, response: forbiddenResponse() }
     }
 
-    // AuthZ: exact MBA match only (startsWith was overly broad / fail-open).
-    if (mbaNumber.toLowerCase() === mbaidentifier.toLowerCase()) {
-      return { ok: true, isClient: true }
+    return {
+      ok: true,
+      isClient: true,
+      allows: (mbaNumber: string) =>
+        mbaNumberMatchesClientIdentifier(mbaNumber, mbaidentifier),
     }
-
-    console.warn("[checkClientMbaAccess] MBA number does not match client mbaidentifier", {
-      email,
-      userClientSlug: slug,
-      mbaidentifier,
-      requestedMba: mbaNumber,
-    })
-    return { ok: false, response: forbiddenResponse() }
   } catch (err) {
     console.warn("[checkClientMbaAccess] Failed to resolve client row for MBA access check", {
       email,
       userClientSlug: slug,
-      requestedMba: mbaNumber,
       err,
     })
     return { ok: false, response: forbiddenResponse() }
   }
+}
+
+export async function checkClientMbaAccess(
+  request: NextRequest,
+  mbaNumber: string
+): Promise<ClientMbaAccess> {
+  const scope = await resolveClientMbaScope(request)
+  if (!scope.ok) return scope
+
+  if (scope.allows(mbaNumber)) {
+    return { ok: true, isClient: scope.isClient }
+  }
+
+  if (scope.isClient) {
+    console.warn("[checkClientMbaAccess] MBA number not in caller scope", {
+      requestedMba: mbaNumber,
+    })
+  }
+
+  return { ok: false, response: forbiddenResponse() }
 }
