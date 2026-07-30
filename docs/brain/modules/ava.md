@@ -1,13 +1,13 @@
 # Module: AVA (AI Assistant)
 
-In-product Claude agent mounted as a floating chat widget on every page. Reads a `PageContext` snapshot published through a window-global bridge, calls ~21 server-side tools, can write back into the page (form patches, line-item loads) and generate downloadable artefacts. Claude-only; admin-only.
+In-product Claude agent mounted as a floating chat widget on every page. Reads a `PageContext` snapshot published through a window-global bridge, calls 26 server-side tools, can write back into the page (form patches, line-item loads) and generate downloadable artefacts. Claude-only; admin-only.
 
 ## Key files
 
 - `app/api/chat-v2/route.ts` — the ONLY chat endpoint. Session → admin gate → `AVA_ENGINE=off` kill switch → `ANTHROPIC_API_KEY` check → system prompt + tool context → `runAvaAgent`. `maxDuration=60`, non-streaming. Holds `AVA_V2_APPENDIX` (per-tool usage catalogue).
 - `lib/ava/agentLoop.ts` — tool-use loop; wraps tool throws as failures (never crashes a turn); optional Anthropic server web search (max 3 uses); `AVA_MAX_TOOL_ITERATIONS = 8`.
 - `lib/ava/anthropic.ts` — singleton client + `AVA_MODEL` (`ANTHROPIC_MODEL` env). **Shared with non-AVA features**: ad-copy, search-copy, researchClient.
-- `lib/ava/tools/registry.ts` — registers 21 tools; **throws at module load** if order/names diverge from `AVA_TOOL_NAMES` in `summaries.ts` → 500s the whole route. Reads: campaign context, media plan summary, client details/brain, pacing snapshot, delivery snapshot, creative assets, naming rules, saved audiences, best practice, methodology, platform specs. Writes: `applyFormPatch`, `applyParsedPlan`, `adjustLineItems`, `saveClientBrain`. Artefacts: MI workbook, naming workbook, performance report.
+- `lib/ava/tools/registry.ts` — registers 26 tools; **throws at module load** if order/names diverge from `AVA_TOOL_NAMES` in `summaries.ts` → 500s the whole route. Reads: campaign context, media plan summary, client details/brain, pacing snapshot, delivery snapshot, creative assets, naming rules, saved audiences, best practice, methodology, platform specs, plus five Postgres consolidated-model tools (`query_campaign_lines`, `query_schedule_months`, `search_line_items`, `query_finance_summary`, `query_xero_status` via `db/avaClient.ts` + `AVA_DATABASE_URL`). Writes: `applyFormPatch`, `applyParsedPlan`, `adjustLineItems`, `saveClientBrain`. Artefacts: MI workbook, naming workbook, performance report.
 - `lib/assistantBridge.ts` — the client↔AVA seam: `window.__AV_ASSISTANT__` `{summary, actions, pageContext}`; typed action handlers; `ava:open-chat` CustomEvent. 12 provider call sites; breakage is silent (window global).
 - `lib/ava/buildAvaSystemPrompt.ts` — truncating PageContext serialiser (6,000 chars, depth 6).
 - `components/ChatWidget.tsx` (~1k lines) — the UI; also POSTs xlsx to `/api/processPlan` (plan autopopulate).
@@ -17,7 +17,7 @@ In-product Claude agent mounted as a floating chat widget on every page. Reads a
 
 ## Depends on
 
-Nearly everything (read tools): media-containers API, pacing caches + maths, delivery snapshot, finance xanoReferenceCache, clients cache, naming templates/compose, creative xano assets, planning meta, specs, RBAC.
+Nearly everything (read tools): media-containers API, pacing caches + maths, delivery snapshot, finance xanoReferenceCache, clients cache, naming templates/compose, creative xano assets, planning meta, specs, RBAC. Postgres plan/finance/xero reads go through `db/avaClient.ts` (`AVA_DATABASE_URL` only) when configured.
 
 ## Consumed by
 

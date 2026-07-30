@@ -72,6 +72,11 @@ export const AVA_TOOL_NAMES = [
   "generate_performance_report",
   "get_client_brain",
   "save_client_brain",
+  "query_campaign_lines",
+  "query_schedule_months",
+  "search_line_items",
+  "query_finance_summary",
+  "query_xero_status",
 ] as const
 
 export function summariseClientDetails(raw: Record<string, unknown>) {
