@@ -92,11 +92,23 @@ export function explodeScheduleToMonthRows(
   basis: ScheduleBasis,
   raw: unknown
 ): ScheduleExplodeResult {
+  // Empty object `{}` / `{ months: [] }` are no-delivery sentinels in legacy
+  // Xano blobs (curatif002 v1/v2, malay001 v2) — not parse failures, not $0.
+  const isEmptyObject =
+    raw != null &&
+    typeof raw === "object" &&
+    !Array.isArray(raw) &&
+    (Object.keys(raw as object).length === 0 ||
+      (Array.isArray((raw as { months?: unknown }).months) &&
+        (raw as { months: unknown[] }).months.length === 0 &&
+        Object.keys(raw as object).every((k) => k === "months")))
+
   const isEmpty =
     raw == null ||
     raw === "" ||
     (typeof raw === "string" && !raw.trim()) ||
-    (Array.isArray(raw) && raw.length === 0)
+    (Array.isArray(raw) && raw.length === 0) ||
+    isEmptyObject
 
   if (isEmpty) return { rows: [], failureReason: null }
 

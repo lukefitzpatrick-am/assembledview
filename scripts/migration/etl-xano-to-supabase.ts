@@ -538,7 +538,8 @@ async function main(): Promise<void> {
       versionsByMba.set(key, list)
     }
 
-    // Remap line-item version_ids that pointed at collapsed-away versions
+    // Remap line-item version_ids that pointed at collapsed-away versions.
+    // Chains are resolved transitively in resolveRemappedVersionId.
     const versionRemap = new Map<number, number>()
     for (const d of versionDupes) {
       versionRemap.set(d.dropped_id as number, d.kept_id as number)

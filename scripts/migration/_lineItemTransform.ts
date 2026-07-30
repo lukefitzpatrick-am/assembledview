@@ -137,6 +137,37 @@ function buildAttrs(channel: LineChannel, row: JsonlRow): Record<string, unknown
   return attrs
 }
 
+/**
+ * Follow version-duplicate remaps to the final kept id (chains like
+ * 773→774→775→776→777). One-hop remaps leave intermediate dropped ids
+ * unresolved and were the source of production-skips on PENFOLD017/jayco013.
+ */
+export function resolveRemappedVersionId(
+  id: number,
+  versionRemap?: Map<number, number>
+): number {
+  if (!versionRemap?.size) return id
+  let cur = id
+  const seen = new Set<number>()
+  while (versionRemap.has(cur) && !seen.has(cur)) {
+    seen.add(cur)
+    cur = versionRemap.get(cur)!
+  }
+  return cur
+}
+
+function resolveByMbaPlanNumber(
+  row: JsonlRow,
+  versionsByMba: Map<string, VersionRef[]>
+): { versionId: number | null; mba: string; planNum: number | null } {
+  const mba = String(row.mba_number ?? "").trim()
+  const planNum = asInt(row.mp_plannumber)
+  if (!mba || planNum == null) return { versionId: null, mba, planNum }
+  const candidates = versionsByMba.get(mba.toLowerCase()) ?? []
+  const match = candidates.find((v) => v.versionNumber === planNum)
+  return { versionId: match?.id ?? null, mba, planNum }
+}
+
 function resolveVersionId(
   channel: LineChannel,
   row: JsonlRow,
@@ -144,14 +175,21 @@ function resolveVersionId(
   versionsByMba: Map<string, VersionRef[]>,
   versionRemap?: Map<number, number>
 ): { versionId: number | null; skip?: ProductionSkip } {
+  // 0 is a sentinel / unset in Xano exports — never a real version id.
   let direct = asInt(row.media_plan_version)
-  if (direct != null && versionRemap?.has(direct)) {
-    direct = versionRemap.get(direct)!
-  }
-  if (direct != null && versionsById.has(direct)) {
-    return { versionId: direct }
-  }
-  if (direct != null && !versionsById.has(direct)) {
+  if (direct === 0) direct = null
+
+  if (direct != null) {
+    direct = resolveRemappedVersionId(direct, versionRemap)
+    if (versionsById.has(direct)) {
+      return { versionId: direct }
+    }
+    // Dropped/missing id: try mba_number + mp_plannumber before skipping
+    // (addendum §6; also rescues phantom FKs like krusty004 → version 55).
+    const fallback = resolveByMbaPlanNumber(row, versionsByMba)
+    if (fallback.versionId != null) {
+      return { versionId: fallback.versionId }
+    }
     return {
       versionId: null,
       skip: {
@@ -163,47 +201,37 @@ function resolveVersionId(
     }
   }
 
-  // Production (and any other version-less row): mba_number + mp_plannumber
-  if (channel !== "production" && direct == null) {
+  // Version-less row (production table, or media_plan_version unset/0):
+  // map via mba_number + mp_plannumber (Prompt 3 addendum §6).
+  const fallback = resolveByMbaPlanNumber(row, versionsByMba)
+  if (fallback.versionId != null) {
+    return { versionId: fallback.versionId }
+  }
+
+  if (!fallback.mba || fallback.planNum == null) {
     return {
       versionId: null,
       skip: {
         xano_id: asInt(row.id) ?? 0,
-        mba_number: String(row.mba_number ?? ""),
+        mba_number: fallback.mba,
         mp_plannumber: String(row.mp_plannumber ?? ""),
-        reason: "missing media_plan_version on non-production channel",
+        reason:
+          channel === "production"
+            ? "production row missing mba_number or mp_plannumber"
+            : "missing media_plan_version and mba_number/mp_plannumber",
       },
     }
   }
 
-  const mba = String(row.mba_number ?? "").trim()
-  const planNum = asInt(row.mp_plannumber)
-  if (!mba || planNum == null) {
-    return {
-      versionId: null,
-      skip: {
-        xano_id: asInt(row.id) ?? 0,
-        mba_number: mba,
-        mp_plannumber: String(row.mp_plannumber ?? ""),
-        reason: "production row missing mba_number or mp_plannumber",
-      },
-    }
+  return {
+    versionId: null,
+    skip: {
+      xano_id: asInt(row.id) ?? 0,
+      mba_number: fallback.mba,
+      mp_plannumber: String(fallback.planNum),
+      reason: `no version with version_number=${fallback.planNum} for MBA ${fallback.mba}`,
+    },
   }
-
-  const candidates = versionsByMba.get(mba.toLowerCase()) ?? []
-  const match = candidates.find((v) => v.versionNumber === planNum)
-  if (!match) {
-    return {
-      versionId: null,
-      skip: {
-        xano_id: asInt(row.id) ?? 0,
-        mba_number: mba,
-        mp_plannumber: String(planNum),
-        reason: `no version with version_number=${planNum} for MBA ${mba}`,
-      },
-    }
-  }
-  return { versionId: match.id }
 }
 
 function synthesizeLineItemId(
