@@ -98,7 +98,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | `app/api/media-details/[...path]/route.ts` | Allowlist + reference read path; POST create endpoints still Xano-only |
 | `middleware.ts` | Auth-only for `/api/*`; `/api/cron/*` bypassed entirely (only `assertCronSecret`); client-role tenant confinement logic |
 | Any cache module | Two independent clients caches (10min vs 30s) with separate invalidation; 4 of 7 coalesced caches have NO invalidation path; caches are per-lambda on Vercel |
-| `lib/api.ts` module scope | Throws at import server-side if publisher/client base URLs unset; imported by client components so no Node-only deps (reference reads use dynamic `import()` of server-only modules) |
+| `lib/api.ts` module scope | Throws at import server-side if publisher/client base URLs unset; imported by client components so no Node-only deps (reference reads use dynamic `import(/* webpackIgnore: true */)` of server-only modules — without `webpackIgnore`, `next build` fails on create/edit) |
 
 ## Duplication map (fix must be applied N times)
 
