@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
-import { xanoUrl, xanoAuthHeader } from '@/lib/api/xano'
+import { xanoUrl, xanoAuthHeader } from "@/lib/api/xano"
 import { checkMediaDetailsProxyPath } from "@/lib/security/proxyAllowlist"
+import { getDataBackend } from "@/lib/data/backend"
+import { isReferenceTablePath } from "@/lib/data/referenceTables"
+import { readReferenceMediaDetail } from "@/lib/data/readReferenceMediaDetail"
 
 type Params = { params: Promise<{ path: string[] }> }
 
@@ -16,6 +19,33 @@ async function proxyRequest(request: Request, { params }: Params, method: string
   if (!gate.allowed) {
     console.warn(`[proxy-allowlist] blocked ${method} ${pathSegments.join("/")} (${gate.reason})`)
     return NextResponse.json({ error: "forbidden" }, { status: 403 })
+  }
+
+  // Reference-table GETs honor DATA_BACKEND=xano|shadow|postgres (default xano).
+  if (method === "GET" && pathSegments.length === 1 && isReferenceTablePath(pathSegments[0])) {
+    try {
+      const result = await readReferenceMediaDetail(pathSegments[0])
+      if (typeof result.body === "string") {
+        return new NextResponse(result.body, {
+          status: result.status,
+          headers: { "content-type": result.contentType || "text/plain" },
+        })
+      }
+      return NextResponse.json(result.body, { status: result.status })
+    } catch (error: any) {
+      console.error("[media-details reference read] error", {
+        path: pathSegments[0],
+        backend: getDataBackend(),
+        error,
+      })
+      return NextResponse.json(
+        {
+          error: "Failed to read media details reference data",
+          details: error?.message || "Unknown error",
+        },
+        { status: 500 }
+      )
+    }
   }
 
   try {
@@ -39,7 +69,7 @@ async function proxyRequest(request: Request, { params }: Params, method: string
         "Content-Type": request.headers.get("content-type") || "application/json",
         ...xanoAuthHeader(),
       },
-      body: body && body.length > 0 ? body : undefined
+      body: body && body.length > 0 ? body : undefined,
     })
 
     const contentType = upstream.headers.get("content-type") || ""
@@ -53,7 +83,7 @@ async function proxyRequest(request: Request, { params }: Params, method: string
 
     return new NextResponse(responseBody, {
       status: upstream.status,
-      headers: { "content-type": contentType || "text/plain" }
+      headers: { "content-type": contentType || "text/plain" },
     })
   } catch (error: any) {
     console.error("[media-details proxy] error", error)

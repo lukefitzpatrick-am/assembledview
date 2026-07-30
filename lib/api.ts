@@ -1125,6 +1125,21 @@ export async function getMediaPlanVersionByMBA(mba_number: string) {
 }
 
 async function fetchMediaDetail(path: string) {
+  // Server: reference tables honor DATA_BACKEND via shared reader (same as proxy).
+  if (!isBrowser) {
+    const { isReferenceTablePath } = await import("@/lib/data/referenceTablePaths")
+    if (isReferenceTablePath(path)) {
+      const { readReferenceMediaDetail } = await import(
+        "@/lib/data/readReferenceMediaDetail"
+      )
+      const result = await readReferenceMediaDetail(path)
+      if (result.status < 200 || result.status >= 300) {
+        throw new Error(`Failed to fetch media details: ${path}`)
+      }
+      return result.body
+    }
+  }
+
   const url = isBrowser ? `/api/media-details/${path}` : `${MEDIA_DETAILS_BASE_URL}/${path}`
   const response = await fetch(url, { headers: xanoAuthHeaderRecord() })
   if (!response.ok) {
@@ -1171,11 +1186,7 @@ export async function getDisplaySites(): Promise<DisplaySite[]> {
 }
 
 export async function getBVODSites(): Promise<BVODSite[]> {
-  const response = await fetch(`${MEDIA_DETAILS_BASE_URL}/bvod_site`, { headers: xanoAuthHeaderRecord() });
-  if (!response.ok) {
-    throw new Error("Failed to fetch BVOD sites");
-  }
-  return response.json();
+  return fetchMediaDetail("bvod_site")
 }
 
 
