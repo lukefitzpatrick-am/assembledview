@@ -202,6 +202,13 @@ export const clients = pgTable(
   paymentTerms: text('payment_terms'),
   brandColour: text('brand_colour'),
   clientLogo: jsonb('client_logo'),
+  website: text('website'),
+  facebookUrl: text('facebook_url'),
+  instagramUrl: text('instagram_url'),
+  linkedinUrl: text('linkedin_url'),
+  tiktokUrl: text('tiktok_url'),
+  clientBrain: text('client_brain'),
+  clientBrainUpdatedAt: timestamp('client_brain_updated_at', { withTimezone: true, mode: "string" }),
   },
 )
 

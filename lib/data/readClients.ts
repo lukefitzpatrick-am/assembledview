@@ -72,8 +72,6 @@ async function runShadowCompareList(xanoBody: unknown): Promise<void> {
     const postgresRows = await fetchClientsFromPostgres()
     const event = compareReferenceRows(TABLE, xanoBody, postgresRows, {
       domain: DOMAIN,
-      // Xano still has social URL / client_brain columns not in ported schema.
-      postgresKeysOnly: true,
     })
     recordShadowDiff(event)
   } catch (err) {
@@ -108,7 +106,7 @@ export async function readClientsList(): Promise<{
 
 /**
  * Single client by id with DATA_BACKEND_CLIENTS / DATA_BACKEND switch.
- * Includes `client_brain` when present on Xano; Postgres port has no brain column yet.
+ * Includes `client_brain` (text) when present — required for AVA brain tools.
  */
 export async function readClientById(id: string | number): Promise<{
   status: number
@@ -167,7 +165,6 @@ export async function readClientById(id: string | number): Promise<{
         )
         const event = compareReferenceRows(TABLE, [xano.body as Record<string, unknown>], mapped, {
           domain: DOMAIN,
-          postgresKeysOnly: true,
         })
         recordShadowDiff(event)
       } catch (err) {

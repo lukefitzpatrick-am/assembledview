@@ -293,6 +293,8 @@ async function main(): Promise<void> {
   })
 
   // ---------- clients ----------
+  // T2a.1: website / social URLs / client_brain* are on schema.clients — mapPortedRow
+  // ports them verbatim (brain as text; client_brain_updated_at via temporal coerce).
   const clientRows = readJsonl(path.join(snapshotDir, "clients.jsonl"))
   await family(sql, "clients", async (tx) => {
     const tables: Array<[string, Table]> = [

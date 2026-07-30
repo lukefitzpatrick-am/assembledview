@@ -35,6 +35,8 @@ Guardrails that make this safe (learned from July, when fixes stranded on localh
 | `235ac76a` | Prompt 3 — ETL (`db:etl`, truncate-and-reload, --dry-run) + recon gate (`db:recon`); helpers reuse billing/finance parsers |
 | `b77d7f52` | Prompt 4 — `DATA_BACKEND` switch, shadow-read for reference tables (`lib/data/backend.ts`, `readReferenceMediaDetail.ts`, `shadowDiff.ts`), `/api/admin/migration-diffs`, 6/6 tests |
 | T2a | `getDataBackendFor(domain)` + `DATA_BACKEND_<DOMAIN>`; shadow-read publishers + clients (`readPublishers.ts`, `readClients.ts`); wired via publishersCache / clientsCache / fetchClientById / lib/api.ts; migration-diffs `byDomain` |
+| T2a.1 | `0004_clients_missing_columns.sql` + schema/ETL for website, social URLs, `client_brain`(+`_updated_at`); clients shadow compare no longer uses `postgresKeysOnly` |
+| T2b | Shadow-read KPI (`campaign_kpi` / `client_kpi` / `publisher_kpi`) via `lib/data/readKpi.ts` + `DATA_BACKEND_KPI`; money=`cpv` cents / rates ε=`1e-6`; writes stay Xano until T4 |
 
 Infra: Supabase project `slpdibnxtpdlttbbczvg` (Sydney, **Free plan** — upgrade to Pro before any production traffic), schema applied via `db/migrations/0001/0002.sql`, **fully loaded and reconciled**: 13,305 line_items / 1,013 versions / 48,026 schedule_months; 0 count mismatches; 0 money deltas >$0.01. $3.79M duplicated budget excluded (270 groups, logged). `.env.local` has `DATABASE_URL`, `DIRECT_URL`, `DATA_BACKEND=shadow` (local diffs collecting). Xero sync XanoScript fully read → rebuild spec: `av-review/xero-sync-rebuild-spec-2026-07-30.md` (~90% conf, 2–4 days).
 
@@ -78,7 +80,7 @@ Freeze Xano writes → final export archive → cancel after 30 days. Confirm ac
 1. jayco016 repair timing (blocks trusting finance data). 2. AVA table allowlist — include finance tables or not at first (recommend: not). 3. PITR add-on at Pro upgrade. 4. Xero contacts-refresh stage (recommend yes). 5. Whether the Xano write-back mirror also covers `media_plan_production` (recommend: yes until finance reads flip).
 
 ## 7. Cherry-pick ledger (append every migration commit here)
-`4252f4e3` → `270ba7b8` → `235ac76a` → `b77d7f52` → T1 disposition close (`5681a493`) → T2a publishers/clients shadow → (record SHA with `git log --grep=T2a -1`; keep hotfixes out of this chain)
+`4252f4e3` → `270ba7b8` → `235ac76a` → `b77d7f52` → T1 disposition close (`5681a493`) → T2a publishers/clients shadow → T2a.1 clients missing columns → T2b KPI shadow → (record SHAs with `git log --grep=T2`; keep hotfixes out of this chain)
 
 ## 8. Key references
 - Kickoff pack (schema Part B + original prompts + addendum): `docs/superpowers/supabase-migration-kickoff-pack-2026-07-30.md`

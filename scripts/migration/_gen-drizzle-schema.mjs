@@ -8,6 +8,7 @@ import path from "path"
 const rawSql = [
   fs.readFileSync("db/migrations/0001_ported_tables.sql", "utf8"),
   fs.readFileSync("db/migrations/0002_plan_core.sql", "utf8"),
+  fs.readFileSync("db/migrations/0004_clients_missing_columns.sql", "utf8"),
 ].join("\n")
 
 // Strip line comments before parsing so `)` inside comments cannot truncate table bodies.
@@ -172,6 +173,25 @@ for (const m of sql.matchAll(tableRe)) {
   }
 
   tables.push({ name: tableName, columns, extras, imports })
+}
+
+// Merge `ALTER TABLE … ADD COLUMN IF NOT EXISTS` from later migrations (e.g. 0004).
+const alterAddRe =
+  /alter table (\w+) add column if not exists (\w+) ([a-z0-9_]+)(?:\s+[^;]*)?;/gi
+for (const m of sql.matchAll(alterAddRe)) {
+  const tableName = m[1]
+  const col = dbColName(m[2])
+  const pgType = m[3].toLowerCase()
+  const table = tables.find((t) => t.name === tableName)
+  if (!table) {
+    throw new Error(`ALTER ADD COLUMN on unknown table ${tableName}.${col}`)
+  }
+  const already = table.columns.some((c) =>
+    c.trimStart().startsWith(`${toCamel(col)}:`),
+  )
+  if (already) continue
+  const expr = mapType(pgType, col)
+  table.columns.push(`  ${toCamel(col)}: ${expr},`)
 }
 
 const planCoreTables = new Set([

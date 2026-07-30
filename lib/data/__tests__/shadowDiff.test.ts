@@ -139,14 +139,25 @@ describe("compareReferenceRows + shadow store", () => {
     assert.equal(event.fieldDiffs.length, 0)
   })
 
-  it("postgresKeysOnly skips Xano-only unported fields", () => {
+  it("postgresKeysOnly skips Xano-only fields not present on Postgres rows", () => {
+    const event = compareReferenceRows(
+      "publishers",
+      [{ id: 1, publisher_name: "Acme", not_yet_ported: "x" }],
+      [{ id: 1, publisher_name: "Acme" }],
+      { domain: "publishers", postgresKeysOnly: true }
+    )
+    assert.equal(event.fieldDiffs.length, 0)
+  })
+
+  it("full clients compare surfaces Xano-only fields when not postgresKeysOnly", () => {
     const event = compareReferenceRows(
       "clients",
       [{ id: 1, mp_client_name: "Acme", facebook_url: "https://fb.example", abn: 123 }],
       [{ id: 1, mp_client_name: "Acme", abn: "123" }],
-      { domain: "clients", postgresKeysOnly: true }
+      { domain: "clients" }
     )
-    assert.equal(event.fieldDiffs.length, 0)
+    assert.equal(event.fieldDiffs.length, 1)
+    assert.equal(event.fieldDiffs[0]!.fields[0]!.field, "facebook_url")
   })
 
   it("summarizes last-24h events by table and domain", () => {

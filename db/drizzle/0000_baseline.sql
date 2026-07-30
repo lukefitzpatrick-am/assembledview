@@ -148,7 +148,14 @@ CREATE TABLE "clients" (
 	"payment_days" bigint,
 	"payment_terms" text,
 	"brand_colour" text,
-	"client_logo" jsonb
+	"client_logo" jsonb,
+	"website" text,
+	"facebook_url" text,
+	"instagram_url" text,
+	"linkedin_url" text,
+	"tiktok_url" text,
+	"client_brain" text,
+	"client_brain_updated_at" timestamp with time zone
 );
 --> statement-breakpoint
 CREATE TABLE "creative_asset" (

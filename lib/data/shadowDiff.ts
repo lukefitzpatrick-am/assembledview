@@ -99,7 +99,7 @@ export type CompareRowsOptions = {
   domain?: string
   /**
    * When true, only compare fields present on the Postgres row (skip Xano-only
-   * columns not yet ported — e.g. clients.facebook_url / client_brain).
+   * columns not yet ported).
    */
   postgresKeysOnly?: boolean
 }

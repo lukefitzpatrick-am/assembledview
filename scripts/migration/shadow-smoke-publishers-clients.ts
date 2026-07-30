@@ -60,7 +60,7 @@ async function main() {
     "clients",
     xanoClients,
     pgClients.map((r) => mapClient(r as Record<string, unknown>)),
-    { domain: "clients", postgresKeysOnly: true }
+    { domain: "clients" }
   )
   recordShadowDiff(clientEvent)
 
