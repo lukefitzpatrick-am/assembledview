@@ -217,6 +217,8 @@ export type PlansSaveRequestBody = {
     campaignBudgetCents?: number | null
     clientId?: number | null
   }
+  /** PC7 stale-base check — tip version id at edit open. */
+  baseVersionId?: number | null
 }
 
 export type PlansSaveResponse = {
@@ -230,6 +232,11 @@ export type PlansSaveResponse = {
   error?: string
   code?: string
   lineItemId?: string
+  compare?: {
+    baseVersionId: number
+    currentVersionId: number
+    sections: { base: string; yours: string; current: string }
+  }
 }
 
 export async function postPlansSave(

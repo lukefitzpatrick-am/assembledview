@@ -1,6 +1,6 @@
 # `db/` — Supabase schema (migration)
 
-**Source of truth for what is live:** `db/migrations/0001_ported_tables.sql` + `0002_plan_core.sql` + `0003_ava_readonly.sql` + `0004_clients_missing_columns.sql` + `0005_finance_billing_amount_hash.sql` + `0006_xero_client_aliases.sql` + `0007_mba_line_approvals.sql` + `0008_approved_slice_adserving.sql` + `0009_snapshot_checksum.sql` + `0010_finance_periods.sql` + `0011_xero_invoice_matches.sql` (apply via Supabase SQL Editor; do not `db:migrate` the drizzle baseline).
+**Source of truth for what is live:** `db/migrations/0001_ported_tables.sql` + `0002_plan_core.sql` + `0003_ava_readonly.sql` + `0004_clients_missing_columns.sql` + `0005_finance_billing_amount_hash.sql` + `0006_xero_client_aliases.sql` + `0007_mba_line_approvals.sql` + `0008_approved_slice_adserving.sql` + `0009_snapshot_checksum.sql` + `0010_finance_periods.sql` + `0011_xero_invoice_matches.sql` + `0012_plan_working_drafts.sql` (apply via Supabase SQL Editor; do not `db:migrate` the drizzle baseline).
 
 **Drizzle mirror:** `db/schema/*.ts` — generated from those SQL files (`node scripts/migration/_gen-drizzle-schema.mjs`), then hand-kept in sync.
 

@@ -12,6 +12,13 @@ import {
 } from "@/lib/data/mirrorToXano"
 import { SavePlanError, savePlanVersion } from "@/lib/data/savePlan"
 import { requireRole } from "@/lib/requireRole"
+import { isPlanDraftsEnabled } from "@/lib/mediaplan/drafts/flag"
+import {
+  countVersionLines,
+  deleteWorkingDraft,
+  resolvePublishedVersionId,
+} from "@/lib/mediaplan/drafts/serverStore"
+import { buildStaleBaseCompare } from "@/lib/mediaplan/drafts/pill"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -100,6 +107,8 @@ const bodySchema = z.object({
   selectedMonthYears: z.array(z.string()).optional(),
   /** Create-path: insert PG master with Xano-aligned id when missing. */
   ensureMaster: ensureMasterSchema.optional(),
+  /** PC7: tip version id the editor started from — 409 if tip moved. */
+  baseVersionId: z.number().int().positive().optional().nullable(),
 })
 
 /**
@@ -139,6 +148,34 @@ export async function POST(request: NextRequest) {
   const body = parsed.data
   const access = await checkClientMbaAccess(request, body.mbaNumber)
   if (!access.ok) return access.response
+
+  // PC7 stale-base: tip moved since editor loaded base_version_id.
+  if (
+    isPlanDraftsEnabled() &&
+    body.baseVersionId != null &&
+    (body.mode === "publish" || body.mode === "new_version")
+  ) {
+    const currentId = await resolvePublishedVersionId(body.masterId)
+    if (currentId != null && currentId !== body.baseVersionId) {
+      const [yours, tip] = await Promise.all([
+        Promise.resolve(body.lineItems.length),
+        countVersionLines(currentId),
+      ])
+      return NextResponse.json(
+        {
+          error: "Published tip moved since you started editing",
+          code: "STALE_BASE_VERSION",
+          compare: buildStaleBaseCompare({
+            baseVersionId: body.baseVersionId,
+            currentVersionId: currentId,
+            yoursLineCount: yours,
+            tipLineCount: tip,
+          }),
+        },
+        { status: 409 }
+      )
+    }
+  }
 
   // Create-path: dual-write PG master with the Xano-aligned id before savePlanVersion.
   if (body.ensureMaster) {
@@ -226,6 +263,17 @@ export async function POST(request: NextRequest) {
     const mirror = await mirrorPlanToXano(
       mirrorInputFromSave(saveInput, result.versionId, clientName)
     )
+
+    // PC7: clear server working draft once tier 3 (save/publish) lands.
+    if (isPlanDraftsEnabled()) {
+      try {
+        const g = gate as { session?: { user?: { email?: string; sub?: string } } }
+        const uid = String(g.session?.user?.email || g.session?.user?.sub || "")
+        if (uid) await deleteWorkingDraft({ masterId: body.masterId, userId: uid })
+      } catch (err) {
+        console.warn("[PC7] clear working draft after save failed", err)
+      }
+    }
 
     return NextResponse.json({
       versionId: result.versionId,

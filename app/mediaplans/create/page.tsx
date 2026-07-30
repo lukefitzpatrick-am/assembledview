@@ -230,6 +230,16 @@ import {
   dollarsToCampaignBudgetCents,
   postPlansSave,
 } from "@/lib/mediaplan/buildPostgresSavePayload"
+import { usePlanDraftSession } from "@/hooks/usePlanDraftSession"
+import {
+  PlanDraftPill,
+  PlanDraftRecoveryBanner,
+  PlanDraftTipCompareDialog,
+  PlanStaleBaseDialog,
+} from "@/components/mediaplan/PlanDraftChrome"
+import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
+import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
+import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import { reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { assertCoreScheduleParity } from "@/lib/finance/assertCoreScheduleParity"
 import {
@@ -4721,6 +4731,106 @@ function CreateMediaPlan() {
   const [isPlanSaving, setIsPlanSaving] = useState<boolean>(false)
   const [isVersionSaving, setIsVersionSaving] = useState<boolean>(false)
   const [mediaPlanVersionId, setMediaPlanVersionId] = useState<number | null>(null)
+
+  const draftBaseVersionId =
+    typeof mediaPlanVersionId === "number"
+      ? mediaPlanVersionId
+      : mediaPlanVersionId != null && Number.isFinite(Number(mediaPlanVersionId))
+        ? Number(mediaPlanVersionId)
+        : null
+
+  const planDraft = usePlanDraftSession({
+    masterId: mediaPlanId,
+    mbaNumber: String(mbaNumber ?? ""),
+    dirty: hasUnsavedChanges,
+    baseVersionId: draftBaseVersionId,
+    campaignStatus: form.watch("mp_campaignstatus"),
+    publishedVersionNumber: 0,
+    versionRowCount: 0,
+    getSnapshot: () =>
+      buildPlanDraftSnapshot({
+        mbaNumber: String(mbaNumber ?? ""),
+        masterId: mediaPlanId,
+        baseVersionId: draftBaseVersionId,
+        formValues: form.getValues() as Record<string, unknown>,
+        channels: {
+          television: televisionMediaLineItems,
+          radio: radioMediaLineItems,
+          newspaper: newspaperMediaLineItems,
+          magazines: magazineMediaLineItems,
+          ooh: oohMediaLineItems,
+          cinema: cinemaMediaLineItems,
+          digiDisplay: digiDisplayMediaLineItems,
+          digiAudio: digiAudioMediaLineItems,
+          digiVideo: digiVideoMediaLineItems,
+          bvod: bvodMediaLineItems,
+          integration: integrationMediaLineItems,
+          production: productionMediaLineItems,
+          search: searchMediaLineItems,
+          socialMedia: socialMediaMediaLineItems,
+          progDisplay: progDisplayMediaLineItems,
+          progVideo: progVideoMediaLineItems,
+          progBvod: progBvodMediaLineItems,
+          progAudio: progAudioMediaLineItems,
+          progOoh: progOohMediaLineItems,
+          influencers: influencersMediaLineItems,
+        },
+      }),
+    onRestore: (state: PlanDraftStateV1) => {
+      if (state.formValues) form.reset(state.formValues as never)
+      const ch = state.channels ?? {}
+      if (ch.television) setTelevisionMediaLineItems(ch.television)
+      if (ch.radio) setRadioMediaLineItems(ch.radio)
+      if (ch.newspaper) setNewspaperMediaLineItems(ch.newspaper)
+      if (ch.magazines) setMagazineMediaLineItems(ch.magazines)
+      if (ch.ooh) setOohMediaLineItems(ch.ooh)
+      if (ch.cinema) setCinemaMediaLineItems(ch.cinema)
+      if (ch.digiDisplay) setDigiDisplayMediaLineItems(ch.digiDisplay)
+      if (ch.digiAudio) setDigiAudioMediaLineItems(ch.digiAudio)
+      if (ch.digiVideo) setDigiVideoMediaLineItems(ch.digiVideo)
+      if (ch.bvod) setBvodMediaLineItems(ch.bvod)
+      if (ch.integration) setIntegrationMediaLineItems(ch.integration)
+      if (ch.production) setProductionMediaLineItems(ch.production)
+      if (ch.search) setSearchMediaLineItems(ch.search)
+      if (ch.socialMedia) setSocialMediaMediaLineItems(ch.socialMedia)
+      if (ch.progDisplay) setProgDisplayMediaLineItems(ch.progDisplay)
+      if (ch.progVideo) setProgVideoMediaLineItems(ch.progVideo)
+      if (ch.progBvod) setProgBvodMediaLineItems(ch.progBvod)
+      if (ch.progAudio) setProgAudioMediaLineItems(ch.progAudio)
+      if (ch.progOoh) setProgOohMediaLineItems(ch.progOoh)
+      if (ch.influencers) setInfluencersMediaLineItems(ch.influencers)
+      setHasUnsavedChanges(true)
+    },
+  })
+
+  const otherEditorLabel =
+    planDraft.others[0] != null
+      ? `${planDraft.others[0].userLabel || planDraft.others[0].userId} has an open draft (since ${new Date(planDraft.others[0].updatedAt).toLocaleString()})`
+      : null
+
+  const draftTipCompare = planDraft.recovery
+    ? (() => {
+        const state = planDraft.recovery.state
+        const tipIds = state.meta.tipLineIds ?? []
+        const draftIds = Object.values(state.channels)
+          .flat()
+          .map((row) =>
+            String(
+              (row as { line_item_id?: string; lineItemId?: string }).line_item_id ??
+                (row as { lineItemId?: string }).lineItemId ??
+                ""
+            )
+          )
+          .filter(Boolean)
+        return compareDraftToTip({
+          tipLineIds: tipIds,
+          draftLineIds: draftIds,
+          tipBudgetCents: state.meta.tipBudgetCents ?? 0,
+          draftBudgetCents: state.meta.budgetCents,
+        })
+      })()
+    : null
+
   const shouldBlockNavigation = hasUnsavedChanges && !isPlanSaving && !isVersionSaving && !isLoading
   const { isOpen: isUnsavedPromptOpen, confirmNavigation, stayOnPage, requestNavigation } = useUnsavedChangesPrompt(shouldBlockNavigation)
   const isSavingInProgress = isPlanSaving || isVersionSaving;
@@ -5134,6 +5244,7 @@ function CreateMediaPlan() {
           mbaNumber: mbaNum,
           versionNumber: modeResolved.versionNumber,
           mode: modeResolved.mode,
+          baseVersionId: draftBaseVersionId,
           campaignName: fv.mp_campaignname ?? null,
           campaignStatus: fv.mp_campaignstatus ?? null,
           campaignStartDate: toDateOnlyString(fv.mp_campaigndates_start),
@@ -5200,6 +5311,20 @@ function CreateMediaPlan() {
         })
 
         if (!saveResult.ok) {
+          if (saveResult.data.code === "STALE_BASE_VERSION" && saveResult.data.compare) {
+            planDraft.setStaleCompare(saveResult.data.compare)
+            updateSaveStatus(
+              "Save plan (transactional)",
+              "error",
+              "Published tip moved — compare and re-apply"
+            )
+            toast({
+              variant: "destructive",
+              title: "Tip moved since you started",
+              description: "Compare base / yours / current, then re-apply manually.",
+            })
+            return
+          }
           const human =
             saveResult.data.code === "BOSS006_EMPTY_PUBLISH"
               ? "Cannot publish version with 0 line items (BOSS006)"
@@ -5210,6 +5335,7 @@ function CreateMediaPlan() {
         }
 
         updateSaveStatus("Save plan (transactional)", "success")
+        void planDraft.clearAfterPublish()
         if (saveResult.data.mirror === "failed") {
           updateSaveStatus(
             "Mirror to Xano",
@@ -6848,8 +6974,37 @@ const handleSaveAll = async () => {
           totals are inflated
         </div>
       ) : null}
-      {predictedSaveModeLabel ? (
+      {planDraft.enabled && planDraft.recovery ? (
+        <PlanDraftRecoveryBanner
+          summary={planDraft.recovery.summary}
+          reason={planDraft.recovery.reason}
+          otherEditor={otherEditorLabel}
+          onResume={() => planDraft.resume()}
+          onCompare={() => planDraft.setCompareOpen(true)}
+          onDiscard={() => void planDraft.discard()}
+        />
+      ) : planDraft.enabled && otherEditorLabel ? (
+        <p className="mb-2 text-xs text-muted-foreground">{otherEditorLabel}</p>
+      ) : null}
+      {planDraft.enabled && planDraft.pill ? (
+        <PlanDraftPill pill={planDraft.pill} tipLabel={null} />
+      ) : predictedSaveModeLabel ? (
         <p className="text-xs text-muted-foreground">{predictedSaveModeLabel}</p>
+      ) : null}
+      {planDraft.enabled && planDraft.staleCompare ? (
+        <PlanStaleBaseDialog
+          compare={planDraft.staleCompare as { sections: { base: string; yours: string; current: string } }}
+          onClose={() => planDraft.setStaleCompare(null)}
+        />
+      ) : null}
+      {planDraft.enabled && planDraft.compareOpen && draftTipCompare ? (
+        <PlanDraftTipCompareDialog
+          added={draftTipCompare.added}
+          removed={draftTipCompare.removed}
+          keptCount={draftTipCompare.kept.length}
+          budgetDeltaCents={draftTipCompare.budgetDeltaCents}
+          onClose={() => planDraft.setCompareOpen(false)}
+        />
       ) : null}
       {dateWarning.hasViolation ? (
         <div className="rounded-card border border-pacing-critical bg-pacing-critical-bg px-3 py-2 text-xs font-medium text-status-critical-fg">
@@ -6889,8 +7044,19 @@ const handleSaveAll = async () => {
           disabled={isWizardSaving || saveBlockedByDuplicates}
           className="h-9 shrink-0 rounded-pill px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {isWizardSaving ? "Saving..." : "Save draft"}
+          {isWizardSaving ? "Saving..." : planDraft.enabled ? "Save" : "Save draft"}
         </Button>
+        {planDraft.enabled ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void planDraft.saveDraftNow()}
+            disabled={isWizardSaving || !hasUnsavedChanges}
+            className="h-9 shrink-0 rounded-pill border-border px-4 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Save draft
+          </Button>
+        ) : null}
         <Button
           type="button"
           onClick={handleDownloadMediaPlan}

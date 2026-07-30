@@ -171,6 +171,16 @@ import {
   dollarsToCampaignBudgetCents,
   postPlansSave,
 } from "@/lib/mediaplan/buildPostgresSavePayload"
+import { usePlanDraftSession } from "@/hooks/usePlanDraftSession"
+import {
+  PlanDraftPill,
+  PlanDraftRecoveryBanner,
+  PlanDraftTipCompareDialog,
+  PlanStaleBaseDialog,
+} from "@/components/mediaplan/PlanDraftChrome"
+import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
+import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
+import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
 import {
   humaniseBillingSaveError,
   withMbaScopeLineLabels,
@@ -6349,6 +6359,109 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     latestVersionNumber,
   ])
 
+  const draftBaseVersionId =
+    typeof mediaPlanVersionId === "number"
+      ? mediaPlanVersionId
+      : mediaPlanVersionId != null && Number.isFinite(Number(mediaPlanVersionId))
+        ? Number(mediaPlanVersionId)
+        : null
+
+  const planDraft = usePlanDraftSession({
+    masterId: mediaPlan?.id != null ? Number(mediaPlan.id) : null,
+    mbaNumber: String(mbaNumber ?? ""),
+    dirty: hasUnsavedChanges,
+    baseVersionId: draftBaseVersionId,
+    campaignStatus: watchedCampaignStatus ?? mediaPlan?.campaign_status,
+    publishedVersionNumber:
+      typeof latestVersionNumber === "number"
+        ? latestVersionNumber
+        : Number(mediaPlan?.version_number) || 0,
+    versionRowCount: availableVersions.length,
+    getSnapshot: () =>
+      buildPlanDraftSnapshot({
+        mbaNumber: String(mbaNumber ?? ""),
+        masterId: mediaPlan?.id != null ? Number(mediaPlan.id) : null,
+        baseVersionId: draftBaseVersionId,
+        formValues: form.getValues() as Record<string, unknown>,
+        channels: {
+          television: televisionMediaLineItems,
+          radio: radioMediaLineItems,
+          newspaper: newspaperMediaLineItems,
+          magazines: magazinesMediaLineItems,
+          ooh: oohMediaLineItems,
+          cinema: cinemaMediaLineItems,
+          digiDisplay: digitalDisplayMediaLineItems,
+          digiAudio: digitalAudioMediaLineItems,
+          digiVideo: digitalVideoMediaLineItems,
+          bvod: bvodMediaLineItems,
+          integration: integrationMediaLineItems,
+          production: productionMediaLineItems,
+          search: searchMediaLineItems,
+          socialMedia: socialMediaMediaLineItems,
+          progDisplay: progDisplayMediaLineItems,
+          progVideo: progVideoMediaLineItems,
+          progBvod: progBvodMediaLineItems,
+          progAudio: progAudioMediaLineItems,
+          progOoh: progOohMediaLineItems,
+          influencers: influencersMediaLineItems,
+        },
+        tipBudgetCents: Math.round(Number(mediaPlan?.campaign_budget ?? mediaPlan?.mp_campaignbudget ?? 0) * 100) || 0,
+      }),
+    onRestore: (state: PlanDraftStateV1) => {
+      if (state.formValues) form.reset(state.formValues as never)
+      const ch = state.channels ?? {}
+      if (ch.television) setTelevisionMediaLineItems(ch.television)
+      if (ch.radio) setRadioMediaLineItems(ch.radio)
+      if (ch.newspaper) setNewspaperMediaLineItems(ch.newspaper)
+      if (ch.magazines) setMagazinesMediaLineItems(ch.magazines)
+      if (ch.ooh) setOohMediaLineItems(ch.ooh)
+      if (ch.cinema) setCinemaMediaLineItems(ch.cinema)
+      if (ch.digiDisplay) setDigitalDisplayMediaLineItems(ch.digiDisplay)
+      if (ch.digiAudio) setDigitalAudioMediaLineItems(ch.digiAudio)
+      if (ch.digiVideo) setDigitalVideoMediaLineItems(ch.digiVideo)
+      if (ch.bvod) setBvodMediaLineItems(ch.bvod)
+      if (ch.integration) setIntegrationMediaLineItems(ch.integration)
+      if (ch.production) setProductionMediaLineItems(ch.production)
+      if (ch.search) setSearchMediaLineItems(ch.search)
+      if (ch.socialMedia) setSocialMediaMediaLineItems(ch.socialMedia)
+      if (ch.progDisplay) setProgDisplayMediaLineItems(ch.progDisplay)
+      if (ch.progVideo) setProgVideoMediaLineItems(ch.progVideo)
+      if (ch.progBvod) setProgBvodMediaLineItems(ch.progBvod)
+      if (ch.progAudio) setProgAudioMediaLineItems(ch.progAudio)
+      if (ch.progOoh) setProgOohMediaLineItems(ch.progOoh)
+      if (ch.influencers) setInfluencersMediaLineItems(ch.influencers)
+      setHasUnsavedChanges(true)
+    },
+  })
+
+  const otherEditorLabel =
+    planDraft.others[0] != null
+      ? `${planDraft.others[0].userLabel || planDraft.others[0].userId} has an open draft (since ${new Date(planDraft.others[0].updatedAt).toLocaleString()})`
+      : null
+
+  const draftTipCompare = planDraft.recovery
+    ? (() => {
+        const state = planDraft.recovery.state
+        const tipIds = state.meta.tipLineIds ?? []
+        const draftIds = Object.values(state.channels)
+          .flat()
+          .map((row) =>
+            String(
+              (row as { line_item_id?: string; lineItemId?: string }).line_item_id ??
+                (row as { lineItemId?: string }).lineItemId ??
+                ""
+            )
+          )
+          .filter(Boolean)
+        return compareDraftToTip({
+          tipLineIds: tipIds,
+          draftLineIds: draftIds,
+          tipBudgetCents: state.meta.tipBudgetCents ?? 0,
+          draftBudgetCents: state.meta.budgetCents,
+        })
+      })()
+    : null
+
 
   const builderIssues = useMemo(() => {
     const issues: BuilderIssue[] = []
@@ -7112,6 +7225,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           mbaNumber: String(mbaNumber),
           versionNumber: modeResolved.versionNumber,
           mode: modeResolved.mode,
+          baseVersionId: draftBaseVersionId,
           campaignName: formValues.mp_campaignname ?? null,
           campaignStatus: formValues.mp_campaignstatus ?? null,
           campaignStartDate: toDateOnlyString(formValues.mp_campaigndates_start),
@@ -7169,6 +7283,21 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         })
 
         if (!saveResult.ok) {
+          if (saveResult.data.code === "STALE_BASE_VERSION" && saveResult.data.compare) {
+            planDraft.setStaleCompare(saveResult.data.compare)
+            updateSaveStatus(
+              "Save plan (transactional)",
+              "error",
+              "Published tip moved — compare and re-apply"
+            )
+            toast({
+              variant: "destructive",
+              title: "Tip moved since you started",
+              description: "Compare base / yours / current, then re-apply manually.",
+            })
+            setIsSaving(false)
+            return
+          }
           const human =
             saveResult.data.code === "BOSS006_EMPTY_PUBLISH"
               ? "Cannot publish version with 0 line items (BOSS006)"
@@ -7186,6 +7315,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
 
         updateSaveStatus("Save plan (transactional)", "success")
+        void planDraft.clearAfterPublish()
         const versionId = saveResult.data.versionId
         const numericSavedVersion = modeResolved.versionNumber
 
@@ -10445,8 +10575,44 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           totals are inflated
         </div>
       ) : null}
-      {predictedSaveModeLabel ? (
+      {planDraft.enabled && planDraft.recovery ? (
+        <PlanDraftRecoveryBanner
+          summary={planDraft.recovery.summary}
+          reason={planDraft.recovery.reason}
+          otherEditor={otherEditorLabel}
+          onResume={() => planDraft.resume()}
+          onCompare={() => planDraft.setCompareOpen(true)}
+          onDiscard={() => void planDraft.discard()}
+        />
+      ) : planDraft.enabled && otherEditorLabel ? (
+        <p className="mb-2 text-xs text-muted-foreground">{otherEditorLabel}</p>
+      ) : null}
+      {planDraft.enabled && planDraft.pill ? (
+        <PlanDraftPill
+          pill={planDraft.pill}
+          tipLabel={
+            isPublished
+              ? `published tip v${selectedVersionNumber ?? mediaPlan?.version_number ?? "?"}`
+              : null
+          }
+        />
+      ) : predictedSaveModeLabel ? (
         <p className="text-xs text-muted-foreground">{predictedSaveModeLabel}</p>
+      ) : null}
+      {planDraft.enabled && planDraft.staleCompare ? (
+        <PlanStaleBaseDialog
+          compare={planDraft.staleCompare as { sections: { base: string; yours: string; current: string } }}
+          onClose={() => planDraft.setStaleCompare(null)}
+        />
+      ) : null}
+      {planDraft.enabled && planDraft.compareOpen && draftTipCompare ? (
+        <PlanDraftTipCompareDialog
+          added={draftTipCompare.added}
+          removed={draftTipCompare.removed}
+          keptCount={draftTipCompare.kept.length}
+          budgetDeltaCents={draftTipCompare.budgetDeltaCents}
+          onClose={() => planDraft.setCompareOpen(false)}
+        />
       ) : null}
       {dateWarning.hasViolation ? (
         <div className="flex items-center gap-2 text-sm font-medium text-destructive">
@@ -10473,6 +10639,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         >
           {isSaving ? "Saving..." : saveHeldForHydration ? "Loading…" : "Save"}
         </Button>
+        {planDraft.enabled ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void planDraft.saveDraftNow()}
+            disabled={isSaving || isLoading || !hasUnsavedChanges}
+            className="h-9 shrink-0 rounded-pill border-border px-4 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Save draft
+          </Button>
+        ) : null}
         <Button
           type="button"
           variant="outline"

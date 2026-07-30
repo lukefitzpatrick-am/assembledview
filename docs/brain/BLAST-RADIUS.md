@@ -101,6 +101,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | `middleware.ts` | Auth-only for `/api/*`; `/api/cron/*` bypassed entirely (only `assertCronSecret`); client-role tenant confinement logic |
 | `app/api/cron/xero-sync` | Writes `xero_*` + `finance_billing_records` (`xero:` keys) + Blob PDFs + PC6 `match_run_items`; Xano task still active until T6 — dual writers; parity via `db:xero-parity` before any `db:etl` |
 | `lib/xero/matcher/threeTier.ts` / `0011_xero_invoice_matches.sql` / `POST /api/finance/xero-match` | Extends T5 only; write-off admin+reason; `xero_contact_links` learn-forever; hit-rate feeds PC5 pre-run |
+| `lib/mediaplan/drafts/*` / `0012_plan_working_drafts.sql` / `POST /api/plans/drafts` / create+edit draft chrome | Flag `NEXT_PUBLIC_PLAN_DRAFTS` (default off); pill shares `resolvePostgresSaveMode`; publish path untouched except optional `baseVersionId` → 409 stale compare; Discard leaves tip byte-identical; docs/pacing keep serving published tip |
 | Any cache module | Two independent clients caches (10min vs 30s) with separate invalidation; 4 of 7 coalesced caches have NO invalidation path; caches are per-lambda on Vercel |
 | `lib/api.ts` module scope | Throws at import server-side if publisher/client base URLs unset; imported by client components so no Node-only deps (reference reads use dynamic `import(/* webpackIgnore: true */)` of server-only modules — without `webpackIgnore`, `next build` fails on create/edit) |
 
