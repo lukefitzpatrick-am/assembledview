@@ -396,7 +396,7 @@ export async function savePlanVersion(
   const lineIds = input.lineItems.map((l) => String(l.lineItemId).trim())
 
   try {
-    return await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx) => {
       const versionId = await upsertVersionRow(tx as Tx, input, legacySchedules)
 
       // Replace-set line_items (atomic inside txn — readers never see the gap).
@@ -637,6 +637,23 @@ export async function savePlanVersion(
         published,
       }
     })
+
+    // PC5: after publish, flip open-period finance run items for this MBA to stale.
+    if (result.published) {
+      try {
+        const { markRunItemsStaleOnPublish } = await import(
+          "@/lib/finance/periods/markStaleOnPublish"
+        )
+        await markRunItemsStaleOnPublish({
+          mbaNumber: input.mbaNumber,
+          versionId: result.versionId,
+        })
+      } catch (err) {
+        console.warn("[PC5] stale flip after publish failed", err)
+      }
+    }
+
+    return result
   } catch (err) {
     if (err instanceof SavePlanError) throw err
     if (isUniqueViolation(err)) {

@@ -71,6 +71,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | Forecast `line_key`/`group_key` taxonomy | Breaks comparability of **existing persisted snapshots** (variance joins on those keys) and target-row validation |
 | `billedDrift` hash functions | Every already-billed record's stored hash mismatches → whole book flags as drifted |
 | `lib/billing/balancer.ts` / `collisionWorksheet.ts` | Timing editors + edit postgres save collision pause when `NEXT_PUBLIC_BILLING_BALANCER=on`; C2 gates unchanged |
+| `lib/finance/periods/*` / `0010_finance_periods.sql` / crons `finance-pre-run|run|lock` / `FinancePeriodRail` | Flag `FINANCE_PERIODS`; publish→stale via `savePlan`; lock sheets immutable Blob; hub rail only when flag ≠ off; AUTHOR-ONLY migration |
 
 ### KPI
 | Touch | Also check |

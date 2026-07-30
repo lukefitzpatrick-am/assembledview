@@ -63,6 +63,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { FinancePeriodRail } from "@/components/finance/FinancePeriodRail"
 
 const financeHubEffectDepPrev = new Map<string, unknown[]>()
 
@@ -575,6 +576,7 @@ export default function FinanceHubPageClient() {
     <FinanceOverviewProvider>
       <div className="w-full max-w-none px-4 pb-10 pt-4 md:px-6 md:pt-6">
         <FinanceOverviewHero />
+        <FinancePeriodRail className="mt-4" />
 
         <Tabs value={activeTab} onValueChange={onTabChange}>
           <div className="mt-4 flex items-end justify-between gap-3 border-b border-border/50">
