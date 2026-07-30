@@ -61,7 +61,7 @@ A media agency operating platform (assembledview.com.au) for Assembled Media: me
 - `app/finance/**` — hub (7 tabs), receivables, forecast + snapshots + variance
 - `app/dashboard/[slug]/**` — client-facing dashboards (tenant-scoped)
 - `app/admin/**`, `app/tasks`, `app/account`, `app/profile`, `app/knowledge/**`
-- `app/api/**` — 126 route handlers. Two catch-all Xano proxies (`/api/media_plans/[...path]`, `/api/media-details/[...path]`) gated by `lib/security/proxyAllowlist.ts`. NB the naming trap: `/api/media_plans` (underscore = channel tables) vs `/api/mediaplans` (no underscore = master/versions/MBA).
+- `app/api/**` — 126 route handlers. Two catch-all Xano proxies (`/api/media_plans/[...path]`, `/api/media-details/[...path]`) gated by `lib/security/proxyAllowlist.ts` + staff `requireRole(admin|manager)` (SEC-1 Constrained). NB the naming trap: `/api/media_plans` (underscore = channel tables) vs `/api/mediaplans` (no underscore = master/versions/MBA).
 
 ## Deploy & branching
 

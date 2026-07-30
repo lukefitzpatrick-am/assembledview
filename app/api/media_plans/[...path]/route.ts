@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { createChannelLineItemsGetHandler } from "@/lib/api/channelLineItemsGetHandler"
 import { isChannelLineItemEndpoint } from "@/lib/api/fetchChannelLineItemsByMba"
 import { getDataBackendFor } from "@/lib/data/backend"
 import { xanoAuthHeader, xanoUrl } from "@/lib/api/xano"
+import { requireRole } from "@/lib/requireRole"
 import { checkMediaPlansProxyPath } from "@/lib/security/proxyAllowlist"
 
 export const dynamic = "force-dynamic"
@@ -10,6 +11,13 @@ export const revalidate = 0
 export const maxDuration = 60
 
 type Ctx = { params: Promise<{ path: string[] }> }
+
+/** SEC-1 / SEC-D: catch-all is staff-only — no client-reachable consumer. */
+async function requireProxyStaff(request: Request) {
+  const gate = await requireRole(request as NextRequest, ["admin", "manager"])
+  if ("response" in gate) return gate.response
+  return null
+}
 
 async function proxy(request: Request, ctx: Ctx) {
   const { path: parts } = await ctx.params
@@ -98,6 +106,9 @@ async function handlePlansDomainGet(request: Request, path: string): Promise<Res
 }
 
 export async function GET(request: Request, context: Ctx) {
+  const denied = await requireProxyStaff(request)
+  if (denied) return denied
+
   const { path: parts } = await context.params
   const path = (parts || []).join("/")
   const mbaNumber = new URL(request.url).searchParams.get("mba_number")
@@ -115,13 +126,19 @@ export async function GET(request: Request, context: Ctx) {
 }
 
 export async function POST(request: Request, context: Ctx) {
+  const denied = await requireProxyStaff(request)
+  if (denied) return denied
   return proxy(request, context)
 }
 
 export async function PUT(request: Request, context: Ctx) {
+  const denied = await requireProxyStaff(request)
+  if (denied) return denied
   return proxy(request, context)
 }
 
 export async function DELETE(request: Request, context: Ctx) {
+  const denied = await requireProxyStaff(request)
+  if (denied) return denied
   return proxy(request, context)
 }

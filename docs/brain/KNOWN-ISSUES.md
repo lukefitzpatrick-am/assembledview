@@ -6,7 +6,7 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 
 | ID | Issue | Status |
 |---|---|---|
-| SEC-1 | Two catch-all Xano proxies (`/api/media_plans/[...path]`, `/api/media-details/[...path]`) accept any authenticated session and forward with server `XANO_API_KEY`. Allowlist (`proxyAllowlist.ts`) constrains paths/methods but not tenant | Open |
+| SEC-1 | Two catch-all Xano proxies (`/api/media_plans/[...path]`, `/api/media-details/[...path]`) accept any authenticated session and forward with server `XANO_API_KEY`. Allowlist (`proxyAllowlist.ts`) constrains paths/methods but not tenant | Constrained (SEC-D) — staff-only `requireRole(admin\|manager)`; dead allowlist entries removed; dies with Xano reads at T6 |
 | SEC-2 | `GET /api/mediaplans` returns ALL clients' plans to any admin/manager — no per-caller filter (role-gated only) | FIXED (SEC-B) — clients get MBA-scoped list via `resolveClientMbaScope`; admin/manager still see all |
 | SEC-3 | `PUT`/`PATCH` on `/api/mediaplans/mba/[mba_number]` skip the `checkClientMbaAccess` that GET enforces | Verified FIXED (`ff648830`) — both PUT and PATCH call `checkClientMbaAccess` |
 | SEC-4 | `GET /api/dashboard/[slug]` has no tenant match for client users | FIXED (SEC-A) — slug must be in caller's `getUserClientSlugs`; admin unscoped (gate landed earlier; register closed in SEC-A) |

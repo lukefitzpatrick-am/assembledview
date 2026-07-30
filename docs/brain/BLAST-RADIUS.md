@@ -48,7 +48,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | `containerChannelConfig.fieldMap` | Changes both hydration and API payloads → what Xano stores → what Snowflake/pacing see |
 | PUT/PATCH publish contract (`deferMasterVersionPublish`, `forceIncrement`) | Both mega-pages hardcode the semantics; `publishVersionIntegrity` duplicates the guard client+server on purpose |
 | Anything in `create/page.tsx` | Probably needs the same fix in `edit/page.tsx` (near-parallel 8k/12k-line implementations: own xlsx/pdf generation, publisher fetch, MBA numbers, ~20-branch save block) — and vice versa. Field-name split: create reads `fv.mp_client_name`, edit reads `fv.mp_clientname` |
-| `proxyAllowlist.MEDIA_PLANS_ALLOWLIST` | `clearVersionChildren` needs `{table}/{id}` DELETE allowed; new client-side POSTs 403 unless added |
+| `proxyAllowlist.MEDIA_PLANS_ALLOWLIST` | Catch-all is staff-only (`requireRole`); `clearVersionChildren` needs `{table}/{id}` DELETE allowed; new staff POSTs 403 unless added |
 
 ### Pacing
 | Touch | Also check |
