@@ -34,6 +34,7 @@ export default defineConfig({
       "tests/format/money-date.test.ts",
       "tests/learning/evaluator.test.ts",
       "lib/dashboard/__tests__/budgetSpendTiles.test.ts",
+      "lib/dashboard/__tests__/homeDashboardFilters.test.ts",
     ],
     exclude: [
       "**/node_modules/**",

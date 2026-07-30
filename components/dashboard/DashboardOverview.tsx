@@ -44,6 +44,17 @@ import {
   KPICardSkeleton,
 } from "@/components/dashboard/skeletons"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  applyDashboardTableFiltersToPlans,
+  applyDashboardTableFiltersToScopes,
+  computeHomeLiveKpiCounts,
+  defaultDashboardViewFilters,
+  describeHomeMetricsFilterScope,
+  normalizeClientFilterValue,
+  type DashboardViewFilters,
+} from "@/lib/dashboard/homeDashboardFilters"
+
+export type { DashboardViewFilters }
 
 // Types reused from the original dashboard page
 type MediaPlan = {
@@ -126,18 +137,13 @@ type DashboardMetricCard = {
   accent: string
   iconBg: string
   iconText: string
+  /** Element id to scroll into view when the tile is activated. */
+  panelId: string
 }
 
 const LIVE_STATUSES = ["booked", "approved", "completed"]
 
 const normalizeStatus = (status?: string | null) => (status || "").toString().toLowerCase().trim()
-
-const normalizeClientFilterValue = (value: string) =>
-  value
-    .toString()
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, " ")
 
 const slugifyClientName = (name?: string | null) => {
   if (!name || typeof name !== "string") return ""
@@ -147,24 +153,6 @@ const slugifyClientName = (name?: string | null) => {
     .replace(/\s+/g, "-")
     .trim()
 }
-
-/** Dashboard table filters (URL-synced). */
-export type DashboardViewFilters = {
-  campaignSearch: string
-  /** Normalized client keys (same values as the client multi-select). */
-  clients: string[]
-  /** Publisher names retained for URL/saved-view compatibility (schedule filtering removed). */
-  publishers: string[]
-  /** Month label retained for URL/saved-view compatibility (schedule filtering removed). */
-  month: string | null
-}
-
-const defaultDashboardViewFilters = (): DashboardViewFilters => ({
-  campaignSearch: "",
-  clients: [],
-  publishers: [],
-  month: null,
-})
 
 const parseDashboardFiltersFromSearchParams = (sp: URLSearchParams): DashboardViewFilters => ({
   campaignSearch: sp.get("q") ?? "",
@@ -447,43 +435,6 @@ function DashboardPageErrorPanel({
   )
 }
 
-const normalizeDashboardSearch = (value: string) => value.toLowerCase().trim()
-
-function applyDashboardTableFiltersToPlans(plans: MediaPlan[], filters: DashboardViewFilters): MediaPlan[] {
-  const searchLower = normalizeDashboardSearch(filters.campaignSearch)
-  const selectedClients = new Set(filters.clients.map((value) => normalizeClientFilterValue(value)).filter(Boolean))
-
-  return plans.filter((plan) => {
-    const clientKey = normalizeClientFilterValue(plan.mp_clientname || "")
-    if (selectedClients.size > 0 && !selectedClients.has(clientKey)) return false
-
-    if (searchLower) {
-      const haystack = [
-        plan.mp_clientname,
-        plan.mp_campaignname,
-        plan.mp_mba_number,
-        plan.mp_brand,
-        plan.mp_campaignstatus,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-      if (!haystack.includes(searchLower)) return false
-    }
-
-    // Publisher/month filters previously depended on billing/delivery schedules — no-op for scalar tables.
-    return true
-  })
-}
-
-function applyDashboardTableFiltersToScopes(scopes: ScopeOfWork[], filters: DashboardViewFilters): ScopeOfWork[] {
-  const selectedClients = new Set(filters.clients.map((value) => normalizeClientFilterValue(value)).filter(Boolean))
-
-  if (selectedClients.size === 0) return scopes
-
-  return scopes.filter((scope) => selectedClients.has(normalizeClientFilterValue(scope.client_name || "")))
-}
-
 const transformMediaPlanData = (apiData: any[]): MediaPlan[] =>
   apiData.map((item: any) => ({
     id: item.id || 0,
@@ -604,6 +555,8 @@ type DashboardCollapsiblePanelProps = {
   children: ReactNode
   /** Full Tailwind gradient classes including `bg-gradient-to-r` (static string for JIT). */
   gradientClassName?: string
+  /** Anchor id for KPI tile scroll targets. */
+  id?: string
 }
 
 /** Panel title lives inside the card; mobile uses a trigger row inside the header (no duplicate heading outside the panel). */
@@ -615,15 +568,17 @@ function DashboardCollapsiblePanel({
   badge,
   children,
   gradientClassName,
+  id,
 }: DashboardCollapsiblePanelProps) {
   const expanded = isMd || open
   return (
     <Collapsible
+      id={id}
       open={expanded}
       onOpenChange={(v) => {
         if (!isMd) onOpenChange(v)
       }}
-      className="w-full"
+      className="w-full scroll-mt-4"
     >
       <Panel className="w-full overflow-hidden border-0 shadow-md">
         {gradientClassName ? <div className={`h-1 ${gradientClassName}`} /> : null}
@@ -774,35 +729,78 @@ export default function DashboardOverview({
     [],
   )
 
-  const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetricCard[]>([
-    {
-      title: "Total Live Campaigns",
-      value: "0",
-      icon: BarChart3,
-      tooltip: "Campaigns booked/approved/completed running today",
-      accent: "bg-pacing-on-track",
-      iconBg: "bg-pacing-on-track-bg",
-      iconText: "text-status-on-track-fg",
-    },
-    {
-      title: "Total Live Scopes of Work",
-      value: "0",
-      icon: TrendingUp,
-      tooltip: "Sum of scopes with status Approved or In-Progress",
-      accent: "bg-pacing-ahead",
-      iconBg: "bg-pacing-ahead-bg",
-      iconText: "text-status-ahead-fg",
-    },
-    {
-      title: "Total Live Clients",
-      value: "0",
-      icon: Users,
-      tooltip: "Sum of unique clients with live activity from campaigns and scopes",
-      accent: "bg-channel-bvod",
-      iconBg: "bg-surface-panel",
-      iconText: "text-channel-bvod",
-    },
-  ])
+  const unfilteredLiveCampaigns = useMemo(() => {
+    const { startOfToday, endOfToday } = getTodayBounds()
+    return getHighestBookedApprovedCompletedVersionPerMba(mediaPlans).filter((plan) => {
+      const startDate = new Date(plan.mp_campaigndates_start)
+      const endDate = new Date(plan.mp_campaigndates_end)
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false
+      return startDate <= endOfToday && endDate >= startOfToday
+    })
+  }, [mediaPlans])
+
+  const unfilteredLiveScopes = useMemo(
+    () => scopes.filter((scope) => scope.project_status === "Approved" || scope.project_status === "In-Progress"),
+    [scopes],
+  )
+
+  const filteredLiveCampaigns = useMemo(
+    () => applyDashboardTableFiltersToPlans(unfilteredLiveCampaigns, dashboardFilters),
+    [unfilteredLiveCampaigns, dashboardFilters],
+  )
+
+  const filteredLiveScopes = useMemo(
+    () => applyDashboardTableFiltersToScopes(unfilteredLiveScopes, dashboardFilters),
+    [unfilteredLiveScopes, dashboardFilters],
+  )
+
+  const metricsScopeLine = useMemo(
+    () => describeHomeMetricsFilterScope(dashboardFilters),
+    [dashboardFilters],
+  )
+
+  const dashboardMetrics = useMemo((): DashboardMetricCard[] => {
+    const counts = computeHomeLiveKpiCounts(filteredLiveCampaigns, filteredLiveScopes)
+    return [
+      {
+        title: "Total Live Campaigns",
+        value: String(counts.liveCampaigns),
+        icon: BarChart3,
+        tooltip: "Campaigns booked/approved/completed running today (respects active filters)",
+        accent: "bg-pacing-on-track",
+        iconBg: "bg-pacing-on-track-bg",
+        iconText: "text-status-on-track-fg",
+        panelId: "dashboard-panel-live-campaigns",
+      },
+      {
+        title: "Total Live Scopes of Work",
+        value: String(counts.liveScopes),
+        icon: TrendingUp,
+        tooltip: "Scopes with status Approved or In-Progress (respects active filters)",
+        accent: "bg-pacing-ahead",
+        iconBg: "bg-pacing-ahead-bg",
+        iconText: "text-status-ahead-fg",
+        panelId: "dashboard-panel-live-scopes",
+      },
+      {
+        title: "Total Live Clients",
+        value: String(counts.liveClients),
+        icon: Users,
+        tooltip: "Unique clients with live campaigns or scopes (respects active filters)",
+        accent: "bg-channel-bvod",
+        iconBg: "bg-surface-panel",
+        iconText: "text-channel-bvod",
+        panelId: "dashboard-section-campaigns-scope",
+      },
+    ]
+  }, [filteredLiveCampaigns, filteredLiveScopes])
+
+  const scrollToDashboardPanel = useCallback((panelId: string, ensureOpen?: () => void) => {
+    ensureOpen?.()
+    requestAnimationFrame(() => {
+      document.getElementById(panelId)?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+  }, [])
 
   useEffect(() => {
     setMounted(true)
@@ -1025,11 +1023,11 @@ export default function DashboardOverview({
   )
 
   const handleClearDashboardFilters = useCallback(() => {
+    // Active filter only — do not wipe persistPinnedClients / saved client selection.
     setDashboardFilters(defaultDashboardViewFilters())
-    persistPinnedClients([])
     setBaselineTemplateId(null)
     setAppliedSavedViewId(null)
-  }, [persistPinnedClients])
+  }, [])
 
   const handleDashboardTemplateChange = useCallback(
     (templateId: string) => {
@@ -1236,60 +1234,7 @@ export default function DashboardOverview({
 
       setMediaPlans(mediaPlansData)
       setScopes(scopesData)
-
-      const statusFilteredPlans = getHighestBookedApprovedCompletedVersionPerMba(mediaPlansData)
-
-      const { startOfToday, endOfToday } = getTodayBounds()
-      const liveCampaigns = statusFilteredPlans.filter((plan) => {
-        const startDate = new Date(plan.mp_campaigndates_start)
-        const endDate = new Date(plan.mp_campaigndates_end)
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false
-        return startDate <= endOfToday && endDate >= startOfToday
-      })
-
-      const liveScopes = scopesData.filter((scope) => scope.project_status === "Approved" || scope.project_status === "In-Progress")
-
-      const liveClients = new Set<string>()
-      liveCampaigns.forEach((campaign) => {
-        if (campaign.mp_clientname) liveClients.add(campaign.mp_clientname)
-      })
-      liveScopes.forEach((scope) => {
-        if (scope.client_name) liveClients.add(scope.client_name)
-      })
-
-      const totalLiveCampaigns = liveCampaigns.length
-      const totalLiveScopes = liveScopes.length
-      const totalLiveClients = liveClients.size
-
-      setDashboardMetrics([
-        {
-          title: "Total Live Campaigns",
-          value: totalLiveCampaigns.toString(),
-          icon: BarChart3,
-          tooltip: "Campaigns booked/approved/completed running today",
-          accent: "bg-pacing-on-track",
-          iconBg: "bg-pacing-on-track-bg",
-          iconText: "text-status-on-track-fg",
-        },
-        {
-          title: "Total Live Scopes of Work",
-          value: totalLiveScopes.toString(),
-          icon: TrendingUp,
-          tooltip: "Sum of scopes with status Approved or In-Progress",
-          accent: "bg-pacing-ahead",
-          iconBg: "bg-pacing-ahead-bg",
-          iconText: "text-status-ahead-fg",
-        },
-        {
-          title: "Total Live Clients",
-          value: totalLiveClients.toString(),
-          icon: Users,
-          tooltip: "Unique clients with live campaigns or scopes",
-          accent: "bg-channel-bvod",
-          iconBg: "bg-surface-panel",
-          iconText: "text-channel-bvod",
-        },
-      ])
+      // KPI tiles derive from filteredLive* via useMemo — do not setDashboardMetrics here.
       setDataLastRefreshedAt(new Date())
     } catch (error) {
       console.error("Dashboard: Error fetching data:", error)
@@ -1410,12 +1355,15 @@ export default function DashboardOverview({
       status: (scope: ScopeOfWork) => scope.project_status || "",
     }
 
-    const liveCampaigns = showTables ? applyDashboardTableFiltersToPlans(getLiveCampaigns(), dashboardFilters) : []
-    const liveScopes = showTables ? applyDashboardTableFiltersToScopes(getLiveScopes(), dashboardFilters) : []
+    const liveCampaignsFiltered = applyDashboardTableFiltersToPlans(getLiveCampaigns(), dashboardFilters)
+    const liveScopesFiltered = applyDashboardTableFiltersToScopes(getLiveScopes(), dashboardFilters)
+    const liveCampaigns = showTables ? liveCampaignsFiltered : []
+    const liveScopes = showTables ? liveScopesFiltered : []
     const campaignsDueToStart = showTables ? applyDashboardTableFiltersToPlans(getCampaignsDueToStart(), dashboardFilters) : []
     const campaignsFinishedRecently = showTables
       ? applyDashboardTableFiltersToPlans(getCampaignsFinishedRecently(), dashboardFilters)
       : []
+    const kpiCounts = computeHomeLiveKpiCounts(liveCampaignsFiltered, liveScopesFiltered)
 
     const sortedLiveCampaigns = applySort(liveCampaigns, liveCampaignSort, liveCampaignSelectors)
     const sortedLiveScopes = applySort(liveScopes, liveScopesSort, scopeSelectors)
@@ -1597,7 +1545,11 @@ export default function DashboardOverview({
           finishedSort,
         },
         counts: {
-          metrics: dashboardMetrics.map((m) => ({ title: m.title, value: m.value })),
+          metrics: [
+            { title: "Total Live Campaigns", value: String(kpiCounts.liveCampaigns) },
+            { title: "Total Live Scopes of Work", value: String(kpiCounts.liveScopes) },
+            { title: "Total Live Clients", value: String(kpiCounts.liveClients) },
+          ],
           liveCampaigns: liveCampaigns.length,
           liveScopes: liveScopes.length,
           campaignsStartingSoon: campaignsDueToStart.length,
@@ -1615,7 +1567,6 @@ export default function DashboardOverview({
     applySort,
     authError,
     dashboardFilters,
-    dashboardMetrics,
     dueSoonSort,
     fetchError,
     finishedSort,
@@ -1830,19 +1781,8 @@ export default function DashboardOverview({
     return null
   }
 
-  const getLiveCampaigns = () => {
-    const { startOfToday, endOfToday } = getTodayBounds()
-
-    return getHighestBookedApprovedCompletedVersionPerMba(mediaPlans).filter((plan) => {
-      const startDate = new Date(plan.mp_campaigndates_start)
-      const endDate = new Date(plan.mp_campaigndates_end)
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false
-
-      return startDate <= endOfToday && endDate >= startOfToday
-    })
-  }
-
-  const getLiveScopes = () => scopes.filter((scope) => scope.project_status === "Approved" || scope.project_status === "In-Progress")
+  const getLiveCampaigns = () => unfilteredLiveCampaigns
+  const getLiveScopes = () => unfilteredLiveScopes
 
   const getCampaignsDueToStart = () => {
     const { startOfToday, endOfToday } = getTodayBounds()
@@ -1985,8 +1925,8 @@ export default function DashboardOverview({
       }))
   })()
 
-  const liveCampaigns = showTables ? applyDashboardTableFiltersToPlans(getLiveCampaigns(), dashboardFilters) : []
-  const liveScopes = showTables ? applyDashboardTableFiltersToScopes(getLiveScopes(), dashboardFilters) : []
+  const liveCampaigns = showTables ? filteredLiveCampaigns : []
+  const liveScopes = showTables ? filteredLiveScopes : []
   const campaignsDueToStart = showTables ? applyDashboardTableFiltersToPlans(getCampaignsDueToStart(), dashboardFilters) : []
   const campaignsFinishedRecently = showTables
     ? applyDashboardTableFiltersToPlans(getCampaignsFinishedRecently(), dashboardFilters)
@@ -2151,9 +2091,7 @@ export default function DashboardOverview({
       ) : null}
 
       {showMetrics && layoutPanels.keyMetrics ? (
-        <PanelRow
-          title="Key metrics"
-        >
+        <PanelRow title="Key metrics" helperText={metricsScopeLine}>
           {loading ? (
             Array.from({ length: 4 }).map((_, index) => (
               <PanelRowCell key={`kpi-skeleton-${index}`} span="quarter">
@@ -2168,7 +2106,16 @@ export default function DashboardOverview({
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      className="h-full min-h-11 w-full rounded-card text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                      className="interactive h-full min-h-11 w-full cursor-pointer rounded-card text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                      onClick={() => {
+                        if (metric.panelId === "dashboard-panel-live-scopes") {
+                          scrollToDashboardPanel(metric.panelId, () => setOpenScopesPanel(true))
+                        } else if (metric.panelId === "dashboard-section-campaigns-scope") {
+                          scrollToDashboardPanel(metric.panelId, () => setOpenScopesPanel(true))
+                        } else {
+                          scrollToDashboardPanel(metric.panelId)
+                        }
+                      }}
                     >
                       <MetricCard
                         label={metric.title}
@@ -2194,14 +2141,17 @@ export default function DashboardOverview({
 
       {showTables && tableSectionVisible ? (
         <>
-          <div className="mb-4 flex items-center justify-between pt-4">
+          <div
+            id="dashboard-section-campaigns-scope"
+            className="mb-4 flex items-center justify-between pt-4 scroll-mt-4"
+          >
             <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Campaigns & scope data</h2>
             <ListGridToggle value={listGridMode} onChange={setListGridMode} />
           </div>
           <PanelRow className="space-y-0">
           {layoutPanels.liveCampaigns ? (
           <PanelRowCell span="full">
-            <Panel className="w-full overflow-hidden border-0 shadow-md">
+            <Panel id="dashboard-panel-live-campaigns" className="w-full scroll-mt-4 overflow-hidden border-0 shadow-md">
               <div className="h-1 bg-pacing-ahead" />
               <PanelHeader className="items-center pb-2">
                 <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -2313,6 +2263,7 @@ export default function DashboardOverview({
           {layoutPanels.scopes ? (
           <PanelRowCell span="full">
             <DashboardCollapsiblePanel
+              id="dashboard-panel-live-scopes"
               isMd={isMd}
               open={openScopesPanel}
               onOpenChange={setOpenScopesPanel}

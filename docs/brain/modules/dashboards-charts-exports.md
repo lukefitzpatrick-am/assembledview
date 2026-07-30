@@ -2,6 +2,7 @@
 
 ## Client dashboards
 
+- Home `/dashboard` (`DashboardOverview`): Key metrics tiles derive from the same filtered live campaign/scope arrays as the panels (`lib/dashboard/homeDashboardFilters.ts`). Filters update tiles and panel badges together; "Clear filters" clears the active filter only and does not wipe saved client pins.
 - Routes: `app/dashboard/[slug]/**` (tenant-scoped client views) + `components/dashboard/**` (57 files: hero KPI bar, spending insights, campaign viz, delivery sections, slide-overs).
 - Money/date presentation: client-facing dashboard surfaces use `lib/format/money.ts` (`formatMoney` / `formatMoneyCompact` / `formatPercent`) and `lib/format/date.ts`. KPI tiles + chart axes → compact; tables/line items/invoice-reconcile figures → `formatMoney` with 2 decimals. Do not mix compact and full within one card/KPI row.
 - API: `GET /api/dashboard/[slug]` (and `/delivered`) — client users must match slug via `getUserClientSlugs`; admin is unscoped (SEC-4 FIXED).
