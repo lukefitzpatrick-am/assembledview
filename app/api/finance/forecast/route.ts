@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth0 } from "@/lib/auth0"
-import { getUserClientSlugs, getUserRoles } from "@/lib/rbac"
+import { getUserClientSlugs } from "@/lib/rbac"
+import { requireRole } from "@/lib/requireRole"
 import {
   loadFinanceForecastDataset,
   normalizeScenario,
@@ -29,16 +29,15 @@ function responseNoStore(payload: unknown, init?: ResponseInit) {
  * - `debug=1` (optional): include `FinanceForecastLine.debug` on each row; omitted when off (source kept)
  */
 export async function GET(request: NextRequest) {
-  const session = await auth0.getSession(request)
-  if (!session?.user) {
-    return responseNoStore({ error: "unauthorised" }, { status: 401 })
-  }
-
-  const roles = getUserRoles(session.user)
-  if (roles.includes("client")) {
+  const gate = await requireRole(request, ["admin", "manager"])
+  if ("response" in gate) {
     return responseNoStore(
-      { error: "forbidden", reason: "client-role", message: "Finance Forecast is not available for client-role users." },
-      { status: 403 }
+      {
+        error: gate.response.status === 401 ? "unauthorised" : "forbidden",
+        reason: "role",
+        message: "Finance Forecast requires admin or manager.",
+      },
+      { status: gate.response.status }
     )
   }
 
@@ -66,8 +65,8 @@ export async function GET(request: NextRequest) {
     )
   }
 
-  const isAdmin = roles.includes("admin")
-  const tenantSlugs = getUserClientSlugs(session.user)
+  const isAdmin = gate.roles.includes("admin")
+  const tenantSlugs = getUserClientSlugs(gate.session?.user)
   // AuthZ: unrestricted forecast is admin-only; non-admin with no slug scope → empty set (fail closed).
   const allowedClientSlugs = isAdmin
     ? null

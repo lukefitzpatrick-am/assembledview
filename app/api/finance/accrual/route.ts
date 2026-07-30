@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth0 } from "@/lib/auth0"
-import { getUserRoles } from "@/lib/rbac"
 import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { requireRole } from "@/lib/requireRole"
 import {
   collectClientPaysForMediaFlagsFromSchedule,
   computeAccrualRows,
@@ -201,14 +200,11 @@ function responseNoStore(payload: AccrualApiResponse, init?: ResponseInit) {
 }
 
 export async function GET(request: NextRequest) {
-  // Enforce: not accessible by client users (middleware already redirects clients away from non-dashboard pages,
-  // but API routes must enforce this explicitly).
-  const session = await auth0.getSession(request)
-  const roles = getUserRoles(session?.user)
-  if (roles.includes("client")) {
+  const gate = await requireRole(request, ["admin", "manager"])
+  if ("response" in gate) {
     return responseNoStore(
-      { months: [], rows: [], meta: { error: "forbidden", reason: "client-role" } },
-      { status: 403 }
+      { months: [], rows: [], meta: { error: "forbidden", reason: "role" } },
+      { status: gate.response.status }
     )
   }
 
