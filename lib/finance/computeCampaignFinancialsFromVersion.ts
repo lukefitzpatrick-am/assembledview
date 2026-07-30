@@ -26,6 +26,7 @@ import type {
 import { addGst } from "@/lib/finance/gst"
 import { getBillingSchedule, getDeliverySchedule } from "@/lib/finance/normalizeFields"
 import { MEDIA_PLAN_VERSION_LINE_ITEM_TABLE_KEYS } from "@/lib/finance/planLineItemEnrichment"
+import { getAttachedFinanceSchedule } from "@/lib/finance/scheduleMonthsSource"
 import { matchMonthYear } from "@/lib/finance/utils"
 import { parseMoneyInput, roundMoney2 } from "@/lib/format/money"
 
@@ -183,10 +184,14 @@ export function computeCampaignFinancialsFromVersion(
     return computeCampaignFinancials(lineItems, { feeLoading }, campaignOptsFromVersion(version))
   }
 
-  const billingSchedule =
-    parsePersistedBillingScheduleToMonths(getBillingSchedule(version)) ?? []
-  const deliverySchedule =
-    parsePersistedBillingScheduleToMonths(getDeliverySchedule(version)) ?? []
+  // PC1: prefer hydrateVersionsFinanceScheduleSource attachment (rows/shadow).
+  const attached = getAttachedFinanceSchedule(version)
+  const billingSchedule = attached
+    ? attached.billing
+    : parsePersistedBillingScheduleToMonths(getBillingSchedule(version)) ?? []
+  const deliverySchedule = attached
+    ? attached.delivery
+    : parsePersistedBillingScheduleToMonths(getDeliverySchedule(version)) ?? []
 
   if (billingSchedule.length === 0 && deliverySchedule.length === 0) {
     return null

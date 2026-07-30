@@ -12,6 +12,7 @@ import {
   fetchRelevantPlanVersionsForFinanceMonths,
 } from "@/lib/finance/relevantPlanVersions"
 import { getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
+import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMonthsSource"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
@@ -124,6 +125,7 @@ export async function GET(request: NextRequest) {
       year = versionsResult.year
       month = versionsResult.month
       relevantVersions = versionsResult.relevantVersions as Record<string, unknown>[]
+      await hydrateVersionsFinanceScheduleSource(relevantVersions)
     } catch (e: unknown) {
       return versionsFetchErrorResponse(e)
     }
@@ -188,6 +190,18 @@ async function handleMultiMonth(
   }
 
   const publishers = (await getCachedPublishers()) as Record<string, unknown>[]
+
+  const seen = new Set<number>()
+  const uniqueVersions: Record<string, unknown>[] = []
+  for (const entry of versionsByMonth.values()) {
+    for (const v of (entry.relevantVersions as Record<string, unknown>[]) ?? []) {
+      const id = Number(v.id ?? v.version_id ?? 0)
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      uniqueVersions.push(v)
+    }
+  }
+  await hydrateVersionsFinanceScheduleSource(uniqueVersions)
 
   const records: BillingRecord[] = []
   const failedMonths: Array<{ month: string; error: string }> = []

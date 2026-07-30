@@ -20,6 +20,7 @@ import {
   fetchRelevantPlanVersionsForFinanceMonths,
 } from "@/lib/finance/relevantPlanVersions"
 import { getCachedClients, getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
+import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMonthsSource"
 import { readScopeOfWork } from "@/lib/data/readFinance"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import { requireFinanceAdmin } from "@/lib/requireRole"
@@ -150,8 +151,10 @@ export async function GET(request: NextRequest) {
           { status: versionsResult.status }
         )
       }
-      // Hydration removed because it caused Vercel FUNCTION_INVOCATION_TIMEOUT by fanning out across 19 Xano line-item endpoints per version.
+      // Channel line-item hydration removed (FUNCTION_INVOCATION_TIMEOUT). PC1:
+      // schedule_months source hydrate is a single Postgres batch, not a Xano fan-out.
       relevantVersions = versionsResult.relevantVersions as Record<string, unknown>[]
+      await hydrateVersionsFinanceScheduleSource(relevantVersions)
     } catch (e: unknown) {
       return versionsFetchErrorResponse(e)
     }
@@ -222,6 +225,19 @@ async function handleMultiMonth(
   const [clients, publishers] = await Promise.all([getCachedClients(), getCachedPublishers()])
   const scopes = wantSow ? await fetchScopesOrNull() : null
   const persistedStatusRows = await fetchAllPersistedFinanceStatusRows()
+
+  // Deduped hydrate across the FY window (one Postgres batch).
+  const seen = new Set<number>()
+  const uniqueVersions: Record<string, unknown>[] = []
+  for (const entry of versionsByMonth.values()) {
+    for (const v of (entry.relevantVersions as Record<string, unknown>[]) ?? []) {
+      const id = Number(v.id ?? v.version_id ?? 0)
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      uniqueVersions.push(v)
+    }
+  }
+  await hydrateVersionsFinanceScheduleSource(uniqueVersions)
 
   const filterParams = hubFilterParams(incoming, types)
   const records: BillingRecord[] = []

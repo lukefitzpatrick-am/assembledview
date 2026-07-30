@@ -8,6 +8,7 @@ import {
   normalizeMonthKey,
   type AccrualApiResponse,
 } from "@/lib/finance/accrual"
+import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMonthsSource"
 
 export const maxDuration = 60
 
@@ -250,6 +251,9 @@ export async function GET(request: NextRequest) {
     const versionsArray = Array.isArray(versions) ? (versions as XanoVersion[]) : []
 
     const chosen = pickLatestVersions(versionsArray, mastersArray)
+
+    // PC1: schedule_months source for accrual flatten (blob default / shadow / rows).
+    await hydrateVersionsFinanceScheduleSource(chosen as unknown as Record<string, unknown>[])
 
     // Replaced a 19-endpoint-per-version Xano fan-out that caused FUNCTION_INVOCATION_TIMEOUT; flags now come from delivery JSON only.
     const clientPaysForMediaByLineItemId: Record<string, boolean> = {}

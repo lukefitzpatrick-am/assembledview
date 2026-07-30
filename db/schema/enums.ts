@@ -26,6 +26,7 @@ export const lineChannelEnum = pgEnum("line_channel", [
 export const scheduleComponentEnum = pgEnum("schedule_component", [
   "media",
   "fee",
+  "adserving",
 ])
 export const scheduleBasisEnum = pgEnum("schedule_basis", [
   "billing",

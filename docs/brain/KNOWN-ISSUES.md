@@ -39,9 +39,9 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | C-4 | `SocialMediaContainer` computes deliverables inline in 2 places, bypassing the shared primitive; also `lib/billing/computeSchedule.ts:206-220` | Open |
 | C-5 | Rounding split across 9 local `computeLoadedDeliverables` copies (rounded on 5 channels, raw on 4) — unifying changes displayed numbers; explicit Luke decision required | Open — decision pending |
 | C-6 | Pacing Overview claims "all clients across all channels" but several summaries load search-scope only; not fully rewired after new tabs | Verify current state |
-| C-7 | `generateBillingLineItems.ts:89` re-implements only 1 of 4 fee branches (no gross-up, no bonus zeroing) | Open |
-| C-8 | `computeDerivedCampaignFeeAmount` is a second campaign-fee total reconciled only within $10 (vs $0.01 everywhere else) | Open |
-| C-9 | `normaliseScheduleMediaType` defaults unknown media types to `"search"` — misspelled channel silently inherits search fee % | Open |
+| C-7 | `generateBillingLineItems.ts:89` re-implements only 1 of 4 fee branches (no gross-up, no bonus zeroing) | FIXED (PC2) |
+| C-8 | `computeDerivedCampaignFeeAmount` is a second campaign-fee total reconciled only within $10 (vs $0.01 everywhere else) | FIXED (PC2) |
+| C-9 | `normaliseScheduleMediaType` defaults unknown media types to `"search"` — misspelled channel silently inherits search fee % | FIXED (PC2) |
 | C-10 | Search (and other non-empty channels) could stall at hydration: loader effect discarded 200s on `cancelled` while `loadKey` blocked re-run, and `LazyMountWhenVisible` only force-mounted after global `loadPhase === "ready"` so off-screen Search never published settle → watchdog "did not finish loading" | FIXED (edit loader generation + clear loadKey on cleanup; forceMount once past section loader) |
 | C-10 | `deriveReceivableRecords` falls back to a djb2 hash of client name as synthetic client ID (100000–999999) flowing into grouping/filters/exports | Open |
 | C-11 | `checkPublishLineItemIntegrity` fails open on Xano errors (client-side `shouldBlockEmptyPublish` is the primary gate) | By design — know it |

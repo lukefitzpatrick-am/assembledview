@@ -17,6 +17,11 @@ import { normalizeMonthKey } from "@/lib/finance/accrual"
 import {
   computeCampaignFinancials,
 } from "@/lib/finance/computeCampaignFinancials"
+import { computeApprovedSlice, type ApprovedSlice } from "@/lib/finance/approvedSlice"
+import {
+  evaluateFullScopeGate,
+  getSaveGateFullScopeMode,
+} from "@/lib/finance/fullScopeGate"
 import type {
   BillingOverride,
   FeeLoading,
@@ -83,6 +88,11 @@ export type SavePlanVersionInput = {
   feeLoading: FeeLoading
   /** On publish — stored in mba_fee_snapshots.fees (defaults to feeLoading). */
   feeSnapshot?: Record<string, unknown>
+  /**
+   * Month chips at approve time (`January 2026` / `2026-01`). Empty → all
+   * billing months in the approved slice.
+   */
+  selectedMonthYears?: readonly string[]
   getRateForMediaType?: (mediaType: string) => number
   adservaudio?: number
   /**
@@ -108,6 +118,7 @@ export type SavePlanErrorCode =
   | "SCHEDULE_EXPLODE_FAILED"
   | "MASTER_NOT_FOUND"
   | "UNIQUE_VIOLATION"
+  | "C1_FULL_SCOPE"
 
 export class SavePlanError extends Error {
   readonly code: SavePlanErrorCode
@@ -253,6 +264,18 @@ function isUniqueViolation(err: unknown): boolean {
     e.cause?.code === "23505" ||
     /unique|duplicate key/i.test(String(e.message ?? ""))
   )
+}
+
+/** FEE_SNAPSHOT_WRITE_ONCE=on|off — default off until Luke confirms audit §5.3. */
+export function getFeeSnapshotWriteOnce(): boolean {
+  return (process.env.FEE_SNAPSHOT_WRITE_ONCE ?? "off").trim().toLowerCase() === "on"
+}
+
+function approvedLineIdsFromInput(lines: SavePlanLineItem[]): string[] {
+  return lines
+    .filter((l) => (l.approval ?? "approved") !== "excluded")
+    .map((l) => String(l.lineItemId).trim())
+    .filter(Boolean)
 }
 
 function extractOffendingLineItemId(err: unknown, fallbackIds: string[]): string | undefined {
@@ -486,6 +509,51 @@ export async function savePlanVersion(
           )
         }
 
+        // PC2: freeze approved_slice once (never mutate after write).
+        const [existingSliceRow] = await tx
+          .select({ approvedSlice: schema.mediaPlanVersions.approvedSlice })
+          .from(schema.mediaPlanVersions)
+          .where(eq(schema.mediaPlanVersions.id, versionId))
+          .limit(1)
+        let approvedSlice = existingSliceRow?.approvedSlice as ApprovedSlice | null | undefined
+        if (approvedSlice == null || typeof approvedSlice !== "object") {
+          approvedSlice = computeApprovedSlice({
+            financials,
+            selectedMonthYears: input.selectedMonthYears,
+            approvedLineItemIds: approvedLineIdsFromInput(input.lineItems),
+          })
+          await tx
+            .update(schema.mediaPlanVersions)
+            .set({ approvedSlice })
+            .where(eq(schema.mediaPlanVersions.id, versionId))
+        }
+
+        // Widened C1 gate: schedule_months full scope ↔ approved_slice.
+        const gateMode = getSaveGateFullScopeMode()
+        if (gateMode !== "off") {
+          const gate = evaluateFullScopeGate({
+            scheduleRows: scheduleRows.filter((r) => r.basis === "billing"),
+            approvedSlice: approvedSlice as ApprovedSlice,
+            mode: gateMode,
+          })
+          if (!gate.ok) {
+            console.warn("[SAVE_GATE_FULL_SCOPE]", gate.message, {
+              versionId,
+              mba: input.mbaNumber,
+              deltaCents: gate.deltaCents,
+              drifts: gate.drifts.slice(0, 8),
+            })
+            if (gateMode === "enforce") {
+              const named = gate.drifts.find((d) => d.lineItemId) ?? gate.drifts[0]
+              throw new SavePlanError(
+                "C1_FULL_SCOPE",
+                gate.message,
+                named?.lineItemId ?? undefined
+              )
+            }
+          }
+        }
+
         const status = input.campaignStatus ?? "Approved"
         await tx
           .update(schema.mediaPlanVersions)
@@ -505,19 +573,32 @@ export async function savePlanVersion(
           .where(eq(schema.mediaPlanMasters.id, input.masterId))
 
         const fees = input.feeSnapshot ?? (input.feeLoading as Record<string, unknown>) ?? {}
-        await tx
-          .insert(schema.mbaFeeSnapshots)
-          .values({
-            versionId,
-            fees,
-          })
-          .onConflictDoUpdate({
-            target: schema.mbaFeeSnapshots.versionId,
-            set: {
+        if (getFeeSnapshotWriteOnce()) {
+          // Audit §5.3: write-once per version; admin re-snapshot to overwrite.
+          await tx
+            .insert(schema.mbaFeeSnapshots)
+            .values({
+              versionId,
               fees,
-              capturedAt: sql`now()`,
-            },
-          })
+            })
+            .onConflictDoNothing({
+              target: schema.mbaFeeSnapshots.versionId,
+            })
+        } else {
+          await tx
+            .insert(schema.mbaFeeSnapshots)
+            .values({
+              versionId,
+              fees,
+            })
+            .onConflictDoUpdate({
+              target: schema.mbaFeeSnapshots.versionId,
+              set: {
+                fees,
+                capturedAt: sql`now()`,
+              },
+            })
+        }
       }
 
       const [finalLineCount] = await tx

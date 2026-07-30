@@ -5,6 +5,10 @@ import { summarizeShadowDiffs } from "@/lib/data/shadowDiff"
 import { probeFinanceShadowDiffs } from "@/lib/data/readFinance"
 import { probePacingShadowDiffs } from "@/lib/data/readPacing"
 import { probePlansShadowDiffs } from "@/lib/data/readMediaPlans"
+import {
+  getFinanceScheduleBackend,
+  probeFinanceScheduleDiffs,
+} from "@/lib/finance/scheduleMonthsSource"
 
 export const runtime = "nodejs"
 
@@ -17,6 +21,8 @@ export const runtime = "nodejs"
  * read of all finance tables so cold processes accumulate diffs.
  * Optional `?probe=pacing` probes pacing-owned Xano tables (masters/versions/orphan_fixes).
  * Optional `?probe=plans` probes media-plan masters/versions + sample channel line items.
+ * Optional `?probe=finance-schedule` compares blob vs schedule_months-derived amounts
+ * across all published versions (PC1); returns CSV + top divergent MBAs.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request)
@@ -46,6 +52,33 @@ export async function GET(request: NextRequest) {
       console.error("[migration-diffs] plans probe failed", err)
     }
   }
+  if (probe === "finance-schedule") {
+    try {
+      const result = await probeFinanceScheduleDiffs()
+      const summary = summarizeShadowDiffs(24 * 60 * 60 * 1000)
+      return NextResponse.json({
+        dataBackend: getDataBackend(),
+        financeScheduleBackend: getFinanceScheduleBackend(),
+        financeScheduleProbe: {
+          versionCount: result.versionCount,
+          fallbackCount: result.fallbackCount,
+          diffCount: result.diffCount,
+          topDivergentMbas: result.topDivergentMbas,
+        },
+        financeScheduleCsv: result.csv,
+        ...summary,
+      })
+    } catch (err) {
+      console.error("[migration-diffs] finance-schedule probe failed", err)
+      return NextResponse.json(
+        {
+          error: "finance-schedule probe failed",
+          message: err instanceof Error ? err.message : String(err),
+        },
+        { status: 500 }
+      )
+    }
+  }
 
   const summary = summarizeShadowDiffs(24 * 60 * 60 * 1000)
 
@@ -70,6 +103,7 @@ export async function GET(request: NextRequest) {
       pacing: getDataBackendFor("pacing"),
       plans: getDataBackendFor("plans"),
     },
+    financeScheduleBackend: getFinanceScheduleBackend(),
     financeDiffSplit: financeSplit,
     ...summary,
   })

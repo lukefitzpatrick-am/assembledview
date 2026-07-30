@@ -181,7 +181,10 @@ const MEDIA_TYPE_ALIASES: Record<string, ScheduleMediaTypeKey> = {
   digivideo: "digiVideo",
   digitalvideo: "digiVideo",
   bvod: "bvod",
+  digibvod: "bvod",
+  digitalbvod: "bvod",
   integration: "integration",
+  integrations: "integration",
   search: "search",
   social: "socialMedia",
   socialmedia: "socialMedia",
@@ -227,9 +230,14 @@ function normaliseToken(raw: string): string {
   return raw.trim().toLowerCase().replace(/[\s_-]+/g, "")
 }
 
-export function normaliseScheduleMediaType(mediaType: string): ScheduleMediaTypeKey {
-  const key = MEDIA_TYPE_ALIASES[normaliseToken(mediaType)]
-  return key ?? "search"
+/**
+ * Map free-form media type strings to schedule keys.
+ * Unknown types return `null` (C-9) — callers must not silently inherit search fees.
+ */
+export function normaliseScheduleMediaType(
+  mediaType: string
+): ScheduleMediaTypeKey | null {
+  return MEDIA_TYPE_ALIASES[normaliseToken(mediaType)] ?? null
 }
 
 export function resolveFeePctFromFeeLoading(
@@ -237,6 +245,12 @@ export function resolveFeePctFromFeeLoading(
   feeLoading: FeeLoading
 ): number {
   const scheduleKey = normaliseScheduleMediaType(mediaType)
+  if (scheduleKey == null) {
+    console.warn(
+      `[builder-issue] unknown media type "${mediaType}" — excluded from fee resolution (C-9)`
+    )
+    return 0
+  }
   // REVIEW: ProductionContainer hardcodes feePct={0}. Do not bill production from
   // feecontentcreator (that field is the Influencers content-fee fallback only).
   if (scheduleKey === "production") {
@@ -466,7 +480,14 @@ function buildResolvedLine(
   monthKeys: string[]
 ): ResolvedLine {
   const feePct = resolveLineFeePct(line, feeLoading)
-  const scheduleMediaType = normaliseScheduleMediaType(line.mediaType)
+  const resolvedMediaType = normaliseScheduleMediaType(line.mediaType)
+  if (resolvedMediaType == null) {
+    console.warn(
+      `[builder-issue] unknown media type "${line.mediaType}" on line ${line.lineItemId} — schedule bucket falls back to search; fee resolution excluded (C-9)`
+    )
+  }
+  // Last-resort schedule bucket only — fee % already excluded via resolveFeePctFromFeeLoading.
+  const scheduleMediaType: ScheduleMediaTypeKey = resolvedMediaType ?? "search"
   const excluded = line.approval === "excluded"
   const clientPaysForMedia = Boolean(line.clientPaysForMedia)
   const budgetIncludesFees = Boolean(line.budgetIncludesFees)

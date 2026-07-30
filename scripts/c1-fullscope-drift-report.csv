@@ -1,0 +1,898 @@
+mba_number,version_number,campaign_status,line,component,schedule_cents,slice_cents,delta_cents,label
+BICAU003,9,approved,*,total,3150005,3500000,-349995,Full-scope C1 drift: media on line billing-socialMedia::BICAU003SM1 — schedule $15750.05 vs approved slice $0.00 (Δ $15750.05).
+BICAU003,9,approved,billing-socialMedia::BICAU003SM1,media,1575005,0,1575005,media billing-socialMedia::BICAU003SM1
+BICAU003,9,approved,billing-socialMedia::BICAU003SM2,media,1575000,0,1575000,media billing-socialMedia::BICAU003SM2
+BICAU003,9,approved,BICAU003SM1,media,0,1750003,-1750003,media BICAU003SM1
+BICAU003,9,approved,BICAU003SM2,media,0,1749997,-1749997,media BICAU003SM2
+candel001,23,approved,*,total,9660000,11700000,-2040000,Full-scope C1 drift: media on line billing-socialMedia::candel001SM1 — schedule $93600.00 vs approved slice $0.00 (Δ $93600.00).
+candel001,23,approved,billing-socialMedia::candel001SM1,media,9360000,0,9360000,media billing-socialMedia::candel001SM1
+candel001,23,approved,candel001SM1,media,0,11700000,-11700000,media candel001SM1
+hartm001,22,booked,*,total,56028095,55762076,266019,Full-scope C1 drift: media on line billing-search::hartm001SE1 — schedule $97198.71 vs approved slice $0.00 (Δ $97198.71).
+hartm001,22,booked,billing-search::hartm001SE1,media,9719871,0,9719871,media billing-search::hartm001SE1
+hartm001,22,booked,billing-search::hartm001SE2,media,4534938,0,4534938,media billing-search::hartm001SE2
+hartm001,22,booked,billing-search::hartm001SE3,media,3690588,0,3690588,media billing-search::hartm001SE3
+hartm001,22,booked,billing-search::hartm001SE4,media,2855702,0,2855702,media billing-search::hartm001SE4
+hartm001,22,booked,billing-search::hartm001SE5,media,3866956,0,3866956,media billing-search::hartm001SE5
+hartm001,22,booked,billing-search::hartm001SE6,media,4544143,0,4544143,media billing-search::hartm001SE6
+hartm001,22,booked,billing-search::hartm001SE7,media,2735641,0,2735641,media billing-search::hartm001SE7
+hartm001,22,booked,billing-search::hartm001SE8,media,834032,0,834032,media billing-search::hartm001SE8
+hartm001,22,booked,billing-progDisplay::hartm001PD1,media,2979500,0,2979500,media billing-progDisplay::hartm001PD1
+hartm001,22,booked,billing-progDisplay::hartm001PD2,media,920800,0,920800,media billing-progDisplay::hartm001PD2
+hartm001,22,booked,billing-progDisplay::hartm001PD3,media,3452000,0,3452000,media billing-progDisplay::hartm001PD3
+hartm001,22,booked,billing-progVideo::hartm001PV1,media,8676800,0,8676800,media billing-progVideo::hartm001PV1
+hartm001,22,booked,billing-progVideo::hartm001PV2,media,6163200,0,6163200,media billing-progVideo::hartm001PV2
+hartm001,22,booked,billing-search::hartm001SE9,media,800000,0,800000,media billing-search::hartm001SE9
+hartm001,22,booked,hartm001PD1,media,0,2979500,-2979500,media hartm001PD1
+hartm001,22,booked,hartm001PD2,media,0,920800,-920800,media hartm001PD2
+hartm001,22,booked,hartm001PD3,media,0,3452000,-3452000,media hartm001PD3
+hartm001,22,booked,hartm001PV1,media,0,8676800,-8676800,media hartm001PV1
+hartm001,22,booked,hartm001PV2,media,0,6163200,-6163200,media hartm001PV2
+hartm001,22,booked,hartm001SE1,media,0,9719871,-9719871,media hartm001SE1
+hartm001,22,booked,hartm001SE2,media,0,4534938,-4534938,media hartm001SE2
+hartm001,22,booked,hartm001SE3,media,0,3690588,-3690588,media hartm001SE3
+hartm001,22,booked,hartm001SE4,media,0,2843607,-2843607,media hartm001SE4
+hartm001,22,booked,hartm001SE5,media,0,3866956,-3866956,media hartm001SE5
+hartm001,22,booked,hartm001SE6,media,0,4544143,-4544143,media hartm001SE6
+hartm001,22,booked,hartm001SE7,media,0,2735641,-2735641,media hartm001SE7
+hartm001,22,booked,hartm001SE8,media,0,834032,-834032,media hartm001SE8
+hartm001,22,booked,hartm001SE9,media,0,800000,-800000,media hartm001SE9
+hema001,7,approved,*,total,1209500,1142400,67100,Full-scope C1 drift: media on line billing-digiDisplay::hema001ML1 — schedule $34.00 vs approved slice $0.00 (Δ $34.00).
+hema001,7,approved,billing-digiDisplay::hema001ML1,media,3400,0,3400,media billing-digiDisplay::hema001ML1
+hema001,7,approved,billing-digiDisplay::hema001ML2,media,5000,0,5000,media billing-digiDisplay::hema001ML2
+hema001,7,approved,billing-digiDisplay::hema001ML4,media,3000,0,3000,media billing-digiDisplay::hema001ML4
+hema001,7,approved,billing-digiDisplay::hema001ML5,media,5000,0,5000,media billing-digiDisplay::hema001ML5
+hema001,7,approved,billing-digiDisplay::hema001ML6,media,13600,0,13600,media billing-digiDisplay::hema001ML6
+hema001,7,approved,billing-digiDisplay::hema001ML7,media,3000,0,3000,media billing-digiDisplay::hema001ML7
+hema001,7,approved,billing-digiDisplay::hema001ML8,media,27500,0,27500,media billing-digiDisplay::hema001ML8
+hema001,7,approved,billing-digiDisplay::hema001DD1,media,3400,0,3400,media billing-digiDisplay::hema001DD1
+hema001,7,approved,billing-digiDisplay::hema001DD2,media,5000,0,5000,media billing-digiDisplay::hema001DD2
+hema001,7,approved,billing-digiDisplay::hema001DD4,media,3000,0,3000,media billing-digiDisplay::hema001DD4
+hema001,7,approved,billing-digiDisplay::hema001DD5,media,5000,0,5000,media billing-digiDisplay::hema001DD5
+hema001,7,approved,billing-digiDisplay::hema001DD6,media,13600,0,13600,media billing-digiDisplay::hema001DD6
+hema001,7,approved,billing-digiDisplay::hema001DD7,media,3000,0,3000,media billing-digiDisplay::hema001DD7
+hema001,7,approved,billing-digiDisplay::hema001DD8,media,27500,0,27500,media billing-digiDisplay::hema001DD8
+hema001,7,approved,billing-progDisplay::hema001PD1,media,110000,0,110000,media billing-progDisplay::hema001PD1
+hema001,7,approved,billing-progDisplay::hema001PD3,media,275000,0,275000,media billing-progDisplay::hema001PD3
+hema001,7,approved,billing-progDisplay::hema001PD4,media,206300,0,206300,media billing-progDisplay::hema001PD4
+hema001,7,approved,billing-progDisplay::hema001PD5,media,187000,0,187000,media billing-progDisplay::hema001PD5
+hema001,7,approved,billing-progDisplay::hema001PD6,media,187000,0,187000,media billing-progDisplay::hema001PD6
+hema001,7,approved,billing-digiDisplay::hema001ML3,media,5000,0,5000,media billing-digiDisplay::hema001ML3
+hema001,7,approved,billing-digiDisplay::hema001ML9,media,1000,0,1000,media billing-digiDisplay::hema001ML9
+hema001,7,approved,billing-digiDisplay::hema001ML10,media,600,0,600,media billing-digiDisplay::hema001ML10
+hema001,7,approved,billing-digiDisplay::hema001DD3,media,5000,0,5000,media billing-digiDisplay::hema001DD3
+hema001,7,approved,billing-digiDisplay::hema001DD9,media,1000,0,1000,media billing-digiDisplay::hema001DD9
+hema001,7,approved,billing-digiDisplay::hema001DD10,media,600,0,600,media billing-digiDisplay::hema001DD10
+hema001,7,approved,billing-progDisplay::hema001PD2,media,110000,0,110000,media billing-progDisplay::hema001PD2
+hema001,7,approved,hema001DD1,media,0,3400,-3400,media hema001DD1
+hema001,7,approved,hema001DD10,media,0,600,-600,media hema001DD10
+hema001,7,approved,hema001DD2,media,0,5000,-5000,media hema001DD2
+hema001,7,approved,hema001DD3,media,0,5000,-5000,media hema001DD3
+hema001,7,approved,hema001DD4,media,0,3000,-3000,media hema001DD4
+hema001,7,approved,hema001DD5,media,0,5000,-5000,media hema001DD5
+hema001,7,approved,hema001DD6,media,0,13600,-13600,media hema001DD6
+hema001,7,approved,hema001DD7,media,0,3000,-3000,media hema001DD7
+hema001,7,approved,hema001DD8,media,0,27500,-27500,media hema001DD8
+hema001,7,approved,hema001DD9,media,0,1000,-1000,media hema001DD9
+hema001,7,approved,hema001PD1,media,0,110000,-110000,media hema001PD1
+hema001,7,approved,hema001PD2,media,0,110000,-110000,media hema001PD2
+hema001,7,approved,hema001PD3,media,0,275000,-275000,media hema001PD3
+hema001,7,approved,hema001PD4,media,0,206300,-206300,media hema001PD4
+curatif001,2,completed,*,total,22086300,3967100,18119200,Full-scope C1 drift: media on line search-Google Ads - AM-maximize_conversions-0 — schedule $71340.00 vs approved slice $0.00 (Δ $71340.00).
+curatif001,2,completed,search-Google Ads - AM-maximize_conversions-0,media,7134000,0,7134000,media search-Google Ads - AM-maximize_conversions-0
+curatif001,2,completed,search-Bing - AM-maximize_conversions-1,media,1450000,0,1450000,media search-Bing - AM-maximize_conversions-1
+curatif001,2,completed,socialMedia-Meta-maximize_conversions-0,media,9535200,0,9535200,media socialMedia-Meta-maximize_conversions-0
+curatif001,2,completed,progDisplay-Quantcast - Direct-conversions-0,media,1015100,0,1015100,media progDisplay-Quantcast - Direct-conversions-0
+curatif001,2,completed,progDisplay-Quantcast - Direct-conversions-1,media,2952000,0,2952000,media progDisplay-Quantcast - Direct-conversions-1
+curatif001,2,completed,curatif0011,media,0,1015100,-1015100,media curatif0011
+curatif001,2,completed,curatif0012,media,0,2952000,-2952000,media curatif0012
+curatif002,13,approved,*,total,1281000,743500,537500,Full-scope C1 drift: media on line billing-socialMedia::curatif0024 — schedule $5000.00 vs approved slice $0.00 (Δ $5000.00).
+curatif002,13,approved,billing-socialMedia::curatif0024,media,500000,0,500000,media billing-socialMedia::curatif0024
+curatif002,13,approved,billing-socialMedia::curatif0025,media,194800,0,194800,media billing-socialMedia::curatif0025
+curatif002,13,approved,curatif002SM4,media,0,500000,-500000,media curatif002SM4
+curatif002,13,approved,curatif002SM5,media,0,243500,-243500,media curatif002SM5
+golf001,16,booked,*,total,3134123,3000000,134123,Full-scope C1 drift: media on line billing-digiAudio::golf001DA1 — schedule $7500.00 vs approved slice $0.00 (Δ $7500.00).
+golf001,16,booked,billing-digiAudio::golf001DA1,media,750000,0,750000,media billing-digiAudio::golf001DA1
+golf001,16,booked,billing-digiAudio::golf001DA3,media,750000,0,750000,media billing-digiAudio::golf001DA3
+golf001,16,booked,billing-digiVideo::golf001DV1,media,750000,0,750000,media billing-digiVideo::golf001DV1
+golf001,16,booked,billing-digiVideo::golf001DV2,media,750000,0,750000,media billing-digiVideo::golf001DV2
+golf001,16,booked,golf001DA1,media,0,750000,-750000,media golf001DA1
+golf001,16,booked,golf001DA3,media,0,750000,-750000,media golf001DA3
+golf001,16,booked,golf001DV1,media,0,750000,-750000,media golf001DV1
+golf001,16,booked,golf001DV2,media,0,750000,-750000,media golf001DV2
+BICAU001,14,booked,*,total,56603529,51146400,5457129,Full-scope C1 drift: media on line billing-socialMedia::BICAU0011 — schedule $37794.00 vs approved slice $0.00 (Δ $37794.00).
+BICAU001,14,booked,billing-socialMedia::BICAU0011,media,3779400,0,3779400,media billing-socialMedia::BICAU0011
+BICAU001,14,booked,billing-socialMedia::BICAU0012,media,3779400,0,3779400,media billing-socialMedia::BICAU0012
+BICAU001,14,booked,billing-television::BICAU001TV1,media,34138063,0,34138063,media billing-television::BICAU001TV1
+BICAU001,14,booked,billing-bvod::BICAU001BV1,media,11000100,0,11000100,media billing-bvod::BICAU001BV1
+BICAU001,14,booked,billing-bvod::BICAU001BV2,media,2280000,0,2280000,media billing-bvod::BICAU001BV2
+BICAU001,14,booked,billing-progVideo::BICAU001ML1,media,1308500,0,1308500,media billing-progVideo::BICAU001ML1
+BICAU001,14,booked,BICAU001BV1,media,0,11000100,-11000100,media BICAU001BV1
+BICAU001,14,booked,BICAU001BV2,media,0,2280000,-2280000,media BICAU001BV2
+BICAU001,14,booked,BICAU001ML1,media,0,1308500,-1308500,media BICAU001ML1
+BICAU001,14,booked,BICAU001SM1,media,0,3779400,-3779400,media BICAU001SM1
+BICAU001,14,booked,BICAU001SM2,media,0,3779400,-3779400,media BICAU001SM2
+BICAU001,14,booked,BICAU001TV1,media,0,28999000,-28999000,media BICAU001TV1
+legal001,8,booked,*,total,3031355,4639600,-1608245,Full-scope C1 drift: media on line search-Google Ads - AM-Generic and Competitor keywords on relevant superannuation related terms-0 — schedule $6750.00 vs approved slice $0.00 (Δ $6750.00).
+legal001,8,booked,search-Google Ads - AM-Generic and Competitor keywords on relevant superannuation related terms-0,media,675000,0,675000,media search-Google Ads - AM-Generic and Competitor keywords on relevant superannuation related terms-0
+legal001,8,booked,"socialMedia-Meta-PPL22-55, legal professionals, paralegals, and law graduates in Australia using Meta's detailed demographic targeting. Complemented by retargeting website visitors, email prospect lists and lookalikes of existing members to re-engage high-intent users and nurture them towards conversion.-0",media,266700,0,266700,"media socialMedia-Meta-PPL22-55, legal professionals, paralegals, and law graduates in Australia using Meta's detailed demographic targeting. Complemented by retargeting website visitors, email prospect lists and lookalikes of existing members to re-engage high-intent users and nurture them towards conversion.-0"
+legal001,8,booked,"progDisplay-DV360-PL22-55, legal professionals, paralegals, and law graduates in Australia, custom premium site list-0",media,242055,0,242055,"media progDisplay-DV360-PL22-55, legal professionals, paralegals, and law graduates in Australia, custom premium site list-0"
+legal001,8,booked,"progDisplay-DV360-PL22-55, legal professionals, paralegals, and law graduates in Australia, custom premium site list-1",media,200000,0,200000,"media progDisplay-DV360-PL22-55, legal professionals, paralegals, and law graduates in Australia, custom premium site list-1"
+legal001,8,booked,"progVideo-YouTube - DV360-PPL 22-55 overlayed with a brand safe and contextually relevant list running across law & government, finance & superannuation or news relevant content by Channel Factory.-0",media,647600,0,647600,"media progVideo-YouTube - DV360-PPL 22-55 overlayed with a brand safe and contextually relevant list running across law & government, finance & superannuation or news relevant content by Channel Factory.-0"
+legal001,8,booked,"progOoh-Test Publisher-Sydney and Melbourne: Street Furniture within 100m of office towers with law firms in them, timed to 8am-6:30pm Monday to Friday-0",media,1000000,0,1000000,"media progOoh-Test Publisher-Sydney and Melbourne: Street Furniture within 100m of office towers with law firms in them, timed to 8am-6:30pm Monday to Friday-0"
+legal001,8,booked,legal001ML1,media,0,1314300,-1314300,media legal001ML1
+legal001,8,booked,legal001PD1,media,0,580000,-580000,media legal001PD1
+legal001,8,booked,legal001PD2,media,0,600000,-600000,media legal001PD2
+legal001,8,booked,legal001SE1,media,0,1611900,-1611900,media legal001SE1
+legal001,8,booked,legal001SM1,media,0,533400,-533400,media legal001SM1
+hema005,2,completed,*,total,2400000,4200000,-1800000,Full-scope C1 drift: media on line radio-Southern Cross Austereo-Triple M Melbourne 105.1-0 — schedule $2000.00 vs approved slice $0.00 (Δ $2000.00).
+hema005,2,completed,radio-Southern Cross Austereo-Triple M Melbourne 105.1-0,media,200000,0,200000,media radio-Southern Cross Austereo-Triple M Melbourne 105.1-0
+hema005,2,completed,radio-Southern Cross Austereo-Triple M Melbourne 105.1-1,media,200000,0,200000,media radio-Southern Cross Austereo-Triple M Melbourne 105.1-1
+hema005,2,completed,radio-Southern Cross Austereo-Triple M Melbourne 105.1-2,media,200000,0,200000,media radio-Southern Cross Austereo-Triple M Melbourne 105.1-2
+hema005,2,completed,radio-Sports Entertainment Network-SEN 1116am-3,media,500000,0,500000,media radio-Sports Entertainment Network-SEN 1116am-3
+hema005,2,completed,search-Google Ads - AM-maximize_conversions-0,media,500000,0,500000,media search-Google Ads - AM-maximize_conversions-0
+hema005,2,completed,socialMedia-Meta-maximize_conversions-0,media,250000,0,250000,media socialMedia-Meta-maximize_conversions-0
+hema005,2,completed,socialMedia-Meta-maximize_conversions-1,media,250000,0,250000,media socialMedia-Meta-maximize_conversions-1
+hema005,2,completed,socialMedia-Meta-maximize_conversions-2,media,300000,0,300000,media socialMedia-Meta-maximize_conversions-2
+hema005,2,completed,hema005RA1,media,0,200000,-200000,media hema005RA1
+hema005,2,completed,hema005RA2,media,0,200000,-200000,media hema005RA2
+hema005,2,completed,hema005RA3,media,0,200000,-200000,media hema005RA3
+hema005,2,completed,hema005RA4,media,0,1000000,-1000000,media hema005RA4
+hema005,2,completed,hema005SE1,media,0,1000000,-1000000,media hema005SE1
+hema005,2,completed,hema005SM1,media,0,500000,-500000,media hema005SM1
+hema005,2,completed,hema005SM2,media,0,500000,-500000,media hema005SM2
+hema005,2,completed,hema005SM3,media,0,600000,-600000,media hema005SM3
+BOSS001,17,booked,*,total,24498823,24498800,23,Full-scope C1 drift: media on line billing-radio::BOSS001RA13 — schedule $2957.98 vs approved slice $0.00 (Δ $2957.98).
+BOSS001,17,booked,billing-radio::BOSS001RA13,media,295798,0,295798,media billing-radio::BOSS001RA13
+BOSS001,17,booked,billing-radio::BOSS001RA14,media,220001,0,220001,media billing-radio::BOSS001RA14
+BOSS001,17,booked,billing-radio::BOSS001RA15,media,220001,0,220001,media billing-radio::BOSS001RA15
+BOSS001,17,booked,billing-radio::BOSS001RA17,media,428399,0,428399,media billing-radio::BOSS001RA17
+BOSS001,17,booked,billing-digiDisplay::BOSS001DD1,media,1540000,0,1540000,media billing-digiDisplay::BOSS001DD1
+BOSS001,17,booked,billing-television::BOSS001TV1,media,4100000,0,4100000,media billing-television::BOSS001TV1
+BOSS001,17,booked,billing-radio::BOSS001RA18,media,581400,0,581400,media billing-radio::BOSS001RA18
+BOSS001,17,booked,billing-radio::BOSS001RA19,media,440000,0,440000,media billing-radio::BOSS001RA19
+BOSS001,17,booked,billing-radio::BOSS001RA20,media,192000,0,192000,media billing-radio::BOSS001RA20
+BOSS001,17,booked,billing-radio::BOSS001RA21,media,192000,0,192000,media billing-radio::BOSS001RA21
+BOSS001,17,booked,billing-radio::BOSS001RA22,media,168000,0,168000,media billing-radio::BOSS001RA22
+BOSS001,17,booked,billing-radio::BOSS001RA23,media,168000,0,168000,media billing-radio::BOSS001RA23
+BOSS001,17,booked,billing-radio::BOSS001RA24,media,168000,0,168000,media billing-radio::BOSS001RA24
+BOSS001,17,booked,billing-radio::BOSS001RA25,media,168000,0,168000,media billing-radio::BOSS001RA25
+BOSS001,17,booked,billing-radio::BOSS001RA26,media,168000,0,168000,media billing-radio::BOSS001RA26
+BOSS001,17,booked,billing-radio::BOSS001RA27,media,168000,0,168000,media billing-radio::BOSS001RA27
+BOSS001,17,booked,billing-radio::BOSS001RA28,media,82000,0,82000,media billing-radio::BOSS001RA28
+BOSS001,17,booked,billing-radio::BOSS001RA29,media,42500,0,42500,media billing-radio::BOSS001RA29
+BOSS001,17,booked,billing-radio::BOSS001RA30,media,42500,0,42500,media billing-radio::BOSS001RA30
+BOSS001,17,booked,billing-radio::BOSS001RA31,media,1500000,0,1500000,media billing-radio::BOSS001RA31
+BOSS001,17,booked,billing-newspaper::BOSS001NP1,media,2250000,0,2250000,media billing-newspaper::BOSS001NP1
+BOSS001,17,booked,billing-newspaper::BOSS001NP2,media,1210000,0,1210000,media billing-newspaper::BOSS001NP2
+BOSS001,17,booked,billing-digiDisplay::BOSS001DD2,media,82900,0,82900,media billing-digiDisplay::BOSS001DD2
+BOSS001,17,booked,billing-search::BOSS001SE1,media,1800000,0,1800000,media billing-search::BOSS001SE1
+BOSS001,17,booked,billing-progDisplay::BOSS001PD1,media,900000,0,900000,media billing-progDisplay::BOSS001PD1
+BOSS001,17,booked,billing-progVideo::BOSS001PV1,media,2989500,0,2989500,media billing-progVideo::BOSS001PV1
+BOSS001,17,booked,billing-newspaper::BOSS001NP6,media,2700000,0,2700000,media billing-newspaper::BOSS001NP6
+BOSS001,17,booked,billing-newspaper::BOSS001NP3,media,991600,0,991600,media billing-newspaper::BOSS001NP3
+BOSS001,17,booked,billing-newspaper::BOSS001NP4,media,524400,0,524400,media billing-newspaper::BOSS001NP4
+BOSS001,17,booked,billing-digiDisplay::BOSS001DD3,media,165800,0,165800,media billing-digiDisplay::BOSS001DD3
+BOSS001,17,booked,BOSS001DD1,media,0,1540000,-1540000,media BOSS001DD1
+BOSS001,17,booked,BOSS001DD2,media,0,82900,-82900,media BOSS001DD2
+BOSS001,17,booked,BOSS001DD3,media,0,165800,-165800,media BOSS001DD3
+BOSS001,17,booked,BOSS001NP1,media,0,2250000,-2250000,media BOSS001NP1
+BOSS001,17,booked,BOSS001NP2,media,0,1210000,-1210000,media BOSS001NP2
+BOSS001,17,booked,BOSS001NP3,media,0,991600,-991600,media BOSS001NP3
+BOSS001,17,booked,BOSS001NP4,media,0,524400,-524400,media BOSS001NP4
+BOSS001,17,booked,BOSS001NP5,media,0,2700000,-2700000,media BOSS001NP5
+BOSS001,17,booked,BOSS001PD1,media,0,900000,-900000,media BOSS001PD1
+BOSS001,17,booked,BOSS001PV1,media,0,2989500,-2989500,media BOSS001PV1
+PENFOLD002,14,approved,*,total,19935990,14800000,5135990,Full-scope C1 drift: media on line billing-digiAudio::PENFOLD002DA1 — schedule $71250.00 vs approved slice $0.00 (Δ $71250.00).
+PENFOLD002,14,approved,billing-digiAudio::PENFOLD002DA1,media,7125000,0,7125000,media billing-digiAudio::PENFOLD002DA1
+PENFOLD002,14,approved,billing-digiAudio::PENFOLD002DA2,media,1350000,0,1350000,media billing-digiAudio::PENFOLD002DA2
+PENFOLD002,14,approved,billing-digiAudio::PENFOLD002DA3,media,662501,0,662501,media billing-digiAudio::PENFOLD002DA3
+PENFOLD002,14,approved,billing-digiAudio::PENFOLD002DA4,media,662501,0,662501,media billing-digiAudio::PENFOLD002DA4
+PENFOLD002,14,approved,billing-newspaper::PENFOLD002NP1,media,5000000,0,5000000,media billing-newspaper::PENFOLD002NP1
+PENFOLD002,14,approved,PENFOLD002DA1,media,0,7125000,-7125000,media PENFOLD002DA1
+PENFOLD002,14,approved,PENFOLD002DA2,media,0,1350000,-1350000,media PENFOLD002DA2
+PENFOLD002,14,approved,PENFOLD002DA3,media,0,662500,-662500,media PENFOLD002DA3
+PENFOLD002,14,approved,PENFOLD002DA4,media,0,662500,-662500,media PENFOLD002DA4
+PENFOLD002,14,approved,PENFOLD002NP1,media,0,5000000,-5000000,media PENFOLD002NP1
+curatif003,1,completed,*,total,187500,0,187500,Full-scope C1 drift: media on line socialMedia-TikTok-completed_views-0 — schedule $1500.00 vs approved slice $0.00 (Δ $1500.00).
+curatif003,1,completed,socialMedia-TikTok-completed_views-0,media,150000,0,150000,media socialMedia-TikTok-completed_views-0
+curatif003,1,completed,auto-total-November 2025,media,37500,0,37500,media auto-total-November 2025
+golf006,11,approved,*,total,1200000,1500000,-300000,"Full-scope C1 drift: media on line socialMedia-Meta-Interested in Golf, live sporting events-0 — schedule $1064.00 vs approved slice $0.00 (Δ $1064.00)."
+golf006,11,approved,"socialMedia-Meta-Interested in Golf, live sporting events-0",media,106400,0,106400,"media socialMedia-Meta-Interested in Golf, live sporting events-0"
+golf006,11,approved,socialMedia-Meta-Interested in Golf-1,media,80000,0,80000,media socialMedia-Meta-Interested in Golf-1
+golf006,11,approved,socialMedia-Meta-Interested in Golf-2,media,1013600,0,1013600,media socialMedia-Meta-Interested in Golf-2
+golf006,11,approved,golf006SM1,media,0,133000,-133000,media golf006SM1
+golf006,11,approved,golf006SM2,media,0,100000,-100000,media golf006SM2
+golf006,11,approved,golf006SM3,media,0,1267000,-1267000,media golf006SM3
+BOSS002,12,booked,*,total,13800737,13794426,6311,Full-scope C1 drift: media on line billing-radio::BOSS002RA1 — schedule $10560.00 vs approved slice $0.00 (Δ $10560.00).
+BOSS002,12,booked,billing-radio::BOSS002RA1,media,1056000,0,1056000,media billing-radio::BOSS002RA1
+BOSS002,12,booked,billing-radio::BOSS002RA2,media,1015327,0,1015327,media billing-radio::BOSS002RA2
+BOSS002,12,booked,billing-radio::BOSS002RA3,media,805000,0,805000,media billing-radio::BOSS002RA3
+BOSS002,12,booked,billing-radio::BOSS002RA4,media,805000,0,805000,media billing-radio::BOSS002RA4
+BOSS002,12,booked,billing-radio::BOSS002RA5,media,805000,0,805000,media billing-radio::BOSS002RA5
+BOSS002,12,booked,billing-radio::BOSS002RA6,media,805000,0,805000,media billing-radio::BOSS002RA6
+BOSS002,12,booked,billing-radio::BOSS002RA7,media,805000,0,805000,media billing-radio::BOSS002RA7
+BOSS002,12,booked,billing-radio::BOSS002RA8,media,805000,0,805000,media billing-radio::BOSS002RA8
+BOSS002,12,booked,billing-radio::BOSS002RA9,media,280001,0,280001,media billing-radio::BOSS002RA9
+BOSS002,12,booked,billing-radio::BOSS002RA10,media,280001,0,280001,media billing-radio::BOSS002RA10
+BOSS002,12,booked,billing-radio::BOSS002RA11,media,805000,0,805000,media billing-radio::BOSS002RA11
+BOSS002,12,booked,billing-digiDisplay::BOSS002DD1,media,349200,0,349200,media billing-digiDisplay::BOSS002DD1
+BOSS002,12,booked,billing-search::BOSS002SE1,media,2100000,0,2100000,media billing-search::BOSS002SE1
+BOSS002,12,booked,billing-progDisplay::BOSS002PD1,media,683400,0,683400,media billing-progDisplay::BOSS002PD1
+BOSS002,12,booked,billing-progDisplay::BOSS002PD2,media,600000,0,600000,media billing-progDisplay::BOSS002PD2
+BOSS002,12,booked,billing-radio::BOSS002RA12,media,57000,0,57000,media billing-radio::BOSS002RA12
+BOSS002,12,booked,billing-radio::BOSS002RA13,media,26800,0,26800,media billing-radio::BOSS002RA13
+BOSS002,12,booked,billing-newspaper::BOSS002NP1,media,968000,0,968000,media billing-newspaper::BOSS002NP1
+BOSS002,12,booked,billing-newspaper::BOSS002NP2,media,743700,0,743700,media billing-newspaper::BOSS002NP2
+BOSS002,12,booked,BOSS002DD1,media,0,349200,-349200,media BOSS002DD1
+BOSS002,12,booked,BOSS002NP1,media,0,968000,-968000,media BOSS002NP1
+BOSS002,12,booked,BOSS002NP2,media,0,743700,-743700,media BOSS002NP2
+BOSS002,12,booked,BOSS002PD1,media,0,683400,-683400,media BOSS002PD1
+BOSS002,12,booked,BOSS002PD2,media,0,600000,-600000,media BOSS002PD2
+BOSS002,12,booked,BOSS002RA1,media,0,1056000,-1056000,media BOSS002RA1
+BOSS002,12,booked,BOSS002RA10,media,0,280000,-280000,media BOSS002RA10
+BOSS002,12,booked,BOSS002RA11,media,0,805000,-805000,media BOSS002RA11
+BOSS002,12,booked,BOSS002RA12,media,0,57000,-57000,media BOSS002RA12
+BOSS002,12,booked,BOSS002RA13,media,0,26800,-26800,media BOSS002RA13
+BOSS002,12,booked,BOSS002RA2,media,0,1015326,-1015326,media BOSS002RA2
+BOSS002,12,booked,BOSS002RA3,media,0,805000,-805000,media BOSS002RA3
+BOSS002,12,booked,BOSS002RA4,media,0,805000,-805000,media BOSS002RA4
+BOSS002,12,booked,BOSS002RA5,media,0,805000,-805000,media BOSS002RA5
+BOSS002,12,booked,BOSS002RA6,media,0,805000,-805000,media BOSS002RA6
+BOSS002,12,booked,BOSS002RA7,media,0,805000,-805000,media BOSS002RA7
+BOSS002,12,booked,BOSS002RA8,media,0,805000,-805000,media BOSS002RA8
+BOSS002,12,booked,BOSS002RA9,media,0,280000,-280000,media BOSS002RA9
+BOSS002,12,booked,BOSS002SE1,media,0,2100000,-2100000,media BOSS002SE1
+PGAAUS003,12,approved,*,total,2462030,3234400,-772370,Full-scope C1 drift: media on line billing-socialMedia::PGAAUS003SM1 — schedule $345.10 vs approved slice $0.00 (Δ $345.10).
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM1,media,34510,0,34510,media billing-socialMedia::PGAAUS003SM1
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM2,media,160000,0,160000,media billing-socialMedia::PGAAUS003SM2
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM3,media,260000,0,260000,media billing-socialMedia::PGAAUS003SM3
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM4,media,260000,0,260000,media billing-socialMedia::PGAAUS003SM4
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM5,media,160000,0,160000,media billing-socialMedia::PGAAUS003SM5
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM7,media,160000,0,160000,media billing-socialMedia::PGAAUS003SM7
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM6,media,160000,0,160000,media billing-socialMedia::PGAAUS003SM6
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM8,media,480000,0,480000,media billing-socialMedia::PGAAUS003SM8
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM10,media,80000,0,80000,media billing-socialMedia::PGAAUS003SM10
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM11,media,60000,0,60000,media billing-socialMedia::PGAAUS003SM11
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM9,media,120000,0,120000,media billing-socialMedia::PGAAUS003SM9
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM12,media,260000,0,260000,media billing-socialMedia::PGAAUS003SM12
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM13,media,100000,0,100000,media billing-socialMedia::PGAAUS003SM13
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM14,media,120000,0,120000,media billing-socialMedia::PGAAUS003SM14
+PGAAUS003,12,approved,billing-socialMedia::PGAAUS003SM15,media,47520,0,47520,media billing-socialMedia::PGAAUS003SM15
+PGAAUS003,12,approved,PGAAUS003SM1,media,0,200000,-200000,media PGAAUS003SM1
+PGAAUS003,12,approved,PGAAUS003SM10,media,0,100000,-100000,media PGAAUS003SM10
+PGAAUS003,12,approved,PGAAUS003SM11,media,0,75000,-75000,media PGAAUS003SM11
+PGAAUS003,12,approved,PGAAUS003SM12,media,0,325000,-325000,media PGAAUS003SM12
+PGAAUS003,12,approved,PGAAUS003SM13,media,0,125000,-125000,media PGAAUS003SM13
+PGAAUS003,12,approved,PGAAUS003SM14,media,0,150000,-150000,media PGAAUS003SM14
+PGAAUS003,12,approved,PGAAUS003SM15,media,0,59400,-59400,media PGAAUS003SM15
+PGAAUS003,12,approved,PGAAUS003SM2,media,0,200000,-200000,media PGAAUS003SM2
+PGAAUS003,12,approved,PGAAUS003SM3,media,0,325000,-325000,media PGAAUS003SM3
+PGAAUS003,12,approved,PGAAUS003SM4,media,0,325000,-325000,media PGAAUS003SM4
+PGAAUS003,12,approved,PGAAUS003SM5,media,0,200000,-200000,media PGAAUS003SM5
+PGAAUS003,12,approved,PGAAUS003SM6,media,0,200000,-200000,media PGAAUS003SM6
+PGAAUS003,12,approved,PGAAUS003SM7,media,0,200000,-200000,media PGAAUS003SM7
+PGAAUS003,12,approved,PGAAUS003SM8,media,0,600000,-600000,media PGAAUS003SM8
+PGAAUS003,12,approved,PGAAUS003SM9,media,0,150000,-150000,media PGAAUS003SM9
+golf008,5,booked,*,total,747755,950000,-202245,Full-scope C1 drift: media on line billing-socialMedia::golf008SM8 — schedule $189.52 vs approved slice $0.00 (Δ $189.52).
+golf008,5,booked,billing-socialMedia::golf008SM8,media,18952,0,18952,media billing-socialMedia::golf008SM8
+golf008,5,booked,billing-socialMedia::golf008SM9,media,70831,0,70831,media billing-socialMedia::golf008SM9
+golf008,5,booked,billing-socialMedia::golf008SM10,media,18813,0,18813,media billing-socialMedia::golf008SM10
+golf008,5,booked,billing-socialMedia::golf008SM11,media,19159,0,19159,media billing-socialMedia::golf008SM11
+golf008,5,booked,billing-socialMedia::golf008SM1,media,80000,0,80000,media billing-socialMedia::golf008SM1
+golf008,5,booked,billing-socialMedia::golf008SM2,media,120000,0,120000,media billing-socialMedia::golf008SM2
+golf008,5,booked,billing-socialMedia::golf008SM3,media,120000,0,120000,media billing-socialMedia::golf008SM3
+golf008,5,booked,billing-socialMedia::golf008SM4,media,80000,0,80000,media billing-socialMedia::golf008SM4
+golf008,5,booked,billing-socialMedia::golf008SM5,media,80000,0,80000,media billing-socialMedia::golf008SM5
+golf008,5,booked,billing-socialMedia::golf008SM6,media,80000,0,80000,media billing-socialMedia::golf008SM6
+golf008,5,booked,billing-socialMedia::golf008SM7,media,60000,0,60000,media billing-socialMedia::golf008SM7
+golf008,5,booked,golf008SM1,media,0,100000,-100000,media golf008SM1
+golf008,5,booked,golf008SM10,media,0,25000,-25000,media golf008SM10
+golf008,5,booked,golf008SM11,media,0,25000,-25000,media golf008SM11
+golf008,5,booked,golf008SM2,media,0,150000,-150000,media golf008SM2
+golf008,5,booked,golf008SM3,media,0,150000,-150000,media golf008SM3
+golf008,5,booked,golf008SM4,media,0,100000,-100000,media golf008SM4
+golf008,5,booked,golf008SM5,media,0,100000,-100000,media golf008SM5
+golf008,5,booked,golf008SM6,media,0,100000,-100000,media golf008SM6
+golf008,5,booked,golf008SM7,media,0,75000,-75000,media golf008SM7
+golf008,5,booked,golf008SM8,media,0,25000,-25000,media golf008SM8
+golf008,5,booked,golf008SM9,media,0,100000,-100000,media golf008SM9
+PGAAUS005,3,completed,*,total,3630951,3429400,201551,Full-scope C1 drift: media on line billing-socialMedia::PGAAUS0051 — schedule $15984.00 vs approved slice $0.00 (Δ $15984.00).
+PGAAUS005,3,completed,billing-socialMedia::PGAAUS0051,media,1598400,0,1598400,media billing-socialMedia::PGAAUS0051
+PGAAUS005,3,completed,billing-digiAudio::PGAAUS005DA1,media,1831000,0,1831000,media billing-digiAudio::PGAAUS005DA1
+PGAAUS005,3,completed,PGAAUS005DA1,media,0,1831000,-1831000,media PGAAUS005DA1
+PGAAUS005,3,completed,PGAAUS005SM1,media,0,1598400,-1598400,media PGAAUS005SM1
+hartm002,7,booked,*,total,7528800,6962400,566400,Full-scope C1 drift: media on line billing-radio::hartm002RA1 — schedule $9280.00 vs approved slice $0.00 (Δ $9280.00).
+hartm002,7,booked,billing-radio::hartm002RA1,media,928000,0,928000,media billing-radio::hartm002RA1
+hartm002,7,booked,billing-radio::hartm002RA2,media,417600,0,417600,media billing-radio::hartm002RA2
+hartm002,7,booked,billing-radio::hartm002RA3,media,694400,0,694400,media billing-radio::hartm002RA3
+hartm002,7,booked,billing-radio::hartm002RA7,media,231000,0,231000,media billing-radio::hartm002RA7
+hartm002,7,booked,billing-radio::hartm002RA8,media,231000,0,231000,media billing-radio::hartm002RA8
+hartm002,7,booked,billing-ooh::hartm002ML1,media,4460400,0,4460400,media billing-ooh::hartm002ML1
+hartm002,7,booked,hartm002ML1,media,0,4460400,-4460400,media hartm002ML1
+hartm002,7,booked,hartm002RA1,media,0,928000,-928000,media hartm002RA1
+hartm002,7,booked,hartm002RA2,media,0,417600,-417600,media hartm002RA2
+hartm002,7,booked,hartm002RA3,media,0,694400,-694400,media hartm002RA3
+hartm002,7,booked,hartm002RA7,media,0,231000,-231000,media hartm002RA7
+hartm002,7,booked,hartm002RA8,media,0,231000,-231000,media hartm002RA8
+golf009,15,booked,*,total,5466923,5191700,275223,Full-scope C1 drift: media on line radio-Southern Cross Austereo-SA FM-0 — schedule $2040.00 vs approved slice $0.00 (Δ $2040.00).
+golf009,15,booked,radio-Southern Cross Austereo-SA FM-0,media,204000,0,204000,media radio-Southern Cross Austereo-SA FM-0
+golf009,15,booked,radio-Southern Cross Austereo-SA FM-2,media,172500,0,172500,media radio-Southern Cross Austereo-SA FM-2
+golf009,15,booked,radio-Southern Cross Austereo-SA FM-4,media,140000,0,140000,media radio-Southern Cross Austereo-SA FM-4
+golf009,15,booked,radio-Southern Cross Austereo-SA FM-5,media,60000,0,60000,media radio-Southern Cross Austereo-SA FM-5
+golf009,15,booked,radio-Southern Cross Austereo-SMMM-6,media,240000,0,240000,media radio-Southern Cross Austereo-SMMM-6
+golf009,15,booked,radio-Southern Cross Austereo-SMMM-8,media,150000,0,150000,media radio-Southern Cross Austereo-SMMM-8
+golf009,15,booked,radio-Southern Cross Austereo-SMMM-10,media,120000,0,120000,media radio-Southern Cross Austereo-SMMM-10
+golf009,15,booked,radio-Southern Cross Austereo-SMMM-11,media,70000,0,70000,media radio-Southern Cross Austereo-SMMM-11
+golf009,15,booked,newspaper-News Corp-The Adelaide Advertiser-0,media,2113300,0,2113300,media newspaper-News Corp-The Adelaide Advertiser-0
+golf009,15,booked,ooh-QMS-large_format-0,media,71300,0,71300,media ooh-QMS-large_format-0
+golf009,15,booked,ooh-QMS-large_format-1,media,71300,0,71300,media ooh-QMS-large_format-1
+golf009,15,booked,ooh-QMS-large_format-2,media,71300,0,71300,media ooh-QMS-large_format-2
+golf009,15,booked,ooh-QMS-large_format-3,media,71300,0,71300,media ooh-QMS-large_format-3
+golf009,15,booked,ooh-QMS-large_format-4,media,284800,0,284800,media ooh-QMS-large_format-4
+golf009,15,booked,"socialMedia-Meta-Handicap audience, Parents interested in Golf-0",media,500000,0,500000,"media socialMedia-Meta-Handicap audience, Parents interested in Golf-0"
+golf009,15,booked,"progDisplay-DV360-Contextual placements surrounding golf content, in-market audiences for Golf lessons/gear-0",media,851900,0,851900,"media progDisplay-DV360-Contextual placements surrounding golf content, in-market audiences for Golf lessons/gear-0"
+golf009,15,booked,golf009ML1,media,0,71300,-71300,media golf009ML1
+golf009,15,booked,golf009ML2,media,0,71300,-71300,media golf009ML2
+golf009,15,booked,golf009ML3,media,0,71300,-71300,media golf009ML3
+golf009,15,booked,golf009ML4,media,0,71300,-71300,media golf009ML4
+golf009,15,booked,golf009ML5,media,0,284800,-284800,media golf009ML5
+golf009,15,booked,golf009NP1,media,0,2113300,-2113300,media golf009NP1
+golf009,15,booked,golf009PD1,media,0,851900,-851900,media golf009PD1
+golf009,15,booked,golf009RA1,media,0,204000,-204000,media golf009RA1
+golf009,15,booked,golf009RA11,media,0,120000,-120000,media golf009RA11
+golf009,15,booked,golf009RA12,media,0,70000,-70000,media golf009RA12
+golf009,15,booked,golf009RA3,media,0,172500,-172500,media golf009RA3
+golf009,15,booked,golf009RA5,media,0,140000,-140000,media golf009RA5
+golf009,15,booked,golf009RA6,media,0,60000,-60000,media golf009RA6
+golf009,15,booked,golf009RA7,media,0,240000,-240000,media golf009RA7
+golf009,15,booked,golf009RA9,media,0,150000,-150000,media golf009RA9
+golf009,15,booked,golf009SM1,media,0,500000,-500000,media golf009SM1
+jayco004,2,planned,*,total,135000,150000,-15000,Full-scope C1 drift: media on line socialMedia-Meta-Jayco Owners CRM List-0 — schedule $1350.00 vs approved slice $0.00 (Δ $1350.00).
+jayco004,2,planned,socialMedia-Meta-Jayco Owners CRM List-0,media,135000,0,135000,media socialMedia-Meta-Jayco Owners CRM List-0
+jayco004,2,planned,jayco004SM1,media,0,150000,-150000,media jayco004SM1
+sthaus001,6,approved,*,total,1200000,1450000,-250000,Full-scope C1 drift: media on line search-Google Ads - AM-Broad Keywords + AI Max-0 — schedule $2000.00 vs approved slice $0.00 (Δ $2000.00).
+sthaus001,6,approved,search-Google Ads - AM-Broad Keywords + AI Max-0,media,200000,0,200000,media search-Google Ads - AM-Broad Keywords + AI Max-0
+sthaus001,6,approved,"socialMedia-Meta-Aus Open previous ticket holders, Golf interest AND frequent traveller-0",media,1000000,0,1000000,"media socialMedia-Meta-Aus Open previous ticket holders, Golf interest AND frequent traveller-0"
+sthaus001,6,approved,sthaus001SE1,media,0,200000,-200000,media sthaus001SE1
+sthaus001,6,approved,sthaus001SM1,media,0,1250000,-1250000,media sthaus001SM1
+QATAR001,1,booked,*,total,2996300,1457900,1538400,Full-scope C1 drift: media on line radio-Nova-NOVA 96.9-0 — schedule $6561.00 vs approved slice $0.00 (Δ $6561.00).
+QATAR001,1,booked,radio-Nova-NOVA 96.9-0,media,656100,0,656100,media radio-Nova-NOVA 96.9-0
+QATAR001,1,booked,radio-Nova-NOVA 96.9-1,media,162000,0,162000,media radio-Nova-NOVA 96.9-1
+QATAR001,1,booked,radio-Nova-NOVA 100-3,media,631800,0,631800,media radio-Nova-NOVA 100-3
+QATAR001,1,booked,radio-Nova-NOVA 100-4,media,170000,0,170000,media radio-Nova-NOVA 100-4
+QATAR001,1,booked,radio-Nova-NOVA 100-6,media,360000,0,360000,media radio-Nova-NOVA 100-6
+QATAR001,1,booked,radio-Nova-NOVA 100-7,media,114000,0,114000,media radio-Nova-NOVA 100-7
+QATAR001,1,booked,radio-Nova-NOVA 919-9,media,180000,0,180000,media radio-Nova-NOVA 919-9
+QATAR001,1,booked,radio-Nova-NOVA 919-10,media,76000,0,76000,media radio-Nova-NOVA 919-10
+QATAR001,1,booked,radio-Nova-NOVA93.7-12,media,419400,0,419400,media radio-Nova-NOVA93.7-12
+QATAR001,1,booked,radio-Nova-NOVA93.7-13,media,152000,0,152000,media radio-Nova-NOVA93.7-13
+QATAR001,1,booked,QATAR001RA1,media,0,656100,-656100,media QATAR001RA1
+QATAR001,1,booked,QATAR001RA2,media,0,631800,-631800,media QATAR001RA2
+QATAR001,1,booked,QATAR001RA3,media,0,170000,-170000,media QATAR001RA3
+legal002,3,booked,*,total,951600,950000,1600,"Full-scope C1 drift: media on line search-Google Ads - AM-Brand, Generic & Competitor keywords on relevant superannuation related terms-0 — schedule $5000.00 vs approved slice $0.00 (Δ $5000.00)."
+legal002,3,booked,"search-Google Ads - AM-Brand, Generic & Competitor keywords on relevant superannuation related terms-0",media,500000,0,500000,"media search-Google Ads - AM-Brand, Generic & Competitor keywords on relevant superannuation related terms-0"
+legal002,3,booked,"socialMedia-Meta-PPL22-55, legal professionals, paralegals, and law graduates in Australia using Meta's detailed demographic targeting. Complemented by retargeting website visitors, email prospect lists and lookalikes of existing members to re-engage high-intent users and nurture them towards conversion.-0",media,250000,0,250000,"media socialMedia-Meta-PPL22-55, legal professionals, paralegals, and law graduates in Australia using Meta's detailed demographic targeting. Complemented by retargeting website visitors, email prospect lists and lookalikes of existing members to re-engage high-intent users and nurture them towards conversion.-0"
+legal002,3,booked,"progDisplay-DV360-PL22-55, legal professionals, paralegals, and law graduates in Australia, custom premium site list (Performance)-0",media,200000,0,200000,"media progDisplay-DV360-PL22-55, legal professionals, paralegals, and law graduates in Australia, custom premium site list (Performance)-0"
+legal002,3,booked,legal002PD1,media,0,200000,-200000,media legal002PD1
+legal002,3,booked,legal002SE1,media,0,500000,-500000,media legal002SE1
+legal002,3,booked,legal002SM1,media,0,250000,-250000,media legal002SM1
+candel002,2,cancelled,*,total,3200000,4000000,-800000,Full-scope C1 drift: media on line search-Google Ads - AM-Brand and Generic keywords on relevant medical aesthetic and cosmetic laser devices related terms-0 — schedule $32000.00 vs approved slice $0.00 (Δ $32000.00).
+candel002,2,cancelled,search-Google Ads - AM-Brand and Generic keywords on relevant medical aesthetic and cosmetic laser devices related terms-0,media,3200000,0,3200000,media search-Google Ads - AM-Brand and Generic keywords on relevant medical aesthetic and cosmetic laser devices related terms-0
+candel002,2,cancelled,candel002SE1,media,0,4000000,-4000000,media candel002SE1
+M1TRAF001,7,approved,*,total,2774354,2500001,274353,Full-scope C1 drift: media on line billing-radio::M1TRAF001RA4 — schedule $16442.18 vs approved slice $0.00 (Δ $16442.18).
+M1TRAF001,7,approved,billing-radio::M1TRAF001RA4,media,1644218,0,1644218,media billing-radio::M1TRAF001RA4
+M1TRAF001,7,approved,billing-radio::M1TRAF001RA1,media,226027,0,226027,media billing-radio::M1TRAF001RA1
+M1TRAF001,7,approved,billing-radio::M1TRAF001RA2,media,226027,0,226027,media billing-radio::M1TRAF001RA2
+M1TRAF001,7,approved,billing-radio::M1TRAF001RA3,media,678082,0,678082,media billing-radio::M1TRAF001RA3
+M1TRAF001,7,approved,M1TRAF001RA1,media,0,226028,-226028,media M1TRAF001RA1
+M1TRAF001,7,approved,M1TRAF001RA2,media,0,226028,-226028,media M1TRAF001RA2
+M1TRAF001,7,approved,M1TRAF001RA3,media,0,678083,-678083,media M1TRAF001RA3
+M1TRAF001,7,approved,M1TRAF001RA4,media,0,1369862,-1369862,media M1TRAF001RA4
+buxton004,7,booked,*,total,12474218,13002762,-528544,Full-scope C1 drift: media on line buxton004DD1 — schedule $0.00 vs approved slice $30000.00 (Δ $-30000.00).
+buxton004,7,booked,buxton004DD1,media,0,3000000,-3000000,media buxton004DD1
+buxton004,7,booked,buxton004DD5,media,0,1200000,-1200000,media buxton004DD5
+buxton004,7,booked,buxton004DD6,media,0,1200000,-1200000,media buxton004DD6
+buxton004,7,booked,buxton004DD7,media,0,4602762,-4602762,media buxton004DD7
+buxton004,7,booked,buxton004SM1,media,0,3000000,-3000000,media buxton004SM1
+cuheal001,4,cancelled,*,total,6014284,3000000,3014284,Full-scope C1 drift: media on line billing-radio::cuheal001RA1 — schedule $30142.84 vs approved slice $0.00 (Δ $30142.84).
+cuheal001,4,cancelled,billing-radio::cuheal001RA1,media,3014284,0,3014284,media billing-radio::cuheal001RA1
+cuheal001,4,cancelled,radio-Sports Entertainment Network-SEN 1116am-0,media,3000000,0,3000000,media radio-Sports Entertainment Network-SEN 1116am-0
+cuheal001,4,cancelled,cuheal001RA1,media,0,3000000,-3000000,media cuheal001RA1
+noelj001,4,approved,*,total,5500000,5000000,500000,Full-scope C1 drift: media on line noelj001RA1 — schedule $0.00 vs approved slice $30000.00 (Δ $-30000.00).
+noelj001,4,approved,noelj001RA1,media,0,3000000,-3000000,media noelj001RA1
+noelj001,4,approved,noelj001SM1,media,0,2000000,-2000000,media noelj001SM1
+legal003,11,booked,*,total,17367501,11287017,6080484,Full-scope C1 drift: media on line billing-digiDisplay::legal003ML1 — schedule $4000.00 vs approved slice $0.00 (Δ $4000.00).
+legal003,11,booked,billing-digiDisplay::legal003ML1,media,400000,0,400000,media billing-digiDisplay::legal003ML1
+legal003,11,booked,billing-digiDisplay::legal003ML4,media,300000,0,300000,media billing-digiDisplay::legal003ML4
+legal003,11,booked,billing-search::legal003SE1,media,4082500,0,4082500,media billing-search::legal003SE1
+legal003,11,booked,billing-socialMedia::legal0031,media,794444,0,794444,media billing-socialMedia::legal0031
+legal003,11,booked,billing-progDisplay::legal003PD1,media,750000,0,750000,media billing-progDisplay::legal003PD1
+legal003,11,booked,billing-progVideo::legal003ML1,media,1660000,0,1660000,media billing-progVideo::legal003ML1
+legal003,11,booked,billing-progOoh::legal003ML1,media,4400000,0,4400000,media billing-progOoh::legal003ML1
+legal003,11,booked,billing-digiDisplay::legal003ML2,media,325000,0,325000,media billing-digiDisplay::legal003ML2
+legal003,11,booked,billing-digiDisplay::legal003ML5,media,1160000,0,1160000,media billing-digiDisplay::legal003ML5
+legal003,11,booked,billing-digiDisplay::legal003ML6,media,670000,0,670000,media billing-digiDisplay::legal003ML6
+legal003,11,booked,billing-digiDisplay::legal003ML7,media,500000,0,500000,media billing-digiDisplay::legal003ML7
+legal003,11,booked,billing-socialMedia::legal0032,media,700000,0,700000,media billing-socialMedia::legal0032
+legal003,11,booked,billing-progDisplay::legal003PD2,media,580000,0,580000,media billing-progDisplay::legal003PD2
+legal003,11,booked,billing-digiDisplay::legal003ML3,media,475000,0,475000,media billing-digiDisplay::legal003ML3
+legal003,11,booked,billing-socialMedia::legal0033,media,275073,0,275073,media billing-socialMedia::legal0033
+legal003,11,booked,billing-socialMedia::legal0034,media,275000,0,275000,media billing-socialMedia::legal0034
+legal003,11,booked,legal003ML1,media,0,400000,-400000,media legal003ML1
+legal003,11,booked,legal003ML2,media,0,325000,-325000,media legal003ML2
+legal003,11,booked,legal003ML3,media,0,475000,-475000,media legal003ML3
+legal003,11,booked,legal003ML4,media,0,300000,-300000,media legal003ML4
+legal003,11,booked,legal003ML5,media,0,1160000,-1160000,media legal003ML5
+legal003,11,booked,legal003ML6,media,0,670000,-670000,media legal003ML6
+legal003,11,booked,legal003ML7,media,0,500000,-500000,media legal003ML7
+legal003,11,booked,legal003PD1,media,0,750000,-750000,media legal003PD1
+legal003,11,booked,legal003PD2,media,0,580000,-580000,media legal003PD2
+legal003,11,booked,legal003SE1,media,0,4082500,-4082500,media legal003SE1
+legal003,11,booked,legal003SM1,media,0,794444,-794444,media legal003SM1
+legal003,11,booked,legal003SM2,media,0,700000,-700000,media legal003SM2
+legal003,11,booked,legal003SM3,media,0,275073,-275073,media legal003SM3
+legal003,11,booked,legal003SM4,media,0,275000,-275000,media legal003SM4
+BICAU002,21,planned,*,total,10958677,10240210,718467,Full-scope C1 drift: media on line BICAU002BV2 — schedule $0.00 vs approved slice $6500.00 (Δ $-6500.00).
+BICAU002,21,planned,BICAU002BV2,media,0,650000,-650000,media BICAU002BV2
+BICAU002,21,planned,BICAU002BV3,media,0,650000,-650000,media BICAU002BV3
+BICAU002,21,planned,BICAU002BV4,media,0,650000,-650000,media BICAU002BV4
+BICAU002,21,planned,BICAU002DV1,media,0,1824000,-1824000,media BICAU002DV1
+BICAU002,21,planned,BICAU002PV1,media,0,4000000,-4000000,media BICAU002PV1
+BICAU002,21,planned,BICAU002SM1,media,0,2466210,-2466210,media BICAU002SM1
+letsgo002,3,approved,*,total,4050000,4500000,-450000,Full-scope C1 drift: media on line billing-socialMedia::letsgo0021 — schedule $40500.00 vs approved slice $0.00 (Δ $40500.00).
+letsgo002,3,approved,billing-socialMedia::letsgo0021,media,4050000,0,4050000,media billing-socialMedia::letsgo0021
+letsgo002,3,approved,letsgo002SM1,media,0,4500000,-4500000,media letsgo002SM1
+001001,7,booked,*,total,5355000,6300000,-945000,Full-scope C1 drift: media on line billing-search::001001SE1 — schedule $19125.00 vs approved slice $0.00 (Δ $19125.00).
+001001,7,booked,billing-search::001001SE1,media,1912500,0,1912500,media billing-search::001001SE1
+001001,7,booked,billing-socialMedia::0010011,media,1530000,0,1530000,media billing-socialMedia::0010011
+001001,7,booked,billing-socialMedia::0010012,media,1530000,0,1530000,media billing-socialMedia::0010012
+001001,7,booked,billing-socialMedia::0010013,media,382500,0,382500,media billing-socialMedia::0010013
+001001,7,booked,001001SE1,media,0,2250000,-2250000,media 001001SE1
+001001,7,booked,001001SM1,media,0,1800000,-1800000,media 001001SM1
+001001,7,booked,001001SM2,media,0,1800000,-1800000,media 001001SM2
+001001,7,booked,001001SM3,media,0,450000,-450000,media 001001SM3
+CHALLEN002,10,approved,*,total,960000,1200000,-240000,Full-scope C1 drift: media on line billing-progVideo::CHALLEN002PV1 — schedule $9600.00 vs approved slice $0.00 (Δ $9600.00).
+CHALLEN002,10,approved,billing-progVideo::CHALLEN002PV1,media,960000,0,960000,media billing-progVideo::CHALLEN002PV1
+CHALLEN002,10,approved,CHALLEN002PV1,media,0,1200000,-1200000,media CHALLEN002PV1
+PGAAUS008,11,approved,*,total,640000,800000,-160000,Full-scope C1 drift: media on line billing-socialMedia::PGAAUS008SM1 — schedule $6400.00 vs approved slice $0.00 (Δ $6400.00).
+PGAAUS008,11,approved,billing-socialMedia::PGAAUS008SM1,media,640000,0,640000,media billing-socialMedia::PGAAUS008SM1
+PGAAUS008,11,approved,PGAAUS008SM1,media,0,800000,-800000,media PGAAUS008SM1
+eands001,5,completed,*,total,37126,2000000,-1962874,Full-scope C1 drift: media on line eands001ML1 — schedule $0.00 vs approved slice $10000.00 (Δ $-10000.00).
+eands001,5,completed,eands001ML1,media,0,1000000,-1000000,media eands001ML1
+eands001,5,completed,eands001ML2,media,0,1000000,-1000000,media eands001ML2
+CHALLEN003,1,completed,*,total,3868800,2129800,1739000,Full-scope C1 drift: media on line radio-Nine-2GB-0 — schedule $13325.00 vs approved slice $0.00 (Δ $13325.00).
+CHALLEN003,1,completed,radio-Nine-2GB-0,media,1332500,0,1332500,media radio-Nine-2GB-0
+CHALLEN003,1,completed,radio-Nine-3AW-2,media,1599000,0,1599000,media radio-Nine-3AW-2
+CHALLEN003,1,completed,"progVideo-YouTube - DV360-P55+, Finance Content, Food/Cooking content & Health/Retirement Product Affinity Audiences across CTV, Desktop & Mobile.-0",media,797300,0,797300,"media progVideo-YouTube - DV360-P55+, Finance Content, Food/Cooking content & Health/Retirement Product Affinity Audiences across CTV, Desktop & Mobile.-0"
+CHALLEN003,1,completed,CHALLEN003ML1,media,0,797300,-797300,media CHALLEN003ML1
+CHALLEN003,1,completed,CHALLEN003RA1,media,0,1332500,-1332500,media CHALLEN003RA1
+hartm004,1,approved,*,total,2676971,2999766,-322795,Full-scope C1 drift: media on line ooh-Cartology-retail-0 — schedule $10203.29 vs approved slice $0.00 (Δ $10203.29).
+hartm004,1,approved,ooh-Cartology-retail-0,media,1020329,0,1020329,media ooh-Cartology-retail-0
+hartm004,1,approved,ooh-Cartology-retail-1,media,927571,0,927571,media ooh-Cartology-retail-1
+hartm004,1,approved,ooh-Cartology-retail-2,media,729071,0,729071,media ooh-Cartology-retail-2
+hartm004,1,approved,hartm004ML1,media,0,1142768,-1142768,media hartm004ML1
+hartm004,1,approved,hartm004ML2,media,0,1038880,-1038880,media hartm004ML2
+hartm004,1,approved,hartm004ML3,media,0,818118,-818118,media hartm004ML3
+CHALLEN004,1,completed,*,total,14000100,11237100,2763000,Full-scope C1 drift: media on line newspaper-News Corp-The Australian-0 — schedule $18424.00 vs approved slice $0.00 (Δ $18424.00).
+CHALLEN004,1,completed,newspaper-News Corp-The Australian-0,media,1842400,0,1842400,media newspaper-News Corp-The Australian-0
+CHALLEN004,1,completed,digiDisplay-News Corp-RON-0,media,2165200,0,2165200,media digiDisplay-News Corp-RON-0
+CHALLEN004,1,completed,digiDisplay-News Corp-RON-1,media,721700,0,721700,media digiDisplay-News Corp-RON-1
+CHALLEN004,1,completed,digiDisplay-News Corp-RON-2,media,428900,0,428900,media digiDisplay-News Corp-RON-2
+CHALLEN004,1,completed,digiDisplay-News Corp-RON-4,media,428900,0,428900,media digiDisplay-News Corp-RON-4
+CHALLEN004,1,completed,digiDisplay-News Corp-RON-8,media,1200000,0,1200000,media digiDisplay-News Corp-RON-8
+CHALLEN004,1,completed,digiDisplay-News Corp-RON-9,media,450000,0,450000,media digiDisplay-News Corp-RON-9
+CHALLEN004,1,completed,digiDisplay-News Corp-RON-10,media,2000000,0,2000000,media digiDisplay-News Corp-RON-10
+CHALLEN004,1,completed,digiDisplay-News Corp-RON-11,media,2000000,0,2000000,media digiDisplay-News Corp-RON-11
+CHALLEN004,1,completed,CHALLEN004ML1,media,0,2165200,-2165200,media CHALLEN004ML1
+CHALLEN004,1,completed,CHALLEN004ML10,media,0,450000,-450000,media CHALLEN004ML10
+CHALLEN004,1,completed,CHALLEN004ML11,media,0,2000000,-2000000,media CHALLEN004ML11
+CHALLEN004,1,completed,CHALLEN004ML12,media,0,2000000,-2000000,media CHALLEN004ML12
+CHALLEN004,1,completed,CHALLEN004ML2,media,0,721700,-721700,media CHALLEN004ML2
+CHALLEN004,1,completed,CHALLEN004ML3,media,0,428900,-428900,media CHALLEN004ML3
+CHALLEN004,1,completed,CHALLEN004ML5,media,0,428900,-428900,media CHALLEN004ML5
+CHALLEN004,1,completed,CHALLEN004ML9,media,0,1200000,-1200000,media CHALLEN004ML9
+CHALLEN004,1,completed,CHALLEN004NP1,media,0,1842400,-1842400,media CHALLEN004NP1
+golf012,4,approved,*,total,1200000,1500000,-300000,Full-scope C1 drift: media on line billing-socialMedia::golf012SM1 — schedule $12000.00 vs approved slice $0.00 (Δ $12000.00).
+golf012,4,approved,billing-socialMedia::golf012SM1,media,1200000,0,1200000,media billing-socialMedia::golf012SM1
+golf012,4,approved,golf012SM1,media,0,1500000,-1500000,media golf012SM1
+candel003,2,completed,*,total,6768703,6497300,271403,Full-scope C1 drift: media on line billing-socialMedia::candel0031 — schedule $65167.55 vs approved slice $0.00 (Δ $65167.55).
+candel003,2,completed,billing-socialMedia::candel0031,media,6516755,0,6516755,media billing-socialMedia::candel0031
+candel003,2,completed,candel003SM1,media,0,6497300,-6497300,media candel003SM1
+PENFOLD005,2,completed,*,total,15000000,12250000,2750000,Full-scope C1 drift: media on line billing-ooh::PENFOLD005ML1 — schedule $32500.00 vs approved slice $0.00 (Δ $32500.00).
+PENFOLD005,2,completed,billing-ooh::PENFOLD005ML1,media,3250000,0,3250000,media billing-ooh::PENFOLD005ML1
+PENFOLD005,2,completed,billing-ooh::PENFOLD005ML2,media,6000000,0,6000000,media billing-ooh::PENFOLD005ML2
+PENFOLD005,2,completed,billing-socialMedia::PENFOLD0051,media,2951800,0,2951800,media billing-socialMedia::PENFOLD0051
+PENFOLD005,2,completed,billing-socialMedia::PENFOLD0052,media,48200,0,48200,media billing-socialMedia::PENFOLD0052
+PENFOLD005,2,completed,PENFOLD005ML1,media,0,3250000,-3250000,media PENFOLD005ML1
+PENFOLD005,2,completed,PENFOLD005ML2,media,0,6000000,-6000000,media PENFOLD005ML2
+PENFOLD005,2,completed,PENFOLD005SM1,media,0,2951800,-2951800,media PENFOLD005SM1
+PENFOLD005,2,completed,PENFOLD005SM2,media,0,48200,-48200,media PENFOLD005SM2
+PENFOLD006,4,completed,*,total,31473628,34028000,-2554372,Full-scope C1 drift: media on line billing-ooh::PENFOLD006ML1 — schedule $50000.00 vs approved slice $0.00 (Δ $50000.00).
+PENFOLD006,4,completed,billing-ooh::PENFOLD006ML1,media,5000000,0,5000000,media billing-ooh::PENFOLD006ML1
+PENFOLD006,4,completed,billing-ooh::PENFOLD006ML3,media,6100629,0,6100629,media billing-ooh::PENFOLD006ML3
+PENFOLD006,4,completed,billing-ooh::PENFOLD006ML5,media,9999999,0,9999999,media billing-ooh::PENFOLD006ML5
+PENFOLD006,4,completed,billing-ooh::PENFOLD006ML2,media,4200000,0,4200000,media billing-ooh::PENFOLD006ML2
+PENFOLD006,4,completed,billing-ooh::PENFOLD006ML4,media,4828000,0,4828000,media billing-ooh::PENFOLD006ML4
+PENFOLD006,4,completed,PENFOLD006ML1,media,0,5000000,-5000000,media PENFOLD006ML1
+PENFOLD006,4,completed,PENFOLD006ML2,media,0,4200000,-4200000,media PENFOLD006ML2
+PENFOLD006,4,completed,PENFOLD006ML3,media,0,10000000,-10000000,media PENFOLD006ML3
+PENFOLD006,4,completed,PENFOLD006ML4,media,0,4828000,-4828000,media PENFOLD006ML4
+PENFOLD006,4,completed,PENFOLD006ML5,media,0,10000000,-10000000,media PENFOLD006ML5
+hartm005,2,completed,*,total,90979415,45345600,45633815,Full-scope C1 drift: media on line billing-progDisplay::hartm005PD3 — schedule $24065.78 vs approved slice $0.00 (Δ $24065.78).
+hartm005,2,completed,billing-progDisplay::hartm005PD3,media,2406578,0,2406578,media billing-progDisplay::hartm005PD3
+hartm005,2,completed,"progVideo-YouTube - DV360-Men with incontinence, and partners of men with inconentinence -  Control-0",media,6026062,0,6026062,"media progVideo-YouTube - DV360-Men with incontinence, and partners of men with inconentinence -  Control-0"
+hartm005,2,completed,search-Google Ads - AM-Pre approved keywords - Non Gendered-0,media,28001705,0,28001705,media search-Google Ads - AM-Pre approved keywords - Non Gendered-0
+hartm005,2,completed,billing-search::hartm005SE1,media,28001705,0,28001705,media billing-search::hartm005SE1
+hartm005,2,completed,"progDisplay-DV360-Men with incontinence, and partners of men with inconentinence -  Control-0",media,2259776,0,2259776,"media progDisplay-DV360-Men with incontinence, and partners of men with inconentinence -  Control-0"
+hartm005,2,completed,"progDisplay-DV360-People with at risk of skin tears, nurses, aides, carers and family members of people at risk of skin tears -  Skin-1",media,1052875,0,1052875,"media progDisplay-DV360-People with at risk of skin tears, nurses, aides, carers and family members of people at risk of skin tears -  Skin-1"
+hartm005,2,completed,"progDisplay-Taboola-People with at risk of skin tears, nurses, aides, carers and family members of people at risk of skin tears -  Skin-2",media,2406578,0,2406578,"media progDisplay-Taboola-People with at risk of skin tears, nurses, aides, carers and family members of people at risk of skin tears -  Skin-2"
+hartm005,2,completed,billing-progDisplay::hartm005PD1,media,2259776,0,2259776,media billing-progDisplay::hartm005PD1
+hartm005,2,completed,billing-progDisplay::hartm005PD2,media,1052875,0,1052875,media billing-progDisplay::hartm005PD2
+hartm005,2,completed,"progVideo-YouTube - DV360-People with at risk of skin tears, nurses, aides, carers and family members of people at risk of skin tears -  Skin-1",media,5722836,0,5722836,"media progVideo-YouTube - DV360-People with at risk of skin tears, nurses, aides, carers and family members of people at risk of skin tears -  Skin-1"
+hartm005,2,completed,billing-progVideo::hartm005ML1,media,6026062,0,6026062,media billing-progVideo::hartm005ML1
+hartm005,2,completed,billing-progVideo::hartm005ML2,media,5722836,0,5722836,media billing-progVideo::hartm005ML2
+hartm005,2,completed,hartm005ML1,media,0,6009600,-6009600,media hartm005ML1
+hartm005,2,completed,hartm005ML2,media,0,5707200,-5707200,media hartm005ML2
+hartm005,2,completed,hartm005PD1,media,0,2253600,-2253600,media hartm005PD1
+hartm005,2,completed,hartm005PD2,media,0,1050000,-1050000,media hartm005PD2
+hartm005,2,completed,hartm005PD3,media,0,2400000,-2400000,media hartm005PD3
+hartm005,2,completed,hartm005SE1,media,0,27925200,-27925200,media hartm005SE1
+Historical OX and Harty Clients001,1,completed,*,total,20035220,20000000,35220,Full-scope C1 drift: media on line radio-Sports Entertainment Network-SEN 1116am-0 — schedule $20070.44 vs approved slice $0.00 (Δ $20070.44).
+Historical OX and Harty Clients001,1,completed,radio-Sports Entertainment Network-SEN 1116am-0,media,2007044,0,2007044,media radio-Sports Entertainment Network-SEN 1116am-0
+Historical OX and Harty Clients001,1,completed,radio-Sports Entertainment Network-SEN 1116am-2,media,2007044,0,2007044,media radio-Sports Entertainment Network-SEN 1116am-2
+Historical OX and Harty Clients001,1,completed,radio-Sports Entertainment Network-SEN 1116am-3,media,6021130,0,6021130,media radio-Sports Entertainment Network-SEN 1116am-3
+Historical OX and Harty Clients001,1,completed,radio-Sports Entertainment Network-SEN 1116am-1,media,10000002,0,10000002,media radio-Sports Entertainment Network-SEN 1116am-1
+Historical OX and Harty Clients001,1,completed,Historical OX and Harty Clients001RA1,media,0,2000000,-2000000,media Historical OX and Harty Clients001RA1
+Historical OX and Harty Clients001,1,completed,Historical OX and Harty Clients001RA2,media,0,10000000,-10000000,media Historical OX and Harty Clients001RA2
+Historical OX and Harty Clients001,1,completed,Historical OX and Harty Clients001RA3,media,0,2000000,-2000000,media Historical OX and Harty Clients001RA3
+Historical OX and Harty Clients001,1,completed,Historical OX and Harty Clients001RA4,media,0,6000000,-6000000,media Historical OX and Harty Clients001RA4
+hartm006,3,approved,*,total,5046400,3746400,1300000,Full-scope C1 drift: media on line billing-digiDisplay::hartm006ML1 — schedule $15000.00 vs approved slice $0.00 (Δ $15000.00).
+hartm006,3,approved,billing-digiDisplay::hartm006ML1,media,1500000,0,1500000,media billing-digiDisplay::hartm006ML1
+hartm006,3,approved,billing-search::hartm006SE1,media,1746400,0,1746400,media billing-search::hartm006SE1
+hartm006,3,approved,billing-progDisplay::hartm006PD1,media,500000,0,500000,media billing-progDisplay::hartm006PD1
+hartm006,3,approved,billing-progOoh::hartm006ML1,media,1300000,0,1300000,media billing-progOoh::hartm006ML1
+hartm006,3,approved,hartm006ML1,media,0,1500000,-1500000,media hartm006ML1
+hartm006,3,approved,hartm006PD1,media,0,500000,-500000,media hartm006PD1
+hartm006,3,approved,hartm006SE1,media,0,1746400,-1746400,media hartm006SE1
+PENFOLD009,2,completed,*,total,3000004,3000000,4,Full-scope C1 drift: media on line billing-newspaper::PENFOLD009NP1 — schedule $15000.02 vs approved slice $0.00 (Δ $15000.02).
+PENFOLD009,2,completed,billing-newspaper::PENFOLD009NP1,media,1500002,0,1500002,media billing-newspaper::PENFOLD009NP1
+PENFOLD009,2,completed,billing-digiDisplay::PENFOLD009ML1,media,1500002,0,1500002,media billing-digiDisplay::PENFOLD009ML1
+PENFOLD009,2,completed,PENFOLD009ML1,media,0,1500000,-1500000,media PENFOLD009ML1
+PENFOLD009,2,completed,PENFOLD009NP1,media,0,1500000,-1500000,media PENFOLD009NP1
+golf017,5,completed,*,total,7638590,7584100,54490,Full-scope C1 drift: media on line billing-socialMedia::golf0171 — schedule $40841.01 vs approved slice $0.00 (Δ $40841.01).
+golf017,5,completed,billing-socialMedia::golf0171,media,4084101,0,4084101,media billing-socialMedia::golf0171
+golf017,5,completed,billing-digiVideo::golf017DV1,media,3000000,0,3000000,media billing-digiVideo::golf017DV1
+golf017,5,completed,billing-progVideo::golf017ML1,media,500000,0,500000,media billing-progVideo::golf017ML1
+golf017,5,completed,golf017DV1,media,0,3000000,-3000000,media golf017DV1
+golf017,5,completed,golf017ML1,media,0,500000,-500000,media golf017ML1
+golf017,5,completed,golf017SM1,media,0,4084100,-4084100,media golf017SM1
+PGAAUS010,4,completed,*,total,4122021,4104000,18021,Full-scope C1 drift: media on line billing-newspaper::PGAAUS010NP1 — schedule $12506.00 vs approved slice $0.00 (Δ $12506.00).
+PGAAUS010,4,completed,billing-newspaper::PGAAUS010NP1,media,1250600,0,1250600,media billing-newspaper::PGAAUS010NP1
+PGAAUS010,4,completed,billing-digiDisplay::PGAAUS010ML1,media,2853400,0,2853400,media billing-digiDisplay::PGAAUS010ML1
+PGAAUS010,4,completed,PGAAUS010ML1,media,0,2853400,-2853400,media PGAAUS010ML1
+PGAAUS010,4,completed,PGAAUS010NP1,media,0,1250600,-1250600,media PGAAUS010NP1
+golf019,1,completed,*,total,1080600,995100,85500,Full-scope C1 drift: media on line radio-Southern Cross Austereo-SMMM-0 — schedule $6765.00 vs approved slice $0.00 (Δ $6765.00).
+golf019,1,completed,radio-Southern Cross Austereo-SMMM-0,media,676500,0,676500,media radio-Southern Cross Austereo-SMMM-0
+golf019,1,completed,radio-Southern Cross Austereo-HITT-1,media,318600,0,318600,media radio-Southern Cross Austereo-HITT-1
+golf019,1,completed,golf019RA1,media,0,676500,-676500,media golf019RA1
+golf019,1,completed,golf019RA2,media,0,318600,-318600,media golf019RA2
+PENFOLD013,12,booked,*,total,4750000,3820000,930000,Full-scope C1 drift: media on line billing-magazines::PENFOLD013MG1 — schedule $7760.00 vs approved slice $0.00 (Δ $7760.00).
+PENFOLD013,12,booked,billing-magazines::PENFOLD013MG1,media,776000,0,776000,media billing-magazines::PENFOLD013MG1
+PENFOLD013,12,booked,billing-ooh::PENFOLD013ML1,media,120000,0,120000,media billing-ooh::PENFOLD013ML1
+PENFOLD013,12,booked,billing-ooh::PENFOLD013ML2,media,120000,0,120000,media billing-ooh::PENFOLD013ML2
+PENFOLD013,12,booked,billing-ooh::PENFOLD013ML3,media,45000,0,45000,media billing-ooh::PENFOLD013ML3
+PENFOLD013,12,booked,billing-ooh::PENFOLD013ML4,media,60000,0,60000,media billing-ooh::PENFOLD013ML4
+PENFOLD013,12,booked,billing-ooh::PENFOLD013ML5,media,60000,0,60000,media billing-ooh::PENFOLD013ML5
+PENFOLD013,12,booked,billing-ooh::PENFOLD013ML6,media,90000,0,90000,media billing-ooh::PENFOLD013ML6
+PENFOLD013,12,booked,billing-ooh::PENFOLD013ML7,media,60000,0,60000,media billing-ooh::PENFOLD013ML7
+PENFOLD013,12,booked,billing-ooh::PENFOLD013ML8,media,45000,0,45000,media billing-ooh::PENFOLD013ML8
+PENFOLD013,12,booked,billing-ooh::PENFOLD013ML9,media,75000,0,75000,media billing-ooh::PENFOLD013ML9
+PENFOLD013,12,booked,billing-ooh::PENFOLD013ML10,media,75000,0,75000,media billing-ooh::PENFOLD013ML10
+PENFOLD013,12,booked,billing-digiDisplay::PENFOLD013DD1,media,150000,0,150000,media billing-digiDisplay::PENFOLD013DD1
+PENFOLD013,12,booked,billing-digiDisplay::PENFOLD013DD2,media,1719000,0,1719000,media billing-digiDisplay::PENFOLD013DD2
+PENFOLD013,12,booked,billing-socialMedia::PENFOLD013SM3,media,425000,0,425000,media billing-socialMedia::PENFOLD013SM3
+PENFOLD013,12,booked,PENFOLD013DD1,media,0,150000,-150000,media PENFOLD013DD1
+PENFOLD013,12,booked,PENFOLD013DD2,media,0,1719000,-1719000,media PENFOLD013DD2
+PENFOLD013,12,booked,PENFOLD013MG1,media,0,776000,-776000,media PENFOLD013MG1
+PENFOLD013,12,booked,PENFOLD013OH1,media,0,120000,-120000,media PENFOLD013OH1
+PENFOLD013,12,booked,PENFOLD013OH10,media,0,75000,-75000,media PENFOLD013OH10
+PENFOLD013,12,booked,PENFOLD013OH2,media,0,120000,-120000,media PENFOLD013OH2
+PENFOLD013,12,booked,PENFOLD013OH3,media,0,45000,-45000,media PENFOLD013OH3
+PENFOLD013,12,booked,PENFOLD013OH4,media,0,60000,-60000,media PENFOLD013OH4
+PENFOLD013,12,booked,PENFOLD013OH5,media,0,60000,-60000,media PENFOLD013OH5
+PENFOLD013,12,booked,PENFOLD013OH6,media,0,90000,-90000,media PENFOLD013OH6
+PENFOLD013,12,booked,PENFOLD013OH7,media,0,60000,-60000,media PENFOLD013OH7
+PENFOLD013,12,booked,PENFOLD013OH8,media,0,45000,-45000,media PENFOLD013OH8
+PENFOLD013,12,booked,PENFOLD013OH9,media,0,75000,-75000,media PENFOLD013OH9
+PENFOLD013,12,booked,PENFOLD013SM3,media,0,425000,-425000,media PENFOLD013SM3
+PENFOLD014,5,completed,*,total,19924065,9632600,10291465,Full-scope C1 drift: media on line billing-ooh::PENFOLD014ML4 — schedule $9619.41 vs approved slice $0.00 (Δ $9619.41).
+PENFOLD014,5,completed,billing-ooh::PENFOLD014ML4,media,961941,0,961941,media billing-ooh::PENFOLD014ML4
+PENFOLD014,5,completed,billing-ooh::PENFOLD014ML5,media,577164,0,577164,media billing-ooh::PENFOLD014ML5
+PENFOLD014,5,completed,billing-ooh::PENFOLD014ML6,media,673359,0,673359,media billing-ooh::PENFOLD014ML6
+PENFOLD014,5,completed,billing-ooh::PENFOLD014ML8,media,300000,0,300000,media billing-ooh::PENFOLD014ML8
+PENFOLD014,5,completed,billing-ooh::PENFOLD014ML9,media,255000,0,255000,media billing-ooh::PENFOLD014ML9
+PENFOLD014,5,completed,billing-ooh::PENFOLD014ML10,media,308400,0,308400,media billing-ooh::PENFOLD014ML10
+PENFOLD014,5,completed,billing-ooh::PENFOLD014ML11,media,375000,0,375000,media billing-ooh::PENFOLD014ML11
+PENFOLD014,5,completed,billing-ooh::PENFOLD014ML12,media,1200000,0,1200000,media billing-ooh::PENFOLD014ML12
+PENFOLD014,5,completed,billing-ooh::PENFOLD014ML13,media,1350000,0,1350000,media billing-ooh::PENFOLD014ML13
+PENFOLD014,5,completed,billing-ooh::PENFOLD014ML14,media,450000,0,450000,media billing-ooh::PENFOLD014ML14
+PENFOLD014,5,completed,billing-ooh::PENFOLD014ML15,media,375000,0,375000,media billing-ooh::PENFOLD014ML15
+PENFOLD014,5,completed,billing-bvod::PENFOLD014BV1,media,560000,0,560000,media billing-bvod::PENFOLD014BV1
+PENFOLD014,5,completed,billing-bvod::PENFOLD014BV2,media,607800,0,607800,media billing-bvod::PENFOLD014BV2
+PENFOLD014,5,completed,billing-bvod::PENFOLD014BV3,media,24800,0,24800,media billing-bvod::PENFOLD014BV3
+PENFOLD014,5,completed,billing-bvod::PENFOLD014BV4,media,100,0,100,media billing-bvod::PENFOLD014BV4
+PENFOLD014,5,completed,billing-bvod::PENFOLD014BV5,media,100,0,100,media billing-bvod::PENFOLD014BV5
+PENFOLD014,5,completed,billing-bvod::PENFOLD014BV6,media,100,0,100,media billing-bvod::PENFOLD014BV6
+PENFOLD014,5,completed,billing-bvod::PENFOLD014BV7,media,100,0,100,media billing-bvod::PENFOLD014BV7
+PENFOLD014,5,completed,billing-bvod::PENFOLD014BV8,media,100,0,100,media billing-bvod::PENFOLD014BV8
+PENFOLD014,5,completed,billing-integration::PENFOLD0141,media,6000000,0,6000000,media billing-integration::PENFOLD0141
+PENFOLD014,5,completed,billing-influencers::new-0,media,3799000,0,3799000,media billing-influencers::new-0
+PENFOLD014,5,completed,billing-ooh::PENFOLD014ML16,media,2006100,0,2006100,media billing-ooh::PENFOLD014ML16
+PENFOLD014,5,completed,PENFOLD014BV2,media,0,607800,-607800,media PENFOLD014BV2
+PENFOLD014,5,completed,PENFOLD014BV3,media,0,24800,-24800,media PENFOLD014BV3
+PENFOLD014,5,completed,PENFOLD014ML10,media,0,308400,-308400,media PENFOLD014ML10
+PENFOLD014,5,completed,PENFOLD014ML11,media,0,375000,-375000,media PENFOLD014ML11
+PENFOLD014,5,completed,PENFOLD014ML12,media,0,1200000,-1200000,media PENFOLD014ML12
+PENFOLD014,5,completed,PENFOLD014ML13,media,0,1350000,-1350000,media PENFOLD014ML13
+PENFOLD014,5,completed,PENFOLD014ML14,media,0,450000,-450000,media PENFOLD014ML14
+PENFOLD014,5,completed,PENFOLD014ML15,media,0,375000,-375000,media PENFOLD014ML15
+PENFOLD014,5,completed,PENFOLD014ML16,media,0,2006100,-2006100,media PENFOLD014ML16
+PENFOLD014,5,completed,PENFOLD014ML4,media,0,1035000,-1035000,media PENFOLD014ML4
+PENFOLD014,5,completed,PENFOLD014ML5,media,0,621000,-621000,media PENFOLD014ML5
+PENFOLD014,5,completed,PENFOLD014ML6,media,0,724500,-724500,media PENFOLD014ML6
+PENFOLD014,5,completed,PENFOLD014ML8,media,0,300000,-300000,media PENFOLD014ML8
+PENFOLD014,5,completed,PENFOLD014ML9,media,0,255000,-255000,media PENFOLD014ML9
+hartm009,6,planned,*,total,7987400,7977800,9600,Full-scope C1 drift: media on line billing-radio::hartm009RA1 — schedule $5698.00 vs approved slice $0.00 (Δ $5698.00).
+hartm009,6,planned,billing-radio::hartm009RA1,media,569800,0,569800,media billing-radio::hartm009RA1
+hartm009,6,planned,billing-radio::hartm009RA2,media,341000,0,341000,media billing-radio::hartm009RA2
+hartm009,6,planned,billing-radio::hartm009RA3,media,162000,0,162000,media billing-radio::hartm009RA3
+hartm009,6,planned,billing-radio::hartm009RA4,media,88000,0,88000,media billing-radio::hartm009RA4
+hartm009,6,planned,billing-radio::hartm009RA5,media,1600,0,1600,media billing-radio::hartm009RA5
+hartm009,6,planned,billing-radio::hartm009RA6,media,1600,0,1600,media billing-radio::hartm009RA6
+hartm009,6,planned,billing-radio::hartm009RA7,media,792000,0,792000,media billing-radio::hartm009RA7
+hartm009,6,planned,billing-radio::hartm009RA8,media,473000,0,473000,media billing-radio::hartm009RA8
+hartm009,6,planned,billing-radio::hartm009RA9,media,166500,0,166500,media billing-radio::hartm009RA9
+hartm009,6,planned,billing-radio::hartm009RA10,media,96000,0,96000,media billing-radio::hartm009RA10
+hartm009,6,planned,billing-radio::hartm009RA11,media,1600,0,1600,media billing-radio::hartm009RA11
+hartm009,6,planned,billing-radio::hartm009RA12,media,1600,0,1600,media billing-radio::hartm009RA12
+hartm009,6,planned,billing-radio::hartm009RA13,media,154000,0,154000,media billing-radio::hartm009RA13
+hartm009,6,planned,billing-radio::hartm009RA14,media,88000,0,88000,media billing-radio::hartm009RA14
+hartm009,6,planned,billing-radio::hartm009RA15,media,31500,0,31500,media billing-radio::hartm009RA15
+hartm009,6,planned,billing-radio::hartm009RA16,media,16000,0,16000,media billing-radio::hartm009RA16
+hartm009,6,planned,billing-radio::hartm009RA17,media,1600,0,1600,media billing-radio::hartm009RA17
+hartm009,6,planned,billing-radio::hartm009RA18,media,1600,0,1600,media billing-radio::hartm009RA18
+hartm009,6,planned,billing-ooh::hartm009OH1,media,5000000,0,5000000,media billing-ooh::hartm009OH1
+hartm009,6,planned,hartm009OH1,media,0,5000000,-5000000,media hartm009OH1
+hartm009,6,planned,hartm009RA1,media,0,569800,-569800,media hartm009RA1
+hartm009,6,planned,hartm009RA10,media,0,96000,-96000,media hartm009RA10
+hartm009,6,planned,hartm009RA13,media,0,154000,-154000,media hartm009RA13
+hartm009,6,planned,hartm009RA14,media,0,88000,-88000,media hartm009RA14
+hartm009,6,planned,hartm009RA15,media,0,31500,-31500,media hartm009RA15
+hartm009,6,planned,hartm009RA16,media,0,16000,-16000,media hartm009RA16
+hartm009,6,planned,hartm009RA2,media,0,341000,-341000,media hartm009RA2
+hartm009,6,planned,hartm009RA3,media,0,162000,-162000,media hartm009RA3
+hartm009,6,planned,hartm009RA4,media,0,88000,-88000,media hartm009RA4
+hartm009,6,planned,hartm009RA7,media,0,792000,-792000,media hartm009RA7
+hartm009,6,planned,hartm009RA8,media,0,473000,-473000,media hartm009RA8
+hartm009,6,planned,hartm009RA9,media,0,166500,-166500,media hartm009RA9
+hartm010,13,planned,*,total,9000800,9000000,800,Full-scope C1 drift: media on line billing-radio::hartm010RA1 — schedule $90000.00 vs approved slice $0.00 (Δ $90000.00).
+hartm010,13,planned,billing-radio::hartm010RA1,media,9000000,0,9000000,media billing-radio::hartm010RA1
+hartm010,13,planned,hartm010RA1,media,0,9000000,-9000000,media hartm010RA1
+glenda001,1,draft,*,total,805000,5000,800000,Full-scope C1 drift: media on line radio-Nine-3AW-0 — schedule $10.00 vs approved slice $0.00 (Δ $10.00).
+glenda001,1,draft,radio-Nine-3AW-0,media,1000,0,1000,media radio-Nine-3AW-0
+glenda001,1,draft,radio-Nine-3AW-1,media,1000,0,1000,media radio-Nine-3AW-1
+glenda001,1,draft,radio-Nine-3AW-2,media,1000,0,1000,media radio-Nine-3AW-2
+glenda001,1,draft,radio-Nine-3AW-3,media,1000,0,1000,media radio-Nine-3AW-3
+glenda001,1,draft,radio-Nine-3AW-4,media,1000,0,1000,media radio-Nine-3AW-4
+glenda001,1,draft,integration-News Corp-Details-0,media,800000,0,800000,media integration-News Corp-Details-0
+glenda001,1,draft,glenda001RA1,media,0,1000,-1000,media glenda001RA1
+glenda001,1,draft,glenda001RA2,media,0,1000,-1000,media glenda001RA2
+glenda001,1,draft,glenda001RA3,media,0,1000,-1000,media glenda001RA3
+glenda001,1,draft,glenda001RA4,media,0,1000,-1000,media glenda001RA4
+glenda001,1,draft,glenda001RA5,media,0,1000,-1000,media glenda001RA5
+glenda002,1,draft,*,total,4000000,0,4000000,Full-scope C1 drift: media on line integration-Test Publisher-Details-0 — schedule $20000.00 vs approved slice $0.00 (Δ $20000.00).
+glenda002,1,draft,integration-Test Publisher-Details-0,media,2000000,0,2000000,media integration-Test Publisher-Details-0
+glenda002,1,draft,influencers-Test Publisher-Details-0,media,2000000,0,2000000,media influencers-Test Publisher-Details-0
+glenda003,2,cancelled,*,total,4000000,0,4000000,Full-scope C1 drift: media on line integration-Test Publisher-Details-0 — schedule $20000.00 vs approved slice $0.00 (Δ $20000.00).
+glenda003,2,cancelled,integration-Test Publisher-Details-0,media,2000000,0,2000000,media integration-Test Publisher-Details-0
+glenda003,2,cancelled,influencers-Test Publisher-Details-0,media,2000000,0,2000000,media influencers-Test Publisher-Details-0
+glenda004,1,draft,*,total,4000000,0,4000000,Full-scope C1 drift: media on line integration-Test Publisher-Details-0 — schedule $20000.00 vs approved slice $0.00 (Δ $20000.00).
+glenda004,1,draft,integration-Test Publisher-Details-0,media,2000000,0,2000000,media integration-Test Publisher-Details-0
+glenda004,1,draft,influencers-Test Publisher-Details-0,media,2000000,0,2000000,media influencers-Test Publisher-Details-0
+glenda005,3,draft,*,total,9230000,9000000,230000,Full-scope C1 drift: media on line billing-digiDisplay::DDDD1 — schedule $25000.00 vs approved slice $0.00 (Δ $25000.00).
+glenda005,3,draft,billing-digiDisplay::DDDD1,media,2500000,0,2500000,media billing-digiDisplay::DDDD1
+glenda005,3,draft,billing-digiDisplay::glenda005DD2,media,2500000,0,2500000,media billing-digiDisplay::glenda005DD2
+glenda005,3,draft,billing-integration::glenda005IT1,media,2000000,0,2000000,media billing-integration::glenda005IT1
+glenda005,3,draft,billing-influencers::glenda005IN1,media,2000000,0,2000000,media billing-influencers::glenda005IN1
+glenda005,3,draft,glenda005DD1,media,0,2500000,-2500000,media glenda005DD1
+glenda005,3,draft,glenda005DD2,media,0,2500000,-2500000,media glenda005DD2
+glenda005,3,draft,glenda005IN1,media,0,2000000,-2000000,media glenda005IN1
+glenda005,3,draft,glenda005IT1,media,0,2000000,-2000000,media glenda005IT1
+jayco012,6,approved,*,total,900000,1000000,-100000,Full-scope C1 drift: media on line billing-socialMedia::jayco012SM1 — schedule $9000.00 vs approved slice $0.00 (Δ $9000.00).
+jayco012,6,approved,billing-socialMedia::jayco012SM1,media,900000,0,900000,media billing-socialMedia::jayco012SM1
+jayco012,6,approved,jayco012SM1,media,0,1000000,-1000000,media jayco012SM1
+malay003,4,planned,*,total,19072600,14520000,4552600,Full-scope C1 drift: media on line billing-radio::malay003RA1 — schedule $29250.00 vs approved slice $0.00 (Δ $29250.00).
+malay003,4,planned,billing-radio::malay003RA1,media,2925000,0,2925000,media billing-radio::malay003RA1
+malay003,4,planned,billing-radio::malay003RA2,media,3198000,0,3198000,media billing-radio::malay003RA2
+malay003,4,planned,billing-radio::malay003RA3,media,2781000,0,2781000,media billing-radio::malay003RA3
+malay003,4,planned,billing-radio::malay003RA4,media,1063400,0,1063400,media billing-radio::malay003RA4
+malay003,4,planned,billing-ooh::malay003ML1,media,851200,0,851200,media billing-ooh::malay003ML1
+malay003,4,planned,billing-ooh::malay003ML2,media,771400,0,771400,media billing-ooh::malay003ML2
+malay003,4,planned,billing-ooh::malay003ML3,media,771400,0,771400,media billing-ooh::malay003ML3
+malay003,4,planned,billing-ooh::malay003ML4,media,266000,0,266000,media billing-ooh::malay003ML4
+malay003,4,planned,billing-ooh::malay003ML5,media,292600,0,292600,media billing-ooh::malay003ML5
+malay003,4,planned,billing-ooh::malay003ML8,media,1600000,0,1600000,media billing-ooh::malay003ML8
+malay003,4,planned,billing-ooh::malay003OH1,media,851200,0,851200,media billing-ooh::malay003OH1
+malay003,4,planned,billing-ooh::malay003OH2,media,771400,0,771400,media billing-ooh::malay003OH2
+malay003,4,planned,billing-ooh::malay003OH3,media,771400,0,771400,media billing-ooh::malay003OH3
+malay003,4,planned,billing-ooh::malay003OH4,media,266000,0,266000,media billing-ooh::malay003OH4
+malay003,4,planned,billing-ooh::malay003OH5,media,292600,0,292600,media billing-ooh::malay003OH5
+malay003,4,planned,billing-ooh::malay003OH8,media,1600000,0,1600000,media billing-ooh::malay003OH8
+malay003,4,planned,malay003OH1,media,0,851200,-851200,media malay003OH1
+malay003,4,planned,malay003OH2,media,0,771400,-771400,media malay003OH2
+malay003,4,planned,malay003OH3,media,0,771400,-771400,media malay003OH3
+malay003,4,planned,malay003OH4,media,0,266000,-266000,media malay003OH4
+malay003,4,planned,malay003OH5,media,0,292600,-292600,media malay003OH5
+malay003,4,planned,malay003OH8,media,0,1600000,-1600000,media malay003OH8
+malay003,4,planned,malay003RA1,media,0,2925000,-2925000,media malay003RA1
+malay003,4,planned,malay003RA2,media,0,3198000,-3198000,media malay003RA2
+malay003,4,planned,malay003RA3,media,0,2781000,-2781000,media malay003RA3
+malay003,4,planned,malay003RA4,media,0,1063400,-1063400,media malay003RA4
+malay004,4,planned,*,total,7400000,3700000,3700000,Full-scope C1 drift: media on line billing-ooh::malay004ML1 — schedule $37000.00 vs approved slice $0.00 (Δ $37000.00).
+malay004,4,planned,billing-ooh::malay004ML1,media,3700000,0,3700000,media billing-ooh::malay004ML1
+malay004,4,planned,billing-ooh::malay004OH1,media,3700000,0,3700000,media billing-ooh::malay004OH1
+malay004,4,planned,malay004OH1,media,0,3700000,-3700000,media malay004OH1
+jayco013,6,booked,*,total,900538,994626,-94088,Full-scope C1 drift: media on line billing-progDisplay::jayco013PD1 — schedule $3582.00 vs approved slice $0.00 (Δ $3582.00).
+jayco013,6,booked,billing-progDisplay::jayco013PD1,media,358200,0,358200,media billing-progDisplay::jayco013PD1
+jayco013,6,booked,billing-progVideo::jayco013PV1,media,536964,0,536964,media billing-progVideo::jayco013PV1
+jayco013,6,booked,jayco013PD1,media,0,398000,-398000,media jayco013PD1
+jayco013,6,booked,jayco013PV1,media,0,596626,-596626,media jayco013PV1
+BOSS003,4,cancelled,*,total,4393989,3605574,788415,Full-scope C1 drift: media on line billing-digiDisplay::BOSS003DD1 — schedule $4619.94 vs approved slice $0.00 (Δ $4619.94).
+BOSS003,4,cancelled,billing-digiDisplay::BOSS003DD1,media,461994,0,461994,media billing-digiDisplay::BOSS003DD1
+BOSS003,4,cancelled,billing-progDisplay::BOSS003PD1,media,450000,0,450000,media billing-progDisplay::BOSS003PD1
+BOSS003,4,cancelled,billing-progDisplay::BOSS003PD1,fee,112500,0,112500,fee billing-progDisplay::BOSS003PD1
+BOSS003,4,cancelled,billing-progDisplay::BOSS003PD2,media,900000,0,900000,media billing-progDisplay::BOSS003PD2
+BOSS003,4,cancelled,billing-progDisplay::BOSS003PD2,fee,225000,0,225000,fee billing-progDisplay::BOSS003PD2
+BOSS003,4,cancelled,billing-progVideo::BOSS003PV1,media,1793580,0,1793580,media billing-progVideo::BOSS003PV1
+BOSS003,4,cancelled,billing-progVideo::BOSS003PV1,fee,448395,0,448395,fee billing-progVideo::BOSS003PV1
+BOSS003,4,cancelled,BOSS003DD1,media,0,461994,-461994,media BOSS003DD1
+BOSS003,4,cancelled,BOSS003PD1,media,0,450000,-450000,media BOSS003PD1
+BOSS003,4,cancelled,BOSS003PD2,media,0,900000,-900000,media BOSS003PD2
+BOSS003,4,cancelled,BOSS003PV1,media,0,1793580,-1793580,media BOSS003PV1
+BOSS004,2,cancelled,*,total,172726,174603,-1877,Full-scope C1 drift: media on line BOSS004DD1 — schedule $0.00 vs approved slice $1746.03 (Δ $-1746.03).
+BOSS004,2,cancelled,BOSS004DD1,media,0,174603,-174603,media BOSS004DD1
+glenda006,3,draft,*,total,8000000,5000000,3000000,Full-scope C1 drift: media on line search-Google Ads - AM-test-0 — schedule $40000.00 vs approved slice $0.00 (Δ $40000.00).
+glenda006,3,draft,search-Google Ads - AM-test-0,media,4000000,0,4000000,media search-Google Ads - AM-test-0
+glenda006,3,draft,billing-search::glenda006SE1,media,4000000,0,4000000,media billing-search::glenda006SE1
+glenda006,3,draft,glenda006SE1,media,0,5000000,-5000000,media glenda006SE1
+glenda007,12,draft,*,total,3266880,3400000,-133120,Full-scope C1 drift: media on line billing-search::glenda007SE1 — schedule $18000.00 vs approved slice $0.00 (Δ $18000.00).
+glenda007,12,draft,billing-search::glenda007SE1,media,1800000,0,1800000,media billing-search::glenda007SE1
+glenda007,12,draft,billing-progDisplay::glenda007PD1,media,800000,0,800000,media billing-progDisplay::glenda007PD1
+glenda007,12,draft,billing-progDisplay::glenda007PD3,media,640000,0,640000,media billing-progDisplay::glenda007PD3
+glenda007,12,draft,glenda007PD1,media,0,800000,-800000,media glenda007PD1
+glenda007,12,draft,glenda007PD3,media,0,800000,-800000,media glenda007PD3
+glenda007,12,draft,glenda007SE1,media,0,1800000,-1800000,media glenda007SE1
+letsgo005,3,approved,*,total,270000,300000,-30000,Full-scope C1 drift: media on line billing-socialMedia::letsgo005SM1 — schedule $2700.00 vs approved slice $0.00 (Δ $2700.00).
+letsgo005,3,approved,billing-socialMedia::letsgo005SM1,media,270000,0,270000,media billing-socialMedia::letsgo005SM1
+letsgo005,3,approved,letsgo005SM1,media,0,300000,-300000,media letsgo005SM1
+golf023,8,approved,*,total,1720000,1376000,344000,Full-scope C1 drift: media on line golf023SE1 — schedule $0.00 vs approved slice $4040.00 (Δ $-4040.00).
+golf023,8,approved,golf023SE1,media,0,404000,-404000,media golf023SE1
+golf023,8,approved,golf023SM1,media,0,800000,-800000,media golf023SM1
+golf023,8,approved,golf023SM2,media,0,172000,-172000,media golf023SM2
+PGAAUS015,12,approved,*,total,9229900,7543920,1685980,Full-scope C1 drift: media on line PGAAUS015PV1 — schedule $0.00 vs approved slice $7168.00 (Δ $-7168.00).
+PGAAUS015,12,approved,PGAAUS015PV1,media,0,716800,-716800,media PGAAUS015PV1
+PGAAUS015,12,approved,PGAAUS015PV2,media,0,307200,-307200,media PGAAUS015PV2
+PGAAUS015,12,approved,PGAAUS015SM1,media,0,512000,-512000,media PGAAUS015SM1
+PGAAUS015,12,approved,PGAAUS015SM2,media,0,768000,-768000,media PGAAUS015SM2
+PGAAUS015,12,approved,PGAAUS015SM3,media,0,4030320,-4030320,media PGAAUS015SM3
+PGAAUS015,12,approved,PGAAUS015SM4,media,0,409600,-409600,media PGAAUS015SM4
+PGAAUS015,12,approved,PGAAUS015SM5,media,0,800000,-800000,media PGAAUS015SM5
+hartm013,3,approved,*,total,149180,100000,49180,Full-scope C1 drift: media on line billing-influencers::hartm013IN1 — schedule $1491.80 vs approved slice $0.00 (Δ $1491.80).
+hartm013,3,approved,billing-influencers::hartm013IN1,media,149180,0,149180,media billing-influencers::hartm013IN1
+hartm013,3,approved,hartm013IN1,media,0,100000,-100000,media hartm013IN1
+legal004,3,planned,*,total,2386050,2370000,16050,Full-scope C1 drift: media on line billing-search::legal004SE1 — schedule $16200.00 vs approved slice $0.00 (Δ $16200.00).
+legal004,3,planned,billing-search::legal004SE1,media,1620000,0,1620000,media billing-search::legal004SE1
+legal004,3,planned,billing-socialMedia::legal004SM1,media,900,0,900,media billing-socialMedia::legal004SM1
+legal004,3,planned,billing-progDisplay::legal004PD1,media,750000,0,750000,media billing-progDisplay::legal004PD1
+legal004,3,planned,billing-progOoh::legal004PO1,media,3900,0,3900,media billing-progOoh::legal004PO1
+legal004,3,planned,legal004PD1,media,0,750000,-750000,media legal004PD1
+legal004,3,planned,legal004SE1,media,0,1620000,-1620000,media legal004SE1
+jayco015,2,draft,*,total,270000,0,270000,Full-scope C1 drift: media on line billing-search::jayco015SE1 — schedule $900.00 vs approved slice $0.00 (Δ $900.00).
+jayco015,2,draft,billing-search::jayco015SE1,media,90000,0,90000,media billing-search::jayco015SE1
+jayco015,2,draft,billing-socialMedia::jayco015SM1,media,180000,0,180000,media billing-socialMedia::jayco015SM1
+letsgo006,4,booked,*,total,270000,300000,-30000,Full-scope C1 drift: media on line billing-search::letsgo006SE1 — schedule $900.00 vs approved slice $0.00 (Δ $900.00).
+letsgo006,4,booked,billing-search::letsgo006SE1,media,90000,0,90000,media billing-search::letsgo006SE1
+letsgo006,4,booked,billing-socialMedia::letsgo006SM1,media,180000,0,180000,media billing-socialMedia::letsgo006SM1
+letsgo006,4,booked,letsgo006SE1,media,0,100000,-100000,media letsgo006SE1
+letsgo006,4,booked,letsgo006SM1,media,0,200000,-200000,media letsgo006SM1
+BOSS005,17,approved,*,total,2493363,2081050,412313,Full-scope C1 drift: media on line BOSS005NP1 — schedule $0.00 vs approved slice $2184.00 (Δ $-2184.00).
+BOSS005,17,approved,BOSS005NP1,media,0,218400,-218400,media BOSS005NP1
+BOSS005,17,approved,BOSS005NP2,media,0,213400,-213400,media BOSS005NP2
+BOSS005,17,approved,BOSS005PD1,media,0,330000,-330000,media BOSS005PD1
+BOSS005,17,approved,BOSS005PD2,media,0,721500,-721500,media BOSS005PD2
+BOSS005,17,approved,BOSS005SE1,media,0,597750,-597750,media BOSS005SE1
+BOSS006,17,approved,*,total,6213525,5515500,698025,Full-scope C1 drift: media on line BOSS006DD1 — schedule $0.00 vs approved slice $2990.00 (Δ $-2990.00).
+BOSS006,17,approved,BOSS006DD1,media,0,299000,-299000,media BOSS006DD1
+BOSS006,17,approved,BOSS006DD2,media,0,290000,-290000,media BOSS006DD2
+BOSS006,17,approved,BOSS006DD3,media,0,215500,-215500,media BOSS006DD3
+BOSS006,17,approved,BOSS006NP1,media,0,873000,-873000,media BOSS006NP1
+BOSS006,17,approved,BOSS006NP2,media,0,395700,-395700,media BOSS006NP2
+BOSS006,17,approved,BOSS006NP3,media,0,213400,-213400,media BOSS006NP3
+BOSS006,17,approved,BOSS006NP4,media,0,436800,-436800,media BOSS006NP4
+BOSS006,17,approved,BOSS006PD1,media,0,492100,-492100,media BOSS006PD1
+BOSS006,17,approved,BOSS006PV1,media,0,1500000,-1500000,media BOSS006PV1
+BOSS006,17,approved,BOSS006SE1,media,0,800000,-800000,media BOSS006SE1
+hema007,4,approved,*,total,2500000,2000000,500000,Full-scope C1 drift: media on line hema007SE1 — schedule $0.00 vs approved slice $14000.00 (Δ $-14000.00).
+hema007,4,approved,hema007SE1,media,0,1400000,-1400000,media hema007SE1
+hema007,4,approved,hema007SM1,media,0,600000,-600000,media hema007SM1
+curatif004,5,approved,*,total,3100200,0,3100200,Full-scope C1 drift: total — schedule $31002.00 vs approved slice $0.00 (Δ $31002.00).
+glenda008,1,draft,*,total,8477970,6750000,1727970,Full-scope C1 drift: media on line billing-radio::glenda008RA1 — schedule $50000.00 vs approved slice $0.00 (Δ $50000.00).
+glenda008,1,draft,billing-radio::glenda008RA1,media,5000000,0,5000000,media billing-radio::glenda008RA1
+glenda008,1,draft,billing-bvod::glenda008BV1,media,550001,0,550001,media billing-bvod::glenda008BV1
+glenda008,1,draft,billing-production::glenda008PROD1,production,1199999,0,1199999,production billing-production::glenda008PROD1
+glenda008,1,draft,billing-socialMedia::glenda008SM1,fee,500000,0,500000,fee billing-socialMedia::glenda008SM1
+glenda008,1,draft,glenda008-production-v955-p1,media,0,1200000,-1200000,media glenda008-production-v955-p1
+glenda008,1,draft,glenda008BV1,media,0,550000,-550000,media glenda008BV1
+glenda008,1,draft,glenda008RA1,media,0,5000000,-5000000,media glenda008RA1
+krusty002,2,approved,*,total,245000000,210000000,35000000,Full-scope C1 drift: media on line krusty002OH1 — schedule $0.00 vs approved slice $500000.00 (Δ $-500000.00).
+krusty002,2,approved,krusty002OH1,media,0,50000000,-50000000,media krusty002OH1
+krusty002,2,approved,krusty002RA1,media,0,20000000,-20000000,media krusty002RA1
+krusty002,2,approved,krusty002SE1,media,0,10000000,-10000000,media krusty002SE1
+krusty002,2,approved,krusty002SE2,media,0,30000000,-30000000,media krusty002SE2
+krusty002,2,approved,krusty002SE3,media,0,30000000,-30000000,media krusty002SE3
+krusty002,2,approved,krusty002SE4,media,0,10000000,-10000000,media krusty002SE4
+krusty002,2,approved,krusty002SM1,media,0,20000000,-20000000,media krusty002SM1
+krusty002,2,approved,krusty002SM2,media,0,40000000,-40000000,media krusty002SM2
+krusty004,2,approved,*,total,6999998,6500000,499998,Full-scope C1 drift: media on line billing-socialMedia::krusty004SM1 — schedule $35999.99 vs approved slice $0.00 (Δ $35999.99).
+krusty004,2,approved,billing-socialMedia::krusty004SM1,media,3599999,0,3599999,media billing-socialMedia::krusty004SM1
+krusty004,2,approved,billing-socialMedia::krusty004SM1,fee,900000,0,900000,fee billing-socialMedia::krusty004SM1
+krusty004,2,approved,billing-search::krusty004SE1,media,2000000,0,2000000,media billing-search::krusty004SE1
+krusty004,2,approved,billing-search::krusty004SE1,fee,499999,0,499999,fee billing-search::krusty004SE1
+krusty004,2,approved,krusty004SE1,media,0,2000000,-2000000,media krusty004SE1
+krusty004,2,approved,krusty004SM1,media,0,4500000,-4500000,media krusty004SM1
+PGAAUS016,4,approved,*,total,200000,0,200000,Full-scope C1 drift: total — schedule $2000.00 vs approved slice $0.00 (Δ $2000.00).
+krusty006,1,draft,*,total,5000003,2000000,3000003,Full-scope C1 drift: media on line krusty006PA1 — schedule $0.00 vs approved slice $20000.00 (Δ $-20000.00).
+krusty006,1,draft,krusty006PA1,media,0,2000000,-2000000,media krusty006PA1
+krusty007,1,draft,*,total,2499999,0,2499999,Full-scope C1 drift: total — schedule $24999.99 vs approved slice $0.00 (Δ $24999.99).
+krusty008,1,draft,*,total,2499999,2000000,499999,Full-scope C1 drift: media on line krusty008SE1 — schedule $0.00 vs approved slice $20000.00 (Δ $-20000.00).
+krusty008,1,draft,krusty008SE1,media,0,2000000,-2000000,media krusty008SE1
+SML001,6,planned,*,total,8500000,6999410,1500590,Full-scope C1 drift: media on line SML001IN1 — schedule $0.00 vs approved slice $14994.10 (Δ $-14994.10).
+SML001,6,planned,SML001IN1,media,0,1499410,-1499410,media SML001IN1
+SML001,6,planned,SML001SM1,media,0,3500000,-3500000,media SML001SM1
+SML001,6,planned,SML001SM2,media,0,1000000,-1000000,media SML001SM2
+SML001,6,planned,SML001SM3,media,0,1000000,-1000000,media SML001SM3
+krusty010,2,draft,*,total,1250000,1000000,250000,Full-scope C1 drift: media on line krusty010SE1 — schedule $0.00 vs approved slice $10000.00 (Δ $-10000.00).
+krusty010,2,draft,krusty010SE1,media,0,1000000,-1000000,media krusty010SE1
+krusty011,2,draft,*,total,1250000,1000000,250000,Full-scope C1 drift: media on line krusty011SE1 — schedule $0.00 vs approved slice $10000.00 (Δ $-10000.00).
+krusty011,2,draft,krusty011SE1,media,0,1000000,-1000000,media krusty011SE1
+krusty012,2,draft,*,total,1250000,1000000,250000,Full-scope C1 drift: media on line krusty012SE1 — schedule $0.00 vs approved slice $10000.00 (Δ $-10000.00).
+krusty012,2,draft,krusty012SE1,media,0,1000000,-1000000,media krusty012SE1
+krusty013,2,draft,*,total,20250000,17000000,3250000,Full-scope C1 drift: media on line krusty013BV1 — schedule $0.00 vs approved slice $10000.00 (Δ $-10000.00).
+krusty013,2,draft,krusty013BV1,media,0,1000000,-1000000,media krusty013BV1
+krusty013,2,draft,krusty013CN1,media,0,1000000,-1000000,media krusty013CN1
+krusty013,2,draft,krusty013DA1,media,0,1000000,-1000000,media krusty013DA1
+krusty013,2,draft,krusty013DD1,media,0,1000000,-1000000,media krusty013DD1
+krusty013,2,draft,krusty013DV1,media,0,1000000,-1000000,media krusty013DV1
+krusty013,2,draft,krusty013IN1,media,0,1000000,-1000000,media krusty013IN1
+krusty013,2,draft,krusty013IT1,media,0,1000000,-1000000,media krusty013IT1
+krusty013,2,draft,krusty013MG1,media,0,1000000,-1000000,media krusty013MG1
+krusty013,2,draft,krusty013NP1,media,0,1000000,-1000000,media krusty013NP1
+krusty013,2,draft,krusty013PA1,media,0,1000000,-1000000,media krusty013PA1
+krusty013,2,draft,krusty013PB1,media,0,1000000,-1000000,media krusty013PB1
+krusty013,2,draft,krusty013PD1,media,0,1000000,-1000000,media krusty013PD1
+krusty013,2,draft,krusty013PO1,media,0,1000000,-1000000,media krusty013PO1
+krusty013,2,draft,krusty013PV1,media,0,1000000,-1000000,media krusty013PV1
+krusty013,2,draft,krusty013SE1,media,0,1000000,-1000000,media krusty013SE1
+krusty013,2,draft,krusty013SM1,media,0,1000000,-1000000,media krusty013SM1
+krusty013,2,draft,krusty013TV1,media,0,1000000,-1000000,media krusty013TV1
+BOSS007,3,cancelled,*,total,9450125,9450100,25,Full-scope C1 drift: media on line BOSS007DD1 — schedule $0.00 vs approved slice $16000.00 (Δ $-16000.00).
+BOSS007,3,cancelled,BOSS007DD1,media,0,1600000,-1600000,media BOSS007DD1
+BOSS007,3,cancelled,BOSS007DD2,media,0,600000,-600000,media BOSS007DD2
+BOSS007,3,cancelled,BOSS007PD1,media,0,2250000,-2250000,media BOSS007PD1
+BOSS007,3,cancelled,BOSS007PD2,media,0,1750000,-1750000,media BOSS007PD2
+BOSS007,3,cancelled,BOSS007SE1,media,0,3250000,-3250000,media BOSS007SE1
+BOSS007,3,cancelled,BOSS007SM1,media,0,100,-100,media BOSS007SM1
+krusty014,2,draft,*,total,1250000,1000000,250000,Full-scope C1 drift: media on line krusty014SE1 — schedule $0.00 vs approved slice $10000.00 (Δ $-10000.00).
+krusty014,2,draft,krusty014SE1,media,0,1000000,-1000000,media krusty014SE1
+krusty015,1,draft,*,total,2500000,2000000,500000,Full-scope C1 drift: media on line krusty015SM1 — schedule $0.00 vs approved slice $20000.00 (Δ $-20000.00).
+krusty015,1,draft,krusty015SM1,media,0,2000000,-2000000,media krusty015SM1

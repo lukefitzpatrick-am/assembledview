@@ -41,6 +41,9 @@
     "test:line-item-attrs": "tsx --test db/schema/__tests__/lineItemAttrs.test.ts",
     "test:shadow-diff": "tsx --test lib/data/__tests__/shadowDiff.test.ts",
     "test:approvals": "tsx --test --test-force-exit lib/data/__tests__/readApprovals.test.ts",
+    "test:finance-schedule": "tsx --test lib/finance/__tests__/scheduleMonthsSource.test.ts",
+    "test:approved-slice": "tsx --test lib/finance/__tests__/approvedSlice.test.ts",
+    "test:c1-fullscope-drift": "tsx scripts/c1-fullscope-drift.ts",
     "test:save-plan": "tsx --test lib/data/__tests__/savePlan.test.ts",
     "test:xano-mirror": "tsx --test lib/data/__tests__/mirrorToXano.test.ts lib/utils/__tests__/createSemaphore.test.ts lib/utils/__tests__/lineItemWriteConcurrency.test.ts",
     "test:postgres-save-mode": "tsx --test lib/mediaplan/__tests__/postgresSaveMode.test.ts"

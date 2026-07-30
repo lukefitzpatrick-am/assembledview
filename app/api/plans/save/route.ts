@@ -96,6 +96,8 @@ const bodySchema = z.object({
   feeLoading: z.record(z.string(), z.number()),
   feeSnapshot: z.record(z.string(), z.unknown()).optional(),
   adservaudio: z.number().optional(),
+  /** Month chips at approve/publish — drives approved_slice. */
+  selectedMonthYears: z.array(z.string()).optional(),
   /** Create-path: insert PG master with Xano-aligned id when missing. */
   ensureMaster: ensureMasterSchema.optional(),
 })
@@ -196,6 +198,7 @@ export async function POST(request: NextRequest) {
     feeLoading: body.feeLoading,
     feeSnapshot: body.feeSnapshot,
     adservaudio: body.adservaudio,
+    selectedMonthYears: body.selectedMonthYears,
     lineItems: body.lineItems.map((l) => ({
       ...l,
       channel: l.channel as (typeof LINE_CHANNELS)[number],
@@ -236,7 +239,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     if (err instanceof SavePlanError) {
       const status =
-        err.code === "BOSS006_EMPTY_PUBLISH"
+        err.code === "BOSS006_EMPTY_PUBLISH" || err.code === "C1_FULL_SCOPE"
           ? 409
           : err.code === "MASTER_NOT_FOUND"
             ? 404

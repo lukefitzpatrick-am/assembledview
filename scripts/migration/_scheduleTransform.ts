@@ -11,7 +11,7 @@ import { normalizeMonthKey } from "@/lib/finance/accrual"
 import { parseMoneyStrict, toCents } from "./_shared"
 
 export type ScheduleBasis = "billing" | "delivery"
-export type ScheduleComponent = "media" | "fee"
+export type ScheduleComponent = "media" | "fee" | "adserving"
 
 export type ScheduleMonthInsert = {
   versionId: number
@@ -211,22 +211,69 @@ export function explodeScheduleToMonthRows(
               source: "computed",
             })
           }
+
+          // PC2: per-line adserving as first-class schedule_months component.
+          const adRaw = li.adServingMonthlyAmounts?.[monthYear]
+          const adAmt =
+            typeof adRaw === "number" && Number.isFinite(adRaw)
+              ? adRaw
+              : adRaw != null
+                ? parseMoneyStrict(adRaw)
+                : null
+          if (adAmt != null && adAmt !== 0) {
+            addRow(acc, {
+              versionId,
+              lineItemId,
+              component: "adserving",
+              basis,
+              month: monthDate,
+              amountCents: toCents(adAmt),
+              source: "computed",
+            })
+          }
         }
       }
     }
 
     // Month-level service buckets (synthetic line ids) when present.
+    // Prefer per-line rows; header totals only when no per-line amounts exist
+    // for that component (avoids double-counting production / adserving).
+    const monthHadAdserving = [...acc.values()].some(
+      (r) =>
+        r.basis === basis &&
+        r.component === "adserving" &&
+        r.month === monthDate
+    )
+    const monthHadProductionLine = [...acc.values()].some((r) => {
+      if (r.basis !== basis || r.month !== monthDate || r.component !== "media") {
+        return false
+      }
+      const id = r.lineItemId
+      return (
+        id.includes("-production::") ||
+        id.startsWith("billing-production::") ||
+        /production/i.test(id.split("::")[0] ?? "")
+      )
+    })
     const services: Array<{ id: string; component: ScheduleComponent; raw: unknown }> = [
-      {
-        id: "__service__adserving",
-        component: "fee",
-        raw: month.adservingTechFees,
-      },
-      {
-        id: "__service__production",
-        component: "media",
-        raw: month.production,
-      },
+      ...(monthHadAdserving
+        ? []
+        : [
+            {
+              id: "__service__adserving",
+              component: "adserving" as ScheduleComponent,
+              raw: month.adservingTechFees,
+            },
+          ]),
+      ...(monthHadProductionLine
+        ? []
+        : [
+            {
+              id: "__service__production",
+              component: "media" as ScheduleComponent,
+              raw: month.production,
+            },
+          ]),
     ]
 
     // Only emit top-level feeTotal as synthetic when there were no per-line fees.
