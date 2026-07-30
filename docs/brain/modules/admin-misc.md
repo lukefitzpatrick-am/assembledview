@@ -14,6 +14,7 @@
 ## Knowledge hub (`src/**`)
 
 - `src/lib/learning/` — Fuse.js search, formula solver/evaluator, UTM builder. `src/data/learning/terms.json` (467KB) is **generated** by `npm run build:learning` from `terms.raw.csv` — formula DSLs live in `KNOWN_FORMULAS` inside `scripts/build-learning-terms.ts` (edit there, then rebuild); do not invent expressions only in the JSON.
+- `solveForVariable` inverts via bracketed bisection on a geometric probe ladder (adjacent defined probes only; root verified against the residual). Power-law/monomial fit is gone — margin and ratio formulas reverse-solve correctly. Percent display goes through `formatPercent(..., { decimals: 2 })` so calculator output stays `"40.00%"`.
 - Percent calculators multiply by 100 in the expression (not in `formatValue`); currency display uses en-AU/`formatMoney`. Evaluator throws a named error if any non-numeric token remains after substitution.
 - Calculator cards (`FormulaCalculator`) auto-calc on input change — no Calculate button; result is `readOnly` (selectable) with a copy control.
 - Consumers: `app/knowledge/**` (9 pages) + `components/learning/*`. Nothing else imports `src/**` except `src/ava` (AVA prompt primitives).

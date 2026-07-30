@@ -40,6 +40,7 @@ describe("formatPercent", () => {
     expect(formatPercent(58.1)).toBe("58.1%")
     expect(formatPercent(58)).toBe("58.0%")
     expect(formatPercent(58, { decimals: 0 })).toBe("58%")
+    expect(formatPercent(40, { decimals: 2 })).toBe("40.00%")
   })
 })
 

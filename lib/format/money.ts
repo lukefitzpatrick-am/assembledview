@@ -206,7 +206,7 @@ export function formatMoneyCompact(value: number | null | undefined): string {
  */
 export function formatPercent(
   value: number | null | undefined,
-  opts?: { decimals?: 0 | 1 },
+  opts?: { decimals?: 0 | 1 | 2 },
 ): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "—"
   if (!Number.isFinite(value)) return "—"

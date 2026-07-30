@@ -1,4 +1,4 @@
-import { formatMoney } from "@/lib/format/money"
+import { formatMoney, formatPercent } from "@/lib/format/money"
 import { FormulaDSL } from "./types"
 
 const allowedPattern = /^[0-9+\-*/().\s%]*$/
@@ -48,7 +48,7 @@ export function formatValue(value: number, format: FormulaDSL["format"]): string
     return formatMoney(normalized, { decimals: 2 })
   }
   if (format === "percent") {
-    return `${normalized.toFixed(2)}%`
+    return formatPercent(normalized, { decimals: 2 })
   }
   if (Math.abs(normalized) >= 1000) {
     return new Intl.NumberFormat("en-AU", { maximumFractionDigits: 0 }).format(normalized)

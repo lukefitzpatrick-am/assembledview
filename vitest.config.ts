@@ -33,6 +33,8 @@ export default defineConfig({
       "lib/mediaplan/__tests__/savedPlanChannelHydration.test.ts",
       "tests/format/money-date.test.ts",
       "tests/learning/evaluator.test.ts",
+      "tests/learning/solver-roundtrip.test.ts",
+
       "lib/dashboard/__tests__/budgetSpendTiles.test.ts",
       "lib/dashboard/__tests__/homeDashboardFilters.test.ts",
       "lib/pacing/__tests__/statusUi.test.ts",
