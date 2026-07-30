@@ -44,11 +44,12 @@ type DashboardCampaign = {
   /**
    * Raw server campaign status (booked/approved/completed/draft/planning/...), distinct from
    * `status` above which is the UI bucket ("live"/"planned"/"completed"). Used to scope the
-   * "Planned to date" / "Budget utilized" KPI tiles to the same campaign set the server used
+   * "Planned to date" / "Plan committed" KPI tiles to the same campaign set the server used
    * for `clientData.totalSpend` (see `lib/dashboard/plannedSpendConsistency.ts`).
    */
   rawStatus: LegacyCampaign["status"]
   mediaTypes: string[]
+  /** Expected spend to date (plan) — same basis as campaign-page Expected Spend. */
   spentAmount: number | null
   totalBudget: number
   launchDate?: string
@@ -71,6 +72,8 @@ function toDashboardCampaign(
   campaign: LegacyCampaign,
   bucketStatus: CampaignStatus, // "live" | "planned" | "completed" — the server list this came from
 ): DashboardCampaign {
+  // Card progress binds to expected spend to date (plan pace), NOT Snowflake delivered —
+  // same word/basis as campaign-page "Expected Spend".
   const spentApprox =
     typeof campaign.expectedSpendToDate === "number" &&
     Number.isFinite(campaign.expectedSpendToDate) &&
@@ -151,8 +154,8 @@ export function ClientDashboardPageContent({
   )
 
   /**
-   * KPI-bar self-consistency (Task 2): "Planned to date" (formerly "Total spend") and
-   * "Budget utilized" must agree, so both are derived from the SAME booked/approved/completed
+   * KPI-bar self-consistency (Task 2): "Planned to date" and "Plan committed" (UI label for
+   * `budgetUtilizedPct`) must agree, so both are derived from the SAME booked/approved/completed
    * campaign set and the SAME planned-spend basis — see `lib/dashboard/plannedSpendConsistency.ts`.
    * Do NOT reintroduce `clientData.totalSpend` (a differently-windowed server figure) or the
    * unfiltered `totalBudget`/`totalSpent` above into either KPI tile.

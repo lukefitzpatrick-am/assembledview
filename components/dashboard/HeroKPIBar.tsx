@@ -18,7 +18,8 @@ export interface HeroKPIBarProps {
   /** Label for the `totalSpend` tile. Defaults to "Total Spend"; callers pass "Planned to date"
    * when `totalSpend` is a planned (not delivered/actuals) figure — see
    * `lib/dashboard/plannedSpendConsistency.ts`. `totalBudget` and `budgetUtilized` must be
-   * computed over the SAME campaign set as `totalSpend` or the tiles will contradict again. */
+   * computed over the SAME campaign set as `totalSpend` or the tiles will contradict again.
+   * `budgetUtilized` is planned-to-date ÷ plan budget (UI label: "Plan committed") — not delivered. */
   spendLabel?: string
   liveCampaigns: number
   plannedCampaigns: number
@@ -128,7 +129,9 @@ export function HeroKPIBar({
       <article className="rounded-xl border border-border/60 bg-card p-4">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">{spendLabel}</p>
         <p className="mt-2 text-2xl font-semibold text-foreground">{formatMoneyCompact(animatedSpend)}</p>
-        <p className="mt-1 text-xs text-muted-foreground">of {formatMoneyCompact(totalBudget)} budget</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          of {formatMoneyCompact(totalBudget)} plan budget · monthly plan prorated to date
+        </p>
       </article>
 
       <article className="rounded-xl border border-border/60 bg-card p-4">
@@ -136,17 +139,20 @@ export function HeroKPIBar({
         {deliveredLoading ? (
           <>
             <div className="mt-2 h-8 w-24 animate-pulse rounded bg-muted/60" aria-hidden />
-            <p className="mt-1 text-xs text-muted-foreground">Loading delivery data…</p>
+            <p className="mt-1 text-xs text-muted-foreground">Snowflake delivery · loading…</p>
           </>
         ) : hasDeliveredSpend ? (
           <>
             <p className="mt-2 text-2xl font-semibold text-foreground">{formatMoneyCompact(animatedDelivered)}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{deliveredAsOfCaption ?? "Delivered to date"}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Snowflake delivery
+              {deliveredAsOfCaption ? ` · ${deliveredAsOfCaption}` : ""}
+            </p>
           </>
         ) : (
           <>
             <p className="mt-2 text-2xl font-semibold text-muted-foreground">—</p>
-            <p className="mt-1 text-xs text-muted-foreground">No delivery reported yet</p>
+            <p className="mt-1 text-xs text-muted-foreground">Snowflake delivery · no delivery reported yet</p>
           </>
         )}
       </article>
@@ -154,7 +160,9 @@ export function HeroKPIBar({
       <article className="rounded-xl border border-border/60 bg-card p-4">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">Live Campaigns</p>
         <p className="mt-2 text-2xl font-semibold text-foreground">{formatNumber(Math.round(animatedLive))}</p>
-        <p className="mt-1 text-xs text-muted-foreground">{formatNumber(plannedCampaigns)} planned</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Live bucket · {formatNumber(plannedCampaigns)} planned
+        </p>
       </article>
 
       <article className="rounded-xl border border-border/60 bg-card p-4">
@@ -196,7 +204,7 @@ export function HeroKPIBar({
       </article>
 
       <article className="rounded-xl border border-border/60 bg-card p-4">
-        <p className="text-xs uppercase tracking-wide text-muted-foreground">Budget Utilized</p>
+        <p className="text-xs uppercase tracking-wide text-muted-foreground">Plan committed</p>
         <div className="mt-2 flex items-center gap-2">
           <svg className="h-4 w-4 -rotate-90" viewBox="0 0 16 16" aria-hidden>
             <circle cx="8" cy="8" r={ringRadius} className="fill-none stroke-border/40" strokeWidth="2" />
@@ -213,6 +221,7 @@ export function HeroKPIBar({
           </svg>
           <p className={cn("text-2xl font-semibold", budgetTone.text)}>{formatPercent(animatedBudgetPct)}</p>
         </div>
+        <p className="mt-1 text-xs text-muted-foreground">planned to date ÷ plan budget</p>
         <div className={cn("mt-3 h-1.5 w-full overflow-hidden rounded-full", budgetTone.track)}>
           <div
             className={cn("h-full rounded-full", budgetTone.fill)}

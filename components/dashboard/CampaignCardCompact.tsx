@@ -22,6 +22,10 @@ export interface CampaignCardCompactProps {
   mbaNumber: string
   status: "live" | "planned" | "completed" | "paused"
   mediaTypes: string[]
+  /**
+   * Expected spend to date (monthly plan, prorated) — same basis as campaign-page
+   * "Expected Spend". Not Snowflake delivered. Null when not yet computable.
+   */
   spentAmount: number | null
   totalBudget: number
   /** Campaign dashboard (read) URL, e.g. `/dashboard/{slug}/{mbaNumber}` */
@@ -263,22 +267,25 @@ export function CampaignCardCompact({
           />
         </div>
 
-        <div className="mt-2 flex items-center justify-between">
+        <div className="mt-2 flex items-center justify-between gap-2">
           <p className="text-xs text-muted-foreground">
             {spentAmount === null ? (
               <>
-                <span className="text-muted-foreground">Spend pending</span>
+                <span className="text-muted-foreground">Expected pending</span>
                 {" / "}
-                {formatMoneyCompact(totalBudget)}
+                {formatMoneyCompact(totalBudget)} budget
               </>
             ) : (
               <>
-                {formatMoneyCompact(spentAmount)} / {formatMoneyCompact(totalBudget)}
+                Expected {formatMoneyCompact(spentAmount)} / {formatMoneyCompact(totalBudget)} budget
               </>
             )}
           </p>
-          <p className="text-xs font-medium text-foreground">{formatPercent(Math.round(progressPct), { decimals: 0 })}</p>
+          <p className="shrink-0 text-xs font-medium text-foreground">
+            {formatPercent(Math.round(progressPct), { decimals: 0 })}
+          </p>
         </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">Monthly plan · prorated to date</p>
       </motion.article>
     </div>
   )

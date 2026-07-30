@@ -3,8 +3,10 @@
 import { CircleDollarSign } from "lucide-react"
 
 import { getMediaColor } from "@/lib/charts/registry"
+import { computeBudgetSpendTileValues } from "@/lib/dashboard/budgetSpendTiles"
 import { formatNumberCompact } from "@/lib/format/chartFormat"
-import { formatMoneyCompact } from "@/lib/format/money"
+import { formatDateShort } from "@/lib/format/date"
+import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 
 export interface CampaignSummarySectionProps {
@@ -42,10 +44,11 @@ export interface CampaignSummarySectionProps {
 
 function formatAsOfCaption(asOf: string | undefined): string | null {
   if (!asOf?.trim()) return null
-  const d = new Date(`${asOf}T00:00:00`)
-  if (Number.isNaN(d.getTime())) return null
-  const label = new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short" }).format(d)
-  return `As of ${label} · refreshes ~6:30am (Melbourne)`
+  const label = formatDateShort(`${asOf}T00:00:00`)
+  if (label === "—") return null
+  // Short day+month for the as-of line (drop year from "1 Apr 2026")
+  const short = label.replace(/\s+\d{4}$/, "")
+  return `As of ${short} · refreshes ~6:30am (Melbourne)`
 }
 
 function clampPct(value: number): number {
@@ -61,10 +64,7 @@ function timelineElapsedFallbackColor(elapsedPct: number): string {
 }
 
 function formatAxisDate(iso: string): string {
-  if (!iso?.trim()) return "—"
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return "—"
-  return new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric" }).format(d)
+  return formatDateShort(iso)
 }
 
 export default function CampaignSummaryRow({
@@ -78,21 +78,27 @@ export default function CampaignSummaryRow({
   const timePct = clampPct(time.timeElapsedPct)
   const timeColor = brandColour?.trim() ? brandColour : timelineElapsedFallbackColor(timePct)
 
-  const budget = typeof spend.budget === "number" && Number.isFinite(spend.budget) ? spend.budget : 0
-  const expectedSpend =
-    typeof spend.expectedSpend === "number" && Number.isFinite(spend.expectedSpend) ? spend.expectedSpend : undefined
   const totalPlannedSpend =
     typeof spend.totalPlannedSpend === "number" && Number.isFinite(spend.totalPlannedSpend)
       ? spend.totalPlannedSpend
       : undefined
 
-  const remaining = expectedSpend !== undefined ? budget - expectedSpend : undefined
-
   // Campaign has started once any day has elapsed — before that, "no delivery yet" is expected
   // and unremarkable, so we show the neutral "—" rather than the "No delivery reported yet" nudge.
   const hasStarted = time.daysElapsed > 0 || timePct > 0
   const hasDelivery = Boolean(delivered?.hasDelivery)
-  const deliveredSpend = hasDelivery && typeof spend.actualSpend === "number" ? spend.actualSpend : undefined
+  const deliveredInput =
+    hasDelivery && typeof spend.actualSpend === "number" ? spend.actualSpend : undefined
+
+  const { budget, expectedSpend, deliveredSpend, remaining } = computeBudgetSpendTileValues({
+    budget: typeof spend.budget === "number" && Number.isFinite(spend.budget) ? spend.budget : 0,
+    expectedSpend:
+      typeof spend.expectedSpend === "number" && Number.isFinite(spend.expectedSpend)
+        ? spend.expectedSpend
+        : undefined,
+    deliveredSpend: deliveredInput,
+  })
+
   const deliveredImpressions =
     hasDelivery && typeof delivered?.impressions === "number" && Number.isFinite(delivered.impressions) && delivered.impressions > 0
       ? delivered.impressions
@@ -101,7 +107,7 @@ export default function CampaignSummaryRow({
 
   const expectedPctOfBudgetLabel =
     budget > 0 && expectedSpend !== undefined && expectedSpend >= 0
-      ? `${((expectedSpend / budget) * 100).toFixed(1)}% of budget at expected pace`
+      ? `${formatPercent((expectedSpend / budget) * 100)} of plan budget`
       : null
 
   const startLabel = formatAxisDate(time.startDate)
@@ -135,18 +141,21 @@ export default function CampaignSummaryRow({
               <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
                 {formatMoneyCompact(budget)}
               </div>
+              <div className="text-[11px] text-muted-foreground">Plan budget · campaign total</div>
             </div>
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">Expected Spend</div>
               <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
                 {expectedSpend !== undefined ? formatMoneyCompact(expectedSpend) : "—"}
               </div>
+              <div className="text-[11px] text-muted-foreground">
+                Monthly plan · prorated to date
+                {expectedPctOfBudgetLabel ? ` · ${expectedPctOfBudgetLabel}` : ""}
+              </div>
               {totalPlannedSpend !== undefined && totalPlannedSpend > 0 ? (
-                <div className="space-y-1 text-[11px] text-muted-foreground">
-                  <p>
-                    Planned campaign total:{" "}
-                    <span className="font-medium text-foreground">{formatMoneyCompact(totalPlannedSpend)}</span>
-                  </p>
+                <div className="text-[11px] text-muted-foreground">
+                  Planned campaign total:{" "}
+                  <span className="font-medium text-foreground">{formatMoneyCompact(totalPlannedSpend)}</span>
                 </div>
               ) : expectedSpend === undefined ? (
                 <div className="text-[11px] text-muted-foreground">Monthly plan data unavailable</div>
@@ -159,20 +168,24 @@ export default function CampaignSummaryRow({
                   <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
                     {formatMoneyCompact(deliveredSpend)}
                   </div>
-                  {deliveredImpressions !== undefined ? (
-                    <div className="text-[11px] text-muted-foreground">
-                      {formatNumberCompact(deliveredImpressions)} impressions
-                    </div>
-                  ) : null}
+                  <div className="text-[11px] text-muted-foreground">
+                    Snowflake delivery
+                    {deliveredImpressions !== undefined
+                      ? ` · ${formatNumberCompact(deliveredImpressions)} impressions`
+                      : ""}
+                  </div>
                   {asOfCaption ? <div className="text-[11px] text-muted-foreground">{asOfCaption}</div> : null}
                 </>
               ) : hasStarted ? (
                 <>
                   <div className="text-xl font-bold tabular-nums text-muted-foreground md:text-2xl">—</div>
-                  <div className="text-[11px] text-muted-foreground">No delivery reported yet</div>
+                  <div className="text-[11px] text-muted-foreground">Snowflake delivery · no delivery reported yet</div>
                 </>
               ) : (
-                <div className="text-xl font-bold tabular-nums text-muted-foreground md:text-2xl">—</div>
+                <>
+                  <div className="text-xl font-bold tabular-nums text-muted-foreground md:text-2xl">—</div>
+                  <div className="text-[11px] text-muted-foreground">Snowflake delivery · campaign not started</div>
+                </>
               )}
             </div>
             <div className="space-y-1">
@@ -180,11 +193,11 @@ export default function CampaignSummaryRow({
               <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
                 {remaining !== undefined ? formatMoneyCompact(remaining) : "—"}
               </div>
-              {expectedPctOfBudgetLabel ? (
-                <div className="text-[11px] text-muted-foreground">{expectedPctOfBudgetLabel}</div>
-              ) : (
-                <div className="text-[11px] text-muted-foreground">Expected spend required for remaining</div>
-              )}
+              <div className="text-[11px] text-muted-foreground">
+                {remaining !== undefined
+                  ? "budget − delivered to date"
+                  : "Requires delivered spend"}
+              </div>
             </div>
           </div>
         </article>
