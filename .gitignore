@@ -51,3 +51,7 @@ xano-metadata-token.txt
 /exports/
 
 .worktrees/
+
+# drizzle-kit pull scratch
+/db/_pull_live/
+
