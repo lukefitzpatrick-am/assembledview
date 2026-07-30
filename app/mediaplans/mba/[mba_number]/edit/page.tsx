@@ -152,7 +152,6 @@ import {
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import {
-import {
   computeAllChannelsHydrated,
   computeChannelDuplicateStats,
   formatSaveModeLabel,
@@ -164,6 +163,7 @@ import {
   countEnabledPublishIntegrityFlags,
   shouldBlockEmptyPublish,
 } from "@/lib/mediaplan/publishVersionIntegrity"
+import {
   humaniseBillingSaveError,
   withMbaScopeLineLabels,
 } from "@/lib/finance/humaniseBillingSaveError"
@@ -6536,6 +6536,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       toast({
         title: "Save disabled",
         description: "Duplicate line-item rows detected — fix before saving.",
+        variant: "destructive",
+      })
+      return
+    }
     if (saveHeldForHydration) {
       toast({
         title: "Line items still loading — please wait",
@@ -6886,7 +6890,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           billingSchedule: undefined,
           deliverySchedule: undefined,
           delivery_schedule: undefined,
-partialApproval:
+          partialApproval:
             isPartialMBA && partialApprovalMetadata
               ? {
                   ...partialApprovalMetadata,
@@ -6895,6 +6899,7 @@ partialApproval:
                       ? partialMBAMonthYears
                       : partialApprovalMetadata.selectedMonthYears,
                 }
+              : null,
           deferMasterVersionPublish: true,
           ...(forceIncrementForApprovals ? { forceIncrement: true } : {}),
         }),

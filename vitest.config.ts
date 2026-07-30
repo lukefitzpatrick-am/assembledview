@@ -6,7 +6,7 @@ const root = path.dirname(fileURLToPath(import.meta.url))
 
 /**
  * Vitest only runs suites listed under `test.include` below.
- * Other `**/__tests__/**` files may still use `node:test` via
+ * Other node:test suites under __tests__ folders may still run via
  * `npx tsx --test <path>` — they are intentionally excluded here.
  */
 export default defineConfig({
