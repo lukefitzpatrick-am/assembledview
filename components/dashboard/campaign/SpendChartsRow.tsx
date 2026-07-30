@@ -13,7 +13,7 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layou
 import { DASHBOARD_CHART_PLOT_HEIGHT } from "@/lib/charts/theme"
 import { getMediaLabel } from "@/lib/charts/registry"
 import { channelColorFor, fmt as chartFmt } from "@/lib/chart-theme"
-import { formatCurrencyAUD } from "@/lib/format/currency"
+import { formatMoneyCompact } from "@/lib/format/money"
 import { normaliseLineItemsByType, type NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
 
 type ChannelSpend = {
@@ -128,7 +128,7 @@ const getMonthLabel = (value: any): string => {
   if (!value) return "Unknown"
   const parsed = parseMonthYearLabel(value)
   if (parsed) {
-    return parsed.toLocaleDateString("en-US", { month: "short", year: "numeric" })
+    return parsed.toLocaleDateString("en-AU", { month: "short", year: "numeric" })
   }
   return String(value)
 }
@@ -308,8 +308,8 @@ export default function SpendChartsRow({
     const months = monthlyData.map((m) => parseMonthYearLabel(String(m.month))).filter(Boolean) as Date[]
     if (!months.length) return undefined
     const sorted = months.sort((a, b) => a.getTime() - b.getTime())
-    const fmt = (d: Date) => d.toLocaleDateString("en-US", { month: "short", year: "numeric" })
-    return `${fmt(sorted[0])} - ${fmt(sorted[sorted.length - 1])}`
+    const fmt = (d: Date) => d.toLocaleDateString("en-AU", { month: "short", year: "numeric" })
+    return `${fmt(sorted[0])} – ${fmt(sorted[sorted.length - 1])}`
   }, [monthlyData])
 
   const channelTotalsSum = useMemo(
@@ -337,7 +337,7 @@ export default function SpendChartsRow({
     return top?.month ?? "—"
   }, [monthlyData])
 
-  const currency = (value: number) => formatCurrencyAUD(value)
+  const currency = (value: number) => formatMoneyCompact(value)
 
   const mediaChannelPieData = useMemo(
     () =>

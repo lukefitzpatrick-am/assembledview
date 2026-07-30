@@ -10,7 +10,7 @@ import {
 } from "@/components/dashboard/PageHeroShell"
 import { ClientProfileLinks } from "@/components/dashboard/ClientProfileLinks"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { formatCurrencyCompact } from "@/lib/format/currency"
+import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 
 export interface HeroBannerProps {
@@ -43,14 +43,7 @@ function getClientInitials(clientName: string): string {
 }
 
 function formatRoas(value: number): string {
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)}x`
-}
-
-function formatPercent(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 1,
-    minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
-  }).format(Math.abs(value))
+  return `${new Intl.NumberFormat("en-AU", { maximumFractionDigits: 2 }).format(value)}x`
 }
 
 function colorMix(color: string, percentage: number): string {
@@ -85,14 +78,14 @@ export function HeroBanner({
             performanceVsBenchmark >= 0 ? "text-status-ahead-fg" : "text-status-behind-fg",
           )}
         >
-          Your campaigns are performing {formatPercent(performanceVsBenchmark)}%{" "}
+          Your campaigns are performing {formatPercent(Math.abs(performanceVsBenchmark))}{" "}
           {performanceVsBenchmark >= 0 ? "above" : "below"} benchmark
         </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-pill" style={{ backgroundColor: brandColour }} aria-hidden />
-          {spendLabel}: {formatCurrencyCompact(totalSpend)}
+          {spendLabel}: {formatMoneyCompact(totalSpend)}
         </span>
         <span aria-hidden className="text-border">
           •

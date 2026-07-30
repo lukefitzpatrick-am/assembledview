@@ -3,7 +3,8 @@
 import Link from "next/link"
 import { CalendarDays, Clock3 } from "lucide-react"
 
-import { formatCurrencyCompact } from "@/lib/format/currency"
+import { formatDateShort } from "@/lib/format/date"
+import { formatMoneyCompact } from "@/lib/format/money"
 
 export interface UpcomingCampaignItem {
   id: string
@@ -21,9 +22,8 @@ interface UpcomingCampaignsSectionProps {
 
 function formatLaunchDate(value?: string): string {
   if (!value) return "Launch date TBD"
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(parsed)
+  const formatted = formatDateShort(value)
+  return formatted === "—" ? value : formatted
 }
 
 export function UpcomingCampaignsSection({
@@ -62,7 +62,7 @@ export function UpcomingCampaignsSection({
                   <Clock3 className="h-3.5 w-3.5" />
                   {formatLaunchDate(campaign.launchDate)}
                 </p>
-                <p className="mt-1 text-xs text-muted-foreground">Budget {formatCurrencyCompact(campaign.totalBudget)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Budget {formatMoneyCompact(campaign.totalBudget)}</p>
               </div>
             </Link>
           ))}

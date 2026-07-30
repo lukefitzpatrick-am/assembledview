@@ -13,6 +13,11 @@ export type MoneyFormatOptions = {
   maximumFractionDigits?: number
 }
 
+export type FormatMoneyDisplayOptions = {
+  /** Default 2. Use 0 for whole-dollar display. */
+  decimals?: 0 | 2
+}
+
 const DEFAULT_MIN_FRACTION = 2
 const DEFAULT_MAX_FRACTION = 2
 
@@ -25,6 +30,8 @@ const formatterCache = new Map<string, Intl.NumberFormat>()
 
 const MIN_FRACTION_DIGITS = 0
 const MAX_FRACTION_DIGITS = 20
+
+const displayMoneyFormatterCache = new Map<string, Intl.NumberFormat>()
 
 function toSafeFractionDigits(value: number, fallback: number): number {
   if (!Number.isFinite(value)) return fallback
@@ -62,7 +69,7 @@ function getNumberFormat({
     minimumFractionDigits,
     maximumFractionDigits,
   })
-  const key = `${locale}|${currency}|${minimumFractionDigits}|${maximumFractionDigits}`
+  const key = `${locale}|${currency}|${normalizedFractions.minimumFractionDigits}|${normalizedFractions.maximumFractionDigits}`
   const existing = formatterCache.get(key)
   if (existing) return existing
 
@@ -76,7 +83,41 @@ function getNumberFormat({
   return nf
 }
 
-/** Parses user-entered or formatted currency strings (same rules as {@link formatMoney}). */
+function isLegacyMoneyOptions(
+  opts?: FormatMoneyDisplayOptions | MoneyFormatOptions,
+): opts is MoneyFormatOptions {
+  if (!opts) return false
+  return (
+    "locale" in opts ||
+    "currency" in opts ||
+    "minimumFractionDigits" in opts ||
+    "maximumFractionDigits" in opts
+  )
+}
+
+function getDisplayMoneyFormatter(decimals: 0 | 2): Intl.NumberFormat {
+  const key = `display|${decimals}`
+  const existing = displayMoneyFormatterCache.get(key)
+  if (existing) return existing
+  const nf = new Intl.NumberFormat(AUD_LOCALE, {
+    style: "currency",
+    currency: AUD_CURRENCY,
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  })
+  displayMoneyFormatterCache.set(key, nf)
+  return nf
+}
+
+const compactMoneyFormatter = new Intl.NumberFormat(AUD_LOCALE, {
+  style: "currency",
+  currency: AUD_CURRENCY,
+  notation: "compact",
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+})
+
+/** Parses user-entered or formatted currency strings (same rules as legacy {@link formatMoney}). */
 export function parseMoneyInput(value: MoneyInput): number | null {
   if (value === null || value === undefined) return null
   if (typeof value === "number") return Number.isFinite(value) ? value : null
@@ -121,13 +162,60 @@ export function formatBuyAmount(value: MoneyInput): string {
 }
 
 /**
- * Formats a money value with **min 2 / max 2** decimal places (budgets, media, fees).
- * - If the value is null/empty/invalid, returns an empty string.
+ * Client-facing AUD money display (en-AU).
+ * Returns "—" for null/undefined/NaN — never "$NaN".
+ *
+ * Legacy overload: when `options` includes locale/currency/fraction-digit fields
+ * (editor grids, bursts_json serialization), keeps the prior MoneyInput behaviour
+ * and returns "" for invalid values.
  */
-export function formatMoney(value: MoneyInput, options: MoneyFormatOptions = {}): string {
-  const parsed = parseMoneyInput(value)
-  if (parsed === null) return ""
-  return getNumberFormat(options).format(parsed)
+export function formatMoney(value: number | null | undefined, opts?: FormatMoneyDisplayOptions): string
+export function formatMoney(value: MoneyInput, options?: MoneyFormatOptions): string
+export function formatMoney(
+  value: MoneyInput,
+  options?: FormatMoneyDisplayOptions | MoneyFormatOptions,
+): string {
+  if (isLegacyMoneyOptions(options) || typeof value === "string") {
+    const parsed = parseMoneyInput(value)
+    if (parsed === null) return ""
+    return getNumberFormat(isLegacyMoneyOptions(options) ? options : {}).format(parsed)
+  }
+
+  if (value === null || value === undefined || Number.isNaN(value)) return "—"
+  if (!Number.isFinite(value)) return "—"
+
+  const decimals = options && "decimals" in options && options.decimals !== undefined ? options.decimals : 2
+  return getDisplayMoneyFormatter(decimals).format(value)
+}
+
+/**
+ * Compact AUD for KPI tiles and chart axes — e.g. "$43.0K".
+ * Values under 1000 fall back to {@link formatMoney} with whole dollars.
+ * Returns "—" for null/undefined/NaN.
+ */
+export function formatMoneyCompact(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—"
+  if (!Number.isFinite(value)) return "—"
+  if (Math.abs(value) < 1000) return formatMoney(value, { decimals: 0 })
+  return compactMoneyFormatter.format(value)
+}
+
+/**
+ * Formats a value that is already a percentage (58.1 → "58.1%"), not a 0–1 fraction.
+ * Returns "—" for null/undefined/NaN.
+ */
+export function formatPercent(
+  value: number | null | undefined,
+  opts?: { decimals?: 0 | 1 },
+): string {
+  if (value === null || value === undefined || Number.isNaN(value)) return "—"
+  if (!Number.isFinite(value)) return "—"
+  const decimals = opts?.decimals ?? 1
+  const formatted = new Intl.NumberFormat(AUD_LOCALE, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: decimals,
+  }).format(value)
+  return `${formatted}%`
 }
 
 /**

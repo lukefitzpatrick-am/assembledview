@@ -4,7 +4,7 @@ import { CircleDollarSign } from "lucide-react"
 
 import { getMediaColor } from "@/lib/charts/registry"
 import { formatNumberCompact } from "@/lib/format/chartFormat"
-import { formatCurrencyCompact } from "@/lib/format/currency"
+import { formatMoneyCompact } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 
 export interface CampaignSummarySectionProps {
@@ -133,19 +133,19 @@ export default function CampaignSummaryRow({
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">Budget</div>
               <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
-                {formatCurrencyCompact(budget)}
+                {formatMoneyCompact(budget)}
               </div>
             </div>
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">Expected Spend</div>
               <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
-                {expectedSpend !== undefined ? formatCurrencyCompact(expectedSpend) : "—"}
+                {expectedSpend !== undefined ? formatMoneyCompact(expectedSpend) : "—"}
               </div>
               {totalPlannedSpend !== undefined && totalPlannedSpend > 0 ? (
                 <div className="space-y-1 text-[11px] text-muted-foreground">
                   <p>
                     Planned campaign total:{" "}
-                    <span className="font-medium text-foreground">{formatCurrencyCompact(totalPlannedSpend)}</span>
+                    <span className="font-medium text-foreground">{formatMoneyCompact(totalPlannedSpend)}</span>
                   </p>
                 </div>
               ) : expectedSpend === undefined ? (
@@ -157,7 +157,7 @@ export default function CampaignSummaryRow({
               {hasDelivery && deliveredSpend !== undefined ? (
                 <>
                   <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
-                    {formatCurrencyCompact(deliveredSpend)}
+                    {formatMoneyCompact(deliveredSpend)}
                   </div>
                   {deliveredImpressions !== undefined ? (
                     <div className="text-[11px] text-muted-foreground">
@@ -178,7 +178,7 @@ export default function CampaignSummaryRow({
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">Remaining</div>
               <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
-                {remaining !== undefined ? formatCurrencyCompact(remaining) : "—"}
+                {remaining !== undefined ? formatMoneyCompact(remaining) : "—"}
               </div>
               {expectedPctOfBudgetLabel ? (
                 <div className="text-[11px] text-muted-foreground">{expectedPctOfBudgetLabel}</div>

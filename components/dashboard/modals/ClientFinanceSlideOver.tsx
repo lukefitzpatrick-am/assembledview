@@ -16,6 +16,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { formatDateShort } from "@/lib/format/date"
+import { formatMoney, formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 
 type QuarterStatus = "complete" | "in-progress" | "planned"
@@ -68,31 +70,9 @@ function SectionHeader({ title }: { title: string }) {
   return <h3 className="mb-3 text-sm font-medium uppercase tracking-wide text-muted-foreground">{title}</h3>
 }
 
-function formatLocaleForCurrency(currency: string): string {
-  return currency === "AUD" ? "en-AU" : "en-US"
-}
-
-function compactCurrency(value: number, currency: string): string {
-  return new Intl.NumberFormat(formatLocaleForCurrency(currency), {
-    style: "currency",
-    currency,
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value)
-}
-
-function fullCurrency(value: number, currency: string): string {
-  return new Intl.NumberFormat(formatLocaleForCurrency(currency), {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(value)
-}
-
 function formatDate(value: string): string {
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(parsed)
+  const formatted = formatDateShort(value)
+  return formatted === "—" ? value : formatted
 }
 
 function quarterProgressClass(status: QuarterStatus, isOverBudget: boolean): string {
@@ -106,15 +86,14 @@ function quarterStatusText(
   status: QuarterStatus,
   spent: number,
   budget: number,
-  currency: string,
   isOverBudget: boolean
 ): string {
-  if (isOverBudget) return `${compactCurrency(spent - budget, currency)} over budget`
+  if (isOverBudget) return `${formatMoneyCompact(spent - budget)} over budget`
   if (status === "complete") return "Complete"
   if (status === "planned") return "Planned"
 
   const pct = budget > 0 ? Math.round((spent / budget) * 100) : 0
-  return `${compactCurrency(spent, currency)} spent (${pct}%)`
+  return `${formatMoneyCompact(spent)} spent (${formatPercent(pct, { decimals: 0 })})`
 }
 
 export function ClientFinanceSlideOver({
@@ -167,13 +146,13 @@ export function ClientFinanceSlideOver({
               <article className="rounded-lg bg-muted/50 p-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Total Budget</p>
                 <p className="mt-2 text-2xl font-semibold text-foreground">
-                  {compactCurrency(finance.totalBudget, finance.currency)}
+                  {formatMoneyCompact(finance.totalBudget)}
                 </p>
               </article>
               <article className="rounded-lg bg-muted/50 p-4">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">YTD Spend</p>
                 <p className="mt-2 text-2xl font-semibold text-foreground">
-                  {compactCurrency(finance.ytdSpend, finance.currency)}
+                  {formatMoneyCompact(finance.ytdSpend)}
                 </p>
                 <p className="mt-1 text-xs text-muted-foreground">{ytdPct}% of total budget</p>
               </article>
@@ -197,7 +176,7 @@ export function ClientFinanceSlideOver({
                       <article key={quarter.quarter} className="rounded-lg bg-muted/50 p-4">
                         <div className="mb-2 flex items-center justify-between gap-3">
                           <p className="text-sm font-medium text-foreground">{quarter.quarter}</p>
-                          <p className="text-sm text-muted-foreground">{compactCurrency(quarter.budget, finance.currency)}</p>
+                          <p className="text-sm text-muted-foreground">{formatMoneyCompact(quarter.budget)}</p>
                         </div>
                         <div className="h-2 overflow-hidden rounded-full bg-muted">
                           <div
@@ -208,7 +187,7 @@ export function ClientFinanceSlideOver({
                         </div>
                         <div className="mt-2 flex items-center justify-between">
                           <p className={cn("text-xs", isOverBudget ? "text-status-critical-fg" : "text-muted-foreground")}>
-                            {quarterStatusText(quarter.status, quarter.spent, quarter.budget, finance.currency, isOverBudget)}
+                            {quarterStatusText(quarter.status, quarter.spent, quarter.budget, isOverBudget)}
                           </p>
                           {isOverBudget ? <AlertTriangle className="h-4 w-4 text-status-critical-fg" aria-hidden /> : null}
                         </div>
@@ -232,8 +211,7 @@ export function ClientFinanceSlideOver({
                         <div className="mb-1 flex items-center justify-between text-sm">
                           <span className="text-foreground">{item.mediaType}</span>
                           <span className="text-muted-foreground">
-                            {item.percentage.toLocaleString("en-US", { maximumFractionDigits: 1 })}% •{" "}
-                            {compactCurrency(item.amount, finance.currency)}
+                            {formatPercent(item.percentage)} • {formatMoneyCompact(item.amount)}
                           </span>
                         </div>
                         <div className="h-1.5 overflow-hidden rounded-full bg-muted">
@@ -286,7 +264,7 @@ export function ClientFinanceSlideOver({
                                 )}
                               >
                                 {isPositive ? "+" : "-"}
-                                {fullCurrency(Math.abs(tx.amount), finance.currency)}
+                                {formatMoney(Math.abs(tx.amount))}
                               </p>
                             </div>
                           )
@@ -320,8 +298,8 @@ export function ClientFinanceSlideOver({
                       Outstanding invoices
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {finance.outstandingInvoices.count.toLocaleString("en-US")} open •{" "}
-                      {fullCurrency(finance.outstandingInvoices.totalAmount, finance.currency)}
+                      {finance.outstandingInvoices.count.toLocaleString("en-AU")} open •{" "}
+                      {formatMoney(finance.outstandingInvoices.totalAmount)}
                     </p>
                     <div className="mt-2 text-xs text-muted-foreground">
                       {finance.outstandingInvoices.nextInvoiceDate ? (

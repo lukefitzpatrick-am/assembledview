@@ -43,9 +43,10 @@ Boot warming via `instrumentation.ts` — skipped on Vercel unless `WARM_CACHES_
 ## Cross-cutting utils
 
 - `lib/utils.ts` (216 importers) — `cn()`, `theme`, `mediaTypeTheme` (channel colour keys are load-bearing).
-- `lib/format/money.ts` (80) — `formatAUD`, `roundMoney2/4`, `parseMoneyInput`. Rounding changes = reconciliation drift everywhere.
+- `lib/format/money.ts` — client-facing display: `formatMoney` / `formatMoneyCompact` / `formatPercent` (en-AU AUD; null/NaN → "—"). Also keeps editor/serialization helpers `formatAUD`, `roundMoney2/4`, `parseMoneyInput`, plus a legacy `formatMoney` overload when locale/currency/fraction options are passed (bursts_json + MoneyInput). Rounding changes = reconciliation drift everywhere.
+- `lib/format/date.ts` — client-facing dates: `formatDateShort` ("1 Apr 2026"), `formatDateLong` ("1 April 2026"), `formatDateRange` (collapses shared year/month); all via `parseDateSafe`, en-AU only; unparseable → "—".
 - `lib/clients/slug.ts` (24) — slugs ARE tenant identity; `legalsuper → legal_super` override is load-bearing. NOTE: pacing uses a different slugifier (`slugifyPlanClientName`).
-- Dates: `lib/dates/parseDateSafe` (LOCAL midnight) vs `parseDateNativeSafe` (UTC midnight) are NOT interchangeable — swapping shifts dates by a day. Three Melbourne-date helper families exist (lib/timezone, lib/dates/melbourne, lib/pacing/maths).
+- Dates: `lib/dates/parseDateSafe` (LOCAL midnight) vs `parseDateNativeSafe` (UTC midnight) are NOT interchangeable — swapping shifts dates by a day. Three Melbourne-date helper families exist (lib/timezone, lib/dates/melbourne, lib/pacing/maths). Presentation formatting for client dashboards goes through `lib/format/date.ts`.
 - Duplicate toast hook with separate state: `components/ui/use-toast` (52 importers) vs `hooks/use-toast` (2).
 - `tsconfig`: `strict: false` + `strictNullChecks: true`; three perf test files excluded from typecheck.
 

@@ -14,7 +14,7 @@ import {
 import { useToast } from "@/components/ui/use-toast"
 import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
 import { cn } from "@/lib/utils"
-import { formatCurrencyCompact } from "@/lib/format/currency"
+import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
 
 export interface CampaignCardCompactProps {
   id: string
@@ -269,15 +269,15 @@ export function CampaignCardCompact({
               <>
                 <span className="text-muted-foreground">Spend pending</span>
                 {" / "}
-                {formatCurrencyCompact(totalBudget)}
+                {formatMoneyCompact(totalBudget)}
               </>
             ) : (
               <>
-                {formatCurrencyCompact(spentAmount)} / {formatCurrencyCompact(totalBudget)}
+                {formatMoneyCompact(spentAmount)} / {formatMoneyCompact(totalBudget)}
               </>
             )}
           </p>
-          <p className="text-xs font-medium text-foreground">{Math.round(progressPct).toLocaleString("en-US")}%</p>
+          <p className="text-xs font-medium text-foreground">{formatPercent(Math.round(progressPct), { decimals: 0 })}</p>
         </div>
       </motion.article>
     </div>

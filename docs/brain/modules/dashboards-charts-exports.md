@@ -3,6 +3,7 @@
 ## Client dashboards
 
 - Routes: `app/dashboard/[slug]/**` (tenant-scoped client views) + `components/dashboard/**` (57 files: hero KPI bar, spending insights, campaign viz, delivery sections, slide-overs).
+- Money/date presentation: client-facing dashboard surfaces use `lib/format/money.ts` (`formatMoney` / `formatMoneyCompact` / `formatPercent`) and `lib/format/date.ts`. KPI tiles + chart axes → compact; tables/line items/invoice-reconcile figures → `formatMoney` with 2 decimals. Do not mix compact and full within one card/KPI row.
 - API: `GET /api/dashboard/[slug]` (and `/delivered`) — client users must match slug via `getUserClientSlugs`; admin is unscoped (SEC-4 FIXED).
 - Aggregation layer: `lib/api/dashboard/{client,publisher,global,finance,shared}.ts` — `shared.ts` owns `pickHighestVersionRow` / `isBookedApprovedCompleted` / `normalizeSchedule`, i.e. **which plan version every dashboard number comes from**, plus the shared 10s axios timeout.
 - `lib/dashboard/plannedSpendConsistency.ts` deliberately couples the "Total spend" and "Budget utilised" tiles to one computation; its status filter must stay in sync with `deliveryScheduleByMBA` in `lib/api/dashboard/client.ts`.

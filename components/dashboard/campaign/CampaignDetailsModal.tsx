@@ -6,7 +6,8 @@ import { CalendarDays, Copy, Download, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
-import { formatAUD } from "@/lib/format/money"
+import { formatDateShort } from "@/lib/format/date"
+import { formatMoney, formatPercent } from "@/lib/format/money"
 import {
   Sheet,
   SheetContent,
@@ -46,9 +47,8 @@ export interface CampaignDetailsModalProps {
 
 function formatDate(value?: string): string {
   if (!value) return "Not set"
-  const parsed = new Date(value)
-  if (Number.isNaN(parsed.getTime())) return value
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(parsed)
+  const formatted = formatDateShort(value)
+  return formatted === "—" ? value : formatted
 }
 
 function clampPct(value: number): number {
@@ -177,24 +177,24 @@ export default function CampaignDetailsModal({
               <div className="space-y-3">
                 <article className="rounded-lg bg-muted/50 p-4">
                   <p className="text-xs uppercase tracking-wide text-muted-foreground">Campaign budget</p>
-                  <p className="mt-2 text-3xl font-semibold text-foreground">{formatAUD(campaign.budget)}</p>
+                  <p className="mt-2 text-3xl font-semibold text-foreground">{formatMoney(campaign.budget)}</p>
                 </article>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <article className="rounded-lg bg-muted/50 p-4">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Expected spend to date</p>
-                    <p className="mt-2 text-lg font-semibold text-foreground">{formatAUD(expectedSpend)}</p>
+                    <p className="mt-2 text-lg font-semibold text-foreground">{formatMoney(expectedSpend)}</p>
                   </article>
                   <article className="rounded-lg bg-muted/50 p-4">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">Delivered spend to date</p>
                     <p className="mt-2 text-lg font-semibold text-foreground">
-                      {campaign.actualSpend !== undefined ? formatAUD(actualSpend) : "Not available"}
+                      {campaign.actualSpend !== undefined ? formatMoney(actualSpend) : "Not available"}
                     </p>
                   </article>
                 </div>
                 <article className="rounded-lg bg-muted/50 p-4">
                   <div className="mb-1 flex items-center justify-between text-xs text-muted-foreground">
                     <span>Budget utilization</span>
-                    <span>{Math.round(utilizationPct)}%</span>
+                    <span>{formatPercent(Math.round(utilizationPct), { decimals: 0 })}</span>
                   </div>
                   <div className="h-2 overflow-hidden rounded-full bg-muted">
                     <div className="h-full rounded-full bg-pacing-on-track transition-all duration-500" style={{ width: `${utilizationPct}%` }} aria-hidden />
@@ -245,7 +245,7 @@ export default function CampaignDetailsModal({
                             <span className="text-foreground">{channel}</span>
                             <span className="text-muted-foreground">
                               {count !== undefined ? `${count} items • ` : ""}
-                              {share.toFixed(1)}% • {formatAUD(amount)}
+                              {formatPercent(share)} • {formatMoney(amount)}
                             </span>
                           </div>
                           <div className="h-1.5 overflow-hidden rounded-full bg-muted">

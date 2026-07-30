@@ -9,7 +9,7 @@ import {
   getBudgetUtilizationKpiTone,
 } from "@/lib/dashboard/budgetUtilKpi"
 import { hasReportedDeliveredSpend } from "@/lib/delivery/deliveredTotals"
-import { formatCurrencyCompact } from "@/lib/format/currency"
+import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 
 export interface HeroKPIBarProps {
@@ -48,15 +48,11 @@ function formatDeliveredAsOfCaption(asOf: string | undefined): string | null {
 }
 
 function formatNumber(value: number): string {
-  return value.toLocaleString("en-US")
+  return value.toLocaleString("en-AU")
 }
 
 function formatRoas(value: number): string {
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)}x`
-}
-
-function formatPercent(value: number): string {
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 }).format(value)}%`
+  return `${new Intl.NumberFormat("en-AU", { maximumFractionDigits: 2 }).format(value)}x`
 }
 
 function useCountUp(target: number, durationMs = 1000): number {
@@ -131,8 +127,8 @@ export function HeroKPIBar({
     <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
       <article className="rounded-xl border border-border/60 bg-card p-4">
         <p className="text-xs uppercase tracking-wide text-muted-foreground">{spendLabel}</p>
-        <p className="mt-2 text-2xl font-semibold text-foreground">{formatCurrencyCompact(animatedSpend)}</p>
-        <p className="mt-1 text-xs text-muted-foreground">of {formatCurrencyCompact(totalBudget)} budget</p>
+        <p className="mt-2 text-2xl font-semibold text-foreground">{formatMoneyCompact(animatedSpend)}</p>
+        <p className="mt-1 text-xs text-muted-foreground">of {formatMoneyCompact(totalBudget)} budget</p>
       </article>
 
       <article className="rounded-xl border border-border/60 bg-card p-4">
@@ -144,7 +140,7 @@ export function HeroKPIBar({
           </>
         ) : hasDeliveredSpend ? (
           <>
-            <p className="mt-2 text-2xl font-semibold text-foreground">{formatCurrencyCompact(animatedDelivered)}</p>
+            <p className="mt-2 text-2xl font-semibold text-foreground">{formatMoneyCompact(animatedDelivered)}</p>
             <p className="mt-1 text-xs text-muted-foreground">{deliveredAsOfCaption ?? "Delivered to date"}</p>
           </>
         ) : (
