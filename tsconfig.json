@@ -39,11 +39,10 @@
   "exclude": [
     "node_modules",
     ".next",
+    "_to_delete",
+    "tmp",
     "lib/mediaplan/expertGridRowPerf.bench.test.ts",
     "lib/mediaplan/expertGridRowPerf.memoContract.test.ts",
-    "lib/mediaplan/expertGridRowPerf.test.ts",
-    "scripts/_s1p1b-live-repair-probe.ts",
-    "scripts/live-campaign-conformance.ts",
-    "scripts/live-repair-probe.ts"
+    "lib/mediaplan/expertGridRowPerf.test.ts"
   ]
 }

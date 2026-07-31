@@ -52,6 +52,11 @@ xano-metadata-token.txt
 
 .worktrees/
 
+# O1 / local scratch — never track
+/_to_delete/
+/tmp/
+scripts/ps1-sec-live-probe.mjs
+
 # drizzle-kit pull scratch
 /db/_pull_live/
 
