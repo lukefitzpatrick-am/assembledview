@@ -148,3 +148,72 @@ export function formatSaveModeLabel(
   if (mode === "overwrite") return `Draft — overwrites v${n}`
   return `Will create v${n}`
 }
+
+/** Human labels for mp_* hydration flags (Save hold copy). */
+const HYDRATION_CHANNEL_LABELS: Record<string, string> = {
+  mp_television: "Television",
+  mp_radio: "Radio",
+  mp_newspaper: "Newspaper",
+  mp_magazines: "Magazines",
+  mp_ooh: "OOH",
+  mp_cinema: "Cinema",
+  mp_digidisplay: "Digital Display",
+  mp_digiaudio: "Digital Audio",
+  mp_digivideo: "Digital Video",
+  mp_bvod: "BVOD",
+  mp_integration: "Integration",
+  mp_search: "Search",
+  mp_socialmedia: "Social",
+  mp_progdisplay: "Prog Display",
+  mp_progvideo: "Prog Video",
+  mp_progbvod: "Prog BVOD",
+  mp_progaudio: "Prog Audio",
+  mp_progooh: "Prog OOH",
+  mp_influencers: "Influencers",
+  mp_production: "Production",
+  mp_fixedfee: "Fixed Fee",
+}
+
+export function hydrationChannelLabel(flag: string): string {
+  return HYDRATION_CHANNEL_LABELS[flag] ?? flag.replace(/^mp_/, "").replace(/_/g, " ")
+}
+
+/**
+ * Flags still blocking Save: not ready, or ready but not yet settled.
+ * Error status does not block (matches computeAllChannelsHydrated).
+ */
+export function listOutstandingHydrationChannels(input: AllChannelsHydratedInput): string[] {
+  const { loadPhase, expectedFlags, mediaLoadStatus, settledFlags } = input
+  if (loadPhase !== "ready") {
+    return expectedFlags.map(hydrationChannelLabel)
+  }
+  return expectedFlags
+    .filter((flag) => {
+      const status = mediaLoadStatus[flag]
+      if (status === "error") return false
+      if (status !== "ready") return true
+      return settledFlags[flag] !== true
+    })
+    .map(hydrationChannelLabel)
+}
+
+/**
+ * Disabled-with-reason copy for the Save control while channels hydrate.
+ * Gate stays closed — this only names why.
+ */
+export function formatSaveHydrationHoldReason(
+  outstandingLabels: string[],
+  opts?: { loadPhaseReady?: boolean }
+): string | null {
+  if (outstandingLabels.length === 0) return null
+  if (opts?.loadPhaseReady === false) {
+    if (outstandingLabels.length === 1) {
+      return `Waiting for ${outstandingLabels[0]} to load — you can't save yet`
+    }
+    return `Waiting for ${outstandingLabels.length} channels to load — you can't save yet`
+  }
+  if (outstandingLabels.length === 1) {
+    return `Waiting for ${outstandingLabels[0]} to load — you can't save yet`
+  }
+  return `Waiting for ${outstandingLabels.length} channels to load — you can't save yet`
+}

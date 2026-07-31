@@ -96,8 +96,8 @@ Fetch timeouts on the edit page are **15s initial + 25s auto-retry = 40s** for a
 
 | Step | Location |
 |---|---|
-| Save label | `edit/page.tsx:10637-10640` — `saveHeldForHydration ? "Loading…" : "Save"` |
-| Wizard rail | `PlanWizardShell.tsx:320` — `saveDisabled ? "Loading…" : "Save"` |
+| Save label | FIXED — floating Save uses `formatSaveHydrationHoldReason` (names channel / count); draft-summary duplicate Save removed |
+| Wizard rail | FIXED — draft summary shows hold reason as status text; Exit is “Exit to Campaigns” |
 | Gate | `edit/page.tsx:2820-2831` + `lib/mediaplan/channelHydrationGate.ts:23-34,133-139` |
 | Parallel loads | `edit/page.tsx:3902-3988` — `Promise.all` per enabled media type |
 | Timeouts | `:1673-1680` — `15_000` / `25_000` / watchdog `50_000` |

@@ -2,8 +2,17 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { Check } from "lucide-react"
+import Link from "next/link"
 
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { useSidebar } from "@/components/ui/sidebar"
 import { CAMPAIGN_BUDGET_REMAINING_BASIS_CAPTION } from "@/lib/mediaplan/campaignBudgetRemaining"
@@ -41,15 +50,20 @@ export type PlanWizardShellProps = {
   title: string
   subtitle?: ReactNode
   heroActions?: ReactNode
+  /** Current page crumb (e.g. "Edit Campaign"). Links back via breadcrumb. */
+  breadcrumbCurrent?: string
   steps: PlanWizardStep[]
   activeStep?: string
   railSubItems?: PlanWizardRailSubItems
   summary: PlanWizardSummary
-  onSave: () => void
   onExit: () => void
+  /** Destination label for Exit (e.g. "Exit to Campaigns"). */
+  exitLabel?: string
   isSaving?: boolean
-  /** Extra hold (e.g. channel hydration) — disables Save without showing "Saving...". */
+  /** Extra hold (e.g. channel hydration) — disables Save in the floating bar. */
   saveDisabled?: boolean
+  /** Why Save is held — shown as draft-summary state + floating-bar label. */
+  saveDisabledReason?: string | null
   bottomBar: ReactNode
   children: ReactNode
 }
@@ -58,14 +72,16 @@ export function PlanWizardShell({
   title,
   subtitle,
   heroActions,
+  breadcrumbCurrent,
   steps,
   activeStep: activeStepProp,
   railSubItems,
   summary,
-  onSave,
   onExit,
+  exitLabel = "Exit to Campaigns",
   isSaving = false,
   saveDisabled = false,
+  saveDisabledReason = null,
   bottomBar,
   children,
 }: PlanWizardShellProps) {
@@ -185,9 +201,31 @@ export function PlanWizardShell({
     return () => observer.disconnect()
   }, [steps, railSubItems, activeStepProp])
 
+  const crumb = breadcrumbCurrent ?? title
+  const holdReason =
+    saveDisabled && saveDisabledReason
+      ? saveDisabledReason
+      : saveDisabled
+        ? "Waiting for channels to load — you can't save yet"
+        : null
+
   return (
     <div className="w-full min-h-0 overflow-visible pb-[env(safe-area-inset-bottom)]">
       <div className="mx-auto w-full max-w-[1920px] space-y-6 overflow-visible px-4 pb-24 pt-0 sm:px-5 md:px-6 xl:px-8 2xl:px-10">
+        <Breadcrumb className="pt-1">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link href="/mediaplans">Campaigns</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage>{crumb}</BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+
         <MediaPlanEditorHero
           className="mb-2"
           title={title}
@@ -313,16 +351,19 @@ export function PlanWizardShell({
                   <p className="font-semibold">{summary.status}</p>
                 </div>
               </div>
-              <div className="mt-4 flex flex-col gap-2">
-                <Button
-                  type="button"
-                  size="sm"
-                  className="w-full rounded-pill"
-                  onClick={onSave}
-                  disabled={isSaving || saveDisabled}
+              {holdReason ? (
+                <p
+                  className="mt-3 text-[10px] leading-snug text-[hsl(var(--sidebar-foreground)/0.72)]"
+                  role="status"
                 >
-                  {isSaving ? "Saving..." : saveDisabled ? "Loading…" : "Save"}
-                </Button>
+                  {holdReason}
+                </p>
+              ) : isSaving ? (
+                <p className="mt-3 text-[10px] leading-snug text-[hsl(var(--sidebar-foreground)/0.72)]" role="status">
+                  Saving…
+                </p>
+              ) : null}
+              <div className="mt-4 flex flex-col gap-2">
                 <Button
                   type="button"
                   variant="outline"
@@ -330,7 +371,7 @@ export function PlanWizardShell({
                   className="w-full rounded-pill border-primary bg-primary/10 text-primary hover:bg-primary/25 hover:text-primary"
                   onClick={onExit}
                 >
-                  Exit
+                  {exitLabel}
                 </Button>
               </div>
             </div>

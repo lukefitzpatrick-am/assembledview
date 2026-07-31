@@ -3,7 +3,9 @@ import test from "node:test"
 
 import {
   computeAllChannelsHydrated,
+  formatSaveHydrationHoldReason,
   isSaveAllowedAfterHydration,
+  listOutstandingHydrationChannels,
   reconciliationBadgeVisibility,
 } from "@/lib/mediaplan/channelHydrationGate"
 
@@ -144,4 +146,26 @@ test("reconciliationBadgeVisibility: after hydration mirrors billableEqualsMba",
 test("isSaveAllowedAfterHydration: denied until hydrated", () => {
   assert.equal(isSaveAllowedAfterHydration(false), false)
   assert.equal(isSaveAllowedAfterHydration(true), true)
+})
+
+test("listOutstandingHydrationChannels: names the unsettled channel", () => {
+  const outstanding = listOutstandingHydrationChannels({
+    loadPhase: "ready",
+    expectedFlags: ["mp_search", "mp_socialmedia"],
+    mediaLoadStatus: { mp_search: "ready", mp_socialmedia: "loading" },
+    settledFlags: { mp_search: true },
+  })
+  assert.deepEqual(outstanding, ["Social"])
+})
+
+test("formatSaveHydrationHoldReason: single channel vs count", () => {
+  assert.equal(
+    formatSaveHydrationHoldReason(["Social"]),
+    "Waiting for Social to load — you can't save yet"
+  )
+  assert.equal(
+    formatSaveHydrationHoldReason(["Social", "Search"]),
+    "Waiting for 2 channels to load — you can't save yet"
+  )
+  assert.equal(formatSaveHydrationHoldReason([]), null)
 })

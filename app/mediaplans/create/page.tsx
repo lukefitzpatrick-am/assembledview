@@ -52,7 +52,7 @@ import { formatMoney } from "@/lib/format/money"
 import { MoneyInput } from "@/components/ui/MoneyInput"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
-import { AvaMediaplanCreateActions } from "@/components/ava/AvaSkillActionSets"
+import { MediaPlanEditorHeroActions } from "@/components/mediaplans/MediaPlanEditorHeroActions"
 import { sortByLabel } from "@/lib/utils/sort"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { UnsavedChangesDialog } from "@/components/mediaplans/UnsavedChangesDialog"
@@ -2088,6 +2088,8 @@ function CreateMediaPlan() {
         id: "required-client",
         severity: "error",
         title: "Client name is required",
+        stepLabel: "Campaign setup",
+        fieldLabel: "Client name",
         scrollTargetId: "builder-section-campaign",
       })
     }
@@ -2096,6 +2098,8 @@ function CreateMediaPlan() {
         id: "required-campaign-name",
         severity: "error",
         title: "Campaign name is required",
+        stepLabel: "Campaign setup",
+        fieldLabel: "Campaign name",
         scrollTargetId: "builder-section-campaign",
       })
     }
@@ -2108,6 +2112,8 @@ function CreateMediaPlan() {
             ? "1 line item has flight dates outside the campaign window"
             : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`,
         detail: "Open the channel cards and adjust burst dates, or widen campaign dates.",
+        stepLabel: "Campaign setup",
+        fieldLabel: "Campaign dates",
         scrollTargetId: "builder-field-campaign-dates",
       })
     }
@@ -2117,6 +2123,8 @@ function CreateMediaPlan() {
         severity: "warning",
         title: "Budget remaining is negative",
         detail: `${formatMoney(budgetRemaining)} over the campaign budget.`,
+        stepLabel: "Campaign setup",
+        fieldLabel: "Campaign budget",
         scrollTargetId: "builder-field-campaign-budget",
       })
     }
@@ -2131,6 +2139,8 @@ function CreateMediaPlan() {
         title: "Ad serving / production not auto-checked",
         detail:
           "These aren't included in the save equality check — confirm their monthly amounts before billing.",
+        stepLabel: "MBA & billing",
+        fieldLabel: "Ad serving / production",
         scrollTargetId: "mba-billing",
       })
     }
@@ -2140,6 +2150,8 @@ function CreateMediaPlan() {
         severity: "warning",
         title: `${missingPublisherKpiCount} missing publisher KPI`,
         detail: "Does not block save — open KPIs to add publisher coverage.",
+        stepLabel: "KPIs",
+        fieldLabel: "Publisher KPI",
         scrollTargetId: "builder-section-kpis",
       })
     }
@@ -7137,20 +7149,13 @@ const handleSaveAll = async () => {
       <ExpertApplyDirtyClearOnSave hasUnsavedChanges={hasUnsavedChanges} />
       <PlanWizardShell
         title="Create a Campaign"
+        breadcrumbCurrent="Create Campaign"
         subtitle={<p>Set up campaign details, select media types, and configure line items.</p>}
         heroActions={
-          <>
-            <AvaMediaplanCreateActions />
-            <Button
-              variant="ghost"
-              size="sm"
-              type="button"
-              className="text-xs"
-              onClick={handleCopyPageContext}
-            >
-              Copy Context
-            </Button>
-          </>
+          <MediaPlanEditorHeroActions
+            variant="create"
+            onCopyContext={handleCopyPageContext}
+          />
         }
         steps={createCampaignSteps.map((step) => ({
           id: step.id,
@@ -7159,8 +7164,8 @@ const handleSaveAll = async () => {
         }))}
         railSubItems={wizardRailSubItems}
         summary={wizardSummary}
-        onSave={handleSaveAll}
         onExit={handleExit}
+        exitLabel="Exit to Campaigns"
         isSaving={isWizardSaving}
         bottomBar={wizardBottomBar}
       >

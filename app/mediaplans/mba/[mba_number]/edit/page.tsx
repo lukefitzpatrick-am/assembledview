@@ -13,7 +13,6 @@ import {
   type SetStateAction,
 } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import Link from "next/link"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
@@ -44,8 +43,8 @@ import { Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { MediaPlanEditorHeroActions } from "@/components/mediaplans/MediaPlanEditorHeroActions"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
-import { AvaMediaplanEditActions } from "@/components/ava/AvaSkillActionSets"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -158,8 +157,10 @@ import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndica
 import {
   computeAllChannelsHydrated,
   computeChannelDuplicateStats,
+  formatSaveHydrationHoldReason,
   formatSaveModeLabel,
   isSaveAllowedAfterHydration,
+  listOutstandingHydrationChannels,
   reconciliationBadgeVisibility,
   type ChannelDuplicateSummary,
 } from "@/lib/mediaplan/channelHydrationGate"
@@ -2398,8 +2399,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     },
   })
 
+  /** Ignores post-fee channel republishes that arrive after the dirty gate opens. */
+  const ignorePassiveDirtyUntilRef = useRef(0)
+  const [clientBootstrapDone, setClientBootstrapDone] = useState(false)
+
   const markUnsavedChanges = useCallback(() => {
     if (!navigationHydratedRef.current) return
+    setHasUnsavedChanges(true)
+  }, [])
+
+  /** Totals / line-item publishes — silent during bootstrap + short post-fee settle. */
+  const markPassiveChannelChange = useCallback(() => {
+    if (!navigationHydratedRef.current) return
+    if (Date.now() < ignorePassiveDirtyUntilRef.current) return
     setHasUnsavedChanges(true)
   }, [])
 
@@ -2835,11 +2847,41 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   const saveHeldForHydration = !isSaveAllowedAfterHydration(allChannelsHydrated)
 
-  // Open dirty tracking only after every expected channel has settled, plus a
-  // short grace so startTransition / form.watch echoes from the final passive
-  // hydrate do not flip hasUnsavedChanges.
+  const saveHydrationHoldReason = useMemo(() => {
+    if (!saveHeldForHydration && !isLoading) return null
+    const outstanding = listOutstandingHydrationChannels({
+      loadPhase,
+      expectedFlags: expectedHydrationFlags,
+      mediaLoadStatus,
+      settledFlags: channelHydrationSettled,
+    })
+    if (isLoading && outstanding.length === 0) {
+      return "Loading campaign — you can't save yet"
+    }
+    return formatSaveHydrationHoldReason(outstanding, {
+      loadPhaseReady: loadPhase === "ready",
+    })
+  }, [
+    saveHeldForHydration,
+    isLoading,
+    loadPhase,
+    expectedHydrationFlags,
+    mediaLoadStatus,
+    channelHydrationSettled,
+  ])
+
+  // Reset client-fee / mbaidentifier bootstrap when the MBA (or version) changes.
   useEffect(() => {
-    if (!allChannelsHydrated) {
+    setClientBootstrapDone(false)
+    ignorePassiveDirtyUntilRef.current = 0
+  }, [mbaNumber, versionNumber])
+
+  // Open dirty tracking only after every expected channel has settled AND the
+  // client-lookup bootstrap (mbaidentifier + fees) has finished, plus a short
+  // grace so startTransition / form.watch echoes from the final passive hydrate
+  // do not flip hasUnsavedChanges.
+  useEffect(() => {
+    if (!allChannelsHydrated || !clientBootstrapDone) {
       navigationHydratedRef.current = false
       return
     }
@@ -2850,7 +2892,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       navigationHydratedRef.current = true
     }, 400)
     return () => window.clearTimeout(id)
-  }, [allChannelsHydrated])
+  }, [allChannelsHydrated, clientBootstrapDone])
 
   /**
    * P5: A channel toggled on after initial hydration never enters the
@@ -3642,8 +3684,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   // those identities can churn and re-trigger a full MBA bootstrap. The fetch
   // only needs mbaNumber + versionNumber.
 
-  // Handle client selection after clients are loaded
+  // Handle client selection after clients are loaded (bootstrap — must not dirty the form).
   useEffect(() => {
+    if (!mediaPlan) return
+    if (clients.length === 0) return
+
+    if (!selectedClientId) {
+      setClientBootstrapDone(true)
+      return
+    }
+
     if (clients.length > 0 && selectedClientId && mediaPlan) {
       console.log("[CLIENT LOOKUP] Looking for client with name:", selectedClientId)
       console.log("[CLIENT LOOKUP] Available clients:", clients.map(c => ({ id: c.id, name: c.clientname_input, mp_client_name: c.mp_client_name })))
@@ -3677,6 +3727,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           setSelectedClient(client)
           // Set all fees from client data (ensuring they're applied to state)
           applyClientFees(client)
+          // Quiet window for fee-driven container republishes after the dirty gate opens.
+          ignorePassiveDirtyUntilRef.current = Date.now() + 2500
           
           // Set client address fields
           setClientAddress(client.streetaddress || "")
@@ -3688,7 +3740,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           console.log("[CLIENT LOOKUP] Setting mbaidentifier:", client.mbaidentifier)
           const nextMbaId = client.mbaidentifier || ""
           if (form.getValues("mbaidentifier") !== nextMbaId) {
-            form.setValue("mbaidentifier", nextMbaId)
+            // Bootstrap write: must not trip form.watch → unsaved dialog.
+            const wasHydrated = navigationHydratedRef.current
+            navigationHydratedRef.current = false
+            form.setValue("mbaidentifier", nextMbaId, { shouldDirty: false })
+            navigationHydratedRef.current = wasHydrated
           }
           
           console.log("[CLIENT LOOKUP] Client fees loaded:", {
@@ -3717,6 +3773,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       } else {
         console.warn("[CLIENT LOOKUP] No matching client found for:", selectedClientId)
       }
+      setClientBootstrapDone(true)
     }
   }, [applyClientFees, clients, selectedClientId, mediaPlan, selectedClient, form])
 
@@ -4187,11 +4244,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const handleInvestmentChange = useCallback((channel: string, rows: any[]) => {
     setInvestmentPerMonthByChannel((prev) => {
       if (JSON.stringify(prev[channel] ?? []) === JSON.stringify(rows)) return prev
-      markUnsavedChanges()
+      markPassiveChannelChange()
       return { ...prev, [channel]: rows }
     })
     // Billing rows are not regenerated from investment on the main page — use Edit Billing for any reset/rebuild.
-  }, [markUnsavedChanges])
+  }, [markPassiveChannelChange])
 
   const handleBurstsChange = useCallback(() => {
     // Add burst handling if needed
@@ -6477,6 +6534,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         id: "required-client",
         severity: "error",
         title: "Client name is required",
+        stepLabel: "Campaign setup",
+        fieldLabel: "Client name",
         scrollTargetId: "builder-section-campaign",
       })
     }
@@ -6485,6 +6544,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         id: "required-campaign-name",
         severity: "error",
         title: "Campaign name is required",
+        stepLabel: "Campaign setup",
+        fieldLabel: "Campaign name",
         scrollTargetId: "builder-section-campaign",
       })
     }
@@ -6497,6 +6558,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             ? "1 line item has flight dates outside the campaign window"
             : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`,
         detail: "Adjust burst dates or campaign dates.",
+        stepLabel: "Campaign setup",
+        fieldLabel: "Campaign dates",
         scrollTargetId: "builder-field-campaign-dates",
       })
     }
@@ -6506,6 +6569,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         severity: "warning",
         title: "Budget remaining is negative",
         detail: `${formatMoney(budgetRemaining)} over the campaign budget.`,
+        stepLabel: "Campaign setup",
+        fieldLabel: "Campaign budget",
         scrollTargetId: "builder-field-campaign-budget",
       })
     }
@@ -6524,6 +6589,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         title: "Ad serving / production not auto-checked",
         detail:
           "These aren't included in the save equality check — confirm their monthly amounts before billing.",
+        stepLabel: "MBA & billing",
+        fieldLabel: "Ad serving / production",
         scrollTargetId: "mba-billing",
       })
     }
@@ -6533,6 +6600,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         severity: "warning",
         title: `${missingPublisherKpiCount} missing publisher KPI`,
         detail: "Does not block save — open KPIs to add publisher coverage.",
+        stepLabel: "KPIs",
+        fieldLabel: "Publisher KPI",
         scrollTargetId: "builder-section-kpis",
       })
     }
@@ -8807,250 +8876,250 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const handleSearchTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setSearchTotal, totalMedia)
     const c2 = setIfChanged(setSearchFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleSocialMediaTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setSocialMediaTotal, totalMedia)
     const c2 = setIfChanged(setSocialMediaFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   // Callback handlers for all media type totals (matching create page pattern)
   const handleTelevisionTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setTelevisionTotal, totalMedia)
     const c2 = setIfChanged(setTelevisionFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleRadioTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setRadioTotal, totalMedia)
     const c2 = setIfChanged(setRadioFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleNewspaperTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setNewspaperTotal, totalMedia)
     const c2 = setIfChanged(setNewspaperFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleMagazinesTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setMagazinesTotal, totalMedia)
     const c2 = setIfChanged(setMagazinesFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleOohTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setOohTotal, totalMedia)
     const c2 = setIfChanged(setOohFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleCinemaTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setCinemaTotal, totalMedia)
     const c2 = setIfChanged(setCinemaFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleDigitalDisplayTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setDigitalDisplayTotal, totalMedia)
     const c2 = setIfChanged(setDigitalDisplayFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleDigitalAudioTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setDigitalAudioTotal, totalMedia)
     const c2 = setIfChanged(setDigitalAudioFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleDigitalVideoTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setDigitalVideoTotal, totalMedia)
     const c2 = setIfChanged(setDigitalVideoFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleBvodTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setBvodTotal, totalMedia)
     const c2 = setIfChanged(setBvodFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleIntegrationTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setIntegrationTotal, totalMedia)
     const c2 = setIfChanged(setIntegrationFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleProductionTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setProductionTotal, totalMedia)
     const c2 = setIfChanged(setProductionFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleProgDisplayTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setProgDisplayTotal, totalMedia)
     const c2 = setIfChanged(setProgDisplayFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleProgVideoTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setProgVideoTotal, totalMedia)
     const c2 = setIfChanged(setProgVideoFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleProgBvodTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setProgBvodTotal, totalMedia)
     const c2 = setIfChanged(setProgBvodFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleProgAudioTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setProgAudioTotal, totalMedia)
     const c2 = setIfChanged(setProgAudioFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleProgOohTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setProgOohTotal, totalMedia)
     const c2 = setIfChanged(setProgOohFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   const handleInfluencersTotalChange = useCallback((totalMedia: number, totalFee: number) => {
     const c1 = setIfChanged(setInfluencersTotal, totalMedia)
     const c2 = setIfChanged(setInfluencersFeeTotal, totalFee)
-    if (c1 || c2) markUnsavedChanges()
-  }, [markUnsavedChanges])
+    if (c1 || c2) markPassiveChannelChange()
+  }, [markPassiveChannelChange])
 
   // Callback handlers for media line items
   const handleTelevisionMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_television === true
     markChannelHydrationSettled("mp_television")
     if (setIfChanged(setTelevisionMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleRadioMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_radio === true
     markChannelHydrationSettled("mp_radio")
     if (setIfChanged(setRadioMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleNewspaperMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_newspaper === true
     markChannelHydrationSettled("mp_newspaper")
     if (setIfChanged(setNewspaperMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleMagazinesMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_magazines === true
     markChannelHydrationSettled("mp_magazines")
     if (setIfChanged(setMagazinesMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleOohMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_ooh === true
     markChannelHydrationSettled("mp_ooh")
     if (setIfChanged(setOohMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleCinemaMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_cinema === true
     markChannelHydrationSettled("mp_cinema")
     if (setIfChanged(setCinemaMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleDigitalDisplayMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_digidisplay === true
     markChannelHydrationSettled("mp_digidisplay")
     if (setIfChanged(setDigitalDisplayMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleDigitalAudioMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_digiaudio === true
     markChannelHydrationSettled("mp_digiaudio")
     if (setIfChanged(setDigitalAudioMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleDigitalVideoMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_digivideo === true
     markChannelHydrationSettled("mp_digivideo")
     if (setIfChanged(setDigitalVideoMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleBvodMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_bvod === true
     markChannelHydrationSettled("mp_bvod")
     if (setIfChanged(setBvodMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleIntegrationMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_integration === true
     markChannelHydrationSettled("mp_integration")
     if (setIfChanged(setIntegrationMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleProductionMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_production === true
     markChannelHydrationSettled("mp_production")
     if (setIfChanged(setProductionMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleProductionItemsChange = useCallback((items: LineItem[]) => {
     if (setIfChanged(setProductionItems, items)) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markUnsavedChanges])
+  }, [markPassiveChannelChange])
 
   const handleSearchMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_search === true
     markChannelHydrationSettled("mp_search")
     if (setIfChanged(setSearchMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleSocialMediaMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_socialmedia === true
     markChannelHydrationSettled("mp_socialmedia")
     if (setIfChanged(setSocialMediaMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleProgDisplayMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_progdisplay === true
     markChannelHydrationSettled("mp_progdisplay")
     if (setIfChanged(setProgDisplayMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   // Ensure Programmatic Display payload always contains the full set of fields
   const buildProgDisplayPayload = useCallback(
@@ -9091,41 +9160,41 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     const alreadySettled = channelHydrationSettledRef.current.mp_progvideo === true
     markChannelHydrationSettled("mp_progvideo")
     if (setIfChanged(setProgVideoMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleProgBvodMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_progbvod === true
     markChannelHydrationSettled("mp_progbvod")
     if (setIfChanged(setProgBvodMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleProgAudioMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_progaudio === true
     markChannelHydrationSettled("mp_progaudio")
     if (setIfChanged(setProgAudioMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleProgOohMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_progooh === true
     markChannelHydrationSettled("mp_progooh")
     if (setIfChanged(setProgOohMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   const handleInfluencersMediaLineItemsChange = useCallback((lineItems: any[]) => {
     const alreadySettled = channelHydrationSettledRef.current.mp_influencers === true
     markChannelHydrationSettled("mp_influencers")
     if (setIfChanged(setInfluencersMediaLineItems, lineItems) && alreadySettled) {
-      markUnsavedChanges()
+      markPassiveChannelChange()
     }
-  }, [markChannelHydrationSettled, markUnsavedChanges])
+  }, [markChannelHydrationSettled, markPassiveChannelChange])
 
   // Callback handlers for LineItem[] arrays (for Excel generation)
   const handleSearchItemsChange = useCallback((items: LineItem[]) => {
@@ -10640,9 +10709,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           variant="action"
           onClick={handleSaveAll}
           disabled={isSaving || isLoading || saveBlockedByDuplicates || saveHeldForHydration}
+          title={
+            saveHeldForHydration || isLoading
+              ? saveHydrationHoldReason ?? "Waiting for channels to load — you can't save yet"
+              : undefined
+          }
           className="h-9 shrink-0 rounded-pill px-4 shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {isSaving ? "Saving..." : saveHeldForHydration ? "Loading…" : "Save"}
+          {isSaving
+            ? "Saving..."
+            : saveHeldForHydration || isLoading
+              ? saveHydrationHoldReason ?? "Waiting for channels…"
+              : "Save"}
         </Button>
         {planDraft.enabled ? (
           <Button
@@ -10999,26 +11077,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
       <PlanWizardShell
         title="Edit Campaign"
+        breadcrumbCurrent="Edit Campaign"
         subtitle={<p>Update campaign settings, media types, and line item details.</p>}
         heroActions={
-          <>
-            <Button variant="outline" size="sm" type="button" className="text-xs" asChild>
-              <Link href={`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/creative`}>Creative</Link>
-            </Button>
-            <Button variant="outline" size="sm" type="button" className="text-xs" asChild>
-              <Link href={`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/trafficking`}>Trafficking</Link>
-            </Button>
-            <AvaMediaplanEditActions />
-            <Button
-              variant="ghost"
-              size="sm"
-              type="button"
-              className="text-xs"
-              onClick={handleCopyPageContext}
-            >
-              Copy Context
-            </Button>
-          </>
+          <MediaPlanEditorHeroActions
+            variant="edit"
+            mbaNumber={mbaNumber}
+            onCopyContext={handleCopyPageContext}
+          />
         }
         steps={createCampaignSteps.map((step) => ({
           id: step.id,
@@ -11027,10 +11093,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }))}
         railSubItems={wizardRailSubItems}
         summary={wizardSummary}
-        onSave={handleSaveAll}
         onExit={handleExit}
+        exitLabel="Exit to Campaigns"
         isSaving={isSaving}
         saveDisabled={isLoading || saveHeldForHydration}
+        saveDisabledReason={saveHydrationHoldReason}
         bottomBar={wizardBottomBar}
       >
           <Form {...form}>
