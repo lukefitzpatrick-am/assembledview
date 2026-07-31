@@ -71,7 +71,7 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   try {

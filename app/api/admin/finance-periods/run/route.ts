@@ -9,7 +9,7 @@ export const maxDuration = 300
 
 /** Admin "Run now" — idempotent re-execute for a period month. */
 export async function POST(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   const body = (await request.json().catch(() => ({}))) as {

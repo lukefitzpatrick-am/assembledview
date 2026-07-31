@@ -16,7 +16,7 @@ export interface CreativeAsset {
   blob_pathname: string
   status: "active" | "archived"
   uploaded_by_email: string
-  uploaded_by_role: "admin" | "manager" | "client"
+  uploaded_by_role: "admin" | "client"
   uploaded_by_name: string
 }
 
@@ -113,8 +113,14 @@ export function parseUploadTokenPayload(
     return { ok: false, error: "tokenPayload.mba_number is required" }
   }
 
-  const role = raw.role
-  if (role !== "admin" && role !== "manager" && role !== "client") {
+  const roleRaw = raw.role
+  const role =
+    roleRaw === "admin" || roleRaw === "manager"
+      ? "admin"
+      : roleRaw === "client"
+        ? "client"
+        : null
+  if (!role) {
     return { ok: false, error: "tokenPayload.role is invalid" }
   }
 
@@ -303,9 +309,15 @@ export function validateCreativeAssetWritable(
     return { ok: false, error: "status must be active or archived" }
   }
 
-  const role = raw.uploaded_by_role
-  if (role !== "admin" && role !== "manager" && role !== "client") {
-    return { ok: false, error: "uploaded_by_role must be admin, manager, or client" }
+  const roleRaw = raw.uploaded_by_role
+  const role =
+    roleRaw === "admin" || roleRaw === "manager"
+      ? "admin"
+      : roleRaw === "client"
+        ? "client"
+        : null
+  if (!role) {
+    return { ok: false, error: "uploaded_by_role must be admin or client" }
   }
 
   if (typeof raw.uploaded_by_email !== "string") {
@@ -334,7 +346,7 @@ export function validateCreativeAssetWritable(
       blob_pathname: String(raw.blob_pathname).trim(),
       status: raw.status as CreativeAsset["status"],
       uploaded_by_email: String(raw.uploaded_by_email).trim(),
-      uploaded_by_role: role as CreativeAsset["uploaded_by_role"],
+      uploaded_by_role: role,
       uploaded_by_name: typeof raw.uploaded_by_name === "string" ? raw.uploaded_by_name.trim() : "",
     },
   }

@@ -81,7 +81,7 @@ export type CodexAuthResult =
   | { error: NextResponse }
 
 /**
- * Auth gate for codex proxy routes: require session; allow admin/manager only.
+ * Auth gate for codex proxy routes: require session; allow admin only.
  * Client-only roles get 403 (client-visible tasks are a later phase).
  */
 export async function requireCodexInternalAccess(
@@ -97,7 +97,7 @@ export async function requireCodexInternalAccess(
   const roles = getUserRoles(session.user)
   const isClientOnly =
     roles.length > 0 && roles.every((role) => role === "client")
-  const isInternal = roles.includes("admin") || roles.includes("manager")
+  const isInternal = roles.includes("admin")
 
   if (isClientOnly || !isInternal) {
     return {

@@ -51,7 +51,7 @@ test("load_skill: unknown skill and missing reference error", () => {
 test("load_skill: admin gate", async () => {
   const denied = await loadSkillTool.execute(
     { skillId: "assembled-meta-copy" },
-    { ...adminCtx, roles: ["manager"] },
+    { ...adminCtx, roles: ["admin"] },
   )
   assert.equal(denied.isError, true)
 

@@ -10,7 +10,7 @@ type Params = { params: Promise<{ path: string[] }> }
 
 /** SEC-1 / SEC-D: catch-all is staff-only — no client dashboard consumer. */
 async function requireProxyStaff(request: Request) {
-  const gate = await requireRole(request as NextRequest, ["admin", "manager"])
+  const gate = await requireRole(request as NextRequest, ["admin"])
   if ("response" in gate) return gate.response
   return null
 }

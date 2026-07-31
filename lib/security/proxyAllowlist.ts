@@ -7,7 +7,7 @@ const M = (...methods: string[]): MethodSet => new Set(methods)
 /**
  * media_plans catch-all (`/api/media_plans/[...path]`).
  *
- * Every entry is staff-only (admin|manager) at the route gate — no client surface
+ * Every entry is staff-only (admin) at the route gate — no client surface
  * calls this proxy (edit/create + replaceChannelLineItems only). Dies with Xano
  * channel reads at T6.
  *
@@ -63,7 +63,7 @@ export const MEDIA_PLANS_ALLOWLIST: Record<string, { base: MethodSet; withId: Me
 /**
  * media-details catch-all (`/api/media-details/[...path]`).
  *
- * Staff-only (admin|manager). Reference GETs feed media-plan containers; POSTs
+ * Staff-only (admin). Reference GETs feed media-plan containers; POSTs
  * are create* helpers in lib/api.ts. No client dashboard caller. Reference GETs
  * flip with DATA_BACKEND reference cutover; POST create endpoints die when
  * admin reference writes move off Xano (or never if kept as Xano-only).

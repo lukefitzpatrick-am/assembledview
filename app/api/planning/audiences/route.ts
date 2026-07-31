@@ -28,7 +28,7 @@ function xanoErrorResponse(error: unknown): NextResponse {
  * Gate: admin | manager.
  */
 export async function GET(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   try {
@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
  * Gate: admin | manager.
  */
 export async function POST(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   let body: unknown

@@ -56,7 +56,7 @@ async function retryApiCall<T>(apiCall: () => Promise<T>): Promise<T> {
 export async function GET(req: NextRequest) {
   try {
     // AuthZ: SOWs are internal; client role must not list the book (403).
-    const gate = await requireRole(req, ["admin", "manager"])
+    const gate = await requireRole(req, ["admin"])
     if ("response" in gate) return gate.response
 
     const { searchParams } = new URL(req.url)
@@ -83,7 +83,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     // AuthZ: SOW create is internal; client role must not create (403).
-    const gate = await requireRole(req, ["admin", "manager"])
+    const gate = await requireRole(req, ["admin"])
     if ("response" in gate) return gate.response
 
     const body = await req.json()

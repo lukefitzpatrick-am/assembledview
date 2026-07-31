@@ -21,7 +21,7 @@ function normaliseMba(mba: string): string {
  * media_plan_file URL metadata when the version is approved-or-beyond.
  */
 export async function POST(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   try {

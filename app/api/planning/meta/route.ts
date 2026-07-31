@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic"
  * engine_params, static lists. Gate: admin | manager. Auth outside unstable_cache.
  */
 export async function GET(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   try {

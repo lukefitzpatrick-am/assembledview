@@ -26,7 +26,7 @@ export interface LoadFinanceForecastDatasetOptions {
   searchText?: string
   /**
    * When non-null, only versions/clients whose display-name slug is in this set are included.
-   * Pass `null` for no tenant restriction (admin / manager without claim scoping).
+   * Pass `null` for no tenant restriction (admin without claim scoping).
    */
   allowedClientSlugs: Set<string> | null
   /** When false, `FinanceForecastLine.debug` is stripped after build. */

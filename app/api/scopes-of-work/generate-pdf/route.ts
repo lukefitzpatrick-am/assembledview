@@ -70,7 +70,7 @@ function sanitizeFilename(name: string): string {
  * create-before-save may still send the form body.
  */
 export async function POST(req: NextRequest) {
-  const gate = await requireRole(req, ["admin", "manager"])
+  const gate = await requireRole(req, ["admin"])
   if ("response" in gate) return gate.response
 
   try {

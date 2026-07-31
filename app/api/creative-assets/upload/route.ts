@@ -23,8 +23,7 @@ const ALLOWED_CONTENT_TYPES = [
 function resolveUploadedByRole(user: { [key: string]: unknown }): CreativeAsset["uploaded_by_role"] {
   const roles = getUserRoles(user as Parameters<typeof getUserRoles>[0])
   if (roles.includes("admin")) return "admin"
-  if (roles.includes("client")) return "client"
-  return "manager"
+  return "client"
 }
 
 function resolveUploadedByEmail(user: { [key: string]: unknown }): string {

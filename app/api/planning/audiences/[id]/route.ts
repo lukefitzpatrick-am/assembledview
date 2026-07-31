@@ -32,7 +32,7 @@ function xanoErrorResponse(error: unknown): NextResponse {
  * Gate: admin | manager.
  */
 export async function GET(_request: NextRequest, context: RouteContext) {
-  const gate = await requireRole(_request, ["admin", "manager"])
+  const gate = await requireRole(_request, ["admin"])
   if ("response" in gate) return gate.response
 
   const { id: idRaw } = await context.params
@@ -56,7 +56,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
  * Gate: admin | manager.
  */
 export async function PATCH(request: NextRequest, context: RouteContext) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   const { id: idRaw } = await context.params

@@ -29,13 +29,13 @@ function responseNoStore(payload: unknown, init?: ResponseInit) {
  * - `debug=1` (optional): include `FinanceForecastLine.debug` on each row; omitted when off (source kept)
  */
 export async function GET(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) {
     return responseNoStore(
       {
         error: gate.response.status === 401 ? "unauthorised" : "forbidden",
         reason: "role",
-        message: "Finance Forecast requires admin or manager.",
+        message: "Finance Forecast requires admin.",
       },
       { status: gate.response.status }
     )

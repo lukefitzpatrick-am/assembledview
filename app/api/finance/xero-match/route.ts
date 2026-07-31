@@ -25,7 +25,7 @@ function editorName(gate: unknown): string {
 }
 
 export async function POST(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   const body = (await request.json()) as {

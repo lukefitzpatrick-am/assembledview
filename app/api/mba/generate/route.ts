@@ -15,7 +15,7 @@ export const maxDuration = 60
  * Body: { mba_number, version_number } ONLY. Admin/manager. Approved-or-beyond.
  */
 export async function POST(req: NextRequest) {
-  const gate = await requireRole(req, ["admin", "manager"])
+  const gate = await requireRole(req, ["admin"])
   if ("response" in gate) return gate.response
 
   try {

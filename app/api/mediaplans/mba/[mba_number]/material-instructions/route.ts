@@ -80,7 +80,7 @@ async function exportWorkbook(
     return NextResponse.json({ error: "unauthorised" }, { status: 401 })
   }
   const roles = getUserRoles(session.user)
-  if (!roles.includes("admin") && !roles.includes("manager")) {
+  if (!roles.includes("admin")) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 })
   }
 

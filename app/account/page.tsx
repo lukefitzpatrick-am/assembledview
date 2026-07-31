@@ -239,7 +239,7 @@ export default function AccountPage() {
                         {userRoles.map((role) => (
                           <Badge
                             key={role}
-                            variant={role === "admin" ? "critical" : role === "manager" ? "on-track" : "secondary"}
+                            variant={role === "admin" ? "critical" : "secondary"}
                             className="capitalize"
                           >
                             {role}
@@ -383,7 +383,7 @@ export default function AccountPage() {
                               {userRoles.map((role) => (
                                 <Badge
                                   key={role}
-                                  variant={role === "admin" ? "critical" : role === "manager" ? "on-track" : "secondary"}
+                                  variant={role === "admin" ? "critical" : "secondary"}
                                   className="capitalize"
                                 >
                                   {role}

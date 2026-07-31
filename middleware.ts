@@ -122,11 +122,25 @@ export async function middleware(request: NextRequest) {
     });
   }
 
+  // Fail closed: removed/unknown roles (e.g. legacy "manager") resolve to no
+  // recognised role — not admin. Block staff surfaces; allow escape hatches.
+  if (!redirectTarget && !isClient && !isAdmin) {
+    if (
+      pathname !== '/unauthorized' &&
+      pathname !== '/forbidden' &&
+      pathname !== '/knowledge' &&
+      !pathname.startsWith('/knowledge/')
+    ) {
+      redirectTarget = '/unauthorized';
+      reason = 'unrecognised-role';
+    }
+  }
+
   if (redirectTarget) {
     return NextResponse.redirect(new URL(redirectTarget, request.url));
   }
 
-  // Non-client users (admins/managers) can proceed.
+  // Recognised staff (admin) can proceed.
   return continueResponse;
 }
 

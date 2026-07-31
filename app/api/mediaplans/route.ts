@@ -18,7 +18,7 @@ const XANO_TIMEOUT_MS = 15_000
 
 export async function POST(request: NextRequest) {
   try {
-    const gate = await requireRole(request, ["admin", "manager"])
+    const gate = await requireRole(request, ["admin"])
     if ("response" in gate) return gate.response
 
     const data = await request.json()
@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
     if (!scope.ok) return scope.response
     if (!scope.isClient) {
       // Non-client must still be admin/manager (role-less sessions fail closed).
-      const gate = await requireRole(request, ["admin", "manager"])
+      const gate = await requireRole(request, ["admin"])
       if ("response" in gate) return gate.response
     }
 

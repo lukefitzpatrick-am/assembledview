@@ -80,7 +80,7 @@ async function withOverallTimeout<T>(promise: Promise<T>): Promise<T> {
 }
 
 export async function GET(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   try {
@@ -100,7 +100,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const gate = await requireRole(req, ["admin", "manager"])
+  const gate = await requireRole(req, ["admin"])
   if ("response" in gate) return gate.response
 
   try {

@@ -157,7 +157,7 @@ function parseBody(raw: unknown): { ok: true; body: InsightBody } | { ok: false;
 const FRAMING = `You are AVA generating an in-page audience insight inside the Demand Flow planner. The JSON below is the planner's full composition for this audience: Roy Morgan channel-level reach % and affinity indexes (index 100 = national base) for every channel, plus the audience definition and robustness. This is channel-consumption composition — attitudinal/behavioural variables are not in this dataset, so do not invent them; note the limit in WATCH-OUTS. Follow the skill's output format. Australian English. No em dashes.`
 
 export async function POST(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   const sessionKey =

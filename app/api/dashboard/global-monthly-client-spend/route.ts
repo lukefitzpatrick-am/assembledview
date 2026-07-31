@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic"
 export async function GET(request: NextRequest) {
   try {
     // AuthZ: book-wide spend is staff-only (admin|manager); client role must not see the whole book.
-    const gate = await requireRole(request, ["admin", "manager"])
+    const gate = await requireRole(request, ["admin"])
     if ("response" in gate) return gate.response
 
     // Auth outside unstable_cache (requireRole above).

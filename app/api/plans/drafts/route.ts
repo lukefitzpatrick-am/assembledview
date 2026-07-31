@@ -26,7 +26,7 @@ function userId(gate: unknown): { id: string; label: string } {
 
 /** GET ?masterId= — own draft + other editors' open drafts. */
 export async function GET(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
   if (!isPlanDraftsEnabled()) {
     return NextResponse.json({ enabled: false, draft: null, others: [] })
@@ -61,7 +61,7 @@ export async function GET(request: NextRequest) {
 
 /** PUT — upsert server draft (tier 2). */
 export async function PUT(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
   if (!isPlanDraftsEnabled()) {
     return NextResponse.json({ error: "PLAN_DRAFTS off" }, { status: 409 })
@@ -88,7 +88,7 @@ export async function PUT(request: NextRequest) {
 
 /** DELETE — discard server draft. */
 export async function DELETE(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
   if (!isPlanDraftsEnabled()) {
     return NextResponse.json({ ok: true, skipped: true })

@@ -242,7 +242,7 @@ function buildAnthropicMessages(
  * Staff-only: AVA copy workshop (multi-turn) or legacy 3-variant one-shot.
  */
 export async function POST(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   const sessionKey =

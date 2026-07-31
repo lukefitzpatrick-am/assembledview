@@ -33,7 +33,7 @@ function editorName(gate: unknown): string {
 
 /** List periods + optional items for selected month. */
 export async function GET(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   if (!isFinancePeriodsEnabled()) {
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
 
 /** Review actions + admin amend. */
 export async function POST(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
   if (!isFinancePeriodsEnabled()) {
     return NextResponse.json({ error: "FINANCE_PERIODS off" }, { status: 409 })

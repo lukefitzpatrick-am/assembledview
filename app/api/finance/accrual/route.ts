@@ -200,7 +200,7 @@ function responseNoStore(payload: AccrualApiResponse, init?: ResponseInit) {
 }
 
 export async function GET(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) {
     return responseNoStore(
       { months: [], rows: [], meta: { error: "forbidden", reason: "role" } },

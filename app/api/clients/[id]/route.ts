@@ -13,7 +13,7 @@ const clientsUrl = getXanoClientsCollectionUrl()
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // AuthZ: client mutations are staff-only (admin|manager); prevents client-role IDOR writes.
-    const gate = await requireRole(req, ["admin", "manager"])
+    const gate = await requireRole(req, ["admin"])
     if ("response" in gate) return gate.response
 
     const { id } = await params
@@ -30,7 +30,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // AuthZ: client mutations are staff-only (admin|manager); prevents client-role IDOR writes.
-    const gate = await requireRole(req, ["admin", "manager"])
+    const gate = await requireRole(req, ["admin"])
     if ("response" in gate) return gate.response
 
     const { id } = await params
