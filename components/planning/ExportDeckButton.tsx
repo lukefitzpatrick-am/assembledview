@@ -64,7 +64,10 @@ function statsLine(bundle: AudienceCompareBundle) {
   const rob = robustnessFromN(a.unweightedN)
   const pct =
     a.universeWc > 0 ? ((a.audienceWc / a.universeWc) * 100).toFixed(1) : "—"
-  return `Size ${formatAudienceWc(a.audienceWc)} '000s · ${pct}% of 14+ · n ${a.unweightedN} · ${rob.label}`
+  const audienceReach = Math.round(
+    bundle.allocated.reduce((s, x) => s + x.ch.reachPct * 100 * (x.pct / 100), 0)
+  )
+  return `Size ${formatAudienceWc(a.audienceWc)} '000s · ${pct}% of 14+ · n ${a.unweightedN} · ${rob.label} · Audience reach % ${audienceReach}%`
 }
 
 function topMixLine(bundle: AudienceCompareBundle) {

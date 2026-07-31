@@ -83,7 +83,8 @@ test("Today / Clients / Admin labels and Create Campaign is palette-only", () =>
   assert.equal(create.inSidebar, false)
   assert.ok(getPaletteNav(true).some((p) => p.path === "/mediaplans/create"))
   assert.ok(!(ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/mediaplans/create"))
-  assert.ok(!(ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/tasks"))
+  assert.ok((ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/tasks"))
+  assert.equal(getRouteByExactPath("/tasks")!.inSidebar, true)
 })
 
 test("sidebar groups match Plan / Deliver / Money / Reference IA", async () => {
@@ -91,7 +92,7 @@ test("sidebar groups match Plan / Deliver / Money / Reference IA", async () => {
   assert.deepEqual(
     ADMIN_SIDEBAR_GROUPS.map((g) => ({ id: g.id, label: g.label, paths: [...g.paths] })),
     [
-      { id: "top", label: null, paths: ["/dashboard"] },
+      { id: "top", label: null, paths: ["/dashboard", "/tasks"] },
       {
         id: "plan",
         label: "Plan",

@@ -364,7 +364,7 @@ export function AppSidebar() {
       </Sidebar>
 
       <nav
-        className="fixed inset-x-0 bottom-0 z-50 hidden border-t border-border bg-sidebar/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 text-sidebar-foreground shadow-e2 backdrop-blur max-[375px]:block"
+        className="fixed inset-x-0 bottom-0 z-50 hidden border-t border-border bg-sidebar/95 px-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2 text-sidebar-foreground shadow-e2 backdrop-blur max-[768px]:block"
         aria-label="Primary navigation"
       >
         <ul className="grid grid-cols-5 gap-1">

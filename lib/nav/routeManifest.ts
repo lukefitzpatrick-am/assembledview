@@ -77,9 +77,10 @@ export const ROUTE_MANIFEST_EXCLUSIONS: ReadonlyArray<{
 ]
 
 /**
- * Admin sidebar structure (AV-21). Paths must exist in ROUTE_MANIFEST.
- * "Client Dashboards" is a collapsible, not a route — rendered inside Deliver by AppSidebar.
- * Create Campaign is palette-only (verb); Tasks is palette-only (not in this IA).
+ * Admin sidebar structure (AV-21 final). Paths must exist in ROUTE_MANIFEST.
+ * "Client Dashboards" is a collapsible, not a route — rendered inside Deliver by AppSidebar
+ * (stays until AV-23 phase 3). Create Campaign is palette-only (verb).
+ * Top cluster: Today + Tasks ("what needs me now"). Footer: Admin + UserMenu only.
  */
 export type AdminSidebarGroupTone = "default" | "muted"
 
@@ -92,7 +93,7 @@ export type AdminSidebarGroup = {
 }
 
 export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
-  { id: "top", label: null, paths: ["/dashboard"] },
+  { id: "top", label: null, paths: ["/dashboard", "/tasks"] },
   {
     id: "plan",
     label: "Plan",
@@ -191,10 +192,10 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     title: "Tasks",
     icon: "ListTodo",
     inPalette: true,
-    inSidebar: false,
+    inSidebar: true,
     roles: ["admin"],
     group: "core",
-    // Palette-only in AV-21 IA — not in Plan/Deliver/Money/Reference.
+    // Top cluster with Today — "what needs me now".
   },
   {
     path: "/pacing",

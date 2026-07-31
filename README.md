@@ -158,7 +158,7 @@ Representative pages under [app](app):
 | Pacing | `/pacing`, overview, search, social, mappings, settings under `app/pacing` |
 | Finance | `/finance`, forecast / variance under `app/finance` |
 | Scopes of work | `/scopes-of-work`, create, `[id]/edit` |
-| Directory | `/clients`, `/publishers`, `/management`, `/support` |
+| Directory | `/clients`, `/publishers`, `/support` |
 | Account | `/profile`, `/account` |
 | Learning | `/learning` (redirects to definitions), `/learning/[section]` |
 | Admin (operators) | `/admin/users/new` |

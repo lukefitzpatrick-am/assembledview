@@ -288,9 +288,9 @@ export function StageCompare({
                   <span>
                     n <span className="num text-foreground">{rob.n || "—"}</span>
                   </span>
-                  <span title="Allocation-mix-weighted weekly channel reach % (not universe reach)">
-                    Mix-weighted reach{" "}
-                    <span className="num text-foreground">{Math.round(reach)}%</span>
+                  <span title="Allocation-mix × weekly channel reach % (not universe reach)">
+                    Audience reach %{" "}
+                    <span className="num text-foreground">{Math.round(reach)}</span>
                   </span>
                 </div>
                 <div className="sr-only">

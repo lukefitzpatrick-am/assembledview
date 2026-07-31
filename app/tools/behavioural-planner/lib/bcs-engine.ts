@@ -80,7 +80,7 @@ export function totalBcs(allocated: AllocatedChannel[]): number {
   return allocated.reduce((s, a) => s + a.bcs * (a.pct / 100), 0);
 }
 
-/** Mix-weighted real RM reach % (0–100). No fictional cap. */
+/** Audience reach % (0–100): BCS allocation share × weekly channel reach. No fictional cap. */
 export function totalReach(allocated: AllocatedChannel[]): number {
   return allocated.reduce((s, a) => s + a.ch.reachPct * 100 * (a.pct / 100), 0);
 }
