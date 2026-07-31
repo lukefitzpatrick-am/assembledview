@@ -7,11 +7,12 @@ export interface PublisherKPI {
   created_at: number
   publisher: string
   bid_strategy: string
-  ctr: number
-  cpv: number
-  conversion_rate: number
-  vtr: number
-  frequency: number
+  /** null = unset (no target); 0 = deliberate zero target */
+  ctr: number | null
+  cpv: number | null
+  conversion_rate: number | null
+  vtr: number | null
+  frequency: number | null
   media_type: string
 }
 
@@ -296,11 +297,12 @@ export interface PublisherKpi {
   created_at: number
   publisher: string
   bid_strategy: string
-  ctr: number
-  cpv: number
-  conversion_rate: number
-  vtr: number
-  frequency: number
+  /** null = unset (no target); 0 = deliberate zero target */
+  ctr: number | null
+  cpv: number | null
+  conversion_rate: number | null
+  vtr: number | null
+  frequency: number | null
   media_type: string
 }
 
@@ -308,6 +310,7 @@ export type PublisherKpiInput = Omit<PublisherKpi, "id" | "created_at">
 
 // --- Zod (shared with publisher + campaign + client body schemas) ---
 
+/** Legacy coerce-to-0 metric (client KPI bodies still use this). */
 const kpiMetric = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
   .transform((v) => {
@@ -317,7 +320,7 @@ const kpiMetric = z
   })
 
 /**
- * Campaign-tier metric: null for unset, zero or positive number when set.
+ * Null for unset, zero or positive number when set.
  * Negatives are rejected. Use null to express "no target" and 0 for a real zero target.
  */
 const kpiMetricNullable = z
@@ -332,17 +335,23 @@ const kpiMetricNullable = z
     message: "Targets cannot be negative.",
   })
 
+/** Percent metrics stored as decimals (0–1). */
+const kpiPercentMetricNullable = kpiMetricNullable.refine(
+  (v) => v === null || v <= 1,
+  { message: "Percent targets must be between 0 and 100." },
+)
+
 const nonEmptyStr = z.string().trim().min(1, "Required")
 
 export const publisherKpiCreateBodySchema = z.object({
   publisher: nonEmptyStr,
   media_type: nonEmptyStr,
   bid_strategy: nonEmptyStr,
-  ctr: kpiMetric,
-  cpv: kpiMetric,
-  conversion_rate: kpiMetric,
-  vtr: kpiMetric,
-  frequency: kpiMetric,
+  ctr: kpiPercentMetricNullable,
+  cpv: kpiMetricNullable,
+  conversion_rate: kpiPercentMetricNullable,
+  vtr: kpiPercentMetricNullable,
+  frequency: kpiMetricNullable,
 })
 
 export const publisherKpiPatchBodySchema = z
@@ -351,11 +360,11 @@ export const publisherKpiPatchBodySchema = z
     publisher: z.string().trim().min(1).optional(),
     media_type: z.string().trim().min(1).optional(),
     bid_strategy: z.string().trim().min(1).optional(),
-    ctr: kpiMetric.optional(),
-    cpv: kpiMetric.optional(),
-    conversion_rate: kpiMetric.optional(),
-    vtr: kpiMetric.optional(),
-    frequency: kpiMetric.optional(),
+    ctr: kpiPercentMetricNullable.optional(),
+    cpv: kpiMetricNullable.optional(),
+    conversion_rate: kpiPercentMetricNullable.optional(),
+    vtr: kpiPercentMetricNullable.optional(),
+    frequency: kpiMetricNullable.optional(),
   })
   .refine(
     (o) =>

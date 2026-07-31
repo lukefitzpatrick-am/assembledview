@@ -69,15 +69,15 @@ function normPublisher(value: unknown): string {
     .trim()
 }
 
-function parsePlainMetric(raw: string): number {
+function parsePlainMetric(raw: string): number | null {
   const cleaned = raw.replace(/[^0-9.-]/g, "").trim()
-  if (!cleaned) return 0
+  if (!cleaned) return null
   const parsed = parseFloat(cleaned)
-  return Number.isFinite(parsed) ? parsed : 0
+  return Number.isFinite(parsed) ? parsed : null
 }
 
-function parsePercentMetric(raw: string): number {
-  return parsePercentHeuristic(raw) ?? 0
+function parsePercentMetric(raw: string): number | null {
+  return parsePercentHeuristic(raw)
 }
 
 function publisherKpiMetricFormValuesFromRow(row: ResolvedKPIRow): PublisherKpiMetricFormValues {

@@ -10,7 +10,7 @@ Three-tier KPI target resolution — publisher benchmark → client override →
 - `lib/kpi/grouping.ts` — groups plan `LineItem`s by (publisher, platform, bidStrategy, buyType, creative).
 - `lib/kpi/deliveryTargetCurve.ts` — burst-aware target curve; the contract behind every delivery chart's target line.
 - `lib/kpi/lineItemKpiTargets.ts` — cpm/cpv rate targets derived from bursts at render time (not stored).
-- `lib/kpi/normaliseRatioTarget.ts` + `metrics.ts` — percent-scale heuristics (see INVARIANTS; recurring live bug class).
+- `lib/kpi/normaliseRatioTarget.ts` + `metrics.ts` — UI percentage points ↔ stored decimals; `publisherKpiDefaults.ts` null-unset defaults.
 - `lib/data/readKpi.ts` — Phase 2 read choke point (`DATA_BACKEND_KPI` / `DATA_BACKEND`); shadow diffs use money cents for `cpv` and rate epsilon `1e-6` for ctr/vtr/conversion_rate/frequency. Writes remain on Xano until T4.
 - `app/api/kpis/{campaign,campaign/sync,client,publisher}` — CRUD; campaign GET uses `checkClientMbaAccess`; all writes (`POST`/`PATCH`/`DELETE` + `campaign/sync` POST) are `requireRole(["admin","manager"])` (SEC-6 FIXED; KpiHost pacing writes are admin-surface only).
 - `components/kpis/{KPIEditModal,KPISection,kpiHost}` — shared modal + the `KpiHost` contract with two deliberately different persistence semantics (media-plan host defers to campaign save; pacing host syncs immediately).
@@ -21,8 +21,9 @@ All 8 dashboard delivery channel adapters, pacing KPI status modules (`compute*K
 
 ## Gotchas
 
-- **Percent scale** is the recurring bug class: `>=1` = percentage points applies to ctr/vtr/conversion_rate, never cpv. Migration scripts + scale map live under `scripts/data/kpi-best-practice/`.
-- Unset returns **null, never 0**.
+- **Percent scale**: UI is percentage points; storage is decimal (`parsePercentHeuristic` always ÷100). Legacy stored `>=1` still treated as percentage points in format/normalise. Never apply to cpv. Migration scripts under `scripts/data/kpi-best-practice/`.
+- Unset returns **null, never 0**. Publisher create/patch schemas use nullable metrics; explicit 0 is a real target.
+- `publisher_colour` is hex-only (`#rgb`/`#rrggbb`); parse via `lib/publisher/publisherColour.ts` — invalid → documented fallback `null`, never a coerced plausible colour.
 - **Two target maps, different keys**: `lineItemTargets` (`mba|version|line_item_id`) vs `kpiTargets` (`media_type::publisher::bid_strategy`). New channels must be added to both paths.
 - `matching.ts#normMediaTypeKey` exists because media-type keys differ across the app (`digitalDisplay` vs `digiDisplay`).
 - Publisher KPI `publisher` field = Xano publisher ID string, not display name.

@@ -1,5 +1,6 @@
 import * as z from "zod"
 import { bestPracticeSchema } from "@/lib/types/bestPractice"
+import { parsePublisherColour } from "@/lib/publisher/publisherColour"
 
 const comms = z
   .union([z.string(), z.number(), z.null(), z.undefined()])
@@ -60,6 +61,15 @@ const publisherColourField = z
     if (v === undefined || v === null) return null
     const s = String(v).trim()
     return s === "" ? null : s
+  })
+  .refine((v) => v === null || parsePublisherColour(v).ok, {
+    message: "Brand colour must be a hex value (#RGB or #RRGGBB).",
+  })
+  .transform((v) => {
+    if (v === null) return null
+    const parsed = parsePublisherColour(v)
+    // refine guarantees ok; normalize casing / expand #rgb
+    return parsed.ok ? parsed.hex : v
   })
 
 const publisherCoreFields = {

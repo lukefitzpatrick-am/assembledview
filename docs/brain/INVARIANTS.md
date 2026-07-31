@@ -85,8 +85,8 @@ pct === 100 → fee = 0 (division guard)
 ## KPI law
 
 - Three tiers: publisher benchmark → client override → campaign-saved. Fan-out to line grain via `lib/kpi/fanOut.ts`.
-- Percent scale: `>= 1` means percentage points for ctr/vtr/conversion_rate; NEVER apply to cpv (dollars). `8 → 0.08` heuristic in `parsePercentHeuristic`.
-- Unset metric returns **null, never 0** — `?? 0` converts "no target" into "target 0%".
+- Percent scale: UI enters/displays percentage points for ctr/vtr/conversion_rate; storage is decimal (`0.45` → `0.0045`). Legacy stored values `>= 1` are still treated as percentage points when formatting/normalising. NEVER apply percent heuristics to cpv (dollars).
+- Unset metric returns **null, never 0** — `?? 0` converts "no target" into "target 0%". Publisher KPI rows default metrics to null; publisher tier ignores null and honours explicit 0.
 - Ad-serving precedence (locked): manual `adServingRatePct > 0` → resolved KPI ctr/vtr → hardcoded baseline. `adServingRatePct` stays manual-only; KPI values pass separately into compute. Identity is per-line `lineItemId`.
 - The two KPI target maps have different keys (see BLAST-RADIUS) — both must be updated for a new channel.
 - `KpiHost` implementations differ on purpose: media-plan host defers persistence to campaign save; pacing host writes to Xano immediately.

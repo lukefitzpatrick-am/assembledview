@@ -1,9 +1,11 @@
 import type { Publisher } from "@/lib/types/publisher"
+import { parsePublisherColour } from "@/lib/publisher/publisherColour"
 
 function normalizePublisherColour(raw: unknown): string | null {
-  if (raw == null) return null
-  const s = String(raw).trim()
-  return s === "" ? null : s
+  const parsed = parsePublisherColour(
+    raw == null ? null : String(raw),
+  )
+  return parsed.ok ? parsed.hex : parsed.fallback
 }
 
 const LEGACY_COMMS: [legacy: keyof Publisher, canonical: string][] = [
