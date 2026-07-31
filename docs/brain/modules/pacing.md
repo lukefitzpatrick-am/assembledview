@@ -43,4 +43,5 @@ AVA (`getPacingSnapshot`, `getDeliverySnapshot`), ops digest email (`buildPacing
 - Sticky-column freeze patterns diverge sharply across the five channel tables (search densest; ad-serving/direct thinnest) — unify in a later commit; height maths already shared via `pacingTableScroll.ts`.
 - `PERF-DISCOVERY-*` docs are stale on caching — trust `pacingRowsCache.ts`, not them.
 - Genuine differences — don't unify blindly: direct's grouped shape + `includeHistorical`; ad-serving's ZERO-$ LAW; social's absent revenue.
+- Direct channel tab (`DirectCampaignsClient`) maps load/filter outcomes through `ViewState` / `ViewStateBoundary` (error ≠ empty; filter-zero → Clear filters via `resetToDefaults`).
 - **Migration cutover risk:** most pacing *facts* are Snowflake; Xano deps are masters/versions (T2d), channel lines (T2e), clients (T2a), campaign_kpi (T2b), orphan_fixes audit (T2d list / Xano POST).

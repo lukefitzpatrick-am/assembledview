@@ -32,8 +32,10 @@ import {
 } from "@/components/ui/table"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Label } from "@/components/ui/label"
+import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary"
 import { cn } from "@/lib/utils"
 import { getClientDisplayName } from "@/lib/clients/slug"
+import { resolveListViewState } from "@/lib/ui/viewState"
 import {
   STATUSES,
   statusMeta,
@@ -204,6 +206,44 @@ export function TasksPageClient() {
     if (!q) return tasks
     return tasks.filter((t) => (t.title || "").toLowerCase().includes(q))
   }, [tasks, search])
+
+  const clearTaskFilters = useCallback(() => {
+    setClientId("")
+    setStatusFilter([])
+    setAssigneeEmail("")
+    setSearch("")
+    setMine(true)
+    setPage(1)
+  }, [])
+
+  const tasksFiltersActive = Boolean(
+    clientId || statusFilter.length > 0 || assigneeEmail.trim() || search.trim()
+  )
+
+  const tasksViewState = useMemo(
+    () =>
+      resolveListViewState({
+        loading: isLoading,
+        error: loadError,
+        items: tasks,
+        visible: filteredTasks,
+        filtersActive: tasksFiltersActive,
+        clear: clearTaskFilters,
+        retry: () => {
+          setLoadError(null)
+          void fetchTasks()
+        },
+      }),
+    [
+      isLoading,
+      loadError,
+      tasks,
+      filteredTasks,
+      tasksFiltersActive,
+      clearTaskFilters,
+      fetchTasks,
+    ]
+  )
 
   const patchStatus = async (task: CodexTask, status: TaskStatus) => {
     try {
@@ -446,29 +486,22 @@ export function TasksPageClient() {
         </div>
       </div>
 
-      {loadError ? (
-        <div
-          role="alert"
-          className={cn(
-            "flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive",
-            "sm:flex-row sm:items-center sm:justify-between"
-          )}
-        >
-          <p className="min-w-0 flex-1">{loadError}</p>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-8 w-full shrink-0 border-destructive/40 text-xs text-destructive hover:bg-destructive/10 sm:w-auto"
-            onClick={() => {
-              setLoadError(null)
-              void fetchTasks()
-            }}
-          >
-            Retry
+      <ViewStateBoundary
+        state={tasksViewState}
+        errorTitle="Couldn't load tasks"
+        emptyTitle="No tasks yet"
+        emptyMessage="Create a task to track follow-ups across clients and campaigns."
+        emptyAction={
+          <Button type="button" onClick={openCreate}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            New task
           </Button>
-        </div>
-      ) : null}
-
+        }
+        filteredEmptyTitle="No tasks match these filters"
+        filteredEmptyMessage="Try clearing filters or broadening the search."
+        loadingRows={5}
+      >
+        {() => (
       <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
         <div className="overflow-x-auto">
           <Table>
@@ -489,22 +522,7 @@ export function TasksPageClient() {
               ))}
             </TableHeader>
             <TableBody className="[&_tr:nth-child(even)]:bg-muted/5">
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={columns.length} className="h-24 text-center">
-                    <span className="text-sm text-muted-foreground">Loading tasks…</span>
-                  </TableCell>
-                </TableRow>
-              ) : filteredTasks.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={columns.length} className="h-24 text-center">
-                    <span className="text-sm text-muted-foreground">
-                      No tasks match these filters.
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                table.getRowModel().rows.map((row) => (
+                {table.getRowModel().rows.map((row) => (
                   <TableRow
                     key={row.id}
                     className="interactive-row cursor-pointer border-b border-border/20"
@@ -519,8 +537,7 @@ export function TasksPageClient() {
                       </TableCell>
                     ))}
                   </TableRow>
-                ))
-              )}
+                ))}
             </TableBody>
           </Table>
         </div>
@@ -558,6 +575,8 @@ export function TasksPageClient() {
           </div>
         ) : null}
       </div>
+        )}
+      </ViewStateBoundary>
 
       <TaskFormDialog
         open={dialogOpen}

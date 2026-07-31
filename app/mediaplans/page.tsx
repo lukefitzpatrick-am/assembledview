@@ -1,8 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary"
+import { resolveListViewState } from "@/lib/ui/viewState"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -17,8 +19,6 @@ import { Panel, PanelActions, PanelContent, PanelHeader, PanelTitle } from "@/co
 import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPreference"
 import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import { DashboardCampaignPlanCard, dashboardCampaignGridClassName } from "@/components/dashboard/DashboardEntityCards"
-import { CampaignCardSkeleton } from "@/components/dashboard/skeletons"
-import { Skeleton } from "@/components/ui/skeleton"
 import { formatAUD } from "@/lib/format/money"
 
 const slugifyClientName = (name?: string | null) => {
@@ -353,6 +353,26 @@ export default function MediaPlansPage() {
     }
   }
 
+  const clearCampaignSearch = useCallback(() => setSearchTerm(""), [])
+
+  const campaignsViewState = useMemo(
+    () =>
+      resolveListViewState({
+        loading,
+        error,
+        items: mediaPlans,
+        visible: filteredPlans,
+        filtersActive: Boolean(searchTerm.trim()),
+        clear: clearCampaignSearch,
+        retry: () => {
+          setError(null)
+          setLoading(true)
+          window.location.reload()
+        },
+      }),
+    [loading, error, mediaPlans, filteredPlans, searchTerm, clearCampaignSearch]
+  )
+
   return (
     <div className="w-full max-w-none space-y-6 px-4 pb-12 pt-0 md:px-6">
       <MediaPlanEditorHero
@@ -385,11 +405,7 @@ export default function MediaPlansPage() {
             span="full"
             className="space-y-4 bg-surface-muted py-6 -mx-4 px-4 md:-mx-6 md:px-6"
           >
-          {error && (
-            <Panel variant="error" errorMessage={error} className="border-border/60" />
-          )}
-
-          {listMayBeStale && (
+          {listMayBeStale && campaignsViewState.status === "ready" ? (
             <div
               role="status"
               className="rounded-card border border-pacing-behind bg-pacing-behind-bg px-4 py-3 text-sm text-status-behind-fg"
@@ -400,36 +416,24 @@ export default function MediaPlansPage() {
                 : ""}
               {" — "}a newly saved campaign may not appear yet.
             </div>
-          )}
+          ) : null}
 
-          {loading ? (
-            <div className="space-y-6">
-              {CAMPAIGN_STATUSES.map((status) => (
-                <Panel
-                  key={status}
-                  className="overflow-hidden border-border/40 shadow-sm"
-                  aria-busy
-                >
-                  <PanelHeader className="border-b border-border/40 bg-muted/20 pb-3">
-                    <PanelTitle className="flex items-center gap-2.5">
-                      <Skeleton className="h-2.5 w-2.5 shrink-0 rounded-full" />
-                      <Skeleton className="h-4 w-24" />
-                      <Skeleton className="h-4 w-8" />
-                    </PanelTitle>
-                    <PanelActions />
-                  </PanelHeader>
-                  <PanelContent className="px-0 pb-0 pt-0">
-                    <div className="px-4 py-4">
-                      <div className={dashboardCampaignGridClassName(false)}>
-                        <CampaignCardSkeleton />
-                        <CampaignCardSkeleton />
-                      </div>
-                    </div>
-                  </PanelContent>
-                </Panel>
-              ))}
-            </div>
-          ) : (
+          <ViewStateBoundary
+            state={campaignsViewState}
+            errorTitle="Couldn't load campaigns"
+            emptyTitle="No campaigns yet"
+            emptyMessage="Create a media plan to get started."
+            emptyAction={
+              <Button type="button" onClick={() => router.push("/mediaplans/create")}>
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create Media Plan
+              </Button>
+            }
+            filteredEmptyTitle="No campaigns match this search"
+            filteredEmptyMessage="Clear the search to see all campaigns again."
+            loadingRows={6}
+          >
+            {() => (
             <div className="space-y-6">
               {CAMPAIGN_STATUSES.map((status) => {
                 const plans = getMediaPlansByStatus(status)
@@ -621,7 +625,8 @@ export default function MediaPlansPage() {
                 )
               })}
             </div>
-          )}
+            )}
+          </ViewStateBoundary>
           </PanelRowCell>
       </PanelRow>
     </div>

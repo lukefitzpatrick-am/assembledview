@@ -10,6 +10,7 @@
 
 - `app/tasks/**` + `components/tasks/TaskFormDialog.tsx` + `app/api/codex/{tasks,tasks/[id],client_notes}` — Xano-backed task board. `_shared.ts` has the retry/backoff wrapper (5s timeout, 2 retries, 6s overall).
 - **`lib/codex/**` is the Tasks domain, not AVA** — naming is misleading; it's just types.
+- List UI uses `ViewState` (`lib/ui/viewState.ts`) via `ViewStateBoundary` so a fetch failure cannot render alongside "no tasks" empty copy; client/status/assignee/search exclusion uses `filtered-empty` + Clear filters.
 
 ## Knowledge hub (`src/**`)
 

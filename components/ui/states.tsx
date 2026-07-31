@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { cn } from "@/lib/utils"
 
-export type EmptyStateProps = React.HTMLAttributes<HTMLDivElement> & {
+export type EmptyStateProps = Omit<React.HTMLAttributes<HTMLDivElement>, "title"> & {
   icon?: React.ReactNode
   title?: React.ReactNode
   message?: React.ReactNode
@@ -64,7 +64,7 @@ export function LoadingState({ rows = 4, className, ...props }: LoadingStateProp
   )
 }
 
-export type ErrorStateProps = React.HTMLAttributes<HTMLDivElement> & {
+export type ErrorStateProps = Omit<React.HTMLAttributes<HTMLDivElement>, "title"> & {
   title?: React.ReactNode
   message?: React.ReactNode
   action?: React.ReactNode

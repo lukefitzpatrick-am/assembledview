@@ -1,7 +1,11 @@
 "use client"
 
 import Link from "next/link"
-import { Suspense, useEffect, useMemo, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { PlusCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary"
+import { resolveListViewState } from "@/lib/ui/viewState"
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "framer-motion"
 
 import { CampaignCardCompact } from "@/components/dashboard/CampaignCardCompact"
@@ -137,6 +141,27 @@ export function ClientDashboardPageContent({
   const filteredCampaigns = useMemo(
     () => allCampaigns.filter((campaign) => (campaign.status === "paused" ? "planned" : campaign.status) === activeStatus),
     [activeStatus, allCampaigns]
+  )
+
+  const clearStatusFilter = useCallback(() => {
+    const order: CampaignStatus[] = ["live", "planned", "completed"]
+    const next = order.find((s) => statusCounts[s] > 0) ?? "live"
+    setActiveStatus(next)
+  }, [statusCounts])
+
+  const campaignsViewState = useMemo(
+    () =>
+      resolveListViewState({
+        loading: false,
+        error: null,
+        items: allCampaigns,
+        visible: filteredCampaigns,
+        // Status pill is a filter only when there is an underlying set; when the
+        // client has zero campaigns, that is genuine empty (SSR — no list error path).
+        filtersActive: false,
+        clear: clearStatusFilter,
+      }),
+    [allCampaigns, filteredCampaigns, clearStatusFilter]
   )
 
   const upcomingCampaigns = useMemo(
@@ -327,13 +352,28 @@ export function ClientDashboardPageContent({
 
         <CampaignStatusPills activeStatus={activeStatus} counts={statusCounts} onChange={setActiveStatus} />
 
-        {filteredCampaigns.length > 0 ? (
+        <ViewStateBoundary
+          state={campaignsViewState}
+          emptyTitle="No campaigns yet"
+          emptyMessage="Create a media plan for this client to get started."
+          emptyAction={
+            <Button type="button" asChild>
+              <Link href="/mediaplans/create">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create Media Plan
+              </Link>
+            </Button>
+          }
+          filteredEmptyTitle="No campaigns in this status"
+          filteredEmptyMessage="Clear filters to jump to a status that has campaigns."
+        >
+          {(campaigns) => (
           <motion.div
             layout
             className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5 xl:grid-cols-4 xl:gap-6"
           >
             <AnimatePresence initial={false} mode="popLayout">
-            {filteredCampaigns.map((campaign) => (
+            {campaigns.map((campaign) => (
               <motion.div
                 key={campaign.id}
                 layout
@@ -362,11 +402,8 @@ export function ClientDashboardPageContent({
             ))}
             </AnimatePresence>
           </motion.div>
-        ) : (
-          <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-4 py-10 text-center text-sm text-muted-foreground md:px-6 lg:px-8">
-            No campaigns in this status right now.
-          </div>
-        )}
+          )}
+        </ViewStateBoundary>
         </motion.section>
 
         <motion.section variants={sectionVariants} className="mt-8 w-full lg:mt-10">

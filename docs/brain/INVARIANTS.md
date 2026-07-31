@@ -111,6 +111,8 @@ pct === 100 → fee = 0 (division guard)
 
 ## UI / design system
 
+- List surfaces map fetch + filter outcomes through `lib/ui/viewState.ts` (`ViewState` / `resolveListViewState`) and render via `ViewStateBoundary` — loading, error, empty, and filtered-empty are mutually exclusive; never render an empty-state message for a failed load or a "nothing here" copy when filters excluded everything.
+
 - `Panel`/`PanelRow`/`PanelRowCell` mandatory for new dashboard work; `Card` only for chart wrappers and non-dashboard composables. `bg-dashboard-surface` only for the dashboard backdrop.
 - No new hard-coded hex in `app/**` route components (chart palette constants and tenant brand colours excepted). No chart hard-codes a hex — use `lib/chart-theme.ts` / `lib/charts/registry.ts`.
 - Interactive charts: tooltip + legend + keyboard alternative; non-interactive: `cursor="default"`. Touch targets ≥24×24 CSS px, ≥44×44 for primary actions.
