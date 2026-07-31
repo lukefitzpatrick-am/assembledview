@@ -24,6 +24,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
+import { formatMoney } from "@/lib/format/money";
 
 type OrphanRow = {
   channel: string;
@@ -46,7 +47,6 @@ type LiveLineItem = {
   totalLineItemBudget: number;
 };
 
-const currencyFmt = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" });
 const numberFmt = new Intl.NumberFormat("en-AU");
 
 export function OrphansClient() {
@@ -227,7 +227,7 @@ export function OrphansClient() {
                   <td className="p-2">{o.adGroupName}</td>
                   <td className="p-2 font-mono">{o.currentLineItemId || "—"}</td>
                   <td className="p-2">{o.campaignName}</td>
-                  <td className="p-2 text-right">{currencyFmt.format(o.spendLast30d)}</td>
+                  <td className="p-2 text-right">{formatMoney(o.spendLast30d)}</td>
                   <td className="p-2 text-right">{numberFmt.format(o.impressionsLast30d)}</td>
                   <td className="p-2">{o.firstSeenDate}</td>
                   <td className="p-2">{o.lastSeenDate}</td>
@@ -284,7 +284,7 @@ export function OrphansClient() {
                         <div className="font-mono">{li.lineItemId}</div>
                         <div className="text-muted-foreground">
                           {li.clientName} · {li.campaignName} · {li.mbaNumber} ·{" "}
-                          {currencyFmt.format(li.totalLineItemBudget)}
+                          {formatMoney(li.totalLineItemBudget)}
                         </div>
                       </button>
                     </li>
@@ -347,7 +347,7 @@ export function OrphansClient() {
                     </p>
                     <p>
                       <span className="font-medium">Budget:</span>{" "}
-                      {currencyFmt.format(selectedLineItem.totalLineItemBudget)}
+                      {formatMoney(selectedLineItem.totalLineItemBudget)}
                     </p>
                   </>
                 ) : null}

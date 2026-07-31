@@ -46,7 +46,7 @@ import type {
   PlatformCampaignBreakdown,
   SearchPacingCampaignRow,
 } from "@/lib/pacing/campaigns/types";
-import { formatAUD } from "@/lib/format/money";
+import { formatAUD, formatMoney } from "@/lib/format/money";
 import { cn } from "@/lib/utils";
 
 const XANO_MISSING = "—";
@@ -326,12 +326,7 @@ function fmtNumberOrZero(n: number | null | undefined): string {
 
 function fmtRatio(n: number | null | undefined): string {
   if (n === null || n === undefined) return XANO_MISSING;
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n);
+  return formatMoney(n);
 }
 
 function fmtPct(n: number | null | undefined): string {

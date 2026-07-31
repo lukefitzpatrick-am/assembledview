@@ -51,13 +51,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-
-const money = new Intl.NumberFormat("en-AU", {
-  style: "currency",
-  currency: "AUD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
+import { formatMoney } from "@/lib/format/money"
 
 /** Collapsed-by-default expand memory for the browser session (survives modal close). */
 const sessionExpandedByMediaType: Record<string, boolean> = {}
@@ -526,9 +520,9 @@ function ScopeLineRow({
           ) : null}
         </div>
         <div className="shrink-0 text-right">
-          <div className="num text-sm font-medium">{money.format(line.media)}</div>
+          <div className="num text-sm font-medium">{formatMoney(line.media)}</div>
           {line.fee > 0.005 ? (
-            <div className="num text-xs text-muted-foreground">fee {money.format(line.fee)}</div>
+            <div className="num text-xs text-muted-foreground">fee {formatMoney(line.fee)}</div>
           ) : null}
         </div>
       </div>
@@ -859,10 +853,10 @@ export function MbaBillingModal({
                             </div>
                             <div className="shrink-0 text-right">
                               <div className="num text-sm font-medium">
-                                {money.format(group.mediaSum)}
+                                {formatMoney(group.mediaSum)}
                               </div>
                               <div className="num text-xs text-muted-foreground">
-                                fee {money.format(group.feeSum)}
+                                fee {formatMoney(group.feeSum)}
                               </div>
                             </div>
                           </button>
@@ -902,27 +896,27 @@ export function MbaBillingModal({
               <div className="mt-auto space-y-2 border-t border-border bg-muted/10 px-5 py-4">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Gross Media</span>
-                  <span className="num font-medium">{money.format(t.grossMedia)}</span>
+                  <span className="num font-medium">{formatMoney(t.grossMedia)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="flex items-center text-muted-foreground">
                     Assembled Fee
                     <MbaFeeAdjustedPill show={panelIndicators.mbaDetails.mbaFeeAdjusted} />
                   </span>
-                  <span className="num font-medium">{money.format(t.fee)}</span>
+                  <span className="num font-medium">{formatMoney(t.fee)}</span>
                 </div>
                 {(t.adServing > 0.005 || t.production > 0.005) && (
                   <>
                     {t.adServing > 0.005 ? (
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Ad Serving &amp; Tech</span>
-                        <span className="num font-medium">{money.format(t.adServing)}</span>
+                        <span className="num font-medium">{formatMoney(t.adServing)}</span>
                       </div>
                     ) : null}
                     {t.production > 0.005 ? (
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Production</span>
-                        <span className="num font-medium">{money.format(t.production)}</span>
+                        <span className="num font-medium">{formatMoney(t.production)}</span>
                       </div>
                     ) : null}
                   </>
@@ -933,7 +927,7 @@ export function MbaBillingModal({
                     <MbaBillableEqualsPill show={mbaRec.showEquals} />
                     <MbaBillableMismatchPill show={mbaRec.showMismatch} />
                   </span>
-                  <span className="num text-foreground">{money.format(t.nettExGst)}</span>
+                  <span className="num text-foreground">{formatMoney(t.nettExGst)}</span>
                 </div>
               </div>
             </section>
@@ -1060,10 +1054,10 @@ export function MbaBillingModal({
                               <BillingMismatchMbaPill show={billingRec.showMismatch} />
                             </span>
                           </TableCell>
-                          <TableCell className="num text-right">{money.format(grandMedia)}</TableCell>
-                          <TableCell className="num text-right">{money.format(grandFee)}</TableCell>
-                          <TableCell className="num text-right">{money.format(grandAd)}</TableCell>
-                          <TableCell className="num text-right">{money.format(grandTotal)}</TableCell>
+                          <TableCell className="num text-right">{formatMoney(grandMedia)}</TableCell>
+                          <TableCell className="num text-right">{formatMoney(grandFee)}</TableCell>
+                          <TableCell className="num text-right">{formatMoney(grandAd)}</TableCell>
+                          <TableCell className="num text-right">{formatMoney(grandTotal)}</TableCell>
                         </TableRow>
                       </>
                     )}
@@ -1071,7 +1065,7 @@ export function MbaBillingModal({
                 </Table>
                 {schedule.length > 0 && grandProd > 0.005 ? (
                   <p className="mt-2 px-2 text-xs text-muted-foreground">
-                    Production in schedule: <span className="num">{money.format(grandProd)}</span>
+                    Production in schedule: <span className="num">{formatMoney(grandProd)}</span>
                   </p>
                 ) : null}
                 {financials.reconciliation &&
@@ -1080,16 +1074,16 @@ export function MbaBillingModal({
                     <span>
                       Billing total{" "}
                       <span className="num">
-                        {money.format(financials.reconciliation.billableMbaExGst)}
+                        {formatMoney(financials.reconciliation.billableMbaExGst)}
                       </span>
                       {" + "}
                       client-pays media{" "}
                       <span className="num">
-                        {money.format(financials.reconciliation.clientPaysMedia)}
+                        {formatMoney(financials.reconciliation.clientPaysMedia)}
                       </span>
                       {" = "}
                       total investment{" "}
-                      <span className="num">{money.format(t.nettExGst)}</span>
+                      <span className="num">{formatMoney(t.nettExGst)}</span>
                     </span>
                     <BillingEqualsMbaPill
                       show={financials.validation.billableEqualsMba}

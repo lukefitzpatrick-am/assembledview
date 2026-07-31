@@ -1,4 +1,5 @@
 import type { BillingMonth, BillingLineItem } from "@/lib/billing/types"
+import { formatMoney } from "@/lib/format/money"
 
 const DIVERGENCE_TOLERANCE = 0.01
 
@@ -44,11 +45,6 @@ export type CompareBillingDivergenceOptions = {
    */
   attachComputedLineItems?: AttachLineItemsCallback
 }
-
-const currencyFormatter = new Intl.NumberFormat("en-AU", {
-  style: "currency",
-  currency: "AUD",
-})
 
 const MONTH_FIELDS = ["mediaTotal", "feeTotal", "adservingTechFees", "production"] as const
 
@@ -308,11 +304,11 @@ export function summarizeBillingDivergence(result: BillingDivergenceResult): {
     if (d.kind === "missing_in_saved" || d.kind === "missing_in_computed") {
       return `${label}: ${lineKindLabel(d.kind)}`
     }
-    return `${label}: ${lineKindLabel(d.kind)} differs by ${currencyFormatter.format(d.difference)}`
+    return `${label}: ${lineKindLabel(d.kind)} differs by ${formatMoney(d.difference)}`
   })
 
   const monthMessages = result.divergentMonths.map((d) => {
-    return `${d.monthYear} · ${monthFieldLabel(d.field)}: saved ${currencyFormatter.format(d.savedValue)}, computed ${currencyFormatter.format(d.computedValue)}`
+    return `${d.monthYear} · ${monthFieldLabel(d.field)}: saved ${formatMoney(d.savedValue)}, computed ${formatMoney(d.computedValue)}`
   })
 
   return { headline, lineMessages, monthMessages }

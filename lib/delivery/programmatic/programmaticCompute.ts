@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/format/money"
+import { formatDateShort } from "@/lib/format/date"
 /**
  * Programmatic delivery metric helpers extracted from ProgrammaticDeliveryContainer.
  */
@@ -341,21 +343,11 @@ export function summarizeDv360Actuals(
 }
 
 function formatCurrency(value: number | undefined) {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value ?? 0)
+  return formatMoney(value ?? 0)
 }
 
 function formatCurrency2dp(value: number | undefined) {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value ?? 0)
+  return formatMoney(value ?? 0)
 }
 
 function formatNumber(value: number | undefined) {
@@ -367,14 +359,7 @@ function formatWholeNumber(value: number | undefined) {
 }
 
 function formatDateAU(dateString: string | undefined) {
-  if (!dateString) return "—"
-  const d = new Date(dateString)
-  if (Number.isNaN(d.getTime())) return dateString
-  return new Intl.DateTimeFormat("en-AU", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(d)
+  return formatDateShort(dateString)
 }
 
 function formatChartDateLabel(iso: string | undefined) {

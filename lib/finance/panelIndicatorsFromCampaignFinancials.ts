@@ -4,7 +4,7 @@
  */
 
 import type { CampaignFinancials } from "@/lib/finance/campaignFinancials.types"
-import { parseMoneyInput } from "@/lib/format/money"
+import { parseMoneyInput, formatMoney } from "@/lib/format/money"
 
 export type MediaTypeRowIndicators = {
   muted: boolean
@@ -49,12 +49,7 @@ function parseScheduleMoney(value: string | undefined): number {
 }
 
 function formatHoverMoney(n: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(n)
+  return formatMoney(n)
 }
 
 function reasonLabel(reasons: string[]): string {

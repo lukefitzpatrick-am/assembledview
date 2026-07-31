@@ -22,6 +22,7 @@ import {
 } from "@/components/dashboard/DashboardEntityCards"
 import { format } from "date-fns"
 import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
+import { formatMoney } from "@/lib/format/money"
 import { usePathname, useRouter } from "next/navigation"
 import { AuthPageLoading } from "@/components/AuthLoadingState"
 import { cn } from "@/lib/utils"
@@ -379,8 +380,7 @@ function getHighestBookedApprovedCompletedVersionPerMba(plans: MediaPlan[]): Med
   return out
 }
 
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(amount)
+const formatCurrency = (amount: number) => formatMoney(amount)
 
 /** Never throw — one bad row must not blank Home via the error boundary. */
 const formatDate = (dateString: string) => safeFormatDate(dateString)

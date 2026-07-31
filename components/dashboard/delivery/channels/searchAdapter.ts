@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/format/money"
 import { getDeterministicColor, getMediaColor } from "@/lib/charts/registry"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import { clipDateRangeToCampaign, type DateRange } from "@/lib/dashboard/dateFilter"
@@ -53,12 +54,7 @@ function onTrackToDelivery(s: string): DeliveryStatus {
 }
 
 function formatCurrency(value: number | null | undefined) {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(value ?? 0))
+  return formatMoney(Number(value ?? 0))
 }
 
 function formatCurrency2dp(value: number | null | undefined) {

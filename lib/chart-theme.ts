@@ -4,6 +4,8 @@
  * No chart should hard-code a hex value; import from here.
  */
 
+import { formatMoney, formatMoneyCompact } from '@/lib/format/money';
+
 // ─────────────────────────────────────────────────────────────
 // Categorical palette — assign series in order.
 // Maps 1:1 to the shadcn CSS vars --chart-1 … --chart-8 (see chart-tokens.css).
@@ -91,15 +93,14 @@ export const seriesColor = (i: number, cb = false) =>
 // ─────────────────────────────────────────────────────────────
 const compactNF = new Intl.NumberFormat('en-AU', { notation: 'compact', maximumFractionDigits: 1 });
 const intNF = new Intl.NumberFormat('en-AU', { maximumFractionDigits: 0 });
-const money0NF = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 });
 
 export const fmt = {
   /** 48210 → "48.2K", 2_410_000 → "2.4M" */
   compact: (n: number) => compactNF.format(n),
   /** 48210 → "$48.2K" */
-  currencyCompact: (n: number) => '$' + compactNF.format(n),
+  currencyCompact: (n: number) => formatMoneyCompact(n),
   /** 48210 → "$48,210" */
-  currency: (n: number) => money0NF.format(n),
+  currency: (n: number) => formatMoney(n, { decimals: 0 }),
   /** 0.732 → "73%"  (pass ratio 0..1) */
   percent: (ratio: number, dp = 0) => (ratio * 100).toFixed(dp) + '%',
   /** 1240 → "1,240" */
