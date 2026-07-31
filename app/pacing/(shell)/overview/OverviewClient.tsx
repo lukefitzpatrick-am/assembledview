@@ -144,26 +144,38 @@ export function OverviewClient({ isAdmin: _isAdmin }: OverviewClientProps) {
               ? ` · page ${scope.page}`
               : null}
           </span>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={scope.page <= 1 || loading || isPending}
-              onClick={() => goToPage(scope.page - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={!scope.hasMore || loading || isPending}
-              onClick={() => goToPage(scope.page + 1)}
-            >
-              Next
-            </Button>
-          </div>
+          {scope.hasMore || scope.page > 1 ? (
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={scope.page <= 1 || loading || isPending}
+                title={
+                  scope.page <= 1
+                    ? "Already on the first page of clients"
+                    : "Previous page of clients"
+                }
+                onClick={() => goToPage(scope.page - 1)}
+              >
+                Previous
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!scope.hasMore || loading || isPending}
+                title={
+                  !scope.hasMore
+                    ? "No more clients beyond this page"
+                    : "Next page of clients"
+                }
+                onClick={() => goToPage(scope.page + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          ) : null}
         </div>
       ) : null}
 

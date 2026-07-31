@@ -199,7 +199,7 @@ const FORECAST_MODE_COPY: Record<ForecastPanelMode, { title: string; hint: strin
   },
   target: {
     title: "Target",
-    hint: "Target tracker — coming soon",
+    hint: "Edit monthly targets by client — saved when you leave a cell",
   },
   variance: {
     title: "Variance",

@@ -1,25 +1,17 @@
 "use client"
 
-import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { DateRangePicker } from "@/components/ui/date-range-picker"
-import type { DateRange } from "react-day-picker"
 
+/**
+ * Stub route (KNOWN-ISSUES D-8). No interactive controls until a real
+ * management dashboard lands — date-range picker was removed because it
+ * only mutated unused local state.
+ */
 export default function ManagementPage() {
-  const [date, setDate] = useState<DateRange>({
-    from: new Date(),
-    to: new Date(),
-  })
-
   return (
     <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
+      <div className="mb-6">
         <h1 className="text-2xl font-bold">Management Overview</h1>
-        <DateRangePicker
-          value={date}
-          onChange={(range) => setDate(range || { from: new Date(), to: new Date() })}
-          className="w-[300px]"
-        />
       </div>
 
       <Card>
@@ -27,7 +19,10 @@ export default function ManagementPage() {
           <CardTitle>Management Dashboard</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground">Management dashboard content will be added here.</p>
+          <p className="text-muted-foreground">
+            Management dashboard is not available yet. This page will stay
+            read-only until the dashboard ships.
+          </p>
         </CardContent>
       </Card>
     </div>

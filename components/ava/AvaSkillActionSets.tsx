@@ -96,14 +96,31 @@ export function AvaPlanningInsightAction() {
   )
 }
 
-export function AvaCreativeSkillActions() {
+export function AvaCreativeSkillActions({
+  hasSelectedAsset = false,
+  disabledReason,
+}: {
+  /** When false, both actions stay disabled until a table row is selected. */
+  hasSelectedAsset?: boolean
+  /** Override reason (e.g. picker page with no campaign yet). */
+  disabledReason?: string
+} = {}) {
+  const reason =
+    disabledReason ??
+    (hasSelectedAsset ? undefined : "Select a creative asset in the table first")
+
   return (
     <>
       <AvaSkillAction
         label="Draft copy for this asset"
         message={AVA_SKILL_MESSAGES.draftCopyAsset}
+        disabledReason={reason}
       />
-      <AvaSkillAction label="Video script" message={AVA_SKILL_MESSAGES.videoScript} />
+      <AvaSkillAction
+        label="Video script"
+        message={AVA_SKILL_MESSAGES.videoScript}
+        disabledReason={reason}
+      />
     </>
   )
 }

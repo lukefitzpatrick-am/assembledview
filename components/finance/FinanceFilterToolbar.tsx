@@ -19,7 +19,6 @@ import {
   RECEIVABLE_BILLING_TYPES,
 } from "@/lib/finance/financeTabFilterScope"
 import type { BillingStatus, BillingType, FinanceFilters } from "@/lib/types/financeBilling"
-import { cn } from "@/lib/utils"
 
 type RangeMode = "single" | "range"
 
@@ -199,13 +198,14 @@ export function FinanceFilterToolbar({ receivables, activeTab }: FinanceFilterTo
         size="sm"
         variant="outline"
         disabled={!dirty}
+        title={dirty ? "Discard draft filter changes" : "No unapplied filter changes to reset"}
         onClick={() => setDraft(storeFilters)}
       >
         Reset
       </Button>
       {receivables ? (
         receivables.loading ? (
-          <Button type="button" size="sm" disabled>
+          <Button type="button" size="sm" disabled title="Loading receivables…">
             Loading…
           </Button>
         ) : dirty ? (
@@ -226,16 +226,22 @@ export function FinanceFilterToolbar({ receivables, activeTab }: FinanceFilterTo
             Refresh
           </Button>
         )
-      ) : (
+      ) : dirty ? (
         <Button
           type="button"
           size="sm"
-          disabled={!dirty}
           onClick={applyDraft}
-          className={cn(dirty && "ring-2 ring-primary/30")}
+          className="ring-2 ring-primary/30"
         >
-          {dirty ? "Load" : "Loaded"}
+          Load
         </Button>
+      ) : (
+        <span
+          role="status"
+          className="inline-flex h-9 items-center rounded-md border border-border bg-muted/40 px-3 text-sm text-muted-foreground"
+        >
+          Loaded
+        </span>
       )}
     </div>
   )

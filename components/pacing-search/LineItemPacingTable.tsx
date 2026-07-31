@@ -964,7 +964,13 @@ function FragmentForLineItem({
                 </Link>
               </Button>
             ) : (
-              <Button variant="secondary" size="sm" className="h-7 px-2.5 text-xs" disabled>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-7 px-2.5 text-xs"
+                disabled
+                title="Client slug missing — cannot open the client dashboard"
+              >
                 View
               </Button>
             )}

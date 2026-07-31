@@ -214,9 +214,28 @@ export function CommandPalette() {
             </Button>
             <span className="text-sm font-medium">Keyboard shortcuts</span>
           </div>
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-            Shortcut cheat sheet — coming soon.
-          </div>
+          <ul className="space-y-3 px-4 py-5 text-sm">
+            <li className="flex items-center justify-between gap-4">
+              <span>Open command palette</span>
+              <CommandShortcut>⌘K / Ctrl+K</CommandShortcut>
+            </li>
+            <li className="flex items-center justify-between gap-4">
+              <span>Keyboard shortcuts (from palette)</span>
+              <CommandShortcut>?</CommandShortcut>
+            </li>
+            <li className="flex items-center justify-between gap-4">
+              <span>Navigate results</span>
+              <CommandShortcut>↑ ↓</CommandShortcut>
+            </li>
+            <li className="flex items-center justify-between gap-4">
+              <span>Open selected</span>
+              <CommandShortcut>Enter</CommandShortcut>
+            </li>
+            <li className="flex items-center justify-between gap-4">
+              <span>Close</span>
+              <CommandShortcut>Esc</CommandShortcut>
+            </li>
+          </ul>
         </>
       ) : (
         <>

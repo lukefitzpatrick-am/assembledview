@@ -164,7 +164,7 @@ export function ClientFinanceSlideOver({
               <SectionHeader title="Budget Allocation" />
               {finance.budgetByQuarter.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border/70 bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
-                  Quarterly breakdown coming soon
+                  No quarterly budget breakdown for this client
                 </p>
               ) : (
                 <div className="space-y-3">

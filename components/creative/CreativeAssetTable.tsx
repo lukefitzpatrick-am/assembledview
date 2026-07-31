@@ -66,6 +66,9 @@ type CreativeAssetTableProps = {
   metaPageId?: string
   allowDelete?: boolean
   allowMockup?: boolean
+  /** Highlighted row for Ava skill actions that need a selected asset. */
+  selectedAssetId?: number | null
+  onSelectAsset?: (id: number) => void
   onRename: (id: number, assetName: string) => Promise<void>
   onLineItemChange: (
     id: number,
@@ -171,6 +174,8 @@ export function CreativeAssetTable({
   metaPageId,
   allowDelete = true,
   allowMockup = true,
+  selectedAssetId = null,
+  onSelectAsset,
   onRename,
   onLineItemChange,
   onStatusToggle,
@@ -227,12 +232,23 @@ export function CreativeAssetTable({
                   ? `${asset.source_table}:${asset.line_item_id}`
                   : "none"
 
+              const isSelected = selectedAssetId === asset.id
+
               return (
-                <TableRow key={asset.id} className="interactive-row">
+                <TableRow
+                  key={asset.id}
+                  className={cn(
+                    "interactive-row",
+                    isSelected && "bg-table-row-hover ring-1 ring-inset ring-ring"
+                  )}
+                  data-state={isSelected ? "selected" : undefined}
+                  aria-selected={isSelected || undefined}
+                  onClick={() => onSelectAsset?.(asset.id)}
+                >
                   <TableCell>
                     <Icon className="h-4 w-4 text-muted-foreground" aria-hidden />
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(event) => event.stopPropagation()}>
                     <InlineAssetName
                       value={asset.asset_name}
                       onSave={(name) => onRename(asset.id, name)}
@@ -247,7 +263,10 @@ export function CreativeAssetTable({
                   <TableCell className="num whitespace-nowrap text-muted-foreground">
                     {formatDimensions(asset)}
                   </TableCell>
-                  <TableCell className="min-w-[200px]">
+                  <TableCell
+                    className="min-w-[200px]"
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     <Select
                       value={selectValue}
                       onValueChange={(value) => {
@@ -293,7 +312,7 @@ export function CreativeAssetTable({
                   <TableCell className="num whitespace-nowrap text-muted-foreground">
                     {formatCreatedAt(asset.created_at)}
                   </TableCell>
-                  <TableCell>
+                  <TableCell onClick={(event) => event.stopPropagation()}>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon" className="h-8 w-8">

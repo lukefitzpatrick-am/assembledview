@@ -28,7 +28,9 @@ export default async function CreativeUploadsPage() {
               Pick a client and campaign, then upload or manage creative assets.
             </p>
           }
-          actions={<AvaCreativeSkillActions />}
+          actions={
+            <AvaCreativeSkillActions disabledReason="Select a campaign and a creative asset first" />
+          }
         />
         <CreativeCampaignPicker />
       </div>

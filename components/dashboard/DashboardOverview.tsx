@@ -2107,6 +2107,7 @@ export default function DashboardOverview({
                     <button
                       type="button"
                       className="interactive h-full min-h-11 w-full cursor-pointer rounded-card text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label={`${metric.title}: jump to section`}
                       onClick={() => {
                         if (metric.panelId === "dashboard-panel-live-scopes") {
                           scrollToDashboardPanel(metric.panelId, () => setOpenScopesPanel(true))

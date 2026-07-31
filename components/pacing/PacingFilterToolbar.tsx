@@ -141,10 +141,19 @@ export function PacingFilterToolbar() {
     [],
   )
 
+  const filtersAtDefaults = useMemo(
+    () => pacingFilterStateEqual(filters, createDefaultPacingFilters()),
+    [filters],
+  )
+
   const onReset = useCallback(() => {
     resetToDefaults()
     router.replace(pathname, { scroll: false })
   }, [pathname, resetToDefaults, router])
+
+  const resetDisabledReason = filtersAtDefaults
+    ? "Filters are already at defaults"
+    : undefined
 
   const sheetControls = (
     <>
@@ -207,7 +216,14 @@ export function PacingFilterToolbar() {
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="link" className="h-auto px-2 text-muted-foreground" onClick={onReset}>
+        <Button
+          type="button"
+          variant="link"
+          className="h-auto px-2 text-muted-foreground"
+          onClick={onReset}
+          disabled={Boolean(resetDisabledReason)}
+          title={resetDisabledReason ?? "Reset filters to defaults"}
+        >
           Reset
         </Button>
       </div>
@@ -294,7 +310,8 @@ export function PacingFilterToolbar() {
           size="sm"
           className="ml-auto shrink-0 text-muted-foreground"
           onClick={onReset}
-          title="Reset filters"
+          disabled={Boolean(resetDisabledReason)}
+          title={resetDisabledReason ?? "Reset filters to defaults"}
         >
           Reset
         </Button>

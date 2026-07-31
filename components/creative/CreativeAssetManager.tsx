@@ -93,6 +93,7 @@ export function CreativeAssetManager({
   const [nameFilter, setNameFilter] = useState("")
   const [uploadLineItemKey, setUploadLineItemKey] = useState("none")
   const [searchOpen, setSearchOpen] = useState(false)
+  const [selectedAssetId, setSelectedAssetId] = useState<number | null>(null)
 
   const searchLineItems = useMemo(
     () => lineItemOptions.filter((option) => option.source_table === "media_plan_search"),
@@ -236,6 +237,13 @@ export function CreativeAssetManager({
       })
       .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
   }, [assets, nameFilter, statusFilter])
+
+  useEffect(() => {
+    if (selectedAssetId == null) return
+    if (!filteredAssets.some((asset) => asset.id === selectedAssetId)) {
+      setSelectedAssetId(null)
+    }
+  }, [filteredAssets, selectedAssetId])
 
   const getPageContext = useCallback((): PageContext => {
     const visible = filteredAssets.slice(0, AVA_LIST_CAP).map((asset) => ({
@@ -417,7 +425,7 @@ export function CreativeAssetManager({
           }
           actions={
             <>
-              <AvaCreativeSkillActions />
+              <AvaCreativeSkillActions hasSelectedAsset={selectedAssetId != null} />
               <Button variant="outline" size="sm" type="button" className="text-xs" asChild>
                 <Link href={`/mediaplans/mba/${encodeURIComponent(mbaNumber)}/trafficking`}>
                   Trafficking
@@ -505,6 +513,8 @@ export function CreativeAssetManager({
             metaPageId={resolvedMetaPageId}
             allowDelete={!clientMode}
             allowMockup={!clientMode}
+            selectedAssetId={selectedAssetId}
+            onSelectAsset={setSelectedAssetId}
             onRename={handleRename}
             onLineItemChange={handleLineItemChange}
             onStatusToggle={handleStatusToggle}
