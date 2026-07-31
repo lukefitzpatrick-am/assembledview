@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Field } from "@/components/ui/field"
 import { Combobox } from "@/components/ui/combobox"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { Plus, Trash2, Download, Save } from "lucide-react"
@@ -18,6 +19,7 @@ import { toast } from "@/components/ui/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatAUD } from "@/lib/format/money"
+import { formArrayErrorMessage } from "@/lib/scopes/formArrayError"
 
 const scopeSchema = z.object({
   client_name: z.string().min(1, "Client name is required"),
@@ -38,12 +40,12 @@ const scopeSchema = z.object({
   cost: z.array(z.object({
     expense_category: z.string(),
     description: z.string(),
-    cost: z.number(),
+    cost: z.number({ error: "Cost must be a number" }),
   })).min(3, "At least 3 cost items are required"),
   payment_terms_and_conditions: z.string(),
   billing_schedule: z.array(z.object({
     month: z.string().min(1, "Month is required"),
-    cost: z.number(),
+    cost: z.number({ error: "Cost must be a number" }),
   })).min(1, "At least one billing schedule item is required"),
   scope_id: z.string().optional(),
 })
@@ -446,7 +448,16 @@ export default function EditScopePage() {
         </div>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form
+            onSubmit={form.handleSubmit(onSubmit, () => {
+              toast({
+                title: "Fix validation errors",
+                description: "Check cost and billing schedule fields highlighted below.",
+                variant: "destructive",
+              })
+            })}
+            className="space-y-6"
+          >
             <Card>
               <CardHeader>
                 <CardTitle>Client Information</CardTitle>
@@ -751,6 +762,12 @@ export default function EditScopePage() {
                 <CardTitle>Cost Breakdown</CardTitle>
               </CardHeader>
               <CardContent>
+                <Field
+                  label="Cost rows"
+                  error={formArrayErrorMessage(form.formState.errors.cost)}
+                  className="space-y-3"
+                >
+                  {() => (
                 <div className="overflow-x-auto">
                   <Table>
                   <TableHeader>
@@ -839,6 +856,8 @@ export default function EditScopePage() {
                   </TableFooter>
                 </Table>
                 </div>
+                  )}
+                </Field>
                 <Button
                   type="button"
                   variant="outline"
@@ -880,6 +899,12 @@ export default function EditScopePage() {
                 <CardTitle>Billing Schedule</CardTitle>
               </CardHeader>
               <CardContent>
+                <Field
+                  label="Billing months"
+                  error={formArrayErrorMessage(form.formState.errors.billing_schedule)}
+                  className="space-y-3"
+                >
+                  {() => (
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -896,18 +921,21 @@ export default function EditScopePage() {
                             control={form.control}
                             name={`billing_schedule.${index}.month`}
                             render={({ field: formField }) => (
-                              <FormControl>
-                                <Combobox
-                                  value={formField.value}
-                                  onValueChange={formField.onChange}
-                                  placeholder="Select month"
-                                  searchPlaceholder="Search months..."
-                                  options={monthYearOptions.map((option) => ({
-                                    value: option.value,
-                                    label: option.label,
-                                  }))}
-                                />
-                              </FormControl>
+                              <FormItem>
+                                <FormControl>
+                                  <Combobox
+                                    value={formField.value}
+                                    onValueChange={formField.onChange}
+                                    placeholder="Select month"
+                                    searchPlaceholder="Search months..."
+                                    options={monthYearOptions.map((option) => ({
+                                      value: option.value,
+                                      label: option.label,
+                                    }))}
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
                             )}
                           />
                         </TableCell>
@@ -916,27 +944,32 @@ export default function EditScopePage() {
                             control={form.control}
                             name={`billing_schedule.${index}.cost`}
                             render={({ field: formField }) => (
-                              <Input
-                                type="text"
-                                {...formField}
-                                value={formField.value || ""}
-                                onChange={(e) => {
-                                  const value = e.target.value.replace(/[^0-9.]/g, "")
-                                  formField.onChange(value)
-                                }}
-                                onBlur={() => {
-                                  formField.onBlur()
-                                  const currentBilling = form.getValues("billing_schedule")
-                                  const costValue = currentBilling[index].cost
-                                  const numericValue = parseFloat(String(costValue ?? "").replace(/[^0-9.]/g, "")) || 0
-                                  if (currentBilling[index].cost !== numericValue) {
-                                    currentBilling[index].cost = numericValue
-                                    form.setValue("billing_schedule", currentBilling)
-                                  }
-                                }}
-                                placeholder="$0.00"
-                                className="text-right"
-                              />
+                              <FormItem>
+                                <FormControl>
+                                  <Input
+                                    type="text"
+                                    {...formField}
+                                    value={formField.value || ""}
+                                    onChange={(e) => {
+                                      const value = e.target.value.replace(/[^0-9.]/g, "")
+                                      formField.onChange(value)
+                                    }}
+                                    onBlur={() => {
+                                      formField.onBlur()
+                                      const currentBilling = form.getValues("billing_schedule")
+                                      const costValue = currentBilling[index].cost
+                                      const numericValue = parseFloat(String(costValue ?? "").replace(/[^0-9.]/g, "")) || 0
+                                      if (currentBilling[index].cost !== numericValue) {
+                                        currentBilling[index].cost = numericValue
+                                        form.setValue("billing_schedule", currentBilling)
+                                      }
+                                    }}
+                                    placeholder="$0.00"
+                                    className="text-right"
+                                  />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
                             )}
                           />
                         </TableCell>
@@ -956,6 +989,8 @@ export default function EditScopePage() {
                     ))}
                   </TableBody>
                 </Table>
+                  )}
+                </Field>
                 <Button
                   type="button"
                   variant="outline"

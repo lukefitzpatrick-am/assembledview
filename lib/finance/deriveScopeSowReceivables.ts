@@ -1,9 +1,9 @@
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 import { formatInvoiceDate, type FinanceLineItem } from "@/lib/finance/utils"
 import {
-  extractLineItemsFromScopeCost,
   extractLineItemsFromScopeSchedule,
   parseScopeJSON,
+  scopeHasBillingSchedule,
 } from "@/lib/finance/scopeScheduleExtract"
 
 export type ScopeOfWorkRow = {
@@ -56,9 +56,10 @@ export function deriveSowBillingRecordsFromScopes(
     if (!inBooked && !options.includeNonApprovedScopes) continue
 
     const billingSchedule = parseScopeJSON(scope.billingSchedule ?? scope.billing_schedule)
-    const fromSchedule = extractLineItemsFromScopeSchedule(billingSchedule, year, month)
-    const fromCost = extractLineItemsFromScopeCost(scope.cost)
-    const lineFinance = fromSchedule.length > 0 ? fromSchedule : fromCost
+    // Schedule is authoritative: a missing or $0 month contributes nothing.
+    // Never fall back to the full scope cost — that silently over-bills gaps.
+    if (!scopeHasBillingSchedule(billingSchedule)) continue
+    const lineFinance = extractLineItemsFromScopeSchedule(billingSchedule, year, month)
     const total = Math.round(lineFinance.reduce((s, li) => s + li.amount, 0) * 100) / 100
     if (total <= 0) continue
 

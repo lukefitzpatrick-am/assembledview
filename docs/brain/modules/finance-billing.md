@@ -16,7 +16,7 @@ Admin-only finance hub (`/finance`, 7 tabs: overview, billing, payables, accrual
 
 - `app/finance/FinanceHubPageClient.tsx` + `lib/finance/useFinanceStore.ts` (Zustand, debounced fetch-all with signature dedupe).
 - `lib/finance/composeFinanceHubRecords.ts` — shared derive → dedupe (`receivableMergeKey`) → month filter → status overlay pipeline; multi-month is byte-identical to concatenated single months.
-- `lib/finance/derive{Receivable,Payable,ScopeSow,Retainer}Records.ts` — version/SOW/retainer → synthetic records. Record `total` = schedule month header ex-GST (`monthExGstFromScheduleEntry`), NOT re-derived from raw line items.
+- `lib/finance/derive{Receivable,Payable,ScopeSow,Retainer}Records.ts` — version/SOW/retainer → synthetic records. Record `total` = schedule month header ex-GST (`monthExGstFromScheduleEntry`), NOT re-derived from raw line items. SOW months: billing schedule is authoritative — missing or $0 months contribute nothing; never fall back to full scope `cost` (`summarizeScopeScheduleCoverage` surfaces gaps for the list UI).
 - `lib/finance/computeCampaignFinancialsFromVersion.ts` — hydrate path from persisted JSON (or PC1 attached `schedule_months` rebuild); returns empty `deliveryVsBillingDelta`, no `reconciliation` — silent falsy defaults, not "unknown".
 - `lib/finance/scheduleMonthsSource.ts` — PC1 `DATA_BACKEND_FINANCE_SCHEDULE` gate; cents→dollars only via `centsToDollars`; `hydrateVersionsFinanceScheduleSource` wired into billing/payables/accrual/forecast loaders.
 - `lib/finance/relevantPlanVersions.ts` — which version is authoritative per month (from `master.version_number` only; staged versions never relevant); 30s cache cleared only by the schedule PATCH route.

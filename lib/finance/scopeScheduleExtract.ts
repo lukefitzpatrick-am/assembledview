@@ -120,3 +120,54 @@ export function extractLineItemsFromScopeCost(cost: unknown): FinanceLineItem[] 
     })
     .filter((item) => item.amount > 0)
 }
+
+function scheduleArrayFromUnknown(billingSchedule: unknown): unknown[] {
+  if (!billingSchedule) return []
+  if (Array.isArray(billingSchedule)) return billingSchedule
+  if (
+    typeof billingSchedule === "object" &&
+    billingSchedule !== null &&
+    Array.isArray((billingSchedule as Record<string, unknown>).months)
+  ) {
+    return (billingSchedule as { months: unknown[] }).months
+  }
+  return []
+}
+
+/** True when a billing_schedule payload exists (even if every month is $0). */
+export function scopeHasBillingSchedule(billingSchedule: unknown): boolean {
+  return scheduleArrayFromUnknown(billingSchedule).length > 0
+}
+
+export type ScopeScheduleCoverage = {
+  /** Months in `year` with a scheduled amount > 0. */
+  scheduledMonths: number
+  /** Months in `year` with no positive scheduled amount (missing or $0). */
+  unscheduledMonths: number
+  /** Present-tense gap label, e.g. "10 months unscheduled"; null when fully covered. */
+  gapLabel: string | null
+}
+
+/**
+ * Calendar-year coverage for a SOW flat/nested schedule.
+ * A year is considered in scope when the schedule has any entry touching that year,
+ * or when analyzing an empty schedule against an explicit year (all 12 unscheduled).
+ */
+export function summarizeScopeScheduleCoverage(
+  billingSchedule: unknown,
+  year: number,
+): ScopeScheduleCoverage {
+  const scheduleArray = scheduleArrayFromUnknown(billingSchedule)
+  let scheduledMonths = 0
+  for (let month = 1; month <= 12; month++) {
+    const items = extractLineItemsFromScopeSchedule(scheduleArray, year, month)
+    const total = items.reduce((s, li) => s + li.amount, 0)
+    if (total > 0) scheduledMonths++
+  }
+  const unscheduledMonths = 12 - scheduledMonths
+  const gapLabel =
+    unscheduledMonths > 0
+      ? `${unscheduledMonths} month${unscheduledMonths === 1 ? "" : "s"} unscheduled`
+      : null
+  return { scheduledMonths, unscheduledMonths, gapLabel }
+}
