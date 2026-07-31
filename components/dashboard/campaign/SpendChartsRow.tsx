@@ -13,6 +13,12 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layou
 import { DASHBOARD_CHART_PLOT_HEIGHT } from "@/lib/charts/theme"
 import { getMediaLabel } from "@/lib/charts/registry"
 import { channelColorFor, fmt as chartFmt } from "@/lib/chart-theme"
+import {
+  MEDIA_MIX_DONUT_BASIS_CAPTION,
+  channelTotalsFromDeliverySchedule,
+  mediaMixTotalFromDeliverySchedule,
+  monthlyMixFromDeliverySchedule,
+} from "@/lib/dashboard/mediaMixFromDeliverySchedule"
 import { formatMoneyCompact } from "@/lib/format/money"
 import { normaliseLineItemsByType, type NormalisedLineItem } from "@/lib/mediaplan/normalizeLineItem"
 
@@ -58,16 +64,6 @@ function publisherLabelForTick(raw: string): string {
   if (raw === UNKNOWN_PUBLISHER) return UNKNOWN_PUBLISHER
   if (raw === OTHER_BUCKET) return OTHER_BUCKET
   return getMediaLabel(raw)
-}
-
-const parseAmount = (value: any): number => {
-  if (value === null || value === undefined) return 0
-  if (typeof value === "number") return Number.isFinite(value) ? value : 0
-  if (typeof value === "string") {
-    const parsed = parseFloat(value.replace(/[^0-9.-]+/g, ""))
-    return Number.isFinite(parsed) ? parsed : 0
-  }
-  return 0
 }
 
 const monthNames = [
@@ -124,15 +120,6 @@ function parseMonthYearLabel(value: any): Date | null {
   return isNaN(asDate.getTime()) ? null : asDate
 }
 
-const getMonthLabel = (value: any): string => {
-  if (!value) return "Unknown"
-  const parsed = parseMonthYearLabel(value)
-  if (parsed) {
-    return parsed.toLocaleDateString("en-AU", { month: "short", year: "numeric" })
-  }
-  return String(value)
-}
-
 type MonthlySpendByChannel = {
   month: string
   [channel: string]: string | number
@@ -146,121 +133,16 @@ export default function SpendChartsRow({
   lineItemsMap = {},
   campaignSpendToDate,
 }: SpendChartsRowProps) {
+  /** Authoritative path: same delivery-schedule parser as Expected Spend (AV-16). */
   const derivedFromDelivery = useMemo(() => {
-    const parsedSchedule = Array.isArray(deliverySchedule)
-      ? deliverySchedule
-      : (() => {
-          if (typeof deliverySchedule === "string") {
-            try {
-              const parsed = JSON.parse(deliverySchedule)
-              return Array.isArray(parsed) ? parsed : null
-            } catch {
-              return null
-            }
-          }
-          return null
-        })()
-
-    if (!parsedSchedule || parsedSchedule.length === 0) return null
-
-    const channelTotals: Record<string, number> = {}
-    const monthlyMap: Record<string, Record<string, number>> = {}
-
-    parsedSchedule.forEach((entry) => {
-      const monthLabel = getMonthLabel(
-        entry?.month ??
-          entry?.monthYear ??
-          entry?.month_year ??
-          entry?.monthLabel ??
-          entry?.month_label ??
-          entry?.period_start ??
-          entry?.periodStart ??
-          entry?.date ??
-          entry?.startDate
-      )
-
-      const topLevelAmount = parseAmount(
-        entry?.spend ??
-          entry?.amount ??
-          entry?.budget ??
-          entry?.value ??
-          entry?.investment ??
-          entry?.media_investment ??
-          entry?.total ??
-          entry?.totalAmount
-      )
-
-      let applied = false
-
-      const mediaTypes = Array.isArray(entry?.mediaTypes) ? entry.mediaTypes : []
-      if (mediaTypes.length) {
-        mediaTypes.forEach((mt: any) => {
-          const channel =
-            mt?.mediaType ||
-            mt?.media_type ||
-            mt?.type ||
-            mt?.name ||
-            mt?.channel ||
-            entry?.channel ||
-            entry?.media_channel ||
-            "Other"
-
-          const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
-          const lineTotal = lineItems.reduce((sum: number, li: any) => sum + parseAmount(li?.amount), 0)
-          const amount = lineTotal > 0 ? lineTotal : topLevelAmount
-          if (amount > 0) {
-            channelTotals[channel] = (channelTotals[channel] || 0) + amount
-            monthlyMap[monthLabel] = monthlyMap[monthLabel] || {}
-            monthlyMap[monthLabel][channel] = (monthlyMap[monthLabel][channel] || 0) + amount
-            applied = true
-          }
-        })
-      }
-
-      if (!applied && topLevelAmount > 0) {
-        const fallbackChannel =
-          entry?.channel ||
-          entry?.media_channel ||
-          entry?.mediaType ||
-          entry?.media_type ||
-          entry?.publisher ||
-          entry?.placement ||
-          "Other"
-
-        channelTotals[fallbackChannel] = (channelTotals[fallbackChannel] || 0) + topLevelAmount
-        monthlyMap[monthLabel] = monthlyMap[monthLabel] || {}
-        monthlyMap[monthLabel][fallbackChannel] = (monthlyMap[monthLabel][fallbackChannel] || 0) + topLevelAmount
-      }
-    })
-
-    const channelData = Object.entries(channelTotals).map(([channel, spend]) => ({ channel, spend }))
-    const campaignMap: Record<string, number> = {}
-
-    const monthlyData: MonthlySpendByChannel[] = Object.entries(monthlyMap)
-      .map(([month, data]) => {
-        const row: MonthlySpendByChannel = { month }
-        Object.entries(data).forEach(([mediaType, amount]) => {
-          row[mediaType] = amount
-        })
-        return row
-      })
-      .sort((a, b) => {
-        const aDate = new Date(a.month as string).getTime()
-        const bDate = new Date(b.month as string).getTime()
-        if (isNaN(aDate) || isNaN(bDate)) return String(a.month).localeCompare(String(b.month))
-        return aDate - bDate
-      })
-
-    parsedSchedule.forEach((entry) => {
-      const campaignName =
-        entry?.campaignName || entry?.campaign_name || entry?.campaign || entry?.plan_name || entry?.name || null
-      if (!campaignName) return
-      const amount = parseAmount(entry?.spend ?? entry?.amount ?? entry?.budget ?? entry?.value ?? entry?.media_investment)
-      if (amount <= 0) return
-      campaignMap[String(campaignName)] = (campaignMap[String(campaignName)] || 0) + amount
-    })
-
-    return { channelData, monthlyData, campaignData: Object.entries(campaignMap).map(([label, value]) => ({ label, value })) }
+    if (deliverySchedule == null) return null
+    const channelData = channelTotalsFromDeliverySchedule(deliverySchedule)
+    if (channelData.length === 0) return null
+    return {
+      channelData,
+      monthlyData: monthlyMixFromDeliverySchedule(deliverySchedule),
+      mixTotal: mediaMixTotalFromDeliverySchedule(deliverySchedule),
+    }
   }, [deliverySchedule])
 
   const channelData = useMemo(() => {
@@ -515,7 +397,7 @@ export default function SpendChartsRow({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
         <BaseChartCard
           title="Planned media by type"
-          subtitle={`Delivery schedule · Total: ${chartFmt.currencyCompact(mediaChannelTotal)}`}
+          subtitle={`${MEDIA_MIX_DONUT_BASIS_CAPTION} · Total: ${chartFmt.currencyCompact(mediaChannelTotal)}`}
         >
           {mediaChannelTotal > 0 ? (
             <DonutChart

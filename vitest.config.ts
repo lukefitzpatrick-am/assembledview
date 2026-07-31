@@ -37,6 +37,7 @@ export default defineConfig({
 
       "lib/dashboard/__tests__/budgetSpendTiles.test.ts",
       "lib/dashboard/__tests__/homeDashboardFilters.test.ts",
+      "lib/dashboard/__tests__/mediaMixFromDeliverySchedule.test.ts",
       "lib/pacing/__tests__/statusUi.test.ts",
       "components/pacing/__tests__/PacingStatusSummary.test.tsx",
     ],

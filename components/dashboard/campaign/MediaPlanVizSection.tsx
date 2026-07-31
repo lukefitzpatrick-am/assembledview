@@ -5,7 +5,6 @@ import { BarChart3, CalendarRange, Download, Rows3 } from "lucide-react"
 
 import {
   BaseChartCard,
-  HorizontalBarChart,
   Sparkline,
   StackedBarChart,
 } from "@/components/charts/system"
@@ -15,7 +14,6 @@ import { EmptyState } from "@/components/ui/states"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import {
   reshapeAllocationOverTime,
-  reshapeChannelSpendBars,
   reshapeChannelSparkline,
   reshapeMediaPlanChannelSummary,
 } from "@/components/dashboard/campaign/mediaPlanChartReshape"
@@ -35,8 +33,6 @@ export type MediaPlanVizSectionProps = {
   defaultView?: "timeline" | "table" | "summary"
   onViewChange?: (view: string) => void
 }
-
-const CHART_PLOT_HEIGHT = "min-h-[280px] w-full"
 
 function sanitizeFilenameBase(parts: (string | undefined)[]): string {
   const raw = parts.filter(Boolean).join("-")
@@ -118,9 +114,7 @@ export default function MediaPlanVizSection({
 
   const mediaSummary = useMemo(() => reshapeMediaPlanChannelSummary(normalised), [normalised])
 
-  // Planned media-type mix lives only in SpendChartsRow (delivery schedule).
-  // Summary keeps line-item gross bars — labeled distinctly so numbers never collide.
-  const channelSpendBars = useMemo(() => reshapeChannelSpendBars(mediaSummary), [mediaSummary])
+  // Planned media-type mix lives only in SpendChartsRow (delivery schedule) — one donut, one source.
 
   const { data: allocationData, series: allocationSeries } = useMemo(
     () => reshapeAllocationOverTime(normalised),
@@ -289,27 +283,6 @@ export default function MediaPlanVizSection({
 
         {view === "summary" ? (
           <div ref={summaryRef} className="space-y-4">
-            <BaseChartCard
-              title="Line-item gross by channel"
-              subtitle="Burst gross from the media plan (not the delivery-schedule mix above)"
-            >
-              {channelSpendBars.length > 0 ? (
-                <HorizontalBarChart
-                  data={channelSpendBars}
-                  xKey="cat"
-                  series={[{ key: "value", label: "Gross" }]}
-                  valueFormat="dollars"
-                  className={CHART_PLOT_HEIGHT}
-                />
-              ) : (
-                <EmptyState
-                  className={`${CHART_PLOT_HEIGHT} border-0 bg-transparent`}
-                  title="No channel spend"
-                  message={null}
-                />
-              )}
-            </BaseChartCard>
-
             <BaseChartCard
               title="Allocation over time"
               subtitle="Prorated monthly gross media by channel"

@@ -131,28 +131,6 @@ export function reshapeMediaPlanChannelSummary(
   )
 }
 
-/** DonutChart slices — media-mix share by channel. */
-export function reshapeMediaMixDonut(rows: MediaChannelSummaryRow[]) {
-  return rows
-    .filter((row) => row.totalBudget > 0)
-    .map((row, i) => ({
-      label: row.label,
-      value: row.totalBudget,
-      color: channelColorFor(row.mediaType, i),
-    }))
-}
-
-/** HorizontalBarChart rows — per-channel gross spend. */
-export function reshapeChannelSpendBars(rows: MediaChannelSummaryRow[]) {
-  return [...rows]
-    .filter((row) => row.totalBudget > 0)
-    .sort((a, b) => a.totalBudget - b.totalBudget)
-    .map((row) => ({
-      cat: row.label,
-      value: row.totalBudget,
-    }))
-}
-
 /** Sparkline datum rows for a channel burst sample. */
 export function reshapeChannelSparkline(values: number[]) {
   return values.map((value, idx) => ({ idx, value }))
