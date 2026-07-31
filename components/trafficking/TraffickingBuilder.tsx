@@ -533,7 +533,7 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
       },
       pageText: {
         title: "Trafficking builder",
-        breadcrumbs: ["Media Plans", mbaNumber, "Trafficking"],
+        breadcrumbs: ["Campaigns", mbaNumber, "Trafficking"],
       },
       state: {
         surface: "trafficking",

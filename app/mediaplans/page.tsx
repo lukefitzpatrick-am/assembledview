@@ -388,7 +388,7 @@ function MediaPlansPageInner() {
     <div className="w-full max-w-none space-y-6 px-4 pb-12 pt-0 md:px-6">
       <MediaPlanEditorHero
         className="mb-2 pt-6 md:pt-8"
-        title="Media Plans"
+        title="Campaigns"
         detail={
           <p>Search campaigns, create a new plan, and jump into edits or dashboards.</p>
         }
@@ -425,7 +425,7 @@ function MediaPlansPageInner() {
             </div>
             <Button onClick={() => router.push("/mediaplans/create")}>
               <PlusCircle className="mr-2 h-4 w-4" />
-              Create Media Plan
+              Create Campaign
             </Button>
           </div>
         }
@@ -456,7 +456,7 @@ function MediaPlansPageInner() {
             emptyAction={
               <Button type="button" onClick={() => router.push("/mediaplans/create")}>
                 <PlusCircle className="mr-2 h-4 w-4" />
-                Create Media Plan
+                Create Campaign
               </Button>
             }
             filteredEmptyTitle="No campaigns match this search"

@@ -597,7 +597,7 @@ export function BehaviouralPlannerClient() {
         campaignName: state.brief.campaignName || undefined,
       },
       pageText: {
-        title: "Demand Flow planner",
+        title: "Planning",
         breadcrumbs: ["Tools", "Planning"],
       },
       state: {
@@ -668,7 +668,7 @@ export function BehaviouralPlannerClient() {
       <div className="mb-6 flex items-baseline justify-between border-b border-border pb-3">
         <div>
           <h1 className="text-xl font-medium">
-            Demand Flow planner
+            Planning
             <span className="ml-2 text-[11px] font-normal text-muted-foreground">
               five-stage · live Roy Morgan
             </span>

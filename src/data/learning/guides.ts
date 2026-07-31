@@ -284,7 +284,7 @@ export const guides: Guide[] = [
       { label: "VOZ Total TV resources - OzTAM", url: "https://oztam.com.au/resources/voz-totaltv-resources/" },
       { label: "Virtual Australia explainer - ThinkTV", url: "https://thinktv.com.au/future-focused/virtual-australia/" },
     ],
-    relatedTerms: ["VOZ", "TARP", "BVOD Reach", "OzTAM"],
+    relatedTerms: ["VOZ", "GRP", "BVOD Reach", "OzTAM"],
     reviewedAt: "2026-06-30",
   },
 ];

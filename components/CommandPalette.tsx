@@ -5,10 +5,19 @@ import { useRouter } from "next/navigation"
 import {
   BookOpen,
   Building2,
+  ClipboardList,
+  Compass,
+  DollarSign,
   FileText,
   HelpCircle,
+  Images,
   LayoutDashboard,
+  ListTodo,
+  PlusCircle,
+  Search,
+  Shield,
   TrendingUp,
+  Users,
 } from "lucide-react"
 
 import { useAuthContext } from "@/contexts/AuthContext"
@@ -94,42 +103,47 @@ function isHrefVisibleForUser(
   return false
 }
 
+/** Labels match AppSidebar exactly — terminology law: Campaigns + Planning. */
 function getPrimaryNavItems(isAdmin: boolean, userClient: string | null): NavItem[] {
   if (isAdmin) {
     return [
+      { title: "Home", href: "/dashboard", icon: LayoutDashboard, searchTerms: "dashboard overview" },
       {
-        title: "Dashboard",
-        href: "/dashboard",
-        icon: LayoutDashboard,
-        searchTerms: "home",
-      },
-      {
-        title: "Publishers",
-        href: "/publishers",
-        icon: Building2,
-      },
-      {
-        title: "Pacing",
-        href: "/pacing",
-        icon: TrendingUp,
-      },
-      {
-        title: "Media plans",
+        title: "Campaigns",
         href: "/mediaplans",
         icon: FileText,
-        searchTerms: "campaigns mediaplans",
+        searchTerms: "media plans mediaplans mba",
       },
+      { title: "Creative", href: "/creative", icon: Images },
+      { title: "Scopes of Work", href: "/scopes-of-work", icon: ClipboardList, searchTerms: "sow scopes" },
+      { title: "Tasks", href: "/tasks", icon: ListTodo },
+      { title: "Pacing", href: "/pacing", icon: TrendingUp },
+      {
+        title: "Planning",
+        href: "/tools/behavioural-planner",
+        icon: Compass,
+        searchTerms: "demand flow behavioural planner audience",
+      },
+      { title: "Publishers", href: "/publishers", icon: Building2 },
+      { title: "Client hub", href: "/client", icon: Users },
+      { title: "Finance", href: "/finance", icon: DollarSign },
       {
         title: "Knowledge Hub",
         href: "/knowledge",
         icon: BookOpen,
-        searchTerms: "learning knowledge glossary definitions acronyms formulas",
+        searchTerms: "learning glossary definitions acronyms formulas",
       },
       {
-        title: "Calculators",
-        href: "/knowledge/calculators",
-        icon: BookOpen,
-        searchTerms: "calculator cpm roas media math knowledge",
+        title: "Create Campaign",
+        href: "/mediaplans/create",
+        icon: PlusCircle,
+        searchTerms: "new media plan",
+      },
+      {
+        title: "Admin User Enrolment",
+        href: "/admin/users/new",
+        icon: Shield,
+        searchTerms: "user management invite admin",
       },
     ]
   }
@@ -137,14 +151,46 @@ function getPrimaryNavItems(isAdmin: boolean, userClient: string | null): NavIte
   const items: NavItem[] = []
   if (userClient) {
     items.push({
-      title: "Dashboard",
+      title: "Home",
       href: `/dashboard/${userClient}`,
       icon: LayoutDashboard,
-      searchTerms: "home client",
+      searchTerms: "dashboard client",
+    })
+    items.push({
+      title: "Creative",
+      href: `/dashboard/${userClient}/creative`,
+      icon: Images,
     })
   }
-  items.push({ title: "Knowledge Hub", href: "/knowledge", icon: BookOpen, searchTerms: "learning knowledge glossary" })
+  items.push({
+    title: "Knowledge Hub",
+    href: "/knowledge",
+    icon: BookOpen,
+    searchTerms: "learning knowledge glossary",
+  })
   return items
+}
+
+export function CommandPaletteTrigger({ className }: { className?: string }) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className={className}
+      onClick={() => {
+        window.dispatchEvent(new CustomEvent("av:open-command-palette"))
+      }}
+      aria-label="Open command palette"
+      title="Search pages (⌘K / Ctrl+K)"
+    >
+      <Search className="mr-1.5 h-3.5 w-3.5" />
+      <span className="hidden sm:inline">Search</span>
+      <kbd className="pointer-events-none ml-2 hidden h-5 select-none items-center gap-0.5 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:inline-flex">
+        ⌘K
+      </kbd>
+    </Button>
+  )
 }
 
 export function CommandPalette() {
@@ -173,8 +219,13 @@ export function CommandPalette() {
         setOpen((v) => !v)
       }
     }
+    const onOpen = () => setOpen(true)
     window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    window.addEventListener("av:open-command-palette", onOpen)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener("av:open-command-palette", onOpen)
+    }
   }, [])
 
   React.useEffect(() => {

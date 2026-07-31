@@ -13,7 +13,7 @@ import { AuthWrapper } from "@/components/AuthWrapper"
 import { AuthContextProvider, useAuthContext } from "@/contexts/AuthContext"
 import type React from "react"
 import { getAssistantContext } from "@/lib/assistantBridge"
-import { CommandPalette } from "@/components/CommandPalette"
+import { CommandPalette, CommandPaletteTrigger } from "@/components/CommandPalette"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { cn } from "@/lib/utils"
 import type { ChatMode } from "@/src/ava/modes"
@@ -89,6 +89,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                         <DynamicBreadcrumbs />
                       </div>
                       <div className="ml-auto flex shrink-0 items-center gap-2">
+                        <CommandPaletteTrigger className="h-8" />
                         <ThemeToggle />
                         <UserGreeting />
                       </div>
