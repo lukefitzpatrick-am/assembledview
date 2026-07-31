@@ -312,3 +312,21 @@ export function shouldEscalateDay10(args: {
   const day10 = new Date(Date.UTC(y, m - 1, 10, 14, 0, 0)) // ~00:00 Sydney-ish UTC+10
   return args.now.getTime() >= day10.getTime()
 }
+
+/**
+ * O7 — Day-10 escalation: at most one card per periodMonth per condition.
+ * Once escalated for the period, never re-notify on day 11..N.
+ */
+export function shouldInsertDay10Escalation(args: {
+  periodMonth: string
+  now: Date
+  openCardCount: number
+  alreadyEscalatedForPeriod: boolean
+}): boolean {
+  if (args.alreadyEscalatedForPeriod) return false
+  return shouldEscalateDay10({
+    periodMonth: args.periodMonth,
+    now: args.now,
+    openCardCount: args.openCardCount,
+  })
+}

@@ -12,12 +12,18 @@ import { normalizeContactKey } from "@/lib/xero/normalizeContact"
 import {
   runThreeTierMatcher,
   periodShouldReconcile,
-  shouldEscalateDay10,
+  shouldInsertDay10Escalation,
   type MatcherArInvoice,
   type MatcherRunItem,
   type ContactLink,
   type MatchDecision,
 } from "@/lib/xero/matcher/threeTier"
+import {
+  isCreditNoteAmount,
+  reconcileDisputesWithCreditNotes,
+  type CreditNoteCandidate,
+  type DisputedMatch,
+} from "@/lib/xero/matcher/creditNoteReconcile"
 import { toPeriodMonthKey, toPeriodMonthDate } from "@/lib/finance/periods/monthKey"
 
 export type MatchRunItemsResult = {
@@ -226,6 +232,10 @@ export async function stageMatchRunItems(opts?: {
     if (!reportOnly) {
       await persistMatcherResult(result.decisions, result.cards, result)
       await maybeReconcilePeriods(runItems, opts?.now ?? new Date())
+      await reconcileDisputedWithArrivedCreditNotes({
+        invoices,
+        contactNameById,
+      })
     }
 
     // Persist hit-rate metrics per distinct period month (feeds PC5 pre-run)
@@ -404,16 +414,156 @@ async function maybeReconcilePeriods(
       `)
     }
 
-    if (shouldEscalateDay10({ periodMonth, now, openCardCount: open })) {
+    if (shouldInsertDay10Escalation({
+      periodMonth,
+      now,
+      openCardCount: open,
+      alreadyEscalatedForPeriod: await hasDay10Escalation(periodMonth),
+    })) {
       await db.execute(sql`
         INSERT INTO app_notifications (audience, kind, payload)
         VALUES (
           'finance-lead',
           'xero_match_day10_escalate',
-          ${JSON.stringify({ periodMonth, openCardCount: open })}::jsonb
+          ${JSON.stringify({ periodMonth, openCardCount: open, condition: "open_cards" })}::jsonb
         )
       `)
     }
+  }
+}
+
+async function hasDay10Escalation(periodMonth: string): Promise<boolean> {
+  try {
+    const row = rowsOf<{ n: number }>(
+      await db.execute(sql`
+        SELECT count(*)::int AS n
+        FROM app_notifications
+        WHERE kind = 'xero_match_day10_escalate'
+          AND coalesce(payload->>'periodMonth', '') = ${periodMonth}
+      `),
+    )[0]
+    return Number(row?.n ?? 0) > 0
+  } catch {
+    return false
+  }
+}
+
+/**
+ * O7 — When a negative-amount AR document arrives for a disputed invoice's contact
+ * (amount within $0.01), mark the dispute matched and close the expected-credit card.
+ */
+export async function reconcileDisputedWithArrivedCreditNotes(args?: {
+  invoices?: MatcherArInvoice[]
+  contactNameById?: Map<string, string>
+}): Promise<{ reconciled: number }> {
+  try {
+    const disputedRows = rowsOf<{
+      xero_invoice_id: string
+      run_item_id: number | null
+      delta_cents: number | string | null
+    }>(
+      await db.execute(sql`
+        SELECT xero_invoice_id, run_item_id, delta_cents
+        FROM xero_invoice_matches
+        WHERE status = 'disputed'
+      `),
+    )
+    if (disputedRows.length === 0) return { reconciled: 0 }
+
+    let invoices = args?.invoices
+    let contactNameById = args?.contactNameById
+    if (!invoices || !contactNameById) {
+      contactNameById = new Map()
+      for (const c of rowsOf<{ xero_contact_id: string; name: string | null }>(
+        await db.execute(sql`SELECT xero_contact_id, name FROM xero_contacts`),
+      )) {
+        contactNameById.set(String(c.xero_contact_id), String(c.name ?? ""))
+      }
+      invoices = rowsOf<{
+        xero_invoice_id: string
+        invoice_number: string | null
+        reference_raw: string | null
+        xero_contact_id: string | null
+        issue_date: string | null
+        total: string | number | null
+        status: string | null
+      }>(
+        await db.execute(sql`
+          SELECT
+            xero_invoice_id,
+            invoice_number,
+            reference_raw,
+            xero_contact_id,
+            issue_date::text AS issue_date,
+            total,
+            status
+          FROM xero_ar_invoices
+          WHERE coalesce(status, '') NOT IN ('DELETED', 'VOIDED')
+        `),
+      ).map((r) => {
+        const name = contactNameById!.get(String(r.xero_contact_id ?? "")) ?? ""
+        return {
+          xeroInvoiceId: String(r.xero_invoice_id),
+          invoiceNumber: r.invoice_number,
+          referenceRaw: r.reference_raw,
+          contactKey: name ? normalizeContactKey(name) : null,
+          xeroContactId: r.xero_contact_id,
+          issueDate: r.issue_date,
+          amountCents: dollarsToCents(coerceDollars(r.total)),
+          status: r.status,
+        }
+      })
+    }
+
+    const byId = new Map(invoices.map((i) => [i.xeroInvoiceId, i]))
+    const disputes: DisputedMatch[] = []
+    for (const row of disputedRows) {
+      const inv = byId.get(String(row.xero_invoice_id))
+      if (!inv) continue
+      disputes.push({
+        xeroInvoiceId: inv.xeroInvoiceId,
+        runItemId: row.run_item_id == null ? null : Number(row.run_item_id),
+        amountCents: Math.abs(inv.amountCents),
+        contactKey: inv.contactKey,
+        xeroContactId: inv.xeroContactId,
+      })
+    }
+
+    const creditNotes: CreditNoteCandidate[] = invoices
+      .filter((i) => isCreditNoteAmount(i.amountCents))
+      .map((i) => ({
+        xeroInvoiceId: i.xeroInvoiceId,
+        amountCents: i.amountCents,
+        contactKey: i.contactKey,
+        xeroContactId: i.xeroContactId,
+      }))
+
+    const hits = reconcileDisputesWithCreditNotes({ disputes, creditNotes })
+    for (const hit of hits) {
+      await db.execute(sql`
+        UPDATE xero_invoice_matches
+        SET
+          status = 'matched'::xero_match_status,
+          card_kind = null,
+          detail = ${`auto-reconciled via credit note ${hit.creditNoteInvoiceId}`},
+          decided_at = now(),
+          updated_at = now()
+        WHERE xero_invoice_id = ${hit.disputedInvoiceId}
+          AND status = 'disputed'
+      `)
+      await db.execute(sql`
+        UPDATE app_notifications
+        SET read_at = coalesce(read_at, now())
+        WHERE kind = 'xero_match_expected_credit_note'
+          AND read_at IS NULL
+          AND coalesce(payload->>'xeroInvoiceId', '') = ${hit.disputedInvoiceId}
+      `)
+    }
+    return { reconciled: hits.length }
+  } catch (err) {
+    if (tablesReadyError(err)) return { reconciled: 0 }
+    console.warn("[xero-sync] credit-note dispute reconcile skipped", err)
+    return { reconciled: 0 }
   }
 }
 

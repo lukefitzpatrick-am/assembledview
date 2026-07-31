@@ -63,3 +63,6 @@ scripts/ps1-sec-live-probe.mjs
 # O5 KPI percent-unit scan CSVs (regenerate via npm run scan:kpi-percent-units)
 /scripts/data/kpi-percent-unit-scan/
 
+# PC6 matcher replay output (regenerate via npm run replay:pc6-matcher)
+/pc6-matcher-replay-report.json
+

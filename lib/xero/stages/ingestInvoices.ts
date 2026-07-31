@@ -101,6 +101,7 @@ export async function stageIngestInvoices(opts?: {
     let matched = 0
     let unmatched = 0
     let stopLoop = false
+    let sawNegativeAr = false
 
     while (!stopLoop && pagesFetched < pagesCap) {
       try {
@@ -132,7 +133,13 @@ export async function stageIngestInvoices(opts?: {
           const referenceRaw = inv.Reference ?? ""
           const contactId = inv.Contact?.ContactID ?? null
 
-          if (inv.Type === "ACCREC") {
+          if (inv.Type === "ACCREC" || inv.Type === "ACCRECCREDIT") {
+            const totalDollars = coerceDollars(inv.Total)
+            // Credit notes: store signed total (negative) so O7 dispute reconcile can match.
+            const signedTotal =
+              inv.Type === "ACCRECCREDIT" && totalDollars > 0
+                ? -totalDollars
+                : totalDollars
             const row = rowsOf<{
               id: number
               mba_match_id: number | null
@@ -150,7 +157,7 @@ export async function stageIngestInvoices(opts?: {
                 ${inv.Status ?? null},
                 ${moneyStr(coerceDollars(inv.SubTotal))},
                 ${moneyStr(coerceDollars(inv.TotalTax))},
-                ${moneyStr(coerceDollars(inv.Total))},
+                ${moneyStr(signedTotal)},
                 ${moneyStr(coerceDollars(inv.AmountPaid))},
                 ${moneyStr(coerceDollars(inv.AmountDue))},
                 ${inv.CurrencyCode ?? null},
@@ -183,7 +190,10 @@ export async function stageIngestInvoices(opts?: {
             `),
             )[0]
             arUpserted++
-            if (row && row.mba_match_id == null) {
+            if (signedTotal < 0) {
+              sawNegativeAr = true
+            }
+            if (row && row.mba_match_id == null && signedTotal >= 0) {
               const result = await applyMatchMba(
                 {
                   arInvoiceId: Number(row.id),
@@ -196,7 +206,7 @@ export async function stageIngestInvoices(opts?: {
               )
               if (result.matched) matched++
               else unmatched++
-            } else {
+            } else if (signedTotal >= 0) {
               matched++
             }
           } else if (inv.Type === "ACCPAY") {
@@ -256,6 +266,19 @@ export async function stageIngestInvoices(opts?: {
     }
 
     const incomplete = !stopLoop && pagesFetched >= pagesCap
+
+    // O7: credit-note-shaped AR (negative total / ACCRECCREDIT) closes disputed matches.
+    if (sawNegativeAr) {
+      try {
+        const { reconcileDisputedWithArrivedCreditNotes } = await import(
+          "@/lib/xero/stages/matchRunItems"
+        )
+        await reconcileDisputedWithArrivedCreditNotes()
+      } catch (err) {
+        console.warn("[xero-sync] dispute credit-note reconcile after ingest skipped", err)
+      }
+    }
+
     return {
       stage: "ingest_invoices",
       ok: errors.length === 0,

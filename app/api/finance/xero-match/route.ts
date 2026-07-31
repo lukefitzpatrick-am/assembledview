@@ -16,6 +16,9 @@ import {
   insertNotificationPg,
 } from "@/lib/finance/periods/postgresStore"
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
+import { buildExpectedCreditNotePayload } from "@/lib/xero/matcher/creditNoteReconcile"
+import { dollarsToCents, coerceDollars } from "@/lib/xero/money"
+import { rowsOf } from "@/lib/xero/dbRows"
 
 export const dynamic = "force-dynamic"
 
@@ -181,15 +184,39 @@ export async function POST(request: NextRequest) {
         detail = ${reason},
         updated_at = now()
     `)
+
+    // Pre-create expected credit-note record (notification) with contact + amount
+    // so O7 AR ingest can auto-reconcile when the negative document arrives.
+    const arRow = rowsOf<{
+      total: string | number | null
+      xero_contact_id: string | null
+      contact_name: string | null
+    }>(
+      await db.execute(sql`
+        SELECT
+          i.total,
+          i.xero_contact_id,
+          c.name AS contact_name
+        FROM xero_ar_invoices i
+        LEFT JOIN xero_contacts c ON c.xero_contact_id = i.xero_contact_id
+        WHERE i.xero_invoice_id = ${invoiceId}
+        LIMIT 1
+      `),
+    )[0]
+    const amountCents = dollarsToCents(coerceDollars(arRow?.total))
+    const contactName = String(arRow?.contact_name ?? "").trim()
     await insertNotificationPg({
       audience: "finance",
       kind: "xero_match_expected_credit_note",
-      payload: {
+      payload: buildExpectedCreditNotePayload({
         xeroInvoiceId: invoiceId,
+        runItemId: body.runItemId ?? null,
+        amountCents,
+        contactKey: contactName ? normalizeContactKey(contactName) : null,
+        xeroContactId: arRow?.xero_contact_id ?? null,
         expectedCreditNoteRef: body.expectedCreditNoteRef ?? null,
         reason,
-        preCreated: true,
-      },
+      }),
     })
     await markNotificationRead(body.notificationId)
     return NextResponse.json({ ok: true, status: "disputed" })

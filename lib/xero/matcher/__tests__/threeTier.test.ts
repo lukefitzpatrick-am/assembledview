@@ -8,6 +8,7 @@ import {
   referenceContainsInvoiceRef,
   runThreeTierMatcher,
   shouldEscalateDay10,
+  shouldInsertDay10Escalation,
   type MatcherArInvoice,
   type MatcherRunItem,
 } from "../threeTier.js"
@@ -175,4 +176,25 @@ describe("PC6 reconcile + day-10 escalate", () => {
       false
     )
   })
+
+  it("O7: day 10..14 inserts exactly one escalation card per period", () => {
+    let already = false
+    let inserted = 0
+    for (let day = 10; day <= 14; day++) {
+      const now = new Date(Date.UTC(2026, 5, day, 14, 0, 0))
+      if (
+        shouldInsertDay10Escalation({
+          periodMonth: "2026-06",
+          now,
+          openCardCount: 3,
+          alreadyEscalatedForPeriod: already,
+        })
+      ) {
+        inserted += 1
+        already = true
+      }
+    }
+    assert.equal(inserted, 1)
+  })
 })
+
