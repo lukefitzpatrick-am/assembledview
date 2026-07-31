@@ -21,6 +21,7 @@ import {
   dashboardCampaignGridClassName,
 } from "@/components/dashboard/DashboardEntityCards"
 import { format } from "date-fns"
+import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
 import { usePathname, useRouter } from "next/navigation"
 import { AuthPageLoading } from "@/components/AuthLoadingState"
 import { cn } from "@/lib/utils"
@@ -381,7 +382,32 @@ function getHighestBookedApprovedCompletedVersionPerMba(plans: MediaPlan[]): Med
 const formatCurrency = (amount: number) =>
   new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(amount)
 
-const formatDate = (dateString: string) => format(new Date(dateString), "MMM d, yyyy")
+/** Never throw — one bad row must not blank Home via the error boundary. */
+const formatDate = (dateString: string) => safeFormatDate(dateString)
+
+/** Canonical name for the client-pin saved view (legacy migrate used "Saved clients"). */
+const PINNED_CLIENTS_VIEW_NAME = "Pinned clients"
+const LEGACY_PINNED_CLIENTS_VIEW_NAMES = new Set([PINNED_CLIENTS_VIEW_NAME, "Saved clients"])
+
+function findPinnedClientsView(
+  views: SavedDashboardViewRecord[],
+): SavedDashboardViewRecord | undefined {
+  return views.find((v) => LEGACY_PINNED_CLIENTS_VIEW_NAMES.has(v.name))
+}
+
+function readClientsFromLegacyPinKey(key: string | null): string[] {
+  if (!key) return []
+  try {
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed)
+      ? parsed.map((v) => (typeof v === "string" ? v : "")).filter(Boolean)
+      : []
+  } catch {
+    return []
+  }
+}
 
 type DashboardErrorCopy = { title: string; detail: string }
 
@@ -936,16 +962,14 @@ export default function DashboardOverview({
       const template = getDashboardTemplateById(nextTemplateId) ?? executiveOverviewTemplate
       nextFilters = buildFiltersForTemplate(template)
       let clients = nextFilters.clients
-      if (!urlHasClientParams && legacyPinnedClientsKey) {
-        try {
-          const raw = window.localStorage.getItem(legacyPinnedClientsKey)
-          if (raw) {
-            const parsed = JSON.parse(raw)
-            const values = Array.isArray(parsed) ? parsed.map((v) => (typeof v === "string" ? v : "")).filter(Boolean) : []
-            if (values.length > 0) clients = values
-          }
-        } catch {
-          // ignore
+      if (!urlHasClientParams) {
+        // Prefer the pinned saved view (survives migration). Legacy key is fallback only.
+        const pinned = findPinnedClientsView(loadedViews)
+        if (pinned?.filters.clients?.length) {
+          clients = [...pinned.filters.clients]
+        } else {
+          const legacyClients = readClientsFromLegacyPinKey(legacyPinnedClientsKey)
+          if (legacyClients.length > 0) clients = legacyClients
         }
       }
       nextFilters = { ...nextFilters, clients }
@@ -1134,10 +1158,50 @@ export default function DashboardOverview({
   )
 
   const handleSaveSelectedClients = useCallback(() => {
-    persistPinnedClients(dashboardFilters.clients)
+    if (!savedViewsListKey) return
+    const clients = [...dashboardFilters.clients]
+    const existing = findPinnedClientsView(savedViews)
+    const nextRecord: SavedDashboardViewRecord = {
+      id: existing?.id ?? crypto.randomUUID(),
+      name: PINNED_CLIENTS_VIEW_NAME,
+      filters: {
+        ...(existing ? cloneDashboardViewFilters(existing.filters) : defaultDashboardViewFilters()),
+        clients,
+      },
+      templateId: existing?.templateId ?? selectedTemplateId,
+      panels: existing ? { ...existing.panels } : { ...layoutPanels },
+      mobileOpen: existing
+        ? { ...existing.mobileOpen }
+        : {
+            monthlyTrends: openMonthlyCharts,
+            scopes: openScopesPanel,
+            dueSoon: openDueSoonPanel,
+            finishedRecently: openFinishedPanel,
+          },
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+    }
+    const views = existing
+      ? savedViews.map((v) => (v.id === existing.id ? nextRecord : v))
+      : [...savedViews, nextRecord]
+    setSavedViews(views)
+    writeSavedViewsToStorage(views)
+    // Keep legacy key in sync for older hydrate paths; saved view is the restore source.
+    persistPinnedClients(clients)
     setSavedViewJustSaved(true)
     window.setTimeout(() => setSavedViewJustSaved(false), 1500)
-  }, [dashboardFilters.clients, persistPinnedClients])
+  }, [
+    savedViewsListKey,
+    dashboardFilters.clients,
+    savedViews,
+    selectedTemplateId,
+    layoutPanels,
+    openMonthlyCharts,
+    openScopesPanel,
+    openDueSoonPanel,
+    openFinishedPanel,
+    writeSavedViewsToStorage,
+    persistPinnedClients,
+  ])
 
   const handleClearAllSavedViews = useCallback(() => {
     if (!savedViewsListKey) return
@@ -1972,27 +2036,34 @@ export default function DashboardOverview({
         title={title}
         Icon={BarChart3}
         detail={
-          timeRangeDescription || dataLastRefreshedAt ? (
+          <div className="space-y-1">
             <p>
-              {timeRangeDescription}
-              {dataLastRefreshedAt ? (
-                <span
-                  className={
-                    timeRangeDescription
-                      ? "ml-2 text-xs opacity-60"
-                      : "text-xs text-muted-foreground opacity-80"
-                  }
-                >
-                  {timeRangeDescription ? "· " : null}
-                  Updated {format(dataLastRefreshedAt, "h:mm a")}
-                </span>
-              ) : null}
+              Home shows live campaigns and scopes across your clients so you can see what is in
+              market and act next.
             </p>
-          ) : null
+            {timeRangeDescription || dataLastRefreshedAt ? (
+              <p className="text-xs text-muted-foreground">
+                {timeRangeDescription}
+                {dataLastRefreshedAt ? (
+                  <span className={timeRangeDescription ? "ml-2 opacity-80" : "opacity-80"}>
+                    {timeRangeDescription ? "· " : null}
+                    Updated {format(dataLastRefreshedAt, "h:mm a")}
+                  </span>
+                ) : null}
+              </p>
+            ) : null}
+          </div>
         }
         actions={
           <div className="w-full min-w-0 lg:max-w-[1040px]">
             <div className="flex w-full flex-wrap items-center gap-2 lg:flex-nowrap lg:justify-end">
+              <Button
+                type="button"
+                className="h-9 whitespace-nowrap"
+                onClick={() => router.push("/mediaplans/create")}
+              >
+                Create Media Plan
+              </Button>
               <div className="w-full sm:w-[240px] lg:w-[220px]">
                 <Label htmlFor="dashboard-campaign-search" className="sr-only">
                   Search
@@ -2030,8 +2101,8 @@ export default function DashboardOverview({
                   variant="secondary"
                   className="h-9 whitespace-nowrap text-xs"
                   onClick={handleSaveSelectedClients}
-                  disabled={!legacyPinnedClientsKey}
-                  title={!legacyPinnedClientsKey ? "Sign in to save selected clients" : undefined}
+                  disabled={!savedViewsListKey}
+                  title={!savedViewsListKey ? "Sign in to save selected clients" : undefined}
                 >
                   {savedViewJustSaved ? "Saved" : "Save selected clients"}
                 </Button>

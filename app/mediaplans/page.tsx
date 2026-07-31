@@ -1,15 +1,14 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, useMemo, useCallback, Suspense } from "react"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary"
 import { resolveListViewState } from "@/lib/ui/viewState"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { format } from "date-fns"
-import { PlusCircle, Search } from "lucide-react"
+import { PlusCircle, Search, X } from "lucide-react"
 import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
 import { cn } from "@/lib/utils"
 import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
@@ -20,6 +19,13 @@ import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPrefer
 import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import { DashboardCampaignPlanCard, dashboardCampaignGridClassName } from "@/components/dashboard/DashboardEntityCards"
 import { formatAUD } from "@/lib/format/money"
+import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
+import {
+  CAMPAIGN_LIST_STATUSES,
+  isInMarketNow,
+  isScheduleEnded,
+  normalizeStoredCampaignStatus,
+} from "@/lib/mediaplans/campaignListStatus"
 
 const slugifyClientName = (name?: string | null) => {
   if (!name || typeof name !== "string") return ""
@@ -69,6 +75,8 @@ interface MediaPlan {
   client_contact?: string;
   po_number?: string;
   fixed_fee?: boolean;
+  /** Date-derived hint only — never replaces campaign_status. */
+  scheduleEnded?: boolean;
 }
 
 type SortableValue = string | number | Date | boolean | null | undefined
@@ -78,18 +86,12 @@ type SortState = {
   direction: SortDirection
 }
 
-// Define the campaign statuses in the new order
-const CAMPAIGN_STATUSES = [
-  "Booked",
-  "Approved",
-  "Planned",
-  "Draft",
-  "Completed",
-  "Cancelled"
-]
+const CAMPAIGN_STATUSES = [...CAMPAIGN_LIST_STATUSES]
 
-export default function MediaPlansPage() {
+function MediaPlansPageInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
   const { mode: listGridMode, setMode: setListGridMode } = useListGridLayoutPreference()
   const [mediaPlans, setMediaPlans] = useState<MediaPlan[]>([])
   const [filteredPlans, setFilteredPlans] = useState<MediaPlan[]>([])
@@ -97,8 +99,9 @@ export default function MediaPlansPage() {
   const [error, setError] = useState<string | null>(null)
   const [listMayBeStale, setListMayBeStale] = useState(false)
   const [listFetchedAt, setListFetchedAt] = useState<number | null>(null)
-  const [searchTerm, setSearchTerm] = useState("")
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get("q") ?? "")
   const [sortStates, setSortStates] = useState<Record<string, SortState>>({})
+  const [urlHydrated, setUrlHydrated] = useState(false)
 
   const getNextDirection = (current: SortDirection) =>
     current === "asc" ? "desc" : current === "desc" ? null : "asc"
@@ -196,12 +199,8 @@ export default function MediaPlansPage() {
           return false;
         };
 
-        // Process campaigns to handle completed status based on end date
-        const processedPlans = mediaPlansData.map(plan => {
-          const today = new Date();
-          const endDate = new Date(plan.campaign_end_date || plan.campaign_end_date);
-          
-          // Normalize all media type boolean flags
+        // Stored status wins. Past end date is a separate scheduleEnded hint only.
+        const processedPlans = mediaPlansData.map((plan) => {
           const normalizedPlan = {
             ...plan,
             mp_television: normalizeBoolean(plan.mp_television),
@@ -223,36 +222,44 @@ export default function MediaPlansPage() {
             mp_progaudio: normalizeBoolean(plan.mp_progaudio),
             mp_progooh: normalizeBoolean(plan.mp_progooh),
             mp_influencers: normalizeBoolean(plan.mp_influencers),
-          };
-          
-          // If campaign end date is in the past and status is not cancelled, mark as completed
-          if (endDate < today && plan.campaign_status.toLowerCase() !== 'cancelled') {
-            return {
-              ...normalizedPlan,
-              campaign_status: 'Completed'
-            };
+            campaign_status: normalizeStoredCampaignStatus(plan.campaign_status),
+            scheduleEnded: isScheduleEnded(plan.campaign_end_date),
           }
-          
-          // Capitalize first letter of status
-          return {
-            ...normalizedPlan,
-            campaign_status: plan.campaign_status.charAt(0).toUpperCase() + plan.campaign_status.slice(1)
-          };
-        });
+          return normalizedPlan
+        })
 
-        console.log("Final processed plans:", processedPlans);
-        setMediaPlans(processedPlans as MediaPlan[]);
-        setFilteredPlans(processedPlans as MediaPlan[]);
+        setMediaPlans(processedPlans as MediaPlan[])
+        setError(null)
       } catch (err) {
-        console.error("Error fetching media plans:", err);
-        setError(err instanceof Error ? err.message : "An unknown error occurred");
+        console.error("Error fetching media plans:", err)
+        setError(err instanceof Error ? err.message : "An unknown error occurred")
+        // Keep prior rows if any; do not pretend the list is empty on failure.
       } finally {
-        setLoading(false);
+        setLoading(false)
       }
-    };
-  
-    fetchMediaPlans();
-  }, []);
+    }
+
+    fetchMediaPlans()
+  }, [])
+
+  // Hydrate search from URL once; then keep URL in sync with the box.
+  useEffect(() => {
+    if (urlHydrated) return
+    setSearchTerm(searchParams.get("q") ?? "")
+    setUrlHydrated(true)
+  }, [searchParams, urlHydrated])
+
+  useEffect(() => {
+    if (!urlHydrated) return
+    const params = new URLSearchParams(searchParams.toString())
+    const q = searchTerm.trim()
+    if (q) params.set("q", q)
+    else params.delete("q")
+    const next = params.toString()
+    const current = searchParams.toString()
+    if (next === current) return
+    router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false })
+  }, [searchTerm, urlHydrated, pathname, router, searchParams])
 
   // Filter media plans by status from filtered results
   const getMediaPlansByStatus = (status: string) => {
@@ -325,14 +332,6 @@ export default function MediaPlansPage() {
     ))
   }
 
-  // Format date
-  const formatDate = (dateString: string) => {
-    try {
-      return format(new Date(dateString), 'dd/MM/yyyy')
-    } catch (e) {
-      return dateString
-    }
-  }
   // Get status badge color
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
@@ -355,6 +354,16 @@ export default function MediaPlansPage() {
 
   const clearCampaignSearch = useCallback(() => setSearchTerm(""), [])
 
+  const formatDate = useCallback(
+    (value: string) => safeFormatDate(value, "dd/MM/yyyy", value || "—"),
+    [],
+  )
+
+  const inMarketPlans = useMemo(
+    () => filteredPlans.filter((plan) => isInMarketNow(plan)),
+    [filteredPlans],
+  )
+
   const campaignsViewState = useMemo(
     () =>
       resolveListViewState({
@@ -373,6 +382,8 @@ export default function MediaPlansPage() {
     [loading, error, mediaPlans, filteredPlans, searchTerm, clearCampaignSearch]
   )
 
+  const searchActive = Boolean(searchTerm.trim())
+
   return (
     <div className="w-full max-w-none space-y-6 px-4 pb-12 pt-0 md:px-6">
       <MediaPlanEditorHero
@@ -384,14 +395,33 @@ export default function MediaPlansPage() {
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <ListGridToggle value={listGridMode} onChange={setListGridMode} />
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                placeholder="Search campaigns..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-72 border-border/50 bg-background/80 pl-10 backdrop-blur-sm"
-              />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search campaigns..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-72 border-border/50 bg-background/80 pl-10 pr-9 backdrop-blur-sm"
+                  aria-label="Search campaigns"
+                />
+                {searchActive ? (
+                  <button
+                    type="button"
+                    onClick={clearCampaignSearch}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-muted-foreground hover:text-foreground"
+                    aria-label="Clear search"
+                    title="Clear search"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+              </div>
+              {searchActive ? (
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {filteredPlans.length} of {mediaPlans.length} campaigns
+                </span>
+              ) : null}
             </div>
             <Button onClick={() => router.push("/mediaplans/create")}>
               <PlusCircle className="mr-2 h-4 w-4" />
@@ -435,6 +465,62 @@ export default function MediaPlansPage() {
           >
             {() => (
             <div className="space-y-6">
+              {inMarketPlans.length > 0 ? (
+                <Panel className="overflow-hidden border-border/40 shadow-sm">
+                  <PanelHeader className="border-b border-border/40 bg-muted/20 pb-3">
+                    <PanelTitle className="flex items-center gap-2.5">
+                      <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-pacing-ahead" />
+                      <span className="text-sm font-semibold">In market now</span>
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        ({inMarketPlans.length})
+                      </span>
+                    </PanelTitle>
+                    <PanelActions />
+                  </PanelHeader>
+                  <PanelContent className="px-4 py-3">
+                    <p className="mb-3 text-xs text-muted-foreground">
+                      Booked or Approved campaigns whose dates include today (stored status — not
+                      date-invented).
+                    </p>
+                    <ul className="space-y-2">
+                      {inMarketPlans.slice(0, 8).map((plan) => (
+                        <li
+                          key={`live-${plan.id}`}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/50 bg-card px-3 py-2 text-sm"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-foreground">
+                              {plan.mp_campaignname || plan.campaign_name || plan.mba_number}
+                            </p>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {plan.mp_client_name} · {plan.mba_number} · {plan.campaign_status}
+                              {plan.scheduleEnded ? " · schedule ended" : ""}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 shrink-0 text-xs"
+                            onClick={() => {
+                              const slug = slugifyClientName(plan.mp_client_name)
+                              if (!slug) {
+                                router.push(
+                                  `/mediaplans/mba/${plan.mba_number}/edit?version=${plan.version_number}`,
+                                )
+                                return
+                              }
+                              router.push(`/dashboard/${slug}/${plan.mba_number}`)
+                            }}
+                          >
+                            Open
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </PanelContent>
+                </Panel>
+              ) : null}
               {CAMPAIGN_STATUSES.map((status) => {
                 const plans = getMediaPlansByStatus(status)
                 const sortedPlans = applySortForStatus(plans, status)
@@ -633,3 +719,16 @@ export default function MediaPlansPage() {
   )
 }
 
+export default function MediaPlansPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="w-full max-w-none space-y-6 px-4 pb-12 pt-8 md:px-6">
+          <p className="text-sm text-muted-foreground">Loading campaigns…</p>
+        </div>
+      }
+    >
+      <MediaPlansPageInner />
+    </Suspense>
+  )
+}
