@@ -3,6 +3,7 @@ import { test } from "node:test"
 import {
   applyPacingRowFilters,
   filterDirectCampaignGroups,
+  isPacingClientFilterUnresolved,
   mapAdServingChannelFamilyToMediaType,
   mapAdServingStatusToBand,
   mapDirectStatusToBand,
@@ -67,6 +68,65 @@ const rows: Row[] = [
 test("empty filters returns all rows", () => {
   const out = applyPacingRowFilters(rows, emptyFilters, accessors, clientIdToName)
   assert.equal(out.length, 3)
+})
+
+test("selected client_ids + empty map fails closed (zero rows, not all)", () => {
+  const emptyMap = new Map<string, string>()
+  assert.equal(isPacingClientFilterUnresolved(["1"], emptyMap), true)
+  const out = applyPacingRowFilters(
+    rows,
+    { ...emptyFilters, client_ids: ["1"] },
+    accessors,
+    emptyMap,
+  )
+  assert.equal(out.length, 0)
+  assert.notEqual(out.length, rows.length)
+})
+
+test("selected client_ids + empty map fails closed for direct groups", () => {
+  const emptyMap = new Map<string, string>()
+  const groups: DirectCampaignGroup[] = [
+    {
+      mbaNumber: "dir001",
+      clientName: "Acme Corp",
+      campaignName: "Fixed A",
+      campaignStatus: "live",
+      campaignStartDate: "2026-01-01",
+      campaignEndDate: "2026-06-01",
+      brand: null,
+      lineItems: [
+        {
+          lineItemId: "dir001FC1",
+          mbaNumber: "dir001",
+          lineItemName: "Billboard",
+          buyType: "fixed_cost",
+          isCurrentlyFixedCost: true,
+          wasEverFixedCost: true,
+          totalBudget: 100,
+          totalReported: 50,
+          totalActual: 40,
+          variance: 10,
+          variancePct: 0.2,
+          burstCount: 1,
+          burstsDeliveredOver: 0,
+          burstsDeliveredUnder: 1,
+          lineItemStatus: "completed_under",
+          bursts: [],
+          daily: [],
+        },
+      ],
+      totalBudget: 100,
+      totalReported: 50,
+      totalActual: 40,
+      variance: 10,
+    },
+  ]
+  const out = filterDirectCampaignGroups(
+    groups,
+    { ...emptyFilters, client_ids: ["1"] },
+    emptyMap,
+  )
+  assert.equal(out.length, 0)
 })
 
 test("single client_id filters by resolved name (case-insensitive trim)", () => {

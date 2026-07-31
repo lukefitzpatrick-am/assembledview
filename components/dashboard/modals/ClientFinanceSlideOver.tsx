@@ -224,7 +224,13 @@ export function ClientFinanceSlideOver({
                 <button
                   type="button"
                   onClick={onViewFullBreakdown}
-                  className="mt-4 inline-flex items-center text-sm text-primary hover:underline"
+                  disabled={!onViewFullBreakdown}
+                  title={
+                    onViewFullBreakdown
+                      ? undefined
+                      : "Full media breakdown is not available in this view"
+                  }
+                  className="mt-4 inline-flex items-center text-sm text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
                 >
                   View full breakdown <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
                 </button>
@@ -279,7 +285,13 @@ export function ClientFinanceSlideOver({
                   <button
                     type="button"
                     onClick={onViewAllTransactions}
-                    className="mt-3 inline-flex items-center text-sm text-primary hover:underline"
+                    disabled={!onViewAllTransactions}
+                    title={
+                      onViewAllTransactions
+                        ? undefined
+                        : "Transaction history is not available in this view"
+                    }
+                    className="mt-3 inline-flex items-center text-sm text-primary hover:underline disabled:cursor-not-allowed disabled:text-muted-foreground disabled:no-underline"
                   >
                     View all transactions <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
                   </button>
@@ -317,7 +329,19 @@ export function ClientFinanceSlideOver({
         </ScrollArea>
 
         <SheetFooter className="border-t border-border/70 px-6 py-4 sm:flex sm:flex-wrap sm:items-center sm:justify-between sm:gap-2 sm:space-x-0">
-          <Button variant="outline" type="button" onClick={onExportCsv}>
+          <Button
+            variant="outline"
+            type="button"
+            onClick={onExportCsv}
+            disabled={!onExportCsv}
+            title={
+              onExportCsv
+                ? undefined
+                : isClientHub
+                  ? "CSV export is not available here — use Download finance document"
+                  : "CSV export is not available in this view"
+            }
+          >
             <FileSpreadsheet className="mr-2 h-4 w-4" />
             Export to CSV
           </Button>
@@ -328,7 +352,16 @@ export function ClientFinanceSlideOver({
                 Download finance document
               </Button>
             ) : null}
-            <Button type="button" onClick={onDownloadReport}>
+            <Button
+              type="button"
+              onClick={onDownloadReport}
+              disabled={!onDownloadReport}
+              title={
+                onDownloadReport
+                  ? undefined
+                  : "Full report download is not available in this view"
+              }
+            >
               <FileDown className="mr-2 h-4 w-4" />
               Download Full Report
             </Button>

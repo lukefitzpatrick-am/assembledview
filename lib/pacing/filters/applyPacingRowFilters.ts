@@ -37,15 +37,31 @@ function selectedClientNames(
   return names
 }
 
+/**
+ * True when the user selected client_ids but the id→name map is empty.
+ * Callers must fail closed (show zero rows + an explicit unavailable state),
+ * never silently skip the client predicate.
+ */
+export function isPacingClientFilterUnresolved(
+  clientIds: readonly string[],
+  clientIdToName: Map<string, string>,
+): boolean {
+  return clientIds.length > 0 && clientIdToName.size === 0
+}
+
 export function applyPacingRowFilters<T>(
   rows: T[],
   filters: PacingRowFilterInput,
   accessors: PacingRowFilterAccessors<T>,
   clientIdToName: Map<string, string>,
 ): T[] {
-  // Skip client filter until the id→name map has loaded (avoids empty flash).
+  // Fail closed: selected clients with no lookup map must not widen to all rows.
+  if (isPacingClientFilterUnresolved(filters.client_ids, clientIdToName)) {
+    return []
+  }
+
   const clientNames =
-    filters.client_ids.length > 0 && clientIdToName.size > 0
+    filters.client_ids.length > 0
       ? selectedClientNames(filters.client_ids, clientIdToName)
       : null
   const mediaSet =
@@ -157,6 +173,10 @@ export function filterDirectCampaignGroups(
   filters: PacingRowFilterInput,
   clientIdToName: Map<string, string>,
 ): DirectCampaignGroup[] {
+  if (isPacingClientFilterUnresolved(filters.client_ids, clientIdToName)) {
+    return []
+  }
+
   const statusFiltered = groups
     .map((group) => {
       const lineItems = applyPacingRowFilters(

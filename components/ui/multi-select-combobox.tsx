@@ -38,6 +38,8 @@ export interface MultiSelectComboboxProps {
   emptyMeansAll?: boolean
   /** Associates the trigger with an external `<Label htmlFor={id}>`. */
   id?: string
+  /** Tooltip / native title — useful when disabled with a reason. */
+  title?: string
 }
 
 export function MultiSelectCombobox({
@@ -57,6 +59,7 @@ export function MultiSelectCombobox({
   align = "start",
   emptyMeansAll = false,
   id,
+  title,
 }: MultiSelectComboboxProps) {
   const [open, setOpen] = React.useState(false)
 
@@ -119,6 +122,7 @@ export function MultiSelectCombobox({
           aria-expanded={open}
           className={cn("w-full justify-between", buttonClassName)}
           disabled={disabled}
+          title={title}
         >
           <span
             className={cn(

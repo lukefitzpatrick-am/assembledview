@@ -292,10 +292,14 @@ export function StageAudiences({
   if (!active) return null
 
   const [ageLo, ageHi] = rangeFromBands(active.ageBands)
-  // Segment lens optional — empty / base = All People; Continue only needs geo + age.
+  // Segment lens optional — empty / base = All People; Continue needs geo + age + name
+  // (matches isAudiencesComplete in store.ts — avoid enabled button that silently no-ops).
   const canContinue = audiences.every(
-    (a) => a.states.length > 0 && a.ageBands.length > 0
+    (a) => a.states.length > 0 && a.ageBands.length > 0 && a.name.trim()
   )
+  const continueDisabledReason = canContinue
+    ? undefined
+    : "Name each audience and set geography and age bands before continuing"
 
   const toggleState = (s: PlanningState) => {
     if (s === "NAT") {
@@ -547,7 +551,12 @@ export function StageAudiences({
       </div>
 
       <div className="flex justify-end">
-        <Button type="button" disabled={!canContinue} onClick={onContinue}>
+        <Button
+          type="button"
+          disabled={!canContinue}
+          title={continueDisabledReason}
+          onClick={onContinue}
+        >
           Continue to diagnosis
         </Button>
       </div>

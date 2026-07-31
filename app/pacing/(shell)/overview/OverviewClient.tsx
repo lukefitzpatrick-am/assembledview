@@ -5,6 +5,11 @@ import { useCallback, useEffect, useState, useTransition } from "react";
 import { PacingStatusSummary } from "@/components/pacing/PacingStatusSummary";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import type {
   OverviewAttentionItem,
   OverviewChannel,
@@ -42,9 +47,8 @@ function buildOverviewUrl(page: number, asOfDate: string): string {
 }
 
 export function OverviewClient({ isAdmin: _isAdmin }: OverviewClientProps) {
-  // TODO(pacing-filters): Overview client/media filtering is the follow-up —
-  // this is the one surface where media filtering matters most. Leave pagination
-  // as-is for now; do not apply in-memory row filters here yet.
+  // Row filters (client/media/status/search) are disabled on Overview in
+  // PacingFilterToolbar — only as_of_date drives this page's pagination fetch.
   const [data, setData] = useState<OverviewPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -267,7 +271,7 @@ function AttentionSection({
           {items.map((item) => (
             <tr
               key={item.id}
-              className="interactive-row border-b border-border last:border-0"
+              className="border-b border-border last:border-0"
             >
               <td className="px-3 py-2">
                 <Link
@@ -305,15 +309,20 @@ function AttentionSection({
 
   if (collapsible) {
     return (
-      <details className={`rounded-card border ${shellTone} shadow-e0`}>
-        <summary className="cursor-pointer px-4 py-3">
+      <Collapsible
+        defaultOpen={false}
+        className={`rounded-card border ${shellTone} shadow-e0`}
+      >
+        <CollapsibleTrigger className="flex w-full cursor-pointer items-baseline gap-2 px-4 py-3 text-left hover:bg-table-row-hover">
           <span className="text-sm font-semibold">{title}</span>
-          <span className="ml-2 text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             ({items.length}) — {description}
           </span>
-        </summary>
-        <div className="border-t border-border">{table}</div>
-      </details>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="border-t border-border">{table}</div>
+        </CollapsibleContent>
+      </Collapsible>
     );
   }
 

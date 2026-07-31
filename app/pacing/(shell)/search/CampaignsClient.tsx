@@ -3,13 +3,17 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { KpiTargets, SearchPacingCampaignRow } from "@/lib/pacing/campaigns/types";
 import { LineItemPacingTable } from "@/components/pacing-search";
-import { applyPacingRowFilters } from "@/lib/pacing/filters/applyPacingRowFilters";
+import {
+  applyPacingRowFilters,
+  isPacingClientFilterUnresolved,
+} from "@/lib/pacing/filters/applyPacingRowFilters";
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore";
 import {
   pacingFiltersActive,
   usePacingClientIdToNameMap,
 } from "@/lib/pacing/usePacingClientIdToNameMap";
 import {
+  PacingClientFilterUnavailable,
   PacingFilterCount,
   PacingFilterEmptyState,
 } from "@/components/pacing/PacingFilterResultMeta";
@@ -30,7 +34,7 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
   const [loading, setLoading] = useState(true);
 
   const filters = usePacingFilterStore((s) => s.filters);
-  const clientIdToName = usePacingClientIdToNameMap();
+  const { map: clientIdToName, settled: clientMapSettled } = usePacingClientIdToNameMap();
 
   useEffect(() => {
     let cancelled = false;
@@ -122,13 +126,20 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
 
   const total = data.rows.length;
   const filtersOn = pacingFiltersActive(filters);
+  const clientFilterPending =
+    filters.client_ids.length > 0 && !clientMapSettled;
+  const clientFilterUnresolved =
+    clientMapSettled &&
+    isPacingClientFilterUnresolved(filters.client_ids, clientIdToName);
 
   return (
     <div className="space-y-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
-          {filtersOn ? <PacingFilterCount shown={displayed.length} total={total} /> : null}
+          {filtersOn && !clientFilterPending && !clientFilterUnresolved ? (
+            <PacingFilterCount shown={displayed.length} total={total} />
+          ) : null}
         </div>
         {isFilterPending ? (
           <span className="text-xs text-muted-foreground" aria-live="polite">
@@ -136,7 +147,9 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
           </span>
         ) : null}
       </div>
-      <PacingStatusSummary counts={statusCounts} />
+      {!clientFilterPending && !clientFilterUnresolved ? (
+        <PacingStatusSummary counts={statusCounts} />
+      ) : null}
       <Panel>
         <PanelHeader>
           <PanelTitle>Search campaigns</PanelTitle>
@@ -147,6 +160,10 @@ export function CampaignsClient({ isAdmin }: CampaignsClientProps) {
               title="No search campaigns"
               message="No search line items are in scope for this date."
             />
+          ) : clientFilterPending ? (
+            <LoadingState rows={4} />
+          ) : clientFilterUnresolved ? (
+            <PacingClientFilterUnavailable />
           ) : filtersOn && displayed.length === 0 ? (
             <PacingFilterEmptyState />
           ) : (

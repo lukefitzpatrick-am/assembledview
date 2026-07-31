@@ -9,9 +9,27 @@ interface UnsavedChangesDialogProps {
   onSave: () => void | Promise<void>
   onLeave: () => void
   isSaving: boolean
+  /** When true, Save is disabled with a reason (e.g. duplicate rows block save). */
+  saveDisabled?: boolean
+  saveDisabledReason?: string
 }
 
-export function UnsavedChangesDialog({ open, onStay, onSave, onLeave, isSaving }: UnsavedChangesDialogProps) {
+export function UnsavedChangesDialog({
+  open,
+  onStay,
+  onSave,
+  onLeave,
+  isSaving,
+  saveDisabled = false,
+  saveDisabledReason,
+}: UnsavedChangesDialogProps) {
+  const saveBlocked = isSaving || saveDisabled
+  const saveTitle = saveDisabled
+    ? saveDisabledReason
+    : isSaving
+      ? "Saving…"
+      : "Save campaign"
+
   return (
     <Dialog
       open={open}
@@ -40,7 +58,8 @@ export function UnsavedChangesDialog({ open, onStay, onSave, onLeave, isSaving }
             <Button
               variant="secondary"
               className="w-full sm:w-auto"
-              disabled={isSaving}
+              disabled={saveBlocked}
+              title={saveTitle}
               onClick={async () => {
                 onStay()
                 await onSave()

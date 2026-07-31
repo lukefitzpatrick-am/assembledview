@@ -8758,9 +8758,11 @@ const handleSaveAll = async () => {
       <UnsavedChangesDialog
         open={isUnsavedPromptOpen}
         onStay={stayOnPage}
-        onSave={saveBlockedByDuplicates ? stayOnPage : handleSaveAll}
+        onSave={handleSaveAll}
         onLeave={confirmNavigation}
         isSaving={isLoading || isPlanSaving || isVersionSaving}
+        saveDisabled={saveBlockedByDuplicates}
+        saveDisabledReason="Duplicate line-item rows detected — fix them before saving."
       />
     </>
   )

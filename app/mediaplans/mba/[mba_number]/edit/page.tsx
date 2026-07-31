@@ -11946,9 +11946,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       <UnsavedChangesDialog
         open={isUnsavedPromptOpen}
         onStay={stayOnPage}
-        onSave={saveBlockedByDuplicates ? stayOnPage : handleSaveAll}
+        onSave={handleSaveAll}
         onLeave={confirmNavigation}
         isSaving={isLoading || isSaving}
+        saveDisabled={saveBlockedByDuplicates}
+        saveDisabledReason="Duplicate line-item rows detected — fix them before saving."
       />
 
       <MediaPlanLoadStatusPill
