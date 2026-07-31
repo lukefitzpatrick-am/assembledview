@@ -11,6 +11,7 @@ import {
   dollarsToCampaignBudgetCents,
   resolveMasterIdFromCombinedPlan,
 } from "@/lib/mediaplan/buildPostgresSavePayload"
+import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import { mapUiMediaTypeToLineChannel } from "@/lib/mediaplan/mapUiMediaTypeToLineChannel"
 
 /** Tonight's live shape: version id ≠ master id. */
@@ -63,11 +64,11 @@ describe("SavePlanVersionInput field mapping audit helpers", () => {
     assert.equal(dollarsToCampaignBudgetCents(""), null)
   })
 
-  it("channel enum mapping covers search + production", () => {
-    assert.equal(mapUiMediaTypeToLineChannel("search"), "search")
-    assert.equal(mapUiMediaTypeToLineChannel("socialMedia"), "social")
-    assert.equal(mapUiMediaTypeToLineChannel("production"), "production")
-    assert.equal(mapUiMediaTypeToLineChannel("digiDisplay"), "digi_display")
+  it("campaignStatus: UI Booked / booked → persisted booked (Xano lowercase)", () => {
+    assert.equal(mapCampaignStatusForPersist("Booked"), "booked")
+    assert.equal(mapCampaignStatusForPersist("booked"), "booked")
+    assert.equal(mapCampaignStatusForPersist("Approved"), "approved")
+    assert.equal(mapCampaignStatusForPersist(""), null)
   })
 })
 

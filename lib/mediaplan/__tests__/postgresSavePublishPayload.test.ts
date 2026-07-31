@@ -7,6 +7,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import { buildSavePlanLineItemsFromSnapshots } from "../buildPostgresSavePayload"
+import { mapCampaignStatusForPersist } from "../campaignStatusGuard"
 import { formatSaveModeLabel } from "../channelHydrationGate"
 import { MEDIA_TYPE_ID_CODES } from "../lineItemIds"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "../lineItemOrder"
@@ -70,6 +71,17 @@ describe("publish-branch postgres save payload (2-line social)", () => {
     assert.equal(mode.versionNumber, 2)
     assert.equal(mode.uiMode, "increment")
     assert.equal(formatSaveModeLabel(mode.uiMode, mode.versionNumber), "Will create v2")
+  })
+
+  it("campaignStatus maps UI Booked → persisted booked (Xano lowercase; no Approved default)", () => {
+    // Payload must carry the dropdown value; savePlanVersion maps via
+    // mapCampaignStatusForPersist — never invent "Approved".
+    const fromCombobox = mapCampaignStatusForPersist("booked")
+    const fromTitleCase = mapCampaignStatusForPersist("Booked")
+    assert.equal(fromCombobox, "booked")
+    assert.equal(fromTitleCase, "booked")
+    assert.notEqual(fromCombobox, "approved")
+    assert.notEqual(fromCombobox, "Approved")
   })
 
   it("A1 draft overwrite fixture stays green (in-place v1)", () => {

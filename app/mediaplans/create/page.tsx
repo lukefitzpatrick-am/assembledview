@@ -230,6 +230,7 @@ import {
 } from "@/lib/mediaplan/channelHydrationGate"
 import { useWriteBackend } from "@/lib/data/WriteBackendContext"
 import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
+import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import {
   POSTGRES_SAVE_MODAL_STEPS,
   buildSavePlanLineItemsFromSnapshots,
@@ -5265,7 +5266,7 @@ function CreateMediaPlan() {
           mode: modeResolved.mode,
           baseVersionId: draftBaseVersionId,
           campaignName: fv.mp_campaignname ?? null,
-          campaignStatus: fv.mp_campaignstatus ?? null,
+          campaignStatus: mapCampaignStatusForPersist(fv.mp_campaignstatus),
           campaignStartDate: toDateOnlyString(fv.mp_campaigndates_start),
           campaignEndDate: toDateOnlyString(fv.mp_campaigndates_end),
           brand: fv.mp_brand ?? null,
@@ -5322,7 +5323,7 @@ function CreateMediaPlan() {
             mbaNumber: mbaNum,
             mpClientName: clientName,
             campaignName: fv.mp_campaignname ?? null,
-            campaignStatus: fv.mp_campaignstatus ?? null,
+            campaignStatus: mapCampaignStatusForPersist(fv.mp_campaignstatus),
             campaignStartDate: toDateOnlyString(fv.mp_campaigndates_start),
             campaignEndDate: toDateOnlyString(fv.mp_campaigndates_end),
             campaignBudgetCents: budgetCents,
@@ -5347,7 +5348,13 @@ function CreateMediaPlan() {
           const human =
             saveResult.data.code === "BOSS006_EMPTY_PUBLISH"
               ? "Cannot publish version with 0 line items (BOSS006)"
-              : saveResult.data.error || "Postgres save failed"
+              : saveResult.data.code === "DUPLICATE_LINE_ITEM_ID"
+                ? `Duplicate line_item_id rejected: ${saveResult.data.lineItemId ?? "(unknown)"}`
+                : saveResult.data.code === "VERSION_ALREADY_EXISTS"
+                  ? saveResult.data.error || "That version number already exists"
+                  : saveResult.data.code === "MISSING_CAMPAIGN_STATUS"
+                    ? "Campaign status is required on publish"
+                    : saveResult.data.error || "Postgres save failed"
           updateSaveStatus("Save plan (transactional)", "error", human)
           toast({ variant: "destructive", title: "Save failed", description: human })
           return

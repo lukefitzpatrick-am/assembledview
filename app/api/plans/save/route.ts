@@ -11,6 +11,7 @@ import {
   mirrorPlanToXano,
 } from "@/lib/data/mirrorToXano"
 import { SavePlanError, savePlanVersion } from "@/lib/data/savePlan"
+import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import { requireRole } from "@/lib/requireRole"
 import { isPlanDraftsEnabled } from "@/lib/mediaplan/drafts/flag"
 import {
@@ -192,7 +193,10 @@ export async function POST(request: NextRequest) {
           mbaNumber: body.ensureMaster.mbaNumber,
           mpClientName: body.ensureMaster.mpClientName ?? null,
           campaignName: body.ensureMaster.campaignName ?? null,
-          campaignStatus: body.ensureMaster.campaignStatus ?? null,
+          campaignStatus:
+            mapCampaignStatusForPersist(body.ensureMaster.campaignStatus) ??
+            body.ensureMaster.campaignStatus ??
+            null,
           campaignStartDate: body.ensureMaster.campaignStartDate ?? null,
           campaignEndDate: body.ensureMaster.campaignEndDate ?? null,
           campaignBudgetCents: body.ensureMaster.campaignBudgetCents ?? null,
@@ -337,7 +341,9 @@ export async function POST(request: NextRequest) {
           : err.code === "MASTER_NOT_FOUND"
             ? 404
             : err.code === "DUPLICATE_LINE_ITEM_ID" ||
+                err.code === "VERSION_ALREADY_EXISTS" ||
                 err.code === "MISSING_LINE_ITEM_ID" ||
+                err.code === "MISSING_CAMPAIGN_STATUS" ||
                 err.code === "UNIQUE_VIOLATION"
               ? 400
               : 500

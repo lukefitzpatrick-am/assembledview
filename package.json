@@ -46,7 +46,7 @@
     "test:c1-fullscope-drift": "tsx scripts/c1-fullscope-drift.ts",
     "test:save-plan": "tsx --test lib/data/__tests__/savePlan.test.ts",
     "test:xano-mirror": "tsx --test lib/data/__tests__/mirrorToXano.test.ts lib/utils/__tests__/createSemaphore.test.ts lib/utils/__tests__/lineItemWriteConcurrency.test.ts",
-    "test:postgres-save-mode": "tsx --test lib/mediaplan/__tests__/postgresSaveMode.test.ts lib/mediaplan/__tests__/postgresSavePublishPayload.test.ts",
+    "test:postgres-save-mode": "tsx --test lib/mediaplan/__tests__/postgresSaveMode.test.ts lib/mediaplan/__tests__/postgresSavePublishPayload.test.ts lib/data/__tests__/classifySaveUniqueViolation.test.ts",
     "test:plan-drafts": "tsx --test lib/mediaplan/drafts/__tests__/drafts.test.ts"
   },
   "dependencies": {

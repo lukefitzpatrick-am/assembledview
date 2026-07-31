@@ -316,7 +316,7 @@ import { saveAs } from 'file-saver'
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
 import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
-import { normaliseStatus } from "@/lib/mediaplan/campaignStatusGuard"
+import { normaliseStatus, mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
@@ -7313,7 +7313,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           mode: modeResolved.mode,
           baseVersionId: draftBaseVersionId,
           campaignName: formValues.mp_campaignname ?? null,
-          campaignStatus: formValues.mp_campaignstatus ?? null,
+          campaignStatus: mapCampaignStatusForPersist(formValues.mp_campaignstatus),
           campaignStartDate: toDateOnlyString(formValues.mp_campaigndates_start),
           campaignEndDate: toDateOnlyString(formValues.mp_campaigndates_end),
           brand: formValues.mp_brand ?? null,
@@ -7389,9 +7389,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               ? "Cannot publish version with 0 line items (BOSS006)"
               : saveResult.data.code === "DUPLICATE_LINE_ITEM_ID"
                 ? `Duplicate line_item_id rejected: ${saveResult.data.lineItemId ?? "(unknown)"}`
-                : saveResult.data.code === "UNIQUE_VIOLATION"
-                  ? saveResult.data.error || "Unique constraint violated on save"
-                  : saveResult.data.error || "Postgres save failed"
+                : saveResult.data.code === "VERSION_ALREADY_EXISTS"
+                  ? saveResult.data.error || "That version number already exists"
+                  : saveResult.data.code === "MISSING_CAMPAIGN_STATUS"
+                    ? "Campaign status is required on publish"
+                    : saveResult.data.code === "UNIQUE_VIOLATION"
+                      ? saveResult.data.error || "Unique constraint violated on save"
+                      : saveResult.data.error || "Postgres save failed"
           updateSaveStatus("Save plan (transactional)", "error", human)
           toast({
             variant: "destructive",

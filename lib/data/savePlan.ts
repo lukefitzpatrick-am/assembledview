@@ -29,11 +29,15 @@ import type {
   FeeOverride,
   LineItemInput,
 } from "@/lib/finance/campaignFinancials.types"
+import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
+import { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolation"
 import {
   explodeScheduleToMonthRows,
   type ScheduleMonthInsert,
 } from "@/scripts/migration/_scheduleTransform"
 import { toCents } from "@/scripts/migration/_shared"
+
+export { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolation"
 
 type Schema = typeof schema
 type Tx = PostgresJsDatabase<Schema>
@@ -115,6 +119,8 @@ export type SavePlanVersionResult = {
 export type SavePlanErrorCode =
   | "MISSING_LINE_ITEM_ID"
   | "DUPLICATE_LINE_ITEM_ID"
+  | "VERSION_ALREADY_EXISTS"
+  | "MISSING_CAMPAIGN_STATUS"
   | "BOSS006_EMPTY_PUBLISH"
   | "SCHEDULE_EXPLODE_FAILED"
   | "MASTER_NOT_FOUND"
@@ -267,6 +273,18 @@ function isUniqueViolation(err: unknown): boolean {
   )
 }
 
+function resolvePersistedCampaignStatus(
+  input: Pick<SavePlanVersionInput, "campaignStatus" | "mode">
+): string {
+  const mapped = mapCampaignStatusForPersist(input.campaignStatus)
+  if (mapped) return mapped
+  if (input.mode === "draft") return "draft"
+  throw new SavePlanError(
+    "MISSING_CAMPAIGN_STATUS",
+    "campaignStatus is required on publish — carry the status dropdown value (e.g. booked); refusing silent Approved default"
+  )
+}
+
 /** FEE_SNAPSHOT_WRITE_ONCE=on|off — default off until Luke confirms audit §5.3. */
 export function getFeeSnapshotWriteOnce(): boolean {
   return (process.env.FEE_SNAPSHOT_WRITE_ONCE ?? "off").trim().toLowerCase() === "on"
@@ -293,12 +311,13 @@ async function upsertVersionRow(
   input: SavePlanVersionInput,
   legacySchedules: unknown
 ): Promise<number> {
+  const campaignStatus = resolvePersistedCampaignStatus(input)
   const baseValues = {
     masterId: input.masterId,
     versionNumber: input.versionNumber,
     mbaNumber: input.mbaNumber,
     campaignName: input.campaignName ?? null,
-    campaignStatus: input.campaignStatus ?? (input.mode === "publish" ? "Approved" : "Draft"),
+    campaignStatus,
     campaignStartDate: input.campaignStartDate ?? null,
     campaignEndDate: input.campaignEndDate ?? null,
     brand: input.brand ?? null,
@@ -555,7 +574,7 @@ export async function savePlanVersion(
           }
         }
 
-        const status = input.campaignStatus ?? "Approved"
+        const status = resolvePersistedCampaignStatus(input)
         await tx
           .update(schema.mediaPlanVersions)
           .set({ campaignStatus: status })
@@ -657,22 +676,30 @@ export async function savePlanVersion(
   } catch (err) {
     if (err instanceof SavePlanError) throw err
     if (isUniqueViolation(err)) {
-      const msg = err instanceof Error ? err.message : String(err ?? "")
-      // Version tip INSERT colliding on (master_id, version_number) is often a
-      // mis-resolved publish versionNumber (lazy-empty versionRowCount → v1).
-      if (/version_number|master_id.*version/i.test(msg)) {
+      const classified = classifySaveUniqueViolation(err)
+      if (classified.code === "VERSION_ALREADY_EXISTS") {
         throw new SavePlanError(
-          "UNIQUE_VIOLATION",
-          `UNIQUE(master_id, version_number) violated for version ${input.versionNumber} — aborting (check resolvePostgresSaveMode inputs)`,
+          "VERSION_ALREADY_EXISTS",
+          `UNIQUE(master_id, version_number) violated for master ${input.masterId} version_number ${input.versionNumber}${
+            classified.constraint ? ` (constraint ${classified.constraint})` : ""
+          } — aborting`
         )
       }
-      const offending = extractOffendingLineItemId(err, lineIds)
+      if (classified.code === "DUPLICATE_LINE_ITEM_ID") {
+        const offending = extractOffendingLineItemId(err, lineIds)
+        throw new SavePlanError(
+          "DUPLICATE_LINE_ITEM_ID",
+          `UNIQUE(version_id, line_item_id) violated${
+            offending ? ` for line_item_id "${offending}"` : ""
+          }${classified.constraint ? ` (constraint ${classified.constraint})` : ""} — transaction aborted`,
+          offending
+        )
+      }
       throw new SavePlanError(
-        "DUPLICATE_LINE_ITEM_ID",
-        `UNIQUE(version_id, line_item_id) violated${
-          offending ? ` for line_item_id "${offending}"` : ""
-        } — transaction aborted`,
-        offending
+        "UNIQUE_VIOLATION",
+        `Unique constraint violated${
+          classified.constraint ? ` (${classified.constraint})` : ""
+        } — transaction aborted`
       )
     }
     throw err
