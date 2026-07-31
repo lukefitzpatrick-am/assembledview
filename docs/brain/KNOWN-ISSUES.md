@@ -50,6 +50,8 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | C-13 | Payment terms hardcoded "Net 30 days" in 4 places; ad-serving `BASELINE_CTR=0.001` / `BASELINE_VTR=0.25` hardcoded; RAG bands hardcoded; forecast labels say "20%/40%" but rates come from data | Open |
 | C-14 | `monthYear` vs `YYYY-MM` normalisation before `isBillingMonthLocked`; UTC vs AU-local lock cutoff; super-admin override contract — all unresolved | FIXED (PC5): keys → `YYYY-MM` via `lib/finance/periods/monthKey.ts`; lock = `finance_periods.status` / Sydney last-day 23:59; admin amend = warning → mandatory reason → before/after audit → `amended_after_lock` + immutable v2 sheet |
 | C-15 | Plan-C S1-P1b: `computeCampaignFinancials` / `recomputeBillingScheduleOnSave` emitted month-header schedules with no `lineItems` (fee scalar on `perLine` only) — blocked Postgres `schedule_months` explode + enforce | FIXED (`attachScheduleLineDetail`; `PLANC_SERVER_AUTHORITY=enforce` still OFF) |
+| C-18 | Admin KPI write paths can return **500** after authz clears (PS-1 live matrix: admin KPI writes ×10 expected auth-path, observed `400/500/200` — gate cleared, body/handler still throws on some methods) | Open — register only; root cause not in O3 scope |
+| C-19 | Spurious **auto-drift billing gate** — auto/`undefined` billingMode lines flag divergent (or block save) when amount noise / rematerialisation is expected, not a true manual override | Open — pending O4 root cause |
 
 ## Build / tooling (B-*)
 

@@ -82,6 +82,9 @@ Freeze Xano writes → final export archive → cancel after 30 days. Confirm ac
 ## 7. Cherry-pick ledger (append every migration commit here)
 `4252f4e3` → `270ba7b8` → `235ac76a` → `b77d7f52` → T1 disposition close (`5681a493`) → T2a publishers/clients shadow → T2a.1 clients missing columns → T2b KPI shadow → (record SHAs with `git log --grep=T2`; keep hotfixes out of this chain)
 
+**Next-phase set (tonight / T4c live-bug pins):**
+`1b995b74` (masterId from `media_plan_master_id`) → `ae1b790a` (publish versionNumber + stable line ids) → `0e8da9d9` (campaignStatus persist + 23505 disambiguation) → `a86a96a3` (O1 tree safety / tsc) → `caef9b70` (O2 byte-diff + billing_overrides fixture) → O3 tip (`test(plans): pin T4c postgres save payload contracts` — integration suite + KNOWN-ISSUES C-18/C-19; resolve SHA via `git log -1 --grep=O3` / message)
+
 ## 8. Key references
 - Kickoff pack (schema Part B + original prompts + addendum): `docs/superpowers/supabase-migration-kickoff-pack-2026-07-30.md`
 - Gate review: `av-review/supabase-phase1-gate-review-2026-07-30.md` · Xero spec: `av-review/xero-sync-rebuild-spec-2026-07-30.md` · Phase 0 log: `av-review/supabase-phase0-progress-2026-07-30.md` · Platform review: `av-review/backend-platform-review-and-migration-recommendation-2026-07-30.md`
