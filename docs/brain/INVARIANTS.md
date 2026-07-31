@@ -27,7 +27,19 @@ pct === 100 → fee = 0 (division guard)
 - `schedule_component` includes **`adserving`** — per-line/month adserving explodes into `schedule_months` (I-1 full scope queryable). Production stays `media` on production line_items.
 - On publish, `media_plan_versions.approved_slice` is frozen once (`{ totalCents, lines[] }`); never mutate after write. Widened C1 gate (`SAVE_GATE_FULL_SCOPE=off|log|enforce`, default **off**) compares billing `schedule_months` full scope to `approved_slice.totalCents` ± 1¢.
 - Unknown schedule media types do **not** inherit search fee % — `normaliseScheduleMediaType` returns null; fee resolution logs a builder-issue warning and uses 0%.
-- Postgres plan save (`lib/data/savePlan.ts`) is one transaction: version + replace-set `line_items` + server-computed `schedule_months` + `legacy_schedules` mirror (+ publish `mba_fee_snapshots` + `approved_slice`). `line_item_id` is always client-supplied; publish with zero lines aborts inside the txn (BOSS006). `WRITE_BACKEND` default remains `xano`. Editor `masterId` is `media_plan_master_id`, never the combined-payload version `id`; `/api/plans/save` returns 422 `MASTER_ID_MISMATCH` when they disagree (no silent mba remap). `resolvePostgresSaveMode` is the only draft/publish/versionNumber rule (footer + PC7 pill); tip present + empty lazy version history still increments on leave-draft. Save snapshots use `assignStableLineItemNumbers` — never positional re-derive. Publish persists `mapCampaignStatusForPersist` (lowercase vocab); never silent `"Approved"`. 23505: `line_items_version_id_line_item_id_key` → `DUPLICATE_LINE_ITEM_ID`; versions master/version UNIQUE → `VERSION_ALREADY_EXISTS`.
+- Postgres plan save (`lib/data/savePlan.ts`) is one transaction: version + replace-set `line_items` + server-computed `schedule_months` + `legacy_schedules` mirror (+ publish `mba_fee_snapshots` + `approved_slice`). `line_item_id` is always client-supplied; publish with zero lines aborts inside the txn (BOSS006). `WRITE_BACKEND` default remains `xano` (local overnight may flip to `postgres`). Editor `masterId` is `media_plan_master_id`, never the combined-payload version `id`; `/api/plans/save` returns 422 `MASTER_ID_MISMATCH` when they disagree (no silent mba remap). Save snapshots use `assignStableLineItemNumbers` — never positional re-derive.
+- **`resolvePostgresSaveMode` is the only draft/publish/versionNumber rule** (edit footer + PC7 pill share it — never duplicate). Modes:
+
+  | Intent | `mode` | `versionNumber` | UI |
+  |---|---|---|---|
+  | Stay Draft, tip exists, `!forceIncrement` | `draft` (overwrite in place) | published tip | overwrite |
+  | Leave Draft / non-draft / `forceIncrement` | `publish` (increment) | `nextMbaVersionNumber` | increment |
+  | Tip present + lazy-empty `versionRowCount=0` | still **increment** on leave-draft | treats tip as proof of rows | never "Will create v1" |
+
+  `new_version` (stage-without-publish) is unused by the editor.
+- **Campaign status vocabulary** (persisted lowercase via `mapCampaignStatusForPersist`): `draft` \| `planned` \| `approved` \| `booked` \| `completed` \| `cancelled`. Title-case UI labels map to the same set. Empty / unknown → `null`.
+- **`MISSING_CAMPAIGN_STATUS`:** publish refuses to invent status — `resolvePersistedCampaignStatus` throws when mapped status is null and mode ≠ draft. Never silent `"Approved"`. Draft mode may default stored status to `draft`.
+- **Postgres 23505 → app codes** (`classifySaveUniqueViolation`): `line_items_version_id_line_item_id_key` → `DUPLICATE_LINE_ITEM_ID`; versions `UNIQUE(master_id, version_number)` → `VERSION_ALREADY_EXISTS`; other unique → `UNIQUE_VIOLATION`. Do not collapse version collisions into line-id dupe messaging.
 - After Postgres plan commit, Xano is a non-authoritative mirror (`lib/data/mirrorToXano.ts`): failures log + surface `{ mirror: "failed" }` and never roll back or throw into the save caller; repair via `POST /api/admin/xano-mirror/retry`.
 - Partial MBA: screen panel and Excel export must both read the same `partialMBAValues`; export must never fall through to `calculateAssembledFee()` while partial approval is active.
 
