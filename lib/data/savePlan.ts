@@ -16,6 +16,7 @@ import type { LineChannel } from "@/db/schema"
 import { normalizeMonthKey } from "@/lib/finance/accrual"
 import {
   computeCampaignFinancials,
+  resolveFeePctFromFeeLoading,
 } from "@/lib/finance/computeCampaignFinancials"
 import { computeApprovedSlice, type ApprovedSlice } from "@/lib/finance/approvedSlice"
 import { computeSnapshotChecksum } from "@/lib/docs/snapshotChecksum"
@@ -418,12 +419,47 @@ export async function savePlanVersion(
   }
 
   const lineInputs = toLineItemInputs(input.lineItems)
+  const feeLoading = input.feeLoading ?? {}
   const financials = computeCampaignFinancials(lineInputs, {
-    feeLoading: input.feeLoading ?? {},
+    feeLoading,
   }, {
     getRateForMediaType: input.getRateForMediaType,
     adservaudio: input.adservaudio,
   })
+
+  // O4.5 tripwire (always-on, never blocks): non-zero resolved feePct but $0 fee total.
+  // SAVE_GATE_FULL_SCOPE will enforce later; silence here caused krusty015 v3 fee wipe.
+  {
+    const feeTotal = Number(financials.mbaScopeTotals?.fee ?? 0)
+    if (Number.isFinite(feeTotal) && Math.abs(feeTotal) < 0.005) {
+      const nonzeroPctLines: Array<{ lineItemId: string; mediaType: string; feePct: number }> =
+        []
+      for (const line of lineInputs) {
+        if (line.approval === "excluded") continue
+        const feePct =
+          typeof line.feePct === "number" && Number.isFinite(line.feePct)
+            ? line.feePct
+            : resolveFeePctFromFeeLoading(line.mediaType, feeLoading)
+        if (feePct > 0 && (Number(line.enteredAmount) || 0) > 0) {
+          nonzeroPctLines.push({
+            lineItemId: String(line.lineItemId),
+            mediaType: line.mediaType,
+            feePct,
+          })
+        }
+      }
+      if (nonzeroPctLines.length > 0) {
+        console.error("[savePlan-fee-zero]", {
+          mba: input.mbaNumber,
+          version: input.versionNumber,
+          mode: input.mode,
+          feeTotal,
+          feeLoadingKeys: Object.keys(feeLoading),
+          lines: nonzeroPctLines.slice(0, 12),
+        })
+      }
+    }
+  }
 
   // O4: never block on AUTO preview drift — server schedule is authoritative.
   // Surface a correction summary when the editor sent a working preview.

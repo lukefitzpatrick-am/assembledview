@@ -38,6 +38,7 @@ const ATTR_SKIP = new Set([
   "budgetIncludesFees",
   "no_adserving",
   "noAdserving",
+  "feePct",
   "_reactKey",
 ])
 
@@ -140,6 +141,14 @@ export function buildSavePlanLineItemsFromSnapshots(
           .find((n) => n > 0) ?? 0
 
       const meta = approvals.get(lineItemId)
+      // Prefer stampClientFeePctOnLineItems on the snapshot (save-path truth);
+      // billingSaveInputs leave feePct unset so FeeLoading is primary — but a
+      // missing feeLoading must not silently drop a stamped non-zero pct.
+      const stampedFeePct =
+        typeof raw.feePct === "number" && Number.isFinite(raw.feePct)
+          ? raw.feePct
+          : undefined
+      const feePct = stampedFeePct ?? meta?.feePct
 
       out.push({
         lineItemId,
@@ -176,7 +185,7 @@ export function buildSavePlanLineItemsFromSnapshots(
         mediaType,
         rate,
         enteredAmount,
-        feePct: meta?.feePct,
+        feePct,
         approval: meta?.approval ?? "approved",
         label: meta?.label,
         billingOverride: meta?.billingOverride,
@@ -186,6 +195,31 @@ export function buildSavePlanLineItemsFromSnapshots(
   }
 
   return out
+}
+
+/**
+ * Shared T4c body assembly — feeLoading / feeSnapshot / adservaudio always ride
+ * the same path for draft overwrite and publish/status-change. Callers must not
+ * wire fee fields per-branch.
+ */
+export function assemblePlansSaveRequestBody(
+  base: Omit<PlansSaveRequestBody, "feeLoading" | "feeSnapshot" | "adservaudio">,
+  fees: {
+    feeLoading: FeeLoading
+    adservaudio?: number | null
+  }
+): PlansSaveRequestBody {
+  const feeLoading = fees.feeLoading ?? {}
+  const adserv =
+    typeof fees.adservaudio === "number" && Number.isFinite(fees.adservaudio)
+      ? fees.adservaudio
+      : undefined
+  return {
+    ...base,
+    feeLoading,
+    feeSnapshot: feeLoading as Record<string, unknown>,
+    ...(adserv !== undefined ? { adservaudio: adserv } : {}),
+  }
 }
 
 export type PlansSaveRequestBody = {

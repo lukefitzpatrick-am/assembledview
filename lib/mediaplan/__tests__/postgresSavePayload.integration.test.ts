@@ -284,7 +284,7 @@ describe("5. dollarsToCampaignBudgetCents boundaries", () => {
 })
 
 describe("create + edit assembly twins (shared helpers)", () => {
-  it("both pages wire assignStableLineItemNumbers, mapCampaignStatusForPersist, dollarsToCampaignBudgetCents, resolvePostgresSaveMode, formatSaveModeLabel", () => {
+  it("both pages wire assignStableLineItemNumbers, mapCampaignStatusForPersist, dollarsToCampaignBudgetCents, resolvePostgresSaveMode, formatSaveModeLabel, assemblePlansSaveRequestBody", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
     for (const src of [createSrc, editSrc]) {
@@ -294,6 +294,12 @@ describe("create + edit assembly twins (shared helpers)", () => {
       assert.match(src, /resolvePostgresSaveMode/)
       assert.match(src, /formatSaveModeLabel/)
       assert.match(src, /postPlansSave/)
+      // O4.5: feeLoading must ride the shared assembler — no per-branch fee wiring.
+      assert.match(src, /assemblePlansSaveRequestBody/)
+      assert.match(
+        src,
+        /postPlansSave\(\s*assemblePlansSaveRequestBody\(/
+      )
     }
   })
 
@@ -308,7 +314,10 @@ describe("create + edit assembly twins (shared helpers)", () => {
 
   it("create posts masterId from create-flow master id (not combined version row id)", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")
-    assert.match(createSrc, /postPlansSave\(\{[\s\S]*?masterId:\s*Number\(masterId\)/)
+    assert.match(
+      createSrc,
+      /assemblePlansSaveRequestBody\(\s*\{[\s\S]*?masterId:\s*Number\(masterId\)/
+    )
     assert.doesNotMatch(createSrc, /masterId:\s*mediaPlan\.id\b/)
   })
 
