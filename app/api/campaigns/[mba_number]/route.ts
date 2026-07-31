@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
 import { fetchAllMediaContainerLineItems, MEDIA_CONTAINER_ENDPOINTS } from "@/lib/api/media-containers"
 import { filterLineItemsByPlanNumber } from "@/lib/api/mediaPlanVersionHelper"
@@ -6,6 +6,7 @@ import { normalizeCampaignLineItems } from "@/lib/mediaplan/normalizeCampaignLin
 import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
+import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 
 export const dynamic = "force-dynamic"
 
@@ -492,13 +493,18 @@ function normalizeSocialLineItems(rawItems: any[]): any[] {
 
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
     const { mba_number: rawMbaNumber } = await params
     const mba_number = parseMbaNumber(rawMbaNumber)
     if (!mba_number) return invalidMbaNumberResponse()
+
+    // AuthZ: match mediaplans/mba/[mba_number] — tenant scope for clients.
+    const access = await checkClientMbaAccess(request, mba_number)
+    if (!access.ok) return access.response
+
     const requestedNormalized = normalize(mba_number)
     const searchParams = new URL(request.url).searchParams
     const requestedVersion = parseVersionNumber(searchParams.get("version"))

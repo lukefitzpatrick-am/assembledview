@@ -4,6 +4,8 @@ import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/x
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { invalidateMediaContainerBestPracticeCache } from "@/lib/api/mediaContainerBestPracticeCache"
 
+// SEC-10 / O6: collection + [id] both ungated (getCurrentUser = audit stamp only) — AMBIGUOUS. Do not invent a gate.
+
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params

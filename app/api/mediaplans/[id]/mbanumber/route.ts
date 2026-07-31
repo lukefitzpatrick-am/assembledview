@@ -1,14 +1,19 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
 import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { requireRole } from "@/lib/requireRole"
 
 const XANO_TIMEOUT_MS = 15_000
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // AuthZ: match mediaplans collection POST — MBA mint is staff-only.
+    const gate = await requireRole(request, ["admin"])
+    if ("response" in gate) return gate.response
+
     const { id } = await params
     const response = await axios.post(`${xanoUrl("generate_mbanumber", "XANO_MEDIAPLANS_BASE_URL")}/${id}`, undefined, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS })
     return NextResponse.json(response.data)

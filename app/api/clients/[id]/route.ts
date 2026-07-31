@@ -49,6 +49,8 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // SEC-10 / O6: collection GET is requireRole(admin); this GET allows client own-id
+    // plus any non-client session — AMBIGUOUS whether non-admin staff should requireRole. Morning Q.
     const session = await auth0.getSession(request)
     if (!session?.user) {
       return NextResponse.json({ error: "unauthorised" }, { status: 401 })

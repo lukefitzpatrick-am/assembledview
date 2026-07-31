@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { xanoUrl, xanoPostHeaderRecord, xanoAuthHeaderRecord } from '@/lib/api/xano';
 
+// SEC-10 / O6: dedicated channel [id] mutate path ungated; sibling POST also ungated while
+// media_plans/[...path] catch-all is requireRole(admin) — AMBIGUOUS. Do not invent a gate.
+
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }

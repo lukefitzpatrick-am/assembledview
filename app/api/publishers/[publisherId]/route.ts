@@ -4,6 +4,8 @@ import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/x
 import { getPublisherByPublisherId } from "@/lib/api/publishers"
 import { bodyForPublisherPut } from "@/lib/publisher/normalizePublisher"
 
+// SEC-10 / O6: collection + [id] both ungated — AMBIGUOUS (morning question). Do not invent a gate.
+
 export async function GET(_req: Request, { params }: { params: Promise<{ publisherId: string }> }) {
   try {
     const { publisherId } = await params
