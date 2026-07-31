@@ -50,7 +50,7 @@ function buildChannels(
       const engineId = row.engineChannelId ?? row.engine?.id
       if (engineId && scored) {
         const hit = scored.find((s) => s.ch.id === engineId)
-        if (hit) index = Math.round(hit.affAvg)
+        if (hit && hit.affAvg != null) index = Math.round(hit.affAvg)
       }
       if (index == null && row.engine) {
         const aff = row.engine.aff[segmentId]

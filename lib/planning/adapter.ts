@@ -38,8 +38,8 @@ export type AdaptedChannel = {
   D: number
   cpm: number
   color: string
-  /** Affinity index for the selected segment lens (100 = baseline). */
-  aff: Record<string, number>
+  /** Affinity index for the selected segment lens (100 = baseline). Null = unknown. */
+  aff: Record<string, number | null>
   ageMod: number
   genderMod: number
   /** Real RM reach fraction 0..1 (0 for benchmark-only Search). */
@@ -157,10 +157,14 @@ function resolveBench(
   }
 }
 
-function affinityForSegment(row: AudienceChannelResult, segmentId: string): number {
+/** Preserve null — callers must not invent a neutral 100 for scoring/budget. */
+function affinityForSegment(
+  row: AudienceChannelResult,
+  segmentId: string
+): number | null {
   const raw = row.affinity_by_segment[segmentId]
   if (typeof raw === "number" && Number.isFinite(raw)) return raw
-  return 100
+  return null
 }
 
 function displayLabel(meta: PlanningChannelMeta | undefined, channelId: string): string {

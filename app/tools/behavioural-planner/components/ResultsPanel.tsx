@@ -112,7 +112,7 @@ export function ResultsPanel({ state, adapted, loading, error }: ResultsPanelPro
         E: Math.round(top.E),
         C: Math.round(top.C),
       },
-      affAvg: Math.round(top.affAvg),
+      affAvg: top.affAvg == null ? null : Math.round(top.affAvg),
       ageMod: top.ageMod.toFixed(2),
     });
   };

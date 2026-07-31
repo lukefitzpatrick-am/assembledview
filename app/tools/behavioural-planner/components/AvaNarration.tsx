@@ -57,7 +57,7 @@ export function AvaNarration({ inputs, allocated }: AvaNarrationProps) {
       </p>
       <p className="mb-2">
         <strong className="font-medium">{topCh.ch.name}</strong> leads at {Math.round(topCh.pct)}% —
-        audience affinity {Math.round(topCh.affAvg)}, age fit {topCh.ageMod.toFixed(2)}×,{" "}
+        audience affinity {topCh.affAvg == null ? "—" : Math.round(topCh.affAvg)}, age fit {topCh.ageMod.toFixed(2)}×,{" "}
         {topCh.ch.attn}s of active attention per exposure. Effect score {Math.round(topCh.E)}/100
         against the objective slider.
       </p>

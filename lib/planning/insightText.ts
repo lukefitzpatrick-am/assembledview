@@ -1,4 +1,8 @@
-/** Pull HEADLINE + first two bullet-ish findings from insight markdown. */
+/**
+ * Pull THE HEADLINE / HEADLINE + first two findings from insight markdown.
+ * Skill format leads with `AUDIENCE:` then `THE HEADLINE` — never treat the
+ * audience-definition line as the headline.
+ */
 export function summariseInsight(insight: string | null | undefined): {
   headline: string | null
   findings: string[]
@@ -19,9 +23,13 @@ export function summariseInsight(insight: string | null | undefined): {
 
   for (const line of lines) {
     const upper = line.toUpperCase()
-    if (upper.startsWith("HEADLINE")) {
+    // Skill uses "THE HEADLINE"; also accept bare "HEADLINE: …".
+    if (upper === "THE HEADLINE" || upper.startsWith("THE HEADLINE:") || /^HEADLINE\b/.test(upper)) {
       section = "headline"
-      const rest = line.replace(/^HEADLINE[:\s]*/i, "").trim()
+      const rest = line
+        .replace(/^THE\s+HEADLINE[:\s]*/i, "")
+        .replace(/^HEADLINE[:\s]*/i, "")
+        .trim()
       if (rest) headline = rest
       continue
     }
@@ -34,6 +42,8 @@ export function summariseInsight(insight: string | null | undefined): {
       continue
     }
     if (
+      upper.startsWith("AUDIENCE:") ||
+      upper.startsWith("AUDIENCE ") ||
       upper.startsWith("CREATIVE") ||
       upper.startsWith("WATCH-OUTS") ||
       upper.startsWith("WATCH OUTS")
@@ -47,6 +57,6 @@ export function summariseInsight(insight: string | null | undefined): {
     else if (section === "reach" && !reachArchitecture) reachArchitecture = cleaned
   }
 
-  if (!headline) headline = lines[0] ?? null
+  // Do not fall back to lines[0] — that is usually the AUDIENCE definition.
   return { headline, findings, reachArchitecture }
 }

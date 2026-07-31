@@ -45,6 +45,11 @@ import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridg
 import type { PageContext } from "@/lib/ava/types"
 import { adaptAudienceToEngine, type AdapterResult } from "@/lib/planning/adapter"
 import { resolveEngineParams } from "@/lib/planning/engineParams"
+import {
+  clearPlannerSession,
+  readPlannerSession,
+  writePlannerSession,
+} from "@/lib/planning/plannerSessionPersist"
 import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
 import type {
   AudienceRequest,
@@ -157,12 +162,16 @@ function parseSavedDefinition(raw: unknown): SavedAudienceDefinition | null {
   const o = raw as Record<string, unknown>
   if (!o.audience || typeof o.audience !== "object") return null
   const audience = o.audience as AudienceDraft
-  if (!audience.id || !audience.name || !audience.segmentId) return null
+  if (!audience.id || !audience.name) return null
+  const segmentId =
+    typeof audience.segmentId === "string" && audience.segmentId.trim()
+      ? audience.segmentId
+      : "base"
   return {
     audience: createAudienceDraft({
       ...audience,
       colorIndex: (audience.colorIndex ?? 0) as 0 | 1 | 2,
-      segmentId: audience.segmentId,
+      segmentId,
       id: audience.id,
     }),
     brief: (o.brief && typeof o.brief === "object" ? o.brief : {}) as BriefState,
@@ -210,6 +219,7 @@ export function BehaviouralPlannerClient() {
   const [savedAudiences, setSavedAudiences] = useState<PlanningAudienceRow[]>([])
   const [savedLoading, setSavedLoading] = useState(false)
   const [savedRefresh, setSavedRefresh] = useState(0)
+  const [sessionReady, setSessionReady] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const abortMap = useRef<Map<string, AbortController>>(new Map())
   const genMap = useRef<Map<string, number>>(new Map())
@@ -234,18 +244,52 @@ export function BehaviouralPlannerClient() {
         })
         const waveId = data.waves[0]?.wave_id ?? ""
         const seg = defaultSegmentId(data)
-        dispatch({ type: "RESET", waveId, defaultSegmentId: seg })
+        const snap = readPlannerSession()
+        if (snap?.state?.audiences?.length) {
+          const restored = {
+            ...snap.state,
+            waveId: snap.state.waveId || waveId,
+          }
+          dispatch({ type: "HYDRATE", state: restored })
+          setInsightByKey(snap.insightByKey ?? {})
+        } else {
+          dispatch({ type: "RESET", waveId, defaultSegmentId: seg })
+        }
       } catch (err) {
         if (cancelled) return
         setMetaError(err instanceof Error ? err.message : "Failed to load planning meta")
       } finally {
-        if (!cancelled) setMetaLoading(false)
+        if (!cancelled) {
+          setMetaLoading(false)
+          setSessionReady(true)
+        }
       }
     })()
     return () => {
       cancelled = true
     }
   }, [])
+
+  // Persist five-stage plan to sessionStorage (survives refresh / Back in-tab).
+  useEffect(() => {
+    if (!sessionReady) return
+    writePlannerSession(state, insightByKey)
+  }, [state, insightByKey, sessionReady])
+
+  useEffect(() => {
+    if (!sessionReady) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      const dirty =
+        Boolean(state.brief.campaignName.trim()) ||
+        state.stage !== "brief" ||
+        state.audiences.some((a) => a.name.trim() && !/^Audience \d+$/.test(a.name.trim()))
+      if (!dirty) return
+      e.preventDefault()
+      e.returnValue = ""
+    }
+    window.addEventListener("beforeunload", onBeforeUnload)
+    return () => window.removeEventListener("beforeunload", onBeforeUnload)
+  }, [sessionReady, state.brief.campaignName, state.stage, state.audiences])
 
   useEffect(() => {
     const clientId = state.brief.clientId
@@ -467,6 +511,8 @@ export function BehaviouralPlannerClient() {
 
   const handleReset = () => {
     if (!meta) return
+    clearPlannerSession()
+    setInsightByKey({})
     dispatch({
       type: "RESET",
       waveId: meta.waves[0]?.wave_id ?? "",
@@ -517,11 +563,16 @@ export function BehaviouralPlannerClient() {
       const rob = robustnessFromN(adapted?.unweightedN ?? 0)
       const segmentId = effectiveSegmentId(a.segmentId)
       const topIndexChannels = (adapted?.channels ?? [])
-        .map((ch) => ({
-          name: avaTruncate(ch.name, 80),
-          index: Math.round(ch.aff[segmentId] ?? 100),
-          reachPct: Math.round(ch.reachPct * 1000) / 10,
-        }))
+        .map((ch) => {
+          const raw = ch.aff[segmentId]
+          if (typeof raw !== "number" || !Number.isFinite(raw)) return null
+          return {
+            name: avaTruncate(ch.name, 80),
+            index: Math.round(raw),
+            reachPct: Math.round(ch.reachPct * 1000) / 10,
+          }
+        })
+        .filter((x): x is NonNullable<typeof x> => x != null)
         .sort((x, y) => y.index - x.index)
         .slice(0, 5)
       return {

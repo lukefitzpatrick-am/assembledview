@@ -130,8 +130,12 @@ function topAffinities(adapted: AdapterResult | null, segmentId: string, n = 5) 
     .map((ch) => ({
       id: ch.id,
       name: ch.name,
-      aff: ch.aff[segmentId] ?? 100,
+      aff: ch.aff[segmentId],
     }))
+    .filter(
+      (c): c is { id: string; name: string; aff: number } =>
+        typeof c.aff === "number" && Number.isFinite(c.aff)
+    )
     .sort((a, b) => b.aff - a.aff)
     .slice(0, n)
 }

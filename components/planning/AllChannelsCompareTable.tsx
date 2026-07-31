@@ -178,7 +178,10 @@ function channelIndex(bundle: AudienceCompareBundle, row: TaxonomyRow): number |
   const engineId = row.engineChannelId ?? row.engine?.id
   if (engineId) {
     const scored = bundle.scored.find((s) => s.ch.id === engineId)
-    if (scored) return Math.round(scored.affAvg)
+    if (scored) {
+      if (scored.affAvg == null) return null
+      return Math.round(scored.affAvg)
+    }
   }
   if (row.engine) {
     const seg = effectiveSegmentId(bundle.draft.segmentId)

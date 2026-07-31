@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   BaseChartCard,
   ChartExportToolbar,
@@ -81,6 +81,20 @@ export function OutcomeCharts({
   const [highlighted, setHighlighted] = useState<string | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
 
+  // After load-saved, ready starts empty so key sticks on ALL_AUDIENCES; with one
+  // audience that left Reach×Index / quadrant with no sources while DFII fell back.
+  useEffect(() => {
+    if (ready.length === 0) return
+    const ids = new Set(ready.map((b) => b.draft.id))
+    if (audienceKey !== ALL_AUDIENCES && !ids.has(audienceKey)) {
+      setAudienceKey(ready[0]!.draft.id)
+      return
+    }
+    if (audienceKey === ALL_AUDIENCES && ready.length === 1) {
+      setAudienceKey(ready[0]!.draft.id)
+    }
+  }, [ready, audienceKey])
+
   const reachRef = useRef<HTMLDivElement>(null)
   const scatterRef = useRef<HTMLDivElement>(null)
   const dfiiRef = useRef<HTMLDivElement>(null)
@@ -112,7 +126,8 @@ export function OutcomeCharts({
 
   const reachIndexData = useMemo(() => {
     if (presetReachData) return presetReachData
-    const sources = comparison ? ready : activeBundle ? [activeBundle] : []
+    const single = activeBundle ?? (ready.length === 1 ? ready[0]! : null)
+    const sources = comparison ? ready : single ? [single] : []
     if (sources.length === 0) return { rows: [] as Record<string, string | number>[], bars: [], lines: [] }
 
     const channelMap = new Map<
@@ -123,6 +138,7 @@ export function OutcomeCharts({
     for (const b of sources) {
       for (const s of b.scored) {
         if (!s.ch.isRmMeasured) continue
+        if (s.affAvg == null) continue
         const reach = Math.round(s.ch.reachPct * 1000) / 10
         const index = Math.round(s.affAvg)
         const existing = channelMap.get(s.ch.id)
@@ -193,10 +209,11 @@ export function OutcomeCharts({
         ],
       }
     }
-    const sources = comparison ? ready : activeBundle ? [activeBundle] : []
+    const single = activeBundle ?? (ready.length === 1 ? ready[0]! : null)
+    const sources = comparison ? ready : single ? [single] : []
     const parts = sources.map((b) => {
       const scored = b.scored.find((s) => s.ch.name === highlighted || s.ch.id === highlighted)
-      if (!scored) return null
+      if (!scored || scored.affAvg == null) return null
       const dfiiVals = dfii(b.scored.map((s) => ({ bcs: s.bcs })))
       const idx = b.scored.indexOf(scored)
       const adapted = b.adapted?.channels.find((c) => c.id === scored.ch.id)
@@ -226,13 +243,15 @@ export function OutcomeCharts({
   ])
 
   const scatterData = useMemo((): ScatterPoint[] => {
-    const sources = comparison ? ready : activeBundle ? [activeBundle] : []
+    const single = activeBundle ?? (ready.length === 1 ? ready[0]! : null)
+    const sources = comparison ? ready : single ? [single] : []
     const points: ScatterPoint[] = []
     for (const b of sources) {
       const color = AUDIENCE_ACCENTS[b.draft.colorIndex]!.cssVar
       const dfiiVals = dfii(b.scored.map((s) => ({ bcs: s.bcs })))
       b.scored.forEach((s, i) => {
         if (!s.ch.isRmMeasured) return
+        if (s.affAvg == null) return
         points.push({
           id: `${b.draft.id}:${s.ch.id}`,
           x: Math.round(s.ch.reachPct * 1000) / 10,

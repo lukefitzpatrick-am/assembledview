@@ -26,7 +26,9 @@
 - Consumers: `app/knowledge/**` (9 pages) + `components/learning/*`. Nothing else imports `src/**` except `src/ava` (AVA prompt primitives).
 - The `src/` vs `lib/` split is historical, not architectural — same `@/` alias, no boundary.
 
-## Scripts (`scripts/**`, 56 files)
+## Demand Flow / behavioural planner
+
+- `app/tools/behavioural-planner/**` + `components/planning/**` + `lib/planning/**`. Audience draft ids are UUID-minted (`nextAudienceId`) so load-saved + add cannot collide. Workflow persists to `sessionStorage` key `av:behavioural-planner:session:v1` (plus beforeunload warn). Export deck brief uses Stage A `campaignName` via `buildExportDeckBrief` — never brand/client as campaign. Insight cards/deck parse `THE HEADLINE` (`summariseInsight`); audience-definition lines are not a headline fallback. Null RM affinity is excluded from BCS A (not invented as 100); Stage E shows how many were excluded. Compare card "Mix-weighted reach %" is allocation-mix × weekly channel reach (rename only — maths unchanged pending Luke). OutcomeCharts syncs audience chip after load so Reach×Index / quadrant are not stuck empty while DFII falls back.
 
 - Taxonomy: KPI backfills/migrations (+ data artifacts under `scripts/data/kpi-best-practice/`), codegen (`gen-*-expert-grid*`, `generate-container-channel-config`), one-shot refactor scripts (`wire-*`/`fix-*`/`finish-*` — **rewrite source in place; unsafe to re-run**), learning build, Snowflake migrations (`npm run snowflake:migrate:pacing`), export/deck validation, Xano diagnostics.
 - `scripts/**` is a **knip entry point** — scripts keep otherwise-dead lib exports alive, and they compile against production types (refactors can break them silently).

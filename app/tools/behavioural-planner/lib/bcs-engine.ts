@@ -27,19 +27,33 @@ export function computeBcs(
   const costScale = engineParams.cost_scale;
 
   const scored = channels.map((ch): ScoredChannel => {
+    const affValues: number[] = []
+    let affNullExcluded = 0
+    for (const sg of inputs.segments) {
+      const raw = ch.aff[sg]
+      if (typeof raw === "number" && Number.isFinite(raw)) affValues.push(raw)
+      else affNullExcluded += 1
+    }
+    // Null affinities are excluded — never invent national-average 100.
     const affAvg =
-      inputs.segments.reduce((s, sg) => s + (ch.aff[sg] ?? 100), 0) / inputs.segments.length;
+      affValues.length > 0
+        ? affValues.reduce((s, v) => s + v, 0) / affValues.length
+        : null
     const ageMod = ch.ageMod;
     const genderMod = ch.genderMod;
     // Doctrine (provenance only — no weight/logic change):
     // A is affinity from RM when isRmMeasured; T (attn), E (B/D), C (cpm) are always bench.
-    const A = Math.min(100, affAvg * affScale * ageMod * genderMod);
+    // Missing affinity → A contributes 0 (do not invent 100 into BCS / budget).
+    const A =
+      affAvg == null
+        ? 0
+        : Math.min(100, affAvg * affScale * ageMod * genderMod);
     const T = Math.min(100, ch.attn * attnScale);
     const E = (1 - O) * ch.B + O * ch.D;
     const valuePer = ((A / 100) * (T / 100) * 100) / ch.cpm;
     const C = Math.min(100, valuePer * costScale);
     const bcs = wA * A + wT * T + wE * E + wC * C;
-    return { ch, A, T, E, C, bcs, affAvg, ageMod, genderMod };
+    return { ch, A, T, E, C, bcs, affAvg, affNullExcluded, ageMod, genderMod };
   });
 
   return scored.sort((a, b) => b.bcs - a.bcs);

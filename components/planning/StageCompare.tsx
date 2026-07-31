@@ -113,6 +113,10 @@ export function StageCompare({
   const insightByAudienceId = Object.fromEntries(
     bundles.map((b) => [b.draft.id, insightFor(b.draft.id).cachedInsight])
   )
+  const affinityNullExcluded = bundles.reduce(
+    (sum, b) => sum + b.scored.reduce((s, ch) => s + (ch.affNullExcluded || 0), 0),
+    0
+  )
 
   async function saveAudienceWithSplit(
     bundle: AudienceCompareBundle
@@ -218,6 +222,13 @@ export function StageCompare({
           <p className="mt-1 text-sm text-muted-foreground">
             Per-audience mix side-by-side. Audiences are compared — never added together.
           </p>
+          {affinityNullExcluded > 0 ? (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {affinityNullExcluded} null affinity value
+              {affinityNullExcluded === 1 ? "" : "s"} excluded from BCS Audience-fit (A) —
+              not treated as index 100.
+            </p>
+          ) : null}
         </div>
         <ExportDeckButton
           brief={brief}
@@ -277,8 +288,8 @@ export function StageCompare({
                   <span>
                     n <span className="num text-foreground">{rob.n || "—"}</span>
                   </span>
-                  <span>
-                    Reach{" "}
+                  <span title="Allocation-mix-weighted weekly channel reach % (not universe reach)">
+                    Mix-weighted reach{" "}
                     <span className="num text-foreground">{Math.round(reach)}%</span>
                   </span>
                 </div>

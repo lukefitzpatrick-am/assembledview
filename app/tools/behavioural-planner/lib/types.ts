@@ -24,8 +24,8 @@ export interface Channel {
   D: number; // direct action effect score 0-100
   cpm: number; // AUD CPM
   color: string; // CSS colour token for bar swatch
-  /** Affinity index keyed by segment_id; 100 = baseline. */
-  aff: Record<string, number>;
+  /** Affinity index keyed by segment_id; 100 = baseline. Null = unknown — never invent 100. */
+  aff: Record<string, number | null>;
   /** From API age_fit (phase 1: always 1.0). */
   ageMod: number;
   /** From API gender_fit (phase 1: always 1.0). */
@@ -77,7 +77,10 @@ export interface ScoredChannel {
   E: number;
   C: number;
   bcs: number;
-  affAvg: number;
+  /** Mean of finite affinities only; null when every segment affinity was missing. */
+  affAvg: number | null;
+  /** How many segment affinities were null/non-finite and excluded from affAvg. */
+  affNullExcluded: number;
   ageMod: number;
   genderMod: number;
 }
