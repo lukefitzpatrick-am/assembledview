@@ -613,6 +613,97 @@ test("savePlan O4: manual override months survive auto-drift recompute untouched
   assert.equal(Number(juneManual!.amountCents), toCents(1000))
 })
 
+test("savePlan O4.6: publish ignores stale client versionNumber — writes tip+1", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  // Tip becomes 3 via draft + two publishes.
+  await savePlanVersion(draftInput(masterId, [baseLine(LINE_A, 1000)]))
+  const p2 = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1000)]),
+    mode: "publish",
+    versionNumber: 1, // client stale vs tip=1 → server writes 2
+    campaignStatus: "booked",
+  })
+  assert.equal(p2.versionNumber, 2)
+  const p3 = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1000)]),
+    mode: "publish",
+    versionNumber: 2,
+    campaignStatus: "booked",
+  })
+  assert.equal(p3.versionNumber, 3)
+
+  // Fresh-session bug: Xano watermark still 1 → client sends nextVersionNumber=2
+  // while Postgres tip is 3. Server must write 4 (no 23505).
+  const stale = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1000)]),
+    mode: "publish",
+    versionNumber: 2,
+    campaignStatus: "booked",
+  })
+  assert.equal(stale.versionNumber, 4)
+  assert.equal(stale.published, true)
+
+  const db = getDb()
+  const versions = await db
+    .select({
+      id: schema.mediaPlanVersions.id,
+      vn: schema.mediaPlanVersions.versionNumber,
+    })
+    .from(schema.mediaPlanVersions)
+    .where(eq(schema.mediaPlanVersions.masterId, masterId))
+  const numbers = versions.map((v) => v.vn).sort((a, b) => a - b)
+  assert.deepEqual(numbers, [1, 2, 3, 4])
+  assert.ok(versions.some((v) => v.id === stale.versionId && v.vn === 4))
+})
+
+test("savePlan O4.6: draft-overwrite still targets the loaded version", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const first = await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1000)])
+  )
+  assert.equal(first.versionNumber, 1)
+
+  // Publish tip ahead so a buggy client vn would collide if draft also resolved tip+1.
+  await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1000)]),
+    mode: "publish",
+    versionNumber: 99,
+    campaignStatus: "booked",
+  })
+
+  const overwrite = await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1500)], {
+      versionNumber: 1,
+      campaignName: "Draft overwrite target",
+    })
+  )
+  assert.equal(overwrite.versionNumber, 1)
+  assert.equal(overwrite.versionId, first.versionId)
+  assert.equal(overwrite.published, false)
+
+  const snap = await snapshot(overwrite.versionId)
+  assert.equal(snap.version?.versionNumber, 1)
+  assert.equal(snap.version?.campaignName, "Draft overwrite target")
+})
+
 test("savePlan: close db pool", async () => {
   if (hasDb) await closeDb()
 })

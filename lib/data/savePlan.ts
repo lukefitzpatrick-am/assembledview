@@ -127,6 +127,8 @@ export type SavePlanVersionInput = {
 
 export type SavePlanVersionResult = {
   versionId: number
+  /** Version number actually written (server-resolved for publish/new_version). */
+  versionNumber: number
   lineCount: number
   scheduleRowCount: number
   published: boolean
@@ -325,15 +327,35 @@ function extractOffendingLineItemId(err: unknown, fallbackIds: string[]): string
   return m?.[1]?.split(",")[1]?.trim() ?? m?.[1]?.trim()
 }
 
+/**
+ * O4.6 — publish/new_version ignore the client number and take Postgres tip+1
+ * inside the txn. Draft-overwrite keeps targeting the loaded version.
+ */
+async function resolveVersionNumberForSave(
+  tx: Tx,
+  input: Pick<SavePlanVersionInput, "masterId" | "mode" | "versionNumber">
+): Promise<number> {
+  if (input.mode === "draft") return input.versionNumber
+
+  const [tip] = await tx
+    .select({
+      maxVn: sql<number>`coalesce(max(${schema.mediaPlanVersions.versionNumber}), 0)`,
+    })
+    .from(schema.mediaPlanVersions)
+    .where(eq(schema.mediaPlanVersions.masterId, input.masterId))
+  return Number(tip?.maxVn ?? 0) + 1
+}
+
 async function upsertVersionRow(
   tx: Tx,
   input: SavePlanVersionInput,
-  legacySchedules: unknown
+  legacySchedules: unknown,
+  versionNumber: number
 ): Promise<number> {
   const campaignStatus = resolvePersistedCampaignStatus(input)
   const baseValues = {
     masterId: input.masterId,
-    versionNumber: input.versionNumber,
+    versionNumber,
     mbaNumber: input.mbaNumber,
     campaignName: input.campaignName ?? null,
     campaignStatus,
@@ -358,7 +380,7 @@ async function upsertVersionRow(
       .where(
         and(
           eq(schema.mediaPlanVersions.masterId, input.masterId),
-          eq(schema.mediaPlanVersions.versionNumber, input.versionNumber)
+          eq(schema.mediaPlanVersions.versionNumber, versionNumber)
         )
       )
       .limit(1)
@@ -481,10 +503,19 @@ export async function savePlanVersion(
   }
 
   const lineIds = input.lineItems.map((l) => String(l.lineItemId).trim())
+  /** Captured for 23505 messaging — publish path may differ from client number. */
+  let attemptedVersionNumber = input.versionNumber
 
   try {
     const result = await db.transaction(async (tx) => {
-      const versionId = await upsertVersionRow(tx as Tx, input, legacySchedules)
+      const versionNumber = await resolveVersionNumberForSave(tx as Tx, input)
+      attemptedVersionNumber = versionNumber
+      const versionId = await upsertVersionRow(
+        tx as Tx,
+        input,
+        legacySchedules,
+        versionNumber
+      )
 
       // Replace-set line_items (atomic inside txn — readers never see the gap).
       await tx
@@ -746,6 +777,7 @@ export async function savePlanVersion(
 
       return {
         versionId,
+        versionNumber,
         lineCount: Number(finalLineCount?.n ?? 0),
         scheduleRowCount: Number(finalScheduleCount?.n ?? 0),
         published,
@@ -776,7 +808,7 @@ export async function savePlanVersion(
       if (classified.code === "VERSION_ALREADY_EXISTS") {
         throw new SavePlanError(
           "VERSION_ALREADY_EXISTS",
-          `UNIQUE(master_id, version_number) violated for master ${input.masterId} version_number ${input.versionNumber}${
+          `UNIQUE(master_id, version_number) violated for master ${input.masterId} version_number ${attemptedVersionNumber}${
             classified.constraint ? ` (constraint ${classified.constraint})` : ""
           } — aborting`
         )

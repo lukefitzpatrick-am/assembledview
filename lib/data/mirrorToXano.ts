@@ -15,7 +15,11 @@ import {
 import { CHANNEL_ENDPOINT_TO_CHANNEL, mapLineItemFromPostgres } from "@/lib/data/planShapes"
 import { recordShadowDiff } from "@/lib/data/shadowDiff"
 import type { CampaignKpiInput } from "@/lib/kpi/types"
-import type { SavePlanLineItem, SavePlanVersionInput } from "@/lib/data/savePlan"
+import type {
+  SavePlanLineItem,
+  SavePlanMode,
+  SavePlanVersionInput,
+} from "@/lib/data/savePlan"
 
 export type MirrorStatus = "ok" | "failed"
 
@@ -34,6 +38,11 @@ export type MirrorPlanToXanoInput = {
   versionId: number
   clientName: string
   masterId: number
+  /**
+   * O4.6 — publish mirrors bump the Xano master watermark; draft / new_version
+   * leave the master untouched (staged rows stay hidden by vn > watermark).
+   */
+  mode?: SavePlanMode
   campaignName?: string | null
   campaignStatus?: string | null
   campaignStartDate?: string | null
@@ -58,10 +67,14 @@ export type MirrorChannelSaver = (
   lineItems: any[]
 ) => Promise<any[]>
 
+export type MirrorMasterPatcher = (input: MirrorPlanToXanoInput) => Promise<void>
+
 export type MirrorDeps = {
   saveByChannel: Partial<Record<LineChannel, MirrorChannelSaver>>
   upsertVersion: (input: MirrorPlanToXanoInput) => Promise<number>
   syncCampaignKpis: (rows: CampaignKpiInput[]) => Promise<unknown>
+  /** Publish-only: PATCH Xano media_plan_master watermark. */
+  patchMaster?: MirrorMasterPatcher
   now?: () => number
 }
 
@@ -282,6 +295,44 @@ async function defaultUpsertVersion(input: MirrorPlanToXanoInput): Promise<numbe
   return id
 }
 
+/**
+ * O4.6 — restore legacy publish semantic: bump Xano master.version_number
+ * watermark (+ campaign_status) so the staged version becomes visible.
+ * Shape matches MBA PATCH publish: only those fields, never id/mba_number.
+ */
+async function defaultPatchMaster(input: MirrorPlanToXanoInput): Promise<void> {
+  const { getXanoBaseUrl, xanoPostHeaderRecord, xanoAuthHeaderRecord } = await import(
+    "@/lib/api/xano"
+  )
+  const baseUrl = getXanoBaseUrl([
+    "XANO_MEDIA_PLANS_BASE_URL",
+    "XANO_MEDIAPLANS_BASE_URL",
+  ])
+  const masterId = Number(input.masterId)
+  if (!Number.isFinite(masterId) || masterId <= 0) {
+    throw new Error(`Xano master PATCH refused — invalid masterId=${input.masterId}`)
+  }
+  const body: Record<string, unknown> = {
+    version_number: input.versionNumber,
+  }
+  if (input.campaignStatus != null && String(input.campaignStatus).trim() !== "") {
+    body.campaign_status = input.campaignStatus
+  }
+  const res = await fetch(`${baseUrl}/media_plan_master/${masterId}`, {
+    method: "PATCH",
+    headers: {
+      ...xanoPostHeaderRecord(),
+      ...xanoAuthHeaderRecord(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => "")
+    throw new Error(`Xano master PATCH failed: ${res.status} ${text}`)
+  }
+}
+
 async function loadDefaultSaveByChannel(): Promise<
   Partial<Record<LineChannel, MirrorChannelSaver>>
 > {
@@ -364,6 +415,13 @@ export async function mirrorPlanToXano(
 
     await syncCampaignKpis(input.kpiRows ?? [])
 
+    // O4.6 — publish completes by bumping the Xano master watermark. Draft /
+    // new_version mirrors stage version rows only (legacy deferMasterVersionPublish).
+    if (input.mode === "publish") {
+      const patchMaster = deps?.patchMaster ?? defaultPatchMaster
+      await patchMaster(input)
+    }
+
     return {
       mirror: "ok",
       durationMs: now() - started,
@@ -384,14 +442,17 @@ export function mirrorInputFromSave(
   saveInput: SavePlanVersionInput,
   versionId: number,
   clientName: string,
-  kpiRows?: CampaignKpiInput[]
+  kpiRows?: CampaignKpiInput[],
+  /** Server-resolved version number from savePlanVersion (O4.6). */
+  resolvedVersionNumber?: number
 ): MirrorPlanToXanoInput {
   return {
     mbaNumber: saveInput.mbaNumber,
-    versionNumber: saveInput.versionNumber,
+    versionNumber: resolvedVersionNumber ?? saveInput.versionNumber,
     versionId,
     clientName,
     masterId: saveInput.masterId,
+    mode: saveInput.mode,
     campaignName: saveInput.campaignName,
     campaignStatus: saveInput.campaignStatus,
     campaignStartDate: saveInput.campaignStartDate,
@@ -440,6 +501,7 @@ export async function retryMirrorFromPostgres(
     .select({
       id: schema.mediaPlanMasters.id,
       mpClientName: schema.mediaPlanMasters.mpClientName,
+      publishedVersionId: schema.mediaPlanMasters.publishedVersionId,
     })
     .from(schema.mediaPlanMasters)
     .where(eq(schema.mediaPlanMasters.id, version.masterId))
@@ -511,6 +573,12 @@ export async function retryMirrorFromPostgres(
     }
   })
 
+  // Admin retry of the published tip must re-bump the Xano watermark.
+  const mode: SavePlanMode =
+    master?.publishedVersionId != null && master.publishedVersionId === version.id
+      ? "publish"
+      : "draft"
+
   return mirrorPlanToXano(
     {
       mbaNumber: version.mbaNumber,
@@ -518,6 +586,7 @@ export async function retryMirrorFromPostgres(
       versionId: version.id,
       clientName,
       masterId: version.masterId,
+      mode,
       campaignName: version.campaignName,
       campaignStatus: version.campaignStatus,
       campaignStartDate: version.campaignStartDate,

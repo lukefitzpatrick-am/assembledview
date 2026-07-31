@@ -316,7 +316,13 @@ export async function POST(request: NextRequest) {
     }
 
     const mirror = await mirrorPlanToXano(
-      mirrorInputFromSave(saveInput, result.versionId, clientName)
+      mirrorInputFromSave(
+        saveInput,
+        result.versionId,
+        clientName,
+        undefined,
+        result.versionNumber
+      )
     )
 
     // PC7: clear server working draft once tier 3 (save/publish) lands.
@@ -332,6 +338,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       versionId: result.versionId,
+      versionNumber: result.versionNumber,
       lineCount: result.lineCount,
       scheduleRowCount: result.scheduleRowCount,
       published: result.published,

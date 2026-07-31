@@ -151,6 +151,75 @@ describe("mirrorPlanToXano", () => {
     assert.equal(shaped.line_item_id, "KRUSTY001TV1")
     assert.ok(Array.isArray(shaped.bursts))
   })
+
+  it("O4.6: publish mode PATCHes Xano master watermark", async () => {
+    const patchCalls: Array<{ versionNumber: number; campaignStatus?: string | null }> =
+      []
+    const result = await mirrorPlanToXano(
+      baseInput({
+        mode: "publish",
+        versionNumber: 4,
+        campaignStatus: "booked",
+      }),
+      {
+        upsertVersion: async () => 9001,
+        syncCampaignKpis: async () => [],
+        saveByChannel: {
+          television: async () => [],
+          production: async () => [],
+        },
+        patchMaster: async (input) => {
+          patchCalls.push({
+            versionNumber: input.versionNumber,
+            campaignStatus: input.campaignStatus,
+          })
+        },
+      }
+    )
+    assert.equal(result.mirror, "ok")
+    assert.equal(patchCalls.length, 1)
+    assert.equal(patchCalls[0]?.versionNumber, 4)
+    assert.equal(patchCalls[0]?.campaignStatus, "booked")
+  })
+
+  it("O4.6: draft mode does NOT PATCH Xano master", async () => {
+    let patchCalls = 0
+    const result = await mirrorPlanToXano(
+      baseInput({ mode: "draft", versionNumber: 1 }),
+      {
+        upsertVersion: async () => 9001,
+        syncCampaignKpis: async () => [],
+        saveByChannel: {
+          television: async () => [],
+          production: async () => [],
+        },
+        patchMaster: async () => {
+          patchCalls++
+        },
+      }
+    )
+    assert.equal(result.mirror, "ok")
+    assert.equal(patchCalls, 0)
+  })
+
+  it("O4.6: master PATCH failure → mirror:failed, never throws", async () => {
+    const result = await mirrorPlanToXano(
+      baseInput({ mode: "publish", versionNumber: 3, campaignStatus: "booked" }),
+      {
+        upsertVersion: async () => 9001,
+        syncCampaignKpis: async () => [],
+        saveByChannel: {
+          television: async () => [],
+          production: async () => [],
+        },
+        patchMaster: async () => {
+          throw new Error("Xano master PATCH blocked")
+        },
+      }
+    )
+    assert.equal(result.mirror, "failed")
+    assert.ok(result.error?.includes("Xano master PATCH blocked"))
+  })
 })
 
 describe("replaceChannelLineItems insert-before-delete + semaphore", () => {
