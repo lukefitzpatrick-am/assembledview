@@ -438,6 +438,85 @@ test("savePlan: publish path sets published_version_id + fee snapshot", async (t
   assert.equal(Number(snapCount?.n ?? 0), 1)
 })
 
+test("savePlan: billing_overrides → schedule_months source=override, then computed on clear", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const db = getDb()
+  const first = await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1000)])
+  )
+  const before = await snapshot(first.versionId)
+  const mediaRows = before.months.filter(
+    (r) =>
+      r.basis === "billing" &&
+      r.component === "media" &&
+      r.lineItemId === LINE_A
+  )
+  assert.ok(mediaRows.length > 0, "expected computed media schedule_months")
+  assert.ok(mediaRows.every((r) => r.source === "computed"))
+
+  const target = mediaRows[0]!
+  const monthKey = String(target.month).slice(0, 7) // YYYY-MM
+  const overrideAmountDollars = 777.77
+  const overrideCents = toCents(overrideAmountDollars)
+
+  // Seed override outside savePlan's txn (suite pattern: committed fixture + wipeMba cleanup).
+  await db.insert(schema.billingOverrides).values({
+    versionId: first.versionId,
+    lineItemId: LINE_A,
+    component: "media",
+    mode: "manual",
+    reason: "manual",
+    months: [{ month: monthKey, amount: overrideAmountDollars }],
+    dateBasis: "o2-override-fixture",
+  })
+
+  const withOverride = await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1000)])
+  )
+  assert.equal(withOverride.versionId, first.versionId)
+  const mid = await snapshot(withOverride.versionId)
+  const overridden = mid.months.filter(
+    (r) =>
+      r.basis === "billing" &&
+      r.component === "media" &&
+      r.lineItemId === LINE_A &&
+      String(r.month).slice(0, 7) === monthKey
+  )
+  assert.equal(overridden.length, 1)
+  assert.equal(overridden[0]!.source, "override")
+  assert.equal(Number(overridden[0]!.amountCents), overrideCents)
+
+  await db
+    .delete(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, first.versionId))
+
+  const cleared = await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1000)])
+  )
+  assert.equal(cleared.versionId, first.versionId)
+  const after = await snapshot(cleared.versionId)
+  const restored = after.months.filter(
+    (r) =>
+      r.basis === "billing" &&
+      r.component === "media" &&
+      r.lineItemId === LINE_A &&
+      String(r.month).slice(0, 7) === monthKey
+  )
+  assert.equal(restored.length, 1)
+  assert.equal(restored[0]!.source, "computed")
+  assert.equal(Number(restored[0]!.amountCents), Number(target.amountCents))
+  assert.notEqual(Number(restored[0]!.amountCents), overrideCents)
+})
+
 test("savePlan: close db pool", async () => {
   if (hasDb) await closeDb()
 })
