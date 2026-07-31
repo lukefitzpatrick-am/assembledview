@@ -220,6 +220,10 @@ import {
   type CollisionRow,
 } from "@/lib/billing/collisionWorksheet"
 import {
+  evaluatePostgresAutoDivergence,
+  hasExplicitManualBillingLines,
+} from "@/lib/billing/postgresAutoBillingCorrection"
+import {
   collectLineMonthPairs,
   getLineBalancingMonth,
   rebalanceLineOnSchedule,
@@ -7004,43 +7008,52 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
 
       if (
-        isManualBilling &&
-        workingBillingMonths.length > 0 &&
-        !isPartialMBA &&
-        workingBillingMonths[0]?.lineItems &&
-        Object.keys(workingBillingMonths[0].lineItems).length > 0
+        writeBackend === "postgres"
+          ? hasExplicitManualBillingLines(workingBillingMonths)
+          : isManualBilling
       ) {
-        const billingValidation = validateBillingBeforeSave(workingBillingMonths, { feeCheck: true })
-        billingOverrideNotices = billingValidation.preservedManualOverrides
-        if (billingValidation.blockingErrors.length > 0) {
-          const list = billingValidation.blockingErrors
-          const head = list.slice(0, 4).join(" • ")
-          const tail = list.length > 4 ? ` (+${list.length - 4} more in toast)` : ""
-          setSaveStatus([
-            { name: "Media Plan Master", status: "error", error: "Not run — billing checks failed." },
-            { name: "Media Plan Version", status: "error", error: "Not run — billing checks failed." },
-            { name: "Billing integrity", status: "error", error: `${head}${tail}` },
-          ])
-          toast({
-            variant: "destructive",
-            title: "Cannot save campaign — billing integrity",
-            description:
-              list.slice(0, 8).join("\n") + (list.length > 8 ? `\n… and ${list.length - 8} more issue(s).` : ""),
-          })
-          setIsSaving(false)
-          return
+        if (
+          workingBillingMonths.length > 0 &&
+          !isPartialMBA &&
+          workingBillingMonths[0]?.lineItems &&
+          Object.keys(workingBillingMonths[0].lineItems).length > 0
+        ) {
+          const billingValidation = validateBillingBeforeSave(workingBillingMonths, { feeCheck: true })
+          billingOverrideNotices = billingValidation.preservedManualOverrides
+          if (billingValidation.blockingErrors.length > 0) {
+            const list = billingValidation.blockingErrors
+            const head = list.slice(0, 4).join(" • ")
+            const tail = list.length > 4 ? ` (+${list.length - 4} more in toast)` : ""
+            setSaveStatus([
+              { name: "Media Plan Master", status: "error", error: "Not run — billing checks failed." },
+              { name: "Media Plan Version", status: "error", error: "Not run — billing checks failed." },
+              { name: "Billing integrity", status: "error", error: `${head}${tail}` },
+            ])
+            toast({
+              variant: "destructive",
+              title: "Cannot save campaign — billing integrity",
+              description:
+                list.slice(0, 8).join("\n") + (list.length > 8 ? `\n… and ${list.length - 8} more issue(s).` : ""),
+            })
+            setIsSaving(false)
+            return
+          }
         }
       }
 
+      // O4: postgres AUTO drift is corrected server-side — never pre-block with "reset to auto".
+      // Xano path: keep the informational toast only (PUT still omits schedule / C1 reject unchanged).
       if (workingBillingMonths.length > 0 && autoReferenceBillingMonths.length > 0) {
-        const saveDivergence = compareBillingDivergence(workingBillingMonths, autoReferenceBillingMonths, {
-          attachComputedLineItems: (months, mode) => attachLineItemsToMonths(months, mode, lineItemSnapshotsForSave),
-        })
-        if (saveDivergence.isDivergent) {
-          toast({
-            title: "Manual billing differences",
-            description: "Saving a billing schedule that differs from the auto-computed values.",
+        if (writeBackend !== "postgres") {
+          const saveDivergence = compareBillingDivergence(workingBillingMonths, autoReferenceBillingMonths, {
+            attachComputedLineItems: (months, mode) => attachLineItemsToMonths(months, mode, lineItemSnapshotsForSave),
           })
+          if (saveDivergence.isDivergent) {
+            toast({
+              title: "Manual billing differences",
+              description: "Saving a billing schedule that differs from the auto-computed values.",
+            })
+          }
         }
       }
 
@@ -7321,6 +7334,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           poNumber: formValues.mp_ponumber ?? null,
           campaignBudgetCents: dollarsToCampaignBudgetCents(formValues.mp_campaignbudget),
           fixedFee: Boolean(formValues.mp_fixedfee),
+          clientBillingSchedulePreview:
+            workingBillingMonths.length > 0 ? workingBillingMonths : undefined,
           channelFlags: {
             mp_television: Boolean(formValues.mp_television),
             mp_radio: Boolean(formValues.mp_radio),
@@ -7393,6 +7408,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   ? saveResult.data.error || "That version number already exists"
                   : saveResult.data.code === "MISSING_CAMPAIGN_STATUS"
                     ? "Campaign status is required on publish"
+                    : saveResult.data.code === "BILLING_OVERRIDE_SUM_VIOLATION"
+                      ? saveResult.data.error || "Manual billing months do not sum to the line total"
                     : saveResult.data.code === "UNIQUE_VIOLATION"
                       ? saveResult.data.error || "Unique constraint violated on save"
                       : saveResult.data.error || "Postgres save failed"
@@ -7410,6 +7427,30 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         void planDraft.clearAfterPublish()
         const versionId = saveResult.data.versionId
         const numericSavedVersion = modeResolved.versionNumber
+
+        if (saveResult.data.billingCorrection?.correctedLineCount) {
+          toast({
+            title: "Billing schedule corrected",
+            description: saveResult.data.billingCorrection.toastDescription,
+          })
+        } else if (
+          workingBillingMonths.length > 0 &&
+          autoReferenceBillingMonths.length > 0
+        ) {
+          // Fallback when server omitted correction but pre-save compare saw AUTO drift.
+          const local = evaluatePostgresAutoDivergence({
+            working: workingBillingMonths,
+            autoReference: autoReferenceBillingMonths,
+            attachComputedLineItems: (months, mode) =>
+              attachLineItemsToMonths(months, mode, lineItemSnapshotsForSave),
+          })
+          if (local.correction) {
+            toast({
+              title: "Billing schedule corrected",
+              description: local.correction.toastDescription,
+            })
+          }
+        }
 
         if (saveResult.data.mirror === "failed") {
           updateSaveStatus(
@@ -9814,7 +9855,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       attachComputedLineItems: (months, mode) => attachLineItemsToMonths(months, mode),
     })
     setBillingDivergence(result)
-    setIsManualBilling(result.isDivergent)
+    // O4 root cause: AUTO/undefined drift must not flip isManualBilling (Missing=auto).
+    // Explicit manual stamps only — otherwise shouldResync never catches working up to auto.
+    setIsManualBilling(
+      hasExplicitManualBillingLines(savedBillingMonths) ||
+        hasExplicitManualBillingLines(workingBillingMonths)
+    )
     if (result.isDivergent && FF_BILLING_DIVERGENCE_ENABLED) {
       const ackKey = `billingDivergenceAcknowledged:${mbaNumber}:${selectedVersionNumber}`
       const acked =
@@ -9846,7 +9892,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         attachComputedLineItems: (months, mode) => attachLineItemsToMonths(months, mode),
       })
       setBillingDivergence(result)
-      setIsManualBilling(result.isDivergent)
+      setIsManualBilling(hasExplicitManualBillingLines(workingBillingMonths))
     }, 500)
 
     return () => window.clearTimeout(tid)

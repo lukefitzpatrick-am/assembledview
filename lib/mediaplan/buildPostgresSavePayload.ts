@@ -1,5 +1,6 @@
 import type { LineChannel } from "@/db/schema"
 import type { SavePlanLineItem, SavePlanMode } from "@/lib/data/savePlan"
+import type { BillingMonth } from "@/lib/billing/types"
 import type {
   FeeLoading,
   LineItemApproval,
@@ -219,6 +220,8 @@ export type PlansSaveRequestBody = {
   }
   /** PC7 stale-base check — tip version id at edit open. */
   baseVersionId?: number | null
+  /** O4 — working billing for AUTO correction toast (server still authoritative). */
+  clientBillingSchedulePreview?: BillingMonth[] | null
 }
 
 export type PlansSaveResponse = {
@@ -232,6 +235,20 @@ export type PlansSaveResponse = {
   error?: string
   code?: string
   lineItemId?: string
+  /** O4 — AUTO-line server correction vs pre-save preview (toast, never silent). */
+  billingCorrection?: {
+    correctedLineCount: number
+    totalDeltaExGst: number
+    toastDescription: string
+    lines?: Array<{
+      lineItemId: string
+      header?: string
+      field: string
+      clientTotal: number
+      serverTotal: number
+      delta: number
+    }>
+  } | null
   compare?: {
     baseVersionId: number
     currentVersionId: number

@@ -106,6 +106,8 @@ const bodySchema = z.object({
   adservaudio: z.number().optional(),
   /** Month chips at approve/publish — drives approved_slice. */
   selectedMonthYears: z.array(z.string()).optional(),
+  /** O4 — working billing snapshot for AUTO correction toast (not authoritative). */
+  clientBillingSchedulePreview: z.array(z.any()).optional().nullable(),
   /** Create-path: insert PG master with Xano-aligned id when missing. */
   ensureMaster: ensureMasterSchema.optional(),
   /** PC7: tip version id the editor started from — 409 if tip moved. */
@@ -285,6 +287,10 @@ export async function POST(request: NextRequest) {
     feeSnapshot: body.feeSnapshot,
     adservaudio: body.adservaudio,
     selectedMonthYears: body.selectedMonthYears,
+    clientBillingSchedulePreview: body.clientBillingSchedulePreview as
+      | import("@/lib/billing/types").BillingMonth[]
+      | null
+      | undefined,
     lineItems: body.lineItems.map((l) => ({
       ...l,
       channel: l.channel as (typeof LINE_CHANNELS)[number],
@@ -331,12 +337,17 @@ export async function POST(request: NextRequest) {
       published: result.published,
       mirror: mirror.mirror,
       mirrorDurationMs: mirror.durationMs,
+      ...(result.billingCorrection
+        ? { billingCorrection: result.billingCorrection }
+        : {}),
       ...(mirror.mirror === "failed" ? { mirrorError: mirror.error } : {}),
     })
   } catch (err) {
     if (err instanceof SavePlanError) {
       const status =
-        err.code === "BOSS006_EMPTY_PUBLISH" || err.code === "C1_FULL_SCOPE"
+        err.code === "BOSS006_EMPTY_PUBLISH" ||
+        err.code === "C1_FULL_SCOPE" ||
+        err.code === "BILLING_OVERRIDE_SUM_VIOLATION"
           ? 409
           : err.code === "MASTER_NOT_FOUND"
             ? 404

@@ -29,6 +29,16 @@ import type {
   FeeOverride,
   LineItemInput,
 } from "@/lib/finance/campaignFinancials.types"
+import {
+  attachOverridesToLineInputs,
+  type BillingOverrideRow,
+} from "@/lib/finance/billingOverrides"
+import { validateManualOverrideSumRules } from "@/lib/finance/recomputeBillingScheduleOnSave"
+import type { BillingMonth } from "@/lib/billing/types"
+import {
+  evaluatePostgresAutoDivergence,
+  type AutoBillingCorrectionSummary,
+} from "@/lib/billing/postgresAutoBillingCorrection"
 import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolation"
 import {
@@ -101,6 +111,11 @@ export type SavePlanVersionInput = {
   getRateForMediaType?: (mediaType: string) => number
   adservaudio?: number
   /**
+   * O4 — editor working billing snapshot for post-save correction toast.
+   * AUTO drift vs server recompute never blocks; manual C2 still does.
+   */
+  clientBillingSchedulePreview?: BillingMonth[] | null
+  /**
    * Test-only injection point for the PENFOLD016/BOSS006 kill-shot.
    * Must throw to abort between line_items and schedule_months writes.
    */
@@ -114,6 +129,8 @@ export type SavePlanVersionResult = {
   lineCount: number
   scheduleRowCount: number
   published: boolean
+  /** Present when AUTO lines in the client preview diverged from server recompute. */
+  billingCorrection?: AutoBillingCorrectionSummary | null
 }
 
 export type SavePlanErrorCode =
@@ -126,6 +143,7 @@ export type SavePlanErrorCode =
   | "MASTER_NOT_FOUND"
   | "UNIQUE_VIOLATION"
   | "C1_FULL_SCOPE"
+  | "BILLING_OVERRIDE_SUM_VIOLATION"
 
 export class SavePlanError extends Error {
   readonly code: SavePlanErrorCode
@@ -407,6 +425,20 @@ export async function savePlanVersion(
     adservaudio: input.adservaudio,
   })
 
+  // O4: never block on AUTO preview drift — server schedule is authoritative.
+  // Surface a correction summary when the editor sent a working preview.
+  let billingCorrection: AutoBillingCorrectionSummary | null = null
+  const preview = input.clientBillingSchedulePreview
+  if (Array.isArray(preview) && preview.length > 0) {
+    const evaluated = evaluatePostgresAutoDivergence({
+      working: preview,
+      autoReference: financials.billingSchedule,
+    })
+    if (evaluated.autoOnly) {
+      billingCorrection = evaluated.correction
+    }
+  }
+
   const legacySchedules = {
     billingSchedule: financials.billingSchedule,
     deliverySchedule: financials.deliverySchedule,
@@ -477,9 +509,36 @@ export async function savePlanVersion(
           lineItemId: schema.billingOverrides.lineItemId,
           component: schema.billingOverrides.component,
           months: schema.billingOverrides.months,
+          mode: schema.billingOverrides.mode,
+          reason: schema.billingOverrides.reason,
+          dateBasis: schema.billingOverrides.dateBasis,
         })
         .from(schema.billingOverrides)
         .where(eq(schema.billingOverrides.versionId, versionId))
+
+      // O4: keep C2 manual sum gate (auto drift never blocks on this path).
+      const overrideRowsForAttach: BillingOverrideRow[] = overrideRows.map((r) => ({
+        line_item_id: r.lineItemId,
+        component: r.component === "fee" ? "fee" : "media",
+        mode: r.mode ?? "manual",
+        reason: r.reason,
+        months: r.months as BillingOverrideRow["months"],
+        date_basis: r.dateBasis,
+      }))
+      const lineItemsWithOverrides = attachOverridesToLineInputs(
+        lineInputs,
+        overrideRowsForAttach
+      )
+      const sumViolations = validateManualOverrideSumRules({
+        lineItems: lineItemsWithOverrides,
+        financials,
+      })
+      if (sumViolations.length > 0) {
+        throw new SavePlanError(
+          "BILLING_OVERRIDE_SUM_VIOLATION",
+          sumViolations.map((v) => v.message).join("\n")
+        )
+      }
 
       const scheduleRows = reconcileOverrideSources(
         [...billingExplode.rows, ...deliveryExplode.rows],
@@ -654,6 +713,7 @@ export async function savePlanVersion(
         lineCount: Number(finalLineCount?.n ?? 0),
         scheduleRowCount: Number(finalScheduleCount?.n ?? 0),
         published,
+        billingCorrection,
       }
     })
 

@@ -465,7 +465,9 @@ test("savePlan: billing_overrides → schedule_months source=override, then comp
 
   const target = mediaRows[0]!
   const monthKey = String(target.month).slice(0, 7) // YYYY-MM
-  const overrideAmountDollars = 777.77
+  // C2 (O4): override month sum must equal booked line media — amount may match
+  // auto cents; the fixture proves source flips override ↔ computed.
+  const overrideAmountDollars = 1000
   const overrideCents = toCents(overrideAmountDollars)
 
   // Seed override outside savePlan's txn (suite pattern: committed fixture + wipeMba cleanup).
@@ -514,7 +516,101 @@ test("savePlan: billing_overrides → schedule_months source=override, then comp
   assert.equal(restored.length, 1)
   assert.equal(restored[0]!.source, "computed")
   assert.equal(Number(restored[0]!.amountCents), Number(target.amountCents))
-  assert.notEqual(Number(restored[0]!.amountCents), overrideCents)
+})
+
+test("savePlan O4: C2 sum violation blocks save (manual override)", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const db = getDb()
+  const first = await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1000)])
+  )
+  await db.insert(schema.billingOverrides).values({
+    versionId: first.versionId,
+    lineItemId: LINE_A,
+    component: "media",
+    mode: "manual",
+    reason: "manual",
+    months: [{ month: "2026-05", amount: 777.77 }],
+    dateBasis: "o4-c2-block",
+  })
+
+  await assert.rejects(
+    () => savePlanVersion(draftInput(masterId, [baseLine(LINE_A, 1000)])),
+    (err: unknown) =>
+      err instanceof SavePlanError &&
+      err.code === "BILLING_OVERRIDE_SUM_VIOLATION"
+  )
+})
+
+test("savePlan O4: manual override months survive auto-drift recompute untouched", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const db = getDb()
+  // Two-month flight: auto recompute splits media; manual packs it into June.
+  const twoMonthLine = baseLine(LINE_A, 1000, {
+    bursts: [
+      {
+        startDate: "2026-06-01",
+        endDate: "2026-07-31",
+        budget: 1000,
+        buyAmount: 1,
+      },
+    ],
+  })
+  const first = await savePlanVersion(draftInput(masterId, [twoMonthLine]))
+  const before = await snapshot(first.versionId)
+  const juneAuto = before.months.find(
+    (r) =>
+      r.basis === "billing" &&
+      r.component === "media" &&
+      r.lineItemId === LINE_A &&
+      String(r.month).slice(0, 7) === "2026-06"
+  )
+  assert.ok(juneAuto, "expected auto June media row")
+  assert.equal(juneAuto!.source, "computed")
+  // Auto split should not already be the full $1000 on June alone.
+  assert.notEqual(Number(juneAuto!.amountCents), toCents(1000))
+
+  await db.insert(schema.billingOverrides).values({
+    versionId: first.versionId,
+    lineItemId: LINE_A,
+    component: "media",
+    mode: "manual",
+    reason: "manual",
+    months: [{ month: "2026-06", amount: 1000 }],
+    dateBasis: "o4-manual-survive",
+  })
+
+  const afterDrift = await savePlanVersion(draftInput(masterId, [twoMonthLine]))
+  assert.equal(afterDrift.versionId, first.versionId)
+  const mid = await snapshot(afterDrift.versionId)
+  const juneManual = mid.months.find(
+    (r) =>
+      r.basis === "billing" &&
+      r.component === "media" &&
+      r.lineItemId === LINE_A &&
+      String(r.month).slice(0, 7) === "2026-06"
+  )
+  assert.ok(juneManual)
+  assert.equal(juneManual!.source, "override")
+  assert.equal(Number(juneManual!.amountCents), toCents(1000))
 })
 
 test("savePlan: close db pool", async () => {
