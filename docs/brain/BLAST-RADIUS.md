@@ -77,7 +77,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | Touch | Also check |
 |---|---|
 | `lib/kpi/types.ts` (`ResolvedKPIRow`) & `deliveryTargets.ts` (`KPITargetValues`) | Treat as frozen public API — 41 importing files across pacing, delivery, dashboards, mediaplans, scripts |
-| `normaliseRatioTarget` / `parsePercentHeuristic` | UI percentage points → stored decimal for ctr/vtr/conversion_rate; NEVER cpv. Legacy stored `>=1` still treated as percentage points. Unset returns null, never 0 |
+| `lib/kpi/percentUnits.ts` (`normaliseRatioTarget` / `parsePercentHeuristic` / format / cell tint) | UI percentage points ↔ stored decimal for ctr/vtr/conversion_rate/viewability; NEVER cpv. No magnitude heuristic (AV-25 v2). Unset returns null, never 0. Data migration pending Luke — scan via `npm run scan:kpi-percent-units` |
 | `deliveryTargetCurve.ts` | Contract behind every delivery chart's target line |
 | KPI target maps | There are TWO with different keys: `lineItemTargets` (`mba\|version\|line_item_id`) vs `kpiTargets` (`media_type::publisher::bid_strategy`). Fixing one does not fix the other |
 

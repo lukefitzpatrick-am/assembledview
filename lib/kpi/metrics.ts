@@ -1,10 +1,16 @@
 /**
- * KPI percent fields (CTR, VTR, conversion_rate):
+ * KPI percent fields (CTR, VTR, conversion_rate, viewability):
  * - UI enters/displays percentage points (0.45 means 0.45%)
  * - Storage is a decimal ratio (0.0045)
  *
  * Empty/invalid → null (unset). Never coerce unset to 0.
+ * Unit conversion: `lib/kpi/percentUnits.ts` only (AV-25 v2).
  */
+
+import {
+  formatStoredDecimalAsPercent,
+  percentPointsToStoredDecimal,
+} from "./percentUnits"
 
 export type KpiMetricKind = "percent" | "count" | "rate"
 
@@ -17,20 +23,17 @@ export function parsePercentHeuristic(raw: string): number | null {
   if (cleaned === "" || cleaned === "-" || cleaned === ".") return null
   const val = parseFloat(cleaned)
   if (!Number.isFinite(val)) return null
-  // Percentage points → decimal; fixed precision avoids 0.45/100 float noise.
-  return Number((val / 100).toFixed(8))
+  return percentPointsToStoredDecimal(val)
 }
 
 /**
- * Format a stored decimal (or legacy percentage-point value >= 1) for an input field.
+ * Format a stored decimal ratio for an input field.
  * Null → empty string (blank input).
+ * Assumes decimal storage — no magnitude heuristic (AV-25 v2).
  */
 export function formatPercentForInput(value: number | null): string {
   if (value === null) return ""
-  // Legacy: values >= 1 are percentage points already (e.g. 3 means 3%).
-  // Domain follow-up: migrate legacy data to decimal form and remove this branch.
-  const decimal = value >= 1 ? value / 100 : value
-  return `${(decimal * 100).toFixed(2)}%`
+  return formatStoredDecimalAsPercent(value)
 }
 
 /**

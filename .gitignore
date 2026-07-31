@@ -60,3 +60,6 @@ scripts/ps1-sec-live-probe.mjs
 # drizzle-kit pull scratch
 /db/_pull_live/
 
+# O5 KPI percent-unit scan CSVs (regenerate via npm run scan:kpi-percent-units)
+/scripts/data/kpi-percent-unit-scan/
+

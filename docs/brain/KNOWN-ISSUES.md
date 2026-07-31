@@ -52,6 +52,7 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | C-15 | Plan-C S1-P1b: `computeCampaignFinancials` / `recomputeBillingScheduleOnSave` emitted month-header schedules with no `lineItems` (fee scalar on `perLine` only) — blocked Postgres `schedule_months` explode + enforce | FIXED (`attachScheduleLineDetail`; `PLANC_SERVER_AUTHORITY=enforce` still OFF) |
 | C-18 | Admin KPI write paths can return **500** after authz clears (PS-1 live matrix: admin KPI writes ×10 expected auth-path, observed `400/500/200` — gate cleared, body/handler still throws on some methods) | Open — register only; root cause not in O3 scope |
 | C-19 | Spurious **auto-drift billing gate** — auto/`undefined` billingMode lines flag divergent (or block save) when amount noise / rematerialisation is expected, not a true manual override | FIXED (O4) — root cause: hydrate set `isManualBilling` from ANY `compareBillingDivergence` (incl. fee/header drift vs burst `autoReference`), so `shouldResyncBillingLineFromAuto` froze legacy-auto rows; postgres pre-save no longer blocks AUTO-only drift (server recomputes + correction toast); Xano `recomputeAndValidate` 409 path unchanged; explicit `billingMode=manual` + C2 sum still block |
+| C-20 | **KPI percent-unit contract** — code assumes decimal storage (AV-25 v2 / O5); leftover percentage-point cells + ambiguous exact-`1.0` rows in Xano and Postgres still need per-row migration; `db:etl` reload reintroduces Xano ambiguity until Xano is fixed | Open — code landed; migration pending Luke (`npm run scan:kpi-percent-units`) |
 
 ## Build / tooling (B-*)
 
@@ -95,3 +96,4 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 - Excel Column N label vs value (C-1)
 - The 3 genuine per-channel deliverable variants for package/package_inclusions/bonus (OOH/newspaper/BVOD return 1 or bonusDeliverables; canonical returns NaN)
 - `AUDIT.md` §7's ~30 unanswered Stage 1–6 questions (fold the still-relevant ones here over time)
+- **Percent-unit contract (AV-25 v2 / C-20):** code landed (`lib/kpi/percentUnits.ts`); dual-store data migration pending — classify via scan CSV; never auto-decide ambiguous `1.0` rows; fix Xano before next `db:etl` truncate-reload

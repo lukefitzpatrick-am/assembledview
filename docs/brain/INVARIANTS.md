@@ -85,7 +85,8 @@ pct === 100 → fee = 0 (division guard)
 ## KPI law
 
 - Three tiers: publisher benchmark → client override → campaign-saved. Fan-out to line grain via `lib/kpi/fanOut.ts`.
-- Percent scale: UI enters/displays percentage points for ctr/vtr/conversion_rate; storage is decimal (`0.45` → `0.0045`). Legacy stored values `>= 1` are still treated as percentage points when formatting/normalising. NEVER apply percent heuristics to cpv (dollars).
+- Percent scale (AV-25 v2): UI enters/displays percentage points for ctr/vtr/conversion_rate/viewability; **storage is decimal everywhere** (`0.45` → `0.0045`, `100` → `1`). Conversion lives only in `lib/kpi/percentUnits.ts` — NEVER infer unit from magnitude (`value >= 1 ? /100` is banned; it is not invertible and breaks 100% targets). CPV is dollars — never pass through percent helpers. Dual-store data migration of legacy percentage-point / ambiguous `1.0` rows is **pending Luke** (`KPI_PERCENT_UNIT_CONTRACT.dataMigration`); `db:etl` truncate-reload will reintroduce ambiguity until Xano is fixed too.
+- Register: **percent-unit contract** — code landed (O5 / AV-25 v2); migration pending Luke (C-20; `npm run scan:kpi-percent-units`).
 - Unset metric returns **null, never 0** — `?? 0` converts "no target" into "target 0%". Publisher KPI rows default metrics to null; publisher tier ignores null and honours explicit 0.
 - Ad-serving precedence (locked): manual `adServingRatePct > 0` → resolved KPI ctr/vtr → hardcoded baseline. `adServingRatePct` stays manual-only; KPI values pass separately into compute. Identity is per-line `lineItemId`.
 - The two KPI target maps have different keys (see BLAST-RADIUS) — both must be updated for a new channel.
