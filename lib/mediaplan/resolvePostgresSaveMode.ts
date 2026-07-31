@@ -40,13 +40,20 @@ export type ResolvePostgresSaveModeResult = {
  *   through so a Draft first-save can still publish v1 while remaining Draft.
  *
  * `new_version` is unused by the editor (no stage-without-publish UI path).
+ *
+ * Edit may pass `versionRowCount: 0` while the tip exists (version history is
+ * lazy-loaded). Treat published tip as proof of at least that many rows so
+ * draft→booked never resolves to "Will create v1" / INSERT version_number=1.
+ * Create still passes published=0 + rowCount=0 → first publish v1.
  */
 export function resolvePostgresSaveMode(
   input: ResolvePostgresSaveModeInput
 ): ResolvePostgresSaveModeResult {
   const status = normaliseStatus(input.campaignStatus ?? "")
   const published = Number(input.publishedVersionNumber) || 0
-  const rowCount = Math.max(0, Number(input.versionRowCount) || 0)
+  const rowCountRaw = Math.max(0, Number(input.versionRowCount) || 0)
+  const rowCount =
+    rowCountRaw === 0 && published > 0 ? published : rowCountRaw
 
   const overwrite =
     status === "draft" && published > 0 && !input.forceIncrement

@@ -75,4 +75,33 @@ describe("resolvePostgresSaveMode", () => {
     assert.equal(r.versionNumber, 2)
     assert.equal(r.uiMode, "increment")
   })
+
+  it("draft→booked on v1 with lazy-empty versionRowCount → publish v2 (not Will create v1)", () => {
+    // Edit page loads tip without versions[] until the switcher opens.
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "Booked",
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 0,
+    })
+    assert.deepEqual(r, {
+      mode: "publish",
+      versionNumber: 2,
+      uiMode: "increment",
+    })
+  })
+
+  it("draft overwrite still works when version history is lazy-empty", () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "Draft",
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 0,
+    })
+    assert.deepEqual(r, {
+      mode: "draft",
+      versionNumber: 1,
+      uiMode: "overwrite",
+    })
+  })
 })

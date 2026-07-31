@@ -246,7 +246,7 @@ import {
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
-import { reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { assertCoreScheduleParity } from "@/lib/finance/assertCoreScheduleParity"
 import {
   humaniseBillingSaveError,
@@ -5098,102 +5098,102 @@ function CreateMediaPlan() {
         const feeLoadingForSave = billingSaveInputs.feeLoading
         const snapshots = {
           television: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(televisionMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.television),
+            assignStableLineItemNumbers(televisionMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.television),
             "television",
             feeLoadingForSave
           ),
           radio: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(radioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.radio),
+            assignStableLineItemNumbers(radioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.radio),
             "radio",
             feeLoadingForSave
           ),
           newspaper: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(newspaperMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.newspaper),
+            assignStableLineItemNumbers(newspaperMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.newspaper),
             "newspaper",
             feeLoadingForSave
           ),
           magazines: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(magazineMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.magazines),
+            assignStableLineItemNumbers(magazineMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.magazines),
             "magazines",
             feeLoadingForSave
           ),
           ooh: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(oohMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.ooh),
+            assignStableLineItemNumbers(oohMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.ooh),
             "ooh",
             feeLoadingForSave
           ),
           cinema: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(cinemaMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.cinema),
+            assignStableLineItemNumbers(cinemaMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.cinema),
             "cinema",
             feeLoadingForSave
           ),
           digiDisplay: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(digiDisplayMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalDisplay),
+            assignStableLineItemNumbers(digiDisplayMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalDisplay),
             "digiDisplay",
             feeLoadingForSave
           ),
           digiAudio: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(digiAudioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalAudio),
+            assignStableLineItemNumbers(digiAudioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalAudio),
             "digiAudio",
             feeLoadingForSave
           ),
           digiVideo: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(digiVideoMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalVideo),
+            assignStableLineItemNumbers(digiVideoMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalVideo),
             "digiVideo",
             feeLoadingForSave
           ),
           bvod: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(bvodMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.bvod),
+            assignStableLineItemNumbers(bvodMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.bvod),
             "bvod",
             feeLoadingForSave
           ),
           integration: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(integrationMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.integration),
+            assignStableLineItemNumbers(integrationMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.integration),
             "integration",
             feeLoadingForSave
           ),
           production: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(productionMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.production),
+            assignStableLineItemNumbers(productionMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.production),
             "production",
             feeLoadingForSave
           ),
           search: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(searchMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.search),
+            assignStableLineItemNumbers(searchMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.search),
             "search",
             feeLoadingForSave
           ),
           socialMedia: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(socialMediaMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.socialMedia),
+            assignStableLineItemNumbers(socialMediaMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.socialMedia),
             "socialMedia",
             feeLoadingForSave
           ),
           progDisplay: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(progDisplayMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progDisplay),
+            assignStableLineItemNumbers(progDisplayMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progDisplay),
             "progDisplay",
             feeLoadingForSave
           ),
           progVideo: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(progVideoMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progVideo),
+            assignStableLineItemNumbers(progVideoMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progVideo),
             "progVideo",
             feeLoadingForSave
           ),
           progBvod: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(progBvodMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progBVOD),
+            assignStableLineItemNumbers(progBvodMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progBVOD),
             "progBvod",
             feeLoadingForSave
           ),
           progAudio: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(progAudioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progAudio),
+            assignStableLineItemNumbers(progAudioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progAudio),
             "progAudio",
             feeLoadingForSave
           ),
           progOoh: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(progOohMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progOOH),
+            assignStableLineItemNumbers(progOohMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progOOH),
             "progOoh",
             feeLoadingForSave
           ),
           influencers: stampClientFeePctOnLineItems(
-            reassignLineItemNumbers(influencersMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.influencers),
+            assignStableLineItemNumbers(influencersMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.influencers),
             "influencers",
             feeLoadingForSave
           ),

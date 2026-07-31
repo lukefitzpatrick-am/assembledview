@@ -657,6 +657,15 @@ export async function savePlanVersion(
   } catch (err) {
     if (err instanceof SavePlanError) throw err
     if (isUniqueViolation(err)) {
+      const msg = err instanceof Error ? err.message : String(err ?? "")
+      // Version tip INSERT colliding on (master_id, version_number) is often a
+      // mis-resolved publish versionNumber (lazy-empty versionRowCount → v1).
+      if (/version_number|master_id.*version/i.test(msg)) {
+        throw new SavePlanError(
+          "UNIQUE_VIOLATION",
+          `UNIQUE(master_id, version_number) violated for version ${input.versionNumber} — aborting (check resolvePostgresSaveMode inputs)`,
+        )
+      }
       const offending = extractOffendingLineItemId(err, lineIds)
       throw new SavePlanError(
         "DUPLICATE_LINE_ITEM_ID",

@@ -337,7 +337,8 @@ export async function POST(request: NextRequest) {
           : err.code === "MASTER_NOT_FOUND"
             ? 404
             : err.code === "DUPLICATE_LINE_ITEM_ID" ||
-                err.code === "MISSING_LINE_ITEM_ID"
+                err.code === "MISSING_LINE_ITEM_ID" ||
+                err.code === "UNIQUE_VIOLATION"
               ? 400
               : 500
       return NextResponse.json(

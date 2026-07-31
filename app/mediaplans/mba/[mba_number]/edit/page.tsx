@@ -319,7 +319,7 @@ import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidati
 import { normaliseStatus } from "@/lib/mediaplan/campaignStatusGuard"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
-import { reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 
 const CAMPAIGN_STATUS_OPTIONS = [
   { value: "approved", label: "Approved" },
@@ -6402,15 +6402,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   const predictedSaveModeLabel = useMemo(() => {
     if (saveModeLabel) return saveModeLabel
-    const status = normaliseStatus(
-      watchedCampaignStatus ?? mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
-    )
-    if (status === "draft") {
-      const v = selectedVersionNumber ?? mediaPlan?.version_number ?? 1
-      return formatSaveModeLabel("overwrite", Number(v) || 1)
-    }
-    const next = nextSaveVersionNumber ?? ((latestVersionNumber || 0) + 1)
-    return formatSaveModeLabel("increment", next)
+    const publishedVersionNumber =
+      typeof latestVersionNumber === "number"
+        ? latestVersionNumber
+        : typeof mediaPlan?.version_number === "number"
+          ? mediaPlan.version_number
+          : Number(selectedVersionNumber) || 0
+    const modeResolved = resolvePostgresSaveMode({
+      campaignStatus:
+        watchedCampaignStatus ?? mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus,
+      forceIncrement: false,
+      publishedVersionNumber,
+      versionRowCount: availableVersions.length,
+    })
+    return formatSaveModeLabel(modeResolved.uiMode, modeResolved.versionNumber)
   }, [
     saveModeLabel,
     watchedCampaignStatus,
@@ -6418,8 +6423,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     mediaPlan?.mp_campaignstatus,
     mediaPlan?.version_number,
     selectedVersionNumber,
-    nextSaveVersionNumber,
     latestVersionNumber,
+    availableVersions.length,
   ])
 
   const draftBaseVersionId =
@@ -6876,102 +6881,102 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
       const feeLoadingForSave = billingSaveInputs.feeLoading
       const televisionMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(televisionMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.television),
+        assignStableLineItemNumbers(televisionMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.television),
         "television",
         feeLoadingForSave
       )
       const radioMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(radioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.radio),
+        assignStableLineItemNumbers(radioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.radio),
         "radio",
         feeLoadingForSave
       )
       const newspaperMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(newspaperMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.newspaper),
+        assignStableLineItemNumbers(newspaperMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.newspaper),
         "newspaper",
         feeLoadingForSave
       )
       const magazinesMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(magazinesMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.magazines),
+        assignStableLineItemNumbers(magazinesMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.magazines),
         "magazines",
         feeLoadingForSave
       )
       const oohMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(oohMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.ooh),
+        assignStableLineItemNumbers(oohMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.ooh),
         "ooh",
         feeLoadingForSave
       )
       const cinemaMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(cinemaMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.cinema),
+        assignStableLineItemNumbers(cinemaMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.cinema),
         "cinema",
         feeLoadingForSave
       )
       const digitalDisplayMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(digitalDisplayMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay),
+        assignStableLineItemNumbers(digitalDisplayMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalDisplay),
         "digiDisplay",
         feeLoadingForSave
       )
       const digitalAudioMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(digitalAudioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio),
+        assignStableLineItemNumbers(digitalAudioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalAudio),
         "digiAudio",
         feeLoadingForSave
       )
       const digitalVideoMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(digitalVideoMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo),
+        assignStableLineItemNumbers(digitalVideoMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.digitalVideo),
         "digiVideo",
         feeLoadingForSave
       )
       const bvodMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(bvodMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.bvod),
+        assignStableLineItemNumbers(bvodMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.bvod),
         "bvod",
         feeLoadingForSave
       )
       const integrationMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(integrationMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.integration),
+        assignStableLineItemNumbers(integrationMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.integration),
         "integration",
         feeLoadingForSave
       )
       const productionMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(productionMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.production),
+        assignStableLineItemNumbers(productionMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.production),
         "production",
         feeLoadingForSave
       )
       const searchMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(searchMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.search),
+        assignStableLineItemNumbers(searchMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.search),
         "search",
         feeLoadingForSave
       )
       const socialMediaMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(socialMediaMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia),
+        assignStableLineItemNumbers(socialMediaMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.socialMedia),
         "socialMedia",
         feeLoadingForSave
       )
       const progDisplayMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(progDisplayMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progDisplay),
+        assignStableLineItemNumbers(progDisplayMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progDisplay),
         "progDisplay",
         feeLoadingForSave
       )
       const progVideoMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(progVideoMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progVideo),
+        assignStableLineItemNumbers(progVideoMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progVideo),
         "progVideo",
         feeLoadingForSave
       )
       const progBvodMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(progBvodMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progBVOD),
+        assignStableLineItemNumbers(progBvodMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progBVOD),
         "progBvod",
         feeLoadingForSave
       )
       const progAudioMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(progAudioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progAudio),
+        assignStableLineItemNumbers(progAudioMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progAudio),
         "progAudio",
         feeLoadingForSave
       )
       const progOohMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(progOohMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progOOH),
+        assignStableLineItemNumbers(progOohMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.progOOH),
         "progOoh",
         feeLoadingForSave
       )
       const influencersMediaLineItemsForSave = stampClientFeePctOnLineItems(
-        reassignLineItemNumbers(influencersMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.influencers),
+        assignStableLineItemNumbers(influencersMediaLineItems, mbaNumber, MEDIA_TYPE_ID_CODES.influencers),
         "influencers",
         feeLoadingForSave
       )
@@ -7384,7 +7389,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               ? "Cannot publish version with 0 line items (BOSS006)"
               : saveResult.data.code === "DUPLICATE_LINE_ITEM_ID"
                 ? `Duplicate line_item_id rejected: ${saveResult.data.lineItemId ?? "(unknown)"}`
-                : saveResult.data.error || "Postgres save failed"
+                : saveResult.data.code === "UNIQUE_VIOLATION"
+                  ? saveResult.data.error || "Unique constraint violated on save"
+                  : saveResult.data.error || "Postgres save failed"
           updateSaveStatus("Save plan (transactional)", "error", human)
           toast({
             variant: "destructive",
