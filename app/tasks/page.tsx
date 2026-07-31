@@ -1,5 +1,8 @@
 import { Suspense } from "react"
 import { TasksPageClient } from "./TasksPageClient"
+import { pageMetadata } from "@/lib/nav/routeManifest"
+
+export const metadata = pageMetadata("/tasks")
 
 export default function TasksPage() {
   return (

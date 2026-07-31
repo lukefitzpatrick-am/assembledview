@@ -5,6 +5,9 @@ import { CreativeCampaignPicker } from "@/components/creative/CreativeCampaignPi
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles } from "@/lib/rbac"
+import { pageMetadata } from "@/lib/nav/routeManifest"
+
+export const metadata = pageMetadata("/creative")
 
 export default async function CreativeUploadsPage() {
   const session = await auth0.getSession()

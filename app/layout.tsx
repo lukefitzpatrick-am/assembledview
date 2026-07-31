@@ -22,7 +22,10 @@ const merriweather = Merriweather({
 });
 
 export const metadata = {
-  title: "AssembledView",
+  title: {
+    default: "AssembledView",
+    template: "%s · AssembledView",
+  },
   description: "Manage mediaplans, clients, and publishers",
 };
 

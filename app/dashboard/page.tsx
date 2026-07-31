@@ -2,6 +2,9 @@ import DashboardOverview from "@/components/dashboard/DashboardOverview"
 import { redirect } from "next/navigation"
 import { auth0 } from "@/lib/auth0"
 import { getUserClientIdentifier, getUserRoles, getUserPrimaryMbaNumber, getUserMbaNumbers } from "@/lib/rbac"
+import { pageMetadata } from "@/lib/nav/routeManifest"
+
+export const metadata = pageMetadata("/dashboard")
 
 export default async function DashboardPage() {
   const session = await auth0.getSession()

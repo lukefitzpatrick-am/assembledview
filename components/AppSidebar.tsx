@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { FileText, Users, Building2, LayoutDashboard, PlusCircle, ChevronDown, ChevronRight, UserCircle, DollarSign, BarChart3, ClipboardList, BookOpen, TrendingUp, Images, Compass, ListTodo } from "lucide-react";
+import { ChevronDown, ChevronRight, BarChart3 } from "lucide-react";
 import { UserMenu } from "@/components/UserMenu";
 import {
   Sidebar,
@@ -25,6 +25,14 @@ import { useAuthContext } from "@/contexts/AuthContext";
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug";
 import { coalescedGetJson } from "@/lib/api/coalescedGetJson";
 import { cn } from "@/lib/utils";
+import {
+  getAdminBottomNav,
+  getAdminSidebarFooterNav,
+  getAdminSidebarNav,
+  getRouteByExactPath,
+} from "@/lib/nav/routeManifest";
+import { ROUTE_ICON_MAP } from "@/lib/nav/routeIcons";
+import { BookOpen, Images, LayoutDashboard } from "lucide-react";
 
 interface Client {
   id: number;
@@ -55,6 +63,11 @@ export function AppSidebar() {
     [pathname]
   );
 
+  const isFinanceNavActive = useCallback(
+    () => pathname.startsWith("/finance"),
+    [pathname]
+  );
+
   useEffect(() => {
     if (isAdmin) {
       fetchClients();
@@ -74,25 +87,17 @@ export function AppSidebar() {
     }
   }
 
-  const isFinanceNavActive = useCallback(
-    () => pathname.startsWith("/finance"),
-    [pathname]
-  );
+  const adminMenuItems = useMemo(() => {
+    return getAdminSidebarNav().map((item) => {
+      let isActive: (() => boolean) | undefined
+      if (item.path === "/mediaplans") isActive = isCampaignsNavActive
+      if (item.path === "/mediaplans/create") isActive = isCreateCampaignActive
+      if (item.path === "/finance") isActive = isFinanceNavActive
+      return { ...item, isActive }
+    })
+  }, [isCampaignsNavActive, isCreateCampaignActive, isFinanceNavActive]);
 
-  const adminMenuItems = useMemo(() => ([
-    { title: "Home", icon: LayoutDashboard, href: "/dashboard", exact: true as const },
-    { title: "Campaigns", icon: FileText, href: "/mediaplans", exact: false as const, isActive: isCampaignsNavActive },
-    { title: "Creative", icon: Images, href: "/creative" },
-    { title: "Scopes of Work", icon: ClipboardList, href: "/scopes-of-work" },
-    { title: "Tasks", icon: ListTodo, href: "/tasks" },
-    { title: "Pacing", icon: TrendingUp, href: "/pacing" },
-    { title: "Planning", icon: Compass, href: "/tools/behavioural-planner" },
-    { title: "Publishers", icon: Building2, href: "/publishers" },
-    { title: "Client hub", icon: Users, href: "/client", exact: true as const },
-    { title: "Finance", icon: DollarSign, href: "/finance", exact: false as const, isActive: isFinanceNavActive },
-    { title: "Knowledge Hub", icon: BookOpen, href: "/knowledge" },
-    { title: "Create Campaign", icon: PlusCircle, href: "/mediaplans/create", isActive: isCreateCampaignActive },
-  ]), [isCampaignsNavActive, isCreateCampaignActive, isFinanceNavActive]);
+  const adminFooterItems = useMemo(() => getAdminSidebarFooterNav(), []);
 
   const formatClientSlugLabel = (slug: string) => {
     const s = String(slug ?? "").trim()
@@ -104,6 +109,9 @@ export function AppSidebar() {
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
       .join(" ")
   }
+
+  const knowledgeLabel = getRouteByExactPath("/knowledge")?.label ?? "Knowledge Hub"
+  const creativeLabel = getRouteByExactPath("/creative")?.label ?? "Creative"
 
   const clientMenuItems = useMemo(() => {
     const links: Array<{
@@ -119,26 +127,15 @@ export function AppSidebar() {
         href: `/dashboard/${userClient}`,
       });
       links.push({
-        title: "Creative",
+        title: creativeLabel,
         icon: Images,
         href: `/dashboard/${userClient}/creative`,
       });
     }
-    links.push({ title: "Knowledge Hub", icon: BookOpen, href: "/knowledge" });
+    links.push({ title: knowledgeLabel, icon: BookOpen, href: "/knowledge" });
     return links;
-  }, [userClient]);
+  }, [userClient, creativeLabel, knowledgeLabel]);
 
-  const menuItems = isAdmin ? adminMenuItems : clientMenuItems;
-  const bottomNavItems = useMemo(() => {
-    if (isAdmin) {
-      return adminMenuItems.filter((item) =>
-        ["Home", "Campaigns", "Pacing", "Finance", "Create Campaign"].includes(item.title)
-      );
-    }
-    return clientMenuItems;
-  }, [adminMenuItems, clientMenuItems, isAdmin]);
-
-  const financeSectionActive = pathname.startsWith("/finance");
   const clientDashboardsSectionActive = /^\/client\/[^/]+/.test(pathname);
 
   const clientsSortedForNav = useMemo(() => {
@@ -197,26 +194,39 @@ export function AppSidebar() {
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {menuItems.map((item) => {
-                const Icon = item.icon;
-                const exact = "exact" in item && item.exact;
-                const customActive = "isActive" in item && typeof item.isActive === "function" ? item.isActive() : undefined;
-                const active =
-                  customActive !== undefined
-                    ? customActive
-                    : pathMatchesHref(pathname, item.href, exact);
+              {isAdmin
+                ? adminMenuItems.map((item) => {
+                    const Icon = item.icon ? ROUTE_ICON_MAP[item.icon] : LayoutDashboard
+                    const active =
+                      item.isActive !== undefined
+                        ? item.isActive()
+                        : pathMatchesHref(pathname, item.path, item.exact)
 
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={active}>
-                      <Link href={item.href} className="flex min-w-0 items-center whitespace-nowrap">
-                        <Icon className="mr-2 h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
-                        <span className="min-w-0 truncate">{item.title}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
+                    return (
+                      <SidebarMenuItem key={item.path}>
+                        <SidebarMenuButton asChild isActive={active}>
+                          <Link href={item.path} className="flex min-w-0 items-center whitespace-nowrap">
+                            <Icon className="mr-2 h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
+                            <span className="min-w-0 truncate">{item.label}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )
+                  })
+                : clientMenuItems.map((item) => {
+                    const Icon = item.icon
+                    const active = pathMatchesHref(pathname, item.href, item.exact)
+                    return (
+                      <SidebarMenuItem key={item.href}>
+                        <SidebarMenuButton asChild isActive={active}>
+                          <Link href={item.href} className="flex min-w-0 items-center whitespace-nowrap">
+                            <Icon className="mr-2 h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
+                            <span className="min-w-0 truncate">{item.title}</span>
+                          </Link>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    )
+                  })}
 
               {isAdmin && (
                 <SidebarMenuItem>
@@ -263,16 +273,20 @@ export function AppSidebar() {
 
               <SidebarSeparator />
 
-              {isAdmin && (
-                <SidebarMenuItem>
-                  <SidebarMenuButton asChild isActive={pathMatchesHref(pathname, "/admin/users/new")}>
-                    <Link href="/admin/users/new" className="flex min-w-0 items-center whitespace-nowrap">
-                      <UserCircle className="mr-2 h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
-                      <span className="min-w-0 truncate">Admin User Enrolment</span>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              )}
+              {isAdmin &&
+                adminFooterItems.map((item) => {
+                  const Icon = item.icon ? ROUTE_ICON_MAP[item.icon] : LayoutDashboard
+                  return (
+                    <SidebarMenuItem key={item.path}>
+                      <SidebarMenuButton asChild isActive={pathMatchesHref(pathname, item.path)}>
+                        <Link href={item.path} className="flex min-w-0 items-center whitespace-nowrap">
+                          <Icon className="mr-2 h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
+                          <span className="min-w-0 truncate">{item.label}</span>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -289,39 +303,74 @@ export function AppSidebar() {
       aria-label="Primary navigation"
     >
       <ul className="grid grid-cols-5 gap-1">
-        {bottomNavItems.map((item) => {
-          const Icon = item.icon;
-          const exact = "exact" in item && item.exact;
-          const customActive = "isActive" in item && typeof item.isActive === "function" ? item.isActive() : undefined;
-          const active =
-            customActive !== undefined
-              ? customActive
-              : pathMatchesHref(pathname, item.href, exact);
+        {isAdmin
+          ? getAdminBottomNav().map((item) => {
+              const Icon = item.icon ? ROUTE_ICON_MAP[item.icon] : LayoutDashboard
+              const customActive =
+                item.path === "/mediaplans"
+                  ? isCampaignsNavActive()
+                  : item.path === "/mediaplans/create"
+                    ? isCreateCampaignActive()
+                    : item.path === "/finance"
+                      ? isFinanceNavActive()
+                      : undefined
+              const active =
+                customActive !== undefined
+                  ? customActive
+                  : pathMatchesHref(pathname, item.path, item.exact)
+              const short = item.label === "Create Campaign" ? "Create" : item.label
 
-          return (
-            <li key={item.title} className="min-w-0">
-              <Link
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-input px-1 text-[10px] font-medium leading-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
-                  active
-                    ? "bg-[var(--sidebar-active-tint)] text-sidebar-foreground"
-                    : "text-[hsl(var(--sidebar-muted))] hover:bg-[var(--sidebar-hover-tint)] hover:text-sidebar-foreground"
-                )}
-              >
-                <Icon
-                  className={cn(
-                    "h-[18px] w-[18px] shrink-0 stroke-[1.8]",
-                    active ? "text-[var(--sidebar-active-bar)]" : "text-[hsl(var(--sidebar-icon))]"
-                  )}
-                  aria-hidden
-                />
-                <span className="max-w-full truncate">{item.title === "Create Campaign" ? "Create" : item.title}</span>
-              </Link>
-            </li>
-          );
-        })}
+              return (
+                <li key={item.path} className="min-w-0">
+                  <Link
+                    href={item.path}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-input px-1 text-[10px] font-medium leading-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
+                      active
+                        ? "bg-[var(--sidebar-active-tint)] text-sidebar-foreground"
+                        : "text-[hsl(var(--sidebar-muted))] hover:bg-[var(--sidebar-hover-tint)] hover:text-sidebar-foreground"
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "h-[18px] w-[18px] shrink-0 stroke-[1.8]",
+                        active ? "text-[var(--sidebar-active-bar)]" : "text-[hsl(var(--sidebar-icon))]"
+                      )}
+                      aria-hidden
+                    />
+                    <span className="max-w-full truncate">{short}</span>
+                  </Link>
+                </li>
+              )
+            })
+          : clientMenuItems.slice(0, 5).map((item) => {
+              const Icon = item.icon
+              const active = pathMatchesHref(pathname, item.href, item.exact)
+              return (
+                <li key={item.href} className="min-w-0">
+                  <Link
+                    href={item.href}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-input px-1 text-[10px] font-medium leading-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
+                      active
+                        ? "bg-[var(--sidebar-active-tint)] text-sidebar-foreground"
+                        : "text-[hsl(var(--sidebar-muted))] hover:bg-[var(--sidebar-hover-tint)] hover:text-sidebar-foreground"
+                    )}
+                  >
+                    <Icon
+                      className={cn(
+                        "h-[18px] w-[18px] shrink-0 stroke-[1.8]",
+                        active ? "text-[var(--sidebar-active-bar)]" : "text-[hsl(var(--sidebar-icon))]"
+                      )}
+                      aria-hidden
+                    />
+                    <span className="max-w-full truncate">{item.title}</span>
+                  </Link>
+                </li>
+              )
+            })}
       </ul>
     </nav>
     </>

@@ -1,5 +1,8 @@
 import { Suspense } from "react"
 import { PublishersPageClient } from "./PublishersPageClient"
+import { pageMetadata } from "@/lib/nav/routeManifest"
+
+export const metadata = pageMetadata("/publishers")
 
 export default function PublishersPage() {
   return (

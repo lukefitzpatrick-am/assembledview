@@ -1,10 +1,9 @@
-import Link from 'next/link';
-import { AlertTriangle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import Link from 'next/link'
+import { AlertTriangle } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { pageMetadata } from '@/lib/nav/routeManifest'
 
-export const metadata = {
-  title: 'Access denied',
-};
+export const metadata = pageMetadata('/403')
 
 export default function ForbiddenPage() {
   return (
@@ -32,24 +31,5 @@ export default function ForbiddenPage() {
         </div>
       </div>
     </div>
-  );
+  )
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

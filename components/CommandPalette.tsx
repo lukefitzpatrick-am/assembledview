@@ -2,23 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import {
-  BookOpen,
-  Building2,
-  ClipboardList,
-  Compass,
-  DollarSign,
-  FileText,
-  HelpCircle,
-  Images,
-  LayoutDashboard,
-  ListTodo,
-  PlusCircle,
-  Search,
-  Shield,
-  TrendingUp,
-  Users,
-} from "lucide-react"
+import { HelpCircle, Search } from "lucide-react"
 
 import { useAuthContext } from "@/contexts/AuthContext"
 import {
@@ -32,6 +16,14 @@ import {
   CommandShortcut,
 } from "@/components/ui/command"
 import { Button } from "@/components/ui/button"
+import {
+  getAdminSidebarFooterNav,
+  getAdminSidebarNav,
+  getClientPaletteNav,
+  getPaletteNav,
+  type NavLink,
+} from "@/lib/nav/routeManifest"
+import { ROUTE_ICON_MAP } from "@/lib/nav/routeIcons"
 
 const RECENTS_STORAGE_KEY = "avmediaplan.commandPalette.recents"
 const MAX_RECENTS = 10
@@ -40,14 +32,6 @@ type RecentEntry = {
   href: string
   title: string
   at: number
-}
-
-type NavItem = {
-  title: string
-  href: string
-  icon: React.ComponentType<{ className?: string }>
-  /** Extra tokens for cmdk filtering */
-  searchTerms?: string
 }
 
 function loadRecents(): RecentEntry[] {
@@ -86,9 +70,6 @@ function recordRecent(href: string, title: string) {
   saveRecents(next)
 }
 
-/**
- * Mirrors AppSidebar: full internal nav for admin; client slug dashboard + Knowledge Hub for others.
- */
 function isHrefVisibleForUser(
   href: string,
   isAdmin: boolean,
@@ -96,6 +77,7 @@ function isHrefVisibleForUser(
 ): boolean {
   if (isAdmin) return true
   if (href === "/knowledge" || href.startsWith("/knowledge/")) return true
+  if (href === "/account" || href === "/profile" || href === "/support") return true
   if (userClient) {
     const base = `/dashboard/${userClient}`
     if (href === base || href.startsWith(`${base}/`)) return true
@@ -103,72 +85,17 @@ function isHrefVisibleForUser(
   return false
 }
 
-/** Labels match AppSidebar exactly — terminology law: Campaigns + Planning. */
-function getPrimaryNavItems(isAdmin: boolean, userClient: string | null): NavItem[] {
+/** Palette entries: manifest-driven; admin sidebar destinations always included first. */
+function getPrimaryNavItems(isAdmin: boolean, userClient: string | null): NavLink[] {
   if (isAdmin) {
-    return [
-      { title: "Home", href: "/dashboard", icon: LayoutDashboard, searchTerms: "dashboard overview" },
-      {
-        title: "Campaigns",
-        href: "/mediaplans",
-        icon: FileText,
-        searchTerms: "media plans mediaplans mba",
-      },
-      { title: "Creative", href: "/creative", icon: Images },
-      { title: "Scopes of Work", href: "/scopes-of-work", icon: ClipboardList, searchTerms: "sow scopes" },
-      { title: "Tasks", href: "/tasks", icon: ListTodo },
-      { title: "Pacing", href: "/pacing", icon: TrendingUp },
-      {
-        title: "Planning",
-        href: "/tools/behavioural-planner",
-        icon: Compass,
-        searchTerms: "demand flow behavioural planner audience",
-      },
-      { title: "Publishers", href: "/publishers", icon: Building2 },
-      { title: "Client hub", href: "/client", icon: Users },
-      { title: "Finance", href: "/finance", icon: DollarSign },
-      {
-        title: "Knowledge Hub",
-        href: "/knowledge",
-        icon: BookOpen,
-        searchTerms: "learning glossary definitions acronyms formulas",
-      },
-      {
-        title: "Create Campaign",
-        href: "/mediaplans/create",
-        icon: PlusCircle,
-        searchTerms: "new media plan",
-      },
-      {
-        title: "Admin User Enrolment",
-        href: "/admin/users/new",
-        icon: Shield,
-        searchTerms: "user management invite admin",
-      },
-    ]
+    const sidebar = [...getAdminSidebarNav(), ...getAdminSidebarFooterNav()]
+    const sidebarPaths = new Set(sidebar.map((s) => s.path))
+    const rest = getPaletteNav(true)
+      .filter((item) => !item.path.includes("[") && !sidebarPaths.has(item.path))
+      .sort((a, b) => a.label.localeCompare(b.label))
+    return [...sidebar, ...rest]
   }
-
-  const items: NavItem[] = []
-  if (userClient) {
-    items.push({
-      title: "Home",
-      href: `/dashboard/${userClient}`,
-      icon: LayoutDashboard,
-      searchTerms: "dashboard client",
-    })
-    items.push({
-      title: "Creative",
-      href: `/dashboard/${userClient}/creative`,
-      icon: Images,
-    })
-  }
-  items.push({
-    title: "Knowledge Hub",
-    href: "/knowledge",
-    icon: BookOpen,
-    searchTerms: "learning knowledge glossary",
-  })
-  return items
+  return getClientPaletteNav(userClient)
 }
 
 export function CommandPaletteTrigger({ className }: { className?: string }) {
@@ -324,15 +251,15 @@ export function CommandPalette() {
                 {recents.length > 0 ? <CommandSeparator /> : null}
                 <CommandGroup heading="Go to">
                   {primaryItems.map((item) => {
-                    const Icon = item.icon
+                    const Icon = item.icon ? ROUTE_ICON_MAP[item.icon] : null
                     return (
                       <CommandItem
-                        key={item.href}
-                        value={`${item.title} ${item.href} ${item.searchTerms ?? ""}`}
-                        onSelect={() => navigate(item.href, item.title)}
+                        key={item.path}
+                        value={`${item.label} ${item.path} ${item.searchTerms ?? ""}`}
+                        onSelect={() => navigate(item.path, item.label)}
                       >
-                        <Icon className="text-muted-foreground" />
-                        <span>{item.title}</span>
+                        {Icon ? <Icon className="text-muted-foreground" /> : null}
+                        <span>{item.label}</span>
                       </CommandItem>
                     )
                   })}

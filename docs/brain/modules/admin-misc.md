@@ -1,5 +1,9 @@
 # Module: Admin, Tasks, Knowledge & Scripts
 
+## Navigation identity
+
+- `lib/nav/routeManifest.ts` is the single source of truth for user-facing route **labels**, document **titles**, breadcrumb copy, and command-palette destinations. `AppSidebar`, `DynamicBreadcrumbs`, and `CommandPalette` derive from it; `DocumentTitleFromManifest` + `pageMetadata()` keep `<title>` aligned. Do not invent parallel label maps. Sidebar **order** stays in `ADMIN_SIDEBAR_PATHS` (AV-21 owns regrouping).
+
 ## Admin & users
 
 - `app/api/admin/users/route.ts` — the real work: `requireAdmin` → zod → Auth0 Management API (create user, assign role by **Role ID** `rol_…` from `AUTH0_ROLE_ADMIN_ID`/`AUTH0_ROLE_CLIENT_ID`, not names) → password ticket → invite email. Rolls back the created user on failure. Rejects numeric `clientSlug` (historical bug guard).

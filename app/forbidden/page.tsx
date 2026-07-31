@@ -1,4 +1,7 @@
 import Link from "next/link"
+import { pageMetadata } from "@/lib/nav/routeManifest"
+
+export const metadata = pageMetadata("/forbidden")
 
 export default function ForbiddenPage() {
   return (
