@@ -12,6 +12,12 @@ import type { ClientKpiInput } from "@/lib/kpi/types"
 export const runtime = "nodejs"
 
 export async function GET(request: NextRequest) {
+  // Staff residual (PS-1): create/edit consume this via lib/api/kpi.ts.
+  // Gate must match SEC-A writes — not tighter. `manager` was removed from
+  // UserRole (31 Jul 2026); staff = admin until a real manager role returns.
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
     const mpClientName = request.nextUrl.searchParams.get("mp_client_name")
     if (!mpClientName?.trim()) {

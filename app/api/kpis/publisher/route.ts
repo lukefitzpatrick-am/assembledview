@@ -16,6 +16,12 @@ import type { PublisherKpiInput } from "@/lib/kpi/types"
 export const runtime = "nodejs"
 
 export async function GET(request: NextRequest) {
+  // Staff residual (PS-1): create/edit load publishers via lib/api/kpi.ts.
+  // Gate must match SEC-A writes — not tighter. `manager` was removed from
+  // UserRole (31 Jul 2026); staff = admin until a real manager role returns.
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
     const publisher = request.nextUrl.searchParams.get("publisher")
     if (publisher?.trim()) {

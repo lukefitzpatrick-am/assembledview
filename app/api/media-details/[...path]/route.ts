@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { xanoUrl, xanoAuthHeader } from "@/lib/api/xano"
 import { requireRole } from "@/lib/requireRole"
 import { checkMediaDetailsProxyPath } from "@/lib/security/proxyAllowlist"
+import { logProxy403 } from "@/lib/security/logProxy403"
 import { getDataBackend } from "@/lib/data/backend"
 import { isReferenceTablePath } from "@/lib/data/referenceTables"
 import { readReferenceMediaDetail } from "@/lib/data/readReferenceMediaDetail"
@@ -9,19 +10,24 @@ import { readReferenceMediaDetail } from "@/lib/data/readReferenceMediaDetail"
 type Params = { params: Promise<{ path: string[] }> }
 
 /** SEC-1 / SEC-D: catch-all is staff-only — no client dashboard consumer. */
-async function requireProxyStaff(request: Request) {
+async function requireProxyStaff(request: Request, proxyPath: string) {
   const gate = await requireRole(request as NextRequest, ["admin"])
-  if ("response" in gate) return gate.response
+  if ("response" in gate) {
+    if (gate.response.status === 403) {
+      await logProxy403(request, proxyPath)
+    }
+    return gate.response
+  }
   return null
 }
 
 async function proxyRequest(request: Request, { params }: Params, method: string) {
-  const denied = await requireProxyStaff(request)
-  if (denied) return denied
-
   const { path: parts } = await params
   const pathSegments = parts || []
   const path = pathSegments.join("/")
+  const denied = await requireProxyStaff(request, path || "media-details")
+  if (denied) return denied
+
   if (!path) {
     return NextResponse.json({ error: "Missing media detail path" }, { status: 400 })
   }
