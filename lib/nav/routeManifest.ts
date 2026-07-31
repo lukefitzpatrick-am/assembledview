@@ -77,33 +77,54 @@ export const ROUTE_MANIFEST_EXCLUSIONS: ReadonlyArray<{
 ]
 
 /**
- * Admin primary sidebar order — do not reorder (AV-21). Paths must exist in ROUTE_MANIFEST.
- * "Client Dashboards" is a collapsible, not a route, and stays hardcoded in AppSidebar.
+ * Admin sidebar structure (AV-21). Paths must exist in ROUTE_MANIFEST.
+ * "Client Dashboards" is a collapsible, not a route — rendered inside Deliver by AppSidebar.
+ * Create Campaign is palette-only (verb); Tasks is palette-only (not in this IA).
  */
-export const ADMIN_SIDEBAR_PATHS = [
-  "/dashboard",
-  "/mediaplans",
-  "/creative",
-  "/scopes-of-work",
-  "/tasks",
-  "/pacing",
-  "/tools/behavioural-planner",
-  "/publishers",
-  "/client",
-  "/finance",
-  "/knowledge",
-  "/mediaplans/create",
+export type AdminSidebarGroupTone = "default" | "muted"
+
+export type AdminSidebarGroup = {
+  id: "top" | "plan" | "deliver" | "money" | "reference"
+  /** Null = ungrouped top cluster (no section heading). */
+  label: string | null
+  tone?: AdminSidebarGroupTone
+  paths: readonly string[]
+}
+
+export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
+  { id: "top", label: null, paths: ["/dashboard"] },
+  {
+    id: "plan",
+    label: "Plan",
+    paths: ["/tools/behavioural-planner", "/mediaplans", "/scopes-of-work"],
+  },
+  {
+    id: "deliver",
+    label: "Deliver",
+    paths: ["/pacing", "/creative", "/client"],
+  },
+  { id: "money", label: "Money", paths: ["/finance"] },
+  {
+    id: "reference",
+    label: "Reference",
+    tone: "muted",
+    paths: ["/publishers", "/knowledge"],
+  },
 ] as const
 
-/** Shown below the sidebar separator (still label-sourced from the manifest). */
+/** Flattened sidebar destinations (order = group order × path order). */
+export const ADMIN_SIDEBAR_PATHS = ADMIN_SIDEBAR_GROUPS.flatMap((g) => [...g.paths])
+
+/** Shown in the sidebar footer beside UserMenu. */
 export const ADMIN_SIDEBAR_FOOTER_PATHS = ["/admin/users/new"] as const
 
+/** Mobile bottom tabs — Create Campaign removed; Creative keeps a 5th workflow slot. */
 export const ADMIN_BOTTOM_NAV_PATHS = [
   "/dashboard",
   "/mediaplans",
   "/pacing",
   "/finance",
-  "/mediaplans/create",
+  "/creative",
 ] as const
 
 export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
@@ -119,15 +140,15 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
   },
   {
     path: "/dashboard",
-    label: "Home",
-    title: "Home",
+    label: "Today",
+    title: "Today",
     icon: "LayoutDashboard",
     inPalette: true,
     inSidebar: true,
     sidebarExact: true,
     inBottomNav: true,
     roles: ["admin"],
-    searchTerms: "dashboard overview",
+    searchTerms: "dashboard overview home",
     group: "core",
   },
   {
@@ -149,6 +170,7 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     icon: "Images",
     inPalette: true,
     inSidebar: true,
+    inBottomNav: true,
     roles: ["admin"],
     group: "core",
   },
@@ -169,9 +191,10 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     title: "Tasks",
     icon: "ListTodo",
     inPalette: true,
-    inSidebar: true,
+    inSidebar: false,
     roles: ["admin"],
     group: "core",
+    // Palette-only in AV-21 IA — not in Plan/Deliver/Money/Reference.
   },
   {
     path: "/pacing",
@@ -208,13 +231,14 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
   },
   {
     path: "/client",
-    label: "Client hub",
-    title: "Client hub",
+    label: "Clients",
+    title: "Clients",
     icon: "Users",
     inPalette: true,
     inSidebar: true,
     sidebarExact: true,
     roles: ["admin"],
+    searchTerms: "client hub",
     group: "core",
   },
   {
@@ -245,20 +269,21 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     title: "Create Campaign",
     icon: "PlusCircle",
     inPalette: true,
-    inSidebar: true,
-    inBottomNav: true,
+    inSidebar: false,
+    inBottomNav: false,
     roles: ["admin"],
-    searchTerms: "new media plan",
+    searchTerms: "new media plan create campaign",
     group: "core",
+    // Verb — not a sidebar noun. Reachable from /mediaplans CTA + palette.
   },
   {
     path: "/admin/users/new",
-    label: "Admin User Enrolment",
-    title: "Admin User Enrolment",
+    label: "Admin",
+    title: "Admin",
     icon: "UserCircle",
     inPalette: true,
     roles: ["admin"],
-    searchTerms: "user management invite admin enrol",
+    searchTerms: "user management invite admin enrol enrolment",
     group: "admin",
   },
 
@@ -802,7 +827,7 @@ export type NavLink = {
   searchTerms?: string
 }
 
-/** Admin primary sidebar rows — order fixed by ADMIN_SIDEBAR_PATHS. */
+/** Admin primary sidebar rows — order from ADMIN_SIDEBAR_GROUPS. */
 export function getAdminSidebarNav(): NavLink[] {
   return ADMIN_SIDEBAR_PATHS.map((path) => {
     const entry = getRouteByExactPath(path)
@@ -815,6 +840,25 @@ export function getAdminSidebarNav(): NavLink[] {
       searchTerms: entry.searchTerms,
     }
   })
+}
+
+export function getAdminSidebarGroups(): Array<
+  AdminSidebarGroup & { items: NavLink[] }
+> {
+  return ADMIN_SIDEBAR_GROUPS.map((group) => ({
+    ...group,
+    items: group.paths.map((path) => {
+      const entry = getRouteByExactPath(path)
+      if (!entry) throw new Error(`ADMIN_SIDEBAR_GROUPS missing manifest entry: ${path}`)
+      return {
+        path: entry.path,
+        label: entry.label,
+        icon: entry.icon,
+        exact: entry.sidebarExact,
+        searchTerms: entry.searchTerms,
+      }
+    }),
+  }))
 }
 
 export function getAdminSidebarFooterNav(): NavLink[] {

@@ -2,7 +2,7 @@
 
 ## Navigation identity
 
-- `lib/nav/routeManifest.ts` is the single source of truth for user-facing route **labels**, document **titles**, breadcrumb copy, and command-palette destinations. `AppSidebar`, `DynamicBreadcrumbs`, and `CommandPalette` derive from it; `DocumentTitleFromManifest` + `pageMetadata()` keep `<title>` aligned. Do not invent parallel label maps. Sidebar **order** stays in `ADMIN_SIDEBAR_PATHS` (AV-21 owns regrouping).
+- `lib/nav/routeManifest.ts` is the single source of truth for user-facing route **labels**, document **titles**, breadcrumb copy, and command-palette destinations. `AppSidebar`, `DynamicBreadcrumbs`, and `CommandPalette` derive from it; `DocumentTitleFromManifest` + `pageMetadata()` keep `<title>` aligned. Do not invent parallel label maps. Admin sidebar IA is `ADMIN_SIDEBAR_GROUPS` (Plan / Deliver / Money / Reference; ungrouped **Today** at top; **Admin** in footer). Create Campaign and Tasks are palette-reachable but not sidebar nouns.
 
 ## Admin & users
 
