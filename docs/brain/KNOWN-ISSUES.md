@@ -83,7 +83,7 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | D-5 | `lib/delivery/programmatic/_prog_extract.txt` — 780 lines of live-looking TS checked in as .txt |
 | D-6 | `lib/auth/mbaNumberMatchesClientIdentifier.ts` — FIXED (SEC-B): wired into `checkClientMbaAccess` / `resolveClientMbaScope` (was test-only; see SEC-9) | FIXED (SEC-B) — wired into `checkClientMbaAccess` / `resolveClientMbaScope` |
 | D-7 | Several channel routes import axios unused; cinema route POSTs to `cinema_line_items` while GET reads `media_plan_cinema` |
-| D-8 | `app/management/page.tsx` is a stub (inert date-range picker removed — read-only placeholder only); `docs/design-refresh/BASELINE.md` is an unfilled template |
+| D-8 | `app/management/page.tsx` is a stub (inert date-range picker removed — read-only placeholder only); `docs/design-refresh/BASELINE.md` is an unfilled template | FIXED (management route + stub removed; User Management stays at `/admin/users/new`) — BASELINE.md template still unfilled |
 | D-9 | `lib/codex/**` is the Tasks domain, not AVA — naming is misleading |
 | D-10 | Stale docs that contradict code: `PERF-DISCOVERY-2-CACHE-DESIGN.md` ("zero unstable_cache usages" — now false), `FINANCE-HUB-STAGES-DISCOVERY.md` (references deleted `components/finance/tabs/`), `README.md` Xano config section (references nonexistent `lib/xano/config.ts`) |
 

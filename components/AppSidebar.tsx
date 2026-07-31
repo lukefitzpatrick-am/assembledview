@@ -205,7 +205,7 @@ export function AppSidebar() {
         <SidebarContent className="overflow-hidden" role="navigation" aria-label="Primary navigation">
           <div className="flex items-start justify-center py-4">
             <Link
-              href="/"
+              href="/dashboard"
               aria-label="Assembled Media home"
               className={cn(
                 "rounded-md outline-none",

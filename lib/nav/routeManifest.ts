@@ -680,17 +680,7 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     group: "admin",
     searchTerms: "kpi best practice container",
   },
-  {
-    path: "/management",
-    label: "Management",
-    title: "Management",
-    inPalette: false,
-    roles: ["admin"],
-    group: "admin",
-    // Stub page (D-8) — User Management menu points at /admin/users/new instead
-  },
-
-  // ── Error / gate pages ─────────────────────────────────────────────
+  // ── Error / gate pages (shared AccessDenied; routes kept for fail-closed redirects) ──
   {
     path: "/403",
     label: "Access denied",
@@ -713,7 +703,7 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     group: "system",
   },
 
-  // ── Internal ───────────────────────────────────────────────────────
+  // ── Internal (dev-only; layout 404s in production) ─────────────────
   {
     path: "/chart-gallery",
     label: "Chart gallery",
@@ -721,7 +711,6 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     inPalette: false,
     roles: ["admin"],
     group: "internal",
-    // app/(internal)/chart-gallery — design QA only
   },
 ]
 

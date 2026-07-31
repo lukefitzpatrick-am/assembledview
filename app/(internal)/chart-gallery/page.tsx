@@ -1,7 +1,7 @@
 'use client';
 /**
- * Live gallery — mirrors "Chart System.dc.html". Drop at /app/(internal)/chart-gallery/page.tsx
- * to eyeball every component against real tokens. Delete before shipping, or keep as a Storybook-lite.
+ * Live gallery — mirrors "Chart System.dc.html".
+ * Gated by `app/(internal)/layout.tsx` (`notFound` in production).
  */
 import {
   LineChart, MultiLineChart, AreaChart, StackedAreaChart, StepChart, Sparkline,
