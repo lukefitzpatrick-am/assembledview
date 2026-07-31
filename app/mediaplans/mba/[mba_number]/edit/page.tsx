@@ -33,6 +33,10 @@ import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApply
 import { BuilderIssuesBadge } from "@/components/mediaplans/BuilderIssuesBadge"
 import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
 import { pushFinanceBuilderIssues } from "@/lib/mediaplan/pushFinanceBuilderIssues"
+import {
+  editPageBudgetRemaining,
+  isCampaignBudgetOverspend,
+} from "@/lib/mediaplan/campaignBudgetRemaining"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import { LazyMountWhenVisible } from "@/components/media-containers/LazyMountWhenVisible"
 import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
@@ -2747,11 +2751,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     ) !== "draft"
   const publishToDownloadMessage = "Publish this plan to download and send to client"
   const watchedClientName = useWatch({ control: form.control, name: 'mp_clientname' })
+  // totalInvestment is wired from mbaScopeTotals.nettExGst (total investment, ex GST).
   const budgetRemaining = useMemo(
-    () => (Number(campaignBudget) || 0) - totalInvestment,
+    () => editPageBudgetRemaining(campaignBudget, totalInvestment),
     [campaignBudget, totalInvestment]
   )
-  const budgetRemainingOverspend = budgetRemaining < 0
+  const budgetRemainingOverspend = isCampaignBudgetOverspend(budgetRemaining)
 
   const missingPublisherKpiCount = useMemo(
     () => kpiRows.filter((r) => r.hasPublisherKpi === false).length,

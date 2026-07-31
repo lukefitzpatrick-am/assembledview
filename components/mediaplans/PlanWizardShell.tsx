@@ -6,6 +6,7 @@ import { Check } from "lucide-react"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { Button } from "@/components/ui/button"
 import { useSidebar } from "@/components/ui/sidebar"
+import { CAMPAIGN_BUDGET_REMAINING_BASIS_CAPTION } from "@/lib/mediaplan/campaignBudgetRemaining"
 import { cn } from "@/lib/utils"
 
 type PlanWizardStep = {
@@ -295,6 +296,9 @@ export function PlanWizardShell({
                     )}
                   >
                     {summary.budgetRemaining}
+                  </p>
+                  <p className="mt-0.5 text-[10px] leading-snug text-[hsl(var(--sidebar-foreground)/0.55)]">
+                    {CAMPAIGN_BUDGET_REMAINING_BASIS_CAPTION}
                   </p>
                   {summary.budgetRemainingOverspend ? (
                     <p className="mt-0.5 text-[10px] leading-snug text-status-behind-fg">

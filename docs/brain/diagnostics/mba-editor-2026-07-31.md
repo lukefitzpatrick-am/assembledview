@@ -36,7 +36,7 @@ So for jayco003 specifically, the residual is almost certainly **real cents in t
 | Scope totals round | `:983-989` — `grossMedia` / `fee` / `adServing` / `production` each rounded, then `nettExGst = roundMoney2(grossMedia + fee + adServing + production)` |
 | Money helpers | `lib/format/money.ts:240-251` — `roundMoney2` / `roundMoney4` (editor path uses **`roundMoney2` only** via the finance engine; summary display uses `formatMoney` → 2 dp) |
 | Builder issue (same flag) | `edit/page.tsx:6498-6505` |
-| Contrast: create page | `app/mediaplans/create/page.tsx:2065-2069` — remaining = budget − **`grossMedia` only** (not nett). Edit and create are inconsistent. |
+| Contrast: create page | FIXED — create now uses `nettExGst` via `lib/mediaplan/campaignBudgetRemaining.ts` (same basis as edit). |
 | Elsewhere: $0.01 tolerance | `lib/finance/validateBillableEqualsMba.ts:16-29`; billing save `BILLING_AUTO_EQUALITY_TOLERANCE = 0.01` in `recomputeBillingScheduleOnSave.ts` |
 | Elsewhere: $2 warn-only | `edit/page.tsx:9585-9587` — partial-MBA save uses `Math.abs(diff) > 2` |
 

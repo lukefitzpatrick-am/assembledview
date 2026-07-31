@@ -53,6 +53,7 @@ Billing (8 files: deriveBursts, burstDate, seedLineFees…), finance (4), KPI (5
 ## Gotchas (verified)
 
 - Create vs edit mega-pages duplicate xlsx/pdf generation, publisher fetch, MBA numbering, ~20-branch save blocks. Create reads `fv.mp_client_name`; edit reads `fv.mp_clientname`.
+- DRAFT SUMMARY budget remaining is shared via `lib/mediaplan/campaignBudgetRemaining.ts` against `mbaScopeTotals.nettExGst` (total investment, ex GST) on both create and edit — never media-only `grossMedia`. Caption in `PlanWizardShell`.
 - Half-finished container refactor: 6 shared-shell channels vs 14 bespoke; drift is silent. Zod schemas and fieldMaps ARE centralised even for bespoke ones.
 - `SearchContainer.getSearchBursts` is a documented escape hatch (hardcodes `deliverables: 0`, omits `lineItemId`) — billing depends on that exact shape.
 - Route naming trap: `/api/media_plans` (underscore) = channel tables; `/api/mediaplans` = master/versions.

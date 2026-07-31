@@ -47,6 +47,12 @@ pct === 100 → fee = 0 (division guard)
 - Expert grids' `sumFee` reads `expertRowFeeSplit` output, NOT `bursts_json[].fee` — orthogonal paths that look identical.
 - Burst money as `z.number()` vs string: `baseBurstShape` in `lib/mediaplan/schemas.ts` is extended by every channel schema — a type change there fans out to all of them.
 
+## Campaign budget remaining (create + edit wizard)
+
+- Campaign budget means **total investment including fees** = `mbaScopeTotals.nettExGst` = grossMedia + fee + adServing + production, ex GST.
+- DRAFT SUMMARY “Budget remaining” = `campaignBudget − nettExGst` on **both** create and edit (`lib/mediaplan/campaignBudgetRemaining.ts`). Never subtract media-only (`grossMedia`).
+- Overspend is strict `< 0` on the cent-rounded remaining — no dollar-band tolerance to hide true fee/rounding composition.
+
 ## Versioning & plan identity
 
 - Published version = `media_plan_master.version_number` (the watermark). There is no `latest_version_id`. Never use `max(versions)` to find "live".

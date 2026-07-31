@@ -39,6 +39,11 @@ import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApply
 import { BuilderIssuesBadge } from "@/components/mediaplans/BuilderIssuesBadge"
 import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
 import { pushFinanceBuilderIssues } from "@/lib/mediaplan/pushFinanceBuilderIssues"
+import {
+  computeCampaignBudgetRemaining,
+  isCampaignBudgetOverspend,
+  totalInvestmentAllocatedFromMbaScope,
+} from "@/lib/mediaplan/campaignBudgetRemaining"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { ChevronsUpDown, Check, Download, FileText, Loader2 } from "lucide-react"
@@ -2057,16 +2062,17 @@ function CreateMediaPlan() {
     })
   }, [campaignFinancials.perLine, billingFeeSeedEnabledConfigs, mediaLabelByBillingKey])
 
-  const grossMediaAllocated = useMemo(
-    () => campaignFinancials.mbaScopeTotals.grossMedia,
+  // Campaign budget = total investment (grossMedia + fee + adServing + production, ex GST).
+  const totalInvestmentAllocated = useMemo(
+    () => totalInvestmentAllocatedFromMbaScope(campaignFinancials.mbaScopeTotals),
     [campaignFinancials]
   )
 
   const budgetRemaining = useMemo(
-    () => (Number(watchedCampaignBudget) || 0) - grossMediaAllocated,
-    [watchedCampaignBudget, grossMediaAllocated]
+    () => computeCampaignBudgetRemaining(watchedCampaignBudget, totalInvestmentAllocated),
+    [watchedCampaignBudget, totalInvestmentAllocated]
   )
-  const budgetRemainingOverspend = budgetRemaining < 0
+  const budgetRemainingOverspend = isCampaignBudgetOverspend(budgetRemaining)
 
   const missingPublisherKpiCount = useMemo(
     () => kpiRows.filter((r) => r.hasPublisherKpi === false).length,
