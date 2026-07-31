@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
-import { eq } from "drizzle-orm"
+import { eq, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 import { LINE_CHANNELS } from "@/db/schema"
@@ -211,6 +211,51 @@ export async function POST(request: NextRequest) {
           { status: 500 }
         )
       }
+    }
+  }
+
+  // Misdiagnosis backstop: version-row id sent as masterId → name the mismatch.
+  // Never silently remap to mbaNumber's master.
+  {
+    const db = getDb()
+    const [byId] = await db
+      .select({
+        id: schema.mediaPlanMasters.id,
+        mbaNumber: schema.mediaPlanMasters.mbaNumber,
+      })
+      .from(schema.mediaPlanMasters)
+      .where(eq(schema.mediaPlanMasters.id, body.masterId))
+      .limit(1)
+
+    if (!byId) {
+      const [byMba] = await db
+        .select({ id: schema.mediaPlanMasters.id })
+        .from(schema.mediaPlanMasters)
+        .where(
+          sql`lower(${schema.mediaPlanMasters.mbaNumber}) = ${body.mbaNumber.trim().toLowerCase()}`
+        )
+        .limit(1)
+      if (byMba) {
+        return NextResponse.json(
+          {
+            error: `masterId ${body.masterId} does not match mba ${body.mbaNumber} (master ${byMba.id})`,
+            code: "MASTER_ID_MISMATCH",
+          },
+          { status: 422 }
+        )
+      }
+    } else if (
+      String(byId.mbaNumber ?? "")
+        .trim()
+        .toLowerCase() !== body.mbaNumber.trim().toLowerCase()
+    ) {
+      return NextResponse.json(
+        {
+          error: `masterId ${body.masterId} does not match mba ${body.mbaNumber} (master ${byId.id})`,
+          code: "MASTER_ID_MISMATCH",
+        },
+        { status: 422 }
+      )
     }
   }
 

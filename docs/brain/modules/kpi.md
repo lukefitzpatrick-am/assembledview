@@ -11,7 +11,7 @@ Three-tier KPI target resolution — publisher benchmark → client override →
 - `lib/kpi/deliveryTargetCurve.ts` — burst-aware target curve; the contract behind every delivery chart's target line.
 - `lib/kpi/lineItemKpiTargets.ts` — cpm/cpv rate targets derived from bursts at render time (not stored).
 - `lib/kpi/normaliseRatioTarget.ts` + `metrics.ts` — UI percentage points ↔ stored decimals; `publisherKpiDefaults.ts` null-unset defaults.
-- `lib/data/readKpi.ts` — Phase 2 read choke point (`DATA_BACKEND_KPI` / `DATA_BACKEND`); shadow diffs use money cents for `cpv` and rate epsilon `1e-6` for ctr/vtr/conversion_rate/frequency. Writes remain on Xano until T4.
+- `lib/data/readKpi.ts` — Phase 2 read choke point (`DATA_BACKEND_KPI` / `DATA_BACKEND`); shadow diffs use money cents for `cpv` and rate epsilon `1e-6` for ctr/vtr/conversion_rate/frequency. Writes remain on Xano until T4. Route-handler wrappers (`lib/kpi/{client,campaign,publisher}Kpi.ts` GETs) statically import `readKpi` — no `webpackIgnore` swallow.
 - `app/api/kpis/{campaign,campaign/sync,client,publisher}` — CRUD; campaign GET uses `checkClientMbaAccess`; client/publisher GET and all writes (`POST`/`PATCH`/`DELETE` + `campaign/sync` POST) are `requireRole(["admin"])` (SEC-6 FIXED; PS-1 live-verified — GETs match writes so create/edit via `lib/api/kpi.ts` stay reachable; `manager` removed from UserRole).
 - `components/kpis/{KPIEditModal,KPISection,kpiHost}` — shared modal + the `KpiHost` contract with two deliberately different persistence semantics (media-plan host defers to campaign save; pacing host syncs immediately).
 

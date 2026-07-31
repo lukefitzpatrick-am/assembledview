@@ -175,6 +175,7 @@ import {
   buildSavePlanLineItemsFromSnapshots,
   dollarsToCampaignBudgetCents,
   postPlansSave,
+  resolveMasterIdFromCombinedPlan,
 } from "@/lib/mediaplan/buildPostgresSavePayload"
 import { usePlanDraftSession } from "@/hooks/usePlanDraftSession"
 import {
@@ -6429,7 +6430,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         : null
 
   const planDraft = usePlanDraftSession({
-    masterId: mediaPlan?.id != null ? Number(mediaPlan.id) : null,
+    masterId: resolveMasterIdFromCombinedPlan(mediaPlan),
     mbaNumber: String(mbaNumber ?? ""),
     dirty: hasUnsavedChanges,
     baseVersionId: draftBaseVersionId,
@@ -6442,7 +6443,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     getSnapshot: () =>
       buildPlanDraftSnapshot({
         mbaNumber: String(mbaNumber ?? ""),
-        masterId: mediaPlan?.id != null ? Number(mediaPlan.id) : null,
+        masterId: resolveMasterIdFromCombinedPlan(mediaPlan),
         baseVersionId: draftBaseVersionId,
         formValues: form.getValues() as Record<string, unknown>,
         channels: {
@@ -7294,8 +7295,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
 
         updateSaveStatus("Save plan (transactional)", "pending")
+        const resolvedMasterId = resolveMasterIdFromCombinedPlan(mediaPlan)
+        if (resolvedMasterId == null) {
+          throw new Error(
+            "Cannot resolve media_plan_masters id (missing media_plan_master_id on loaded plan)"
+          )
+        }
         const saveResult = await postPlansSave({
-          masterId: Number(mediaPlan.id),
+          masterId: resolvedMasterId,
           mbaNumber: String(mbaNumber),
           versionNumber: modeResolved.versionNumber,
           mode: modeResolved.mode,

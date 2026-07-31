@@ -1,4 +1,8 @@
 import axios from "axios"
+import {
+  readAllPublisherKpis,
+  readPublisherKpis,
+} from "@/lib/data/readKpi"
 import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import type { PublisherKpi, PublisherKpiInput } from "./types"
 
@@ -7,31 +11,15 @@ const apiClient = axios.create({
   headers: xanoPostHeaderRecord(),
 })
 
-/** Unfiltered list — used when loading KPIs for the full media plan. */
+/** Route-handler / server only — static import of server-only `readKpi`. */
 export async function fetchAllPublisherKpis(): Promise<PublisherKpi[]> {
-  try {
-    const { readAllPublisherKpis } = await import(
-      /* webpackIgnore: true */ "@/lib/data/readKpi"
-    )
-    return await readAllPublisherKpis()
-  } catch (e) {
-    console.error("fetchAllPublisherKpis", e)
-    return []
-  }
+  return await readAllPublisherKpis()
 }
 
 export async function fetchPublisherKpis(
   publisherKey: string,
 ): Promise<PublisherKpi[]> {
-  try {
-    const { readPublisherKpis } = await import(
-      /* webpackIgnore: true */ "@/lib/data/readKpi"
-    )
-    return await readPublisherKpis(publisherKey)
-  } catch (e) {
-    console.error("fetchPublisherKpis", e)
-    return []
-  }
+  return await readPublisherKpis(publisherKey)
 }
 
 export async function createPublisherKpi(

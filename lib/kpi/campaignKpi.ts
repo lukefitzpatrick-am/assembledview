@@ -1,5 +1,6 @@
 import axios from "axios"
 import { parseXanoListPayload, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { readCampaignKpis } from "@/lib/data/readKpi"
 import type { CampaignKPI, CampaignKpiInput } from "./types"
 
 const apiClient = axios.create({
@@ -34,15 +35,7 @@ export async function fetchCampaignKpis(
   mbaNumber: string,
   versionNumber: number,
 ): Promise<CampaignKPI[]> {
-  try {
-    const { readCampaignKpis } = await import(
-      /* webpackIgnore: true */ "@/lib/data/readKpi"
-    )
-    return await readCampaignKpis(mbaNumber, versionNumber)
-  } catch (e) {
-    console.error("fetchCampaignKpis", e)
-    return []
-  }
+  return await readCampaignKpis(mbaNumber, versionNumber)
 }
 
 export async function createCampaignKpis(

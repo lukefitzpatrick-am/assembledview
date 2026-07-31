@@ -274,3 +274,26 @@ export function dollarsToCampaignBudgetCents(
   if (n == null || !Number.isFinite(n)) return null
   return Math.round(n * 100)
 }
+
+/**
+ * Combined MBA GET / version payload uses `id` as the **version** row id when
+ * `media_plan_master_id` is present and differs. Postgres save must send the
+ * master id (ETL-aligned with Xano), never the version id.
+ */
+export function resolveMasterIdFromCombinedPlan(
+  plan:
+    | {
+        id?: unknown
+        media_plan_master_id?: unknown
+        mediaPlanMasterId?: unknown
+      }
+    | null
+    | undefined
+): number | null {
+  if (!plan) return null
+  const fromFk = Number(plan.media_plan_master_id ?? plan.mediaPlanMasterId)
+  if (Number.isFinite(fromFk) && fromFk > 0) return fromFk
+  const id = Number(plan.id)
+  if (Number.isFinite(id) && id > 0) return id
+  return null
+}
