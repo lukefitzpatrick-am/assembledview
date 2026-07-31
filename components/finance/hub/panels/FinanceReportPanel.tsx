@@ -600,6 +600,7 @@ export default function FinanceReportPanel() {
               id="finance-report-detail-rows"
               checked={showDetailRows}
               onCheckedChange={setShowDetailRows}
+              aria-label="Show detail rows"
             />
             Show detail rows
           </label>

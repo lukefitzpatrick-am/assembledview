@@ -590,6 +590,7 @@ export default function FinanceForecastVariancePageClient() {
                                       aria-expanded={open}
                                       onClick={() => toggleExpanded(k)}
                                       title="Source / debug metadata"
+                                      aria-label="Source / debug metadata"
                                     >
                                       <ChevronRight
                                         className={cn("h-4 w-4 transition-transform", open && "rotate-90")}

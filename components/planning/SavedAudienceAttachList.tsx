@@ -236,6 +236,7 @@ export function SavedAudienceAttachList({
                     onCheckedChange={(checked) => {
                       void patchAudience(row.id, { client_visible: checked })
                     }}
+                    aria-label="Visible to client"
                   />
                 </div>
               </li>

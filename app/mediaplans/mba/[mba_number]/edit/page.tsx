@@ -11430,6 +11430,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                           onBlur={field.onBlur}
                           disabled={field.disabled}
                           ref={field.ref}
+                          aria-label={medium.label}
                         />
                       )}
                     />

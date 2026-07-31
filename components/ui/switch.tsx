@@ -5,9 +5,19 @@ import * as SwitchPrimitives from "@radix-ui/react-switch"
 
 import { cn } from "@/lib/utils"
 
+type SwitchRootProps = Omit<
+  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>,
+  "aria-label" | "aria-labelledby"
+>
+
+/** Accessible name is required: provide exactly one of `aria-label` or `aria-labelledby`. */
+export type SwitchProps =
+  | (SwitchRootProps & { "aria-label": string; "aria-labelledby"?: never })
+  | (SwitchRootProps & { "aria-labelledby": string; "aria-label"?: never })
+
 const Switch = React.forwardRef<
   React.ElementRef<typeof SwitchPrimitives.Root>,
-  React.ComponentPropsWithoutRef<typeof SwitchPrimitives.Root>
+  SwitchProps
 >(({ className, ...props }, ref) => (
   <SwitchPrimitives.Root
     className={cn(

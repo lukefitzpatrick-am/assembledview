@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Field } from "@/components/ui/field"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Combobox } from "@/components/ui/combobox"
 import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox"
@@ -7195,18 +7196,20 @@ const handleSaveAll = async () => {
               <FormField
                 control={form.control}
                 name={"mp_client_name" as keyof MediaPlanFormValues}
-                render={({ field }) => {
+                render={({ field, fieldState }) => {
                   const selectedClient = clients.find((client) => client.mp_client_name === field.value)
 
                   return (
-                    <FormItem>
-                      <FormLabel className="text-sm font-medium text-text-secondary">
-                        Client Name <span className="text-status-critical-fg" aria-hidden>*</span>
-                      </FormLabel>
-                      <FormControl>
+                    <Field
+                      label="Client Name"
+                      required
+                      error={fieldState.error?.message}
+                    >
+                      {(controlProps) => (
                         <Popover open={isClientPopoverOpen} onOpenChange={setIsClientPopoverOpen}>
                           <PopoverTrigger asChild>
                             <Button
+                              {...controlProps}
                               variant="outline"
                               role="combobox"
                               aria-expanded={isClientPopoverOpen}
@@ -7260,9 +7263,8 @@ const handleSaveAll = async () => {
                             </Command>
                           </PopoverContent>
                         </Popover>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                      )}
+                    </Field>
                   )
                 }}
               />
@@ -7270,16 +7272,14 @@ const handleSaveAll = async () => {
               <FormField
                 control={form.control}
                 name={"mp_campaignname" as keyof MediaPlanFormValues}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm font-medium text-text-secondary">
-                      Campaign Name <span className="text-status-critical-fg" aria-hidden>*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input {...field} value={String(field.value)} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                render={({ field, fieldState }) => (
+                  <Field
+                    label="Campaign Name"
+                    required
+                    error={fieldState.error?.message}
+                  >
+                    <Input {...field} value={String(field.value)} />
+                  </Field>
                 )}
               />
 
@@ -7357,13 +7357,15 @@ const handleSaveAll = async () => {
               <FormField
                 control={form.control}
                 name="mp_campaigndates_start"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm font-medium text-text-secondary">
-                      Campaign Start Date <span className="text-status-critical-fg" aria-hidden>*</span>
-                    </FormLabel>
-                    <FormControl>
+                render={({ field, fieldState }) => (
+                  <Field
+                    label="Campaign Start Date"
+                    required
+                    error={fieldState.error?.message}
+                  >
+                    {(controlProps) => (
                       <SingleDatePicker
+                        {...controlProps}
                         ref={field.ref}
                         name={field.name}
                         onBlur={field.onBlur}
@@ -7376,22 +7378,23 @@ const handleSaveAll = async () => {
                         iconClassName="ml-auto h-4 w-4 opacity-50"
                         isDateDisabled={(date) => date > new Date("2100-01-01")}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                    )}
+                  </Field>
                 )}
               />
 
               <FormField
                 control={form.control}
                 name="mp_campaigndates_end"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm font-medium text-text-secondary">
-                      Campaign End Date <span className="text-status-critical-fg" aria-hidden>*</span>
-                    </FormLabel>
-                    <FormControl>
+                render={({ field, fieldState }) => (
+                  <Field
+                    label="Campaign End Date"
+                    required
+                    error={fieldState.error?.message}
+                  >
+                    {(controlProps) => (
                       <SingleDatePicker
+                        {...controlProps}
                         ref={field.ref}
                         name={field.name}
                         onBlur={field.onBlur}
@@ -7404,9 +7407,8 @@ const handleSaveAll = async () => {
                         iconClassName="ml-auto h-4 w-4 opacity-50"
                         isDateDisabled={(date) => date > new Date("2100-01-01")}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                    )}
+                  </Field>
                 )}
               />
                 </div>
@@ -7415,23 +7417,26 @@ const handleSaveAll = async () => {
               <FormField
                 control={form.control}
                 name="mp_campaignbudget"
-                render={({ field }) => (
-                  <FormItem id="builder-field-campaign-budget" className="scroll-mt-24">
-                    <FormLabel className="text-sm font-medium text-text-secondary">
-                      Campaign Budget <span className="text-status-critical-fg" aria-hidden>*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <MoneyInput
-                        ref={field.ref}
-                        name={field.name}
-                        onBlur={field.onBlur}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 max-[375px]:min-h-11 md:text-sm"
-                        value={field.value}
-                        onChange={(v) => field.onChange(v ?? 0)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                render={({ field, fieldState }) => (
+                  <div id="builder-field-campaign-budget" className="scroll-mt-24">
+                    <Field
+                      label="Campaign Budget"
+                      required
+                      error={fieldState.error?.message}
+                    >
+                      {(controlProps) => (
+                        <MoneyInput
+                          {...controlProps}
+                          ref={field.ref}
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 max-[375px]:min-h-11 md:text-sm"
+                          value={field.value}
+                          onChange={(v) => field.onChange(v ?? 0)}
+                        />
+                      )}
+                    </Field>
+                  </div>
                 )}
               />
 
@@ -7515,7 +7520,6 @@ const handleSaveAll = async () => {
                 </div>
                 <div className="grid min-h-0 w-full grid-cols-2 content-start gap-2 px-6 py-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {mediaTypes.filter(medium => medium.name !== "mp_fixedfee").map((medium) => {
-                  const switchId = `media-type-${medium.name}`
                   const accentColor = getMediaTypeAccentColor(medium.name)
                   return (
                     <div key={medium.name} className="flex items-center gap-3 rounded-card border border-border bg-card px-3 py-2 shadow-e0">
@@ -7528,34 +7532,36 @@ const handleSaveAll = async () => {
                         control={form.control}
                         name={medium.name as keyof MediaPlanFormValues}
                         render={({ field }) => (
-                          <Switch
-                            id={switchId}
-                            className="shrink-0"
-                            checked={!!field.value}
-                            onCheckedChange={(checked) => {
-                              const next = Boolean(checked)
-                              if (next === Boolean(field.value)) return
-                              field.onChange(next)
-                              if (next && isPartialMBA) {
-                                toast({
-                                  title: "New channel included in MBA",
-                                  description:
-                                    "New channel added and included in the MBA — exclude it in MBA & billing if it's not approved yet.",
-                                })
-                              }
-                            }}
-                            onBlur={field.onBlur}
-                            disabled={field.disabled}
-                            ref={field.ref}
-                          />
+                          <Field
+                            label={medium.label}
+                            orientation="horizontal"
+                            className="min-w-0 flex-1"
+                          >
+                            {(controlProps) => (
+                              <Switch
+                                {...controlProps}
+                                className="shrink-0"
+                                checked={!!field.value}
+                                onCheckedChange={(checked) => {
+                                  const next = Boolean(checked)
+                                  if (next === Boolean(field.value)) return
+                                  field.onChange(next)
+                                  if (next && isPartialMBA) {
+                                    toast({
+                                      title: "New channel included in MBA",
+                                      description:
+                                        "New channel added and included in the MBA — exclude it in MBA & billing if it's not approved yet.",
+                                    })
+                                  }
+                                }}
+                                onBlur={field.onBlur}
+                                disabled={field.disabled}
+                                ref={field.ref}
+                              />
+                            )}
+                          </Field>
                         )}
                       />
-                      <Label
-                        htmlFor={switchId}
-                        className="font-normal leading-snug min-w-0 flex-1 cursor-pointer"
-                      >
-                        {medium.label}
-                      </Label>
                     </div>
                   )
                 })}

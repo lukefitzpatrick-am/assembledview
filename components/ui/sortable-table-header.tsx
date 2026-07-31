@@ -47,18 +47,21 @@ export const SortableTableHeader: React.FC<SortableTableHeaderProps> = ({
   const Icon =
     direction === "asc" ? ChevronUp : direction === "desc" ? ChevronDown : ChevronsUpDown
 
+  const ariaSort: React.AriaAttributes["aria-sort"] =
+    direction === "asc" ? "ascending" : direction === "desc" ? "descending" : "none"
+
   return (
-    <TableHead className={cn("p-0", className)} align={align}>
+    <TableHead className={cn("p-0", className)} align={align} aria-sort={ariaSort}>
       <button
         type="button"
         onClick={onToggle}
         className={cn(
-          "flex w-full items-center gap-2 px-4 py-3 font-medium text-muted-foreground hover:text-foreground",
+          "flex w-full items-center gap-2 px-4 py-3 font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
           align === "right" ? "justify-end text-right" : "justify-start text-left"
         )}
       >
         <span className={cn(align !== "right" && "flex-1")}>{label}</span>
-        <Icon className="h-4 w-4 shrink-0" />
+        <Icon className="h-4 w-4 shrink-0" aria-hidden />
       </button>
     </TableHead>
   )

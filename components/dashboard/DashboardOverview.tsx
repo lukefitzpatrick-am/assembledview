@@ -586,7 +586,7 @@ function DashboardCollapsiblePanel({
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             {isMd ? (
               <>
-                <PanelTitle className="text-base">{panelTitle}</PanelTitle>
+                <PanelTitle as="h3" className="text-base">{panelTitle}</PanelTitle>
                 {badge}
               </>
             ) : (
@@ -602,7 +602,7 @@ function DashboardCollapsiblePanel({
                     )}
                   />
                   <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <PanelTitle className="text-base text-left">{panelTitle}</PanelTitle>
+                    <PanelTitle as="h3" className="text-base text-left">{panelTitle}</PanelTitle>
                     {badge}
                   </div>
                 </button>
@@ -2155,7 +2155,7 @@ export default function DashboardOverview({
               <div className="h-1 bg-pacing-ahead" />
               <PanelHeader className="items-center pb-2">
                 <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <PanelTitle className="text-base">Live Campaigns (Booked / Approved / Completed)</PanelTitle>
+                  <PanelTitle as="h3" className="text-base">Live Campaigns (Booked / Approved / Completed)</PanelTitle>
                   <Badge variant="ahead" className="num w-fit shrink-0 text-xs font-medium">
                     {liveCampaigns.length} {liveCampaigns.length === 1 ? "Campaign" : "Campaigns"}
                   </Badge>

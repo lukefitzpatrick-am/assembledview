@@ -404,6 +404,7 @@ export function NamingLevelGrid({
                           variant="ghost"
                           className="h-8 w-8"
                           title="Duplicate row"
+                          aria-label="Duplicate row"
                           onClick={() => onDuplicate(row.id)}
                         >
                           <Copy className="h-3.5 w-3.5" aria-hidden />
@@ -415,6 +416,7 @@ export function NamingLevelGrid({
                             variant="ghost"
                             className="h-8 w-8 text-status-critical-fg"
                             title="Delete row"
+                            aria-label="Delete row"
                             onClick={() => onDelete(row.id)}
                           >
                             <Trash2 className="h-3.5 w-3.5" aria-hidden />

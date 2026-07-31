@@ -4,7 +4,7 @@ The campaign builder. Creates an MBA-numbered plan (`media_plan_master`), cuts i
 
 ## Key files
 
-- `app/mediaplans/create/page.tsx` (~8,100 lines) — new-plan builder. **Near-parallel twin of the edit page**; fixes usually apply to both.
+- `app/mediaplans/create/page.tsx` (~8,100 lines) — new-plan builder. **Near-parallel twin of the edit page**; fixes usually apply to both. Required campaign fields + media-channel toggles use `components/ui/field.tsx` (label association, real `required`/`aria-required`, error wiring). `components/ui/switch.tsx` requires `aria-label` or `aria-labelledby` at the type level.
 - `app/mediaplans/mba/[mba_number]/edit/page.tsx` (~11,800 lines) — canonical editor; `handleSaveAll` is the save protocol.
 - `app/api/mediaplans/mba/[mba_number]/route.ts` — THE media plan API: GET (master + version + 20 parallel channel fetches), PUT (version cut + server billing recompute), PATCH (publish). GET/PUT/PATCH all call `checkClientMbaAccess` (SEC-3 Verified).
 - `app/api/mediaplans/route.ts` — list: admin/manager see all; client users get MBA-scoped rows via `resolveClientMbaScope` (SEC-2 FIXED).

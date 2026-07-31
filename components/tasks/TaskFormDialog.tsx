@@ -482,6 +482,7 @@ export function TaskFormDialog({
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
+                      aria-label="Client visible"
                     />
                   </FormControl>
                 </FormItem>

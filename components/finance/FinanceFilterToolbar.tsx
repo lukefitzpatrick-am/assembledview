@@ -431,6 +431,7 @@ export function FinanceFilterToolbar({ receivables, activeTab }: FinanceFilterTo
           id="finance-include-drafts"
           checked={draft.includeDrafts}
           onCheckedChange={(checked) => setDraft((d) => ({ ...d, includeDrafts: checked }))}
+          aria-label="Include drafts"
         />
       </div>
     </>

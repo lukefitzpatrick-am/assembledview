@@ -413,6 +413,7 @@ export default function FinanceHubPayablesSection() {
             id="payables-hide-client-paid-hub"
             checked={hideClientPaidLines}
             onCheckedChange={(v) => setHideClientPaidLines(Boolean(v))}
+            aria-label="Hide client-paid lines"
           />
           <Label htmlFor="payables-hide-client-paid-hub" className="text-xs font-normal text-muted-foreground">
             Hide client-paid lines

@@ -29,19 +29,23 @@ const CardHeader = React.forwardRef<
 ))
 CardHeader.displayName = "CardHeader"
 
-const CardTitle = React.forwardRef<
-  HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement>
->(({ className, ...props }, ref) => (
-  <div
-    ref={ref}
-    className={cn(
-      "text-2xl font-semibold leading-none tracking-tight",
-      className
-    )}
-    {...props}
-  />
-))
+type CardTitleProps = React.HTMLAttributes<HTMLElement> & {
+  /** Semantic heading element. Defaults to `h3` (nested under typical panel `h2`). */
+  as?: "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "div"
+}
+
+const CardTitle = React.forwardRef<HTMLElement, CardTitleProps>(
+  ({ className, as: Comp = "h3", ...props }, ref) => (
+    <Comp
+      ref={ref as React.Ref<never>}
+      className={cn(
+        "text-2xl font-semibold leading-none tracking-tight",
+        className
+      )}
+      {...props}
+    />
+  )
+)
 CardTitle.displayName = "CardTitle"
 
 const CardDescription = React.forwardRef<

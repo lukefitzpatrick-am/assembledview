@@ -419,6 +419,7 @@ export function TasksPageClient() {
               id="tasks-mine"
               checked={mine}
               onCheckedChange={(checked) => setMine(Boolean(checked))}
+              aria-label={mine ? "My tasks" : "All tasks"}
             />
             <Label htmlFor="tasks-mine" className="cursor-pointer">
               {mine ? "My tasks" : "All tasks"}
