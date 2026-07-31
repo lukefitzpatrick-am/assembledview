@@ -4,6 +4,10 @@ import { CircleDollarSign } from "lucide-react"
 
 import { getMediaColor } from "@/lib/charts/registry"
 import { computeBudgetSpendTileValues } from "@/lib/dashboard/budgetSpendTiles"
+import {
+  campaignPacingVerdict,
+  campaignPacingVerdictSentence,
+} from "@/lib/dashboard/campaignPacingVerdict"
 import { formatNumberCompact } from "@/lib/format/chartFormat"
 import { formatDateShort } from "@/lib/format/date"
 import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
@@ -110,6 +114,15 @@ export default function CampaignSummaryRow({
       ? `${formatPercent((expectedSpend / budget) * 100)} of plan budget`
       : null
 
+  const pacingResolved = campaignPacingVerdict({
+    budget,
+    startDate: time.startDate,
+    endDate: time.endDate,
+    spendToDate: hasDelivery && deliveredSpend !== undefined ? deliveredSpend : 0,
+    asOfDate: delivered?.asOf,
+  })
+  const pacingSentence = pacingResolved ? campaignPacingVerdictSentence(pacingResolved) : null
+
   const startLabel = formatAxisDate(time.startDate)
   const endLabel = formatAxisDate(time.endDate)
   const pctLabelLeft = timePct <= 0 ? 0 : Math.min(100, Math.max(timePct / 2, timePct < 14 ? 7 : timePct / 2))
@@ -125,6 +138,14 @@ export default function CampaignSummaryRow({
 
   return (
     <div className="space-y-3">
+      {pacingSentence && pacingResolved ? (
+        <p
+          className={cn("text-sm font-medium", pacingResolved.textClass)}
+          data-pacing-status={pacingResolved.status}
+        >
+          {pacingSentence}
+        </p>
+      ) : null}
       <div className={cn("grid grid-cols-1 gap-4", layout === "side-by-side" ? "md:grid-cols-2" : "md:grid-cols-1")}>
         {/* Spend card — left column on md+ */}
         <article className={spendCardClass}>

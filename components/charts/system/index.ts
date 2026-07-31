@@ -44,7 +44,7 @@ export {
 // Domain / flighting (no deps)
 export {
   MediaGanttChart, BurstGrid, MatrixHeatmap, PacingBandChart, BoxPlotChart,
-  type GanttRow, type GanttBurst, type MediaGanttProps,
+  type GanttRow, type GanttBurst, type GanttMonthBand, type MediaGanttProps,
   type BurstRow, type BurstCell, type BoxStat,
   type PacingBandChartProps,
 } from './domain-charts';

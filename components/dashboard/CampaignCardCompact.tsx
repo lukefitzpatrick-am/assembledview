@@ -81,10 +81,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
-function buildDownloadSummaryHref(viewHref: string): string {
-  return viewHref.includes("?") ? `${viewHref}&download=summary` : `${viewHref}?download=summary`
-}
-
 export function CampaignCardCompact({
   id,
   name,
@@ -110,7 +106,6 @@ export function CampaignCardCompact({
   const hiddenTagCount = Math.max(0, mediaTypes.length - visibleTags.length)
   const showEdit = Boolean(canEdit && editHref)
   const showPencil = showEdit && showInlineEditButton
-  const downloadHref = buildDownloadSummaryHref(viewHref)
 
   const copyMbaNumber = async () => {
     try {
@@ -232,11 +227,14 @@ export function CampaignCardCompact({
                 <Copy className="h-4 w-4" />
                 Copy MBA number
               </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href={downloadHref} className="cursor-pointer">
-                  <Download className="h-4 w-4" />
-                  Download summary
-                </Link>
+              <DropdownMenuItem
+                disabled
+                title="Summary download is not wired yet"
+                className="cursor-not-allowed opacity-60"
+                onSelect={(e) => e.preventDefault()}
+              >
+                <Download className="h-4 w-4" />
+                Download summary
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

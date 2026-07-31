@@ -21,7 +21,17 @@ import { ClientKpiSlideOver } from "@/components/dashboard/modals/ClientKpiSlide
 import { CampaignCardSkeleton, ChartSkeleton } from "@/components/dashboard/skeletons"
 import { computePlannedSpendTotals } from "@/lib/dashboard/plannedSpendConsistency"
 import { EMPTY_DELIVERED_TOTALS_WITH_AS_OF } from "@/lib/delivery/deliveredTotals"
+import { formatDateShort } from "@/lib/format/date"
 import type { Campaign as LegacyCampaign, ClientDashboardData as LegacyClientDashboardData } from "@/lib/types/dashboard"
+
+/** Derive a freshness caption from Snowflake delivery `asOf` — never invent relative times. */
+function formatDeliveryFreshness(asOf: string | undefined): string | null {
+  if (!asOf?.trim()) return null
+  const label = formatDateShort(`${asOf.trim()}T00:00:00`)
+  if (label === "—") return null
+  const short = label.replace(/\s+\d{4}$/, "")
+  return `Delivery as of ${short}`
+}
 
 export type CampaignLinkMode = "tenant" | "adminHub"
 
@@ -216,6 +226,7 @@ export function ClientDashboardPageContent({
   }, [slug])
 
   const isClientHub = campaignLinkMode === "adminHub"
+  const deliveryFreshness = formatDeliveryFreshness(deliveredTotals?.asOf)
   const { campaignsYtdCount, campaignsYtdCaption } = useMemo(() => {
     if (!isClientHub) {
       return { campaignsYtdCount: undefined, campaignsYtdCaption: undefined }
@@ -340,7 +351,9 @@ export function ClientDashboardPageContent({
             <span className="rounded-full bg-pacing-ahead-bg px-2 py-0.5 text-xs font-medium text-status-ahead-fg">
               {statusCounts.live}
             </span>
-            <span className="text-xs text-muted-foreground">Updated 2 min ago</span>
+            {deliveryFreshness ? (
+              <span className="text-xs text-muted-foreground">{deliveryFreshness}</span>
+            ) : null}
           </div>
           <Link
             href={`/dashboard/${encodeURIComponent(slug)}`}

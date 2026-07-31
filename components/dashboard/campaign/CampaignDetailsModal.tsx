@@ -6,6 +6,7 @@ import { CalendarDays, Copy, Download, ExternalLink } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
+import { useAuthContext } from "@/contexts/AuthContext"
 import { formatDateShort } from "@/lib/format/date"
 import { formatMoney, formatPercent } from "@/lib/format/money"
 import {
@@ -75,6 +76,7 @@ export default function CampaignDetailsModal({
   spendByChannel,
   lineItemCounts,
 }: CampaignDetailsModalProps) {
+  const { isClient } = useAuthContext()
   const elapsedPct = clampPct(campaign.timeElapsedPct)
   const expectedSpend = campaign.expectedSpend ?? 0
   const actualSpend = campaign.actualSpend ?? 0
@@ -85,7 +87,9 @@ export default function CampaignDetailsModal({
   const maxChannelSpend = channels.reduce((max, [, amount]) => Math.max(max, amount), 0)
   const totalLineItems = Object.values(lineItemCounts ?? {}).reduce((sum, count) => sum + (count || 0), 0)
 
+  // Clients must never be sent to the media-plan editor. Staff keep the edit route.
   const mediaPlanHref = `/mediaplans/mba/${encodeURIComponent(campaign.mbaNumber)}/edit`
+  const showMediaPlanEditLink = !isClient
 
   const copyMba = async () => {
     try {
@@ -268,12 +272,14 @@ export default function CampaignDetailsModal({
             <Download className="mr-2 h-4 w-4" />
             Download Campaign Summary
           </Button>
-          <Button variant="outline" asChild>
-            <Link href={mediaPlanHref}>
-              View Full Media Plan
-              <ExternalLink className="ml-2 h-4 w-4" />
-            </Link>
-          </Button>
+          {showMediaPlanEditLink ? (
+            <Button variant="outline" asChild>
+              <Link href={mediaPlanHref}>
+                View Full Media Plan
+                <ExternalLink className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          ) : null}
         </SheetFooter>
       </SheetContent>
     </Sheet>

@@ -515,7 +515,7 @@ export default function SpendChartsRow({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
         <BaseChartCard
           title="Planned media by type"
-          subtitle={`Total: ${chartFmt.currencyCompact(mediaChannelTotal)}`}
+          subtitle={`Delivery schedule · Total: ${chartFmt.currencyCompact(mediaChannelTotal)}`}
         >
           {mediaChannelTotal > 0 ? (
             <DonutChart

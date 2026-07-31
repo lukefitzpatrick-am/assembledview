@@ -51,6 +51,7 @@ const MediaGanttChart = forwardRef<HTMLDivElement, MediaGanttChartProps>(functio
         weeks={gantt.weeks}
         months={gantt.months}
         weeksPerMonth={gantt.weeksPerMonth}
+        monthBands={gantt.monthBands}
         todayWeek={gantt.todayWeek}
         className="min-w-full"
       />
