@@ -373,7 +373,7 @@ export default function ForecastingPageClient() {
     }
   }, [])
 
-  // Auto-reload after first successful load when scenario or FY changes (idempotent).
+  // FIN-4: auto-load current FY (all clients) on cold entry; reload when scenario/FY Apply changes.
   useEffect(() => {
     if (!shouldAutoReloadForecast(forecastLoadSucceededRef.current)) return
     void loadForecastRef.current()
@@ -684,7 +684,7 @@ export default function ForecastingPageClient() {
         <CardHeader className="space-y-1 pb-3">
           <CardTitle className="text-base font-medium">Filters</CardTitle>
           <p className="text-xs text-muted-foreground">
-            FY{fyDisplayLabel(fyStart)} from scope bar · change FY above and Apply to reload.
+            FY{fyDisplayLabel(fyStart)} loads on entry · change FY above and Apply to reload.
           </p>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">

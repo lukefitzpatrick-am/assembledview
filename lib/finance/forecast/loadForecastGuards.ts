@@ -19,7 +19,12 @@ export function forecastLoadResultDisposition(args: {
   return "apply"
 }
 
-/** True when an auto-reload effect should refetch (after at least one successful manual/auto load). */
-export function shouldAutoReloadForecast(hasSuccessfulLoad: boolean): boolean {
-  return hasSuccessfulLoad
+/**
+ * Whether the forecasting page should refetch for scenario / FY changes.
+ * FIN-4: always true — cold entry loads current FY (all clients) with no click;
+ * subsequent scenario/FY (Apply) changes keep auto-reloading.
+ * `hasSuccessfulLoad` retained for call-site stability; unused.
+ */
+export function shouldAutoReloadForecast(_hasSuccessfulLoad: boolean): boolean {
+  return true
 }

@@ -27,7 +27,7 @@ test("forecastLoadResultDisposition ignores aborted in-flight request", () => {
   )
 })
 
-test("shouldAutoReloadForecast gates scenario/FY auto-reload until first success", () => {
-  assert.equal(shouldAutoReloadForecast(false), false)
+test("shouldAutoReloadForecast always allows cold entry + scenario/FY reload (FIN-4)", () => {
+  assert.equal(shouldAutoReloadForecast(false), true)
   assert.equal(shouldAutoReloadForecast(true), true)
 })
