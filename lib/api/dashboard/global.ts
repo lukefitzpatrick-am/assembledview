@@ -6,6 +6,11 @@ import {
 import { parseXanoListPayload } from '@/lib/api/xano'
 import { xanoDashboardsUrl } from '@/lib/api/xanoClients'
 import { getCachedMediaPlanVersions } from '@/lib/api/mediaPlanVersionsCache'
+import { getDataBackendFor } from '@/lib/data/backend'
+import {
+  fetchDashboardMonthlyClientSpendFromPostgres,
+  fetchDashboardMonthlyPublisherSpendFromPostgres,
+} from '@/lib/data/dashboardMonthlySpend'
 import { getCachedClients } from '@/lib/finance/xanoReferenceCache'
 import {
   apiClient,
@@ -16,6 +21,26 @@ import {
   getMonthYearValue,
   parseMoney,
 } from './shared'
+
+/**
+ * Raw list rows for treemap feeds.
+ * postgres → schedule_months aggregate; xano/shadow → existing Xano custom endpoints.
+ */
+async function fetchDashboardMonthlyPublisherSpendRows(): Promise<any[]> {
+  if (getDataBackendFor('plans') === 'postgres') {
+    return fetchDashboardMonthlyPublisherSpendFromPostgres()
+  }
+  const rowsResp = await apiClient.get(xanoDashboardsUrl('dashboard_monthly_publisher_spend'))
+  return parseXanoListPayload(rowsResp.data)
+}
+
+async function fetchDashboardMonthlyClientSpendRows(): Promise<any[]> {
+  if (getDataBackendFor('plans') === 'postgres') {
+    return fetchDashboardMonthlyClientSpendFromPostgres()
+  }
+  const rowsResp = await apiClient.get(xanoDashboardsUrl('dashboard_monthly_client_spend'))
+  return parseXanoListPayload(rowsResp.data)
+}
 
 /**
  * Global monthly spend (all clients), sourced from deliverySchedule on media_plan_versions
@@ -168,17 +193,17 @@ function emptyPublisherSpendMonths(fyMonths: string[]): GlobalMonthlyPublisherSp
 }
 
 /**
- * Global monthly spend split by publisher (header1).
- * Pre-aggregated via Xano dashboards `dashboard_monthly_publisher_spend`; FY filter stays app-side.
- * Non-OK upstream (currently 500 while Xano fix lands) soft-fails to empty months.
+ * Global monthly spend split by publisher (header1 / line_items.publisher).
+ * Pre-aggregated via Xano `dashboard_monthly_publisher_spend` or Postgres
+ * schedule_months (delivery) when `DATA_BACKEND_PLANS=postgres`. FY filter stays app-side.
+ * Non-OK upstream soft-fails to empty months (UI keeps FY billing fallback).
  */
 export async function getGlobalMonthlyPublisherSpend(): Promise<GlobalMonthlyPublisherSpend[]> {
   const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
 
   let rows: any[] = []
   try {
-    const rowsResp = await apiClient.get(xanoDashboardsUrl("dashboard_monthly_publisher_spend"))
-    rows = parseXanoListPayload(rowsResp.data)
+    rows = await fetchDashboardMonthlyPublisherSpendRows()
   } catch (err: any) {
     const status = err?.response?.status
     console.warn(
@@ -305,9 +330,10 @@ export async function getGlobalMonthlyClientSpendLegacy(): Promise<{
 
 /**
  * Global monthly spend split by client.
- * Pre-aggregated via Xano dashboards `dashboard_monthly_client_spend`; FY filter stays app-side.
+ * Pre-aggregated via Xano `dashboard_monthly_client_spend` or Postgres
+ * schedule_months (delivery) when `DATA_BACKEND_PLANS=postgres`. FY filter stays app-side.
  * Client brand colours still fetched from the clients collection.
- * Non-OK upstream (currently 500 while Xano fix lands) soft-fails to empty months.
+ * Non-OK upstream soft-fails to empty months (UI keeps FY billing fallback).
  */
 export async function getGlobalMonthlyClientSpend(): Promise<{
   data: GlobalMonthlyClientSpend[]
@@ -332,8 +358,7 @@ export async function getGlobalMonthlyClientSpend(): Promise<{
 
   let rows: any[] = []
   try {
-    const rowsResp = await apiClient.get(xanoDashboardsUrl("dashboard_monthly_client_spend"))
-    rows = parseXanoListPayload(rowsResp.data)
+    rows = await fetchDashboardMonthlyClientSpendRows()
   } catch (err: any) {
     const status = err?.response?.status
     console.warn(
