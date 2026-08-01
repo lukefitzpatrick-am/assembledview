@@ -397,14 +397,15 @@ function MediaPlansPageInner() {
         actions={
           <div className="flex flex-wrap items-center gap-3">
             <ListGridToggle value={listGridMode} onChange={setListGridMode} />
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            {/* Fixed search + counter slots so Create Campaign never shifts on type/focus/clear (AVU4-9). */}
+            <div className="flex shrink-0 items-center gap-2">
+              <div className="relative w-72 shrink-0">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   placeholder="Search campaigns..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-72 border-border/50 bg-background/80 pl-10 pr-9 backdrop-blur-sm"
+                  className="w-full border-border/50 bg-background/80 pl-10 pr-9 backdrop-blur-sm"
                   aria-label="Search campaigns"
                 />
                 {searchActive ? (
@@ -419,13 +420,28 @@ function MediaPlansPageInner() {
                   </button>
                 ) : null}
               </div>
-              {searchActive ? (
-                <span className="text-xs tabular-nums text-muted-foreground">
-                  {filteredPlans.length} of {mediaPlans.length} campaigns
-                </span>
-              ) : null}
+              <span
+                className="inline-flex h-9 w-[11.5rem] shrink-0 items-center text-xs tabular-nums text-muted-foreground"
+                aria-live="polite"
+              >
+                {loading ? (
+                  searchActive ? (
+                    <span
+                      className="inline-block h-3 w-24 animate-pulse rounded bg-muted"
+                      aria-hidden
+                    />
+                  ) : null
+                ) : searchActive ? (
+                  <>
+                    {filteredPlans.length} of {mediaPlans.length} campaigns
+                  </>
+                ) : null}
+              </span>
             </div>
-            <Button onClick={() => router.push("/mediaplans/create")}>
+            <Button
+              className="shrink-0"
+              onClick={() => router.push("/mediaplans/create")}
+            >
               <PlusCircle className="mr-2 h-4 w-4" />
               Create Campaign
             </Button>

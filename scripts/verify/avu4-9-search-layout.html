@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AVU4-9 search layout</title>
+  <style>
+    body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: #f7f6f2; color: #1a2e1f; padding: 24px; }
+    h1 { font-size: 14px; margin: 0 0 16px; }
+    .label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #5c6b60; margin: 0 0 8px; }
+    .panel { position: relative; width: 720px; margin-bottom: 28px; }
+    .guide {
+      position: absolute; top: 28px; bottom: 0; width: 2px; background: #e5573e; opacity: 0.85; pointer-events: none; z-index: 2;
+    }
+    .row {
+      display: flex; align-items: center; gap: 12px;
+      border: 1px solid #e2e0d8; background: #fff; border-radius: 14px; padding: 16px 20px;
+    }
+    .toggle { width: 72px; height: 36px; border-radius: 8px; border: 1px solid #e2e0d8; background: #f3f2ed; flex-shrink: 0; }
+    .search-wrap { position: relative; width: 18rem; flex-shrink: 0; }
+    .search { width: 100%; height: 36px; border-radius: 8px; border: 1px solid #e2e0d8; padding: 0 36px; font-size: 14px; box-sizing: border-box; }
+    .counter {
+      display: inline-flex; align-items: center; height: 36px; flex-shrink: 0;
+      font-size: 12px; font-variant-numeric: tabular-nums; color: #5c6b60; white-space: nowrap;
+    }
+    .counter.fixed { width: 11.5rem; }
+    .counter.collapse:empty { display: none; width: auto; }
+    .btn {
+      height: 36px; padding: 0 14px; border-radius: 8px; border: none;
+      background: #008e5e; color: #fff; font-weight: 600; font-size: 14px; flex-shrink: 0; white-space: nowrap;
+    }
+    .skel { display: inline-block; width: 6rem; height: 12px; border-radius: 4px; background: #e8e6df; }
+    .note { font-size: 12px; color: #5c6b60; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <h1>AVU4-9 — Campaigns search: Create Campaign alignment (red guide = Create left edge)</h1>
+
+  <div class="panel" id="before">
+    <div class="label">Before · empty → typed (Create shifts; guide marks typed position)</div>
+    <div class="row" style="margin-bottom:10px">
+      <div class="toggle"></div>
+      <div class="search-wrap"><input class="search" value="" placeholder="Search campaigns..." readonly /></div>
+      <span class="counter collapse"></span>
+      <button class="btn">Create Campaign</button>
+    </div>
+    <div class="row" id="before-typed">
+      <div class="toggle"></div>
+      <div class="search-wrap"><input class="search" value="social" readonly /></div>
+      <span class="counter collapse">3 of 12 campaigns</span>
+      <button class="btn" id="before-create">Create Campaign</button>
+    </div>
+    <div class="note">Top row has no counter; bottom row inserts counter → Create moves right.</div>
+  </div>
+
+  <div class="panel" id="after">
+    <div class="label">After · empty → typed (Create left edge locked to red guide)</div>
+    <div class="row" style="margin-bottom:10px" id="after-empty">
+      <div class="toggle"></div>
+      <div class="search-wrap"><input class="search" value="" placeholder="Search campaigns..." readonly /></div>
+      <span class="counter fixed"></span>
+      <button class="btn" id="after-create">Create Campaign</button>
+    </div>
+    <div class="row" id="after-typed">
+      <div class="toggle"></div>
+      <div class="search-wrap"><input class="search" value="social" readonly /></div>
+      <span class="counter fixed">3 of 12 campaigns</span>
+      <button class="btn">Create Campaign</button>
+    </div>
+    <div class="note">Fixed 18rem search + 11.5rem counter slot; Create stays put. Loading uses skeleton in the same slot (never "0 of 0").</div>
+  </div>
+
+  <div class="panel" id="loading">
+    <div class="label">After · loading while search active</div>
+    <div class="row" id="after-loading">
+      <div class="toggle"></div>
+      <div class="search-wrap"><input class="search" value="social" readonly /></div>
+      <span class="counter fixed"><span class="skel"></span></span>
+      <button class="btn">Create Campaign</button>
+    </div>
+  </div>
+
+  <script>
+    function placeGuide(panelId, createId) {
+      const panel = document.getElementById(panelId)
+      const create = document.getElementById(createId)
+      const guide = document.createElement("div")
+      guide.className = "guide"
+      const left = create.getBoundingClientRect().left - panel.getBoundingClientRect().left
+      guide.style.left = left + "px"
+      panel.appendChild(guide)
+    }
+    placeGuide("before", "before-create")
+    placeGuide("after", "after-create")
+  </script>
+</body>
+</html>
