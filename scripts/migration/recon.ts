@@ -47,8 +47,7 @@ const ONE_TO_ONE: Array<{ xano: string; supabase: string; table: keyof typeof sc
   { xano: "publishers", supabase: "publishers", table: "publishers" },
   { xano: "planning_audiences", supabase: "planning_audiences", table: "planningAudiences" },
   { xano: "clients", supabase: "clients", table: "clients" },
-  { xano: "client_domains", supabase: "client_domains", table: "clientDomains" },
-  { xano: "client_notes", supabase: "client_notes", table: "clientNotes" },
+  // Codex v2 (0013): excluded from count recon — no Xano twin / postgres-native
   { xano: "clientdashboard", supabase: "clientdashboard", table: "clientdashboard" },
   { xano: "client_kpi", supabase: "client_kpi", table: "clientKpi" },
   { xano: "campaign_kpi", supabase: "campaign_kpi", table: "campaignKpi" },
@@ -57,16 +56,11 @@ const ONE_TO_ONE: Array<{ xano: string; supabase: string; table: keyof typeof sc
   { xano: "finance_billing_line_items", supabase: "finance_billing_line_items", table: "financeBillingLineItems" },
   { xano: "finance_edits", supabase: "finance_edits", table: "financeEdits" },
   { xano: "finance_saved_views", supabase: "finance_saved_views", table: "financeSavedViews" },
-  { xano: "revenue_forecast_lines", supabase: "revenue_forecast_lines", table: "revenueForecastLines" },
-  { xano: "revenue_line_catalog", supabase: "revenue_line_catalog", table: "revenueLineCatalog" },
+  // revenue_forecast_lines / revenue_line_catalog: postgres-authoritative (forecast target cutover)
   { xano: "scope_of_work", supabase: "scope_of_work", table: "scopeOfWork" },
   { xano: "creative_asset", supabase: "creative_asset", table: "creativeAsset" },
   { xano: "pacing_orphan_fixes", supabase: "pacing_orphan_fixes", table: "pacingOrphanFixes" },
-  { xano: "task_templates", supabase: "task_templates", table: "taskTemplates" },
-  { xano: "task_template_items", supabase: "task_template_items", table: "taskTemplateItems" },
-  { xano: "tasks", supabase: "tasks", table: "tasks" },
-  { xano: "task_checklist_items", supabase: "task_checklist_items", table: "taskChecklistItems" },
-  { xano: "task_comments", supabase: "task_comments", table: "taskComments" },
+  // Codex v2 (0013): tasks* / client_notes / client_domains dropped from 1:1 recon
   { xano: "xero_contacts", supabase: "xero_contacts", table: "xeroContacts" },
   { xano: "xero_ar_invoices", supabase: "xero_ar_invoices", table: "xeroArInvoices" },
   { xano: "xero_ap_bills", supabase: "xero_ap_bills", table: "xeroApBills" },
@@ -119,13 +113,17 @@ async function main(): Promise<void> {
     })
   }
 
-  // Approvals: postgres-authoritative — report counts, never fail recon on mismatch.
-  {
-    const xano = xanoCounts.get("mba_line_approvals") ?? -1
-    const sb = await countTable(db, "mba_line_approvals")
+  // Postgres-authoritative — report counts, never fail recon on mismatch.
+  for (const key of [
+    "mba_line_approvals",
+    "revenue_forecast_lines",
+    "revenue_line_catalog",
+  ] as const) {
+    const xano = xanoCounts.get(key) ?? -1
+    const sb = await countTable(db, key)
     countRows.push({
       scope: "table",
-      key: "mba_line_approvals",
+      key,
       xano_count: xano,
       supabase_count: sb,
       delta: sb - xano,

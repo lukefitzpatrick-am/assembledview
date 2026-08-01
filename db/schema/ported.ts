@@ -62,19 +62,6 @@ export const campaignKpi = pgTable(
   ],
 )
 
-export const clientDomains = pgTable(
-  "client_domains",
-  {
-  id: bigint("id", { mode: "number" }).generatedByDefaultAsIdentity().primaryKey(),
-  clientId: bigint('client_id', { mode: "number" }),
-  emailDomain: text('email_domain'),
-  },
-  (table) => [
-    index("idx_client_domains_client_id").on(table.clientId),
-    index("idx_client_domains_email_domain").on(table.emailDomain),
-  ],
-)
-
 export const clientKpi = pgTable(
   "client_kpi",
   {
@@ -92,26 +79,6 @@ export const clientKpi = pgTable(
   },
   (table) => [
     index("idx_client_kpi_created_at").on(table.createdAt),
-  ],
-)
-
-export const clientNotes = pgTable(
-  "client_notes",
-  {
-  id: bigint("id", { mode: "number" }).generatedByDefaultAsIdentity().primaryKey(),
-  clientId: bigint('client_id', { mode: "number" }),
-  mbaNumber: text('mba_number'),
-  source: text('source'),
-  title: text('title'),
-  body: text('body'),
-  meetingDate: timestamp('meeting_date', { withTimezone: true, mode: "string" }),
-  firefliesMeetingId: text('fireflies_meeting_id'),
-  participants: text('participants'),
-  createdAt: timestamp('created_at', { withTimezone: true, mode: "string" }).notNull().defaultNow(),
-  },
-  (table) => [
-    index("idx_client_notes_client_id").on(table.clientId),
-    uniqueIndex("idx_client_notes_fireflies_meeting_id").on(table.firefliesMeetingId),
   ],
 )
 
@@ -618,6 +585,12 @@ export const revenueForecastLines = pgTable(
   (table) => [
     index("idx_revenue_forecast_lines_clients_id").on(table.clientsId),
     index("idx_revenue_forecast_lines_fy").on(table.fy),
+    uniqueIndex("idx_revenue_forecast_lines_natural_key").on(
+      table.clientsId,
+      table.fy,
+      table.lineKey,
+      table.month
+    ),
   ],
 )
 
@@ -665,82 +638,6 @@ export const scopeOfWork = pgTable(
   },
   (table) => [
     index("idx_scope_of_work_created_at").on(table.createdAt),
-  ],
-)
-
-export const taskChecklistItems = pgTable(
-  "task_checklist_items",
-  {
-  id: bigint("id", { mode: "number" }).generatedByDefaultAsIdentity().primaryKey(),
-  taskId: bigint('task_id', { mode: "number" }),
-  label: text('label'),
-  done: boolean('done'),
-  sort: bigint('sort', { mode: "number" }),
-  },
-  (table) => [
-    index("idx_task_checklist_items_task_id").on(table.taskId),
-  ],
-)
-
-export const taskComments = pgTable(
-  "task_comments",
-  {
-  id: bigint("id", { mode: "number" }).generatedByDefaultAsIdentity().primaryKey(),
-  taskId: bigint('task_id', { mode: "number" }),
-  userId: bigint('user_id', { mode: "number" }),
-  body: text('body'),
-  createdAt: timestamp('created_at', { withTimezone: true, mode: "string" }).notNull().defaultNow(),
-  },
-  (table) => [
-    index("idx_task_comments_task_id").on(table.taskId),
-  ],
-)
-
-export const taskTemplateItems = pgTable(
-  "task_template_items",
-  {
-  id: bigint("id", { mode: "number" }).generatedByDefaultAsIdentity().primaryKey(),
-  templateId: bigint('template_id', { mode: "number" }),
-  label: text('label'),
-  sort: bigint('sort', { mode: "number" }),
-  },
-  (table) => [
-    index("idx_task_template_items_template_id").on(table.templateId),
-  ],
-)
-
-export const taskTemplates = pgTable(
-  "task_templates",
-  {
-  id: bigint("id", { mode: "number" }).generatedByDefaultAsIdentity().primaryKey(),
-  name: text('name'),
-  description: text('description'),
-  createdAt: timestamp('created_at', { withTimezone: true, mode: "string" }).notNull().defaultNow(),
-  },
-)
-
-export const tasks = pgTable(
-  "tasks",
-  {
-  id: bigint("id", { mode: "number" }).generatedByDefaultAsIdentity().primaryKey(),
-  clientId: bigint('client_id', { mode: "number" }),
-  mbaNumber: text('mba_number'),
-  title: text('title'),
-  description: text('description'),
-  status: text('status'),
-  priority: text('priority'),
-  assigneeUserId: bigint('assignee_user_id', { mode: "number" }),
-  dueDate: timestamp('due_date', { withTimezone: true, mode: "string" }),
-  recurringRule: text('recurring_rule'),
-  templateId: bigint('template_id', { mode: "number" }),
-  clientVisible: boolean('client_visible'),
-  createdBy: bigint('created_by', { mode: "number" }),
-  createdAt: timestamp('created_at', { withTimezone: true, mode: "string" }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true, mode: "string" }),
-  },
-  (table) => [
-    index("idx_tasks_client_id_status").on(table.clientId, table.status),
-    index("idx_tasks_assignee_user_id_due_date").on(table.assigneeUserId, table.dueDate),
   ],
 )
 

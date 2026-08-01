@@ -53,7 +53,23 @@ const DROPPED_XANO_TABLES = new Set([
  * Writes follow WRITE_BACKEND=postgres with no Xano mirror; a reload would
  * destroy live exclusions (PC0 / X1 design gap).
  */
-const POSTGRES_AUTHORITATIVE_TABLES = new Set(["mba_line_approvals"])
+const POSTGRES_AUTHORITATIVE_TABLES = new Set([
+  "mba_line_approvals",
+  /** Forecast target store cutover — app writes PG; ETL must not wipe. */
+  "revenue_forecast_lines",
+  "revenue_line_catalog",
+  // Codex v2 (migration 0013): Postgres-native module, no Xano twin.
+  // NEVER truncate-reload these — reloading would destroy live Codex data:
+  // tasks, task_checklist_items, task_comments, task_templates, task_template_items,
+  // client_notes, client_domains
+  "tasks",
+  "task_checklist_items",
+  "task_comments",
+  "task_templates",
+  "task_template_items",
+  "client_notes",
+  "client_domains",
+])
 
 /** Xano JSONL key → SQL column renames (per table). */
 const RENAMES: Record<string, Record<string, string>> = {
@@ -327,8 +343,10 @@ async function main(): Promise<void> {
   await family(sql, "clients", async (tx) => {
     const tables: Array<[string, Table]> = [
       ["clients", schema.clients],
-      ["client_domains", schema.clientDomains],
-      ["client_notes", schema.clientNotes],
+      // Codex v2 (migration 0013): Postgres-native module, no Xano twin.
+      // NEVER truncate-reload these — reloading would destroy live Codex data:
+      // tasks, task_checklist_items, task_comments, task_templates, task_template_items,
+      // client_notes, client_domains
       ["clientdashboard", schema.clientdashboard],
       ["client_kpi", schema.clientKpi],
     ]
@@ -785,6 +803,7 @@ async function main(): Promise<void> {
       ["scope_of_work", schema.scopeOfWork],
       ["creative_asset", schema.creativeAsset],
       ["pacing_orphan_fixes", schema.pacingOrphanFixes],
+      // Codex seven excluded via POSTGRES_AUTHORITATIVE_TABLES (0013) — listed for skip log only:
       ["task_templates", schema.taskTemplates],
       ["task_template_items", schema.taskTemplateItems],
       ["tasks", schema.tasks],
@@ -837,7 +856,7 @@ async function main(): Promise<void> {
       "xero_contacts",
       "xero_sync_exceptions",
       "xero_sync_log",
-      "tasks",
+      // tasks: Codex v2 postgres-authoritative — sequence left untouched
       "creative_asset",
       "scope_of_work",
       // mba_line_approvals: postgres-authoritative — sequence left untouched
