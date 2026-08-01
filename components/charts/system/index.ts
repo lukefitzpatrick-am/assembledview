@@ -54,7 +54,7 @@ export {
   BaseChartCard, ChartExportToolbar, ToggleableLegend, ChartFilterLegend, useLegendToggle,
   exportCsv, exportPng, captureNodePng,
   type BaseChartCardProps, type ChartExportToolbarProps, type LegendItem, type ToggleableLegendProps,
-  type CapturedPng,
+  type CapturedPng, type ChartExportSeriesInput,
 } from './chart-shell';
 
 // Theme + helpers

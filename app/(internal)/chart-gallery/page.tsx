@@ -11,7 +11,7 @@ import {
   WaterfallChart, BulletChart, SankeyChart,
   SunburstChart, MarimekkoChart, CalendarHeatmap,
   MediaGanttChart, BurstGrid, MatrixHeatmap, PacingBandChart, BoxPlotChart,
-  BaseChartCard, ChartExportToolbar, ToggleableLegend, useLegendToggle, exportCsv, exportPng,
+  BaseChartCard, ToggleableLegend, useLegendToggle,
 } from '@/components/charts/system';
 import * as React from 'react';
 import { MediaChannelTag, mediaChannelTagRowClassName } from '@/components/dashboard/MediaChannelTag';
@@ -107,7 +107,12 @@ function ShellExample() {
       title="Spend by channel"
       subtitle="Last 6 months · AUD"
       bodyRef={bodyRef}
-      toolbar={<ChartExportToolbar onCsv={() => exportCsv(D.spendTrend, 'spend.csv')} onPng={() => exportPng(bodyRef.current, 'spend.png')} extra={[{ label: '⋯', onClick: () => {} }]} />}
+      exportPage="gallery"
+      exportSeries={{
+        data: D.spendTrend,
+        xKey: "month",
+        seriesKeys: items.map((i) => i.key),
+      }}
       legend={<ToggleableLegend items={items} hidden={hidden} onToggle={toggle} />}
     >
       <MultiLineChart data={D.spendTrend} xKey="month" series={series} valueFormat="compact" showLegend={false} />

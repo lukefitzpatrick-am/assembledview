@@ -398,6 +398,12 @@ export default function SpendChartsRow({
         <BaseChartCard
           title="Planned media by type"
           subtitle={`${MEDIA_MIX_DONUT_BASIS_CAPTION} · Total: ${chartFmt.currencyCompact(mediaChannelTotal)}`}
+          exportPage="dashboard"
+          exportSeries={{
+            data: mediaChannelDonutData,
+            xKey: "label",
+            seriesKeys: ["value"],
+          }}
         >
           {mediaChannelTotal > 0 ? (
             <DonutChart
@@ -420,6 +426,12 @@ export default function SpendChartsRow({
         <BaseChartCard
           title="Planned media by publisher"
           subtitle="Top publishers by planned gross media"
+          exportPage="dashboard"
+          exportSeries={{
+            data: publisherBarData,
+            xKey: "cat",
+            seriesKeys: ["value"],
+          }}
         >
           {publisherBarData.length > 0 && publisherTotal > 0 ? (
             <HorizontalBarChart
@@ -443,6 +455,12 @@ export default function SpendChartsRow({
       <BaseChartCard
         title="Planned media by month"
         subtitle={`gross media by month, planned · As at ${asAtDate}`}
+        exportPage="dashboard"
+        exportSeries={{
+          data: pivotedMonthly,
+          xKey: "month",
+          seriesKeys: monthlySeries.map((s) => s.key),
+        }}
       >
         <StackedBarChart
           data={pivotedMonthly}

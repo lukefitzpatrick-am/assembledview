@@ -1,15 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   BaseChartCard,
-  ChartExportToolbar,
   ComboChart,
   GroupedBarChart,
   HorizontalBarChart,
   ScatterChart,
-  exportCsv,
-  exportPng,
   type ScatterPoint,
 } from "@/components/charts/system"
 import { Badge } from "@/components/ui/badge"
@@ -94,11 +91,6 @@ export function OutcomeCharts({
       setAudienceKey(ready[0]!.draft.id)
     }
   }, [ready, audienceKey])
-
-  const reachRef = useRef<HTMLDivElement>(null)
-  const scatterRef = useRef<HTMLDivElement>(null)
-  const dfiiRef = useRef<HTMLDivElement>(null)
-  const addrRef = useRef<HTMLDivElement>(null)
 
   const activeBundle =
     audienceKey === ALL_AUDIENCES
@@ -382,13 +374,15 @@ export function OutcomeCharts({
             ? "Weekly reach % with affinity index · sorted by reach"
             : "Grouped weekly reach % with affinity index overlay · sorted by reach"
         }
-        bodyRef={reachRef}
-        toolbar={
-          <ChartExportToolbar
-            onCsv={() => exportCsv(reachIndexData.rows, "reach-index.csv")}
-            onPng={() => void exportPng(reachRef.current, "reach-index.png")}
-          />
-        }
+        exportPage="planning"
+        exportSeries={{
+          data: reachIndexData.rows,
+          xKey: "channel",
+          seriesKeys: [
+            ...reachIndexData.bars.map((b) => b.key),
+            ...reachIndexData.lines.map((l) => l.key),
+          ],
+        }}
       >
         {reachIndexData.rows.length === 0 ? (
           <p className="py-8 text-center text-xs text-muted-foreground">No RM-measured channels.</p>
@@ -495,23 +489,16 @@ export function OutcomeCharts({
       <BaseChartCard
         title="Reach × Index quadrant"
         subtitle="Point size = DFII · guides at median reach and index 100"
-        bodyRef={scatterRef}
-        toolbar={
-          <ChartExportToolbar
-            onCsv={() =>
-              exportCsv(
-                scatterData.map((p) => ({
-                  channel: p.label,
-                  reach: p.x,
-                  index: p.y,
-                  dfii: p.z,
-                })),
-                "reach-index-scatter.csv"
-              )
-            }
-            onPng={() => void exportPng(scatterRef.current, "reach-index-scatter.png")}
-          />
-        }
+        exportPage="planning"
+        exportSeries={{
+          rows: scatterData.map((p) => ({
+            channel: p.label,
+            reach: p.x,
+            index: p.y,
+            dfii: p.z,
+          })),
+          columns: ["channel", "reach", "index", "dfii"],
+        }}
       >
         {scatterData.length === 0 ? (
           <p className="py-8 text-center text-xs text-muted-foreground">No points to plot.</p>
@@ -544,13 +531,12 @@ export function OutcomeCharts({
             ? `${chipAudience.draft.name} · reference line at 100`
             : "Select an audience · reference line at 100"
         }
-        bodyRef={dfiiRef}
-        toolbar={
-          <ChartExportToolbar
-            onCsv={() => exportCsv(dfiiBarData, "dfii-ranked.csv")}
-            onPng={() => void exportPng(dfiiRef.current, "dfii-ranked.png")}
-          />
-        }
+        exportPage="planning"
+        exportSeries={{
+          data: dfiiBarData.map(({ channel, dfii: v }) => ({ channel, dfii: v })),
+          xKey: "channel",
+          seriesKeys: ["dfii"],
+        }}
       >
         {audienceKey === ALL_AUDIENCES && ready.length > 1 ? (
           <p className="mb-2 text-xs text-muted-foreground">
@@ -596,13 +582,12 @@ export function OutcomeCharts({
             ? `${chipAudience.draft.name} · channels with >${ADDR_GAP_PTS}pt gap`
             : `Channels with >${ADDR_GAP_PTS}pt gap`
         }
-        bodyRef={addrRef}
-        toolbar={
-          <ChartExportToolbar
-            onCsv={() => exportCsv(addrData, "addressable-vs-total.csv")}
-            onPng={() => void exportPng(addrRef.current, "addressable-vs-total.png")}
-          />
-        }
+        exportPage="planning"
+        exportSeries={{
+          data: addrData,
+          xKey: "channel",
+          seriesKeys: ["total", "addressable"],
+        }}
       >
         {addrData.length === 0 ? (
           <p className="py-8 text-center text-xs text-muted-foreground">

@@ -286,6 +286,12 @@ export default function MediaPlanVizSection({
             <BaseChartCard
               title="Allocation over time"
               subtitle="Prorated monthly gross media by channel"
+              exportPage="dashboard"
+              exportSeries={{
+                data: allocationData,
+                xKey: "period",
+                seriesKeys: allocationSeries.map((s) => s.key),
+              }}
             >
               {hasAllocationData ? (
                 <StackedBarChart

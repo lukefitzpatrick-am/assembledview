@@ -155,6 +155,12 @@ export function FinanceSectionsOverview() {
               title="Billing vs delivery by month"
               subtitle={`FY${fyDisplayLabel(view.data.scope.fy)} · published tip · cents→dollars at boundary`}
               className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
+              exportPage="finance"
+              exportSeries={{
+                data: chartData,
+                xKey: "month",
+                seriesKeys: ["Billing", "Delivery"],
+              }}
             >
               {chartData.length === 0 ? (
                 <EmptyState

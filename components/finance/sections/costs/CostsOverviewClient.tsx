@@ -178,6 +178,12 @@ export function CostsOverviewClient() {
                 title="Publisher spend (booked, delivery)"
                 subtitle="From costs/summary — not global-monthly-* dashboard endpoints"
                 className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
+                exportPage="finance"
+                exportSeries={{
+                  data: treemapData,
+                  xKey: "label",
+                  seriesKeys: ["value"],
+                }}
               >
                 {treemapData.length === 0 ? (
                   <EmptyState
@@ -276,6 +282,12 @@ export function CostsOverviewClient() {
               title="Booked vs AP billed by month"
               subtitle={`FY${fyDisplayLabel(view.data.scope.fy)} · delivery booked vs xero_ap_bills`}
               className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
+              exportPage="finance"
+              exportSeries={{
+                data: trendData,
+                xKey: "month",
+                seriesKeys: ["Booked", "AP billed"],
+              }}
             >
               {trendData.length === 0 ? (
                 <EmptyState

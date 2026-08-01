@@ -42,7 +42,12 @@ export function DeliveryDailyChart({
 
   if (chartData.length === 0 || series.length === 0) {
     return (
-      <BaseChartCard title={title ?? "Daily delivery"} subtitle={subtitle}>
+      <BaseChartCard
+        title={title ?? "Daily delivery"}
+        subtitle={subtitle}
+        exportPage="pacing"
+        hideExport
+      >
         <EmptyState
           className="min-h-[200px] border-0 bg-transparent"
           title="No daily delivery data available"
@@ -53,7 +58,16 @@ export function DeliveryDailyChart({
   }
 
   return (
-    <BaseChartCard title={title ?? "Daily delivery"} subtitle={subtitle}>
+    <BaseChartCard
+      title={title ?? "Daily delivery"}
+      subtitle={subtitle}
+      exportPage="pacing"
+      exportSeries={{
+        data: chartData,
+        xKey: "dateLabel",
+        seriesKeys: series.map((s) => s.key),
+      }}
+    >
       <div className="w-full" style={chartWrapStyle}>
         {isDualAxis && leftSeries && rightSeries ? (
           <ComboChart
