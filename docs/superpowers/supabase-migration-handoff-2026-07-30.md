@@ -73,8 +73,18 @@ Per `av-review/xero-sync-rebuild-spec-2026-07-30.md`: `app/api/cron/xero-sync/ro
 ### T6 — Deployment campaign (only after build-out complete)
 Pre-deploy checklist: Supabase **Free → Pro** (+ decide PITR US$100/mo); `DATABASE_URL` + `DATA_BACKEND` into Vercel; assemble the cherry-pick set from §7's commit list; deploy with `DATA_BACKEND=shadow` in prod → soak → flip domains `postgres` in the same order as T2; write-side flip last with the write-back mirror still on; then disable mirror, repoint Snowflake snapshot, disable Xano Xero task.
 
+**Xano dependency checklist (close before / during T6):**
+- [x] Finance Forecast **targets** (`revenue_forecast_lines` + `revenue_line_catalog`) — app reads/writes Postgres; ETL skips truncate-reload; catalog seeded from `FINANCE_FORECAST_LINE_KEYS` (code remains runtime SoT this phase). Xano held 0 target rows (2026-08-01 probe) — no row migration required.
+- [ ] Finance Forecast **booked** plan crawl (`fetchFinanceForecastRawFromXano` → full `media_plan_versions` page) — still Xano-shaped; schedule hydrate may use `DATA_BACKEND_FINANCE_SCHEDULE`; rewire before T6 decommission (sections `/finance/forecasting` does not change this)
+- [ ] Xero dual-writer off (T5 parity complete → disable Xano `daily_xero_sync`)
+- [ ] MBA GET / plan-detail fan-out (`DATA_BACKEND_PLAN_DETAIL=postgres` after live verify)
+- [ ] Snowflake `XANO_LINE_ITEMS_SNAPSHOT` repointed off Xano export
+- [ ] Catch-all proxies / remaining `fetchAllXanoPages*` soft paths (READ-FAILURE-REGISTER)
+
 ### T7 — Decommission (unchanged from the plan)
 Freeze Xano writes → final export archive → cancel after 30 days. Confirm actual Xano invoice owner first (billing sits on another account). Audit for anything external reading Xano-hosted PDF URLs.
+
+**T7 confirm:** forecast target store no longer needs Xano `revenue_forecast_lines` / `revenue_line_catalog` endpoints (closed pre-T7).
 
 ## 6. Open decisions (Luke)
 1. jayco016 repair timing (blocks trusting finance data). 2. AVA table allowlist — include finance tables or not at first (recommend: not). 3. PITR add-on at Pro upgrade. 4. Xero contacts-refresh stage (recommend yes). 5. Whether the Xano write-back mirror also covers `media_plan_production` (recommend: yes until finance reads flip).

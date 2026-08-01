@@ -7,6 +7,7 @@ import {
   xanoUrl,
 } from "@/lib/api/xano"
 import { getCachedMediaPlanVersions } from "@/lib/api/mediaPlanVersionsCache"
+import { overlayMasterOwnedListFields } from "@/lib/api/overlayMasterOwnedListFields"
 import {
   parseVersionNumber,
   publishedVersionFromMaster,
@@ -22,40 +23,16 @@ import {
  * Masters overlay published `version_number` plus master-owned scalars that Xano
  * `_latest` carried inline (notably `mp_client_name`); Postgres version rows omit
  * those. Versions without a master row are kept.
+ *
+ * Master-owned overlay lives in `overlayMasterOwnedListFields.ts` — shared with
+ * `mediaPlanVersionsCache` (dashboard `/api/media_plans`). Twin-file: change both.
  */
 
-/**
- * Master-owned fields the list API must expose for Xano `_latest` parity.
- * Postgres `media_plan_versions` does not store `mp_client_name` (lives on master).
- */
-export const MEDIA_PLANS_LIST_MASTER_OWNED_STRING_FIELDS = [
-  "mp_client_name",
-] as const
-
-/**
- * Overlay master-owned list fields onto a latest-version row.
- * Prefer version value when already present (Xano `_latest`); fill from master
- * otherwise (Postgres). Always coerce required strings so search/sort never see undefined.
- */
-export function overlayMasterOwnedListFields(
-  versionPlan: Record<string, unknown> | null | undefined,
-  masterData: Record<string, unknown> | null | undefined,
-): Record<string, unknown> {
-  const base =
-    versionPlan && typeof versionPlan === "object" ? { ...versionPlan } : {}
-  for (const key of MEDIA_PLANS_LIST_MASTER_OWNED_STRING_FIELDS) {
-    const fromVersion = base[key]
-    const fromMaster = masterData?.[key]
-    const raw =
-      fromVersion != null && String(fromVersion).length > 0
-        ? fromVersion
-        : fromMaster != null
-          ? fromMaster
-          : fromVersion ?? ""
-    base[key] = typeof raw === "string" ? raw : String(raw ?? "")
-  }
-  return base
-}
+/** Re-export for list-cache consumers / tests (canonical: overlayMasterOwnedListFields.ts). */
+export {
+  MEDIA_PLANS_LIST_MASTER_OWNED_STRING_FIELDS,
+  overlayMasterOwnedListFields,
+} from "@/lib/api/overlayMasterOwnedListFields"
 
 const DEFAULT_TTL_MS = 60_000
 const PAGE_SIZE = 100

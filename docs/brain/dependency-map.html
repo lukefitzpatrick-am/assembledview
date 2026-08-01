@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AssembledView — Architecture Brain Map</title>
+<style>
+  .viz-root, :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb; --surface-2: #f3f2ef; --border: #e3e1db;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #8a8880;
+    --s-core: #2a78d6; --s-plan: #eb6834; --s-money: #1baf7a; --s-delivery: #4a3aa7;
+    --s-ai: #e87ba4; --s-output: #eda100; --s-store: #8a8880; --s-risk: #e34948;
+    --edge: #c9c7c0; --edge-hi: #0b0b0b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1: #1a1a19; --surface-2: #232322; --border: #3a3936;
+      --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #8d8b82;
+      --s-core: #3987e5; --s-plan: #d95926; --s-money: #199e70; --s-delivery: #9085e9;
+      --s-ai: #d55181; --s-output: #c98500; --s-store: #8d8b82; --s-risk: #e66767;
+      --edge: #4a4945; --edge-hi: #ffffff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+         background: var(--surface-1); color: var(--text-primary); }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 28px 24px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--text-secondary); font-size: 13px; margin-bottom: 20px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  .panel-grid { display: grid; grid-template-columns: 1fr 340px; gap: 16px; align-items: start; }
+  @media (max-width: 980px) { .panel-grid { grid-template-columns: 1fr; } }
+  .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; }
+  svg { display: block; width: 100%; height: auto; }
+  .node rect { rx: 8; stroke-width: 1.5; cursor: pointer; }
+  .node text { font-size: 12.5px; font-weight: 600; fill: var(--text-primary); pointer-events: none; }
+  .node .files { font-size: 10px; font-weight: 400; fill: var(--text-secondary); }
+  .edge { fill: none; stroke: var(--edge); stroke-width: 1.4; marker-end: url(#arr); }
+  .edge.hi { stroke: var(--edge-hi); stroke-width: 2.2; marker-end: url(#arrHi); }
+  .edge.dim, .node.dim { opacity: 0.16; }
+  .detail { padding: 16px 18px; font-size: 13px; position: sticky; top: 12px; }
+  .detail h2 { font-size: 15px; margin: 0 0 6px; display:flex; align-items:center; gap:8px; }
+  .detail h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin: 14px 0 4px; }
+  .detail p, .detail li { color: var(--text-secondary); line-height: 1.45; margin: 0 0 6px; }
+  .detail ul { margin: 0; padding-left: 16px; }
+  .detail code { font-size: 11.5px; background: var(--surface-1); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+  .hint { color: var(--text-muted); font-size: 12px; padding: 14px 18px; }
+  h2.sec { font-size: 17px; margin: 40px 0 4px; }
+  .search { width: 100%; max-width: 420px; padding: 8px 12px; margin: 10px 0 14px; font-size: 13px;
+            border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); color: var(--text-primary); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--text-muted);
+       padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--border); vertical-align: top; color: var(--text-secondary); }
+  td:first-child { color: var(--text-primary); font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11.5px; white-space: nowrap; }
+  td.n { text-align: right; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+  .pill { display: inline-block; font-size: 10.5px; font-weight: 600; border-radius: 99px; padding: 1px 8px; }
+  .pill.risk { background: color-mix(in srgb, var(--s-risk) 15%, transparent); color: var(--s-risk); }
+  .foot { margin-top: 36px; font-size: 12px; color: var(--text-muted); border-top: 1px solid var(--border); padding-top: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap viz-root">
+  <h1>AssembledView — Architecture Brain Map</h1>
+  <div class="sub">Domains, dependencies and blast radius · generated from verified import analysis at commit <code>ecc948b</code> · companion to <code>docs/brain/</code></div>
+
+  <div class="legend">
+    <span><span class="sw" style="background:var(--s-core)"></span>Shared core</span>
+    <span><span class="sw" style="background:var(--s-plan)"></span>Planning</span>
+    <span><span class="sw" style="background:var(--s-money)"></span>Finance</span>
+    <span><span class="sw" style="background:var(--s-delivery)"></span>Delivery</span>
+    <span><span class="sw" style="background:var(--s-ai)"></span>AI</span>
+    <span><span class="sw" style="background:var(--s-output)"></span>Outputs</span>
+    <span><span class="sw" style="background:var(--s-store)"></span>External backend</span>
+    <span style="margin-left:auto">Arrow = "depends on" · click a node</span>
+  </div>
+
+  <div class="panel-grid">
+    <div class="card"><svg id="graph" viewBox="0 0 900 640" role="img" aria-label="Domain dependency graph"></svg></div>
+    <div class="card">
+      <div id="detail" class="detail"><div class="hint">Click any domain to see what it does, what it touches, and what breaks when you change it. Hover to trace its connections.</div></div>
+    </div>
+  </div>
+
+  <h2 class="sec">“If I touch this file…”</h2>
+  <div class="sub">The highest-consequence files, ranked. Full tables in <code>docs/brain/BLAST-RADIUS.md</code>.</div>
+  <input id="q" class="search" type="search" placeholder="Filter by file or consequence — e.g. bursts, fee, slug…" aria-label="Filter blast radius table">
+  <table id="tbl">
+    <thead><tr><th>File</th><th style="text-align:right">Importers</th><th>What breaks if you change it</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <div class="foot">Maintained by hand alongside <code>docs/brain/</code> — when a major module dependency changes, update the <code>GRAPH</code> data block in this file. Rule source: <code>/CLAUDE.md</code> · <code>/.cursor/rules/brain.mdc</code></div>
+</div>
+
+<script>
+// ============================================================================
+// GRAPH — the hand-maintained data block. Update when dependencies change.
+// ============================================================================
+const GRAPH = {
+  nodes: [
+    // external stores (left column)
+    { id:"xano",     label:"Xano",            files:"64 tables · 13 API groups", type:"store", x:40,  y:120,
+      sum:"Primary datastore. All plan, client, finance, KPI, creative and task data. No multi-table transactions — hence the stage-then-publish save protocol.",
+      blast:["Schema/endpoint changes ripple through lib/api/xano.ts (106 importers)","input{} blocks must declare fields explicitly (dblink breaks JSON parsing)","Specs exported in root xano-*.json"] },
+    { id:"snowflake", label:"Snowflake MART", files:"pacing + planning facts", type:"store", x:40, y:260,
+      sum:"Delivery warehouse (Fivetran-fed). Learns the plan via the nightly XANO_LINE_ITEMS_SNAPSHOT merge; joined on line_item_id.",
+      blast:["Channel renames silently zero pacing rows (fuzzy LIKE matching)","Orphan fixes UPDATE the MART directly — reverted by full refresh","Dynamic tables: CREATE OR REPLACE only"] },
+    { id:"auth0",    label:"Auth0",           files:"roles + tenant claims", type:"store", x:40, y:400,
+      sum:"Sessions, roles (admin/manager/client) and tenant slugs via namespaced ID-token claims set by a Post-Login Action.",
+      blast:["Action disabled → authenticated but role-less users (every gate 403s)","Slug algorithm changes lock client users out"] },
+    { id:"anthropic", label:"Anthropic",      files:"Claude API", type:"store", x:40, y:510,
+      sum:"Powers AVA, ad/search copy generation, and plan autopopulate parsing.",
+      blast:["AVA_MODEL is shared by AVA AND creative copy routes"] },
+
+    // shared core (second column)
+    { id:"core",  label:"Shared core", files:"xano.ts · rbac · caches · utils", type:"core", x:250, y:265,
+      sum:"The layer everything sits on: Xano URL/auth construction, payload normalisation + pagination, Auth0/RBAC, middleware, 3 cache families, money/date/slug utils.",
+      blast:["lib/utils.ts — 216 importers","lib/api/xano.ts — 106 (silent [] on unknown payload shapes)","lib/format/money.ts — 80 (rounding drift)","lib/rbac.ts — 53 (mass lockout/elevation)","lib/auth0.ts — 52 (throws at import = app-wide outage)","Middleware authenticates only — tenant isolation is per-handler"] },
+
+    // domains (third column)
+    { id:"plans", label:"Media plans", files:"create/edit · 20 channels · MBA", type:"plan", x:470, y:60,
+      sum:"The campaign builder: MBA masters, immutable version rows, 20 channel line-item tables, bursts_json, stage-then-publish saves, MBA PDF + Excel generation.",
+      blast:["bursts_json shape → pacing, billing, finance, dashboards, Snowflake sync, exports","line_item_id → KPI fan-out, billing, trafficking, warehouse join","publishedVersionGuard → staged versions leaking as live","Create page ↔ edit page are near-parallel twins","Adding a channel = ~12 registry maps"] },
+    { id:"finance", label:"Finance & billing", files:"hub · fee engine · forecast", type:"money", x:470, y:185,
+      sum:"Admin-only finance hub deriving receivables/payables/accrual/forecast live from plan schedule JSON. computeCampaignFinancials is the shared planning+finance engine.",
+      blast:["computeBurstAmounts (fee math) = widest blast radius in the repo","recomputeBillingScheduleOnSave gates every schedule save with 409s","receivableMergeKey change orphans billed statuses","Forecast key taxonomy change breaks persisted snapshots"] },
+    { id:"kpi",   label:"KPI", files:"3-tier targets · fan-out", type:"plan", x:470, y:300,
+      sum:"Publisher → client → campaign target resolution, fanned out to line grain; feeds delivery target curves and pacing status colours.",
+      blast:["ResolvedKPIRow / KPITargetValues are frozen API (41 importers)","Percent-scale heuristics are a recurring live bug class","Two target maps with different keys — update both"] },
+    { id:"pacing", label:"Pacing & delivery", files:"6 surfaces · orphans · digest", type:"delivery", x:470, y:415,
+      sum:"Snowflake facts × Xano plans at line-item grain. Spend pacing (search/social/prog), ZERO-$ verification (ad-serving), fixed-cost (direct). 4h cache.",
+      blast:["fetchSearchPacingCampaignRows is the de-facto shared layer for ALL channels","maths ladder mirrors V_LINE_ITEM_PACING — do not reorder","Feeds ops digest email, AVA narrative, client dashboard delivered totals"] },
+    { id:"traffic", label:"Trafficking & creative", files:"naming law · assets · mockups", type:"plan", x:470, y:530,
+      sum:"Naming-convention builder (non-persistent, exports Excel; templates.ts is the law) + creative asset management, AI copy, live mockups.",
+      blast:["templates.ts changes silently change every exported name","Search suffix rule couples names to Google Ads pacing","getPrivateBlob shared by 3 download routes"] },
+
+    // AI + outputs (right column)
+    { id:"ava",   label:"AVA (AI assistant)", files:"21 tools · page bridge", type:"ai", x:700, y:120,
+      sum:"Claude agent on every page. Reads PageContext via window bridge; 21 tools read every domain and write form patches, line items, client brains, artefacts.",
+      blast:["PageContext type imported by 13+ files outside AVA","Tool registry throws at load on order drift → 500s chat","Bridge is a window global — breakage is silent"] },
+    { id:"dash",  label:"Dashboards & charts", files:"client views · chart system", type:"delivery", x:700, y:280,
+      sum:"Tenant-scoped client dashboards + the app-wide chart design system (palettes, media-type colour registry, Recharts plumbing).",
+      blast:["dashboard/shared.ts decides which plan version every number comes from","Two overlapping channel-colour sources — keep in sync","Recharts default-stroke selectors break on upgrade"] },
+    { id:"exports", label:"Docs & exports", files:"Excel · PDF · PPTX · email", type:"output", x:700, y:420,
+      sum:"exceljs workbooks, jsPDF documents, two incompatible PPTX stacks, SendGrid email digests.",
+      blast:["generateMediaPlan.ts is a type hub (LineItem, 32 importers)","Performance report payload is fixed-arity — template+tokens+types change together","Excel Column N mislabel (known issue C-1)"] },
+    { id:"admin", label:"Admin & tasks", files:"users · codex · learning", type:"output", x:700, y:540,
+      sum:"Auth0 user provisioning, Xano task board (codex = tasks, not AVA), learning/knowledge hub. Leaf pages — low outward blast.",
+      blast:["User creation needs Auth0 Role IDs (rol_…), not names","terms.json is generated — never hand-edit"] },
+  ],
+  edges: [
+    ["core","xano"],["core","auth0"],
+    ["plans","core"],["finance","core"],["kpi","core"],["pacing","core"],["traffic","core"],["dash","core"],["exports","core"],["admin","core"],["ava","core"],
+    ["pacing","snowflake"],["pacing","plans"],["pacing","kpi"],
+    ["finance","plans"],["plans","finance"],
+    ["kpi","plans"],
+    ["traffic","plans"],
+    ["ava","anthropic"],["ava","plans"],["ava","pacing"],["ava","finance"],["ava","traffic"],
+    ["dash","pacing"],["dash","kpi"],["dash","plans"],
+    ["exports","plans"],["exports","finance"],
+    ["traffic","anthropic"],
+  ]
+};
+
+const CHOKE = [
+  ["lib/mediaplan/burstAmounts.ts", "≈19+engine", "Canonical fee math. Every receivable, payable, forecast line, snapshot and export. Known divergent copies in generateBillingLineItems + computeDerivedCampaignFeeAmount will NOT pick up your change.", true],
+  ["lib/mediaplan/serializeBurstsJson.ts", "12 domains", "The bursts_json write contract. Pacing parseBursts, delivery compute, billing seeds, finance engine, dashboard gantt, Snowflake sync, Excel/AA exports all parse it. mediaAmount is non-zero for client-pays lines.", true],
+  ["lib/mediaplan/lineItemIds.ts", "28 refs kpi", "line_item_id join key: KPI fan-out, billing bursts, trafficking pickers, Snowflake dedupe, search-suffix pacing. Legacy ML codes still live in warehouse.", true],
+  ["lib/mediaplan/publishedVersionGuard.ts", "7 sites", "Published watermark. Wrong = staged unpublished versions visible as live across dashboards, finance and channel reads.", true],
+  ["lib/pacing/maths/index.ts", "all pacing", "Status ladder mirrors Snowflake V_LINE_ITEM_PACING — do not reorder. Bands feed ops digest email + AVA narrative.", true],
+  ["lib/utils.ts", "216", "cn() class merging everywhere; mediaTypeTheme colour keys — channels silently lose colour."],
+  ["lib/api/xano.ts", "106", "Every Xano call. parseXanoListPayload returns [] silently on unknown shapes; missing XANO_API_KEY = no auth header, no error."],
+  ["lib/format/money.ts", "80", "All currency + roundMoney2/4 — rounding changes cause reconciliation drift in billing/forecast/exports."],
+  ["lib/mediaplan/expertChannelMappings.ts", "63", "Standard↔expert conversion for all 20 channels (8.4k lines)."],
+  ["lib/billing/types.ts (BillingMonth)", "61", "Core schedule shape across finance + billing + containers."],
+  ["lib/rbac.ts", "53", "Sole role/tenant authority; imported by edge middleware. Regression = mass lockout or elevation."],
+  ["lib/auth0.ts", "52", "Throws at import on missing env → whole-app outage, not one route. beforeSessionSaved drops claims silently if changed."],
+  ["lib/requireRole.ts", "35", "Gate on all admin + finance routes; result-shape discriminant relied on everywhere."],
+  ["lib/generateMediaPlan.ts", "32", "Type hub disguised as a generator — LineItem imported by all 20 containers, KPI grouping, exports."],
+  ["lib/clients/slug.ts", "24", "Slugs ARE tenant identity (URLs, Auth0 claims). legalsuper override is load-bearing. Pacing uses a DIFFERENT slugifier."],
+  ["lib/api/xanoPagination.ts", "22", "All multi-page reads. Silent cap at 10,000 rows; envelope truncation bug (DI-5)."],
+  ["lib/finance/computeCampaignFinancials.ts", "engine", "Shared planning+finance engine. Both mega-pages + every schedule save (409 gates) + all receivables derivation.", true],
+  ["lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts", "6 surfaces", "De-facto shared pacing layer — exports fetchAllMasters/fetchCurrentVersionRowsForMasters used by every channel + orphans."],
+  ["lib/naming/templates.ts", "law", "Element orders for every composed name + trafficking Excel; breaks round-trip parse/validate."],
+  ["lib/kpi/types.ts + deliveryTargets.ts", "41", "Frozen public API for pacing, delivery adapters, dashboards, mega-pages, scripts."],
+  ["lib/ava/types.ts (PageContext)", "13+ external", "Imported by trafficking, creative, dashboards, finance, planning, both mega-pages."],
+  ["app/mediaplans/create/page.tsx ↔ edit/page.tsx", "twins", "Near-parallel 8k/12k-line implementations — fixes usually needed in both. create: mp_client_name, edit: mp_clientname."],
+];
+
+// ---- render graph ----
+const COLORS = { core:"--s-core", plan:"--s-plan", money:"--s-money", delivery:"--s-delivery", ai:"--s-ai", output:"--s-output", store:"--s-store" };
+const svg = document.getElementById("graph");
+const NS = "http://www.w3.org/2000/svg";
+const nodeById = Object.fromEntries(GRAPH.nodes.map(n=>[n.id,n]));
+const W = 172, H = 46;
+
+const defs = document.createElementNS(NS,"defs");
+defs.innerHTML = `<marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--edge)"/></marker>
+<marker id="arrHi" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--edge-hi)"/></marker>`;
+svg.appendChild(defs);
+
+const edgeEls = [];
+GRAPH.edges.forEach(([a,b])=>{
+  const A = nodeById[a], B = nodeById[b];
+  const x1 = A.x + (B.x > A.x ? W : (B.x < A.x ? 0 : W/2));
+  const y1 = A.y + H/2, y2 = B.y + H/2;
+  const x2 = B.x + (A.x > B.x ? W : (A.x < B.x ? 0 : W/2));
+  const mx = (x1+x2)/2;
+  const p = document.createElementNS(NS,"path");
+  p.setAttribute("d",`M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`);
+  p.setAttribute("class","edge");
+  p.dataset.a=a; p.dataset.b=b;
+  svg.appendChild(p); edgeEls.push(p);
+});
+
+let selected = null;
+GRAPH.nodes.forEach(n=>{
+  const g = document.createElementNS(NS,"g");
+  g.setAttribute("class","node"); g.setAttribute("tabindex","0"); g.dataset.id=n.id;
+  const c = `var(${COLORS[n.type]})`;
+  g.innerHTML = `<rect x="${n.x}" y="${n.y}" width="${W}" height="${H}" rx="8"
+      fill="color-mix(in srgb, ${c} 14%, var(--surface-2))" stroke="${c}"/>
+    <text x="${n.x+12}" y="${n.y+19}">${n.label}</text>
+    <text class="files" x="${n.x+12}" y="${n.y+34}">${n.files}</text>`;
+  g.addEventListener("mouseenter",()=>highlight(n.id));
+  g.addEventListener("mouseleave",()=>highlight(selected));
+  g.addEventListener("click",()=>{ selected = selected===n.id ? null : n.id; highlight(selected); showDetail(selected?n:null); });
+  g.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){e.preventDefault(); g.dispatchEvent(new Event("click"));}});
+  svg.appendChild(g);
+});
+
+function highlight(id){
+  const nodes = svg.querySelectorAll(".node");
+  if(!id){ edgeEls.forEach(e=>e.classList.remove("hi","dim")); nodes.forEach(n=>n.classList.remove("dim")); return; }
+  const linked = new Set([id]);
+  edgeEls.forEach(e=>{
+    const on = e.dataset.a===id || e.dataset.b===id;
+    e.classList.toggle("hi",on); e.classList.toggle("dim",!on);
+    if(on){ linked.add(e.dataset.a); linked.add(e.dataset.b); }
+  });
+  nodes.forEach(n=>n.classList.toggle("dim",!linked.has(n.dataset.id)));
+}
+
+function showDetail(n){
+  const el = document.getElementById("detail");
+  if(!n){ el.innerHTML = `<div class="hint">Click any domain to see what it does, what it touches, and what breaks when you change it.</div>`; return; }
+  const deps = GRAPH.edges.filter(e=>e[0]===n.id).map(e=>nodeById[e[1]].label);
+  const dependents = GRAPH.edges.filter(e=>e[1]===n.id).map(e=>nodeById[e[0]].label);
+  el.innerHTML = `<h2><span class="sw" style="background:var(${COLORS[n.type]})"></span>${n.label}</h2>
+    <p>${n.sum}</p>
+    ${deps.length?`<h3>Depends on</h3><p>${deps.join(" · ")}</p>`:""}
+    ${dependents.length?`<h3>Depended on by</h3><p>${dependents.join(" · ")}</p>`:""}
+    <h3>Blast radius highlights</h3><ul>${n.blast.map(b=>`<li>${b}</li>`).join("")}</ul>
+    <h3>Full reference</h3><p><code>docs/brain/modules/</code> + <code>BLAST-RADIUS.md</code></p>`;
+}
+
+// ---- choke table ----
+const tbody = document.querySelector("#tbl tbody");
+function renderTable(q){
+  tbody.innerHTML = "";
+  CHOKE.filter(r => !q || (r[0]+" "+r[2]).toLowerCase().includes(q)).forEach(r=>{
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${r[0]}${r[3]?' <span class="pill risk">contract</span>':''}</td><td class="n">${r[1]}</td><td>${r[2]}</td>`;
+    tbody.appendChild(tr);
+  });
+  if(!tbody.children.length) tbody.innerHTML = `<tr><td colspan="3" style="color:var(--text-muted)">No matches.</td></tr>`;
+}
+renderTable("");
+document.getElementById("q").addEventListener("input",e=>renderTable(e.target.value.trim().toLowerCase()));
+</script>
+</body>
+</html>

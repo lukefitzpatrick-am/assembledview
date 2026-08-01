@@ -7,8 +7,9 @@
  *
  * Booked (schedules) is a free reference series from `FinanceForecastDataset`.
  *
- * Phase-2 plug-in: replace / augment `actualByClientMonth` with a Xero AR feed keyed the
- * same way (`client_id` + `month_key`) before calling `buildTargetVsActualVariance`.
+ * Phase-2 plug-in: see {@link XeroArClientMonthActual} — replace / augment the
+ * `ClientMonthAmount[]` fed into `buildTargetVsActualVariance` with a Xero AR feed
+ * at the same (`client_id` + `month_key`) grain. Behaviour unchanged until that wire-up.
  */
 
 import {
@@ -19,6 +20,21 @@ import {
   type FinanceForecastMonthlyAmounts,
 } from "@/lib/types/financeForecast"
 import { financeForecastVariancePercentChange } from "@/lib/finance/forecast/snapshot/varianceEngine"
+
+/**
+ * TODO(FN-forecast-variance-phase2): Typed hook for Xero AR actuals.
+ * FN5c built the join (`xero_ar_invoices` ↔ `xero_invoice_matches` / run items / mba_number).
+ * Produce this shape (dollars, client×month) and merge or replace Phase-1 billed_amount
+ * actuals before `buildTargetVsActualVariance`. Do not invent a per-revenue-line split.
+ */
+export type XeroArClientMonthActual = {
+  client_id: string
+  client_name: string
+  month_key: FinanceForecastMonthKey
+  /** Dollars (same unit as Phase-1 billed_amount / targets). */
+  amount: number
+  source: "xero_ar_invoices"
+}
 
 export type TargetVsActualRag = "ahead" | "on_track" | "behind" | "critical"
 

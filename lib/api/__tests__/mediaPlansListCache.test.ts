@@ -3,7 +3,7 @@ import { describe, it } from "node:test"
 import {
   MEDIA_PLANS_LIST_MASTER_OWNED_STRING_FIELDS,
   overlayMasterOwnedListFields,
-} from "../mediaPlansListCache"
+} from "../overlayMasterOwnedListFields"
 
 /** Fields the list UI + search require as present strings after merge. */
 const REQUIRED_LIST_STRING_FIELDS = [

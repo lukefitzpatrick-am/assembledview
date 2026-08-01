@@ -16,7 +16,6 @@ import type { FinanceForecastTargetLine } from "@/lib/types/financeForecastTarge
 import {
   fetchRevenueForecastTargetLinesFromXano,
   normalizeTargetLine,
-  isTargetStorageConfigured,
 } from "@/lib/finance/forecast/targets/xanoTargetLines"
 
 const DOMAIN = "finance" as const
@@ -525,49 +524,19 @@ export async function fetchRevenueForecastLinesFromPostgres(params: {
   return rows.map((row) => mapRevenueForecastLineFromPostgres(row as Record<string, unknown>))
 }
 
-/** List targets with DATA_BACKEND_FINANCE. Upserts stay on Xano. */
+/**
+ * List targets — Postgres-authoritative (forecast target store cutover).
+ * Variance + GET /api/finance/forecast/targets both use this path.
+ */
 export async function readRevenueForecastTargetLines(params: {
   financial_year_start_year: number
   client_id?: string | null
 }): Promise<FinanceForecastTargetLine[]> {
-  const backend = getDataBackendFor(DOMAIN)
-
-  if (backend === "postgres") {
-    if (!isTargetStorageConfigured() && !process.env.DATABASE_URL) return []
-    const rows = await fetchRevenueForecastLinesFromPostgres(params)
-    return rows
-      .map((r) => normalizeTargetLine(r))
-      .filter((r): r is FinanceForecastTargetLine => r != null)
-  }
-
-  const xanoLines = await fetchRevenueForecastTargetLinesFromXano(params)
-
-  if (backend === "shadow") {
-    void (async () => {
-      try {
-        const postgresRows = await fetchRevenueForecastLinesFromPostgres(params)
-        const xanoRaw = xanoLines.map((l) => ({
-          id: Number.isFinite(Number(l.id)) ? Number(l.id) : l.id,
-          client_id: l.client_id,
-          financial_year_start_year: l.financial_year_start_year,
-          line_key: l.line_key,
-          month_key: l.month_key,
-          amount: l.amount,
-          updated_at: l.updated_at ?? null,
-          updated_by: l.updated_by ?? null,
-        }))
-        runFinanceShadowCompare("revenue_forecast_lines", xanoRaw, postgresRows)
-      } catch (err) {
-        console.error("[migration-shadow-diff] compare failed", {
-          domain: DOMAIN,
-          table: "revenue_forecast_lines",
-          err,
-        })
-      }
-    })()
-  }
-
-  return xanoLines
+  if (!process.env.DATABASE_URL?.trim()) return []
+  const rows = await fetchRevenueForecastLinesFromPostgres(params)
+  return rows
+    .map((r) => normalizeTargetLine(r))
+    .filter((r): r is FinanceForecastTargetLine => r != null)
 }
 
 // --- revenue_line_catalog ---

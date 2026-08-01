@@ -3,14 +3,15 @@ import test from "node:test"
 
 import {
   fetchRevenueForecastTargetLinesFromXano,
+  isXanoTargetStorageConfigured,
+  upsertRevenueForecastTargetLineOnXano,
+} from "../xanoTargetLines.js"
+import {
   isFinanceForecastLineKey,
   isFinanceForecastMonthKey,
-  isTargetStorageConfigured,
   normalizeTargetLine,
   targetLineNaturalKey,
-  upsertRevenueForecastTargetLine,
-  upsertRevenueForecastTargetLinesBatch,
-} from "../xanoTargetLines.js"
+} from "../targetLineHelpers.js"
 
 const FY = 2025
 
@@ -55,7 +56,7 @@ test("fetchRevenueForecastTargetLinesFromXano lists via mocked fetch", async () 
   process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL = "https://xano.test/api:targets"
   delete process.env.XANO_CLIENTS_BASE_URL
 
-  assert.equal(isTargetStorageConfigured(), true)
+  assert.equal(isXanoTargetStorageConfigured(), true)
 
   const originalFetch = globalThis.fetch
   const calls: string[] = []
@@ -86,7 +87,7 @@ test("fetchRevenueForecastTargetLinesFromXano lists via mocked fetch", async () 
       client_id: "acme",
     })
     assert.equal(lines.length, 1)
-    assert.equal(lines[0].amount, 100)
+    assert.equal(lines[0]!.amount, 100)
     assert.equal(calls.length, 1)
   } finally {
     globalThis.fetch = originalFetch
@@ -97,7 +98,7 @@ test("fetchRevenueForecastTargetLinesFromXano lists via mocked fetch", async () 
   }
 })
 
-test("upsertRevenueForecastTargetLine POSTs when no existing row", async () => {
+test("upsertRevenueForecastTargetLineOnXano POSTs when no existing row", async () => {
   const prevBase = process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL
   process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL = "https://xano.test/api:targets"
 
@@ -134,7 +135,7 @@ test("upsertRevenueForecastTargetLine POSTs when no existing row", async () => {
   }) as typeof fetch
 
   try {
-    const { line, previousAmount } = await upsertRevenueForecastTargetLine({
+    const { line, previousAmount } = await upsertRevenueForecastTargetLineOnXano({
       cell: {
         client_id: "c1",
         financial_year_start_year: FY,
@@ -148,131 +149,6 @@ test("upsertRevenueForecastTargetLine POSTs when no existing row", async () => {
     assert.equal(line.id, "new-1")
     assert.equal(line.amount, 250)
     assert.deepEqual(methods, ["GET", "POST"])
-  } finally {
-    globalThis.fetch = originalFetch
-    if (prevBase === undefined) delete process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL
-    else process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL = prevBase
-  }
-})
-
-test("upsertRevenueForecastTargetLine PATCHes existing natural key", async () => {
-  const prevBase = process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL
-  process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL = "https://xano.test/api:targets"
-
-  const originalFetch = globalThis.fetch
-  const methods: string[] = []
-  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input)
-    const method = (init?.method ?? "GET").toUpperCase()
-    methods.push(method)
-
-    if (method === "GET") {
-      return new Response(
-        JSON.stringify([
-          {
-            id: "row-9",
-            client_id: "c1",
-            financial_year_start_year: FY,
-            line_key: "commission",
-            month_key: "january",
-            amount: 10,
-          },
-        ]),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      )
-    }
-
-    assert.equal(method, "PATCH")
-    assert.match(url, /revenue_forecast_lines\/row-9$/)
-    const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
-    assert.equal(body.amount, 99)
-
-    return new Response(
-      JSON.stringify({
-        id: "row-9",
-        client_id: "c1",
-        financial_year_start_year: FY,
-        line_key: "commission",
-        month_key: "january",
-        amount: 99,
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    )
-  }) as typeof fetch
-
-  try {
-    const { line, previousAmount } = await upsertRevenueForecastTargetLine({
-      cell: {
-        client_id: "c1",
-        financial_year_start_year: FY,
-        line_key: "commission",
-        month_key: "january",
-        amount: 99,
-      },
-    })
-    assert.equal(previousAmount, 10)
-    assert.equal(line.amount, 99)
-    assert.deepEqual(methods, ["GET", "PATCH"])
-  } finally {
-    globalThis.fetch = originalFetch
-    if (prevBase === undefined) delete process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL
-    else process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL = prevBase
-  }
-})
-
-test("upsertRevenueForecastTargetLinesBatch upserts many cells with one list per client/fy", async () => {
-  const prevBase = process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL
-  process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL = "https://xano.test/api:targets"
-
-  const originalFetch = globalThis.fetch
-  let getCount = 0
-  let writeCount = 0
-  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
-    const method = (init?.method ?? "GET").toUpperCase()
-    if (method === "GET") {
-      getCount++
-      return new Response(JSON.stringify([]), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      })
-    }
-    writeCount++
-    const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
-    return new Response(
-      JSON.stringify({
-        id: `id-${writeCount}`,
-        ...body,
-      }),
-      { status: 200, headers: { "Content-Type": "application/json" } }
-    )
-  }) as typeof fetch
-
-  try {
-    const { lines, previousByKey } = await upsertRevenueForecastTargetLinesBatch({
-      cells: [
-        {
-          client_id: "c1",
-          financial_year_start_year: FY,
-          line_key: "retainer",
-          month_key: "july",
-          amount: 1,
-        },
-        {
-          client_id: "c1",
-          financial_year_start_year: FY,
-          line_key: "retainer",
-          month_key: "august",
-          amount: 2,
-        },
-      ],
-    })
-    assert.equal(lines.length, 2)
-    assert.equal(getCount, 1)
-    assert.equal(writeCount, 2)
-    assert.equal(
-      previousByKey.get("c1::2025::retainer::july"),
-      null
-    )
   } finally {
     globalThis.fetch = originalFetch
     if (prevBase === undefined) delete process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL

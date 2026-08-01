@@ -1,8 +1,6 @@
 import { redirect } from "next/navigation"
 
-export const dynamic = "force-dynamic"
-
-/** Legacy path — receivables now live on the finance hub billing tab. */
-export default function ReceivablesPage() {
-  redirect("/finance?tab=billing")
+/** FN7 — permanent product path is `/finance/invoicing`. */
+export default function FinanceReceivablesRedirectPage() {
+  redirect("/finance/invoicing")
 }

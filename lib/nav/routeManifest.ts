@@ -566,7 +566,7 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     inPalette: true,
     roles: ["admin"],
     group: "finance",
-    searchTerms: "payables publisher invoices accruals",
+    searchTerms: "payables publisher invoices accruals client-pays",
   },
   {
     path: "/finance/costs/invoices",
@@ -583,6 +583,15 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     inPalette: true,
     roles: ["admin"],
     group: "finance",
+  },
+  {
+    path: "/finance/costs/client-pays",
+    label: "Client-pays",
+    title: "Finance · Client-pays",
+    inPalette: true,
+    roles: ["admin"],
+    group: "finance",
+    searchTerms: "client pays publisher direct excluded payables",
   },
   {
     path: "/finance/investment",

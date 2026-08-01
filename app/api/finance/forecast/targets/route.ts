@@ -7,10 +7,12 @@ import {
   isFinanceForecastMonthKey,
   isTargetStorageConfigured,
   targetLineNaturalKey,
+} from "@/lib/finance/forecast/targets/targetLineHelpers"
+import {
+  fetchRevenueForecastTargetLinesFromPostgres,
   upsertRevenueForecastTargetLine,
   upsertRevenueForecastTargetLinesBatch,
-} from "@/lib/finance/forecast/targets/xanoTargetLines"
-import { readRevenueForecastTargetLines } from "@/lib/data/readFinance"
+} from "@/lib/finance/forecast/targets/pgTargetLines"
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
 import type {
   FinanceForecastTargetUpsertCell,
@@ -140,7 +142,7 @@ export async function GET(request: NextRequest) {
       configured: false,
       financial_year_start_year: null,
       message:
-        "Target storage is not configured. Set XANO_FINANCE_FORECAST_TARGETS_BASE_URL or XANO_CLIENTS_BASE_URL.",
+        "Target storage is not configured. Set DATABASE_URL (Supabase pooler) for revenue_forecast_lines.",
     })
   }
 
@@ -156,7 +158,7 @@ export async function GET(request: NextRequest) {
   const client_id = sp.get("client_id")?.trim() || null
 
   try {
-    const lines = await readRevenueForecastTargetLines({
+    const lines = await fetchRevenueForecastTargetLinesFromPostgres({
       financial_year_start_year: fy,
       client_id,
     })
@@ -210,7 +212,7 @@ export async function POST(request: NextRequest) {
         error: "not_configured",
         reason: "target_storage_not_configured",
         message:
-          "Target storage is not configured. Set XANO_FINANCE_FORECAST_TARGETS_BASE_URL or XANO_CLIENTS_BASE_URL.",
+          "Target storage is not configured. Set DATABASE_URL (Supabase pooler) for revenue_forecast_lines.",
       },
       { status: 503 }
     )
@@ -290,7 +292,7 @@ export async function PATCH(request: NextRequest) {
         error: "not_configured",
         reason: "target_storage_not_configured",
         message:
-          "Target storage is not configured. Set XANO_FINANCE_FORECAST_TARGETS_BASE_URL or XANO_CLIENTS_BASE_URL.",
+          "Target storage is not configured. Set DATABASE_URL (Supabase pooler) for revenue_forecast_lines.",
       },
       { status: 503 }
     )
