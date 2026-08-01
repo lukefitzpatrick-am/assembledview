@@ -12,7 +12,7 @@ import {
 import { cn } from "@/lib/utils"
 
 export interface MediaPlanEditorHeroProps {
-  title: string
+  title: ReactNode
   /** Primary helper text and any extra lines (e.g. MBA reference) */
   detail?: ReactNode
   /** Right-aligned controls (e.g. Copy Context) */

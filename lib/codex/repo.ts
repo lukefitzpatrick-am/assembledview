@@ -14,7 +14,11 @@ import {
 } from "drizzle-orm"
 import { db, schema, type Db } from "@/db"
 import { clampPage, clampPerPage, parseStatusFilter } from "@/lib/codex/queryHelpers"
-import type { CodexPagedResponse, CodexTask } from "@/lib/codex/types"
+import type {
+  CodexPagedResponse,
+  CodexTask,
+  TeamMember,
+} from "@/lib/codex/types"
 
 export { clampPerPage, parseStatusFilter } from "@/lib/codex/queryHelpers"
 
@@ -75,18 +79,8 @@ export type ListClientNotesFilters = {
   perPage?: number
 }
 
-export type TeamMemberRow = {
-  id: number
-  email: string
-  name: string
-  role_title: string | null
-  active: boolean
-  capacity_notes: string | null
-  working_style: string | null
-  default_client_ids: number[]
-  created_at: string
-  updated_at: string
-}
+/** @deprecated use TeamMember from lib/codex/types — kept for import compat */
+export type TeamMemberRow = TeamMember
 
 export type CreateTeamMemberInput = {
   email: string
@@ -385,7 +379,7 @@ export async function listClientNotes(
   return pagedEnvelope(items, itemsTotal, page, perPage)
 }
 
-function teamRowToApi(row: typeof teamMembers.$inferSelect): TeamMemberRow {
+function teamRowToApi(row: typeof teamMembers.$inferSelect): TeamMember {
   return {
     id: row.id,
     email: row.email,
@@ -403,7 +397,7 @@ function teamRowToApi(row: typeof teamMembers.$inferSelect): TeamMemberRow {
 export async function listTeamMembers(
   opts: { activeOnly?: boolean; page?: number; perPage?: number } = {},
   database: Db = db
-): Promise<CodexPagedResponse<TeamMemberRow>> {
+): Promise<CodexPagedResponse<TeamMember>> {
   const page = clampPage(opts.page)
   const perPage = clampPerPage(opts.perPage)
   const offset = (page - 1) * perPage
@@ -430,7 +424,7 @@ export async function createTeamMember(
   input: CreateTeamMemberInput,
   actorEmail: string | null,
   database: Db = db
-): Promise<TeamMemberRow> {
+): Promise<TeamMember> {
   const now = new Date().toISOString()
   const email = input.email.trim().toLowerCase()
   const [row] = await database
@@ -463,7 +457,7 @@ export async function updateTeamMember(
   patch: UpdateTeamMemberInput,
   actorEmail: string | null,
   database: Db = db
-): Promise<TeamMemberRow | null> {
+): Promise<TeamMember | null> {
   const [before] = await database
     .select()
     .from(teamMembers)

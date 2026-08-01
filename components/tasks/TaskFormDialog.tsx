@@ -38,10 +38,15 @@ import { useToast } from "@/components/ui/use-toast"
 import { getClientDisplayName } from "@/lib/clients/slug"
 import {
   STATUSES,
+  TASK_CATEGORIES,
+  TASK_CATEGORY_OPTIONS,
   TASK_PRIORITIES,
+  isTaskCategory,
   type CodexTask,
+  type TaskCategory,
   type TaskPriority,
   type TaskStatus,
+  type TeamMember,
 } from "@/lib/codex/types"
 
 type ClientOption = {
@@ -50,6 +55,8 @@ type ClientOption = {
   client_name?: string
   slug?: string
 }
+
+const UNASSIGNED = "__unassigned__"
 
 const taskFormSchema = z.object({
   title: z.string().trim().min(1, "Title is required"),
@@ -63,6 +70,7 @@ const taskFormSchema = z.object({
     "done",
   ]),
   priority: z.enum(["low", "normal", "high"]),
+  category: z.enum(TASK_CATEGORIES),
   assignee_email: z.string().optional(),
   assignee_name: z.string().optional(),
   due_date: z.date().nullable().optional(),
@@ -89,6 +97,7 @@ type TaskFormDialogProps = {
   onOpenChange: (open: boolean) => void
   task: CodexTask | null
   clients: ClientOption[]
+  teamMembers: TeamMember[]
   onSaved: () => void
 }
 
@@ -97,6 +106,7 @@ export function TaskFormDialog({
   onOpenChange,
   task,
   clients,
+  teamMembers,
   onSaved,
 }: TaskFormDialogProps) {
   const { toast } = useToast()
@@ -116,6 +126,17 @@ export function TaskFormDialog({
     [clients]
   )
 
+  const activeMembers = useMemo(
+    () =>
+      teamMembers
+        .filter((m) => m.active)
+        .slice()
+        .sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+        ),
+    [teamMembers]
+  )
+
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema) as Resolver<TaskFormValues>,
     defaultValues: {
@@ -124,6 +145,7 @@ export function TaskFormDialog({
       mba_number: "",
       status: "todo",
       priority: "normal",
+      category: "other",
       assignee_email: "",
       assignee_name: "",
       due_date: null,
@@ -131,6 +153,40 @@ export function TaskFormDialog({
       client_visible: false,
     },
   })
+
+  const assigneeEmailValue = form.watch("assignee_email")
+  const assigneeNameValue = form.watch("assignee_name")
+
+  const assigneeOptions = useMemo(() => {
+    const currentEmail = (assigneeEmailValue || "").trim().toLowerCase()
+    if (
+      currentEmail &&
+      !activeMembers.some((m) => m.email.toLowerCase() === currentEmail)
+    ) {
+      const inactive = teamMembers.find(
+        (m) => m.email.toLowerCase() === currentEmail
+      )
+      const orphan: TeamMember = {
+        id: inactive?.id ?? -1,
+        email: inactive?.email ?? (assigneeEmailValue || currentEmail),
+        name: inactive?.name || assigneeNameValue || currentEmail,
+        role_title: inactive?.role_title ?? null,
+        active: inactive?.active ?? false,
+        capacity_notes: inactive?.capacity_notes ?? null,
+        working_style: inactive?.working_style ?? null,
+        default_client_ids: inactive?.default_client_ids ?? [],
+        created_at: inactive?.created_at ?? "",
+        updated_at: inactive?.updated_at ?? "",
+      }
+      return [orphan, ...activeMembers]
+    }
+    return activeMembers
+  }, [
+    activeMembers,
+    teamMembers,
+    assigneeEmailValue,
+    assigneeNameValue,
+  ])
 
   useEffect(() => {
     if (!open) return
@@ -154,12 +210,16 @@ export function TaskFormDialog({
       if (cancelled) return
 
       if (task) {
+        const category: TaskCategory = isTaskCategory(task.category)
+          ? task.category
+          : "other"
         form.reset({
           title: task.title ?? "",
           client_id: Number(task.client_id),
           mba_number: task.mba_number ?? "",
           status: (task.status as TaskStatus) || "todo",
           priority: (task.priority as TaskPriority) || "normal",
+          category,
           assignee_email: task.assignee_email ?? "",
           assignee_name: task.assignee_name ?? "",
           due_date: dueDateToFormValue(task.due_date),
@@ -167,14 +227,19 @@ export function TaskFormDialog({
           client_visible: Boolean(task.client_visible),
         })
       } else {
+        const meLower = meEmail.trim().toLowerCase()
+        const rosterMatch = activeMembers.find(
+          (m) => m.email.toLowerCase() === meLower
+        )
         form.reset({
           title: "",
           client_id: 0,
           mba_number: "",
           status: "todo",
           priority: "normal",
-          assignee_email: meEmail,
-          assignee_name: meName || meEmail,
+          category: "other",
+          assignee_email: rosterMatch?.email ?? meEmail,
+          assignee_name: rosterMatch?.name ?? (meName || meEmail),
           due_date: null,
           description: "",
           client_visible: false,
@@ -186,7 +251,7 @@ export function TaskFormDialog({
     return () => {
       cancelled = true
     }
-  }, [open, task, form])
+  }, [open, task, form, activeMembers])
 
   const onSubmit = form.handleSubmit(async (values) => {
     setSubmitting(true)
@@ -199,10 +264,11 @@ export function TaskFormDialog({
         if (dirty.mba_number) patch.mba_number = values.mba_number || null
         if (dirty.status) patch.status = values.status
         if (dirty.priority) patch.priority = values.priority
-        if (dirty.assignee_email)
+        if (dirty.category) patch.category = values.category
+        if (dirty.assignee_email || dirty.assignee_name) {
           patch.assignee_email = values.assignee_email || null
-        if (dirty.assignee_name)
           patch.assignee_name = values.assignee_name || null
+        }
         if (dirty.due_date) patch.due_date = dueDateToPayload(values.due_date)
         if (dirty.description) patch.description = values.description || null
         if (dirty.client_visible) patch.client_visible = values.client_visible
@@ -236,6 +302,7 @@ export function TaskFormDialog({
           mba_number: values.mba_number || null,
           status: values.status,
           priority: values.priority,
+          category: values.category,
           assignee_email: values.assignee_email || null,
           assignee_name: values.assignee_name || null,
           due_date: dueDateToPayload(values.due_date),
@@ -382,6 +449,81 @@ export function TaskFormDialog({
               />
             </div>
 
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {TASK_CATEGORY_OPTIONS.map((c) => (
+                          <SelectItem key={c.value} value={c.value}>
+                            {c.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="assignee_email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Assignee</FormLabel>
+                    <Select
+                      value={field.value?.trim() ? field.value : UNASSIGNED}
+                      onValueChange={(v) => {
+                        if (v === UNASSIGNED) {
+                          form.setValue("assignee_email", "", {
+                            shouldDirty: true,
+                          })
+                          form.setValue("assignee_name", "", {
+                            shouldDirty: true,
+                          })
+                          return
+                        }
+                        const member = assigneeOptions.find((m) => m.email === v)
+                        form.setValue("assignee_email", v, {
+                          shouldDirty: true,
+                        })
+                        form.setValue(
+                          "assignee_name",
+                          member?.name ?? "",
+                          { shouldDirty: true }
+                        )
+                      }}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select assignee" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+                        {assigneeOptions.map((m) => (
+                          <SelectItem key={`${m.id}-${m.email}`} value={m.email}>
+                            {m.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
               name="mba_number"
@@ -395,39 +537,6 @@ export function TaskFormDialog({
                 </FormItem>
               )}
             />
-
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="assignee_email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Assignee email</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="email"
-                        placeholder="name@assembledmedia.com.au"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="assignee_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Assignee name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Optional" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
 
             <FormField
               control={form.control}

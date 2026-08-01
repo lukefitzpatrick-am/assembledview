@@ -35,6 +35,32 @@ export const TASK_PRIORITIES = [
   { value: "high" as const, label: "High" },
 ]
 
+export const TASK_CATEGORIES = [
+  "reporting",
+  "pacing",
+  "creative",
+  "finance",
+  "admin",
+  "meeting_followup",
+  "other",
+] as const
+
+export type TaskCategory = (typeof TASK_CATEGORIES)[number]
+
+export const TASK_CATEGORY_OPTIONS = [
+  { value: "reporting" as const, label: "Reporting" },
+  { value: "pacing" as const, label: "Pacing" },
+  { value: "creative" as const, label: "Creative" },
+  { value: "finance" as const, label: "Finance" },
+  { value: "admin" as const, label: "Admin" },
+  { value: "meeting_followup" as const, label: "Meeting follow-up" },
+  { value: "other" as const, label: "Other" },
+] satisfies ReadonlyArray<{ value: TaskCategory; label: string }>
+
+export const TASK_SOURCES = ["manual", "ava", "template", "recurring"] as const
+
+export type TaskSource = (typeof TASK_SOURCES)[number]
+
 export type CodexTask = {
   id: number | string
   title: string
@@ -50,11 +76,24 @@ export type CodexTask = {
   /** @deprecated prefer created_by_email — kept for TasksPageClient compat */
   created_by?: string | null
   created_by_email?: string | null
-  category?: string | null
-  source?: string | null
+  category?: TaskCategory | string | null
+  source?: TaskSource | string | null
   deleted_at?: string | null
   updated_at?: string | null
   created_at?: string | null
+}
+
+export type TeamMember = {
+  id: number
+  email: string
+  name: string
+  role_title: string | null
+  active: boolean
+  capacity_notes: string | null
+  working_style: string | null
+  default_client_ids: number[]
+  created_at: string
+  updated_at: string
 }
 
 export type CodexPagedResponse<T> = {
@@ -80,5 +119,26 @@ export function isTaskStatus(value: unknown): value is TaskStatus {
   return (
     typeof value === "string" &&
     (TASK_STATUSES as readonly string[]).includes(value)
+  )
+}
+
+export function isTaskCategory(value: unknown): value is TaskCategory {
+  return (
+    typeof value === "string" &&
+    (TASK_CATEGORIES as readonly string[]).includes(value)
+  )
+}
+
+export function isTaskSource(value: unknown): value is TaskSource {
+  return (
+    typeof value === "string" &&
+    (TASK_SOURCES as readonly string[]).includes(value)
+  )
+}
+
+export function categoryLabel(category: string | null | undefined): string {
+  if (!category) return "—"
+  return (
+    TASK_CATEGORY_OPTIONS.find((o) => o.value === category)?.label ?? category
   )
 }

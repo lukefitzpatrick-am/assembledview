@@ -19,9 +19,11 @@
 
 ## Tasks ("codex")
 
-- `app/tasks/**` + `components/tasks/TaskFormDialog.tsx` + `app/api/codex/{tasks,tasks/[id],client_notes,team}` — Postgres-native when `CODEX_V2=on` (`lib/codex/repo.ts` / Drizzle). Flag off → routes 404. Auth: admin-only shadow (`CODEX_SHADOW_ROLES`). Soft delete via `deleted_at`.
+- Sidebar label stays **Tasks**; page identity is **Codex** (`app/tasks/**`) with a "shadow" badge. Two tabs: Tasks | Team.
+- `components/tasks/{TaskFormDialog,TeamMemberFormDialog}.tsx` + `app/api/codex/{tasks,tasks/[id],client_notes,team}` — Postgres-native when `CODEX_V2=on` (`lib/codex/repo.ts` / Drizzle). Flag off → routes 404 **and** server page shows "Codex is not enabled" (no client fetch). Auth: admin-only shadow (`CODEX_SHADOW_ROLES`); 403 → gated empty state.
+- Assignee picker is team-roster Select (active members; stores `assignee_email` + `assignee_name`). Categories/sources live in `lib/codex/types.ts` (`TASK_CATEGORIES` / `TASK_SOURCES` / `TeamMember`). Soft delete via `deleted_at` (confirm → DELETE; no trash UI). Source chip when `source !== 'manual'`.
 - **`lib/codex/**` is the Tasks domain, not AVA** — naming is historical; types + repo live here.
-- List UI uses `ViewState` (`lib/ui/viewState.ts`) via `ViewStateBoundary` so a fetch failure cannot render alongside "no tasks" empty copy; client/status/assignee/search exclusion uses `filtered-empty` + Clear filters.
+- List UI uses `ViewState` (`lib/ui/viewState.ts`) via `ViewStateBoundary` so a fetch failure cannot render alongside "no tasks" empty copy; client/status/assignee/search exclusion uses `filtered-empty` + Clear filters. Team empty: "Add the team to enable assignment".
 
 ## Knowledge hub (`src/**`)
 
