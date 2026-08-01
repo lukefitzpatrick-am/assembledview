@@ -44,3 +44,4 @@
 - `scripts/**` is a **knip entry point** — scripts keep otherwise-dead lib exports alive, and they compile against production types (refactors can break them silently).
 - Only a few are wired into package.json; the rest are ad-hoc historical artifacts.
 - `scripts/x5-1-mba-line-approvals.mjs` contains the only hardcoded Xano host in the repo (script-only fallback). Live path is `/api/mba-line-approvals` → `lib/data/readApprovals.ts` / `writeApprovals.ts` (see finance-billing module).
+- **KR-1 test purge pack** lives under `scripts/cutover/` — discovery → fixture export → Xano delete (Luke) → Postgres txn delete (MCP) → rescan-to-zero both stores. Match = `mba_number` / client tokens `krusty*`|`krabby*` only (not bare `kr`). Author-only until applied; acceptance is pattern rescan = 0.

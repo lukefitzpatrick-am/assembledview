@@ -1,0 +1,3 @@
+# Large live dumps — keep directory; ignore JSON payloads
+*.json
+!*.json.example
