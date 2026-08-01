@@ -4,8 +4,12 @@
  * Postgres is authoritative. Mirror failures never throw to the caller, never
  * roll back Postgres, and surface `{ mirror: "failed" }` for a non-blocking banner.
  * Retry from admin: POST /api/admin/xano-mirror/retry.
+ *
+ * Failures also land in the in-memory shadow-diff ring buffer AND as durable
+ * `app_notifications` rows (kind `xano_mirror_failed`) so a dev-server restart
+ * cannot erase them.
  */
-import { and, eq } from "drizzle-orm"
+import { and, eq, sql } from "drizzle-orm"
 
 import { getDb, schema, type Db } from "@/db"
 import type { LineChannel } from "@/db/schema"
@@ -19,7 +23,19 @@ import type {
   SavePlanLineItem,
   SavePlanMode,
   SavePlanVersionInput,
+  SavePlanVersionResult,
 } from "@/lib/data/savePlan"
+
+export const MIRROR_FAILURE_KIND = "xano_mirror_failed"
+export const MIRROR_FAILURE_AUDIENCE = "admin"
+
+export type MirrorFailureNotificationPayload = {
+  mba: string
+  version: number
+  error: string
+  timestamp: string
+  retried: boolean
+}
 
 export type MirrorStatus = "ok" | "failed"
 
@@ -76,6 +92,12 @@ export type MirrorDeps = {
   /** Publish-only: PATCH Xano media_plan_master watermark. */
   patchMaster?: MirrorMasterPatcher
   now?: () => number
+  /** Durable failure log (defaults to app_notifications insert). */
+  persistMirrorFailure?: (
+    payload: MirrorFailureNotificationPayload
+  ) => Promise<void>
+  /** Mark prior failure notifications resolved (defaults to read_at + retried). */
+  resolveMirrorFailure?: (mba: string, version: number) => Promise<void>
 }
 
 const CHANNEL_TO_ENDPOINT: Record<LineChannel, string> = Object.fromEntries(
@@ -172,13 +194,86 @@ function logMirrorFailure(
   return message
 }
 
-async function defaultUpsertVersion(input: MirrorPlanToXanoInput): Promise<number> {
-  const { createMediaPlanVersion } = await import("@/lib/api")
-  const { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } = await import(
-    "@/lib/api/xano"
-  )
-  const { fetchAllXanoPages } = await import("@/lib/api/xanoPagination")
+/** Build the durable notification payload (also used by tests). */
+export function buildMirrorFailureNotificationPayload(
+  mbaNumber: string,
+  versionNumber: number,
+  error: string,
+  at: Date = new Date()
+): MirrorFailureNotificationPayload {
+  return {
+    mba: mbaNumber,
+    version: versionNumber,
+    error,
+    timestamp: at.toISOString(),
+    retried: false,
+  }
+}
 
+/** Persist a mirror failure to app_notifications (no-throw; logs on failure). */
+export async function persistMirrorFailureNotification(
+  payload: MirrorFailureNotificationPayload,
+  db?: Db
+): Promise<void> {
+  if (!db && !process.env.DATABASE_URL?.trim()) return
+  try {
+    const client = db ?? getDb()
+    await client.execute(sql`
+      INSERT INTO app_notifications (audience, kind, payload)
+      VALUES (
+        ${MIRROR_FAILURE_AUDIENCE},
+        ${MIRROR_FAILURE_KIND},
+        ${JSON.stringify(payload)}::jsonb
+      )
+    `)
+  } catch (err) {
+    console.warn("[xano-mirror] failed to persist app_notifications row", {
+      mba: payload.mba,
+      version: payload.version,
+      err,
+    })
+  }
+}
+
+/**
+ * Mark unread xano_mirror_failed notifications for this mba+version as resolved
+ * (`read_at=now()`, payload.retried=true).
+ */
+export async function resolveMirrorFailureNotification(
+  mbaNumber: string,
+  versionNumber: number,
+  db?: Db
+): Promise<void> {
+  if (!db && !process.env.DATABASE_URL?.trim()) return
+  try {
+    const client = db ?? getDb()
+    await client.execute(sql`
+      UPDATE app_notifications
+      SET
+        read_at = now(),
+        payload = jsonb_set(COALESCE(payload, '{}'::jsonb), '{retried}', 'true'::jsonb, true)
+      WHERE audience = ${MIRROR_FAILURE_AUDIENCE}
+        AND kind = ${MIRROR_FAILURE_KIND}
+        AND read_at IS NULL
+        AND payload->>'mba' = ${mbaNumber}
+        AND (payload->>'version')::int = ${versionNumber}
+    `)
+  } catch (err) {
+    console.warn("[xano-mirror] failed to resolve app_notifications row", {
+      mba: mbaNumber,
+      version: versionNumber,
+      err,
+    })
+  }
+}
+
+/**
+ * Xano version create/PATCH body — includes billing/delivery blobs whenever
+ * `input.legacySchedules` carries them (same shape Postgres stores).
+ */
+export function buildXanoVersionMirrorPayload(
+  input: MirrorPlanToXanoInput
+): Record<string, unknown> {
   const budget =
     typeof input.campaignBudgetCents === "number"
       ? input.campaignBudgetCents / 100
@@ -234,6 +329,18 @@ async function defaultUpsertVersion(input: MirrorPlanToXanoInput): Promise<numbe
     payload.delivery_schedule = schedules.deliverySchedule
     payload.deliverySchedule = schedules.deliverySchedule
   }
+
+  return payload
+}
+
+async function defaultUpsertVersion(input: MirrorPlanToXanoInput): Promise<number> {
+  const { createMediaPlanVersion } = await import("@/lib/api")
+  const { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } = await import(
+    "@/lib/api/xano"
+  )
+  const { fetchAllXanoPages } = await import("@/lib/api/xanoPagination")
+
+  const payload = buildXanoVersionMirrorPayload(input)
 
   const baseUrl = getXanoBaseUrl([
     "XANO_MEDIA_PLANS_BASE_URL",
@@ -422,6 +529,10 @@ export async function mirrorPlanToXano(
       await patchMaster(input)
     }
 
+    const resolve =
+      deps?.resolveMirrorFailure ?? resolveMirrorFailureNotification
+    await resolve(input.mbaNumber, input.versionNumber)
+
     return {
       mirror: "ok",
       durationMs: now() - started,
@@ -429,6 +540,13 @@ export async function mirrorPlanToXano(
     }
   } catch (err) {
     const error = logMirrorFailure(input.mbaNumber, input.versionNumber, err)
+    const payload = buildMirrorFailureNotificationPayload(
+      input.mbaNumber,
+      input.versionNumber,
+      error
+    )
+    const persist = deps?.persistMirrorFailure ?? persistMirrorFailureNotification
+    await persist(payload)
     return {
       mirror: "failed",
       durationMs: now() - started,
@@ -440,16 +558,17 @@ export async function mirrorPlanToXano(
 /** Build mirror input from a completed savePlanVersion call + original request. */
 export function mirrorInputFromSave(
   saveInput: SavePlanVersionInput,
-  versionId: number,
+  saved: Pick<
+    SavePlanVersionResult,
+    "versionId" | "versionNumber" | "legacySchedules"
+  >,
   clientName: string,
-  kpiRows?: CampaignKpiInput[],
-  /** Server-resolved version number from savePlanVersion (O4.6). */
-  resolvedVersionNumber?: number
+  kpiRows?: CampaignKpiInput[]
 ): MirrorPlanToXanoInput {
   return {
     mbaNumber: saveInput.mbaNumber,
-    versionNumber: resolvedVersionNumber ?? saveInput.versionNumber,
-    versionId,
+    versionNumber: saved.versionNumber,
+    versionId: saved.versionId,
     clientName,
     masterId: saveInput.masterId,
     mode: saveInput.mode,
@@ -463,6 +582,7 @@ export function mirrorInputFromSave(
     campaignBudgetCents: saveInput.campaignBudgetCents,
     fixedFee: saveInput.fixedFee,
     channelFlags: saveInput.channelFlags,
+    legacySchedules: saved.legacySchedules,
     lineItems: saveInput.lineItems,
     kpiRows,
   }

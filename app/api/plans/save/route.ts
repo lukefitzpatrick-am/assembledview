@@ -318,10 +318,12 @@ export async function POST(request: NextRequest) {
     const mirror = await mirrorPlanToXano(
       mirrorInputFromSave(
         saveInput,
-        result.versionId,
-        clientName,
-        undefined,
-        result.versionNumber
+        {
+          versionId: result.versionId,
+          versionNumber: result.versionNumber,
+          legacySchedules: result.legacySchedules,
+        },
+        clientName
       )
     )
 

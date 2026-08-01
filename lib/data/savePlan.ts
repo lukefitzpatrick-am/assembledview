@@ -132,6 +132,14 @@ export type SavePlanVersionResult = {
   lineCount: number
   scheduleRowCount: number
   published: boolean
+  /**
+   * Server-computed billing/delivery blobs persisted on the version
+   * (`legacy_schedules`). Required by the post-commit Xano mirror.
+   */
+  legacySchedules: {
+    billingSchedule: unknown
+    deliverySchedule: unknown
+  }
   /** Present when AUTO lines in the client preview diverged from server recompute. */
   billingCorrection?: AutoBillingCorrectionSummary | null
 }
@@ -781,6 +789,7 @@ export async function savePlanVersion(
         lineCount: Number(finalLineCount?.n ?? 0),
         scheduleRowCount: Number(finalScheduleCount?.n ?? 0),
         published,
+        legacySchedules,
         billingCorrection,
       }
     })

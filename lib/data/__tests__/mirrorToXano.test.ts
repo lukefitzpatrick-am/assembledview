@@ -3,11 +3,15 @@ import { describe, it } from "node:test"
 
 import type { LineChannel } from "@/db/schema"
 import {
+  buildXanoVersionMirrorPayload,
+  mirrorInputFromSave,
   mirrorPlanToXano,
   savePlanLineItemToSaverInput,
   type MirrorChannelSaver,
+  type MirrorFailureNotificationPayload,
   type MirrorPlanToXanoInput,
 } from "@/lib/data/mirrorToXano"
+import type { SavePlanVersionInput } from "@/lib/data/savePlan"
 import { LINE_ITEM_WRITE_CONCURRENCY } from "@/lib/utils/createSemaphore"
 import {
   replaceChannelLineItems,
@@ -219,6 +223,108 @@ describe("mirrorPlanToXano", () => {
     )
     assert.equal(result.mirror, "failed")
     assert.ok(result.error?.includes("Xano master PATCH blocked"))
+  })
+
+  it("mirrored version payload carries legacy_schedules blobs byte-equal", async () => {
+    const legacySchedules = {
+      billingSchedule: [
+        {
+          monthYear: "Jul 2025",
+          lineItems: [{ id: "billing-television::KRUSTY001TV1", amount: 1000 }],
+        },
+      ],
+      deliverySchedule: [
+        {
+          monthYear: "Jul 2025",
+          lineItems: [{ id: "billing-television::KRUSTY001TV1", amount: 1000 }],
+        },
+      ],
+    }
+    const saveInput = {
+      masterId: 42,
+      mbaNumber: "KRUSTY001",
+      versionNumber: 1,
+      mode: "draft" as const,
+      campaignName: "Krusty Draft",
+      campaignStatus: "draft",
+      lineItems: baseInput().lineItems,
+    } satisfies SavePlanVersionInput
+
+    const mirrorInput = mirrorInputFromSave(
+      saveInput,
+      {
+        versionId: 9001,
+        versionNumber: 1,
+        legacySchedules,
+      },
+      "Krusty Krab"
+    )
+    assert.deepEqual(mirrorInput.legacySchedules, legacySchedules)
+
+    const payload = buildXanoVersionMirrorPayload(mirrorInput)
+    assert.deepEqual(payload.billingSchedule, legacySchedules.billingSchedule)
+    assert.deepEqual(payload.deliverySchedule, legacySchedules.deliverySchedule)
+    assert.deepEqual(payload.delivery_schedule, legacySchedules.deliverySchedule)
+
+    let upsertSaw: unknown
+    const result = await mirrorPlanToXano(mirrorInput, {
+      upsertVersion: async (input) => {
+        upsertSaw = input.legacySchedules
+        return 9001
+      },
+      syncCampaignKpis: async () => [],
+      saveByChannel: {
+        television: async () => [],
+        production: async () => [],
+      },
+    })
+    assert.equal(result.mirror, "ok")
+    assert.deepEqual(upsertSaw, legacySchedules)
+  })
+
+  it("forced mirror failure persists app_notifications payload; retry success resolves", async () => {
+    const persisted: MirrorFailureNotificationPayload[] = []
+    const resolved: Array<{ mba: string; version: number }> = []
+
+    const failResult = await mirrorPlanToXano(baseInput({ versionNumber: 3 }), {
+      upsertVersion: async () => {
+        throw new Error("Xano version PATCH failed: 500")
+      },
+      syncCampaignKpis: async () => [],
+      saveByChannel: {},
+      persistMirrorFailure: async (payload) => {
+        persisted.push(payload)
+      },
+      resolveMirrorFailure: async (mba, version) => {
+        resolved.push({ mba, version })
+      },
+    })
+    assert.equal(failResult.mirror, "failed")
+    assert.equal(persisted.length, 1)
+    assert.equal(persisted[0]?.mba, "KRUSTY001")
+    assert.equal(persisted[0]?.version, 3)
+    assert.equal(persisted[0]?.retried, false)
+    assert.ok(typeof persisted[0]?.error === "string")
+    assert.ok(typeof persisted[0]?.timestamp === "string")
+    assert.equal(resolved.length, 0)
+
+    const okResult = await mirrorPlanToXano(baseInput({ versionNumber: 3 }), {
+      upsertVersion: async () => 9001,
+      syncCampaignKpis: async () => [],
+      saveByChannel: {
+        television: async () => [],
+        production: async () => [],
+      },
+      persistMirrorFailure: async (payload) => {
+        persisted.push(payload)
+      },
+      resolveMirrorFailure: async (mba, version) => {
+        resolved.push({ mba, version })
+      },
+    })
+    assert.equal(okResult.mirror, "ok")
+    assert.deepEqual(resolved, [{ mba: "KRUSTY001", version: 3 }])
+    // Failure path never throws into the caller (already asserted via await).
   })
 })
 
