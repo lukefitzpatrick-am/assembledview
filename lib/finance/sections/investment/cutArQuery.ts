@@ -252,6 +252,7 @@ WITH booked AS (
     LIMIT 1
   ) li ON TRUE
   WHERE m.published_version_id IS NOT NULL
+    AND LOWER(COALESCE(v.campaign_status, '')) IN ('approved', 'booked', 'completed')
     ${deliveryGate}
     AND ${clientWhere}
   GROUP BY 1, 2

@@ -130,6 +130,12 @@ export type InvestmentCutCoverage = {
   lineDetailCents: number
   campaignLevelCents: number
   lineDetailNote: string
+  /** Draft/planned/cancelled schedule $ excluded from cut totals (never silent-drop). */
+  excludedByStatusCents: {
+    media: number
+    fee: number
+    adserving: number
+  }
   rowCount: number
   scope: string
   basis: InvestmentCutBasis

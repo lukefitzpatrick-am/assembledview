@@ -5,6 +5,10 @@
 
 import { classifyBillingAgency } from "@/lib/finance/billingAgency"
 import {
+  isFinanceExcludedCampaignStatus,
+  isFinanceIncludedCampaignStatus,
+} from "@/lib/finance/sections/financeCampaignStatus"
+import {
   CAMPAIGN_LEVEL_NO_LINE_DETAIL,
   isServiceLineItemId,
   LINE_DETAIL_COVERAGE_NOTE,
@@ -42,6 +46,8 @@ export type InvestmentCutFact = {
   publisherIdentity: string | null
   /** Raw publishers.billingagency for the identity join (null → AM). */
   publisherBillingAgencyRaw?: string | null
+  /** Defaults to booked (included) when omitted — matches live tip status filter. */
+  campaignStatus?: string | null
 }
 
 function monthKey(month: string): string {
@@ -200,6 +206,7 @@ function feeCoverageFromFacts(
   const feeKeys = new Set<string>()
   for (const fact of facts) {
     if (fact.basis !== q.basis) continue
+    if (!isFinanceIncludedCampaignStatus(fact.campaignStatus ?? "booked")) continue
     if (!passesFilters(fact, q)) continue
     const mk = `${fact.mbaNumber}|${fact.lineItemId}|${monthKey(fact.month)}`
     if (fact.component === "media") mediaKeys.add(mk)
@@ -240,8 +247,19 @@ export function aggregateInvestmentCut(
   let billableMatched = 0
   let lineDetailCents = 0
   let campaignLevelCents = 0
+  const excludedByStatusCents = { media: 0, fee: 0, adserving: 0 }
 
   for (const fact of facts) {
+    if (fact.basis !== q.basis) continue
+    const status = fact.campaignStatus ?? "booked"
+    if (isFinanceExcludedCampaignStatus(status)) {
+      if (fact.component === "media") excludedByStatusCents.media += fact.amountCents
+      else if (fact.component === "fee") excludedByStatusCents.fee += fact.amountCents
+      else if (fact.component === "adserving")
+        excludedByStatusCents.adserving += fact.amountCents
+      continue
+    }
+    if (!isFinanceIncludedCampaignStatus(status)) continue
     if (!contributesToBasis(fact, q.basis)) continue
     if (!passesFilters(fact, q)) continue
 
@@ -302,6 +320,7 @@ export function aggregateInvestmentCut(
       lineDetailCents,
       campaignLevelCents,
       lineDetailNote: LINE_DETAIL_COVERAGE_NOTE,
+      excludedByStatusCents,
       rowCount: rows.length,
       scope,
       basis: q.basis,
@@ -319,6 +338,7 @@ export function fn3aBillableTotalCents(
 ): number {
   let sum = 0
   for (const fact of facts) {
+    if (!isFinanceIncludedCampaignStatus(fact.campaignStatus ?? "booked")) continue
     if (!contributesToBasis(fact, basis)) continue
     sum += fact.amountCents
   }

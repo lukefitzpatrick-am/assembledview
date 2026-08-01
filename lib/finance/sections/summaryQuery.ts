@@ -5,9 +5,12 @@
  * - Billing basis receivables: sum media+fee+adserving on basis=billing.
  *   Client-pays media is already $0 on the billing schedule (mediaAmount=0 upstream);
  *   fee remains billable. Do not re-filter client_pays on billing media.
- * - Delivery basis payables: sum delivery rows excluding media where
- *   line_items.client_pays_for_media IS TRUE; fee + adserving always included
- *   (aligned with sumDeliveryScheduleMonthAgencyMedia).
+ * - Delivery basis payables (CP-3): media component only; exclude media where
+ *   line_items.client_pays_for_media IS TRUE; fee + adserving are separate labelled
+ *   figures (not in the payables headline).
+ * - Status scope (CP-3 / FS-2): approved|booked|completed only; draft|planned|cancelled
+ *   totals live in coverage.excludedByStatusCents (never silent-drop).
+ * - Version authority: published tip + schedule_months (D1) — not relevantPlanVersions.
  */
 
 import { sql, type SQL } from "drizzle-orm"
@@ -19,6 +22,12 @@ import {
   referenceDateForFyStartYear,
 } from "@/lib/finance/months"
 import { clampMonthRangeToFy } from "@/lib/finance/sections/defaultScope"
+import {
+  FINANCE_STATUS_EXCLUDED_SQL,
+  FINANCE_STATUS_INCLUDED_SQL,
+  PAYABLES_FYTD_BASIS,
+  type ExcludedByStatusCents,
+} from "@/lib/finance/sections/financeCampaignStatus"
 import { SCHEDULE_LINE_JOIN_SQL } from "@/lib/finance/sections/scheduleLineJoinSql"
 import {
   IS_SERVICE_LINE_SQL,
@@ -55,7 +64,12 @@ export type FinanceSectionsSummaryPayload = {
     currentMonth: string
   }
   receivablesFytd: LabelledCentsBlock
+  /** Media-only payables (ex client-pays; status-scoped). */
   payablesFytd: LabelledCentsBlock
+  /** Delivery fee component — labelled separately from payables headline. */
+  feeDeliveryFytd: LabelledCentsBlock
+  /** Delivery adserving component — labelled separately from payables headline. */
+  adservingDeliveryFytd: LabelledCentsBlock
   netAccrual: LabelledCentsBlock
   currentMonthBilling: LabelledCentsBlock
   invoicedToDate: LabelledCentsBlock
@@ -71,6 +85,11 @@ export type FinanceSectionsSummaryPayload = {
     lineDetailPct: number
     lineDetailCents: number
     campaignLevelCents: number
+    /** Orphan non-service media (no line_items row) inside included statuses. */
+    orphanLineCents: number
+    /** Client-pays media excluded within included statuses. */
+    clientPaysExcludedCents: number
+    excludedByStatusCents: ExcludedByStatusCents
     note: string
   }
   periodStatus: {
@@ -176,7 +195,7 @@ function asBigInt(v: unknown): number {
   return 0
 }
 
-/** Documented SQL for receivables FYTD (billing basis, published tip). */
+/** Documented SQL for receivables FYTD (billing basis, published tip, status-scoped). */
 export function receivablesSqlText(q: FinanceSectionsSummaryQuery): string {
   const from = monthStartDate(q.from)
   const toEx = monthEndExclusive(q.to)
@@ -192,11 +211,15 @@ INNER JOIN schedule_months sm ON sm.version_id = v.id
   AND sm.month >= DATE '${from}'
   AND sm.month < DATE '${toEx}'
 WHERE m.published_version_id IS NOT NULL
+  AND ${FINANCE_STATUS_INCLUDED_SQL}
 ${clients}
 `.trim()
 }
 
-/** Documented SQL for payables FYTD (delivery basis, client-pays media excluded). */
+/**
+ * Documented SQL for payables FYTD — delivery media only, client-pays excluded,
+ * statuses approved|booked|completed.
+ */
 export function payablesSqlText(q: FinanceSectionsSummaryQuery): string {
   const from = monthStartDate(q.from)
   const toEx = monthEndExclusive(q.to)
@@ -208,16 +231,14 @@ FROM media_plan_masters m
 INNER JOIN media_plan_versions v ON v.id = m.published_version_id
 INNER JOIN schedule_months sm ON sm.version_id = v.id
   AND sm.basis = 'delivery'
-  AND sm.component IN ('media', 'fee', 'adserving')
+  AND sm.component = 'media'
   AND sm.month >= DATE '${from}'
   AND sm.month < DATE '${toEx}'
 LEFT JOIN line_items li
   ON ${SCHEDULE_LINE_JOIN_SQL}
 WHERE m.published_version_id IS NOT NULL
-  AND (
-    sm.component <> 'media'
-    OR COALESCE(li.client_pays_for_media, FALSE) = FALSE
-  )
+  AND ${FINANCE_STATUS_INCLUDED_SQL}
+  AND COALESCE(li.client_pays_for_media, FALSE) = FALSE
 ${clients}
 `.trim()
 }
@@ -261,6 +282,10 @@ export async function fetchFinanceSectionsSummary(
     q.clientIds.length ? ` · ${q.clientIds.length} clients` : " · all clients"
   }`
 
+  const statusIncluded = sql.raw(FINANCE_STATUS_INCLUDED_SQL)
+  const statusExcluded = sql.raw(FINANCE_STATUS_EXCLUDED_SQL)
+  const isService = sql.raw(IS_SERVICE_LINE_SQL)
+
   const billingAgg = await db.execute(sql`
     SELECT COALESCE(SUM(sm.amount_cents), 0) AS cents
     FROM media_plan_masters m
@@ -271,32 +296,73 @@ export async function fetchFinanceSectionsSummary(
       AND sm.month >= ${fromDate}::date
       AND sm.month < ${toExclusive}::date
     WHERE m.published_version_id IS NOT NULL
+      AND ${statusIncluded}
       AND ${clientSql}
   `)
 
+  /** Media-only payables headline (ex client-pays, included statuses). */
   const deliveryAgg = await db.execute(sql`
     SELECT COALESCE(SUM(sm.amount_cents), 0) AS cents
     FROM media_plan_masters m
     INNER JOIN media_plan_versions v ON v.id = m.published_version_id
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
-      AND sm.component IN ('media', 'fee', 'adserving')
+      AND sm.component = 'media'
       AND sm.month >= ${fromDate}::date
       AND sm.month < ${toExclusive}::date
     LEFT JOIN line_items li
       ON ${lineJoin}
     WHERE m.published_version_id IS NOT NULL
-      AND (
-        sm.component <> 'media'
-        OR COALESCE(li.client_pays_for_media, FALSE) = FALSE
-      )
+      AND ${statusIncluded}
+      AND COALESCE(li.client_pays_for_media, FALSE) = FALSE
+      AND ${clientSql}
+  `)
+
+  const feeAdsAgg = await db.execute(sql`
+    SELECT
+      COALESCE(SUM(CASE WHEN sm.component = 'fee' THEN sm.amount_cents ELSE 0 END), 0) AS fee_cents,
+      COALESCE(SUM(CASE WHEN sm.component = 'adserving' THEN sm.amount_cents ELSE 0 END), 0) AS adserving_cents
+    FROM media_plan_masters m
+    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN schedule_months sm ON sm.version_id = v.id
+      AND sm.basis = 'delivery'
+      AND sm.component IN ('fee', 'adserving')
+      AND sm.month >= ${fromDate}::date
+      AND sm.month < ${toExclusive}::date
+    WHERE m.published_version_id IS NOT NULL
+      AND ${statusIncluded}
       AND ${clientSql}
   `)
 
   const lineDetailAgg = await db.execute(sql`
     SELECT
-      COALESCE(SUM(CASE WHEN NOT ${sql.raw(IS_SERVICE_LINE_SQL)} THEN sm.amount_cents ELSE 0 END), 0) AS line_detail_cents,
-      COALESCE(SUM(CASE WHEN ${sql.raw(IS_SERVICE_LINE_SQL)} THEN sm.amount_cents ELSE 0 END), 0) AS campaign_level_cents
+      COALESCE(SUM(CASE
+        WHEN NOT (${isService}) AND li.id IS NOT NULL THEN sm.amount_cents ELSE 0 END), 0) AS line_detail_cents,
+      COALESCE(SUM(CASE WHEN ${isService} THEN sm.amount_cents ELSE 0 END), 0) AS campaign_level_cents,
+      COALESCE(SUM(CASE
+        WHEN NOT (${isService}) AND li.id IS NULL THEN sm.amount_cents ELSE 0 END), 0) AS orphan_line_cents,
+      COALESCE(SUM(CASE
+        WHEN COALESCE(li.client_pays_for_media, FALSE) = TRUE THEN sm.amount_cents ELSE 0 END), 0)
+        AS client_pays_excluded_cents
+    FROM media_plan_masters m
+    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN schedule_months sm ON sm.version_id = v.id
+      AND sm.basis = 'delivery'
+      AND sm.component = 'media'
+      AND sm.month >= ${fromDate}::date
+      AND sm.month < ${toExclusive}::date
+    LEFT JOIN line_items li
+      ON ${lineJoin}
+    WHERE m.published_version_id IS NOT NULL
+      AND ${statusIncluded}
+      AND ${clientSql}
+  `)
+
+  const excludedByStatusAgg = await db.execute(sql`
+    SELECT
+      COALESCE(SUM(CASE WHEN sm.component = 'media' THEN sm.amount_cents ELSE 0 END), 0) AS media_cents,
+      COALESCE(SUM(CASE WHEN sm.component = 'fee' THEN sm.amount_cents ELSE 0 END), 0) AS fee_cents,
+      COALESCE(SUM(CASE WHEN sm.component = 'adserving' THEN sm.amount_cents ELSE 0 END), 0) AS adserving_cents
     FROM media_plan_masters m
     INNER JOIN media_plan_versions v ON v.id = m.published_version_id
     INNER JOIN schedule_months sm ON sm.version_id = v.id
@@ -304,13 +370,8 @@ export async function fetchFinanceSectionsSummary(
       AND sm.component IN ('media', 'fee', 'adserving')
       AND sm.month >= ${fromDate}::date
       AND sm.month < ${toExclusive}::date
-    LEFT JOIN line_items li
-      ON ${lineJoin}
     WHERE m.published_version_id IS NOT NULL
-      AND (
-        sm.component <> 'media'
-        OR COALESCE(li.client_pays_for_media, FALSE) = FALSE
-      )
+      AND ${statusExcluded}
       AND ${clientSql}
   `)
 
@@ -324,6 +385,7 @@ export async function fetchFinanceSectionsSummary(
       AND sm.month >= ${currentMonthStart}::date
       AND sm.month < ${currentMonthEndEx}::date
     WHERE m.published_version_id IS NOT NULL
+      AND ${statusIncluded}
       AND ${clientSql}
   `)
 
@@ -365,7 +427,9 @@ export async function fetchFinanceSectionsSummary(
         AND sm.component IN ('media', 'fee', 'adserving')
         AND sm.month >= ${fromDate}::date
         AND sm.month < ${toExclusive}::date
-      WHERE m.published_version_id IS NOT NULL AND ${clientSql}
+      WHERE m.published_version_id IS NOT NULL
+        AND ${statusIncluded}
+        AND ${clientSql}
       GROUP BY 1
     ),
     delivery AS (
@@ -375,16 +439,14 @@ export async function fetchFinanceSectionsSummary(
       INNER JOIN media_plan_versions v ON v.id = m.published_version_id
       INNER JOIN schedule_months sm ON sm.version_id = v.id
         AND sm.basis = 'delivery'
-        AND sm.component IN ('media', 'fee', 'adserving')
+        AND sm.component = 'media'
         AND sm.month >= ${fromDate}::date
         AND sm.month < ${toExclusive}::date
       LEFT JOIN line_items li
         ON ${lineJoin}
       WHERE m.published_version_id IS NOT NULL
-        AND (
-          sm.component <> 'media'
-          OR COALESCE(li.client_pays_for_media, FALSE) = FALSE
-        )
+        AND ${statusIncluded}
+        AND COALESCE(li.client_pays_for_media, FALSE) = FALSE
         AND ${clientSql}
       GROUP BY 1
     )
@@ -409,7 +471,9 @@ export async function fetchFinanceSectionsSummary(
       AND sm.month >= ${fromDate}::date
       AND sm.month < ${toExclusive}::date
     LEFT JOIN clients c ON c.id = m.client_id
-    WHERE m.published_version_id IS NOT NULL AND ${clientSql}
+    WHERE m.published_version_id IS NOT NULL
+      AND ${statusIncluded}
+      AND ${clientSql}
     GROUP BY 1, 2
     ORDER BY cents DESC NULLS LAST
     LIMIT 5
@@ -428,8 +492,9 @@ export async function fetchFinanceSectionsSummary(
     INNER JOIN line_items li
       ON ${lineJoin}
     WHERE m.published_version_id IS NOT NULL
+      AND ${statusIncluded}
       AND COALESCE(li.client_pays_for_media, FALSE) = FALSE
-      AND NOT (${sql.raw(IS_SERVICE_LINE_SQL)})
+      AND NOT (${isService})
       AND ${clientSql}
     GROUP BY 1
     ORDER BY cents DESC NULLS LAST
@@ -444,9 +509,20 @@ export async function fetchFinanceSectionsSummary(
 
   const receivablesCents = asBigInt(executeRows(billingAgg)[0]?.cents)
   const payablesCents = asBigInt(executeRows(deliveryAgg)[0]?.cents)
+  const feeAdsRow = executeRows(feeAdsAgg)[0] ?? {}
+  const feeCents = asBigInt(feeAdsRow.fee_cents)
+  const adservingCents = asBigInt(feeAdsRow.adserving_cents)
   const lineDetailRow = executeRows(lineDetailAgg)[0] ?? {}
   const lineDetailCents = asBigInt(lineDetailRow.line_detail_cents)
   const campaignLevelCents = asBigInt(lineDetailRow.campaign_level_cents)
+  const orphanLineCents = asBigInt(lineDetailRow.orphan_line_cents)
+  const clientPaysExcludedCents = asBigInt(lineDetailRow.client_pays_excluded_cents)
+  const excludedRow = executeRows(excludedByStatusAgg)[0] ?? {}
+  const excludedByStatusCents: ExcludedByStatusCents = {
+    media: asBigInt(excludedRow.media_cents),
+    fee: asBigInt(excludedRow.fee_cents),
+    adserving: asBigInt(excludedRow.adserving_cents),
+  }
   const lineDetailPct =
     payablesCents <= 0
       ? 0
@@ -460,8 +536,9 @@ export async function fetchFinanceSectionsSummary(
     billingCents: asBigInt(row.billing_cents),
     deliveryCents: asBigInt(row.delivery_cents),
     basis: {
-      billing: "billing · media+fee+adserving (client-pays media already $0)",
-      delivery: "delivery · agency media (ex client-pays) + fee + adserving",
+      billing:
+        "billing · media+fee+adserving · statuses approved/booked/completed (client-pays media already $0)",
+      delivery: PAYABLES_FYTD_BASIS,
     },
   }))
 
@@ -486,22 +563,34 @@ export async function fetchFinanceSectionsSummary(
     },
     receivablesFytd: {
       cents: receivablesCents,
-      basis: "billing · media ex client-pays + fee + adserving",
+      basis:
+        "billing · media+fee+adserving · statuses approved/booked/completed (client-pays media already $0)",
       scope: scopeLabel,
     },
     payablesFytd: {
       cents: payablesCents,
-      basis: "delivery · agency media (client-pays excluded) + fee + adserving",
+      basis: PAYABLES_FYTD_BASIS,
+      scope: scopeLabel,
+    },
+    feeDeliveryFytd: {
+      cents: feeCents,
+      basis: "delivery · fee component · statuses approved/booked/completed (not in payables headline)",
+      scope: scopeLabel,
+    },
+    adservingDeliveryFytd: {
+      cents: adservingCents,
+      basis:
+        "delivery · adserving component · statuses approved/booked/completed (not in payables headline)",
       scope: scopeLabel,
     },
     netAccrual: {
       cents: receivablesCents - payablesCents,
-      basis: "receivables − payables (schedule FYTD)",
+      basis: "receivables − media-only payables (schedule FYTD)",
       scope: scopeLabel,
     },
     currentMonthBilling: {
       cents: currentMonthBillingCents,
-      basis: "billing · current calendar month",
+      basis: "billing · current calendar month · statuses approved/booked/completed",
       scope: `${currentMonth}${q.clientIds.length ? ` · ${q.clientIds.length} clients` : " · all clients"}`,
     },
     invoicedToDate: {
@@ -516,7 +605,10 @@ export async function fetchFinanceSectionsSummary(
       lineDetailPct,
       lineDetailCents,
       campaignLevelCents,
-      note: LINE_DETAIL_COVERAGE_NOTE,
+      orphanLineCents,
+      clientPaysExcludedCents,
+      excludedByStatusCents,
+      note: `${LINE_DETAIL_COVERAGE_NOTE} Orphan non-service media (no line_items row) is in the payables headline but not line-detail-attributed — see orphanLineCents. Draft/planned/cancelled totals are in excludedByStatusCents.`,
     },
     periodStatus: await resolvePeriodStatusCard(),
     xeroExceptions: {
@@ -552,7 +644,9 @@ export async function fetchReceivablesByMba(
       AND sm.component IN ('media', 'fee', 'adserving')
       AND sm.month >= ${fromDate}::date
       AND sm.month < ${toExclusive}::date
-    WHERE m.published_version_id IS NOT NULL AND ${clientSql}
+    WHERE m.published_version_id IS NOT NULL
+      AND ${sql.raw(FINANCE_STATUS_INCLUDED_SQL)}
+      AND ${clientSql}
     GROUP BY m.mba_number
     HAVING SUM(sm.amount_cents) <> 0
     ORDER BY m.mba_number

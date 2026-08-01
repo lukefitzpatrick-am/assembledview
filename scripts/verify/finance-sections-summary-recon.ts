@@ -1,15 +1,13 @@
 /**
- * FN-FIX-1 / FS-2 reconciliation gate:
+ * FN-FIX-1 / FS-2 / CP-3 reconciliation gate:
  *  - receivables FYTD (Postgres published tip vs legacy blob pool)
- *  - payables composition (dual-shape join + client-pays + __service__*)
+ *  - payables composition (media-only, status-scoped, dual-shape join + client-pays)
  *  - per-MBA legacy-vs-sections payables with disposition causes
- *  - campaign_status scoping of the sections campaign-level bucket
+ *  - VERIFY TARGETS: payables $1,617,617.28 / excluded media $604,145.84 / CP $49,568.00
  *
  * Usage:
  *   npm run recon:finance-sections-summary
  *   npm run recon:finance-sections-summary -- --fy=2026
- *
- * No product behaviour change — report-only.
  */
 
 import { sql } from "drizzle-orm"
@@ -279,6 +277,10 @@ async function sectionsPayablesComposition(
   const lineJoin = sql.raw(SCHEDULE_LINE_JOIN_SQL)
   const isService = sql.raw(IS_SERVICE_LINE_SQL)
 
+  const statusIncluded = sql.raw(
+    `(LOWER(COALESCE(v.campaign_status, '')) IN ('approved', 'booked', 'completed'))`
+  )
+
   const result = await db.execute(sql`
     SELECT
       COALESCE(SUM(CASE
@@ -319,6 +321,7 @@ async function sectionsPayablesComposition(
       AND sm.month < ${toEx}::date
     LEFT JOIN line_items li ON ${lineJoin}
     WHERE m.published_version_id IS NOT NULL
+      AND ${statusIncluded}
   `)
 
   const row = (result as { rows?: Record<string, unknown>[] }).rows?.[0]
@@ -348,7 +351,7 @@ async function sectionsPayablesComposition(
   }
 }
 
-/** Exact sections summary payables total (dual-shape + client-pays gate). */
+/** Exact sections summary payables total — media-only, status-scoped, ex client-pays. */
 async function sectionsPayablesTotal(from: string, to: string): Promise<number> {
   const { getDb } = await import("../../db")
   const { SCHEDULE_LINE_JOIN_SQL } = await import(
@@ -364,15 +367,36 @@ async function sectionsPayablesTotal(from: string, to: string): Promise<number> 
     INNER JOIN media_plan_versions v ON v.id = m.published_version_id
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
-      AND sm.component IN ('media', 'fee', 'adserving')
+      AND sm.component = 'media'
       AND sm.month >= ${fromDate}::date
       AND sm.month < ${toEx}::date
     LEFT JOIN line_items li ON ${lineJoin}
     WHERE m.published_version_id IS NOT NULL
-      AND (
-        sm.component <> 'media'
-        OR COALESCE(li.client_pays_for_media, FALSE) = FALSE
-      )
+      AND LOWER(COALESCE(v.campaign_status, '')) IN ('approved', 'booked', 'completed')
+      AND COALESCE(li.client_pays_for_media, FALSE) = FALSE
+  `)
+  const row = (result as { rows?: Record<string, unknown>[] }).rows?.[0]
+    ?? (Array.isArray(result) ? (result as Record<string, unknown>[])[0] : undefined)
+    ?? {}
+  return asCents(row.cents)
+}
+
+async function excludedByStatusMedia(from: string, to: string): Promise<number> {
+  const { getDb } = await import("../../db")
+  const db = getDb()
+  const fromDate = monthStartDate(from)
+  const toEx = monthEndExclusive(to)
+  const result = await db.execute(sql`
+    SELECT COALESCE(SUM(sm.amount_cents), 0) AS cents
+    FROM media_plan_masters m
+    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN schedule_months sm ON sm.version_id = v.id
+      AND sm.basis = 'delivery'
+      AND sm.component = 'media'
+      AND sm.month >= ${fromDate}::date
+      AND sm.month < ${toEx}::date
+    WHERE m.published_version_id IS NOT NULL
+      AND LOWER(COALESCE(v.campaign_status, '')) IN ('draft', 'planned', 'cancelled')
   `)
   const row = (result as { rows?: Record<string, unknown>[] }).rows?.[0]
     ?? (Array.isArray(result) ? (result as Record<string, unknown>[])[0] : undefined)
@@ -411,23 +435,21 @@ async function sectionsPayablesByMba(
       m.mba_number AS mba,
       COALESCE(LOWER(v.campaign_status), '') AS status,
       COALESCE(SUM(sm.amount_cents), 0) AS cents,
-      COALESCE(SUM(CASE WHEN sm.component = 'media' THEN sm.amount_cents ELSE 0 END), 0) AS media_cents,
-      COALESCE(SUM(CASE WHEN sm.component = 'fee' THEN sm.amount_cents ELSE 0 END), 0) AS fee_cents,
-      COALESCE(SUM(CASE WHEN sm.component = 'adserving' THEN sm.amount_cents ELSE 0 END), 0) AS adserving_cents,
+      COALESCE(SUM(sm.amount_cents), 0) AS media_cents,
+      0::bigint AS fee_cents,
+      0::bigint AS adserving_cents,
       COALESCE(SUM(CASE WHEN ${isService} THEN sm.amount_cents ELSE 0 END), 0) AS service_cents
     FROM media_plan_masters m
     INNER JOIN media_plan_versions v ON v.id = m.published_version_id
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
-      AND sm.component IN ('media', 'fee', 'adserving')
+      AND sm.component = 'media'
       AND sm.month >= ${fromDate}::date
       AND sm.month < ${toEx}::date
     LEFT JOIN line_items li ON ${lineJoin}
     WHERE m.published_version_id IS NOT NULL
-      AND (
-        sm.component <> 'media'
-        OR COALESCE(li.client_pays_for_media, FALSE) = FALSE
-      )
+      AND LOWER(COALESCE(v.campaign_status, '')) IN ('approved', 'booked', 'completed')
+      AND COALESCE(li.client_pays_for_media, FALSE) = FALSE
     GROUP BY m.mba_number, COALESCE(LOWER(v.campaign_status), '')
     HAVING SUM(sm.amount_cents) <> 0
     ORDER BY ABS(SUM(sm.amount_cents)) DESC
@@ -614,6 +636,7 @@ async function main() {
       byMbaPgAr,
       composition,
       payablesTotal,
+      excludedMedia,
       byMbaPgAp,
       legacyAp,
       serviceByStatus,
@@ -624,104 +647,83 @@ async function main() {
       fetchReceivablesByMba(query),
       sectionsPayablesComposition(query.from, query.to),
       sectionsPayablesTotal(query.from, query.to),
+      excludedByStatusMedia(query.from, query.to),
       sectionsPayablesByMba(query.from, query.to),
       legacyPayablesByMba(monthsInWindow),
       campaignLevelByStatus(query.from, query.to),
       receivablesByStatus(query.from, query.to),
     ])
 
-    composition.mediaFeeAdservingPayablesCents = payablesTotal
+    composition.mediaOnlyPayablesCents = payablesTotal
+    composition.mediaFeeAdservingPayablesCents =
+      payablesTotal + composition.feeCents + composition.adservingCents
 
-    // Claude expected (FY2026 Jul–Aug). See docs/superpowers/fs2-payables-status-scoping-*.md
-    const claudeMedia = 55549498
-    const claudeCp = 6481800
-    const claudeServiceBucket = 165101814
-    const claudeFee = 18462115
-    const claudeAds = 79866
-    const claudeMediaOnlyBundle = 220651312
-    const claudeFull = 239193293
-    // Claude "attributed media" = joined non-service media; orphans folded into campaign-level.
-    const claudeStyleMedia = composition.mediaAttributedJoinedCents
-    const claudeStyleService =
-      composition.serviceMediaCents + composition.orphanMediaCents
-    const mediaPlusServiceMedia =
-      composition.mediaAttributedCents + composition.serviceMediaCents
+    // CP-3 VERIFY TARGETS (FY2026 Jul–Aug) — stop if these diverge.
+    const TARGET_PAYABLES = 161761728 // $1,617,617.28
+    const TARGET_EXCLUDED_MEDIA = 60414584 // $604,145.84
+    const TARGET_CLIENT_PAYS = 4956800 // $49,568.00
 
-    console.log("--- Payables composition (sections PG, delivery, published tip) ---")
+    console.log("--- CP-3 VERIFY TARGETS (media-only · status-scoped) ---")
     console.log(
       [
         "slice",
         "cents",
         "aud",
-        "claude_expected_aud",
-        "delta_vs_claude_cents",
+        "target_aud",
+        "delta_cents",
+        "match",
       ].join("\t")
     )
-    const slices: Array<[string, number, number]> = [
-      ["media_joined_ex_client_pays_claude_style", claudeStyleMedia, claudeMedia],
-      ["orphan_media_li_null_non_service", composition.orphanMediaCents, -1],
-      ["media_attributed_incl_orphans_fs2", composition.mediaAttributedCents, -1],
-      ["client_pays_media_excluded", composition.clientPaysExcludedCents, claudeCp],
+    const cp3Slices: Array<[string, number, number]> = [
+      ["payables_media_only_status_filtered", payablesTotal, TARGET_PAYABLES],
+      ["coverage_excludedByStatusCents_media", excludedMedia, TARGET_EXCLUDED_MEDIA],
       [
-        "campaign_level_service_media_plus_orphans_claude_style",
-        claudeStyleService,
-        claudeServiceBucket,
+        "client_pays_excluded_within_included_statuses",
+        composition.clientPaysExcludedCents,
+        TARGET_CLIENT_PAYS,
       ],
-      ["campaign_level___service___all_components", composition.campaignLevelServiceCents, -1],
-      ["fee_component_all", composition.feeCents, claudeFee],
-      ["adserving_component_all", composition.adservingCents, claudeAds],
-      ["payables_media_plus_service_media_bundle", mediaPlusServiceMedia, claudeMediaOnlyBundle],
-      ["payables_media_fee_adserving_summary", composition.mediaFeeAdservingPayablesCents, claudeFull],
-      ["payables_media_attributed_only_vs_legacy", composition.mediaOnlyPayablesCents, -1],
+      ["summary_payablesFytd", summary.payablesFytd.cents, TARGET_PAYABLES],
+      [
+        "summary_excludedByStatus_media",
+        summary.coverage.excludedByStatusCents.media,
+        TARGET_EXCLUDED_MEDIA,
+      ],
+      [
+        "summary_clientPaysExcludedCents",
+        summary.coverage.clientPaysExcludedCents,
+        TARGET_CLIENT_PAYS,
+      ],
+      ["orphan_line_cents_included_statuses", composition.orphanMediaCents, -1],
+      ["fee_included_statuses", composition.feeCents, -1],
+      ["adserving_included_statuses", composition.adservingCents, -1],
     ]
-    for (const [name, cents, expected] of slices) {
+    const cp3Diffs: string[] = []
+    for (const [name, cents, expected] of cp3Slices) {
       const exp = expected < 0 ? "" : aud(expected)
       const d = expected < 0 ? "" : String(cents - expected)
-      console.log([name, String(cents), aud(cents), exp, d].join("\t"))
+      const match = expected < 0 ? "" : cents === expected ? "MATCH" : "MISS"
+      if (expected >= 0 && cents !== expected) {
+        cp3Diffs.push(`${name}: got $${aud(cents)} expected $${aud(expected)} (Δ ${d})`)
+      }
+      console.log([name, String(cents), aud(cents), exp, d, match].join("\t"))
+    }
+    console.log("")
+    if (cp3Diffs.length === 0) {
+      console.log("MATCH: CP-3 verify targets all hit.")
+    } else {
+      console.log("STOP — CP-3 verify target miss (do not merge until explained):")
+      for (const d of cp3Diffs) console.log(`  - ${d}`)
     }
     console.log("")
     console.log(
       `Legacy hub payables (include_drafts=0, media-only, months ${monthsInWindow.join(",")}): $${aud(legacyAp.totalCents)}`
     )
     console.log(
-      `Sections summary payablesFytd: $${aud(summary.payablesFytd.cents)} | lineDetailPct=${summary.coverage.lineDetailPct}`
+      `Sections summary payablesFytd: $${aud(summary.payablesFytd.cents)} | lineDetailPct=${summary.coverage.lineDetailPct} | orphanLineCents=$${aud(summary.coverage.orphanLineCents)}`
     )
     console.log("")
 
-    // Diff vs Claude
-    const diffs: string[] = []
-    if (claudeStyleMedia !== claudeMedia) {
-      diffs.push(`claude-style media Δ$${aud(claudeStyleMedia - claudeMedia)}`)
-    }
-    if (claudeStyleService !== claudeServiceBucket) {
-      diffs.push(`claude-style campaign-level Δ$${aud(claudeStyleService - claudeServiceBucket)}`)
-    }
-    if (composition.clientPaysExcludedCents !== claudeCp) {
-      diffs.push(`client_pays Δ$${aud(composition.clientPaysExcludedCents - claudeCp)}`)
-    }
-    if (composition.feeCents !== claudeFee) {
-      diffs.push(`fee Δ$${aud(composition.feeCents - claudeFee)}`)
-    }
-    if (composition.adservingCents !== claudeAds) {
-      diffs.push(`adserving Δ$${aud(composition.adservingCents - claudeAds)}`)
-    }
-    if (mediaPlusServiceMedia !== claudeMediaOnlyBundle) {
-      diffs.push(
-        `media+service_media bundle Δ$${aud(mediaPlusServiceMedia - claudeMediaOnlyBundle)} (orphan partition only)`
-      )
-    }
-    if (composition.mediaFeeAdservingPayablesCents !== claudeFull) {
-      diffs.push(
-        `full payables Δ$${aud(composition.mediaFeeAdservingPayablesCents - claudeFull)}`
-      )
-    }
-    if (diffs.length === 0) {
-      console.log("MATCH: composition equals Claude independent SQL on all slices.")
-    } else {
-      console.log("DIFF vs Claude (explain before decisions):")
-      for (const d of diffs) console.log(`  - ${d}`)
-    }
-    console.log("")
+    const diffs = cp3Diffs
 
     console.log("--- Campaign-level __service__* by campaign_status ---")
     console.log(["status", "mba_count", "cents", "aud"].join("\t"))
@@ -789,7 +791,7 @@ async function main() {
     }
     apRows.sort((a, b) => Math.abs(b.deltaCents) - Math.abs(a.deltaCents))
 
-    console.log("--- Per-MBA payables (legacy media-only / include_drafts=0 vs sections media+fee+ads) ---")
+    console.log("--- Per-MBA payables (legacy media-only / include_drafts=0 vs sections media-only status-scoped) ---")
     console.log(
       [
         "mba",
@@ -826,10 +828,10 @@ async function main() {
     console.log("")
     console.log(`Non-zero payables MBA rows: ${nonzeroAp.length}`)
     console.log(
-      `Legacy AP total $${aud(legacyAp.totalCents)} | Sections AP (full) $${aud(payablesTotal)} | Δ $${aud(payablesTotal - legacyAp.totalCents)}`
+      `Legacy AP total $${aud(legacyAp.totalCents)} | Sections AP (media-only status-scoped) $${aud(payablesTotal)} | Δ $${aud(payablesTotal - legacyAp.totalCents)}`
     )
     console.log(
-      `Sections media-attributed-only $${aud(composition.mediaOnlyPayablesCents)} | Δ vs legacy $${aud(composition.mediaOnlyPayablesCents - legacyAp.totalCents)}`
+      `Excluded-by-status media $${aud(excludedMedia)} | client-pays within-status $${aud(composition.clientPaysExcludedCents)}`
     )
 
     // Machine-readable JSON block for the report doc
@@ -841,6 +843,15 @@ async function main() {
           fy: query.fy,
           from: query.from,
           to: query.to,
+          cp3: {
+            payablesMediaOnlyAud: aud(payablesTotal),
+            excludedByStatusMediaAud: aud(excludedMedia),
+            clientPaysExcludedAud: aud(composition.clientPaysExcludedCents),
+            orphanMediaAud: aud(composition.orphanMediaCents),
+            feeAud: aud(composition.feeCents),
+            adservingAud: aud(composition.adservingCents),
+            targetsHit: cp3Diffs.length === 0,
+          },
           composition: {
             mediaJoinedAud: aud(composition.mediaAttributedJoinedCents),
             orphanMediaAud: aud(composition.orphanMediaCents),
@@ -850,8 +861,7 @@ async function main() {
             campaignLevelServiceAllAud: aud(composition.campaignLevelServiceCents),
             feeAud: aud(composition.feeCents),
             adservingAud: aud(composition.adservingCents),
-            payablesMediaPlusServiceMediaAud: aud(mediaPlusServiceMedia),
-            payablesMediaFeeAdservingAud: aud(composition.mediaFeeAdservingPayablesCents),
+            payablesMediaOnlyAud: aud(payablesTotal),
           },
           legacyPayablesAud: aud(legacyAp.totalCents),
           receivablesDeltaCents: deltaCents,
@@ -866,12 +876,24 @@ async function main() {
             aud: aud(r.cents),
           })),
           payablesNonzeroCount: nonzeroAp.length,
-          claudeDiffs: diffs,
+          perMba: apRows.map((r) => ({
+            mba: r.mba,
+            status: r.status,
+            legacyAud: aud(r.legacyCents),
+            sectionsAud: aud(r.pgCents),
+            deltaAud: aud(r.deltaCents),
+            disposition: r.disposition,
+          })),
+          cp3Diffs: diffs,
         },
         null,
         2
       )
     )
+
+    if (cp3Diffs.length > 0) {
+      process.exitCode = 2
+    }
   } finally {
     await closeDb().catch(() => undefined)
   }

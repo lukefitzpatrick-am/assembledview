@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { BaseChartCard, GroupedBarChart, TreemapChart } from "@/components/charts/system"
 import { CostsSubNav } from "@/components/finance/sections/costs/CostsSubNav"
-import { PayablesReconBanner } from "@/components/finance/sections/PayablesReconBanner"
 import { EmptyState } from "@/components/finance/sections/EmptyState"
 import { ErrorState } from "@/components/finance/sections/ErrorState"
 import { LoadingState } from "@/components/finance/sections/LoadingState"
@@ -89,10 +88,9 @@ export function CostsOverviewClient() {
   return (
     <FinanceSectionsShell title="Costs" scopeBar={<SectionScopeBar showingLabel={showingLabel} />}>
       <div className="space-y-6">
-        <PayablesReconBanner />
         <CostsSubNav />
         <p className="text-sm text-muted-foreground">
-          Booked publisher cost (delivery) vs Xero AP bills.
+          Booked publisher cost (delivery media) vs Xero AP bills.
         </p>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -101,7 +99,7 @@ export function CostsOverviewClient() {
             basisCaption={
               view.status === "ready"
                 ? view.data.kpis.basis
-                : "delivery · agency media (ex client-pays) + fee + adserving"
+                : "Booked cost = media on the delivery schedule · campaign statuses approved/booked/completed"
             }
             state={blockToTileState(view, (d) => d.kpis.bookedCostFytdCents)}
           />
@@ -118,11 +116,21 @@ export function CostsOverviewClient() {
         </div>
 
         {view.status === "ready" ? (
-          <p className="text-xs text-muted-foreground">
-            Coverage: {view.data.coverage.bookedWithPublisherIdentityPct}% of booked cost has a
-            publisher identity; {view.data.coverage.bookedInMonthsWithAnyApBillPct}% falls in months
-            with any AP bill. {view.data.coverage.note}
-          </p>
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <p>
+              Fee (delivery): {formatMoney(view.data.kpis.feeCents / 100)} · Adserving (delivery):{" "}
+              {formatMoney(view.data.kpis.adservingCents / 100)} — labelled separately; not in booked
+              cost.
+            </p>
+            <p>{view.data.coverage.excludedByStatusCaption}</p>
+            <p>
+              Coverage: {view.data.coverage.bookedWithPublisherIdentityPct}% of booked cost has a
+              publisher identity; {view.data.coverage.bookedInMonthsWithAnyApBillPct}% falls in months
+              with any AP bill. Orphan schedule media:{" "}
+              {formatMoney(view.data.coverage.orphanLineCents / 100)}.{" "}
+              {view.data.coverage.note}
+            </p>
+          </div>
         ) : null}
 
         {view.status === "loading" ? <LoadingState rows={5} /> : null}

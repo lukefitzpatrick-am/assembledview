@@ -5,6 +5,9 @@
  * - billing: sum media+fee+adserving (no client_pays re-filter on media)
  * - delivery: exclude media where client_pays_for_media; fee+adserving always
  *
+ * Status scope (CP-3): approved|booked|completed only; excluded statuses in
+ * coverage.excludedByStatusCents. Version authority = published tip (D1).
+ *
  * Publisher = FN0 PUBLISHER_IDENTITY_SQL; null → Unmatched.
  * billingAgency = classifyBillingAgency over publishers join (SQL twin).
  */
@@ -19,6 +22,11 @@ import {
 } from "@/lib/finance/months"
 import { BILLING_AGENCY_AA } from "@/lib/finance/billingAgency"
 import { clampMonthRangeToFy } from "@/lib/finance/sections/defaultScope"
+import {
+  FINANCE_STATUS_EXCLUDED_SQL,
+  FINANCE_STATUS_INCLUDED_SQL,
+  type ExcludedByStatusCents,
+} from "@/lib/finance/sections/financeCampaignStatus"
 import {
   PUBLISHER_IDENTITY_SQL,
 } from "@/lib/finance/sections/publisherIdentitySql"
@@ -568,6 +576,7 @@ LEFT JOIN LATERAL (
 LEFT JOIN clients c ON c.id = m.client_id
 ${publisherLateral}
 WHERE m.published_version_id IS NOT NULL
+  AND ${FINANCE_STATUS_INCLUDED_SQL}
   ${deliveryGate}
   AND ${filterText}
 `.trim()
@@ -605,6 +614,7 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) p ON TRUE
 WHERE m.published_version_id IS NOT NULL
+  AND ${sql.raw(FINANCE_STATUS_INCLUDED_SQL)}
   ${sql.raw(deliveryGate)}
   AND ${filterSqlCombined}
 ${sql.raw(groupBy)}
@@ -664,6 +674,7 @@ FROM (
     LIMIT 1
   ) p ON TRUE
   WHERE m.published_version_id IS NOT NULL
+    AND ${sql.raw(FINANCE_STATUS_INCLUDED_SQL)}
     ${sql.raw(deliveryGate)}
     AND ${filterSqlCombined}
   GROUP BY 1, 2, 3
@@ -709,6 +720,7 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) p ON TRUE
 WHERE m.published_version_id IS NOT NULL
+  AND ${sql.raw(FINANCE_STATUS_INCLUDED_SQL)}
   ${sql.raw(deliveryGate)}
   AND ${filterSqlCombined}
 `
@@ -747,6 +759,7 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) p ON TRUE
 WHERE m.published_version_id IS NOT NULL
+  AND ${sql.raw(FINANCE_STATUS_INCLUDED_SQL)}
   ${sql.raw(deliveryGate)}
   AND ${filterSqlCombined}
 `
@@ -808,12 +821,31 @@ export async function fetchInvestmentCut(
     measuresIncludeActuals(q.measures) ||
     measuresIncludeAgencyEconomics(q.measures)
 
-  const [cutResult, feeResult, matchResult, lineDetailResult] = await Promise.all([
-    db.execute(built.cutSql),
-    wantsFeeMeta ? db.execute(built.feeCoverageSql) : Promise.resolve(null),
-    db.execute(built.publisherMatchSql),
-    db.execute(built.lineDetailCoverageSql),
-  ])
+  const fromDate = monthStartDate(q.from)
+  const toExclusive = monthEndExclusive(q.to)
+
+  const [cutResult, feeResult, matchResult, lineDetailResult, excludedResult] =
+    await Promise.all([
+      db.execute(built.cutSql),
+      wantsFeeMeta ? db.execute(built.feeCoverageSql) : Promise.resolve(null),
+      db.execute(built.publisherMatchSql),
+      db.execute(built.lineDetailCoverageSql),
+      db.execute(sql`
+        SELECT
+          COALESCE(SUM(CASE WHEN sm.component = 'media' THEN sm.amount_cents ELSE 0 END), 0) AS media_cents,
+          COALESCE(SUM(CASE WHEN sm.component = 'fee' THEN sm.amount_cents ELSE 0 END), 0) AS fee_cents,
+          COALESCE(SUM(CASE WHEN sm.component = 'adserving' THEN sm.amount_cents ELSE 0 END), 0) AS adserving_cents
+        FROM media_plan_masters m
+        INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+        INNER JOIN schedule_months sm ON sm.version_id = v.id
+          AND sm.basis = ${q.basis}
+          AND sm.component IN ('media', 'fee', 'adserving')
+          AND sm.month >= ${fromDate}::date
+          AND sm.month < ${toExclusive}::date
+        WHERE m.published_version_id IS NOT NULL
+          AND ${sql.raw(FINANCE_STATUS_EXCLUDED_SQL)}
+      `),
+    ])
 
   const rawRows = (cutResult as unknown as { rows?: Record<string, unknown>[] }).rows
     ?? (Array.isArray(cutResult) ? (cutResult as Record<string, unknown>[]) : [])
@@ -898,6 +930,16 @@ export async function fetchInvestmentCut(
     q.filters.clients.length ? ` · ${q.filters.clients.length} clients` : " · all clients"
   }`
 
+  const excludedRows =
+    (excludedResult as unknown as { rows?: Record<string, unknown>[] }).rows ??
+    (Array.isArray(excludedResult) ? (excludedResult as Record<string, unknown>[]) : [])
+  const ex = excludedRows[0] ?? {}
+  const excludedByStatusCents: ExcludedByStatusCents = {
+    media: asNumber(ex.media_cents),
+    fee: asNumber(ex.fee_cents),
+    adserving: asNumber(ex.adserving_cents),
+  }
+
   return {
     scope: {
       fy: q.fy,
@@ -919,6 +961,7 @@ export async function fetchInvestmentCut(
       lineDetailCents,
       campaignLevelCents,
       lineDetailNote: LINE_DETAIL_COVERAGE_NOTE,
+      excludedByStatusCents,
       rowCount: rows.length,
       scope,
       basis: q.basis,
@@ -980,6 +1023,7 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) p ON TRUE
 WHERE m.published_version_id IS NOT NULL
+  AND ${sql.raw(FINANCE_STATUS_INCLUDED_SQL)}
   ${sql.raw(deliveryGate)}
   AND ${filterSqlCombined}
 `)

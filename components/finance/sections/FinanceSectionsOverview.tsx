@@ -98,7 +98,7 @@ export function FinanceSectionsOverview() {
             basisCaption={
               view.status === "ready"
                 ? `${view.data.payablesFytd.basis} · ${view.data.payablesFytd.scope}`
-                : "delivery · agency media (ex client-pays) + fee + adserving"
+                : "delivery · media only (ex client-pays) · statuses approved/booked/completed"
             }
             state={blockToTileState(view, (d) => d.payablesFytd)}
           />
@@ -130,6 +130,16 @@ export function FinanceSectionsOverview() {
             state={blockToTileState(view, (d) => d.invoicedToDate)}
           />
         </div>
+
+        {view.status === "ready" ? (
+          <p className="text-xs text-muted-foreground">
+            Delivery fee: {formatMoney(view.data.feeDeliveryFytd.cents / 100)} · Adserving:{" "}
+            {formatMoney(view.data.adservingDeliveryFytd.cents / 100)} (not in payables headline).{" "}
+            Excluded draft/planned/cancelled media:{" "}
+            {formatMoney(view.data.coverage.excludedByStatusCents.media / 100)}. Orphan schedule
+            media: {formatMoney(view.data.coverage.orphanLineCents / 100)}.
+          </p>
+        ) : null}
 
         {view.status === "loading" ? <LoadingState rows={5} /> : null}
         {view.status === "error" ? (

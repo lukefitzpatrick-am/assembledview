@@ -1,8 +1,9 @@
 /**
  * Finance Costs summary — delivery-basis booked publisher cost + xero_ap_bills.
  *
- * Booked cost: published tip schedule_months basis=delivery, media+fee+adserving,
- * client-pays media excluded (FN3a / summaryQuery payables semantics).
+ * Booked cost (CP-3): published tip schedule_months basis=delivery, **media only**,
+ * client-pays media excluded; statuses approved|booked|completed. Fee + adserving
+ * are separate labelled figures. Draft/planned/cancelled → coverage.excludedByStatusCents.
  * Publisher identity: per-channel accessor (publisherIdentitySql), not bare li.publisher.
  */
 
@@ -14,6 +15,13 @@ import {
   attributeApBillToPublisher,
   buildPublisherNameIndex,
 } from "@/lib/finance/sections/costsAttribution"
+import {
+  FINANCE_STATUS_EXCLUDED_SQL,
+  FINANCE_STATUS_INCLUDED_SQL,
+  PAYABLES_MEDIA_ONLY_BASIS_CAPTION,
+  formatExcludedByStatusCaption,
+  type ExcludedByStatusCents,
+} from "@/lib/finance/sections/financeCampaignStatus"
 import { normalizeSummaryQuery } from "@/lib/finance/sections/summaryQuery"
 import {
   PUBLISHER_IDENTITY_SQL,
@@ -22,6 +30,7 @@ import {
 import { SCHEDULE_LINE_JOIN_SQL } from "@/lib/finance/sections/scheduleLineJoinSql"
 import {
   CAMPAIGN_LEVEL_NO_LINE_DETAIL,
+  IS_SERVICE_LINE_SQL,
   LINE_DETAIL_COVERAGE_NOTE,
   lineDimOrCampaignLevelSql,
 } from "@/lib/finance/sections/serviceLineBucket"
@@ -76,6 +85,10 @@ export type FinanceCostsSummaryPayload = {
   }
   kpis: {
     bookedCostFytdCents: number
+    /** Delivery fee (included statuses) — not in booked-cost headline. */
+    feeCents: number
+    /** Delivery adserving (included statuses) — not in booked-cost headline. */
+    adservingCents: number
     apBilledFytdCents: number
     unbilledAccrualCents: number
     basis: string
@@ -89,7 +102,11 @@ export type FinanceCostsSummaryPayload = {
     lineDetailPct: number
     lineDetailCents: number
     campaignLevelCents: number
+    orphanLineCents: number
+    clientPaysExcludedCents: number
+    excludedByStatusCents: ExcludedByStatusCents
     lineDetailNote: string
+    excludedByStatusCaption: string
     note: string
   }
   byMonth: Array<{
@@ -231,16 +248,14 @@ FROM media_plan_masters m
 INNER JOIN media_plan_versions v ON v.id = m.published_version_id
 INNER JOIN schedule_months sm ON sm.version_id = v.id
   AND sm.basis = 'delivery'
-  AND sm.component IN ('media', 'fee', 'adserving')
+  AND sm.component = 'media'
   AND sm.month >= DATE '${from}'
   AND sm.month < DATE '${toEx}'
 LEFT JOIN line_items li
   ON ${SCHEDULE_LINE_JOIN_SQL}
 WHERE m.published_version_id IS NOT NULL
-  AND (
-    sm.component <> 'media'
-    OR COALESCE(li.client_pays_for_media, FALSE) = FALSE
-  )
+  AND ${FINANCE_STATUS_INCLUDED_SQL}
+  AND COALESCE(li.client_pays_for_media, FALSE) = FALSE
   ${clients}
   ${channels}
 GROUP BY 1, 2, 3
@@ -269,6 +284,9 @@ export async function fetchFinanceCostsSummary(
     `COALESCE(${PUBLISHER_IDENTITY_SQL.trim()}, '${UNSPECIFIED_PUBLISHER}')`
   )
   const channelDimSql = lineDimOrCampaignLevelSql("li.channel::text")
+  const statusIncluded = sql.raw(FINANCE_STATUS_INCLUDED_SQL)
+  const statusExcluded = sql.raw(FINANCE_STATUS_EXCLUDED_SQL)
+  const isService = sql.raw(IS_SERVICE_LINE_SQL)
 
   const bookedAgg = await db.execute(sql`
     SELECT
@@ -280,19 +298,79 @@ export async function fetchFinanceCostsSummary(
     INNER JOIN media_plan_versions v ON v.id = m.published_version_id
     INNER JOIN schedule_months sm ON sm.version_id = v.id
       AND sm.basis = 'delivery'
-      AND sm.component IN ('media', 'fee', 'adserving')
+      AND sm.component = 'media'
       AND sm.month >= ${fromDate}::date
       AND sm.month < ${toExclusive}::date
     LEFT JOIN line_items li
       ON ${lineJoin}
     WHERE m.published_version_id IS NOT NULL
-      AND (
-        sm.component <> 'media'
-        OR COALESCE(li.client_pays_for_media, FALSE) = FALSE
-      )
+      AND ${statusIncluded}
+      AND COALESCE(li.client_pays_for_media, FALSE) = FALSE
       AND ${clientSql}
       AND ${channelSql}
     GROUP BY 1, 2, 3
+  `)
+
+  const feeAdsAgg = await db.execute(sql`
+    SELECT
+      COALESCE(SUM(CASE WHEN sm.component = 'fee' THEN sm.amount_cents ELSE 0 END), 0) AS fee_cents,
+      COALESCE(SUM(CASE WHEN sm.component = 'adserving' THEN sm.amount_cents ELSE 0 END), 0) AS adserving_cents
+    FROM media_plan_masters m
+    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN schedule_months sm ON sm.version_id = v.id
+      AND sm.basis = 'delivery'
+      AND sm.component IN ('fee', 'adserving')
+      AND sm.month >= ${fromDate}::date
+      AND sm.month < ${toExclusive}::date
+    WHERE m.published_version_id IS NOT NULL
+      AND ${statusIncluded}
+      AND ${clientSql}
+  `)
+
+  const coverageMetaAgg = await db.execute(sql`
+    SELECT
+      COALESCE(SUM(CASE
+        WHEN NOT (${isService}) AND li.id IS NOT NULL
+          AND COALESCE(li.client_pays_for_media, FALSE) = FALSE
+        THEN sm.amount_cents ELSE 0 END), 0) AS line_detail_cents,
+      COALESCE(SUM(CASE
+        WHEN ${isService} AND COALESCE(li.client_pays_for_media, FALSE) = FALSE
+        THEN sm.amount_cents ELSE 0 END), 0) AS campaign_level_cents,
+      COALESCE(SUM(CASE
+        WHEN NOT (${isService}) AND li.id IS NULL THEN sm.amount_cents ELSE 0 END), 0)
+        AS orphan_line_cents,
+      COALESCE(SUM(CASE
+        WHEN COALESCE(li.client_pays_for_media, FALSE) = TRUE THEN sm.amount_cents ELSE 0 END), 0)
+        AS client_pays_excluded_cents
+    FROM media_plan_masters m
+    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN schedule_months sm ON sm.version_id = v.id
+      AND sm.basis = 'delivery'
+      AND sm.component = 'media'
+      AND sm.month >= ${fromDate}::date
+      AND sm.month < ${toExclusive}::date
+    LEFT JOIN line_items li
+      ON ${lineJoin}
+    WHERE m.published_version_id IS NOT NULL
+      AND ${statusIncluded}
+      AND ${clientSql}
+  `)
+
+  const excludedByStatusAgg = await db.execute(sql`
+    SELECT
+      COALESCE(SUM(CASE WHEN sm.component = 'media' THEN sm.amount_cents ELSE 0 END), 0) AS media_cents,
+      COALESCE(SUM(CASE WHEN sm.component = 'fee' THEN sm.amount_cents ELSE 0 END), 0) AS fee_cents,
+      COALESCE(SUM(CASE WHEN sm.component = 'adserving' THEN sm.amount_cents ELSE 0 END), 0) AS adserving_cents
+    FROM media_plan_masters m
+    INNER JOIN media_plan_versions v ON v.id = m.published_version_id
+    INNER JOIN schedule_months sm ON sm.version_id = v.id
+      AND sm.basis = 'delivery'
+      AND sm.component IN ('media', 'fee', 'adserving')
+      AND sm.month >= ${fromDate}::date
+      AND sm.month < ${toExclusive}::date
+    WHERE m.published_version_id IS NOT NULL
+      AND ${statusExcluded}
+      AND ${clientSql}
   `)
 
   let bookedRows = executeRows(bookedAgg).map((row) => ({
@@ -379,14 +457,27 @@ export async function fetchFinanceCostsSummary(
     }
   }
 
+  const feeAdsRow = executeRows(feeAdsAgg)[0] ?? {}
+  const feeCents = asBigInt(feeAdsRow.fee_cents)
+  const adservingCents = asBigInt(feeAdsRow.adserving_cents)
+  const coverageMeta = executeRows(coverageMetaAgg)[0] ?? {}
+  const lineDetailCents = asBigInt(coverageMeta.line_detail_cents)
+  const campaignLevelCents = asBigInt(coverageMeta.campaign_level_cents)
+  const orphanLineCents = asBigInt(coverageMeta.orphan_line_cents)
+  const clientPaysExcludedCents = asBigInt(coverageMeta.client_pays_excluded_cents)
+  const excludedRow = executeRows(excludedByStatusAgg)[0] ?? {}
+  const excludedByStatusCents: ExcludedByStatusCents = {
+    media: asBigInt(excludedRow.media_cents),
+    fee: asBigInt(excludedRow.fee_cents),
+    adserving: asBigInt(excludedRow.adserving_cents),
+  }
+
   // Aggregate booked by month / publisher
   const bookedByMonth = new Map<string, number>()
   const bookedByPublisher = new Map<string, number>()
   const bookedByPubMonth = new Map<string, CostsPublisherMonthRow>()
   let bookedTotalCents = 0
   let bookedWithIdentityCents = 0
-  let lineDetailCents = 0
-  let campaignLevelCents = 0
 
   for (const row of bookedRows) {
     bookedTotalCents += row.bookedCents
@@ -395,11 +486,6 @@ export async function fetchFinanceCostsSummary(
       row.publisher !== CAMPAIGN_LEVEL_NO_LINE_DETAIL
     ) {
       bookedWithIdentityCents += row.bookedCents
-    }
-    if (row.publisher === CAMPAIGN_LEVEL_NO_LINE_DETAIL) {
-      campaignLevelCents += row.bookedCents
-    } else {
-      lineDetailCents += row.bookedCents
     }
     bookedByMonth.set(row.month, (bookedByMonth.get(row.month) ?? 0) + row.bookedCents)
     bookedByPublisher.set(
@@ -534,10 +620,11 @@ export async function fetchFinanceCostsSummary(
     },
     kpis: {
       bookedCostFytdCents: bookedTotalCents,
+      feeCents,
+      adservingCents,
       apBilledFytdCents,
       unbilledAccrualCents: bookedTotalCents - apBilledFytdCents,
-      basis:
-        "delivery · agency media (ex client-pays) + fee + adserving vs xero_ap_bills.total",
+      basis: PAYABLES_MEDIA_ONLY_BASIS_CAPTION,
     },
     coverage: {
       bookedWithPublisherIdentityPct: pct(bookedWithIdentityCents, bookedTotalCents),
@@ -548,9 +635,13 @@ export async function fetchFinanceCostsSummary(
       lineDetailPct: pct(lineDetailCents, bookedTotalCents),
       lineDetailCents,
       campaignLevelCents,
+      orphanLineCents,
+      clientPaysExcludedCents,
+      excludedByStatusCents,
       lineDetailNote: LINE_DETAIL_COVERAGE_NOTE,
+      excludedByStatusCaption: formatExcludedByStatusCaption(excludedByStatusCents.media),
       note:
-        "Identity % = booked $ with FN0 publisher accessor non-null (excludes Unspecified and campaign-level synthetics). AP-month % = booked $ falling in months that have any AP bill (not publisher-matched).",
+        "Identity % = booked media $ with FN0 publisher accessor non-null (excludes Unspecified, campaign-level synthetics, and orphans). AP-month % = booked $ falling in months that have any AP bill (not publisher-matched). Orphan schedule keys (no line_items) are in the headline but not fully attributed — see orphanLineCents.",
     },
     byMonth,
     byPublisher,
