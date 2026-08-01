@@ -69,6 +69,10 @@ function parseUpsertCell(raw: Record<string, unknown>): FinanceForecastTargetUps
   if (!isFinanceForecastLineKey(raw.line_key)) {
     return { error: "line_key must be a FinanceForecastLineKey." }
   }
+  // FIN-5 media_billing is presentation breakout only — not a targetable line.
+  if (raw.line_key === "media_billing") {
+    return { error: "line_key media_billing is not targetable." }
+  }
   if (!isFinanceForecastMonthKey(raw.month_key)) {
     return { error: "month_key must be a FinanceForecastMonthKey (july…june)." }
   }

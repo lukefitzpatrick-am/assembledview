@@ -6,11 +6,15 @@ import { saveAs } from "file-saver"
 import { Bug, Camera, ChevronDown, ChevronRight, Download, Info, Search } from "lucide-react"
 
 import {
+  FINANCE_FORECAST_COMMISSION_LINE_KEYS,
+  FINANCE_FORECAST_FEE_LINE_KEYS,
   FINANCE_FORECAST_FISCAL_MONTH_ORDER,
   FINANCE_FORECAST_GROUP_KEYS,
-  FINANCE_FORECAST_GROUP_LABELS,
   FINANCE_FORECAST_LINE_LABELS,
   FINANCE_FORECAST_LINE_KEYS,
+  FINANCE_FORECAST_OTHER_REVENUE_LINE_KEYS,
+  isFinanceForecastEntityBillingLine,
+  isFinanceForecastMediaBreakoutLine,
   type FinanceForecastClientBlock,
   type FinanceForecastDataset,
   type FinanceForecastLine,
@@ -53,6 +57,12 @@ import {
 } from "@/components/ui/sheet"
 import { LoadingDots } from "@/components/ui/loading-dots"
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import { TargetGrid } from "@/components/finance/sections/forecasting/TargetGrid"
 import { VarianceTargetVsActualView } from "@/components/finance/sections/forecasting/VarianceTargetVsActualView"
 import {
@@ -149,9 +159,21 @@ function portfolioBillingTotals(blocks: readonly FinanceForecastClientBlock[]) {
   const lines: FinanceForecastLine[] = []
   for (const b of blocks) {
     const g = billingGroupFromBlock(b)
-    if (g) lines.push(...g.lines)
+    if (g) lines.push(...g.lines.filter(isFinanceForecastEntityBillingLine))
   }
   return sumForecastLines(lines)
+}
+
+function lineFyNonZero(line: FinanceForecastLine): boolean {
+  return Math.abs(line.fy_total) > 0.005
+}
+
+function linesWithKeys(
+  lines: readonly FinanceForecastLine[],
+  keys: readonly string[]
+): FinanceForecastLine[] {
+  const set = new Set(keys)
+  return lines.filter((l) => set.has(l.line_key))
 }
 
 function portfolioRevenueTotals(blocks: readonly FinanceForecastClientBlock[]) {
@@ -1157,16 +1179,89 @@ function FragmentBlock(props: {
   onOpenDetail: (line: FinanceForecastLine) => void
 }) {
   const { block, colCount, expanded, onToggleClient, onOpenDetail } = props
+  const [openMediaTypes, setOpenMediaTypes] = useState<Set<string>>(() => new Set())
+  const [openPublishers, setOpenPublishers] = useState<Set<string>>(() => new Set())
 
   const billingGroup = billingGroupFromBlock(block)
+  const revenueGroup = revenueGroupFromBlock(block)
   const billingAgg = useMemo(
     () =>
       billingGroup
-        ? sumForecastLines(billingGroup.lines)
+        ? sumForecastLines(billingGroup.lines.filter(isFinanceForecastEntityBillingLine))
         : { monthly: emptyMonthlyAmounts(), fy: 0 },
     [billingGroup]
   )
   const revenueAgg = useMemo(() => sumForecastLines(clientRevenueSubtotalLines(block)), [block])
+
+  const feeLines = useMemo(() => {
+    const lines = revenueGroup?.lines ?? []
+    return linesWithKeys(lines, FINANCE_FORECAST_FEE_LINE_KEYS).filter(lineFyNonZero)
+  }, [revenueGroup])
+  const commissionLines = useMemo(() => {
+    const lines = revenueGroup?.lines ?? []
+    return linesWithKeys(lines, FINANCE_FORECAST_COMMISSION_LINE_KEYS).filter(lineFyNonZero)
+  }, [revenueGroup])
+  const otherRevenueLines = useMemo(() => {
+    const lines = revenueGroup?.lines ?? []
+    return linesWithKeys(lines, FINANCE_FORECAST_OTHER_REVENUE_LINE_KEYS).filter(lineFyNonZero)
+  }, [revenueGroup])
+  const totalRevenueLines = useMemo(() => {
+    const lines = revenueGroup?.lines ?? []
+    return lines.filter(
+      (l) => l.line_key === FINANCE_FORECAST_LINE_KEYS.totalRevenue && lineFyNonZero(l)
+    )
+  }, [revenueGroup])
+  const feeRollup = useMemo(() => sumForecastLines(feeLines), [feeLines])
+  const commissionRollup = useMemo(() => sumForecastLines(commissionLines), [commissionLines])
+
+  const mediaLines = useMemo(
+    () =>
+      (billingGroup?.lines ?? []).filter(
+        (l) => isFinanceForecastMediaBreakoutLine(l) && lineFyNonZero(l)
+      ),
+    [billingGroup]
+  )
+
+  const mediaByType = useMemo(() => {
+    const map = new Map<
+      string,
+      { key: string; label: string; lines: FinanceForecastLine[]; agg: ReturnType<typeof sumForecastLines> }
+    >()
+    for (const line of mediaLines) {
+      const key = String(line.media_type_key ?? "unknown")
+      const label = String(line.media_type_label ?? key)
+      let bucket = map.get(key)
+      if (!bucket) {
+        bucket = { key, label, lines: [], agg: { monthly: emptyMonthlyAmounts(), fy: 0 } }
+        map.set(key, bucket)
+      }
+      bucket.lines.push(line)
+    }
+    for (const bucket of map.values()) {
+      bucket.agg = sumForecastLines(bucket.lines)
+    }
+    return [...map.values()].sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+    )
+  }, [mediaLines])
+
+  const toggleMediaType = (key: string) => {
+    setOpenMediaTypes((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const togglePublisher = (key: string) => {
+    setOpenPublishers((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   const clientHeaderRow = (
     <tr className="border-t-2 border-border bg-surface-panel">
@@ -1246,78 +1341,260 @@ function FragmentBlock(props: {
   }
 
   return (
-    <>
+    <TooltipProvider delayDuration={200}>
       {clientHeaderRow}
-      {block.groups.map((group) => (
-        <Fragment key={group.group_key}>
-          <FragmentGroupMemo
-            group={group}
+
+      {feeLines.length > 0 ? (
+        <>
+          <RollupHeaderRow
             clientName={block.client_name}
-            colCount={colCount}
-            onOpenDetail={onOpenDetail}
+            label="Fees"
+            accent="revenue"
+            monthly={feeRollup.monthly}
+            fy={feeRollup.fy}
           />
-          {group.group_key === FINANCE_FORECAST_GROUP_KEYS.billingBasedInformation ? (
-            <ClientBillingSubtotalRow
+          {feeLines.map((line, idx) => (
+            <ForecastLineRowMemo
+              key={`fee-${line.line_key}-${line.mba_number ?? "c"}-${idx}`}
+              line={line}
               clientName={block.client_name}
-              monthly={billingAgg.monthly}
-              fy={billingAgg.fy}
+              onOpenDetail={onOpenDetail}
+              indent={1}
             />
-          ) : null}
-        </Fragment>
+          ))}
+        </>
+      ) : null}
+
+      {commissionLines.length > 0 ? (
+        <>
+          <RollupHeaderRow
+            clientName={block.client_name}
+            label="Commissions"
+            accent="revenue"
+            monthly={commissionRollup.monthly}
+            fy={commissionRollup.fy}
+            caption="Includes client fixed fees"
+            tooltip="Commission buckets still include blended client fixed fees (search/social/prog). Not pure publisher commissions."
+          />
+          {commissionLines.map((line, idx) => (
+            <ForecastLineRowMemo
+              key={`comm-${line.line_key}-${line.mba_number ?? "c"}-${idx}`}
+              line={line}
+              clientName={block.client_name}
+              onOpenDetail={onOpenDetail}
+              indent={1}
+            />
+          ))}
+        </>
+      ) : null}
+
+      {otherRevenueLines.map((line, idx) => (
+        <ForecastLineRowMemo
+          key={`other-${line.line_key}-${line.mba_number ?? "c"}-${idx}`}
+          line={line}
+          clientName={block.client_name}
+          onOpenDetail={onOpenDetail}
+        />
       ))}
-    </>
+
+      {totalRevenueLines.map((line, idx) => (
+        <ForecastLineRowMemo
+          key={`total-${line.line_key}-${idx}`}
+          line={line}
+          clientName={block.client_name}
+          onOpenDetail={onOpenDetail}
+        />
+      ))}
+
+      {mediaByType.length > 0 ? (
+        <>
+          <tr className="border-l-2 border-l-pacing-on-track bg-surface-panel">
+            <td
+              colSpan={colCount}
+              className="px-3 py-1.5 pl-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+            >
+              Media
+            </td>
+          </tr>
+          {mediaByType.map((typeBucket) => {
+            const typeOpen = openMediaTypes.has(typeBucket.key)
+            const byPublisher = new Map<string, FinanceForecastLine[]>()
+            for (const line of typeBucket.lines) {
+              const pub = String(line.publisher_name ?? "Unknown")
+              const list = byPublisher.get(pub) ?? []
+              list.push(line)
+              byPublisher.set(pub, list)
+            }
+            const publishers = [...byPublisher.entries()].sort(([a], [b]) =>
+              a.localeCompare(b, undefined, { sensitivity: "base" })
+            )
+            return (
+              <Fragment key={`mt-${typeBucket.key}`}>
+                <ExpandableRollupRow
+                  clientName={block.client_name}
+                  label={typeBucket.label}
+                  open={typeOpen}
+                  onToggle={() => toggleMediaType(typeBucket.key)}
+                  monthly={typeBucket.agg.monthly}
+                  fy={typeBucket.agg.fy}
+                  accent="billing"
+                />
+                {typeOpen
+                  ? publishers.map(([pubName, pubLines]) => {
+                      const pubKey = `${typeBucket.key}\u001f${pubName}`
+                      const pubOpen = openPublishers.has(pubKey)
+                      const pubAgg = sumForecastLines(pubLines)
+                      return (
+                        <Fragment key={pubKey}>
+                          <ExpandableRollupRow
+                            clientName={block.client_name}
+                            label={pubName}
+                            open={pubOpen}
+                            onToggle={() => togglePublisher(pubKey)}
+                            monthly={pubAgg.monthly}
+                            fy={pubAgg.fy}
+                            accent="billing"
+                            indent={1}
+                          />
+                          {pubOpen
+                            ? pubLines.map((line, idx) => (
+                                <ForecastLineRowMemo
+                                  key={`mba-${pubKey}-${line.mba_number ?? idx}-${idx}`}
+                                  line={line}
+                                  clientName={block.client_name}
+                                  onOpenDetail={onOpenDetail}
+                                  indent={2}
+                                  labelOverride={[
+                                    line.mba_number ? `MBA ${line.mba_number}` : "MBA",
+                                    line.version_number != null ? `v${line.version_number}` : null,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                />
+                              ))
+                            : null}
+                        </Fragment>
+                      )
+                    })
+                  : null}
+              </Fragment>
+            )
+          })}
+        </>
+      ) : null}
+
+      <ClientBillingSubtotalRow
+        clientName={block.client_name}
+        monthly={billingAgg.monthly}
+        fy={billingAgg.fy}
+      />
+    </TooltipProvider>
   )
 }
 
 const FragmentBlockMemo = memo(FragmentBlock)
 
-function FragmentGroup(props: {
-  group: FinanceForecastDataset["client_blocks"][number]["groups"][number]
+function RollupHeaderRow(props: {
   clientName: string
-  colCount: number
-  onOpenDetail: (line: FinanceForecastLine) => void
+  label: string
+  monthly: FinanceForecastMonthlyAmounts
+  fy: number
+  accent: "billing" | "revenue"
+  caption?: string
+  tooltip?: string
 }) {
-  const { group, clientName, colCount, onOpenDetail } = props
-  const title = group.title ?? FINANCE_FORECAST_GROUP_LABELS[group.group_key]
-  const isBilling = group.group_key === FINANCE_FORECAST_GROUP_KEYS.billingBasedInformation
-
+  const border =
+    props.accent === "billing" ? "border-l-pacing-on-track" : "border-l-channel-bvod"
   return (
-    <>
-      <tr className={cn("bg-surface-panel", isBilling ? "border-l-2 border-l-pacing-on-track" : "border-l-2 border-l-channel-bvod")}>
-        <td colSpan={colCount} className="px-3 py-1.5 pl-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {title}
-        </td>
-      </tr>
-      {group.lines.map((line, idx) => (
-        <ForecastLineRowMemo
-          key={`${line.line_key}-${line.mba_number ?? "c"}-${line.media_plan_version_id ?? idx}`}
-          line={line}
-          clientName={clientName}
-          onOpenDetail={onOpenDetail}
-        />
-      ))}
-    </>
+    <tr className={cn("border-b border-border bg-surface-panel font-medium", "border-l-2", border)}>
+      <td className={cn(STICKY_CLIENT, "px-3 py-1.5 align-middle text-xs text-muted-foreground")}>
+        {props.clientName}
+      </td>
+      <td className={cn(STICKY_LINE, "px-3 py-1.5 text-xs text-foreground")}>
+        <span className="inline-flex items-center gap-1.5">
+          {props.label}
+          {props.caption ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex cursor-help items-center gap-1 text-[11px] font-normal text-muted-foreground">
+                  <Info className="h-3 w-3" aria-hidden />
+                  {props.caption}
+                </span>
+              </TooltipTrigger>
+              {props.tooltip ? (
+                <TooltipContent className="max-w-xs text-xs">{props.tooltip}</TooltipContent>
+              ) : null}
+            </Tooltip>
+          ) : null}
+        </span>
+      </td>
+      <ForecastSummaryAmountCells monthly={props.monthly} fy={props.fy} />
+    </tr>
   )
 }
 
-const FragmentGroupMemo = memo(FragmentGroup)
+function ExpandableRollupRow(props: {
+  clientName: string
+  label: string
+  open: boolean
+  onToggle: () => void
+  monthly: FinanceForecastMonthlyAmounts
+  fy: number
+  accent: "billing" | "revenue"
+  indent?: number
+}) {
+  const indent = props.indent ?? 0
+  const border =
+    props.accent === "billing" ? "border-l-pacing-on-track" : "border-l-channel-bvod"
+  return (
+    <tr className={cn("border-b border-border transition-colors hover:bg-table-row-hover", "border-l-2", border)}>
+      <td className={cn(STICKY_CLIENT, "px-3 py-1.5 align-middle text-xs text-foreground")}>
+        {props.clientName}
+      </td>
+      <td className={cn(STICKY_LINE, "px-3 py-1.5 align-middle")}>
+        <button
+          type="button"
+          aria-expanded={props.open}
+          className={cn(
+            "flex w-full items-center gap-1.5 text-left text-xs",
+            indent === 1 && "pl-3",
+            indent >= 2 && "pl-6"
+          )}
+          onClick={props.onToggle}
+        >
+          {props.open ? (
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          )}
+          <span className="font-medium text-foreground">{props.label}</span>
+        </button>
+      </td>
+      <ForecastSummaryAmountCells monthly={props.monthly} fy={props.fy} />
+    </tr>
+  )
+}
 
 function ForecastLineRow(props: {
   line: FinanceForecastLine
   clientName: string
   onOpenDetail: (line: FinanceForecastLine) => void
+  indent?: number
+  labelOverride?: string
 }) {
-  const { line, clientName, onOpenDetail } = props
+  const { line, clientName, onOpenDetail, indent = 0, labelOverride } = props
   const label = FINANCE_FORECAST_LINE_LABELS[line.line_key]
   const isTotal = line.line_key === FINANCE_FORECAST_LINE_KEYS.totalRevenue
 
-  const lineDescription = [
-    label,
-    line.mba_number ? `MBA ${line.mba_number}` : null,
-    line.version_number != null ? `v${line.version_number}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ")
+  const lineDescription =
+    labelOverride ??
+    [
+      label,
+      line.mba_number ? `MBA ${line.mba_number}` : null,
+      line.version_number != null ? `v${line.version_number}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ")
 
   return (
     <tr
@@ -1328,7 +1605,13 @@ function ForecastLineRow(props: {
     >
       <td className={cn(STICKY_CLIENT, "px-3 py-1.5 align-middle text-xs text-foreground")}>{clientName}</td>
       <td className={cn(STICKY_LINE, "px-3 py-1.5 align-middle")}>
-        <div className="flex items-start justify-between gap-2">
+        <div
+          className={cn(
+            "flex items-start justify-between gap-2",
+            indent === 1 && "pl-3",
+            indent >= 2 && "pl-6"
+          )}
+        >
           <span className={cn("text-xs leading-snug", isTotal && "text-status-ahead-fg")}>
             {lineDescription}
           </span>

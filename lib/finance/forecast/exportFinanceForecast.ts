@@ -9,6 +9,7 @@ import { format } from "date-fns"
 import {
   FINANCE_FORECAST_FISCAL_MONTH_ORDER,
   FINANCE_FORECAST_GROUP_LABELS,
+  FINANCE_FORECAST_LINE_KEYS,
   FINANCE_FORECAST_LINE_LABELS,
   type FinanceForecastDataset,
   type FinanceForecastLine,
@@ -76,6 +77,16 @@ function monthColumnLabel(key: FinanceForecastMonthKey, fyStart: number): string
 
 function lineExportLabel(line: FinanceForecastLine): string {
   const label = FINANCE_FORECAST_LINE_LABELS[line.line_key]
+  if (line.line_key === FINANCE_FORECAST_LINE_KEYS.mediaBilling) {
+    return [
+      line.media_type_label ?? line.media_type_key ?? label,
+      line.publisher_name ? String(line.publisher_name) : null,
+      line.mba_number ? `MBA ${line.mba_number}` : null,
+      line.version_number != null ? `v${line.version_number}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ")
+  }
   return [label, line.mba_number ? `MBA ${line.mba_number}` : null, line.version_number != null ? `v${line.version_number}` : null]
     .filter(Boolean)
     .join(" · ")

@@ -31,6 +31,16 @@ function compareLines(a: FinanceForecastLine, b: FinanceForecastLine, groupKey: 
   const oa = lineOrderIndex(groupKey, a.line_key)
   const ob = lineOrderIndex(groupKey, b.line_key)
   if (oa !== ob) return oa - ob
+  if (a.line_key === FINANCE_FORECAST_LINE_KEYS.mediaBilling) {
+    const ta = String(a.media_type_label ?? a.media_type_key ?? "")
+    const tb = String(b.media_type_label ?? b.media_type_key ?? "")
+    const byType = ta.localeCompare(tb, undefined, { sensitivity: "base" })
+    if (byType !== 0) return byType
+    const pa = String(a.publisher_name ?? "")
+    const pb = String(b.publisher_name ?? "")
+    const byPub = pa.localeCompare(pb, undefined, { sensitivity: "base" })
+    if (byPub !== 0) return byPub
+  }
   const ma = String(a.mba_number ?? "")
   const mb = String(b.mba_number ?? "")
   const byMba = ma.localeCompare(mb, undefined, { sensitivity: "base" })

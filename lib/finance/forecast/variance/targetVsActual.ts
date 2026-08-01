@@ -247,6 +247,8 @@ export function bookedMonthlyFromDataset(dataset: FinanceForecastDataset): Clien
     if (!foundTotal) {
       for (const group of block.groups) {
         for (const line of group.lines) {
+          // Skip FIN-5 media breakouts — they duplicate AA/AM entity billing dollars.
+          if (line.line_key === FINANCE_FORECAST_LINE_KEYS.mediaBilling) continue
           for (const k of FINANCE_FORECAST_FISCAL_MONTH_ORDER) {
             monthly[k] += line.monthly[k] ?? 0
           }

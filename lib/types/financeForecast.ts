@@ -59,6 +59,8 @@ export const FINANCE_FORECAST_GROUP_LABELS: Record<FinanceForecastGroupKey, stri
 export const FINANCE_FORECAST_LINE_KEYS = {
   advertisingAssociatesBillingForPublisher: "advertising_associates_billing_for_publisher",
   assembledMediaBillingForPublisher: "assembled_media_billing_for_publisher",
+  /** Additive media×publisher breakout under billing (FIN-5). Does not replace AA/AM entity lines. */
+  mediaBilling: "media_billing",
   searchSocial20Pct: "search_social_20pct",
   directManagedDigital40Pct: "direct_managed_digital_40pct",
   commission: "commission",
@@ -77,6 +79,7 @@ export const FINANCE_FORECAST_LINE_LABELS: Record<FinanceForecastLineKey, string
     "Advertising Associates as billing for publisher",
   [FINANCE_FORECAST_LINE_KEYS.assembledMediaBillingForPublisher]:
     "Assembled Media as billing for publisher",
+  [FINANCE_FORECAST_LINE_KEYS.mediaBilling]: "Media billing",
   [FINANCE_FORECAST_LINE_KEYS.searchSocial20Pct]: "Search & Social — 20%",
   [FINANCE_FORECAST_LINE_KEYS.directManagedDigital40Pct]: "Direct managed digital — 40%",
   [FINANCE_FORECAST_LINE_KEYS.commission]: "Commission",
@@ -85,6 +88,42 @@ export const FINANCE_FORECAST_LINE_LABELS: Record<FinanceForecastLineKey, string
   [FINANCE_FORECAST_LINE_KEYS.retainer]: "Retainer",
   [FINANCE_FORECAST_LINE_KEYS.projectScopePrip]: "Project / scope / PRIP",
   [FINANCE_FORECAST_LINE_KEYS.totalRevenue]: "Total revenue",
+}
+
+/** Fee rollup (FIN-5): service fee (digital) + retainer only. */
+export const FINANCE_FORECAST_FEE_LINE_KEYS = [
+  FINANCE_FORECAST_LINE_KEYS.serviceFeeDigital,
+  FINANCE_FORECAST_LINE_KEYS.retainer,
+] as const
+
+/** Commission rollup (FIN-5): three buckets; composition unchanged (still includes client fixed fees). */
+export const FINANCE_FORECAST_COMMISSION_LINE_KEYS = [
+  FINANCE_FORECAST_LINE_KEYS.searchSocial20Pct,
+  FINANCE_FORECAST_LINE_KEYS.directManagedDigital40Pct,
+  FINANCE_FORECAST_LINE_KEYS.commission,
+] as const
+
+/** Other revenue body lines outside Fees / Commissions rollups. */
+export const FINANCE_FORECAST_OTHER_REVENUE_LINE_KEYS = [
+  FINANCE_FORECAST_LINE_KEYS.fixedPriceGtd,
+  FINANCE_FORECAST_LINE_KEYS.projectScopePrip,
+] as const
+
+/** True when the line is the additive media×publisher breakout (not AA/AM entity rollup). */
+export function isFinanceForecastMediaBreakoutLine(line: {
+  line_key: FinanceForecastLineKey
+}): boolean {
+  return line.line_key === FINANCE_FORECAST_LINE_KEYS.mediaBilling
+}
+
+/** AA/AM entity billing lines used for portfolio/billing subtotals (excludes media breakouts). */
+export function isFinanceForecastEntityBillingLine(line: {
+  line_key: FinanceForecastLineKey
+}): boolean {
+  return (
+    line.line_key === FINANCE_FORECAST_LINE_KEYS.advertisingAssociatesBillingForPublisher ||
+    line.line_key === FINANCE_FORECAST_LINE_KEYS.assembledMediaBillingForPublisher
+  )
 }
 
 // ---------------------------------------------------------------------------
@@ -138,6 +177,13 @@ export interface FinanceForecastLine {
   fy_total: number
   source: FinanceForecastLineSource
   debug?: FinanceForecastLineDebug
+  /**
+   * Additive media breakout fields (FIN-5). Set on `media_billing` lines only.
+   * Existing AA/AM and revenue lines leave these undefined — consumers must tolerate absence.
+   */
+  media_type_key?: string | null
+  media_type_label?: string | null
+  publisher_name?: string | null
 }
 
 /** A logical group of lines under one client (billing block vs revenue block). */

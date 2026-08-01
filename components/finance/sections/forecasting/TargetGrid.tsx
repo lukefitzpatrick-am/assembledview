@@ -20,7 +20,6 @@ import { cn } from "@/lib/utils"
 import {
   FINANCE_FORECAST_FISCAL_MONTH_ORDER,
   FINANCE_FORECAST_LINE_LABELS,
-  type FinanceForecastLineKey,
   type FinanceForecastMonthKey,
   type FinanceForecastMonthlyAmounts,
 } from "@/lib/types/financeForecast"
@@ -31,7 +30,8 @@ import type {
 
 const SAVE_DEBOUNCE_MS = 700
 
-type AmountGrid = Record<FinanceForecastLineKey, FinanceForecastMonthlyAmounts>
+type TargetRevenueLineKey = (typeof FORECAST_REVENUE_BODY_LINE_ORDER)[number]
+type AmountGrid = Record<TargetRevenueLineKey, FinanceForecastMonthlyAmounts>
 
 function emptyMonthly(): FinanceForecastMonthlyAmounts {
   const m = {} as FinanceForecastMonthlyAmounts
@@ -47,7 +47,7 @@ function emptyGrid(): AmountGrid {
   return g
 }
 
-function cellKey(line: FinanceForecastLineKey, month: FinanceForecastMonthKey): string {
+function cellKey(line: TargetRevenueLineKey, month: FinanceForecastMonthKey): string {
   return `${line}::${month}`
 }
 
@@ -93,8 +93,9 @@ function gridFromLines(lines: FinanceForecastTargetLine[]): AmountGrid {
   const grid = emptyGrid()
   for (const row of lines) {
     if (!(row.line_key in grid)) continue
-    if (!(row.month_key in grid[row.line_key])) continue
-    grid[row.line_key][row.month_key] = Number(row.amount) || 0
+    const lineKey = row.line_key as TargetRevenueLineKey
+    if (!(row.month_key in grid[lineKey])) continue
+    grid[lineKey][row.month_key] = Number(row.amount) || 0
   }
   return grid
 }
@@ -236,7 +237,7 @@ export function TargetGrid({ fyStart, clientId, clientName }: TargetGridProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional keying on fyStart + clientId
   }, [fyStart, trimmedClient])
 
-  const setCellAmount = (line: FinanceForecastLineKey, month: FinanceForecastMonthKey, value: number | null) => {
+  const setCellAmount = (line: TargetRevenueLineKey, month: FinanceForecastMonthKey, value: number | null) => {
     const amount = value == null || !Number.isFinite(value) ? 0 : value
     setGrid((prev) => ({
       ...prev,

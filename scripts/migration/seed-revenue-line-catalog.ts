@@ -25,13 +25,14 @@ async function main() {
     Array.isArray(before) ? before[0] : (before as { rows: { n: number }[] }).rows[0]
   ) as { n: number }
 
-  const entries = (Object.values(FINANCE_FORECAST_LINE_KEYS) as FinanceForecastLineKey[]).map(
-    (lineKey, i) => ({
+  // FIN-5 media_billing is presentation breakout only — not a target/catalog line.
+  const entries = (Object.values(FINANCE_FORECAST_LINE_KEYS) as FinanceForecastLineKey[])
+    .filter((lineKey) => lineKey !== FINANCE_FORECAST_LINE_KEYS.mediaBilling)
+    .map((lineKey, i) => ({
       lineKey,
       label: FINANCE_FORECAST_LINE_LABELS[lineKey],
       sortOrder: i + 1,
-    })
-  )
+    }))
 
   const result = await seedRevenueLineCatalogFromCodeConstants(entries)
 
