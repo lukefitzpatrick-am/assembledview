@@ -2,7 +2,6 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import {
-  isInMarketNow,
   isScheduleEnded,
   normalizeStoredCampaignStatus,
 } from "../campaignListStatus.js"
@@ -23,29 +22,4 @@ test("normalizeStoredCampaignStatus title-cases known values only", () => {
   assert.equal(normalizeStoredCampaignStatus("APPROVED"), "Approved")
   assert.equal(normalizeStoredCampaignStatus("completed"), "Completed")
   assert.equal(normalizeStoredCampaignStatus(""), "Draft")
-})
-
-test("isInMarketNow requires booked/approved and active dates", () => {
-  assert.equal(
-    isInMarketNow(
-      {
-        campaign_status: "booked",
-        campaign_start_date: "2026-01-01",
-        campaign_end_date: "2026-12-31",
-      },
-      new Date("2026-07-31"),
-    ),
-    true,
-  )
-  assert.equal(
-    isInMarketNow(
-      {
-        campaign_status: "booked",
-        campaign_start_date: "2020-01-01",
-        campaign_end_date: "2020-06-01",
-      },
-      new Date("2026-07-31"),
-    ),
-    false,
-  )
 })

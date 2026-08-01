@@ -22,7 +22,6 @@ import { formatAUD } from "@/lib/format/money"
 import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
 import {
   CAMPAIGN_LIST_STATUSES,
-  isInMarketNow,
   isScheduleEnded,
   normalizeStoredCampaignStatus,
 } from "@/lib/mediaplans/campaignListStatus"
@@ -354,11 +353,6 @@ function MediaPlansPageInner() {
     [],
   )
 
-  const inMarketPlans = useMemo(
-    () => filteredPlans.filter((plan) => isInMarketNow(plan)),
-    [filteredPlans],
-  )
-
   const campaignsViewState = useMemo(
     () =>
       resolveListViewState({
@@ -474,62 +468,6 @@ function MediaPlansPageInner() {
           >
             {() => (
             <div className="space-y-6">
-              {inMarketPlans.length > 0 ? (
-                <Panel className="overflow-hidden border-border/40 shadow-sm">
-                  <PanelHeader className="border-b border-border/40 bg-muted/20 pb-3">
-                    <PanelTitle className="flex items-center gap-2.5">
-                      <div className="h-2.5 w-2.5 animate-pulse rounded-full bg-pacing-ahead" />
-                      <span className="text-sm font-semibold">In market now</span>
-                      <span className="text-xs tabular-nums text-muted-foreground">
-                        ({inMarketPlans.length})
-                      </span>
-                    </PanelTitle>
-                    <PanelActions />
-                  </PanelHeader>
-                  <PanelContent className="px-4 py-3">
-                    <p className="mb-3 text-xs text-muted-foreground">
-                      Booked or Approved campaigns whose dates include today (stored status — not
-                      date-invented).
-                    </p>
-                    <ul className="space-y-2">
-                      {inMarketPlans.slice(0, 8).map((plan) => (
-                        <li
-                          key={`live-${plan.id}`}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/50 bg-card px-3 py-2 text-sm"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate font-medium text-foreground">
-                              {plan.mp_campaignname || plan.campaign_name || plan.mba_number}
-                            </p>
-                            <p className="truncate text-xs text-muted-foreground">
-                              {plan.mp_client_name} · {plan.mba_number} · {plan.campaign_status}
-                              {plan.scheduleEnded ? " · schedule ended" : ""}
-                            </p>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-8 shrink-0 text-xs"
-                            onClick={() => {
-                              const slug = slugifyClientName(plan.mp_client_name)
-                              if (!slug) {
-                                router.push(
-                                  `/mediaplans/mba/${plan.mba_number}/edit?version=${plan.version_number}`,
-                                )
-                                return
-                              }
-                              router.push(`/dashboard/${slug}/${plan.mba_number}`)
-                            }}
-                          >
-                            Open
-                          </Button>
-                        </li>
-                      ))}
-                    </ul>
-                  </PanelContent>
-                </Panel>
-              ) : null}
               {CAMPAIGN_STATUSES.map((status) => {
                 const plans = getMediaPlansByStatus(status)
                 const sortedPlans = applySortForStatus(plans, status)
