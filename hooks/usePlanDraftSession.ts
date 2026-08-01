@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { isPlanDraftsEnabled } from "@/lib/mediaplan/drafts/flag"
 import {
@@ -79,16 +79,28 @@ export function usePlanDraftSession(args: {
     }
   }, [enabled, userId])
 
-  const modeResolved = resolvePostgresSaveMode({
-    campaignStatus: args.campaignStatus,
-    forceIncrement: Boolean(args.forceIncrement),
-    publishedVersionNumber: args.publishedVersionNumber,
-    versionRowCount: args.versionRowCount,
-  })
+  // Primitive deps only — a fresh object every render re-fired the pill effect
+  // (BUG-2 / max update depth on create+edit while NEXT_PUBLIC_PLAN_DRAFTS is off).
+  const modeResolved = useMemo(
+    () =>
+      resolvePostgresSaveMode({
+        campaignStatus: args.campaignStatus,
+        forceIncrement: Boolean(args.forceIncrement),
+        publishedVersionNumber: args.publishedVersionNumber,
+        versionRowCount: args.versionRowCount,
+      }),
+    [
+      args.campaignStatus,
+      args.forceIncrement,
+      args.publishedVersionNumber,
+      args.versionRowCount,
+    ]
+  )
 
   useEffect(() => {
     if (!enabled) {
-      setPill(null)
+      // No-op when already null — disabled hook must never schedule a render.
+      setPill((prev) => (prev == null ? prev : null))
       return
     }
     const ago =
