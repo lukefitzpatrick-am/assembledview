@@ -15,6 +15,7 @@ Admin-only **Finance sections IA** (FN7): `/finance` rewrites to overview home; 
 ## Key files
 
 - `components/finance/sections/*` + `lib/finance/sections/*` — section pages/shell/scope. `lib/finance/useFinanceStore.ts` remains for `EditableFinanceGrid` / shared fetch helpers (not hub chrome).
+- **Invoicing Excel** (`/finance/invoicing`) = bookkeeper workbook via `exportReceivablesWorkbook` (`lib/finance/exportFinanceHub.ts` → `writeMediaFinanceWorksheet` / `writeSowFinanceWorksheet` / per-retainer `writeRetainerFinanceWorksheet`). Sheets: Media, Scopes, one sheet per retainer client. CSV stays flat (`exportBillingRecordsCsv`). Flat XLSX (`exportFlatBillingWorkbook`) is not the primary Excel button.
 - `lib/finance/composeFinanceHubRecords.ts` — shared derive → dedupe (`receivableMergeKey`) → month filter → status overlay pipeline; multi-month is byte-identical to concatenated single months.
 - `lib/finance/derive{Receivable,Payable,ScopeSow,Retainer}Records.ts` — version/SOW/retainer → synthetic records. Record `total` = schedule month header ex-GST (`monthExGstFromScheduleEntry`), NOT re-derived from raw line items. SOW months: billing schedule is authoritative — missing or $0 months contribute nothing; never fall back to full scope `cost` (`summarizeScopeScheduleCoverage` surfaces gaps for the list UI).
 - `lib/finance/computeCampaignFinancialsFromVersion.ts` — hydrate path from persisted JSON (or PC1 attached `schedule_months` rebuild); returns empty `deliveryVsBillingDelta`, no `reconciliation` — silent falsy defaults, not "unknown".

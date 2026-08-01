@@ -18,7 +18,7 @@ import { LoadingState } from "@/components/finance/sections/LoadingState"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { markBilled } from "@/lib/finance/api"
 import { exportBillingRecordsCsv } from "@/lib/finance/export"
-import { exportFlatBillingWorkbook } from "@/lib/finance/exportFinanceHub"
+import { exportReceivablesWorkbook } from "@/lib/finance/exportFinanceHub"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 import { formatAUD } from "@/lib/format/money"
 import type { BillingRecord } from "@/lib/types/financeBilling"
@@ -280,7 +280,8 @@ export function InvoicingPageClient() {
 
   const exportExcel = useCallback(async () => {
     try {
-      await exportFlatBillingWorkbook(allRecords, `Finance_invoicing_${monthLabel}.xlsx`)
+      // Bookkeeper / Xero invoice-style workbook (hub "Export to Excel"), not the flat grid.
+      await exportReceivablesWorkbook(allRecords, monthLabel, "Finance_invoicing")
       toast({ title: "Export ready", description: "Invoicing workbook downloaded." })
     } catch (e) {
       toast({
