@@ -71,6 +71,7 @@ export const FINANCE_SECTION_PAGE_PATHS = [
   "/finance/costs",
   "/finance/costs/invoices",
   "/finance/costs/accruals",
+  "/finance/costs/client-pays",
   "/finance/investment",
   "/finance/forecasting",
 ] as const

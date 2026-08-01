@@ -93,7 +93,7 @@ export function CostsOverviewClient() {
           Booked publisher cost (delivery media) vs Xero AP bills.
         </p>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatTile
             label="Booked cost FYTD"
             basisCaption={
@@ -113,6 +113,16 @@ export function CostsOverviewClient() {
             basisCaption="booked cost − AP billed (headline, not period-locked)"
             state={blockToTileState(view, (d) => d.kpis.unbilledAccrualCents)}
           />
+          <Link
+            href="/finance/costs/client-pays"
+            className="interactive block rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <StatTile
+              label="Client-paid media"
+              basisCaption="Excluded from Assembled payables · open detail"
+              state={blockToTileState(view, (d) => d.coverage.clientPaysExcludedCents)}
+            />
+          </Link>
         </div>
 
         {view.status === "ready" ? (

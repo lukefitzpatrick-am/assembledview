@@ -12,13 +12,18 @@ const ITEMS = [
   },
   {
     href: "/finance/costs/invoices",
-    label: "Invoices",
+    label: "Publisher invoices",
     match: (p: string) => p.startsWith("/finance/costs/invoices"),
   },
   {
     href: "/finance/costs/accruals",
     label: "Accruals",
     match: (p: string) => p.startsWith("/finance/costs/accruals"),
+  },
+  {
+    href: "/finance/costs/client-pays",
+    label: "Client-pays",
+    match: (p: string) => p.startsWith("/finance/costs/client-pays"),
   },
 ] as const
 
