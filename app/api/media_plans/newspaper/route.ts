@@ -1,6 +1,5 @@
 import { createChannelLineItemsGetHandler } from "@/lib/api/channelLineItemsGetHandler";
 import { NextResponse } from 'next/server';
-import axios from 'axios';
 import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from '@/lib/api/xano';
 
 export const dynamic = 'force-dynamic';

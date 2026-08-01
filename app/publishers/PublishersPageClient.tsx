@@ -232,7 +232,6 @@ export function PublishersPageClient() {
     return filteredPublishers.filter((p) =>
       matchTextAny([p.publisher_name, p.publisherid], q)
     )
-    })
   }, [filteredPublishers, directorySearch])
 
   const sortedPublishers = useMemo(() => {
