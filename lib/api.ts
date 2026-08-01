@@ -1159,6 +1159,30 @@ export async function getMediaPlanVersionByMBA(mba_number: string) {
   return fetch(url, isBrowser ? undefined : { headers: xanoAuthHeaderRecord() })
 }
 
+/**
+ * Browser reference tables are static for a planning session. Session-length TTL
+ * via coalescedGetJson collapses Strict-Mode remounts and parallel container
+ * mounts (DEDUPE-2: MagazinesContainer / DigitalDisplayContainer HAR doubles).
+ */
+const MEDIA_DETAILS_BROWSER_TTL_MS = 24 * 60 * 60 * 1000
+
+export function mediaDetailsBrowserUrl(path: string): string {
+  return `/api/media-details/${path}`
+}
+
+/** Browser GET for a media-details reference path (in-flight + session TTL). */
+export async function fetchMediaDetailBrowser(path: string): Promise<unknown> {
+  return coalescedGetJson(mediaDetailsBrowserUrl(path), {
+    ttlMs: MEDIA_DETAILS_BROWSER_TTL_MS,
+    init: { headers: xanoAuthHeaderRecord() },
+  })
+}
+
+function invalidateMediaDetailBrowserCache(path: string): void {
+  if (!isBrowser) return
+  invalidateCoalescedGetJson(mediaDetailsBrowserUrl(path))
+}
+
 async function fetchMediaDetail(path: string) {
   // Server: reference tables honor DATA_BACKEND via shared reader (same as proxy).
   // webpackIgnore keeps the server-only module out of client chunks of this
@@ -1175,14 +1199,16 @@ async function fetchMediaDetail(path: string) {
       }
       return result.body
     }
+
+    const url = `${MEDIA_DETAILS_BASE_URL}/${path}`
+    const response = await fetch(url, { headers: xanoAuthHeaderRecord() })
+    if (!response.ok) {
+      throw new Error(`Failed to fetch media details: ${path}`)
+    }
+    return response.json()
   }
 
-  const url = isBrowser ? `/api/media-details/${path}` : `${MEDIA_DETAILS_BASE_URL}/${path}`
-  const response = await fetch(url, { headers: xanoAuthHeaderRecord() })
-  if (!response.ok) {
-    throw new Error(`Failed to fetch media details: ${path}`)
-  }
-  return response.json()
+  return fetchMediaDetailBrowser(path)
 }
 
 export async function getTVStations(): Promise<TVStation[]> {
@@ -1237,6 +1263,7 @@ export async function createTVStation(stationData: { station: string; network: s
   if (!response.ok) {
     throw new Error("Failed to create TV Station");
   }
+  invalidateMediaDetailBrowserCache("tv_stations")
   return response.json();
 }
 
@@ -1249,6 +1276,7 @@ export async function createRadioStation(stationData: { station: string; network
   if (!response.ok) {
     throw new Error("Failed to create TV Station");
   }
+  invalidateMediaDetailBrowserCache("radio_stations")
   return response.json();
 }
 
@@ -1261,6 +1289,7 @@ export async function createNewspaper(newspaperData: { title: string; network: s
   if (!response.ok) {
     throw new Error("Failed to create Newspaper");
   }
+  invalidateMediaDetailBrowserCache("newspapers")
   return response.json();
 }
 
@@ -1273,6 +1302,7 @@ export async function createNewspaperAdSize(adSizeData: { adsize: string }): Pro
   if (!response.ok) {
     throw new Error("Failed to create Newspaper Ad Size");
   }
+  invalidateMediaDetailBrowserCache("newspaper_adsizes")
   return response.json();
 }
 
@@ -1285,6 +1315,7 @@ export async function createMagazine(magazineData: { title: string; network: str
   if (!response.ok) {
     throw new Error("Failed to create Magazine");
   }
+  invalidateMediaDetailBrowserCache("magazines")
   const created = await response.json()
   return normalizeMagazineRecord(created)
 }
@@ -1298,6 +1329,7 @@ export async function createMagazineAdSize(adSizeData: { adsize: string }): Prom
   if (!response.ok) {
     throw new Error("Failed to create Magazine Ad Size");
   }
+  invalidateMediaDetailBrowserCache("magazines_adsizes")
   return response.json();
 }
 
@@ -1310,6 +1342,7 @@ export async function createAudioSite(siteData: { platform: string; site: string
   if (!response.ok) {
     throw new Error("Failed to create Audio Site");
   }
+  invalidateMediaDetailBrowserCache("audio_site")
   return response.json();
 }
 
@@ -1322,6 +1355,7 @@ export async function createVideoSite(siteData: { platform: string; site: string
   if (!response.ok) {
     throw new Error("Failed to create Video Site");
   }
+  invalidateMediaDetailBrowserCache("video_site")
   return response.json();
 }
 
@@ -1334,6 +1368,7 @@ export async function createDisplaySite(siteData: { platform: string; site: stri
   if (!response.ok) {
     throw new Error("Failed to create Display Site");
   }
+  invalidateMediaDetailBrowserCache("display_site")
   return response.json();
 }
 
@@ -1346,6 +1381,7 @@ export async function createBVODSite(siteData: { platform: string; site: string 
   if (!response.ok) {
     throw new Error("Failed to create BVOD Site");
   }
+  invalidateMediaDetailBrowserCache("bvod_site")
   return response.json();
 }
 
