@@ -13,8 +13,9 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/components/ui/use-toast"
 import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
-import { cn } from "@/lib/utils"
+import { formatDateRange, formatDateShort } from "@/lib/format/date"
 import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
+import { cn } from "@/lib/utils"
 
 export interface CampaignCardCompactProps {
   id: string
@@ -22,6 +23,9 @@ export interface CampaignCardCompactProps {
   mbaNumber: string
   status: "live" | "planned" | "completed" | "paused"
   mediaTypes: string[]
+  /** Inclusive campaign flight dates — identity, more prominent than delivery. */
+  startDate?: string | null
+  endDate?: string | null
   /**
    * Expected spend to date (monthly plan, prorated) — same basis as campaign-page
    * "Expected Spend". Not Snowflake delivered. Null when not yet computable.
@@ -81,12 +85,33 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
+function formatCampaignDateRange(
+  startDate?: string | null,
+  endDate?: string | null,
+): string | null {
+  if (startDate && endDate) {
+    const range = formatDateRange(startDate, endDate)
+    return range === "—" ? null : range
+  }
+  if (startDate) {
+    const start = formatDateShort(startDate)
+    return start === "—" ? null : start
+  }
+  if (endDate) {
+    const end = formatDateShort(endDate)
+    return end === "—" ? null : `Until ${end}`
+  }
+  return null
+}
+
 export function CampaignCardCompact({
   id,
   name,
   mbaNumber,
   status,
   mediaTypes,
+  startDate,
+  endDate,
   spentAmount,
   totalBudget,
   href: viewHref,
@@ -106,6 +131,7 @@ export function CampaignCardCompact({
   const hiddenTagCount = Math.max(0, mediaTypes.length - visibleTags.length)
   const showEdit = Boolean(canEdit && editHref)
   const showPencil = showEdit && showInlineEditButton
+  const dateRangeLabel = formatCampaignDateRange(startDate, endDate)
 
   const copyMbaNumber = async () => {
     try {
@@ -240,8 +266,14 @@ export function CampaignCardCompact({
           </DropdownMenu>
         </div>
 
-        <div className="pr-[10.5rem] sm:pr-[13rem]">
-          <p className="line-clamp-1 text-sm font-medium text-foreground">{name}</p>
+        {/* Identity first: name → dates → MBA; delivery stays secondary below. */}
+        <div className="min-w-0 pr-[10.5rem] sm:pr-[13rem]">
+          <h3 className="line-clamp-2 text-base font-semibold leading-snug tracking-tight text-foreground">
+            {name}
+          </h3>
+          {dateRangeLabel ? (
+            <p className="mt-1.5 text-sm font-medium tabular-nums text-foreground">{dateRangeLabel}</p>
+          ) : null}
           <p className="mt-1 text-xs text-muted-foreground">{mbaNumber}</p>
         </div>
 
@@ -256,34 +288,36 @@ export function CampaignCardCompact({
           ) : null}
         </div>
 
-        <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-          <motion.div
-            initial={{ width: 0 }}
-            animate={{ width: `${progressPct}%` }}
-            transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.75, ease: "easeOut" }}
-            className={cn("h-full rounded-full", getProgressTone(progressPct))}
-          />
-        </div>
+        <div className="space-y-1 border-t border-border/60 pt-2.5">
+          <div className="h-1 overflow-hidden rounded-full bg-muted">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${progressPct}%` }}
+              transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.75, ease: "easeOut" }}
+              className={cn("h-full rounded-full", getProgressTone(progressPct))}
+            />
+          </div>
 
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">
-            {spentAmount === null ? (
-              <>
-                <span className="text-muted-foreground">Expected pending</span>
-                {" / "}
-                {formatMoneyCompact(totalBudget)} budget
-              </>
-            ) : (
-              <>
-                Expected {formatMoneyCompact(spentAmount)} / {formatMoneyCompact(totalBudget)} budget
-              </>
-            )}
-          </p>
-          <p className="shrink-0 text-xs font-medium text-foreground">
-            {formatPercent(Math.round(progressPct), { decimals: 0 })}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="min-w-0 truncate text-[11px] leading-tight text-muted-foreground">
+              {spentAmount === null ? (
+                <>
+                  <span>Expected pending</span>
+                  {" / "}
+                  {formatMoneyCompact(totalBudget)} budget
+                </>
+              ) : (
+                <>
+                  Expected {formatMoneyCompact(spentAmount)} / {formatMoneyCompact(totalBudget)}
+                </>
+              )}
+            </p>
+            <p className="num shrink-0 text-[11px] font-medium text-muted-foreground">
+              {formatPercent(Math.round(progressPct), { decimals: 0 })}
+            </p>
+          </div>
+          <p className="text-[10px] leading-tight text-muted-foreground/80">Monthly plan · prorated</p>
         </div>
-        <p className="mt-1 text-[11px] text-muted-foreground">Monthly plan · prorated to date</p>
       </motion.article>
     </div>
   )

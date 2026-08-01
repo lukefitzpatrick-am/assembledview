@@ -66,6 +66,9 @@ type DashboardCampaign = {
   /** Expected spend to date (plan) — same basis as campaign-page Expected Spend. */
   spentAmount: number | null
   totalBudget: number
+  startDate?: string
+  endDate?: string
+  /** Alias of startDate — used by UpcomingCampaignsSection sort/display. */
   launchDate?: string
   href: string
   editHref?: string
@@ -106,6 +109,8 @@ function toDashboardCampaign(
     mediaTypes: campaign.mediaTypes,
     spentAmount: spentApprox,
     totalBudget: campaign.budget,
+    startDate: campaign.startDate,
+    endDate: campaign.endDate,
     launchDate: campaign.startDate,
     href: buildCampaignViewHref(slug, campaign.mbaNumber),
     editHref: canEdit ? buildCampaignEditHref(campaign.mbaNumber, campaign.version_number) : undefined,
@@ -401,6 +406,8 @@ export function ClientDashboardPageContent({
                   mbaNumber={campaign.mbaNumber}
                   status={campaign.status}
                   mediaTypes={campaign.mediaTypes}
+                  startDate={campaign.startDate}
+                  endDate={campaign.endDate}
                   spentAmount={campaign.spentAmount}
                   totalBudget={campaign.totalBudget}
                   href={campaign.href}

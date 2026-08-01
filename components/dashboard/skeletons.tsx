@@ -28,18 +28,23 @@ export function HeroBannerSkeleton() {
 export function CampaignCardSkeleton() {
   return (
     <div className="rounded-xl border border-border bg-card p-4">
-      <div className="space-y-2">
-        <Skeleton className="h-4 w-2/3" />
-        <Skeleton className="h-3 w-1/3" />
+      <div className="space-y-1.5 pr-28">
+        <Skeleton className="h-5 w-11/12" />
+        <Skeleton className="h-5 w-2/3" />
+        <Skeleton className="h-4 w-1/2" />
+        <Skeleton className="h-3 w-1/4" />
       </div>
       <div className="mt-3 flex gap-1.5">
         <Skeleton className="h-5 w-16 rounded" />
         <Skeleton className="h-5 w-14 rounded" />
+        <Skeleton className="h-5 w-12 rounded" />
       </div>
-      <Skeleton className="mt-4 h-1.5 w-full rounded-full" />
-      <div className="mt-2 flex justify-between">
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="h-3 w-8" />
+      <div className="mt-3 space-y-1 border-t border-border/60 pt-2.5">
+        <Skeleton className="h-1 w-full rounded-full" />
+        <div className="flex justify-between">
+          <Skeleton className="h-2.5 w-28" />
+          <Skeleton className="h-2.5 w-8" />
+        </div>
       </div>
     </div>
   )
