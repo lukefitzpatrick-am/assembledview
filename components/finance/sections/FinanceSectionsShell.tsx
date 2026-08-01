@@ -24,10 +24,13 @@ export function FinanceSectionsShell({
   title,
   children,
   scopeBar,
+  /** When false, render `scopeBar` as-is (toolbar owns its own card — FIN-2). Default wraps in a panel. */
+  scopeBarFramed = true,
 }: {
   title: string
   children: React.ReactNode
   scopeBar?: React.ReactNode
+  scopeBarFramed?: boolean
 }) {
   const pathname = usePathname() ?? ""
   const pills = financeSectionPillsForPath(pathname)
@@ -60,9 +63,13 @@ export function FinanceSectionsShell({
           </nav>
         ) : null}
         {scopeBar ? (
-          <div className="rounded-card border border-border bg-surface-panel px-3 py-2">
-            {scopeBar}
-          </div>
+          scopeBarFramed ? (
+            <div className="rounded-card border border-border bg-surface-panel px-3 py-2">
+              {scopeBar}
+            </div>
+          ) : (
+            scopeBar
+          )
         ) : (
           <div className="rounded-card border border-dashed border-border bg-surface-panel px-3 py-2 text-xs text-muted-foreground">
             Shared scope bar (FY / months / clients) — slot reserved for later FN work.

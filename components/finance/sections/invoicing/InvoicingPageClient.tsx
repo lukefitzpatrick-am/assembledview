@@ -8,9 +8,8 @@
 import { useCallback, useMemo, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { InvoicingClientCard } from "@/components/finance/sections/invoicing/InvoicingClientCard"
-import { InvoicingLocalFiltersBar } from "@/components/finance/sections/invoicing/InvoicingLocalFilters"
+import { InvoicingToolbar } from "@/components/finance/sections/invoicing/InvoicingToolbar"
 import { ReceivablesSummaryStrip } from "@/components/finance/receivables/ReceivablesSummaryStrip"
-import { SectionScopeBar } from "@/components/finance/sections/SectionScopeBar"
 import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSectionsShell"
 import { EmptyState } from "@/components/finance/sections/EmptyState"
 import { ErrorState } from "@/components/finance/sections/ErrorState"
@@ -299,21 +298,19 @@ export function InvoicingPageClient() {
   return (
     <FinanceSectionsShell
       title="Clients billing"
+      scopeBarFramed={false}
       scopeBar={
-        <SectionScopeBar
+        <InvoicingToolbar
           showingLabel={`Receivables · ${applied.monthRange.from} → ${applied.monthRange.to}`}
-        />
-      }
-    >
-      <div className="space-y-4">
-        <InvoicingLocalFiltersBar
-          value={localFilters}
-          onChange={setLocalFilters}
+          localFilters={localFilters}
+          onLocalFiltersChange={setLocalFilters}
           onExportCsv={exportCsv}
           onExportExcel={() => void exportExcel()}
           exportDisabled={allRecords.length === 0 || isUpdating}
         />
-
+      }
+    >
+      <div className="space-y-4">
         {isUpdating ? (
           <div
             className="flex items-center gap-2 rounded-input border border-border bg-surface-panel px-3 py-1.5"
