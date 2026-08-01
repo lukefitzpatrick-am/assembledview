@@ -15,6 +15,31 @@ import { compareBillingDivergence } from "../compareBillingDivergence"
 import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
 import type { LineItemInput } from "@/lib/finance/campaignFinancials.types"
 
+function emptyMediaCosts(search = "$0.00"): BillingMonth["mediaCosts"] {
+  return {
+    search,
+    socialMedia: "$0.00",
+    television: "$0.00",
+    radio: "$0.00",
+    newspaper: "$0.00",
+    magazines: "$0.00",
+    ooh: "$0.00",
+    cinema: "$0.00",
+    digiDisplay: "$0.00",
+    digiAudio: "$0.00",
+    digiVideo: "$0.00",
+    bvod: "$0.00",
+    integration: "$0.00",
+    progDisplay: "$0.00",
+    progVideo: "$0.00",
+    progBvod: "$0.00",
+    progAudio: "$0.00",
+    progOoh: "$0.00",
+    influencers: "$0.00",
+    production: "$0.00",
+  }
+}
+
 function month(
   monthYear: string,
   lines: Array<{
@@ -24,6 +49,7 @@ function month(
     billingMode?: "auto" | "manual"
   }>
 ): BillingMonth {
+  const searchTotal = `$${lines.reduce((s, l) => s + l.media, 0).toFixed(2)}`
   return {
     monthYear,
     mediaTotal: `$${lines.reduce((s, l) => s + l.media, 0).toFixed(2)}`,
@@ -33,7 +59,7 @@ function month(
       .toFixed(2)}`,
     adservingTechFees: "$0.00",
     production: "$0.00",
-    mediaCosts: { search: `$${lines.reduce((s, l) => s + l.media, 0).toFixed(2)}` },
+    mediaCosts: emptyMediaCosts(searchTotal),
     lineItems: {
       search: lines.map((l) => ({
         id: l.id,

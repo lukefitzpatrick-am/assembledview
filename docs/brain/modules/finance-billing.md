@@ -10,7 +10,7 @@ Admin-only finance hub (`/finance`, 7 tabs: overview, billing, payables, accrual
 - Fee % resolution: `resolveFeePctFromFeeLoading` → `FEE_FIELD_BY_MEDIA` (client `fee*` columns per channel). production→0; influencers→`feecontentcreator` fallback; integration→no fallback. `normaliseScheduleMediaType` returns **null** for unknown types (C-9 FIXED) — fee resolution warns `[builder-issue]` and uses 0%; schedule placement may still fall back to search as a last resort.
 - Ad serving + production are first-class in the PC2 full-scope gate (`approved_slice` + `SAVE_GATE_FULL_SCOPE`). Adserving is a `schedule_component` enum value; production remains media on production lines.
 - One fee engine: `generateBillingLineItems` and `computeDerivedCampaignFeeAmount` consume `computeBurstAmounts` (C-7/C-8 FIXED). Agency fee month drift tolerance = $0.01.
-- Publish freezes `media_plan_versions.approved_slice` once. **`mba_fee_snapshots` persist only on `mode=publish`** (not draft / not bare `new_version`); request bodies may still carry `feeSnapshot`. Upsert by default; `FEE_SNAPSHOT_WRITE_ONCE=on` → insert-once + admin `POST /api/admin/fee-snapshots/resnapshot` overwrite.
+- Publish freezes `media_plan_versions.approved_slice` once. **`mba_fee_snapshots` persist only on `mode=publish`** (not `draft` / not bare `new_version`) — **independent of `campaign_status`** (live: krusty012 v3 = status `draft` + snapshot). Request bodies may still carry `feeSnapshot`. Upsert by default; `FEE_SNAPSHOT_WRITE_ONCE=on` → insert-once + admin `POST /api/admin/fee-snapshots/resnapshot` overwrite.
 
 ## Key files
 

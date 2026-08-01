@@ -10,6 +10,7 @@ import {
   savingDialogTitleKind,
   shouldSkipDocsForCampaignStatus,
   skippedDocStepItems,
+  type SaveDocStepItem,
 } from "../saveDocSteps"
 
 describe("shouldSkipDocsForCampaignStatus", () => {
@@ -52,7 +53,7 @@ describe("isExpectedDocGateSkipError", () => {
 
 describe("saving dialog state with skipped doc steps", () => {
   it("draft save → doc steps skipped → success/complete, not errors", () => {
-    const items = [
+    const items: SaveDocStepItem[] = [
       { name: "Media Plan Version", status: "success" },
       ...skippedDocStepItems(),
       { name: "Search", status: "success" },

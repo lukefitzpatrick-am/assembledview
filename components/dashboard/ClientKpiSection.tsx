@@ -883,7 +883,7 @@ export function ClientKpiSection({ clientName, urlSlug }: ClientKpiSectionProps)
                             inputMode="decimal"
                             key={`saved-cpv-${row.id}-${row.cpv}`}
                             className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
-                            defaultValue={`$${row.cpv.toFixed(4)}`}
+                            defaultValue={`$${(row.cpv ?? 0).toFixed(4)}`}
                             disabled={anySaving}
                             onBlur={(e) =>
                               updateSaved(row.id, {
@@ -898,11 +898,11 @@ export function ClientKpiSection({ clientName, urlSlug }: ClientKpiSectionProps)
                             step="0.000001"
                             min={0}
                             className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
-                            value={row[field]}
+                            value={row[field] ?? ""}
                             disabled={anySaving}
                             onChange={(e) =>
                               updateSaved(row.id, {
-                                [field]: parseMetric(e.target.value, row[field]),
+                                [field]: parseMetric(e.target.value, row[field] ?? 0),
                               } as Partial<ClientKpi>)
                             }
                           />
@@ -1035,7 +1035,7 @@ export function ClientKpiSection({ clientName, urlSlug }: ClientKpiSectionProps)
                           inputMode="decimal"
                           key={`pend-cpv-${row.tempId}-${row.cpv}`}
                           className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
-                          defaultValue={`$${row.cpv.toFixed(4)}`}
+                          defaultValue={`$${(row.cpv ?? 0).toFixed(4)}`}
                           disabled={anySaving}
                           onBlur={(e) =>
                             updatePending(row.tempId, {
@@ -1050,11 +1050,11 @@ export function ClientKpiSection({ clientName, urlSlug }: ClientKpiSectionProps)
                           step="0.000001"
                           min={0}
                           className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
-                          value={row[field]}
+                          value={row[field] ?? ""}
                           disabled={anySaving}
                           onChange={(e) =>
                             updatePending(row.tempId, {
-                              [field]: parseMetric(e.target.value, row[field]),
+                              [field]: parseMetric(e.target.value, row[field] ?? 0),
                             } as Partial<ClientKpiInput>)
                           }
                         />

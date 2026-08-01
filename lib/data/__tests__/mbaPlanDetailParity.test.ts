@@ -114,7 +114,7 @@ function assembleXanoPath(opts?: {
   const nextVersionNumber = published + 1
   void tip // tip ignored on Xano path — intentional gap when tip > published
 
-  const versionData = {
+  const versionData: Record<string, unknown> = {
     ...FIXTURE_VERSION_XANO,
     mp_client_name:
       FIXTURE_VERSION_XANO.mp_client_name || master.mp_client_name || "",

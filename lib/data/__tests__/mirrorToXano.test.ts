@@ -247,6 +247,7 @@ describe("mirrorPlanToXano", () => {
       mode: "draft" as const,
       campaignName: "Krusty Draft",
       campaignStatus: "draft",
+      feeLoading: {},
       lineItems: baseInput().lineItems,
     } satisfies SavePlanVersionInput
 
