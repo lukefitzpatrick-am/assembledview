@@ -42,9 +42,9 @@ Gate: ALL A1–A6 + B1–B3 green + `db:recon` exit 0 + X1 green → Luke flips 
 | C1 | `npm run xano:export` | ⬜ |
 | C2 | `npm run db:etl` | ⬜ |
 | C3 | `npm run db:recon` | exit: ___ |
-| X1a | `mba_line_approvals` row count export vs PG | ⬜ |
-| X1b | `npm run test:approvals` — round-trip **not** skipped | ⬜ |
-| X1c | Shadow diff: one MBA with exclusions + one without | ⬜ |
+| X1a | `mba_line_approvals` row count export vs PG | ✅ 1=1 (krusty015 v5 exclusion) |
+| X1b | `npm run test:approvals` — round-trip **not** skipped | ✅ (see X1 commit) |
+| X1c | Shadow diff: one MBA with exclusions + one without | ✅ krusty015 v5 + 001001 v7 → 0/0 |
 
 ## Gate
 

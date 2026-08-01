@@ -72,7 +72,7 @@ const ONE_TO_ONE: Array<{ xano: string; supabase: string; table: keyof typeof sc
   { xano: "xero_ap_bills", supabase: "xero_ap_bills", table: "xeroApBills" },
   { xano: "xero_sync_exceptions", supabase: "xero_sync_exceptions", table: "xeroSyncExceptions" },
   { xano: "xero_sync_log", supabase: "xero_sync_log", table: "xeroSyncLog" },
-  { xano: "mba_line_approvals", supabase: "mba_line_approvals", table: "mbaLineApprovals" },
+  // mba_line_approvals: postgres-authoritative (excluded from ETL + hard 1:1 gate)
 ]
 
 async function countTable(db: ReturnType<typeof getDb>, tableName: string): Promise<number> {
@@ -116,6 +116,21 @@ async function main(): Promise<void> {
       delta: sb - xano,
       ok,
       note: ok ? "" : "COUNT_MISMATCH",
+    })
+  }
+
+  // Approvals: postgres-authoritative — report counts, never fail recon on mismatch.
+  {
+    const xano = xanoCounts.get("mba_line_approvals") ?? -1
+    const sb = await countTable(db, "mba_line_approvals")
+    countRows.push({
+      scope: "table",
+      key: "mba_line_approvals",
+      xano_count: xano,
+      supabase_count: sb,
+      delta: sb - xano,
+      ok: true,
+      note: "POSTGRES_AUTHORITATIVE — excluded from ETL truncate-reload; mismatch not a fail",
     })
   }
 

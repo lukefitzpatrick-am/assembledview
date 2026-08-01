@@ -48,6 +48,13 @@ const DROPPED_XANO_TABLES = new Set([
   "media_plan_versions",
 ])
 
+/**
+ * Postgres-authoritative tables: never truncate-reload from Xano.
+ * Writes follow WRITE_BACKEND=postgres with no Xano mirror; a reload would
+ * destroy live exclusions (PC0 / X1 design gap).
+ */
+const POSTGRES_AUTHORITATIVE_TABLES = new Set(["mba_line_approvals"])
+
 /** Xano JSONL key → SQL column renames (per table). */
 const RENAMES: Record<string, Record<string, string>> = {
   finance_saved_views: { user: "user_id" },
@@ -790,9 +797,18 @@ async function main(): Promise<void> {
       ["xero_sync_log", schema.xeroSyncLog],
       ["mba_line_approvals", schema.mbaLineApprovals],
     ]
-    if (!DRY) await truncateTables(tx, tables.map(([n]) => n))
+    const reloadable = tables.filter(
+      ([name]) => !POSTGRES_AUTHORITATIVE_TABLES.has(name)
+    )
+    if (!DRY) await truncateTables(tx, reloadable.map(([n]) => n))
     for (const [name, table] of tables) {
       if (DROPPED_XANO_TABLES.has(name)) continue
+      if (POSTGRES_AUTHORITATIVE_TABLES.has(name)) {
+        console.log(
+          `  ${name}: SKIPPED (postgres-authoritative — not truncate-reloaded)`
+        )
+        continue
+      }
       const rows = readJsonl(path.join(snapshotDir, `${name}.jsonl`))
         .map((r) => mapPortedRow(table, r, name))
         .filter((r): r is Record<string, unknown> => r != null)
@@ -824,7 +840,7 @@ async function main(): Promise<void> {
       "tasks",
       "creative_asset",
       "scope_of_work",
-      "mba_line_approvals",
+      // mba_line_approvals: postgres-authoritative — sequence left untouched
     ]
     for (const t of seqTables) {
       await sql.unsafe(`

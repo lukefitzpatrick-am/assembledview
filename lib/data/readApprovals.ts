@@ -110,15 +110,30 @@ export async function fetchMbaLineApprovalsFromXano(
   return { status: upstream.status, lines: asApprovalList(body) }
 }
 
+/** Xano X5.1 table has no created_at; PG defaultNow() must not flood shadow diffs. */
+function stripApprovalsShadowNoise(
+  rows: MbaLineApprovalApiRow[]
+): Array<Record<string, unknown>> {
+  return rows.map((row) => {
+    const { created_at: _createdAt, ...rest } = row
+    return rest as Record<string, unknown>
+  })
+}
+
 function runApprovalsShadowCompare(
   xanoLines: MbaLineApprovalApiRow[],
   postgresLines: MbaLineApprovalApiRow[]
 ): void {
   try {
-    const event = compareReferenceRows("mba_line_approvals", xanoLines, postgresLines, {
-      domain: DOMAIN,
-      postgresKeysOnly: true,
-    })
+    const event = compareReferenceRows(
+      "mba_line_approvals",
+      stripApprovalsShadowNoise(xanoLines),
+      stripApprovalsShadowNoise(postgresLines),
+      {
+        domain: DOMAIN,
+        postgresKeysOnly: true,
+      }
+    )
     recordShadowDiff(event)
   } catch (err) {
     console.error("[migration-shadow-diff] compare failed", {

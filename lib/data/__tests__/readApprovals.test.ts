@@ -103,6 +103,41 @@ describe("mba_line_approvals shadow compare golden", () => {
     assert.deepEqual(event.fieldDiffs, [])
   })
 
+  it("PG-only created_at stripped → zero field diffs vs Xano shape", () => {
+    // Live Xano table (id 77) has no created_at; PG 0007 defaultNow() does.
+    const base = {
+      id: 2,
+      mba_number: "krusty015",
+      media_plan_version: 5,
+      line_item_id: "billing-socialMedia::krusty015SM1",
+      media_type: "socialMedia",
+      approved: false,
+      approved_in_version: null,
+    }
+    const xano = [base]
+    const withCreated = [
+      { ...base, created_at: "2026-08-01T00:33:30.466Z" },
+    ]
+    const strip = (rows: Array<Record<string, unknown>>) =>
+      rows.map(({ created_at: _c, ...rest }) => rest)
+    const noisy = compareReferenceRows(
+      "mba_line_approvals",
+      xano,
+      withCreated,
+      { domain: "approvals", postgresKeysOnly: true }
+    )
+    assert.ok(noisy.fieldDiffs.length >= 1, "unstripped created_at must differ")
+    const event = compareReferenceRows(
+      "mba_line_approvals",
+      strip(xano),
+      strip(withCreated),
+      { domain: "approvals", postgresKeysOnly: true }
+    )
+    assert.deepEqual(event.fieldDiffs, [])
+    assert.deepEqual(event.missingInPostgres, [])
+    assert.deepEqual(event.missingInXano, [])
+  })
+
   it("maps drizzle camelCase → API snake_case", () => {
     const mapped = mapApprovalRowFromPostgres({
       id: 9,
