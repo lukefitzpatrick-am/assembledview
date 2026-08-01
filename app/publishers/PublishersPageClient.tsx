@@ -21,14 +21,11 @@ import { Skeleton } from "@/components/ui/skeleton"
 import type { Publisher } from "@/lib/types/publisher"
 import { publisherHubPath } from "@/lib/publisher/publisherHubPath"
 import { MEDIA_TYPE_SLUG_TO_DASHBOARD_LABEL } from "@/lib/publisher/scheduleLabels"
+import { publisherColourOrFallback } from "@/lib/publisher/publisherColour"
 import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
+import { matchTextAny, normalizeSearchText } from "@/lib/search/matchText"
 
-const normalizePublisherFilterKey = (value: string) =>
-  value
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ")
+const normalizePublisherFilterKey = (value: string) => normalizeSearchText(value)
 
 const MEDIA_TYPES = [
   "television",
@@ -52,23 +49,13 @@ const MEDIA_TYPES = [
   "influencers",
 ] as const
 
-const PRIMARY_FALLBACK = "hsl(var(--primary))"
-
 type PublisherSortKey = "name" | "id" | "type" | "media"
 
-function isSixDigitHex(s: string): boolean {
-  return /^#[0-9A-Fa-f]{6}$/.test(s)
-}
-
-function cardAccentColour(publisher: Publisher): string {
-  const c = publisher.publisher_colour?.trim()
-  return c && c.length > 0 ? c : PRIMARY_FALLBACK
-}
-
-function topStripeStyle(colour: string): CSSProperties {
-  if (isSixDigitHex(colour)) {
+function topStripeStyle(rawColour: string | null | undefined): CSSProperties {
+  const hex = publisherColourOrFallback(rawColour)
+  if (hex) {
     return {
-      background: `linear-gradient(to right, ${colour}, ${colour}B3, ${colour}66)`,
+      background: `linear-gradient(to right, ${hex}, ${hex}B3, ${hex}66)`,
     }
   }
   return {
@@ -114,9 +101,7 @@ function listMediaTypeBadges(publisher: Publisher) {
 
 function PublisherGridCard({ publisher }: { publisher: Publisher }) {
   const [hover, setHover] = useState(false)
-  const colour = cardAccentColour(publisher)
-  const rawStoredColour = publisher.publisher_colour?.trim() ?? ""
-  const hexAccent = rawStoredColour && isSixDigitHex(rawStoredColour) ? rawStoredColour : null
+  const hexAccent = publisherColourOrFallback(publisher.publisher_colour)
 
   const allLabels = publisherMediaTypeLabels(publisher)
   const visibleLabels = allLabels.slice(0, 6)
@@ -135,7 +120,7 @@ function PublisherGridCard({ publisher }: { publisher: Publisher }) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <div className="h-[3px] shrink-0" style={topStripeStyle(colour)} />
+      <div className="h-[3px] shrink-0" style={topStripeStyle(publisher.publisher_colour)} />
 
       <div className="flex min-h-0 flex-1 flex-col p-4">
         <div className="flex min-w-0 gap-3">
@@ -242,13 +227,11 @@ export function PublishersPageClient() {
   }, [publishers, publisherFilter])
 
   const searchFilteredPublishers = useMemo(() => {
-    const q = directorySearch.trim().toLowerCase()
+    const q = directorySearch.trim()
     if (!q) return filteredPublishers
-    return filteredPublishers.filter((p) => {
-      const name = (p.publisher_name || "").toLowerCase()
-      const id = String(p.publisherid ?? "").toLowerCase()
-      return name.includes(q) || id.includes(q)
-    })
+    return filteredPublishers.filter((p) =>
+      matchTextAny([p.publisher_name, p.publisherid], q)
+    )
   }, [filteredPublishers, directorySearch])
 
   const sortedPublishers = useMemo(() => {
@@ -584,7 +567,7 @@ export function PublishersPageClient() {
                 ) : (
                   sortedPublishers.map((publisher) => {
                     const hubHref = publisherHubPath(publisher)
-                    const dotColour = publisher.publisher_colour?.trim()
+                    const accentHex = publisherColourOrFallback(publisher.publisher_colour)
                     return (
                       <TableRow
                         key={publisher.id}
@@ -596,9 +579,9 @@ export function PublishersPageClient() {
                             <div
                               className={cn(
                                 "h-2.5 w-2.5 shrink-0 rounded-full",
-                                !dotColour && "bg-muted-foreground/20"
+                                !accentHex && "bg-muted-foreground/20"
                               )}
-                              style={dotColour ? { backgroundColor: dotColour } : undefined}
+                              style={accentHex ? { backgroundColor: accentHex } : undefined}
                               aria-hidden
                             />
                           </div>
@@ -607,7 +590,7 @@ export function PublishersPageClient() {
                           <div className="flex items-center gap-3">
                             <div
                               className="w-1 shrink-0 self-stretch rounded-full"
-                              style={{ backgroundColor: publisher.publisher_colour || "transparent" }}
+                              style={{ backgroundColor: accentHex || "transparent" }}
                               aria-hidden
                             />
                             <div className="min-w-0">

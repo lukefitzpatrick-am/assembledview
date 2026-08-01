@@ -1,4 +1,5 @@
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
+import { matchText } from "@/lib/search/matchText"
 
 /**
  * Shared post-derive filters for finance hub list APIs (`GET /api/finance/billing`,
@@ -17,9 +18,9 @@ export function filterByClients(rows: BillingRecord[], clientsIdCsv: string | nu
   return rows.filter((r) => want.has(String(r.clients_id)))
 }
 
-/** Case-insensitive substring match across client, campaign, status, and line item text. */
+/** Tolerant match across client, campaign, status, and line item text (`matchText`). */
 export function filterBySearch(rows: BillingRecord[], search: string | null): BillingRecord[] {
-  const q = (search || "").trim().toLowerCase()
+  const q = String(search ?? "").trim()
   if (!q) return rows
   return rows.filter((r) => {
     const hay = [
@@ -28,11 +29,13 @@ export function filterBySearch(rows: BillingRecord[], search: string | null): Bi
       r.campaign_name,
       r.billing_month,
       r.status,
-      ...r.line_items.map((li) => [li.publisher_name, li.media_type, li.description].join(" ")),
+      ...r.line_items.map((li) =>
+        [li.publisher_name, li.media_type, li.description].map((x) => String(x ?? "")).join(" ")
+      ),
     ]
+      .map((x) => String(x ?? ""))
       .join(" ")
-      .toLowerCase()
-    return hay.includes(q)
+    return matchText(hay, q)
   })
 }
 

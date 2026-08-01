@@ -23,11 +23,13 @@ import { LearningCard } from "@/components/learning/LearningCard";
 import { FormulaCalculator } from "@/components/learning/FormulaCalculator";
 import termsData from "@/src/data/learning/terms.json";
 import { getRelatedTerms } from "@/src/lib/learning/related";
-import { buildFuseIndex, sortResults } from "@/src/lib/learning/search";
+import { buildFuseIndex, searchTerms, sortResults } from "@/src/lib/learning/search";
 import { getRecentTerms, getStoredQueries, pushRecentTerm, pushStoredQuery } from "@/src/lib/learning/storage";
 import { LearningTerm, Section, SortMode } from "@/src/lib/learning/types";
+import { sectionForTermType } from "@/src/lib/learning/termLinks";
 import { BadgeCheck, BookOpen, ChevronDown, Copy, Filter, Search, Timer, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 type PageProps = {
   params: Promise<{ section?: string }>;
@@ -71,10 +73,19 @@ export default function LearningSectionPage({ params }: PageProps) {
 
   useEffect(() => {
     const id = searchParams?.get("id");
-    if (id && terms.find((t) => t.id === id)) {
-      setActiveTermId(id);
+    if (!id) return;
+    const term = terms.find((t) => t.id === id);
+    if (!term) return;
+    const correct = sectionForTermType(term.type);
+    if (correct !== section) {
+      const q = searchParams?.get("q");
+      const qs = new URLSearchParams({ id });
+      if (q) qs.set("q", q);
+      router.replace(`/knowledge/${correct}?${qs.toString()}`, { scroll: false });
+      return;
     }
-  }, [searchParams]);
+    setActiveTermId(id);
+  }, [searchParams, section, router]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -94,11 +105,7 @@ export default function LearningSectionPage({ params }: PageProps) {
   }, [recentlyViewed]);
 
   const searchResults = useMemo(() => {
-    const trimmed = query.trim();
-    if (!trimmed) {
-      return terms.map((item) => ({ item }));
-    }
-    return fuse.search(trimmed).map((match) => ({ item: match.item, score: match.score }));
+    return searchTerms(fuse, terms, query);
   }, [fuse, query]);
 
   const filteredResults = useMemo(() => {
@@ -115,6 +122,20 @@ export default function LearningSectionPage({ params }: PageProps) {
     });
     return sortResults(filtered, sortMode, recentOrder);
   }, [searchResults, section, selectedGroups, selectedLevels, activeLetter, sortMode, recentOrder]);
+
+  /** Exact / strong hits that live in another Knowledge tab for this query. */
+  const crossSectionHits = useMemo(() => {
+    if (!query.trim() || filteredResults.length > 0) return [];
+    return searchResults
+      .filter(({ item }) => {
+        if (section === "definitions" && item.type === "definition") return false;
+        if (section === "acronyms" && item.type === "acronym") return false;
+        if (section === "formulas" && item.type === "formula") return false;
+        return true;
+      })
+      .slice(0, 8)
+      .map((r) => r.item);
+  }, [query, filteredResults.length, searchResults, section]);
 
   const displayedTerms = filteredResults.map((r) => r.item);
   const activeTerm = activeTermId ? terms.find((t) => t.id === activeTermId) : null;
@@ -298,9 +319,31 @@ export default function LearningSectionPage({ params }: PageProps) {
           ))}
         </div>
         {!displayedTerms.length && (
-          <div className="text-center py-16 text-muted-foreground">
-            <p className="text-lg font-semibold">No results</p>
-            <p className="text-sm">Try adjusting your search or filters.</p>
+          <div className="text-center py-16 text-muted-foreground space-y-4">
+            <div>
+              <p className="text-lg font-semibold">No results</p>
+              <p className="text-sm">Try adjusting your search or filters.</p>
+            </div>
+            {crossSectionHits.length > 0 ? (
+              <div className="mx-auto max-w-lg space-y-2">
+                <p className="text-sm text-foreground">Found in other Knowledge Hub sections:</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {crossSectionHits.map((term) => {
+                    const dest = sectionForTermType(term.type)
+                    return (
+                      <Link
+                        key={term.id}
+                        href={`/knowledge/${dest}?q=${encodeURIComponent(query.trim())}&id=${encodeURIComponent(term.id)}`}
+                        className="rounded-pill border border-border bg-card px-3 py-1.5 text-sm text-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      >
+                        {term.term}
+                        <span className="ml-1 text-xs text-muted-foreground">({dest})</span>
+                      </Link>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
       </div>

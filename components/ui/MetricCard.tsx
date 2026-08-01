@@ -5,6 +5,7 @@ import type { ComponentType, SVGProps } from "react"
 
 import { Sparkline } from "@/components/charts/system"
 import { reshapeSparkline } from "@/components/dashboard/dashboardChartReshape"
+import { formatPercent } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { Skeleton } from "@/components/ui/skeleton"
 
@@ -62,7 +63,7 @@ export function MetricCard({
   const padding = sizeStyles[size]
   const valueLabel =
     typeof value === "number"
-      ? `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)}${unit ?? ""}`
+      ? `${new Intl.NumberFormat("en-AU", { maximumFractionDigits: 2 }).format(value)}${unit ?? ""}`
       : `${value}${unit ?? ""}`
 
   if (loading) {
@@ -104,7 +105,7 @@ export function MetricCard({
         {typeof trend === "number" ? (
           <div className={cn("mt-2 inline-flex items-center gap-1 text-xs font-medium", trendTone(trend))}>
             {trendIcon(trend)}
-            {Math.abs(trend).toLocaleString("en-US", { maximumFractionDigits: 1 })}%
+            {formatPercent(Math.abs(trend))}
           </div>
         ) : null}
         {sparklineData && sparklineData.length > 0 ? (

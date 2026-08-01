@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { requireRole } from "@/lib/requireRole"
 import { getCachedPublisherKpis } from "@/lib/api/publisherKpiCache"
 import {
   createPublisherKpi,
@@ -7,14 +8,22 @@ import {
   updatePublisherKpi,
 } from "@/lib/kpi/publisherKpi"
 import {
-  publisherKpiCreateBodySchema,
-  publisherKpiPatchBodySchema,
-} from "@/lib/kpi/types"
-import type { PublisherKpiInput } from "@/lib/kpi/types"
+  handlePublisherKpiDelete,
+  handlePublisherKpiPatch,
+  handlePublisherKpiPost,
+  mapKpiWriteCatch,
+  readKpiJsonRequest,
+} from "@/lib/kpi/kpiWriteHandlers"
 
 export const runtime = "nodejs"
 
 export async function GET(request: NextRequest) {
+  // Staff residual (PS-1): create/edit load publishers via lib/api/kpi.ts.
+  // Gate must match SEC-A writes — not tighter. `manager` was removed from
+  // UserRole (31 Jul 2026); staff = admin until a real manager role returns.
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
     const publisher = request.nextUrl.searchParams.get("publisher")
     if (publisher?.trim()) {
@@ -32,72 +41,58 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
-    const body = await request.json()
-    const parsed = publisherKpiCreateBodySchema.safeParse(body)
-    if (!parsed.success) {
-      const msg =
-        parsed.error.issues.map((i) => i.message).join("; ") || "Validation failed"
-      return NextResponse.json({ error: msg }, { status: 400 })
+    const json = await readKpiJsonRequest(request)
+    if (!("ok" in json)) {
+      return NextResponse.json(json.body, { status: json.status })
     }
-    const input: PublisherKpiInput = { ...parsed.data }
-    const result = await createPublisherKpi(input)
-    if (result === null) {
-      return NextResponse.json(
-        { error: "Failed to create publisher KPI" },
-        { status: 500 },
-      )
-    }
-    return NextResponse.json(result, { status: 201 })
+    const result = await handlePublisherKpiPost(json.data, {
+      create: createPublisherKpi,
+    })
+    return NextResponse.json(result.body, { status: result.status })
   } catch (error) {
     console.error("POST /api/kpis/publisher:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const mapped = mapKpiWriteCatch(error)
+    return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }
 
 export async function PATCH(request: NextRequest) {
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
-    const body = await request.json()
-    const parsed = publisherKpiPatchBodySchema.safeParse(body)
-    if (!parsed.success) {
-      const msg =
-        parsed.error.issues.map((i) => i.message).join("; ") || "Validation failed"
-      return NextResponse.json({ error: msg }, { status: 400 })
+    const json = await readKpiJsonRequest(request)
+    if (!("ok" in json)) {
+      return NextResponse.json(json.body, { status: json.status })
     }
-    const { id, ...rest } = parsed.data
-    const result = await updatePublisherKpi(
-      id,
-      rest as Partial<PublisherKpiInput>,
-    )
-    if (result === null) {
-      return NextResponse.json(
-        { error: "Failed to update publisher KPI" },
-        { status: 500 },
-      )
-    }
-    return NextResponse.json(result)
+    const result = await handlePublisherKpiPatch(json.data, {
+      update: updatePublisherKpi,
+    })
+    return NextResponse.json(result.body, { status: result.status })
   } catch (error) {
     console.error("PATCH /api/kpis/publisher:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const mapped = mapKpiWriteCatch(error)
+    return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }
 
 export async function DELETE(request: NextRequest) {
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
-    const id = request.nextUrl.searchParams.get("id")
-    if (id === null || id.trim() === "") {
-      return NextResponse.json({ error: "id is required" }, { status: 400 })
-    }
-    const ok = await deletePublisherKpi(Number(id))
-    if (!ok) {
-      return NextResponse.json(
-        { error: "Failed to delete publisher KPI" },
-        { status: 500 },
-      )
-    }
-    return NextResponse.json({ success: true })
+    const result = await handlePublisherKpiDelete(
+      request.nextUrl.searchParams.get("id"),
+      { delete: deletePublisherKpi },
+    )
+    return NextResponse.json(result.body, { status: result.status })
   } catch (error) {
     console.error("DELETE /api/kpis/publisher:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const mapped = mapKpiWriteCatch(error)
+    return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }

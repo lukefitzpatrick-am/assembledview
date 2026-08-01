@@ -59,7 +59,8 @@ export interface ExpertGridInputKeyDownArgs {
   colIndex: number
   rowCount: number
   colCount: number
-  event: KeyboardEvent<HTMLInputElement>
+  /** Inputs and button-like cells (Checkbox) share the same nav entry. */
+  event: KeyboardEvent<HTMLElement>
   /** Optional scroll-into-view hook for virtualized grids (see focusExpertGridCell). */
   ensureVisible?: (rowIndex: number) => void
 }
@@ -67,6 +68,7 @@ export interface ExpertGridInputKeyDownArgs {
 /**
  * Spreadsheet-style navigation among grid inputs. Tab is left to the browser.
  * ArrowLeft/Right only move when the caret is at the start/end (skipped for type="date").
+ * Non-text targets (e.g. Checkbox button) only handle Enter / ArrowUp / ArrowDown.
  */
 export function handleExpertGridInputKeyDown(
   args: ExpertGridInputKeyDownArgs
@@ -97,6 +99,8 @@ export function handleExpertGridInputKeyDown(
     focusExpertGridCell(gridId, nextRow, colIndex, ensureVisible)
     return
   }
+
+  if (!(t instanceof HTMLInputElement)) return
 
   const isDate = t.type === "date"
 

@@ -1,5 +1,6 @@
 import axios from "axios"
 import { parseXanoListPayload, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { readCampaignKpis } from "@/lib/data/readKpi"
 import type { CampaignKPI, CampaignKpiInput } from "./types"
 
 const apiClient = axios.create({
@@ -7,31 +8,34 @@ const apiClient = axios.create({
   headers: xanoPostHeaderRecord(),
 })
 
+/** Xano-only GET for syncCampaignKpis pre-read — writes stay Xano until T4. */
+async function fetchCampaignKpisFromXanoForSync(
+  mbaNumber: string,
+  versionNumber: number,
+): Promise<CampaignKPI[]> {
+  const response = await apiClient.get(xanoUrl("campaign_kpi", "XANO_CLIENTS_BASE_URL"), {
+    params: {
+      mba_number: mbaNumber,
+      version_number: versionNumber,
+    },
+  })
+  const data = response.data
+  const list: Record<string, unknown>[] = Array.isArray(data)
+    ? (data as Record<string, unknown>[])
+    : parseXanoListPayload(data)
+  const mba = mbaNumber
+  return list.filter((row) => {
+    const rowMba = String(row.mba_number ?? row.mbaNumber ?? "")
+    const ver = Number(row.version_number ?? row.versionNumber ?? NaN)
+    return rowMba === mba && ver === versionNumber
+  }) as unknown as CampaignKPI[]
+}
+
 export async function fetchCampaignKpis(
   mbaNumber: string,
   versionNumber: number,
 ): Promise<CampaignKPI[]> {
-  try {
-    const response = await apiClient.get(xanoUrl("campaign_kpi", "XANO_CLIENTS_BASE_URL"), {
-      params: {
-        mba_number: mbaNumber,
-        version_number: versionNumber,
-      },
-    })
-    const data = response.data
-    const list: Record<string, unknown>[] = Array.isArray(data)
-      ? (data as Record<string, unknown>[])
-      : parseXanoListPayload(data)
-    const mba = mbaNumber
-    return list.filter((row) => {
-      const rowMba = String(row.mba_number ?? row.mbaNumber ?? "")
-      const ver = Number(row.version_number ?? row.versionNumber ?? NaN)
-      return rowMba === mba && ver === versionNumber
-    }) as unknown as CampaignKPI[]
-  } catch (e) {
-    console.error("fetchCampaignKpis", e)
-    return []
-  }
+  return await readCampaignKpis(mbaNumber, versionNumber)
 }
 
 export async function createCampaignKpis(
@@ -60,8 +64,9 @@ export async function createCampaignKpis(
  * - If a row exists with matching line_item_id, PATCH it.
  * - Otherwise, POST a new row.
  *
- * Sequential per input row. Empty-line_item_id legacy rows in Xano are
- * ignored — they're not matched against input rows and not touched.
+ * After upserts, DELETE any existing rows for those (mba, version) pairs whose
+ * line_item_id is not in the desired set (replace-set, not append). Empty
+ * line_item_id legacy rows are also removed when that pair is rewritten.
  *
  * Returns the resulting rows after sync (PATCHed or newly created).
  */
@@ -71,6 +76,8 @@ export async function syncCampaignKpis(
   if (inputs.length === 0) return []
 
   const existingByKey = new Map<string, CampaignKPI>()
+  const existingRowsByPair = new Map<string, CampaignKPI[]>()
+  const desiredLineIdsByPair = new Map<string, Set<string>>()
   const fetchedPairs = new Set<string>()
 
   const out: CampaignKPI[] = []
@@ -88,8 +95,19 @@ export async function syncCampaignKpis(
     }
 
     const pairKey = `${item.mba_number}|${item.version_number}`
+    let desired = desiredLineIdsByPair.get(pairKey)
+    if (!desired) {
+      desired = new Set<string>()
+      desiredLineIdsByPair.set(pairKey, desired)
+    }
+    desired.add(lineItemId.toLowerCase())
+
     if (!fetchedPairs.has(pairKey)) {
-      const existing = await fetchCampaignKpis(item.mba_number, item.version_number)
+      const existing = await fetchCampaignKpisFromXanoForSync(
+        item.mba_number,
+        item.version_number,
+      )
+      existingRowsByPair.set(pairKey, existing)
       for (const row of existing) {
         const rowLineItemId = String(row.line_item_id ?? "").trim()
         if (!rowLineItemId) continue
@@ -123,6 +141,25 @@ export async function syncCampaignKpis(
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       throw new Error(`syncCampaignKpis: row ${i} (line_item_id=${lineItemId}) failed: ${msg}`)
+    }
+  }
+
+  for (const [pairKey, desired] of desiredLineIdsByPair) {
+    const existing = existingRowsByPair.get(pairKey) ?? []
+    for (const row of existing) {
+      const rowLineItemId = String(row.line_item_id ?? "").trim()
+      const keep =
+        rowLineItemId.length > 0 && desired.has(rowLineItemId.toLowerCase())
+      if (keep) continue
+      if (typeof row.id !== "number") continue
+      const deleted = await deleteCampaignKpi(row.id)
+      if (!deleted) {
+        console.warn("[syncCampaignKpis] Failed to delete orphan campaign_kpi row", {
+          id: row.id,
+          pairKey,
+          line_item_id: rowLineItemId || null,
+        })
+      }
     }
   }
 

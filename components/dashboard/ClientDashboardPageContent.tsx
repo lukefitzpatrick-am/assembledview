@@ -1,23 +1,37 @@
 "use client"
 
 import Link from "next/link"
-import { Suspense, useEffect, useMemo, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react"
+import { PlusCircle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary"
+import { resolveListViewState } from "@/lib/ui/viewState"
 import { AnimatePresence, motion, useReducedMotion, type Variants } from "framer-motion"
 
 import { CampaignCardCompact } from "@/components/dashboard/CampaignCardCompact"
 import { CampaignStatusPills, type CampaignStatus } from "@/components/dashboard/CampaignStatusPills"
-import { ClientBrainCard } from "@/components/dashboard/ClientBrainCard"
 import { HeroBanner } from "@/components/dashboard/HeroBanner"
 import { HeroKPIBar } from "@/components/dashboard/HeroKPIBar"
 import { SpendingInsightsSection } from "@/components/dashboard/SpendingInsightsSection"
 import { UpcomingCampaignsSection } from "@/components/dashboard/UpcomingCampaignsSection"
+import { ClientBrainSlideOver } from "@/components/dashboard/modals/ClientBrainSlideOver"
 import { ClientDetailsSlideOver } from "@/components/dashboard/modals/ClientDetailsSlideOver"
 import { ClientFinanceSlideOver } from "@/components/dashboard/modals/ClientFinanceSlideOver"
 import { ClientKpiSlideOver } from "@/components/dashboard/modals/ClientKpiSlideOver"
 import { CampaignCardSkeleton, ChartSkeleton } from "@/components/dashboard/skeletons"
 import { computePlannedSpendTotals } from "@/lib/dashboard/plannedSpendConsistency"
 import { EMPTY_DELIVERED_TOTALS_WITH_AS_OF } from "@/lib/delivery/deliveredTotals"
+import { formatDateShort } from "@/lib/format/date"
 import type { Campaign as LegacyCampaign, ClientDashboardData as LegacyClientDashboardData } from "@/lib/types/dashboard"
+
+/** Derive a freshness caption from Snowflake delivery `asOf` — never invent relative times. */
+function formatDeliveryFreshness(asOf: string | undefined): string | null {
+  if (!asOf?.trim()) return null
+  const label = formatDateShort(`${asOf.trim()}T00:00:00`)
+  if (label === "—") return null
+  const short = label.replace(/\s+\d{4}$/, "")
+  return `Delivery as of ${short}`
+}
 
 export type CampaignLinkMode = "tenant" | "adminHub"
 
@@ -44,13 +58,17 @@ type DashboardCampaign = {
   /**
    * Raw server campaign status (booked/approved/completed/draft/planning/...), distinct from
    * `status` above which is the UI bucket ("live"/"planned"/"completed"). Used to scope the
-   * "Planned to date" / "Budget utilized" KPI tiles to the same campaign set the server used
+   * "Planned to date" / "Plan committed" KPI tiles to the same campaign set the server used
    * for `clientData.totalSpend` (see `lib/dashboard/plannedSpendConsistency.ts`).
    */
   rawStatus: LegacyCampaign["status"]
   mediaTypes: string[]
+  /** Expected spend to date (plan) — same basis as campaign-page Expected Spend. */
   spentAmount: number | null
   totalBudget: number
+  startDate?: string
+  endDate?: string
+  /** Alias of startDate — used by UpcomingCampaignsSection sort/display. */
   launchDate?: string
   href: string
   editHref?: string
@@ -71,6 +89,8 @@ function toDashboardCampaign(
   campaign: LegacyCampaign,
   bucketStatus: CampaignStatus, // "live" | "planned" | "completed" — the server list this came from
 ): DashboardCampaign {
+  // Card progress binds to expected spend to date (plan pace), NOT Snowflake delivered —
+  // same word/basis as campaign-page "Expected Spend".
   const spentApprox =
     typeof campaign.expectedSpendToDate === "number" &&
     Number.isFinite(campaign.expectedSpendToDate) &&
@@ -89,6 +109,8 @@ function toDashboardCampaign(
     mediaTypes: campaign.mediaTypes,
     spentAmount: spentApprox,
     totalBudget: campaign.budget,
+    startDate: campaign.startDate,
+    endDate: campaign.endDate,
     launchDate: campaign.startDate,
     href: buildCampaignViewHref(slug, campaign.mbaNumber),
     editHref: canEdit ? buildCampaignEditHref(campaign.mbaNumber, campaign.version_number) : undefined,
@@ -108,6 +130,7 @@ export function ClientDashboardPageContent({
   const [detailsModalOpen, setDetailsModalOpen] = useState(false)
   const [financeModalOpen, setFinanceModalOpen] = useState(false)
   const [kpisModalOpen, setKpisModalOpen] = useState(false)
+  const [brainModalOpen, setBrainModalOpen] = useState(false)
   const allCampaigns = useMemo(
     () =>
       [
@@ -136,6 +159,27 @@ export function ClientDashboardPageContent({
     [activeStatus, allCampaigns]
   )
 
+  const clearStatusFilter = useCallback(() => {
+    const order: CampaignStatus[] = ["live", "planned", "completed"]
+    const next = order.find((s) => statusCounts[s] > 0) ?? "live"
+    setActiveStatus(next)
+  }, [statusCounts])
+
+  const campaignsViewState = useMemo(
+    () =>
+      resolveListViewState({
+        loading: false,
+        error: null,
+        items: allCampaigns,
+        visible: filteredCampaigns,
+        // Status pill is a filter only when there is an underlying set; when the
+        // client has zero campaigns, that is genuine empty (SSR — no list error path).
+        filtersActive: false,
+        clear: clearStatusFilter,
+      }),
+    [allCampaigns, filteredCampaigns, clearStatusFilter]
+  )
+
   const upcomingCampaigns = useMemo(
     () =>
       allCampaigns
@@ -151,8 +195,8 @@ export function ClientDashboardPageContent({
   )
 
   /**
-   * KPI-bar self-consistency (Task 2): "Planned to date" (formerly "Total spend") and
-   * "Budget utilized" must agree, so both are derived from the SAME booked/approved/completed
+   * KPI-bar self-consistency (Task 2): "Planned to date" and "Plan committed" (UI label for
+   * `budgetUtilizedPct`) must agree, so both are derived from the SAME booked/approved/completed
    * campaign set and the SAME planned-spend basis — see `lib/dashboard/plannedSpendConsistency.ts`.
    * Do NOT reintroduce `clientData.totalSpend` (a differently-windowed server figure) or the
    * unfiltered `totalBudget`/`totalSpent` above into either KPI tile.
@@ -188,6 +232,7 @@ export function ClientDashboardPageContent({
   }, [slug])
 
   const isClientHub = campaignLinkMode === "adminHub"
+  const deliveryFreshness = formatDeliveryFreshness(deliveredTotals?.asOf)
   const { campaignsYtdCount, campaignsYtdCaption } = useMemo(() => {
     if (!isClientHub) {
       return { campaignsYtdCount: undefined, campaignsYtdCaption: undefined }
@@ -214,7 +259,6 @@ export function ClientDashboardPageContent({
   const financeData = {
     totalBudget,
     ytdSpend: totalSpent,
-    currency: "AUD",
     budgetByQuarter: [],
     spendByMediaType: clientData.spendByMediaType.map((m) => ({
       mediaType: m.mediaType,
@@ -268,20 +312,12 @@ export function ClientDashboardPageContent({
             onOpenDetails={() => setDetailsModalOpen(true)}
             onOpenFinance={() => setFinanceModalOpen(true)}
             onOpenKPIs={() => setKpisModalOpen(true)}
+            onOpenBrain={isClientHub ? () => setBrainModalOpen(true) : undefined}
             isAdmin={isAdmin}
             clientHubLayout={isClientHub}
             clientRecord={isClientHub ? clientData.clientRecord : null}
           />
         </motion.section>
-
-        {isClientHub ? (
-          <motion.section variants={sectionVariants} className="mt-6 w-full lg:mt-8">
-            <ClientBrainCard
-              clientName={clientData.clientName}
-              record={clientData.clientRecord}
-            />
-          </motion.section>
-        ) : null}
 
         <motion.section variants={sectionVariants} className="mt-6 w-full lg:mt-8">
           {/* HeroKPIBar: averageRoas / roasTrend omitted (fabricated); restore with real KPI aggregation (Domain 10). */}
@@ -313,7 +349,9 @@ export function ClientDashboardPageContent({
             <span className="rounded-full bg-pacing-ahead-bg px-2 py-0.5 text-xs font-medium text-status-ahead-fg">
               {statusCounts.live}
             </span>
-            <span className="text-xs text-muted-foreground">Updated 2 min ago</span>
+            {deliveryFreshness ? (
+              <span className="text-xs text-muted-foreground">{deliveryFreshness}</span>
+            ) : null}
           </div>
           <Link
             href={`/dashboard/${encodeURIComponent(slug)}`}
@@ -325,13 +363,28 @@ export function ClientDashboardPageContent({
 
         <CampaignStatusPills activeStatus={activeStatus} counts={statusCounts} onChange={setActiveStatus} />
 
-        {filteredCampaigns.length > 0 ? (
+        <ViewStateBoundary
+          state={campaignsViewState}
+          emptyTitle="No campaigns yet"
+          emptyMessage="Create a media plan for this client to get started."
+          emptyAction={
+            <Button type="button" asChild>
+              <Link href="/mediaplans/create">
+                <PlusCircle className="mr-2 h-4 w-4" />
+                Create Media Plan
+              </Link>
+            </Button>
+          }
+          filteredEmptyTitle="No campaigns in this status"
+          filteredEmptyMessage="Clear filters to jump to a status that has campaigns."
+        >
+          {(campaigns) => (
           <motion.div
             layout
             className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 lg:gap-5 xl:grid-cols-4 xl:gap-6"
           >
             <AnimatePresence initial={false} mode="popLayout">
-            {filteredCampaigns.map((campaign) => (
+            {campaigns.map((campaign) => (
               <motion.div
                 key={campaign.id}
                 layout
@@ -346,6 +399,8 @@ export function ClientDashboardPageContent({
                   mbaNumber={campaign.mbaNumber}
                   status={campaign.status}
                   mediaTypes={campaign.mediaTypes}
+                  startDate={campaign.startDate}
+                  endDate={campaign.endDate}
                   spentAmount={campaign.spentAmount}
                   totalBudget={campaign.totalBudget}
                   href={campaign.href}
@@ -360,11 +415,8 @@ export function ClientDashboardPageContent({
             ))}
             </AnimatePresence>
           </motion.div>
-        ) : (
-          <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-4 py-10 text-center text-sm text-muted-foreground md:px-6 lg:px-8">
-            No campaigns in this status right now.
-          </div>
-        )}
+          )}
+        </ViewStateBoundary>
         </motion.section>
 
         <motion.section variants={sectionVariants} className="mt-8 w-full lg:mt-10">
@@ -428,6 +480,16 @@ export function ClientDashboardPageContent({
             }
             brandColour={clientData.brandColour}
           />
+
+          {isClientHub ? (
+            <ClientBrainSlideOver
+              open={brainModalOpen}
+              onOpenChange={setBrainModalOpen}
+              clientName={clientData.clientName}
+              clientRecord={clientData.clientRecord ?? null}
+              brandColour={clientData.brandColour}
+            />
+          ) : null}
         </>
       )}
     </div>

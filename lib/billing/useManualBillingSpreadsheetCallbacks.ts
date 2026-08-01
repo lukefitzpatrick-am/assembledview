@@ -4,6 +4,10 @@ import type { ManualBillingMediaSection } from "@/lib/billing/buildManualBilling
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import type { ManualBillingSpreadsheetCallbacks } from "@/components/billing/manualBillingSpreadsheetContext"
 import type { BillingLineMode } from "@/lib/billing/applyBillingLineMode"
+import { isBillingBalancerEnabled } from "@/lib/billing/balancer"
+import { rebalanceLineOnSchedule } from "@/lib/billing/rebalanceLineOnSchedule"
+import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
+import { recalculateBillingMonths } from "@/lib/billing/recalculateBillingMonths"
 
 type CostBucket = "fee" | "adServing" | "production"
 
@@ -21,6 +25,10 @@ export type UseManualBillingSpreadsheetCallbacksArgs = Readonly<{
     monthYear?: string
   ) => void
   setLineBillingMode?: (lineItemId: string, mode: BillingLineMode) => void
+  /** Optional: resolve client-pays for a billing row id. */
+  isClientPaysLine?: (lineItemId: string) => boolean
+  /** Optional: expected media total for balancer (booked line total). */
+  getExpectedMediaTotal?: (lineItemId: string) => number
 }>
 
 export function useManualBillingSpreadsheetCallbacks({
@@ -28,6 +36,8 @@ export function useManualBillingSpreadsheetCallbacks({
   setManualBillingMonths,
   handleManualBillingChange,
   setLineBillingMode = noopSetLineBillingMode,
+  isClientPaysLine,
+  getExpectedMediaTotal,
 }: UseManualBillingSpreadsheetCallbacksArgs): ManualBillingSpreadsheetCallbacks {
   const getLineItemAmount = useCallback(
     (mediaKey: string, lineItemId: string, monthYear: string) => {
@@ -54,11 +64,41 @@ export function useManualBillingSpreadsheetCallbacks({
 
   const onLineItemPaste = useCallback(
     (mediaKey: string, lineItemId: string, monthYear: string, raw: string) => {
+      if (isBillingBalancerEnabled()) {
+        const numericValue = parseFloat(String(raw).replace(/[^0-9.-]/g, "")) || 0
+        const copy = JSON.parse(JSON.stringify(manualBillingMonths)) as BillingMonth[]
+        syncLineItemMonthlyAmountAcrossAllMonthRows(
+          copy,
+          mediaKey,
+          lineItemId,
+          monthYear,
+          numericValue
+        )
+        recalculateBillingMonths(copy)
+        const clientPays = isClientPaysLine?.(lineItemId) ?? false
+        const expected = getExpectedMediaTotal?.(lineItemId)
+        const next = rebalanceLineOnSchedule({
+          months: copy,
+          lineItemId,
+          lineTotal: expected,
+          clientPaysForMedia: clientPays,
+        })
+        setManualBillingMonths(next)
+        setLineBillingMode(lineItemId, "manual")
+        return
+      }
       const monthIndex = manualBillingMonths.findIndex((m) => m.monthYear === monthYear)
       if (monthIndex < 0) return
       handleManualBillingChange(monthIndex, "lineItem", raw, mediaKey, lineItemId, monthYear)
     },
-    [handleManualBillingChange, manualBillingMonths]
+    [
+      handleManualBillingChange,
+      manualBillingMonths,
+      setManualBillingMonths,
+      setLineBillingMode,
+      isClientPaysLine,
+      getExpectedMediaTotal,
+    ]
   )
 
   const onLineItemClear = useCallback(

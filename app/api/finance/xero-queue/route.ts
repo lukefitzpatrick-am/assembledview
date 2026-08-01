@@ -7,9 +7,13 @@ import { parseXanoListPayload, xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoU
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
 import {
   FINANCE_BILLING_RECORDS_PATH,
-  xanoFinanceGet,
   xanoFinancePatch,
 } from "@/lib/finance/xanoFinanceApi"
+import { readFinanceBillingRecords } from "@/lib/data/readFinance"
+import {
+  enrichPendingFromXero,
+  loadMbaOptionsForQueue,
+} from "@/lib/finance/sections/xero/enrichPendingFromXero"
 
 export const maxDuration = 60
 
@@ -42,8 +46,8 @@ export async function GET(request: NextRequest) {
     const gate = await adminGate(request)
     if ("error" in gate && gate.error) return gate.error
 
-    const [billingRaw, exceptionsRaw] = await Promise.all([
-      xanoFinanceGet(FINANCE_BILLING_RECORDS_PATH),
+    const [billingRows, exceptionsRaw] = await Promise.all([
+      readFinanceBillingRecords(),
       axios
         .get(xanoUrl("xero_sync_exceptions", "XANO_CLIENTS_BASE_URL"), { timeout: 15_000 })
         .then((r) => r.data)
@@ -53,13 +57,17 @@ export async function GET(request: NextRequest) {
         }),
     ])
 
-    const billingRows = parseXanoListPayload(billingRaw)
-    const pending = capRows(
+    const pendingRaw = capRows(
       billingRows.filter((row) => {
         const r = asRecord(row)
         return r != null && r.has_pending_edits === true
       })
     )
+
+    const [pending, mbaOptions] = await Promise.all([
+      enrichPendingFromXero(pendingRaw),
+      loadMbaOptionsForQueue(),
+    ])
 
     const exceptionRows = parseXanoListPayload(exceptionsRaw)
     const exceptions = capRows(
@@ -76,6 +84,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       pending,
       exceptions,
+      mbaOptions,
       meta: {
         pending_count: pending.length,
         exceptions_count: exceptions.length,

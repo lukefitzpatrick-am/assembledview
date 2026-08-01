@@ -1,5 +1,6 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { getXanoBaseUrl, xanoAuthHeader } from "@/lib/api/xano"
+import { requireRole } from "@/lib/requireRole"
 
 type FileLike = Blob & { name?: string }
 
@@ -67,9 +68,12 @@ function normalizeXanoPublicFile(meta: any): XanoPublicFile {
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
     const { id } = await params
     if (!id) {

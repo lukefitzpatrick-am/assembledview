@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
 import {
   getCachedClientsList,
@@ -6,6 +6,7 @@ import {
 } from "@/lib/cache/clientsCache"
 import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
 import { xanoAuthHeaderRecord } from "@/lib/api/xano"
+import { requireRole } from "@/lib/requireRole"
 
 export const runtime = "nodejs"
 
@@ -78,7 +79,10 @@ async function withOverallTimeout<T>(promise: Promise<T>): Promise<T> {
   }
 }
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
     const url = new URL(request.url)
     const refreshRaw = url.searchParams.get("refresh")
@@ -95,10 +99,11 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const gate = await requireRole(req, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
-    // For now, allow access for development
-    // In production, you would validate the Auth0 session here
     const body = await req.json()
     console.log("Request body:", JSON.stringify(body, null, 2))
 

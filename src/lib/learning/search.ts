@@ -10,22 +10,46 @@ export type SearchResult = {
 const fuseOptions: IFuseOptions<LearningTerm> = {
   includeScore: true,
   shouldSort: true,
-  threshold: 0.32,
+  // Slightly looser so short headline terms (CPM, GRP, ROAS) still rank.
+  threshold: 0.4,
   ignoreLocation: true,
   minMatchCharLength: 2,
   keys: [
-    { name: "term", weight: 0.5 },
-    { name: "definition", weight: 0.3 },
-    { name: "plainEnglish", weight: 0.25 },
-    { name: "category", weight: 0.15 },
-    { name: "aliases", weight: 0.1 },
+    { name: "term", weight: 0.55 },
+    { name: "aliases", weight: 0.35 },
+    { name: "definition", weight: 0.25 },
+    { name: "plainEnglish", weight: 0.2 },
+    { name: "category", weight: 0.1 },
     { name: "whyItMatters", weight: 0.1 },
-    { name: "formula_or_notes", weight: 0.2 },
+    { name: "formula_or_notes", weight: 0.15 },
   ],
 };
 
 export function buildFuseIndex(terms: LearningTerm[]) {
   return new Fuse(terms, fuseOptions);
+}
+
+/**
+ * Exact term/alias hits first (score 0), then Fuse. Ensures glossary headline
+ * terms like CPM/ROAS/GRP/VOZ are never lost to fuzzy noise or type filters upstream.
+ */
+export function searchTerms(fuse: Fuse<LearningTerm>, terms: LearningTerm[], query: string): SearchResult[] {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return terms.map((item) => ({ item }));
+  }
+  const needle = trimmed.toLowerCase();
+  const exact = terms.filter(
+    (t) =>
+      t.term.toLowerCase() === needle ||
+      (t.aliases ?? []).some((a) => a.toLowerCase() === needle)
+  );
+  const exactIds = new Set(exact.map((t) => t.id));
+  const fuzzy = fuse
+    .search(trimmed)
+    .filter((m) => !exactIds.has(m.item.id))
+    .map((m) => ({ item: m.item, score: m.score }));
+  return [...exact.map((item) => ({ item, score: 0 })), ...fuzzy];
 }
 
 export function sortResults(items: SearchResult[], sort: SortMode, recentOrder: Record<string, number>): SearchResult[] {

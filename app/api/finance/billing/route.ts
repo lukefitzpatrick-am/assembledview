@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
-import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import {
   parseBillingMonthRangeParams,
   parseBillingTypesQueryParam,
@@ -21,6 +20,8 @@ import {
   fetchRelevantPlanVersionsForFinanceMonths,
 } from "@/lib/finance/relevantPlanVersions"
 import { getCachedClients, getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
+import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMonthsSource"
+import { readScopeOfWork } from "@/lib/data/readFinance"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
@@ -86,8 +87,8 @@ function versionsFetchErrorResponse(e: unknown): NextResponse {
 
 async function fetchScopesOrNull(): Promise<ScopeOfWorkRow[] | null> {
   try {
-    const scopesResponse = await axios.get(xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL"), { headers: xanoAuthHeaderRecord(), timeout: 15_000, })
-    return Array.isArray(scopesResponse.data) ? scopesResponse.data : []
+    const scopes = await readScopeOfWork()
+    return scopes as unknown as ScopeOfWorkRow[]
   } catch (e: unknown) {
     console.error("[finance-api] billing scope fetch failed", {
       message: e instanceof Error ? e.message : String(e),
@@ -150,8 +151,10 @@ export async function GET(request: NextRequest) {
           { status: versionsResult.status }
         )
       }
-      // Hydration removed because it caused Vercel FUNCTION_INVOCATION_TIMEOUT by fanning out across 19 Xano line-item endpoints per version.
+      // Channel line-item hydration removed (FUNCTION_INVOCATION_TIMEOUT). PC1:
+      // schedule_months source hydrate is a single Postgres batch, not a Xano fan-out.
       relevantVersions = versionsResult.relevantVersions as Record<string, unknown>[]
+      await hydrateVersionsFinanceScheduleSource(relevantVersions)
     } catch (e: unknown) {
       return versionsFetchErrorResponse(e)
     }
@@ -222,6 +225,19 @@ async function handleMultiMonth(
   const [clients, publishers] = await Promise.all([getCachedClients(), getCachedPublishers()])
   const scopes = wantSow ? await fetchScopesOrNull() : null
   const persistedStatusRows = await fetchAllPersistedFinanceStatusRows()
+
+  // Deduped hydrate across the FY window (one Postgres batch).
+  const seen = new Set<number>()
+  const uniqueVersions: Record<string, unknown>[] = []
+  for (const entry of versionsByMonth.values()) {
+    for (const v of (entry.relevantVersions as Record<string, unknown>[]) ?? []) {
+      const id = Number(v.id ?? v.version_id ?? 0)
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      uniqueVersions.push(v)
+    }
+  }
+  await hydrateVersionsFinanceScheduleSource(uniqueVersions)
 
   const filterParams = hubFilterParams(incoming, types)
   const records: BillingRecord[] = []

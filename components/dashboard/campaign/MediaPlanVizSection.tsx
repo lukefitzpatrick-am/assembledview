@@ -5,8 +5,6 @@ import { BarChart3, CalendarRange, Download, Rows3 } from "lucide-react"
 
 import {
   BaseChartCard,
-  DonutChart,
-  HorizontalBarChart,
   Sparkline,
   StackedBarChart,
 } from "@/components/charts/system"
@@ -16,9 +14,7 @@ import { EmptyState } from "@/components/ui/states"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import {
   reshapeAllocationOverTime,
-  reshapeChannelSpendBars,
   reshapeChannelSparkline,
-  reshapeMediaMixDonut,
   reshapeMediaPlanChannelSummary,
 } from "@/components/dashboard/campaign/mediaPlanChartReshape"
 import { fmt, channelColorFor } from "@/lib/chart-theme"
@@ -37,8 +33,6 @@ export type MediaPlanVizSectionProps = {
   defaultView?: "timeline" | "table" | "summary"
   onViewChange?: (view: string) => void
 }
-
-const CHART_PLOT_HEIGHT = "min-h-[280px] w-full"
 
 function sanitizeFilenameBase(parts: (string | undefined)[]): string {
   const raw = parts.filter(Boolean).join("-")
@@ -120,9 +114,7 @@ export default function MediaPlanVizSection({
 
   const mediaSummary = useMemo(() => reshapeMediaPlanChannelSummary(normalised), [normalised])
 
-  const mediaMixDonut = useMemo(() => reshapeMediaMixDonut(mediaSummary), [mediaSummary])
-  const channelSpendBars = useMemo(() => reshapeChannelSpendBars(mediaSummary), [mediaSummary])
-  const mediaMixTotal = useMemo(() => mediaMixDonut.reduce((sum, row) => sum + row.value, 0), [mediaMixDonut])
+  // Planned media-type mix lives only in SpendChartsRow (delivery schedule) — one donut, one source.
 
   const { data: allocationData, series: allocationSeries } = useMemo(
     () => reshapeAllocationOverTime(normalised),
@@ -291,50 +283,15 @@ export default function MediaPlanVizSection({
 
         {view === "summary" ? (
           <div ref={summaryRef} className="space-y-4">
-            <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-              <BaseChartCard
-                title="Media mix"
-                subtitle={`Total: ${fmt.currencyCompact(mediaMixTotal)}`}
-              >
-                {mediaMixTotal > 0 ? (
-                  <DonutChart
-                    data={mediaMixDonut}
-                    centerValue={fmt.currencyCompact(mediaMixTotal)}
-                    centerLabel="Total"
-                    valueFormat="dollars"
-                    className={CHART_PLOT_HEIGHT}
-                  />
-                ) : (
-                  <EmptyState
-                    className={`${CHART_PLOT_HEIGHT} border-0 bg-transparent`}
-                    title="No channel spend"
-                    message={null}
-                  />
-                )}
-              </BaseChartCard>
-
-              <BaseChartCard title="Spend by channel" subtitle="Gross media by type">
-                {channelSpendBars.length > 0 ? (
-                  <HorizontalBarChart
-                    data={channelSpendBars}
-                    xKey="cat"
-                    series={[{ key: "value", label: "Spend" }]}
-                    valueFormat="dollars"
-                    className={CHART_PLOT_HEIGHT}
-                  />
-                ) : (
-                  <EmptyState
-                    className={`${CHART_PLOT_HEIGHT} border-0 bg-transparent`}
-                    title="No channel spend"
-                    message={null}
-                  />
-                )}
-              </BaseChartCard>
-            </div>
-
             <BaseChartCard
               title="Allocation over time"
               subtitle="Prorated monthly gross media by channel"
+              exportPage="dashboard"
+              exportSeries={{
+                data: allocationData,
+                xKey: "period",
+                seriesKeys: allocationSeries.map((s) => s.key),
+              }}
             >
               {hasAllocationData ? (
                 <StackedBarChart

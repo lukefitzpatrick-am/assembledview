@@ -25,16 +25,22 @@ function rowMatchesStale(row: BillingOverrideRow, stale: StaleDateBasisOverride)
  */
 export async function applyDateBasisKeepOrReset(args: {
   versionId: string | number
+  mbaNumber: string
   decision: DateBasisDecision
   stale: StaleDateBasisOverride[]
   overrideRows: BillingOverrideRow[]
 }): Promise<void> {
-  const { versionId, decision, stale, overrideRows } = args
+  const { versionId, mbaNumber, decision, stale, overrideRows } = args
+  const mba = String(mbaNumber ?? "").trim()
+  if (!mba) {
+    throw new Error("mba_number is required for date-basis keep/reset")
+  }
 
   if (decision === "reset") {
     for (const s of stale) {
       await resetBillingOverrideLineClient({
         media_plan_version_id: versionId,
+        mba_number: mba,
         line_item_id: s.lineItemId,
         component: s.component,
       })
@@ -51,6 +57,7 @@ export async function applyDateBasisKeepOrReset(args: {
       if (!fee) continue
       await replaceBillingOverrideLineClient({
         media_plan_version_id: versionId,
+        mba_number: mba,
         line_item_id: s.lineItemId,
         component: "fee",
         mode: "manual",
@@ -63,6 +70,7 @@ export async function applyDateBasisKeepOrReset(args: {
       if (!media) continue
       await replaceBillingOverrideLineClient({
         media_plan_version_id: versionId,
+        mba_number: mba,
         line_item_id: s.lineItemId,
         component: "media",
         mode: media.mode,

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AVU4-8 hero + card layouts</title>
+  <style>
+    :root {
+      --bg: #f7f6f2;
+      --card: #fff;
+      --border: #e2e0d8;
+      --ink: #1a2e1f;
+      --muted: #5c6b60;
+      --accent: #008e5e;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+    .page { padding: 24px; }
+    h1 { font-size: 14px; margin: 0 0 16px; }
+    .label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 20px 0 8px; }
+    .hero {
+      position: relative; border: 1px solid var(--border); border-radius: 18px; background: var(--card);
+      padding: 20px 24px; padding-right: 92px; display: flex; align-items: center; gap: 16px; min-height: 96px;
+    }
+    .hero.client { padding-right: 24px; }
+    .logo { width: 48px; height: 48px; border-radius: 999px; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; flex-shrink: 0; }
+    .title { font-size: 22px; font-weight: 800; margin: 0; }
+    .underline { width: 60px; height: 4px; border-radius: 999px; background: var(--accent); margin: 6px 0; }
+    .meta { font-size: 13px; color: var(--muted); }
+    .rail { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .icon { width: 36px; height: 36px; border-radius: 999px; border: 1px solid var(--border); background: var(--card); display: grid; place-items: center; font-size: 11px; color: var(--muted); }
+    .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-top: 16px; }
+    .stat { border: 1px solid var(--border); border-radius: 12px; background: var(--card); padding: 16px 18px; min-width: 0; }
+    .stat .k { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+    .stat .v { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 8px; }
+    .stat .s { font-size: 12px; color: var(--muted); margin-top: 6px; line-height: 1.35; }
+    .cards { display: grid; gap: 12px; margin-top: 16px; }
+    .card { border: 1px solid var(--border); border-radius: 12px; background: var(--card); padding: 16px; }
+    .row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; }
+    .id { min-width: 11rem; flex: 1 1 11rem; }
+    .id h3 { margin: 0; font-size: 16px; font-weight: 650; line-height: 1.3; overflow-wrap: break-word; }
+    .id .dates { margin-top: 6px; font-size: 14px; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .id .mba { margin-top: 4px; font-size: 12px; color: var(--muted); }
+    .actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
+    .btn, .pill { height: 32px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); font-size: 12px; background: #fff; }
+    .pill { border-radius: 999px; background: #e8f5ef; color: #0f6b46; }
+    .narrow .stats { grid-template-columns: 1fr 1fr; }
+    .narrow .cards { max-width: 280px; }
+    .frame { border: 1px dashed #c5c2b8; border-radius: 12px; padding: 12px; background: #efeee9; }
+    .frame.wide { width: 1100px; }
+    .frame.narrow { width: 360px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>AVU4-8 — Client hero round 2 (layout verify)</h1>
+
+    <div class="label">Admin · wide</div>
+    <div class="frame wide" id="admin-wide">
+      <div class="hero">
+        <div class="logo">BO</div>
+        <div>
+          <p class="title">Welcome back, BOSS001</p>
+          <div class="underline"></div>
+          <div class="meta">Planned to date: $1.2M · 4 active campaigns</div>
+        </div>
+        <div class="rail" aria-label="slide-overs">
+          <div class="icon">De</div><div class="icon">Fi</div>
+          <div class="icon">KP</div><div class="icon">Br</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="k">Planned to date</div><div class="v">$1.2M</div><div class="s">of $2.0M plan budget · monthly plan prorated to date</div></div>
+        <div class="stat"><div class="k">Delivered</div><div class="v">$840K</div><div class="s">Snowflake delivery · As of 1 Aug</div></div>
+        <div class="stat"><div class="k">Live</div><div class="v">4</div><div class="s">Live bucket · 2 planned</div></div>
+        <div class="stat"><div class="k">YTD</div><div class="v">11</div><div class="s">Campaigns this FY</div></div>
+        <div class="stat"><div class="k">Plan committed</div><div class="v">61%</div><div class="s">planned to date ÷ plan budget</div></div>
+      </div>
+      <div class="cards">
+        <div class="card"><div class="row">
+          <div class="id"><h3>Social Boost</h3><div class="dates">1 Apr – 31 Dec 26</div><div class="mba">MBA-2401</div></div>
+          <div class="actions"><span class="btn">View</span><span class="pill">Live</span></div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="label">Admin · narrow</div>
+    <div class="frame narrow" id="admin-narrow">
+      <div class="hero">
+        <div class="logo">BO</div>
+        <div>
+          <p class="title" style="font-size:18px">Welcome back, BOSS001</p>
+          <div class="underline"></div>
+          <div class="meta">Planned to date: $1.2M</div>
+        </div>
+        <div class="rail">
+          <div class="icon">De</div><div class="icon">Fi</div>
+          <div class="icon">KP</div><div class="icon">Br</div>
+        </div>
+      </div>
+      <div class="stats narrow">
+        <div class="stat"><div class="k">Planned</div><div class="v">$1.2M</div><div class="s">of $2.0M plan</div></div>
+        <div class="stat"><div class="k">Delivered</div><div class="v">$840K</div><div class="s">Snowflake</div></div>
+      </div>
+      <div class="cards">
+        <div class="card"><div class="row">
+          <div class="id"><h3>Social Boost</h3><div class="dates">1 Apr – 31 Dec 26</div><div class="mba">MBA-2401</div></div>
+          <div class="actions"><span class="btn">View</span><span class="pill">Live</span></div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="label">Client · wide (no icon rail)</div>
+    <div class="frame wide" id="client-wide">
+      <div class="hero client">
+        <div class="logo">BO</div>
+        <div>
+          <p class="title">Welcome back, BOSS001</p>
+          <div class="underline"></div>
+          <div class="meta">Planned to date: $1.2M · 4 active campaigns</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="k">Planned to date</div><div class="v">$1.2M</div><div class="s">of $2.0M plan budget · monthly plan prorated to date</div></div>
+        <div class="stat"><div class="k">Delivered</div><div class="v">$840K</div><div class="s">Snowflake delivery</div></div>
+        <div class="stat"><div class="k">Live</div><div class="v">4</div><div class="s">Live bucket · 2 planned</div></div>
+        <div class="stat"><div class="k">YTD</div><div class="v">11</div><div class="s">Campaigns this FY</div></div>
+        <div class="stat"><div class="k">Plan committed</div><div class="v">61%</div><div class="s">planned to date ÷ plan budget</div></div>
+      </div>
+    </div>
+
+    <div class="label">Client · narrow</div>
+    <div class="frame narrow" id="client-narrow">
+      <div class="hero client">
+        <div class="logo">BO</div>
+        <div>
+          <p class="title" style="font-size:18px">Welcome back, BOSS001</p>
+          <div class="underline"></div>
+          <div class="meta">4 active campaigns</div>
+        </div>
+      </div>
+      <div class="cards">
+        <div class="card"><div class="row">
+          <div class="id"><h3>Social Boost</h3><div class="dates">1 Apr – 31 Dec 26</div><div class="mba">MBA-2401</div></div>
+          <div class="actions"><span class="btn">View</span><span class="pill">Live</span></div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

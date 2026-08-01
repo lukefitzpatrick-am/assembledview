@@ -13,14 +13,15 @@ import { accent, type AccentKey } from "@/src/lib/learning/accents";
 import { CpmCalculator } from "@/components/learning/CpmCalculator";
 import { UtmBuilder } from "@/components/learning/UtmBuilder";
 
+import { hrefForKnowledgeSearch } from "@/src/lib/learning/termLinks";
+
 export default function KnowledgeHubHome() {
   const router = useRouter();
   const [q, setQ] = useState("");
 
   const submitSearch = (e: FormEvent) => {
     e.preventDefault();
-    const trimmed = q.trim();
-    router.push(`/knowledge/definitions${trimmed ? `?q=${encodeURIComponent(trimmed)}` : ""}`);
+    router.push(hrefForKnowledgeSearch(q));
   };
 
   return (

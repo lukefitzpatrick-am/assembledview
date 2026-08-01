@@ -1,16 +1,16 @@
 "use client"
 
 import Image from "next/image"
-import { BarChart3, DollarSign, FileText } from "lucide-react"
+import { BarChart3, Brain, DollarSign, FileText } from "lucide-react"
 
 import {
-  PAGE_HERO_PADDING,
+  PAGE_HERO_PADDING_COMPACT,
   PageHeroShell,
   PageHeroTitleBlock,
 } from "@/components/dashboard/PageHeroShell"
 import { ClientProfileLinks } from "@/components/dashboard/ClientProfileLinks"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { formatCurrencyCompact } from "@/lib/format/currency"
+import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 
 export interface HeroBannerProps {
@@ -28,6 +28,8 @@ export interface HeroBannerProps {
   onOpenDetails: () => void
   onOpenFinance: () => void
   onOpenKPIs: () => void
+  /** Opens Client Brain slide-over (hub/admin rail — same gate as sibling icons). */
+  onOpenBrain?: () => void
   isAdmin?: boolean
   /** Client hub (/client/[slug]): omit benchmark line and Avg ROAS meta. */
   clientHubLayout?: boolean
@@ -43,19 +45,15 @@ function getClientInitials(clientName: string): string {
 }
 
 function formatRoas(value: number): string {
-  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)}x`
-}
-
-function formatPercent(value: number): string {
-  return new Intl.NumberFormat("en-US", {
-    maximumFractionDigits: 1,
-    minimumFractionDigits: Number.isInteger(value) ? 0 : 1,
-  }).format(Math.abs(value))
+  return `${new Intl.NumberFormat("en-AU", { maximumFractionDigits: 2 }).format(value)}x`
 }
 
 function colorMix(color: string, percentage: number): string {
   return `color-mix(in srgb, ${color} ${percentage}%, transparent)`
 }
+
+const heroIconButtonClassName =
+  "interactive flex h-9 w-9 items-center justify-center rounded-pill border border-border bg-card text-muted-foreground shadow-e0 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
 
 export function HeroBanner({
   clientName,
@@ -69,12 +67,15 @@ export function HeroBanner({
   onOpenDetails,
   onOpenFinance,
   onOpenKPIs,
+  onOpenBrain,
   isAdmin = false,
   clientHubLayout = false,
   clientRecord = null,
 }: HeroBannerProps) {
   const showBenchmarkLine = !clientHubLayout
   const showProfileLinks = clientHubLayout && isAdmin
+  const showBrainIcon = Boolean(isAdmin && onOpenBrain && clientHubLayout)
+  const showAdminRail = isAdmin
 
   const detail = (
     <>
@@ -85,14 +86,14 @@ export function HeroBanner({
             performanceVsBenchmark >= 0 ? "text-status-ahead-fg" : "text-status-behind-fg",
           )}
         >
-          Your campaigns are performing {formatPercent(performanceVsBenchmark)}%{" "}
+          Your campaigns are performing {formatPercent(Math.abs(performanceVsBenchmark))}{" "}
           {performanceVsBenchmark >= 0 ? "above" : "below"} benchmark
         </p>
       ) : null}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-pill" style={{ backgroundColor: brandColour }} aria-hidden />
-          {spendLabel}: {formatCurrencyCompact(totalSpend)}
+          {spendLabel}: {formatMoneyCompact(totalSpend)}
         </span>
         <span aria-hidden className="text-border">
           •
@@ -114,13 +115,13 @@ export function HeroBanner({
     <PageHeroShell brandColour={brandColour}>
       <div
         className={cn(
-          "relative z-10 flex w-full flex-col gap-5 md:flex-row md:items-start md:justify-between md:gap-8",
-          PAGE_HERO_PADDING,
-          isAdmin && "pr-14 sm:pr-16 md:pr-20",
+          "relative z-10 flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-6",
+          PAGE_HERO_PADDING_COMPACT,
+          showAdminRail && "pr-[5.75rem] sm:pr-[6.25rem]",
         )}
       >
-        <div className="flex min-w-0 flex-1 flex-col gap-4 sm:flex-row sm:items-start sm:gap-5">
-          <div className="relative h-14 w-14 shrink-0">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+          <div className="relative h-12 w-12 shrink-0">
             <div
               className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-pill border border-border shadow-e1"
               style={clientLogo ? undefined : { borderColor: colorMix(brandColour, 30) }}
@@ -131,11 +132,11 @@ export function HeroBanner({
                   alt={`${clientName} logo`}
                   fill
                   className="object-cover"
-                  sizes="56px"
+                  sizes="48px"
                 />
               ) : (
                 <span
-                  className="flex h-full w-full items-center justify-center text-base font-semibold text-primary-foreground"
+                  className="flex h-full w-full items-center justify-center text-sm font-semibold text-primary-foreground"
                   style={{ backgroundColor: brandColour }}
                   aria-label={`${clientName} initials`}
                 >
@@ -144,7 +145,7 @@ export function HeroBanner({
               )}
             </div>
             <span
-              className="absolute bottom-px right-px h-[10px] w-[10px] rounded-pill bg-accent shadow-e0"
+              className="absolute bottom-px right-px h-2 w-2 rounded-pill bg-accent shadow-e0"
               aria-hidden
             />
           </div>
@@ -158,15 +159,27 @@ export function HeroBanner({
       </div>
 
       {showProfileLinks ? (
-        <div className={cn("relative z-10 mt-4", PAGE_HERO_PADDING, isAdmin && "pr-14 sm:pr-16 md:pr-20")}>
+        <div
+          className={cn(
+            "relative z-10 border-t border-border/50 pt-3",
+            PAGE_HERO_PADDING_COMPACT,
+            "pt-3",
+            showAdminRail && "pr-[5.75rem] sm:pr-[6.25rem]",
+          )}
+        >
           <ClientProfileLinks record={clientRecord} />
         </div>
       ) : null}
 
-      {isAdmin ? (
-        <div className="absolute right-3 top-1/2 z-20 -translate-y-1/2 sm:right-4 md:right-6 lg:right-7">
+      {showAdminRail ? (
+        <div className="absolute right-3 top-1/2 z-20 -translate-y-1/2 sm:right-4 md:right-5">
           <TooltipProvider delayDuration={100}>
-            <div className="flex flex-col gap-2">
+            {/* 2×2 grid — shorter than the old vertical stack so the hero can compress. */}
+            <div
+              className="grid grid-cols-2 gap-1.5"
+              role="toolbar"
+              aria-label="Client slide-overs"
+            >
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -174,7 +187,7 @@ export function HeroBanner({
                     onClick={onOpenDetails}
                     title="Client details"
                     aria-label="Client details"
-                    className="interactive flex h-10 w-10 items-center justify-center rounded-pill border border-border bg-card text-muted-foreground shadow-e0 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className={heroIconButtonClassName}
                   >
                     <FileText className="h-4 w-4" />
                   </button>
@@ -189,7 +202,7 @@ export function HeroBanner({
                     onClick={onOpenFinance}
                     title="Finance overview"
                     aria-label="Finance overview"
-                    className="interactive flex h-10 w-10 items-center justify-center rounded-pill border border-border bg-card text-muted-foreground shadow-e0 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className={heroIconButtonClassName}
                   >
                     <DollarSign className="h-4 w-4" />
                   </button>
@@ -204,13 +217,32 @@ export function HeroBanner({
                     onClick={onOpenKPIs}
                     title="KPIs & requirements"
                     aria-label="KPIs and publisher requirements"
-                    className="interactive flex h-10 w-10 items-center justify-center rounded-pill border border-border bg-card text-muted-foreground shadow-e0 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    className={heroIconButtonClassName}
                   >
                     <BarChart3 className="h-4 w-4" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="left">KPIs & requirements</TooltipContent>
               </Tooltip>
+
+              {showBrainIcon ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={onOpenBrain}
+                      title="Client Brain"
+                      aria-label="Client Brain"
+                      className={heroIconButtonClassName}
+                    >
+                      <Brain className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">Client Brain</TooltipContent>
+                </Tooltip>
+              ) : (
+                <span className="h-9 w-9" aria-hidden />
+              )}
             </div>
           </TooltipProvider>
         </div>

@@ -1,18 +1,23 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { generateBillingSchedulePDF } from "@/lib/generateBillingSchedulePDF"
 import { format } from 'date-fns'
 import axios from "axios"
 import { parseXanoListPayload, xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
+import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
     const { mba_number: rawMbaNumber } = await params
     const mba_number = parseMbaNumber(rawMbaNumber)
     if (!mba_number) return invalidMbaNumberResponse()
+
+    // AuthZ: match mediaplans/mba/[mba_number] — billing PDF is tenant-scoped.
+    const access = await checkClientMbaAccess(request, mba_number)
+    if (!access.ok) return access.response
 
     // Fetch media plan version data
     const masterQueryUrl = `${xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"])}?mba_number=${encodeURIComponent(mba_number)}`

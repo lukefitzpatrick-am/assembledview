@@ -1,6 +1,7 @@
 // /lib/generateMBA.ts
 
 import { jsPDF } from "jspdf";
+import { createHash } from "node:crypto";
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { formatAUD } from "./format/money";
@@ -34,6 +35,8 @@ export interface MBAData {
     total_inc_gst: number;
   };
   billingSchedule: { monthYear: string; totalAmount: string }[];
+  /** PC3 checksum footer: `v{n} · {hash8}` — drawn on every page. */
+  checksumFooter?: string;
 }
 
 const parseCurrency = (value: string | number | null | undefined): number => {
@@ -79,6 +82,19 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
     format: 'a4',
   });
 
+  // Deterministic PDF metadata — same input ⇒ byte-identical output (PC3).
+  // (jsPDF DocumentProperties typings omit creationDate/modDate; cast is intentional.)
+  const fixedDate = new Date(Date.UTC(1970, 0, 1, 0, 0, 0));
+  doc.setProperties({
+    title: `MBA ${mbaData.mba_number} v${mbaData.media_plan_version}`,
+    subject: mbaData.campaign_name || "MBA",
+    author: "AssembledView",
+    creator: "AssembledView",
+    keywords: mbaData.checksumFooter || "",
+    creationDate: fixedDate,
+    modDate: fixedDate,
+  } as Parameters<typeof doc.setProperties>[0]);
+
   const margin = {
     top: 25, // Increased top margin for logo
     left: 20,
@@ -88,6 +104,19 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
   const pageW = doc.internal.pageSize.getWidth() - margin.left - margin.right;
   let y = margin.top;
   const lineHeight = 5;
+
+  const drawChecksumFooter = () => {
+    if (!mbaData.checksumFooter) return;
+    const pageH = doc.internal.pageSize.getHeight();
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text(
+      mbaData.checksumFooter,
+      margin.left + pageW,
+      pageH - 10,
+      { align: "right" }
+    );
+  };
 
   // --- Add Logo to the top right ---
   if (logoBase64) {
@@ -257,6 +286,28 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
   doc.setFont("helvetica", "normal");
   doc.text(formatAUD(mbaData.totals.total_inc_gst), billingValueX, y, { align: 'right' });
 
-  // Return the generated PDF as a Blob.
-  return doc.output('blob');
+  // PC3: checksum footer on every page.
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    drawChecksumFooter();
+  }
+
+  // jsPDF stamps a random /ID in the trailer — replace with a deterministic
+  // hash so identical MBAData ⇒ byte-identical PDF (PC3 fixture law).
+  const raw = Buffer.from(doc.output("arraybuffer"));
+  const seed = [
+    mbaData.mba_number,
+    mbaData.media_plan_version,
+    mbaData.checksumFooter || "",
+    mbaData.date,
+    String(mbaData.totals.totals_ex_gst),
+  ].join("|");
+  const idHex = createHash("sha256").update(seed).digest("hex").toUpperCase().slice(0, 32);
+  const latin1 = raw.toString("latin1");
+  const stabilized = latin1.replace(
+    /\/ID\s*\[\s*<[0-9A-Fa-f]+>\s*<[0-9A-Fa-f]+>\s*\]/,
+    `/ID [ <${idHex}> <${idHex}> ]`
+  );
+  return new Blob([Buffer.from(stabilized, "latin1")], { type: "application/pdf" });
 }

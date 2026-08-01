@@ -10,6 +10,12 @@ test("MediaPlanEditorHero uses B2 PageHeroShell with token-based styling", async
 
   assert.match(source, /PageHeroShell/)
   assert.match(source, /PageHeroTitleBlock/)
+  assert.match(source, /pe-28/)
+  assert.match(source, /md:pe-32/)
+  assert.match(source, /basis-\[min\(280px,100%\)\]/)
+  assert.match(source, /basis-\[min\(460px,100%\)\]/)
+  assert.match(source, /basis-\[min\(780px,100%\)\]/)
+  assert.match(source, /actionsFloor/)
   assert.doesNotMatch(source, /#4f8fcb/i)
   assert.doesNotMatch(source, /rgba\(/)
   assert.doesNotMatch(source, /hero-glass/)

@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
+import { Field } from "@/components/ui/field"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Combobox } from "@/components/ui/combobox"
 import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/multi-select-combobox"
@@ -39,6 +40,11 @@ import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApply
 import { BuilderIssuesBadge } from "@/components/mediaplans/BuilderIssuesBadge"
 import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
 import { pushFinanceBuilderIssues } from "@/lib/mediaplan/pushFinanceBuilderIssues"
+import {
+  computeCampaignBudgetRemaining,
+  isCampaignBudgetOverspend,
+  totalInvestmentAllocatedFromMbaScope,
+} from "@/lib/mediaplan/campaignBudgetRemaining"
 import { MediaContainerLoadState } from "@/components/media-containers/MediaContainerLoadState"
 import { defaultCampaignDateRange } from "@/lib/mediaplan/campaignDatePresets"
 import { ChevronsUpDown, Check, Download, FileText, Loader2 } from "lucide-react"
@@ -47,7 +53,7 @@ import { formatMoney } from "@/lib/format/money"
 import { MoneyInput } from "@/components/ui/MoneyInput"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
-import { AvaMediaplanCreateActions } from "@/components/ava/AvaSkillActionSets"
+import { MediaPlanEditorHeroActions } from "@/components/mediaplans/MediaPlanEditorHeroActions"
 import { sortByLabel } from "@/lib/utils/sort"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { UnsavedChangesDialog } from "@/components/mediaplans/UnsavedChangesDialog"
@@ -118,6 +124,11 @@ import {
   defaultManualBillingAccordionExpanded,
   useManualBillingSpreadsheetCallbacks,
 } from "@/lib/billing/useManualBillingSpreadsheetCallbacks"
+import { isBillingBalancerEnabled } from "@/lib/billing/balancer"
+import {
+  getLineBalancingMonth,
+  rebalanceLineOnSchedule,
+} from "@/lib/billing/rebalanceLineOnSchedule"
 import { getMediaTypeHeadersForSchedule } from "@/lib/billing/mediaTypeHeaders"
 import { persistManualBillingOverrides } from "@/lib/finance/persistManualBillingOverrides"
 import {
@@ -141,7 +152,6 @@ import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/generateMediaPlan'
 import { extractPlanGlobals } from '@/lib/naming/fromPlan'
 import { fetchNamingWorkbook } from '@/lib/naming/fetchNamingWorkbook'
-import { MBAData } from '@/lib/generateMBA'
 import { saveAs } from 'file-saver'
 import { useUnsavedChangesPrompt } from "@/hooks/use-unsaved-changes-prompt"
 import { 
@@ -213,6 +223,39 @@ import {
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { stampClientFeePctOnLineItems } from "@/lib/finance/stampClientFeePctOnLineItems"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
+import {
+  computeChannelDuplicateStats,
+  formatSaveModeLabel,
+  isSaveAllowedAfterHydration,
+} from "@/lib/mediaplan/channelHydrationGate"
+import { useWriteBackend } from "@/lib/data/WriteBackendContext"
+import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
+import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
+import {
+  DOC_SKIP_REASON,
+  DOC_STEP_MBA,
+  DOC_STEP_MEDIA_PLAN,
+  classifyDocStepFailure,
+  shouldSkipDocsForCampaignStatus,
+} from "@/lib/docs/saveDocSteps"
+import {
+  POSTGRES_SAVE_MODAL_STEPS,
+  assemblePlansSaveRequestBody,
+  buildSavePlanLineItemsFromSnapshots,
+  dollarsToCampaignBudgetCents,
+  postPlansSave,
+} from "@/lib/mediaplan/buildPostgresSavePayload"
+import { usePlanDraftSession } from "@/hooks/usePlanDraftSession"
+import {
+  PlanDraftPill,
+  PlanDraftRecoveryBanner,
+  PlanDraftTipCompareDialog,
+  PlanStaleBaseDialog,
+} from "@/components/mediaplan/PlanDraftChrome"
+import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
+import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
+import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
+import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { assertCoreScheduleParity } from "@/lib/finance/assertCoreScheduleParity"
 import {
   humaniseBillingSaveError,
@@ -533,6 +576,8 @@ function CreateMediaPlan() {
   const [clientPostcode, setClientPostcode] = useState("")
   const [saveStatus, setSaveStatus] = useState<SaveStatusItem[]>([]);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  /** Server-injected via create layout — `WRITE_BACKEND` (not derived from DATA_BACKEND). */
+  const writeBackend = useWriteBackend()
   /** Children saved but master.version_number bump failed — retry publish PATCH only. */
   const [pendingPublishRetry, setPendingPublishRetry] = useState<{
     mbaNumber: string
@@ -819,6 +864,7 @@ function CreateMediaPlan() {
   })
   const [isPartialMBA, setIsPartialMBA] = useState(false);
   const [isMbaBillingModalOpen, setIsMbaBillingModalOpen] = useState(false);
+  const [saveModeLabel, setSaveModeLabel] = useState<string | null>(null)
   const [dateWarning, setDateWarning] = useState<{
     hasViolation: boolean
     offendingCount: number
@@ -1901,10 +1947,10 @@ function CreateMediaPlan() {
     return computeCampaignFinancials(lineItems, { feeLoading }, {
       campaignStart: start,
       campaignEnd: end,
-      getRateForMediaType,
-      adservaudio: adservaudio ?? 0,
+      selectedMonthYears:
+        partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
     })
-  }, [billingSaveInputs, campaignStart, campaignEnd, getRateForMediaType, adservaudio])
+  }, [billingSaveInputs, campaignStart, campaignEnd, partialMBAMonthYears])
 
   const campaignFinancialsMediaByKey = useMemo(() => {
     const out: Record<string, number> = {}
@@ -1916,9 +1962,71 @@ function CreateMediaPlan() {
   }, [campaignFinancials])
 
   const panelIndicators = useMemo(
-    () => panelIndicatorsFromCampaignFinancials(campaignFinancials, { isPartialMBA }),
-    [campaignFinancials, isPartialMBA]
+    () =>
+      panelIndicatorsFromCampaignFinancials(campaignFinancials, {
+        isPartialMBA,
+        selectedMonthYears: partialMBAMonthYears,
+      }),
+    [campaignFinancials, isPartialMBA, partialMBAMonthYears]
   )
+
+  const channelDuplicateSummary = useMemo(
+    () =>
+      computeChannelDuplicateStats({
+        television: televisionMediaLineItems,
+        radio: radioMediaLineItems,
+        newspaper: newspaperMediaLineItems,
+        magazines: magazineMediaLineItems,
+        ooh: oohMediaLineItems,
+        cinema: cinemaMediaLineItems,
+        digitalDisplay: digiDisplayMediaLineItems,
+        digitalAudio: digiAudioMediaLineItems,
+        digitalVideo: digiVideoMediaLineItems,
+        bvod: bvodMediaLineItems,
+        integration: integrationMediaLineItems,
+        production: productionMediaLineItems,
+        search: searchMediaLineItems,
+        socialMedia: socialMediaMediaLineItems,
+        progDisplay: progDisplayMediaLineItems,
+        progVideo: progVideoMediaLineItems,
+        progBvod: progBvodMediaLineItems,
+        progAudio: progAudioMediaLineItems,
+        progOoh: progOohMediaLineItems,
+        influencers: influencersMediaLineItems,
+      }),
+    [
+      televisionMediaLineItems,
+      radioMediaLineItems,
+      newspaperMediaLineItems,
+      magazineMediaLineItems,
+      oohMediaLineItems,
+      cinemaMediaLineItems,
+      digiDisplayMediaLineItems,
+      digiAudioMediaLineItems,
+      digiVideoMediaLineItems,
+      bvodMediaLineItems,
+      integrationMediaLineItems,
+      productionMediaLineItems,
+      searchMediaLineItems,
+      socialMediaMediaLineItems,
+      progDisplayMediaLineItems,
+      progVideoMediaLineItems,
+      progBvodMediaLineItems,
+      progAudioMediaLineItems,
+      progOohMediaLineItems,
+      influencersMediaLineItems,
+    ]
+  )
+  const duplicatesDetected = channelDuplicateSummary.duplicatesDetected
+  const saveBlockedByDuplicates = !isSaveAllowedAfterHydration(true, {
+    duplicatesDetected,
+  })
+
+  const predictedSaveModeLabel = useMemo(() => {
+    if (saveModeLabel) return saveModeLabel
+    return formatSaveModeLabel("increment", 1)
+  }, [saveModeLabel])
+
 
 
   const mediaLabelByBillingKey = useMemo(() => {
@@ -1964,16 +2072,17 @@ function CreateMediaPlan() {
     })
   }, [campaignFinancials.perLine, billingFeeSeedEnabledConfigs, mediaLabelByBillingKey])
 
-  const grossMediaAllocated = useMemo(
-    () => campaignFinancials.mbaScopeTotals.grossMedia,
+  // Campaign budget = total investment (grossMedia + fee + adServing + production, ex GST).
+  const totalInvestmentAllocated = useMemo(
+    () => totalInvestmentAllocatedFromMbaScope(campaignFinancials.mbaScopeTotals),
     [campaignFinancials]
   )
 
   const budgetRemaining = useMemo(
-    () => (Number(watchedCampaignBudget) || 0) - grossMediaAllocated,
-    [watchedCampaignBudget, grossMediaAllocated]
+    () => computeCampaignBudgetRemaining(watchedCampaignBudget, totalInvestmentAllocated),
+    [watchedCampaignBudget, totalInvestmentAllocated]
   )
-  const budgetRemainingOverspend = budgetRemaining < 0
+  const budgetRemainingOverspend = isCampaignBudgetOverspend(budgetRemaining)
 
   const missingPublisherKpiCount = useMemo(
     () => kpiRows.filter((r) => r.hasPublisherKpi === false).length,
@@ -1989,6 +2098,8 @@ function CreateMediaPlan() {
         id: "required-client",
         severity: "error",
         title: "Client name is required",
+        stepLabel: "Campaign setup",
+        fieldLabel: "Client name",
         scrollTargetId: "builder-section-campaign",
       })
     }
@@ -1997,6 +2108,8 @@ function CreateMediaPlan() {
         id: "required-campaign-name",
         severity: "error",
         title: "Campaign name is required",
+        stepLabel: "Campaign setup",
+        fieldLabel: "Campaign name",
         scrollTargetId: "builder-section-campaign",
       })
     }
@@ -2009,6 +2122,8 @@ function CreateMediaPlan() {
             ? "1 line item has flight dates outside the campaign window"
             : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`,
         detail: "Open the channel cards and adjust burst dates, or widen campaign dates.",
+        stepLabel: "Campaign setup",
+        fieldLabel: "Campaign dates",
         scrollTargetId: "builder-field-campaign-dates",
       })
     }
@@ -2018,6 +2133,8 @@ function CreateMediaPlan() {
         severity: "warning",
         title: "Budget remaining is negative",
         detail: `${formatMoney(budgetRemaining)} over the campaign budget.`,
+        stepLabel: "Campaign setup",
+        fieldLabel: "Campaign budget",
         scrollTargetId: "builder-field-campaign-budget",
       })
     }
@@ -2032,6 +2149,8 @@ function CreateMediaPlan() {
         title: "Ad serving / production not auto-checked",
         detail:
           "These aren't included in the save equality check — confirm their monthly amounts before billing.",
+        stepLabel: "MBA & billing",
+        fieldLabel: "Ad serving / production",
         scrollTargetId: "mba-billing",
       })
     }
@@ -2041,6 +2160,8 @@ function CreateMediaPlan() {
         severity: "warning",
         title: `${missingPublisherKpiCount} missing publisher KPI`,
         detail: "Does not block save — open KPIs to add publisher coverage.",
+        stepLabel: "KPIs",
+        fieldLabel: "Publisher KPI",
         scrollTargetId: "builder-section-kpis",
       })
     }
@@ -2684,67 +2805,18 @@ function CreateMediaPlan() {
     // Ensure any recent duplicate/add operations finish propagating to state
     await waitForStateFlush();
 
-    let finalVisibleMedia: { media_type: string; gross_amount: number }[];
-    let finalTotals: MBAData['totals'];
-
-    // Single source: core financials (partial selection already applied via billingSaveInputs).
-    const t = campaignFinancials.mbaScopeTotals
-    finalVisibleMedia = mediaTypes
-      .filter((medium) => medium.name !== "mp_production")
-      .filter((medium) => Boolean(fv[medium.name as keyof MediaPlanFormValues]))
-      .map((medium) => {
-        const billingKey = mediaKeyMap[medium.name]
-        const gross_amount =
-          billingKey !== undefined ? (campaignFinancialsMediaByKey[billingKey] ?? 0) : 0
-        return {
-          media_type: medium.label,
-          gross_amount,
-        }
-      })
-
-    finalTotals = {
-      gross_media: t.grossMedia,
-      service_fee: t.fee,
-      production: t.production,
-      adserving: t.adServing,
-      totals_ex_gst: t.nettExGst,
-      total_inc_gst: t.nettIncGst,
-    }
-
-    const billingMonthsExGST = campaignFinancials.billingSchedule.map((month) => ({
-      monthYear: month.monthYear,
-      totalAmount: month.totalAmount,
-    }));
-
     const resolvedPlanVersion = String(opts?.planVersion || fv.mp_plannumber || "1");
-    const apiData = {
-      mba_number: fv.mba_number,
-      mp_client_name: fv.mp_client_name,
-      mp_campaignname: fv.mp_campaignname,
-      mp_brand: fv.mp_brand,
-      mp_ponumber: fv.mp_ponumber,
-      mp_plannumber: resolvedPlanVersion,
-      mp_campaigndates_start: toDateOnlyString(fv.mp_campaigndates_start),
-      mp_campaigndates_end: toDateOnlyString(fv.mp_campaigndates_end),
-      clientAddress: clientAddress,
-      clientSuburb: clientSuburb,
-      clientState: clientState,
-      clientPostcode: clientPostcode,
-      gross_media: finalVisibleMedia,
-      grossMediaTotal: finalTotals.gross_media,
-      calculateAssembledFee: finalTotals.service_fee,
-      calculateProductionCosts: finalTotals.production,
-      calculateAdServingFees: finalTotals.adserving,
-      totalInvestment: finalTotals.totals_ex_gst,
-      billingMonths: billingMonthsExGST,
-    };
 
+    // PC3: server renders from persisted rows — no client totals.
     const response = await fetch("/api/mba/generate", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(apiData),
+      body: JSON.stringify({
+        mba_number: fv.mba_number,
+        version_number: Number(resolvedPlanVersion),
+      }),
     });
 
     if (!response.ok) {
@@ -3581,8 +3653,7 @@ function CreateMediaPlan() {
       {
         campaignStart: start,
         campaignEnd: end,
-        getRateForMediaType,
-        adservaudio: adservaudio ?? 0,
+        selectedMonthYears: nextMonthYears.length > 0 ? nextMonthYears : undefined,
       }
     )
 
@@ -3973,10 +4044,23 @@ function CreateMediaPlan() {
       0
     )
 
-    const nextMonths =
+    const nextMonthsRaw =
       type === "lineItem" && lineItemId && lineItemValueChanged
         ? applyBillingLineMode(copy, lineItemId, "manual")
         : copy
+    let nextMonths = nextMonthsRaw
+    if (
+      isBillingBalancerEnabled() &&
+      type === "lineItem" &&
+      lineItemId &&
+      monthYear &&
+      lineItemValueChanged
+    ) {
+      nextMonths = rebalanceLineOnSchedule({
+        months: nextMonthsRaw,
+        lineItemId,
+      })
+    }
     setManualBillingTotal(formatter.format(grandTotal))
     setManualBillingMonths(nextMonths)
   }
@@ -4323,7 +4407,22 @@ function CreateMediaPlan() {
     })
   }
 
+  function handlePartialMBAMonthsChange(nextMonthYears: string[]) {
+    const deliveryMonthsRaw = autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths
+    if (!nextMonthYears.length) return
+    setPartialMBAMonthYears(nextMonthYears)
+    const allMonths = deliveryMonthsRaw.map((m) => m.monthYear)
+    const monthPartial =
+      allMonths.length > 0 &&
+      (nextMonthYears.length < allMonths.length ||
+        !allMonths.every((m) => nextMonthYears.includes(m)))
+    if (monthPartial) setIsPartialMBA(true)
+    if (!deliveryMonthsRaw.length) return
+    recomputePartialMBAFromLineItems(nextMonthYears, partialMBASelectedLineItemIds)
+  }
+
   function handleMbaBillingToggleLine(lineItemId: string, mediaType: string, approved: boolean) {
+
     const existing = new Set(partialMBASelectedLineItemIds[mediaType] || [])
     if (approved) existing.add(lineItemId)
     else existing.delete(lineItemId)
@@ -4660,6 +4759,106 @@ function CreateMediaPlan() {
   const [isPlanSaving, setIsPlanSaving] = useState<boolean>(false)
   const [isVersionSaving, setIsVersionSaving] = useState<boolean>(false)
   const [mediaPlanVersionId, setMediaPlanVersionId] = useState<number | null>(null)
+
+  const draftBaseVersionId =
+    typeof mediaPlanVersionId === "number"
+      ? mediaPlanVersionId
+      : mediaPlanVersionId != null && Number.isFinite(Number(mediaPlanVersionId))
+        ? Number(mediaPlanVersionId)
+        : null
+
+  const planDraft = usePlanDraftSession({
+    masterId: mediaPlanId,
+    mbaNumber: String(mbaNumber ?? ""),
+    dirty: hasUnsavedChanges,
+    baseVersionId: draftBaseVersionId,
+    campaignStatus: form.watch("mp_campaignstatus"),
+    publishedVersionNumber: 0,
+    versionRowCount: 0,
+    getSnapshot: () =>
+      buildPlanDraftSnapshot({
+        mbaNumber: String(mbaNumber ?? ""),
+        masterId: mediaPlanId,
+        baseVersionId: draftBaseVersionId,
+        formValues: form.getValues() as Record<string, unknown>,
+        channels: {
+          television: televisionMediaLineItems,
+          radio: radioMediaLineItems,
+          newspaper: newspaperMediaLineItems,
+          magazines: magazineMediaLineItems,
+          ooh: oohMediaLineItems,
+          cinema: cinemaMediaLineItems,
+          digiDisplay: digiDisplayMediaLineItems,
+          digiAudio: digiAudioMediaLineItems,
+          digiVideo: digiVideoMediaLineItems,
+          bvod: bvodMediaLineItems,
+          integration: integrationMediaLineItems,
+          production: productionMediaLineItems,
+          search: searchMediaLineItems,
+          socialMedia: socialMediaMediaLineItems,
+          progDisplay: progDisplayMediaLineItems,
+          progVideo: progVideoMediaLineItems,
+          progBvod: progBvodMediaLineItems,
+          progAudio: progAudioMediaLineItems,
+          progOoh: progOohMediaLineItems,
+          influencers: influencersMediaLineItems,
+        },
+      }),
+    onRestore: (state: PlanDraftStateV1) => {
+      if (state.formValues) form.reset(state.formValues as never)
+      const ch = state.channels ?? {}
+      if (ch.television) setTelevisionMediaLineItems(ch.television)
+      if (ch.radio) setRadioMediaLineItems(ch.radio)
+      if (ch.newspaper) setNewspaperMediaLineItems(ch.newspaper)
+      if (ch.magazines) setMagazineMediaLineItems(ch.magazines)
+      if (ch.ooh) setOohMediaLineItems(ch.ooh)
+      if (ch.cinema) setCinemaMediaLineItems(ch.cinema)
+      if (ch.digiDisplay) setDigiDisplayMediaLineItems(ch.digiDisplay)
+      if (ch.digiAudio) setDigiAudioMediaLineItems(ch.digiAudio)
+      if (ch.digiVideo) setDigiVideoMediaLineItems(ch.digiVideo)
+      if (ch.bvod) setBvodMediaLineItems(ch.bvod)
+      if (ch.integration) setIntegrationMediaLineItems(ch.integration)
+      if (ch.production) setProductionMediaLineItems(ch.production)
+      if (ch.search) setSearchMediaLineItems(ch.search)
+      if (ch.socialMedia) setSocialMediaMediaLineItems(ch.socialMedia)
+      if (ch.progDisplay) setProgDisplayMediaLineItems(ch.progDisplay)
+      if (ch.progVideo) setProgVideoMediaLineItems(ch.progVideo)
+      if (ch.progBvod) setProgBvodMediaLineItems(ch.progBvod)
+      if (ch.progAudio) setProgAudioMediaLineItems(ch.progAudio)
+      if (ch.progOoh) setProgOohMediaLineItems(ch.progOoh)
+      if (ch.influencers) setInfluencersMediaLineItems(ch.influencers)
+      setHasUnsavedChanges(true)
+    },
+  })
+
+  const otherEditorLabel =
+    planDraft.others[0] != null
+      ? `${planDraft.others[0].userLabel || planDraft.others[0].userId} has an open draft (since ${new Date(planDraft.others[0].updatedAt).toLocaleString()})`
+      : null
+
+  const draftTipCompare = planDraft.recovery
+    ? (() => {
+        const state = planDraft.recovery.state
+        const tipIds = state.meta.tipLineIds ?? []
+        const draftIds = Object.values(state.channels)
+          .flat()
+          .map((row) =>
+            String(
+              (row as { line_item_id?: string; lineItemId?: string }).line_item_id ??
+                (row as { lineItemId?: string }).lineItemId ??
+                ""
+            )
+          )
+          .filter(Boolean)
+        return compareDraftToTip({
+          tipLineIds: tipIds,
+          draftLineIds: draftIds,
+          tipBudgetCents: state.meta.tipBudgetCents ?? 0,
+          draftBudgetCents: state.meta.budgetCents,
+        })
+      })()
+    : null
+
   const shouldBlockNavigation = hasUnsavedChanges && !isPlanSaving && !isVersionSaving && !isLoading
   const { isOpen: isUnsavedPromptOpen, confirmNavigation, stayOnPage, requestNavigation } = useUnsavedChangesPrompt(shouldBlockNavigation)
   const isSavingInProgress = isPlanSaving || isVersionSaving;
@@ -4848,7 +5047,7 @@ function CreateMediaPlan() {
   }
 
   // Helper function to update save status
-  const updateSaveStatus = (name: string, status: 'pending' | 'success' | 'error', error?: string) => {
+  const updateSaveStatus = (name: string, status: SaveStatusItem['status'], error?: string) => {
     setSaveStatus(prev => {
       const existing = prev.find(item => item.name === name)
       if (!existing) {
@@ -4894,6 +5093,354 @@ function CreateMediaPlan() {
         fv.mp_production || (productionMediaLineItems?.length ?? 0) > 0
       )
       const planVersionNumber = parseInt(fv.mp_plannumber ?? "1", 10) || 1
+      const mbaNum = String(fv.mba_number)
+
+      // --- T4c: WRITE_BACKEND=postgres → one transactional save ---
+      if (writeBackend === "postgres") {
+        setSaveStatus(
+          POSTGRES_SAVE_MODAL_STEPS.map((name) => ({
+            name,
+            status: "pending" as const,
+          }))
+        )
+
+        const feeLoadingForSave = billingSaveInputs.feeLoading
+        const snapshots = {
+          television: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(televisionMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.television),
+            "television",
+            feeLoadingForSave
+          ),
+          radio: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(radioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.radio),
+            "radio",
+            feeLoadingForSave
+          ),
+          newspaper: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(newspaperMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.newspaper),
+            "newspaper",
+            feeLoadingForSave
+          ),
+          magazines: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(magazineMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.magazines),
+            "magazines",
+            feeLoadingForSave
+          ),
+          ooh: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(oohMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.ooh),
+            "ooh",
+            feeLoadingForSave
+          ),
+          cinema: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(cinemaMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.cinema),
+            "cinema",
+            feeLoadingForSave
+          ),
+          digiDisplay: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(digiDisplayMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalDisplay),
+            "digiDisplay",
+            feeLoadingForSave
+          ),
+          digiAudio: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(digiAudioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalAudio),
+            "digiAudio",
+            feeLoadingForSave
+          ),
+          digiVideo: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(digiVideoMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.digitalVideo),
+            "digiVideo",
+            feeLoadingForSave
+          ),
+          bvod: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(bvodMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.bvod),
+            "bvod",
+            feeLoadingForSave
+          ),
+          integration: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(integrationMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.integration),
+            "integration",
+            feeLoadingForSave
+          ),
+          production: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(productionMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.production),
+            "production",
+            feeLoadingForSave
+          ),
+          search: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(searchMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.search),
+            "search",
+            feeLoadingForSave
+          ),
+          socialMedia: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(socialMediaMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.socialMedia),
+            "socialMedia",
+            feeLoadingForSave
+          ),
+          progDisplay: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(progDisplayMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progDisplay),
+            "progDisplay",
+            feeLoadingForSave
+          ),
+          progVideo: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(progVideoMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progVideo),
+            "progVideo",
+            feeLoadingForSave
+          ),
+          progBvod: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(progBvodMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progBVOD),
+            "progBvod",
+            feeLoadingForSave
+          ),
+          progAudio: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(progAudioMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progAudio),
+            "progAudio",
+            feeLoadingForSave
+          ),
+          progOoh: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(progOohMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.progOOH),
+            "progOoh",
+            feeLoadingForSave
+          ),
+          influencers: stampClientFeePctOnLineItems(
+            assignStableLineItemNumbers(influencersMediaLineItems, mbaNum, MEDIA_TYPE_ID_CODES.influencers),
+            "influencers",
+            feeLoadingForSave
+          ),
+        }
+
+        const modeResolved = resolvePostgresSaveMode({
+          campaignStatus: fv.mp_campaignstatus,
+          forceIncrement: false,
+          publishedVersionNumber: 0,
+          versionRowCount: 0,
+        })
+
+        setSaveModeLabel(
+          modeResolved.uiMode === "overwrite"
+            ? formatSaveModeLabel("overwrite", modeResolved.versionNumber)
+            : formatSaveModeLabel("increment", modeResolved.versionNumber)
+        )
+
+        const lineItemsForSave = buildSavePlanLineItemsFromSnapshots(
+          snapshots,
+          billingSaveInputs.lineItems
+        )
+
+        if (
+          modeResolved.mode === "publish" &&
+          lineItemsForSave.length === 0 &&
+          [
+            fv.mp_television,
+            fv.mp_radio,
+            fv.mp_newspaper,
+            fv.mp_magazines,
+            fv.mp_ooh,
+            fv.mp_cinema,
+            fv.mp_digidisplay,
+            fv.mp_digiaudio,
+            fv.mp_digivideo,
+            fv.mp_bvod,
+            fv.mp_integration,
+            fv.mp_search,
+            fv.mp_socialmedia,
+            fv.mp_progdisplay,
+            fv.mp_progvideo,
+            fv.mp_progbvod,
+            fv.mp_progaudio,
+            fv.mp_progooh,
+            fv.mp_influencers,
+            shouldEnableProduction,
+          ].some(Boolean)
+        ) {
+          updateSaveStatus(
+            "Save plan (transactional)",
+            "error",
+            "Cannot publish version with 0 line items (BOSS006)"
+          )
+          toast({
+            variant: "destructive",
+            title: "Publish rejected — no line items",
+            description: "Enable channels need at least one line item before publish.",
+          })
+          return
+        }
+
+        updateSaveStatus("Save plan (transactional)", "pending")
+        const budgetCents = dollarsToCampaignBudgetCents(fv.mp_campaignbudget)
+        const saveResult = await postPlansSave(
+          assemblePlansSaveRequestBody(
+            {
+              masterId: Number(masterId),
+              mbaNumber: mbaNum,
+              versionNumber: modeResolved.versionNumber,
+              mode: modeResolved.mode,
+              baseVersionId: draftBaseVersionId,
+              campaignName: fv.mp_campaignname ?? null,
+              campaignStatus: mapCampaignStatusForPersist(fv.mp_campaignstatus),
+              campaignStartDate: toDateOnlyString(fv.mp_campaigndates_start),
+              campaignEndDate: toDateOnlyString(fv.mp_campaigndates_end),
+              brand: fv.mp_brand ?? null,
+              clientContact: fv.mp_clientcontact ?? null,
+              poNumber: fv.mp_ponumber ?? null,
+              campaignBudgetCents: budgetCents,
+              fixedFee: Boolean(fv.mp_fixedfee),
+              channelFlags: {
+                mp_television: Boolean(fv.mp_television),
+                mp_radio: Boolean(fv.mp_radio),
+                mp_newspaper: Boolean(fv.mp_newspaper),
+                mp_magazines: Boolean(fv.mp_magazines),
+                mp_ooh: Boolean(fv.mp_ooh),
+                mp_cinema: Boolean(fv.mp_cinema),
+                mp_digidisplay: Boolean(fv.mp_digidisplay),
+                mp_digiaudio: Boolean(fv.mp_digiaudio),
+                mp_digivideo: Boolean(fv.mp_digivideo),
+                mp_bvod: Boolean(fv.mp_bvod),
+                mp_integration: Boolean(fv.mp_integration),
+                mp_search: Boolean(fv.mp_search),
+                mp_socialmedia: Boolean(fv.mp_socialmedia),
+                mp_progdisplay: Boolean(fv.mp_progdisplay),
+                mp_progvideo: Boolean(fv.mp_progvideo),
+                mp_progbvod: Boolean(fv.mp_progbvod),
+                mp_progaudio: Boolean(fv.mp_progaudio),
+                mp_progooh: Boolean(fv.mp_progooh),
+                mp_influencers: Boolean(fv.mp_influencers),
+                mp_production: shouldEnableProduction,
+                television: Boolean(fv.mp_television),
+                radio: Boolean(fv.mp_radio),
+                newspaper: Boolean(fv.mp_newspaper),
+                magazines: Boolean(fv.mp_magazines),
+                ooh: Boolean(fv.mp_ooh),
+                cinema: Boolean(fv.mp_cinema),
+                digi_display: Boolean(fv.mp_digidisplay),
+                digi_audio: Boolean(fv.mp_digiaudio),
+                digi_video: Boolean(fv.mp_digivideo),
+                digi_bvod: Boolean(fv.mp_bvod),
+                integrations: Boolean(fv.mp_integration),
+                search: Boolean(fv.mp_search),
+                social: Boolean(fv.mp_socialmedia),
+                prog_display: Boolean(fv.mp_progdisplay),
+                prog_video: Boolean(fv.mp_progvideo),
+                prog_bvod: Boolean(fv.mp_progbvod),
+                prog_audio: Boolean(fv.mp_progaudio),
+                prog_ooh: Boolean(fv.mp_progooh),
+                influencers: Boolean(fv.mp_influencers),
+                production: shouldEnableProduction,
+              },
+              lineItems: lineItemsForSave,
+              ensureMaster: {
+                mbaNumber: mbaNum,
+                mpClientName: clientName,
+                campaignName: fv.mp_campaignname ?? null,
+                campaignStatus: mapCampaignStatusForPersist(fv.mp_campaignstatus),
+                campaignStartDate: toDateOnlyString(fv.mp_campaigndates_start),
+                campaignEndDate: toDateOnlyString(fv.mp_campaigndates_end),
+                campaignBudgetCents: budgetCents,
+              },
+            },
+            { feeLoading: feeLoadingForSave, adservaudio }
+          )
+        )
+
+        if (!saveResult.ok) {
+          if (saveResult.data.code === "STALE_BASE_VERSION" && saveResult.data.compare) {
+            planDraft.setStaleCompare(saveResult.data.compare)
+            updateSaveStatus(
+              "Save plan (transactional)",
+              "error",
+              "Published tip moved — compare and re-apply"
+            )
+            toast({
+              variant: "destructive",
+              title: "Tip moved since you started",
+              description: "Compare base / yours / current, then re-apply manually.",
+            })
+            return
+          }
+          const human =
+            saveResult.data.code === "BOSS006_EMPTY_PUBLISH"
+              ? "Cannot publish version with 0 line items (BOSS006)"
+              : saveResult.data.code === "DUPLICATE_LINE_ITEM_ID"
+                ? `Duplicate line_item_id rejected: ${saveResult.data.lineItemId ?? "(unknown)"}`
+                : saveResult.data.code === "VERSION_ALREADY_EXISTS"
+                  ? saveResult.data.error || "That version number already exists"
+                  : saveResult.data.code === "MISSING_CAMPAIGN_STATUS"
+                    ? "Campaign status is required on publish"
+                    : saveResult.data.error || "Postgres save failed"
+          updateSaveStatus("Save plan (transactional)", "error", human)
+          toast({ variant: "destructive", title: "Save failed", description: human })
+          return
+        }
+
+        updateSaveStatus("Save plan (transactional)", "success")
+        void planDraft.clearAfterPublish()
+        if (saveResult.data.mirror === "failed") {
+          updateSaveStatus(
+            "Mirror to Xano",
+            "error",
+            saveResult.data.mirrorError || "Xano mirror failed (Postgres commit kept)"
+          )
+          toast({
+            variant: "destructive",
+            title: "Saved to Postgres — Xano mirror failed",
+            description:
+              saveResult.data.mirrorError ||
+              "Retry via admin xano-mirror. Postgres is authoritative.",
+          })
+        } else {
+          updateSaveStatus("Mirror to Xano", "success")
+        }
+
+        setMediaPlanVersionId(saveResult.data.versionId)
+        updateSaveStatus("KPI sync", "pending")
+        if (kpiRows.length > 0) {
+          const lineItemsByMediaType = buildKpiLineItemsByMediaType({
+            search: { media: snapshots.search, export: searchItems },
+            socialMedia: { media: snapshots.socialMedia, export: socialMediaItems },
+            progDisplay: { media: snapshots.progDisplay, export: progDisplayItems },
+            progVideo: { media: snapshots.progVideo, export: progVideoItems },
+            progBvod: { media: snapshots.progBvod, export: progBvodItems },
+            progAudio: { media: snapshots.progAudio, export: progAudioItems },
+            progOoh: { media: snapshots.progOoh, export: progOohItems },
+            digiDisplay: { media: snapshots.digiDisplay, export: digiDisplayItems },
+            digiAudio: { media: snapshots.digiAudio, export: digiAudioItems },
+            digiVideo: { media: snapshots.digiVideo, export: digiVideoItems },
+            bvod: { media: snapshots.bvod, export: bvodItems },
+            integration: { media: snapshots.integration, export: integrationItems },
+            television: { media: snapshots.television, export: televisionItems },
+            radio: { media: snapshots.radio, export: radioItems },
+            newspaper: { media: snapshots.newspaper, export: newspaperItems },
+            magazines: { media: snapshots.magazines, export: magazineItems },
+            ooh: { media: snapshots.ooh, export: oohItems },
+            cinema: { media: snapshots.cinema, export: cinemaItems },
+            influencers: { media: snapshots.influencers, export: influencersItems },
+            production: { media: snapshots.production, export: productionItems },
+          })
+          const kpiPayload: CampaignKPI[] = fanOutKpiPayload(
+            kpiRows,
+            {
+              mp_client_name: clientName,
+              mba_number: mbaNum,
+              version_number: modeResolved.versionNumber,
+              campaign_name: fv.mp_campaignname ?? "",
+            },
+            lineItemsByMediaType
+          )
+          const kpiResult = await saveCampaignKpisFromRows(kpiRows, kpiPayload)
+          updateSaveStatus(
+            "KPI sync",
+            kpiResult.status === "error" ? "error" : "success",
+            kpiResult.status === "error" ? kpiResult.message : undefined
+          )
+        } else {
+          updateSaveStatus("KPI sync", "success")
+        }
+
+        toast({
+          title: "Success",
+          description: `Saved as version ${modeResolved.versionNumber}`,
+        })
+        return
+      }
 
       console.log("Form values for media plan version:", {
         mp_client_name: clientName,
@@ -4929,7 +5476,18 @@ function CreateMediaPlan() {
           billingSchedule: undefined,
           deliverySchedule: undefined,
           delivery_schedule: undefined,
-          // REVIEW (integrity P0): stage version; publish master.version_number after children succeed
+          partialApproval:
+            isPartialMBA && partialApprovalMetadata
+              ? {
+                  ...partialApprovalMetadata,
+                  selectedMonthYears:
+                    partialMBAMonthYears.length > 0
+                      ? partialMBAMonthYears
+                      : partialApprovalMetadata.selectedMonthYears,
+                }
+              : null,
+          // Stage the version row without flipping media_plans.version yet.
+          // Finalise via POST .../versions/{id}/publish after channel writes.
           deferMasterVersionPublish: true,
         }
       }
@@ -4975,6 +5533,39 @@ function CreateMediaPlan() {
           typeof savedVersionNumberRaw === "string"
             ? parseInt(savedVersionNumberRaw, 10)
             : savedVersionNumberRaw
+
+        const numericSavedVersion = savedVersionNumber
+        const mode = versionData.mode
+        setSaveModeLabel(
+          mode === "overwrite"
+            ? formatSaveModeLabel("overwrite", Number(numericSavedVersion) || 1)
+            : formatSaveModeLabel(
+                "increment",
+                (Number(numericSavedVersion) || 0) + 1
+              )
+        )
+        if (versionData.duplicateWarning) {
+          const channels = Array.isArray(versionData.duplicateWarning.channels)
+            ? versionData.duplicateWarning.channels
+            : []
+          const rows = channels.reduce(
+            (sum: number, c: { rows?: number }) => sum + (Number(c.rows) || 0),
+            0
+          )
+          const ids = channels.reduce(
+            (sum: number, c: { distinctLineItemIds?: number }) =>
+              sum + (Number(c.distinctLineItemIds) || 0),
+            0
+          )
+          toast({
+            title: "Duplicate line-item rows detected",
+            description:
+              rows > 0
+                ? `${rows} rows / ${ids} ids — totals may be inflated. Do not rely on this save.`
+                : "Channel rows exceed distinct line_item_ids after save.",
+            variant: "destructive",
+          })
+        }
 
         version = {
           id: versionId,
@@ -5139,6 +5730,7 @@ function CreateMediaPlan() {
         try {
           persistResult = await persistManualBillingOverrides({
             versionId: version.id,
+            mbaNumber: String(fv.mba_number || ""),
             months: manualBillingMonths,
             autoMonthsForMediaTotals,
             metaByLine: manualBillingOverrideMetaRef.current,
@@ -5243,21 +5835,55 @@ function CreateMediaPlan() {
       // Update Media Plan Version status to success
       updateSaveStatus('Media Plan Version', 'success')
 
-      // 3b. Generate + upload documents (MBA PDF + Media Plan XLSX) to Xano
+      // 3b. Generate + upload documents (MBA PDF + Media Plan XLSX) to Xano.
+      // Below approved: PC3 correctly refuses render — show SKIPPED, not ✗.
       // Do not block core save on upload failures: show in modal as partial success.
-      updateSaveStatus("MBA PDF Upload", "pending")
-      updateSaveStatus("Media Plan Upload", "pending")
+      updateSaveStatus(DOC_STEP_MBA, "pending")
+      updateSaveStatus(DOC_STEP_MEDIA_PLAN, "pending")
       const documentUploadPromise = (async () => {
+        if (shouldSkipDocsForCampaignStatus(fv.mp_campaignstatus)) {
+          updateSaveStatus(DOC_STEP_MBA, "skipped", DOC_SKIP_REASON)
+          updateSaveStatus(DOC_STEP_MEDIA_PLAN, "skipped", DOC_SKIP_REASON)
+          return
+        }
+
         const planVersionForDocs = String(
           version.version_number ?? fv.mp_plannumber ?? "1"
         )
 
-        const [{ blob: mbaBlob, fileName: mbaFileName }, { blob: mpBlob, fileName: mpFileName }] = await Promise.all([
-          generateMbaPdfBlob({ planVersion: planVersionForDocs }),
-          generateMediaPlanXlsxBlob({ planVersion: planVersionForDocs }),
-        ])
+        let mbaBlob: Blob | null = null
+        let mbaFileName = ""
+        try {
+          const mba = await generateMbaPdfBlob({ planVersion: planVersionForDocs })
+          mbaBlob = mba.blob
+          mbaFileName = mba.fileName
+        } catch (mbaErr: any) {
+          console.warn("MBA PDF skipped or failed:", mbaErr?.message || mbaErr)
+          const classified = classifyDocStepFailure(
+            mbaErr?.message || "MBA requires approved-or-beyond published version"
+          )
+          updateSaveStatus(DOC_STEP_MBA, classified.status, classified.error)
+        }
 
-        const mbaPdfFile = new File([mbaBlob], mbaFileName, { type: "application/pdf" })
+        let mpBlob: Blob
+        let mpFileName: string
+        try {
+          const mp = await generateMediaPlanXlsxBlob({
+            planVersion: planVersionForDocs,
+          })
+          mpBlob = mp.blob
+          mpFileName = mp.fileName
+        } catch (mpErr: any) {
+          const message = mpErr?.message || String(mpErr)
+          console.error("Media plan workbook generation failed:", mpErr)
+          const classified = classifyDocStepFailure(message)
+          updateSaveStatus(DOC_STEP_MEDIA_PLAN, classified.status, classified.error)
+          return
+        }
+
+        const mbaPdfFile = mbaBlob
+          ? new File([mbaBlob], mbaFileName, { type: "application/pdf" })
+          : undefined
         const mediaPlanFile = new File([mpBlob], mpFileName, {
           type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         })
@@ -5328,16 +5954,29 @@ function CreateMediaPlan() {
             mpClientName: clientName,
           })
 
-          updateSaveStatus("MBA PDF Upload", "success")
-          updateSaveStatus("Media Plan Upload", "success")
+          if (mbaPdfFile) {
+            updateSaveStatus(DOC_STEP_MBA, "success")
+          } else {
+            setSaveStatus((prev) =>
+              prev.map((item) =>
+                item.name === DOC_STEP_MBA && item.status === "pending"
+                  ? { ...item, status: "skipped", error: DOC_SKIP_REASON }
+                  : item
+              )
+            )
+          }
+          updateSaveStatus(DOC_STEP_MEDIA_PLAN, "success")
           if (aaMediaPlanFile) {
             updateSaveStatus("AA Media Plan Upload", "success")
           }
         } catch (err: any) {
           const message = err?.message || String(err)
           console.error("Document upload failed:", err)
-          updateSaveStatus("MBA PDF Upload", "error", message)
-          updateSaveStatus("Media Plan Upload", "error", message)
+          const classified = classifyDocStepFailure(message)
+          if (mbaPdfFile) {
+            updateSaveStatus(DOC_STEP_MBA, classified.status, classified.error)
+          }
+          updateSaveStatus(DOC_STEP_MEDIA_PLAN, classified.status, classified.error)
           if (aaMediaPlanFile) {
             updateSaveStatus("AA Media Plan Upload", "error", message)
           }
@@ -5345,8 +5984,16 @@ function CreateMediaPlan() {
       })().catch((err: any) => {
         const message = err?.message || String(err)
         console.error("Document upload failed:", err)
-        updateSaveStatus("MBA PDF Upload", "error", message)
-        updateSaveStatus("Media Plan Upload", "error", message)
+        const classified = classifyDocStepFailure(message)
+        setSaveStatus((prev) =>
+          prev.map((item) => {
+            if (item.name !== DOC_STEP_MBA && item.name !== DOC_STEP_MEDIA_PLAN) {
+              return item
+            }
+            if (item.status === "skipped" || item.status === "success") return item
+            return { ...item, status: classified.status, error: classified.error }
+          })
+        )
       })
   
       // 4. Save all media line items for enabled media types
@@ -5894,6 +6541,15 @@ function CreateMediaPlan() {
   // in page.tsx
 
 const handleSaveAll = async () => {
+    if (saveBlockedByDuplicates) {
+      toast({
+        title: "Save disabled",
+        description: "Duplicate line-item rows detected — fix before saving.",
+        variant: "destructive",
+      })
+      return
+    }
+
   if (saveAllInFlightRef.current) return
   if (budgetRemaining < 0) {
     const proceed = window.confirm(
@@ -6383,6 +7039,49 @@ const handleSaveAll = async () => {
   const wizardBottomBar = (
     <>
       <BuilderIssuesBadge issues={builderIssues} />
+
+      {duplicatesDetected ? (
+        <div
+          role="alert"
+          className="w-full rounded-card border border-pacing-critical bg-pacing-critical-bg px-3 py-2 text-sm font-medium text-status-critical-fg"
+        >
+          Duplicate line-item rows detected ({channelDuplicateSummary.inflatedRows}{" "}
+          rows / {channelDuplicateSummary.inflatedDistinctIds} ids) — do not save;
+          totals are inflated
+        </div>
+      ) : null}
+      {planDraft.enabled && planDraft.recovery ? (
+        <PlanDraftRecoveryBanner
+          summary={planDraft.recovery.summary}
+          reason={planDraft.recovery.reason}
+          otherEditor={otherEditorLabel}
+          onResume={() => planDraft.resume()}
+          onCompare={() => planDraft.setCompareOpen(true)}
+          onDiscard={() => void planDraft.discard()}
+        />
+      ) : planDraft.enabled && otherEditorLabel ? (
+        <p className="mb-2 text-xs text-muted-foreground">{otherEditorLabel}</p>
+      ) : null}
+      {planDraft.enabled && planDraft.pill ? (
+        <PlanDraftPill pill={planDraft.pill} tipLabel={null} />
+      ) : predictedSaveModeLabel ? (
+        <p className="text-xs text-muted-foreground">{predictedSaveModeLabel}</p>
+      ) : null}
+      {planDraft.enabled && planDraft.staleCompare ? (
+        <PlanStaleBaseDialog
+          compare={planDraft.staleCompare as { sections: { base: string; yours: string; current: string } }}
+          onClose={() => planDraft.setStaleCompare(null)}
+        />
+      ) : null}
+      {planDraft.enabled && planDraft.compareOpen && draftTipCompare ? (
+        <PlanDraftTipCompareDialog
+          added={draftTipCompare.added}
+          removed={draftTipCompare.removed}
+          keptCount={draftTipCompare.kept.length}
+          budgetDeltaCents={draftTipCompare.budgetDeltaCents}
+          onClose={() => planDraft.setCompareOpen(false)}
+        />
+      ) : null}
       {dateWarning.hasViolation ? (
         <div className="rounded-card border border-pacing-critical bg-pacing-critical-bg px-3 py-2 text-xs font-medium text-status-critical-fg">
           {dateWarning.offendingCount === 1
@@ -6418,11 +7117,22 @@ const handleSaveAll = async () => {
           type="button"
           variant="action"
           onClick={handleSaveAll}
-          disabled={isWizardSaving}
+          disabled={isWizardSaving || saveBlockedByDuplicates}
           className="h-9 shrink-0 rounded-pill px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {isWizardSaving ? "Saving..." : "Save draft"}
+          {isWizardSaving ? "Saving..." : planDraft.enabled ? "Save" : "Save draft"}
         </Button>
+        {planDraft.enabled ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void planDraft.saveDraftNow()}
+            disabled={isWizardSaving || !hasUnsavedChanges}
+            className="h-9 shrink-0 rounded-pill border-border px-4 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Save draft
+          </Button>
+        ) : null}
         <Button
           type="button"
           onClick={handleDownloadMediaPlan}
@@ -6497,20 +7207,13 @@ const handleSaveAll = async () => {
       <ExpertApplyDirtyClearOnSave hasUnsavedChanges={hasUnsavedChanges} />
       <PlanWizardShell
         title="Create a Campaign"
+        breadcrumbCurrent="Create Campaign"
         subtitle={<p>Set up campaign details, select media types, and configure line items.</p>}
         heroActions={
-          <>
-            <AvaMediaplanCreateActions />
-            <Button
-              variant="ghost"
-              size="sm"
-              type="button"
-              className="text-xs"
-              onClick={handleCopyPageContext}
-            >
-              Copy Context
-            </Button>
-          </>
+          <MediaPlanEditorHeroActions
+            variant="create"
+            onCopyContext={handleCopyPageContext}
+          />
         }
         steps={createCampaignSteps.map((step) => ({
           id: step.id,
@@ -6519,8 +7222,8 @@ const handleSaveAll = async () => {
         }))}
         railSubItems={wizardRailSubItems}
         summary={wizardSummary}
-        onSave={handleSaveAll}
         onExit={handleExit}
+        exitLabel="Exit to Campaigns"
         isSaving={isWizardSaving}
         bottomBar={wizardBottomBar}
       >
@@ -6550,18 +7253,20 @@ const handleSaveAll = async () => {
               <FormField
                 control={form.control}
                 name={"mp_client_name" as keyof MediaPlanFormValues}
-                render={({ field }) => {
+                render={({ field, fieldState }) => {
                   const selectedClient = clients.find((client) => client.mp_client_name === field.value)
 
                   return (
-                    <FormItem>
-                      <FormLabel className="text-sm font-medium text-text-secondary">
-                        Client Name <span className="text-status-critical-fg" aria-hidden>*</span>
-                      </FormLabel>
-                      <FormControl>
+                    <Field
+                      label="Client Name"
+                      required
+                      error={fieldState.error?.message}
+                    >
+                      {(controlProps) => (
                         <Popover open={isClientPopoverOpen} onOpenChange={setIsClientPopoverOpen}>
                           <PopoverTrigger asChild>
                             <Button
+                              {...controlProps}
                               variant="outline"
                               role="combobox"
                               aria-expanded={isClientPopoverOpen}
@@ -6615,9 +7320,8 @@ const handleSaveAll = async () => {
                             </Command>
                           </PopoverContent>
                         </Popover>
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                      )}
+                    </Field>
                   )
                 }}
               />
@@ -6625,16 +7329,14 @@ const handleSaveAll = async () => {
               <FormField
                 control={form.control}
                 name={"mp_campaignname" as keyof MediaPlanFormValues}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm font-medium text-text-secondary">
-                      Campaign Name <span className="text-status-critical-fg" aria-hidden>*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <Input {...field} value={String(field.value)} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                render={({ field, fieldState }) => (
+                  <Field
+                    label="Campaign Name"
+                    required
+                    error={fieldState.error?.message}
+                  >
+                    <Input {...field} value={String(field.value)} />
+                  </Field>
                 )}
               />
 
@@ -6712,13 +7414,15 @@ const handleSaveAll = async () => {
               <FormField
                 control={form.control}
                 name="mp_campaigndates_start"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm font-medium text-text-secondary">
-                      Campaign Start Date <span className="text-status-critical-fg" aria-hidden>*</span>
-                    </FormLabel>
-                    <FormControl>
+                render={({ field, fieldState }) => (
+                  <Field
+                    label="Campaign Start Date"
+                    required
+                    error={fieldState.error?.message}
+                  >
+                    {(controlProps) => (
                       <SingleDatePicker
+                        {...controlProps}
                         ref={field.ref}
                         name={field.name}
                         onBlur={field.onBlur}
@@ -6731,22 +7435,23 @@ const handleSaveAll = async () => {
                         iconClassName="ml-auto h-4 w-4 opacity-50"
                         isDateDisabled={(date) => date > new Date("2100-01-01")}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                    )}
+                  </Field>
                 )}
               />
 
               <FormField
                 control={form.control}
                 name="mp_campaigndates_end"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="text-sm font-medium text-text-secondary">
-                      Campaign End Date <span className="text-status-critical-fg" aria-hidden>*</span>
-                    </FormLabel>
-                    <FormControl>
+                render={({ field, fieldState }) => (
+                  <Field
+                    label="Campaign End Date"
+                    required
+                    error={fieldState.error?.message}
+                  >
+                    {(controlProps) => (
                       <SingleDatePicker
+                        {...controlProps}
                         ref={field.ref}
                         name={field.name}
                         onBlur={field.onBlur}
@@ -6759,9 +7464,8 @@ const handleSaveAll = async () => {
                         iconClassName="ml-auto h-4 w-4 opacity-50"
                         isDateDisabled={(date) => date > new Date("2100-01-01")}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                    )}
+                  </Field>
                 )}
               />
                 </div>
@@ -6770,23 +7474,26 @@ const handleSaveAll = async () => {
               <FormField
                 control={form.control}
                 name="mp_campaignbudget"
-                render={({ field }) => (
-                  <FormItem id="builder-field-campaign-budget" className="scroll-mt-24">
-                    <FormLabel className="text-sm font-medium text-text-secondary">
-                      Campaign Budget <span className="text-status-critical-fg" aria-hidden>*</span>
-                    </FormLabel>
-                    <FormControl>
-                      <MoneyInput
-                        ref={field.ref}
-                        name={field.name}
-                        onBlur={field.onBlur}
-                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 max-[375px]:min-h-11 md:text-sm"
-                        value={field.value}
-                        onChange={(v) => field.onChange(v ?? 0)}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
+                render={({ field, fieldState }) => (
+                  <div id="builder-field-campaign-budget" className="scroll-mt-24">
+                    <Field
+                      label="Campaign Budget"
+                      required
+                      error={fieldState.error?.message}
+                    >
+                      {(controlProps) => (
+                        <MoneyInput
+                          {...controlProps}
+                          ref={field.ref}
+                          name={field.name}
+                          onBlur={field.onBlur}
+                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 max-[375px]:min-h-11 md:text-sm"
+                          value={field.value}
+                          onChange={(v) => field.onChange(v ?? 0)}
+                        />
+                      )}
+                    </Field>
+                  </div>
                 )}
               />
 
@@ -6870,7 +7577,6 @@ const handleSaveAll = async () => {
                 </div>
                 <div className="grid min-h-0 w-full grid-cols-2 content-start gap-2 px-6 py-4 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {mediaTypes.filter(medium => medium.name !== "mp_fixedfee").map((medium) => {
-                  const switchId = `media-type-${medium.name}`
                   const accentColor = getMediaTypeAccentColor(medium.name)
                   return (
                     <div key={medium.name} className="flex items-center gap-3 rounded-card border border-border bg-card px-3 py-2 shadow-e0">
@@ -6883,34 +7589,36 @@ const handleSaveAll = async () => {
                         control={form.control}
                         name={medium.name as keyof MediaPlanFormValues}
                         render={({ field }) => (
-                          <Switch
-                            id={switchId}
-                            className="shrink-0"
-                            checked={!!field.value}
-                            onCheckedChange={(checked) => {
-                              const next = Boolean(checked)
-                              if (next === Boolean(field.value)) return
-                              field.onChange(next)
-                              if (next && isPartialMBA) {
-                                toast({
-                                  title: "New channel included in MBA",
-                                  description:
-                                    "New channel added and included in the MBA — exclude it in MBA & billing if it's not approved yet.",
-                                })
-                              }
-                            }}
-                            onBlur={field.onBlur}
-                            disabled={field.disabled}
-                            ref={field.ref}
-                          />
+                          <Field
+                            label={medium.label}
+                            orientation="horizontal"
+                            className="min-w-0 flex-1"
+                          >
+                            {(controlProps) => (
+                              <Switch
+                                {...controlProps}
+                                className="shrink-0"
+                                checked={!!field.value}
+                                onCheckedChange={(checked) => {
+                                  const next = Boolean(checked)
+                                  if (next === Boolean(field.value)) return
+                                  field.onChange(next)
+                                  if (next && isPartialMBA) {
+                                    toast({
+                                      title: "New channel included in MBA",
+                                      description:
+                                        "New channel added and included in the MBA — exclude it in MBA & billing if it's not approved yet.",
+                                    })
+                                  }
+                                }}
+                                onBlur={field.onBlur}
+                                disabled={field.disabled}
+                                ref={field.ref}
+                              />
+                            )}
+                          </Field>
                         )}
                       />
-                      <Label
-                        htmlFor={switchId}
-                        className="font-normal leading-snug min-w-0 flex-1 cursor-pointer"
-                      >
-                        {medium.label}
-                      </Label>
                     </div>
                   )
                 })}
@@ -6931,6 +7639,7 @@ const handleSaveAll = async () => {
                     financials={campaignFinancials}
                     panelIndicators={panelIndicators}
                     mediaLabelByType={mediaLabelByBillingKey}
+                    duplicatesDetected={duplicatesDetected}
                   />
                   <div className="flex flex-wrap items-center gap-2">
                     <Button type="button" variant="action" onClick={handleMbaBillingModalOpen}>
@@ -7019,6 +7728,17 @@ const handleSaveAll = async () => {
         onToggleLineApproved={handleMbaBillingToggleLine}
         onToggleContainerApproved={handleMbaBillingToggleContainer}
         onResetApprovalsToAllIn={handleMbaBillingResetApprovalsToAllIn}
+        monthYears={(autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths).map(
+          (m) => m.monthYear
+        )}
+        selectedMonthYears={
+          partialMBAMonthYears.length > 0
+            ? partialMBAMonthYears
+            : (autoDeliveryMonths.length > 0 ? autoDeliveryMonths : billingMonths).map(
+                (m) => m.monthYear
+              )
+        }
+        onSelectedMonthYearsChange={handlePartialMBAMonthsChange}
         onDownloadExcel={handleDownloadBillingScheduleExcel}
         downloadDisabled={campaignFinancials.billingSchedule.length === 0}
         onResetBillingToAuto={() => setFullBillingResetConfirmOpen(true)}
@@ -7185,6 +7905,14 @@ const handleSaveAll = async () => {
                                     {manualBillingMonths.map((month, monthIndex) => {
                                       const monthAmount =
                                         lineItem.monthlyAmounts?.[month.monthYear] || 0
+                                      const balOn = isBillingBalancerEnabled()
+                                      const balMonth = balOn
+                                        ? getLineBalancingMonth(
+                                            lineItem.id,
+                                            manualBillingMonths.map((m) => m.monthYear)
+                                          )
+                                        : ""
+                                      const isBal = balOn && month.monthYear === balMonth
                                       return (
                                         <TableCell key={month.monthYear} align="right">
                                           <ManualBillingSpreadsheetLineItemInput
@@ -7198,7 +7926,9 @@ const handleSaveAll = async () => {
                                             className="w-28 text-right"
                                             amount={monthAmount}
                                             formatter={mbaCurrencyFormatter}
+                                            isBalancingMonth={isBal}
                                             onAmountChange={(numericValue) => {
+                                              if (isBal) return
                                               const tempCopy = [...manualBillingMonths]
                                               syncLineItemMonthlyAmountAcrossAllMonthRows(
                                                 tempCopy,
@@ -7209,7 +7939,8 @@ const handleSaveAll = async () => {
                                               )
                                               setManualBillingMonths(tempCopy)
                                             }}
-                                            onCommit={(raw) =>
+                                            onCommit={(raw) => {
+                                              if (isBal) return
                                               handleManualBillingChange(
                                                 monthIndex,
                                                 "lineItem",
@@ -7218,7 +7949,7 @@ const handleSaveAll = async () => {
                                                 lineItem.id,
                                                 month.monthYear
                                               )
-                                            }
+                                            }}
                                           />
                                         </TableCell>
                                       )
@@ -8087,6 +8818,8 @@ const handleSaveAll = async () => {
         onSave={handleSaveAll}
         onLeave={confirmNavigation}
         isSaving={isLoading || isPlanSaving || isVersionSaving}
+        saveDisabled={saveBlockedByDuplicates}
+        saveDisabledReason="Duplicate line-item rows detected — fix them before saving."
       />
     </>
   )

@@ -12,6 +12,7 @@
 import axios from "axios"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { parseXanoListPayload, xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { getDataBackendFor } from "@/lib/data/backend"
 import { sortLineItemsByLineItemNumber } from "@/lib/mediaplan/lineItemIds"
 import {
   clampLatestToPublished,
@@ -275,12 +276,52 @@ export async function fetchChannelLineItemsForMbaGet(
   hints: ChannelGetVersionHints = {},
   logTag?: string
 ): Promise<any[]> {
+  const backend = getDataBackendFor("plans")
+
+  // Postgres path: reassemble from consolidated line_items (no Xano master walk).
+  if (backend === "postgres") {
+    const { fetchLineItemsFromPostgresByEndpoint, readPlanMasterByMba } = await import(
+      "@/lib/data/readMediaPlans"
+    )
+    const master = await readPlanMasterByMba(mbaNumber)
+    if (!master) {
+      throw new Error(`Media plan master not found for MBA number ${mbaNumber}`)
+    }
+    const published = publishedVersionFromMaster(master)
+    if (published <= 0) {
+      throw new Error(
+        `Media plan master for MBA ${mbaNumber} is missing published version_number`
+      )
+    }
+    const requested = parseRequestedVersionNumber(hints)
+    const targetVersionNumber =
+      requested > 0 ? clampLatestToPublished(requested, published) : published
+    return fetchLineItemsFromPostgresByEndpoint(
+      endpoint,
+      mbaNumber,
+      targetVersionNumber
+    )
+  }
+
   const scope = await resolveVersionScopeForChannelGet(mbaNumber, hints)
-  return fetchXanoTableForEndpoint(
-    endpoint,
-    mbaNumber,
-    scope.versionNumber,
-    scope.mediaPlanVersionId,
-    logTag ?? endpoint
-  )
+  const xanoFetcher = () =>
+    fetchXanoTableForEndpoint(
+      endpoint,
+      mbaNumber,
+      scope.versionNumber,
+      scope.mediaPlanVersionId,
+      logTag ?? endpoint
+    )
+
+  if (backend === "shadow") {
+    const { readChannelLineItems } = await import("@/lib/data/readMediaPlans")
+    return readChannelLineItems(
+      endpoint,
+      mbaNumber,
+      scope.versionNumber,
+      xanoFetcher
+    )
+  }
+
+  return xanoFetcher()
 }

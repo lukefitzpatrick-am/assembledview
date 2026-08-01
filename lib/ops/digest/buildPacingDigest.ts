@@ -26,7 +26,7 @@ function asSource(
     campaignName: string
     campaignStatus: string
     lineItemId: string
-    lineItemStatus: "on-track" | "ahead" | "behind" | "no-data"
+    lineItemStatus: "on-track" | "ahead" | "behind" | "over-pacing" | "no-data"
     totalLineItemBudget: number
     spendToDateLineTotal: number
     spendToDateCurrentBurst: number

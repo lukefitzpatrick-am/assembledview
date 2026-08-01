@@ -46,6 +46,9 @@ export function hashFinanceForecastLineForSnapshot(line: FinanceForecastLine): s
     monthly: line.monthly,
     fy_total: line.fy_total,
     source: line.source,
+    media_type_key: line.media_type_key ?? null,
+    media_type_label: line.media_type_label ?? null,
+    publisher_name: line.publisher_name ?? null,
   })
   return createHash("sha256").update(payload).digest("hex")
 }

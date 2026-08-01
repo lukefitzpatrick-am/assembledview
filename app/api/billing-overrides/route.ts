@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
-import { getXanoBaseUrl, parseXanoListPayload, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
+import { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import { readBillingOverridesForVersion } from "@/lib/data/readFinance"
 
 export const dynamic = "force-dynamic"
 
@@ -10,7 +11,7 @@ const XANO_TIMEOUT_MS = 15_000
 
 /**
  * GET /api/billing-overrides?media_plan_version_id=
- * Proxies Xano GET /billing_overrides.
+ * Reads via DATA_BACKEND_FINANCE / DATA_BACKEND (writes stay on Xano).
  */
 export async function GET(request: NextRequest) {
   try {
@@ -27,28 +28,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const baseUrl = getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
-    const response = await axios.get(`${baseUrl}/billing_overrides`, { headers: xanoAuthHeaderRecord(), params: {
-        media_plan_version_id: versionId,
-        page: 1,
-        per_page: 500,
-      },
-      timeout: XANO_TIMEOUT_MS,
-      validateStatus: (s) => s >= 200 && s < 500, })
-
-    if (response.status === 404) {
-      return NextResponse.json({ overrides: [] })
-    }
-    if (response.status >= 400) {
-      return NextResponse.json(
-        { error: "Failed to load billing overrides", upstream: response.data },
-        { status: response.status }
-      )
-    }
-
-    const rows = parseXanoListPayload(response.data)
-    const overrides = rows.filter((r: Record<string, unknown>) => {
+    const rows = await readBillingOverridesForVersion(versionId)
+    const overrides = rows.filter((r) => {
       const candidates = [
+        r.media_plan_version,
         r.media_plan_version_id,
         r.media_plan_versions_id,
         r.version_id,

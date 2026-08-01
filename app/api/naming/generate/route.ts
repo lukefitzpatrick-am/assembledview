@@ -17,7 +17,7 @@ export const maxDuration = 120
  */
 export async function POST(request: NextRequest) {
   // Auth gate — keep outside any cache / long work.
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   let raw: unknown

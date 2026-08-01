@@ -1,6 +1,7 @@
 import "server-only"
 
 import { querySnowflake } from "@/lib/snowflake/query"
+import { formatMoney as formatMoneyDisplay } from "@/lib/format/money"
 import {
   isSocialMediaType,
   SOCIAL_PACING_TABLE,
@@ -72,9 +73,7 @@ function makeCacheKey(params: AvaSnowflakeParams): string {
 function formatMoneyAUD(value: number | null): string | null {
   if (value === null) return null
   try {
-    return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(
-      value
-    )
+    return formatMoneyDisplay(value, { decimals: 0 })
   } catch {
     return String(value)
   }

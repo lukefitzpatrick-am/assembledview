@@ -21,6 +21,10 @@ import {
   type BuyType,
 } from "@/lib/mediaplan/deliverableBudget"
 import { formatAUD, parseMoneyInput, roundMoney2 } from "@/lib/format/money"
+import {
+  attachScheduleLineDetail,
+  type ScheduleLineDetailSource,
+} from "@/lib/finance/attachScheduleLineDetail"
 import { addGst } from "@/lib/finance/gst"
 import { monthExGstFromScheduleEntry } from "@/lib/finance/computeBillableAlignedMbaTotal"
 import { validateBillableEqualsMba } from "@/lib/finance/validateBillableEqualsMba"
@@ -130,6 +134,11 @@ export type ComputeCampaignFinancialsOpts = {
   getRateForMediaType?: (mediaType: string) => number
   /** Passed through to schedule compute (parity with editor); unused numerically. */
   isManualBilling?: boolean
+  /**
+   * When set to a proper subset of campaign months, MBA + billingSchedule shrink to
+   * those months while deliverySchedule stays full-campaign.
+   */
+  selectedMonthYears?: readonly string[]
 }
 
 type ResolvedLine = {
@@ -172,7 +181,10 @@ const MEDIA_TYPE_ALIASES: Record<string, ScheduleMediaTypeKey> = {
   digivideo: "digiVideo",
   digitalvideo: "digiVideo",
   bvod: "bvod",
+  digibvod: "bvod",
+  digitalbvod: "bvod",
   integration: "integration",
+  integrations: "integration",
   search: "search",
   social: "socialMedia",
   socialmedia: "socialMedia",
@@ -218,9 +230,14 @@ function normaliseToken(raw: string): string {
   return raw.trim().toLowerCase().replace(/[\s_-]+/g, "")
 }
 
-export function normaliseScheduleMediaType(mediaType: string): ScheduleMediaTypeKey {
-  const key = MEDIA_TYPE_ALIASES[normaliseToken(mediaType)]
-  return key ?? "search"
+/**
+ * Map free-form media type strings to schedule keys.
+ * Unknown types return `null` (C-9) — callers must not silently inherit search fees.
+ */
+export function normaliseScheduleMediaType(
+  mediaType: string
+): ScheduleMediaTypeKey | null {
+  return MEDIA_TYPE_ALIASES[normaliseToken(mediaType)] ?? null
 }
 
 export function resolveFeePctFromFeeLoading(
@@ -228,6 +245,12 @@ export function resolveFeePctFromFeeLoading(
   feeLoading: FeeLoading
 ): number {
   const scheduleKey = normaliseScheduleMediaType(mediaType)
+  if (scheduleKey == null) {
+    console.warn(
+      `[builder-issue] unknown media type "${mediaType}" — excluded from fee resolution (C-9)`
+    )
+    return 0
+  }
   // REVIEW: ProductionContainer hardcodes feePct={0}. Do not bill production from
   // feecontentcreator (that field is the Influencers content-fee fallback only).
   if (scheduleKey === "production") {
@@ -457,7 +480,14 @@ function buildResolvedLine(
   monthKeys: string[]
 ): ResolvedLine {
   const feePct = resolveLineFeePct(line, feeLoading)
-  const scheduleMediaType = normaliseScheduleMediaType(line.mediaType)
+  const resolvedMediaType = normaliseScheduleMediaType(line.mediaType)
+  if (resolvedMediaType == null) {
+    console.warn(
+      `[builder-issue] unknown media type "${line.mediaType}" on line ${line.lineItemId} — schedule bucket falls back to search; fee resolution excluded (C-9)`
+    )
+  }
+  // Last-resort schedule bucket only — fee % already excluded via resolveFeePctFromFeeLoading.
+  const scheduleMediaType: ScheduleMediaTypeKey = resolvedMediaType ?? "search"
   const excluded = line.approval === "excluded"
   const clientPaysForMedia = Boolean(line.clientPaysForMedia)
   const budgetIncludesFees = Boolean(line.budgetIncludesFees)
@@ -837,6 +867,23 @@ function toPerLineResult(line: ResolvedLine): PerLineResult {
   }
 }
 
+function toScheduleLineDetailSource(line: ResolvedLine): ScheduleLineDetailSource {
+  return {
+    lineItemId: line.input.lineItemId,
+    scheduleMediaType: line.scheduleMediaType,
+    buyType: line.input.buyType,
+    clientPaysForMedia: line.clientPaysForMedia,
+    excluded: line.excluded,
+    label: line.input.label,
+    billingMonths: line.billingMonths,
+    deliveryMonths: line.deliveryMonths,
+    feeBillingMonths: line.feeBillingMonths,
+    bursts: line.bursts,
+    billingOverride: line.billingOverride,
+    feeOverride: line.feeOverride,
+  }
+}
+
 /**
  * Compute campaign financials from line inputs + client fee loading.
  *
@@ -906,9 +953,30 @@ export function computeCampaignFinancials(
       isManualBilling,
     })
 
-  const billingSchedule = applyManualFeeOverrides(
+  const billingScheduleHeaders = applyManualFeeOverrides(
     applyManualBillingOverrides(autoBillingSchedule, approvedForBilling),
     approvedForBilling
+  )
+
+  const lineDetailSources = resolved.map(toScheduleLineDetailSource)
+  const lineDetailOpts = {
+    getRateForMediaType,
+    adservaudio,
+  }
+  // Plan-C S1-P1b: populate month.lineItems (media + fee monthly maps) so
+  // server-generated blobs are byte-compatible with the editor shape and
+  // explode into real line_item_id schedule_months rows.
+  const billingSchedule = attachScheduleLineDetail(
+    billingScheduleHeaders,
+    lineDetailSources,
+    "billing",
+    lineDetailOpts
+  )
+  const deliveryScheduleWithLines = attachScheduleLineDetail(
+    deliverySchedule,
+    lineDetailSources,
+    "delivery",
+    lineDetailOpts
   )
 
   const approved = resolved.filter((l) => !l.excluded)
@@ -946,13 +1014,13 @@ export function computeCampaignFinancials(
     billingScheduleTotalExGst,
   })
 
-  return {
+  const full: CampaignFinancials = {
     perLine: resolved.map(toPerLineResult),
-    deliverySchedule,
+    deliverySchedule: deliveryScheduleWithLines,
     billingSchedule,
     mbaScopeTotals,
     deliveryVsBillingDelta: buildDeliveryVsBillingDelta(
-      deliverySchedule,
+      deliveryScheduleWithLines,
       billingSchedule,
       resolved
     ),
@@ -962,6 +1030,114 @@ export function computeCampaignFinancials(
     },
     mbaFeeAdjusted,
     rebill_needed,
+    reconciliation: {
+      clientPaysMedia,
+      billableMbaExGst,
+      billingScheduleTotalExGst,
+    },
+  }
+
+  return scopeCampaignFinancialsToSelectedMonths(full, opts?.selectedMonthYears)
+}
+
+/**
+ * Narrow MBA + billing to selected months; leave delivery full-campaign.
+ * No-op when selection is empty or covers every delivery month.
+ */
+export function scopeCampaignFinancialsToSelectedMonths(
+  financials: CampaignFinancials,
+  selectedMonthYears: readonly string[] | undefined | null
+): CampaignFinancials {
+  if (!selectedMonthYears || selectedMonthYears.length === 0) return financials
+
+  const selectedSet = new Set(selectedMonthYears)
+  const campaignMonths = financials.deliverySchedule.map((m) => m.monthYear)
+  if (campaignMonths.length === 0) {
+    const billingMonths = financials.billingSchedule.map((m) => m.monthYear)
+    if (
+      billingMonths.length === 0 ||
+      (billingMonths.every((m) => selectedSet.has(m)) &&
+        selectedMonthYears.length >= billingMonths.length)
+    ) {
+      return financials
+    }
+  } else if (
+    campaignMonths.every((m) => selectedSet.has(m)) &&
+    selectedMonthYears.length >= campaignMonths.length
+  ) {
+    return financials
+  }
+
+  const billingSchedule = financials.billingSchedule.filter((m) =>
+    selectedSet.has(m.monthYear)
+  )
+  const deliverySchedule = financials.deliverySchedule
+
+  const perLine = financials.perLine.map((line) => {
+    if (line.flags.excluded) return line
+    const scopedBillingMonths = line.billingMonths.filter((m) => selectedSet.has(m.month))
+    const media = roundMoney2(scopedBillingMonths.reduce((s, m) => s + m.amount, 0))
+    const fullBillingMedia = roundMoney2(
+      line.billingMonths.reduce((s, m) => s + m.amount, 0)
+    )
+    const fee =
+      fullBillingMedia > 0.005
+        ? roundMoney2(line.fee * (media / fullBillingMedia))
+        : 0
+    return {
+      ...line,
+      media,
+      fee,
+      nett: roundMoney2(media + fee),
+      billingMonths: scopedBillingMonths,
+    }
+  })
+
+  const approved = perLine.filter((l) => !l.flags.excluded)
+  const grossMedia = roundMoney2(approved.reduce((s, l) => s + l.media, 0))
+  const fee = roundMoney2(approved.reduce((s, l) => s + l.fee, 0))
+  const adServing = sumScheduleField(billingSchedule, "adservingTechFees")
+  const production = sumScheduleField(billingSchedule, "production")
+  const nettExGst = roundMoney2(grossMedia + fee + adServing + production)
+  const nettIncGst = addGst(nettExGst)
+
+  const mbaScopeTotals: MbaScopeTotals = {
+    grossMedia,
+    fee,
+    adServing,
+    production,
+    nettExGst,
+    nettIncGst,
+  }
+
+  const clientPaysMedia = roundMoney2(
+    approved.filter((l) => l.flags.clientPaysForMedia).reduce((s, l) => s + l.media, 0)
+  )
+  const billableMbaExGst = roundMoney2(nettExGst - clientPaysMedia)
+  const billingScheduleTotalExGst = roundMoney2(
+    billingSchedule.reduce(
+      (s, m) => s + monthExGstFromScheduleEntry(m as unknown as Record<string, unknown>),
+      0
+    )
+  )
+  const validationResult = validateBillableEqualsMba({
+    mbaTotalExGst: billableMbaExGst,
+    billingScheduleTotalExGst,
+  })
+
+  return {
+    perLine,
+    deliverySchedule,
+    billingSchedule,
+    mbaScopeTotals,
+    deliveryVsBillingDelta: buildDeliveryVsBillingDelta(deliverySchedule, billingSchedule, []),
+    validation: {
+      billableEqualsMba: validationResult.ok,
+      deltaExGst: validationResult.deltaExGst,
+    },
+    // Fee-adjusted flag is campaign-level; keep prior when month-scoping.
+    mbaFeeAdjusted: financials.mbaFeeAdjusted,
+    rebill_needed: financials.rebill_needed,
     reconciliation: {
       clientPaysMedia,
       billableMbaExGst,

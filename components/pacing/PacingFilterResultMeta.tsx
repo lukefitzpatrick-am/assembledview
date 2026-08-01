@@ -1,6 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
+import { ErrorState } from "@/components/ui/states"
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore"
 
 export function PacingFilterEmptyState() {
@@ -21,6 +22,20 @@ export function PacingFilterEmptyState() {
         Reset
       </Button>
     </div>
+  )
+}
+
+/** Fail-closed UI when client_ids are selected but the id→name map never loaded. */
+export function PacingClientFilterUnavailable() {
+  return (
+    <ErrorState
+      title="Client filter unavailable"
+      message="The client list could not be loaded, so filtered results are hidden. Retry to reload clients."
+      onRetry={() => {
+        window.location.reload()
+      }}
+      retryLabel="Retry"
+    />
   )
 }
 

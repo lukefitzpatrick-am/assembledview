@@ -89,6 +89,9 @@ export function buildSnapshotLinesFromDataset(
   for (const block of dataset.client_blocks) {
     for (const group of block.groups) {
       for (const line of group.lines) {
+        // FIN-5 media×publisher breakouts collide on snapshot comparison keys
+        // (client × version × line_key × month). Persist AA/AM entity lines only.
+        if (line.line_key === "media_billing") continue
         const lineHash = hashFinanceForecastLineForSnapshot(line)
         const debugJson =
           includeDebug && line.debug != null ? JSON.stringify(line.debug) : null

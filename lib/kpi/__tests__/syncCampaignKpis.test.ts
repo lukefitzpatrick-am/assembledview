@@ -14,13 +14,14 @@ const mockPost = mock.fn(
 const mockPatch = mock.fn(
   async (): Promise<{ data: CampaignKPI }> => ({ data: {} as CampaignKPI }),
 )
+const mockDelete = mock.fn(async (): Promise<{ data: unknown }> => ({ data: {} }))
 
 function fakeAxios() {
   return {
     get: mockGet,
     post: mockPost,
     patch: mockPatch,
-    delete: mock.fn(async () => ({})),
+    delete: mockDelete,
   }
 }
 Object.assign(fakeAxios, { create: () => fakeAxios() })
@@ -78,7 +79,7 @@ function existingRow(
 }
 
 let storedExisting: CampaignKPI[] = []
-const writeOrder: Array<"GET" | "POST" | "PATCH"> = []
+const writeOrder: Array<"GET" | "POST" | "PATCH" | "DELETE"> = []
 
 beforeEach(() => {
   if (!supportsMockModule()) return
@@ -87,6 +88,7 @@ beforeEach(() => {
   mockGet.mock.resetCalls()
   mockPost.mock.resetCalls()
   mockPatch.mock.resetCalls()
+  mockDelete.mock.resetCalls()
 
   mockGet.mock.mockImplementation(async () => {
     writeOrder.push("GET")
@@ -118,6 +120,14 @@ beforeEach(() => {
     }
     if (idx >= 0) storedExisting[idx] = patched
     return { data: patched }
+  })
+
+  mockDelete.mock.mockImplementation(async (...args: unknown[]) => {
+    writeOrder.push("DELETE")
+    const idMatch = String(args[0]).match(/\/(\d+)$/)
+    const id = idMatch ? Number(idMatch[1]) : NaN
+    storedExisting = storedExisting.filter((r) => r.id !== id)
+    return { data: {} }
   })
 })
 
@@ -172,7 +182,7 @@ test("mixed batch: existing rows PATCH, new rows POST", { skip }, async () => {
   assert.equal(result[1]?.line_item_id, "LI-NEW")
 })
 
-test("legacy empty line_item_id in Xano is ignored; input POSTs new row", { skip }, async () => {
+test("legacy empty line_item_id is not matched; POSTs new row and deletes orphan", { skip }, async () => {
   storedExisting = [
     existingRow(30, "", {
       publisher: "Google",
@@ -185,10 +195,10 @@ test("legacy empty line_item_id in Xano is ignored; input POSTs new row", { skip
   assert.equal(result.length, 1)
   assert.equal(mockPost.mock.callCount(), 1)
   assert.equal(mockPatch.mock.callCount(), 0)
+  assert.equal(mockDelete.mock.callCount(), 1)
   assert.equal(result[0]?.line_item_id, "LI-SPECIFIC")
   assert.equal(result[0]?.ctr, 0.11)
-  const legacy = storedExisting.find((r) => r.id === 30)
-  assert.equal(legacy?.ctr, 0.02)
+  assert.equal(storedExisting.find((r) => r.id === 30), undefined)
 })
 
 test("empty line_item_id in input is skipped with warning", { skip }, async () => {
@@ -235,4 +245,21 @@ test("sequential ordering follows input order", { skip }, async () => {
   await syncCampaignKpis(inputs)
   const ops = writeOrder.filter((o) => o !== "GET")
   assert.deepEqual(ops, ["PATCH", "POST", "PATCH"])
+})
+
+test("deletes orphan rows not in the desired replace-set", { skip }, async () => {
+  storedExisting = [
+    existingRow(60, "LI-KEEP"),
+    existingRow(61, "LI-ORPHAN-A"),
+    existingRow(62, "LI-ORPHAN-B"),
+    existingRow(63, ""),
+  ]
+  const inputs = [kpiInput({ line_item_id: "LI-KEEP", ctr: 0.11 })]
+  const result = await syncCampaignKpis(inputs)
+  assert.equal(result.length, 1)
+  assert.equal(mockPatch.mock.callCount(), 1)
+  assert.equal(mockDelete.mock.callCount(), 3)
+  assert.equal(storedExisting.length, 1)
+  assert.equal(storedExisting[0]?.line_item_id, "LI-KEEP")
+  assert.equal(storedExisting[0]?.ctr, 0.11)
 })

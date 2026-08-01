@@ -3,20 +3,34 @@
 import { useEffect, useState } from "react"
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore"
 
+export type PacingClientIdToNameMapState = {
+  map: Map<string, string>
+  /** True after the /api/clients fetch finishes (success or failure). */
+  settled: boolean
+}
+
 /**
  * Same /api/clients source + label formula as PacingFilterToolbar.
  * Map keys are String(client.id); values are display names for row.clientName match.
  */
-export function usePacingClientIdToNameMap(): Map<string, string> {
+export function usePacingClientIdToNameMap(): PacingClientIdToNameMapState {
   const assignedClientIds = usePacingFilterStore((s) => s.assignedClientIds)
   const [map, setMap] = useState(() => new Map<string, string>())
+  const [settled, setSettled] = useState(false)
 
   useEffect(() => {
     let cancelled = false
+    setSettled(false)
     const load = async () => {
       try {
         const res = await fetch("/api/clients")
-        if (!res.ok) return
+        if (!res.ok) {
+          if (!cancelled) {
+            setMap(new Map())
+            setSettled(true)
+          }
+          return
+        }
         const data = await res.json()
         let entries = (Array.isArray(data) ? data : []).map(
           (c: Record<string, unknown>) =>
@@ -32,6 +46,8 @@ export function usePacingClientIdToNameMap(): Map<string, string> {
         if (!cancelled) setMap(new Map(entries))
       } catch {
         if (!cancelled) setMap(new Map())
+      } finally {
+        if (!cancelled) setSettled(true)
       }
     }
     void load()
@@ -40,7 +56,7 @@ export function usePacingClientIdToNameMap(): Map<string, string> {
     }
   }, [assignedClientIds])
 
-  return map
+  return { map, settled }
 }
 
 export function pacingFiltersActive(filters: {

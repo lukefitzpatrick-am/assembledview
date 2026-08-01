@@ -2,13 +2,20 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { buildFinanceForecastDataset } from "../../lib/finance/forecast/buildFinanceForecastDataset.js"
+import { assertClientForecastIdentity } from "../../lib/finance/forecast/forecastPresentationIdentity.js"
 import {
   FINANCE_FORECAST_FISCAL_MONTH_ORDER,
   FINANCE_FORECAST_LINE_KEYS,
 } from "../../lib/types/financeForecast.js"
-import { FORECAST_REVENUE_BODY_LINE_ORDER } from "../../lib/finance/forecast/mapping/definitions.js"
+import {
+  CLIENT_FIELD_MONTHLY_RETAINER,
+  FORECAST_REVENUE_BODY_LINE_ORDER,
+} from "../../lib/finance/forecast/mapping/definitions.js"
 import { realisticMediaPlanVersionFy2025, fixturePublisherAssembledMedia } from "./fixtures/realisticMediaPlanVersion.js"
-import type { FinanceForecastMediaPlanVersionInput } from "../../lib/types/financeForecast.js"
+import type {
+  FinanceForecastClientInput,
+  FinanceForecastMediaPlanVersionInput,
+} from "../../lib/types/financeForecast.js"
 
 const FY_START = 2025
 
@@ -570,4 +577,56 @@ test("billingSchedule may be a JSON string (Xano transport)", () => {
     scenario: "confirmed",
   })
   assert.equal(assembledMediaBillingLine(ds).monthly.july, 4_200)
+})
+
+test("FIN-5: media_billing breakout sums to AA+AM; Fees+Commissions cover revenue body when other is $0", () => {
+  const seven = fixturePublisherAssembledMedia({ publisher_name: "Seven Network" })
+  const meta = fixturePublisherAssembledMedia({ publisher_name: "Meta" })
+  const clientRaw = {
+    id: "c1",
+    mp_client_name: "Test Client Pty Ltd",
+    [CLIENT_FIELD_MONTHLY_RETAINER]: 1_000,
+  } as FinanceForecastClientInput
+  const ds = buildFinanceForecastDataset({
+    media_plan_versions: [
+      baseApprovedVersion({
+        mba_number: "MBA-FIN5",
+        billingSchedule: [
+          {
+            monthYear: "2025-07",
+            assembledFee: 250,
+            mediaTypes: [
+              {
+                mediaType: "Television",
+                lineItems: [
+                  { header1: "Seven Network", amount: 10_000, clientPaysForMedia: false },
+                ],
+              },
+              {
+                mediaType: "Social Media",
+                lineItems: [{ header1: "Meta", amount: 4_000, clientPaysForMedia: false }],
+              },
+            ],
+          },
+        ],
+      }),
+    ],
+    clients: [clientRaw],
+    publishers: [seven, meta],
+    financial_year_start_year: FY_START,
+    scenario: "confirmed",
+  })
+
+  const block = ds.client_blocks[0]
+  assert.ok(block)
+  const billing = block.groups.find((g) => g.group_key === "billing_based_information")
+  assert.ok(billing)
+  const mediaLines = billing.lines.filter((l) => l.line_key === FINANCE_FORECAST_LINE_KEYS.mediaBilling)
+  assert.equal(mediaLines.length, 2)
+  assert.equal(
+    mediaLines.reduce((s, l) => s + l.fy_total, 0),
+    14_000
+  )
+  assert.equal(assembledMediaBillingLine(ds).fy_total, 14_000)
+  assertClientForecastIdentity(block)
 })

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
 import { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
-import { fetchBillingOverridesForVersion } from "@/lib/finance/billingOverrides"
+import { readBillingOverridesForVersion } from "@/lib/data/readFinance"
+import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
 import { clearRelevantPlanVersionsCache } from "@/lib/finance/relevantPlanVersions"
 import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
@@ -96,9 +97,9 @@ export async function PATCH(
       null) as FeeLoading | null
 
     if (financialLineItems && financialLineItems.length > 0 && feeLoading) {
-      const overrideRows = await fetchBillingOverridesForVersion(id, {
+      const overrideRows = (await readBillingOverridesForVersion(id, {
         baseUrl: mediaPlansBaseUrl,
-      })
+      })) as BillingOverrideRow[]
       const startRaw = versionRow?.campaign_start_date
       const endRaw = versionRow?.campaign_end_date
       const recompute = recomputeAndValidateBillingScheduleOnSave({

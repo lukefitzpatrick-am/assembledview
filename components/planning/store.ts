@@ -106,12 +106,18 @@ export type PlanningAction =
       diagnosis: DiagnosisState
       excludedChannelIds: string[]
     }
+  | { type: "HYDRATE"; state: PlanningWorkflowState }
   | { type: "RESET"; waveId: string; defaultSegmentId: string }
 
-let audienceSeq = 1
-
-function nextAudienceId(): string {
-  return `aud-${audienceSeq++}`
+/**
+ * Mint collision-proof audience ids. Never use array index or display name.
+ * crypto.randomUUID when available; fallback keeps uniqueness across load+add.
+ */
+export function nextAudienceId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `aud-${crypto.randomUUID()}`
+  }
+  return `aud-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
 }
 
 export function createAudienceDraft(
@@ -134,7 +140,6 @@ export function createInitialState(opts: {
   waveId: string
   defaultSegmentId: string
 }): PlanningWorkflowState {
-  audienceSeq = 1
   const first = createAudienceDraft({
     colorIndex: 0,
     segmentId: opts.defaultSegmentId,
@@ -334,6 +339,8 @@ export function planningReducer(
         },
       }
     }
+    case "HYDRATE":
+      return action.state
     case "RESET":
       return createInitialState({
         waveId: action.waveId,

@@ -1,7 +1,7 @@
 import CampaignPageAssembly from "./components/CampaignPageAssembly"
 import { mapMbaCampaignResponseVersionsToListEntries } from "@/lib/api/dashboard"
 import { auth0 } from "@/lib/auth0"
-import { getPrimaryRole, getUserClientIdentifier, getUserMbaNumbers } from "@/lib/rbac"
+import { getPrimaryRole, getUserClientIdentifier, getUserMbaNumbers, isAdminRole } from "@/lib/rbac"
 import { redirect, notFound } from "next/navigation"
 import { headers } from "next/headers"
 import { createPerfTimer, logPerf } from "@/lib/utils/perf"
@@ -678,6 +678,9 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const deliverySpendToDate = deriveSpendToDate(deliverySchedule)
   let actualSpend: number | undefined
   let deliveredImpressions: number | undefined
+  let deliveredClicks = 0
+  let deliveredResults = 0
+  let deliveredVideo3sViews = 0
   let hasDelivery = false
   let deliveredAsOf: string | undefined
   try {
@@ -691,6 +694,9 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     // delivery) — an impressions-only campaign must never show a fabricated "$0 delivered".
     actualSpend = hasReportedDeliveredSpend(delivered.spendToDate) ? delivered.spendToDate : undefined
     deliveredImpressions = delivered.impressions
+    deliveredClicks = delivered.clicks
+    deliveredResults = delivered.results
+    deliveredVideo3sViews = delivered.video3sViews
     hasDelivery = delivered.hasDelivery
     deliveredAsOf = delivered.asOf
   } catch {
@@ -777,6 +783,9 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       budget={budget}
       actualSpend={actualSpend}
       deliveredImpressions={deliveredImpressions}
+      deliveredClicks={deliveredClicks}
+      deliveredResults={deliveredResults}
+      deliveredVideo3sViews={deliveredVideo3sViews}
       hasDelivery={hasDelivery}
       deliveredAsOf={deliveredAsOf}
       expectedSpend={expectedSpend}
@@ -804,6 +813,7 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       deliveryLineItemIds={deliveryLineItemIds}
       availableVersions={availableVersions}
       currentVersion={resolvedVersionNumber ?? versionNumberFromQuery ?? 1}
+      isAdmin={isAdminRole(role)}
     />
   )
 }

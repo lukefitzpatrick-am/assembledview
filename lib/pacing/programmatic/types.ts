@@ -83,7 +83,7 @@ export type ProgrammaticPacingCampaignRow = {
   currentBurstIndex: number | null;
   currentBurst: NormalisedBurst | null;
 
-  lineItemStatus: "on-track" | "ahead" | "behind" | "no-data";
+  lineItemStatus: "on-track" | "ahead" | "behind" | "over-pacing" | "no-data";
   burstDays: number | null;
   burstDaysRemaining: number | null;
   spendPerDayRemaining: number | null;

@@ -20,6 +20,8 @@ export type PacingOrphanFixRow = PacingOrphanFixInput & {
 
 /**
  * Writes an audit row to Xano's pacing_orphan_fixes table.
+ * Write stays on Xano until write cutover; list GETs go through
+ * `readPacingOrphanFixes` (`DATA_BACKEND_PACING` / T2d).
  */
 export async function createPacingOrphanFix(
   input: PacingOrphanFixInput

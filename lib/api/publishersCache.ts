@@ -1,5 +1,4 @@
-import axios from "axios"
-import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { readPublishersList } from "@/lib/data/readPublishers"
 
 /**
  * Coalesced TTL cache for `/api/publishers`.
@@ -73,11 +72,11 @@ export function toLightPublisher(row: any): any {
 }
 
 async function fetchUpstreamFull(): Promise<any[]> {
-  const response = await axios.get(xanoUrl("get_publishers", "XANO_PUBLISHERS_BASE_URL"), {
-    timeout: 60_000,
-    headers: xanoAuthHeaderRecord(),
-  })
-  return Array.isArray(response.data) ? response.data : []
+  const result = await readPublishersList()
+  if (result.status >= 400) {
+    throw new Error(`Failed to fetch publishers (status ${result.status})`)
+  }
+  return Array.isArray(result.body) ? result.body : []
 }
 
 /**

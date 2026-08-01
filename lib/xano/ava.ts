@@ -1,6 +1,7 @@
 import "server-only"
 
 import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { formatMoney as formatMoneyDisplay } from "@/lib/format/money"
 
 const MEDIA_PLANS_BASE_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
 
@@ -29,9 +30,7 @@ function parseLooseNumber(value: unknown): number | null {
 function formatMoney(value: number | null): string | null {
   if (value === null) return null
   try {
-    return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 }).format(
-      value
-    )
+    return formatMoneyDisplay(value, { decimals: 0 })
   } catch {
     return String(value)
   }

@@ -1,12 +1,14 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
-import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import {
   getCachedMediaContainerBestPractice,
   invalidateMediaContainerBestPracticeCache,
 } from "@/lib/api/mediaContainerBestPracticeCache"
+import { requireRole } from "@/lib/requireRole"
 
+/** Session-auth only (middleware) — reference data for create/edit surfaces. */
 export async function GET() {
   try {
     const { data, stale } = await getCachedMediaContainerBestPractice()
@@ -22,8 +24,12 @@ export async function GET() {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    // SEC-G / SEC-10: writes are staff-only; keep audit stamp after the gate.
+    const gate = await requireRole(req, ["admin"])
+    if ("response" in gate) return gate.response
+
     const body = await req.json()
     const currentUser = await getCurrentUser(req)
     const response = await axios.post(xanoUrl("media_container_best_practice", "XANO_PUBLISHERS_BASE_URL"), {

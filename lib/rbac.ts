@@ -1,6 +1,13 @@
 import type { User } from '@auth0/nextjs-auth0/types';
 
-export type UserRole = 'admin' | 'manager' | 'client';
+/**
+ * Application roles. Extension point: add a new role by extending this union,
+ * adding a `ROLE_PERMISSIONS` entry, teaching `normalizeRole`, and updating
+ * `getHighestRole` / page gates. Do not default unknown strings to admin.
+ *
+ * `manager` was removed on 31 Jul 2026 pending a real definition.
+ */
+export type UserRole = 'admin' | 'client';
 
 export interface UserWithRoles extends User {
   roles?: string[];
@@ -48,7 +55,9 @@ const DEBUG_AUTH_ENABLED = process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true';
 type RoleSource = 'namespaced_claim' | 'app_metadata' | 'user_metadata' | 'permissions' | 'none';
 type ClientSlugSource = 'namespaced_claim' | 'app_metadata' | 'user_metadata' | 'none';
 
-// Define role hierarchy and permissions
+// Define role hierarchy and permissions.
+// Shape kept as Record<UserRole, string[]> so a role can be re-added cleanly.
+// manager was removed on 31 Jul 2026 pending a real definition.
 export const ROLE_PERMISSIONS = {
   admin: [
     'read:users',
@@ -63,20 +72,6 @@ export const ROLE_PERMISSIONS = {
     'read:publishers',
     'write:publishers',
     'delete:publishers',
-    'read:finance',
-    'write:finance',
-    'read:management',
-    'write:management',
-    'read:reports',
-    'write:reports',
-  ],
-  manager: [
-    'read:mediaplans',
-    'write:mediaplans',
-    'read:clients',
-    'write:clients',
-    'read:publishers',
-    'write:publishers',
     'read:finance',
     'write:finance',
     'read:management',
@@ -119,7 +114,8 @@ function normalizeRole(role: string): UserRole | null {
     lower === 'assembled-admin' ||
     lower === 'assembledadmin'
   ) return 'admin';
-  if (lower === 'manager') return 'manager';
+  // Removed role (31 Jul 2026): "manager" and any other unknown string → null
+  // (least privilege). Never map unknowns to admin.
   if (lower === 'client') return 'client';
   return null;
 }
@@ -268,18 +264,12 @@ function getUserRolesWithSource(user: User | null | undefined): { roles: UserRol
   }
 
   // Optional fallback: infer from permissions when no role sources exist.
+  // Only admin is inferred; other permission sets fail closed to no roles
+  // (never elevate to admin via a removed/unknown role).
   const permissionValues = coerceToStringArray((user as Record<string, unknown>).permissions);
   if (permissionValues.length > 0) {
     const hasAdminPerm = permissionValues.some((p) => p.startsWith('write:users') || p.startsWith('delete:users'));
     if (hasAdminPerm) return { roles: ['admin'], source: 'permissions' };
-
-    const hasManagerPerm = permissionValues.some(
-      (p) =>
-        p.startsWith('write:mediaplans') ||
-        p.startsWith('write:clients') ||
-        p.startsWith('write:publishers')
-    );
-    if (hasManagerPerm) return { roles: ['manager'], source: 'permissions' };
   }
 
   return { roles: [], source: 'none' };
@@ -397,6 +387,12 @@ export function isClientRole(role: UserRole | null | undefined): boolean {
   return role === 'client';
 }
 
+/** True only when normalised roles include `admin`. Unknown/removed roles never pass. */
+export function userHasAdminAccess(user: User | null | undefined): boolean {
+  if (!user) return false;
+  return getUserRoles(user).includes('admin');
+}
+
 export function getUserClientIdentifier(user: User | null | undefined): string | null {
   const info = getUserClientSlugWithSource(user);
 
@@ -477,7 +473,6 @@ export function getHighestRole(user: User | null | undefined): UserRole | null {
   const userRoles = getUserRoles(user);
 
   if (userRoles.includes('admin')) return 'admin';
-  if (userRoles.includes('manager')) return 'manager';
   if (userRoles.includes('client')) return 'client';
 
   return null;
@@ -489,23 +484,23 @@ export function canAccessPage(user: User, page: string): boolean {
 
   switch (page) {
     case 'dashboard':
-      return userRoles.length > 0; // Any authenticated user
+      return userRoles.length > 0; // Any recognised authenticated role
     case 'mediaplans':
-      return hasRole(user, ['admin', 'manager']);
+      return hasRole(user, ['admin']);
     case 'clients':
       return hasRole(user, ['admin']);
     case 'publishers':
-      return hasRole(user, ['admin', 'manager']);
+      return hasRole(user, ['admin']);
     case 'finance':
-      return hasRole(user, ['admin', 'manager']);
+      return hasRole(user, ['admin']);
     case 'management':
-      return hasRole(user, ['admin', 'manager']);
+      return hasRole(user, ['admin']);
     case 'support':
-      return userRoles.length > 0; // Any authenticated user
+      return userRoles.length > 0; // Any recognised authenticated role
     case 'profile':
-      return userRoles.length > 0; // Any authenticated user
+      return userRoles.length > 0; // Any recognised authenticated role
     case 'account':
-      return userRoles.length > 0; // Any authenticated user
+      return userRoles.length > 0; // Any recognised authenticated role
     default:
       return false;
   }

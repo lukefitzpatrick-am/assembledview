@@ -1,4 +1,5 @@
 import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
+import type { FinanceExcelClientMeta } from "@/lib/finance/excelFinanceExport"
 import type { FinanceCampaignData, FinanceLineItem, FinanceServiceRow } from "@/lib/finance/utils"
 
 function roundMoney(n: number): number {
@@ -48,7 +49,10 @@ function lineItemsFromBillingLineItems(items: BillingLineItem[]): {
   return { lineItems, serviceRows }
 }
 
-function mergeGroupToFinanceCampaignData(group: BillingRecord[]): FinanceCampaignData {
+function mergeGroupToFinanceCampaignData(
+  group: BillingRecord[],
+  clientMetaByClientId?: Map<number, FinanceExcelClientMeta>
+): FinanceCampaignData {
   const sorted = [...group].sort((a, b) => a.id - b.id)
   const first = sorted[0]!
   const allLines = sorted.flatMap((r) => r.line_items || [])
@@ -56,6 +60,14 @@ function mergeGroupToFinanceCampaignData(group: BillingRecord[]): FinanceCampaig
   const total = roundMoney(allLines.reduce((s, li) => s + Number(li.amount || 0), 0))
 
   const po = sorted.map((r) => r.po_number?.trim()).find(Boolean)
+  const meta = clientMetaByClientId?.get(first.clients_id)
+  const legalBlock =
+    clientMetaByClientId != null
+      ? {
+          legalBusinessName: meta?.legalBusinessName ?? "",
+          abn: meta?.abn ?? "",
+        }
+      : {}
 
   return {
     clientName: first.client_name,
@@ -68,21 +80,26 @@ function mergeGroupToFinanceCampaignData(group: BillingRecord[]): FinanceCampaig
     lineItems,
     serviceRows,
     total,
+    ...legalBlock,
   }
 }
 
 /**
  * Group receivable-style billing rows by `(clients_id, mba_number)` and map each group to
  * {@link FinanceCampaignData} for media / scopes Excel writers.
+ * When `clientMetaByClientId` is provided, stamps Legal business name / ABN onto each campaign.
  */
-export function billingRecordsToFinanceCampaigns(records: BillingRecord[]): FinanceCampaignData[] {
+export function billingRecordsToFinanceCampaigns(
+  records: BillingRecord[],
+  clientMetaByClientId?: Map<number, FinanceExcelClientMeta>
+): FinanceCampaignData[] {
   const groups = new Map<string, BillingRecord[]>()
   for (const r of records) {
     const k = groupKey(r)
     if (!groups.has(k)) groups.set(k, [])
     groups.get(k)!.push(r)
   }
-  const out = [...groups.values()].map(mergeGroupToFinanceCampaignData)
+  const out = [...groups.values()].map((g) => mergeGroupToFinanceCampaignData(g, clientMetaByClientId))
   out.sort((a, b) => {
     const c = a.clientName.localeCompare(b.clientName, undefined, { sensitivity: "base" })
     if (c !== 0) return c

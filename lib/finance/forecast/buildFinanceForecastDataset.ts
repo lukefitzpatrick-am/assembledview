@@ -6,6 +6,7 @@ import {
   calculateMonthlyAmountFromBursts,
   campaignOverlapsMonth,
 } from "@/lib/finance/utils"
+import { MEDIA_TYPE_LABELS } from "@/lib/media/mediaTypes"
 import type {
   FinanceForecastClientBlock,
   FinanceForecastClientInput,
@@ -156,7 +157,7 @@ export function buildFinanceForecastDataset(
     financial_year_start_year: fyStart,
     scenario: params.scenario,
     generated_at: new Date().toISOString(),
-    schema_version: "finance_forecast_v1",
+    schema_version: "finance_forecast_v1.1",
   }
 
   return { meta, client_blocks }
@@ -513,6 +514,20 @@ function resolvePublisher(
 
 // Billing / commission routing: `lib/finance/forecast/mapping` (definitions + classification).
 
+function compareMediaBreakoutLines(a: FinanceForecastLine, b: FinanceForecastLine): number {
+  const ta = String(a.media_type_label ?? a.media_type_key ?? "")
+  const tb = String(b.media_type_label ?? b.media_type_key ?? "")
+  const byType = ta.localeCompare(tb, undefined, { sensitivity: "base" })
+  if (byType !== 0) return byType
+  const pa = String(a.publisher_name ?? "")
+  const pb = String(b.publisher_name ?? "")
+  const byPub = pa.localeCompare(pb, undefined, { sensitivity: "base" })
+  if (byPub !== 0) return byPub
+  const ma = String(a.mba_number ?? "")
+  const mb = String(b.mba_number ?? "")
+  return ma.localeCompare(mb, undefined, { sensitivity: "base" })
+}
+
 function orderBillingLines(lines: FinanceForecastLine[]): FinanceForecastLine[] {
   const byKey = new Map<FinanceForecastLineKey, FinanceForecastLine[]>()
   for (const lk of FORECAST_BILLING_LINE_ORDER) byKey.set(lk, [])
@@ -520,6 +535,8 @@ function orderBillingLines(lines: FinanceForecastLine[]): FinanceForecastLine[] 
     const bucket = byKey.get(line.line_key)
     if (bucket) bucket.push(line)
   }
+  const media = byKey.get(FINANCE_FORECAST_LINE_KEYS.mediaBilling) ?? []
+  media.sort(compareMediaBreakoutLines)
   const out: FinanceForecastLine[] = []
   for (const lk of FORECAST_BILLING_LINE_ORDER) out.push(...(byKey.get(lk) ?? []))
   return out
@@ -582,6 +599,17 @@ function buildLinesForCampaign(args: {
   const serviceFeeMonthly = emptyMonthly()
   const fixedGtdMonthly = emptyMonthly()
 
+  /** FIN-5: media type × publisher monthly accumulators (additive to AA/AM). */
+  const mediaBreakoutByKey = new Map<
+    string,
+    {
+      mediaTypeKey: string
+      mediaTypeLabel: string
+      publisherName: string
+      monthly: FinanceForecastMonthlyAmounts
+    }
+  >()
+
   const scheduleNotes: string[] = []
 
   for (let i = 0; i < FINANCE_FORECAST_FISCAL_MONTH_ORDER.length; i++) {
@@ -631,6 +659,24 @@ function buildLinesForCampaign(args: {
       })
       aa += split.advertisingAssociates
       am += split.assembledMedia
+
+      const publisherName =
+        String(row.publisher.publisher_name ?? "").trim() || "Unknown"
+      const mediaTypeLabel =
+        MEDIA_TYPE_LABELS[row.mediaTypeKey] ??
+        (String(row.mediaTypeDisplay).trim() || row.mediaTypeKey)
+      const breakKey = `${row.mediaTypeKey}\u001f${publisherName.toLowerCase()}`
+      let acc = mediaBreakoutByKey.get(breakKey)
+      if (!acc) {
+        acc = {
+          mediaTypeKey: row.mediaTypeKey,
+          mediaTypeLabel,
+          publisherName,
+          monthly: emptyMonthly(),
+        }
+        mediaBreakoutByKey.set(breakKey, acc)
+      }
+      mergeMonthly(acc.monthly, fmk, row.mediaAmount)
     }
     mergeMonthly(aaMonthly, fmk, aa)
     mergeMonthly(amMonthly, fmk, am)
@@ -730,6 +776,33 @@ function buildLinesForCampaign(args: {
       ),
     }),
   ]
+
+  for (const acc of mediaBreakoutByKey.values()) {
+    if (fySum(acc.monthly) === 0) continue
+    billing.push(
+      makeLine({
+        line_key: FINANCE_FORECAST_LINE_KEYS.mediaBilling,
+        group_key: FINANCE_FORECAST_GROUP_KEYS.billingBasedInformation,
+        monthly: acc.monthly,
+        client_id: args.client_id,
+        client_name: args.client_name,
+        mba_number: mba,
+        campaign_id: campaignId,
+        campaign_name: campaignName,
+        media_plan_version_id: vid,
+        version_number: vn,
+        scenario: args.scenario,
+        source: baseSource("billing_schedule_media_type_publisher"),
+        debug: baseDebug(
+          "billing_media_breakout",
+          `FIN-5 media breakout ${acc.mediaTypeLabel} · ${acc.publisherName} — additive to AA/AM; sum(media_billing) ≡ AA+AM.`
+        ),
+        media_type_key: acc.mediaTypeKey,
+        media_type_label: acc.mediaTypeLabel,
+        publisher_name: acc.publisherName,
+      })
+    )
+  }
 
   const revenue: FinanceForecastLine[] = [
     makeLine({
@@ -907,6 +980,9 @@ function makeLine(p: {
   scenario: FinanceForecastScenario
   source: FinanceForecastLine["source"]
   debug?: FinanceForecastLine["debug"]
+  media_type_key?: string | null
+  media_type_label?: string | null
+  publisher_name?: string | null
 }): FinanceForecastLine {
   return {
     client_id: p.client_id,
@@ -924,6 +1000,9 @@ function makeLine(p: {
     debug: p.debug
       ? { ...p.debug, explanation: `${p.debug.explanation} Campaign: ${p.campaign_name}` }
       : undefined,
+    media_type_key: p.media_type_key ?? undefined,
+    media_type_label: p.media_type_label ?? undefined,
+    publisher_name: p.publisher_name ?? undefined,
   }
 }
 

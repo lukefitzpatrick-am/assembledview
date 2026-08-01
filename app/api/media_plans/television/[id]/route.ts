@@ -1,11 +1,22 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { xanoUrl, xanoPostHeaderRecord, xanoAuthHeaderRecord } from '@/lib/api/xano';
+import { requireRole } from '@/lib/requireRole';
+
+/**
+ * SEC-G / SEC-10: dedicated channel [id] mutate paths match the staff-gated
+ * media_plans/[...path] catch-all. Verified: no client-role call site writes
+ * channel line items (create/edit save → replaceChannelLineItems → catch-all;
+ * createTelevisionLineItem/update/delete helpers are dead exports).
+ */
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const gate = await requireRole(request, ["admin"])
+    if ("response" in gate) return gate.response
+
     const { id } = params;
     const data = await request.json();
     
@@ -52,10 +63,13 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: Request,
+  request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const gate = await requireRole(request, ["admin"])
+    if ("response" in gate) return gate.response
+
     const { id } = params;
     
     if (!id) {

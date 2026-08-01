@@ -1,0 +1,512 @@
+/**
+ * Field-level compare + in-memory ring buffer for DATA_BACKEND=shadow diffs.
+ * Process-local only (survives within a warm lambda / Node process).
+ */
+
+export type FieldDiff = {
+  field: string
+  xano: unknown
+  postgres: unknown
+}
+
+export type RowFieldDiff = {
+  id: string | number
+  fields: FieldDiff[]
+}
+
+/**
+ * Diff class for finance shadow mode.
+ * `duplicate-class` = Postgres deduped / Xano still has collapsed extras (EXPECTED).
+ * `unexpected` = real parity regressions.
+ */
+export type ShadowDiffClass = "unexpected" | "duplicate-class"
+
+export type ShadowDiffEvent = {
+  at: number
+  /** Logical migration domain (e.g. reference / publishers / clients). */
+  domain: string
+  table: string
+  xanoCount: number
+  postgresCount: number
+  missingInPostgres: Array<string | number>
+  missingInXano: Array<string | number>
+  fieldDiffs: RowFieldDiff[]
+  /**
+   * Subset of `missingInPostgres` tagged as the $3.79M-style double-count class
+   * (Postgres = deduped, Xano = duplicated). Only set for domain=finance.
+   */
+  duplicateClassMissingInPostgres?: Array<string | number>
+  /** Diff class when domain=finance and duplicate-class rows were split out. */
+  diffClass?: ShadowDiffClass
+}
+
+const MAX_EVENTS = 2000
+const store: ShadowDiffEvent[] = []
+
+function rowId(row: Record<string, unknown>): string | number | null {
+  const id = row.id
+  if (typeof id === "number" && Number.isFinite(id)) return id
+  if (typeof id === "string" && id.trim() !== "") return id
+  return null
+}
+
+/** Normalize timestamps / numeric strings so benign Xano↔Postgres shape drift does not flood diffs. */
+export function normalizeComparableValue(value: unknown): unknown {
+  if (value == null) return null
+  if (typeof value === "boolean") return value
+  if (typeof value === "number") {
+    // Unset Xano timestamps often arrive as 0; Postgres stores epoch.
+    if (value === 0) return null
+    // Unix ms (~1.7e12). Upper-bound keeps 11-digit ABNs out.
+    if (value > 1e12 && value < 1e14) return new Date(value).toISOString()
+    // Unix seconds (~1.7e9). Cap below 1e10 so ABNs (typically 11 digits) stay numeric.
+    if (value > 1e9 && value < 1e10) return new Date(value * 1000).toISOString()
+    return value
+  }
+  if (typeof value === "string") {
+    const trimmed = value.trim()
+    if (trimmed === "") return null
+    if (/^-?\d+(\.\d+)?$/.test(trimmed)) {
+      const n = Number(trimmed)
+      if (Number.isFinite(n)) return normalizeComparableValue(n)
+    }
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+      const t = Date.parse(trimmed)
+      if (!Number.isNaN(t)) {
+        // Epoch / unset timestamps → null (matches Xano `created_at: 0`)
+        if (t === 0) return null
+        return new Date(t).toISOString()
+      }
+    }
+    return trimmed
+  }
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return String(value)
+    }
+  }
+  return value
+}
+
+function asRecordList(payload: unknown): Record<string, unknown>[] {
+  const list = Array.isArray(payload)
+    ? payload
+    : payload && typeof payload === "object"
+      ? (() => {
+          const p = payload as Record<string, unknown>
+          for (const key of ["data", "items", "result", "records"] as const) {
+            if (Array.isArray(p[key])) return p[key] as unknown[]
+          }
+          return []
+        })()
+      : []
+  return list.filter(
+    (row): row is Record<string, unknown> =>
+      !!row && typeof row === "object" && !Array.isArray(row)
+  )
+}
+
+export const KPI_RATE_EPSILON = 1e-6
+export const KPI_MONEY_EPS_CENTS = 1
+
+const DEFAULT_KPI_MONEY_FIELDS = ["cpv"] as const
+const DEFAULT_KPI_RATE_FIELDS = [
+  "ctr",
+  "vtr",
+  "conversion_rate",
+  "frequency",
+] as const
+
+/** Convert a dollar amount to integer cents for KPI money-field compare. */
+export function dollarsToCents(value: unknown): number | null {
+  const n = normalizeComparableValue(value)
+  if (n == null) return null
+  if (typeof n === "number" && Number.isFinite(n)) {
+    return Math.round(n * 100)
+  }
+  return null
+}
+
+export type CompareRowsOptions = {
+  /** Defaults to `table` when omitted (legacy reference-table callers). */
+  domain?: string
+  /**
+   * When true, only compare fields present on the Postgres row (skip Xano-only
+   * columns not yet ported).
+   */
+  postgresKeysOnly?: boolean
+  /** KPI shadow mode: money fields compare in cents; rates within epsilon. */
+  kpiNumericCompare?: boolean
+  /** Dollar fields compared as integer cents (default `cpv`). */
+  moneyFields?: string[]
+  /** Max allowed cent delta for money fields (default 1). */
+  moneyEpsCents?: number
+  /** Rate/ratio fields compared with absolute epsilon (default ctr/vtr/conversion_rate/frequency). */
+  rateFields?: string[]
+  /** Absolute tolerance for rate fields (default `1e-6`). */
+  rateEpsilon?: number
+  /**
+   * Finance shadow: when Xano has extras that Postgres collapsed (dedupe),
+   * tag those missingInPostgres ids as duplicate-class (EXPECTED).
+   */
+  financeDuplicateClass?: boolean
+  /**
+   * Natural-key field for duplicate detection (default `invoice_key` for
+   * finance_billing_records; `version_id`+`line_item_id`+`component` handled
+   * via `duplicateNaturalKey`).
+   */
+  duplicateKeyField?: string
+  /** Build a natural key for duplicate-class detection. */
+  duplicateNaturalKey?: (row: Record<string, unknown>) => string | null
+}
+
+export function valuesEqualForCompare(
+  field: string,
+  xanoRaw: unknown,
+  pgRaw: unknown,
+  options: CompareRowsOptions = {}
+): boolean {
+  const xv = normalizeComparableValue(xanoRaw)
+  const pv = normalizeComparableValue(pgRaw)
+
+  if (options.kpiNumericCompare) {
+    const moneyFields = options.moneyFields ?? [...DEFAULT_KPI_MONEY_FIELDS]
+    const rateFields = options.rateFields ?? [...DEFAULT_KPI_RATE_FIELDS]
+    const moneyEpsCents = options.moneyEpsCents ?? KPI_MONEY_EPS_CENTS
+    const rateEpsilon = options.rateEpsilon ?? KPI_RATE_EPSILON
+
+    if (moneyFields.includes(field)) {
+      const xc = dollarsToCents(xanoRaw)
+      const pc = dollarsToCents(pgRaw)
+      if (xc == null && pc == null) return true
+      if (xc == null || pc == null) return false
+      return Math.abs(xc - pc) <= moneyEpsCents
+    }
+
+    if (rateFields.includes(field)) {
+      if (xv == null && pv == null) return true
+      if (typeof xv !== "number" || typeof pv !== "number") return xv === pv
+      if (!Number.isFinite(xv) || !Number.isFinite(pv)) return xv === pv
+      return Math.abs(xv - pv) <= rateEpsilon
+    }
+  }
+
+  return xv === pv
+}
+
+function defaultFinanceNaturalKey(
+  table: string,
+  row: Record<string, unknown>
+): string | null {
+  if (table === "finance_billing_records") {
+    const k = row.invoice_key
+    return typeof k === "string" && k.trim() !== "" ? `invoice_key:${k}` : null
+  }
+  if (table === "billing_overrides") {
+    const version =
+      row.version_id ??
+      row.media_plan_version ??
+      row.media_plan_version_id ??
+      row.media_plan_versions_id
+    const line = row.line_item_id ?? row.lineItemId
+    const component = String(row.component ?? "media").trim().toLowerCase() || "media"
+    if (version == null || line == null || String(line).trim() === "") return null
+    return `override:${version}:${String(line).trim()}:${component}`
+  }
+  return null
+}
+
+/**
+ * Split missingInPostgres into duplicate-class (EXPECTED: PG deduped, Xano still
+ * has collapsed extras) vs unexpected. Heuristic for finance domain:
+ * 1) natural-key collision with a kept Postgres row, or
+ * 2) xanoCount > postgresCount with no missingInXano (pure extras on Xano).
+ */
+export function classifyFinanceDuplicateClass(
+  table: string,
+  xanoRows: Record<string, unknown>[],
+  postgresRows: Record<string, unknown>[],
+  missingInPostgres: Array<string | number>,
+  missingInXano: Array<string | number>,
+  options: CompareRowsOptions = {}
+): Array<string | number> {
+  if (missingInPostgres.length === 0) return []
+
+  const naturalKey =
+    options.duplicateNaturalKey ??
+    ((row: Record<string, unknown>) => {
+      if (options.duplicateKeyField) {
+        const v = row[options.duplicateKeyField]
+        return v == null || String(v).trim() === ""
+          ? null
+          : `${options.duplicateKeyField}:${String(v)}`
+      }
+      return defaultFinanceNaturalKey(table, row)
+    })
+
+  const pgKeys = new Set<string>()
+  for (const row of postgresRows) {
+    const k = naturalKey(row)
+    if (k) pgKeys.add(k)
+  }
+
+  const xanoById = new Map<string | number, Record<string, unknown>>()
+  for (const row of xanoRows) {
+    const id = rowId(row)
+    if (id != null) xanoById.set(id, row)
+  }
+
+  const tagged = new Set<string | number>()
+  for (const id of missingInPostgres) {
+    const row = xanoById.get(id)
+    if (!row) continue
+    const k = naturalKey(row)
+    if (k && pgKeys.has(k)) tagged.add(id)
+  }
+
+  // Pure count skew: Xano has extras, Postgres has none missing → duplicate-class.
+  if (
+    tagged.size === 0 &&
+    missingInXano.length === 0 &&
+    xanoRows.length > postgresRows.length
+  ) {
+    for (const id of missingInPostgres) tagged.add(id)
+  }
+
+  return [...tagged]
+}
+
+export function compareReferenceRows(
+  table: string,
+  xanoPayload: unknown,
+  postgresRows: Record<string, unknown>[],
+  options: CompareRowsOptions = {}
+): ShadowDiffEvent {
+  const domain = options.domain ?? table
+  const xanoRows = asRecordList(xanoPayload)
+  const xanoById = new Map<string | number, Record<string, unknown>>()
+  const pgById = new Map<string | number, Record<string, unknown>>()
+
+  for (const row of xanoRows) {
+    const id = rowId(row)
+    if (id != null) xanoById.set(id, row)
+  }
+  for (const row of postgresRows) {
+    const id = rowId(row)
+    if (id != null) pgById.set(id, row)
+  }
+
+  const missingInPostgres: Array<string | number> = []
+  const missingInXano: Array<string | number> = []
+  const fieldDiffs: RowFieldDiff[] = []
+
+  for (const id of xanoById.keys()) {
+    if (!pgById.has(id)) missingInPostgres.push(id)
+  }
+  for (const id of pgById.keys()) {
+    if (!xanoById.has(id)) missingInXano.push(id)
+  }
+
+  for (const [id, xanoRow] of xanoById) {
+    const pgRow = pgById.get(id)
+    if (!pgRow) continue
+    const fields: FieldDiff[] = []
+    const keys = options.postgresKeysOnly
+      ? Object.keys(pgRow)
+      : [...new Set([...Object.keys(xanoRow), ...Object.keys(pgRow)])]
+    for (const field of keys) {
+      if (field === "id") continue
+      // null vs absent is known-benign (Xano omits nulls; Postgres returns nulls).
+      if (!(field in xanoRow) && normalizeComparableValue(pgRow[field]) == null) continue
+      if (!(field in pgRow) && normalizeComparableValue(xanoRow[field]) == null) continue
+      if (!valuesEqualForCompare(field, xanoRow[field], pgRow[field], options)) {
+        fields.push({ field, xano: xanoRow[field] ?? null, postgres: pgRow[field] ?? null })
+      }
+    }
+    if (fields.length > 0) fieldDiffs.push({ id, fields })
+  }
+
+  const event: ShadowDiffEvent = {
+    at: Date.now(),
+    domain,
+    table,
+    xanoCount: xanoRows.length,
+    postgresCount: postgresRows.length,
+    missingInPostgres,
+    missingInXano,
+    fieldDiffs,
+  }
+
+  if (options.financeDuplicateClass || domain === "finance") {
+    const dup = classifyFinanceDuplicateClass(
+      table,
+      xanoRows,
+      postgresRows,
+      missingInPostgres,
+      missingInXano,
+      options
+    )
+    if (dup.length > 0) {
+      event.duplicateClassMissingInPostgres = dup
+      const unexpectedMissing = missingInPostgres.filter((id) => !dup.includes(id))
+      event.diffClass =
+        unexpectedMissing.length === 0 &&
+        missingInXano.length === 0 &&
+        fieldDiffs.length === 0
+          ? "duplicate-class"
+          : "unexpected"
+    } else if (
+      missingInPostgres.length > 0 ||
+      missingInXano.length > 0 ||
+      fieldDiffs.length > 0
+    ) {
+      event.diffClass = "unexpected"
+    }
+  }
+
+  return event
+}
+
+export function recordShadowDiff(event: ShadowDiffEvent): void {
+  store.push(event)
+  if (store.length > MAX_EVENTS) {
+    store.splice(0, store.length - MAX_EVENTS)
+  }
+  const mismatchCount =
+    event.missingInPostgres.length +
+    event.missingInXano.length +
+    event.fieldDiffs.length
+  if (mismatchCount > 0) {
+    const dupCount = event.duplicateClassMissingInPostgres?.length ?? 0
+    console.warn("[migration-shadow-diff]", {
+      domain: event.domain,
+      table: event.table,
+      diffClass: event.diffClass ?? "unexpected",
+      xanoCount: event.xanoCount,
+      postgresCount: event.postgresCount,
+      missingInPostgres: event.missingInPostgres.length,
+      missingInXano: event.missingInXano.length,
+      rowsWithFieldDiffs: event.fieldDiffs.length,
+      duplicateClassMissingInPostgres: dupCount,
+      unexpectedMissingInPostgres: event.missingInPostgres.length - dupCount,
+      sampleFieldDiffs: event.fieldDiffs.slice(0, 5),
+    })
+  }
+}
+
+type ShadowDiffGroupSummary = {
+  events: number
+  lastAt: string
+  totalMissingInPostgres: number
+  totalMissingInXano: number
+  totalRowsWithFieldDiffs: number
+  /** Finance: EXPECTED double-count class (PG deduped, Xano duplicated). */
+  totalDuplicateClassMissingInPostgres: number
+  /** Finance: missingInPostgres minus duplicate-class. */
+  totalUnexpectedMissingInPostgres: number
+  lastEvent: {
+    xanoCount: number
+    postgresCount: number
+    missingInPostgres: number
+    missingInXano: number
+    rowsWithFieldDiffs: number
+    duplicateClassMissingInPostgres: number
+    unexpectedMissingInPostgres: number
+    diffClass?: ShadowDiffClass
+    sampleFieldDiffs: RowFieldDiff[]
+  }
+}
+
+function summarizeEventGroup(events: ShadowDiffEvent[]): ShadowDiffGroupSummary {
+  const last = events[events.length - 1]!
+  const lastDup = last.duplicateClassMissingInPostgres?.length ?? 0
+  return {
+    events: events.length,
+    lastAt: new Date(last.at).toISOString(),
+    totalMissingInPostgres: events.reduce((n, e) => n + e.missingInPostgres.length, 0),
+    totalMissingInXano: events.reduce((n, e) => n + e.missingInXano.length, 0),
+    totalRowsWithFieldDiffs: events.reduce((n, e) => n + e.fieldDiffs.length, 0),
+    totalDuplicateClassMissingInPostgres: events.reduce(
+      (n, e) => n + (e.duplicateClassMissingInPostgres?.length ?? 0),
+      0
+    ),
+    totalUnexpectedMissingInPostgres: events.reduce((n, e) => {
+      const dup = e.duplicateClassMissingInPostgres?.length ?? 0
+      return n + Math.max(0, e.missingInPostgres.length - dup)
+    }, 0),
+    lastEvent: {
+      xanoCount: last.xanoCount,
+      postgresCount: last.postgresCount,
+      missingInPostgres: last.missingInPostgres.length,
+      missingInXano: last.missingInXano.length,
+      rowsWithFieldDiffs: last.fieldDiffs.length,
+      duplicateClassMissingInPostgres: lastDup,
+      unexpectedMissingInPostgres: Math.max(0, last.missingInPostgres.length - lastDup),
+      diffClass: last.diffClass,
+      sampleFieldDiffs: last.fieldDiffs.slice(0, 10),
+    },
+  }
+}
+
+export type ShadowDiffSummary = {
+  since: string
+  until: string
+  eventCount: number
+  byDomain: Array<{ domain: string } & ShadowDiffGroupSummary>
+  byTable: Array<{ table: string; domain: string } & ShadowDiffGroupSummary>
+}
+
+export function summarizeShadowDiffs(windowMs = 24 * 60 * 60 * 1000): ShadowDiffSummary {
+  const until = Date.now()
+  const since = until - windowMs
+  const recent = store.filter((e) => e.at >= since)
+  const byTableMap = new Map<string, ShadowDiffEvent[]>()
+  const byDomainMap = new Map<string, ShadowDiffEvent[]>()
+  for (const event of recent) {
+    const tableKey = `${event.domain}::${event.table}`
+    const tableList = byTableMap.get(tableKey) ?? []
+    tableList.push(event)
+    byTableMap.set(tableKey, tableList)
+
+    const domainList = byDomainMap.get(event.domain) ?? []
+    domainList.push(event)
+    byDomainMap.set(event.domain, domainList)
+  }
+
+  const byTable = [...byTableMap.entries()]
+    .map(([, events]) => {
+      const last = events[events.length - 1]!
+      return {
+        table: last.table,
+        domain: last.domain,
+        ...summarizeEventGroup(events),
+      }
+    })
+    .sort((a, b) =>
+      a.domain === b.domain
+        ? a.table.localeCompare(b.table)
+        : a.domain.localeCompare(b.domain)
+    )
+
+  const byDomain = [...byDomainMap.entries()]
+    .map(([domain, events]) => ({
+      domain,
+      ...summarizeEventGroup(events),
+    }))
+    .sort((a, b) => a.domain.localeCompare(b.domain))
+
+  return {
+    since: new Date(since).toISOString(),
+    until: new Date(until).toISOString(),
+    eventCount: recent.length,
+    byDomain,
+    byTable,
+  }
+}
+
+/** Test helper — clears the in-memory buffer. */
+export function __resetShadowDiffStoreForTests(): void {
+  store.length = 0
+}

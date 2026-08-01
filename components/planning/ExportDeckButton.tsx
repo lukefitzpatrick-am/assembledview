@@ -21,6 +21,7 @@ import {
 import { generateAudienceInsight } from "@/components/planning/useAudienceInsight"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
+import { buildExportDeckBrief } from "@/lib/planning/exportDeckBrief"
 import type { PlanningSegment } from "@/lib/planning/types"
 
 type ExportDeckButtonProps = {
@@ -63,7 +64,10 @@ function statsLine(bundle: AudienceCompareBundle) {
   const rob = robustnessFromN(a.unweightedN)
   const pct =
     a.universeWc > 0 ? ((a.audienceWc / a.universeWc) * 100).toFixed(1) : "—"
-  return `Size ${formatAudienceWc(a.audienceWc)} '000s · ${pct}% of 14+ · n ${a.unweightedN} · ${rob.label}`
+  const audienceReach = Math.round(
+    bundle.allocated.reduce((s, x) => s + x.ch.reachPct * 100 * (x.pct / 100), 0)
+  )
+  return `Size ${formatAudienceWc(a.audienceWc)} '000s · ${pct}% of 14+ · n ${a.unweightedN} · ${rob.label} · Audience reach % ${audienceReach}%`
 }
 
 function topMixLine(bundle: AudienceCompareBundle) {
@@ -78,9 +82,13 @@ function topAffinityFallback(bundle: AudienceCompareBundle) {
   return [...(bundle.adapted?.channels ?? [])]
     .map((ch) => ({
       name: ch.name,
-      aff: ch.aff[seg] ?? 100,
+      aff: ch.aff[seg],
       reach: Math.round(ch.reachPct * 100),
     }))
+    .filter(
+      (c): c is { name: string; aff: number; reach: number } =>
+        typeof c.aff === "number" && Number.isFinite(c.aff)
+    )
     .sort((a, b) => b.aff - a.aff)
     .slice(0, 5)
     .map((c) => `${c.name} ${Math.round(c.aff)} (reach ${c.reach}%)`)
@@ -241,16 +249,7 @@ export function ExportDeckButton({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          brief: {
-            clientName: brief.clientName || undefined,
-            campaignName: brief.brandOverride || brief.clientName || undefined,
-            category: brief.category || undefined,
-            market: "Australia",
-            objectiveKind: brief.objectiveKind || undefined,
-            budget: brief.budget || undefined,
-            startDate: brief.startDate,
-            endDate: brief.endDate,
-          },
+          brief: buildExportDeckBrief(brief),
           diagnosis: {
             penetrationPct: diagnosis.penetration,
             targetPct: diagnosis.target,

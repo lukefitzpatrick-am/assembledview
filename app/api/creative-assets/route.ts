@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
-import { getUserRoles, getUserMbaNumbers } from "@/lib/rbac"
+import { getUserRoles } from "@/lib/rbac"
 import {
   createIdempotent,
   listByMba,
@@ -17,8 +17,7 @@ export const revalidate = 0
 function resolveUploadedByRole(user: { [key: string]: unknown }): CreativeAsset["uploaded_by_role"] {
   const roles = getUserRoles(user as Parameters<typeof getUserRoles>[0])
   if (roles.includes("admin")) return "admin"
-  if (roles.includes("client")) return "client"
-  return "manager"
+  return "client"
 }
 
 function resolveUploadedByEmail(user: { [key: string]: unknown }): string {
@@ -58,19 +57,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "mba_number is required" }, { status: 400 })
     }
 
-    const roles = getUserRoles(session.user)
-    if (roles.includes("client")) {
-      const access = await checkClientMbaAccess(request, mbaNumber)
-      if (!access.ok) return access.response
-    } else if (!roles.includes("admin")) {
-      const assigned = getUserMbaNumbers(session.user)
-      if (
-        assigned.length > 0 &&
-        !assigned.some((mba) => mba.toLowerCase() === mbaNumber.toLowerCase())
-      ) {
-        return NextResponse.json({ error: "forbidden" }, { status: 403 })
-      }
-    }
+    // SEC-G: all roles through checkClientMbaAccess (closes empty-MBA soft-spot
+    // that previously allowed non-admin / non-client sessions when mba_numbers
+    // was empty). Admin remains unscoped inside the helper.
+    const access = await checkClientMbaAccess(request, mbaNumber)
+    if (!access.ok) return access.response
 
     const rows = await listByMba(mbaNumber)
     return NextResponse.json(rows)
@@ -98,20 +89,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: parsed.error }, { status: 400 })
     }
 
-    const roles = getUserRoles(session.user)
-    // AuthZ: creative-asset writes scoped to caller's MBA/client; clients must pass MBA access check.
-    if (roles.includes("client")) {
-      const access = await checkClientMbaAccess(request, parsed.value.mba_number)
-      if (!access.ok) return access.response
-    } else if (!roles.includes("admin")) {
-      const assigned = getUserMbaNumbers(session.user)
-      if (
-        assigned.length > 0 &&
-        !assigned.some((mba) => mba.toLowerCase() === parsed.value.mba_number.toLowerCase())
-      ) {
-        return NextResponse.json({ error: "forbidden" }, { status: 403 })
-      }
-    }
+    // SEC-G: all roles through checkClientMbaAccess (see GET).
+    const access = await checkClientMbaAccess(request, parsed.value.mba_number)
+    if (!access.ok) return access.response
 
     const row = await createIdempotent({
       ...parsed.value,

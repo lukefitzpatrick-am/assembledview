@@ -23,10 +23,11 @@ import { slugifyClientName } from "@/lib/api/dashboard/shared";
 import {
   buildKpiComparisons,
   computeRowKpiStatus,
-  copyForRowKpiStatus,
   type KpiComparison,
   type RowKpiStatus,
 } from "@/lib/pacing/kpi/computeKpiStatus";
+import { kpiStatusPresentation, pacingStatusFromBand } from "@/lib/pacing/status";
+import { PACING_TABLE_SCROLL_CLASSNAME } from "@/components/pacing/pacingTableScroll";
 import {
   formatRatioAsPercent,
   formatVariancePercent,
@@ -45,7 +46,7 @@ import type {
   PlatformCampaignBreakdown,
   SearchPacingCampaignRow,
 } from "@/lib/pacing/campaigns/types";
-import { formatAUD } from "@/lib/format/money";
+import { formatAUD, formatMoney } from "@/lib/format/money";
 import { cn } from "@/lib/utils";
 
 const XANO_MISSING = "—";
@@ -87,7 +88,8 @@ const LINE_ITEM_STATUS_ORDER: Record<SearchPacingCampaignRow["lineItemStatus"], 
   "on-track": 0,
   ahead: 1,
   behind: 2,
-  "no-data": 3,
+  "over-pacing": 3,
+  "no-data": 4,
 };
 
 const KPI_STATUS_ORDER: Record<RowKpiStatus, number> = {
@@ -217,6 +219,7 @@ function SortablePacingTh({
   className,
   style,
   align = "left",
+  hint,
 }: {
   label: string;
   column: PacingSortColumn;
@@ -226,6 +229,8 @@ function SortablePacingTh({
   className?: string;
   style?: CSSProperties;
   align?: "left" | "right";
+  /** Column meaning for native tooltip. */
+  hint?: string;
 }) {
   const active = sortColumn === column;
   const direction = active ? sortDirection : null;
@@ -236,6 +241,7 @@ function SortablePacingTh({
     <th className={className} style={style}>
       <button
         type="button"
+        title={hint}
         onClick={() => onToggle(column)}
         className={cn(
           "flex w-full min-w-0 items-center gap-0.5 p-0 font-inherit text-inherit hover:text-foreground",
@@ -261,41 +267,6 @@ const LINE_ITEM_BG_CLASS = "bg-card";
 const PLATFORM_CAMPAIGN_BG_CLASS = "bg-surface-panel";
 const AD_GROUP_BG_CLASS = "bg-[var(--fill-track)]";
 
-const statusLabel: Record<SearchPacingCampaignRow["lineItemStatus"], string> = {
-  "on-track": "On track",
-  ahead: "Ahead",
-  behind: "Off pace",
-  "no-data": "No data",
-};
-
-function statusBadgeVariant(
-  status: SearchPacingCampaignRow["lineItemStatus"]
-): "on-track" | "ahead" | "behind" | "secondary" {
-  switch (status) {
-    case "on-track":
-      return "on-track";
-    case "ahead":
-      return "ahead";
-    case "behind":
-      return "behind";
-    case "no-data":
-      return "secondary";
-  }
-}
-
-function kpiStatusBadgeVariant(status: RowKpiStatus): "secondary" | "on-track" | "behind" | "critical" {
-  switch (status) {
-    case "kpi-pending":
-    case "kpi-no-delivery":
-      return "secondary";
-    case "kpi-on-track":
-      return "on-track";
-    case "kpi-mixed":
-      return "behind";
-    case "kpi-off-target":
-      return "critical";
-  }
-}
 
 /** Measures the rendered width of the first row's Client cell (the only thing Campaign's offset depends on). */
 function useClientColumnWidth(clientCellRef: RefObject<HTMLTableCellElement | null>): number {
@@ -355,12 +326,7 @@ function fmtNumberOrZero(n: number | null | undefined): string {
 
 function fmtRatio(n: number | null | undefined): string {
   if (n === null || n === undefined) return XANO_MISSING;
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(n);
+  return formatMoney(n);
 }
 
 function fmtPct(n: number | null | undefined): string {
@@ -453,7 +419,7 @@ export function LineItemPacingTable({
         </Button>
       </div>
       <div className="rounded border">
-        <div className="relative max-h-[calc(100vh-220px)] overflow-auto">
+        <div className={PACING_TABLE_SCROLL_CLASSNAME}>
           <table
             className={cn("w-full text-xs", moreColumns ? "min-w-[1400px]" : "min-w-[860px]")}
             style={{ borderSpacing: 0 }}
@@ -511,6 +477,7 @@ export function LineItemPacingTable({
                 )}
                 <SortablePacingTh
                   label="Status"
+                  hint="Spend pace vs booked budget (same six bands as the tiles)"
                   column="lineItemStatus"
                   sortColumn={sortColumn}
                   sortDirection={sortDirection}
@@ -699,7 +666,8 @@ export function LineItemPacingTable({
                   />
                 )}
                 <SortablePacingTh
-                  label="Spend (Line)"
+                  label="Spend"
+                  hint="Line-item spend to date (all bursts)"
                   column="spendToDateLineTotal"
                   sortColumn={sortColumn}
                   sortDirection={sortDirection}
@@ -991,7 +959,13 @@ function FragmentForLineItem({
                 </Link>
               </Button>
             ) : (
-              <Button variant="secondary" size="sm" className="h-7 px-2.5 text-xs" disabled>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-7 px-2.5 text-xs"
+                disabled
+                title="Client slug missing — cannot open the client dashboard"
+              >
                 View
               </Button>
             )}
@@ -1174,21 +1148,19 @@ function FragmentForCampaign({
 }
 
 function StatusCell({ status }: { status: SearchPacingCampaignRow["lineItemStatus"] }) {
-  if (status === "no-data") {
-    return <span className="text-muted-foreground">—</span>;
-  }
+  const resolved = pacingStatusFromBand(status);
   return (
-    <Badge variant={statusBadgeVariant(status)} size="sm" className="whitespace-nowrap text-[10px]">
-      {statusLabel[status]}
+    <Badge variant={resolved.badgeVariant} size="sm" className="whitespace-nowrap text-[10px]">
+      {resolved.label}
     </Badge>
   );
 }
 
 function KpiStatusPill({ status }: { status: RowKpiStatus }) {
-  const copy = copyForRowKpiStatus(status);
+  const resolved = kpiStatusPresentation(status);
   return (
-    <Badge variant={kpiStatusBadgeVariant(status)} size="sm" className="whitespace-nowrap text-[10px]">
-      {copy}
+    <Badge variant={resolved.badgeVariant} size="sm" className="whitespace-nowrap text-[10px]">
+      {resolved.label}
     </Badge>
   );
 }

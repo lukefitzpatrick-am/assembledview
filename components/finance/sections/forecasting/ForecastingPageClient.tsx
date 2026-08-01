@@ -1,0 +1,1654 @@
+"use client"
+
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { format, isValid as isValidDate } from "date-fns"
+import { saveAs } from "file-saver"
+import { Bug, Camera, ChevronDown, ChevronRight, Download, Info, Search } from "lucide-react"
+
+import {
+  FINANCE_FORECAST_COMMISSION_LINE_KEYS,
+  FINANCE_FORECAST_FEE_LINE_KEYS,
+  FINANCE_FORECAST_FISCAL_MONTH_ORDER,
+  FINANCE_FORECAST_GROUP_KEYS,
+  FINANCE_FORECAST_LINE_LABELS,
+  FINANCE_FORECAST_LINE_KEYS,
+  FINANCE_FORECAST_OTHER_REVENUE_LINE_KEYS,
+  isFinanceForecastEntityBillingLine,
+  isFinanceForecastMediaBreakoutLine,
+  type FinanceForecastClientBlock,
+  type FinanceForecastDataset,
+  type FinanceForecastLine,
+  type FinanceForecastMonthlyAmounts,
+  type FinanceForecastMonthKey,
+  type FinanceForecastScenario,
+} from "@/lib/types/financeForecast"
+import {
+  buildFinanceForecastCsvString,
+  buildFinanceForecastWorkbook,
+  financeForecastExportFilenameStem,
+  type FinanceForecastExportFilterState,
+} from "@/lib/finance/forecast/exportFinanceForecast"
+import { workbookToXlsxBuffer } from "@/lib/finance/excelFinanceExport"
+import { formatCurrencyFull } from "@/lib/format/currency"
+import { fyDisplayLabel } from "@/lib/finance/months"
+import { useFinanceScopeApplied } from "@/lib/finance/sections/useFinanceScope"
+import { SectionScopeBar } from "@/components/finance/sections/SectionScopeBar"
+import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSectionsShell"
+import { cn } from "@/lib/utils"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet"
+import { LoadingDots } from "@/components/ui/loading-dots"
+import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { TargetGrid } from "@/components/finance/sections/forecasting/TargetGrid"
+import { VarianceTargetVsActualView } from "@/components/finance/sections/forecasting/VarianceTargetVsActualView"
+import {
+  forecastLoadResultDisposition,
+  shouldAutoReloadForecast,
+} from "@/lib/finance/forecast/loadForecastGuards"
+
+const money = (n: number) =>
+  formatCurrencyFull(n, {
+    locale: "en-AU",
+    currency: "AUD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })
+
+function monthColumnLabel(key: FinanceForecastMonthKey, fyStart: number): string {
+  const calMonth: Record<FinanceForecastMonthKey, number> = {
+    july: 7,
+    august: 8,
+    september: 9,
+    october: 10,
+    november: 11,
+    december: 12,
+    january: 1,
+    february: 2,
+    march: 3,
+    april: 4,
+    may: 5,
+    june: 6,
+  }
+  const m = calMonth[key]
+  const year = m >= 7 ? fyStart : fyStart + 1
+  return format(new Date(year, m - 1, 1), "MMM yy")
+}
+
+type ForecastApiMeta = {
+  financial_year_start_year: number
+  scenario: FinanceForecastScenario
+  raw_version_count: number
+  filtered_version_count: number
+  client_scope: "all" | "tenant_slugs"
+  include_row_debug: boolean
+}
+
+type ForecastApiResponse = {
+  dataset: FinanceForecastDataset
+  meta: ForecastApiMeta
+}
+
+const STICKY_CLIENT = "sticky left-0 z-20 min-w-[10.5rem] w-[10.5rem] border-r border-border bg-background shadow-e0"
+const STICKY_LINE =
+  "sticky left-[10.5rem] z-20 min-w-[13.5rem] w-[13.5rem] max-w-[16rem] border-r border-border bg-background shadow-e0"
+const STICKY_HEAD = "bg-surface-panel backdrop-blur-sm"
+
+function emptyMonthlyAmounts(): FinanceForecastMonthlyAmounts {
+  const m = {} as FinanceForecastMonthlyAmounts
+  for (const k of FINANCE_FORECAST_FISCAL_MONTH_ORDER) m[k] = 0
+  return m
+}
+
+function sumForecastLines(lines: readonly FinanceForecastLine[]): {
+  monthly: FinanceForecastMonthlyAmounts
+  fy: number
+} {
+  const monthly = emptyMonthlyAmounts()
+  let fy = 0
+  for (const line of lines) {
+    for (const k of FINANCE_FORECAST_FISCAL_MONTH_ORDER) {
+      monthly[k] += line.monthly[k] ?? 0
+    }
+    fy += line.fy_total
+  }
+  return { monthly, fy }
+}
+
+function billingGroupFromBlock(block: FinanceForecastClientBlock) {
+  return block.groups.find((g) => g.group_key === FINANCE_FORECAST_GROUP_KEYS.billingBasedInformation)
+}
+
+function revenueGroupFromBlock(block: FinanceForecastClientBlock) {
+  return block.groups.find((g) => g.group_key === FINANCE_FORECAST_GROUP_KEYS.revenueFeesCommission)
+}
+
+/** Prefer computed total revenue rows per client; otherwise sum non-total body lines. */
+function clientRevenueSubtotalLines(block: FinanceForecastClientBlock): FinanceForecastLine[] {
+  const g = revenueGroupFromBlock(block)
+  if (!g) return []
+  const totals = g.lines.filter((l) => l.line_key === FINANCE_FORECAST_LINE_KEYS.totalRevenue)
+  if (totals.length > 0) return totals
+  return g.lines.filter((l) => l.line_key !== FINANCE_FORECAST_LINE_KEYS.totalRevenue)
+}
+
+function portfolioBillingTotals(blocks: readonly FinanceForecastClientBlock[]) {
+  const lines: FinanceForecastLine[] = []
+  for (const b of blocks) {
+    const g = billingGroupFromBlock(b)
+    if (g) lines.push(...g.lines.filter(isFinanceForecastEntityBillingLine))
+  }
+  return sumForecastLines(lines)
+}
+
+function lineFyNonZero(line: FinanceForecastLine): boolean {
+  return Math.abs(line.fy_total) > 0.005
+}
+
+function linesWithKeys(
+  lines: readonly FinanceForecastLine[],
+  keys: readonly string[]
+): FinanceForecastLine[] {
+  const set = new Set(keys)
+  return lines.filter((l) => set.has(l.line_key))
+}
+
+function portfolioRevenueTotals(blocks: readonly FinanceForecastClientBlock[]) {
+  const lines: FinanceForecastLine[] = []
+  for (const b of blocks) lines.push(...clientRevenueSubtotalLines(b))
+  return sumForecastLines(lines)
+}
+
+function combineMonthlyTotals(
+  a: { monthly: FinanceForecastMonthlyAmounts; fy: number },
+  b: { monthly: FinanceForecastMonthlyAmounts; fy: number }
+) {
+  const monthly = emptyMonthlyAmounts()
+  for (const k of FINANCE_FORECAST_FISCAL_MONTH_ORDER) {
+    monthly[k] = (a.monthly[k] ?? 0) + (b.monthly[k] ?? 0)
+  }
+  return { monthly, fy: a.fy + b.fy }
+}
+
+const SCENARIO_COPY: Record<
+  FinanceForecastScenario,
+  { title: string; chip: string }
+> = {
+  confirmed: {
+    title: "Confirmed",
+    chip: "Booked / approved / completed",
+  },
+  confirmed_plus_probable: {
+    title: "Confirmed + Probable",
+    chip: "All non-cancelled work",
+  },
+}
+
+export type ForecastPanelMode = "booked" | "target" | "variance"
+
+const FORECAST_MODE_COPY: Record<ForecastPanelMode, { title: string; hint: string }> = {
+  booked: {
+    title: "Booked",
+    hint: "Live booked forecast (unchanged)",
+  },
+  target: {
+    title: "Target",
+    hint: "Edit monthly targets by client — saved when you leave a cell",
+  },
+  variance: {
+    title: "Variance",
+    hint: "Target vs billed actual (client × month) — load below",
+  },
+}
+
+function parseForecastPanelMode(raw: string | null | undefined): ForecastPanelMode {
+  if (raw === "target" || raw === "variance") return raw
+  return "booked"
+}
+
+function readFmodeFromLocation(): ForecastPanelMode {
+  if (typeof window === "undefined") return "booked"
+  return parseForecastPanelMode(new URLSearchParams(window.location.search).get("fmode"))
+}
+
+function writeFmodeToLocation(mode: ForecastPanelMode) {
+  if (typeof window === "undefined") return
+  const params = new URLSearchParams(window.location.search)
+  if (mode === "booked") params.delete("fmode")
+  else params.set("fmode", mode)
+  const qs = params.toString()
+  const next = qs ? `${window.location.pathname}?${qs}` : window.location.pathname
+  window.history.replaceState(null, "", next)
+}
+
+/**
+ * Forecasting section — adapted COPY of hub `FinanceForecastPanel`.
+ * Hub panel + hub forecast/* left untouched until FN7.
+ * FY from shared section scope; ?fmode= booked|target|variance preserved.
+ */
+export default function ForecastingPageClient() {
+  const applied = useFinanceScopeApplied()
+  const fyStart = applied.fy
+  const [panelMode, setPanelMode] = useState<ForecastPanelMode>(() => readFmodeFromLocation())
+  const [scenario, setScenario] = useState<FinanceForecastScenario>("confirmed")
+  const [clientFilter, setClientFilter] = useState<string>("")
+  const [searchInput, setSearchInput] = useState("")
+  const [includeDebug, setIncludeDebug] = useState(false)
+
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<{ message: string; details?: string } | null>(null)
+  const [payload, setPayload] = useState<ForecastApiResponse | null>(null)
+
+  const [detailLine, setDetailLine] = useState<FinanceForecastLine | null>(null)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [exporting, setExporting] = useState(false)
+
+  const [snapshotBusy, setSnapshotBusy] = useState(false)
+  const [snapshotConfigured, setSnapshotConfigured] = useState<boolean | null>(null)
+  const [snapshotNote, setSnapshotNote] = useState("")
+  const [snapshotBanner, setSnapshotBanner] = useState<
+    | null
+    | {
+        kind: "success"
+        label: string
+        taken_at: string
+        line_count: number
+        persisted: boolean
+        snapshot_id?: string
+        reason?: string
+      }
+    | { kind: "duplicate"; message: string; retry_after_ms: number }
+    | { kind: "error"; message: string }
+  >(null)
+
+  /** Client sections expanded in the grid; omitted / not in set ⇒ collapsed (default). */
+  const [expandedClientIds, setExpandedClientIds] = useState<Set<string>>(() => new Set())
+
+  const forecastLoadSucceededRef = useRef(false)
+  const loadForecastRef = useRef<() => Promise<void>>(async () => {})
+  const loadAbortRef = useRef<AbortController | null>(null)
+  const requestSeqRef = useRef(0)
+
+  const setForecastMode = useCallback((next: ForecastPanelMode) => {
+    setPanelMode(next)
+    writeFmodeToLocation(next)
+  }, [])
+
+  const loadForecast = useCallback(async () => {
+    const requestSeq = ++requestSeqRef.current
+    if (loadAbortRef.current) loadAbortRef.current.abort()
+    const controller = new AbortController()
+    loadAbortRef.current = controller
+
+    setError(null)
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.set("fy", String(fyStart))
+      params.set("scenario", scenario)
+      if (clientFilter.trim()) params.set("client", clientFilter.trim())
+      if (searchInput.trim()) params.set("q", searchInput.trim())
+      if (includeDebug) params.set("debug", "1")
+
+      const res = await fetch(`/api/finance/forecast?${params.toString()}`, {
+        cache: "no-store",
+        signal: controller.signal,
+      })
+      let body: ForecastApiResponse | { error?: string; message?: string } | null = null
+      try {
+        body = (await res.json()) as ForecastApiResponse
+      } catch {
+        body = null
+      }
+
+      const disposition = forecastLoadResultDisposition({
+        requestSeq,
+        currentSeq: requestSeqRef.current,
+        aborted: controller.signal.aborted,
+      })
+      if (disposition === "ignore_superseded") return
+
+      if (!res.ok) {
+        const msg =
+          (body as { message?: string })?.message ||
+          (body as { error?: string })?.error ||
+          `Request failed (${res.status})`
+        throw new Error(msg)
+      }
+
+      if (!body || !("dataset" in body)) {
+        throw new Error("Invalid response from forecast API")
+      }
+
+      setPayload(body as ForecastApiResponse)
+      forecastLoadSucceededRef.current = true
+    } catch (e) {
+      const disposition = forecastLoadResultDisposition({
+        requestSeq,
+        currentSeq: requestSeqRef.current,
+        aborted: controller.signal.aborted,
+      })
+      if (disposition === "ignore_superseded") return
+
+      forecastLoadSucceededRef.current = false
+      const msg = e instanceof Error ? e.message : String(e)
+      setError({
+        message: "Could not load finance forecast.",
+        details: msg,
+      })
+      setPayload(null)
+    } finally {
+      if (requestSeq === requestSeqRef.current) {
+        setLoading(false)
+      }
+    }
+  }, [clientFilter, fyStart, includeDebug, scenario, searchInput])
+
+  loadForecastRef.current = loadForecast
+
+  useEffect(() => {
+    setExpandedClientIds(new Set())
+  }, [payload?.dataset])
+
+  // Probe snapshot storage once (GET returns configured:false when env unset).
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch("/api/finance/forecast/snapshots", { cache: "no-store" })
+        if (cancelled) return
+        if (!res.ok) {
+          setSnapshotConfigured(false)
+          return
+        }
+        const data = (await res.json()) as { configured?: boolean }
+        setSnapshotConfigured(data.configured !== false)
+      } catch {
+        if (!cancelled) setSnapshotConfigured(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // FIN-4: auto-load current FY (all clients) on cold entry; reload when scenario/FY Apply changes.
+  useEffect(() => {
+    if (!shouldAutoReloadForecast(forecastLoadSucceededRef.current)) return
+    void loadForecastRef.current()
+  }, [scenario, fyStart])
+
+  const toggleClientExpanded = useCallback((clientId: string) => {
+    setExpandedClientIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(clientId)) next.delete(clientId)
+      else next.add(clientId)
+      return next
+    })
+  }, [])
+
+  const canExport =
+    Boolean(payload) &&
+    !loading &&
+    (payload?.dataset.client_blocks.length ?? 0) > 0
+
+  const exportFilterState = useMemo<FinanceForecastExportFilterState>(
+    () => ({
+      clientFilter,
+      searchVersions: searchInput,
+      includeRowDebug: includeDebug,
+    }),
+    [clientFilter, searchInput, includeDebug]
+  )
+
+  const runExportCsv = useCallback(() => {
+    if (!payload || !canExport) return
+    void (async () => {
+      setExporting(true)
+      try {
+        await new Promise<void>((resolve) => {
+          requestAnimationFrame(() => resolve())
+        })
+        const at = new Date()
+        const csv = buildFinanceForecastCsvString(payload.dataset, exportFilterState, payload.meta, at)
+        const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" })
+        saveAs(blob, `${financeForecastExportFilenameStem(payload.dataset, at)}.csv`)
+      } catch (e) {
+        console.error("Forecast CSV export failed", e)
+      } finally {
+        setExporting(false)
+      }
+    })()
+  }, [payload, canExport, exportFilterState])
+
+  const runExportExcel = useCallback(() => {
+    if (!payload || !canExport) return
+    void (async () => {
+      setExporting(true)
+      try {
+        await new Promise((r) => {
+          requestAnimationFrame(() => r(undefined))
+        })
+        const at = new Date()
+        const workbook = await buildFinanceForecastWorkbook(
+          payload.dataset,
+          exportFilterState,
+          payload.meta,
+          at
+        )
+        const buffer = await workbookToXlsxBuffer(workbook)
+        const blob = new Blob([buffer], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        })
+        saveAs(blob, `${financeForecastExportFilenameStem(payload.dataset, at)}.xlsx`)
+      } catch (e) {
+        console.error("Forecast Excel export failed", e)
+      } finally {
+        setExporting(false)
+      }
+    })()
+  }, [payload, canExport, exportFilterState])
+
+  const takeSnapshot = useCallback(
+    async (forceDuplicate: boolean) => {
+      setSnapshotBanner(null)
+      setSnapshotBusy(true)
+      try {
+        const res = await fetch("/api/finance/forecast/snapshots", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            financial_year: fyStart,
+            scenario,
+            notes: snapshotNote.trim() || undefined,
+            client: clientFilter.trim() || undefined,
+            search: searchInput.trim() || undefined,
+            debug: includeDebug,
+            force_duplicate: forceDuplicate,
+          }),
+        })
+
+        let data: Record<string, unknown> = {}
+        try {
+          data = (await res.json()) as Record<string, unknown>
+        } catch {
+          data = {}
+        }
+
+        if (res.status === 409 && data.error === "duplicate_snapshot") {
+          setSnapshotBanner({
+            kind: "duplicate",
+            message:
+              typeof data.message === "string"
+                ? data.message
+                : "The same forecast was just captured. You can wait, change filters, or capture again as a repeat.",
+            retry_after_ms: typeof data.retry_after_ms === "number" ? data.retry_after_ms : 90_000,
+          })
+          return
+        }
+
+        if (!res.ok) {
+          const msg =
+            typeof data.message === "string"
+              ? data.message
+              : typeof data.error === "string"
+                ? data.error
+                : `Snapshot failed (${res.status})`
+          setSnapshotBanner({ kind: "error", message: msg })
+          return
+        }
+
+        if (data.ok === true) {
+          setSnapshotBanner({
+            kind: "success",
+            label: String(data.snapshot_label ?? ""),
+            taken_at: String(data.taken_at ?? ""),
+            line_count: typeof data.line_count === "number" ? data.line_count : 0,
+            persisted: data.persisted === true,
+            snapshot_id: typeof data.snapshot_id === "string" ? data.snapshot_id : undefined,
+            reason: typeof data.reason === "string" ? data.reason : undefined,
+          })
+        }
+      } catch (e) {
+        setSnapshotBanner({
+          kind: "error",
+          message: e instanceof Error ? e.message : "Snapshot request failed.",
+        })
+      } finally {
+        setSnapshotBusy(false)
+      }
+    },
+    [clientFilter, fyStart, includeDebug, scenario, searchInput, snapshotNote]
+  )
+
+  const colCount = 2 + FINANCE_FORECAST_FISCAL_MONTH_ORDER.length + 1
+  const handleOpenDetail = useCallback((line: FinanceForecastLine) => {
+    setDetailLine(line)
+    setSheetOpen(true)
+  }, [])
+
+  return (
+    <FinanceSectionsShell
+      title="Forecasting"
+      scopeBar={
+        <SectionScopeBar
+          variant="fy-only"
+          showingLabel={`FY${fyDisplayLabel(fyStart)} · modes via ?fmode=`}
+        />
+      }
+    >
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-semibold tracking-tight">Booked / Target / Variance</h2>
+          <p className="text-sm text-muted-foreground">
+            Billing vs revenue by client for the Australian financial year (July–June). FY is set in the scope bar.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs font-medium text-muted-foreground">Mode</Label>
+          <div
+            role="tablist"
+            aria-label="Forecast mode"
+            className="inline-flex h-9 rounded-input border border-border bg-surface-panel p-0.5"
+          >
+            {(Object.keys(FORECAST_MODE_COPY) as ForecastPanelMode[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={panelMode === key}
+                className={cn(
+                  "rounded-input px-3 text-sm font-medium transition-colors",
+                  panelMode === key
+                    ? "bg-card text-foreground shadow-e1"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                onClick={() => setForecastMode(key)}
+              >
+                {FORECAST_MODE_COPY[key].title}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {panelMode === "variance" ? (
+        <>
+          <Alert className="rounded-card border-pacing-behind-bg bg-pacing-behind-bg text-status-behind-fg">
+            <Info className="h-4 w-4 text-status-behind-fg" aria-hidden />
+            <AlertTitle className="text-sm font-semibold text-foreground">Target vs billed actual</AlertTitle>
+            <AlertDescription className="text-sm text-muted-foreground">
+              Variance compares targets to billed actuals for FY{fyDisplayLabel(fyStart)} (scope bar).
+              Booked (schedules) is a reference column only. Actual grain is client × month (not per
+              revenue-line). Phase-1 actual = billed_amount; Xero AR actual is a later plug-in.
+            </AlertDescription>
+          </Alert>
+
+          <Card className="rounded-card border-border shadow-e1">
+            <CardHeader className="space-y-1 pb-3">
+              <CardTitle className="text-base font-medium">Filters</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground">
+                  Booked scenario (reference)
+                </Label>
+                <div
+                  role="tablist"
+                  aria-label="Booked scenario for variance reference"
+                  className="inline-flex h-9 rounded-input border border-border bg-surface-panel p-0.5"
+                >
+                  {(Object.keys(SCENARIO_COPY) as FinanceForecastScenario[]).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={scenario === key}
+                      className={cn(
+                        "rounded-input px-3 text-sm font-medium transition-colors",
+                        scenario === key
+                          ? "bg-card text-foreground shadow-e1"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      onClick={() => setScenario(key)}
+                    >
+                      {SCENARIO_COPY[key].title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="variance-client-filter" className="text-xs font-medium text-muted-foreground">
+                  Client (optional)
+                </Label>
+                <Input
+                  id="variance-client-filter"
+                  value={clientFilter}
+                  onChange={(e) => setClientFilter(e.target.value)}
+                  placeholder="Client id or name"
+                  className="h-9 w-full sm:w-[220px]"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <VarianceTargetVsActualView
+            fyStart={fyStart}
+            scenario={scenario}
+            clientFilter={clientFilter}
+            expandedClientIds={expandedClientIds}
+            onToggleClient={toggleClientExpanded}
+          />
+        </>
+      ) : null}
+
+      {panelMode === "target" ? (
+        <>
+          <Alert className="rounded-card border-pacing-behind-bg bg-pacing-behind-bg text-status-behind-fg">
+            <Info className="h-4 w-4 text-status-behind-fg" aria-hidden />
+            <AlertTitle className="text-sm font-semibold text-foreground">Target entry</AlertTitle>
+            <AlertDescription className="text-sm text-muted-foreground">
+              Target amounts are scoped to FY{fyDisplayLabel(fyStart)} from the scope bar.
+            </AlertDescription>
+          </Alert>
+
+          <Card className="rounded-card border-border shadow-e1">
+            <CardHeader className="space-y-1 pb-3">
+              <CardTitle className="text-base font-medium">Filters</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+              <div className="space-y-2">
+                <Label htmlFor="target-client-filter" className="text-xs font-medium text-muted-foreground">
+                  Client (required)
+                </Label>
+                <Input
+                  id="target-client-filter"
+                  value={clientFilter}
+                  onChange={(e) => setClientFilter(e.target.value)}
+                  placeholder="Client id"
+                  className="h-9 w-full sm:w-[220px]"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <TargetGrid fyStart={fyStart} clientId={clientFilter} />
+        </>
+      ) : null}
+
+      {panelMode === "booked" ? (
+        <>
+      <Card className="rounded-card border-border shadow-e1">
+        <CardHeader className="space-y-1 pb-3">
+          <CardTitle className="text-base font-medium">Filters</CardTitle>
+          <p className="text-xs text-muted-foreground">
+            FY{fyDisplayLabel(fyStart)} loads on entry · change FY above and Apply to reload.
+          </p>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:flex-wrap xl:items-end xl:justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end">
+              <div className="space-y-2">
+                <Label className="text-xs font-medium text-muted-foreground">Scenario</Label>
+                <div
+                  role="tablist"
+                  aria-label="Forecast scenario"
+                  className="inline-flex h-9 rounded-input border border-border bg-surface-panel p-0.5"
+                >
+                  {(
+                    Object.keys(SCENARIO_COPY) as FinanceForecastScenario[]
+                  ).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={scenario === key}
+                      className={cn(
+                        "rounded-input px-3 text-sm font-medium transition-colors",
+                        scenario === key
+                          ? "bg-card text-foreground shadow-e1"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                      onClick={() => setScenario(key)}
+                    >
+                      {SCENARIO_COPY[key].title}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex max-w-xl flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2">
+                  {(Object.keys(SCENARIO_COPY) as FinanceForecastScenario[]).map((key) => (
+                    <Badge
+                      key={`chip-${key}`}
+                      variant="outline"
+                      size="sm"
+                      className={cn(
+                        "font-normal text-muted-foreground",
+                        scenario === key && "border-primary/35 bg-primary/5 text-foreground"
+                      )}
+                    >
+                      <span className="text-foreground/90">{SCENARIO_COPY[key].title}</span>
+                      <span className="mx-1 text-muted-foreground/80">·</span>
+                      <span>{SCENARIO_COPY[key].chip}</span>
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="client-filter" className="text-xs font-medium text-muted-foreground">
+                  Client (optional)
+                </Label>
+                <Input
+                  id="client-filter"
+                  value={clientFilter}
+                  onChange={(e) => setClientFilter(e.target.value)}
+                  placeholder="Name, slug, or client id"
+                  className="h-9 w-full sm:w-[220px]"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="forecast-search" className="text-xs font-medium text-muted-foreground">
+                  Search versions
+                </Label>
+                <div className="relative w-full sm:w-[240px]">
+                  <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="forecast-search"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") void loadForecast()
+                    }}
+                    placeholder="MBA, campaign, client…"
+                    className="h-9 pl-9"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                <Button onClick={() => void loadForecast()} disabled={loading} className="h-9">
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <LoadingDots />
+                      Loading…
+                    </span>
+                  ) : (
+                    "Load forecast"
+                  )}
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9"
+                      disabled={!canExport || exporting}
+                      title={!canExport ? "Load a forecast with data to export" : undefined}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      {exporting ? "Exporting…" : "Export"}
+                      <ChevronDown className="ml-1 h-4 w-4 opacity-70" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem disabled={exporting} onSelect={() => runExportCsv()}>
+                      Download CSV
+                    </DropdownMenuItem>
+                    <DropdownMenuItem disabled={exporting} onSelect={() => runExportExcel()}>
+                      Download Excel (.xlsx)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9"
+                  disabled={snapshotBusy || loading || snapshotConfigured !== true}
+                  title={
+                    snapshotConfigured === false
+                      ? "Snapshot storage is not configured (XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL)."
+                      : snapshotConfigured == null
+                        ? "Checking snapshot storage…"
+                        : "Save an immutable snapshot using current FY, scenario, and filters (server-calculated)."
+                  }
+                  onClick={() => void takeSnapshot(false)}
+                >
+                  {snapshotBusy ? (
+                    <span className="flex items-center gap-2">
+                      <LoadingDots />
+                      Snapshot…
+                    </span>
+                  ) : (
+                    <>
+                      <Camera className="mr-2 h-4 w-4" />
+                      Take snapshot
+                    </>
+                  )}
+                </Button>
+              </div>
+              {snapshotConfigured === false ? (
+                <Alert className="rounded-card border-border bg-surface-panel">
+                  <AlertTitle className="text-sm">Snapshots unavailable</AlertTitle>
+                  <AlertDescription className="text-sm text-muted-foreground">
+                    Snapshot storage is not configured. Set{" "}
+                    <span className="font-mono text-xs">XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL</span> on the
+                    server to enable Take snapshot.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+              <div className="flex max-w-lg flex-col gap-1.5">
+                <Label htmlFor="snapshot-note" className="text-xs font-medium text-muted-foreground">
+                  Snapshot note (optional)
+                </Label>
+                <Input
+                  id="snapshot-note"
+                  value={snapshotNote}
+                  onChange={(e) => setSnapshotNote(e.target.value)}
+                  placeholder="e.g. Pre–month-end review"
+                  className="h-9"
+                  disabled={snapshotBusy}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 border-t border-border/40 pt-3">
+            <Checkbox
+              id="include-debug"
+              checked={includeDebug}
+              onCheckedChange={(v) => setIncludeDebug(v === true)}
+            />
+            <Label htmlFor="include-debug" className="cursor-pointer text-sm font-normal text-muted-foreground">
+              Include row debug metadata (larger response; use row actions to inspect)
+            </Label>
+          </div>
+
+          {error ? (
+            <ErrorState
+              title={error.message}
+              message={error.details ? <span className="whitespace-pre-wrap font-mono text-xs">{error.details}</span> : null}
+              onRetry={() => void loadForecast()}
+            />
+          ) : null}
+
+          {snapshotBanner?.kind === "success" ? (
+            <Alert className="rounded-card border-pacing-ahead-bg bg-pacing-ahead-bg text-status-ahead-fg">
+              <AlertTitle>Snapshot saved</AlertTitle>
+              <AlertDescription className="space-y-1 text-sm">
+                <p>
+                  <span className="font-medium text-foreground">Label:</span>{" "}
+                  <span className="text-foreground/90">{snapshotBanner.label}</span>
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Captured at:</span>{" "}
+                  {(() => {
+                    const d = new Date(snapshotBanner.taken_at)
+                    return isValidDate(d)
+                      ? `${format(d, "yyyy-MM-dd HH:mm:ss")} local`
+                      : snapshotBanner.taken_at || "—"
+                  })()}
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Line rows:</span>{" "}
+                  <span className="num">{snapshotBanner.line_count.toLocaleString()}</span> (month-normalized)
+                </p>
+                {snapshotBanner.persisted ? (
+                  <p className="text-muted-foreground">
+                    Stored
+                    {snapshotBanner.snapshot_id ? (
+                      <>
+                        {" "}
+                        <span className="font-mono text-xs">({snapshotBanner.snapshot_id})</span>
+                      </>
+                    ) : null}
+                    .
+                  </p>
+                ) : (
+                  <p className="text-status-behind-fg">
+                    Snapshot storage is not configured on the server ({snapshotBanner.reason ?? "no base URL"}). Label
+                    and counts reflect what would be saved to Xano.
+                  </p>
+                )}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+
+          {snapshotBanner?.kind === "duplicate" ? (
+            <Alert className="rounded-card border-pacing-behind-bg bg-pacing-behind-bg text-status-behind-fg">
+              <AlertTitle>Duplicate snapshot</AlertTitle>
+              <AlertDescription className="flex flex-col gap-3 text-sm">
+                <p>{snapshotBanner.message}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" variant="secondary" onClick={() => void takeSnapshot(true)}>
+                    Capture as repeat
+                  </Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => setSnapshotBanner(null)}>
+                    Dismiss
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          ) : null}
+
+          {snapshotBanner?.kind === "error" ? (
+            <Alert variant="destructive">
+              <AlertTitle>Snapshot failed</AlertTitle>
+              <AlertDescription className="text-sm">{snapshotBanner.message}</AlertDescription>
+            </Alert>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-card border-border shadow-e1">
+        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 pb-2">
+          <CardTitle className="text-base font-medium">Forecast grid</CardTitle>
+          {payload?.meta ? (
+            <p className="text-xs text-muted-foreground">
+              FY {fyDisplayLabel(payload.meta.financial_year_start_year)} · {payload.meta.filtered_version_count} versions
+              (of {payload.meta.raw_version_count}) · scope: {payload.meta.client_scope}
+            </p>
+          ) : null}
+        </CardHeader>
+        <CardContent className="p-0 sm:p-0">
+          {loading ? (
+            <LoadingState rows={5} className="m-4" />
+          ) : !payload ? (
+            <EmptyState
+              className="m-4"
+              title="Load a forecast"
+              message="Select filters and click Load forecast to generate the report."
+            />
+          ) : payload.dataset.client_blocks.length === 0 ? (
+            <EmptyState
+              className="m-4"
+              title="No forecast rows"
+              message="No data for this financial year and filters. Try another FY, scenario, or clear the client/search filters."
+            />
+          ) : (
+            <div className="overflow-x-auto rounded-b-lg border-t border-border/60">
+              <table className="w-full min-w-[1100px] border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-border bg-surface-panel">
+                    <th
+                      className={cn(
+                        STICKY_CLIENT,
+                        STICKY_HEAD,
+                        "px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-muted-foreground"
+                      )}
+                    >
+                      Client
+                    </th>
+                    <th
+                      className={cn(
+                        STICKY_LINE,
+                        STICKY_HEAD,
+                        "px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wide text-muted-foreground"
+                      )}
+                    >
+                      Line
+                    </th>
+                    {FINANCE_FORECAST_FISCAL_MONTH_ORDER.map((k) => (
+                      <th
+                        key={k}
+                        className="whitespace-nowrap px-2 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-muted-foreground"
+                      >
+                        {monthColumnLabel(k, payload.dataset.meta.financial_year_start_year)}
+                      </th>
+                    ))}
+                    <th className="whitespace-nowrap px-3 py-2.5 text-right text-[11px] font-bold uppercase tracking-wide text-foreground">
+                      FY total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <PortfolioSummaryRows dataset={payload.dataset} />
+                  {payload.dataset.client_blocks.map((block) => (
+                    <FragmentBlockMemo
+                      key={block.client_id}
+                      block={block}
+                      colCount={colCount}
+                      expanded={expandedClientIds.has(block.client_id)}
+                      onToggleClient={() => toggleClientExpanded(block.client_id)}
+                      onOpenDetail={handleOpenDetail}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
+        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
+          <SheetHeader>
+            <SheetTitle>Row metadata</SheetTitle>
+            <SheetDescription>
+              Source and debug fields returned by the forecast API{includeDebug ? "" : " (enable “Include row debug” and reload for full debug fields)"}.
+            </SheetDescription>
+          </SheetHeader>
+          {detailLine ? (
+            <div className="mt-4 space-y-4 text-xs">
+              <div>
+                <p className="mb-1 font-semibold text-foreground">Line</p>
+                <p className="text-muted-foreground">
+                  {FINANCE_FORECAST_LINE_LABELS[detailLine.line_key]} · {detailLine.mba_number ?? "—"} · v
+                  {detailLine.version_number ?? "—"}
+                </p>
+              </div>
+              <div>
+                <p className="mb-1 font-semibold text-foreground">source</p>
+                <pre className="max-h-[40vh] overflow-auto rounded-input border border-border bg-surface-panel p-3 font-mono">
+                  {JSON.stringify(detailLine.source, null, 2)}
+                </pre>
+              </div>
+              <div>
+                <p className="mb-1 font-semibold text-foreground">debug</p>
+                {detailLine.debug ? (
+                  <pre className="max-h-[40vh] overflow-auto rounded-input border border-border bg-surface-panel p-3 font-mono">
+                    {JSON.stringify(detailLine.debug, null, 2)}
+                  </pre>
+                ) : (
+                  <p className="text-muted-foreground">No debug payload (toggle “Include row debug” and reload).</p>
+                )}
+              </div>
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
+        </>
+      ) : null}
+    </div>
+    </FinanceSectionsShell>
+  )
+}
+
+function ForecastSummaryAmountCells(props: {
+  monthly: FinanceForecastMonthlyAmounts
+  fy: number
+  cellClassName?: string
+}) {
+  const { monthly, fy, cellClassName } = props
+  return (
+    <>
+      {FINANCE_FORECAST_FISCAL_MONTH_ORDER.map((k) => (
+        <td
+          key={k}
+          className={cn(
+            "num whitespace-nowrap px-2 py-1.5 text-right font-mono text-xs text-foreground/90",
+            cellClassName
+          )}
+        >
+          {money(monthly[k] ?? 0)}
+        </td>
+      ))}
+      <td
+        className={cn(
+          "num whitespace-nowrap px-3 py-1.5 text-right font-mono text-xs font-medium text-foreground",
+          cellClassName
+        )}
+      >
+        {money(fy)}
+      </td>
+    </>
+  )
+}
+
+function PortfolioSummaryRows({ dataset }: { dataset: FinanceForecastDataset }) {
+  const blocks = dataset.client_blocks
+  const billing = portfolioBillingTotals(blocks)
+  const revenue = portfolioRevenueTotals(blocks)
+  const grand = combineMonthlyTotals(billing, revenue)
+  const headLabel =
+    "px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+  const lineLabel = "px-3 py-2 text-left text-xs font-semibold text-foreground"
+
+  return (
+    <>
+      <tr className="border-b border-border bg-pacing-on-track-bg">
+        <td rowSpan={3} className={cn(STICKY_CLIENT, STICKY_HEAD, headLabel, "align-top")}>
+          Summary
+        </td>
+        <td className={cn(STICKY_LINE, STICKY_HEAD, lineLabel, "border-l-2 border-l-pacing-on-track")}>
+          Subtotal — billing
+        </td>
+        <ForecastSummaryAmountCells monthly={billing.monthly} fy={billing.fy} />
+      </tr>
+      <tr className="border-b border-border bg-surface-panel">
+        <td className={cn(STICKY_LINE, STICKY_HEAD, lineLabel, "border-l-2 border-l-channel-bvod")}>
+          Subtotal — revenue
+        </td>
+        <ForecastSummaryAmountCells monthly={revenue.monthly} fy={revenue.fy} />
+      </tr>
+      <tr className="border-b-2 border-border bg-surface-panel font-semibold">
+        <td className={cn(STICKY_LINE, STICKY_HEAD, lineLabel)}>Grand total (billing + revenue)</td>
+        <ForecastSummaryAmountCells monthly={grand.monthly} fy={grand.fy} />
+      </tr>
+    </>
+  )
+}
+
+function ClientBillingSubtotalRow(props: {
+  clientName: string
+  monthly: FinanceForecastMonthlyAmounts
+  fy: number
+}) {
+  return (
+      <tr className="border-b border-border bg-pacing-on-track-bg font-medium">
+      <td className={cn(STICKY_CLIENT, "px-3 py-1.5 align-middle text-xs text-muted-foreground")}>
+        {props.clientName}
+      </td>
+      <td className={cn(STICKY_LINE, "px-3 py-1.5 text-xs text-foreground")}>Subtotal — billing</td>
+      <ForecastSummaryAmountCells monthly={props.monthly} fy={props.fy} />
+    </tr>
+  )
+}
+
+function FragmentBlock(props: {
+  block: FinanceForecastDataset["client_blocks"][number]
+  colCount: number
+  expanded: boolean
+  onToggleClient: () => void
+  onOpenDetail: (line: FinanceForecastLine) => void
+}) {
+  const { block, colCount, expanded, onToggleClient, onOpenDetail } = props
+  const [openMediaTypes, setOpenMediaTypes] = useState<Set<string>>(() => new Set())
+  const [openPublishers, setOpenPublishers] = useState<Set<string>>(() => new Set())
+
+  const billingGroup = billingGroupFromBlock(block)
+  const revenueGroup = revenueGroupFromBlock(block)
+  const billingAgg = useMemo(
+    () =>
+      billingGroup
+        ? sumForecastLines(billingGroup.lines.filter(isFinanceForecastEntityBillingLine))
+        : { monthly: emptyMonthlyAmounts(), fy: 0 },
+    [billingGroup]
+  )
+  const revenueAgg = useMemo(() => sumForecastLines(clientRevenueSubtotalLines(block)), [block])
+
+  const feeLines = useMemo(() => {
+    const lines = revenueGroup?.lines ?? []
+    return linesWithKeys(lines, FINANCE_FORECAST_FEE_LINE_KEYS).filter(lineFyNonZero)
+  }, [revenueGroup])
+  const commissionLines = useMemo(() => {
+    const lines = revenueGroup?.lines ?? []
+    return linesWithKeys(lines, FINANCE_FORECAST_COMMISSION_LINE_KEYS).filter(lineFyNonZero)
+  }, [revenueGroup])
+  const otherRevenueLines = useMemo(() => {
+    const lines = revenueGroup?.lines ?? []
+    return linesWithKeys(lines, FINANCE_FORECAST_OTHER_REVENUE_LINE_KEYS).filter(lineFyNonZero)
+  }, [revenueGroup])
+  const totalRevenueLines = useMemo(() => {
+    const lines = revenueGroup?.lines ?? []
+    return lines.filter(
+      (l) => l.line_key === FINANCE_FORECAST_LINE_KEYS.totalRevenue && lineFyNonZero(l)
+    )
+  }, [revenueGroup])
+  const feeRollup = useMemo(() => sumForecastLines(feeLines), [feeLines])
+  const commissionRollup = useMemo(() => sumForecastLines(commissionLines), [commissionLines])
+
+  const mediaLines = useMemo(
+    () =>
+      (billingGroup?.lines ?? []).filter(
+        (l) => isFinanceForecastMediaBreakoutLine(l) && lineFyNonZero(l)
+      ),
+    [billingGroup]
+  )
+
+  const mediaByType = useMemo(() => {
+    const map = new Map<
+      string,
+      { key: string; label: string; lines: FinanceForecastLine[]; agg: ReturnType<typeof sumForecastLines> }
+    >()
+    for (const line of mediaLines) {
+      const key = String(line.media_type_key ?? "unknown")
+      const label = String(line.media_type_label ?? key)
+      let bucket = map.get(key)
+      if (!bucket) {
+        bucket = { key, label, lines: [], agg: { monthly: emptyMonthlyAmounts(), fy: 0 } }
+        map.set(key, bucket)
+      }
+      bucket.lines.push(line)
+    }
+    for (const bucket of map.values()) {
+      bucket.agg = sumForecastLines(bucket.lines)
+    }
+    return [...map.values()].sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: "base" })
+    )
+  }, [mediaLines])
+
+  const toggleMediaType = (key: string) => {
+    setOpenMediaTypes((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const togglePublisher = (key: string) => {
+    setOpenPublishers((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const clientHeaderRow = (
+    <tr className="border-t-2 border-border bg-surface-panel">
+      <td className={cn(STICKY_CLIENT, "px-2 py-2 align-top")}>
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-label={expanded ? `Collapse ${block.client_name}` : `Expand ${block.client_name}`}
+          className="flex w-full items-start gap-2 rounded-input px-1 py-0.5 text-left transition-colors hover:bg-table-row-hover"
+          onClick={onToggleClient}
+        >
+          {expanded ? (
+            <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          ) : (
+            <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold tracking-tight text-foreground">{block.client_name}</span>
+            <span className="mt-0.5 block font-mono text-[11px] font-normal text-muted-foreground">
+              {block.client_id}
+            </span>
+          </span>
+        </button>
+      </td>
+      <td className={cn(STICKY_LINE, "bg-surface-panel py-2")} />
+      {FINANCE_FORECAST_FISCAL_MONTH_ORDER.map((k) => (
+        <td key={k} className="border-b border-border bg-surface-panel py-2" aria-hidden />
+      ))}
+      <td className="border-b border-border bg-surface-panel py-2" aria-hidden />
+    </tr>
+  )
+
+  if (!expanded) {
+    return (
+      <>
+        <tr className="border-t-2 border-border bg-surface-panel">
+          <td rowSpan={2} className={cn(STICKY_CLIENT, "px-2 py-2 align-top")}>
+            <button
+              type="button"
+              aria-expanded={false}
+              aria-label={`Expand ${block.client_name}`}
+              className="flex w-full items-start gap-2 rounded-input px-1 py-0.5 text-left transition-colors hover:bg-table-row-hover"
+              onClick={onToggleClient}
+            >
+              <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold tracking-tight text-foreground">{block.client_name}</span>
+                <span className="mt-0.5 block font-mono text-[11px] font-normal text-muted-foreground">
+                  {block.client_id}
+                </span>
+              </span>
+            </button>
+          </td>
+          <td
+            className={cn(
+              STICKY_LINE,
+              "border-l-2 border-l-pacing-on-track bg-pacing-on-track-bg px-3 py-1.5 text-xs font-semibold text-foreground"
+            )}
+          >
+            Subtotal — billing
+          </td>
+          <ForecastSummaryAmountCells monthly={billingAgg.monthly} fy={billingAgg.fy} />
+        </tr>
+        <tr className="bg-surface-panel">
+          <td
+            className={cn(
+              STICKY_LINE,
+              "border-l-2 border-l-channel-bvod px-3 py-1.5 text-xs font-semibold text-foreground"
+            )}
+          >
+            Subtotal — revenue
+          </td>
+          <ForecastSummaryAmountCells monthly={revenueAgg.monthly} fy={revenueAgg.fy} />
+        </tr>
+      </>
+    )
+  }
+
+  return (
+    <TooltipProvider delayDuration={200}>
+      {clientHeaderRow}
+
+      {feeLines.length > 0 ? (
+        <>
+          <RollupHeaderRow
+            clientName={block.client_name}
+            label="Fees"
+            accent="revenue"
+            monthly={feeRollup.monthly}
+            fy={feeRollup.fy}
+          />
+          {feeLines.map((line, idx) => (
+            <ForecastLineRowMemo
+              key={`fee-${line.line_key}-${line.mba_number ?? "c"}-${idx}`}
+              line={line}
+              clientName={block.client_name}
+              onOpenDetail={onOpenDetail}
+              indent={1}
+            />
+          ))}
+        </>
+      ) : null}
+
+      {commissionLines.length > 0 ? (
+        <>
+          <RollupHeaderRow
+            clientName={block.client_name}
+            label="Commissions"
+            accent="revenue"
+            monthly={commissionRollup.monthly}
+            fy={commissionRollup.fy}
+            caption="Includes client fixed fees"
+            tooltip="Commission buckets still include blended client fixed fees (search/social/prog). Not pure publisher commissions."
+          />
+          {commissionLines.map((line, idx) => (
+            <ForecastLineRowMemo
+              key={`comm-${line.line_key}-${line.mba_number ?? "c"}-${idx}`}
+              line={line}
+              clientName={block.client_name}
+              onOpenDetail={onOpenDetail}
+              indent={1}
+            />
+          ))}
+        </>
+      ) : null}
+
+      {otherRevenueLines.map((line, idx) => (
+        <ForecastLineRowMemo
+          key={`other-${line.line_key}-${line.mba_number ?? "c"}-${idx}`}
+          line={line}
+          clientName={block.client_name}
+          onOpenDetail={onOpenDetail}
+        />
+      ))}
+
+      {totalRevenueLines.map((line, idx) => (
+        <ForecastLineRowMemo
+          key={`total-${line.line_key}-${idx}`}
+          line={line}
+          clientName={block.client_name}
+          onOpenDetail={onOpenDetail}
+        />
+      ))}
+
+      {mediaByType.length > 0 ? (
+        <>
+          <tr className="border-l-2 border-l-pacing-on-track bg-surface-panel">
+            <td
+              colSpan={colCount}
+              className="px-3 py-1.5 pl-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground"
+            >
+              Media
+            </td>
+          </tr>
+          {mediaByType.map((typeBucket) => {
+            const typeOpen = openMediaTypes.has(typeBucket.key)
+            const byPublisher = new Map<string, FinanceForecastLine[]>()
+            for (const line of typeBucket.lines) {
+              const pub = String(line.publisher_name ?? "Unknown")
+              const list = byPublisher.get(pub) ?? []
+              list.push(line)
+              byPublisher.set(pub, list)
+            }
+            const publishers = [...byPublisher.entries()].sort(([a], [b]) =>
+              a.localeCompare(b, undefined, { sensitivity: "base" })
+            )
+            return (
+              <Fragment key={`mt-${typeBucket.key}`}>
+                <ExpandableRollupRow
+                  clientName={block.client_name}
+                  label={typeBucket.label}
+                  open={typeOpen}
+                  onToggle={() => toggleMediaType(typeBucket.key)}
+                  monthly={typeBucket.agg.monthly}
+                  fy={typeBucket.agg.fy}
+                  accent="billing"
+                />
+                {typeOpen
+                  ? publishers.map(([pubName, pubLines]) => {
+                      const pubKey = `${typeBucket.key}\u001f${pubName}`
+                      const pubOpen = openPublishers.has(pubKey)
+                      const pubAgg = sumForecastLines(pubLines)
+                      return (
+                        <Fragment key={pubKey}>
+                          <ExpandableRollupRow
+                            clientName={block.client_name}
+                            label={pubName}
+                            open={pubOpen}
+                            onToggle={() => togglePublisher(pubKey)}
+                            monthly={pubAgg.monthly}
+                            fy={pubAgg.fy}
+                            accent="billing"
+                            indent={1}
+                          />
+                          {pubOpen
+                            ? pubLines.map((line, idx) => (
+                                <ForecastLineRowMemo
+                                  key={`mba-${pubKey}-${line.mba_number ?? idx}-${idx}`}
+                                  line={line}
+                                  clientName={block.client_name}
+                                  onOpenDetail={onOpenDetail}
+                                  indent={2}
+                                  labelOverride={[
+                                    line.mba_number ? `MBA ${line.mba_number}` : "MBA",
+                                    line.version_number != null ? `v${line.version_number}` : null,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                />
+                              ))
+                            : null}
+                        </Fragment>
+                      )
+                    })
+                  : null}
+              </Fragment>
+            )
+          })}
+        </>
+      ) : null}
+
+      <ClientBillingSubtotalRow
+        clientName={block.client_name}
+        monthly={billingAgg.monthly}
+        fy={billingAgg.fy}
+      />
+    </TooltipProvider>
+  )
+}
+
+const FragmentBlockMemo = memo(FragmentBlock)
+
+function RollupHeaderRow(props: {
+  clientName: string
+  label: string
+  monthly: FinanceForecastMonthlyAmounts
+  fy: number
+  accent: "billing" | "revenue"
+  caption?: string
+  tooltip?: string
+}) {
+  const border =
+    props.accent === "billing" ? "border-l-pacing-on-track" : "border-l-channel-bvod"
+  return (
+    <tr className={cn("border-b border-border bg-surface-panel font-medium", "border-l-2", border)}>
+      <td className={cn(STICKY_CLIENT, "px-3 py-1.5 align-middle text-xs text-muted-foreground")}>
+        {props.clientName}
+      </td>
+      <td className={cn(STICKY_LINE, "px-3 py-1.5 text-xs text-foreground")}>
+        <span className="inline-flex items-center gap-1.5">
+          {props.label}
+          {props.caption ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex cursor-help items-center gap-1 text-[11px] font-normal text-muted-foreground">
+                  <Info className="h-3 w-3" aria-hidden />
+                  {props.caption}
+                </span>
+              </TooltipTrigger>
+              {props.tooltip ? (
+                <TooltipContent className="max-w-xs text-xs">{props.tooltip}</TooltipContent>
+              ) : null}
+            </Tooltip>
+          ) : null}
+        </span>
+      </td>
+      <ForecastSummaryAmountCells monthly={props.monthly} fy={props.fy} />
+    </tr>
+  )
+}
+
+function ExpandableRollupRow(props: {
+  clientName: string
+  label: string
+  open: boolean
+  onToggle: () => void
+  monthly: FinanceForecastMonthlyAmounts
+  fy: number
+  accent: "billing" | "revenue"
+  indent?: number
+}) {
+  const indent = props.indent ?? 0
+  const border =
+    props.accent === "billing" ? "border-l-pacing-on-track" : "border-l-channel-bvod"
+  return (
+    <tr className={cn("border-b border-border transition-colors hover:bg-table-row-hover", "border-l-2", border)}>
+      <td className={cn(STICKY_CLIENT, "px-3 py-1.5 align-middle text-xs text-foreground")}>
+        {props.clientName}
+      </td>
+      <td className={cn(STICKY_LINE, "px-3 py-1.5 align-middle")}>
+        <button
+          type="button"
+          aria-expanded={props.open}
+          className={cn(
+            "flex w-full items-center gap-1.5 text-left text-xs",
+            indent === 1 && "pl-3",
+            indent >= 2 && "pl-6"
+          )}
+          onClick={props.onToggle}
+        >
+          {props.open ? (
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+          )}
+          <span className="font-medium text-foreground">{props.label}</span>
+        </button>
+      </td>
+      <ForecastSummaryAmountCells monthly={props.monthly} fy={props.fy} />
+    </tr>
+  )
+}
+
+function ForecastLineRow(props: {
+  line: FinanceForecastLine
+  clientName: string
+  onOpenDetail: (line: FinanceForecastLine) => void
+  indent?: number
+  labelOverride?: string
+}) {
+  const { line, clientName, onOpenDetail, indent = 0, labelOverride } = props
+  const label = FINANCE_FORECAST_LINE_LABELS[line.line_key]
+  const isTotal = line.line_key === FINANCE_FORECAST_LINE_KEYS.totalRevenue
+
+  const lineDescription =
+    labelOverride ??
+    [
+      label,
+      line.mba_number ? `MBA ${line.mba_number}` : null,
+      line.version_number != null ? `v${line.version_number}` : null,
+    ]
+      .filter(Boolean)
+      .join(" · ")
+
+  return (
+    <tr
+      className={cn(
+        "border-b border-border transition-colors hover:bg-table-row-hover",
+        isTotal && "bg-pacing-ahead-bg font-semibold"
+      )}
+    >
+      <td className={cn(STICKY_CLIENT, "px-3 py-1.5 align-middle text-xs text-foreground")}>{clientName}</td>
+      <td className={cn(STICKY_LINE, "px-3 py-1.5 align-middle")}>
+        <div
+          className={cn(
+            "flex items-start justify-between gap-2",
+            indent === 1 && "pl-3",
+            indent >= 2 && "pl-6"
+          )}
+        >
+          <span className={cn("text-xs leading-snug", isTotal && "text-status-ahead-fg")}>
+            {lineDescription}
+          </span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0 text-muted-foreground hover:text-foreground"
+            onClick={() => onOpenDetail(line)}
+            title="View source / debug metadata"
+          >
+            <Bug className="h-3.5 w-3.5" />
+            <span className="sr-only">Metadata</span>
+          </Button>
+        </div>
+      </td>
+      {FINANCE_FORECAST_FISCAL_MONTH_ORDER.map((k) => (
+        <td
+          key={k}
+          className={cn(
+            "num whitespace-nowrap px-2 py-1.5 text-right font-mono text-xs text-foreground/90",
+            isTotal && "text-status-ahead-fg"
+          )}
+        >
+          {money(line.monthly[k] ?? 0)}
+        </td>
+      ))}
+      <td
+        className={cn(
+          "num whitespace-nowrap px-3 py-1.5 text-right font-mono text-xs font-medium",
+          isTotal && "text-status-ahead-fg"
+        )}
+      >
+        {money(line.fy_total)}
+      </td>
+    </tr>
+  )
+}
+
+const ForecastLineRowMemo = memo(ForecastLineRow)

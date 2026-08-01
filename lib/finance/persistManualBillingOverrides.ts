@@ -48,14 +48,26 @@ function reasonFromMeta(
  */
 export async function persistManualBillingOverrides(args: {
   versionId: string | number
+  mbaNumber: string
   months: BillingMonth[]
   /** Auto / booked media totals per line (pre-override). */
   autoMonthsForMediaTotals: BillingMonth[]
   metaByLine: Map<string, LineOverrideMeta[]>
   getBurstsForLine: (billingRowId: string) => BurstDateLike[]
 }): Promise<PersistManualBillingOverridesResult> {
-  const { versionId, months, autoMonthsForMediaTotals, metaByLine, getBurstsForLine } =
-    args
+  const {
+    versionId,
+    mbaNumber,
+    months,
+    autoMonthsForMediaTotals,
+    metaByLine,
+    getBurstsForLine,
+  } = args
+
+  const mba = String(mbaNumber ?? "").trim()
+  if (!mba) {
+    return { ok: false, message: "mba_number is required to persist billing overrides." }
+  }
 
   const current = listManualOverrideLineIds(months)
   const currentMedia = new Set(current.media.map(toBillingOverrideLineItemId))
@@ -93,6 +105,7 @@ export async function persistManualBillingOverrides(args: {
     const dateBasis = await computeBillingOverrideDateBasis(getBurstsForLine(billingRowId))
     await replaceBillingOverrideLineClient({
       media_plan_version_id: versionId,
+      mba_number: mba,
       line_item_id: lineItemId,
       component: "media",
       mode: "manual",
@@ -108,6 +121,7 @@ export async function persistManualBillingOverrides(args: {
     const dateBasis = await computeBillingOverrideDateBasis(getBurstsForLine(billingRowId))
     await replaceBillingOverrideLineClient({
       media_plan_version_id: versionId,
+      mba_number: mba,
       line_item_id: lineItemId,
       component: "fee",
       mode: "manual",
@@ -122,6 +136,7 @@ export async function persistManualBillingOverrides(args: {
     if (currentMedia.has(canon)) continue
     await resetBillingOverrideLineClient({
       media_plan_version_id: versionId,
+      mba_number: mba,
       line_item_id: canon,
       component: "media",
     })
@@ -131,6 +146,7 @@ export async function persistManualBillingOverrides(args: {
     if (currentFee.has(canon)) continue
     await resetBillingOverrideLineClient({
       media_plan_version_id: versionId,
+      mba_number: mba,
       line_item_id: canon,
       component: "fee",
     })

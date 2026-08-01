@@ -15,9 +15,11 @@ import { expectedSpendToDateFromDeliveryScheduleMonthly } from "@/lib/spend/mont
 import { getDraftReturnRejection } from "@/lib/mediaplan/campaignStatusGuard"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
 import { nextMbaVersionNumber } from "@/lib/mediaplan/nextMbaVersionNumber"
-import { fetchBillingOverridesForVersion } from "@/lib/finance/billingOverrides"
+import { readBillingOverridesForVersion } from "@/lib/data/readFinance"
+import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
 import { recomputeAndValidateBillingScheduleOnSave } from "@/lib/finance/recomputeBillingScheduleOnSave"
+import { appendPartialApprovalToBillingSchedule } from "@/lib/mediaplan/partialMba"
 import {
   isUnpublishedStagedVersion,
   pickPublishedVersionRow,
@@ -29,6 +31,11 @@ import {
   countPublishIntegrityChildren,
   isPublishVersionAdvance,
 } from "@/lib/mediaplan/publishVersionIntegrity"
+import { getPlanDetailBackend } from "@/lib/data/backend"
+import {
+  PLAN_DETAIL_POSTGRES_ERROR_CODE,
+  readMbaPlanDetailFromPostgres,
+} from "@/lib/data/readMbaPlanDetail"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -727,6 +734,61 @@ async function fetchXanoTableForMediaType(
   return bestFiltered
 }
 
+/**
+ * After channel rows exist for a version id, detect duplicate line_item_id stamps
+ * (rows > distinct line_item_ids). Used as a draft-save integrity signal.
+ */
+async function detectDuplicateLineItemWarning(
+  mbaNumber: string,
+  versionNumber: number,
+  mediaPlanVersionId: number | null | undefined,
+  versionData: any
+): Promise<{
+  channels: Array<{ channel: string; rows: number; distinctLineItemIds: number }>
+} | null> {
+  if (mediaPlanVersionId == null) return null
+
+  const enabled = deriveEnabledMediaTypes(versionData)
+  const channels: Array<{ channel: string; rows: number; distinctLineItemIds: number }> = []
+
+  await Promise.all(
+    enabled.map(async (mediaType) => {
+      try {
+        const rows = await fetchXanoTableForMediaType(
+          mediaType,
+          mbaNumber,
+          versionNumber,
+          mediaPlanVersionId
+        )
+        const versionScoped = rows.filter((row) => {
+          const raw = row?.media_plan_version
+          if (raw === undefined || raw === null || String(raw).trim() === "") return false
+          return Number(raw) === Number(mediaPlanVersionId)
+        })
+        if (versionScoped.length === 0) return
+
+        const distinct = new Set(
+          versionScoped
+            .map((row) => String(row?.line_item_id ?? row?.lineItemId ?? "").trim())
+            .filter(Boolean)
+        )
+        if (versionScoped.length > distinct.size) {
+          channels.push({
+            channel: mediaType,
+            rows: versionScoped.length,
+            distinctLineItemIds: distinct.size,
+          })
+        }
+      } catch (error) {
+        console.warn(`[mba-put] duplicate check failed for ${mediaType}`, error)
+      }
+    })
+  )
+
+  if (channels.length === 0) return null
+  return { channels }
+}
+
 // GET latest version by MBA number
 export async function GET(
   request: NextRequest,
@@ -758,6 +820,38 @@ export async function GET(
       requestUrl.searchParams.get("includeVersionsMeta") === "1" ||
       requestUrl.searchParams.get("includeVersionsMeta") === "true"
     const skipLineItems = requestUrl.searchParams.get("skipLineItems") === "true"
+
+    // C-22: Postgres detail behind DATA_BACKEND_PLAN_DETAIL (default xano = inert).
+    // Never silently fall back to Xano — the flag is the fallback.
+    if (getPlanDetailBackend() === "postgres") {
+      const pgResult = await readMbaPlanDetailFromPostgres({
+        mbaNumber: mba_number,
+        requestedVersionNumber:
+          requestedVersionNumber != null && !Number.isNaN(requestedVersionNumber)
+            ? requestedVersionNumber
+            : null,
+        skipLineItems,
+        includeVersionsMeta,
+        billingScheduleFull,
+        requestedStartDateParam,
+        requestedEndDateParam,
+      })
+      if (!pgResult.ok) {
+        return NextResponse.json(
+          {
+            error: pgResult.error,
+            ...(pgResult.status === 500
+              ? { code: PLAN_DETAIL_POSTGRES_ERROR_CODE }
+              : {}),
+          },
+          { status: pgResult.status }
+        )
+      }
+      const response = NextResponse.json(pgResult.data)
+      response.headers.set("Cache-Control", "no-store, max-age=0")
+      response.headers.set("x-plan-detail-backend", "postgres")
+      return response
+    }
 
     const timings: Record<string, number> = {}
     const mark = (label: string, startedAt: number) => {
@@ -1462,10 +1556,26 @@ export async function PUT(
     if (financialLineItems && financialLineItems.length > 0 && feeLoading) {
       const overridesVersionId = previousVersion?.id
       const overrideRows = overridesVersionId
-        ? await fetchBillingOverridesForVersion(overridesVersionId, {
+        ? ((await readBillingOverridesForVersion(overridesVersionId, {
             baseUrl: mediaPlansBaseUrl,
-          })
+          })) as BillingOverrideRow[])
         : []
+
+      const partialApprovalMeta =
+        data.partialApproval &&
+        typeof data.partialApproval === "object" &&
+        data.partialApproval.isPartial === true
+          ? data.partialApproval
+          : null
+      const selectedMonthYears = Array.isArray(partialApprovalMeta?.selectedMonthYears)
+        ? partialApprovalMeta.selectedMonthYears.filter(
+            (m: unknown): m is string => typeof m === "string" && m.trim().length > 0
+          )
+        : Array.isArray(data.selectedMonthYears)
+          ? data.selectedMonthYears.filter(
+              (m: unknown): m is string => typeof m === "string" && m.trim().length > 0
+            )
+          : undefined
 
       const recompute = recomputeAndValidateBillingScheduleOnSave({
         lineItems: financialLineItems,
@@ -1479,6 +1589,9 @@ export async function PUT(
           ...(normalizedCampaignEndDate
             ? { campaignEnd: new Date(String(normalizedCampaignEndDate)) }
             : {}),
+          ...(selectedMonthYears && selectedMonthYears.length > 0
+            ? { selectedMonthYears }
+            : {}),
         },
       })
 
@@ -1487,6 +1600,22 @@ export async function PUT(
       }
 
       billingScheduleToPersist = recompute.billingSchedule
+      if (partialApprovalMeta) {
+        const scheduleArr = Array.isArray(billingScheduleToPersist)
+          ? billingScheduleToPersist
+          : []
+        billingScheduleToPersist = appendPartialApprovalToBillingSchedule({
+          billingSchedule: scheduleArr as Record<string, unknown>[],
+          metadata: {
+            ...partialApprovalMeta,
+            selectedMonthYears:
+              selectedMonthYears && selectedMonthYears.length > 0
+                ? selectedMonthYears
+                : partialApprovalMeta.selectedMonthYears ?? [],
+            isPartial: true,
+          },
+        })
+      }
       // Never leave delivery null when we regenerated from server.
       if (recompute.generatedFromServer || deliveryScheduleToPersist == null) {
         deliveryScheduleToPersist = recompute.deliverySchedule
@@ -1648,15 +1777,39 @@ export async function PUT(
         message: auditError instanceof Error ? auditError.message : String(auditError),
       })
     }
-    
+
+    const savedVersionId = overwriteMode ? overwriteTargetId : versionResponse.data?.id
+    let duplicateWarning: {
+      channels: Array<{ channel: string; rows: number; distinctLineItemIds: number }>
+    } | null = null
+    try {
+      duplicateWarning = await detectDuplicateLineItemWarning(
+        mba_number,
+        savedVersionNumber,
+        savedVersionId,
+        overwriteMode ? { ...newVersionData, version_number: overwriteTargetVersionNumber } : newVersionData
+      )
+      if (duplicateWarning) {
+        console.warn("[mba-put] duplicateWarning: channel rows exceed distinct line_item_ids", {
+          mba_number,
+          versionId: savedVersionId,
+          versionNumber: savedVersionNumber,
+          ...duplicateWarning,
+        })
+      }
+    } catch (dupError) {
+      console.warn("[mba-put] duplicateWarning check failed", dupError)
+    }
+
     return NextResponse.json({
       version: versionResponse.data,
       master: masterUpdateResponse.data,
       mode: overwriteMode ? "overwrite" : "increment",
-      versionId: overwriteMode ? overwriteTargetId : versionResponse.data?.id,
+      versionId: savedVersionId,
       versionNumber: savedVersionNumber,
       latestVersionNumber,
       nextVersionNumber: overwriteMode ? overwriteTargetVersionNumber : nextVersionNumber,
+      ...(duplicateWarning ? { duplicateWarning } : {}),
       // REVIEW: when true, master.version_number was intentionally left unpublished
       deferredPublish: !overwriteMode && deferMasterVersionPublish,
       publishedVersionNumber: overwriteMode

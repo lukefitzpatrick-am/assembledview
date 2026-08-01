@@ -1,7 +1,7 @@
 'use client';
 /**
- * Live gallery — mirrors "Chart System.dc.html". Drop at /app/(internal)/chart-gallery/page.tsx
- * to eyeball every component against real tokens. Delete before shipping, or keep as a Storybook-lite.
+ * Live gallery — mirrors "Chart System.dc.html".
+ * Gated by `app/(internal)/layout.tsx` (`notFound` in production).
  */
 import {
   LineChart, MultiLineChart, AreaChart, StackedAreaChart, StepChart, Sparkline,
@@ -11,10 +11,14 @@ import {
   WaterfallChart, BulletChart, SankeyChart,
   SunburstChart, MarimekkoChart, CalendarHeatmap,
   MediaGanttChart, BurstGrid, MatrixHeatmap, PacingBandChart, BoxPlotChart,
-  BaseChartCard, ChartExportToolbar, ToggleableLegend, useLegendToggle, exportCsv, exportPng,
+  BaseChartCard, ToggleableLegend, useLegendToggle,
 } from '@/components/charts/system';
 import * as React from 'react';
+import { MediaChannelTag, mediaChannelTagRowClassName } from '@/components/dashboard/MediaChannelTag';
+import { MEDIA_TYPE_REGISTRY } from '@/lib/charts/registry';
 import * as D from './sample-data';
+
+const ALL_MEDIA_TYPE_PILL_LABELS = Object.values(MEDIA_TYPE_REGISTRY).map((row) => row.label);
 
 function Card({ title, span = 1, children }: { title: string; span?: number; children: React.ReactNode }) {
   return (
@@ -65,6 +69,14 @@ export default function ChartGallery() {
         <Card title="Calendar heatmap" span={2}><CalendarHeatmap caption="Daily impressions — 12 weeks" /></Card>
         <Card title="Sankey" span={2}><SankeyChart data={D.budgetFlow} /></Card>
 
+        <Card title="Media-type pills (MEDIA_TYPE_REGISTRY → MediaChannelTag)" span={4}>
+          <div className={mediaChannelTagRowClassName}>
+            {ALL_MEDIA_TYPE_PILL_LABELS.map((label) => (
+              <MediaChannelTag key={label} label={label} />
+            ))}
+          </div>
+        </Card>
+
         {/* ── Domain / flighting ── */}
         <div style={{ gridColumn: 'span 4', marginTop: 12, fontSize: 12, fontWeight: 700, letterSpacing: '.1em', color: 'var(--av-axis)' }}>
           06 · MEDIA FLIGHTING &amp; TIMELINES
@@ -95,7 +107,12 @@ function ShellExample() {
       title="Spend by channel"
       subtitle="Last 6 months · AUD"
       bodyRef={bodyRef}
-      toolbar={<ChartExportToolbar onCsv={() => exportCsv(D.spendTrend, 'spend.csv')} onPng={() => exportPng(bodyRef.current, 'spend.png')} extra={[{ label: '⋯', onClick: () => {} }]} />}
+      exportPage="gallery"
+      exportSeries={{
+        data: D.spendTrend,
+        xKey: "month",
+        seriesKeys: items.map((i) => i.key),
+      }}
       legend={<ToggleableLegend items={items} hidden={hidden} onToggle={toggle} />}
     >
       <MultiLineChart data={D.spendTrend} xKey="month" series={series} valueFormat="compact" showLegend={false} />

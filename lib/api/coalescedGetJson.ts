@@ -19,6 +19,11 @@ export type CoalescedGetJsonOptions = {
   /** Soft TTL after a successful response (default 60s). */
   ttlMs?: number
   init?: RequestInit
+  /**
+   * Custom response handling. Default: throw on !ok, then `response.json()`.
+   * Return value is cached for `ttlMs`. Throw to fail all waiters without caching.
+   */
+  parseResponse?: (response: Response) => Promise<unknown>
 }
 
 export async function coalescedGetJson<T>(
@@ -34,19 +39,24 @@ export async function coalescedGetJson<T>(
 
   let shared = inflight.get(url)
   if (!shared) {
-    const { init, ttlMs: _ttl } = options
+    const { init, parseResponse } = options
     shared = (async () => {
       const response = await fetch(url, {
         ...init,
         headers: { Accept: "application/json", ...(init?.headers ?? {}) },
       })
-      if (!response.ok) {
-        const details = await response.text().catch(() => "")
-        throw new Error(
-          details.trim() || `Request failed with status ${response.status}`
-        )
+      let data: unknown
+      if (parseResponse) {
+        data = await parseResponse(response)
+      } else {
+        if (!response.ok) {
+          const details = await response.text().catch(() => "")
+          throw new Error(
+            details.trim() || `Request failed with status ${response.status}`
+          )
+        }
+        data = (await response.json()) as unknown
       }
-      const data = (await response.json()) as unknown
       cache.set(url, { data, expiresAt: Date.now() + ttlMs })
       return data
     })().finally(() => {
@@ -62,4 +72,10 @@ export async function coalescedGetJson<T>(
 export function invalidateCoalescedGetJson(url: string): void {
   cache.delete(url)
   inflight.delete(url)
+}
+
+/** @internal Clears module maps between unit tests. */
+export function clearCoalescedGetJsonForTests(): void {
+  inflight.clear()
+  cache.clear()
 }

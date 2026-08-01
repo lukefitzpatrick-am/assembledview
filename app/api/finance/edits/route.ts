@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import {
   FINANCE_EDITS_PATH,
-  parseList,
-  xanoFinanceGet,
   xanoFinancePost,
 } from "@/lib/finance/xanoFinanceApi"
+import { readFinanceEdits } from "@/lib/data/readFinance"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
@@ -15,10 +14,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const recordId = request.nextUrl.searchParams.get("finance_billing_records_id")
-    const data = await xanoFinanceGet(FINANCE_EDITS_PATH)
-    const rows = parseList(data)
+    const rows = await readFinanceEdits()
     const filtered = recordId
-      ? rows.filter((row: any) => String(row.finance_billing_records_id) === String(recordId))
+      ? rows.filter((row) => String(row.finance_billing_records_id) === String(recordId))
       : rows
     return NextResponse.json(filtered)
   } catch (error: any) {

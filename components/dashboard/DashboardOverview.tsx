@@ -6,13 +6,11 @@ import { PanelRow, PanelRowCell } from "@/components/layout/PanelRow"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { MetricCard } from "@/components/ui/MetricCard"
 import { EmptyState, ErrorState } from "@/components/ui/states"
-import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { BarChart3, ChevronDown, FilterX, TrendingUp, Users, Search, type LucideIcon } from "lucide-react"
+import { BarChart3, ChevronDown, TrendingUp, Users, type LucideIcon } from "lucide-react"
 import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPreference"
 import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import {
@@ -21,6 +19,8 @@ import {
   dashboardCampaignGridClassName,
 } from "@/components/dashboard/DashboardEntityCards"
 import { format } from "date-fns"
+import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
+import { formatMoney } from "@/lib/format/money"
 import { usePathname, useRouter } from "next/navigation"
 import { AuthPageLoading } from "@/components/AuthLoadingState"
 import { cn } from "@/lib/utils"
@@ -37,13 +37,32 @@ import {
   type DashboardTemplateMobileOpen,
   type DashboardTemplatePanels,
 } from "@/components/dashboard/templates"
-import { Label } from "@/components/ui/label"
+import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar"
+import { AuFinancialYearFilterPills } from "@/components/dashboard/AuFinancialYearFilterPills"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import {
+  campaignOverlapsAuFinancialYear,
+  parseAuFySearchParam,
+  serializeAuFySearchParam,
+  type AuFyFilterValue,
+} from "@/lib/dates/auFinancialYear"
 import {
   CampaignCardSkeleton,
   KPICardSkeleton,
 } from "@/components/dashboard/skeletons"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  applyDashboardTableFiltersToPlans,
+  applyDashboardTableFiltersToScopes,
+  computeHomeLiveKpiCounts,
+  defaultDashboardViewFilters,
+  describeHomeMetricsFilterScope,
+  isLiveScopeStatus,
+  normalizeClientFilterValue,
+  type DashboardViewFilters,
+} from "@/lib/dashboard/homeDashboardFilters"
+
+export type { DashboardViewFilters }
 
 // Types reused from the original dashboard page
 type MediaPlan = {
@@ -126,18 +145,13 @@ type DashboardMetricCard = {
   accent: string
   iconBg: string
   iconText: string
+  /** Element id to scroll into view when the tile is activated. */
+  panelId: string
 }
 
 const LIVE_STATUSES = ["booked", "approved", "completed"]
 
 const normalizeStatus = (status?: string | null) => (status || "").toString().toLowerCase().trim()
-
-const normalizeClientFilterValue = (value: string) =>
-  value
-    .toString()
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, " ")
 
 const slugifyClientName = (name?: string | null) => {
   if (!name || typeof name !== "string") return ""
@@ -147,24 +161,6 @@ const slugifyClientName = (name?: string | null) => {
     .replace(/\s+/g, "-")
     .trim()
 }
-
-/** Dashboard table filters (URL-synced). */
-export type DashboardViewFilters = {
-  campaignSearch: string
-  /** Normalized client keys (same values as the client multi-select). */
-  clients: string[]
-  /** Publisher names retained for URL/saved-view compatibility (schedule filtering removed). */
-  publishers: string[]
-  /** Month label retained for URL/saved-view compatibility (schedule filtering removed). */
-  month: string | null
-}
-
-const defaultDashboardViewFilters = (): DashboardViewFilters => ({
-  campaignSearch: "",
-  clients: [],
-  publishers: [],
-  month: null,
-})
 
 const parseDashboardFiltersFromSearchParams = (sp: URLSearchParams): DashboardViewFilters => ({
   campaignSearch: sp.get("q") ?? "",
@@ -178,6 +174,7 @@ const buildDashboardFiltersSearchParams = (
   clients: string[],
   publishers: string[],
   month: string | null,
+  fy: AuFyFilterValue,
 ) => {
   const params = new URLSearchParams()
   const q = debouncedSearch.trim()
@@ -189,6 +186,8 @@ const buildDashboardFiltersSearchParams = (
     if (p) params.append("publisher", p)
   })
   if (month && month.trim()) params.set("month", month.trim())
+  const fyParam = serializeAuFySearchParam(fy)
+  if (fyParam) params.set("fy", fyParam)
   return params
 }
 
@@ -390,10 +389,34 @@ function getHighestBookedApprovedCompletedVersionPerMba(plans: MediaPlan[]): Med
   return out
 }
 
-const formatCurrency = (amount: number) =>
-  new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(amount)
+const formatCurrency = (amount: number) => formatMoney(amount)
 
-const formatDate = (dateString: string) => format(new Date(dateString), "MMM d, yyyy")
+/** Never throw — one bad row must not blank Home via the error boundary. */
+const formatDate = (dateString: string) => safeFormatDate(dateString)
+
+/** Canonical name for the client-pin saved view (legacy migrate used "Saved clients"). */
+const PINNED_CLIENTS_VIEW_NAME = "Pinned clients"
+const LEGACY_PINNED_CLIENTS_VIEW_NAMES = new Set([PINNED_CLIENTS_VIEW_NAME, "Saved clients"])
+
+function findPinnedClientsView(
+  views: SavedDashboardViewRecord[],
+): SavedDashboardViewRecord | undefined {
+  return views.find((v) => LEGACY_PINNED_CLIENTS_VIEW_NAMES.has(v.name))
+}
+
+function readClientsFromLegacyPinKey(key: string | null): string[] {
+  if (!key) return []
+  try {
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed)
+      ? parsed.map((v) => (typeof v === "string" ? v : "")).filter(Boolean)
+      : []
+  } catch {
+    return []
+  }
+}
 
 type DashboardErrorCopy = { title: string; detail: string }
 
@@ -445,43 +468,6 @@ function DashboardPageErrorPanel({
       <ErrorState className="max-w-3xl" title={title} message={detail} onRetry={onRetry} />
     </div>
   )
-}
-
-const normalizeDashboardSearch = (value: string) => value.toLowerCase().trim()
-
-function applyDashboardTableFiltersToPlans(plans: MediaPlan[], filters: DashboardViewFilters): MediaPlan[] {
-  const searchLower = normalizeDashboardSearch(filters.campaignSearch)
-  const selectedClients = new Set(filters.clients.map((value) => normalizeClientFilterValue(value)).filter(Boolean))
-
-  return plans.filter((plan) => {
-    const clientKey = normalizeClientFilterValue(plan.mp_clientname || "")
-    if (selectedClients.size > 0 && !selectedClients.has(clientKey)) return false
-
-    if (searchLower) {
-      const haystack = [
-        plan.mp_clientname,
-        plan.mp_campaignname,
-        plan.mp_mba_number,
-        plan.mp_brand,
-        plan.mp_campaignstatus,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase()
-      if (!haystack.includes(searchLower)) return false
-    }
-
-    // Publisher/month filters previously depended on billing/delivery schedules — no-op for scalar tables.
-    return true
-  })
-}
-
-function applyDashboardTableFiltersToScopes(scopes: ScopeOfWork[], filters: DashboardViewFilters): ScopeOfWork[] {
-  const selectedClients = new Set(filters.clients.map((value) => normalizeClientFilterValue(value)).filter(Boolean))
-
-  if (selectedClients.size === 0) return scopes
-
-  return scopes.filter((scope) => selectedClients.has(normalizeClientFilterValue(scope.client_name || "")))
 }
 
 const transformMediaPlanData = (apiData: any[]): MediaPlan[] =>
@@ -604,6 +590,8 @@ type DashboardCollapsiblePanelProps = {
   children: ReactNode
   /** Full Tailwind gradient classes including `bg-gradient-to-r` (static string for JIT). */
   gradientClassName?: string
+  /** Anchor id for KPI tile scroll targets. */
+  id?: string
 }
 
 /** Panel title lives inside the card; mobile uses a trigger row inside the header (no duplicate heading outside the panel). */
@@ -615,15 +603,17 @@ function DashboardCollapsiblePanel({
   badge,
   children,
   gradientClassName,
+  id,
 }: DashboardCollapsiblePanelProps) {
   const expanded = isMd || open
   return (
     <Collapsible
+      id={id}
       open={expanded}
       onOpenChange={(v) => {
         if (!isMd) onOpenChange(v)
       }}
-      className="w-full"
+      className="w-full scroll-mt-4"
     >
       <Panel className="w-full overflow-hidden border-0 shadow-md">
         {gradientClassName ? <div className={`h-1 ${gradientClassName}`} /> : null}
@@ -631,7 +621,7 @@ function DashboardCollapsiblePanel({
           <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             {isMd ? (
               <>
-                <PanelTitle className="text-base">{panelTitle}</PanelTitle>
+                <PanelTitle as="h3" className="text-base">{panelTitle}</PanelTitle>
                 {badge}
               </>
             ) : (
@@ -647,7 +637,7 @@ function DashboardCollapsiblePanel({
                     )}
                   />
                   <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <PanelTitle className="text-base text-left">{panelTitle}</PanelTitle>
+                    <PanelTitle as="h3" className="text-base text-left">{panelTitle}</PanelTitle>
                     {badge}
                   </div>
                 </button>
@@ -730,6 +720,7 @@ export default function DashboardOverview({
   const [finishedSort, setFinishedSort] = useState<SortState>({ column: "", direction: null })
   const { mode: listGridMode, setMode: setListGridMode } = useListGridLayoutPreference()
   const [dashboardFilters, setDashboardFilters] = useState<DashboardViewFilters>(defaultDashboardViewFilters)
+  const [fyFilter, setFyFilter] = useState<AuFyFilterValue>(() => parseAuFySearchParam(null))
   const debouncedCampaignSearch = useDebouncedValue(dashboardFilters.campaignSearch, 350)
   const [savedViewLoaded, setSavedViewLoaded] = useState(false)
   const [savedViewJustSaved, setSavedViewJustSaved] = useState(false)
@@ -774,35 +765,83 @@ export default function DashboardOverview({
     [],
   )
 
-  const [dashboardMetrics, setDashboardMetrics] = useState<DashboardMetricCard[]>([
-    {
-      title: "Total Live Campaigns",
-      value: "0",
-      icon: BarChart3,
-      tooltip: "Campaigns booked/approved/completed running today",
-      accent: "bg-pacing-on-track",
-      iconBg: "bg-pacing-on-track-bg",
-      iconText: "text-status-on-track-fg",
-    },
-    {
-      title: "Total Live Scopes of Work",
-      value: "0",
-      icon: TrendingUp,
-      tooltip: "Sum of scopes with status Approved or In-Progress",
-      accent: "bg-pacing-ahead",
-      iconBg: "bg-pacing-ahead-bg",
-      iconText: "text-status-ahead-fg",
-    },
-    {
-      title: "Total Live Clients",
-      value: "0",
-      icon: Users,
-      tooltip: "Sum of unique clients with live activity from campaigns and scopes",
-      accent: "bg-channel-bvod",
-      iconBg: "bg-surface-panel",
-      iconText: "text-channel-bvod",
-    },
-  ])
+  const unfilteredLiveCampaigns = useMemo(() => {
+    const { startOfToday, endOfToday } = getTodayBounds()
+    return getHighestBookedApprovedCompletedVersionPerMba(mediaPlans).filter((plan) => {
+      const startDate = new Date(plan.mp_campaigndates_start)
+      const endDate = new Date(plan.mp_campaigndates_end)
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false
+      if (!(startDate <= endOfToday && endDate >= startOfToday)) return false
+      return campaignOverlapsAuFinancialYear(
+        plan.mp_campaigndates_start,
+        plan.mp_campaigndates_end,
+        fyFilter,
+      )
+    })
+  }, [mediaPlans, fyFilter])
+
+  const unfilteredLiveScopes = useMemo(
+    () => scopes.filter((scope) => isLiveScopeStatus(scope.project_status)),
+    [scopes],
+  )
+
+  const filteredLiveCampaigns = useMemo(
+    () => applyDashboardTableFiltersToPlans(unfilteredLiveCampaigns, dashboardFilters),
+    [unfilteredLiveCampaigns, dashboardFilters],
+  )
+
+  const filteredLiveScopes = useMemo(
+    () => applyDashboardTableFiltersToScopes(unfilteredLiveScopes, dashboardFilters),
+    [unfilteredLiveScopes, dashboardFilters],
+  )
+
+  const metricsScopeLine = useMemo(
+    () => describeHomeMetricsFilterScope(dashboardFilters),
+    [dashboardFilters],
+  )
+
+  const dashboardMetrics = useMemo((): DashboardMetricCard[] => {
+    const counts = computeHomeLiveKpiCounts(filteredLiveCampaigns, filteredLiveScopes)
+    return [
+      {
+        title: "Total Live Campaigns",
+        value: String(counts.liveCampaigns),
+        icon: BarChart3,
+        tooltip: "Campaigns booked/approved/completed running today (respects active filters)",
+        accent: "bg-pacing-on-track",
+        iconBg: "bg-pacing-on-track-bg",
+        iconText: "text-status-on-track-fg",
+        panelId: "dashboard-panel-live-campaigns",
+      },
+      {
+        title: "Total Live Scopes of Work",
+        value: String(counts.liveScopes),
+        icon: TrendingUp,
+        tooltip: "Scopes with status Approved or In-Progress (respects active filters)",
+        accent: "bg-pacing-ahead",
+        iconBg: "bg-pacing-ahead-bg",
+        iconText: "text-status-ahead-fg",
+        panelId: "dashboard-panel-live-scopes",
+      },
+      {
+        title: "Total Live Clients",
+        value: String(counts.liveClients),
+        icon: Users,
+        tooltip: "Unique clients with live campaigns or scopes (respects active filters)",
+        accent: "bg-channel-bvod",
+        iconBg: "bg-surface-panel",
+        iconText: "text-channel-bvod",
+        panelId: "dashboard-section-campaigns-scope",
+      },
+    ]
+  }, [filteredLiveCampaigns, filteredLiveScopes])
+
+  const scrollToDashboardPanel = useCallback((panelId: string, ensureOpen?: () => void) => {
+    ensureOpen?.()
+    requestAnimationFrame(() => {
+      document.getElementById(panelId)?.scrollIntoView({ behavior: "smooth", block: "start" })
+    })
+  }, [])
 
   useEffect(() => {
     setMounted(true)
@@ -860,6 +899,7 @@ export default function DashboardOverview({
 
     const sp = new URLSearchParams(window.location.search)
     const fromUrl = parseDashboardFiltersFromSearchParams(sp)
+    setFyFilter(parseAuFySearchParam(sp.get("fy")))
     const urlHasFilters = searchParamsHasAnyDashboardFilters(sp)
     const urlHasClientParams = sp.getAll("client").length > 0
 
@@ -938,16 +978,14 @@ export default function DashboardOverview({
       const template = getDashboardTemplateById(nextTemplateId) ?? executiveOverviewTemplate
       nextFilters = buildFiltersForTemplate(template)
       let clients = nextFilters.clients
-      if (!urlHasClientParams && legacyPinnedClientsKey) {
-        try {
-          const raw = window.localStorage.getItem(legacyPinnedClientsKey)
-          if (raw) {
-            const parsed = JSON.parse(raw)
-            const values = Array.isArray(parsed) ? parsed.map((v) => (typeof v === "string" ? v : "")).filter(Boolean) : []
-            if (values.length > 0) clients = values
-          }
-        } catch {
-          // ignore
+      if (!urlHasClientParams) {
+        // Prefer the pinned saved view (survives migration). Legacy key is fallback only.
+        const pinned = findPinnedClientsView(loadedViews)
+        if (pinned?.filters.clients?.length) {
+          clients = [...pinned.filters.clients]
+        } else {
+          const legacyClients = readClientsFromLegacyPinKey(legacyPinnedClientsKey)
+          if (legacyClients.length > 0) clients = legacyClients
         }
       }
       nextFilters = { ...nextFilters, clients }
@@ -981,6 +1019,7 @@ export default function DashboardOverview({
     const onPopState = () => {
       const sp = new URLSearchParams(window.location.search)
       setDashboardFilters(parseDashboardFiltersFromSearchParams(sp))
+      setFyFilter(parseAuFySearchParam(sp.get("fy")))
     }
     window.addEventListener("popstate", onPopState)
     return () => window.removeEventListener("popstate", onPopState)
@@ -995,6 +1034,7 @@ export default function DashboardOverview({
       dashboardFilters.clients,
       dashboardFilters.publishers,
       dashboardFilters.month,
+      fyFilter,
     )
     const qs = params.toString()
     const nextSearch = qs ? `?${qs}` : ""
@@ -1010,6 +1050,7 @@ export default function DashboardOverview({
     dashboardFilters.publishers,
     dashboardFilters.month,
     debouncedCampaignSearch,
+    fyFilter,
   ])
 
   const persistLastTemplateId = useCallback(
@@ -1025,11 +1066,11 @@ export default function DashboardOverview({
   )
 
   const handleClearDashboardFilters = useCallback(() => {
+    // Active filter only — do not wipe persistPinnedClients / saved client selection.
     setDashboardFilters(defaultDashboardViewFilters())
-    persistPinnedClients([])
     setBaselineTemplateId(null)
     setAppliedSavedViewId(null)
-  }, [persistPinnedClients])
+  }, [])
 
   const handleDashboardTemplateChange = useCallback(
     (templateId: string) => {
@@ -1136,10 +1177,50 @@ export default function DashboardOverview({
   )
 
   const handleSaveSelectedClients = useCallback(() => {
-    persistPinnedClients(dashboardFilters.clients)
+    if (!savedViewsListKey) return
+    const clients = [...dashboardFilters.clients]
+    const existing = findPinnedClientsView(savedViews)
+    const nextRecord: SavedDashboardViewRecord = {
+      id: existing?.id ?? crypto.randomUUID(),
+      name: PINNED_CLIENTS_VIEW_NAME,
+      filters: {
+        ...(existing ? cloneDashboardViewFilters(existing.filters) : defaultDashboardViewFilters()),
+        clients,
+      },
+      templateId: existing?.templateId ?? selectedTemplateId,
+      panels: existing ? { ...existing.panels } : { ...layoutPanels },
+      mobileOpen: existing
+        ? { ...existing.mobileOpen }
+        : {
+            monthlyTrends: openMonthlyCharts,
+            scopes: openScopesPanel,
+            dueSoon: openDueSoonPanel,
+            finishedRecently: openFinishedPanel,
+          },
+      createdAt: existing?.createdAt ?? new Date().toISOString(),
+    }
+    const views = existing
+      ? savedViews.map((v) => (v.id === existing.id ? nextRecord : v))
+      : [...savedViews, nextRecord]
+    setSavedViews(views)
+    writeSavedViewsToStorage(views)
+    // Keep legacy key in sync for older hydrate paths; saved view is the restore source.
+    persistPinnedClients(clients)
     setSavedViewJustSaved(true)
     window.setTimeout(() => setSavedViewJustSaved(false), 1500)
-  }, [dashboardFilters.clients, persistPinnedClients])
+  }, [
+    savedViewsListKey,
+    dashboardFilters.clients,
+    savedViews,
+    selectedTemplateId,
+    layoutPanels,
+    openMonthlyCharts,
+    openScopesPanel,
+    openDueSoonPanel,
+    openFinishedPanel,
+    writeSavedViewsToStorage,
+    persistPinnedClients,
+  ])
 
   const handleClearAllSavedViews = useCallback(() => {
     if (!savedViewsListKey) return
@@ -1236,60 +1317,7 @@ export default function DashboardOverview({
 
       setMediaPlans(mediaPlansData)
       setScopes(scopesData)
-
-      const statusFilteredPlans = getHighestBookedApprovedCompletedVersionPerMba(mediaPlansData)
-
-      const { startOfToday, endOfToday } = getTodayBounds()
-      const liveCampaigns = statusFilteredPlans.filter((plan) => {
-        const startDate = new Date(plan.mp_campaigndates_start)
-        const endDate = new Date(plan.mp_campaigndates_end)
-        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false
-        return startDate <= endOfToday && endDate >= startOfToday
-      })
-
-      const liveScopes = scopesData.filter((scope) => scope.project_status === "Approved" || scope.project_status === "In-Progress")
-
-      const liveClients = new Set<string>()
-      liveCampaigns.forEach((campaign) => {
-        if (campaign.mp_clientname) liveClients.add(campaign.mp_clientname)
-      })
-      liveScopes.forEach((scope) => {
-        if (scope.client_name) liveClients.add(scope.client_name)
-      })
-
-      const totalLiveCampaigns = liveCampaigns.length
-      const totalLiveScopes = liveScopes.length
-      const totalLiveClients = liveClients.size
-
-      setDashboardMetrics([
-        {
-          title: "Total Live Campaigns",
-          value: totalLiveCampaigns.toString(),
-          icon: BarChart3,
-          tooltip: "Campaigns booked/approved/completed running today",
-          accent: "bg-pacing-on-track",
-          iconBg: "bg-pacing-on-track-bg",
-          iconText: "text-status-on-track-fg",
-        },
-        {
-          title: "Total Live Scopes of Work",
-          value: totalLiveScopes.toString(),
-          icon: TrendingUp,
-          tooltip: "Sum of scopes with status Approved or In-Progress",
-          accent: "bg-pacing-ahead",
-          iconBg: "bg-pacing-ahead-bg",
-          iconText: "text-status-ahead-fg",
-        },
-        {
-          title: "Total Live Clients",
-          value: totalLiveClients.toString(),
-          icon: Users,
-          tooltip: "Unique clients with live campaigns or scopes",
-          accent: "bg-channel-bvod",
-          iconBg: "bg-surface-panel",
-          iconText: "text-channel-bvod",
-        },
-      ])
+      // KPI tiles derive from filteredLive* via useMemo — do not setDashboardMetrics here.
       setDataLastRefreshedAt(new Date())
     } catch (error) {
       console.error("Dashboard: Error fetching data:", error)
@@ -1384,8 +1412,7 @@ export default function DashboardOverview({
       })
     }
 
-    const getLiveScopes = () =>
-      scopes.filter((scope) => scope.project_status === "Approved" || scope.project_status === "In-Progress")
+    const getLiveScopes = () => scopes.filter((scope) => isLiveScopeStatus(scope.project_status))
 
     const safeDate = (value: string) => {
       const d = new Date(value)
@@ -1410,12 +1437,15 @@ export default function DashboardOverview({
       status: (scope: ScopeOfWork) => scope.project_status || "",
     }
 
-    const liveCampaigns = showTables ? applyDashboardTableFiltersToPlans(getLiveCampaigns(), dashboardFilters) : []
-    const liveScopes = showTables ? applyDashboardTableFiltersToScopes(getLiveScopes(), dashboardFilters) : []
+    const liveCampaignsFiltered = applyDashboardTableFiltersToPlans(getLiveCampaigns(), dashboardFilters)
+    const liveScopesFiltered = applyDashboardTableFiltersToScopes(getLiveScopes(), dashboardFilters)
+    const liveCampaigns = showTables ? liveCampaignsFiltered : []
+    const liveScopes = showTables ? liveScopesFiltered : []
     const campaignsDueToStart = showTables ? applyDashboardTableFiltersToPlans(getCampaignsDueToStart(), dashboardFilters) : []
     const campaignsFinishedRecently = showTables
       ? applyDashboardTableFiltersToPlans(getCampaignsFinishedRecently(), dashboardFilters)
       : []
+    const kpiCounts = computeHomeLiveKpiCounts(liveCampaignsFiltered, liveScopesFiltered)
 
     const sortedLiveCampaigns = applySort(liveCampaigns, liveCampaignSort, liveCampaignSelectors)
     const sortedLiveScopes = applySort(liveScopes, liveScopesSort, scopeSelectors)
@@ -1597,7 +1627,11 @@ export default function DashboardOverview({
           finishedSort,
         },
         counts: {
-          metrics: dashboardMetrics.map((m) => ({ title: m.title, value: m.value })),
+          metrics: [
+            { title: "Total Live Campaigns", value: String(kpiCounts.liveCampaigns) },
+            { title: "Total Live Scopes of Work", value: String(kpiCounts.liveScopes) },
+            { title: "Total Live Clients", value: String(kpiCounts.liveClients) },
+          ],
           liveCampaigns: liveCampaigns.length,
           liveScopes: liveScopes.length,
           campaignsStartingSoon: campaignsDueToStart.length,
@@ -1615,7 +1649,6 @@ export default function DashboardOverview({
     applySort,
     authError,
     dashboardFilters,
-    dashboardMetrics,
     dueSoonSort,
     fetchError,
     finishedSort,
@@ -1830,19 +1863,8 @@ export default function DashboardOverview({
     return null
   }
 
-  const getLiveCampaigns = () => {
-    const { startOfToday, endOfToday } = getTodayBounds()
-
-    return getHighestBookedApprovedCompletedVersionPerMba(mediaPlans).filter((plan) => {
-      const startDate = new Date(plan.mp_campaigndates_start)
-      const endDate = new Date(plan.mp_campaigndates_end)
-      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false
-
-      return startDate <= endOfToday && endDate >= startOfToday
-    })
-  }
-
-  const getLiveScopes = () => scopes.filter((scope) => scope.project_status === "Approved" || scope.project_status === "In-Progress")
+  const getLiveCampaigns = () => unfilteredLiveCampaigns
+  const getLiveScopes = () => unfilteredLiveScopes
 
   const getCampaignsDueToStart = () => {
     const { startOfToday, endOfToday } = getTodayBounds()
@@ -1854,8 +1876,12 @@ export default function DashboardOverview({
     return latestPlans.filter((plan) => {
       const startDate = new Date(plan.mp_campaigndates_start)
       if (isNaN(startDate.getTime())) return false
-
-      return startDate >= startOfToday && startDate <= tenDaysAhead
+      if (!(startDate >= startOfToday && startDate <= tenDaysAhead)) return false
+      return campaignOverlapsAuFinancialYear(
+        plan.mp_campaigndates_start,
+        plan.mp_campaigndates_end,
+        fyFilter,
+      )
     })
   }
 
@@ -1867,8 +1893,12 @@ export default function DashboardOverview({
     return getHighestBookedApprovedCompletedVersionPerMba(mediaPlans).filter((plan) => {
       const endDate = new Date(plan.mp_campaigndates_end)
       if (isNaN(endDate.getTime())) return false
-
-      return endDate >= fortyDaysAgo && endDate <= endOfToday
+      if (!(endDate >= fortyDaysAgo && endDate <= endOfToday)) return false
+      return campaignOverlapsAuFinancialYear(
+        plan.mp_campaigndates_start,
+        plan.mp_campaigndates_end,
+        fyFilter,
+      )
     })
   }
 
@@ -1985,8 +2015,8 @@ export default function DashboardOverview({
       }))
   })()
 
-  const liveCampaigns = showTables ? applyDashboardTableFiltersToPlans(getLiveCampaigns(), dashboardFilters) : []
-  const liveScopes = showTables ? applyDashboardTableFiltersToScopes(getLiveScopes(), dashboardFilters) : []
+  const liveCampaigns = showTables ? filteredLiveCampaigns : []
+  const liveScopes = showTables ? filteredLiveScopes : []
   const campaignsDueToStart = showTables ? applyDashboardTableFiltersToPlans(getCampaignsDueToStart(), dashboardFilters) : []
   const campaignsFinishedRecently = showTables
     ? applyDashboardTableFiltersToPlans(getCampaignsFinishedRecently(), dashboardFilters)
@@ -2033,16 +2063,10 @@ export default function DashboardOverview({
         Icon={BarChart3}
         detail={
           timeRangeDescription || dataLastRefreshedAt ? (
-            <p>
+            <p className="text-xs text-muted-foreground">
               {timeRangeDescription}
               {dataLastRefreshedAt ? (
-                <span
-                  className={
-                    timeRangeDescription
-                      ? "ml-2 text-xs opacity-60"
-                      : "text-xs text-muted-foreground opacity-80"
-                  }
-                >
+                <span className={timeRangeDescription ? "ml-2 opacity-80" : "opacity-80"}>
                   {timeRangeDescription ? "· " : null}
                   Updated {format(dataLastRefreshedAt, "h:mm a")}
                 </span>
@@ -2051,80 +2075,26 @@ export default function DashboardOverview({
           ) : null
         }
         actions={
-          <div className="w-full min-w-0 lg:max-w-[1040px]">
-            <div className="flex w-full flex-wrap items-center gap-2 lg:flex-nowrap lg:justify-end">
-              <div className="w-full sm:w-[240px] lg:w-[220px]">
-                <Label htmlFor="dashboard-campaign-search" className="sr-only">
-                  Search
-                </Label>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="dashboard-campaign-search"
-                    value={dashboardFilters.campaignSearch}
-                    onChange={(e) => setDashboardFilters((f) => ({ ...f, campaignSearch: e.target.value }))}
-                    placeholder="Search campaigns..."
-                    className="h-9 border-border bg-surface-panel pl-10 transition-colors focus:bg-background"
-                  />
-                </div>
-              </div>
-
-              <div className="w-full sm:w-[320px] lg:w-[300px]">
-                <Label className="sr-only">Clients</Label>
-                <MultiSelectCombobox
-                  options={clientFilterOptions}
-                  values={dashboardFilters.clients}
-                  onValuesChange={(v) => setDashboardFilters((f) => ({ ...f, clients: v }))}
-                  placeholder="All clients"
-                  allSelectedText="All clients"
-                  selectAllText="Select all"
-                  clearAllText="Clear all"
-                  searchPlaceholder="Filter clients..."
-                  emptyText="No clients found."
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap lg:justify-end">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="h-9 whitespace-nowrap text-xs"
-                  onClick={handleSaveSelectedClients}
-                  disabled={!legacyPinnedClientsKey}
-                  title={!legacyPinnedClientsKey ? "Sign in to save selected clients" : undefined}
-                >
-                  {savedViewJustSaved ? "Saved" : "Save selected clients"}
-                </Button>
-                {savedViews.length > 0 ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 whitespace-nowrap"
-                    onClick={handleClearAllSavedViews}
-                    disabled={!savedViewsListKey}
-                  >
-                    Clear all saved
-                  </Button>
-                ) : null}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-9 whitespace-nowrap text-xs"
-                  onClick={handleClearDashboardFilters}
-                  disabled={
-                    !dashboardFilters.campaignSearch.trim() &&
-                    dashboardFilters.clients.length === 0 &&
-                    dashboardFilters.publishers.length === 0 &&
-                    !dashboardFilters.month
-                  }
-                >
-                  <FilterX className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-                  Clear filters
-                </Button>
-              </div>
-            </div>
-          </div>
+          <Button
+            type="button"
+            className="h-9 whitespace-nowrap"
+            onClick={() => router.push("/mediaplans/create")}
+          >
+            Create Media Plan
+          </Button>
         }
+      />
+
+      <DashboardFilterBar
+        filters={dashboardFilters}
+        onFiltersChange={setDashboardFilters}
+        clientFilterOptions={clientFilterOptions}
+        savedViews={savedViews}
+        savedViewsListKey={savedViewsListKey}
+        savedViewJustSaved={savedViewJustSaved}
+        onSaveSelectedClients={handleSaveSelectedClients}
+        onClearAllSavedViews={handleClearAllSavedViews}
+        onClearFilters={handleClearDashboardFilters}
       />
 
       <div className="flex w-full items-center justify-end text-[11px] text-muted-foreground/70">
@@ -2151,9 +2121,7 @@ export default function DashboardOverview({
       ) : null}
 
       {showMetrics && layoutPanels.keyMetrics ? (
-        <PanelRow
-          title="Key metrics"
-        >
+        <PanelRow title="Key metrics" helperText={metricsScopeLine}>
           {loading ? (
             Array.from({ length: 4 }).map((_, index) => (
               <PanelRowCell key={`kpi-skeleton-${index}`} span="quarter">
@@ -2168,7 +2136,17 @@ export default function DashboardOverview({
                   <TooltipTrigger asChild>
                     <button
                       type="button"
-                      className="h-full min-h-11 w-full rounded-card text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                      className="interactive h-full min-h-11 w-full cursor-pointer rounded-card text-left outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label={`${metric.title}: jump to section`}
+                      onClick={() => {
+                        if (metric.panelId === "dashboard-panel-live-scopes") {
+                          scrollToDashboardPanel(metric.panelId, () => setOpenScopesPanel(true))
+                        } else if (metric.panelId === "dashboard-section-campaigns-scope") {
+                          scrollToDashboardPanel(metric.panelId, () => setOpenScopesPanel(true))
+                        } else {
+                          scrollToDashboardPanel(metric.panelId)
+                        }
+                      }}
                     >
                       <MetricCard
                         label={metric.title}
@@ -2194,18 +2172,24 @@ export default function DashboardOverview({
 
       {showTables && tableSectionVisible ? (
         <>
-          <div className="mb-4 flex items-center justify-between pt-4">
+          <div
+            id="dashboard-section-campaigns-scope"
+            className="mb-4 flex flex-col gap-3 pt-4 scroll-mt-4 sm:flex-row sm:items-center sm:justify-between"
+          >
             <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Campaigns & scope data</h2>
-            <ListGridToggle value={listGridMode} onChange={setListGridMode} />
+            <div className="flex flex-wrap items-center gap-3">
+              <AuFinancialYearFilterPills value={fyFilter} onChange={setFyFilter} />
+              <ListGridToggle value={listGridMode} onChange={setListGridMode} />
+            </div>
           </div>
           <PanelRow className="space-y-0">
           {layoutPanels.liveCampaigns ? (
           <PanelRowCell span="full">
-            <Panel className="w-full overflow-hidden border-0 shadow-md">
+            <Panel id="dashboard-panel-live-campaigns" className="w-full scroll-mt-4 overflow-hidden border-0 shadow-md">
               <div className="h-1 bg-pacing-ahead" />
               <PanelHeader className="items-center pb-2">
                 <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <PanelTitle className="text-base">Live Campaigns (Booked / Approved / Completed)</PanelTitle>
+                  <PanelTitle as="h3" className="text-base">Live Campaigns (Booked / Approved / Completed)</PanelTitle>
                   <Badge variant="ahead" className="num w-fit shrink-0 text-xs font-medium">
                     {liveCampaigns.length} {liveCampaigns.length === 1 ? "Campaign" : "Campaigns"}
                   </Badge>
@@ -2313,6 +2297,7 @@ export default function DashboardOverview({
           {layoutPanels.scopes ? (
           <PanelRowCell span="full">
             <DashboardCollapsiblePanel
+              id="dashboard-panel-live-scopes"
               isMd={isMd}
               open={openScopesPanel}
               onOpenChange={setOpenScopesPanel}
@@ -2342,6 +2327,7 @@ export default function DashboardOverview({
                           <SortableTableHeader label="Scope Date" direction={liveScopesSort.column === "scopeDate" ? liveScopesSort.direction : null} onToggle={() => toggleSort("scopeDate", liveScopesSort, setLiveScopesSort)} />
                           <TableHead>Project Overview</TableHead>
                           <SortableTableHeader label="Status" direction={liveScopesSort.column === "status" ? liveScopesSort.direction : null} onToggle={() => toggleSort("status", liveScopesSort, setLiveScopesSort)} />
+                          <TableHead className="w-24">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2358,6 +2344,18 @@ export default function DashboardOverview({
                             <TableCell>
                               <Badge className={getStatusBadgeColor(scope.project_status)}>{scope.project_status}</Badge>
                             </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2.5 text-xs max-[375px]:h-11"
+                                  onClick={() => router.push(`/scopes-of-work/${scope.id}/edit`)}
+                                >
+                                  Edit
+                                </Button>
+                              </div>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -2371,6 +2369,7 @@ export default function DashboardOverview({
                         scope={scope}
                         formatDate={formatDate}
                         statusBadgeClassName={getStatusBadgeColor(scope.project_status)}
+                        onEdit={() => router.push(`/scopes-of-work/${scope.id}/edit`)}
                       />
                     ))}
                   </div>

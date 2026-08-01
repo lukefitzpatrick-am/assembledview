@@ -44,7 +44,7 @@ export {
 // Domain / flighting (no deps)
 export {
   MediaGanttChart, BurstGrid, MatrixHeatmap, PacingBandChart, BoxPlotChart,
-  type GanttRow, type GanttBurst, type MediaGanttProps,
+  type GanttRow, type GanttBurst, type GanttMonthBand, type MediaGanttProps,
   type BurstRow, type BurstCell, type BoxStat,
   type PacingBandChartProps,
 } from './domain-charts';
@@ -54,7 +54,7 @@ export {
   BaseChartCard, ChartExportToolbar, ToggleableLegend, ChartFilterLegend, useLegendToggle,
   exportCsv, exportPng, captureNodePng,
   type BaseChartCardProps, type ChartExportToolbarProps, type LegendItem, type ToggleableLegendProps,
-  type CapturedPng,
+  type CapturedPng, type ChartExportSeriesInput,
 } from './chart-shell';
 
 // Theme + helpers

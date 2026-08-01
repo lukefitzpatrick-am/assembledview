@@ -106,7 +106,7 @@ function parseBody(raw: unknown): { ok: true; body: AudienceRequest } | { ok: fa
  * Gate: admin | manager. No response cache (fast aggregate).
  */
 export async function POST(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   let raw: unknown

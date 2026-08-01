@@ -193,8 +193,9 @@ function compareAutoLines(args: {
   const inputById = new Map(args.lineItems.map((l) => [l.lineItemId, l]))
   const deltas: AutoLineDelta[] = []
 
-  // Server authoritative per-line totals come from computeCampaignFinancials
-  // (schedule JSON may omit lineItems on the recompute path).
+  // Server authoritative per-line totals come from computeCampaignFinancials.
+  // Server-generated schedules now carry month.lineItems (Plan-C S1-P1b);
+  // client payloads may still omit them — fall back to perLine when absent.
   for (const pl of args.financials.perLine) {
     if (pl.flags.excluded) continue
     const id = pl.lineItemId

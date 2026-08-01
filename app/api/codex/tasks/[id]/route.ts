@@ -1,24 +1,40 @@
 import { NextResponse } from "next/server"
-import { getCodexBaseUrl } from "@/lib/api/codex"
+import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import { softDeleteTask, updateTask } from "@/lib/codex/repo"
 import {
-  axiosErrorResponse,
-  codexApiClient,
+  codexFlagGuard,
   requireCodexInternalAccess,
-  retryApiCall,
-  withOverallTimeout,
+  sessionEmail,
 } from "../../_shared"
 
 export const runtime = "nodejs"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
+const PATCH_ALLOWLIST = [
+  "title",
+  "description",
+  "status",
+  "priority",
+  "assignee_email",
+  "assignee_name",
+  "due_date",
+  "mba_number",
+  "category",
+  "client_visible",
+] as const
+
 export async function PATCH(request: Request, context: RouteContext) {
+  const flag = codexFlagGuard()
+  if (flag) return flag
+
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
 
   try {
-    const { id } = await context.params
-    if (!id?.trim()) {
+    const { id: idRaw } = await context.params
+    const id = Number(idRaw)
+    if (!Number.isFinite(id) || id < 1) {
       return NextResponse.json(
         { error: "bad_request", message: "Task id is required." },
         { status: 400 }
@@ -42,18 +58,96 @@ export async function PATCH(request: Request, context: RouteContext) {
       )
     }
 
-    const response = await withOverallTimeout(
-      retryApiCall(() =>
-        codexApiClient.patch(
-          `${getCodexBaseUrl()}/tasks/${encodeURIComponent(id)}`,
-          body
-        )
-      )
-    )
+    const raw = body as Record<string, unknown>
+    const patch: Parameters<typeof updateTask>[1] = {}
+    for (const key of PATCH_ALLOWLIST) {
+      if (!(key in raw)) continue
+      const v = raw[key]
+      switch (key) {
+        case "title":
+          if (typeof v === "string" && v.trim()) patch.title = v.trim()
+          break
+        case "description":
+          patch.description = typeof v === "string" ? v : null
+          break
+        case "status":
+          if (typeof v === "string") patch.status = v
+          break
+        case "priority":
+          patch.priority = typeof v === "string" ? v : null
+          break
+        case "assignee_email":
+          patch.assigneeEmail = typeof v === "string" ? v : null
+          break
+        case "assignee_name":
+          patch.assigneeName = typeof v === "string" ? v : null
+          break
+        case "due_date":
+          patch.dueDate = typeof v === "string" ? v : null
+          break
+        case "mba_number":
+          patch.mbaNumber = typeof v === "string" ? v : null
+          break
+        case "category":
+          patch.category = typeof v === "string" ? v : null
+          break
+        case "client_visible":
+          if (typeof v === "boolean") patch.clientVisible = v
+          break
+      }
+    }
 
-    return NextResponse.json(response.data)
+    const currentUser = await getCurrentUser(request)
+    const actor = sessionEmail(auth.session, currentUser?.email)
+    const task = await updateTask(id, patch, actor)
+    if (!task) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 })
+    }
+    return NextResponse.json(task)
   } catch (error) {
     console.error("Failed to patch codex task:", error)
-    return axiosErrorResponse(error, "Failed to update task")
+    return NextResponse.json(
+      {
+        error: "Failed to update task",
+        message: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    )
+  }
+}
+
+export async function DELETE(request: Request, context: RouteContext) {
+  const flag = codexFlagGuard()
+  if (flag) return flag
+
+  const auth = await requireCodexInternalAccess(request)
+  if ("error" in auth) return auth.error
+
+  try {
+    const { id: idRaw } = await context.params
+    const id = Number(idRaw)
+    if (!Number.isFinite(id) || id < 1) {
+      return NextResponse.json(
+        { error: "bad_request", message: "Task id is required." },
+        { status: 400 }
+      )
+    }
+
+    const currentUser = await getCurrentUser(request)
+    const actor = sessionEmail(auth.session, currentUser?.email)
+    const ok = await softDeleteTask(id, actor)
+    if (!ok) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 })
+    }
+    return NextResponse.json({ ok: true })
+  } catch (error) {
+    console.error("Failed to delete codex task:", error)
+    return NextResponse.json(
+      {
+        error: "Failed to delete task",
+        message: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    )
   }
 }

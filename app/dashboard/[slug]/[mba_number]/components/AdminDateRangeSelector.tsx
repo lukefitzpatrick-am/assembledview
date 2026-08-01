@@ -52,6 +52,35 @@ function sameRange(a?: DateRange, b?: DateRange): boolean {
   return sameDate(a?.from, b?.from) && sameDate(a?.to, b?.to)
 }
 
+/** Clamp a date into [min, max] when bounds exist. */
+function clampDate(d: Date, min: Date | null, max: Date | null): Date {
+  let t = d.getTime()
+  if (min && t < min.getTime()) t = min.getTime()
+  if (max && t > max.getTime()) t = max.getTime()
+  return new Date(t)
+}
+
+/**
+ * Clamp a preset range to the campaign flight so presets never select outside
+ * the campaign (which yields an empty dashboard that looks like missing data).
+ */
+function clampRangeToCampaign(
+  range: DateRange | undefined,
+  campaignFrom: Date | null,
+  campaignTo: Date | null,
+): DateRange | undefined {
+  if (!range?.from || !range?.to) return range
+  if (!campaignFrom && !campaignTo) return range
+  let from = clampDate(range.from, campaignFrom, campaignTo)
+  let to = clampDate(range.to, campaignFrom, campaignTo)
+  if (from.getTime() > to.getTime()) {
+    const swap = from
+    from = to
+    to = swap
+  }
+  return { from, to }
+}
+
 export default function AdminDateRangeSelector({
   campaignStart,
   campaignEnd,
@@ -123,7 +152,8 @@ export default function AdminDateRangeSelector({
 
   const applyRange = (next: DateRange | undefined) => {
     if (!next?.from || !next?.to) return
-    handleChange(next)
+    const clamped = clampRangeToCampaign(next, campaignFrom, campaignTo)
+    handleChange(clamped)
     setOpen(false)
   }
 
@@ -132,7 +162,7 @@ export default function AdminDateRangeSelector({
     nextParams.delete("startDate")
     nextParams.delete("endDate")
     setParams(nextParams)
-    setDraft(undefined)
+    setDraft(campaignRange)
   }
 
   const canReset = Boolean(
@@ -161,12 +191,104 @@ export default function AdminDateRangeSelector({
         : undefined
     return [
       { id: "full", label: "Full campaign", range: fullCampaign },
-      { id: "last7", label: "Last 7 days", range: { from: subDays(today, 6), to: today } },
-      { id: "last30", label: "Last 30 days", range: { from: subDays(today, 29), to: today } },
-      { id: "thisMonth", label: "This month", range: { from: startOfMonth(today), to: endOfMonth(today) } },
+      {
+        id: "last7",
+        label: "Last 7 days",
+        range: clampRangeToCampaign(
+          { from: subDays(today, 6), to: today },
+          campaignFrom,
+          campaignTo,
+        ),
+      },
+      {
+        id: "last30",
+        label: "Last 30 days",
+        range: clampRangeToCampaign(
+          { from: subDays(today, 29), to: today },
+          campaignFrom,
+          campaignTo,
+        ),
+      },
+      {
+        id: "thisMonth",
+        label: "This month",
+        range: clampRangeToCampaign(
+          { from: startOfMonth(today), to: endOfMonth(today) },
+          campaignFrom,
+          campaignTo,
+        ),
+      },
       { id: "custom", label: "Custom range", range: undefined },
     ] as const
   }, [campaignFrom, campaignTo])
+
+  const onOpenChange = (next: boolean) => {
+    if (next) {
+      // Keep current selection visible in the calendar (do not blank it).
+      setDraft(selected)
+    }
+    setOpen(next)
+  }
+
+  const calendarDisabled = useMemo(() => {
+    if (!campaignFrom && !campaignTo) return undefined
+    return (date: Date) => {
+      if (campaignFrom && date < campaignFrom) return true
+      if (campaignTo && date > campaignTo) return true
+      return false
+    }
+  }, [campaignFrom, campaignTo])
+
+  const presetButtons = showPresets ? (
+    <div className="flex flex-wrap gap-2">
+      {presets.map((preset) => {
+        const isCustomPreset = preset.id === "custom"
+        const unavailable = !isCustomPreset && !preset.range?.from
+        return (
+          <Button
+            key={preset.id}
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 rounded-pill text-xs"
+            disabled={isCustomPreset || unavailable}
+            title={
+              isCustomPreset
+                ? "Use the calendar below to pick a custom range"
+                : unavailable
+                  ? "Campaign dates are required for this preset"
+                  : undefined
+            }
+            onClick={() => {
+              if (isCustomPreset || !preset.range) return
+              applyRange(preset.range)
+            }}
+          >
+            {preset.label}
+          </Button>
+        )
+      })}
+    </div>
+  ) : null
+
+  const calendar = (
+    <Calendar
+      mode="range"
+      numberOfMonths={2}
+      defaultMonth={selected?.from ?? campaignFrom ?? undefined}
+      selected={draft}
+      onSelect={(next) => {
+        const clamped =
+          next?.from && next?.to
+            ? clampRangeToCampaign(next, campaignFrom, campaignTo)
+            : next
+        setDraft(clamped)
+        if (clamped?.from && clamped?.to) applyRange(clamped)
+      }}
+      disabled={calendarDisabled}
+      initialFocus
+    />
+  )
 
   const triggerInline = (
     <div className="inline-flex items-center gap-2 text-sm">
@@ -201,15 +323,7 @@ export default function AdminDateRangeSelector({
           <CalendarDays className="h-3.5 w-3.5" />
           Date window
         </div>
-        <Popover
-          open={open}
-          onOpenChange={(next) => {
-            if (next) {
-              setDraft(undefined)
-            }
-            setOpen(next)
-          }}
-        >
+        <Popover open={open} onOpenChange={onOpenChange}>
           <PopoverTrigger asChild>
             <Button variant="ghost" size="sm" className="h-8 rounded-pill px-3">
               <span className={cn("font-medium", isCustom && "text-primary")}>{rangeLabel}</span>
@@ -217,36 +331,8 @@ export default function AdminDateRangeSelector({
           </PopoverTrigger>
           <PopoverContent align="start" className="w-auto p-0">
             <div className="space-y-3 p-3">
-              {showPresets ? (
-                <div className="flex flex-wrap gap-2">
-                  {presets.map((preset) => (
-                    <Button
-                      key={preset.id}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 rounded-pill text-xs"
-                      onClick={() => {
-                        if (preset.id === "custom") return
-                        applyRange(preset.range)
-                      }}
-                    >
-                      {preset.label}
-                    </Button>
-                  ))}
-                </div>
-              ) : null}
-              <Calendar
-                mode="range"
-                numberOfMonths={2}
-                defaultMonth={selected?.from ?? campaignFrom ?? undefined}
-                selected={draft}
-                onSelect={(next) => {
-                  setDraft(next)
-                  if (next?.from && next?.to) applyRange(next)
-                }}
-                initialFocus
-              />
+              {presetButtons}
+              {calendar}
             </div>
           </PopoverContent>
         </Popover>
@@ -267,50 +353,14 @@ export default function AdminDateRangeSelector({
 
   return (
     <div className="inline-flex items-center gap-2">
-      <Popover
-        open={open}
-        onOpenChange={(next) => {
-          if (next) {
-            setDraft(undefined)
-          }
-          setOpen(next)
-        }}
-      >
+      <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger asChild>
           {variant === "inline" ? triggerInline : triggerMinimal}
         </PopoverTrigger>
         <PopoverContent align="end" className="w-auto p-0">
           <div className="space-y-3 p-3">
-            {showPresets ? (
-              <div className="flex flex-wrap gap-2">
-                {presets.map((preset) => (
-                  <Button
-                    key={preset.id}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 rounded-pill text-xs"
-                    onClick={() => {
-                      if (preset.id === "custom") return
-                      applyRange(preset.range)
-                    }}
-                  >
-                    {preset.label}
-                  </Button>
-                ))}
-              </div>
-            ) : null}
-            <Calendar
-              mode="range"
-              numberOfMonths={2}
-              defaultMonth={selected?.from ?? campaignFrom ?? undefined}
-              selected={draft}
-              onSelect={(next) => {
-                setDraft(next)
-                if (next?.from && next?.to) applyRange(next)
-              }}
-              initialFocus
-            />
+            {presetButtons}
+            {calendar}
           </div>
         </PopoverContent>
       </Popover>
@@ -326,4 +376,3 @@ export default function AdminDateRangeSelector({
     </div>
   )
 }
-

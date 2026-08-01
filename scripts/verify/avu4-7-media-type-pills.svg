@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="928" height="274" viewBox="0 0 928 274">
+  <rect width="100%" height="100%" fill="#f7f6f2"/>
+  <text x="24" y="38" font-family="ui-sans-serif,system-ui,sans-serif" font-size="14" font-weight="700" fill="#1a2e1f">AVU4-7 · Media-type pills (getMediaBadgeStyle / MEDIA_TYPE_REGISTRY)</text>
+  
+  <g transform="translate(24,64)">
+    <rect width="96" height="28" rx="999" fill="rgba(217, 46, 46, 0.14)" stroke="rgba(217, 46, 46, 0.3)" stroke-width="1"/>
+    <text x="48" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#D92E2E">Television</text>
+  </g>
+  <g transform="translate(244,64)">
+    <rect width="72" height="28" rx="999" fill="rgba(255, 207, 42, 0.14)" stroke="rgba(255, 207, 42, 0.3)" stroke-width="1"/>
+    <text x="36" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#ffcf2a">Radio</text>
+  </g>
+  <g transform="translate(464,64)">
+    <rect width="88.8" height="28" rx="999" fill="rgba(110, 231, 183, 0.14)" stroke="rgba(110, 231, 183, 0.3)" stroke-width="1"/>
+    <text x="44.4" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#6EE7B7">Newspaper</text>
+  </g>
+  <g transform="translate(684,64)">
+    <rect width="88.8" height="28" rx="999" fill="rgba(253, 122, 219, 0.14)" stroke="rgba(253, 122, 219, 0.3)" stroke-width="1"/>
+    <text x="44.4" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#fd7adb">Magazines</text>
+  </g>
+  <g transform="translate(24,102)">
+    <rect width="72" height="28" rx="999" fill="rgba(0, 142, 94, 0.14)" stroke="rgba(0, 142, 94, 0.3)" stroke-width="1"/>
+    <text x="36" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#008e5e">OOH</text>
+  </g>
+  <g transform="translate(244,102)">
+    <rect width="72" height="28" rx="999" fill="rgba(164, 29, 35, 0.14)" stroke="rgba(164, 29, 35, 0.3)" stroke-width="1"/>
+    <text x="36" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#A41D23">Cinema</text>
+  </g>
+  <g transform="translate(464,102)">
+    <rect width="132" height="28" rx="999" fill="rgba(255, 96, 3, 0.14)" stroke="rgba(255, 96, 3, 0.3)" stroke-width="1"/>
+    <text x="66" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#ff6003">Digital Display</text>
+  </g>
+  <g transform="translate(684,102)">
+    <rect width="117.60000000000001" height="28" rx="999" fill="rgba(244, 63, 94, 0.14)" stroke="rgba(244, 63, 94, 0.3)" stroke-width="1"/>
+    <text x="58.800000000000004" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#F43F5E">Digital Audio</text>
+  </g>
+  <g transform="translate(24,140)">
+    <rect width="117.60000000000001" height="28" rx="999" fill="rgba(37, 99, 235, 0.14)" stroke="rgba(37, 99, 235, 0.3)" stroke-width="1"/>
+    <text x="58.800000000000004" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#2563EB">Digital Video</text>
+  </g>
+  <g transform="translate(244,140)">
+    <rect width="72" height="28" rx="999" fill="rgba(71, 36, 119, 0.14)" stroke="rgba(71, 36, 119, 0.3)" stroke-width="1"/>
+    <text x="36" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#472477">BVOD</text>
+  </g>
+  <g transform="translate(464,140)">
+    <rect width="103.2" height="28" rx="999" fill="rgba(74, 85, 104, 0.14)" stroke="rgba(74, 85, 104, 0.3)" stroke-width="1"/>
+    <text x="51.6" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#4A5568">Integration</text>
+  </g>
+  <g transform="translate(684,140)">
+    <rect width="72" height="28" rx="999" fill="rgba(79, 143, 203, 0.14)" stroke="rgba(79, 143, 203, 0.3)" stroke-width="1"/>
+    <text x="36" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#4f8fcb">Search</text>
+  </g>
+  <g transform="translate(24,178)">
+    <rect width="110.4" height="28" rx="999" fill="rgba(74, 199, 235, 0.14)" stroke="rgba(74, 199, 235, 0.3)" stroke-width="1"/>
+    <text x="55.2" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#4ac7eb">Social Media</text>
+  </g>
+  <g transform="translate(244,178)">
+    <rect width="168" height="28" rx="999" fill="rgba(255, 151, 0, 0.14)" stroke="rgba(255, 151, 0, 0.3)" stroke-width="1"/>
+    <text x="84" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#ff9700">Programmatic Display</text>
+  </g>
+  <g transform="translate(464,178)">
+    <rect width="153.6" height="28" rx="999" fill="rgba(30, 64, 175, 0.14)" stroke="rgba(30, 64, 175, 0.3)" stroke-width="1"/>
+    <text x="76.8" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#1E40AF">Programmatic Video</text>
+  </g>
+  <g transform="translate(684,178)">
+    <rect width="146.4" height="28" rx="999" fill="rgba(152, 1, 181, 0.14)" stroke="rgba(152, 1, 181, 0.3)" stroke-width="1"/>
+    <text x="73.2" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#9801b5">Programmatic BVOD</text>
+  </g>
+  <g transform="translate(24,216)">
+    <rect width="153.6" height="28" rx="999" fill="rgba(190, 24, 93, 0.14)" stroke="rgba(190, 24, 93, 0.3)" stroke-width="1"/>
+    <text x="76.8" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#BE185D">Programmatic Audio</text>
+  </g>
+  <g transform="translate(244,216)">
+    <rect width="139.2" height="28" rx="999" fill="rgba(181, 211, 55, 0.14)" stroke="rgba(181, 211, 55, 0.3)" stroke-width="1"/>
+    <text x="69.6" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#b5d337">Programmatic OOH</text>
+  </g>
+  <g transform="translate(464,216)">
+    <rect width="103.2" height="28" rx="999" fill="rgba(21, 199, 201, 0.14)" stroke="rgba(21, 199, 201, 0.3)" stroke-width="1"/>
+    <text x="51.6" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#15c7c9">Influencers</text>
+  </g>
+  <g transform="translate(684,216)">
+    <rect width="96" height="28" rx="999" fill="rgba(100, 116, 139, 0.14)" stroke="rgba(100, 116, 139, 0.3)" stroke-width="1"/>
+    <text x="48" y="18" text-anchor="middle" font-family="ui-sans-serif,system-ui,sans-serif" font-size="12" font-weight="600" fill="#64748B">Production</text>
+  </g>
+</svg>

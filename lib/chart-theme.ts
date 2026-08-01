@@ -2,7 +2,19 @@
  * AssembledView — chart theme
  * Single source of truth for every chart's colour, scale and number format.
  * No chart should hard-code a hex value; import from here.
+ *
+ * Per-media-type hues for known channels resolve via `MEDIA_TYPE_REGISTRY`
+ * (`lib/charts/registry.ts` / `mediaTypeTheme`). `CHANNEL_COLORS` remains for
+ * coarse aggregate series (e.g. chart-gallery "programmatic" / "social").
  */
+
+import { formatMoney, formatMoneyCompact } from '@/lib/format/money';
+import {
+  getMediaColor,
+  MEDIA_TYPE_REGISTRY,
+  normalizeEntityKey,
+  type MediaTypeRegistryKey,
+} from '@/lib/charts/registry';
 
 // ─────────────────────────────────────────────────────────────
 // Categorical palette — assign series in order.
@@ -91,15 +103,14 @@ export const seriesColor = (i: number, cb = false) =>
 // ─────────────────────────────────────────────────────────────
 const compactNF = new Intl.NumberFormat('en-AU', { notation: 'compact', maximumFractionDigits: 1 });
 const intNF = new Intl.NumberFormat('en-AU', { maximumFractionDigits: 0 });
-const money0NF = new Intl.NumberFormat('en-AU', { style: 'currency', currency: 'AUD', maximumFractionDigits: 0 });
 
 export const fmt = {
   /** 48210 → "48.2K", 2_410_000 → "2.4M" */
   compact: (n: number) => compactNF.format(n),
   /** 48210 → "$48.2K" */
-  currencyCompact: (n: number) => '$' + compactNF.format(n),
+  currencyCompact: (n: number) => formatMoneyCompact(n),
   /** 48210 → "$48,210" */
-  currency: (n: number) => money0NF.format(n),
+  currency: (n: number) => formatMoney(n, { decimals: 0 }),
   /** 0.732 → "73%"  (pass ratio 0..1) */
   percent: (ratio: number, dp = 0) => (ratio * 100).toFixed(dp) + '%',
   /** 1240 → "1,240" */
@@ -144,8 +155,16 @@ const CHANNEL_COLOR_ALIASES: Record<string, keyof typeof CHANNEL_COLORS> = {
   radio: 'audio',
 };
 
-/** Fixed channel hue when the key maps to CHANNEL_COLORS; otherwise palette by index. */
+/**
+ * Fixed channel hue for a media type or coarse aggregate.
+ * Prefer `MEDIA_TYPE_REGISTRY` (same hues as pills / `getMediaBadgeStyle`);
+ * then coarse `CHANNEL_COLORS`; else palette by index.
+ */
 export function channelColorFor(key: string, index = 0): string {
+  const registryKey = normalizeEntityKey(key) as MediaTypeRegistryKey;
+  if (registryKey in MEDIA_TYPE_REGISTRY) {
+    return getMediaColor(key);
+  }
   const n = key.toLowerCase().replace(/[\s-]+/g, '_');
   const mapped = CHANNEL_COLOR_ALIASES[n] ?? (n in CHANNEL_COLORS ? (n as keyof typeof CHANNEL_COLORS) : undefined);
   if (mapped) return CHANNEL_COLORS[mapped];

@@ -13,6 +13,7 @@ import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { stabilizeFinanceForecastDataset } from "./stabilizeFinanceForecastDataset"
 import { redactForecastRowDebug } from "./redactForecastDebug"
+import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMonthsSource"
 
 const MEDIA_BASE_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
 
@@ -25,7 +26,7 @@ export interface LoadFinanceForecastDatasetOptions {
   searchText?: string
   /**
    * When non-null, only versions/clients whose display-name slug is in this set are included.
-   * Pass `null` for no tenant restriction (admin / manager without claim scoping).
+   * Pass `null` for no tenant restriction (admin without claim scoping).
    */
   allowedClientSlugs: Set<string> | null
   /** When false, `FinanceForecastLine.debug` is stripped after build. */
@@ -265,6 +266,9 @@ export async function loadFinanceForecastDataset(
 
     versions = filterVersionsByClientParam(versions, rawClients, options.clientFilter)
     versions = filterVersionsBySearch(versions, options.searchText)
+
+    // PC1: rewrite billing/delivery from schedule_months when flag=rows (shadow compares only).
+    await hydrateVersionsFinanceScheduleSource(versions as unknown as Record<string, unknown>[])
 
     const datasetRaw = buildFinanceForecastDataset({
       media_plan_versions: versions,

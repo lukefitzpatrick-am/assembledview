@@ -2,10 +2,8 @@ import "server-only"
 
 import type { User } from "@auth0/nextjs-auth0/types"
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
-import { getCachedClients } from "@/lib/cache/clientsCache"
+import { getCachedClients, getCachedClientsList } from "@/lib/cache/clientsCache"
 import { getUserClientSlugs, getUserRoles } from "@/lib/rbac"
-import axios from "axios"
-import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 
 /**
  * Numeric Xano client ids the user may see, or `null` = unrestricted (admin only).
@@ -36,16 +34,10 @@ async function loadClientsRows(): Promise<Record<string, unknown>[]> {
   const cached = getCachedClients()
   if (cached?.length) return cached as Record<string, unknown>[]
   try {
-    const response = await axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL"), {
-      headers: xanoAuthHeaderRecord(),
-    })
-    const data = response.data
-    if (Array.isArray(data)) return data as Record<string, unknown>[]
-    if (data && typeof data === "object" && Array.isArray((data as { data?: unknown }).data)) {
-      return (data as { data: Record<string, unknown>[] }).data
-    }
+    // Cold path → clientsCache → readClientsList (DATA_BACKEND_CLIENTS / T2a).
+    const { data } = await getCachedClientsList()
+    return (data ?? []) as Record<string, unknown>[]
   } catch {
-    // fall through
+    return []
   }
-  return []
 }

@@ -1,6 +1,7 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
 import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { requireRole } from "@/lib/requireRole"
 const API_TIMEOUT = 10000; // 10 seconds timeout
 
 // Create an axios instance with default config
@@ -37,10 +38,14 @@ async function retryApiCall<T>(
 }
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // AuthZ: match collection GET — SOWs are internal (admin only).
+    const gate = await requireRole(request, ["admin"])
+    if ("response" in gate) return gate.response
+
     const { id } = await params;
     
     const response = await retryApiCall(() =>
@@ -64,10 +69,14 @@ export async function GET(
 }
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // AuthZ: match collection POST — SOW mutate is internal (admin only).
+    const gate = await requireRole(request, ["admin"])
+    if ("response" in gate) return gate.response
+
     const { id } = await params;
     const body = await request.json();
     console.log("Update request body:", JSON.stringify(body, null, 2));

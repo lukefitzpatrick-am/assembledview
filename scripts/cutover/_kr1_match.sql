@@ -1,0 +1,24 @@
+-- KR-1 shared match predicates (Postgres).
+-- Author-only. Do not apply deletes until STEP 0 discovery is reviewed.
+--
+-- Pattern intent (test naming only):
+--   • MBA numbers whose lower(mba_number) starts with 'krusty' or 'krabby'
+--   • Client rows whose mbaidentifier is exactly 'krusty' or 'krabby'
+--     OR whose mp_client_name / mbaidentifier contains those tokens as a
+--     word-prefix (NOT bare 'kr' — that would collide with real clients)
+--
+-- Literature-known MBA stems from harness/docs (NOT a live inventory):
+--   krusty001 … krusty015 (and any later krustyNNN / krabby* created in store).
+-- Live discovery (STEP 0) is authoritative; this list is for human cross-check.
+
+-- Reusable: matched MBA numbers from plan tables.
+-- CREATE TEMP TABLE kr1_mbas AS
+-- SELECT DISTINCT lower(mba_number) AS mba_number FROM ( … ) s;
+
+-- Predicate fragments (paste into WHERE):
+--   lower(mba_number) LIKE 'krusty%' OR lower(mba_number) LIKE 'krabby%'
+--   lower(coalesce(mbaidentifier,'')) IN ('krusty','krabby')
+--   OR lower(coalesce(mbaidentifier,'')) LIKE 'krusty%'
+--   OR lower(coalesce(mbaidentifier,'')) LIKE 'krabby%'
+--   OR lower(coalesce(mp_client_name,'')) LIKE '%krusty%'
+--   OR lower(coalesce(mp_client_name,'')) LIKE '%krabby%'

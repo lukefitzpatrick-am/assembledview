@@ -10,6 +10,10 @@ export type BuilderIssue = {
   severity: BuilderIssueSeverity
   title: string
   detail?: string
+  /** Wizard step that owns the field (shown in the disclosure). */
+  stepLabel?: string
+  /** Form / panel field name (shown in the disclosure). */
+  fieldLabel?: string
   /** DOM id to scrollIntoView when the item is clicked */
   scrollTargetId?: string
 }

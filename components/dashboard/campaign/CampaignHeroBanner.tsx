@@ -1,6 +1,6 @@
 "use client"
 
-import { format, isValid, parseISO } from "date-fns"
+import { isValid, parseISO } from "date-fns"
 import { Download, FileText } from "lucide-react"
 
 import {
@@ -10,13 +10,11 @@ import {
 } from "@/components/dashboard/PageHeroShell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { formatCurrencyAUD } from "@/lib/format/currency"
+import { formatDateRange } from "@/lib/format/date"
+import { formatMoneyCompact } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import AdminDateRangeSelector from "@/app/dashboard/[slug]/[mba_number]/components/AdminDateRangeSelector"
-import {
-  AvaCampaignCommentaryAction,
-  AvaCampaignReadAction,
-} from "@/components/ava/AvaSkillActionSets"
+import { AvaCampaignReadAction } from "@/components/ava/AvaSkillActionSets"
 
 interface CampaignHeroBannerProps {
   campaign: {
@@ -52,7 +50,7 @@ function formatHeroDateRange(startDate: string, endDate: string): string {
   const start = parseCampaignDate(startDate)
   const end = parseCampaignDate(endDate)
   if (!start || !end) return "Date range unavailable"
-  return `${format(start, "dd MMM yyyy")} → ${format(end, "dd MMM yyyy")}`
+  return formatDateRange(start, end)
 }
 
 type StatusKind = "booked" | "completed" | "draft" | "default"
@@ -122,7 +120,7 @@ export default function CampaignHeroBanner({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <span className="inline-flex items-center gap-1.5">
           <span className="h-2 w-2 shrink-0 rounded-pill" style={{ backgroundColor: brandColour }} aria-hidden />
-          Budget: {formatCurrencyAUD(budget)}
+          Budget: {formatMoneyCompact(budget)}
         </span>
         <span aria-hidden className="text-border">
           •
@@ -167,7 +165,6 @@ export default function CampaignHeroBanner({
             <Download className="h-3.5 w-3.5" aria-hidden />
             Downloads
           </Button>
-          <AvaCampaignCommentaryAction />
           <AvaCampaignReadAction />
         </div>
       </div>

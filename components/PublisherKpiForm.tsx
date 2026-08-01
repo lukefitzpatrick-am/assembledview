@@ -6,6 +6,7 @@ import { Layers, Loader2, Plus, Save, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Combobox } from "@/components/ui/combobox"
+import { Field } from "@/components/ui/field"
 import { EmptyState, LoadingState } from "@/components/ui/states"
 import { useToast } from "@/components/ui/use-toast"
 import { mediaTypeComboboxOptionsForPublisher } from "@/lib/publisher/publisherKpiMediaOptions"
@@ -16,9 +17,23 @@ import {
   CLIENT_KPI_METRIC_LABELS,
   getBidStrategiesForMediaType,
 } from "@/lib/kpi/types"
-import { formatPercentForInput, parsePercentHeuristic } from "@/lib/kpi/metrics"
+import {
+  formatPercentForInput,
+  parsePercentHeuristic,
+  validateKpiMetricValue,
+  type KpiMetricKind,
+} from "@/lib/kpi/metrics"
+import { emptyPublisherKpiInput } from "@/lib/kpi/publisherKpiDefaults"
 
 const PERCENT_KPI_FIELDS = new Set<string>(["ctr", "vtr", "conversion_rate"])
+
+type MetricField = (typeof CLIENT_KPI_METRIC_FIELDS)[number]
+
+function metricKind(field: MetricField): KpiMetricKind {
+  if (PERCENT_KPI_FIELDS.has(field)) return "percent"
+  if (field === "frequency") return "count"
+  return "rate"
+}
 
 interface PublisherKpiFormProps {
   publisher: Publisher
@@ -31,6 +46,8 @@ type PersistOk = { ok: true; data: PublisherKpi }
 type PersistFail = { ok: false; message: string }
 type PersistResult = PersistOk | PersistFail
 
+type MetricErrors = Partial<Record<MetricField, string>>
+
 function emptyPendingRow(
   publisherKey: string,
   tempId: string,
@@ -38,15 +55,7 @@ function emptyPendingRow(
 ): PendingRow {
   return {
     tempId,
-    publisher: publisherKey,
-    media_type: "",
-    bid_strategy: "",
-    ctr: 0,
-    cpv: 0,
-    conversion_rate: 0,
-    vtr: 0,
-    frequency: 0,
-    ...overrides,
+    ...emptyPublisherKpiInput(publisherKey, overrides),
   }
 }
 
@@ -58,10 +67,34 @@ function rowReady(media_type: string, bid_strategy: string): boolean {
   return media_type.trim() !== "" && bid_strategy.trim() !== ""
 }
 
-function parseMetric(raw: string, fallback: number): number {
-  if (raw.trim() === "") return 0
-  const v = parseFloat(raw)
-  return Number.isFinite(v) ? v : fallback
+function parsePlainMetric(raw: string): number | null {
+  const cleaned = raw.replace(/[^0-9.-]/g, "").trim()
+  if (!cleaned) return null
+  const v = parseFloat(cleaned)
+  return Number.isFinite(v) ? v : null
+}
+
+function formatCpvForInput(value: number | null): string {
+  if (value === null) return ""
+  return `$${value.toFixed(4)}`
+}
+
+function formatFrequencyForInput(value: number | null): string {
+  if (value === null) return ""
+  return String(value)
+}
+
+function validateMetricField(field: MetricField, value: number | null): string | undefined {
+  return validateKpiMetricValue(metricKind(field), value) ?? undefined
+}
+
+function metricErrorsForRow(row: Pick<PublisherKpiInput, MetricField>): MetricErrors {
+  const errors: MetricErrors = {}
+  for (const field of CLIENT_KPI_METRIC_FIELDS) {
+    const err = validateMetricField(field, row[field])
+    if (err) errors[field] = err
+  }
+  return errors
 }
 
 function inputFromPending(row: PendingRow): PublisherKpiInput {
@@ -149,6 +182,8 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
   const [loading, setLoading] = useState(true)
   const [dirtyIds, setDirtyIds] = useState<Set<number>>(new Set())
   const [savingKey, setSavingKey] = useState<string | null>(null)
+  const [savedErrors, setSavedErrors] = useState<Record<number, MetricErrors>>({})
+  const [pendingErrors, setPendingErrors] = useState<Record<string, MetricErrors>>({})
   /** Media type used by “add all bid strategies” shortcut */
   const [bulkMediaSlug, setBulkMediaSlug] = useState("")
 
@@ -305,6 +340,16 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
       })
       return
     }
+    const errors = metricErrorsForRow(row)
+    if (Object.keys(errors).length > 0) {
+      setPendingErrors((prev) => ({ ...prev, [row.tempId]: errors }))
+      toast({
+        title: "Fix metric values",
+        description: "Some targets are out of range.",
+        variant: "destructive",
+      })
+      return
+    }
     setSavingKey(row.tempId)
     try {
       const result = await persistCreate(inputFromPending(row))
@@ -317,6 +362,11 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
         return
       }
       setPending((p) => p.filter((x) => x.tempId !== row.tempId))
+      setPendingErrors((prev) => {
+        const next = { ...prev }
+        delete next[row.tempId]
+        return next
+      })
       setRows((r) => [...r, result.data])
       toast({ title: "Saved", description: "KPI row created." })
       await onSuccess?.()
@@ -330,6 +380,16 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
       toast({
         title: "Missing fields",
         description: "Media type and bid strategy are required.",
+        variant: "destructive",
+      })
+      return
+    }
+    const errors = metricErrorsForRow(row)
+    if (Object.keys(errors).length > 0) {
+      setSavedErrors((prev) => ({ ...prev, [row.id]: errors }))
+      toast({
+        title: "Fix metric values",
+        description: "Some targets are out of range.",
         variant: "destructive",
       })
       return
@@ -351,6 +411,11 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
         n.delete(row.id)
         return n
       })
+      setSavedErrors((prev) => {
+        const next = { ...prev }
+        delete next[row.id]
+        return next
+      })
       toast({ title: "Saved", description: "KPI row updated." })
       await onSuccess?.()
     } finally {
@@ -371,6 +436,27 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
       return
     }
 
+    const nextPendingErrors: Record<string, MetricErrors> = {}
+    const nextSavedErrors: Record<number, MetricErrors> = {}
+    for (const row of pendingReady) {
+      const errors = metricErrorsForRow(row)
+      if (Object.keys(errors).length > 0) nextPendingErrors[row.tempId] = errors
+    }
+    for (const row of dirtyReady) {
+      const errors = metricErrorsForRow(row)
+      if (Object.keys(errors).length > 0) nextSavedErrors[row.id] = errors
+    }
+    if (Object.keys(nextPendingErrors).length > 0 || Object.keys(nextSavedErrors).length > 0) {
+      setPendingErrors((prev) => ({ ...prev, ...nextPendingErrors }))
+      setSavedErrors((prev) => ({ ...prev, ...nextSavedErrors }))
+      toast({
+        title: "Fix metric values",
+        description: "Some targets are out of range.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setSavingKey("__all__")
     let created = 0
     let updated = 0
@@ -383,6 +469,11 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
         if (result.ok) {
           created++
           setPending((p) => p.filter((x) => x.tempId !== row.tempId))
+          setPendingErrors((prev) => {
+            const next = { ...prev }
+            delete next[row.tempId]
+            return next
+          })
           setRows((r) => [...r, result.data])
         } else {
           failed++
@@ -400,6 +491,11 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
             const n = new Set(s)
             n.delete(row.id)
             return n
+          })
+          setSavedErrors((prev) => {
+            const next = { ...prev }
+            delete next[row.id]
+            return next
           })
         } else {
           failed++
@@ -623,57 +719,65 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
                   </div>
 
                   <div className="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                    {CLIENT_KPI_METRIC_FIELDS.map((field) => (
-                      <div key={field} className="min-w-0 space-y-1">
-                        <label className="text-xs font-medium text-muted-foreground">
-                          {CLIENT_KPI_METRIC_LABELS[field] ?? field}
-                        </label>
-                        {PERCENT_KPI_FIELDS.has(field) ? (
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            key={`pub-saved-pct-${row.id}-${field}-${row[field]}`}
-                            className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
-                            defaultValue={formatPercentForInput(row[field])}
-                            disabled={anySaving}
-                            onBlur={(e) =>
-                              updateSaved(row.id, {
-                                [field]: parsePercentHeuristic(e.target.value),
-                              } as Partial<PublisherKpi>)
-                            }
-                          />
-                        ) : field === "cpv" ? (
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            key={`pub-saved-cpv-${row.id}-${row.cpv}`}
-                            className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
-                            defaultValue={`$${row.cpv.toFixed(4)}`}
-                            disabled={anySaving}
-                            onBlur={(e) =>
-                              updateSaved(row.id, {
-                                cpv:
-                                  parseFloat(e.target.value.replace(/[^0-9.-]/g, "")) || 0,
-                              })
-                            }
-                          />
-                        ) : (
-                          <input
-                            type="number"
-                            step="0.000001"
-                            min={0}
-                            className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
-                            value={row[field]}
-                            disabled={anySaving}
-                            onChange={(e) =>
-                              updateSaved(row.id, {
-                                [field]: parseMetric(e.target.value, row[field]),
-                              } as Partial<PublisherKpi>)
-                            }
-                          />
-                        )}
-                      </div>
-                    ))}
+                    {CLIENT_KPI_METRIC_FIELDS.map((field) => {
+                      const error = savedErrors[row.id]?.[field]
+                      const applyValue = (value: number | null) => {
+                        updateSaved(row.id, { [field]: value } as Partial<PublisherKpi>)
+                        setSavedErrors((prev) => {
+                          const rowErr = { ...(prev[row.id] ?? {}) }
+                          const msg = validateMetricField(field, value)
+                          if (msg) rowErr[field] = msg
+                          else delete rowErr[field]
+                          return { ...prev, [row.id]: rowErr }
+                        })
+                      }
+                      return (
+                        <Field
+                          key={field}
+                          label={CLIENT_KPI_METRIC_LABELS[field] ?? field}
+                          error={error}
+                          labelClassName="text-xs font-medium text-muted-foreground"
+                          className="min-w-0 space-y-1"
+                        >
+                          {(controlProps) =>
+                            PERCENT_KPI_FIELDS.has(field) ? (
+                              <input
+                                {...controlProps}
+                                type="text"
+                                inputMode="decimal"
+                                key={`pub-saved-pct-${row.id}-${field}-${row[field]}`}
+                                className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
+                                defaultValue={formatPercentForInput(row[field])}
+                                disabled={anySaving}
+                                onBlur={(e) => applyValue(parsePercentHeuristic(e.target.value))}
+                              />
+                            ) : field === "cpv" ? (
+                              <input
+                                {...controlProps}
+                                type="text"
+                                inputMode="decimal"
+                                key={`pub-saved-cpv-${row.id}-${row.cpv}`}
+                                className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
+                                defaultValue={formatCpvForInput(row.cpv)}
+                                disabled={anySaving}
+                                onBlur={(e) => applyValue(parsePlainMetric(e.target.value))}
+                              />
+                            ) : (
+                              <input
+                                {...controlProps}
+                                type="text"
+                                inputMode="decimal"
+                                key={`pub-saved-freq-${row.id}-${row.frequency}`}
+                                className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
+                                defaultValue={formatFrequencyForInput(row.frequency)}
+                                disabled={anySaving}
+                                onBlur={(e) => applyValue(parsePlainMetric(e.target.value))}
+                              />
+                            )
+                          }
+                        </Field>
+                      )
+                    })}
                   </div>
 
                   <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-border/50 pt-3">
@@ -756,57 +860,65 @@ export function PublisherKpiForm({ publisher, onSuccess }: PublisherKpiFormProps
                 </div>
 
                 <div className="mt-4 grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                  {CLIENT_KPI_METRIC_FIELDS.map((field) => (
-                    <div key={field} className="min-w-0 space-y-1">
-                      <label className="text-xs font-medium text-muted-foreground">
-                        {CLIENT_KPI_METRIC_LABELS[field] ?? field}
-                      </label>
-                      {PERCENT_KPI_FIELDS.has(field) ? (
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          key={`pub-pend-pct-${row.tempId}-${field}-${row[field]}`}
-                          className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
-                          defaultValue={formatPercentForInput(row[field])}
-                          disabled={anySaving}
-                          onBlur={(e) =>
-                            updatePending(row.tempId, {
-                              [field]: parsePercentHeuristic(e.target.value),
-                            } as Partial<PublisherKpiInput>)
-                          }
-                        />
-                      ) : field === "cpv" ? (
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          key={`pub-pend-cpv-${row.tempId}-${row.cpv}`}
-                          className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
-                          defaultValue={`$${row.cpv.toFixed(4)}`}
-                          disabled={anySaving}
-                          onBlur={(e) =>
-                            updatePending(row.tempId, {
-                              cpv:
-                                parseFloat(e.target.value.replace(/[^0-9.-]/g, "")) || 0,
-                            })
-                          }
-                        />
-                      ) : (
-                        <input
-                          type="number"
-                          step="0.000001"
-                          min={0}
-                          className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
-                          value={row[field]}
-                          disabled={anySaving}
-                          onChange={(e) =>
-                            updatePending(row.tempId, {
-                              [field]: parseMetric(e.target.value, row[field]),
-                            } as Partial<PublisherKpiInput>)
-                          }
-                        />
-                      )}
-                    </div>
-                  ))}
+                  {CLIENT_KPI_METRIC_FIELDS.map((field) => {
+                    const error = pendingErrors[row.tempId]?.[field]
+                    const applyValue = (value: number | null) => {
+                      updatePending(row.tempId, { [field]: value } as Partial<PublisherKpiInput>)
+                      setPendingErrors((prev) => {
+                        const rowErr = { ...(prev[row.tempId] ?? {}) }
+                        const msg = validateMetricField(field, value)
+                        if (msg) rowErr[field] = msg
+                        else delete rowErr[field]
+                        return { ...prev, [row.tempId]: rowErr }
+                      })
+                    }
+                    return (
+                      <Field
+                        key={field}
+                        label={CLIENT_KPI_METRIC_LABELS[field] ?? field}
+                        error={error}
+                        labelClassName="text-xs font-medium text-muted-foreground"
+                        className="min-w-0 space-y-1"
+                      >
+                        {(controlProps) =>
+                          PERCENT_KPI_FIELDS.has(field) ? (
+                            <input
+                              {...controlProps}
+                              type="text"
+                              inputMode="decimal"
+                              key={`pub-pend-pct-${row.tempId}-${field}-${row[field]}`}
+                              className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
+                              defaultValue={formatPercentForInput(row[field])}
+                              disabled={anySaving}
+                              onBlur={(e) => applyValue(parsePercentHeuristic(e.target.value))}
+                            />
+                          ) : field === "cpv" ? (
+                            <input
+                              {...controlProps}
+                              type="text"
+                              inputMode="decimal"
+                              key={`pub-pend-cpv-${row.tempId}-${row.cpv}`}
+                              className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
+                              defaultValue={formatCpvForInput(row.cpv)}
+                              disabled={anySaving}
+                              onBlur={(e) => applyValue(parsePlainMetric(e.target.value))}
+                            />
+                          ) : (
+                            <input
+                              {...controlProps}
+                              type="text"
+                              inputMode="decimal"
+                              key={`pub-pend-freq-${row.tempId}-${row.frequency}`}
+                              className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-right text-sm tabular-nums"
+                              defaultValue={formatFrequencyForInput(row.frequency)}
+                              disabled={anySaving}
+                              onBlur={(e) => applyValue(parsePlainMetric(e.target.value))}
+                            />
+                          )
+                        }
+                      </Field>
+                    )
+                  })}
                 </div>
 
                 <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-border/50 pt-3">

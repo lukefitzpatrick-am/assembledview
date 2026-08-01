@@ -5,7 +5,7 @@ export const getMediaPlanSummaryTool: AvaTool = {
   definition: {
     name: "get_media_plan_summary",
     description:
-      "Fetch a summary of the current media plan from Xano, including client, MBA number, budget, dates, line items, and KPI benchmarks. Call this when the user asks about plan details, budget, schedule, line items, publishers, or KPIs for the current page. Only call once per conversation unless the user explicitly asks for a refresh.",
+      "Fetch a summary of the current media plan from Xano, including client, MBA number, budget, dates, line items, and KPI benchmarks. Prefer query_campaign_lines / query_schedule_months / search_line_items (Postgres, AUD) for how-much / list / cross-campaign questions. Use this for a light Xano text summary of the current page plan. Only call once per conversation unless the user explicitly asks for a refresh.",
     input_schema: {
       type: "object",
       properties: {},

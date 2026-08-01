@@ -1,13 +1,33 @@
-import { NextResponse } from "next/server"
-import { xanoUrl, xanoAuthHeader } from '@/lib/api/xano'
+import { NextRequest, NextResponse } from "next/server"
+import { xanoUrl, xanoAuthHeader } from "@/lib/api/xano"
+import { requireRole } from "@/lib/requireRole"
 import { checkMediaDetailsProxyPath } from "@/lib/security/proxyAllowlist"
+import { logProxy403 } from "@/lib/security/logProxy403"
+import { getDataBackend } from "@/lib/data/backend"
+import { isReferenceTablePath } from "@/lib/data/referenceTables"
+import { readReferenceMediaDetail } from "@/lib/data/readReferenceMediaDetail"
 
 type Params = { params: Promise<{ path: string[] }> }
+
+/** SEC-1 / SEC-D: catch-all is staff-only — no client dashboard consumer. */
+async function requireProxyStaff(request: Request, proxyPath: string) {
+  const gate = await requireRole(request as NextRequest, ["admin"])
+  if ("response" in gate) {
+    if (gate.response.status === 403) {
+      await logProxy403(request, proxyPath)
+    }
+    return gate.response
+  }
+  return null
+}
 
 async function proxyRequest(request: Request, { params }: Params, method: string) {
   const { path: parts } = await params
   const pathSegments = parts || []
   const path = pathSegments.join("/")
+  const denied = await requireProxyStaff(request, path || "media-details")
+  if (denied) return denied
+
   if (!path) {
     return NextResponse.json({ error: "Missing media detail path" }, { status: 400 })
   }
@@ -16,6 +36,33 @@ async function proxyRequest(request: Request, { params }: Params, method: string
   if (!gate.allowed) {
     console.warn(`[proxy-allowlist] blocked ${method} ${pathSegments.join("/")} (${gate.reason})`)
     return NextResponse.json({ error: "forbidden" }, { status: 403 })
+  }
+
+  // Reference-table GETs honor DATA_BACKEND=xano|shadow|postgres (default xano).
+  if (method === "GET" && pathSegments.length === 1 && isReferenceTablePath(pathSegments[0])) {
+    try {
+      const result = await readReferenceMediaDetail(pathSegments[0])
+      if (typeof result.body === "string") {
+        return new NextResponse(result.body, {
+          status: result.status,
+          headers: { "content-type": result.contentType || "text/plain" },
+        })
+      }
+      return NextResponse.json(result.body, { status: result.status })
+    } catch (error: any) {
+      console.error("[media-details reference read] error", {
+        path: pathSegments[0],
+        backend: getDataBackend(),
+        error,
+      })
+      return NextResponse.json(
+        {
+          error: "Failed to read media details reference data",
+          details: error?.message || "Unknown error",
+        },
+        { status: 500 }
+      )
+    }
   }
 
   try {
@@ -39,7 +86,7 @@ async function proxyRequest(request: Request, { params }: Params, method: string
         "Content-Type": request.headers.get("content-type") || "application/json",
         ...xanoAuthHeader(),
       },
-      body: body && body.length > 0 ? body : undefined
+      body: body && body.length > 0 ? body : undefined,
     })
 
     const contentType = upstream.headers.get("content-type") || ""
@@ -53,7 +100,7 @@ async function proxyRequest(request: Request, { params }: Params, method: string
 
     return new NextResponse(responseBody, {
       status: upstream.status,
-      headers: { "content-type": contentType || "text/plain" }
+      headers: { "content-type": contentType || "text/plain" },
     })
   } catch (error: any) {
     console.error("[media-details proxy] error", error)

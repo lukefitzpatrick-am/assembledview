@@ -48,16 +48,22 @@ test("sum exactly equals derived → withinTolerance true, diff 0", () => {
   assert.equal(result.diff, 0)
 })
 
-test("sum $5 over derived → withinTolerance true (under $10)", () => {
-  const result = validateAgencyFeeMonthTotalDrift([month("$10,105.00")], 10100)
+test("sum $0.005 over derived → withinTolerance true (under $0.01)", () => {
+  const result = validateAgencyFeeMonthTotalDrift([month("$10,100.005")], 10100)
   assert.equal(result.withinTolerance, true)
-  assert.equal(result.diff, 5)
+  assert.ok(Math.abs(result.diff) < 0.01)
 })
 
-test("sum $10 over derived → withinTolerance false (at threshold)", () => {
-  const result = validateAgencyFeeMonthTotalDrift([month("$10,110.00")], 10100)
+test("sum $0.01 over derived → withinTolerance false (at $0.01 threshold)", () => {
+  const result = validateAgencyFeeMonthTotalDrift([month("$10,100.01")], 10100)
   assert.equal(result.withinTolerance, false)
-  assert.equal(result.diff, 10)
+  assert.ok(Math.abs(result.diff - 0.01) < 1e-9)
+})
+
+test("sum $5 over derived → withinTolerance false (was under old $10)", () => {
+  const result = validateAgencyFeeMonthTotalDrift([month("$10,105.00")], 10100)
+  assert.equal(result.withinTolerance, false)
+  assert.equal(result.diff, 5)
 })
 
 test("sum $50 under derived → withinTolerance false, diff -50", () => {

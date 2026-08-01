@@ -8,41 +8,141 @@
  *
  *   <BaseChartCard
  *     title="Spend by channel" subtitle="Last 6 months · AUD"
- *     toolbar={<ChartExportToolbar onCsv={...} onPng={...} />}
+ *     exportPage="dashboard"
+ *     exportSeries={{ data, xKey: 'month', seriesKeys: ['Search', 'Social'] }}
  *     legend={<ToggleableLegend items={items} hidden={hidden} onToggle={setHidden} />}
  *   >
  *     <BarChart ... />
  *   </BaseChartCard>
  */
 import * as React from 'react';
+import { MoreHorizontal } from 'lucide-react';
+
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  chartExportFilename,
+  normalizeChartExportSeries,
+  type ChartExportSeriesInput,
+} from '@/lib/charts/chartExport';
+import { cn } from '@/lib/utils';
+
+export type { ChartExportSeriesInput };
 
 // ── BaseChartCard (a.k.a. ChartShell) ───────────────────────
 export interface BaseChartCardProps {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
+  /** Extra header controls (rendered beside the shared export menu). */
   toolbar?: React.ReactNode;
   legend?: React.ReactNode;
   /** ref'd wrapper around the chart — used by exportPng */
   bodyRef?: React.Ref<HTMLDivElement>;
   children: React.ReactNode;
   className?: string;
+  /**
+   * Page slug for filenames: `{page}-{chart-title-slug}-{yyyymmdd}.{png|csv}`.
+   * Defaults to `chart` when omitted.
+   */
+  exportPage?: string;
+  /** Plain-string title for filenames when `title` is a ReactNode. */
+  exportTitle?: string;
+  /** Series / rows for CSV. PNG always available; CSV omitted when empty. */
+  exportSeries?: ChartExportSeriesInput;
+  /** Hide the shared Download PNG / CSV menu. */
+  hideExport?: boolean;
 }
 
-export function BaseChartCard({ title, subtitle, toolbar, legend, bodyRef, children, className }: BaseChartCardProps) {
+function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
+  if (!ref) return;
+  if (typeof ref === 'function') ref(value);
+  else (ref as React.MutableRefObject<T | null>).current = value;
+}
+
+function titleForExport(title: React.ReactNode, exportTitle?: string): string {
+  if (exportTitle?.trim()) return exportTitle.trim();
+  if (typeof title === 'string' && title.trim()) return title.trim();
+  if (typeof title === 'number') return String(title);
+  return 'chart';
+}
+
+export function BaseChartCard({
+  title,
+  subtitle,
+  toolbar,
+  legend,
+  bodyRef,
+  children,
+  className,
+  exportPage = 'chart',
+  exportTitle,
+  exportSeries,
+  hideExport = false,
+}: BaseChartCardProps) {
+  const internalBodyRef = React.useRef<HTMLDivElement | null>(null);
+  const setBodyRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      internalBodyRef.current = node;
+      assignRef(bodyRef, node);
+    },
+    [bodyRef]
+  );
+
+  const exportLabel = titleForExport(title, exportTitle);
+  const normalized = React.useMemo(
+    () => (exportSeries ? normalizeChartExportSeries(exportSeries) : null),
+    [exportSeries]
+  );
+
+  const handlePng = React.useCallback(() => {
+    void exportPng(
+      internalBodyRef.current,
+      chartExportFilename(exportPage, exportLabel, 'png')
+    );
+  }, [exportPage, exportLabel]);
+
+  const handleCsv = React.useCallback(() => {
+    if (!normalized?.rows.length) return;
+    exportCsv(
+      normalized.rows,
+      chartExportFilename(exportPage, exportLabel, 'csv'),
+      normalized.columns
+    );
+  }, [exportPage, exportLabel, normalized]);
+
   return (
     <div
-      className={className}
-      style={{ display: 'flex', flexDirection: 'column', border: '1px solid var(--av-grid)', borderRadius: 14, overflow: 'hidden', background: 'var(--av-surface)', boxShadow: '0 1px 3px rgba(15,29,19,.08)' }}
+      className={cn(
+        'flex flex-col overflow-hidden rounded-card border border-border bg-card shadow-e1',
+        className
+      )}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: '1px solid var(--av-grid)' }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--av-ink)', letterSpacing: '-0.01em' }}>{title}</div>
-          {subtitle && <div style={{ fontSize: 11.5, color: 'var(--av-axis)', marginTop: 2 }}>{subtitle}</div>}
+      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+        <div className="min-w-0">
+          <div className="text-sm font-bold tracking-tight text-foreground">{title}</div>
+          {subtitle ? (
+            <div className="mt-0.5 text-[11.5px] text-muted-foreground">{subtitle}</div>
+          ) : null}
         </div>
-        {toolbar}
+        <div className="flex shrink-0 items-center gap-1.5">
+          {toolbar}
+          {!hideExport ? (
+            <ChartExportToolbar
+              onPng={handlePng}
+              onCsv={normalized?.rows.length ? handleCsv : undefined}
+            />
+          ) : null}
+        </div>
       </div>
-      {legend && <div style={{ padding: '10px 16px 0' }}>{legend}</div>}
-      <div ref={bodyRef} style={{ padding: '8px 14px 14px' }}>{children}</div>
+      {legend ? <div className="px-4 pb-0 pt-2.5">{legend}</div> : null}
+      <div ref={setBodyRef} className="px-3.5 pb-3.5 pt-2">
+        {children}
+      </div>
     </div>
   );
 }
@@ -54,25 +154,40 @@ export interface ChartExportToolbarProps {
   extra?: { label: string; onClick: () => void }[];
 }
 
-function ToolbarButton({ onClick, children }: { onClick?: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, border: '1px solid var(--av-grid)', background: 'var(--av-surface)', fontSize: 11, fontWeight: 600, color: 'var(--av-label)', cursor: 'pointer' }}
-    >
-      {children}
-    </button>
-  );
-}
-
+/**
+ * Shared overflow affordance: Download PNG + Download CSV.
+ * Prefer BaseChartCard's built-in wiring; use this only for custom chrome.
+ */
 export function ChartExportToolbar({ onCsv, onPng, extra = [] }: ChartExportToolbarProps) {
+  if (!onCsv && !onPng && extra.length === 0) return null;
+
   return (
-    <div style={{ display: 'flex', gap: 6 }}>
-      {onCsv && <ToolbarButton onClick={onCsv}>CSV</ToolbarButton>}
-      {onPng && <ToolbarButton onClick={onPng}>PNG</ToolbarButton>}
-      {extra.map((e) => <ToolbarButton key={e.label} onClick={e.onClick}>{e.label}</ToolbarButton>)}
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          aria-label="Export chart"
+        >
+          <MoreHorizontal className="h-4 w-4" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="min-w-[10rem]">
+        {onPng ? (
+          <DropdownMenuItem onSelect={() => onPng()}>Download PNG</DropdownMenuItem>
+        ) : null}
+        {onCsv ? (
+          <DropdownMenuItem onSelect={() => onCsv()}>Download CSV</DropdownMenuItem>
+        ) : null}
+        {extra.map((e) => (
+          <DropdownMenuItem key={e.label} onSelect={() => e.onClick()}>
+            {e.label}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -87,7 +202,7 @@ export interface ToggleableLegendProps {
 
 export function ToggleableLegend({ items, hidden, onToggle }: ToggleableLegendProps) {
   return (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+    <div className="flex flex-wrap gap-2">
       {items.map((it) => {
         const on = !hidden.has(it.key);
         return (
@@ -95,9 +210,15 @@ export function ToggleableLegend({ items, hidden, onToggle }: ToggleableLegendPr
             key={it.key}
             type="button"
             onClick={() => onToggle(it.key)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 99, border: '1px solid var(--av-grid)', background: 'var(--av-surface)', opacity: on ? 1 : 0.5, fontSize: 11, fontWeight: 600, color: 'var(--av-label)', cursor: 'pointer' }}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-pill border border-border bg-card px-2.5 py-1 text-[11px] font-semibold text-muted-foreground',
+              !on && 'opacity-50'
+            )}
           >
-            <span style={{ width: 9, height: 9, borderRadius: 2, background: it.color }} />
+            <span
+              className="h-2.5 w-2.5 rounded-sm"
+              style={{ background: it.color }}
+            />
             {it.label}
           </button>
         );
@@ -115,27 +236,18 @@ export function ChartFilterLegend({
   onSelect: (key: string) => void;
 }) {
   return (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+    <div className="flex flex-wrap gap-2">
       {items.map((it) => (
         <button
           key={it.key}
           type="button"
           onClick={() => onSelect(it.key)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '4px 10px',
-            borderRadius: 99,
-            border: '1px solid var(--av-grid)',
-            background: 'var(--av-surface)',
-            fontSize: 11,
-            fontWeight: 600,
-            color: 'var(--av-label)',
-            cursor: 'pointer',
-          }}
+          className="inline-flex items-center gap-1.5 rounded-pill border border-border bg-card px-2.5 py-1 text-[11px] font-semibold text-muted-foreground"
         >
-          <span style={{ width: 9, height: 9, borderRadius: 2, background: it.color }} />
+          <span
+            className="h-2.5 w-2.5 rounded-sm"
+            style={{ background: it.color }}
+          />
           {it.label}
         </button>
       ))}
@@ -158,7 +270,8 @@ export function exportCsv(rows: Record<string, unknown>[], filename = 'chart.csv
   if (!rows.length) return;
   const cols = columns ?? Object.keys(rows[0]);
   const esc = (v: unknown) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  const csv = [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n');
+  // BOM helps Excel open UTF-8 correctly; values are raw (not display-formatted).
+  const csv = '\uFEFF' + [cols.join(','), ...rows.map((r) => cols.map((c) => esc(r[c])).join(','))].join('\n');
   triggerDownload(new Blob([csv], { type: 'text/csv;charset=utf-8' }), filename);
 }
 
@@ -201,6 +314,7 @@ export async function captureNodePng(
     canvas.height = h * scale
     const ctx = canvas.getContext("2d")
     if (!ctx) return null
+    // Canvas 2D fillStyle cannot resolve CSS variables.
     ctx.fillStyle = "#ffffff"
     ctx.fillRect(0, 0, canvas.width, canvas.height)
     ctx.scale(scale, scale)

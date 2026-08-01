@@ -1,4 +1,5 @@
 import axios from "axios"
+import { readClientKpis } from "@/lib/data/readKpi"
 import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import type { ClientKpi, ClientKpiInput } from "./types"
 
@@ -7,17 +8,9 @@ const apiClient = axios.create({
   headers: xanoPostHeaderRecord(),
 })
 
+/** Route-handler only — static import of server-only `readKpi` (no webpackIgnore). */
 export async function fetchClientKpis(clientName: string): Promise<ClientKpi[]> {
-  try {
-    const response = await apiClient.get(xanoUrl("client_kpi", "XANO_CLIENTS_BASE_URL"), {
-      params: { mp_client_name: clientName },
-    })
-    const data = response.data
-    return Array.isArray(data) ? data : []
-  } catch (e) {
-    console.error("fetchClientKpis", e)
-    return []
-  }
+  return await readClientKpis(clientName)
 }
 
 export async function createClientKpi(

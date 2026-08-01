@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
-import { getUserRoles, getUserMbaNumbers } from "@/lib/rbac"
+import { getUserRoles } from "@/lib/rbac"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { querySnowflake } from "@/lib/snowflake/query"
 
@@ -64,7 +64,6 @@ export async function GET(request: NextRequest) {
 
     const roles = getUserRoles(session.user)
     const isAdmin = roles.includes("admin")
-    const isManager = roles.includes("manager")
 
     // AuthZ: no bare "return all" — tenant/MBA scope required except admin; clients must pass access check.
     if (roles.includes("client")) {
@@ -72,27 +71,8 @@ export async function GET(request: NextRequest) {
       const access = await checkClientMbaAccess(request, mbaNumber)
       if (!access.ok) return access.response
     } else if (!isAdmin) {
-      if (!isManager) return emptyMetaResponse(limit, filters)
-      if (!mbaNumber) {
-        const assigned = getUserMbaNumbers(session.user)
-        if (assigned.length === 1) {
-          mbaNumber = assigned[0]
-          filters.mbaNumber = mbaNumber
-        } else {
-          // Fail closed: managers without a single MBA must not see the whole book.
-          return emptyMetaResponse(limit, filters, {
-            warning: assigned.length > 1 ? "mbaNumber is required when multiple MBAs are assigned" : undefined,
-          })
-        }
-      } else {
-        const assigned = getUserMbaNumbers(session.user)
-        if (
-          assigned.length > 0 &&
-          !assigned.some((mba) => mba.toLowerCase() === mbaNumber!.toLowerCase())
-        ) {
-          return NextResponse.json({ error: "forbidden" }, { status: 403 })
-        }
-      }
+      // Fail closed: removed/unknown roles (e.g. legacy manager) see nothing.
+      return emptyMetaResponse(limit, filters)
     }
 
     const snowflakeState = isSnowflakeConfigured()

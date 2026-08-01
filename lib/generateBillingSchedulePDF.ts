@@ -2,6 +2,7 @@ import { jsPDF } from "jspdf";
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { addGst } from '@/lib/finance/gst';
+import { formatMoney, parseMoneyInput } from '@/lib/format/money';
 
 export interface BillingSchedulePDFData {
   date: string;
@@ -28,17 +29,10 @@ export interface BillingSchedulePDFData {
 
 // Helper function to format currency (2 decimal places for budgets, media, fees)
 const formatCurrency = (amount: number | string) => {
-  const options = {
-    style: "currency" as const,
-    currency: "AUD" as const,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  };
   if (typeof amount === 'string') {
-    const num = parseFloat(amount.replace(/[^0-9.-]+/g, '')) || 0;
-    return new Intl.NumberFormat("en-AU", options).format(num);
+    return formatMoney(parseMoneyInput(amount) ?? 0)
   }
-  return new Intl.NumberFormat("en-AU", options).format(amount);
+  return formatMoney(amount)
 };
 
 // Helper to fetch the logo and convert it to a format jspdf can use

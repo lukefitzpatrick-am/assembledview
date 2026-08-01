@@ -1,100 +1,105 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Separator } from "@/components/ui/separator";
-import { Combobox } from "@/components/ui/combobox";
-import { cn } from "@/lib/utils";
-import { FormulaDSL, FormulaVariable } from "@/src/lib/learning/types";
-import { formatValue } from "@/src/lib/learning/evaluator";
-import { OUTPUT_KEY, formatNumericInput, roundToTwo, solveForOutput, solveForVariable } from "@/src/lib/learning/solver";
+import { useCallback, useEffect, useMemo, useState } from "react"
+import { Check, Copy } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Separator } from "@/components/ui/separator"
+import { Combobox } from "@/components/ui/combobox"
+import { cn } from "@/lib/utils"
+import { FormulaDSL, FormulaVariable } from "@/src/lib/learning/types"
+import { formatValue } from "@/src/lib/learning/evaluator"
+import { OUTPUT_KEY, formatNumericInput, roundToTwo, solveForOutput, solveForVariable } from "@/src/lib/learning/solver"
 
 type Props = {
-  formula: FormulaDSL;
-  fallbackText?: string;
+  formula: FormulaDSL
+  fallbackText?: string
   /** Hub rail: tighter layout, fewer chrome elements */
-  compact?: boolean;
-};
+  compact?: boolean
+}
 
 function parseFormulaCalculatorNumber(raw: string | undefined, label: string): number {
   if (raw === undefined || raw === "") {
-    throw new Error(`${label} is required`);
+    throw new Error(`${label} is required`)
   }
-  const parsed = Number(raw);
+  const parsed = Number(raw)
   if (Number.isNaN(parsed)) {
-    throw new Error(`${label} must be a number`);
+    throw new Error(`${label} must be a number`)
   }
-  return parsed;
+  return parsed
 }
 
 export function FormulaCalculator({ formula, fallbackText, compact = false }: Props) {
-  const [values, setValues] = useState<Record<string, string>>({});
-  const [result, setResult] = useState<string>("");
-  const [error, setError] = useState<string>("");
-  const [solveFor, setSolveFor] = useState<string>("output");
+  const [values, setValues] = useState<Record<string, string>>({})
+  const [result, setResult] = useState<string>("")
+  const [error, setError] = useState<string>("")
+  const [solveFor, setSolveFor] = useState<string>("output")
+  const [copied, setCopied] = useState(false)
 
-  const isUnmapped = formula.unmapped || formula.variables.length === 0;
+  const isUnmapped = formula.unmapped || formula.variables.length === 0
 
   const description = useMemo(() => {
-    if (formula.inferred) return "Formula not fully mapped. Displaying expression only.";
-    return "Select the field to solve. Enter the others to auto-calc.";
-  }, [formula.inferred]);
+    if (formula.inferred) return "Formula not fully mapped. Displaying expression only."
+    return "Select the field to solve. Enter the others to auto-calc."
+  }, [formula.inferred])
 
   const targetLabel = useMemo(() => {
-    if (solveFor === "output") return formula.output?.label || "Result";
-    const variable = formula.variables.find((v) => v.key === solveFor);
-    return variable?.label || solveFor;
-  }, [formula.output?.label, formula.variables, solveFor]);
+    if (solveFor === "output") return formula.output?.label || "Result"
+    const variable = formula.variables.find((v) => v.key === solveFor)
+    return variable?.label || solveFor
+  }, [formula.output?.label, formula.variables, solveFor])
+
+  const displayedResult = solveFor === "output" ? result : values[solveFor] || ""
+  const canCopy = displayedResult.trim() !== "" && displayedResult !== "—"
 
   const hasAllValues = useCallback(
     (variables: FormulaVariable[]) => {
       return variables.every((variable) => {
-        if (solveFor === variable.key) return true;
-        const raw = values[variable.key];
-        return raw !== undefined && raw !== "";
-      });
+        if (solveFor === variable.key) return true
+        const raw = values[variable.key]
+        return raw !== undefined && raw !== ""
+      })
     },
     [solveFor, values],
-  );
+  )
 
   const autoCalculate = useCallback(() => {
-    if (isUnmapped) return;
-    setError("");
+    if (isUnmapped) return
+    setError("")
 
     try {
       if (solveFor === "output") {
         if (!hasAllValues(formula.variables)) {
-          setResult("");
-          return;
+          setResult("")
+          return
         }
-        const numericValues: Record<string, number> = {};
+        const numericValues: Record<string, number> = {}
         for (const variable of formula.variables) {
           numericValues[variable.key] = parseFormulaCalculatorNumber(
             values[variable.key],
             variable.label,
-          );
+          )
         }
-        const numericResult = solveForOutput(formula, numericValues);
-        setResult(formatValue(roundToTwo(numericResult), formula.format));
-        return;
+        const numericResult = solveForOutput(formula, numericValues)
+        setResult(formatValue(roundToTwo(numericResult), formula.format))
+        return
       }
 
-      const desiredOutput = values[OUTPUT_KEY];
-      const otherVariables = formula.variables.filter((v) => v.key !== solveFor);
+      const desiredOutput = values[OUTPUT_KEY]
+      const otherVariables = formula.variables.filter((v) => v.key !== solveFor)
       if (!desiredOutput || !hasAllValues(otherVariables)) {
-        setResult("");
-        return;
+        setResult("")
+        return
       }
 
-      const numericValues: Record<string, number> = {};
+      const numericValues: Record<string, number> = {}
       for (const variable of otherVariables) {
         numericValues[variable.key] = parseFormulaCalculatorNumber(
           values[variable.key],
           variable.label,
-        );
+        )
       }
 
       const solvedValue = solveForVariable({
@@ -102,34 +107,44 @@ export function FormulaCalculator({ formula, fallbackText, compact = false }: Pr
         solveFor,
         values: numericValues,
         desiredOutput: parseFormulaCalculatorNumber(desiredOutput, formula.output.label || "Output"),
-      });
+      })
 
-      const rounded = formatNumericInput(solvedValue);
+      const rounded = formatNumericInput(solvedValue)
       setValues((prev) => {
-        if (prev[solveFor] === rounded) return prev;
-        return { ...prev, [solveFor]: rounded };
-      });
-      setResult(rounded);
+        if (prev[solveFor] === rounded) return prev
+        return { ...prev, [solveFor]: rounded }
+      })
+      setResult(rounded)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not calculate");
-      setResult("");
+      setError(err instanceof Error ? err.message : "Could not calculate")
+      setResult("")
     }
-  }, [formula, hasAllValues, isUnmapped, solveFor, values]);
+  }, [formula, hasAllValues, isUnmapped, solveFor, values])
 
   const handleChange = (key: string, value: string) => {
-    setValues((prev) => ({ ...prev, [key]: value }));
-  };
+    setValues((prev) => ({ ...prev, [key]: value }))
+  }
 
   const handleReset = () => {
-    setValues({});
-    setResult("");
-    setError("");
-    setSolveFor("output");
-  };
+    setValues({})
+    setResult("")
+    setError("")
+    setSolveFor("output")
+    setCopied(false)
+  }
 
-  const handleCalculate = () => autoCalculate();
+  const copyResult = async () => {
+    if (!canCopy) return
+    try {
+      await navigator.clipboard.writeText(displayedResult)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      /* clipboard blocked — user can still select the read-only field */
+    }
+  }
 
-  useEffect(() => autoCalculate(), [autoCalculate]);
+  useEffect(() => autoCalculate(), [autoCalculate])
 
   if (isUnmapped) {
     return (
@@ -137,7 +152,7 @@ export function FormulaCalculator({ formula, fallbackText, compact = false }: Pr
         <AlertTitle>Formula reference</AlertTitle>
         <AlertDescription>{fallbackText || formula.expression}</AlertDescription>
       </Alert>
-    );
+    )
   }
 
   return (
@@ -181,7 +196,6 @@ export function FormulaCalculator({ formula, fallbackText, compact = false }: Pr
               onChange={(e) => handleChange(variable.key, e.target.value)}
               placeholder={solveFor === variable.key ? "Auto-calculated" : "0"}
               readOnly={solveFor === variable.key}
-              disabled={solveFor === variable.key}
               className={cn("num", compact && "rounded-input focus-visible:ring-ring")}
             />
           </div>
@@ -198,16 +212,10 @@ export function FormulaCalculator({ formula, fallbackText, compact = false }: Pr
           onChange={(e) => handleChange(OUTPUT_KEY, e.target.value)}
           placeholder={solveFor === "output" ? "Auto-calculated" : "Enter desired output"}
           readOnly={solveFor === "output"}
-          disabled={solveFor === "output"}
           className={cn("num", compact && "rounded-input focus-visible:ring-ring")}
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {!compact && (
-          <Button onClick={handleCalculate} className="bg-primary text-primary-foreground hover:bg-primary/90">
-            Calculate
-          </Button>
-        )}
         <Button variant="ghost" size={compact ? "sm" : "default"} onClick={handleReset}>
           Reset
         </Button>
@@ -224,9 +232,22 @@ export function FormulaCalculator({ formula, fallbackText, compact = false }: Pr
           compact ? "border-l-2 border-l-primary bg-surface-muted p-3" : "p-4",
         )}
       >
-        <p className="text-xs uppercase text-muted-foreground tracking-wide mb-1">Result</p>
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <p className="text-xs uppercase tracking-wide text-muted-foreground">Result</p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={copyResult}
+            disabled={!canCopy}
+            className="h-7 gap-1.5 px-2 text-xs"
+          >
+            {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? "Copied" : "Copy"}
+          </Button>
+        </div>
         <p className={cn("num font-semibold text-foreground", compact ? "text-lg" : "text-2xl")}>
-          {solveFor === "output" ? result || "—" : values[solveFor] || "—"}
+          {displayedResult || "—"}
         </p>
       </div>
       {error && (
@@ -236,10 +257,5 @@ export function FormulaCalculator({ formula, fallbackText, compact = false }: Pr
         </Alert>
       )}
     </div>
-  );
+  )
 }
-
-
-
-
-

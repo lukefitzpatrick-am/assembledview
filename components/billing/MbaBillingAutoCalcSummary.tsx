@@ -25,13 +25,7 @@ import {
 import type { CampaignFinancials } from "@/lib/finance/campaignFinancials.types"
 import type { PanelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import { reconciliationBadgeVisibility } from "@/lib/mediaplan/channelHydrationGate"
-
-const money = new Intl.NumberFormat("en-AU", {
-  style: "currency",
-  currency: "AUD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
+import { formatMoney } from "@/lib/format/money"
 
 function parseScheduleMoney(value: string | undefined): number {
   return parseFloat(String(value ?? "0").replace(/[^0-9.-]/g, "")) || 0
@@ -41,6 +35,11 @@ export type MbaBillingAutoCalcSummaryProps = {
   financials: CampaignFinancials
   panelIndicators: PanelIndicatorsFromCampaignFinancials
   mediaLabelByType?: Record<string, string>
+  /**
+   * When true, suppress billable=MBA green ticks (header + Grand Total) because
+   * channel rows are inflated vs distinct line_item_ids.
+   */
+  duplicatesDetected?: boolean
   /**
    * False while channel containers are still hydrating. Suppresses green/red
    * billable=MBA badges so a partial channel set cannot self-reconcile as green.
@@ -58,17 +57,20 @@ export function MbaBillingAutoCalcSummary({
   financials,
   panelIndicators,
   mediaLabelByType = {},
+  duplicatesDetected = false,
   reconciliationReady = true,
 }: MbaBillingAutoCalcSummaryProps) {
   const t = financials.mbaScopeTotals
   const schedule = financials.billingSchedule
   const mbaRec = reconciliationBadgeVisibility(
     reconciliationReady,
-    panelIndicators.mbaDetails.billableEqualsMba
+    panelIndicators.mbaDetails.billableEqualsMba,
+    { duplicatesDetected }
   )
   const billingRec = reconciliationBadgeVisibility(
     reconciliationReady,
-    panelIndicators.billingSchedule.billableEqualsMba
+    panelIndicators.billingSchedule.billableEqualsMba,
+    { duplicatesDetected }
   )
 
   const mediaBreakdown: { mediaType: string; media: number }[] = []
@@ -129,27 +131,27 @@ export function MbaBillingAutoCalcSummary({
               <span className="text-sm text-muted-foreground">
                 {mediaLabelByType[mediaType] ?? mediaType}
               </span>
-              <span className="num text-sm text-muted-foreground">{money.format(media)}</span>
+              <span className="num text-sm text-muted-foreground">{formatMoney(media)}</span>
             </div>
           ))}
           <div className="flex items-center justify-between py-0.5">
             <span className="text-sm text-muted-foreground">Gross Media</span>
-            <span className="num text-sm font-medium">{money.format(t.grossMedia)}</span>
+            <span className="num text-sm font-medium">{formatMoney(t.grossMedia)}</span>
           </div>
           <div className="flex items-center justify-between py-0.5">
             <span className="flex items-center text-sm text-muted-foreground">
               Assembled Fee
               <MbaFeeAdjustedPill show={panelIndicators.mbaDetails.mbaFeeAdjusted} />
             </span>
-            <span className="num text-sm font-medium">{money.format(t.fee)}</span>
+            <span className="num text-sm font-medium">{formatMoney(t.fee)}</span>
           </div>
           <div className="flex items-center justify-between py-0.5">
             <span className="text-sm text-muted-foreground">Ad Serving &amp; Tech</span>
-            <span className="num text-sm font-medium">{money.format(t.adServing)}</span>
+            <span className="num text-sm font-medium">{formatMoney(t.adServing)}</span>
           </div>
           <div className="flex items-center justify-between py-0.5">
             <span className="text-sm text-muted-foreground">Production</span>
-            <span className="num text-sm font-medium">{money.format(t.production)}</span>
+            <span className="num text-sm font-medium">{formatMoney(t.production)}</span>
           </div>
           <div className="border-t border-border pt-3">
             <div className="flex items-center justify-between">
@@ -159,7 +161,7 @@ export function MbaBillingAutoCalcSummary({
                 <MbaBillableMismatchPill show={mbaRec.showMismatch} />
               </span>
               <span className="num text-sm font-semibold text-foreground">
-                {money.format(t.nettExGst)}
+                {formatMoney(t.nettExGst)}
               </span>
             </div>
           </div>
@@ -210,9 +212,9 @@ export function MbaBillingAutoCalcSummary({
                     <BillingMismatchMbaPill show={billingRec.showMismatch} />
                   </span>
                 </TableCell>
-                <TableCell className="num text-right">{money.format(grandMedia)}</TableCell>
-                <TableCell className="num text-right">{money.format(grandFee)}</TableCell>
-                <TableCell className="num text-right">{money.format(grandTotal)}</TableCell>
+                <TableCell className="num text-right">{formatMoney(grandMedia)}</TableCell>
+                <TableCell className="num text-right">{formatMoney(grandFee)}</TableCell>
+                <TableCell className="num text-right">{formatMoney(grandTotal)}</TableCell>
               </TableRow>
             </TableBody>
           </Table>
@@ -222,18 +224,18 @@ export function MbaBillingAutoCalcSummary({
               <span>
                 Billing total{" "}
                 <span className="num">
-                  {money.format(financials.reconciliation.billableMbaExGst)}
+                  {formatMoney(financials.reconciliation.billableMbaExGst)}
                 </span>
                 {" + "}
                 client-pays media{" "}
                 <span className="num">
-                  {money.format(financials.reconciliation.clientPaysMedia)}
+                  {formatMoney(financials.reconciliation.clientPaysMedia)}
                 </span>
                 {" = "}
-                total investment <span className="num">{money.format(t.nettExGst)}</span>
+                total investment <span className="num">{formatMoney(t.nettExGst)}</span>
               </span>
               <BillingEqualsMbaPill
-                show={financials.validation.billableEqualsMba}
+                show={!duplicatesDetected && financials.validation.billableEqualsMba}
                 title="Billing reconciles to MBA total"
               />
             </p>

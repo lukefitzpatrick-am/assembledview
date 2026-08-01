@@ -10,8 +10,9 @@ const XANO_TIMEOUT_MS = 15_000
 
 /**
  * POST /api/billing-overrides/reset_line
- * Proxies Xano DELETE /billing_overrides/reset_line (body: version + line + optional component).
+ * Proxies Xano DELETE /billing_overrides/reset_line (body: version + line + mba_number + optional component).
  * "Reset to auto" for Manual Billing — removes the override row(s).
+ * mba_number is defence-in-depth (upstream can delete by version_id alone).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -28,6 +29,12 @@ export async function POST(request: NextRequest) {
     const b = body as Record<string, unknown>
     const versionId = b.media_plan_version_id ?? b.media_plan_versions_id
     const lineItemId = b.line_item_id ?? b.lineItemId
+    const mbaNumberRaw = b.mba_number ?? b.mbaNumber
+    const mbaNumber =
+      mbaNumberRaw != null && String(mbaNumberRaw).trim() !== ""
+        ? String(mbaNumberRaw).trim()
+        : ""
+
     if (versionId == null || !lineItemId) {
       return NextResponse.json(
         { error: "media_plan_version_id and line_item_id are required" },
@@ -35,9 +42,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (!mbaNumber) {
+      return NextResponse.json(
+        { error: "mba_number is required for reset_line" },
+        { status: 400 }
+      )
+    }
+
     const payload: Record<string, unknown> = {
       media_plan_version_id: versionId,
       media_plan_version: versionId,
+      mba_number: mbaNumber,
       line_item_id: String(lineItemId),
     }
     if (b.component != null) {

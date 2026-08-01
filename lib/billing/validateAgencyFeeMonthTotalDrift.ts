@@ -11,7 +11,8 @@ export interface FeeDriftValidationResult {
   toleranceUsed: number
 }
 
-const DEFAULT_TOLERANCE = 10
+/** C-8: $0.01 everywhere — was $10. */
+const DEFAULT_TOLERANCE = 0.01
 
 function parseMoney(v: unknown): number {
   return parseFloat(String(v ?? "").replace(/[^0-9.-]/g, "")) || 0

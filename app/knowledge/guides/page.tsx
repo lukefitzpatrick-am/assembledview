@@ -9,6 +9,7 @@ import { guides } from "@/src/data/learning/guides";
 import { accent, type AccentKey } from "@/src/lib/learning/accents";
 import { cn } from "@/lib/utils";
 import { Compass, Search } from "lucide-react";
+import { matchText } from "@/lib/search/matchText";
 
 const GROUP_TONE: Record<string, AccentKey> = {
   "Foundations": "green",
@@ -26,10 +27,10 @@ export default function GuidesPage() {
   const [collection, setCollection] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     return guides.filter((guide) => {
       if (collection && !(guide.collections ?? []).includes(collection)) return false;
-      if (q && !`${guide.title} ${guide.summary} ${guide.group}`.toLowerCase().includes(q)) return false;
+      if (q && !matchText(`${guide.title} ${guide.summary} ${guide.group}`, q)) return false;
       return true;
     });
   }, [query, collection]);

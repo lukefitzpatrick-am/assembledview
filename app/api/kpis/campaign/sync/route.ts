@@ -1,23 +1,30 @@
 import { NextResponse, type NextRequest } from "next/server"
+import { requireRole } from "@/lib/requireRole"
 import { syncCampaignKpis } from "@/lib/kpi/campaignKpi"
-import { campaignKpiCreateBodySchema } from "@/lib/kpi/types"
+import {
+  handleCampaignKpiSync,
+  mapKpiWriteCatch,
+  readKpiJsonRequest,
+} from "@/lib/kpi/kpiWriteHandlers"
 
 export const runtime = "nodejs"
 
 export async function POST(request: NextRequest) {
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
-    const body = await request.json()
-    const parsed = campaignKpiCreateBodySchema.safeParse(body)
-    if (!parsed.success) {
-      const msg =
-        parsed.error.issues.map((i) => i.message).join("; ") || "Validation failed"
-      return NextResponse.json({ error: msg }, { status: 400 })
+    const json = await readKpiJsonRequest(request)
+    if (!("ok" in json)) {
+      return NextResponse.json(json.body, { status: json.status })
     }
-    const results = await syncCampaignKpis(parsed.data)
-    return NextResponse.json(results, { status: 200 })
+    const result = await handleCampaignKpiSync(json.data, {
+      sync: syncCampaignKpis,
+    })
+    return NextResponse.json(result.body, { status: result.status })
   } catch (error) {
     console.error("POST /api/kpis/campaign/sync:", error)
-    const message = error instanceof Error ? error.message : "Internal server error"
-    return NextResponse.json({ error: message }, { status: 500 })
+    const mapped = mapKpiWriteCatch(error)
+    return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }

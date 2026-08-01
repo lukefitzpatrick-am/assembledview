@@ -97,16 +97,38 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
                 aria-label="Refresh"
                 onClick={onRefresh}
                 disabled={!onRefresh}
+                title={onRefresh ? "Refresh channel delivery" : "Refresh is not available for this channel yet"}
               >
                 <RefreshCw className="h-4 w-4" />
               </Button>
-              <Button type="button" variant="ghost" size="icon" aria-label="Export image">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Export image"
+                disabled
+                title="Image export is not wired yet"
+              >
                 <ImageDown className="h-4 w-4" />
               </Button>
-              <Button type="button" variant="ghost" size="icon" aria-label="Export CSV">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Export CSV"
+                disabled
+                title="CSV export is not wired yet"
+              >
                 <FileSpreadsheet className="h-4 w-4" />
               </Button>
-              <Button type="button" variant="ghost" size="icon" aria-label="Copy link">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                aria-label="Copy link"
+                disabled
+                title="Copy link is not wired yet"
+              >
                 <Copy className="h-4 w-4" />
               </Button>
             </div>

@@ -1,6 +1,6 @@
 /**
  * Request/response types for mutable Finance Forecast **target** lines
- * (Xano table `revenue_forecast_lines`).
+ * (Postgres table `revenue_forecast_lines`; formerly Xano).
  *
  * Grain aligns 1:1 with booked forecast keys: same `line_key` + `month_key` unions.
  */
@@ -19,12 +19,12 @@ export interface FinanceForecastTargetLine {
   line_key: FinanceForecastLineKey
   month_key: FinanceForecastMonthKey
   amount: number
-  /** ISO timestamp when last written, when Xano returns it. */
+  /** ISO timestamp when last written. */
   updated_at?: string | null
   updated_by?: string | null
 }
 
-/** Natural upsert key — unique in Xano on these four fields. */
+/** Natural upsert key — unique in PG on (clients_id, fy, line_key, month). */
 export type FinanceForecastTargetUpsertKey = {
   client_id: string
   financial_year_start_year: number

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import { auth0 } from "@/lib/auth0"
-import { getUserRoles } from "@/lib/rbac"
 import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { requireRole } from "@/lib/requireRole"
 import {
   collectClientPaysForMediaFlagsFromSchedule,
   computeAccrualRows,
   normalizeMonthKey,
   type AccrualApiResponse,
 } from "@/lib/finance/accrual"
+import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMonthsSource"
 
 export const maxDuration = 60
 
@@ -200,14 +200,11 @@ function responseNoStore(payload: AccrualApiResponse, init?: ResponseInit) {
 }
 
 export async function GET(request: NextRequest) {
-  // Enforce: not accessible by client users (middleware already redirects clients away from non-dashboard pages,
-  // but API routes must enforce this explicitly).
-  const session = await auth0.getSession(request)
-  const roles = getUserRoles(session?.user)
-  if (roles.includes("client")) {
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) {
     return responseNoStore(
-      { months: [], rows: [], meta: { error: "forbidden", reason: "client-role" } },
-      { status: 403 }
+      { months: [], rows: [], meta: { error: "forbidden", reason: "role" } },
+      { status: gate.response.status }
     )
   }
 
@@ -250,6 +247,9 @@ export async function GET(request: NextRequest) {
     const versionsArray = Array.isArray(versions) ? (versions as XanoVersion[]) : []
 
     const chosen = pickLatestVersions(versionsArray, mastersArray)
+
+    // PC1: schedule_months source for accrual flatten (blob default / shadow / rows).
+    await hydrateVersionsFinanceScheduleSource(chosen as unknown as Record<string, unknown>[])
 
     // Replaced a 19-endpoint-per-version Xano fan-out that caused FUNCTION_INVOCATION_TIMEOUT; flags now come from delivery JSON only.
     const clientPaysForMediaByLineItemId: Record<string, boolean> = {}

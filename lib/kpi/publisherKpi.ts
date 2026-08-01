@@ -1,5 +1,9 @@
 import axios from "axios"
-import { parseXanoListPayload, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import {
+  readAllPublisherKpis,
+  readPublisherKpis,
+} from "@/lib/data/readKpi"
+import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import type { PublisherKpi, PublisherKpiInput } from "./types"
 
 const apiClient = axios.create({
@@ -7,36 +11,15 @@ const apiClient = axios.create({
   headers: xanoPostHeaderRecord(),
 })
 
-/** Unfiltered list — used when loading KPIs for the full media plan. */
+/** Route-handler / server only — static import of server-only `readKpi`. */
 export async function fetchAllPublisherKpis(): Promise<PublisherKpi[]> {
-  try {
-    const response = await apiClient.get(
-      xanoUrl("publisher_kpi", "XANO_PUBLISHERS_BASE_URL"),
-    )
-    const data = response.data
-    if (Array.isArray(data)) return data as PublisherKpi[]
-    return parseXanoListPayload(data) as PublisherKpi[]
-  } catch (e) {
-    console.error("fetchAllPublisherKpis", e)
-    return []
-  }
+  return await readAllPublisherKpis()
 }
 
 export async function fetchPublisherKpis(
   publisherKey: string,
 ): Promise<PublisherKpi[]> {
-  try {
-    const response = await apiClient.get(
-      xanoUrl("publisher_kpi", "XANO_PUBLISHERS_BASE_URL"),
-      { params: { publisher: publisherKey.trim() } },
-    )
-    const data = response.data
-    if (Array.isArray(data)) return data as PublisherKpi[]
-    return parseXanoListPayload(data) as PublisherKpi[]
-  } catch (e) {
-    console.error("fetchPublisherKpis", e)
-    return []
-  }
+  return await readPublisherKpis(publisherKey)
 }
 
 export async function createPublisherKpi(

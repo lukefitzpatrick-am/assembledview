@@ -30,11 +30,19 @@ export interface GanttRow {
   color?: string;           // defaults to a CHANNEL_COLORS hue or palette
   bursts: GanttBurst[];
 }
+export interface GanttMonthBand {
+  label: string;
+  startWeek: number;
+  weeks: number;
+}
+
 export interface MediaGanttProps {
   rows: GanttRow[];
   weeks?: number;           // total weeks on the timeline (default 24)
-  months?: string[];        // month header labels
-  weeksPerMonth?: number;   // default 4
+  months?: string[];        // month header labels (legacy equal-width)
+  weeksPerMonth?: number;   // default 4 — used when monthBands omitted
+  /** Calendar-aligned month spans; when set, overrides equal weeksPerMonth bands. */
+  monthBands?: GanttMonthBand[];
   todayWeek?: number | null;
   rowHeight?: number;
   className?: string;
@@ -65,7 +73,7 @@ function wrapLabel(text: string, maxChars: number, maxLines: number): string[] {
 
 export function MediaGanttChart({
   rows, weeks = 24, months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-  weeksPerMonth = 4, todayWeek = null, rowHeight = 56, className,
+  weeksPerMonth = 4, monthBands, todayWeek = null, rowHeight = 56, className,
 }: MediaGanttProps) {
   const [tip, setTip] = React.useState<{ x: number; y: number; label: string; sub?: string } | null>(null);
   const hostRef = React.useRef<HTMLDivElement>(null);
@@ -77,14 +85,19 @@ export function MediaGanttChart({
   const els: React.ReactNode[] = [];
   const labelEls: React.ReactNode[] = [];
   const hitEls: React.ReactNode[] = [];
+  const headerBands: GanttMonthBand[] =
+    monthBands && monthBands.length > 0
+      ? monthBands
+      : months.map((m, i) => ({ label: m, startWeek: i * weeksPerMonth, weeks: weeksPerMonth }));
 
   rows.forEach((_, ri) => {
     if (ri % 2 === 0) els.push(<rect key={`rb${ri}`} x={0} y={round(headH + ri * rowHeight)} width={W} height={rowHeight} fill="var(--av-subsurface)" />);
   });
-  months.forEach((m, i) => {
-    const mx = wx(i * weeksPerMonth);
-    els.push(<rect key={`mb${i}`} x={round(mx)} y={8} width={round(weekW * weeksPerMonth - 3)} height={20} rx={5} fill={i % 2 ? 'var(--av-grid)' : 'var(--av-subsurface)'} />);
-    els.push(<text key={`mt${i}`} x={round(mx + weekW * weeksPerMonth / 2)} y={22} textAnchor="middle" fontSize={10} fontWeight={700} fill={MID} letterSpacing=".06em">{m.toUpperCase()}</text>);
+  headerBands.forEach((band, i) => {
+    const mx = wx(band.startWeek);
+    const bandW = weekW * Math.max(1, band.weeks) - 3;
+    els.push(<rect key={`mb${i}`} x={round(mx)} y={8} width={round(bandW)} height={20} rx={5} fill={i % 2 ? 'var(--av-grid)' : 'var(--av-subsurface)'} />);
+    els.push(<text key={`mt${i}`} x={round(mx + bandW / 2)} y={22} textAnchor="middle" fontSize={10} fontWeight={700} fill={MID} letterSpacing=".06em">{band.label.toUpperCase()}</text>);
   });
   for (let w = 0; w <= weeks; w++) {
     els.push(<line key={`wk${w}`} x1={round(wx(w))} x2={round(wx(w))} y1={headH - 4} y2={H - 6} stroke="var(--av-grid)" strokeWidth={1} />);
@@ -131,7 +144,8 @@ export function MediaGanttChart({
   if (todayWeek != null) {
     els.push(<line key="tl" x1={round(wx(todayWeek))} x2={round(wx(todayWeek))} y1={headH - 12} y2={H - 6} stroke={INK} strokeWidth={1.5} strokeDasharray="3 3" />);
     els.push(<rect key="tb" x={round(wx(todayWeek) - 19)} y={headH - 24} width={38} height={14} rx={7} fill={INK} />);
-    els.push(<text key="tt" x={round(wx(todayWeek))} y={headH - 14} textAnchor="middle" fontSize={8.5} fontWeight={700} fill="#fff">TODAY</text>);
+    // Match PacingBandChart: ink pill + surface text (readable in light and dark).
+    els.push(<text key="tt" x={round(wx(todayWeek))} y={headH - 14} textAnchor="middle" fontSize={8.5} fontWeight={700} fill="var(--av-surface)">TODAY</text>);
   }
   return (
     <div className={className}>

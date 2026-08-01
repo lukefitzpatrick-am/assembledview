@@ -22,6 +22,8 @@ export function pushFinanceBuilderIssues(
       severity: "error",
       title: "Billing doesn't equal the approved MBA",
       detail: `Off by ${formatMoney(Math.abs(financials.validation.deltaExGst))} ex GST. Open MBA & billing → reset to auto, or fix the plan.`,
+      stepLabel: "MBA & billing",
+      fieldLabel: "Billing schedule",
       scrollTargetId: "mba-billing",
     })
   }
@@ -31,6 +33,8 @@ export function pushFinanceBuilderIssues(
       severity: "warning",
       title: "Fee adjusted on one or more lines",
       detail: "A manual fee override changes the MBA fee total.",
+      stepLabel: "MBA & billing",
+      fieldLabel: "Line fees",
       scrollTargetId: "mba-billing",
     })
   }
@@ -40,6 +44,8 @@ export function pushFinanceBuilderIssues(
       severity: "warning",
       title: panelIndicators.mbaDetails.partialLabel,
       detail: "Excluded lines are out of MBA + billing but still in delivery.",
+      stepLabel: "MBA & billing",
+      fieldLabel: "Partial MBA",
       scrollTargetId: "mba-billing",
     })
   }

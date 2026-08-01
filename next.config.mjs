@@ -1,16 +1,73 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // postgres uses Node builtins (crypto/stream/net). Keep it out of webpack
+  // bundles — especially Edge instrumentation, which still traces dynamic imports
+  // from instrumentation.ts unless warmers live in instrumentation.node.ts.
+  serverExternalPackages: ["postgres"],
   async redirects() {
     return [
-      { source: "/finance/billing", destination: "/finance?tab=billing", permanent: true },
-      { source: "/finance/media", destination: "/finance?tab=billing", permanent: true },
-      { source: "/finance/scopes", destination: "/finance?tab=billing", permanent: true },
-      { source: "/finance/retainers", destination: "/finance?tab=billing", permanent: true },
-      { source: "/finance/sow", destination: "/finance?tab=billing", permanent: true },
-      { source: "/finance/publishers", destination: "/finance?tab=payables", permanent: true },
-      { source: "/finance/accrual", destination: "/finance?tab=accrual", permanent: true },
-      { source: "/finance/forecast", destination: "/finance?tab=forecast", permanent: true },
-      { source: "/finance/receivables", destination: "/finance?tab=billing", permanent: true },
+      // FN7 — legacy finance paths → sections (permanent; no ?tab= hop)
+      { source: "/finance/billing", destination: "/finance/invoicing", permanent: true },
+      { source: "/finance/media", destination: "/finance/invoicing", permanent: true },
+      { source: "/finance/scopes", destination: "/finance/invoicing", permanent: true },
+      { source: "/finance/retainers", destination: "/finance/invoicing", permanent: true },
+      { source: "/finance/sow", destination: "/finance/invoicing", permanent: true },
+      { source: "/finance/receivables", destination: "/finance/invoicing", permanent: true },
+      { source: "/finance/home", destination: "/finance/invoicing", permanent: true },
+      { source: "/finance/publishers", destination: "/finance/costs/invoices", permanent: true },
+      { source: "/finance/accrual", destination: "/finance/costs/accruals", permanent: true },
+      { source: "/finance/forecast", destination: "/finance/forecasting", permanent: true },
+      // FN1 / FIN-1 tab deep-links (query) → sections
+      {
+        source: "/finance",
+        has: [{ type: "query", key: "tab", value: "billing" }],
+        destination: "/finance/invoicing",
+        permanent: true,
+      },
+      {
+        source: "/finance",
+        has: [{ type: "query", key: "tab", value: "payables" }],
+        destination: "/finance/costs/invoices",
+        permanent: true,
+      },
+      {
+        source: "/finance",
+        has: [{ type: "query", key: "tab", value: "accrual" }],
+        destination: "/finance/costs/accruals",
+        permanent: true,
+      },
+      {
+        source: "/finance",
+        has: [{ type: "query", key: "tab", value: "forecast" }],
+        destination: "/finance/forecasting",
+        permanent: true,
+      },
+      {
+        source: "/finance",
+        has: [{ type: "query", key: "tab", value: "report" }],
+        destination: "/finance/investment",
+        permanent: true,
+      },
+      {
+        source: "/finance",
+        has: [{ type: "query", key: "tab", value: "queue" }],
+        destination: "/finance/xero",
+        permanent: true,
+      },
+      {
+        source: "/finance",
+        has: [{ type: "query", key: "tab", value: "xero-queue" }],
+        destination: "/finance/xero",
+        permanent: true,
+      },
+      {
+        source: "/finance",
+        has: [{ type: "query", key: "tab", value: "overview" }],
+        destination: "/finance/invoicing",
+        permanent: true,
+      },
+      // FIN-1 — Overview retired; bare /finance → Clients billing
+      { source: "/finance", destination: "/finance/invoicing", permanent: true },
       { source: "/learning", destination: "/knowledge", permanent: true },
       { source: "/learning/:path*", destination: "/knowledge/:path*", permanent: true },
     ]

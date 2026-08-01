@@ -1,75 +1,113 @@
-import { NextResponse } from "next/server"
-import { generateMediaPlan, MediaPlanHeader } from '@/lib/generateMediaPlan'
+import { NextRequest, NextResponse } from "next/server"
+import { sql } from "drizzle-orm"
+
+import { getDb, schema } from "@/db"
+import { requireRole } from "@/lib/requireRole"
+import { isApprovedOrBeyond } from "@/lib/docs/isApprovedOrBeyond"
+import type { ApprovedSlice } from "@/lib/finance/approvedSlice"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const maxDuration = 60
 
-export async function POST(request: Request) {
+function normaliseMba(mba: string): string {
+  return String(mba ?? "").trim().toLowerCase()
+}
+
+/**
+ * PC3 — media plan Excel generation locked to admin/manager + persisted keys only.
+ * Full line-item Excel rebuild from PG is not wired here (editor uses client-side
+ * generateMediaPlan). This route rejects client totals and serves the stored
+ * media_plan_file URL metadata when the version is approved-or-beyond.
+ */
+export async function POST(request: NextRequest) {
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
-    const data = await request.json()
-    
-    // Prepare the header data for the Excel generation
-    const header: MediaPlanHeader = {
-      logoBase64: data.logoBase64 || '',
-      logoWidth: data.logoWidth || 457,
-      logoHeight: data.logoHeight || 71,
-      client: data.mp_client_name || '',
-      brand: data.mp_brand || '',
-      campaignName: data.mp_campaignname || '',
-      mbaNumber: data.mbanumber || '',
-      clientContact: data.mp_clientcontact || '',
-      planVersion: data.version_number || '1',
-      poNumber: data.mp_ponumber || '',
-      campaignBudget: data.mp_campaignbudget || '0',
-      campaignStatus: data.mp_campaignstatus || '',
-      campaignStart: data.mp_campaigndates_start || '',
-      campaignEnd: data.mp_campaigndates_end || '',
+    let body: unknown
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    }
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    }
+    const raw = body as Record<string, unknown>
+    const allowed = new Set(["mba_number", "version_number", "mbanumber"])
+    const extra = Object.keys(raw).filter((k) => !allowed.has(k))
+    if (extra.length > 0) {
+      return NextResponse.json(
+        {
+          error: "Client-sent totals rejected — pass mba_number and version_number only",
+          extra_keys: extra,
+          code: "CLIENT_TOTALS_REJECTED",
+        },
+        { status: 400 }
+      )
     }
 
-    // Prepare the media items data
-    const mediaItems = {
-      search: data.search || [],
-      socialMedia: data.socialMedia || [],
-      digiAudio: data.digiAudio || [],
-      digiDisplay: data.digiDisplay || [],
-      digiVideo: data.digiVideo || [],
-      bvod: data.bvod || [],
-      progDisplay: data.progDisplay || [],
-      progVideo: data.progVideo || [],
-      progBvod: data.progBvod || [],
-      progOoh: data.progOoh || [],
-      progAudio: data.progAudio || [],
-      newspaper: data.newspaper || [],
-      magazines: data.magazines || [],
-      television: data.television || [],
-      radio: data.radio || [],
-      ooh: data.ooh || [],
-      cinema: data.cinema || [],
-      integration: data.integration || [],
-      influencers: data.influencers || [],
-      production: data.production || [],
+    const mbaNumber = String(raw.mba_number ?? raw.mbanumber ?? "").trim()
+    const versionNumber = Number(raw.version_number)
+    if (!mbaNumber || !Number.isFinite(versionNumber) || versionNumber <= 0) {
+      return NextResponse.json(
+        { error: "mba_number and version_number are required" },
+        { status: 400 }
+      )
     }
 
-    // Generate the Excel workbook
-    const mbaData = data.mbaData
-    const workbook = await generateMediaPlan(header, mediaItems, mbaData)
-    
-    // Convert workbook to buffer
-    const buffer = await workbook.xlsx.writeBuffer()
-    
-    // Return the Excel file as a response
-    return new NextResponse(buffer, {
-      headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename=MediaPlan_${data.mp_client_name}_${data.mp_campaignname}.xlsx`,
+    const db = getDb()
+    const [version] = await db
+      .select({
+        id: schema.mediaPlanVersions.id,
+        campaignStatus: schema.mediaPlanVersions.campaignStatus,
+        approvedSlice: schema.mediaPlanVersions.approvedSlice,
+        mediaPlanFile: schema.mediaPlanVersions.mediaPlanFile,
+        snapshotChecksum: schema.mediaPlanVersions.snapshotChecksum,
+      })
+      .from(schema.mediaPlanVersions)
+      .where(
+        sql`lower(${schema.mediaPlanVersions.mbaNumber}) = ${normaliseMba(mbaNumber)} and ${schema.mediaPlanVersions.versionNumber} = ${versionNumber}`
+      )
+      .limit(1)
+
+    if (!version) {
+      return NextResponse.json({ error: "Version not found", code: "NOT_FOUND" }, { status: 404 })
+    }
+    if (!isApprovedOrBeyond(version.campaignStatus)) {
+      return NextResponse.json(
+        {
+          error: `Document render requires approved-or-beyond status (got "${version.campaignStatus || "empty"}")`,
+          code: "NOT_APPROVED",
+        },
+        { status: 422 }
+      )
+    }
+    const slice = version.approvedSlice as ApprovedSlice | null
+    if (!slice || typeof slice !== "object") {
+      return NextResponse.json(
+        { error: "approved_slice missing", code: "MISSING_SLICE" },
+        { status: 422 }
+      )
+    }
+
+    // No live Excel rebuild from client payloads — return stored file metadata.
+    return NextResponse.json(
+      {
+        ok: true,
+        version_id: version.id,
+        version_number: versionNumber,
+        mba_number: mbaNumber,
+        snapshot_checksum: version.snapshotChecksum,
+        media_plan_file: version.mediaPlanFile,
+        message:
+          "Persisted media plan file metadata returned. Editor Excel uses client-side generateMediaPlan; this route no longer accepts client totals.",
       },
-    })
+      { status: 200 }
+    )
   } catch (error) {
     console.error("Failed to generate media plan Excel:", error)
-    return NextResponse.json(
-      { error: "Failed to generate media plan Excel" },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: "Failed to generate media plan Excel" }, { status: 500 })
   }
-} 
+}

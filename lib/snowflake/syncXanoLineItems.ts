@@ -15,6 +15,13 @@ import {
 } from "@/lib/snowflake/xanoLineItemPruneDryRun"
 import type { XanoLineItem } from "@/lib/xano/fetchAllLineItems"
 
+/**
+ * Merges plan line items into `ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT`.
+ * Source remains `fetchAllXanoLineItems` (Xano) until T6 — do not switch this
+ * path to Postgres / `DATA_BACKEND_PACING` here. See
+ * `scripts/migration/DISPOSITIONS.md` § T6 — XANO_LINE_ITEMS_SNAPSHOT.
+ */
+
 const SNAPSHOT = "ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT"
 
 const BATCH_SIZE = 500

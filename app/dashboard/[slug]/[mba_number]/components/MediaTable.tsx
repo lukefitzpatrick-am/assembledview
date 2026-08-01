@@ -15,6 +15,7 @@ import { formatAUD } from '@/lib/format/money'
 import { MediaChannelTag } from '@/components/dashboard/MediaChannelTag'
 import { EmptyState } from '@/components/ui/states'
 import { ProgressBar } from '@/components/ui/ProgressBar'
+import { matchText } from '@/lib/search/matchText'
 
 interface MediaTableProps {
   lineItems: Record<string, NormalisedLineItem[]>
@@ -148,7 +149,7 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
       }
     })
 
-    const query = search.trim().toLowerCase()
+    const query = search.trim()
     const filtered: Record<string, GroupedItem[]> = {}
 
     Object.entries(result).forEach(([mediaType, groups]) => {
@@ -163,9 +164,10 @@ export default function MediaTable({ lineItems }: MediaTableProps) {
 
       const filteredGroups = query
         ? sorted.filter((group) =>
-            `${group.publisher || ''} ${group.title || ''} ${group.market || ''} ${group.targeting || ''}`
-              .toLowerCase()
-              .includes(query)
+            matchText(
+              `${group.publisher || ''} ${group.title || ''} ${group.market || ''} ${group.targeting || ''}`,
+              query
+            )
           )
         : sorted
 

@@ -111,6 +111,13 @@ interface VideoSite {
   site: string;
 }
 
+function normalizeKey(input: unknown): string {
+  return String(input ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+}
+
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("digivideo")
 
 interface DigiVideoContainerProps {
@@ -180,10 +187,13 @@ export function calculateInvestmentPerMonth(form, feedigivideo) {
   const items = form.getValues("digivideolineItems") || []
   const bursts: InvestmentBurstInput[] = []
   items.forEach((lineItem: any) => {
-    (lineItem.bursts || []).forEach((burst: any) => {
+    const includesFees = !!lineItem.budgetIncludesFees
+    ;(lineItem.bursts || []).forEach((burst: any) => {
       const lineMedia = parseFloat(String(burst.budget).replace(/[^0-9.]/g, "")) || 0
       const feePct = feedigivideo || 0
-      const totalInvestment = lineMedia + ((lineMedia / (100 - feePct)) * feePct)
+      const totalInvestment = includesFees
+        ? lineMedia
+        : lineMedia + ((lineMedia / (100 - feePct)) * feePct)
       bursts.push({ amount: totalInvestment, start: burst.startDate, end: burst.endDate })
     })
   })
@@ -1244,7 +1254,7 @@ useEffect(() => {
                   if (!selectedPublisher) {
                     filteredDigiVideoSites = digivideoSites; // Show all sites if no publisher is selected
                   } else {
-                    filteredDigiVideoSites = digivideoSites.filter(site => site.platform === selectedPublisher);
+                    filteredDigiVideoSites = digivideoSites.filter((site) => normalizeKey(site.platform) === normalizeKey(selectedPublisher));
                   }
 
                   const { totalMedia } = getTotals(lineItemIndex);

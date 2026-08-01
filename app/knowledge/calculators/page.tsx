@@ -8,6 +8,7 @@ import { FormulaCalculator } from "@/components/learning/FormulaCalculator";
 import termsData from "@/src/data/learning/terms.json";
 import { LearningTerm } from "@/src/lib/learning/types";
 import { Calculator, Search } from "lucide-react";
+import { matchText } from "@/lib/search/matchText";
 
 const terms = termsData as LearningTerm[];
 
@@ -25,10 +26,13 @@ export default function CalculatorsPage() {
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim();
     if (!q) return calculators;
     return calculators.filter((t) =>
-      `${t.term} ${t.group ?? ""} ${t.plainEnglish ?? t.definition ?? ""}`.toLowerCase().includes(q)
+      matchText(
+        `${t.term} ${t.group ?? ""} ${t.plainEnglish ?? t.definition ?? ""}`,
+        q
+      )
     );
   }, [query]);
 

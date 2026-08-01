@@ -142,3 +142,38 @@ test("panel indicators: partial scope amber label X of Y", () => {
 
   assert.equal(indicators.mbaDetails.partialLabel, "Partial MBA · 1 of 2")
 })
+
+test("panelIndicators: month partiality shows Partial MBA months label", () => {
+  const financials = computeCampaignFinancials(
+    [
+      {
+        lineItemId: "A",
+        mediaType: "search",
+        buyType: "cpc",
+        rate: 1,
+        enteredAmount: 1000,
+        budgetIncludesFees: false,
+        clientPaysForMedia: false,
+        approval: "approved",
+        bursts: [
+          {
+            startDate: "2026-08-01",
+            endDate: "2026-09-30",
+            budget: 1000,
+            buyAmount: 1,
+          },
+        ],
+      },
+    ],
+    { feeLoading: {} },
+    {
+      campaignStart: new Date(2026, 7, 1),
+      campaignEnd: new Date(2026, 8, 30),
+      selectedMonthYears: ["August 2026"],
+    }
+  )
+  const indicators = panelIndicatorsFromCampaignFinancials(financials, {
+    selectedMonthYears: ["August 2026"],
+  })
+  assert.equal(indicators.mbaDetails.partialLabel, "Partial MBA · 1 of 2 months")
+})

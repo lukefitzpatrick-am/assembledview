@@ -22,6 +22,11 @@ import { loadSkillTool } from "./loadSkill";
 import { generatePerformanceReportTool } from "./generatePerformanceReport";
 import { getClientBrainTool } from "./getClientBrain";
 import { saveClientBrainTool } from "./saveClientBrain";
+import { queryCampaignLinesTool } from "./queryCampaignLines";
+import { queryScheduleMonthsTool } from "./queryScheduleMonths";
+import { searchLineItemsTool } from "./searchLineItems";
+import { queryFinanceSummaryTool } from "./queryFinanceSummary";
+import { queryXeroStatusTool } from "./queryXeroStatus";
 
 const AVA_TOOLS: AvaTool[] = [
   getMediaPlanSummaryTool,
@@ -45,6 +50,11 @@ const AVA_TOOLS: AvaTool[] = [
   generatePerformanceReportTool,
   getClientBrainTool,
   saveClientBrainTool,
+  queryCampaignLinesTool,
+  queryScheduleMonthsTool,
+  searchLineItemsTool,
+  queryFinanceSummaryTool,
+  queryXeroStatusTool,
 ];
 
 const registeredNames = AVA_TOOLS.map((t) => t.definition.name);

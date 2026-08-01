@@ -19,6 +19,8 @@ type Props = {
   onKeep: () => void
   onReset: () => void
   onCancel: () => void
+  /** PC4: when balancer is on, describe months that will move into the balancing month. */
+  balancerReanchorPreview?: string | null
 }
 
 /**
@@ -26,7 +28,14 @@ type Props = {
  * Keep = leave override months (prepayment/terms) as set; refresh basis on apply.
  * Reset = reset_line then recompute fresh schedule for those lines.
  */
-export function DateBasisKeepResetDialog({ open, stale, onKeep, onReset, onCancel }: Props) {
+export function DateBasisKeepResetDialog({
+  open,
+  stale,
+  onKeep,
+  onReset,
+  onCancel,
+  balancerReanchorPreview = null,
+}: Props) {
   const lines = stale.map((s) => {
     const reason = s.reason ? ` (${s.reason.replace(/_/g, " ")})` : ""
     return `${s.label}${reason}`
@@ -49,6 +58,9 @@ export function DateBasisKeepResetDialog({ open, stale, onKeep, onReset, onCance
                 One or more manual billing overrides were set against different burst dates. Choose
                 whether to keep the amounts as entered or reset to the new schedule.
               </p>
+              {balancerReanchorPreview ? (
+                <p className="font-medium text-foreground">{balancerReanchorPreview}</p>
+              ) : null}
               {uniqueLabels.length > 0 ? (
                 <ul className="list-disc space-y-1 pl-5 text-foreground">
                   {uniqueLabels.map((label) => (

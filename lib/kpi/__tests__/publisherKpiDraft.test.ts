@@ -73,7 +73,7 @@ test("buildPublisherKpiCreateBody falls back to the normalized row publisher nam
 
   assert.equal(draft.resolvedByPublisherId, false)
   assert.equal(draft.body.publisher, "unknown publisher")
-  assert.equal(draft.body.ctr, 0)
-  assert.equal(draft.body.conversion_rate, 0)
-  assert.equal(draft.body.vtr, 0)
+  assert.equal(draft.body.ctr, null)
+  assert.equal(draft.body.conversion_rate, null)
+  assert.equal(draft.body.vtr, null)
 })

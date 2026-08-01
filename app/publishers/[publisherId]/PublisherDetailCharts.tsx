@@ -292,6 +292,12 @@ export function PublisherDetailCharts({
             title="Monthly spend by media type"
             subtitle="Australian financial year, this publisher only"
             className="h-full border-border/40 bg-card shadow-sm"
+            exportPage="publishers"
+            exportSeries={{
+              data: stackedData,
+              xKey: "month",
+              seriesKeys: series.map((s) => s.key),
+            }}
           >
             {stackedData.length === 0 || totalPositiveStacked <= 0 ? (
               <EmptyState
@@ -323,6 +329,12 @@ export function PublisherDetailCharts({
               title="Spend by client"
               subtitle={"Share of this publisher's FY spend by client"}
               className="h-full border-border/40 bg-card shadow-sm"
+              exportPage="publishers"
+              exportSeries={{
+                data: clientDonutSlices.data,
+                xKey: "label",
+                seriesKeys: ["value"],
+              }}
             >
               <DonutChart
                 data={clientDonutSlices.data}
@@ -340,6 +352,12 @@ export function PublisherDetailCharts({
               title="Spend by media type"
               subtitle="FY totals split across media types with spend for this publisher"
               className="h-full border-border/40 bg-card shadow-sm"
+              exportPage="publishers"
+              exportSeries={{
+                data: mediaTypeDonut.data,
+                xKey: "label",
+                seriesKeys: ["value"],
+              }}
             >
               <DonutChart
                 data={mediaTypeDonut.data}
@@ -369,6 +387,29 @@ export function PublisherDetailCharts({
                   title={label}
                   subtitle={`Share of total ${label} spend this FY`}
                   className="h-full border-border/40 bg-card shadow-e1"
+                  exportPage="publishers"
+                  exportTitle={label}
+                  exportSeries={{
+                    rows: [
+                      {
+                        publisher: publisherName,
+                        mediaType: label,
+                        publisherSpend: entry.thisPublisherSpend,
+                        totalMarketSpend: entry.totalMarketSpend,
+                        sharePct:
+                          entry.totalMarketSpend > 0
+                            ? (entry.thisPublisherSpend / entry.totalMarketSpend) * 100
+                            : 0,
+                      },
+                    ],
+                    columns: [
+                      "publisher",
+                      "mediaType",
+                      "publisherSpend",
+                      "totalMarketSpend",
+                      "sharePct",
+                    ],
+                  }}
                 >
                   <div className="space-y-4">
                     <div className="flex items-start justify-between gap-4">

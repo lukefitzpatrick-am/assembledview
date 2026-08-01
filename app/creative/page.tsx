@@ -1,10 +1,15 @@
 import { redirect } from "next/navigation"
 
 import { AvaCreativeSkillActions } from "@/components/ava/AvaSkillActionSets"
+import { CreativeAdminLanding } from "@/components/creative/CreativeAdminLanding"
 import { CreativeCampaignPicker } from "@/components/creative/CreativeCampaignPicker"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { auth0 } from "@/lib/auth0"
+import { isCodexV2Enabled } from "@/lib/codex/flag"
 import { getUserRoles } from "@/lib/rbac"
+import { pageMetadata } from "@/lib/nav/routeManifest"
+
+export const metadata = pageMetadata("/creative")
 
 export default async function CreativeUploadsPage() {
   const session = await auth0.getSession()
@@ -15,6 +20,11 @@ export default async function CreativeUploadsPage() {
   const roles = getUserRoles(session.user)
   if (roles.includes("client")) {
     redirect("/unauthorized")
+  }
+
+  // Admin-only process-first landing; other staff keep the filter-first picker.
+  if (roles.includes("admin")) {
+    return <CreativeAdminLanding codexEnabled={isCodexV2Enabled()} />
   }
 
   return (
@@ -28,7 +38,9 @@ export default async function CreativeUploadsPage() {
               Pick a client and campaign, then upload or manage creative assets.
             </p>
           }
-          actions={<AvaCreativeSkillActions />}
+          actions={
+            <AvaCreativeSkillActions disabledReason="Select a campaign and a creative asset first" />
+          }
         />
         <CreativeCampaignPicker />
       </div>

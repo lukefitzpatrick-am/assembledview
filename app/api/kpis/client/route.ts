@@ -1,16 +1,28 @@
 import { NextRequest, NextResponse } from "next/server"
+import { requireRole } from "@/lib/requireRole"
 import {
   createClientKpi,
   deleteClientKpi,
   fetchClientKpis,
   updateClientKpi,
 } from "@/lib/kpi/clientKpi"
-import { clientKpiCreateBodySchema, clientKpiPatchBodySchema } from "@/lib/kpi/types"
-import type { ClientKpiInput } from "@/lib/kpi/types"
+import {
+  handleClientKpiDelete,
+  handleClientKpiPatch,
+  handleClientKpiPost,
+  mapKpiWriteCatch,
+  readKpiJsonRequest,
+} from "@/lib/kpi/kpiWriteHandlers"
 
 export const runtime = "nodejs"
 
 export async function GET(request: NextRequest) {
+  // Staff residual (PS-1): create/edit consume this via lib/api/kpi.ts.
+  // Gate must match SEC-A writes — not tighter. `manager` was removed from
+  // UserRole (31 Jul 2026); staff = admin until a real manager role returns.
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
     const mpClientName = request.nextUrl.searchParams.get("mp_client_name")
     if (!mpClientName?.trim()) {
@@ -28,69 +40,58 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
-    const body = await request.json()
-    const parsed = clientKpiCreateBodySchema.safeParse(body)
-    if (!parsed.success) {
-      const msg =
-        parsed.error.issues.map((i) => i.message).join("; ") || "Validation failed"
-      return NextResponse.json({ error: msg }, { status: 400 })
+    const json = await readKpiJsonRequest(request)
+    if (!("ok" in json)) {
+      return NextResponse.json(json.body, { status: json.status })
     }
-    const input: ClientKpiInput = { ...parsed.data } as ClientKpiInput
-    const result = await createClientKpi(input)
-    if (result === null) {
-      return NextResponse.json(
-        { error: "Failed to create client KPI" },
-        { status: 500 },
-      )
-    }
-    return NextResponse.json(result, { status: 201 })
+    const result = await handleClientKpiPost(json.data, {
+      create: createClientKpi,
+    })
+    return NextResponse.json(result.body, { status: result.status })
   } catch (error) {
     console.error("POST /api/kpis/client:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const mapped = mapKpiWriteCatch(error)
+    return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }
 
 export async function PATCH(request: NextRequest) {
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
-    const body = await request.json()
-    const parsed = clientKpiPatchBodySchema.safeParse(body)
-    if (!parsed.success) {
-      const msg =
-        parsed.error.issues.map((i) => i.message).join("; ") || "Validation failed"
-      return NextResponse.json({ error: msg }, { status: 400 })
+    const json = await readKpiJsonRequest(request)
+    if (!("ok" in json)) {
+      return NextResponse.json(json.body, { status: json.status })
     }
-    const { id, ...rest } = parsed.data
-    const result = await updateClientKpi(id, rest as Partial<ClientKpiInput>)
-    if (result === null) {
-      return NextResponse.json(
-        { error: "Failed to update client KPI" },
-        { status: 500 },
-      )
-    }
-    return NextResponse.json(result)
+    const result = await handleClientKpiPatch(json.data, {
+      update: updateClientKpi,
+    })
+    return NextResponse.json(result.body, { status: result.status })
   } catch (error) {
     console.error("PATCH /api/kpis/client:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const mapped = mapKpiWriteCatch(error)
+    return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }
 
 export async function DELETE(request: NextRequest) {
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   try {
-    const id = request.nextUrl.searchParams.get("id")
-    if (id === null || id.trim() === "") {
-      return NextResponse.json({ error: "id is required" }, { status: 400 })
-    }
-    const ok = await deleteClientKpi(Number(id))
-    if (!ok) {
-      return NextResponse.json(
-        { error: "Failed to delete client KPI" },
-        { status: 500 },
-      )
-    }
-    return NextResponse.json({ success: true })
+    const result = await handleClientKpiDelete(
+      request.nextUrl.searchParams.get("id"),
+      { delete: deleteClientKpi },
+    )
+    return NextResponse.json(result.body, { status: result.status })
   } catch (error) {
     console.error("DELETE /api/kpis/client:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const mapped = mapKpiWriteCatch(error)
+    return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }

@@ -77,8 +77,51 @@ function stripScheduleFields(row: any): any {
 /**
  * Fetch the versions list. Prefer paged walk via fetchAllXanoPages; also accept a
  * bare array if an env override points at a non-paged endpoint.
+ * Honors DATA_BACKEND_PLANS: postgres rebuilds latest-per-MBA from consolidated versions
+ * and overlays master-owned scalars (`mp_client_name`) — Xano `_latest` had these
+ * inline; Postgres versions do not (DI-9b; twin of mediaPlansListCache / DI-9).
  */
 async function fetchUpstream(): Promise<any[]> {
+  const { getDataBackendFor } = await import("@/lib/data/backend")
+  if (getDataBackendFor("plans") === "postgres") {
+    const { readPlanVersions, readPlanMasters } = await import(
+      "@/lib/data/readMediaPlans"
+    )
+    const { applyMasterOwnedOverlayByMba } = await import(
+      "@/lib/api/overlayMasterOwnedListFields"
+    )
+    const [all, masters] = await Promise.all([
+      readPlanVersions(),
+      readPlanMasters(),
+    ])
+    const latestByMba = new Map<string, any>()
+    for (const plan of all) {
+      const mba = plan?.mba_number
+      if (!mba) continue
+      const existing = latestByMba.get(String(mba))
+      const planVn = Number(plan.version_number) || 0
+      const existingVn = Number(existing?.version_number) || 0
+      if (
+        !existing ||
+        existingVn < planVn ||
+        (existingVn === planVn && Number(existing?.id || 0) < Number(plan.id || 0))
+      ) {
+        latestByMba.set(String(mba), plan)
+      }
+    }
+    const latest = Array.from(latestByMba.values()).map(stripScheduleFields)
+    return applyMasterOwnedOverlayByMba(latest, masters)
+  }
+
+  // shadow / xano: serve Xano `_latest` (shadow compare happens via readPlanVersions elsewhere)
+  if (getDataBackendFor("plans") === "shadow") {
+    void import("@/lib/data/readMediaPlans").then(({ readPlanVersions }) =>
+      readPlanVersions().catch((err) =>
+        console.error("[mediaPlanVersionsCache] plans shadow compare failed", err)
+      )
+    )
+  }
+
   const { items, complete } = await fetchAllXanoPagesWithCompleteness(
     versionsUrl(),
     { include_schedules: false },

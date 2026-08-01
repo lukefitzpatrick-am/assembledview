@@ -7,6 +7,7 @@ import {
   xanoUrl,
 } from "@/lib/api/xano"
 import { getCachedMediaPlanVersions } from "@/lib/api/mediaPlanVersionsCache"
+import { overlayMasterOwnedListFields } from "@/lib/api/overlayMasterOwnedListFields"
 import {
   parseVersionNumber,
   publishedVersionFromMaster,
@@ -19,8 +20,19 @@ import {
  *
  * Versions come from `getCachedMediaPlanVersions` (shared `_latest` walk with the
  * dashboard) so a cold start hits `media_plan_versions_latest` once for both.
- * Masters overlay `version_number` only; versions without a master row are kept.
+ * Masters overlay published `version_number` plus master-owned scalars that Xano
+ * `_latest` carried inline (notably `mp_client_name`); Postgres version rows omit
+ * those. Versions without a master row are kept.
+ *
+ * Master-owned overlay lives in `overlayMasterOwnedListFields.ts` — shared with
+ * `mediaPlanVersionsCache` (dashboard `/api/media_plans`). Twin-file: change both.
  */
+
+/** Re-export for list-cache consumers / tests (canonical: overlayMasterOwnedListFields.ts). */
+export {
+  MEDIA_PLANS_LIST_MASTER_OWNED_STRING_FIELDS,
+  overlayMasterOwnedListFields,
+} from "@/lib/api/overlayMasterOwnedListFields"
 
 const DEFAULT_TTL_MS = 60_000
 const PAGE_SIZE = 100
@@ -77,6 +89,11 @@ async function fetchVersionsForList(): Promise<{
 }
 
 async function fetchMasters(): Promise<any[]> {
+  const { getDataBackendFor } = await import("@/lib/data/backend")
+  if (getDataBackendFor("plans") !== "xano") {
+    const { readPlanMasters } = await import("@/lib/data/readMediaPlans")
+    return readPlanMasters()
+  }
   const { items, complete } = await fetchAllXanoPagesWithCompleteness(
     mediaPlansUrl("media_plan_master"),
     {},
@@ -145,14 +162,14 @@ async function mergeLatestVersionsWithMasters(
     }
   }
 
-  // Master overlay: version_number from published watermark.
-  // If `_latest` is an unpublished staged row (vn > master), resolve the
-  // published row instead of rewriting the number on staged content.
+  // Master overlay: published version_number watermark + master-owned scalars
+  // (mp_client_name). If `_latest` is an unpublished staged row (vn > master),
+  // resolve the published row instead of rewriting the number on staged content.
   const merged = await Promise.all(
     Array.from(latestByMba.values()).map(async (versionPlan) => {
       const masterData = masterMap.get(versionPlan.mba_number)
       if (!masterData || masterData.version_number === undefined) {
-        return versionPlan
+        return overlayMasterOwnedListFields(versionPlan, masterData)
       }
       const published = publishedVersionFromMaster(masterData)
       const planVn = parseVersionNumber(versionPlan.version_number)
@@ -162,20 +179,26 @@ async function mergeLatestVersionsWithMasters(
           published,
         )
         if (publishedRow) {
-          return {
-            ...publishedRow,
-            version_number: masterData.version_number,
-          }
+          return overlayMasterOwnedListFields(
+            {
+              ...publishedRow,
+              version_number: masterData.version_number,
+            },
+            masterData,
+          )
         }
         console.warn(
           `[mediaPlansListCache] omitting unpublished staged list row mba=${versionPlan.mba_number} vn=${planVn} published=${published}`,
         )
         return null
       }
-      return {
-        ...versionPlan,
-        version_number: masterData.version_number,
-      }
+      return overlayMasterOwnedListFields(
+        {
+          ...versionPlan,
+          version_number: masterData.version_number,
+        },
+        masterData,
+      )
     }),
   )
   return merged.filter((row): row is any => row != null)
@@ -292,7 +315,7 @@ export async function fetchMediaPlansListFallback(): Promise<any[]> {
       Array.from(latestByMba.values()).map(async (plan) => {
         const masterData = masterMap.get(plan.mba_number)
         if (!masterData || masterData.version_number === undefined) {
-          return plan
+          return overlayMasterOwnedListFields(plan, masterData)
         }
         const published = publishedVersionFromMaster(masterData)
         const planVn = parseVersionNumber(plan.version_number)
@@ -302,11 +325,17 @@ export async function fetchMediaPlansListFallback(): Promise<any[]> {
             published,
           )
           if (publishedRow) {
-            return { ...publishedRow, version_number: masterData.version_number }
+            return overlayMasterOwnedListFields(
+              { ...publishedRow, version_number: masterData.version_number },
+              masterData,
+            )
           }
           return null
         }
-        return { ...plan, version_number: masterData.version_number }
+        return overlayMasterOwnedListFields(
+          { ...plan, version_number: masterData.version_number },
+          masterData,
+        )
       }),
     )
   ).filter((row): row is any => row != null)

@@ -176,6 +176,7 @@ export default function MediaContainerBestPracticePage() {
                         id={`active-${container.key}`}
                         checked={draft.is_active}
                         onCheckedChange={(checked) => updateDraft(container.key, { is_active: checked })}
+                        aria-label={`Active: ${container.key}`}
                       />
                       <Label htmlFor={`active-${container.key}`}>Active</Label>
                     </div>

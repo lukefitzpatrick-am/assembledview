@@ -47,4 +47,22 @@ tmp-slide16-test.pptx
 *.zip
 xano-metadata-token.txt
 
+# Xano / migration snapshots (large; regenerate via npm run xano:export)
+/exports/
+
 .worktrees/
+
+# O1 / local scratch — never track
+/_to_delete/
+/tmp/
+scripts/ps1-sec-live-probe.mjs
+
+# drizzle-kit pull scratch
+/db/_pull_live/
+
+# O5 KPI percent-unit scan CSVs (regenerate via npm run scan:kpi-percent-units)
+/scripts/data/kpi-percent-unit-scan/
+
+# PC6 matcher replay output (regenerate via npm run replay:pc6-matcher)
+/pc6-matcher-replay-report.json
+

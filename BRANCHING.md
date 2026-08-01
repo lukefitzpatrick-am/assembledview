@@ -150,6 +150,30 @@ git cherry-pick <whatever-was-on-main-only>
 - **No merging `localhost` into `main`** (merge commits on `main` are not allowed — cherry-pick only, which keeps `main` linear).
 - **No leaving branches around.** If you find an orphaned branch, delete it (`git branch -D <name>` locally, `git push origin --delete <name>` if remote).
 
+## V2 exception — one-time merge of `localhost` into `main`
+
+**Named event:** V2 cutover merge, 2 Aug 2026 — `localhost` → `main`.
+
+This is a **one-time, named exception** to the standing rule that `main` is updated only by cherry-pick (no merge of `localhost` into `main`). It exists solely for the V2 cutover. It does not authorize any other merge, any other day, or any other operator improvisation.
+
+### Entry gate (all must be true before Luke executes the merge)
+
+1. Overnight + S-series commits are gate-reviewed.
+2. Prod-mode smoke is green — see `av-review/v2-sunday-pickup-2026-08-02.md`.
+3. Krusty/krabby rescan-to-zero is done.
+
+### Who executes
+
+Luke only, on his explicit go. Agents do not run `git merge` into `main`, do not push `main`, and do not prepare the merge beyond documenting this exception.
+
+### Rollback
+
+Redeploy the recorded prior production deployment ID. Finance sections have no feature flag — env flips do not cover them. Rollback is a deploy rollback, not a flag toggle.
+
+### After the event
+
+Standing branching rules in this document resume unchanged: cherry-pick only to `main`, no merge of `localhost` into `main`, no force-push, no other branches.
+
 ## When this document is wrong
 
 If practice diverges from this doc — for instance, if a new genuine reason for a feature branch emerges — fix the doc in the same commit as the practice change. Don't let drift accumulate.

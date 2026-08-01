@@ -5,6 +5,7 @@ import type {
 import type { DirectBurstStatus, DirectCampaignGroup } from "@/lib/pacing/direct/types"
 import type { ProgrammaticChannelFamily } from "@/lib/pacing/programmatic/types"
 import type { PacingFilterStatusBand } from "@/lib/pacing/pacingFilters"
+import { matchText, normalizeSearchText } from "@/lib/search/matchText"
 
 export type PacingRowFilterAccessors<T> = {
   clientName: (row: T) => string
@@ -21,8 +22,9 @@ export type PacingRowFilterInput = {
   search: string
 }
 
+/** Exact-key normaliser for client/media/status sets — diacritic-tolerant, scope unchanged. */
 function norm(value: string): string {
-  return value.trim().toLowerCase()
+  return normalizeSearchText(value)
 }
 
 function selectedClientNames(
@@ -37,22 +39,38 @@ function selectedClientNames(
   return names
 }
 
+/**
+ * True when the user selected client_ids but the id→name map is empty.
+ * Callers must fail closed (show zero rows + an explicit unavailable state),
+ * never silently skip the client predicate.
+ */
+export function isPacingClientFilterUnresolved(
+  clientIds: readonly string[],
+  clientIdToName: Map<string, string>,
+): boolean {
+  return clientIds.length > 0 && clientIdToName.size === 0
+}
+
 export function applyPacingRowFilters<T>(
   rows: T[],
   filters: PacingRowFilterInput,
   accessors: PacingRowFilterAccessors<T>,
   clientIdToName: Map<string, string>,
 ): T[] {
-  // Skip client filter until the id→name map has loaded (avoids empty flash).
+  // Fail closed: selected clients with no lookup map must not widen to all rows.
+  if (isPacingClientFilterUnresolved(filters.client_ids, clientIdToName)) {
+    return []
+  }
+
   const clientNames =
-    filters.client_ids.length > 0 && clientIdToName.size > 0
+    filters.client_ids.length > 0
       ? selectedClientNames(filters.client_ids, clientIdToName)
       : null
   const mediaSet =
     filters.media_types.length > 0 ? new Set(filters.media_types.map(norm)) : null
   const statusSet =
     filters.statuses.length > 0 ? new Set(filters.statuses.map(norm)) : null
-  const searchQ = filters.search.trim() ? norm(filters.search) : null
+  const searchQ = filters.search.trim() ? filters.search : null
 
   return rows.filter((row) => {
     if (clientNames && !clientNames.has(norm(accessors.clientName(row)))) {
@@ -64,7 +82,8 @@ export function applyPacingRowFilters<T>(
     if (statusSet && !statusSet.has(norm(accessors.status(row)))) {
       return false
     }
-    if (searchQ && !norm(accessors.searchText(row)).includes(searchQ)) {
+    // Text is free-text; client_ids stay exact Set membership (fail-closed above).
+    if (searchQ && !matchText(accessors.searchText(row), searchQ)) {
       return false
     }
     return true
@@ -157,6 +176,10 @@ export function filterDirectCampaignGroups(
   filters: PacingRowFilterInput,
   clientIdToName: Map<string, string>,
 ): DirectCampaignGroup[] {
+  if (isPacingClientFilterUnresolved(filters.client_ids, clientIdToName)) {
+    return []
+  }
+
   const statusFiltered = groups
     .map((group) => {
       const lineItems = applyPacingRowFilters(

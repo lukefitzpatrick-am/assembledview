@@ -33,10 +33,24 @@ export function DeliveryPacingChart({
   const targetColor = brandColour ?? STATUS.ahead
   const actualColor = channelColorFor(deliverableLabel, 1)
 
+  const exportRows = pacing.weekLabels.map((week, i) => ({
+    week: week || String(i + 1),
+    date: targetCurve[i]?.date ?? "",
+    actual: pacing.actual[i],
+    target: pacing.target[i],
+    bandLow: pacing.bandLow[i],
+    bandHigh: pacing.bandHigh[i],
+  }))
+
   return (
     <BaseChartCard
       title={`Cumulative ${deliverableLabel}`}
       subtitle="Actual vs expected delivery envelope"
+      exportPage="pacing"
+      exportSeries={{
+        rows: exportRows,
+        columns: ["week", "date", "actual", "target", "bandLow", "bandHigh"],
+      }}
     >
       <PacingBandChart
         actual={pacing.actual}

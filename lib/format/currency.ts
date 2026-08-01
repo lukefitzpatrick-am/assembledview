@@ -1,3 +1,5 @@
+import { formatMoney, formatMoneyCompact } from "@/lib/format/money"
+
 export type FormatCurrencyCompactOptions = {
   currency?: string
   locale?: string
@@ -13,60 +15,71 @@ export type FormatCurrencyFullOptions = {
 const DEFAULT_LOCALE = "en-AU"
 const DEFAULT_CURRENCY = "AUD"
 const DEFAULT_FULL_MAX_FRACTION = 2
-const DEFAULT_COMPACT_MAX_FRACTION = 0
 
 function safeNumber(value: number): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0
 }
 
+/**
+ * Compact AUD for charts/KPI. Custom locale/currency options use the legacy
+ * formatMoney overload (editor/export callers) — whole dollars, not compact notation.
+ */
 export function formatCurrencyCompact(value: number, options?: FormatCurrencyCompactOptions): string {
-  const locale = options?.locale ?? DEFAULT_LOCALE
-  const currency = options?.currency ?? DEFAULT_CURRENCY
-  const maximumFractionDigits = DEFAULT_COMPACT_MAX_FRACTION
-  const safeValue = safeNumber(value)
-  if (safeValue === 0) {
-    return new Intl.NumberFormat(locale, {
-      style: "currency",
-      currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits,
-    }).format(0)
+  if (options?.locale || options?.currency) {
+    return (
+      formatMoney(safeNumber(value), {
+        locale: options.locale ?? DEFAULT_LOCALE,
+        currency: options.currency ?? DEFAULT_CURRENCY,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }) || formatMoney(0, { decimals: 0 })
+    )
   }
-  return new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency,
-    notation: "compact",
-    minimumFractionDigits: 0,
-    maximumFractionDigits,
-  }).format(safeValue)
+  return formatMoneyCompact(safeNumber(value))
 }
 
 export function formatCurrencyFull(value: number, options?: FormatCurrencyFullOptions): string {
   const locale = options?.locale ?? DEFAULT_LOCALE
   const currency = options?.currency ?? DEFAULT_CURRENCY
   const maximumFractionDigits = options?.maximumFractionDigits ?? DEFAULT_FULL_MAX_FRACTION
-  const minimumFractionDigits = options?.minimumFractionDigits
-  const fmt: Intl.NumberFormatOptions = {
-    style: "currency",
-    currency,
-    maximumFractionDigits,
+  const minimumFractionDigits =
+    options?.minimumFractionDigits !== undefined
+      ? options.minimumFractionDigits
+      : maximumFractionDigits
+
+  if (
+    locale === DEFAULT_LOCALE &&
+    currency === DEFAULT_CURRENCY &&
+    maximumFractionDigits === 2 &&
+    minimumFractionDigits === 2
+  ) {
+    return formatMoney(safeNumber(value))
   }
-  if (minimumFractionDigits !== undefined) {
-    fmt.minimumFractionDigits = minimumFractionDigits
+
+  if (
+    locale === DEFAULT_LOCALE &&
+    currency === DEFAULT_CURRENCY &&
+    maximumFractionDigits === 0 &&
+    minimumFractionDigits === 0
+  ) {
+    return formatMoney(safeNumber(value), { decimals: 0 })
   }
-  return new Intl.NumberFormat(locale, fmt).format(safeNumber(value))
+
+  // Legacy path: explicit locale/currency/fraction options (do not change call sites).
+  return (
+    formatMoney(safeNumber(value), {
+      locale,
+      currency,
+      minimumFractionDigits,
+      maximumFractionDigits,
+    }) || formatMoney(0)
+  )
 }
 
 /**
  * Whole-dollar AUD (legacy chart / tooltip / hero style).
- * Equivalent to `formatCurrencyFull(v, { currency: "AUD", locale: "en-AU", maximumFractionDigits: 0, minimumFractionDigits: 0 })`.
- * Kept for backwards compatibility with prior `lib/charts/format` behaviour. Prefer `formatCurrencyFull` when you need cents.
+ * Prefer {@link formatMoney} with `{ decimals: 0 }` for new call sites.
  */
 export function formatCurrencyAUD(value: number): string {
-  return formatCurrencyFull(value, {
-    currency: "AUD",
-    locale: "en-AU",
-    maximumFractionDigits: 0,
-    minimumFractionDigits: 0,
-  })
+  return formatMoney(safeNumber(value), { decimals: 0 })
 }

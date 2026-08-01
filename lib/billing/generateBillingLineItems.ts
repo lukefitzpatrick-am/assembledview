@@ -3,6 +3,7 @@ import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { resolveLineDimensions } from "@/lib/finance/resolveLineDimensions"
 import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
+import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { resolveProductionBurstBudget } from "@/lib/mediaplan/resolveProductionBurstBudget"
 
@@ -86,8 +87,22 @@ export function generateBillingLineItems(
           clientPaysForMedia
       )
 
-      const netMedia = budgetIncludesFees ? (budget * (100 - feePct)) / 100 : budget
-      const effectiveBudget = mode === "billing" ? (burstClientPaysForMedia ? 0 : netMedia) : netMedia
+      // C-7: one fee engine — media/fee split via computeBurstAmounts (all 4 branches).
+      const buyType = String(
+        burst.buyType ??
+          burst.buy_type ??
+          (lineItem as any)?.buyType ??
+          (lineItem as any)?.buy_type ??
+          ""
+      )
+      const { mediaAmount, deliveryMediaAmount } = computeBurstAmounts({
+        rawBudget: budget,
+        budgetIncludesFees,
+        clientPaysForMedia: burstClientPaysForMedia,
+        feePct,
+        buyType,
+      })
+      const effectiveBudget = mode === "billing" ? mediaAmount : deliveryMediaAmount
 
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || effectiveBudget === 0) return
 

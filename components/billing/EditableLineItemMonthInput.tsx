@@ -19,6 +19,7 @@ export type EditableLineItemMonthInputProps = {
   onCommit: (rawValue: string) => void
   onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>
   onFocus?: React.FocusEventHandler<HTMLInputElement>
+  disabled?: boolean
 }
 
 /**
@@ -34,6 +35,7 @@ export function EditableLineItemMonthInput({
   onCommit,
   onKeyDown,
   onFocus,
+  disabled = false,
 }: EditableLineItemMonthInputProps) {
   const [focused, setFocused] = useState(false)
   const [draft, setDraft] = useState("")
@@ -45,19 +47,27 @@ export function EditableLineItemMonthInput({
       type="text"
       inputMode="decimal"
       id={id}
+      disabled={disabled}
+      readOnly={disabled}
       className={cn("text-right w-28", className)}
       value={displayValue}
       onFocus={(e) => {
+        if (disabled) return
         setFocused(true)
         setDraft(formatter.format(amount))
         onFocus?.(e)
       }}
       onChange={(e) => {
+        if (disabled) return
         const next = e.target.value
         setDraft(next)
         onAmountChange(parseBillingAmountInput(next))
       }}
       onBlur={() => {
+        if (disabled) {
+          setFocused(false)
+          return
+        }
         onCommit(draft)
         setFocused(false)
       }}

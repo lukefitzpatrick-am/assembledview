@@ -1,3 +1,5 @@
+import { formatMoney } from "@/lib/format/money"
+import { formatDateShort } from "@/lib/format/date"
 /**
  * Pure social delivery metric helpers extracted from SocialDeliveryContainer.
  */
@@ -301,21 +303,11 @@ function parseBursts(raw: SocialLineItem["bursts"] | SocialLineItem["bursts_json
 
 
 export function formatCurrency(value: number | undefined) {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value ?? 0)
+  return formatMoney(value ?? 0)
 }
 
 export function formatCurrency2dp(value: number | undefined) {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value ?? 0)
+  return formatMoney(value ?? 0)
 }
 
 export function formatNumber(value: number | undefined) {
@@ -327,14 +319,7 @@ export function formatWholeNumber(value: number | undefined) {
 }
 
 function formatDateAU(dateString: string | undefined) {
-  if (!dateString) return "—"
-  const d = new Date(dateString)
-  if (Number.isNaN(d.getTime())) return dateString
-  return new Intl.DateTimeFormat("en-AU", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(d)
+  return formatDateShort(dateString)
 }
 
 function formatChartDateLabel(iso: string | undefined) {

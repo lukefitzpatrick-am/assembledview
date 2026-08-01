@@ -16,8 +16,6 @@ import { buildDonutSlices } from "@/lib/charts-app/donutSlices"
 import { getDeterministicColor, getMediaLabel } from "@/lib/charts/registry"
 import { channelColorFor, fmt } from "@/lib/chart-theme"
 import { fyDisplayLabel } from "@/lib/finance/months"
-import { formatCurrencyAUD } from "@/lib/format/currency"
-
 export type MonthlySpendData = {
   month: string
   data: Array<{
@@ -88,38 +86,6 @@ function toCampaignStacked(data: MonthlySpendByCampaignData[]): MonthlyStackedEn
   }))
 }
 
-function buildMonthlyCsvRows(
-  data: MonthlyStackedEntry[],
-  hiddenKeys: Set<string>,
-  getLabel: (key: string) => string,
-): Array<{ Month: string; Category: string; Amount: string }> {
-  const rows: Array<{ Month: string; Category: string; Amount: string }> = []
-  for (const month of data) {
-    for (const item of month.data) {
-      const key = resolveEntryKey(item)
-      if (hiddenKeys.has(key) || item.amount <= 0) continue
-      rows.push({
-        Month: month.month,
-        Category: getLabel(key),
-        Amount: formatCurrencyAUD(item.amount),
-      })
-    }
-  }
-  return rows
-}
-
-const MONTHLY_CSV_COLUMNS = [
-  { header: "Month", accessor: "Month" as const },
-  { header: "Category", accessor: "Category" as const },
-  { header: "Amount", accessor: "Amount" as const },
-]
-
-const DONUT_CSV_COLUMNS = [
-  { header: "Name", accessor: "Name" as const },
-  { header: "Value", accessor: "Value" as const },
-  { header: "Percentage", accessor: "Percentage" as const },
-]
-
 const CHART_HEIGHT = "aspect-auto h-[280px] w-full"
 
 export function SpendingInsightsSection({
@@ -161,11 +127,6 @@ export function SpendingInsightsSection({
 
   const monthlyChartTitle =
     monthlyView === "mediaType" ? "Monthly spend by media type" : "Monthly spend by campaign"
-
-  const monthlyCsvRows = useMemo(
-    () => buildMonthlyCsvRows(activeMonthlyStacked, hiddenKeys, getSeriesLabel),
-    [activeMonthlyStacked, hiddenKeys, getSeriesLabel],
-  )
 
   const pivotedMonthly = useMemo(
     () =>
@@ -274,26 +235,6 @@ export function SpendingInsightsSection({
     [mediaDonutSlices],
   )
 
-  const campaignCsvRows = useMemo(
-    () =>
-      campaignDonutSlices.map((slice) => ({
-        Name: slice.label,
-        Value: formatCurrencyAUD(slice.value),
-        Percentage: `${slice.percentage.toFixed(1)}%`,
-      })),
-    [campaignDonutSlices],
-  )
-
-  const mediaCsvRows = useMemo(
-    () =>
-      mediaDonutSlices.map((slice) => ({
-        Name: getMediaLabel(slice.key),
-        Value: formatCurrencyAUD(slice.value),
-        Percentage: `${slice.percentage.toFixed(1)}%`,
-      })),
-    [mediaDonutSlices],
-  )
-
   const hasMonthlyData = activeMonthlyStacked.some((m) =>
     m.data.some((d) => d.amount > 0),
   )
@@ -371,13 +312,12 @@ export function SpendingInsightsSection({
           description="Australian financial year (Jul–Jun)"
           chartAreaRef={monthlyChartRef}
           chartAreaClassName="min-h-[360px] w-full"
-          csvRows={monthlyCsvRows}
-          csvColumns={MONTHLY_CSV_COLUMNS}
-          csvFilename={
-            monthlyView === "mediaType"
-              ? "monthly-spend-by-media-type"
-              : "monthly-spend-by-campaign"
-          }
+          exportPage="dashboard"
+          exportSeries={{
+            data: pivotedMonthly,
+            xKey: "month",
+            seriesKeys: monthlySeries.map((s) => s.key),
+          }}
         >
           {hasMonthlyData ? (
             <div className="space-y-3">
@@ -409,9 +349,12 @@ export function SpendingInsightsSection({
             description="Distribution of spending across campaigns"
             chartAreaRef={campaignPieRef}
             chartAreaClassName="min-h-[360px] w-full"
-            csvRows={campaignCsvRows}
-            csvColumns={DONUT_CSV_COLUMNS}
-            csvFilename="spend-by-campaign"
+            exportPage="dashboard"
+            exportSeries={{
+              data: campaignDonutData,
+              xKey: "label",
+              seriesKeys: ["value"],
+            }}
           >
             {campaignData.length > 0 && campaignTotal > 0 ? (
               <DonutChart
@@ -435,9 +378,12 @@ export function SpendingInsightsSection({
             description="Distribution of spending across media types"
             chartAreaRef={mediaPieRef}
             chartAreaClassName="min-h-[360px] w-full"
-            csvRows={mediaCsvRows}
-            csvColumns={DONUT_CSV_COLUMNS}
-            csvFilename="spend-by-media-type"
+            exportPage="dashboard"
+            exportSeries={{
+              data: mediaDonutData,
+              xKey: "label",
+              seriesKeys: ["value"],
+            }}
           >
             {mediaTypeData.length > 0 && mediaTotal > 0 ? (
               <DonutChart

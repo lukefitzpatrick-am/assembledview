@@ -16,6 +16,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { AdServingPacingCampaignRow } from "@/lib/pacing/ad-serving/types";
+import { PACING_TABLE_SCROLL_CLASSNAME } from "@/components/pacing/pacingTableScroll";
+import { pacingStatusFromBand } from "@/lib/pacing/status";
 import { cn } from "@/lib/utils";
 
 const MISSING = "\u2014";
@@ -175,6 +177,15 @@ function channelLabel(family: AdServingPacingCampaignRow["channelFamily"]): stri
   }
 }
 
+function AdServingNoDataBadge() {
+  const noData = pacingStatusFromBand("no-data");
+  return (
+    <Badge variant={noData.badgeVariant} size="sm" className="whitespace-nowrap text-[10px]">
+      {noData.label}
+    </Badge>
+  );
+}
+
 function SortTh({
   label,
   column,
@@ -270,7 +281,7 @@ export function AdServingLineItemTable({
         </Button>
       </div>
       <div className="rounded border">
-        <div className="relative max-h-[calc(100vh-220px)] overflow-auto">
+        <div className={PACING_TABLE_SCROLL_CLASSNAME}>
           <table
             className={cn("w-full text-xs", moreColumns ? "min-w-[1100px]" : "min-w-[760px]")}
             style={{ borderSpacing: 0 }}
@@ -423,7 +434,7 @@ export function AdServingLineItemTable({
                         Serving
                       </Badge>
                     ) : (
-                      <span className="text-muted-foreground">No data yet</span>
+                      <AdServingNoDataBadge />
                     )}
                   </td>
                   <td className="p-2 text-right num">{fmtNum(row.impressions)}</td>

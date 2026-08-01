@@ -1,10 +1,7 @@
-import axios from "axios"
-import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
-// REVIEW: Prefer importing only from server modules / route handlers (no browser bundle).
-import { getCachedClients } from "@/lib/cache/clientsCache"
-
 /**
  * Client slug for pacing plan scope (from Xano client display name).
+ * Keep this module free of top-level `server-only` imports so pure helpers
+ * stay testable under `tsx --test` / node:test.
  */
 export function slugifyPlanClientName(value: unknown): string {
   const s = String(value ?? "").trim().toLowerCase()
@@ -39,23 +36,18 @@ export function buildPlanSlugToClientIdMap(rows: Record<string, unknown>[]): Map
   return m
 }
 
-/** Xano `get_clients` rows (uses clients cache when warm). */
+/** Client catalog rows (uses clients cache when warm; cold path → readClientsList / T2a). */
 export async function fetchPacingClientCatalogRows(): Promise<Record<string, unknown>[]> {
+  // Dynamic import keeps slugify tests free of `server-only` (clientsCache → readClients).
+  const { getCachedClients, getCachedClientsList } = await import("@/lib/cache/clientsCache")
   const cached = getCachedClients()
   if (cached?.length) return cached as Record<string, unknown>[]
   try {
-    const response = await axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL"), {
-      headers: xanoAuthHeaderRecord(),
-    })
-    const data = response.data
-    if (Array.isArray(data)) return data as Record<string, unknown>[]
-    if (data && typeof data === "object" && Array.isArray((data as { data?: unknown }).data)) {
-      return (data as { data: Record<string, unknown>[] }).data
-    }
+    const { data } = await getCachedClientsList()
+    return (data ?? []) as Record<string, unknown>[]
   } catch {
-    // fall through
+    return []
   }
-  return []
 }
 
 export type ResolveClientSlugsDeps = {

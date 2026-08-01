@@ -29,7 +29,7 @@ const PanelRow = React.forwardRef<HTMLElement, PanelRowProps>(
           {hasHeading ? (
             <div className="min-w-0 space-y-1.5">
               {title != null ? (
-                <h3 className="text-base font-semibold leading-none tracking-tight text-foreground">{title}</h3>
+                <h2 className="text-base font-semibold leading-none tracking-tight text-foreground">{title}</h2>
               ) : null}
               {helperText != null ? <p className="text-sm text-muted-foreground">{helperText}</p> : null}
             </div>

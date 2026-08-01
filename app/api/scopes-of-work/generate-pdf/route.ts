@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { generateScopeOfWork } from "@/lib/generateScopeOfWork"
+import { requireRole } from "@/lib/requireRole"
+import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 
 const SMART_DOUBLE_QUOTES = new Set(["\u201C", "\u201D", "\u201E", "\u201F", "\u2033", "\u2036"])
 const SMART_SINGLE_QUOTES = new Set(["\u2018", "\u2019", "\u201A", "\u201B", "\u2032", "\u2035"])
@@ -62,38 +64,57 @@ function sanitizeFilename(name: string): string {
   return collapsed.slice(start, end).slice(0, 100)
 }
 
+/**
+ * PC3 — SOW PDF locked to admin/manager.
+ * When `id` is provided, render from the persisted SOW record; otherwise admin
+ * create-before-save may still send the form body.
+ */
 export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
+  const gate = await requireRole(req, ["admin"])
+  if ("response" in gate) return gate.response
 
-    // Basic validation
-    if (!body.project_name || !body.client_name) {
-      return NextResponse.json({ error: "Missing required scope data" }, { status: 400 });
+  try {
+    const body = await req.json()
+
+    let payload = body
+    const sowId = body?.id != null ? Number(body.id) : NaN
+    if (Number.isFinite(sowId) && sowId > 0) {
+      const res = await fetch(`${xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL")}/${sowId}`, {
+        headers: xanoAuthHeaderRecord(),
+        cache: "no-store",
+      })
+      if (!res.ok) {
+        return NextResponse.json(
+          { error: `Persisted SOW ${sowId} not found`, code: "NOT_FOUND" },
+          { status: 404 }
+        )
+      }
+      payload = await res.json()
     }
 
-    // Generate the PDF buffer
-    const pdfBuffer = await generateScopeOfWork(body);
+    if (!payload.project_name || !payload.client_name) {
+      return NextResponse.json({ error: "Missing required scope data" }, { status: 400 })
+    }
 
-    // Sanitize filenames to remove Unicode characters
-    const sanitizedClientName = sanitizeFilename(body.client_name);
-    const sanitizedProjectName = sanitizeFilename(body.project_name);
-    const filename = `Scope_${sanitizedClientName}_${sanitizedProjectName}.pdf`;
-    
+    const pdfBuffer = await generateScopeOfWork(payload)
+
+    const sanitizedClientName = sanitizeFilename(String(payload.client_name))
+    const sanitizedProjectName = sanitizeFilename(String(payload.project_name))
+    const filename = `Scope_${sanitizedClientName}_${sanitizedProjectName}.pdf`
+
     return new NextResponse(pdfBuffer, {
       status: 200,
       headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${filename}"`,
       },
-    });
-
+    })
   } catch (error) {
-    console.error('Error generating Scope PDF:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return NextResponse.json({ error: 'Failed to generate PDF', details: errorMessage }, { status: 500 });
+    console.error("Error generating Scope PDF:", error)
+    const errorMessage = error instanceof Error ? error.message : "An unknown error occurred"
+    return NextResponse.json(
+      { error: "Failed to generate PDF", details: errorMessage },
+      { status: 500 }
+    )
   }
 }
-
-
-
-

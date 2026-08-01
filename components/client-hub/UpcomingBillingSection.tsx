@@ -9,7 +9,7 @@ import {
   combineFinanceCampaignLists,
   sumCampaignTotals,
 } from "@/lib/finance/upcomingBillingAggregate"
-import { formatAUD } from "@/lib/format/money"
+import { formatAUD, formatMoneyCompact } from "@/lib/format/money"
 import { ProgressBar } from "@/components/ui/ProgressBar"
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 
@@ -22,15 +22,6 @@ function readNumberField(record: Record<string, unknown> | null, key: string): n
     return Number.isNaN(n) ? 0 : n
   }
   return 0
-}
-
-function formatAudCompact(value: number): string {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  }).format(value)
 }
 
 type MonthBlock = {
@@ -229,7 +220,7 @@ export function UpcomingBillingSection({
                       <div key={`${block.key}-${row.label}`}>
                         <div className="mb-1 flex items-center justify-between gap-2 text-xs">
                           <span className="min-w-0 truncate text-foreground">{row.label}</span>
-                          <span className="num shrink-0 text-muted-foreground">{formatAudCompact(row.amount)}</span>
+                          <span className="num shrink-0 text-muted-foreground">{formatMoneyCompact(row.amount)}</span>
                         </div>
                         <ProgressBar value={row.amount} max={maxAmt} size="sm" color="info" animated={false} />
                       </div>

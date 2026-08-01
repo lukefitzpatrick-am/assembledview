@@ -1,4 +1,9 @@
-export type PacingFilterStatusBand = "behind" | "on-track" | "ahead" | "no-data"
+export type PacingFilterStatusBand =
+  | "behind"
+  | "on-track"
+  | "ahead"
+  | "over-pacing"
+  | "no-data"
 
 export const PACING_MEDIA_TYPE_OPTIONS = [
   { value: "search", label: "Search" },
@@ -11,11 +16,12 @@ export const PACING_MEDIA_TYPE_OPTIONS = [
   { value: "direct", label: "Direct" },
 ] as const
 
-/** Filter list only — 4 bands carried on search/social/programmatic rows. */
+/** Filter list — spend bands on search/social/programmatic rows (same vocabulary as Status cells). */
 export const PACING_STATUS_OPTIONS: { value: PacingFilterStatusBand; label: string }[] = [
   { value: "behind", label: "Behind" },
   { value: "on-track", label: "On track" },
   { value: "ahead", label: "Ahead" },
+  { value: "over-pacing", label: "Over-pacing" },
   { value: "no-data", label: "No data" },
 ]
 

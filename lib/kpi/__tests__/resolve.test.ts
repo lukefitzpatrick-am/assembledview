@@ -229,6 +229,38 @@ test("4. Publisher tier accepts CTR 0 (no client/saved, publisher match)", () =>
   assert.equal(row.source, "publisher")
 })
 
+test("4b. Publisher unset (null) metrics are excluded; explicit 0 is honoured", () => {
+  const li = lineItem()
+  const pub: PublisherKPI = {
+    id: 1,
+    created_at: 0,
+    media_type: "digiDisplay",
+    publisher: "acme",
+    bid_strategy: "clicks",
+    cpv: null,
+    ctr: 0,
+    conversion_rate: null,
+    vtr: null,
+    frequency: null,
+  }
+  const [row] = resolveKPIsForMediaType({
+    lineItems: [li],
+    mediaType: "digiDisplay",
+    clientName: "c",
+    mbaNumber: "M1",
+    versionNumber: 1,
+    campaignName: "camp",
+    savedCampaignKPIs: [],
+    clientKPIs: [],
+    publisherKPIs: [pub],
+  })
+  assert.equal(row.ctr, 0)
+  assert.equal(row.conversion_rate, null)
+  assert.equal(row.vtr, null)
+  assert.equal(row.frequency, null)
+  assert.equal(row.source, "publisher")
+})
+
 test("5. All missing at every tier => default, CTR null", () => {
   const li = lineItem()
   const [row] = resolveKPIsForMediaType({

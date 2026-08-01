@@ -5,6 +5,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { guides } from "@/src/data/learning/guides";
+import { hrefForGlossaryTerm } from "@/src/lib/learning/termLinks";
 import { ArrowLeft } from "lucide-react";
 
 type PageProps = { params: Promise<{ slug: string }> };
@@ -86,17 +87,21 @@ export default function GuideDetailPage({ params }: PageProps) {
           <div className="space-y-2">
             <h2 className="text-sm font-semibold">Related terms</h2>
             <div className="flex flex-wrap gap-2">
-              {guide.relatedTerms.map((term) => (
-                <Link
-                  key={term}
-                  href={`/knowledge/definitions?q=${encodeURIComponent(term)}`}
-                  className="rounded-pill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <Badge variant="outline" className="cursor-pointer bg-surface-muted text-text-secondary border-border">
-                    {term}
-                  </Badge>
-                </Link>
-              ))}
+              {guide.relatedTerms.map((term) => {
+                const href = hrefForGlossaryTerm(term)
+                if (!href) return null
+                return (
+                  <Link
+                    key={term}
+                    href={href}
+                    className="rounded-pill focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <Badge variant="outline" className="cursor-pointer bg-surface-muted text-text-secondary border-border">
+                      {term}
+                    </Badge>
+                  </Link>
+                )
+              })}
             </div>
           </div>
         ) : null}

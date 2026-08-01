@@ -2,14 +2,7 @@
 
 import * as React from "react"
 import { useRouter } from "next/navigation"
-import {
-  BookOpen,
-  Building2,
-  FileText,
-  HelpCircle,
-  LayoutDashboard,
-  TrendingUp,
-} from "lucide-react"
+import { HelpCircle, Search } from "lucide-react"
 
 import { useAuthContext } from "@/contexts/AuthContext"
 import {
@@ -23,6 +16,14 @@ import {
   CommandShortcut,
 } from "@/components/ui/command"
 import { Button } from "@/components/ui/button"
+import {
+  getAdminSidebarFooterNav,
+  getAdminSidebarNav,
+  getClientPaletteNav,
+  getPaletteNav,
+  type NavLink,
+} from "@/lib/nav/routeManifest"
+import { ROUTE_ICON_MAP } from "@/lib/nav/routeIcons"
 
 const RECENTS_STORAGE_KEY = "avmediaplan.commandPalette.recents"
 const MAX_RECENTS = 10
@@ -31,14 +32,6 @@ type RecentEntry = {
   href: string
   title: string
   at: number
-}
-
-type NavItem = {
-  title: string
-  href: string
-  icon: React.ComponentType<{ className?: string }>
-  /** Extra tokens for cmdk filtering */
-  searchTerms?: string
 }
 
 function loadRecents(): RecentEntry[] {
@@ -77,9 +70,6 @@ function recordRecent(href: string, title: string) {
   saveRecents(next)
 }
 
-/**
- * Mirrors AppSidebar: full internal nav for admin; client slug dashboard + Knowledge Hub for others.
- */
 function isHrefVisibleForUser(
   href: string,
   isAdmin: boolean,
@@ -87,6 +77,7 @@ function isHrefVisibleForUser(
 ): boolean {
   if (isAdmin) return true
   if (href === "/knowledge" || href.startsWith("/knowledge/")) return true
+  if (href === "/account" || href === "/profile" || href === "/support") return true
   if (userClient) {
     const base = `/dashboard/${userClient}`
     if (href === base || href.startsWith(`${base}/`)) return true
@@ -94,57 +85,39 @@ function isHrefVisibleForUser(
   return false
 }
 
-function getPrimaryNavItems(isAdmin: boolean, userClient: string | null): NavItem[] {
+/** Palette entries: manifest-driven; admin sidebar destinations always included first. */
+function getPrimaryNavItems(isAdmin: boolean, userClient: string | null): NavLink[] {
   if (isAdmin) {
-    return [
-      {
-        title: "Dashboard",
-        href: "/dashboard",
-        icon: LayoutDashboard,
-        searchTerms: "home",
-      },
-      {
-        title: "Publishers",
-        href: "/publishers",
-        icon: Building2,
-      },
-      {
-        title: "Pacing",
-        href: "/pacing",
-        icon: TrendingUp,
-      },
-      {
-        title: "Media plans",
-        href: "/mediaplans",
-        icon: FileText,
-        searchTerms: "campaigns mediaplans",
-      },
-      {
-        title: "Knowledge Hub",
-        href: "/knowledge",
-        icon: BookOpen,
-        searchTerms: "learning knowledge glossary definitions acronyms formulas",
-      },
-      {
-        title: "Calculators",
-        href: "/knowledge/calculators",
-        icon: BookOpen,
-        searchTerms: "calculator cpm roas media math knowledge",
-      },
-    ]
+    const sidebar = [...getAdminSidebarNav(), ...getAdminSidebarFooterNav()]
+    const sidebarPaths = new Set(sidebar.map((s) => s.path))
+    const rest = getPaletteNav(true)
+      .filter((item) => !item.path.includes("[") && !sidebarPaths.has(item.path))
+      .sort((a, b) => a.label.localeCompare(b.label))
+    return [...sidebar, ...rest]
   }
+  return getClientPaletteNav(userClient)
+}
 
-  const items: NavItem[] = []
-  if (userClient) {
-    items.push({
-      title: "Dashboard",
-      href: `/dashboard/${userClient}`,
-      icon: LayoutDashboard,
-      searchTerms: "home client",
-    })
-  }
-  items.push({ title: "Knowledge Hub", href: "/knowledge", icon: BookOpen, searchTerms: "learning knowledge glossary" })
-  return items
+export function CommandPaletteTrigger({ className }: { className?: string }) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className={className}
+      onClick={() => {
+        window.dispatchEvent(new CustomEvent("av:open-command-palette"))
+      }}
+      aria-label="Open command palette"
+      title="Search pages (⌘K / Ctrl+K)"
+    >
+      <Search className="mr-1.5 h-3.5 w-3.5" />
+      <span className="hidden sm:inline">Search</span>
+      <kbd className="pointer-events-none ml-2 hidden h-5 select-none items-center gap-0.5 rounded border border-border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground sm:inline-flex">
+        ⌘K
+      </kbd>
+    </Button>
+  )
 }
 
 export function CommandPalette() {
@@ -173,8 +146,13 @@ export function CommandPalette() {
         setOpen((v) => !v)
       }
     }
+    const onOpen = () => setOpen(true)
     window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
+    window.addEventListener("av:open-command-palette", onOpen)
+    return () => {
+      window.removeEventListener("keydown", onKey)
+      window.removeEventListener("av:open-command-palette", onOpen)
+    }
   }, [])
 
   React.useEffect(() => {
@@ -214,9 +192,28 @@ export function CommandPalette() {
             </Button>
             <span className="text-sm font-medium">Keyboard shortcuts</span>
           </div>
-          <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-            Shortcut cheat sheet — coming soon.
-          </div>
+          <ul className="space-y-3 px-4 py-5 text-sm">
+            <li className="flex items-center justify-between gap-4">
+              <span>Open command palette</span>
+              <CommandShortcut>⌘K / Ctrl+K</CommandShortcut>
+            </li>
+            <li className="flex items-center justify-between gap-4">
+              <span>Keyboard shortcuts (from palette)</span>
+              <CommandShortcut>?</CommandShortcut>
+            </li>
+            <li className="flex items-center justify-between gap-4">
+              <span>Navigate results</span>
+              <CommandShortcut>↑ ↓</CommandShortcut>
+            </li>
+            <li className="flex items-center justify-between gap-4">
+              <span>Open selected</span>
+              <CommandShortcut>Enter</CommandShortcut>
+            </li>
+            <li className="flex items-center justify-between gap-4">
+              <span>Close</span>
+              <CommandShortcut>Esc</CommandShortcut>
+            </li>
+          </ul>
         </>
       ) : (
         <>
@@ -254,15 +251,15 @@ export function CommandPalette() {
                 {recents.length > 0 ? <CommandSeparator /> : null}
                 <CommandGroup heading="Go to">
                   {primaryItems.map((item) => {
-                    const Icon = item.icon
+                    const Icon = item.icon ? ROUTE_ICON_MAP[item.icon] : null
                     return (
                       <CommandItem
-                        key={item.href}
-                        value={`${item.title} ${item.href} ${item.searchTerms ?? ""}`}
-                        onSelect={() => navigate(item.href, item.title)}
+                        key={item.path}
+                        value={`${item.label} ${item.path} ${item.searchTerms ?? ""}`}
+                        onSelect={() => navigate(item.path, item.label)}
                       >
-                        <Icon className="text-muted-foreground" />
-                        <span>{item.title}</span>
+                        {Icon ? <Icon className="text-muted-foreground" /> : null}
+                        <span>{item.label}</span>
                       </CommandItem>
                     )
                   })}

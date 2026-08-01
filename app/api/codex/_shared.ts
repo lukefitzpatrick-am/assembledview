@@ -1,88 +1,34 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import axios from "axios"
 import { auth0 } from "@/lib/auth0"
+import { isCodexV2Enabled } from "@/lib/codex/flag"
+import {
+  CODEX_SHADOW_ROLES,
+  userHasCodexShadowAccess,
+} from "@/lib/codex/shadowRoles"
 import { getUserRoles, type UserRole } from "@/lib/rbac"
-import { xanoAuthHeaderRecord } from "@/lib/api/xano"
 
-const API_TIMEOUT = Number(process.env.XANO_TIMEOUT_MS ?? 5000)
-/** Default 2 so the retry loop can actually retry once (was 1 = dead loop). */
-const MAX_RETRIES = Number(process.env.XANO_MAX_RETRIES ?? 2)
-const OVERALL_TIMEOUT_MS = Number(process.env.XANO_OVERALL_TIMEOUT_MS ?? 6000)
-const BACKOFF_BASE_MS = 500
-const BACKOFF_FACTOR = 2
-
-export const codexApiClient = axios.create({
-  timeout: API_TIMEOUT,
-  headers: {
-    "Content-Type": "application/json",
-    ...xanoAuthHeaderRecord(),
-  },
-})
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function backoffDelayMs(attemptIndex: number): number {
-  const base = BACKOFF_BASE_MS * Math.pow(BACKOFF_FACTOR, attemptIndex)
-  const jitter = base * (0.75 + Math.random() * 0.5)
-  return Math.round(jitter)
-}
-
-export async function retryApiCall<T>(
-  apiCall: () => Promise<T>,
-  maxRetries = MAX_RETRIES
-): Promise<T> {
-  let lastError: unknown
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      return await apiCall()
-    } catch (error) {
-      lastError = error
-      console.error(`Codex API call attempt ${attempt} failed:`, error)
-
-      if (attempt < maxRetries) {
-        const delayMs = backoffDelayMs(attempt - 1)
-        console.log(`Retrying in ${delayMs}ms...`)
-        await sleep(delayMs)
-      }
-    }
-  }
-
-  throw lastError
-}
-
-export async function withOverallTimeout<T>(promise: Promise<T>): Promise<T> {
-  let timer: NodeJS.Timeout | undefined
-  try {
-    return await Promise.race([
-      promise,
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(
-          () => reject(new Error("codex upstream timed out")),
-          OVERALL_TIMEOUT_MS
-        )
-      }),
-    ])
-  } finally {
-    if (timer) clearTimeout(timer)
-  }
-}
+/** Re-export for API consumers — source of truth is `lib/codex/shadowRoles.ts`. */
+export { CODEX_SHADOW_ROLES }
 
 export type CodexAuthOk = {
   session: NonNullable<Awaited<ReturnType<typeof auth0.getSession>>>
   roles: UserRole[]
 }
 
-export type CodexAuthResult =
-  | CodexAuthOk
-  | { error: NextResponse }
+export type CodexAuthResult = CodexAuthOk | { error: NextResponse }
+
+/** 404 when Codex v2 flag is off — checked before auth (module invisible). */
+export function codexFlagGuard(): NextResponse | null {
+  if (!isCodexV2Enabled()) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 })
+  }
+  return null
+}
 
 /**
- * Auth gate for codex proxy routes: require session; allow admin/manager only.
- * Client-only roles get 403 (client-visible tasks are a later phase).
+ * Auth gate for Codex routes: require session; allow CODEX_SHADOW_ROLES only.
+ * Client roles get 403.
  */
 export async function requireCodexInternalAccess(
   request: Request
@@ -95,11 +41,7 @@ export async function requireCodexInternalAccess(
   }
 
   const roles = getUserRoles(session.user)
-  const isClientOnly =
-    roles.length > 0 && roles.every((role) => role === "client")
-  const isInternal = roles.includes("admin") || roles.includes("manager")
-
-  if (isClientOnly || !isInternal) {
+  if (!userHasCodexShadowAccess(roles)) {
     return {
       error: NextResponse.json({ error: "forbidden" }, { status: 403 }),
     }
@@ -108,32 +50,23 @@ export async function requireCodexInternalAccess(
   return { session, roles }
 }
 
-export function axiosErrorResponse(error: unknown, fallbackMessage: string) {
-  if (axios.isAxiosError(error)) {
-    if (error.code === "ECONNABORTED") {
-      return NextResponse.json(
-        {
-          error: "Request timed out",
-          message: "The request to the API timed out. Please try again.",
-        },
-        { status: 504 }
-      )
-    }
-    return NextResponse.json(
-      {
-        error: fallbackMessage,
-        details: error.response?.data,
-        status: error.response?.status,
-        message: error.message,
-      },
-      { status: error.response?.status || 500 }
-    )
-  }
+export function sessionEmail(
+  session: CodexAuthOk["session"],
+  fallback?: string | null
+): string | null {
+  const fromSession =
+    typeof session.user?.email === "string" ? session.user.email.trim() : ""
+  const email = fromSession || fallback?.trim() || ""
+  return email ? email.toLowerCase() : null
+}
+
+export function jsonError(
+  status: number,
+  error: string,
+  message?: string
+): NextResponse {
   return NextResponse.json(
-    {
-      error: fallbackMessage,
-      message: error instanceof Error ? error.message : String(error),
-    },
-    { status: 500 }
+    message ? { error, message } : { error },
+    { status }
   )
 }

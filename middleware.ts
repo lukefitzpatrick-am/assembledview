@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth0 } from './lib/auth0';
+import { FINANCE_TAB_TO_SECTION_PATH } from './lib/finance/sections/nav';
 import { getUserClientIdentifier, getUserRoles } from './lib/rbac';
 
 const STATIC_PATHS = ['/favicon.ico', '/robots.txt', '/sitemap.xml'];
@@ -8,6 +9,10 @@ const PUBLIC_PATHS = ['/', '/forbidden'];
 const DEBUG_AUTH_ENABLED = process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true';
 
 const normalizePath = (p: string) => (p !== '/' && p.endsWith('/') ? p.slice(0, -1) : p);
+
+function isFinanceSectionsApiPath(pathname: string): boolean {
+  return pathname === '/api/finance/sections' || pathname.startsWith('/api/finance/sections/');
+}
 
 function isAllowedClientDashboardPath(pathname: string, clientSlug: string) {
   const base = `/dashboard/${clientSlug}`;
@@ -54,6 +59,13 @@ export async function middleware(request: NextRequest) {
 
     if (isClient && !clientSlug) {
       return NextResponse.json({ error: 'unauthorised' }, { status: 401 });
+    }
+
+    // Finance sections API namespace — admin-only, fail-closed (even before endpoints exist).
+    if (isFinanceSectionsApiPath(pathname)) {
+      if (!roles.includes('admin')) {
+        return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+      }
     }
 
     return continueResponse;
@@ -122,11 +134,49 @@ export async function middleware(request: NextRequest) {
     });
   }
 
+  // Fail closed: removed/unknown roles (e.g. legacy "manager") resolve to no
+  // recognised role — not admin. Block staff surfaces; allow escape hatches.
+  if (!redirectTarget && !isClient && !isAdmin) {
+    if (
+      pathname !== '/unauthorized' &&
+      pathname !== '/forbidden' &&
+      pathname !== '/knowledge' &&
+      !pathname.startsWith('/knowledge/')
+    ) {
+      redirectTarget = '/unauthorized';
+      reason = 'unrecognised-role';
+    }
+  }
+
   if (redirectTarget) {
     return NextResponse.redirect(new URL(redirectTarget, request.url));
   }
 
-  // Non-client users (admins/managers) can proceed.
+  // Finance sections IA (FN7 / FIN-1). Tab deep-links → section paths;
+  // bare /finance → Clients billing (/finance/invoicing). Overview home retired.
+  if (isAdmin && pathname === '/finance') {
+    const tab = request.nextUrl.searchParams.get('tab');
+    if (tab) {
+      const dest = FINANCE_TAB_TO_SECTION_PATH[tab];
+      if (dest) {
+        const url = new URL(dest, request.url);
+        // Preserve non-tab query (e.g. fmode) when present.
+        for (const [k, v] of request.nextUrl.searchParams.entries()) {
+          if (k === 'tab') continue;
+          url.searchParams.set(k, v);
+        }
+        return NextResponse.redirect(url);
+      }
+    }
+    const url = new URL('/finance/invoicing', request.url);
+    for (const [k, v] of request.nextUrl.searchParams.entries()) {
+      if (k === 'tab') continue;
+      url.searchParams.set(k, v);
+    }
+    return NextResponse.redirect(url);
+  }
+
+  // Recognised staff (admin) can proceed.
   return continueResponse;
 }
 

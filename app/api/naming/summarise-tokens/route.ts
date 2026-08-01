@@ -73,7 +73,7 @@ function asItems(raw: unknown): TokenSourceItem[] {
  * Always re-slugifies + validateValue + length-clamp; failures fall back to clamped slugify(raw).
  */
 export async function POST(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   let body: unknown

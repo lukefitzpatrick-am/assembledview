@@ -3,19 +3,24 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import type { DirectCampaignGroup } from "@/lib/pacing/direct/types";
 import { DirectCampaignsTable } from "@/components/pacing-direct/DirectCampaignsTable";
-import { filterDirectCampaignGroups } from "@/lib/pacing/filters/applyPacingRowFilters";
+import {
+  filterDirectCampaignGroups,
+  isPacingClientFilterUnresolved,
+} from "@/lib/pacing/filters/applyPacingRowFilters";
 import { usePacingFilterStore } from "@/lib/pacing/usePacingFilterStore";
 import {
   pacingFiltersActive,
   usePacingClientIdToNameMap,
 } from "@/lib/pacing/usePacingClientIdToNameMap";
 import {
+  PacingClientFilterUnavailable,
   PacingFilterCount,
-  PacingFilterEmptyState,
 } from "@/components/pacing/PacingFilterResultMeta";
 import { PacingStatusSummary } from "@/components/pacing/PacingStatusSummary";
 import { countDirectOverviewStatus } from "@/lib/pacing/overview/countChannelOverviewStatus";
-import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states";
+import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary";
+import { LoadingState } from "@/components/ui/states";
+import { resolveListViewState } from "@/lib/ui/viewState";
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel";
 import { Switch } from "@/components/ui/switch";
 
@@ -33,6 +38,8 @@ function countLineItems(campaigns: DirectCampaignGroup[]): number {
   return campaigns.reduce((n, g) => n + g.lineItems.length, 0);
 }
 
+const EMPTY_CAMPAIGNS: DirectCampaignGroup[] = [];
+
 export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClientProps) {
   const [includeHistorical, setIncludeHistorical] = useState(false);
   const [data, setData] = useState<ApiShape | null>(null);
@@ -40,9 +47,14 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
   const [loading, setLoading] = useState(true);
 
   const filters = usePacingFilterStore((s) => s.filters);
-  const clientIdToName = usePacingClientIdToNameMap();
+  const resetToDefaults = usePacingFilterStore((s) => s.resetToDefaults);
+  const { map: clientIdToName, settled: clientMapSettled } = usePacingClientIdToNameMap();
 
   const asOfDate = filters.as_of_date;
+  const clientFilterPending = filters.client_ids.length > 0 && !clientMapSettled;
+  const clientFilterUnresolved =
+    clientMapSettled &&
+    isPacingClientFilterUnresolved(filters.client_ids, clientIdToName);
 
   const load = useCallback(
     (historical: boolean) => {
@@ -93,47 +105,70 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
   const deferredFilters = useDeferredValue(filters);
   const isFilterPending = filters !== deferredFilters;
 
-  if (loading && !data) {
-    return (
-      <div className="space-y-4 p-4">
-        <LoadingState rows={6} />
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div className="p-4">
-        <ErrorState title="Failed to load direct pacing" message={error} />
-      </div>
-    );
-  }
-  if (!data) return null;
-
-  const total = countLineItems(data.campaigns);
-  const shown = countLineItems(displayed);
   const filtersOn = pacingFiltersActive(filters);
+  const sourceCampaigns = data?.campaigns ?? EMPTY_CAMPAIGNS;
+
+  const viewState = useMemo(
+    () =>
+      resolveListViewState({
+        loading: (loading && !data) || clientFilterPending,
+        error,
+        items: sourceCampaigns,
+        visible: displayed,
+        filtersActive: filtersOn && !clientFilterUnresolved,
+        clear: () => resetToDefaults(),
+        retry: () => {
+          load(includeHistorical);
+        },
+      }),
+    [
+      loading,
+      data,
+      error,
+      sourceCampaigns,
+      displayed,
+      filtersOn,
+      resetToDefaults,
+      load,
+      includeHistorical,
+      clientFilterPending,
+      clientFilterUnresolved,
+    ],
+  );
+
+  const total = countLineItems(sourceCampaigns);
+  const shown = countLineItems(displayed);
 
   return (
     <div className="space-y-4 p-4">
       <div className="text-sm text-muted-foreground">
         Fixed-cost media — reported spend vs platform actuals
       </div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
-          {filtersOn ? <PacingFilterCount shown={shown} total={total} /> : null}
+      {data ? (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="text-xs text-muted-foreground">As of {data.asOfDate}</div>
+            {filtersOn &&
+            !clientFilterPending &&
+            !clientFilterUnresolved &&
+            viewState.status === "ready" ? (
+              <PacingFilterCount shown={shown} total={total} />
+            ) : null}
+          </div>
+          {isFilterPending ? (
+            <span className="text-xs text-muted-foreground" aria-live="polite">
+              Updating…
+            </span>
+          ) : loading ? (
+            <span className="text-xs text-muted-foreground" aria-live="polite">
+              Refreshing…
+            </span>
+          ) : null}
         </div>
-        {isFilterPending ? (
-          <span className="text-xs text-muted-foreground" aria-live="polite">
-            Updating…
-          </span>
-        ) : loading ? (
-          <span className="text-xs text-muted-foreground" aria-live="polite">
-            Refreshing…
-          </span>
-        ) : null}
-      </div>
-      <PacingStatusSummary counts={statusCounts} />
+      ) : null}
+      {viewState.status === "ready" && !clientFilterUnresolved ? (
+        <PacingStatusSummary counts={statusCounts} />
+      ) : null}
       <Panel>
         <PanelHeader>
           <PanelTitle>Direct campaigns</PanelTitle>
@@ -152,15 +187,22 @@ export function DirectCampaignsClient({ isAdmin: _isAdmin }: DirectCampaignsClie
             />
             Show historical (was ever fixed cost)
           </label>
-          {total === 0 ? (
-            <EmptyState
-              title="No direct campaigns"
-              message="No direct line items are in scope for this date."
-            />
-          ) : filtersOn && shown === 0 ? (
-            <PacingFilterEmptyState />
+          {clientFilterUnresolved ? (
+            <PacingClientFilterUnavailable />
+          ) : clientFilterPending && data ? (
+            <LoadingState rows={4} />
           ) : (
-            <DirectCampaignsTable campaigns={displayed} />
+            <ViewStateBoundary
+              state={viewState}
+              errorTitle="Failed to load direct pacing"
+              emptyTitle="No direct campaigns"
+              emptyMessage="No direct line items are in scope for this date."
+              filteredEmptyTitle="No matching line items"
+              filteredEmptyMessage="Clear filters to see all direct campaigns in scope."
+              loadingRows={6}
+            >
+              {(campaigns) => <DirectCampaignsTable campaigns={campaigns} />}
+            </ViewStateBoundary>
           )}
         </PanelContent>
       </Panel>

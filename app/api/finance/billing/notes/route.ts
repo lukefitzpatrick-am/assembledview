@@ -5,7 +5,8 @@ import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { ensureFinanceBillingRecord } from "@/lib/finance/materialiseFinanceBillingRecord"
 import { composeInvoiceKey } from "@/lib/finance/overlayFinanceStatus"
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
-import { FINANCE_BILLING_RECORDS_PATH, xanoFinanceGet, xanoFinancePatch } from "@/lib/finance/xanoFinanceApi"
+import { FINANCE_BILLING_RECORDS_PATH, xanoFinancePatch } from "@/lib/finance/xanoFinanceApi"
+import { readFinanceBillingRecordById } from "@/lib/data/readFinance"
 
 export const maxDuration = 60
 
@@ -149,9 +150,9 @@ export async function POST(request: NextRequest) {
 
     let oldNotes = ""
     try {
-      const existing = await xanoFinanceGet(`${FINANCE_BILLING_RECORDS_PATH}/${recordId}`)
-      if (existing && typeof existing === "object" && typeof (existing as { notes?: unknown }).notes === "string") {
-        oldNotes = ((existing as { notes: string }).notes ?? "").trim()
+      const existing = await readFinanceBillingRecordById(recordId)
+      if (existing && typeof existing.notes === "string") {
+        oldNotes = (existing.notes ?? "").trim()
       }
     } catch {
       // Audit still proceeds with empty old value if read fails.

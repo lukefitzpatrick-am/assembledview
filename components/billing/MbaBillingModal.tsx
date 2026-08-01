@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { Check, ChevronDown, Download, X } from "lucide-react"
+import { AlertTriangle, Check, ChevronDown, Download, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -45,13 +45,13 @@ import {
   LineTimingInlineEditor,
   type LineDateBasisChoice,
 } from "@/components/billing/LineTimingInlineEditor"
-
-const money = new Intl.NumberFormat("en-AU", {
-  style: "currency",
-  currency: "AUD",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import { formatMoney } from "@/lib/format/money"
 
 /** Collapsed-by-default expand memory for the browser session (survives modal close). */
 const sessionExpandedByMediaType: Record<string, boolean> = {}
@@ -102,6 +102,15 @@ export type MbaBillingModalProps = {
   /** Approve/exclude every line in a media-type container (batched). */
   onToggleContainerApproved?: (mediaType: string, approved: boolean) => void
   onResetApprovalsToAllIn?: () => void
+  /**
+   * Campaign month keys (e.g. "August 2026") for the MBA covers chips.
+   * Defaults to all selected via `selectedMonthYears`.
+   */
+  monthYears?: string[]
+  /** Currently selected MBA month keys (subset of `monthYears`). */
+  selectedMonthYears?: string[]
+  /** Toggle month membership — parent enforces min-one and recomputes. */
+  onSelectedMonthYearsChange?: (next: string[]) => void
   onDownloadExcel?: () => void
   downloadDisabled?: boolean
   /**
@@ -141,6 +150,10 @@ export type MbaBillingModalProps = {
   billingDivergence?: BillingDivergenceResult | null
   showDivergenceBanner?: boolean
   onAcknowledgeDivergence?: () => void
+  /**
+   * Non-blocking amber notice when billing_overrides GET failed (once, not per line).
+   */
+  overridesLoadNotice?: string | null
   footer?: ReactNode
   /**
    * False while channel containers are still hydrating. Suppresses green/red
@@ -195,15 +208,27 @@ function groupScopeLinesByContainer(scopeLines: MbaBillingScopeLine[]): ScopeCon
   })
 }
 
+function shortMonthChipLabel(monthYear: string): string {
+  const m = /^([A-Za-z]+)\s+(\d{4})$/.exec(String(monthYear).trim())
+  if (!m) return monthYear
+  return `${m[1]!.slice(0, 3)} ${m[2]!.slice(2)}`
+}
+
 function HeaderStrip({
   versionLabel,
   financials,
   panelIndicators,
+  monthYears,
+  selectedMonthYears,
+  onSelectedMonthYearsChange,
   reconciliationReady = true,
 }: {
   versionLabel: string
   financials: CampaignFinancials
   panelIndicators: PanelIndicatorsFromCampaignFinancials
+  monthYears?: string[]
+  selectedMonthYears?: string[]
+  onSelectedMonthYearsChange?: (next: string[]) => void
   reconciliationReady?: boolean
 }) {
   const lines = financials.perLine
@@ -222,59 +247,119 @@ function HeaderStrip({
   const quiet =
     !partialLabel && manual === 0 && clientPays === 0 && billingNeDelivery === 0
 
+  const months = monthYears ?? []
+  const selected = selectedMonthYears ?? months
+  const selectedSet = new Set(selected)
+  const showMonthChips = months.length > 0 && Boolean(onSelectedMonthYearsChange)
+
+  function toggleMonth(monthYear: string) {
+    if (!onSelectedMonthYearsChange) return
+    const isOn = selectedSet.has(monthYear)
+    if (isOn) {
+      if (selected.length <= 1) return
+      onSelectedMonthYearsChange(selected.filter((m) => m !== monthYear))
+      return
+    }
+    onSelectedMonthYearsChange([...selected, monthYear])
+  }
+
   return (
-    <div className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-panel px-6 py-3">
-      <Badge variant="secondary" size="sm" className="rounded-pill font-medium">
-        MBA {versionLabel}
-      </Badge>
-      {/* Core signal — same Partial MBA · X of Y as MBA Details panel */}
-      <MbaPartialScopePill label={partialLabel} />
-      {!partialLabel && total > 0 ? (
-        <Badge variant="good" size="sm" className="rounded-pill font-medium">
-          <span className="num">{`${approved} of ${total} approved`}</span>
+    <div className="space-y-2 border-b border-border bg-surface-panel px-6 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary" size="sm" className="rounded-pill font-medium">
+          MBA {versionLabel}
         </Badge>
-      ) : null}
-      {manual > 0 ? (
-        <Badge variant="attention" size="sm" className="rounded-pill font-medium">
-          <span className="num">{manual}</span> manual
-        </Badge>
-      ) : null}
-      {clientPays > 0 ? (
-        <Badge variant="secondary" size="sm" className="rounded-pill font-medium text-muted-foreground">
-          client-pays: <span className="num">{clientPays}</span>
-        </Badge>
-      ) : null}
-      {billingNeDelivery > 0 ? (
-        <Badge variant="attention" size="sm" className="rounded-pill font-medium">
-          billing≠delivery: <span className="num">{billingNeDelivery}</span>
-        </Badge>
-      ) : null}
-      {!reconciliationReady ? (
-        <Badge
-          variant="secondary"
-          size="sm"
-          className="rounded-pill font-medium text-muted-foreground"
-          title="Waiting for all media channels to finish loading"
-        >
-          Loading channels…
-        </Badge>
-      ) : rec.showEquals ? (
-        <Badge variant="good" size="sm" className="rounded-pill font-medium" title="Billable totals match MBA">
-          <Check className="mr-1 h-3.5 w-3.5" aria-hidden />
-          billable = MBA
-        </Badge>
-      ) : rec.showMismatch && total > 0 ? (
-        <Badge
-          variant="blocking"
-          size="sm"
-          className="rounded-pill font-medium"
-          title="Billable totals do not match MBA"
-        >
-          billing ≠ MBA
-        </Badge>
-      ) : null}
-      {quiet && rec.showEquals && total > 0 ? (
-        <span className="text-xs text-muted-foreground">Clean plan</span>
+        {/* Core signal — same Partial MBA · X of Y as MBA Details panel */}
+        <MbaPartialScopePill label={partialLabel} />
+        {!partialLabel && total > 0 ? (
+          <Badge variant="good" size="sm" className="rounded-pill font-medium">
+            <span className="num">{`${approved} of ${total} approved`}</span>
+          </Badge>
+        ) : null}
+        {manual > 0 ? (
+          <Badge variant="attention" size="sm" className="rounded-pill font-medium">
+            <span className="num">{manual}</span> manual
+          </Badge>
+        ) : null}
+        {clientPays > 0 ? (
+          <Badge variant="secondary" size="sm" className="rounded-pill font-medium text-muted-foreground">
+            client-pays: <span className="num">{clientPays}</span>
+          </Badge>
+        ) : null}
+        {billingNeDelivery > 0 ? (
+          <Badge variant="attention" size="sm" className="rounded-pill font-medium">
+            billing≠delivery: <span className="num">{billingNeDelivery}</span>
+          </Badge>
+        ) : null}
+        {!reconciliationReady ? (
+          <Badge
+            variant="secondary"
+            size="sm"
+            className="rounded-pill font-medium text-muted-foreground"
+            title="Waiting for all media channels to finish loading"
+          >
+            Loading channels…
+          </Badge>
+        ) : rec.showEquals ? (
+          <Badge variant="good" size="sm" className="rounded-pill font-medium" title="Billable totals match MBA">
+            <Check className="mr-1 h-3.5 w-3.5" aria-hidden />
+            billable = MBA
+          </Badge>
+        ) : rec.showMismatch && total > 0 ? (
+          <Badge
+            variant="blocking"
+            size="sm"
+            className="rounded-pill font-medium"
+            title="Billable totals do not match MBA"
+          >
+            billing ≠ MBA
+          </Badge>
+        ) : null}
+        {quiet && rec.showEquals && total > 0 ? (
+          <span className="text-xs text-muted-foreground">Clean plan</span>
+        ) : null}
+      </div>
+      {showMonthChips ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-muted-foreground">MBA covers:</span>
+          <TooltipProvider delayDuration={200}>
+            {months.map((monthYear) => {
+              const isSelected = selectedSet.has(monthYear)
+              const isLastSelected = isSelected && selected.length === 1
+              const chipClass = cn(
+                "interactive-tint rounded-pill border px-2.5 py-1 text-xs font-medium transition-colors",
+                isSelected
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "border-border bg-card text-muted-foreground",
+                isLastSelected && "cursor-not-allowed opacity-70"
+              )
+              const chip = (
+                <button
+                  type="button"
+                  aria-pressed={isSelected}
+                  disabled={isLastSelected}
+                  onClick={() => toggleMonth(monthYear)}
+                  className={chipClass}
+                >
+                  {shortMonthChipLabel(monthYear)}
+                </button>
+              )
+              if (!isLastSelected) {
+                return <span key={monthYear}>{chip}</span>
+              }
+              return (
+                <Tooltip key={monthYear}>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">{chip}</span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                    Keep at least one month in the MBA
+                  </TooltipContent>
+                </Tooltip>
+              )
+            })}
+          </TooltipProvider>
+        </div>
       ) : null}
     </div>
   )
@@ -435,9 +520,9 @@ function ScopeLineRow({
           ) : null}
         </div>
         <div className="shrink-0 text-right">
-          <div className="num text-sm font-medium">{money.format(line.media)}</div>
+          <div className="num text-sm font-medium">{formatMoney(line.media)}</div>
           {line.fee > 0.005 ? (
-            <div className="num text-xs text-muted-foreground">fee {money.format(line.fee)}</div>
+            <div className="num text-xs text-muted-foreground">fee {formatMoney(line.fee)}</div>
           ) : null}
         </div>
       </div>
@@ -452,6 +537,7 @@ function ScopeLineRow({
           onResetToAuto={lineTiming.onResetLine}
           onPrebill={lineTiming.onPrebillLine}
           isPrepaid={line.flags.prepaid}
+          clientPaysForMedia={line.flags.clientPaysForMedia}
           dateBasisChoice={dateBasisChoice}
           formatter={lineTiming.formatter}
         />
@@ -512,6 +598,9 @@ export function MbaBillingModal({
   onToggleLineApproved,
   onToggleContainerApproved,
   onResetApprovalsToAllIn,
+  monthYears,
+  selectedMonthYears,
+  onSelectedMonthYearsChange,
   onDownloadExcel,
   downloadDisabled,
   onResetBillingToAuto,
@@ -527,6 +616,7 @@ export function MbaBillingModal({
   billingDivergence = null,
   showDivergenceBanner = false,
   onAcknowledgeDivergence,
+  overridesLoadNotice = null,
   footer,
   reconciliationReady = true,
 }: MbaBillingModalProps) {
@@ -635,8 +725,24 @@ export function MbaBillingModal({
             versionLabel={versionLabel}
             financials={financials}
             panelIndicators={panelIndicators}
+            monthYears={monthYears}
+            selectedMonthYears={selectedMonthYears}
+            onSelectedMonthYearsChange={onSelectedMonthYearsChange}
             reconciliationReady={reconciliationReady}
           />
+          {overridesLoadNotice ? (
+            <div className="border-b border-border px-6 py-3">
+              <div
+                role="status"
+                className="rounded-card border border-status-attention-fg/20 bg-status-attention-bg px-4 py-3 text-status-attention-fg"
+              >
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+                  <p className="text-sm">{overridesLoadNotice}</p>
+                </div>
+              </div>
+            </div>
+          ) : null}
           {showDivergenceBanner && billingDivergence?.isDivergent ? (
             <div className="border-b border-border px-6 py-3">
               <BillingDivergenceBanner
@@ -747,10 +853,10 @@ export function MbaBillingModal({
                             </div>
                             <div className="shrink-0 text-right">
                               <div className="num text-sm font-medium">
-                                {money.format(group.mediaSum)}
+                                {formatMoney(group.mediaSum)}
                               </div>
                               <div className="num text-xs text-muted-foreground">
-                                fee {money.format(group.feeSum)}
+                                fee {formatMoney(group.feeSum)}
                               </div>
                             </div>
                           </button>
@@ -790,27 +896,27 @@ export function MbaBillingModal({
               <div className="mt-auto space-y-2 border-t border-border bg-muted/10 px-5 py-4">
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Gross Media</span>
-                  <span className="num font-medium">{money.format(t.grossMedia)}</span>
+                  <span className="num font-medium">{formatMoney(t.grossMedia)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="flex items-center text-muted-foreground">
                     Assembled Fee
                     <MbaFeeAdjustedPill show={panelIndicators.mbaDetails.mbaFeeAdjusted} />
                   </span>
-                  <span className="num font-medium">{money.format(t.fee)}</span>
+                  <span className="num font-medium">{formatMoney(t.fee)}</span>
                 </div>
                 {(t.adServing > 0.005 || t.production > 0.005) && (
                   <>
                     {t.adServing > 0.005 ? (
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Ad Serving &amp; Tech</span>
-                        <span className="num font-medium">{money.format(t.adServing)}</span>
+                        <span className="num font-medium">{formatMoney(t.adServing)}</span>
                       </div>
                     ) : null}
                     {t.production > 0.005 ? (
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Production</span>
-                        <span className="num font-medium">{money.format(t.production)}</span>
+                        <span className="num font-medium">{formatMoney(t.production)}</span>
                       </div>
                     ) : null}
                   </>
@@ -821,7 +927,7 @@ export function MbaBillingModal({
                     <MbaBillableEqualsPill show={mbaRec.showEquals} />
                     <MbaBillableMismatchPill show={mbaRec.showMismatch} />
                   </span>
-                  <span className="num text-foreground">{money.format(t.nettExGst)}</span>
+                  <span className="num text-foreground">{formatMoney(t.nettExGst)}</span>
                 </div>
               </div>
             </section>
@@ -948,10 +1054,10 @@ export function MbaBillingModal({
                               <BillingMismatchMbaPill show={billingRec.showMismatch} />
                             </span>
                           </TableCell>
-                          <TableCell className="num text-right">{money.format(grandMedia)}</TableCell>
-                          <TableCell className="num text-right">{money.format(grandFee)}</TableCell>
-                          <TableCell className="num text-right">{money.format(grandAd)}</TableCell>
-                          <TableCell className="num text-right">{money.format(grandTotal)}</TableCell>
+                          <TableCell className="num text-right">{formatMoney(grandMedia)}</TableCell>
+                          <TableCell className="num text-right">{formatMoney(grandFee)}</TableCell>
+                          <TableCell className="num text-right">{formatMoney(grandAd)}</TableCell>
+                          <TableCell className="num text-right">{formatMoney(grandTotal)}</TableCell>
                         </TableRow>
                       </>
                     )}
@@ -959,7 +1065,7 @@ export function MbaBillingModal({
                 </Table>
                 {schedule.length > 0 && grandProd > 0.005 ? (
                   <p className="mt-2 px-2 text-xs text-muted-foreground">
-                    Production in schedule: <span className="num">{money.format(grandProd)}</span>
+                    Production in schedule: <span className="num">{formatMoney(grandProd)}</span>
                   </p>
                 ) : null}
                 {financials.reconciliation &&
@@ -968,16 +1074,16 @@ export function MbaBillingModal({
                     <span>
                       Billing total{" "}
                       <span className="num">
-                        {money.format(financials.reconciliation.billableMbaExGst)}
+                        {formatMoney(financials.reconciliation.billableMbaExGst)}
                       </span>
                       {" + "}
                       client-pays media{" "}
                       <span className="num">
-                        {money.format(financials.reconciliation.clientPaysMedia)}
+                        {formatMoney(financials.reconciliation.clientPaysMedia)}
                       </span>
                       {" = "}
                       total investment{" "}
-                      <span className="num">{money.format(t.nettExGst)}</span>
+                      <span className="num">{formatMoney(t.nettExGst)}</span>
                     </span>
                     <BillingEqualsMbaPill
                       show={financials.validation.billableEqualsMba}

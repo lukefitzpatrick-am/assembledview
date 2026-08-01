@@ -183,6 +183,21 @@ const ROW_DEFINITIONS: readonly ForecastRowDefinition[] = [
     ],
   },
   {
+    key: FINANCE_FORECAST_LINE_KEYS.mediaBilling,
+    label: FINANCE_FORECAST_LINE_LABELS[FINANCE_FORECAST_LINE_KEYS.mediaBilling],
+    group: FINANCE_FORECAST_GROUP_KEYS.billingBasedInformation,
+    sortOrder: 30,
+    mappingLogicRef: "buildLinesForCampaign#media_type_publisher_breakout",
+    line_key: FINANCE_FORECAST_LINE_KEYS.mediaBilling,
+    summary: "Media by container type × publisher (additive breakout)",
+    businessRule:
+      "FIN-5 additive grain: one line per (media type × publisher × MBA) from the same schedule rows that feed AA/AM. Sum of media_billing fy_totals must equal sum of AA+AM entity lines to the cent. Not snapshotted (comparison key lacks media/publisher dimensions).",
+    sourceFields: [
+      sf("billing_schedule_json", ["mediaTypes[].lineItems[].amount", "header1", "lineItemId"], "media $ by line"),
+      sf("publishers", ["publisher_name", "billingagency"], "publisher display + entity routing"),
+    ],
+  },
+  {
     key: FINANCE_FORECAST_LINE_KEYS.searchSocial20Pct,
     label: FINANCE_FORECAST_LINE_LABELS[FINANCE_FORECAST_LINE_KEYS.searchSocial20Pct],
     group: FINANCE_FORECAST_GROUP_KEYS.revenueFeesCommission,

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+
 import type { MediaContainerBestPractice, Publisher } from "@/lib/types/publisher"
 import {
   resolveNamingReferenceData,
@@ -27,6 +28,7 @@ test("resolveNamingReferenceData: fetches publishers + best practice when body o
   const fetchedBp = [{ media_container: "search", is_active: true }]
   const result = await resolveNamingReferenceData(
     {},
+
     deps({
       fetchPublishers: async () => fetchedPubs,
       fetchBestPractice: async () => fetchedBp,
@@ -40,6 +42,7 @@ test("resolveNamingReferenceData: fetches publishers + best practice when body o
 
 test("resolveNamingReferenceData: body override wins over server fetch", async () => {
   const override: NamingReferenceOverride = {
+
     publishers: [{ id: 9, publisher_name: "Override Pub" }] as Publisher[],
     containerBestPractice: [
       { media_container: "socialMedia", is_active: true },
@@ -67,6 +70,7 @@ test("resolveNamingReferenceData: body override wins over server fetch", async (
 test("resolveNamingReferenceData: empty body arrays fall back to server", async () => {
   const result = await resolveNamingReferenceData(
     { publishers: [], containerBestPractice: [] },
+
     deps({
       fetchPublishers: async () => [{ id: 3 }],
       fetchBestPractice: async () => [{ media_container: "progDisplay" }],

@@ -1,15 +1,12 @@
 "use client"
 
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   BaseChartCard,
-  ChartExportToolbar,
   ComboChart,
   GroupedBarChart,
   HorizontalBarChart,
   ScatterChart,
-  exportCsv,
-  exportPng,
   type ScatterPoint,
 } from "@/components/charts/system"
 import { Badge } from "@/components/ui/badge"
@@ -81,10 +78,19 @@ export function OutcomeCharts({
   const [highlighted, setHighlighted] = useState<string | null>(null)
   const [detailOpen, setDetailOpen] = useState(false)
 
-  const reachRef = useRef<HTMLDivElement>(null)
-  const scatterRef = useRef<HTMLDivElement>(null)
-  const dfiiRef = useRef<HTMLDivElement>(null)
-  const addrRef = useRef<HTMLDivElement>(null)
+  // After load-saved, ready starts empty so key sticks on ALL_AUDIENCES; with one
+  // audience that left Reach×Index / quadrant with no sources while DFII fell back.
+  useEffect(() => {
+    if (ready.length === 0) return
+    const ids = new Set(ready.map((b) => b.draft.id))
+    if (audienceKey !== ALL_AUDIENCES && !ids.has(audienceKey)) {
+      setAudienceKey(ready[0]!.draft.id)
+      return
+    }
+    if (audienceKey === ALL_AUDIENCES && ready.length === 1) {
+      setAudienceKey(ready[0]!.draft.id)
+    }
+  }, [ready, audienceKey])
 
   const activeBundle =
     audienceKey === ALL_AUDIENCES
@@ -112,7 +118,8 @@ export function OutcomeCharts({
 
   const reachIndexData = useMemo(() => {
     if (presetReachData) return presetReachData
-    const sources = comparison ? ready : activeBundle ? [activeBundle] : []
+    const single = activeBundle ?? (ready.length === 1 ? ready[0]! : null)
+    const sources = comparison ? ready : single ? [single] : []
     if (sources.length === 0) return { rows: [] as Record<string, string | number>[], bars: [], lines: [] }
 
     const channelMap = new Map<
@@ -123,6 +130,7 @@ export function OutcomeCharts({
     for (const b of sources) {
       for (const s of b.scored) {
         if (!s.ch.isRmMeasured) continue
+        if (s.affAvg == null) continue
         const reach = Math.round(s.ch.reachPct * 1000) / 10
         const index = Math.round(s.affAvg)
         const existing = channelMap.get(s.ch.id)
@@ -193,10 +201,11 @@ export function OutcomeCharts({
         ],
       }
     }
-    const sources = comparison ? ready : activeBundle ? [activeBundle] : []
+    const single = activeBundle ?? (ready.length === 1 ? ready[0]! : null)
+    const sources = comparison ? ready : single ? [single] : []
     const parts = sources.map((b) => {
       const scored = b.scored.find((s) => s.ch.name === highlighted || s.ch.id === highlighted)
-      if (!scored) return null
+      if (!scored || scored.affAvg == null) return null
       const dfiiVals = dfii(b.scored.map((s) => ({ bcs: s.bcs })))
       const idx = b.scored.indexOf(scored)
       const adapted = b.adapted?.channels.find((c) => c.id === scored.ch.id)
@@ -226,13 +235,15 @@ export function OutcomeCharts({
   ])
 
   const scatterData = useMemo((): ScatterPoint[] => {
-    const sources = comparison ? ready : activeBundle ? [activeBundle] : []
+    const single = activeBundle ?? (ready.length === 1 ? ready[0]! : null)
+    const sources = comparison ? ready : single ? [single] : []
     const points: ScatterPoint[] = []
     for (const b of sources) {
       const color = AUDIENCE_ACCENTS[b.draft.colorIndex]!.cssVar
       const dfiiVals = dfii(b.scored.map((s) => ({ bcs: s.bcs })))
       b.scored.forEach((s, i) => {
         if (!s.ch.isRmMeasured) return
+        if (s.affAvg == null) return
         points.push({
           id: `${b.draft.id}:${s.ch.id}`,
           x: Math.round(s.ch.reachPct * 1000) / 10,
@@ -363,13 +374,15 @@ export function OutcomeCharts({
             ? "Weekly reach % with affinity index · sorted by reach"
             : "Grouped weekly reach % with affinity index overlay · sorted by reach"
         }
-        bodyRef={reachRef}
-        toolbar={
-          <ChartExportToolbar
-            onCsv={() => exportCsv(reachIndexData.rows, "reach-index.csv")}
-            onPng={() => void exportPng(reachRef.current, "reach-index.png")}
-          />
-        }
+        exportPage="planning"
+        exportSeries={{
+          data: reachIndexData.rows,
+          xKey: "channel",
+          seriesKeys: [
+            ...reachIndexData.bars.map((b) => b.key),
+            ...reachIndexData.lines.map((l) => l.key),
+          ],
+        }}
       >
         {reachIndexData.rows.length === 0 ? (
           <p className="py-8 text-center text-xs text-muted-foreground">No RM-measured channels.</p>
@@ -476,23 +489,16 @@ export function OutcomeCharts({
       <BaseChartCard
         title="Reach × Index quadrant"
         subtitle="Point size = DFII · guides at median reach and index 100"
-        bodyRef={scatterRef}
-        toolbar={
-          <ChartExportToolbar
-            onCsv={() =>
-              exportCsv(
-                scatterData.map((p) => ({
-                  channel: p.label,
-                  reach: p.x,
-                  index: p.y,
-                  dfii: p.z,
-                })),
-                "reach-index-scatter.csv"
-              )
-            }
-            onPng={() => void exportPng(scatterRef.current, "reach-index-scatter.png")}
-          />
-        }
+        exportPage="planning"
+        exportSeries={{
+          rows: scatterData.map((p) => ({
+            channel: p.label,
+            reach: p.x,
+            index: p.y,
+            dfii: p.z,
+          })),
+          columns: ["channel", "reach", "index", "dfii"],
+        }}
       >
         {scatterData.length === 0 ? (
           <p className="py-8 text-center text-xs text-muted-foreground">No points to plot.</p>
@@ -525,13 +531,12 @@ export function OutcomeCharts({
             ? `${chipAudience.draft.name} · reference line at 100`
             : "Select an audience · reference line at 100"
         }
-        bodyRef={dfiiRef}
-        toolbar={
-          <ChartExportToolbar
-            onCsv={() => exportCsv(dfiiBarData, "dfii-ranked.csv")}
-            onPng={() => void exportPng(dfiiRef.current, "dfii-ranked.png")}
-          />
-        }
+        exportPage="planning"
+        exportSeries={{
+          data: dfiiBarData.map(({ channel, dfii: v }) => ({ channel, dfii: v })),
+          xKey: "channel",
+          seriesKeys: ["dfii"],
+        }}
       >
         {audienceKey === ALL_AUDIENCES && ready.length > 1 ? (
           <p className="mb-2 text-xs text-muted-foreground">
@@ -577,13 +582,12 @@ export function OutcomeCharts({
             ? `${chipAudience.draft.name} · channels with >${ADDR_GAP_PTS}pt gap`
             : `Channels with >${ADDR_GAP_PTS}pt gap`
         }
-        bodyRef={addrRef}
-        toolbar={
-          <ChartExportToolbar
-            onCsv={() => exportCsv(addrData, "addressable-vs-total.csv")}
-            onPng={() => void exportPng(addrRef.current, "addressable-vs-total.png")}
-          />
-        }
+        exportPage="planning"
+        exportSeries={{
+          data: addrData,
+          xKey: "channel",
+          seriesKeys: ["total", "addressable"],
+        }}
       >
         {addrData.length === 0 ? (
           <p className="py-8 text-center text-xs text-muted-foreground">

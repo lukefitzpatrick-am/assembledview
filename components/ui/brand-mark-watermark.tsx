@@ -20,7 +20,8 @@ export function BrandMarkWatermark({ className, size = 120, ...props }: BrandMar
     <div
       aria-hidden="true"
       className={cn(
-        "pointer-events-none absolute top-1/2 z-0 -translate-y-1/2 opacity-[0.16] dark:opacity-[0.22]",
+        // Top-right (not vertically centered) so wrapped hero action rows stay clear of the mark.
+        "pointer-events-none absolute top-3 z-0 opacity-[0.16] dark:opacity-[0.22]",
         className,
       )}
       style={{ width: size, height: size, right: -size * 0.18 }}

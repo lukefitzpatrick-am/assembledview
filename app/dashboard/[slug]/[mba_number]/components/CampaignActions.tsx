@@ -23,11 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
-import { AvaSkillAction } from "@/components/ava/AvaSkillAction"
+import { CampaignReportPeriodDialog } from "@/components/dashboard/campaign/CampaignReportPeriodDialog"
 import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
-
-const REVIEW_AND_REPORT_MESSAGE =
-  "Review delivery for this campaign and prepare the client performance report."
 
 type XanoPublicFile = {
   access?: string
@@ -51,6 +48,10 @@ interface CampaignActionsProps {
   variant?: "floating" | "inline" | "minimal"
   availableVersions: MediaPlanVersionListEntry[]
   currentVersion: number
+  /** Admin-only Review & Report export. */
+  isAdmin?: boolean
+  campaignStartISO?: string | null
+  campaignEndISO?: string | null
 }
 
 function formatVersionDate(value: string): string {
@@ -81,6 +82,9 @@ export default function CampaignActions({
   variant = "floating",
   availableVersions,
   currentVersion,
+  isAdmin = false,
+  campaignStartISO = null,
+  campaignEndISO = null,
 }: CampaignActionsProps) {
   const router = useRouter()
   const pathname = usePathname()
@@ -90,11 +94,37 @@ export default function CampaignActions({
   const [isDownloadingBilling, setIsDownloadingBilling] = useState(false)
   const [completedAction, setCompletedAction] = useState<"mediaPlan" | "mba" | "billing" | null>(null)
   const [ariaStatus, setAriaStatus] = useState("")
+  const [reportOpen, setReportOpen] = useState(false)
   const lineItemCount = Object.values(lineItems || {}).reduce(
     (sum, items) => sum + (Array.isArray(items) ? items.length : 0),
     0
   )
   const isBusy = isDownloadingMediaPlan || isDownloadingMba || isDownloadingBilling
+
+  const clientName =
+    typeof _campaign?.mp_client_name === "string"
+      ? _campaign.mp_client_name
+      : typeof _campaign?.client_name === "string"
+        ? _campaign.client_name
+        : null
+  const campaignName =
+    typeof _campaign?.campaign_name === "string"
+      ? _campaign.campaign_name
+      : typeof _campaign?.mp_campaignname === "string"
+        ? _campaign.mp_campaignname
+        : null
+
+  const reportButton = isAdmin ? (
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() => setReportOpen(true)}
+      disabled={isBusy}
+      className={cn("h-9 rounded-pill px-4")}
+    >
+      Review & Report
+    </Button>
+  ) : null
 
   const handleVersionChange = (versionNumber: number) => {
     const params = new URLSearchParams(searchParams?.toString() ?? "")
@@ -324,12 +354,7 @@ export default function CampaignActions({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <AvaSkillAction
-            label="Review & Report"
-            message={REVIEW_AND_REPORT_MESSAGE}
-            className="h-9 rounded-pill px-4"
-            size="default"
-          />
+          {reportButton}
         </div>
       ) : null}
 
@@ -398,15 +423,33 @@ export default function CampaignActions({
         <ActionIcon action="billing" loading={isDownloadingBilling} icon={<Download className="h-4 w-4" />} />
         <span className="ml-2">Billing</span>
       </Button>
-      <AvaSkillAction
-        label="Review & Report"
-        message={REVIEW_AND_REPORT_MESSAGE}
-        className={cn(
-          "h-9 rounded-pill px-4",
-          showFloating ? "hidden md:inline-flex" : "inline-flex",
-        )}
-        size="default"
-      />
+      {isAdmin ? (
+        <Button
+          type="button"
+          variant="outline"
+          onClick={() => setReportOpen(true)}
+          disabled={isBusy}
+          className={cn(
+            "h-9 rounded-pill px-4",
+            showFloating ? "hidden md:inline-flex" : "inline-flex",
+          )}
+        >
+          Review & Report
+        </Button>
+      ) : null}
+
+      {isAdmin ? (
+        <CampaignReportPeriodDialog
+          open={reportOpen}
+          onOpenChange={setReportOpen}
+          mbaNumber={mbaNumber}
+          clientName={clientName}
+          campaignName={campaignName}
+          versionNumber={currentVersion}
+          campaignStartISO={campaignStartISO}
+          campaignEndISO={campaignEndISO}
+        />
+      ) : null}
     </CampaignExportsSection>
   )
 }

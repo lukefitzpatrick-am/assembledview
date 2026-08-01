@@ -139,7 +139,7 @@ export function CampaignStatusPills({ activeStatus, counts, onChange }: Campaign
                 <Check className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
               )}
               <span>
-                {item.label} ({item.count.toLocaleString("en-US")})
+                {item.label} ({item.count.toLocaleString("en-AU")})
               </span>
             </motion.span>
           </button>

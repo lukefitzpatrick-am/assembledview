@@ -18,7 +18,7 @@ export const getCampaignContextTool: AvaTool = {
   definition: {
     name: "get_campaign_context",
     description:
-      "Load master/version summary plus compact line items (id, channel, publisher, budget; capped at 50) for an MBA. Wraps the existing Ava Xano summary and media-container line-item helpers. Use for campaign structure questions.",
+      "Load master/version summary plus compact line items (id, channel, publisher, budget; capped at 50) for an MBA via Xano/media-containers. Prefer query_campaign_lines / query_schedule_months / search_line_items (Postgres, AUD) for how-much / list / across-campaigns questions. Use this when you need the legacy Xano summary text plus container lines.",
     input_schema: {
       type: "object",
       properties: {

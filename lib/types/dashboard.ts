@@ -33,7 +33,6 @@ export interface ClientHubSummary {
 type ClientDashboardFinancePayload = {
   totalBudget: number
   ytdSpend: number
-  currency: string
   budgetByQuarter: Array<{
     quarter: string
     budget: number

@@ -1,5 +1,5 @@
 interface MetricCardsProps {
-  reach: number; // 0-100 mix-weighted real reach %
+  reach: number; // 0-100 audience reach % (allocation-mix × weekly channel reach)
   attentionSeconds: number;
   effectiveCpm: number;
   /** Population weighted count in '000s (audience_wc). */
@@ -28,7 +28,7 @@ export function MetricCards({
 }: MetricCardsProps) {
   return (
     <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-4">
-      <Card label="Reach of target" value={`${Math.round(reach)}%`} />
+      <Card label="Audience reach %" value={`${Math.round(reach)}%`} />
       <Card label="Attention seconds" value={`${attentionSeconds.toFixed(1)}s`} />
       <Card label="Effective CPM" value={`$${Math.round(effectiveCpm)}`} />
       <Card label="Audience size" value={fmtAudienceWc(audienceWc)} />

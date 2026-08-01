@@ -67,7 +67,8 @@ export async function fetchAdServingPacingCampaignRows(
       endDate: args.asOfDate,
       err,
     });
-    return [];
+    // Dead warehouse ≠ “no campaigns” — propagate for ViewState / route 5xx.
+    throw err;
   }
 
   const byLineItem = new Map<string, PacingFactRow[]>();

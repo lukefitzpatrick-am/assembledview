@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server"
 import JSZip from "jszip"
 import { auth0 } from "@/lib/auth0"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
-import { getUserRoles } from "@/lib/rbac"
 import { getPrivateBlob } from "@/lib/creative/getPrivateBlob"
 import { getById, XanoCreativeAssetError } from "@/lib/creative/xanoCreativeAssets"
 
@@ -149,21 +148,19 @@ export async function GET(
       return previewJson({ error: "Not found" }, 404)
     }
 
-    const roles = getUserRoles(session.user)
-    if (roles.includes("client")) {
-      const access = await checkClientMbaAccess(request, row.mba_number)
-      if (!access.ok) {
-        const denied = access.response
-        // Preserve status/body; attach preview security headers.
-        const body = await denied.text()
-        return new NextResponse(body, {
-          status: denied.status,
-          headers: {
-            ...PREVIEW_SECURITY_HEADERS,
-            "Content-Type": denied.headers.get("Content-Type") || "application/json",
-          },
-        })
-      }
+    // SEC-G: all roles through checkClientMbaAccess (admin unscoped in helper).
+    const access = await checkClientMbaAccess(request, row.mba_number)
+    if (!access.ok) {
+      const denied = access.response
+      // Preserve status/body; attach preview security headers.
+      const body = await denied.text()
+      return new NextResponse(body, {
+        status: denied.status,
+        headers: {
+          ...PREVIEW_SECURITY_HEADERS,
+          "Content-Type": denied.headers.get("Content-Type") || "application/json",
+        },
+      })
     }
 
     if (row.mime_type !== "application/zip") {

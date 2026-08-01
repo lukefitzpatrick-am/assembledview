@@ -172,7 +172,7 @@ function yyyymmdd(d = new Date()) {
 }
 
 export async function POST(request: NextRequest) {
-  const gate = await requireRole(request, ["admin", "manager"])
+  const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
 
   const sessionKey =

@@ -101,10 +101,12 @@ export function DashboardScopeCard({
   scope,
   formatDate,
   statusBadgeClassName,
+  onEdit,
 }: {
   scope: DashboardScopeCardModel
   formatDate: (dateString: string) => string
   statusBadgeClassName: string
+  onEdit?: () => void
 }) {
   const overview = scope.project_overview?.trim() ? scope.project_overview : "N/A"
   return (
@@ -123,11 +125,23 @@ export function DashboardScopeCard({
             {overview}
           </div>
         </Field>
-        <div className="mt-auto pt-2">
+        <div className={cn("pt-2", !onEdit && "mt-auto")}>
           <Field label="Status">
             <Badge className={statusBadgeClassName}>{scope.project_status}</Badge>
           </Field>
         </div>
+        {onEdit ? (
+          <div className="mt-auto grid grid-cols-2 gap-2 border-t border-border/40 pt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full hover:bg-muted/50 transition-colors"
+              onClick={onEdit}
+            >
+              Edit
+            </Button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   )

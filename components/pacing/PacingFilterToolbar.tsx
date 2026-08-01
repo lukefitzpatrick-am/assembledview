@@ -19,6 +19,11 @@ type ClientOption = { value: string; label: string }
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/
 
+const OVERVIEW_ROW_FILTER_REASON =
+  "Not available on Overview — use a channel tab"
+const ORPHANS_FILTER_REASON =
+  "Not available on Orphans — assignment list is unfiltered"
+
 function pacingFilterStateEqual(a: PacingFilterState, b: PacingFilterState): boolean {
   return (
     a.as_of_date === b.as_of_date &&
@@ -54,6 +59,41 @@ function stateFromSearchParams(sp: URLSearchParams): PacingFilterState {
   }
 }
 
+function pacingToolbarScope(pathname: string): {
+  rowFiltersDisabled: boolean
+  asOfDisabled: boolean
+  rowFilterReason: string | undefined
+  asOfReason: string | undefined
+} {
+  const isOverview =
+    pathname === "/pacing" ||
+    pathname === "/pacing/" ||
+    pathname.startsWith("/pacing/overview")
+  const isOrphans = pathname.includes("/pacing/admin/orphans")
+  if (isOrphans) {
+    return {
+      rowFiltersDisabled: true,
+      asOfDisabled: true,
+      rowFilterReason: ORPHANS_FILTER_REASON,
+      asOfReason: ORPHANS_FILTER_REASON,
+    }
+  }
+  if (isOverview) {
+    return {
+      rowFiltersDisabled: true,
+      asOfDisabled: false,
+      rowFilterReason: OVERVIEW_ROW_FILTER_REASON,
+      asOfReason: undefined,
+    }
+  }
+  return {
+    rowFiltersDisabled: false,
+    asOfDisabled: false,
+    rowFilterReason: undefined,
+    asOfReason: undefined,
+  }
+}
+
 export function PacingFilterToolbar() {
   const router = useRouter()
   const pathname = usePathname() ?? ""
@@ -75,6 +115,10 @@ export function PacingFilterToolbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
 
   const isScopedTenant = assignedClientIds.length > 0
+  const { rowFiltersDisabled, asOfDisabled, rowFilterReason, asOfReason } = useMemo(
+    () => pacingToolbarScope(pathname),
+    [pathname],
+  )
 
   useEffect(() => {
     const load = async () => {
@@ -125,10 +169,10 @@ export function PacingFilterToolbar() {
 
   const onAsOfChange = useCallback(
     (next?: Date) => {
-      if (!next) return
+      if (!next || asOfDisabled) return
       setFilters({ as_of_date: format(next, "yyyy-MM-dd") })
     },
-    [setFilters],
+    [asOfDisabled, setFilters],
   )
 
   const mediaOptions = useMemo(
@@ -141,10 +185,19 @@ export function PacingFilterToolbar() {
     [],
   )
 
+  const filtersAtDefaults = useMemo(
+    () => pacingFilterStateEqual(filters, createDefaultPacingFilters()),
+    [filters],
+  )
+
   const onReset = useCallback(() => {
     resetToDefaults()
     router.replace(pathname, { scroll: false })
   }, [pathname, resetToDefaults, router])
+
+  const resetDisabledReason = filtersAtDefaults
+    ? "Filters are already at defaults"
+    : undefined
 
   const sheetControls = (
     <>
@@ -158,6 +211,8 @@ export function PacingFilterToolbar() {
           searchPlaceholder="Search clients…"
           buttonClassName="w-full"
           emptyMeansAll
+          disabled={rowFiltersDisabled}
+          title={rowFilterReason}
         />
       </div>
       <div>
@@ -170,6 +225,8 @@ export function PacingFilterToolbar() {
           searchPlaceholder="Search…"
           buttonClassName="w-full"
           emptyMeansAll
+          disabled={rowFiltersDisabled}
+          title={rowFilterReason}
         />
       </div>
       <div>
@@ -182,6 +239,8 @@ export function PacingFilterToolbar() {
           searchPlaceholder="Search…"
           buttonClassName="w-full"
           emptyMeansAll
+          disabled={rowFiltersDisabled}
+          title={rowFilterReason}
         />
       </div>
       <div className="flex flex-col gap-1.5">
@@ -192,6 +251,8 @@ export function PacingFilterToolbar() {
           dateFormat="dd MMM yyyy"
           placeholder={<span>As of date</span>}
           className="h-9 w-full justify-start font-normal"
+          disabled={asOfDisabled}
+          title={asOfReason}
         />
       </div>
       <div className="flex flex-col gap-1.5">
@@ -204,10 +265,19 @@ export function PacingFilterToolbar() {
           onChange={(e) => setFilters({ search: e.target.value })}
           placeholder="Line items, campaigns…"
           className="focus-visible:ring-2 focus-visible:ring-ring"
+          disabled={rowFiltersDisabled}
+          title={rowFilterReason}
         />
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="link" className="h-auto px-2 text-muted-foreground" onClick={onReset}>
+        <Button
+          type="button"
+          variant="link"
+          className="h-auto px-2 text-muted-foreground"
+          onClick={onReset}
+          disabled={Boolean(resetDisabledReason)}
+          title={resetDisabledReason ?? "Reset filters to defaults"}
+        >
           Reset
         </Button>
       </div>
@@ -243,6 +313,8 @@ export function PacingFilterToolbar() {
             searchPlaceholder="Search clients…"
             buttonClassName="w-full"
             emptyMeansAll
+            disabled={rowFiltersDisabled}
+            title={rowFilterReason}
           />
         </div>
         <div className="min-w-[140px] max-w-[200px] flex-1">
@@ -255,6 +327,8 @@ export function PacingFilterToolbar() {
             searchPlaceholder="Search…"
             buttonClassName="w-full"
             emptyMeansAll
+            disabled={rowFiltersDisabled}
+            title={rowFilterReason}
           />
         </div>
         <div className="min-w-[140px] max-w-[200px] flex-1">
@@ -267,6 +341,8 @@ export function PacingFilterToolbar() {
             searchPlaceholder="Search…"
             buttonClassName="w-full"
             emptyMeansAll
+            disabled={rowFiltersDisabled}
+            title={rowFilterReason}
           />
         </div>
         <div className="min-w-[160px] max-w-[220px] flex-1">
@@ -277,6 +353,8 @@ export function PacingFilterToolbar() {
             placeholder={<span>As of</span>}
             className="h-9 w-full justify-start font-normal"
             aria-label="As of date"
+            disabled={asOfDisabled}
+            title={asOfReason}
           />
         </div>
         <div className="min-w-[180px] max-w-[240px] flex-1">
@@ -286,6 +364,8 @@ export function PacingFilterToolbar() {
             onChange={(e) => setFilters({ search: e.target.value })}
             placeholder="Search line items…"
             className="h-9 focus-visible:ring-2 focus-visible:ring-ring"
+            disabled={rowFiltersDisabled}
+            title={rowFilterReason}
           />
         </div>
         <Button
@@ -294,7 +374,8 @@ export function PacingFilterToolbar() {
           size="sm"
           className="ml-auto shrink-0 text-muted-foreground"
           onClick={onReset}
-          title="Reset filters"
+          disabled={Boolean(resetDisabledReason)}
+          title={resetDisabledReason ?? "Reset filters to defaults"}
         >
           Reset
         </Button>

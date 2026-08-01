@@ -3369,7 +3369,8 @@
     "formula_or_notes": "Cost / Video Views",
     "type": "formula",
     "formula": {
-      "expression": "cost / video views",
+      "calculatorId": "cpv",
+      "expression": "cost / views",
       "variables": [
         {
           "key": "cost",
@@ -3384,11 +3385,10 @@
         }
       ],
       "output": {
-        "label": "Result",
-        "unit": ""
+        "label": "CPV",
+        "unit": "$"
       },
-      "format": "number",
-      "inferred": true
+      "format": "currency"
     },
     "plainEnglish": "Cost per video view.",
     "whyItMatters": "Video efficiency - but 'view' thresholds differ by platform, so compare like-for-like.",
@@ -5569,7 +5569,7 @@
     "type": "formula",
     "formula": {
       "calculatorId": "gross-margin",
-      "expression": "(revenue - cogs) / revenue",
+      "expression": "((revenue - cogs) / revenue) * 100",
       "variables": [
         {
           "key": "revenue",
@@ -5586,7 +5586,7 @@
       ],
       "output": {
         "label": "Gross Margin",
-        "unit": ""
+        "unit": "%"
       },
       "format": "percent"
     },
@@ -7193,20 +7193,38 @@
     "formula_or_notes": "AOV * Frequency * Margin * Lifetime",
     "type": "formula",
     "formula": {
+      "calculatorId": "ltv",
       "expression": "aov * frequency * margin * lifetime",
       "variables": [
+        {
+          "key": "aov",
+          "label": "AOV",
+          "unit": "$",
+          "required": true
+        },
         {
           "key": "frequency",
           "label": "Frequency",
           "required": true
+        },
+        {
+          "key": "margin",
+          "label": "Margin",
+          "unit": "%",
+          "required": true
+        },
+        {
+          "key": "lifetime",
+          "label": "Lifetime",
+          "unit": "years",
+          "required": true
         }
       ],
       "output": {
-        "label": "Result",
-        "unit": ""
+        "label": "LTV",
+        "unit": "$"
       },
-      "format": "number",
-      "inferred": true
+      "format": "currency"
     },
     "plainEnglish": "Customer Lifetime Value - the total value a customer is worth over time.",
     "whyItMatters": "Justifies a higher acquisition cost - if LTV is high, a 'bad' CPA can still be very profitable.",
@@ -8073,7 +8091,7 @@
     "type": "formula",
     "formula": {
       "calculatorId": "net-margin",
-      "expression": "net_profit / revenue",
+      "expression": "(net_profit / revenue) * 100",
       "variables": [
         {
           "key": "net_profit",
@@ -8090,7 +8108,7 @@
       ],
       "output": {
         "label": "Net Margin",
-        "unit": ""
+        "unit": "%"
       },
       "format": "percent"
     },
@@ -9270,7 +9288,7 @@
     "type": "formula",
     "formula": {
       "calculatorId": "profit-margin",
-      "expression": "(revenue - cost) / revenue",
+      "expression": "((revenue - cost) / revenue) * 100",
       "variables": [
         {
           "key": "revenue",
@@ -9287,7 +9305,7 @@
       ],
       "output": {
         "label": "Profit Margin",
-        "unit": ""
+        "unit": "%"
       },
       "format": "percent"
     },
@@ -10229,7 +10247,7 @@
     "type": "formula",
     "formula": {
       "calculatorId": "roi",
-      "expression": "(ret - cost) / cost",
+      "expression": "((ret - cost) / cost) * 100",
       "variables": [
         {
           "key": "ret",
@@ -10246,7 +10264,7 @@
       ],
       "output": {
         "label": "ROI",
-        "unit": ""
+        "unit": "%"
       },
       "format": "percent"
     },

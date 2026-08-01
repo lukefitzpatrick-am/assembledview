@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
-import { getUserRoles } from "@/lib/rbac"
 import { getPrivateBlob } from "@/lib/creative/getPrivateBlob"
 import { getById, XanoCreativeAssetError } from "@/lib/creative/xanoCreativeAssets"
 
@@ -51,11 +50,9 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
-    const roles = getUserRoles(session.user)
-    if (roles.includes("client")) {
-      const access = await checkClientMbaAccess(request, row.mba_number)
-      if (!access.ok) return access.response
-    }
+    // SEC-G: all roles through checkClientMbaAccess (admin unscoped in helper).
+    const access = await checkClientMbaAccess(request, row.mba_number)
+    if (!access.ok) return access.response
 
     const blobResult = await getPrivateBlob(row.blob_url)
     if (!blobResult || blobResult.statusCode !== 200 || !blobResult.stream) {

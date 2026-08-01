@@ -3,7 +3,7 @@ import axios from "axios"
 import { auth0 } from "@/lib/auth0"
 import { invalidateClientsCache } from "@/lib/cache/clientsCache"
 import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
-import { xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
+import { xanoPostHeaderRecord } from "@/lib/api/xano"
 import { getUserRoles, getUserClientIdentifier } from "@/lib/rbac"
 import { fetchXanoClientRowByUrlSlug } from "@/lib/clients/fetchClientRowByUrlSlug"
 import { requireRole } from "@/lib/requireRole"
@@ -13,7 +13,7 @@ const clientsUrl = getXanoClientsCollectionUrl()
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // AuthZ: client mutations are staff-only (admin|manager); prevents client-role IDOR writes.
-    const gate = await requireRole(req, ["admin", "manager"])
+    const gate = await requireRole(req, ["admin"])
     if ("response" in gate) return gate.response
 
     const { id } = await params
@@ -30,7 +30,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     // AuthZ: client mutations are staff-only (admin|manager); prevents client-role IDOR writes.
-    const gate = await requireRole(req, ["admin", "manager"])
+    const gate = await requireRole(req, ["admin"])
     if ("response" in gate) return gate.response
 
     const { id } = await params
@@ -49,6 +49,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    // SEC-G / SEC-10: intentional split vs collection GET requireRole(admin).
+    // Admin (and other non-client sessions) may read any id; client-role is
+    // own-id only. Do not apply collection requireRole here — it breaks client
+    // self-read. See docs/brain/API-DYNAMIC-ROUTE-GATES.md.
     const session = await auth0.getSession(request)
     if (!session?.user) {
       return NextResponse.json({ error: "unauthorised" }, { status: 401 })
@@ -70,8 +74,17 @@ export async function GET(
       }
     }
 
-    const response = await axios.get(`${clientsUrl}/${id}`, { headers: xanoAuthHeaderRecord() })
-    return NextResponse.json(response.data)
+    const { readClientById } = await import("@/lib/data/readClients")
+    const result = await readClientById(id)
+    if (result.status >= 400) {
+      return NextResponse.json(
+        typeof result.body === "object" && result.body
+          ? result.body
+          : { error: "Failed to fetch client" },
+        { status: result.status >= 400 ? result.status : 500 }
+      )
+    }
+    return NextResponse.json(result.body)
   } catch (error) {
     console.error("Failed to fetch client:", error)
     return NextResponse.json(

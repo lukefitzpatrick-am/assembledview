@@ -1241,19 +1241,22 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     (
       rowIndex: number,
       colIndex: number,
-      e: KeyboardEvent<HTMLInputElement>
+      e: KeyboardEvent<HTMLElement>
     ) => {
       const t = e.currentTarget
-      const isDate = t.type === "date"
+      const input =
+        t instanceof HTMLInputElement ? t : null
+      const isDate = input?.type === "date"
       if (
+        input &&
         e.key === "ArrowRight" &&
         !isDate &&
         colIndex === unitRateNavColIndex &&
         unitRateNavColIndex >= 0
       ) {
-        const len = t.value.length
-        const start = t.selectionStart ?? 0
-        const end = t.selectionEnd ?? 0
+        const len = input.value.length
+        const start = input.selectionStart ?? 0
+        const end = input.selectionEnd ?? 0
         if (start === len && end === len) {
           e.preventDefault()
           focusExpertGridCell(
@@ -1266,12 +1269,13 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
         }
       }
       if (
+        input &&
         e.key === "ArrowLeft" &&
         !isDate &&
         colIndex === firstWeekNavColIndex
       ) {
-        const start = t.selectionStart ?? 0
-        const end = t.selectionEnd ?? 0
+        const start = input.selectionStart ?? 0
+        const end = input.selectionEnd ?? 0
         if (start === 0 && end === 0 && unitRateNavColIndex >= 0) {
           e.preventDefault()
           focusExpertGridCell(
@@ -3365,11 +3369,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                         handleCellFocus(rowIndex, col.key)
                                       }
                                       onKeyDown={(e) =>
-                                        handleGridInputKeyDown(
-                                          rowIndex,
-                                          ci,
-                                          e as KeyboardEvent<HTMLInputElement>
-                                        )
+                                        handleGridInputKeyDown(rowIndex, ci, e)
                                       }
                                     />
                                   </div>

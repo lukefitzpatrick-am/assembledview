@@ -23,8 +23,7 @@ const ALLOWED_CONTENT_TYPES = [
 function resolveUploadedByRole(user: { [key: string]: unknown }): CreativeAsset["uploaded_by_role"] {
   const roles = getUserRoles(user as Parameters<typeof getUserRoles>[0])
   if (roles.includes("admin")) return "admin"
-  if (roles.includes("client")) return "client"
-  return "manager"
+  return "client"
 }
 
 function resolveUploadedByEmail(user: { [key: string]: unknown }): string {
@@ -148,12 +147,10 @@ export async function POST(request: NextRequest) {
 
         const { mba_number, line_item_id, source_table, media_plan_master_id, file_size_bytes } =
           parsedPayload.value
-        const roles = getUserRoles(session.user)
-        if (roles.includes("client")) {
-          const access = await checkClientMbaAccess(request, mba_number)
-          if (!access.ok) {
-            throw new Error("forbidden")
-          }
+        // SEC-G: all roles through checkClientMbaAccess (admin unscoped in helper).
+        const access = await checkClientMbaAccess(request, mba_number)
+        if (!access.ok) {
+          throw new Error("forbidden")
         }
 
         const prefix = creativePathPrefix(mba_number)

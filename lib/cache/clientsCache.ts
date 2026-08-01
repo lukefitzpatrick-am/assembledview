@@ -1,8 +1,6 @@
-import axios from "axios"
 import { omitClientBrain } from "@/lib/clients/omitClientBrain"
 import { getClientDisplayName, slugifyClientNameForUrl } from "@/lib/clients/slug"
-import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
-import { xanoAuthHeaderRecord } from "@/lib/api/xano"
+import { readClientsList } from "@/lib/data/readClients"
 
 /**
  * Coalesced TTL cache for `/api/clients`.
@@ -49,15 +47,12 @@ function withClientSlug(raw: any) {
 }
 
 async function fetchUpstream(): Promise<any[]> {
-  const response = await axios.get(getXanoClientsCollectionUrl(), {
-    timeout: 60_000,
-    headers: {
-      "Content-Type": "application/json",
-      ...xanoAuthHeaderRecord(),
-    },
-  })
-  const payload = Array.isArray(response.data)
-    ? response.data.map(withClientSlug)
+  const result = await readClientsList()
+  if (result.status >= 400) {
+    throw new Error(`Failed to fetch clients (status ${result.status})`)
+  }
+  const payload = Array.isArray(result.body)
+    ? result.body.map(withClientSlug)
     : []
   return payload
 }

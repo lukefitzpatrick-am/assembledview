@@ -1,19 +1,15 @@
-import type { KpiComparison } from "./computeKpiStatus";
+import type { KpiComparison } from "./computeKpiStatus"
+import { formatStoredDecimalAsPercent } from "@/lib/kpi/percentUnits"
 
 /**
  * Formats a decimal ratio (0.014) as a percentage string ("1.40%").
  * Returns "—" (em-dash) for null/undefined.
  *
- * Defensive heuristic (mirrors formatPercentForInput / parsePercentHeuristic):
- * values > 1 are treated as legacy percentage-point form (3 = 3%, not 0.03).
+ * Assumes decimal storage (AV-25 v2) — no magnitude heuristic.
  */
 export function formatRatioAsPercent(value: number | null | undefined): string {
-  if (value === null || value === undefined) return "—";
-  // Legacy campaign_kpi rows may store CTR / conversion rate as percentage
-  // points (3 meaning 3%) rather than decimal ratios (0.03). Without this
-  // guard, (3 * 100) produces "300.00%". See Stage 2e-1 / formatPercentForInput.
-  const decimal = value >= 1 ? value / 100 : value;
-  return `${(decimal * 100).toFixed(2)}%`;
+  if (value === null || value === undefined) return "—"
+  return formatStoredDecimalAsPercent(value)
 }
 
 /**
@@ -21,9 +17,9 @@ export function formatRatioAsPercent(value: number | null | undefined): string {
  * Returns "—" for null. Positive values get a "+" prefix.
  */
 export function formatVariancePercent(value: number | null | undefined): string {
-  if (value === null || value === undefined) return "—";
-  const sign = value > 0 ? "+" : "";
-  return `${sign}${value.toFixed(1)}%`;
+  if (value === null || value === undefined) return "—"
+  const sign = value > 0 ? "+" : ""
+  return `${sign}${value.toFixed(1)}%`
 }
 
 /**
@@ -32,8 +28,8 @@ export function formatVariancePercent(value: number | null | undefined): string 
 export function labelForMetric(metric: KpiComparison["metric"]): string {
   switch (metric) {
     case "ctr":
-      return "CTR";
+      return "CTR"
     case "conversionRate":
-      return "Conversion Rate";
+      return "Conversion Rate"
   }
 }

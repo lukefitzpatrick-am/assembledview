@@ -80,10 +80,15 @@ const PanelHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
 )
 PanelHeader.displayName = "PanelHeader"
 
-const PanelTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
+type PanelTitleProps = React.HTMLAttributes<HTMLElement> & {
+  /** Semantic heading element. Defaults to `h2` so panels appear in the outline. */
+  as?: "h1" | "h2" | "h3" | "h4" | "h5" | "h6" | "div"
+}
+
+const PanelTitle = React.forwardRef<HTMLElement, PanelTitleProps>(
+  ({ className, as: Comp = "h2", ...props }, ref) => (
+    <Comp
+      ref={ref as React.Ref<never>}
       className={cn("text-lg font-semibold leading-none tracking-tight", className)}
       {...props}
     />

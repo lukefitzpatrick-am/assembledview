@@ -14,6 +14,7 @@ import { AuthContextProvider, useAuthContext } from "@/contexts/AuthContext"
 import type React from "react"
 import { getAssistantContext } from "@/lib/assistantBridge"
 import { CommandPalette } from "@/components/CommandPalette"
+import { DocumentTitleFromManifest } from "@/components/DocumentTitleFromManifest"
 import { ThemeToggle } from "@/components/ThemeToggle"
 import { cn } from "@/lib/utils"
 import type { ChatMode } from "@/src/ava/modes"
@@ -36,6 +37,7 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
       <AuthContextProvider>
         <SidebarProvider>
           <MediaPlanProvider>
+            <DocumentTitleFromManifest />
             <a
               href="#main"
               className="fixed left-4 top-0 z-[100] -translate-y-full rounded-md bg-background px-4 py-2 text-sm font-medium text-foreground shadow-md transition-transform focus-visible:translate-y-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"

@@ -66,8 +66,8 @@ async function buildReachIndex(
   draft: NonNullable<SavedAudienceShape["audience"]>,
   waveId: string
 ): Promise<ClientSafeReachIndexPoint[]> {
-  const segmentId = String(draft.segmentId ?? "").trim()
-  if (!waveId || !segmentId) return []
+  const segmentId = String(draft.segmentId ?? "").trim() || "base"
+  if (!waveId) return []
 
   const statesRaw = Array.isArray(draft.states) ? draft.states.map(String) : []
   const states = statesRaw.filter((s) => STATE_SET.has(s)) as PlanningState[]
@@ -114,11 +114,11 @@ async function buildReachIndex(
       const label =
         metaRow?.level2 || metaRow?.level1 || ch.engine_channel_id || ch.channel_id
       const aff = ch.affinity_by_segment[segmentId]
+      if (typeof aff !== "number" || !Number.isFinite(aff)) continue
       points.push({
         channel: label,
         reach_pct: Math.round(ch.reach_pct * 1000) / 10,
-        affinity_index:
-          typeof aff === "number" && Number.isFinite(aff) ? Math.round(aff) : 100,
+        affinity_index: Math.round(aff),
       })
     }
     return points.toSorted((a, b) => b.reach_pct - a.reach_pct)

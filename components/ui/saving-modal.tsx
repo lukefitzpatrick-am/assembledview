@@ -3,13 +3,17 @@
 import Image from "next/image"
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Check, X } from "lucide-react"
+import { Check, Minus, X } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { LoadingDots } from "@/components/ui/loading-dots"
+import {
+  savingDialogAllComplete,
+  savingDialogHasErrors,
+} from "@/lib/docs/saveDocSteps"
 
 export interface SaveStatusItem {
   name: string;
-  status: 'pending' | 'success' | 'error';
+  status: 'pending' | 'success' | 'error' | 'skipped';
   error?: string;
 }
 
@@ -53,8 +57,8 @@ export function SavingModal({
   publishRetryPending = false,
 }: SavingModalProps) {
   const hasItems = items.length > 0;
-  const allComplete = items.length > 0 && items.every(item => item.status !== 'pending');
-  const hasErrors = items.some(item => item.status === 'error');
+  const allComplete = savingDialogAllComplete(items);
+  const hasErrors = savingDialogHasErrors(items);
   const showRetryPublish =
     Boolean(publishRetryPending && onRetryPublish) && hasErrors && !isSaving;
   const canClose = !isSaving && !isRetryingPublish;
@@ -104,7 +108,8 @@ export function SavingModal({
                 className={cn(
                   "flex items-center gap-3 p-2 rounded-md",
                   item.status === 'error' && "bg-destructive/10",
-                  item.status === 'success' && "bg-pacing-ahead-bg"
+                  item.status === 'success' && "bg-pacing-ahead-bg",
+                  item.status === 'skipped' && "bg-muted/40"
                 )}
               >
                 <div className="flex-shrink-0 w-5 h-5 flex items-center justify-center">
@@ -117,11 +122,24 @@ export function SavingModal({
                   {item.status === 'error' && (
                     <X className="w-5 h-5 text-destructive" />
                   )}
+                  {item.status === 'skipped' && (
+                    <Minus className="w-5 h-5 text-muted-foreground" aria-label="Skipped" />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{item.name}</div>
+                  <div className="text-sm font-medium">
+                    {item.name}
+                    {item.status === 'skipped' ? (
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        Skipped
+                      </span>
+                    ) : null}
+                  </div>
                   {item.status === 'error' && item.error && (
                     <div className="text-xs text-destructive mt-1">{item.error}</div>
+                  )}
+                  {item.status === 'skipped' && item.error && (
+                    <div className="text-xs text-muted-foreground mt-1">{item.error}</div>
                   )}
                 </div>
               </div>

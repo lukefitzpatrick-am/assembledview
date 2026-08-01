@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/format/money"
 import { getMediaColor } from "@/lib/charts/registry"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { clipDateRangeToCampaign, parseDateOnly } from "@/lib/dashboard/dateFilter"
@@ -60,12 +61,7 @@ function compareRateStatus(actual: number, target: number | undefined, higherIsB
 }
 
 function formatCurrency2dp(value: number | undefined) {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value ?? 0)
+  return formatMoney(value ?? 0)
 }
 
 function formatWholeNumber(value: number | undefined) {

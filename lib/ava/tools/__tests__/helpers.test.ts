@@ -19,7 +19,7 @@ function baseContext(
     enabledMediaTypes: undefined,
     userSub: "user-1",
     userEmail: "user@example.com",
-    roles: ["manager"],
+    roles: ["admin"],
     clientSlugs: [],
     mbaNumbers: [],
     capturedPatch: null,
@@ -38,13 +38,13 @@ test("isUnscopedAvaAccess: admin → true", () => {
 })
 
 test("isUnscopedAvaAccess: non-admin + empty clientSlugs → false (not unscoped)", () => {
-  const ctx = baseContext({ roles: ["manager"], clientSlugs: [] })
+  const ctx = baseContext({ roles: ["admin"], clientSlugs: [] })
   assert.equal(isUnscopedAvaAccess(ctx), false)
 })
 
 test("isUnscopedAvaAccess: non-admin with clientSlugs → false", () => {
   const ctx = baseContext({
-    roles: ["manager"],
+    roles: ["admin"],
     clientSlugs: ["acme"],
   })
   assert.equal(isUnscopedAvaAccess(ctx), false)
@@ -58,14 +58,14 @@ test("resolveScopedMba: admin/unscoped → ok", () => {
 })
 
 test("resolveScopedMba: scoped + empty mbaNumbers → fail closed", () => {
-  const ctx = baseContext({ roles: ["manager"], mbaNumbers: [] })
+  const ctx = baseContext({ roles: ["admin"], mbaNumbers: [] })
   const result = resolveScopedMba(ctx, "MBA-1")
   assert.equal(result.ok, false)
 })
 
 test("resolveScopedMba: scoped + out-of-scope want → fail", () => {
   const ctx = baseContext({
-    roles: ["manager"],
+    roles: ["admin"],
     mbaNumbers: ["MBA-1", "MBA-2"],
   })
   const result = resolveScopedMba(ctx, "MBA-999")
@@ -74,7 +74,7 @@ test("resolveScopedMba: scoped + out-of-scope want → fail", () => {
 
 test("resolveScopedMba: scoped + in-scope want → ok", () => {
   const ctx = baseContext({
-    roles: ["manager"],
+    roles: ["admin"],
     mbaNumbers: ["MBA-1", "MBA-2"],
   })
   const result = resolveScopedMba(ctx, "MBA-1")
@@ -83,7 +83,7 @@ test("resolveScopedMba: scoped + in-scope want → ok", () => {
 })
 
 test("resolveScopedClientSlug: scoped + empty clientSlugs → fail closed", () => {
-  const ctx = baseContext({ roles: ["manager"], clientSlugs: [] })
+  const ctx = baseContext({ roles: ["admin"], clientSlugs: [] })
   const noWant = resolveScopedClientSlug(ctx, null)
   assert.equal(noWant.ok, false)
 
@@ -93,7 +93,7 @@ test("resolveScopedClientSlug: scoped + empty clientSlugs → fail closed", () =
 
 test("resolveScopedClientSlug: scoped + in-scope → ok", () => {
   const ctx = baseContext({
-    roles: ["manager"],
+    roles: ["admin"],
     clientSlugs: ["Acme Co"],
   })
   const result = resolveScopedClientSlug(ctx, "Acme Co")
@@ -103,7 +103,7 @@ test("resolveScopedClientSlug: scoped + in-scope → ok", () => {
 
 test("resolveScopedClientSlug: scoped + out-of-scope → fail", () => {
   const ctx = baseContext({
-    roles: ["manager"],
+    roles: ["admin"],
     clientSlugs: ["Acme Co"],
   })
   const result = resolveScopedClientSlug(ctx, "Other Client")

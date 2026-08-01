@@ -7,6 +7,12 @@ import { syncLineItemsToSnowflake } from "@/lib/snowflake/syncXanoLineItems"
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
 
+/**
+ * Daily Xano → Snowflake line-item snapshot.
+ * Intentionally Xano-sourced until T6 (do not repoint via DATA_BACKEND_*).
+ * See `scripts/migration/DISPOSITIONS.md` § T6 — XANO_LINE_ITEMS_SNAPSHOT.
+ */
+
 export async function GET(request: Request) {
   if (!assertCronSecret(request)) {
     return NextResponse.json(
