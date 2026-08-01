@@ -17,6 +17,12 @@ export type GetDeliveredTotalsForCampaignInput = {
 export type DeliveredTotalsForCampaign = DeliveredTotals & {
   /** Melbourne "as of" date (`getAsOfDate()`) — Snowflake facts refresh ~06:30 Melbourne daily. */
   asOf: string
+  /** Digital snapshot clicks (0 when snapshot missing) — for read-only KPI pacing (B1-1). */
+  clicks: number
+  /** Digital snapshot conversions/`results` (0 when snapshot missing). */
+  results: number
+  /** Digital 3s video views — not a VTR/CPV numerator; exposed for mapping honesty only. */
+  video3sViews: number
 }
 
 /**
@@ -67,5 +73,8 @@ export async function getDeliveredTotalsForCampaign(
   return {
     ...totals,
     asOf: snapshot?.asOf ?? getAsOfDate(),
+    clicks: snapshot?.planTotals.clicks ?? 0,
+    results: snapshot?.planTotals.results ?? 0,
+    video3sViews: snapshot?.planTotals.video3sViews ?? 0,
   }
 }

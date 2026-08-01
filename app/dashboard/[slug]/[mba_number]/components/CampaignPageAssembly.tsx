@@ -20,11 +20,13 @@ import type { PageContext } from "@/lib/ava/types"
 
 import CampaignHeroBanner from "@/components/dashboard/campaign/CampaignHeroBanner"
 import CampaignSummaryRow from "@/components/dashboard/campaign/CampaignSummaryRow"
+import { CampaignKpiPacingStrip } from "@/components/dashboard/campaign/CampaignKpiPacingStrip"
 import SpendChartsRow from "@/components/dashboard/campaign/SpendChartsRow"
 import MediaPlanVizSection from "@/components/dashboard/campaign/MediaPlanVizSection"
 import CampaignDetailsModal from "@/components/dashboard/campaign/CampaignDetailsModal"
 import { PlannedAudienceSection } from "@/components/dashboard/campaign/PlannedAudienceSection"
 import { CampaignDeliverySection } from "@/components/dashboard/delivery/CampaignDeliverySection"
+import { buildKpiPacingRows } from "@/lib/kpi/kpiPacing"
 import CampaignActions from "./CampaignActions"
 import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
 import { ErrorState, LoadingState } from "@/components/ui/states"
@@ -178,6 +180,12 @@ type CampaignPageAssemblyProps = {
   actualSpend?: number
   /** Delivered impressions (digital only — fixed-cost media has no impression metric). */
   deliveredImpressions?: number
+  /** Digital clicks for admin KPI pacing (B1-1). */
+  deliveredClicks?: number
+  /** Digital conversions/`results` for admin KPI pacing (B1-1). */
+  deliveredResults?: number
+  /** Digital 3s views — not mapped to VTR/CPV; passed through for feed honesty. */
+  deliveredVideo3sViews?: number
   /** True when `getDeliveredTotalsForCampaign` found a real positive delivered figure. */
   hasDelivery?: boolean
   /** Melbourne "as of" date for the delivered figures (facts refresh ~06:30 Melbourne). */
@@ -208,6 +216,8 @@ type CampaignPageAssemblyProps = {
   deliveryLineItemIds: string[]
   availableVersions: MediaPlanVersionListEntry[]
   currentVersion: number
+  /** Admin-only surfaces (KPI pacing strip). Clients never see them. */
+  isAdmin?: boolean
 }
 
 function formatLocalYmd(d: Date): string {
@@ -226,6 +236,9 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     budget,
     actualSpend,
     deliveredImpressions,
+    deliveredClicks,
+    deliveredResults,
+    deliveredVideo3sViews,
     hasDelivery,
     deliveredAsOf,
     expectedSpend,
@@ -254,6 +267,7 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     deliveryLineItemIds,
     availableVersions,
     currentVersion,
+    isAdmin = false,
   } = props
 
   const filterRange: DateRange = useMemo(
@@ -394,6 +408,36 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     () => buildLineItemKpiTargetMap(savedCampaignKPIs),
     [savedCampaignKPIs],
   )
+
+  const kpiPacingRows = useMemo(() => {
+    if (!isAdmin) return []
+    return buildKpiPacingRows({
+      campaignKpis: savedCampaignKPIs,
+      feed: {
+        impressions: Number(deliveredImpressions ?? 0) || 0,
+        clicks: Number(deliveredClicks ?? 0) || 0,
+        results: Number(deliveredResults ?? 0) || 0,
+        spendToDate: Number(actualSpend ?? 0) || 0,
+        video3sViews: Number(deliveredVideo3sViews ?? 0) || 0,
+      },
+      startDate: campaignStartISO ?? startDate,
+      endDate: campaignEndISO ?? endDate,
+      asOfDate: deliveredAsOf || undefined,
+    })
+  }, [
+    actualSpend,
+    campaignEndISO,
+    campaignStartISO,
+    deliveredAsOf,
+    deliveredClicks,
+    deliveredImpressions,
+    deliveredResults,
+    deliveredVideo3sViews,
+    endDate,
+    isAdmin,
+    savedCampaignKPIs,
+    startDate,
+  ])
 
   const heroCampaign = useMemo(
     () => ({
@@ -612,6 +656,16 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
           </Suspense>
         </SectionBoundary>
       </section>
+
+      {isAdmin && kpiPacingRows.length > 0 ? (
+        <section className="mt-6">
+          <SectionBoundary title="KPI pacing">
+            <div className="campaign-section-enter" style={{ animationDelay: "150ms" }}>
+              <CampaignKpiPacingStrip rows={kpiPacingRows} />
+            </div>
+          </SectionBoundary>
+        </section>
+      ) : null}
 
       <section className="mt-8">
         <SectionBoundary title="Planned media insights">
