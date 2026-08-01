@@ -2036,35 +2036,29 @@ export default function DashboardOverview({
         title={title}
         Icon={BarChart3}
         detail={
-          <div className="space-y-1">
-            <p>
-              Home shows live campaigns and scopes across your clients so you can see what is in
-              market and act next.
+          timeRangeDescription || dataLastRefreshedAt ? (
+            <p className="text-xs text-muted-foreground">
+              {timeRangeDescription}
+              {dataLastRefreshedAt ? (
+                <span className={timeRangeDescription ? "ml-2 opacity-80" : "opacity-80"}>
+                  {timeRangeDescription ? "· " : null}
+                  Updated {format(dataLastRefreshedAt, "h:mm a")}
+                </span>
+              ) : null}
             </p>
-            {timeRangeDescription || dataLastRefreshedAt ? (
-              <p className="text-xs text-muted-foreground">
-                {timeRangeDescription}
-                {dataLastRefreshedAt ? (
-                  <span className={timeRangeDescription ? "ml-2 opacity-80" : "opacity-80"}>
-                    {timeRangeDescription ? "· " : null}
-                    Updated {format(dataLastRefreshedAt, "h:mm a")}
-                  </span>
-                ) : null}
-              </p>
-            ) : null}
-          </div>
+          ) : null
         }
         actions={
-          <div className="w-full min-w-0 lg:max-w-[1040px]">
-            <div className="flex w-full flex-wrap items-center gap-2 lg:flex-nowrap lg:justify-end">
+          <div className="w-full min-w-0">
+            <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 xl:flex xl:flex-nowrap xl:items-center xl:justify-end">
               <Button
                 type="button"
-                className="h-9 whitespace-nowrap"
+                className="col-span-2 h-9 whitespace-nowrap sm:col-span-1 xl:w-auto"
                 onClick={() => router.push("/mediaplans/create")}
               >
                 Create Media Plan
               </Button>
-              <div className="w-full sm:w-[240px] lg:w-[220px]">
+              <div className="col-span-2 sm:col-span-4 xl:w-[320px] xl:min-w-[260px] xl:max-w-[380px] xl:flex-1">
                 <Label htmlFor="dashboard-campaign-search" className="sr-only">
                   Search
                 </Label>
@@ -2080,7 +2074,7 @@ export default function DashboardOverview({
                 </div>
               </div>
 
-              <div className="w-full sm:w-[320px] lg:w-[300px]">
+              <div className="col-span-2 sm:col-span-4 xl:w-[300px] xl:shrink-0">
                 <Label className="sr-only">Clients</Label>
                 <MultiSelectCombobox
                   options={clientFilterOptions}
@@ -2095,44 +2089,42 @@ export default function DashboardOverview({
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap lg:justify-end">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  className="h-9 whitespace-nowrap text-xs"
-                  onClick={handleSaveSelectedClients}
-                  disabled={!savedViewsListKey}
-                  title={!savedViewsListKey ? "Sign in to save selected clients" : undefined}
-                >
-                  {savedViewJustSaved ? "Saved" : "Save selected clients"}
-                </Button>
-                {savedViews.length > 0 ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-9 whitespace-nowrap"
-                    onClick={handleClearAllSavedViews}
-                    disabled={!savedViewsListKey}
-                  >
-                    Clear all saved
-                  </Button>
-                ) : null}
+              <Button
+                type="button"
+                variant="secondary"
+                className="col-span-1 h-9 whitespace-nowrap text-xs xl:w-auto"
+                onClick={handleSaveSelectedClients}
+                disabled={!savedViewsListKey}
+                title={!savedViewsListKey ? "Sign in to save selected clients" : undefined}
+              >
+                {savedViewJustSaved ? "Saved" : "Save selected clients"}
+              </Button>
+              {savedViews.length > 0 ? (
                 <Button
                   type="button"
                   variant="outline"
-                  className="h-9 whitespace-nowrap text-xs"
-                  onClick={handleClearDashboardFilters}
-                  disabled={
-                    !dashboardFilters.campaignSearch.trim() &&
-                    dashboardFilters.clients.length === 0 &&
-                    dashboardFilters.publishers.length === 0 &&
-                    !dashboardFilters.month
-                  }
+                  className="col-span-1 h-9 whitespace-nowrap xl:w-auto"
+                  onClick={handleClearAllSavedViews}
+                  disabled={!savedViewsListKey}
                 >
-                  <FilterX className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-                  Clear filters
+                  Clear all saved
                 </Button>
-              </div>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                className="col-span-1 h-9 whitespace-nowrap text-xs xl:w-auto"
+                onClick={handleClearDashboardFilters}
+                disabled={
+                  !dashboardFilters.campaignSearch.trim() &&
+                  dashboardFilters.clients.length === 0 &&
+                  dashboardFilters.publishers.length === 0 &&
+                  !dashboardFilters.month
+                }
+              >
+                <FilterX className="mr-2 h-4 w-4 shrink-0" aria-hidden />
+                Clear filters
+              </Button>
             </div>
           </div>
         }
@@ -2365,6 +2357,7 @@ export default function DashboardOverview({
                           <SortableTableHeader label="Scope Date" direction={liveScopesSort.column === "scopeDate" ? liveScopesSort.direction : null} onToggle={() => toggleSort("scopeDate", liveScopesSort, setLiveScopesSort)} />
                           <TableHead>Project Overview</TableHead>
                           <SortableTableHeader label="Status" direction={liveScopesSort.column === "status" ? liveScopesSort.direction : null} onToggle={() => toggleSort("status", liveScopesSort, setLiveScopesSort)} />
+                          <TableHead className="w-24">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -2381,6 +2374,18 @@ export default function DashboardOverview({
                             <TableCell>
                               <Badge className={getStatusBadgeColor(scope.project_status)}>{scope.project_status}</Badge>
                             </TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1.5">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-2.5 text-xs max-[375px]:h-11"
+                                  onClick={() => router.push(`/scopes-of-work/${scope.id}/edit`)}
+                                >
+                                  Edit
+                                </Button>
+                              </div>
+                            </TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
@@ -2394,6 +2399,7 @@ export default function DashboardOverview({
                         scope={scope}
                         formatDate={formatDate}
                         statusBadgeClassName={getStatusBadgeColor(scope.project_status)}
+                        onEdit={() => router.push(`/scopes-of-work/${scope.id}/edit`)}
                       />
                     ))}
                   </div>

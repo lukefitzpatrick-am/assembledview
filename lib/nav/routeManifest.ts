@@ -77,15 +77,16 @@ export const ROUTE_MANIFEST_EXCLUSIONS: ReadonlyArray<{
 ]
 
 /**
- * Admin sidebar structure (AV-21 final). Paths must exist in ROUTE_MANIFEST.
- * "Client Dashboards" is a collapsible, not a route — rendered inside Deliver by AppSidebar
- * (stays until AV-23 phase 3). Create Campaign is palette-only (verb).
- * Top cluster: Today + Tasks ("what needs me now"). Footer: Admin + UserMenu only.
+ * Admin sidebar structure (AV-UI-1). Paths must exist in ROUTE_MANIFEST.
+ * Top cluster: Home + Knowledge Hub. Groups: Plan / Deliver / Money / Admin (muted).
+ * "Client Dashboards" is a collapsible, not a route — rendered under Creative in Deliver by
+ * AppSidebar. Finance is a flat row (section pills live on /finance). Create Campaign is
+ * palette-only (verb). Footer: UserMenu only (invite lives in Admin group as "New user").
  */
 export type AdminSidebarGroupTone = "default" | "muted"
 
 export type AdminSidebarGroup = {
-  id: "top" | "plan" | "deliver" | "money" | "reference"
+  id: "top" | "plan" | "deliver" | "money" | "admin"
   /** Null = ungrouped top cluster (no section heading). */
   label: string | null
   tone?: AdminSidebarGroupTone
@@ -93,7 +94,7 @@ export type AdminSidebarGroup = {
 }
 
 export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
-  { id: "top", label: null, paths: ["/dashboard", "/tasks"] },
+  { id: "top", label: null, paths: ["/dashboard", "/knowledge"] },
   {
     id: "plan",
     label: "Plan",
@@ -102,22 +103,22 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
   {
     id: "deliver",
     label: "Deliver",
-    paths: ["/pacing", "/creative", "/client"],
+    paths: ["/pacing", "/creative"],
   },
   { id: "money", label: "Money", paths: ["/finance"] },
   {
-    id: "reference",
-    label: "Reference",
+    id: "admin",
+    label: "Admin",
     tone: "muted",
-    paths: ["/publishers", "/knowledge"],
+    paths: ["/tasks", "/client", "/publishers", "/admin/users/new"],
   },
 ] as const
 
 /** Flattened sidebar destinations (order = group order × path order). */
 export const ADMIN_SIDEBAR_PATHS = ADMIN_SIDEBAR_GROUPS.flatMap((g) => [...g.paths])
 
-/** Shown in the sidebar footer beside UserMenu. */
-export const ADMIN_SIDEBAR_FOOTER_PATHS = ["/admin/users/new"] as const
+/** Footer now holds UserMenu only. */
+export const ADMIN_SIDEBAR_FOOTER_PATHS = [] as const
 
 /** Mobile bottom tabs — Create Campaign removed; Creative keeps a 5th workflow slot. */
 export const ADMIN_BOTTOM_NAV_PATHS = [
@@ -141,15 +142,15 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
   },
   {
     path: "/dashboard",
-    label: "Today",
-    title: "Today",
+    label: "Home",
+    title: "Home",
     icon: "LayoutDashboard",
     inPalette: true,
     inSidebar: true,
     sidebarExact: true,
     inBottomNav: true,
     roles: ["admin"],
-    searchTerms: "dashboard overview home",
+    searchTerms: "today dashboard overview home",
     group: "core",
   },
   {
@@ -279,12 +280,13 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
   },
   {
     path: "/admin/users/new",
-    label: "Admin",
-    title: "Admin",
+    label: "New user",
+    title: "New user",
     icon: "UserCircle",
     inPalette: true,
+    inSidebar: true,
     roles: ["admin"],
-    searchTerms: "user management invite admin enrol enrolment",
+    searchTerms: "user management invite admin enrol enrolment new user",
     group: "admin",
   },
 
@@ -509,7 +511,96 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     inPalette: false,
     roles: ["admin"],
     group: "finance",
-    // Legacy redirect → /finance?tab=billing
+    // FN7 permanent redirect → /finance/invoicing
+  },
+  // Finance sections IA (FN7 default ON). Staff-only; sidebar always expands Finance
+  // (AppSidebar + FINANCE_SECTION_SIDEBAR_ITEMS). Kill-switch: NEXT_PUBLIC_FINANCE_SECTIONS=off.
+  {
+    path: "/finance/home",
+    label: "Finance",
+    title: "Finance",
+    inPalette: false,
+    roles: ["admin"],
+    group: "finance",
+    // Internal rewrite target for bare /finance
+  },
+  {
+    path: "/finance/invoicing",
+    label: "Invoicing",
+    title: "Finance · Invoicing",
+    inPalette: true,
+    roles: ["admin"],
+    group: "finance",
+    searchTerms: "billing receivables invoicing",
+  },
+  {
+    path: "/finance/periods",
+    label: "Periods",
+    title: "Finance · Periods",
+    inPalette: true,
+    roles: ["admin"],
+    group: "finance",
+  },
+  {
+    path: "/finance/xero",
+    label: "Xero",
+    title: "Finance · Xero",
+    inPalette: true,
+    roles: ["admin"],
+    group: "finance",
+    searchTerms: "xero queue match exceptions",
+  },
+  {
+    path: "/finance/xero/matches",
+    label: "Xero matches",
+    title: "Finance · Xero matches",
+    inPalette: true,
+    roles: ["admin"],
+    group: "finance",
+    searchTerms: "xero match pc6 divergence",
+  },
+  {
+    path: "/finance/costs",
+    label: "Costs",
+    title: "Finance · Costs",
+    inPalette: true,
+    roles: ["admin"],
+    group: "finance",
+    searchTerms: "payables publisher invoices accruals",
+  },
+  {
+    path: "/finance/costs/invoices",
+    label: "Publisher invoices",
+    title: "Finance · Publisher invoices",
+    inPalette: true,
+    roles: ["admin"],
+    group: "finance",
+  },
+  {
+    path: "/finance/costs/accruals",
+    label: "Accruals",
+    title: "Finance · Accruals",
+    inPalette: true,
+    roles: ["admin"],
+    group: "finance",
+  },
+  {
+    path: "/finance/investment",
+    label: "Investment",
+    title: "Finance · Investment",
+    inPalette: true,
+    roles: ["admin"],
+    group: "finance",
+    searchTerms: "report spend margin",
+  },
+  {
+    path: "/finance/forecasting",
+    label: "Forecasting",
+    title: "Finance · Forecasting",
+    inPalette: true,
+    roles: ["admin"],
+    group: "finance",
+    searchTerms: "forecast booked targets variance",
   },
 
   // ── Scopes ─────────────────────────────────────────────────────────

@@ -45,7 +45,7 @@ export function MediaPlanEditorHero({
         <PageHeroTitleBlock title={title} detail={detail} brandColour={brandColour} />
 
         {actions ? (
-          <div className="relative z-10 flex shrink-0 flex-wrap items-center gap-2 sm:justify-end md:pt-0.5">
+          <div className="relative z-10 flex w-full min-w-0 flex-wrap items-center gap-2 md:w-auto md:flex-1 md:justify-end md:pt-0.5">
             {actions}
           </div>
         ) : null}

@@ -58,7 +58,7 @@ test("palette includes every admin sidebar destination with matching labels", ()
     assert.equal(hit!.label, entry.label)
   }
   const footer = getAdminSidebarFooterNav()
-  assert.equal(footer[0]!.label, getRouteByExactPath("/admin/users/new")!.label)
+  assert.equal(footer.length, 0)
 })
 
 test("Campaigns and Planning nouns are consistent across surfaces", () => {
@@ -74,37 +74,42 @@ test("Campaigns and Planning nouns are consistent across surfaces", () => {
   assert.equal(pageMetadata("/tools/behavioural-planner").title, "Planning")
 })
 
-test("Today / Clients / Admin labels and Create Campaign is palette-only", () => {
-  assert.equal(getRouteByExactPath("/dashboard")!.label, "Today")
+test("Home / Clients / New user labels and Create Campaign is palette-only", () => {
+  assert.equal(getRouteByExactPath("/dashboard")!.label, "Home")
   assert.equal(getRouteByExactPath("/client")!.label, "Clients")
-  assert.equal(getRouteByExactPath("/admin/users/new")!.label, "Admin")
+  assert.equal(getRouteByExactPath("/admin/users/new")!.label, "New user")
   const create = getRouteByExactPath("/mediaplans/create")!
   assert.equal(create.label, "Create Campaign")
   assert.equal(create.inSidebar, false)
   assert.ok(getPaletteNav(true).some((p) => p.path === "/mediaplans/create"))
   assert.ok(!(ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/mediaplans/create"))
   assert.ok((ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/tasks"))
+  assert.ok((ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/users/new"))
   assert.equal(getRouteByExactPath("/tasks")!.inSidebar, true)
 })
 
-test("sidebar groups match Plan / Deliver / Money / Reference IA", async () => {
+test("sidebar groups match Plan / Deliver / Money / Admin IA", async () => {
   const { ADMIN_SIDEBAR_GROUPS, getAdminSidebarGroups } = await import("../routeManifest.js")
   assert.deepEqual(
     ADMIN_SIDEBAR_GROUPS.map((g) => ({ id: g.id, label: g.label, paths: [...g.paths] })),
     [
-      { id: "top", label: null, paths: ["/dashboard", "/tasks"] },
+      { id: "top", label: null, paths: ["/dashboard", "/knowledge"] },
       {
         id: "plan",
         label: "Plan",
         paths: ["/tools/behavioural-planner", "/mediaplans", "/scopes-of-work"],
       },
-      { id: "deliver", label: "Deliver", paths: ["/pacing", "/creative", "/client"] },
+      { id: "deliver", label: "Deliver", paths: ["/pacing", "/creative"] },
       { id: "money", label: "Money", paths: ["/finance"] },
-      { id: "reference", label: "Reference", paths: ["/publishers", "/knowledge"] },
+      {
+        id: "admin",
+        label: "Admin",
+        paths: ["/tasks", "/client", "/publishers", "/admin/users/new"],
+      },
     ]
   )
   const groups = getAdminSidebarGroups()
-  assert.equal(groups.find((g) => g.id === "reference")?.tone, "muted")
+  assert.equal(groups.find((g) => g.id === "admin")?.tone, "muted")
   assert.equal(groups.find((g) => g.id === "plan")?.items[0]?.label, "Planning")
 })
 

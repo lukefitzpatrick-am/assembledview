@@ -6,6 +6,7 @@ import { UserMenu } from "@/components/UserMenu"
 import {
   Sidebar,
   SidebarContent,
+  SidebarHeader,
   SidebarGroup,
   SidebarGroupContent,
   SidebarGroupLabel,
@@ -26,7 +27,6 @@ import { coalescedGetJson } from "@/lib/api/coalescedGetJson"
 import { cn } from "@/lib/utils"
 import {
   getAdminBottomNav,
-  getAdminSidebarFooterNav,
   getAdminSidebarGroups,
   getRouteByExactPath,
   type NavLink,
@@ -121,7 +121,6 @@ export function AppSidebar() {
   }
 
   const adminGroups = useMemo(() => getAdminSidebarGroups(), [])
-  const adminFooterItems = useMemo(() => getAdminSidebarFooterNav(), [])
 
   const formatClientSlugLabel = (slug: string) => {
     const s = String(slug ?? "").trim()
@@ -183,8 +182,12 @@ export function AppSidebar() {
 
   if (isLoading) {
     return (
-      <Sidebar className="h-screen overflow-hidden">
-        <SidebarContent className="overflow-hidden" role="navigation" aria-label="Primary navigation">
+      <Sidebar>
+        <SidebarContent
+          className="overflow-y-auto overflow-x-hidden scrollbar-thin"
+          role="navigation"
+          aria-label="Primary navigation"
+        >
           <div className="flex flex-col gap-3 px-4 py-6 text-sm text-sidebar-foreground/80">
             <div aria-hidden className="flex flex-col gap-3">
               <div className="h-6 w-24 animate-pulse rounded-md bg-sidebar-accent" />
@@ -201,9 +204,9 @@ export function AppSidebar() {
 
   return (
     <>
-      <Sidebar className="h-screen overflow-hidden">
-        <SidebarContent className="overflow-hidden" role="navigation" aria-label="Primary navigation">
-          <div className="flex items-start justify-center py-4">
+      <Sidebar>
+        <SidebarHeader className="py-4">
+          <div className="flex items-start justify-center">
             <Link
               href="/dashboard"
               aria-label="Assembled Media home"
@@ -222,7 +225,12 @@ export function AppSidebar() {
               />
             </Link>
           </div>
-
+        </SidebarHeader>
+        <SidebarContent
+          className="overflow-y-auto overflow-x-hidden scrollbar-thin"
+          role="navigation"
+          aria-label="Primary navigation"
+        >
           {isAdmin ? (
             <>
               {adminGroups.map((group) => {
@@ -249,7 +257,7 @@ export function AppSidebar() {
                               isActive={activeForItem(item)}
                               muted={muted}
                             />
-                            {group.id === "deliver" && item.path === "/client" ? (
+                            {group.id === "deliver" && item.path === "/creative" ? (
                               <SidebarMenuItem>
                                 <SidebarMenuButton
                                   type="button"
@@ -277,7 +285,7 @@ export function AppSidebar() {
                                   )}
                                 </SidebarMenuButton>
                                 {isClientsExpanded ? (
-                                  <SidebarMenuSub className="max-h-[40vh] overflow-y-auto scrollbar-thin">
+                                  <SidebarMenuSub className="max-h-[32vh] overflow-y-auto scrollbar-thin">
                                     {clientsSortedForNav.map(({ client, label }) => {
                                       const slug = client.slug || slugifyClientNameForUrl(label)
                                       const href = `/client/${slug}`
@@ -339,25 +347,6 @@ export function AppSidebar() {
 
         <SidebarFooter className="overflow-hidden border-t border-sidebar-border p-3">
           <div className="flex w-full max-w-full flex-col gap-2">
-            {isAdmin
-              ? adminFooterItems.map((item) => {
-                  const Icon = item.icon ? ROUTE_ICON_MAP[item.icon] : LayoutDashboard
-                  return (
-                    <SidebarMenuButton
-                      key={item.path}
-                      asChild
-                      isActive={pathMatchesHref(pathname, item.path)}
-                      size="sm"
-                      className="w-full justify-start"
-                    >
-                      <Link href={item.path} className="flex min-w-0 items-center whitespace-nowrap">
-                        <Icon className="mr-2 h-[17px] w-[17px] shrink-0 stroke-[1.8]" aria-hidden />
-                        <span className="min-w-0 truncate text-sm">{item.label}</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  )
-                })
-              : null}
             <UserMenu />
           </div>
         </SidebarFooter>

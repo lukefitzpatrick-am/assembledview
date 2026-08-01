@@ -44,6 +44,10 @@ The server-side data-access + identity layer everything sits on: Xano URL/auth c
 
 Boot warming via `instrumentation.ts` → dynamic `instrumentation.node.ts` only when `NEXT_RUNTIME === "nodejs"` — skipped on Vercel unless `WARM_CACHES_ON_BOOT=true` (deliberate: concurrent cold starts would starve Xano). Do not put postgres-touching imports (`lib/cache/clientsCache` → `lib/data/readClients` → `db/index.ts`) directly in `instrumentation.ts`; Edge instrumentation still resolves that graph and breaks `npm run build` (Module not found: crypto/stream). `db/index.ts` is `server-only`; `postgres` is in `serverExternalPackages`. Node/tsx suites that import `db/` (e.g. `npm run test:save-plan`) preload `scripts/test-shims/register-server-only.mjs` (+ CJS require shim) so `import "server-only"` is a no-op outside Next. Background refresh was removed on purpose (serverless suspension caused phantom timeouts) — don't reintroduce fire-and-forget refresh.
 
+## Navigation IA
+
+- `lib/nav/routeManifest.ts` is the single source of truth for sidebar structure (`ADMIN_SIDEBAR_GROUPS`), labels, titles, breadcrumbs, and command-palette destinations. `AppSidebar` / bottom nav / `CommandPalette` / `DynamicBreadcrumbs` derive from it — do not invent parallel nav maps. Full admin IA notes live in `docs/brain/modules/admin-misc.md` (Navigation identity).
+
 ## Cross-cutting utils
 
 - `lib/utils.ts` (216 importers) — `cn()`, `theme`, `mediaTypeTheme` (channel colour keys are load-bearing).

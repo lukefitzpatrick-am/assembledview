@@ -24,7 +24,9 @@ export function PageHeroTitleBlock({
 }: PageHeroTitleBlockProps) {
   return (
     <div className="min-w-0 flex-1 space-y-0">
-      <TitleTag className="text-[26px] font-extrabold tracking-tight text-foreground">{title}</TitleTag>
+      <TitleTag className="text-balance text-[22px] font-extrabold tracking-tight text-foreground sm:text-[24px] lg:text-[26px]">
+        {title}
+      </TitleTag>
       <span
         className={cn("mt-2 block h-1 w-[60px] rounded-pill", !brandColour && "bg-accent")}
         style={brandColour ? ({ backgroundColor: brandColour } satisfies CSSProperties) : undefined}
