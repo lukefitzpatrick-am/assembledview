@@ -160,7 +160,9 @@ import {
   formatSaveHydrationHoldReason,
   formatSaveModeLabel,
   isSaveAllowedAfterHydration,
+  lineItemLoadToastAfterChannelSuccess,
   listOutstandingHydrationChannels,
+  mediaLoadStatusAfterChannelSuccess,
   reconciliationBadgeVisibility,
   type ChannelDuplicateSummary,
 } from "@/lib/mediaplan/channelHydrationGate"
@@ -1688,14 +1690,15 @@ function setIfChanged<T>(setter: Dispatch<SetStateAction<T>>, next: T): boolean 
   return didChange
 }
 
-const LINE_ITEM_TIMEOUT_INITIAL_MS = 15_000
-const LINE_ITEM_TIMEOUT_AUTO_RETRY_MS = 25_000
+// Budgets sized to measured Xano fan-out (HAR: healthy channel GETs land at 22–35s).
+const LINE_ITEM_TIMEOUT_INITIAL_MS = 45_000
+const LINE_ITEM_TIMEOUT_AUTO_RETRY_MS = 90_000
 const LINE_ITEM_TIMEOUT_MANUAL_RETRY_MS = 180_000
 /**
  * Hard ceiling for stuck container settle (not for slow fetches).
  * Must exceed initial + auto-retry so a live retry is never pre-empted.
  */
-const HYDRATION_WATCHDOG_MS = 50_000
+const HYDRATION_WATCHDOG_MS = 150_000
 
 if (HYDRATION_WATCHDOG_MS <= LINE_ITEM_TIMEOUT_INITIAL_MS + LINE_ITEM_TIMEOUT_AUTO_RETRY_MS) {
   throw new Error("HYDRATION_WATCHDOG_MS must exceed initial + auto-retry timeouts")
@@ -2438,6 +2441,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const updateLoadStatus = useCallback(
     (name: string, status: SaveStatusItem['status'], error?: string) => {
       setLineItemLoadItems((prev) => {
+        // Success must drop any prior error text (incl. watchdog "did not finish loading").
+        if (status === "success") {
+          return lineItemLoadToastAfterChannelSuccess(prev, name)
+        }
         const existing = prev.find((item) => item.name === name)
         if (!existing) {
           return [...prev, { name, status, error }]
@@ -3885,7 +3892,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           versionToUse,
           LINE_ITEM_TIMEOUT_MANUAL_RETRY_MS
         )
-        setMediaLoadStatus((prev) => ({ ...prev, [flag]: "ready" }))
+        setMediaLoadStatus((prev) => mediaLoadStatusAfterChannelSuccess(prev, flag))
         updateLoadStatus(label, "success")
         if (count === 0) {
           markChannelHydrationSettled(flag)
@@ -4019,7 +4026,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               }
 
               if (!cancelled) {
-                setMediaLoadStatus((prev) => ({ ...prev, [flag]: "ready" }))
+                setMediaLoadStatus((prev) => mediaLoadStatusAfterChannelSuccess(prev, flag))
                 updateLoadStatus(label, "success")
                 // Empty API payloads never run container useStableHydration — settle now.
                 if (processedItems.length === 0) {

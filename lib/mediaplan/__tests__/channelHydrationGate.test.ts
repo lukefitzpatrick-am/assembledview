@@ -5,7 +5,9 @@ import {
   computeAllChannelsHydrated,
   formatSaveHydrationHoldReason,
   isSaveAllowedAfterHydration,
+  lineItemLoadToastAfterChannelSuccess,
   listOutstandingHydrationChannels,
+  mediaLoadStatusAfterChannelSuccess,
   reconciliationBadgeVisibility,
 } from "@/lib/mediaplan/channelHydrationGate"
 
@@ -168,4 +170,48 @@ test("formatSaveHydrationHoldReason: single channel vs count", () => {
     "Waiting for 2 channels to load — you can't save yet"
   )
   assert.equal(formatSaveHydrationHoldReason([]), null)
+})
+
+test("late success after watchdog: clears mediaLoadStatus error → ready", () => {
+  const afterWatchdog = {
+    mp_search: "ready" as const,
+    mp_television: "error" as const,
+  }
+  const afterSuccess = mediaLoadStatusAfterChannelSuccess(afterWatchdog, "mp_television")
+  assert.equal(afterSuccess.mp_television, "ready")
+  assert.equal(afterSuccess.mp_search, "ready")
+  // Gate treats ready+settled as hydrated (no stale error block on loaded data).
+  assert.equal(
+    computeAllChannelsHydrated({
+      loadPhase: "ready",
+      expectedFlags: ["mp_search", "mp_television"],
+      mediaLoadStatus: afterSuccess,
+      settledFlags: { mp_search: true, mp_television: true },
+    }),
+    true
+  )
+})
+
+test("late success after watchdog: clears load-toast error text for that channel", () => {
+  const afterWatchdog = [
+    { name: "Search", status: "success" as const },
+    {
+      name: "Television",
+      status: "error" as const,
+      error: "did not finish loading — check line items before saving",
+    },
+  ]
+  const afterSuccess = lineItemLoadToastAfterChannelSuccess(afterWatchdog, "Television")
+  assert.deepEqual(afterSuccess, [
+    { name: "Search", status: "success" },
+    { name: "Television", status: "success" },
+  ])
+  assert.equal(
+    afterSuccess.find((i) => i.name === "Television")?.error,
+    undefined
+  )
+  assert.equal(
+    afterSuccess.some((i) => i.status === "error"),
+    false
+  )
 })

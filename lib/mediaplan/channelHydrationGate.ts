@@ -217,3 +217,37 @@ export function formatSaveHydrationHoldReason(
   }
   return `Waiting for ${outstandingLabels.length} channels to load — you can't save yet`
 }
+
+/**
+ * Late success after the hydration watchdog: promote that channel to ready so
+ * section error UI never overlays already-loaded line items.
+ */
+export function mediaLoadStatusAfterChannelSuccess(
+  prev: Partial<Record<string, ChannelMediaLoadStatus>>,
+  flag: string
+): Partial<Record<string, ChannelMediaLoadStatus>> {
+  return { ...prev, [flag]: "ready" }
+}
+
+export type ChannelLoadToastItem = {
+  name: string
+  status: "pending" | "success" | "error" | "skipped"
+  error?: string
+}
+
+/**
+ * Clear a channel's load-toast error (e.g. watchdog "did not finish loading")
+ * when its fetch succeeds — including after the watchdog already marked error.
+ */
+export function lineItemLoadToastAfterChannelSuccess(
+  prev: readonly ChannelLoadToastItem[],
+  name: string
+): ChannelLoadToastItem[] {
+  const existing = prev.find((item) => item.name === name)
+  if (!existing) {
+    return [...prev, { name, status: "success" }]
+  }
+  return prev.map((item) =>
+    item.name === name ? { name: item.name, status: "success" } : item
+  )
+}

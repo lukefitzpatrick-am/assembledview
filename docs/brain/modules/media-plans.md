@@ -43,6 +43,8 @@ Create/edit load with `skipLineItems=true` and hydrate channels via `DATA_BACKEN
 
 Header via `GET …?skipLineItems=true&billingScheduleFull=1&version=N`, then per-channel line items (60s soft cache + in-flight dedupe). `channelHydrationGate.computeAllChannelsHydrated` gates Save until every enabled container settles. Channel GETs are FK-first (`fetchChannelLineItemsByMba`) with a 5-attempt param-shape fallback for legacy rows.
 
+Edit-page channel-load budgets (Xano fan-out): **45s** initial + **90s** auto-retry; manual retry **180s**; hydration watchdog **150s** (must exceed initial+auto-retry). Late success after the watchdog still applies data and clears that channel's error/`did not finish loading` toast via `mediaLoadStatusAfterChannelSuccess` / `lineItemLoadToastAfterChannelSuccess`.
+
 Empty API payloads settle immediately in the loader; non-empty channels settle when the container publishes via `onMediaLineItemsChange`. `LazyMountWhenVisible` force-mounts once that channel's `mediaLoadStatus` is `ready`/`error` (not only when global `loadPhase === "ready"`), so off-screen Search/etc. still settle. Loader effect cleanup clears `lastLineItemsLoadKeyRef` but does not bump the load generation — a 200 that arrives after cleanup still applies (P1-AMEND late success); only a newer load generation discards results.
 
 ## Depends on
