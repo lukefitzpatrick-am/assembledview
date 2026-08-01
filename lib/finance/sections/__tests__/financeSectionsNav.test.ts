@@ -5,10 +5,12 @@ import test from "node:test"
 
 import { isFinanceSectionsEnabled } from "../../../flags/financeSections.js"
 import {
+  CLIENTS_BILLING_TAB_ITEMS,
   FINANCE_LEGACY_PATH_REDIRECTS,
   FINANCE_SECTION_PAGE_PATHS,
   FINANCE_SECTION_SIDEBAR_ITEMS,
   FINANCE_TAB_TO_SECTION_PATH,
+  financeSectionPillsForPath,
   getFinanceSidebarSnapshot,
   sectionPathForFinanceTab,
 } from "../nav.js"
@@ -36,8 +38,8 @@ test("every finance sections page path is in the route manifest as admin-gated",
   }
 })
 
-test("tab redirect map covers hub tabs + xero-queue alias (FN1)", () => {
-  assert.equal(FINANCE_TAB_TO_SECTION_PATH.overview, "/finance")
+test("tab redirect map covers hub tabs + xero-queue alias (FN1 / FIN-1)", () => {
+  assert.equal(FINANCE_TAB_TO_SECTION_PATH.overview, "/finance/invoicing")
   assert.equal(FINANCE_TAB_TO_SECTION_PATH.billing, "/finance/invoicing")
   assert.equal(FINANCE_TAB_TO_SECTION_PATH.payables, "/finance/costs/invoices")
   assert.equal(FINANCE_TAB_TO_SECTION_PATH.accrual, "/finance/costs/accruals")
@@ -55,26 +57,40 @@ test("legacy path redirects land on sections (no ?tab= hop)", () => {
   )
   assert.equal(bySource["/finance/receivables"], "/finance/invoicing")
   assert.equal(bySource["/finance/billing"], "/finance/invoicing")
+  assert.equal(bySource["/finance/home"], "/finance/invoicing")
   assert.equal(bySource["/finance/publishers"], "/finance/costs/invoices")
   assert.equal(bySource["/finance/accrual"], "/finance/costs/accruals")
   assert.equal(bySource["/finance/forecast"], "/finance/forecasting")
 })
 
-test("sidebar snapshot is always expandable (FN7)", () => {
+test("sidebar snapshot is FIN-1 four-item Finance group", () => {
   const snap = getFinanceSidebarSnapshot()
   assert.deepEqual(snap, {
     mode: "expandable",
     label: "Finance",
-    landingPath: "/finance",
+    landingPath: "/finance/invoicing",
     items: [
-      { path: "/finance/invoicing", label: "Invoicing" },
-      { path: "/finance/costs", label: "Costs" },
-      { path: "/finance/investment", label: "Investment" },
+      { path: "/finance/invoicing", label: "Clients billing" },
+      { path: "/finance/costs", label: "Publishers" },
       { path: "/finance/forecasting", label: "Forecasting" },
+      { path: "/finance/investment", label: "Investment" },
     ],
   })
   assert.equal(FINANCE_SECTION_SIDEBAR_ITEMS.length, 4)
   assert.equal(getFinanceSidebarSnapshot(false).mode, "expandable")
+})
+
+test("Clients billing tabs; Forecasting/Investment/Publishers have no shell pills", () => {
+  assert.deepEqual(
+    CLIENTS_BILLING_TAB_ITEMS.map((i) => i.label),
+    ["Invoicing", "Periods", "Xero"]
+  )
+  assert.equal(financeSectionPillsForPath("/finance/invoicing").length, 3)
+  assert.equal(financeSectionPillsForPath("/finance/periods").length, 3)
+  assert.equal(financeSectionPillsForPath("/finance/xero/matches").length, 3)
+  assert.equal(financeSectionPillsForPath("/finance/costs").length, 0)
+  assert.equal(financeSectionPillsForPath("/finance/forecasting").length, 0)
+  assert.equal(financeSectionPillsForPath("/finance/investment").length, 0)
 })
 
 test("next.config permanent redirects cover FN1 legacy paths + tab query map", () => {
@@ -100,4 +116,9 @@ test("next.config permanent redirects cover FN1 legacy paths + tab query map", (
       `next.config missing tab=${tab} → ${dest}`
     )
   }
+  assert.match(
+    cfg,
+    /source:\s*"\/finance",\s*destination:\s*"\/finance\/invoicing"/,
+    "next.config missing bare /finance → /finance/invoicing"
+  )
 })

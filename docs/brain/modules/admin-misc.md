@@ -2,7 +2,7 @@
 
 ## Navigation identity
 
-- `lib/nav/routeManifest.ts` is the single source of truth for user-facing route **labels**, document **titles**, breadcrumb copy, and command-palette destinations. `AppSidebar`, `DynamicBreadcrumbs`, and `CommandPalette` derive from it; `DocumentTitleFromManifest` + `pageMetadata()` keep `<title>` aligned. Do not invent parallel label maps. Admin sidebar IA is `ADMIN_SIDEBAR_GROUPS` (ungrouped **Home** + **Knowledge Hub**; Plan / Deliver / Money / Admin-muted with Tasks / Clients / Publishers / **New user**; footer is UserMenu only). Finance is a flat `/finance` row (section pills on-page). Client Dashboards expandable stays under Creative in Deliver. Create Campaign is palette-only (verb). `/management` is removed — user invites live at `/admin/users/new`.
+- `lib/nav/routeManifest.ts` is the single source of truth for user-facing route **labels**, document **titles**, breadcrumb copy, and command-palette destinations. `AppSidebar`, `DynamicBreadcrumbs`, and `CommandPalette` derive from it; `DocumentTitleFromManifest` + `pageMetadata()` keep `<title>` aligned. Do not invent parallel label maps. Admin sidebar IA is `ADMIN_SIDEBAR_GROUPS` (ungrouped **Home** + **Knowledge Hub**; Plan / Deliver / **Finance** / Admin-muted with Tasks / Clients / Publishers / **New user**; footer is UserMenu only). Finance (FIN-1) = Clients billing · Publishers · Forecasting · Investment. Client Dashboards expandable stays under Creative in Deliver. Create Campaign is palette-only (verb). `/management` is removed — user invites live at `/admin/users/new`.
 
 ## Admin & users
 

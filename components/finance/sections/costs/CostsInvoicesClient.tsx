@@ -144,7 +144,7 @@ export function CostsInvoicesClient() {
               href="/finance/costs"
               className="text-sm text-muted-foreground underline-offset-2 hover:underline"
             >
-              ← Costs overview
+              ← Publishers overview
             </Link>
           </div>
         </div>

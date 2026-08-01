@@ -152,8 +152,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(redirectTarget, request.url));
   }
 
-  // Finance sections IA (FN7). Kill-switch removed — rollback is git revert of FN7 commit.
-  // Tab deep-links → section paths; bare /finance → landing rewrite (/finance/home).
+  // Finance sections IA (FN7 / FIN-1). Tab deep-links → section paths;
+  // bare /finance → Clients billing (/finance/invoicing). Overview home retired.
   if (isAdmin && pathname === '/finance') {
     const tab = request.nextUrl.searchParams.get('tab');
     if (tab) {
@@ -167,11 +167,13 @@ export async function middleware(request: NextRequest) {
         }
         return NextResponse.redirect(url);
       }
-    } else {
-      const rewriteUrl = request.nextUrl.clone();
-      rewriteUrl.pathname = '/finance/home';
-      return NextResponse.rewrite(rewriteUrl);
     }
+    const url = new URL('/finance/invoicing', request.url);
+    for (const [k, v] of request.nextUrl.searchParams.entries()) {
+      if (k === 'tab') continue;
+      url.searchParams.set(k, v);
+    }
+    return NextResponse.redirect(url);
   }
 
   // Recognised staff (admin) can proceed.

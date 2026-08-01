@@ -74,7 +74,7 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | ID | Issue | Status |
 |---|---|---|
 | UX-1 | **Load-gate** — classic hub toolbar required explicit Load after filter Apply; easy to stare at stale/empty data | fixed pending live verification — classic hub deleted; sections use Apply → auto-load (`useFinanceScope` / section data hooks); not FIXED until live smoke passes |
-| UX-2 | **$0 / empty landing** — hub Overview KPI hero + empty month range looked “all zeros” before Load | fixed pending live verification — hub Overview/hero removed; `/finance` → sections overview (`FinanceSectionsOverview` / summary API) |
+| UX-2 | **$0 / empty landing** — hub Overview KPI hero + empty month range looked “all zeros” before Load | FIXED (FIN-1) — Overview retired; `/finance` → `/finance/invoicing` (Clients billing) |
 | UX-3 | **Dead treemaps on hub Overview** — `global-monthly-*` / exact schedule join → black empty charts (related C-26 on dashboard path) | fixed pending live verification for hub surface — Overview treemaps deleted with hub; sections costs/investment use `scheduleLineJoinSql` (C-26 residual remains on `dashboardMonthlySpend.ts` only) |
 
 ## Build / tooling (B-*)

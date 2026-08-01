@@ -78,15 +78,15 @@ export const ROUTE_MANIFEST_EXCLUSIONS: ReadonlyArray<{
 
 /**
  * Admin sidebar structure (AV-UI-1). Paths must exist in ROUTE_MANIFEST.
- * Top cluster: Home + Knowledge Hub. Groups: Plan / Deliver / Money / Admin (muted).
+ * Top cluster: Home + Knowledge Hub. Groups: Plan / Deliver / Finance / Admin (muted).
  * "Client Dashboards" is a collapsible, not a route — rendered under Creative in Deliver by
- * AppSidebar. Finance is a flat row (section pills live on /finance). Create Campaign is
- * palette-only (verb). Footer: UserMenu only (invite lives in Admin group as "New user").
+ * AppSidebar. Finance has four sidebar items (FIN-1). Create Campaign is palette-only (verb).
+ * Footer: UserMenu only (invite lives in Admin group as "New user").
  */
 export type AdminSidebarGroupTone = "default" | "muted"
 
 export type AdminSidebarGroup = {
-  id: "top" | "plan" | "deliver" | "money" | "admin"
+  id: "top" | "plan" | "deliver" | "finance" | "admin"
   /** Null = ungrouped top cluster (no section heading). */
   label: string | null
   tone?: AdminSidebarGroupTone
@@ -105,7 +105,16 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
     label: "Deliver",
     paths: ["/pacing", "/creative"],
   },
-  { id: "money", label: "Money", paths: ["/finance"] },
+  {
+    id: "finance",
+    label: "Finance",
+    paths: [
+      "/finance/invoicing",
+      "/finance/costs",
+      "/finance/forecasting",
+      "/finance/investment",
+    ],
+  },
   {
     id: "admin",
     label: "Admin",
@@ -125,7 +134,7 @@ export const ADMIN_BOTTOM_NAV_PATHS = [
   "/dashboard",
   "/mediaplans",
   "/pacing",
-  "/finance",
+  "/finance/invoicing",
   "/creative",
 ] as const
 
@@ -248,11 +257,12 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     label: "Finance",
     title: "Finance",
     icon: "DollarSign",
-    inPalette: true,
-    inSidebar: true,
-    inBottomNav: true,
+    inPalette: false,
+    inSidebar: false,
+    inBottomNav: false,
     roles: ["admin"],
     group: "core",
+    // FIN-1: bare /finance redirects to Clients billing (/finance/invoicing)
   },
   {
     path: "/knowledge",
@@ -513,25 +523,27 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     group: "finance",
     // FN7 permanent redirect → /finance/invoicing
   },
-  // Finance sections IA (FN7 default ON). Staff-only; sidebar always expands Finance
-  // (AppSidebar + FINANCE_SECTION_SIDEBAR_ITEMS). Kill-switch: NEXT_PUBLIC_FINANCE_SECTIONS=off.
+  // Finance sections IA (FN7 + FIN-1). Staff-only; sidebar = four FINANCE items.
   {
     path: "/finance/home",
-    label: "Finance",
+    label: "Finance home",
     title: "Finance",
     inPalette: false,
     roles: ["admin"],
     group: "finance",
-    // Internal rewrite target for bare /finance
+    // Retired overview — permanent redirect → /finance/invoicing
   },
   {
     path: "/finance/invoicing",
-    label: "Invoicing",
-    title: "Finance · Invoicing",
+    label: "Clients billing",
+    title: "Finance · Clients billing",
+    icon: "DollarSign",
     inPalette: true,
+    inSidebar: true,
+    inBottomNav: true,
     roles: ["admin"],
     group: "finance",
-    searchTerms: "billing receivables invoicing",
+    searchTerms: "billing receivables invoicing clients billing finance",
   },
   {
     path: "/finance/periods",
@@ -540,6 +552,7 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     inPalette: true,
     roles: ["admin"],
     group: "finance",
+    searchTerms: "periods clients billing",
   },
   {
     path: "/finance/xero",
@@ -548,7 +561,7 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     inPalette: true,
     roles: ["admin"],
     group: "finance",
-    searchTerms: "xero queue match exceptions",
+    searchTerms: "xero queue match exceptions clients billing",
   },
   {
     path: "/finance/xero/matches",
@@ -561,12 +574,14 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
   },
   {
     path: "/finance/costs",
-    label: "Costs",
-    title: "Finance · Costs",
+    label: "Publishers",
+    title: "Finance · Publishers",
+    icon: "Building2",
     inPalette: true,
+    inSidebar: true,
     roles: ["admin"],
     group: "finance",
-    searchTerms: "payables publisher invoices accruals client-pays",
+    searchTerms: "costs payables publisher invoices accruals client-pays finance",
   },
   {
     path: "/finance/costs/invoices",
@@ -597,19 +612,23 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     path: "/finance/investment",
     label: "Investment",
     title: "Finance · Investment",
+    icon: "Calculator",
     inPalette: true,
+    inSidebar: true,
     roles: ["admin"],
     group: "finance",
-    searchTerms: "report spend margin",
+    searchTerms: "report spend margin finance",
   },
   {
     path: "/finance/forecasting",
     label: "Forecasting",
     title: "Finance · Forecasting",
+    icon: "TrendingUp",
     inPalette: true,
+    inSidebar: true,
     roles: ["admin"],
     group: "finance",
-    searchTerms: "forecast booked targets variance",
+    searchTerms: "forecast booked targets variance finance",
   },
 
   // ── Scopes ─────────────────────────────────────────────────────────

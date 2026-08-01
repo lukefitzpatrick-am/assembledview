@@ -298,7 +298,7 @@ export function InvoicingPageClient() {
 
   return (
     <FinanceSectionsShell
-      title="Invoicing"
+      title="Clients billing"
       scopeBar={
         <SectionScopeBar
           showingLabel={`Receivables · ${applied.monthRange.from} → ${applied.monthRange.to}`}

@@ -86,7 +86,7 @@ export function CostsOverviewClient() {
       : []
 
   return (
-    <FinanceSectionsShell title="Costs" scopeBar={<SectionScopeBar showingLabel={showingLabel} />}>
+    <FinanceSectionsShell title="Publishers" scopeBar={<SectionScopeBar showingLabel={showingLabel} />}>
       <div className="space-y-6">
         <CostsSubNav />
         <p className="text-sm text-muted-foreground">

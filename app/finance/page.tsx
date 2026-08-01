@@ -1,15 +1,9 @@
-import { Suspense } from "react"
-import { FinanceSectionsLanding } from "@/components/finance/sections/FinanceSectionsLanding"
-import { LoadingState } from "@/components/finance/sections/LoadingState"
+import { redirect } from "next/navigation"
 
 /**
- * `/finance` entry. Middleware rewrites bare `/finance` → `/finance/home`.
- * This page is the rewrite-bypass fallback — same landing as home.
+ * `/finance` entry. FIN-1: Overview retired — always land on Clients billing.
+ * Middleware + next.config also redirect; this is the rewrite-bypass fallback.
  */
 export default function FinancePage() {
-  return (
-    <Suspense fallback={<LoadingState rows={6} className="m-4" />}>
-      <FinanceSectionsLanding />
-    </Suspense>
-  )
+  redirect("/finance/invoicing")
 }

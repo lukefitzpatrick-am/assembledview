@@ -1,9 +1,8 @@
-import { FinanceSectionsLanding } from "@/components/finance/sections/FinanceSectionsLanding"
+import { redirect } from "next/navigation"
 
 /**
- * Internal rewrite target for bare `/finance` (FN7 sections).
- * Browser URL stays `/finance` (middleware rewrite). Not linked in the sidebar.
+ * Retired Overview landing (FIN-1). Permanent redirect → Clients billing.
  */
 export default function FinanceSectionsHomePage() {
-  return <FinanceSectionsLanding />
+  redirect("/finance/invoicing")
 }

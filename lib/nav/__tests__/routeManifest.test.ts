@@ -88,7 +88,7 @@ test("Home / Clients / New user labels and Create Campaign is palette-only", () 
   assert.equal(getRouteByExactPath("/tasks")!.inSidebar, true)
 })
 
-test("sidebar groups match Plan / Deliver / Money / Admin IA", async () => {
+test("sidebar groups match Plan / Deliver / Finance / Admin IA (FIN-1)", async () => {
   const { ADMIN_SIDEBAR_GROUPS, getAdminSidebarGroups } = await import("../routeManifest.js")
   assert.deepEqual(
     ADMIN_SIDEBAR_GROUPS.map((g) => ({ id: g.id, label: g.label, paths: [...g.paths] })),
@@ -100,7 +100,16 @@ test("sidebar groups match Plan / Deliver / Money / Admin IA", async () => {
         paths: ["/tools/behavioural-planner", "/mediaplans", "/scopes-of-work"],
       },
       { id: "deliver", label: "Deliver", paths: ["/pacing", "/creative"] },
-      { id: "money", label: "Money", paths: ["/finance"] },
+      {
+        id: "finance",
+        label: "Finance",
+        paths: [
+          "/finance/invoicing",
+          "/finance/costs",
+          "/finance/forecasting",
+          "/finance/investment",
+        ],
+      },
       {
         id: "admin",
         label: "Admin",
@@ -111,6 +120,11 @@ test("sidebar groups match Plan / Deliver / Money / Admin IA", async () => {
   const groups = getAdminSidebarGroups()
   assert.equal(groups.find((g) => g.id === "admin")?.tone, "muted")
   assert.equal(groups.find((g) => g.id === "plan")?.items[0]?.label, "Planning")
+  const finance = groups.find((g) => g.id === "finance")
+  assert.deepEqual(
+    finance?.items.map((i) => i.label),
+    ["Clients billing", "Publishers", "Forecasting", "Investment"]
+  )
 })
 
 test("breadcrumb intermediates that have no page are not linkable", () => {

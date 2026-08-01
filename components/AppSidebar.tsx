@@ -31,6 +31,7 @@ import {
   getRouteByExactPath,
   type NavLink,
 } from "@/lib/nav/routeManifest"
+import { isClientsBillingPath } from "@/lib/finance/sections/nav"
 import { ROUTE_ICON_MAP } from "@/lib/nav/routeIcons"
 
 interface Client {
@@ -93,11 +94,6 @@ export function AppSidebar() {
 
   const isCampaignsNavActive = useCallback(
     () => pathMatchesHref(pathname, "/mediaplans") && !pathname.startsWith("/mediaplans/create"),
-    [pathname]
-  )
-
-  const isFinanceNavActive = useCallback(
-    () => pathname.startsWith("/finance"),
     [pathname]
   )
 
@@ -174,10 +170,11 @@ export function AppSidebar() {
   const activeForItem = useCallback(
     (item: NavLink): boolean => {
       if (item.path === "/mediaplans") return isCampaignsNavActive()
-      if (item.path === "/finance") return isFinanceNavActive()
+      // Clients billing owns Periods + Xero tabs (FIN-1).
+      if (item.path === "/finance/invoicing") return isClientsBillingPath(pathname)
       return pathMatchesHref(pathname, item.path, item.exact)
     },
-    [isCampaignsNavActive, isFinanceNavActive, pathname]
+    [isCampaignsNavActive, pathname]
   )
 
   if (isLoading) {

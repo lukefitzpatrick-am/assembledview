@@ -30,7 +30,7 @@ const ITEMS = [
 export function CostsSubNav() {
   const pathname = usePathname() ?? ""
   return (
-    <nav aria-label="Costs sections" className="flex flex-wrap gap-1.5">
+    <nav aria-label="Publishers sections" className="flex flex-wrap gap-1.5">
       {ITEMS.map((item) => {
         const active = item.match(pathname)
         return (

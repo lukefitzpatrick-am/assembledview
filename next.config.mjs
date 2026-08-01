@@ -13,10 +13,11 @@ const nextConfig = {
       { source: "/finance/retainers", destination: "/finance/invoicing", permanent: true },
       { source: "/finance/sow", destination: "/finance/invoicing", permanent: true },
       { source: "/finance/receivables", destination: "/finance/invoicing", permanent: true },
+      { source: "/finance/home", destination: "/finance/invoicing", permanent: true },
       { source: "/finance/publishers", destination: "/finance/costs/invoices", permanent: true },
       { source: "/finance/accrual", destination: "/finance/costs/accruals", permanent: true },
       { source: "/finance/forecast", destination: "/finance/forecasting", permanent: true },
-      // FN1 tab deep-links (query) → sections
+      // FN1 / FIN-1 tab deep-links (query) → sections
       {
         source: "/finance",
         has: [{ type: "query", key: "tab", value: "billing" }],
@@ -62,9 +63,11 @@ const nextConfig = {
       {
         source: "/finance",
         has: [{ type: "query", key: "tab", value: "overview" }],
-        destination: "/finance",
+        destination: "/finance/invoicing",
         permanent: true,
       },
+      // FIN-1 — Overview retired; bare /finance → Clients billing
+      { source: "/finance", destination: "/finance/invoicing", permanent: true },
       { source: "/learning", destination: "/knowledge", permanent: true },
       { source: "/learning/:path*", destination: "/knowledge/:path*", permanent: true },
     ]
