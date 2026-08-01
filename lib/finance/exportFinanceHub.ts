@@ -2,12 +2,16 @@ import { saveAs } from "file-saver"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import { billingRecordsToFinanceCampaigns } from "@/lib/finance/billingRecordToCampaignData"
 import {
+  loadFinanceExcelClientMeta,
   writeMediaFinanceWorksheet,
   writeRetainerFinanceWorksheet,
   writeSowFinanceWorksheet,
   workbookToXlsxBuffer,
+  type FinanceExcelClientMetaLoad,
 } from "@/lib/finance/excelFinanceExport"
 import { exportBillingRecordsExcel, exportPayablesPublisherDetailExcel } from "@/lib/finance/export"
+
+export type ExportReceivablesResult = Pick<FinanceExcelClientMetaLoad, "missingLegalBusinessNames">
 
 function sanitizeExcelSheetName(name: string): string {
   const t = name.replace(/[*?:/\\[\]]/g, " ").trim().slice(0, 31)
@@ -30,23 +34,33 @@ function filenameMonthSegment(monthLabel: string): string {
 
 /**
  * Invoice-style workbook: Media + Scopes + one sheet per retainer (matches legacy finance routes).
+ * Stamps Legal business name + ABN from `/api/clients` (empty legal → display-name fallback).
  */
 export async function exportReceivablesWorkbook(
   records: BillingRecord[],
   monthLabel: string,
   fileStem: string
-): Promise<void> {
+): Promise<ExportReceivablesResult> {
   const ExcelJS = (await import("exceljs")).default
+  const { metaByClientId, missingLegalBusinessNames } = await loadFinanceExcelClientMeta()
   const workbook = new ExcelJS.Workbook()
   const media = records.filter((r) => r.billing_type === "media")
   const sow = records.filter((r) => r.billing_type === "sow")
   const retainer = records.filter((r) => r.billing_type === "retainer")
 
   if (media.length > 0) {
-    await writeMediaFinanceWorksheet(workbook, "Media", billingRecordsToFinanceCampaigns(media))
+    await writeMediaFinanceWorksheet(
+      workbook,
+      "Media",
+      billingRecordsToFinanceCampaigns(media, metaByClientId)
+    )
   }
   if (sow.length > 0) {
-    await writeSowFinanceWorksheet(workbook, "Scopes", billingRecordsToFinanceCampaigns(sow))
+    await writeSowFinanceWorksheet(
+      workbook,
+      "Scopes",
+      billingRecordsToFinanceCampaigns(sow, metaByClientId)
+    )
   }
   if (retainer.length > 0) {
     const nextName = usedSheetNamesTracker()
@@ -57,6 +71,7 @@ export async function exportReceivablesWorkbook(
           ? `${r.billing_month}-01`
           : new Date().toISOString().slice(0, 10)
       const clientLabel = (r.client_name || "Client").trim() || "Client"
+      const meta = metaByClientId.get(r.clients_id)
       await writeRetainerFinanceWorksheet(workbook, nextName(clientLabel), {
         clientName: r.client_name,
         mbaIdentifier: r.mba_number || String(r.id),
@@ -64,6 +79,8 @@ export async function exportReceivablesWorkbook(
         paymentTerms: r.payment_terms,
         invoiceDateIso: invoiceIso,
         monthlyRetainer: Number(r.total || 0),
+        legalBusinessName: meta?.legalBusinessName ?? "",
+        abn: meta?.abn ?? "",
       })
     }
   }
@@ -76,6 +93,7 @@ export async function exportReceivablesWorkbook(
   const buffer = await workbookToXlsxBuffer(workbook)
   const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })
   saveAs(blob, `${fileStem}_${filenameMonthSegment(monthLabel)}.xlsx`)
+  return { missingLegalBusinessNames }
 }
 
 /** Payables line-detail workbook (agency total excludes client-paid-direct lines). */

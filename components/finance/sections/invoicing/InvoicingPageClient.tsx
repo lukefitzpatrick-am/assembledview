@@ -280,8 +280,24 @@ export function InvoicingPageClient() {
   const exportExcel = useCallback(async () => {
     try {
       // Bookkeeper / Xero invoice-style workbook (hub "Export to Excel"), not the flat grid.
-      await exportReceivablesWorkbook(allRecords, monthLabel, "Finance_invoicing")
-      toast({ title: "Export ready", description: "Invoicing workbook downloaded." })
+      const { missingLegalBusinessNames } = await exportReceivablesWorkbook(
+        allRecords,
+        monthLabel,
+        "Finance_invoicing"
+      )
+      if (missingLegalBusinessNames.length > 0) {
+        const names = missingLegalBusinessNames.map((c) => c.displayName).join(", ")
+        console.warn(
+          "[FIN-6] Clients missing legalbusinessname (Excel used display name):",
+          missingLegalBusinessNames
+        )
+        toast({
+          title: "Export ready",
+          description: `Invoicing workbook downloaded. ${missingLegalBusinessNames.length} client(s) missing legal business name (used display name): ${names}.`,
+        })
+      } else {
+        toast({ title: "Export ready", description: "Invoicing workbook downloaded." })
+      }
     } catch (e) {
       toast({
         variant: "destructive",

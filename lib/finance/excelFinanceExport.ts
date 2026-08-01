@@ -1,5 +1,6 @@
 import type ExcelJS from "exceljs"
 import { format } from "date-fns"
+import { getClientDisplayName } from "@/lib/clients/slug"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import type { FinanceCampaignData } from "@/lib/finance/utils"
 
@@ -9,12 +10,18 @@ export type FinanceExcelClientMeta = {
   abn: string
 }
 
+export type FinanceExcelClientMetaLoad = {
+  metaByClientId: Map<number, FinanceExcelClientMeta>
+  /** Clients where `legalbusinessname` was empty; meta uses display-name fallback. */
+  missingLegalBusinessNames: Array<{ clientId: number; displayName: string }>
+}
+
 function displayMetaValue(value: string): string {
   const t = value.trim()
   return t.length > 0 ? t : "N/A"
 }
 
-/** Parse a row from `GET /api/clients` for Excel legal header lines. */
+/** Parse a row from `GET /api/clients` for Excel legal header lines (raw; no display-name fallback). */
 export function clientApiRowToFinanceExcelMeta(row: Record<string, unknown>): FinanceExcelClientMeta {
   const legalRaw = row.legalbusinessname ?? row.legalBusinessName
   const legal = typeof legalRaw === "string" ? legalRaw.trim() : ""
@@ -23,25 +30,76 @@ export function clientApiRowToFinanceExcelMeta(row: Record<string, unknown>): Fi
   return { legalBusinessName: legal, abn }
 }
 
-export async function fetchFinanceHubClientMetaByClientId(): Promise<Map<number, FinanceExcelClientMeta>> {
-  if (typeof fetch === "undefined") return new Map()
+/**
+ * Build Excel client meta from a `/api/clients` row. Empty legal name falls back to display name.
+ */
+export function enrichFinanceExcelClientMetaFromApiRow(row: Record<string, unknown>): {
+  clientId: number | null
+  displayName: string
+  legalNameMissing: boolean
+  meta: FinanceExcelClientMeta
+} {
+  const id = Number(row.id ?? row.clients_id)
+  if (!Number.isFinite(id) || id <= 0) {
+    return {
+      clientId: null,
+      displayName: "",
+      legalNameMissing: false,
+      meta: { legalBusinessName: "", abn: "" },
+    }
+  }
+  const displayName = getClientDisplayName(row) || `Client ${id}`
+  const raw = clientApiRowToFinanceExcelMeta(row)
+  const legalNameMissing = !raw.legalBusinessName.trim()
+  return {
+    clientId: id,
+    displayName,
+    legalNameMissing,
+    meta: {
+      legalBusinessName: legalNameMissing ? displayName : raw.legalBusinessName,
+      abn: raw.abn,
+    },
+  }
+}
+
+/** Load all clients for bookkeeper Excel legal/ABN lines (display-name fallback when legal empty). */
+export async function loadFinanceExcelClientMeta(): Promise<FinanceExcelClientMetaLoad> {
+  const empty: FinanceExcelClientMetaLoad = {
+    metaByClientId: new Map(),
+    missingLegalBusinessNames: [],
+  }
+  if (typeof fetch === "undefined") return empty
   try {
     const res = await fetch("/api/clients")
-    if (!res.ok) return new Map()
+    if (!res.ok) return empty
     const data = (await res.json()) as unknown
-    const map = new Map<number, FinanceExcelClientMeta>()
-    if (!Array.isArray(data)) return map
+    if (!Array.isArray(data)) return empty
+    const metaByClientId = new Map<number, FinanceExcelClientMeta>()
+    const missingLegalBusinessNames: Array<{ clientId: number; displayName: string }> = []
     for (const raw of data) {
       if (!raw || typeof raw !== "object") continue
-      const r = raw as Record<string, unknown>
-      const id = Number(r.id)
-      if (!Number.isFinite(id) || id <= 0) continue
-      map.set(id, clientApiRowToFinanceExcelMeta(r))
+      const enriched = enrichFinanceExcelClientMetaFromApiRow(raw as Record<string, unknown>)
+      if (enriched.clientId == null) continue
+      metaByClientId.set(enriched.clientId, enriched.meta)
+      if (enriched.legalNameMissing) {
+        missingLegalBusinessNames.push({
+          clientId: enriched.clientId,
+          displayName: enriched.displayName,
+        })
+      }
     }
-    return map
+    missingLegalBusinessNames.sort((a, b) =>
+      a.displayName.localeCompare(b.displayName, undefined, { sensitivity: "base" })
+    )
+    return { metaByClientId, missingLegalBusinessNames }
   } catch {
-    return new Map()
+    return empty
   }
+}
+
+export async function fetchFinanceHubClientMetaByClientId(): Promise<Map<number, FinanceExcelClientMeta>> {
+  const { metaByClientId } = await loadFinanceExcelClientMeta()
+  return metaByClientId
 }
 
 function legalDetailRowsForCampaign(
