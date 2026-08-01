@@ -38,14 +38,18 @@ export function MediaPlanEditorHero({
     <PageHeroShell className={className}>
       <div
         className={cn(
-          "relative z-10 flex w-full flex-col md:flex-row md:items-start md:justify-between",
-          compact ? `${PAGE_HERO_PADDING_COMPACT} gap-4 md:gap-6` : `${PAGE_HERO_PADDING} gap-5 md:gap-8`,
+          "relative z-10 flex w-full flex-wrap items-start justify-between",
+          compact
+            ? `${PAGE_HERO_PADDING_COMPACT} gap-x-6 gap-y-4`
+            : `${PAGE_HERO_PADDING} gap-x-8 gap-y-5`,
         )}
       >
-        <PageHeroTitleBlock title={title} detail={detail} brandColour={brandColour} />
+        <div className="min-w-0 flex-1 basis-[280px]">
+          <PageHeroTitleBlock title={title} detail={detail} brandColour={brandColour} />
+        </div>
 
         {actions ? (
-          <div className="relative z-10 flex w-full min-w-0 flex-wrap items-center gap-2 md:w-auto md:flex-1 md:justify-end md:pt-0.5">
+          <div className="flex min-w-0 flex-1 basis-[460px] flex-wrap items-center gap-2 justify-start md:justify-end">
             {actions}
           </div>
         ) : null}

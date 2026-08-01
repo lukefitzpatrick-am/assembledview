@@ -24,7 +24,7 @@ export function PageHeroTitleBlock({
 }: PageHeroTitleBlockProps) {
   return (
     <div className="min-w-0 flex-1 space-y-0">
-      <TitleTag className="text-balance text-[22px] font-extrabold tracking-tight text-foreground sm:text-[24px] lg:text-[26px]">
+      <TitleTag className="text-balance break-words text-[22px] font-extrabold tracking-tight text-foreground sm:text-[24px] lg:text-[26px]">
         {title}
       </TitleTag>
       <span
