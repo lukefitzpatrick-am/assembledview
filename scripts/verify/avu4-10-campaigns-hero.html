@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>AVU4-10 Campaigns hero</title>
+  <style>
+    :root {
+      --bg: #f7f6f2;
+      --card: #fff;
+      --border: #e2e0d8;
+      --ink: #1a2e1f;
+      --muted: #5c6b60;
+      --accent: #008e5e;
+      --mark: #c5d82d;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+    .page { padding: 24px; }
+    h1 { font-size: 14px; margin: 0 0 8px; }
+    .sub { font-size: 12px; color: var(--muted); margin: 0 0 20px; max-width: 720px; line-height: 1.4; }
+    .label { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 24px 0 8px; }
+    .chrome {
+      display: flex; border: 1px dashed #c5c2b8; border-radius: 12px; background: #efeee9; overflow: hidden;
+    }
+    .sidebar {
+      flex: 0 0 240px; background: #1a2e1f; color: #d9e2db; padding: 16px 12px; font-size: 12px;
+    }
+    .sidebar.collapsed { flex-basis: 64px; }
+    .sidebar .nav { opacity: 0.75; margin-top: 12px; line-height: 1.8; }
+    .sidebar.collapsed .nav { writing-mode: vertical-rl; letter-spacing: 0.12em; }
+    .main { flex: 1; min-width: 0; padding: 16px; background: var(--bg); }
+    .frame.narrow { width: 420px; }
+    /* Wide chrome ≈ 1600 with 224 sidebar → side-by-side title | toolbar. */
+    .frame.wide { width: 1600px; }
+    .frame.collapsed { width: 1400px; }
+
+    /* Mirror MediaPlanEditorHero / PageHeroShell (pe clears brand mark). */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      background: var(--card);
+    }
+    .mark {
+      position: absolute; top: 12px; right: -22px; width: 120px; height: 120px;
+      opacity: 0.16; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px;
+      pointer-events: none;
+    }
+    .mark span { background: var(--mark); border-radius: 2px; }
+    .row {
+      position: relative; z-index: 1;
+      display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between;
+      gap: 20px 32px;
+      padding: 24px 28px;
+      padding-inline-end: 8rem; /* pe-32 brand-mark clearance */
+    }
+    .frame.narrow .row { padding-inline-end: 5.5rem; /* pe-28 */ }
+    .title-block { min-width: 0; flex-grow: 1; flex-shrink: 0; flex-basis: min(280px, 100%); }
+    .title { font-size: 24px; font-weight: 800; margin: 0; letter-spacing: -0.02em; }
+    .underline { width: 60px; height: 4px; border-radius: 999px; background: var(--accent); margin: 8px 0; }
+    .detail { font-size: 13px; color: var(--muted); max-width: 380px; line-height: 1.45; margin: 0; }
+
+    /* toolbar floor 780 — Layout + search + Create stay one unit */
+    .actions {
+      min-width: 0; flex-grow: 1; flex-shrink: 0; flex-basis: min(780px, 100%);
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px;
+    }
+    .toolbar {
+      display: flex; flex-wrap: nowrap; align-items: center; justify-content: flex-end; gap: 12px;
+    }
+    .frame.narrow .toolbar { flex-wrap: wrap; justify-content: flex-start; }
+
+    .toggle {
+      display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;
+      font-size: 13px; color: var(--muted);
+    }
+    .toggle-box {
+      display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    }
+    .toggle-box i {
+      width: 32px; height: 32px; display: grid; place-items: center; font-style: normal; font-size: 11px;
+      background: #f3f2ed;
+    }
+    .toggle-box i.on { background: var(--accent); color: #fff; }
+
+    .search-wrap { position: relative; width: 18rem; flex-shrink: 0; }
+    .search {
+      width: 100%; height: 36px; border-radius: 8px; border: 1px solid var(--border);
+      padding: 0 36px; font-size: 14px;
+    }
+    .counter {
+      display: inline-flex; align-items: center; height: 36px; width: 11.5rem; flex-shrink: 0;
+      font-size: 12px; font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap;
+    }
+    .btn {
+      height: 36px; padding: 0 14px; border-radius: 8px; border: none; flex-shrink: 0;
+      background: var(--accent); color: #fff; font-weight: 600; font-size: 14px; white-space: nowrap;
+    }
+    .note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>AVU4-10 — Campaigns hero (content-driven toolbar)</h1>
+    <p class="sub">
+      Title left · one actions toolbar right (Layout + fixed search + Create).
+      Brand-mark clearance via pe. Toolbar floor 780px so Create is not orphaned mid-header.
+    </p>
+
+    <div class="label">Wide · sidebar expanded</div>
+    <div class="chrome frame wide" id="wide">
+      <aside class="sidebar">AssembledView<div class="nav">Home<br/>Campaigns<br/>Finance</div></aside>
+      <div class="main">
+        <section class="hero">
+          <div class="mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="row">
+            <div class="title-block">
+              <h2 class="title">Campaigns</h2>
+              <div class="underline"></div>
+              <p class="detail">Search campaigns, create a new plan, and jump into edits or dashboards.</p>
+            </div>
+            <div class="actions">
+              <div class="toolbar">
+                <div class="toggle"><span>Layout</span><div class="toggle-box"><i class="on">≡</i><i>▦</i></div></div>
+                <div class="search-wrap"><input class="search" placeholder="Search campaigns..." readonly /></div>
+                <span class="counter"></span>
+                <button class="btn">Create Campaign</button>
+              </div>
+            </div>
+          </div>
+        </section>
+        <p class="note">Expect: title left · toolbar right (Layout + search + Create) · pe clears brand mark.</p>
+      </div>
+    </div>
+
+    <div class="label">Collapsed sidebar · more content width</div>
+    <div class="chrome frame collapsed" id="collapsed-sidebar">
+      <aside class="sidebar collapsed">AV<div class="nav">NAV</div></aside>
+      <div class="main">
+        <section class="hero">
+          <div class="mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="row">
+            <div class="title-block">
+              <h2 class="title">Campaigns</h2>
+              <div class="underline"></div>
+              <p class="detail">Search campaigns, create a new plan, and jump into edits or dashboards.</p>
+            </div>
+            <div class="actions">
+              <div class="toolbar">
+                <div class="toggle"><span>Layout</span><div class="toggle-box"><i class="on">≡</i><i>▦</i></div></div>
+                <div class="search-wrap"><input class="search" value="social" readonly /></div>
+                <span class="counter">3 of 12 campaigns</span>
+                <button class="btn">Create Campaign</button>
+              </div>
+            </div>
+          </div>
+        </section>
+        <p class="note">Expect: same single toolbar row; Create left edge stable with counter filled (AVU4-9).</p>
+      </div>
+    </div>
+
+    <div class="label">Narrow · toolbar wraps as a unit under title</div>
+    <div class="chrome frame narrow" id="narrow">
+      <div class="main" style="width:100%">
+        <section class="hero">
+          <div class="mark" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+          <div class="row">
+            <div class="title-block">
+              <h2 class="title">Campaigns</h2>
+              <div class="underline"></div>
+              <p class="detail">Search campaigns, create a new plan, and jump into edits or dashboards.</p>
+            </div>
+            <div class="actions">
+              <div class="toolbar">
+                <div class="toggle"><span>Layout</span><div class="toggle-box"><i class="on">≡</i><i>▦</i></div></div>
+                <div class="search-wrap"><input class="search" placeholder="Search campaigns..." readonly /></div>
+                <span class="counter"></span>
+                <button class="btn">Create Campaign</button>
+              </div>
+            </div>
+          </div>
+        </section>
+        <p class="note">Expect: title on top · full toolbar below (Create not alone under mid-header Layout/search).</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

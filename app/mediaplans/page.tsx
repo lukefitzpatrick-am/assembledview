@@ -394,9 +394,15 @@ function MediaPlansPageInner() {
         detail={
           <p>Search campaigns, create a new plan, and jump into edits or dashboards.</p>
         }
+        actionsFloor="toolbar"
         actions={
-          <div className="flex flex-wrap items-center gap-3">
-            <ListGridToggle value={listGridMode} onChange={setListGridMode} />
+          // One toolbar unit: Layout + AVU4-9 search + Create stay together; hero wrap (not mid-header orphan).
+          <div className="flex w-full flex-wrap items-center justify-start gap-3 sm:w-auto sm:flex-nowrap md:justify-end">
+            <ListGridToggle
+              value={listGridMode}
+              onChange={setListGridMode}
+              className="shrink-0"
+            />
             {/* Fixed search + counter slots so Create Campaign never shifts on type/focus/clear (AVU4-9). */}
             <div className="flex shrink-0 items-center gap-2">
               <div className="relative w-72 shrink-0">
@@ -439,7 +445,7 @@ function MediaPlansPageInner() {
               </span>
             </div>
             <Button
-              className="shrink-0"
+              className="shrink-0 whitespace-nowrap"
               onClick={() => router.push("/mediaplans/create")}
             >
               <PlusCircle className="mr-2 h-4 w-4" />
