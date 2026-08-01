@@ -14,7 +14,11 @@ import {
   BaseChartCard, ChartExportToolbar, ToggleableLegend, useLegendToggle, exportCsv, exportPng,
 } from '@/components/charts/system';
 import * as React from 'react';
+import { MediaChannelTag, mediaChannelTagRowClassName } from '@/components/dashboard/MediaChannelTag';
+import { MEDIA_TYPE_REGISTRY } from '@/lib/charts/registry';
 import * as D from './sample-data';
+
+const ALL_MEDIA_TYPE_PILL_LABELS = Object.values(MEDIA_TYPE_REGISTRY).map((row) => row.label);
 
 function Card({ title, span = 1, children }: { title: string; span?: number; children: React.ReactNode }) {
   return (
@@ -64,6 +68,14 @@ export default function ChartGallery() {
         <Card title="Funnel"><FunnelChart data={D.conversionFunnel} /></Card>
         <Card title="Calendar heatmap" span={2}><CalendarHeatmap caption="Daily impressions — 12 weeks" /></Card>
         <Card title="Sankey" span={2}><SankeyChart data={D.budgetFlow} /></Card>
+
+        <Card title="Media-type pills (MEDIA_TYPE_REGISTRY → MediaChannelTag)" span={4}>
+          <div className={mediaChannelTagRowClassName}>
+            {ALL_MEDIA_TYPE_PILL_LABELS.map((label) => (
+              <MediaChannelTag key={label} label={label} />
+            ))}
+          </div>
+        </Card>
 
         {/* ── Domain / flighting ── */}
         <div style={{ gridColumn: 'span 4', marginTop: 12, fontSize: 12, fontWeight: 700, letterSpacing: '.1em', color: 'var(--av-axis)' }}>

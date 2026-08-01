@@ -18,8 +18,8 @@
 
 ## Chart system
 
-- `lib/chart-theme.ts` — palettes (`CHART_PALETTE`, colour-blind, sequential/diverging/status) — "no chart hard-codes a hex".
-- `lib/charts/registry.ts` — `MEDIA_TYPE_REGISTRY`, THE media-type chart colour/label source, mirroring `mediaTypeTheme` in `lib/utils` (two overlapping colour sources — keep in sync).
+- `lib/chart-theme.ts` — palettes (`CHART_PALETTE`, colour-blind, sequential/diverging/status) — "no chart hard-codes a hex". `channelColorFor` resolves known media types via `MEDIA_TYPE_REGISTRY` first (gantt chips / spend series), then coarse `CHANNEL_COLORS` aggregates, then palette index.
+- `lib/charts/registry.ts` — `MEDIA_TYPE_REGISTRY`, THE media-type chart colour/label source, mirroring `mediaTypeTheme` in `lib/utils` (two overlapping colour sources — keep in sync). Pills use `getMediaBadgeStyle` (`MediaChannelTag` on dashboard cards, mediaplans list, publishers) — do not add a local tone map.
 - `lib/charts/theme.ts` — Recharts plumbing: Tailwind arbitrary selectors keyed on Recharts' literal default strokes (`#ccc`/`#fff`) — **a Recharts upgrade that changes those defaults silently un-styles every chart**.
 - `components/charts/system/*` — the chart component library; PNG export via html2canvas (client-only, breaks on cross-origin images).
 - Normative UI rules: `docs/design-refresh/SYSTEM_RULES.md` (see INVARIANTS UI section).
