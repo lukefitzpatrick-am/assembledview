@@ -86,6 +86,7 @@ test("Home / Clients / New user labels and Create Campaign is palette-only", () 
   assert.ok((ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/tasks"))
   assert.ok((ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/users/new"))
   assert.equal(getRouteByExactPath("/tasks")!.inSidebar, true)
+  assert.equal(getRouteByExactPath("/tasks")!.label, "Codex")
 })
 
 test("sidebar groups match Plan / Deliver / Finance / Admin IA (FIN-1)", async () => {

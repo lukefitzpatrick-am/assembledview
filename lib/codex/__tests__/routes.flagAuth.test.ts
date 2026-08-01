@@ -97,10 +97,15 @@ test("mine=1 ignores client-supplied assignee_email", { skip }, async () => {
     user: { email: "admin@example.com", roles: ["admin"] },
   }))
 
+  let seenMine: string | undefined
   let seenAssignee: string | undefined
   await mock.module!("@/lib/codex/repo", {
     namedExports: {
-      listTasks: async (filters: { assigneeEmail?: string }) => {
+      listTasks: async (filters: {
+        assigneeEmail?: string
+        mineForEmail?: string
+      }) => {
+        seenMine = filters.mineForEmail
         seenAssignee = filters.assigneeEmail
         return {
           items: [],
@@ -122,7 +127,8 @@ test("mine=1 ignores client-supplied assignee_email", { skip }, async () => {
     )
   )
   assert.equal(res.status, 200)
-  assert.equal(seenAssignee, "admin@example.com")
+  assert.equal(seenMine, "admin@example.com")
+  assert.equal(seenAssignee, undefined)
   if (prev === undefined) delete process.env.CODEX_V2
   else process.env.CODEX_V2 = prev
 })

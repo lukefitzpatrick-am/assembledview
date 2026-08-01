@@ -17,10 +17,11 @@
 - List (`app/scopes-of-work/page.tsx`) groups via `lib/scopes/groupScopesByStatus.ts` — known statuses plus **"Other / unrecognised"** so typo'd/new statuses never vanish. Columns: client, scope ID, value, scheduled % (not "Used"); search matches visible fields only via `scopeMatchesVisibleSearch` → `lib/search/matchText`. Gap label from `summarizeScopeScheduleCoverage`. Read-only view at `/scopes-of-work/[id]`; PDF + Edit from the list.
 - Create/edit surface cost/billing array `.min()` errors through AV-9 `<Field>` (`formArrayError`).
 
-## Tasks ("codex")
+## Codex (`/tasks`)
 
-- Sidebar label stays **Tasks**; page identity is **Codex** (`app/tasks/**`) with a "shadow" badge. Two tabs: Tasks | Team.
-- `components/tasks/{TaskFormDialog,TeamMemberFormDialog}.tsx` + `app/api/codex/{tasks,tasks/[id],client_notes,team}` — Postgres-native when `CODEX_V2=on` (`lib/codex/repo.ts` / Drizzle). Flag off → routes 404 **and** server page shows "Codex is not enabled" (no client fetch). Auth: admin-only shadow (`CODEX_SHADOW_ROLES`); 403 → gated empty state.
+- Sidebar label is **Codex** (Luke); page keeps the shadow badge. Sidebar entry is hidden for roles outside `CODEX_SHADOW_ROLES` (`lib/codex/shadowRoles.ts`) so a visible link never 403s the team. Two tabs: Tasks | Team.
+- Default list (`mine=1`): `assignee_email = me OR created_by_email = me` (includes unassigned tasks I created). **All tasks** toggle clears that scope so null-assignee rows stay visible. Exact `assignee_email` filter still excludes unassigned by design.
+- `components/tasks/{TaskFormDialog,TeamMemberFormDialog}.tsx` + `app/api/codex/{tasks,tasks/[id],client_notes,team}` — Postgres-native when `CODEX_V2=on` (`lib/codex/repo.ts` / Drizzle). Flag off → routes 404 **and** server page shows "Codex is not enabled" (no client fetch). Auth: `CODEX_SHADOW_ROLES` (admin in shadow); 403 → gated empty state.
 - Assignee picker is team-roster Select (active members; stores `assignee_email` + `assignee_name`). Categories/sources live in `lib/codex/types.ts` (`TASK_CATEGORIES` / `TASK_SOURCES` / `TeamMember`). Soft delete via `deleted_at` (confirm → DELETE; no trash UI). Source chip when `source !== 'manual'`.
 - **`lib/codex/**` is the Tasks domain, not AVA** — naming is historical; types + repo live here.
 - List UI uses `ViewState` (`lib/ui/viewState.ts`) via `ViewStateBoundary` so a fetch failure cannot render alongside "no tasks" empty copy; client/status/assignee/search exclusion uses `filtered-empty` + Clear filters. Team empty: "Add the team to enable assignment".

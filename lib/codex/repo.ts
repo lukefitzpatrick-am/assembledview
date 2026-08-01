@@ -10,6 +10,7 @@ import {
   inArray,
   isNull,
   lte,
+  or,
   type SQL,
 } from "drizzle-orm"
 import { db, schema, type Db } from "@/db"
@@ -28,7 +29,13 @@ export type TaskSort = "due_date_asc" | "due_date_desc" | "created_at_desc"
 
 export type ListTasksFilters = {
   clientId?: number
+  /** Exact assignee match (All-tasks filter). Null assignees excluded. */
   assigneeEmail?: string
+  /**
+   * My-tasks scope: assignee_email = email OR created_by_email = email.
+   * Includes unassigned tasks created by this user.
+   */
+  mineForEmail?: string
   status?: string[]
   mbaNumber?: string
   dueBefore?: string
@@ -175,7 +182,14 @@ export async function listTasks(
   const conds: SQL[] = []
   if (!filters.includeDeleted) conds.push(isNull(tasks.deletedAt))
   if (filters.clientId != null) conds.push(eq(tasks.clientId, filters.clientId))
-  if (filters.assigneeEmail) {
+  if (filters.mineForEmail) {
+    const email = filters.mineForEmail.trim().toLowerCase()
+    const mineScope = or(
+      eq(tasks.assigneeEmail, email),
+      eq(tasks.createdByEmail, email)
+    )
+    if (mineScope) conds.push(mineScope)
+  } else if (filters.assigneeEmail) {
     conds.push(eq(tasks.assigneeEmail, filters.assigneeEmail.trim().toLowerCase()))
   }
   if (filters.status?.length) conds.push(inArray(tasks.status, filters.status))

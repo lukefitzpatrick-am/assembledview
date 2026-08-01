@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
-import { resolveListAssigneeEmail } from "@/lib/codex/queryHelpers"
+import { resolveListAssigneeScope } from "@/lib/codex/queryHelpers"
 import {
   createTask,
   listTasks,
@@ -50,7 +50,7 @@ export async function GET(request: Request) {
       }
     }
     // Never trust a client-supplied assignee_email when mine is set.
-    const assigneeEmail = resolveListAssigneeEmail({
+    const assigneeScope = resolveListAssigneeScope({
       mine,
       sessionEmail: sessionEmailForMine,
       queryAssigneeEmail: url.searchParams.get("assignee_email"),
@@ -65,7 +65,8 @@ export async function GET(request: Request) {
     const data = await listTasks({
       clientId:
         clientId != null && Number.isFinite(clientId) ? clientId : undefined,
-      assigneeEmail,
+      mineForEmail: assigneeScope.mineForEmail,
+      assigneeEmail: assigneeScope.assigneeEmail,
       status: parseStatusFilter(url.searchParams.get("status")),
       mbaNumber: url.searchParams.get("mba_number") || undefined,
       dueBefore: url.searchParams.get("due_before") || undefined,

@@ -6,7 +6,9 @@ import {
   clampPerPage,
   parseStatusFilter,
   resolveListAssigneeEmail,
+  resolveListAssigneeScope,
 } from "../queryHelpers.js"
+import { userHasCodexShadowAccess } from "../shadowRoles.js"
 
 test("CODEX_V2 flag is off unless exactly on", () => {
   const prev = process.env.CODEX_V2
@@ -53,4 +55,37 @@ test("mine=1 ignores client-supplied assignee_email", () => {
     }),
     "other@evil.com"
   )
+})
+
+test("mine scope uses mineForEmail (assigned OR created-by), not exact assignee only", () => {
+  assert.deepEqual(
+    resolveListAssigneeScope({
+      mine: true,
+      sessionEmail: "Admin@Example.com",
+      queryAssigneeEmail: "other@evil.com",
+    }),
+    { mineForEmail: "admin@example.com" }
+  )
+  assert.deepEqual(
+    resolveListAssigneeScope({
+      mine: false,
+      sessionEmail: "admin@example.com",
+      queryAssigneeEmail: "Other@Evil.com",
+    }),
+    { assigneeEmail: "other@evil.com" }
+  )
+  assert.deepEqual(
+    resolveListAssigneeScope({
+      mine: false,
+      sessionEmail: "admin@example.com",
+      queryAssigneeEmail: null,
+    }),
+    {}
+  )
+})
+
+test("userHasCodexShadowAccess keys off CODEX_SHADOW_ROLES", () => {
+  assert.equal(userHasCodexShadowAccess(["admin"]), true)
+  assert.equal(userHasCodexShadowAccess(["client"]), false)
+  assert.equal(userHasCodexShadowAccess([]), false)
 })

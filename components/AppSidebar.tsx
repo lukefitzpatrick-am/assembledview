@@ -31,6 +31,7 @@ import {
   getRouteByExactPath,
   type NavLink,
 } from "@/lib/nav/routeManifest"
+import { userHasCodexShadowAccess } from "@/lib/codex/shadowRoles"
 import { isClientsBillingPath } from "@/lib/finance/sections/nav"
 import { ROUTE_ICON_MAP } from "@/lib/nav/routeIcons"
 
@@ -88,7 +89,7 @@ function NavRow({
 
 export function AppSidebar() {
   const pathname = usePathname() ?? ""
-  const { userClient, isAdmin, isLoading } = useAuthContext()
+  const { userClient, userRoles, isAdmin, isLoading } = useAuthContext()
   const [isClientsExpanded, setIsClientsExpanded] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
 
@@ -116,7 +117,18 @@ export function AppSidebar() {
     }
   }
 
-  const adminGroups = useMemo(() => getAdminSidebarGroups(), [])
+  const adminGroups = useMemo(() => {
+    const groups = getAdminSidebarGroups()
+    // Codex shadow: hide sidebar entry for roles outside CODEX_SHADOW_ROLES
+    // so a visible "Codex" link never 403s the wider admin team.
+    if (userHasCodexShadowAccess(userRoles)) return groups
+    return groups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => item.path !== "/tasks"),
+      }))
+      .filter((group) => group.items.length > 0)
+  }, [userRoles])
 
   const formatClientSlugLabel = (slug: string) => {
     const s = String(slug ?? "").trim()

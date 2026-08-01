@@ -198,14 +198,15 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
   },
   {
     path: "/tasks",
-    label: "Tasks",
-    title: "Tasks",
+    label: "Codex",
+    title: "Codex",
     icon: "ListTodo",
     inPalette: true,
     inSidebar: true,
     roles: ["admin"],
+    searchTerms: "tasks codex",
     group: "core",
-    // Top cluster with Today — "what needs me now".
+    // Shadow-phase: sidebar also gated by CODEX_SHADOW_ROLES in AppSidebar.
   },
   {
     path: "/pacing",

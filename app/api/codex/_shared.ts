@@ -2,10 +2,14 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { isCodexV2Enabled } from "@/lib/codex/flag"
+import {
+  CODEX_SHADOW_ROLES,
+  userHasCodexShadowAccess,
+} from "@/lib/codex/shadowRoles"
 import { getUserRoles, type UserRole } from "@/lib/rbac"
 
-/** Shadow phase: admin only. Managers join at team launch. */
-export const CODEX_SHADOW_ROLES = ["admin"] as const
+/** Re-export for API consumers — source of truth is `lib/codex/shadowRoles.ts`. */
+export { CODEX_SHADOW_ROLES }
 
 export type CodexAuthOk = {
   session: NonNullable<Awaited<ReturnType<typeof auth0.getSession>>>
@@ -37,9 +41,7 @@ export async function requireCodexInternalAccess(
   }
 
   const roles = getUserRoles(session.user)
-  const isInternal = CODEX_SHADOW_ROLES.some((r) => roles.includes(r))
-
-  if (!isInternal) {
+  if (!userHasCodexShadowAccess(roles)) {
     return {
       error: NextResponse.json({ error: "forbidden" }, { status: 403 }),
     }

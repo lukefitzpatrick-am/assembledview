@@ -791,14 +791,19 @@ export function TasksPageClient() {
 
               <div className="flex items-center gap-2 pb-1">
                 <Switch
-                  id="tasks-mine"
-                  checked={mine}
-                  onCheckedChange={(checked) => setMine(Boolean(checked))}
-                  aria-label={mine ? "My tasks" : "All tasks"}
+                  id="tasks-all"
+                  checked={!mine}
+                  onCheckedChange={(checked) => setMine(!checked)}
+                  aria-label="All tasks"
                 />
-                <Label htmlFor="tasks-mine" className="cursor-pointer">
-                  {mine ? "My tasks" : "All tasks"}
+                <Label htmlFor="tasks-all" className="cursor-pointer">
+                  All tasks
                 </Label>
+                <span className="text-[11px] text-muted-foreground">
+                  {mine
+                    ? "Showing assigned to me or created by me"
+                    : "Showing every task (including unassigned)"}
+                </span>
               </div>
             </div>
 
