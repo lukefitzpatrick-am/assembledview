@@ -30,7 +30,7 @@ Mapped to commits that landed on `localhost` in this overnight window (N0 paste 
 | **N2** | `4b3b8c77` | **green** | FY-1 AU financial-year overlap filter on Home + Campaigns. |
 | **N3** | `51e13cd5` | **green** | DEDUPE-1: coalesce `mba-line-approvals` GET via `coalescedGetJson`. |
 | **N4** | `b8c7ba0f` | **green** | DEDUPE-2: coalesce media-details reference GETs. |
-| **N5** | *(this docs commit)* | **green** | Process record (FN7), C-33 class-(c) manual-match disposition, F-28 FIN-6 blank legal/ABN note, this morning truth report. |
+| **N5** | `781ec4ac` | **green** | Process record (FN7), C-33 class-(c) manual-match disposition, F-28 FIN-6 blank legal/ABN note, this morning truth report. |
 | **N6** | `2294c75e` | **green** | B2-1 shared ChartExport PNG+CSV on `BaseChartCard`. |
 | **N7** | `e3f800b7` | **green** | B1-1 admin-only read-only campaign KPI pacing strip. |
 | **N8** | `862885c2` | **green** | B3-1 admin campaign report export + period picker (native pptx charts). |
