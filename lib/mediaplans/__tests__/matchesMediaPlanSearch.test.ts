@@ -39,4 +39,16 @@ describe("matchesMediaPlanSearch", () => {
   it("empty search matches all rows", () => {
     assert.equal(matchesMediaPlanSearch({}, ""), true)
   })
+
+  it("does not throw when mba_number is a number (coercion corruption)", () => {
+    const corrupted = {
+      mp_client_name: "Mitchelton Winery",
+      campaign_name: "Brand",
+      mba_number: 1001 as unknown as string,
+      brand: null,
+    }
+    assert.doesNotThrow(() => matchesMediaPlanSearch(corrupted, "001001"))
+    assert.equal(matchesMediaPlanSearch(corrupted, "1001"), true)
+    assert.equal(matchesMediaPlanSearch(corrupted, "mitchelton"), true)
+  })
 })

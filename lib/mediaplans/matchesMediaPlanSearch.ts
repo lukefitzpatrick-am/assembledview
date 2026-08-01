@@ -1,7 +1,7 @@
 /**
  * Fail-closed search match for the media plans list.
- * Every string field is coerced via `(x ?? "")` so a malformed API row cannot
- * throw and take down the page.
+ * Every field is coerced via `String(x ?? "")` so a malformed/corrupted API row
+ * (e.g. mba_number as number after numeric coercion) cannot throw and take down the page.
  */
 export function matchesMediaPlanSearch(
   plan: {
@@ -12,12 +12,12 @@ export function matchesMediaPlanSearch(
   },
   searchTerm: string,
 ): boolean {
-  const q = (searchTerm ?? "").toLowerCase()
+  const q = String(searchTerm ?? "").toLowerCase()
   if (!q) return true
   return (
-    (plan.mp_client_name ?? "").toLowerCase().includes(q) ||
-    (plan.campaign_name ?? "").toLowerCase().includes(q) ||
-    (plan.mba_number ?? "").toLowerCase().includes(q) ||
-    (plan.brand ?? "").toLowerCase().includes(q)
+    String(plan.mp_client_name ?? "").toLowerCase().includes(q) ||
+    String(plan.campaign_name ?? "").toLowerCase().includes(q) ||
+    String(plan.mba_number ?? "").toLowerCase().includes(q) ||
+    String(plan.brand ?? "").toLowerCase().includes(q)
   )
 }

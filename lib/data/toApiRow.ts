@@ -13,15 +13,37 @@ export function toApiRow(row: Record<string, unknown>): Record<string, unknown> 
 }
 
 /**
+ * Text identifier fields that must never be numerically coerced.
+ * Leading zeros / phone-like digits are load-bearing (mba_number "001001" ≠ 1001).
+ * Prefer extending this set over an allowlist of numeric columns — drizzle `numeric`
+ * strings still coerce; only known text identifiers are excluded.
+ */
+export const IDENTIFIER_TEXT_FIELDS: ReadonlySet<string> = new Set([
+  "mba_number",
+  "po_number",
+  "abn",
+  "postcode",
+  "invoice_number",
+  "invoice_key",
+  "client_contact",
+  "mbaidentifier",
+  "line_item_id",
+  "mp_plannumber",
+])
+
+/**
  * Drizzle `numeric` columns come back as strings; Xano returns numbers.
  * Coerce finite numeric strings → numbers so postgres mode matches Xano shapes.
- * Skip `abn` (stored/served as text per migration contract).
+ * Identifier/text fields in IDENTIFIER_TEXT_FIELDS (plus options.keepAsText) stay strings.
  */
 export function coerceNumericStringsToNumbers(
   row: Record<string, unknown>,
   options: { keepAsText?: ReadonlySet<string> } = {}
 ): Record<string, unknown> {
-  const keep = options.keepAsText ?? new Set<string>()
+  const keep = new Set<string>(IDENTIFIER_TEXT_FIELDS)
+  if (options.keepAsText) {
+    for (const key of options.keepAsText) keep.add(key)
+  }
   const out: Record<string, unknown> = { ...row }
   for (const [key, value] of Object.entries(out)) {
     if (keep.has(key)) {

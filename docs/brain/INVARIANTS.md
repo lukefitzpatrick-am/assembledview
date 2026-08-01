@@ -44,6 +44,7 @@ pct === 100 → fee = 0 (division guard)
 - After Postgres plan commit, Xano is a non-authoritative mirror (`lib/data/mirrorToXano.ts`): failures log + surface `{ mirror: "failed" }` and never roll back or throw into the save caller; repair via `POST /api/admin/xano-mirror/retry`.
 - **O4.6 Postgres version numbers:** `savePlanVersion` resolves `publish`/`new_version` as `max(version_number)+1` inside the txn (client number ignored); draft-overwrite keeps the loaded version. Publish mirrors `PATCH` Xano `media_plan_master` `{ version_number, campaign_status }` to restore the watermark; draft/`new_version` mirrors do not.
 - Partial MBA: screen panel and Excel export must both read the same `partialMBAValues`; export must never fall through to `calculateAssembledFee()` while partial approval is active.
+- **`mba_number` is always a string** on API rows — byte-identical to Xano/Postgres text (leading zeros preserved: `"001001"` ≠ `1001`). Postgres read shaping must not numerically coerce identifier text fields (`IDENTIFIER_TEXT_FIELDS` in `lib/data/toApiRow.ts`).
 
 ## Deliverable math (canonical: `lib/mediaplan/deliverableBudget.ts`)
 
