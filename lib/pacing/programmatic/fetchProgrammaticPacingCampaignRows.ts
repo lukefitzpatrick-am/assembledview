@@ -84,7 +84,8 @@ async function fetchFactsForChannel(
       `[fetchProgrammaticPacingCampaignRows] Snowflake query failed for ${snowflakeChannel}`,
       { lineItemCount: lineItemIds.length, startDate, endDate, err }
     );
-    return [];
+    // Dead warehouse ≠ “no campaigns” — propagate for ViewState / route 5xx.
+    throw err;
   }
 }
 

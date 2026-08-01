@@ -128,7 +128,8 @@ pct === 100 → fee = 0 (division guard)
 ## UI / design system
 
 - Application roles are `admin` | `client` only (`lib/rbac.ts`). Unknown or removed role strings (including legacy `manager`) normalise to no roles — least privilege, never admin.
-- List surfaces map fetch + filter outcomes through `lib/ui/viewState.ts` (`ViewState` / `resolveListViewState`) and render via `ViewStateBoundary` — loading, error, empty, and filtered-empty are mutually exclusive; never render an empty-state message for a failed load or a "nothing here" copy when filters excluded everything.
+- List surfaces map fetch + filter outcomes through `lib/ui/viewState.ts` (`ViewState` / `resolveListViewState` / `viewStateFromReadResult`) and render via `ViewStateBoundary` — loading, error, empty, and filtered-empty are mutually exclusive; never render an empty-state message for a failed load or a "nothing here" copy when filters excluded everything.
+- `lib/data` Postgres (and live) reads must not catch-and-return `[]` on failure — typed `ReadResult` / throw, then ViewState error at the boundary. Cache freshness (`x-cache-fetched-at` / stale warning) is optional `ViewState.ready.freshness` (derived). Xano `fetchAllXanoPages*` soft paths are dying-at-T6 — see `docs/brain/READ-FAILURE-REGISTER.md`.
 
 - `Panel`/`PanelRow`/`PanelRowCell` mandatory for new dashboard work; `Card` only for chart wrappers and non-dashboard composables. `bg-dashboard-surface` only for the dashboard backdrop.
 - No new hard-coded hex in `app/**` route components (chart palette constants and tenant brand colours excepted). No chart hard-codes a hex — use `lib/chart-theme.ts` / `lib/charts/registry.ts`.

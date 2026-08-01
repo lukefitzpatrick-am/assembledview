@@ -35,19 +35,21 @@ export async function GET(request: NextRequest) {
     }
 
     const result = await readMbaLineApprovals(mbaNumber, mediaPlanVersion)
+    if (!result.ok) {
+      return NextResponse.json(
+        { lines: [], available: false, error: result.error },
+        { status: 503 }
+      )
+    }
     if (!result.available) {
-      return NextResponse.json({
-        lines: [],
-        available: false,
-        ...(result.error ? { error: result.error } : {}),
-      })
+      return NextResponse.json({ lines: [], available: false })
     }
     return NextResponse.json({ lines: result.lines, available: true })
   } catch (error) {
     console.error("[api/mba-line-approvals GET]", error)
     return NextResponse.json(
       { lines: [], available: false, error: "Failed to load mba_line_approvals" },
-      { status: 200 }
+      { status: 503 }
     )
   }
 }

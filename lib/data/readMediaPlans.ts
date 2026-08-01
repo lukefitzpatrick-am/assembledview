@@ -226,6 +226,11 @@ export async function fetchPlanMasterByMbaFromPostgres(
   return all.find((r) => normaliseMba(r.mba_number) === target) ?? null
 }
 
+/**
+ * Dying-at-T6 (fetchAllXanoPages family). Dual-endpoint 404 → [] is Xano
+ * discovery fallback, not a Postgres soft-fail. Do not convert for M7 ViewState.
+ * @see docs/brain/READ-FAILURE-REGISTER.md
+ */
 export async function fetchPlanMastersFromXano(): Promise<Record<string, unknown>[]> {
   for (const endpoint of ["media_plan_master", "media_plans_master"] as const) {
     try {

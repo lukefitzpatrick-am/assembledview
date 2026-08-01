@@ -80,7 +80,8 @@ async function fetchFactsForPlatform(
       `[fetchSocialPacingCampaignRows] Snowflake query failed for ${socialPlatform}`,
       { lineItemCount: lineItemIds.length, startDate, endDate, err }
     );
-    return [];
+    // Dead warehouse ≠ “no campaigns” — propagate for ViewState / route 5xx.
+    throw err;
   }
 }
 

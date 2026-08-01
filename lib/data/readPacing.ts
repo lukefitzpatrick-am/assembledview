@@ -164,6 +164,11 @@ export async function fetchPacingMastersFromPostgres(): Promise<Record<string, u
   })
 }
 
+/**
+ * Dying-at-T6 (fetchAllXanoPages family). Dual-endpoint 404 → [] is Xano
+ * discovery fallback, not a Postgres soft-fail. Do not convert for M7 ViewState.
+ * @see docs/brain/READ-FAILURE-REGISTER.md
+ */
 export async function fetchPacingMastersFromXano(): Promise<Record<string, unknown>[]> {
   const endpoints = ["media_plan_master", "media_plans_master"] as const
   for (const endpoint of endpoints) {

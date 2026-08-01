@@ -3,12 +3,17 @@
  * exclusive by construction — a fetch failure cannot render as "empty", and a
  * filter that excluded everything cannot render as "nothing here".
  */
+
+import type { ReadFreshness, ReadResult } from "@/lib/data/readResult"
+
+export type ViewStateFreshness = ReadFreshness
+
 export type ViewState<T> =
   | { status: "loading" }
   | { status: "error"; message: string; retry?: () => void }
   | { status: "empty" }
   | { status: "filtered-empty"; clear: () => void }
-  | { status: "ready"; data: T }
+  | { status: "ready"; data: T; freshness?: ViewStateFreshness }
 
 export type ViewStateStatus = ViewState<unknown>["status"]
 
@@ -26,6 +31,8 @@ export function resolveListViewState<T>(args: {
   filtersActive: boolean
   clear: () => void
   retry?: () => void
+  /** Optional cache freshness (derived from headers / cache metadata). */
+  freshness?: ViewStateFreshness
 }): ViewState<T[]> {
   if (args.loading) return { status: "loading" }
   if (args.error) {
@@ -40,5 +47,41 @@ export function resolveListViewState<T>(args: {
   if (args.visible.length === 0) {
     return { status: "filtered-empty", clear: args.clear }
   }
-  return { status: "ready", data: [...args.visible] }
+  return {
+    status: "ready",
+    data: [...args.visible],
+    ...(args.freshness ? { freshness: args.freshness } : {}),
+  }
+}
+
+/**
+ * Map a lib/data ReadResult (+ client filter flags) into ViewState.
+ * Forced DB / upstream failures → error (never empty).
+ */
+export function viewStateFromReadResult<T>(args: {
+  loading: boolean
+  result: ReadResult<readonly T[]> | null | undefined
+  visible: readonly T[]
+  filtersActive: boolean
+  clear: () => void
+  retry?: () => void
+}): ViewState<T[]> {
+  if (args.loading || args.result == null) return { status: "loading" }
+  if (!args.result.ok) {
+    return {
+      status: "error",
+      message: args.result.error,
+      retry: args.retry,
+    }
+  }
+  return resolveListViewState({
+    loading: false,
+    error: null,
+    items: args.result.data,
+    visible: args.visible,
+    filtersActive: args.filtersActive,
+    clear: args.clear,
+    retry: args.retry,
+    freshness: args.result.freshness,
+  })
 }

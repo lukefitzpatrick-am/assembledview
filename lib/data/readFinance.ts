@@ -149,15 +149,9 @@ export async function readFinanceBillingRecords(): Promise<Record<string, unknow
     return fetchFinanceBillingRecordsFromPostgres()
   }
 
-  let xanoRows: Record<string, unknown>[] = []
-  try {
-    xanoRows = await fetchFinanceBillingRecordsFromXano()
-  } catch (err) {
-    console.error("[finance-overlay] failed to fetch persisted status", {
-      message: err instanceof Error ? err.message : String(err),
-    })
-    return []
-  }
+  // Do not soft-fail to [] — a dead Xano/Postgres looks like "no billed rows".
+  // Callers map thrown errors to ViewState / HTTP 5xx at the boundary.
+  const xanoRows = await fetchFinanceBillingRecordsFromXano()
 
   if (backend === "shadow") {
     void (async () => {
@@ -437,37 +431,22 @@ export async function fetchBillingOverridesFromXano(
 ): Promise<Record<string, unknown>[]> {
   if (versionId == null || String(versionId).trim() === "") return []
 
-  let baseUrl = opts?.baseUrl
-  try {
-    baseUrl ??= getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
-  } catch {
-    return []
-  }
+  const baseUrl = opts?.baseUrl ?? getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
 
-  try {
-    const qs = new URLSearchParams({
-      media_plan_version: String(versionId),
-      page: "1",
-      per_page: "200",
-    })
-    const result = await fetchJson(`${baseUrl}/billing_overrides?${qs.toString()}`)
-    if (result.status === 404) return []
-    if (result.status >= 400) {
-      console.warn("[billingOverrides] GET failed", {
-        versionId,
-        status: result.status,
-        upstream: result.body,
-      })
-      return []
-    }
-    return asRecordList(result.body)
-  } catch (error) {
-    console.warn("[billingOverrides] GET threw; treating as no overrides", {
-      versionId,
-      message: error instanceof Error ? error.message : String(error),
-    })
-    return []
+  const qs = new URLSearchParams({
+    media_plan_version: String(versionId),
+    page: "1",
+    per_page: "200",
+  })
+  const result = await fetchJson(`${baseUrl}/billing_overrides?${qs.toString()}`)
+  // Missing table / no rows for version → genuine empty. Transport/5xx → throw.
+  if (result.status === 404) return []
+  if (result.status >= 400) {
+    throw new Error(
+      `billing_overrides GET failed (${result.status}) for version ${versionId}`
+    )
   }
+  return asRecordList(result.body)
 }
 
 /**

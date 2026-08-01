@@ -28,7 +28,10 @@ export type MbaLineApprovalApiRow = {
 
 export type ReadMbaLineApprovalsResult =
   | { ok: true; lines: MbaLineApprovalApiRow[]; available: true }
-  | { ok: true; lines: []; available: false; error?: string }
+  /** Upstream 404 / feature not provisioned — genuine empty approvals surface. */
+  | { ok: true; lines: []; available: false }
+  /** Transport / DB failure — never disguise as empty approvals. */
+  | { ok: false; lines: []; available: false; error: string }
 
 function asApprovalList(body: unknown): MbaLineApprovalApiRow[] {
   const list = Array.isArray(body)
@@ -147,7 +150,7 @@ function runApprovalsShadowCompare(
 /**
  * MBA line approvals for one (mba, version) with DATA_BACKEND_APPROVALS / DATA_BACKEND.
  * Absence of rows ⇒ all approved (caller / mbaLineApprovalsClient contract).
- * Fail-soft: upstream 404 / throw ⇒ { lines: [], available: false }.
+ * 404 / unprovisioned → available:false (ok). Hard failures → ok:false.
  */
 export async function readMbaLineApprovals(
   mbaNumber: string,
@@ -191,7 +194,7 @@ export async function readMbaLineApprovals(
   } catch (err) {
     console.error("[readMbaLineApprovals]", err)
     return {
-      ok: true,
+      ok: false,
       lines: [],
       available: false,
       error: "Failed to load mba_line_approvals",

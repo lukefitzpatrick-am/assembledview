@@ -373,8 +373,21 @@ function MediaPlansPageInner() {
           setLoading(true)
           window.location.reload()
         },
+        freshness: {
+          stale: listMayBeStale,
+          fetchedAt: listFetchedAt,
+        },
       }),
-    [loading, error, mediaPlans, filteredPlans, searchTerm, clearCampaignSearch]
+    [
+      loading,
+      error,
+      mediaPlans,
+      filteredPlans,
+      searchTerm,
+      clearCampaignSearch,
+      listMayBeStale,
+      listFetchedAt,
+    ]
   )
 
   const searchActive = Boolean(searchTerm.trim())
@@ -430,14 +443,15 @@ function MediaPlansPageInner() {
             span="full"
             className="space-y-4 bg-surface-muted py-6 -mx-4 px-4 md:-mx-6 md:px-6"
           >
-          {listMayBeStale && campaignsViewState.status === "ready" ? (
+          {campaignsViewState.status === "ready" &&
+          campaignsViewState.freshness?.stale ? (
             <div
               role="status"
               className="rounded-card border border-pacing-behind bg-pacing-behind-bg px-4 py-3 text-sm text-status-behind-fg"
             >
               Campaign list may be out of date
-              {listFetchedAt
-                ? ` (last refreshed ${format(new Date(listFetchedAt), "HH:mm")})`
+              {campaignsViewState.freshness.fetchedAt
+                ? ` (last refreshed ${format(new Date(campaignsViewState.freshness.fetchedAt), "HH:mm")})`
                 : ""}
               {" — "}a newly saved campaign may not appear yet.
             </div>
