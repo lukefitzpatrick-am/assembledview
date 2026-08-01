@@ -86,7 +86,7 @@ Hydration requires:
 1. `loadPhase === "ready"` (parallel per-channel fetches finished or errored), and  
 2. every enabled flag `mediaLoadStatus === "ready"|"error"` **and** `channelHydrationSettled[flag] === true` (container published line items, or empty/error settled in the loader).
 
-Fetch timeouts on the edit page are **15s initial + 25s auto-retry = 40s** for a single slow/failing channel. `Promise.all` waits for the slowest channel, so Save can sit on “Loading…” for ~40s even on a 2-line plan if one of the enabled channel GETs is slow. Hard ceiling: `HYDRATION_WATCHDOG_MS = 50_000`.
+Fetch timeouts on the edit page are **45s initial + 90s auto-retry = 135s** for a single slow/failing channel (retuned to measured Xano fan-out; healthy GETs land at 22–35s). `Promise.all` waits for the slowest channel. Hard ceiling: `HYDRATION_WATCHDOG_MS = 150_000` (must exceed initial+auto-retry).
 
 `computeCampaignFinancials` itself is **not** the 40s cost: scratch microbench on this machine was ~7ms (2 lines), ~20ms (50), ~70–80ms (300). The standing F-28 concern (300+ expert-grid rows) is about **grid mount/update**, not the pure finance engine.
 
@@ -100,7 +100,7 @@ Fetch timeouts on the edit page are **15s initial + 25s auto-retry = 40s** for a
 | Wizard rail | FIXED — draft summary shows hold reason as status text; Exit is “Exit to Campaigns” |
 | Gate | `edit/page.tsx:2820-2831` + `lib/mediaplan/channelHydrationGate.ts:23-34,133-139` |
 | Parallel loads | `edit/page.tsx:3902-3988` — `Promise.all` per enabled media type |
-| Timeouts | `:1673-1680` — `15_000` / `25_000` / watchdog `50_000` |
+| Timeouts | edit `LINE_ITEM_TIMEOUT_*` — `45_000` / `90_000` / watchdog `150_000` (manual retry `180_000`) |
 | Empty settle in loader | `:3949-3956` |
 | Watchdog | `:4018-4069` |
 | Stagger mount | `lib/mediaplan/staggerVisibleMount.ts:9-35` |
