@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react"
 import Link from "next/link"
 import { BaseChartCard, GroupedBarChart, TreemapChart } from "@/components/charts/system"
 import { CostsSubNav } from "@/components/finance/sections/costs/CostsSubNav"
+import { PayablesReconBanner } from "@/components/finance/sections/PayablesReconBanner"
 import { EmptyState } from "@/components/finance/sections/EmptyState"
 import { ErrorState } from "@/components/finance/sections/ErrorState"
 import { LoadingState } from "@/components/finance/sections/LoadingState"
@@ -88,6 +89,7 @@ export function CostsOverviewClient() {
   return (
     <FinanceSectionsShell title="Costs" scopeBar={<SectionScopeBar showingLabel={showingLabel} />}>
       <div className="space-y-6">
+        <PayablesReconBanner />
         <CostsSubNav />
         <p className="text-sm text-muted-foreground">
           Booked publisher cost (delivery) vs Xero AP bills.

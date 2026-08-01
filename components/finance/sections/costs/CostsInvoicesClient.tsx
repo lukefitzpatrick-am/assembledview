@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation"
 import { ChevronDown, ChevronRight, Download, ExternalLink } from "lucide-react"
 import { CostsLocalFilters } from "@/components/finance/sections/costs/CostsLocalFilters"
 import { CostsSubNav } from "@/components/finance/sections/costs/CostsSubNav"
+import { PayablesReconBanner } from "@/components/finance/sections/PayablesReconBanner"
 import { EmptyState } from "@/components/finance/sections/EmptyState"
 import { ErrorState } from "@/components/finance/sections/ErrorState"
 import { LoadingState } from "@/components/finance/sections/LoadingState"
@@ -121,6 +122,7 @@ export function CostsInvoicesClient() {
       scopeBar={<SectionScopeBar showingLabel={showingLabel} />}
     >
       <div className="space-y-4">
+        <PayablesReconBanner />
         <CostsSubNav />
         <div className="flex flex-wrap items-end justify-between gap-3">
           <CostsLocalFilters

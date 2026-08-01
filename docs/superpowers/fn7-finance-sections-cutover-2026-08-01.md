@@ -8,9 +8,9 @@ Status: done (2026-08-01)
 
 Sections IA is always on. `isFinanceSectionsEnabled()` returns `true` unconditionally (export kept for residual callers).
 
-**Rollback:** `git revert <fn7-sha>` once FN7 is committed.
+**Rollback:** `git revert 3f894bca` (FN7 cutover commit on `feature/finance-sections`).
 
-**Current state:** FN7 cutover is currently UNCOMMITTED on localhost — no SHA yet; after commit, rollback is `git revert <sha>`.
+**Current state:** FN7 cutover committed as `3f894bca` (`feat(finance)!: FN7 cutover - hub removal + redirects`).
 
 See `docs/brain/modules/finance-billing.md`, `docs/brain/INVARIANTS.md`, `env.local.example`.
 
@@ -79,8 +79,8 @@ Enforced by `next.config.mjs` permanent redirects + middleware (admin) for bare 
 
 | Register | Change |
 |----------|--------|
-| `KNOWN-ISSUES.md` | **UX-1** Load-gate, **UX-2** $0 landing, **UX-3** hub treemaps → FIXED (FN7) |
-| `FINANCE-UX-REDESIGN.md` | F5.3 / F10.* / CF1 → FIXED (FN7) |
+| `KNOWN-ISSUES.md` | **UX-1** Load-gate, **UX-2** $0 landing, **UX-3** hub treemaps → fixed pending live verification (not FIXED until live smoke); **C-29** Costs payables recon banner |
+| `FINANCE-UX-REDESIGN.md` | F5.3 / F10.* / CF1 → fixed pending live verification |
 | `finance-billing.md` + `BLAST-RADIUS.md` + `INVARIANTS.md` | sections always on / hub deleted |
 
 ## Verification
@@ -95,4 +95,4 @@ Enforced by `next.config.mjs` permanent redirects + middleware (admin) for bare 
 
 ## Ops
 
-Sections IA is always on. Rollback: `git revert <fn7-sha>` after FN7 is committed (see Flag section above).
+Sections IA is always on. Rollback: `git revert 3f894bca` (see Flag section above).
