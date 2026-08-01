@@ -26,6 +26,7 @@ import {
   isScheduleEnded,
   normalizeStoredCampaignStatus,
 } from "@/lib/mediaplans/campaignListStatus"
+import { matchesMediaPlanSearch } from "@/lib/mediaplans/matchesMediaPlanSearch"
 
 const slugifyClientName = (name?: string | null) => {
   if (!name || typeof name !== "string") return ""
@@ -266,22 +267,16 @@ function MediaPlansPageInner() {
     return filteredPlans.filter(plan => plan.campaign_status === status);
   };
 
-  // Search functionality
+  // Search functionality — fail-closed: never throw on missing string fields
   useEffect(() => {
     if (!searchTerm) {
       setFilteredPlans(mediaPlans);
       return;
     }
 
-    const filtered = mediaPlans.filter(plan => {
-      const searchLower = searchTerm.toLowerCase();
-      return (
-        plan.mp_client_name.toLowerCase().includes(searchLower) ||
-        (plan.campaign_name?.toLowerCase().includes(searchLower) ?? false) ||
-        plan.mba_number.toLowerCase().includes(searchLower) ||
-        (plan.brand && plan.brand.toLowerCase().includes(searchLower))
-      );
-    });
+    const filtered = mediaPlans.filter((plan) =>
+      matchesMediaPlanSearch(plan, searchTerm),
+    );
 
     setFilteredPlans(filtered);
   }, [searchTerm, mediaPlans]);

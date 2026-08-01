@@ -29,6 +29,7 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | DI-6 | Xano tables in docs but absent from `xano-tables-schema.json` export (`pacing_mappings`, `pacing_thresholds`, `finance_forecast_snapshots*`, …) — export stale or tables never created; reconcile | Open |
 | DI-7 | Publisher-ID parity between `XANO_PUBLISHERS_BASE_URL` and `XANO_CLIENTS_BASE_URL/get_publishers` unverified | Open |
 | DI-8 | Xano filtering not applied on all line-item tables — raw counts stay MBA-wide on several channels (newspaper 174 raw / 3 kept) with client-side filtering doing the work (was D4-K5) | Open |
+| DI-9 | Postgres `GET /api/mediaplans` list dropped master-owned `mp_client_name` (Xano `_latest` had it inline; `mergeLatestVersionsWithMasters` overlaid `version_number` only) → list search crashed on `.toLowerCase()` | FIXED — `overlayMasterOwnedListFields` in `mediaPlansListCache` + fail-closed `matchesMediaPlanSearch` |
 
 ## Correctness (C-*)
 
