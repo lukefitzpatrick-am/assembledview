@@ -1,6 +1,7 @@
 import { createChannelLineItemsGetHandler } from "@/lib/api/channelLineItemsGetHandler";
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from '@/lib/api/xano';
+import { requireRole } from '@/lib/requireRole';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -29,8 +30,12 @@ interface SocialMediaData {
   line_item: number;
 }
 
-export async function POST(request: Request) {
+/** SEC-G residual: collection POST matches catch-all requireRole(admin). */
+export async function POST(request: NextRequest) {
   try {
+    const gate = await requireRole(request, ["admin"])
+    if ("response" in gate) return gate.response
+
     const data = await request.json();
     
     // Validate required fields

@@ -31,6 +31,16 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `media-container-best-practice/[id]` | PUT | collection POST | `requireRole(admin)` + audit stamp | `requireRole(admin)` + audit stamp | **GATED (SEC-G)** |
 | `media_plans/television/[id]` | PUT | catch-all peer | `requireRole(admin)` | `requireRole(admin)` | **GATED (SEC-G)** |
 | `media_plans/television/[id]` | DELETE | catch-all peer | `requireRole(admin)` | `requireRole(admin)` | **GATED (SEC-G)** |
+| `media_plans/television` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual |
+| `media_plans/social` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
+| `media_plans/newspaper` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
+| `media_plans/influencers` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
+| `media_plans/integration` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
+| `media_plans/search` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
+| `media_plans/cinema` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
+| `media_plans/production` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
+| `media_plans/prog-video` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
+| `media_plans/digi-bvod` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
 | `media_plans/[...path]` | * | catch-all | — | `requireRole(admin)` | N/A |
 | `media-details/[...path]` | * | catch-all | — | `requireRole(admin)` | N/A |
 | `codex/tasks/[id]` | PATCH | `codex/tasks` | `requireCodexInternalAccess` | same | OK |
@@ -53,13 +63,13 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `clients/[id]` | PUT/PATCH | `clients` POST | `requireRole(admin)` | `requireRole(admin)` | OK |
 | `clients/[id]` | GET | `clients` GET | `requireRole(admin)` | session + client own-id (admin any-id) | **INTENTIONAL** |
 
-**Counts:** 27 dynamic route files; O6 gated 5 methods; SEC-G gated publishers/best-practice/television writes + creative soft-spot; `clients/[id]` GET stays intentional split.
+**Counts:** 27 dynamic route files; O6 gated 5 methods; SEC-G gated publishers/best-practice/television writes + creative soft-spot + 10 dedicated channel collection POSTs (residual close); `clients/[id]` GET stays intentional split. `prog-ooh` / `prog-display` dedicated routes are GET-only (no POST to gate).
 
 ## Morning answers (SEC-G — applied)
 
 1. **`publishers/*`** — writes (`POST` / `PUT`) → `requireRole(admin)`; GETs stay session-auth (reference data for create/edit).
 2. **`media-container-best-practice/*`** — writes (`POST` / `PUT`) → `requireRole(admin)`; keep `_name` audit stamp after the gate; reads stay session-auth.
-3. **`media_plans/television/[id]`** PUT+DELETE → `requireRole(admin)` to match catch-all. Only dedicated channel `[id]` mutate path in inventory. Verified: no client-role call site writes channel line items (`replaceChannelLineItems` → catch-all; `createTelevisionLineItem` / update / delete are dead exports). Dedicated collection `POST /television` left ungated (not in morning answer scope) — residual write surface.
+3. **`media_plans/television/[id]`** PUT+DELETE → `requireRole(admin)` to match catch-all. Only dedicated channel `[id]` mutate path in inventory. Verified: no client-role call site writes channel line items (`replaceChannelLineItems` → catch-all; `createTelevisionLineItem` / update / delete are dead exports). **Residual closed:** dedicated collection `POST` on `television` + nine sibling channel collection POSTs (`social`, `newspaper`, `influencers`, `integration`, `search`, `cinema`, `production`, `prog-video`, `digi-bvod`) now `requireRole(admin)` identically.
 4. **`clients/[id]` GET** — **intentional split**: collection is admin-only; `[id]` GET allows admin any-id + client own-id only. Do not apply collection `requireRole` (breaks client self-read).
 5. **Creative soft-spot** — all creative MBA-scoped handlers call `checkClientMbaAccess`; helper itself now scopes **only admin** as unscoped (empty `mba_numbers` on non-admin → 403). Closes empty-MBA non-admin sessions across every consumer of the helper.
 6. **Forecast snapshots** — deferred (not in SEC-G apply list).

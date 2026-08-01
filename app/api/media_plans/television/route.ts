@@ -1,6 +1,7 @@
 import { createChannelLineItemsGetHandler } from "@/lib/api/channelLineItemsGetHandler";
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { xanoUrl, xanoPostHeaderRecord } from '@/lib/api/xano';
+import { requireRole } from '@/lib/requireRole';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -30,8 +31,16 @@ interface TelevisionData {
   line_item: number;
 }
 
-export async function POST(request: Request) {
+/**
+ * SEC-G residual: dedicated channel collection POST matches catch-all
+ * `requireRole(admin)`. Live saves use replaceChannelLineItems → catch-all;
+ * createTelevisionLineItem is a dead export — belt-and-braces.
+ */
+export async function POST(request: NextRequest) {
   try {
+    const gate = await requireRole(request, ["admin"])
+    if ("response" in gate) return gate.response
+
     const data = await request.json();
     
     // Validate required fields
