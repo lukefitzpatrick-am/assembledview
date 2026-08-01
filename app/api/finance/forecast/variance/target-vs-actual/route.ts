@@ -117,6 +117,7 @@ export async function POST(request: NextRequest) {
     ])
 
     const billingStatusRows = billingRows as unknown as PersistedFinanceStatusRow[]
+    // Phase-1 actual (unchanged): mark-billed snapshots.
     let actuals = aggregateBilledActualsToClientMonth(billingStatusRows, fyMonthSet)
     let targets = rollTargetsToClientMonth(targetLines)
     let booked = bookedMonthlyFromDataset(bookedResult.dataset)
@@ -132,7 +133,10 @@ export async function POST(request: NextRequest) {
       booked = booked.filter((r) => matchClient(r.client_id, r.client_name))
     }
 
-    // Phase-2 Xero AR: merge/replace `actuals` here with client×month amounts from Xero.
+    // TODO(FN-forecast-variance-phase2): Plug Xero AR actuals here (no behaviour yet).
+    // FN5c join is ready (`xero_ar_invoices` + matches / run items). Build
+    // `XeroArClientMonthActual[]` (lib/finance/forecast/variance/targetVsActual.ts),
+    // map to ClientMonthAmount, then replace or merge into `actuals` below.
 
     const report = buildTargetVsActualVariance({
       financial_year_start_year: fy,

@@ -1,26 +1,30 @@
 /**
- * Read/write `revenue_forecast_lines` in Xano (mutable Finance Forecast targets).
- *
- * Configure `XANO_FINANCE_FORECAST_TARGETS_BASE_URL` (preferred) or fall back to
- * `XANO_CLIENTS_BASE_URL`. Path override: `XANO_FINANCE_FORECAST_TARGETS_PATH`.
+ * Legacy Xano read/write for `revenue_forecast_lines`.
+ * App routes use `pgTargetLines.ts` (Postgres-authoritative).
+ * Kept for optional one-off migration (`npm run db:migrate-forecast-targets`).
  */
 
 import { xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
-import {
-  FINANCE_FORECAST_FISCAL_MONTH_ORDER,
-  FINANCE_FORECAST_LINE_KEYS,
-  type FinanceForecastLineKey,
-  type FinanceForecastMonthKey,
-} from "@/lib/types/financeForecast"
 import type {
   FinanceForecastTargetLine,
   FinanceForecastTargetUpsertCell,
 } from "@/lib/types/financeForecastTargets"
+import {
+  isFinanceForecastLineKey,
+  isFinanceForecastMonthKey,
+  normalizeTargetLine,
+  targetLineNaturalKey,
+} from "./targetLineHelpers"
+
+export {
+  isFinanceForecastLineKey,
+  isFinanceForecastMonthKey,
+  isTargetStorageConfigured,
+  normalizeTargetLine,
+  targetLineNaturalKey,
+} from "./targetLineHelpers"
 
 const DEFAULT_PATH = "revenue_forecast_lines"
-
-const LINE_KEY_SET = new Set<string>(Object.values(FINANCE_FORECAST_LINE_KEYS))
-const MONTH_KEY_SET = new Set<string>(FINANCE_FORECAST_FISCAL_MONTH_ORDER)
 
 function targetsBaseUrl(): string | null {
   const dedicated = process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL?.trim()
@@ -37,7 +41,7 @@ function targetsPath(): string {
   )
 }
 
-export function isTargetStorageConfigured(): boolean {
+export function isXanoTargetStorageConfigured(): boolean {
   return Boolean(targetsBaseUrl())
 }
 
@@ -51,59 +55,6 @@ function unwrapArray(payload: unknown): unknown[] {
     if (Array.isArray(p.result)) return p.result
   }
   return []
-}
-
-export function isFinanceForecastLineKey(v: unknown): v is FinanceForecastLineKey {
-  return typeof v === "string" && LINE_KEY_SET.has(v)
-}
-
-export function isFinanceForecastMonthKey(v: unknown): v is FinanceForecastMonthKey {
-  return typeof v === "string" && MONTH_KEY_SET.has(v)
-}
-
-export function targetLineNaturalKey(line: {
-  client_id: string
-  financial_year_start_year: number
-  line_key: string
-  month_key: string
-}): string {
-  return `${line.client_id}::${line.financial_year_start_year}::${line.line_key}::${line.month_key}`
-}
-
-export function normalizeTargetLine(raw: Record<string, unknown>): FinanceForecastTargetLine | null {
-  const client_id = raw.client_id != null ? String(raw.client_id) : ""
-  const fyRaw = raw.financial_year_start_year ?? raw.financial_year ?? raw.fy
-  const financial_year_start_year =
-    typeof fyRaw === "number" ? fyRaw : typeof fyRaw === "string" ? Number.parseInt(fyRaw, 10) : NaN
-  const line_key = raw.line_key
-  const month_key = raw.month_key
-  const amount = Number(raw.amount ?? 0)
-
-  if (!client_id || !Number.isFinite(financial_year_start_year)) return null
-  if (!isFinanceForecastLineKey(line_key) || !isFinanceForecastMonthKey(month_key)) return null
-  if (!Number.isFinite(amount)) return null
-
-  return {
-    id: raw.id != null ? String(raw.id) : targetLineNaturalKey({
-      client_id,
-      financial_year_start_year,
-      line_key,
-      month_key,
-    }),
-    client_id,
-    client_name:
-      raw.client_name == null
-        ? null
-        : typeof raw.client_name === "string"
-          ? raw.client_name
-          : String(raw.client_name),
-    financial_year_start_year,
-    line_key,
-    month_key,
-    amount,
-    updated_at: raw.updated_at != null ? String(raw.updated_at) : null,
-    updated_by: raw.updated_by != null ? String(raw.updated_by) : null,
-  }
 }
 
 export async function fetchRevenueForecastTargetLinesFromXano(params: {
@@ -139,7 +90,7 @@ async function postTargetLine(
   updatedBy: string | null
 ): Promise<FinanceForecastTargetLine> {
   const base = targetsBaseUrl()
-  if (!base) throw new Error("Target storage is not configured")
+  if (!base) throw new Error("Xano target storage is not configured")
 
   const body = {
     client_id: cell.client_id,
@@ -184,7 +135,7 @@ async function patchTargetLine(
   updatedBy: string | null
 ): Promise<FinanceForecastTargetLine> {
   const base = targetsBaseUrl()
-  if (!base) throw new Error("Target storage is not configured")
+  if (!base) throw new Error("Xano target storage is not configured")
 
   const body = {
     amount: cell.amount,
@@ -222,15 +173,10 @@ async function patchTargetLine(
   }
 }
 
-/**
- * Upsert one target cell on natural key
- * `(client_id, financial_year_start_year, line_key, month_key)`.
- * Returns `{ line, previousAmount }` for audit.
- */
-export async function upsertRevenueForecastTargetLine(params: {
+/** @deprecated App writes go through pgTargetLines — kept for migration tooling. */
+export async function upsertRevenueForecastTargetLineOnXano(params: {
   cell: FinanceForecastTargetUpsertCell
   updatedBy?: string | null
-  /** Optional preloaded FY (+client) rows to avoid an extra list round-trip. */
   existingLines?: FinanceForecastTargetLine[]
 }): Promise<{ line: FinanceForecastTargetLine; previousAmount: number | null }> {
   const { cell, updatedBy = null } = params
@@ -253,55 +199,6 @@ export async function upsertRevenueForecastTargetLine(params: {
   return { line, previousAmount: null }
 }
 
-/** Batch upsert — one list fetch per distinct (fy, client_id), then per-cell POST/PATCH. */
-export async function upsertRevenueForecastTargetLinesBatch(params: {
-  cells: FinanceForecastTargetUpsertCell[]
-  updatedBy?: string | null
-}): Promise<{
-  lines: FinanceForecastTargetLine[]
-  previousByKey: Map<string, number | null>
-}> {
-  const { cells, updatedBy = null } = params
-  if (cells.length === 0) {
-    return { lines: [], previousByKey: new Map() }
-  }
-
-  const cache = new Map<string, FinanceForecastTargetLine[]>()
-  async function linesFor(cell: FinanceForecastTargetUpsertCell) {
-    const cacheKey = `${cell.financial_year_start_year}::${cell.client_id}`
-    let rows = cache.get(cacheKey)
-    if (!rows) {
-      rows = await fetchRevenueForecastTargetLinesFromXano({
-        financial_year_start_year: cell.financial_year_start_year,
-        client_id: cell.client_id,
-      })
-      cache.set(cacheKey, rows)
-    }
-    return rows
-  }
-
-  const lines: FinanceForecastTargetLine[] = []
-  const previousByKey = new Map<string, number | null>()
-
-  for (const cell of cells) {
-    const existing = await linesFor(cell)
-    const { line, previousAmount } = await upsertRevenueForecastTargetLine({
-      cell,
-      updatedBy,
-      existingLines: existing,
-    })
-    const key = targetLineNaturalKey(cell)
-    previousByKey.set(key, previousAmount)
-    lines.push(line)
-
-    // Keep cache fresh for subsequent cells in the same FY/client.
-    const cacheKey = `${cell.financial_year_start_year}::${cell.client_id}`
-    const cached = cache.get(cacheKey) ?? []
-    const idx = cached.findIndex((r) => targetLineNaturalKey(r) === key)
-    if (idx >= 0) cached[idx] = line
-    else cached.push(line)
-    cache.set(cacheKey, cached)
-  }
-
-  return { lines, previousByKey }
-}
+// Silence unused-export lint on validators re-used by migration scripts.
+void isFinanceForecastLineKey
+void isFinanceForecastMonthKey

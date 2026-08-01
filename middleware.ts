@@ -9,6 +9,10 @@ const DEBUG_AUTH_ENABLED = process.env.NEXT_PUBLIC_DEBUG_AUTH === 'true';
 
 const normalizePath = (p: string) => (p !== '/' && p.endsWith('/') ? p.slice(0, -1) : p);
 
+function isFinanceSectionsApiPath(pathname: string): boolean {
+  return pathname === '/api/finance/sections' || pathname.startsWith('/api/finance/sections/');
+}
+
 function isAllowedClientDashboardPath(pathname: string, clientSlug: string) {
   const base = `/dashboard/${clientSlug}`;
   return pathname === base || pathname.startsWith(`${base}/`);
@@ -54,6 +58,13 @@ export async function middleware(request: NextRequest) {
 
     if (isClient && !clientSlug) {
       return NextResponse.json({ error: 'unauthorised' }, { status: 401 });
+    }
+
+    // Finance sections API namespace — admin-only, fail-closed (even before endpoints exist).
+    if (isFinanceSectionsApiPath(pathname)) {
+      if (!roles.includes('admin')) {
+        return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+      }
     }
 
     return continueResponse;
