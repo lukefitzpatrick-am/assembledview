@@ -6,13 +6,11 @@ import { PanelRow, PanelRowCell } from "@/components/layout/PanelRow"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { MetricCard } from "@/components/ui/MetricCard"
 import { EmptyState, ErrorState } from "@/components/ui/states"
-import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { BarChart3, ChevronDown, FilterX, TrendingUp, Users, Search, type LucideIcon } from "lucide-react"
+import { BarChart3, ChevronDown, TrendingUp, Users, type LucideIcon } from "lucide-react"
 import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPreference"
 import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import {
@@ -39,7 +37,7 @@ import {
   type DashboardTemplateMobileOpen,
   type DashboardTemplatePanels,
 } from "@/components/dashboard/templates"
-import { Label } from "@/components/ui/label"
+import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import {
   CampaignCardSkeleton,
@@ -2049,85 +2047,26 @@ export default function DashboardOverview({
           ) : null
         }
         actions={
-          <div className="w-full min-w-0">
-            <div className="grid w-full grid-cols-2 gap-2 sm:grid-cols-4 xl:flex xl:flex-nowrap xl:items-center xl:justify-end">
-              <Button
-                type="button"
-                className="col-span-2 h-9 whitespace-nowrap sm:col-span-1 xl:w-auto"
-                onClick={() => router.push("/mediaplans/create")}
-              >
-                Create Media Plan
-              </Button>
-              <div className="col-span-2 sm:col-span-4 xl:w-[320px] xl:min-w-[260px] xl:max-w-[380px] xl:flex-1">
-                <Label htmlFor="dashboard-campaign-search" className="sr-only">
-                  Search
-                </Label>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    id="dashboard-campaign-search"
-                    value={dashboardFilters.campaignSearch}
-                    onChange={(e) => setDashboardFilters((f) => ({ ...f, campaignSearch: e.target.value }))}
-                    placeholder="Search campaigns..."
-                    className="h-9 border-border bg-surface-panel pl-10 transition-colors focus:bg-background"
-                  />
-                </div>
-              </div>
-
-              <div className="col-span-2 sm:col-span-4 xl:w-[300px] xl:shrink-0">
-                <Label className="sr-only">Clients</Label>
-                <MultiSelectCombobox
-                  options={clientFilterOptions}
-                  values={dashboardFilters.clients}
-                  onValuesChange={(v) => setDashboardFilters((f) => ({ ...f, clients: v }))}
-                  placeholder="All clients"
-                  allSelectedText="All clients"
-                  selectAllText="Select all"
-                  clearAllText="Clear all"
-                  searchPlaceholder="Filter clients..."
-                  emptyText="No clients found."
-                />
-              </div>
-
-              <Button
-                type="button"
-                variant="secondary"
-                className="col-span-1 h-9 whitespace-nowrap text-xs xl:w-auto"
-                onClick={handleSaveSelectedClients}
-                disabled={!savedViewsListKey}
-                title={!savedViewsListKey ? "Sign in to save selected clients" : undefined}
-              >
-                {savedViewJustSaved ? "Saved" : "Save selected clients"}
-              </Button>
-              {savedViews.length > 0 ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="col-span-1 h-9 whitespace-nowrap xl:w-auto"
-                  onClick={handleClearAllSavedViews}
-                  disabled={!savedViewsListKey}
-                >
-                  Clear all saved
-                </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                className="col-span-1 h-9 whitespace-nowrap text-xs xl:w-auto"
-                onClick={handleClearDashboardFilters}
-                disabled={
-                  !dashboardFilters.campaignSearch.trim() &&
-                  dashboardFilters.clients.length === 0 &&
-                  dashboardFilters.publishers.length === 0 &&
-                  !dashboardFilters.month
-                }
-              >
-                <FilterX className="mr-2 h-4 w-4 shrink-0" aria-hidden />
-                Clear filters
-              </Button>
-            </div>
-          </div>
+          <Button
+            type="button"
+            className="h-9 whitespace-nowrap"
+            onClick={() => router.push("/mediaplans/create")}
+          >
+            Create Media Plan
+          </Button>
         }
+      />
+
+      <DashboardFilterBar
+        filters={dashboardFilters}
+        onFiltersChange={setDashboardFilters}
+        clientFilterOptions={clientFilterOptions}
+        savedViews={savedViews}
+        savedViewsListKey={savedViewsListKey}
+        savedViewJustSaved={savedViewJustSaved}
+        onSaveSelectedClients={handleSaveSelectedClients}
+        onClearAllSavedViews={handleClearAllSavedViews}
+        onClearFilters={handleClearDashboardFilters}
       />
 
       <div className="flex w-full items-center justify-end text-[11px] text-muted-foreground/70">
