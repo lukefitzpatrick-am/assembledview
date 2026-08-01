@@ -34,6 +34,7 @@ import type { Publisher } from "@/lib/types/publisher"
 import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { useFinanceStore } from "@/lib/finance/useFinanceStore"
+import { filterBySearch } from "@/lib/finance/filterBillingRecords"
 
 function stablePublisherNumericId(name: string): number {
   let h = 2166136261
@@ -253,23 +254,7 @@ function useFinanceHubPayablesData(): {
   ])
 
   const filtered = useMemo(() => {
-    let list = records
-    const q = filters.searchQuery.trim().toLowerCase()
-    if (q) {
-      list = list.filter((r) => {
-        const hay = [
-          r.client_name,
-          r.mba_number,
-          r.campaign_name,
-          r.billing_month,
-          r.status,
-          ...(r.line_items || []).map((li) => [li.publisher_name, li.media_type, li.description].join(" ")),
-        ]
-          .join(" ")
-          .toLowerCase()
-        return hay.includes(q)
-      })
-    }
+    const list = filterBySearch(records, filters.searchQuery)
     return filterPayablesByPublisherIds(list, filters.selectedPublishers, publisherIdToName)
   }, [records, filters.searchQuery, filters.selectedPublishers, publisherIdToName])
 

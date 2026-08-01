@@ -30,6 +30,7 @@ import { fetchFinanceEditsList, postAccrualReconcileEdit } from "@/lib/finance/a
 import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { useAccrualMonths, useFinanceStore } from "@/lib/finance/useFinanceStore"
+import { matchTextAny } from "@/lib/search/matchText"
 
 const RECEIVABLE_TYPES: BillingType[] = ["media", "sow", "retainer"]
 
@@ -228,9 +229,9 @@ export default function FinanceAccrualPanel() {
       const want = new Set(filters.selectedClients.map(String))
       list = list.filter((r) => want.has(String(r.clients_id)))
     }
-    const q = filters.searchQuery.trim().toLowerCase()
+    const q = filters.searchQuery.trim()
     if (q) {
-      list = list.filter((r) => r.client_name.toLowerCase().includes(q) || r.month.includes(q))
+      list = list.filter((r) => matchTextAny([r.client_name, r.month], q))
     }
     return list
   }, [accrualRowsRaw, filters.selectedClients, filters.searchQuery])

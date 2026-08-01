@@ -14,7 +14,7 @@
 
 ## Scopes of work
 
-- List (`app/scopes-of-work/page.tsx`) groups via `lib/scopes/groupScopesByStatus.ts` — known statuses plus **"Other / unrecognised"** so typo'd/new statuses never vanish. Columns: client, scope ID, value, scheduled % (not "Used"); search matches visible fields only (`scopeListHelpers`). Gap label from `summarizeScopeScheduleCoverage`. Read-only view at `/scopes-of-work/[id]`; PDF + Edit from the list.
+- List (`app/scopes-of-work/page.tsx`) groups via `lib/scopes/groupScopesByStatus.ts` — known statuses plus **"Other / unrecognised"** so typo'd/new statuses never vanish. Columns: client, scope ID, value, scheduled % (not "Used"); search matches visible fields only via `scopeMatchesVisibleSearch` → `lib/search/matchText`. Gap label from `summarizeScopeScheduleCoverage`. Read-only view at `/scopes-of-work/[id]`; PDF + Edit from the list.
 - Create/edit surface cost/billing array `.min()` errors through AV-9 `<Field>` (`formArrayError`).
 
 ## Tasks ("codex")

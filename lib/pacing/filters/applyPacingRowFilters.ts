@@ -5,6 +5,7 @@ import type {
 import type { DirectBurstStatus, DirectCampaignGroup } from "@/lib/pacing/direct/types"
 import type { ProgrammaticChannelFamily } from "@/lib/pacing/programmatic/types"
 import type { PacingFilterStatusBand } from "@/lib/pacing/pacingFilters"
+import { matchText, normalizeSearchText } from "@/lib/search/matchText"
 
 export type PacingRowFilterAccessors<T> = {
   clientName: (row: T) => string
@@ -21,8 +22,9 @@ export type PacingRowFilterInput = {
   search: string
 }
 
+/** Exact-key normaliser for client/media/status sets — diacritic-tolerant, scope unchanged. */
 function norm(value: string): string {
-  return value.trim().toLowerCase()
+  return normalizeSearchText(value)
 }
 
 function selectedClientNames(
@@ -68,7 +70,7 @@ export function applyPacingRowFilters<T>(
     filters.media_types.length > 0 ? new Set(filters.media_types.map(norm)) : null
   const statusSet =
     filters.statuses.length > 0 ? new Set(filters.statuses.map(norm)) : null
-  const searchQ = filters.search.trim() ? norm(filters.search) : null
+  const searchQ = filters.search.trim() ? filters.search : null
 
   return rows.filter((row) => {
     if (clientNames && !clientNames.has(norm(accessors.clientName(row)))) {
@@ -80,7 +82,8 @@ export function applyPacingRowFilters<T>(
     if (statusSet && !statusSet.has(norm(accessors.status(row)))) {
       return false
     }
-    if (searchQ && !norm(accessors.searchText(row)).includes(searchQ)) {
+    // Text is free-text; client_ids stay exact Set membership (fail-closed above).
+    if (searchQ && !matchText(accessors.searchText(row), searchQ)) {
       return false
     }
     return true

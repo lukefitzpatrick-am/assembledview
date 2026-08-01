@@ -44,6 +44,6 @@ AVA (`getPacingSnapshot`, `getDeliverySnapshot`), ops digest email (`buildPacing
 - `PERF-DISCOVERY-*` docs are stale on caching — trust `pacingRowsCache.ts`, not them.
 - Genuine differences — don't unify blindly: direct's grouped shape + `includeHistorical`; ad-serving's ZERO-$ LAW; social's absent revenue.
 - Direct channel tab (`DirectCampaignsClient`) maps load/filter outcomes through `ViewState` / `ViewStateBoundary` (error ≠ empty; filter-zero → Clear filters via `resetToDefaults`).
-- Client filter fail-closed: when `client_ids` are selected but `clientIdToName` is empty, `applyPacingRowFilters` / `filterDirectCampaignGroups` return zero rows and channel clients show `PacingClientFilterUnavailable` (never silently widen).
+- Client filter fail-closed: when `client_ids` are selected but `clientIdToName` is empty, `applyPacingRowFilters` / `filterDirectCampaignGroups` return zero rows and channel clients show `PacingClientFilterUnavailable` (never silently widen). Client-name Set membership uses `normalizeSearchText` only (exact after normalise); free-text `search` uses `matchText` — scope semantics unchanged.
 - Overview / Orphans: `PacingFilterToolbar` disables client/media/status/search (and as-of on Orphans) with an explicit reason; Overview consumes only `as_of_date`.
 - **Migration cutover risk:** most pacing *facts* are Snowflake; Xano deps are masters/versions (T2d), channel lines (T2e), clients (T2a), campaign_kpi (T2b), orphan_fixes audit (T2d list / Xano POST).

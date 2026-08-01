@@ -38,6 +38,7 @@ import {
   financeForecastExportFilenameStem,
 } from "@/lib/finance/forecast/exportFinanceForecast"
 import type { FinanceForecastDataset } from "@/lib/types/financeForecast"
+import { matchTextAny } from "@/lib/search/matchText"
 import {
   exportFlatBillingWorkbook,
   exportPayablesWorkbook,
@@ -441,11 +442,9 @@ export default function FinanceHubPageClient() {
           const want = new Set(filters.selectedClients.map(String))
           rows = rows.filter((r) => want.has(String(r.clients_id)))
         }
-        const q = filters.searchQuery.trim().toLowerCase()
+        const q = filters.searchQuery.trim()
         if (q) {
-          rows = rows.filter(
-            (r) => r.client_name.toLowerCase().includes(q) || r.month.toLowerCase().includes(q)
-          )
+          rows = rows.filter((r) => matchTextAny([r.client_name, r.month], q))
         }
         const stem =
           filters.monthRange.from === filters.monthRange.to

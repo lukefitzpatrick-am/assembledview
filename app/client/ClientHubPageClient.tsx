@@ -14,6 +14,7 @@ import { ClientHubAddClientButton } from "./ClientHubAddClientButton"
 import { ClientHubCard } from "./ClientHubCard"
 import { Button } from "@/components/ui/button"
 import { Edit, Search, Users } from "lucide-react"
+import { matchTextAny } from "@/lib/search/matchText"
 
 type ClientSortKey = "clientName" | "liveCampaigns" | "totalSpend"
 
@@ -24,13 +25,9 @@ export function ClientHubPageClient({ summaries }: { summaries: ClientHubSummary
   const [sortDir, setSortDir] = useState<Exclude<SortDirection, null>>("asc")
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase()
+    const q = search.trim()
     if (!q) return summaries
-    return summaries.filter(
-      (r) =>
-        r.clientName.toLowerCase().includes(q) ||
-        r.slug.toLowerCase().includes(q)
-    )
+    return summaries.filter((r) => matchTextAny([r.clientName, r.slug], q))
   }, [summaries, search])
 
   const rows = useMemo(() => {

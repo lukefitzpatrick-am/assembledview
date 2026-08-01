@@ -1,5 +1,6 @@
 import { parseScopeJSON, summarizeScopeScheduleCoverage } from "@/lib/finance/scopeScheduleExtract"
 import { parseBillingScheduleAmount } from "@/lib/finance/utils"
+import { matchTextAny } from "@/lib/search/matchText"
 
 export function sumScopeCostItems(value: unknown): number {
   let items = value
@@ -64,20 +65,17 @@ export function scopeMatchesVisibleSearch(
   },
   searchTerm: string,
 ): boolean {
-  const q = searchTerm.trim().toLowerCase()
-  if (!q) return true
   const value = sumScopeCostItems(scope.cost)
   const valueStr = Number.isFinite(value) ? value.toFixed(2) : ""
-  const haystack = [
-    scope.client_name,
-    scope.scope_id,
-    scope.project_name,
-    scope.scope_date,
-    valueStr,
-    value > 0 ? String(Math.round(value)) : "",
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
-  return haystack.includes(q)
+  return matchTextAny(
+    [
+      scope.client_name,
+      scope.scope_id,
+      scope.project_name,
+      scope.scope_date,
+      valueStr,
+      value > 0 ? String(Math.round(value)) : "",
+    ],
+    searchTerm,
+  )
 }

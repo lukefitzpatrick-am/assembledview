@@ -3,6 +3,8 @@
  * KPI tiles must use the same filtered row sets as the Live Campaigns / Live Scopes panels.
  */
 
+import { matchText, normalizeSearchText } from "@/lib/search/matchText"
+
 export type DashboardViewFilters = {
   campaignSearch: string
   /** Normalized client keys (same values as the client multi-select). */
@@ -35,27 +37,22 @@ export const defaultDashboardViewFilters = (): DashboardViewFilters => ({
   month: null,
 })
 
-export const normalizeDashboardSearch = (value: string) => value.toLowerCase().trim()
+export const normalizeDashboardSearch = (value: string) => normalizeSearchText(value)
 
-export const normalizeClientFilterValue = (value: string) =>
-  value
-    .toString()
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, " ")
+export const normalizeClientFilterValue = (value: string) => normalizeSearchText(value)
 
 export function applyDashboardTableFiltersToPlans<T extends DashboardPlanFilterRow>(
   plans: T[],
   filters: DashboardViewFilters,
 ): T[] {
-  const searchLower = normalizeDashboardSearch(filters.campaignSearch)
+  const searchQ = String(filters.campaignSearch ?? "").trim()
   const selectedClients = new Set(filters.clients.map((value) => normalizeClientFilterValue(value)).filter(Boolean))
 
   return plans.filter((plan) => {
     const clientKey = normalizeClientFilterValue(plan.mp_clientname || "")
     if (selectedClients.size > 0 && !selectedClients.has(clientKey)) return false
 
-    if (searchLower) {
+    if (searchQ) {
       const haystack = [
         plan.mp_clientname,
         plan.mp_campaignname,
@@ -63,10 +60,9 @@ export function applyDashboardTableFiltersToPlans<T extends DashboardPlanFilterR
         plan.mp_brand,
         plan.mp_campaignstatus,
       ]
-        .filter(Boolean)
+        .map((x) => String(x ?? ""))
         .join(" ")
-        .toLowerCase()
-      if (!haystack.includes(searchLower)) return false
+      if (!matchText(haystack, searchQ)) return false
     }
 
     return true
@@ -77,19 +73,23 @@ export function applyDashboardTableFiltersToScopes<T extends DashboardScopeFilte
   scopes: T[],
   filters: DashboardViewFilters,
 ): T[] {
-  const searchLower = normalizeDashboardSearch(filters.campaignSearch)
+  const searchQ = String(filters.campaignSearch ?? "").trim()
   const selectedClients = new Set(filters.clients.map((value) => normalizeClientFilterValue(value)).filter(Boolean))
 
   return scopes.filter((scope) => {
     const clientKey = normalizeClientFilterValue(scope.client_name || "")
     if (selectedClients.size > 0 && !selectedClients.has(clientKey)) return false
 
-    if (searchLower) {
-      const haystack = [scope.client_name, scope.project_name, scope.project_status, scope.project_overview]
-        .filter(Boolean)
+    if (searchQ) {
+      const haystack = [
+        scope.client_name,
+        scope.project_name,
+        scope.project_status,
+        scope.project_overview,
+      ]
+        .map((x) => String(x ?? ""))
         .join(" ")
-        .toLowerCase()
-      if (!haystack.includes(searchLower)) return false
+      if (!matchText(haystack, searchQ)) return false
     }
 
     return true

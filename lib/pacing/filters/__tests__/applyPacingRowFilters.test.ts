@@ -172,7 +172,7 @@ test("multi statuses keeps matching rows", () => {
   assert.equal(out.length, 2)
 })
 
-test("search is case-insensitive substring over searchText", () => {
+test("search is case-insensitive matchText over searchText", () => {
   const out = applyPacingRowFilters(
     rows,
     { ...emptyFilters, search: "RETARGET" },

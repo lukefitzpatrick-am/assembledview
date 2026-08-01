@@ -31,6 +31,7 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | DI-8 | Xano filtering not applied on all line-item tables — raw counts stay MBA-wide on several channels (newspaper 174 raw / 3 kept) with client-side filtering doing the work (was D4-K5) | Open |
 | DI-9 | Postgres `GET /api/mediaplans` list dropped master-owned `mp_client_name` (Xano `_latest` had it inline; `mergeLatestVersionsWithMasters` overlaid `version_number` only) → list search crashed on `.toLowerCase()` | FIXED — `overlayMasterOwnedListFields` in `mediaPlansListCache` + fail-closed `matchesMediaPlanSearch` |
 | DI-10 | Postgres read shaping via `coerceNumericStringsToNumbers` turned text identifiers into numbers (`mba_number` `"001001"` → `1001`) → list search threw, routes/scope/mirror keyed on wrong identity | FIXED — `IDENTIFIER_TEXT_FIELDS` default keep-as-text in `lib/data/toApiRow.ts` + `String(x ?? "")` in `matchesMediaPlanSearch` |
+| DI-11 | Residual from 58ed536d (~75%): do list API consumers need Xano-only scalars `inputs_hash` / `rebill_needed` / `latest_version_id` / `temp_version_number`? | VERIFIED unused — sweep of `app/mediaplans`, list cache, and UI consumers finds no reads; safe to omit on postgres list path (finance write path still owns `inputs_hash`/`rebill_needed` on version PATCH) |
 
 ## Correctness (C-*)
 

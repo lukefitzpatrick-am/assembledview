@@ -27,6 +27,7 @@ import { getClientDisplayName } from "@/lib/clients/slug"
 import { flattenLineItemOptions, type LineItemOption } from "@/lib/creative/lineItemOptions"
 import { SEARCH_LIMITS_RSA } from "@/lib/creative/searchCopy/limits"
 import type { CreativeAsset } from "@/lib/creative/types"
+import { matchTextAny } from "@/lib/search/matchText"
 
 const AVA_LIST_CAP = 20
 const AVA_TEXT_CAP = 200
@@ -221,7 +222,7 @@ export function CreativeAssetManager({
   }, [clientMode, clientName, metaPageIdProp])
 
   const filteredAssets = useMemo(() => {
-    const query = nameFilter.trim().toLowerCase()
+    const query = nameFilter.trim()
     return assets
       .filter((asset) => {
         if (statusFilter === "active") return asset.status === "active"
@@ -230,10 +231,7 @@ export function CreativeAssetManager({
       })
       .filter((asset) => {
         if (!query) return true
-        return (
-          asset.asset_name.toLowerCase().includes(query) ||
-          asset.original_filename.toLowerCase().includes(query)
-        )
+        return matchTextAny([asset.asset_name, asset.original_filename], query)
       })
       .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
   }, [assets, nameFilter, statusFilter])

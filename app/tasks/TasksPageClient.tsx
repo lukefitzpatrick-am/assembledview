@@ -10,6 +10,7 @@ import {
 import { ListTodo, PlusCircle } from "lucide-react"
 import { isValid, parseISO, startOfDay } from "date-fns"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import { matchText } from "@/lib/search/matchText"
 import { TaskFormDialog } from "@/components/tasks/TaskFormDialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -202,9 +203,9 @@ export function TasksPageClient() {
   }, [clientId, statusFilter, mine, assigneeEmail, sort])
 
   const filteredTasks = useMemo(() => {
-    const q = search.trim().toLowerCase()
+    const q = search.trim()
     if (!q) return tasks
-    return tasks.filter((t) => (t.title || "").toLowerCase().includes(q))
+    return tasks.filter((t) => matchText(t.title, q))
   }, [tasks, search])
 
   const clearTaskFilters = useCallback(() => {

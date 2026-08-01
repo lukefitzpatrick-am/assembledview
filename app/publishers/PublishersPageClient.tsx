@@ -23,13 +23,9 @@ import { publisherHubPath } from "@/lib/publisher/publisherHubPath"
 import { MEDIA_TYPE_SLUG_TO_DASHBOARD_LABEL } from "@/lib/publisher/scheduleLabels"
 import { publisherColourOrFallback } from "@/lib/publisher/publisherColour"
 import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
+import { matchTextAny, normalizeSearchText } from "@/lib/search/matchText"
 
-const normalizePublisherFilterKey = (value: string) =>
-  value
-    .toString()
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ")
+const normalizePublisherFilterKey = (value: string) => normalizeSearchText(value)
 
 const MEDIA_TYPES = [
   "television",
@@ -231,12 +227,11 @@ export function PublishersPageClient() {
   }, [publishers, publisherFilter])
 
   const searchFilteredPublishers = useMemo(() => {
-    const q = directorySearch.trim().toLowerCase()
+    const q = directorySearch.trim()
     if (!q) return filteredPublishers
-    return filteredPublishers.filter((p) => {
-      const name = (p.publisher_name || "").toLowerCase()
-      const id = String(p.publisherid ?? "").toLowerCase()
-      return name.includes(q) || id.includes(q)
+    return filteredPublishers.filter((p) =>
+      matchTextAny([p.publisher_name, p.publisherid], q)
+    )
     })
   }, [filteredPublishers, directorySearch])
 

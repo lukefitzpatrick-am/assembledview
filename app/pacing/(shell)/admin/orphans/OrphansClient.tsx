@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { formatMoney } from "@/lib/format/money";
+import { matchTextAny } from "@/lib/search/matchText";
 
 type OrphanRow = {
   channel: string;
@@ -83,14 +84,10 @@ export function OrphansClient() {
   }, [loadOrphans, reloadKey]);
 
   const filteredLineItems = useMemo(() => {
-    const q = lineItemSearch.trim().toLowerCase();
+    const q = lineItemSearch.trim();
     if (!q) return lineItems;
-    return lineItems.filter(
-      (li) =>
-        li.lineItemId.includes(q) ||
-        li.mbaNumber.toLowerCase().includes(q) ||
-        li.campaignName.toLowerCase().includes(q) ||
-        li.clientName.toLowerCase().includes(q)
+    return lineItems.filter((li) =>
+      matchTextAny([li.lineItemId, li.mbaNumber, li.campaignName, li.clientName], q)
     );
   }, [lineItems, lineItemSearch]);
 

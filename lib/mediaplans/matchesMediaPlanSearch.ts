@@ -2,7 +2,10 @@
  * Fail-closed search match for the media plans list.
  * Every field is coerced via `String(x ?? "")` so a malformed/corrupted API row
  * (e.g. mba_number as number after numeric coercion) cannot throw and take down the page.
+ * Matching uses the shared `matchText` primitive (token-prefix AND, diacritic-insensitive).
  */
+import { matchTextAny } from "@/lib/search/matchText"
+
 export function matchesMediaPlanSearch(
   plan: {
     mp_client_name?: string | null
@@ -12,12 +15,8 @@ export function matchesMediaPlanSearch(
   },
   searchTerm: string,
 ): boolean {
-  const q = String(searchTerm ?? "").toLowerCase()
-  if (!q) return true
-  return (
-    String(plan.mp_client_name ?? "").toLowerCase().includes(q) ||
-    String(plan.campaign_name ?? "").toLowerCase().includes(q) ||
-    String(plan.mba_number ?? "").toLowerCase().includes(q) ||
-    String(plan.brand ?? "").toLowerCase().includes(q)
+  return matchTextAny(
+    [plan.mp_client_name, plan.campaign_name, plan.mba_number, plan.brand],
+    searchTerm,
   )
 }

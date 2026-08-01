@@ -36,6 +36,17 @@ describe("matchesMediaPlanSearch", () => {
     assert.equal(matchesMediaPlanSearch(plan, "zzz"), false)
   })
 
+  it("token-prefix AND: mitch win matches Mitchelton Winery", () => {
+    const plan = {
+      mp_client_name: "Mitchelton Winery",
+      campaign_name: "Brand",
+      mba_number: "001001",
+      brand: null,
+    }
+    assert.equal(matchesMediaPlanSearch(plan, "mitch win"), true)
+    assert.equal(matchesMediaPlanSearch(plan, "001001"), true)
+  })
+
   it("empty search matches all rows", () => {
     assert.equal(matchesMediaPlanSearch({}, ""), true)
   })
