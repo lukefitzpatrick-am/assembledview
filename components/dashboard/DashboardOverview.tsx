@@ -38,7 +38,14 @@ import {
   type DashboardTemplatePanels,
 } from "@/components/dashboard/templates"
 import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar"
+import { AuFinancialYearFilterPills } from "@/components/dashboard/AuFinancialYearFilterPills"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
+import {
+  campaignOverlapsAuFinancialYear,
+  parseAuFySearchParam,
+  serializeAuFySearchParam,
+  type AuFyFilterValue,
+} from "@/lib/dates/auFinancialYear"
 import {
   CampaignCardSkeleton,
   KPICardSkeleton,
@@ -167,6 +174,7 @@ const buildDashboardFiltersSearchParams = (
   clients: string[],
   publishers: string[],
   month: string | null,
+  fy: AuFyFilterValue,
 ) => {
   const params = new URLSearchParams()
   const q = debouncedSearch.trim()
@@ -178,6 +186,8 @@ const buildDashboardFiltersSearchParams = (
     if (p) params.append("publisher", p)
   })
   if (month && month.trim()) params.set("month", month.trim())
+  const fyParam = serializeAuFySearchParam(fy)
+  if (fyParam) params.set("fy", fyParam)
   return params
 }
 
@@ -710,6 +720,7 @@ export default function DashboardOverview({
   const [finishedSort, setFinishedSort] = useState<SortState>({ column: "", direction: null })
   const { mode: listGridMode, setMode: setListGridMode } = useListGridLayoutPreference()
   const [dashboardFilters, setDashboardFilters] = useState<DashboardViewFilters>(defaultDashboardViewFilters)
+  const [fyFilter, setFyFilter] = useState<AuFyFilterValue>(() => parseAuFySearchParam(null))
   const debouncedCampaignSearch = useDebouncedValue(dashboardFilters.campaignSearch, 350)
   const [savedViewLoaded, setSavedViewLoaded] = useState(false)
   const [savedViewJustSaved, setSavedViewJustSaved] = useState(false)
@@ -760,9 +771,14 @@ export default function DashboardOverview({
       const startDate = new Date(plan.mp_campaigndates_start)
       const endDate = new Date(plan.mp_campaigndates_end)
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return false
-      return startDate <= endOfToday && endDate >= startOfToday
+      if (!(startDate <= endOfToday && endDate >= startOfToday)) return false
+      return campaignOverlapsAuFinancialYear(
+        plan.mp_campaigndates_start,
+        plan.mp_campaigndates_end,
+        fyFilter,
+      )
     })
-  }, [mediaPlans])
+  }, [mediaPlans, fyFilter])
 
   const unfilteredLiveScopes = useMemo(
     () => scopes.filter((scope) => isLiveScopeStatus(scope.project_status)),
@@ -883,6 +899,7 @@ export default function DashboardOverview({
 
     const sp = new URLSearchParams(window.location.search)
     const fromUrl = parseDashboardFiltersFromSearchParams(sp)
+    setFyFilter(parseAuFySearchParam(sp.get("fy")))
     const urlHasFilters = searchParamsHasAnyDashboardFilters(sp)
     const urlHasClientParams = sp.getAll("client").length > 0
 
@@ -1002,6 +1019,7 @@ export default function DashboardOverview({
     const onPopState = () => {
       const sp = new URLSearchParams(window.location.search)
       setDashboardFilters(parseDashboardFiltersFromSearchParams(sp))
+      setFyFilter(parseAuFySearchParam(sp.get("fy")))
     }
     window.addEventListener("popstate", onPopState)
     return () => window.removeEventListener("popstate", onPopState)
@@ -1016,6 +1034,7 @@ export default function DashboardOverview({
       dashboardFilters.clients,
       dashboardFilters.publishers,
       dashboardFilters.month,
+      fyFilter,
     )
     const qs = params.toString()
     const nextSearch = qs ? `?${qs}` : ""
@@ -1031,6 +1050,7 @@ export default function DashboardOverview({
     dashboardFilters.publishers,
     dashboardFilters.month,
     debouncedCampaignSearch,
+    fyFilter,
   ])
 
   const persistLastTemplateId = useCallback(
@@ -1856,8 +1876,12 @@ export default function DashboardOverview({
     return latestPlans.filter((plan) => {
       const startDate = new Date(plan.mp_campaigndates_start)
       if (isNaN(startDate.getTime())) return false
-
-      return startDate >= startOfToday && startDate <= tenDaysAhead
+      if (!(startDate >= startOfToday && startDate <= tenDaysAhead)) return false
+      return campaignOverlapsAuFinancialYear(
+        plan.mp_campaigndates_start,
+        plan.mp_campaigndates_end,
+        fyFilter,
+      )
     })
   }
 
@@ -1869,8 +1893,12 @@ export default function DashboardOverview({
     return getHighestBookedApprovedCompletedVersionPerMba(mediaPlans).filter((plan) => {
       const endDate = new Date(plan.mp_campaigndates_end)
       if (isNaN(endDate.getTime())) return false
-
-      return endDate >= fortyDaysAgo && endDate <= endOfToday
+      if (!(endDate >= fortyDaysAgo && endDate <= endOfToday)) return false
+      return campaignOverlapsAuFinancialYear(
+        plan.mp_campaigndates_start,
+        plan.mp_campaigndates_end,
+        fyFilter,
+      )
     })
   }
 
@@ -2146,10 +2174,13 @@ export default function DashboardOverview({
         <>
           <div
             id="dashboard-section-campaigns-scope"
-            className="mb-4 flex items-center justify-between pt-4 scroll-mt-4"
+            className="mb-4 flex flex-col gap-3 pt-4 scroll-mt-4 sm:flex-row sm:items-center sm:justify-between"
           >
             <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground/70">Campaigns & scope data</h2>
-            <ListGridToggle value={listGridMode} onChange={setListGridMode} />
+            <div className="flex flex-wrap items-center gap-3">
+              <AuFinancialYearFilterPills value={fyFilter} onChange={setFyFilter} />
+              <ListGridToggle value={listGridMode} onChange={setListGridMode} />
+            </div>
           </div>
           <PanelRow className="space-y-0">
           {layoutPanels.liveCampaigns ? (

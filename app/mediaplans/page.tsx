@@ -26,6 +26,13 @@ import {
   normalizeStoredCampaignStatus,
 } from "@/lib/mediaplans/campaignListStatus"
 import { matchesMediaPlanSearch } from "@/lib/mediaplans/matchesMediaPlanSearch"
+import { AuFinancialYearFilterPills } from "@/components/dashboard/AuFinancialYearFilterPills"
+import {
+  campaignOverlapsAuFinancialYear,
+  parseAuFySearchParam,
+  serializeAuFySearchParam,
+  type AuFyFilterValue,
+} from "@/lib/dates/auFinancialYear"
 
 const slugifyClientName = (name?: string | null) => {
   if (!name || typeof name !== "string") return ""
@@ -100,6 +107,9 @@ function MediaPlansPageInner() {
   const [listMayBeStale, setListMayBeStale] = useState(false)
   const [listFetchedAt, setListFetchedAt] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get("q") ?? "")
+  const [fyFilter, setFyFilter] = useState<AuFyFilterValue>(() =>
+    parseAuFySearchParam(searchParams.get("fy")),
+  )
   const [sortStates, setSortStates] = useState<Record<string, SortState>>({})
   const [urlHydrated, setUrlHydrated] = useState(false)
 
@@ -242,10 +252,11 @@ function MediaPlansPageInner() {
     fetchMediaPlans()
   }, [])
 
-  // Hydrate search from URL once; then keep URL in sync with the box.
+  // Hydrate search + FY from URL once; then keep URL in sync.
   useEffect(() => {
     if (urlHydrated) return
     setSearchTerm(searchParams.get("q") ?? "")
+    setFyFilter(parseAuFySearchParam(searchParams.get("fy")))
     setUrlHydrated(true)
   }, [searchParams, urlHydrated])
 
@@ -255,30 +266,37 @@ function MediaPlansPageInner() {
     const q = searchTerm.trim()
     if (q) params.set("q", q)
     else params.delete("q")
+    const fyParam = serializeAuFySearchParam(fyFilter)
+    if (fyParam) params.set("fy", fyParam)
+    else params.delete("fy")
     const next = params.toString()
     const current = searchParams.toString()
     if (next === current) return
     router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false })
-  }, [searchTerm, urlHydrated, pathname, router, searchParams])
+  }, [searchTerm, fyFilter, urlHydrated, pathname, router, searchParams])
 
   // Filter media plans by status from filtered results
   const getMediaPlansByStatus = (status: string) => {
     return filteredPlans.filter(plan => plan.campaign_status === status);
   };
 
-  // Search functionality — fail-closed: never throw on missing string fields
+  // Search + AU FY overlap — fail-closed: never throw on missing string fields
   useEffect(() => {
-    if (!searchTerm) {
-      setFilteredPlans(mediaPlans);
-      return;
-    }
-
-    const filtered = mediaPlans.filter((plan) =>
-      matchesMediaPlanSearch(plan, searchTerm),
-    );
-
-    setFilteredPlans(filtered);
-  }, [searchTerm, mediaPlans]);
+    const filtered = mediaPlans.filter((plan) => {
+      if (
+        !campaignOverlapsAuFinancialYear(
+          plan.campaign_start_date,
+          plan.campaign_end_date,
+          fyFilter,
+        )
+      ) {
+        return false
+      }
+      if (!searchTerm.trim()) return true
+      return matchesMediaPlanSearch(plan, searchTerm)
+    })
+    setFilteredPlans(filtered)
+  }, [searchTerm, fyFilter, mediaPlans])
 
   // Get media type tags for a campaign
   const getMediaTypeTags = (plan: MediaPlan) => {
@@ -346,12 +364,18 @@ function MediaPlansPageInner() {
     }
   }
 
-  const clearCampaignSearch = useCallback(() => setSearchTerm(""), [])
+  const clearCampaignFilters = useCallback(() => {
+    setSearchTerm("")
+    setFyFilter(parseAuFySearchParam(null))
+  }, [])
 
   const formatDate = useCallback(
     (value: string) => safeFormatDate(value, "dd/MM/yyyy", value || "—"),
     [],
   )
+
+  const fyIsDefault = fyFilter === parseAuFySearchParam(null)
+  const filtersActive = Boolean(searchTerm.trim()) || !fyIsDefault
 
   const campaignsViewState = useMemo(
     () =>
@@ -360,8 +384,8 @@ function MediaPlansPageInner() {
         error,
         items: mediaPlans,
         visible: filteredPlans,
-        filtersActive: Boolean(searchTerm.trim()),
-        clear: clearCampaignSearch,
+        filtersActive,
+        clear: clearCampaignFilters,
         retry: () => {
           setError(null)
           setLoading(true)
@@ -377,14 +401,15 @@ function MediaPlansPageInner() {
       error,
       mediaPlans,
       filteredPlans,
-      searchTerm,
-      clearCampaignSearch,
+      filtersActive,
+      clearCampaignFilters,
       listMayBeStale,
       listFetchedAt,
     ]
   )
 
   const searchActive = Boolean(searchTerm.trim())
+  const countActive = filtersActive
 
   return (
     <div className="w-full max-w-none space-y-6 px-4 pb-12 pt-0 md:px-6">
@@ -417,7 +442,7 @@ function MediaPlansPageInner() {
                 {searchActive ? (
                   <button
                     type="button"
-                    onClick={clearCampaignSearch}
+                    onClick={() => setSearchTerm("")}
                     className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-muted-foreground hover:text-foreground"
                     aria-label="Clear search"
                     title="Clear search"
@@ -431,13 +456,13 @@ function MediaPlansPageInner() {
                 aria-live="polite"
               >
                 {loading ? (
-                  searchActive ? (
+                  countActive ? (
                     <span
                       className="inline-block h-3 w-24 animate-pulse rounded bg-muted"
                       aria-hidden
                     />
                   ) : null
-                ) : searchActive ? (
+                ) : countActive ? (
                   <>
                     {filteredPlans.length} of {mediaPlans.length} campaigns
                   </>
@@ -454,6 +479,9 @@ function MediaPlansPageInner() {
           </div>
         }
       />
+      <div className="flex flex-wrap items-center gap-3">
+        <AuFinancialYearFilterPills value={fyFilter} onChange={setFyFilter} />
+      </div>
       <PanelRow>
           <PanelRowCell
             span="full"
@@ -484,8 +512,8 @@ function MediaPlansPageInner() {
                 Create Campaign
               </Button>
             }
-            filteredEmptyTitle="No campaigns match this search"
-            filteredEmptyMessage="Clear the search to see all campaigns again."
+            filteredEmptyTitle="No campaigns match these filters"
+            filteredEmptyMessage="Clear search and financial-year filters to see all campaigns again."
             loadingRows={6}
           >
             {() => (
