@@ -758,6 +758,9 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
           mbaPdfFileMeta={mbaPdfFileMeta}
           availableVersions={availableVersions}
           currentVersion={currentVersion}
+          isAdmin={isAdmin}
+          campaignStartISO={campaignStartISO}
+          campaignEndISO={campaignEndISO}
         />
       </Suspense>
       </div>
