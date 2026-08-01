@@ -1,19 +1,38 @@
 # FN-FIX-1 — Receivables legacy-vs-sections recon dispositions
 
-Status: live recon run 2026-08-01 (FY2026 `2026-07`→`2026-08`)  
+Status: live recon run 2026-08-01 (FY2026 `2026-07`→`2026-08`), post CP-3 status scoping  
 Command: `npm run recon:finance-sections-summary`
 
-## Totals
+## What each side measures
+
+| Side | Source | Basis | Components | Status scope | Client-pays | Version authority |
+|------|--------|-------|------------|--------------|-------------|-------------------|
+| **legacy_blob_hub** | Xano `billingSchedule` / `billing_schedule` blobs via recon `legacyReceivablesByMba` | billing (blob months) | `sumLineItems` over schedule month entries (media+fee+adserving dollars rolled into month total) | Prefers `booked\|approved\|completed` among versions ≤ published; **falls back** to `pickHighestVersionRow` (draft/planned/cancelled tips can enter) | Not filtered (AR path) | Version **pool** ≤ `master.version_number`, not forced to `published_version_id` tip |
+| **sections_pg** | Postgres `schedule_months` via `receivablesFytd` / `receivablesSqlText` | `basis = 'billing'` | `component IN ('media','fee','adserving')` | **Hard filter** `approved\|booked\|completed` (`FINANCE_STATUS_INCLUDED_SQL`) | Not filtered (AR path; client-pays is payables/delivery only) | `m.published_version_id` tip only |
+
+## Totals (post CP-3)
 
 | Source | Receivables FYTD |
 |--------|------------------|
-| Legacy blob hub (`getFinanceHubScheduleFytdTotals` version pool) | $2,236,498.04 |
-| Sections PG (`published_version_id` + `schedule_months` billing) | $2,235,839.11 |
-| **Delta (sections − legacy)** | **−$658.93** |
+| Legacy blob hub | $2,236,498.04 |
+| Sections PG (status-scoped) | $1,605,886.42 |
+| **Delta (sections − legacy)** | **−$630,611.62** |
 
-**Attribution of −$658.93:** net of the 19 non-zero per-MBA deltas below (sum \|Δ\| = $75,112.33; signed net = −$658.93). Not a single-MBA bug — residual of version-pool vs published-tip + schedule materialisation mismatches.
+### Decomposition of −$630,611.62
 
-## Per-MBA dispositions
+| Bucket | AUD | Notes |
+|--------|-----|-------|
+| **excluded-status** | **$629,952.69** | PG published-tip billing by status (same window): draft $343,119.57 + planned $216,618.07 + cancelled $70,215.05. In sections; out of `receivablesFytd`. Legacy still counts many of these via highest-version fallback. |
+| **client-pays** | $0.00 | N/A on receivables (no `client_pays_for_media` filter on either AR path). |
+| **fee / adserving** | $0.00 of Δ | Both sides include fee+adserving on billing; not a signed driver of this Δ. |
+| **orphan** | $0.00 of Δ | Payables/delivery join concept; not used on AR. |
+| **Remainder** | **$658.93** | Equals legacy − (sections_pg + excluded-status) = $2,236,498.04 − ($1,605,886.42 + $629,952.69). Does **not** fully decompose into the four named buckets above. |
+
+**STOP:** remainder **$658.93** is the pre-CP-3 FN-FIX-1 residual (version-pool vs published-tip + schedule materialisation). Per-MBA table below is that residual’s disposition ledger (when both sides were status-comparable at ~$2.235M).
+
+## Historical residual (−$658.93) per-MBA dispositions
+
+When sections PG was **not** status-filtered, totals were legacy $2,236,498.04 vs PG $2,235,839.11 (Δ −$658.93). Attribution: net of the 19 non-zero per-MBA deltas below (sum \|Δ\| = $75,112.33; signed net = −$658.93).
 
 | MBA | Legacy | PG | Δ | Disposition |
 |-----|--------|-----|---|-------------|
@@ -39,6 +58,6 @@ Command: `npm run recon:finance-sections-summary`
 
 ## Luke match-or-decide
 
-**Recommended:** accept **published tip + `schedule_months`** as receivables authority (sections). Treat D1/§E deltas as expected during cutover; do not force sections to mimic the legacy “booked/approved among ≤published else highest” pool.
+**Recommended:** accept **published tip + `schedule_months` + CP-3 status scope** as receivables authority (sections). Treat excluded-status $629,952.69 as intentional CP-3 behaviour; treat the $658.93 remainder as expected D1/§E cutover residual (do not force sections to mimic the legacy pool).
 
 Until signed: Costs banner stays up; UX-* / F5.3 / F10.* / CF1 remain **fixed pending live verification**.
