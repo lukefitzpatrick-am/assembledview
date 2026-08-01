@@ -11,7 +11,9 @@ import test from "node:test"
 
 import { SCHEDULE_LINE_JOIN_SQL } from "../scheduleLineJoinSql.js"
 import {
+  CAMPAIGN_LEVEL_DISPLAY_LABEL,
   CAMPAIGN_LEVEL_NO_LINE_DETAIL,
+  formatCampaignLevelLabel,
   IS_SERVICE_LINE_SQL,
   isServiceLineItemId,
   lineDimOrCampaignLevelSql,
@@ -144,6 +146,12 @@ test("__service__* never attributed to publisher/channel/buyType dims", () => {
   for (const sm of FIXTURE_CELLS.filter((c) => isServiceLineItemId(c.lineItemId))) {
     assert.equal(publisherBucket(sm, null), CAMPAIGN_LEVEL_NO_LINE_DETAIL)
   }
+})
+
+test("FIN-8 display label maps wire key without changing totals identity", () => {
+  assert.equal(formatCampaignLevelLabel(CAMPAIGN_LEVEL_NO_LINE_DETAIL), CAMPAIGN_LEVEL_DISPLAY_LABEL)
+  assert.equal(formatCampaignLevelLabel("DV360"), "DV360")
+  assert.notEqual(CAMPAIGN_LEVEL_DISPLAY_LABEL, CAMPAIGN_LEVEL_NO_LINE_DETAIL)
 })
 
 test("lineDetailPct = non-service share of included delivery cents", () => {

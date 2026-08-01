@@ -103,6 +103,14 @@ export type InvestmentCutFeeCoverage = {
   caveat: string
 }
 
+/** User-facing Investment notice (FIN-8). Technical rule: {@link FEE_COVERAGE_CAVEAT} + brain. */
+export const FEE_COVERAGE_USER_NOTICE =
+  "Fee-by-month data is incomplete for older campaigns, so Fee can show $0 where a fee exists — totals and margin views compensate from fee snapshots"
+
+/**
+ * Technical fee-coverage caveat (API + tooltip). Developer rule also in
+ * `docs/brain/modules/finance-billing.md` — do not put this prose in the red UI line.
+ */
 export const FEE_COVERAGE_CAVEAT =
   "Per-month fee rows are incomplete for some published tips (legacy/ETL or media-only schedule_months when feeLoading was empty — O4.5/C-21). fee_cents and billable_cents understate agency fee where fee components are absent. Margin views must not treat fee_cents as complete: join mba_fee_snapshots and/or recompute from stamped feePct × media; never invent fee from billable−media."
 

@@ -93,6 +93,22 @@ test("Clients billing tabs; Forecasting/Investment/Publishers have no shell pill
   assert.equal(financeSectionPillsForPath("/finance/investment").length, 0)
 })
 
+test("Clients billing hides Periods tab when FINANCE_PERIODS is off (FIN-8)", () => {
+  const pills = financeSectionPillsForPath("/finance/invoicing", { periodsEnabled: false })
+  assert.deepEqual(
+    pills.map((i) => i.label),
+    ["Invoicing", "Xero"]
+  )
+  assert.equal(
+    financeSectionPillsForPath("/finance/xero", { periodsEnabled: false }).length,
+    2
+  )
+  assert.equal(
+    financeSectionPillsForPath("/finance/invoicing", { periodsEnabled: true }).length,
+    3
+  )
+})
+
 test("next.config permanent redirects cover FN1 legacy paths + tab query map", () => {
   const cfg = readFileSync(join(process.cwd(), "next.config.mjs"), "utf8")
   for (const { source, destination } of FINANCE_LEGACY_PATH_REDIRECTS) {

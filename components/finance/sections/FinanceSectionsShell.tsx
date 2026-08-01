@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
+import { useFinancePeriodsFlag } from "@/components/finance/sections/FinancePeriodsFlagContext"
 import { cn } from "@/lib/utils"
 import { financeSectionPillsForPath } from "@/lib/finance/sections/nav"
 
@@ -33,7 +34,8 @@ export function FinanceSectionsShell({
   scopeBarFramed?: boolean
 }) {
   const pathname = usePathname() ?? ""
-  const pills = financeSectionPillsForPath(pathname)
+  const periodsEnabled = useFinancePeriodsFlag()
+  const pills = financeSectionPillsForPath(pathname, { periodsEnabled })
 
   return (
     <div className="w-full max-w-none px-4 pb-10 pt-4 md:px-6">
@@ -70,11 +72,7 @@ export function FinanceSectionsShell({
           ) : (
             scopeBar
           )
-        ) : (
-          <div className="rounded-card border border-dashed border-border bg-surface-panel px-3 py-2 text-xs text-muted-foreground">
-            Shared scope bar (FY / months / clients) — slot reserved for later FN work.
-          </div>
-        )}
+        ) : null}
       </div>
       {children}
     </div>

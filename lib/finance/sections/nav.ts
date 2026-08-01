@@ -148,12 +148,18 @@ export function isPublishersFinancePath(pathname: string): boolean {
 /**
  * In-shell tab pills for the current path.
  * Clients billing → Invoicing | Periods | Xero.
+ * Periods is omitted when `periodsEnabled` is false (`FINANCE_PERIODS` off — FIN-8).
  * Publishers keeps CostsSubNav only (no shell pills).
  * Forecasting / Investment → none (dedicated sidebar items).
  */
-export function financeSectionPillsForPath(pathname: string): readonly FinanceSectionNavItem[] {
-  if (isClientsBillingPath(pathname)) return CLIENTS_BILLING_TAB_ITEMS
-  return []
+export function financeSectionPillsForPath(
+  pathname: string,
+  opts?: { periodsEnabled?: boolean }
+): readonly FinanceSectionNavItem[] {
+  if (!isClientsBillingPath(pathname)) return []
+  const periodsEnabled = opts?.periodsEnabled !== false
+  if (periodsEnabled) return CLIENTS_BILLING_TAB_ITEMS
+  return CLIENTS_BILLING_TAB_ITEMS.filter((item) => item.path !== "/finance/periods")
 }
 
 /**

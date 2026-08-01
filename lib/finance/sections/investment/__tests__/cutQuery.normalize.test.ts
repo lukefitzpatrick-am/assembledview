@@ -4,7 +4,10 @@ import {
   investmentCutSqlText,
   normalizeInvestmentCutRequest,
 } from "@/lib/finance/sections/investment/cutQuery"
-import { FEE_COVERAGE_CAVEAT } from "@/lib/finance/sections/investment/cutTypes"
+import {
+  FEE_COVERAGE_CAVEAT,
+  FEE_COVERAGE_USER_NOTICE,
+} from "@/lib/finance/sections/investment/cutTypes"
 
 describe("normalizeInvestmentCutRequest", () => {
   it("rejects mixed/invalid basis", () => {
@@ -65,5 +68,7 @@ describe("normalizeInvestmentCutRequest", () => {
     assert.match(sql.cut, /client_pays_for_media/)
     assert.match(sql.feeCoverage, /has_fee/)
     assert.match(FEE_COVERAGE_CAVEAT, /mba_fee_snapshots/)
+    assert.match(FEE_COVERAGE_USER_NOTICE, /fee snapshots/i)
+    assert.doesNotMatch(FEE_COVERAGE_USER_NOTICE, /O4\.5/)
   })
 })

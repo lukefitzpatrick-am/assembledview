@@ -11,8 +11,15 @@ import { SectionScopeBar } from "@/components/finance/sections/SectionScopeBar"
 import { StatTile, type StatTileMoneyState } from "@/components/finance/sections/StatTile"
 import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSectionsShell"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
+import { InfoTip } from "@/components/finance/sections/InfoTip"
 import { fetchFinanceSectionsJson } from "@/lib/finance/sections/api"
 import type { FinanceCostsSummaryPayload } from "@/lib/finance/sections/costsQuery"
+import {
+  CAMPAIGN_LEVEL_DISPLAY_LABEL,
+  CAMPAIGN_LEVEL_USER_NOTE,
+  formatCampaignLevelLabel,
+  isCampaignLevelBucket,
+} from "@/lib/finance/sections/serviceLineBucket"
 import { fyDisplayLabel } from "@/lib/finance/months"
 import { formatMoney } from "@/lib/format/money"
 import {
@@ -74,15 +81,28 @@ export function CostsOverviewClient() {
         }))
       : []
 
-  const treemapData =
+  const publisherRows =
     view.status === "ready"
-      ? view.data.byPublisher
-          .filter((p) => p.bookedCents > 0)
-          .slice(0, 24)
-          .map((p) => ({
-            label: p.publisher,
-            value: p.bookedCents / 100,
-          }))
+      ? view.data.byPublisher.filter((p) => !isCampaignLevelBucket(p.publisher))
+      : []
+  const campaignTotalsRow =
+    view.status === "ready"
+      ? view.data.byPublisher.find(
+          (p) => isCampaignLevelBucket(p.publisher) && p.bookedCents > 0
+        ) ?? null
+      : null
+
+  const treemapData = publisherRows
+    .filter((p) => p.bookedCents > 0)
+    .slice(0, 24)
+    .map((p) => ({
+      label: p.publisher,
+      value: p.bookedCents / 100,
+    }))
+
+  const topPublisherRows =
+    view.status === "ready"
+      ? view.data.topPublishers.filter((p) => !isCampaignLevelBucket(p.publisher))
       : []
 
   return (
@@ -186,7 +206,7 @@ export function CostsOverviewClient() {
                   <PanelTitle>Top publishers</PanelTitle>
                 </PanelHeader>
                 <PanelContent>
-                  {view.data.topPublishers.length === 0 ? (
+                  {topPublisherRows.length === 0 && !campaignTotalsRow ? (
                     <EmptyState
                       className="min-h-0 border-0 bg-transparent py-6"
                       title="No publishers"
@@ -201,7 +221,7 @@ export function CostsOverviewClient() {
                         </tr>
                       </thead>
                       <tbody>
-                        {view.data.topPublishers.map((row) => (
+                        {topPublisherRows.map((row) => (
                           <tr
                             key={row.publisher}
                             className="interactive-row border-b border-border/60"
@@ -219,12 +239,38 @@ export function CostsOverviewClient() {
                             </td>
                           </tr>
                         ))}
+                        {campaignTotalsRow ? (
+                          <tr className="border-t-2 border-border bg-surface-panel/80 text-muted-foreground">
+                            <td className="py-2 text-xs italic">
+                              <span className="inline-flex items-center gap-1.5">
+                                {formatCampaignLevelLabel(campaignTotalsRow.publisher)}
+                                <InfoTip label="Campaign totals details">
+                                  {CAMPAIGN_LEVEL_USER_NOTE}
+                                </InfoTip>
+                              </span>
+                            </td>
+                            <td className="num py-2 text-right text-xs">
+                              {formatMoney(campaignTotalsRow.bookedCents / 100)}
+                            </td>
+                          </tr>
+                        ) : null}
                       </tbody>
                     </table>
                   )}
                 </PanelContent>
               </Panel>
             </div>
+
+            {campaignTotalsRow ? (
+              <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                <span>
+                  <span className="italic">{CAMPAIGN_LEVEL_DISPLAY_LABEL}</span> is excluded from
+                  the publisher treemap and listed under Top publishers as a summary — not a
+                  publisher.
+                </span>
+                <InfoTip label="Campaign totals details">{CAMPAIGN_LEVEL_USER_NOTE}</InfoTip>
+              </p>
+            ) : null}
 
             <BaseChartCard
               title="Booked vs AP billed by month"

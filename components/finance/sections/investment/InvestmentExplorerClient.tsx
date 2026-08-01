@@ -28,13 +28,22 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { formatMoney } from "@/lib/format/money"
+import { InfoTip } from "@/components/finance/sections/InfoTip"
 import {
+  FEE_COVERAGE_USER_NOTICE,
   INVESTMENT_CUT_DIMS,
   type InvestmentCutBasis,
   type InvestmentCutDim,
   type InvestmentCutMeasure,
   type InvestmentCutResponse,
+  type InvestmentCutRow,
 } from "@/lib/finance/sections/investment/cutTypes"
+import {
+  CAMPAIGN_LEVEL_DISPLAY_LABEL,
+  CAMPAIGN_LEVEL_USER_NOTE,
+  formatCampaignLevelLabel,
+  isCampaignLevelBucket,
+} from "@/lib/finance/sections/serviceLineBucket"
 import { dimPickerState } from "@/lib/finance/sections/investment/measureCatalog"
 import { measureDef } from "@/lib/finance/sections/investment/measureCatalog"
 import { fetchInvestmentCutClient } from "@/lib/finance/sections/investment/fetchInvestmentCut"
@@ -85,6 +94,27 @@ function formatMeasureValue(measure: InvestmentCutMeasure, value: number | undef
     return `${value}%`
   }
   return formatCents(value)
+}
+
+function formatDimCell(value: InvestmentCutRow["dims"][InvestmentCutDim]): string {
+  return formatCampaignLevelLabel(value)
+}
+
+function rowIsCampaignLevelSummary(row: InvestmentCutRow): boolean {
+  return Object.values(row.dims).some((v) => isCampaignLevelBucket(v))
+}
+
+function partitionInvestmentRows(rows: InvestmentCutRow[]): {
+  detail: InvestmentCutRow[]
+  campaignTotals: InvestmentCutRow[]
+} {
+  const detail: InvestmentCutRow[] = []
+  const campaignTotals: InvestmentCutRow[] = []
+  for (const row of rows) {
+    if (rowIsCampaignLevelSummary(row)) campaignTotals.push(row)
+    else detail.push(row)
+  }
+  return { detail, campaignTotals }
 }
 
 export function InvestmentExplorerClient() {
@@ -303,6 +333,11 @@ export function InvestmentExplorerClient() {
     return parts.filter(Boolean).join(" · ")
   }, [data])
 
+  const partitionedRows = useMemo(
+    () => (data?.rows?.length ? partitionInvestmentRows(data.rows) : null),
+    [data]
+  )
+
   const showAgencyCaption =
     measuresIncludeAgencyEconomics(measures) ||
     Boolean(presetId && getAgencyEconomicsPreset(presetId)) ||
@@ -506,8 +541,9 @@ export function InvestmentExplorerClient() {
                   m === "margin_pct" ||
                   isAgencyEconomicsMeasure(m)
               ) ? (
-                <span className="mt-1 block text-[11px] text-status-critical-fg">
-                  {data.coverage.fee.caveat}
+                <span className="mt-1 flex items-start gap-1.5 text-[11px] text-status-critical-fg">
+                  <span>{FEE_COVERAGE_USER_NOTICE}</span>
+                  <InfoTip label="Fee coverage details">{data.coverage.fee.caveat}</InfoTip>
                 </span>
               ) : null}
             </div>
@@ -561,52 +597,80 @@ export function InvestmentExplorerClient() {
             <EmptyState title="No rows" message="Try widening scope or clearing search." />
           ) : null}
 
-          {status === "ready" && data && data.rows.length > 0 ? (
-            <div className="overflow-x-auto rounded-card border border-border bg-card shadow-e1">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    {dimensions.map((d) => (
-                      <TableHead key={d}>{DIM_LABELS[d]}</TableHead>
-                    ))}
-                    {measures.map((m) => (
-                      <TableHead key={m} className="text-right">
-                        {measureDef(m).label}
-                      </TableHead>
-                    ))}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {data.rows.map((row, i) => (
-                    <TableRow key={i} className="interactive-row">
+          {status === "ready" && data && partitionedRows ? (
+            <div className="space-y-2">
+              <div className="overflow-x-auto rounded-card border border-border bg-card shadow-e1">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
                       {dimensions.map((d) => (
-                        <TableCell key={d}>{row.dims[d] ?? "—"}</TableCell>
+                        <TableHead key={d}>{DIM_LABELS[d]}</TableHead>
                       ))}
                       {measures.map((m) => (
-                        <TableCell key={m} className="num text-right">
-                          {formatMeasureValue(m, row.measures[m])}
+                        <TableHead key={m} className="text-right">
+                          {measureDef(m).label}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {partitionedRows.detail.map((row, i) => (
+                      <TableRow key={`d-${i}`} className="interactive-row">
+                        {dimensions.map((d) => (
+                          <TableCell key={d}>{formatDimCell(row.dims[d])}</TableCell>
+                        ))}
+                        {measures.map((m) => (
+                          <TableCell key={m} className="num text-right">
+                            {formatMeasureValue(m, row.measures[m])}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                    {partitionedRows.campaignTotals.map((row, i) => (
+                      <TableRow
+                        key={`c-${i}`}
+                        className="border-t-2 border-border bg-surface-panel/80 text-muted-foreground"
+                      >
+                        {dimensions.map((d) => (
+                          <TableCell key={d} className="text-xs italic">
+                            {formatDimCell(row.dims[d])}
+                          </TableCell>
+                        ))}
+                        {measures.map((m) => (
+                          <TableCell key={m} className="num text-right text-xs">
+                            {formatMeasureValue(m, row.measures[m])}
+                          </TableCell>
+                        ))}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                  <TableFooter>
+                    <TableRow>
+                      {dimensions.length === 0 ? (
+                        <TableCell className="font-medium">Totals</TableCell>
+                      ) : (
+                        <TableCell colSpan={dimensions.length} className="font-medium">
+                          Totals
+                        </TableCell>
+                      )}
+                      {measures.map((m) => (
+                        <TableCell key={m} className="num text-right font-medium">
+                          {formatMeasureValue(m, data.totals[m])}
                         </TableCell>
                       ))}
                     </TableRow>
-                  ))}
-                </TableBody>
-                <TableFooter>
-                  <TableRow>
-                    {dimensions.length === 0 ? (
-                      <TableCell className="font-medium">Totals</TableCell>
-                    ) : (
-                      <TableCell colSpan={dimensions.length} className="font-medium">
-                        Totals
-                      </TableCell>
-                    )}
-                    {measures.map((m) => (
-                      <TableCell key={m} className="num text-right font-medium">
-                        {formatMeasureValue(m, data.totals[m])}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableFooter>
-              </Table>
+                  </TableFooter>
+                </Table>
+              </div>
+              {partitionedRows.campaignTotals.length > 0 ? (
+                <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+                  <span>
+                    Rows labelled <span className="italic">{CAMPAIGN_LEVEL_DISPLAY_LABEL}</span> sit
+                    below publisher rows — not a publisher.
+                  </span>
+                  <InfoTip label="Campaign totals details">{CAMPAIGN_LEVEL_USER_NOTE}</InfoTip>
+                </p>
+              ) : null}
             </div>
           ) : null}
         </main>
