@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useToast } from "@/components/ui/use-toast"
 import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
-import { formatDateRange, formatDateShort } from "@/lib/format/date"
+import { formatDateRange, formatDateRangeCompact, formatDateShort } from "@/lib/format/date"
 import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 
@@ -88,18 +88,23 @@ function clamp(value: number, min: number, max: number): number {
 function formatCampaignDateRange(
   startDate?: string | null,
   endDate?: string | null,
-): string | null {
+): { compact: string; full: string } | null {
   if (startDate && endDate) {
-    const range = formatDateRange(startDate, endDate)
-    return range === "—" ? null : range
+    const full = formatDateRange(startDate, endDate)
+    const compact = formatDateRangeCompact(startDate, endDate)
+    if (full === "—" || compact === "—") return null
+    return { compact, full }
   }
   if (startDate) {
     const start = formatDateShort(startDate)
-    return start === "—" ? null : start
+    if (start === "—") return null
+    return { compact: start, full: start }
   }
   if (endDate) {
     const end = formatDateShort(endDate)
-    return end === "—" ? null : `Until ${end}`
+    if (end === "—") return null
+    const label = `Until ${end}`
+    return { compact: label, full: label }
   }
   return null
 }
@@ -131,7 +136,7 @@ export function CampaignCardCompact({
   const hiddenTagCount = Math.max(0, mediaTypes.length - visibleTags.length)
   const showEdit = Boolean(canEdit && editHref)
   const showPencil = showEdit && showInlineEditButton
-  const dateRangeLabel = formatCampaignDateRange(startDate, endDate)
+  const dateRange = formatCampaignDateRange(startDate, endDate)
 
   const copyMbaNumber = async () => {
     try {
@@ -171,110 +176,119 @@ export function CampaignCardCompact({
           "group-active:scale-[0.98]"
         )}
       >
-        <div className="pointer-events-auto absolute right-3 top-3 z-20 flex items-center gap-1">
-          <Link
-            href={viewHref}
-            aria-label={viewLinkAriaLabel ?? `${viewMenuLabel}: ${name}`}
-            title={viewMenuLabel}
-            onClick={(e) => e.stopPropagation()}
-            className={cn(
-              "flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-border bg-background/90 px-2.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm",
-              "transition-colors hover:bg-muted hover:text-foreground",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            )}
-          >
-            View
-          </Link>
+        {/* Identity + actions: wrap actions under title when the column is tight (AVU4-8). */}
+        <div className="pointer-events-auto relative z-20 flex flex-wrap items-start gap-x-3 gap-y-2">
+          <div className="min-w-[11rem] flex-1 basis-[11rem]">
+            <h3 className="line-clamp-2 text-balance break-words text-base font-semibold leading-snug tracking-tight text-foreground">
+              {name}
+            </h3>
+            {dateRange ? (
+              <p
+                className="num mt-1.5 whitespace-nowrap text-sm font-medium text-foreground"
+                title={dateRange.full}
+              >
+                {dateRange.compact}
+              </p>
+            ) : null}
+            <p className="mt-1 text-xs text-muted-foreground">{mbaNumber}</p>
+          </div>
 
-          <span
-            className={cn(
-              "pointer-events-none inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
-              statusTone.badge
-            )}
-          >
-            {status === "live" ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pacing-ahead" aria-hidden /> : null}
-            {statusTone.label}
-          </span>
-
-          {showPencil ? (
+          <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
             <Link
-              href={editHref!}
-              title="Edit campaign"
-              aria-label={`Edit campaign ${name}`}
+              href={viewHref}
+              aria-label={viewLinkAriaLabel ?? `${viewMenuLabel}: ${name}`}
+              title={viewMenuLabel}
               onClick={(e) => e.stopPropagation()}
               className={cn(
-                "flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background/90 text-muted-foreground shadow-sm backdrop-blur-sm",
+                "flex h-8 shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-border bg-background/90 px-2.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm",
                 "transition-colors hover:bg-muted hover:text-foreground",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               )}
             >
-              <Pencil className="h-3.5 w-3.5" />
+              View
             </Link>
-          ) : null}
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type="button"
-                title="Campaign actions"
-                aria-label={`More actions for ${name}`}
+            <span
+              className={cn(
+                "pointer-events-none inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+                statusTone.badge
+              )}
+            >
+              {status === "live" ? (
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-pacing-ahead" aria-hidden />
+              ) : null}
+              {statusTone.label}
+            </span>
+
+            {showPencil ? (
+              <Link
+                href={editHref!}
+                title="Edit campaign"
+                aria-label={`Edit campaign ${name}`}
+                onClick={(e) => e.stopPropagation()}
                 className={cn(
                   "flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background/90 text-muted-foreground shadow-sm backdrop-blur-sm",
                   "transition-colors hover:bg-muted hover:text-foreground",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                  "opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 )}
               >
-                <MoreHorizontal className="h-4 w-4" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[11rem]">
-              <DropdownMenuItem asChild>
-                <Link href={viewHref} className="cursor-pointer">
-                  <Eye className="h-4 w-4" />
-                  {viewMenuLabel}
-                </Link>
-              </DropdownMenuItem>
-              {showEdit ? (
+                <Pencil className="h-3.5 w-3.5" />
+              </Link>
+            ) : null}
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  title="Campaign actions"
+                  aria-label={`More actions for ${name}`}
+                  className={cn(
+                    "flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background/90 text-muted-foreground shadow-sm backdrop-blur-sm",
+                    "transition-colors hover:bg-muted hover:text-foreground",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                    "opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100 md:group-focus-within:opacity-100"
+                  )}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="min-w-[11rem]">
                 <DropdownMenuItem asChild>
-                  <Link href={editHref!} className="cursor-pointer">
-                    <Pencil className="h-4 w-4" />
-                    Edit campaign
+                  <Link href={viewHref} className="cursor-pointer">
+                    <Eye className="h-4 w-4" />
+                    {viewMenuLabel}
                   </Link>
                 </DropdownMenuItem>
-              ) : null}
-              <DropdownMenuItem
-                className="cursor-pointer"
-                onSelect={(e) => {
-                  e.preventDefault()
-                  void copyMbaNumber()
-                }}
-              >
-                <Copy className="h-4 w-4" />
-                Copy MBA number
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled
-                title="Summary download is not wired yet"
-                className="cursor-not-allowed opacity-60"
-                onSelect={(e) => e.preventDefault()}
-              >
-                <Download className="h-4 w-4" />
-                Download summary
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* Identity first: name → dates → MBA; delivery stays secondary below. */}
-        <div className="min-w-0 pr-[10.5rem] sm:pr-[13rem]">
-          <h3 className="line-clamp-2 text-base font-semibold leading-snug tracking-tight text-foreground">
-            {name}
-          </h3>
-          {dateRangeLabel ? (
-            <p className="mt-1.5 text-sm font-medium tabular-nums text-foreground">{dateRangeLabel}</p>
-          ) : null}
-          <p className="mt-1 text-xs text-muted-foreground">{mbaNumber}</p>
+                {showEdit ? (
+                  <DropdownMenuItem asChild>
+                    <Link href={editHref!} className="cursor-pointer">
+                      <Pencil className="h-4 w-4" />
+                      Edit campaign
+                    </Link>
+                  </DropdownMenuItem>
+                ) : null}
+                <DropdownMenuItem
+                  className="cursor-pointer"
+                  onSelect={(e) => {
+                    e.preventDefault()
+                    void copyMbaNumber()
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                  Copy MBA number
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled
+                  title="Summary download is not wired yet"
+                  className="cursor-not-allowed opacity-60"
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  <Download className="h-4 w-4" />
+                  Download summary
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
         <div className={cn("mb-3 mt-3", mediaChannelTagRowClassName)}>
