@@ -285,7 +285,7 @@ export function AppSidebar() {
                                   )}
                                 </SidebarMenuButton>
                                 {isClientsExpanded ? (
-                                  <SidebarMenuSub className="max-h-[32vh] overflow-y-auto scrollbar-thin">
+                                  <SidebarMenuSub>
                                     {clientsSortedForNav.map(({ client, label }) => {
                                       const slug = client.slug || slugifyClientNameForUrl(label)
                                       const href = `/client/${slug}`
