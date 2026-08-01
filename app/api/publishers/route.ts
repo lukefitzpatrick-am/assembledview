@@ -1,8 +1,10 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
-import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { getCachedPublishersList } from "@/lib/api/publishersCache"
+import { requireRole } from "@/lib/requireRole"
 
+/** Session-auth only (middleware) — reference data for create/edit surfaces. */
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url)
@@ -18,8 +20,12 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
+    // SEC-G / SEC-10: writes are staff-only; GET stays session-auth (reference data).
+    const gate = await requireRole(req, ["admin"])
+    if ("response" in gate) return gate.response
+
     const body = await req.json()
     const response = await axios.post(xanoUrl("post_publishers", "XANO_PUBLISHERS_BASE_URL"), body, { headers: xanoPostHeaderRecord() })
     return NextResponse.json(response.data, { status: 201 })

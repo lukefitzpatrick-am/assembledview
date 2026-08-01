@@ -1,11 +1,11 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import axios from "axios"
-import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { getPublisherByPublisherId } from "@/lib/api/publishers"
 import { bodyForPublisherPut } from "@/lib/publisher/normalizePublisher"
+import { requireRole } from "@/lib/requireRole"
 
-// SEC-10 / O6: collection + [id] both ungated — AMBIGUOUS (morning question). Do not invent a gate.
-
+/** Session-auth only (middleware) — reference data for create/edit surfaces. */
 export async function GET(_req: Request, { params }: { params: Promise<{ publisherId: string }> }) {
   try {
     const { publisherId } = await params
@@ -20,8 +20,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ publish
   }
 }
 
-export async function PUT(req: Request, { params }: { params: Promise<{ publisherId: string }> }) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ publisherId: string }> }) {
   try {
+    // SEC-G / SEC-10: writes are staff-only; GET stays session-auth (reference data).
+    const gate = await requireRole(req, ["admin"])
+    if ("response" in gate) return gate.response
+
     const { publisherId } = await params
     const existing = await getPublisherByPublisherId(publisherId)
     if (!existing) {

@@ -49,8 +49,10 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // SEC-10 / O6: collection GET is requireRole(admin); this GET allows client own-id
-    // plus any non-client session — AMBIGUOUS whether non-admin staff should requireRole. Morning Q.
+    // SEC-G / SEC-10: intentional split vs collection GET requireRole(admin).
+    // Admin (and other non-client sessions) may read any id; client-role is
+    // own-id only. Do not apply collection requireRole here — it breaks client
+    // self-read. See docs/brain/API-DYNAMIC-ROUTE-GATES.md.
     const session = await auth0.getSession(request)
     if (!session?.user) {
       return NextResponse.json({ error: "unauthorised" }, { status: 401 })

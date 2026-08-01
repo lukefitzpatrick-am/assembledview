@@ -41,20 +41,31 @@ export async function resolveClientMbaScope(
   }
 
   const roles = getUserRoles(session.user)
-  if (!roles.includes("client")) {
+  // AuthZ: only admin is unscoped. Empty MBA on non-admin must not open the book
+  // (SEC-G creative soft-spot + every checkClientMbaAccess consumer).
+  if (roles.includes("admin")) {
     return { ok: true, isClient: false, allows: () => true }
   }
 
   const email = (session.user as { email?: string }).email
+  const isClient = roles.includes("client")
 
   const mbaList = getUserMbaNumbers(session.user)
   if (mbaList.length > 0) {
     const normalized = new Set(mbaList.map((mba) => mba.toLowerCase()))
     return {
       ok: true,
-      isClient: true,
+      isClient,
       allows: (mbaNumber: string) => normalized.has(mbaNumber.toLowerCase()),
     }
+  }
+
+  // Non-client without mba_numbers: deny (no identifier fallback for staff-shaped sessions).
+  if (!isClient) {
+    console.warn("[checkClientMbaAccess] Non-admin session missing mba_numbers", {
+      email,
+    })
+    return { ok: false, response: forbiddenResponse() }
   }
 
   const slug = getUserClientIdentifier(session.user)

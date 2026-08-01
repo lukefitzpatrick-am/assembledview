@@ -53,11 +53,9 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
-    const roles = getUserRoles(session.user)
-    if (roles.includes("client")) {
-      const access = await checkClientMbaAccess(request, row.mba_number)
-      if (!access.ok) return access.response
-    }
+    // SEC-G: all roles through checkClientMbaAccess (admin unscoped in helper).
+    const access = await checkClientMbaAccess(request, row.mba_number)
+    if (!access.ok) return access.response
 
     return NextResponse.json(row)
   } catch (error) {
@@ -86,11 +84,9 @@ export async function PATCH(
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
-    const roles = getUserRoles(session.user)
-    if (roles.includes("client")) {
-      const access = await checkClientMbaAccess(request, existing.mba_number)
-      if (!access.ok) return access.response
-    }
+    // SEC-G: all roles through checkClientMbaAccess (admin unscoped in helper).
+    const access = await checkClientMbaAccess(request, existing.mba_number)
+    if (!access.ok) return access.response
 
     let body: unknown
     try {
