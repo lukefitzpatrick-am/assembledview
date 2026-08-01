@@ -20,6 +20,10 @@ export type NormalisedLineItem = {
   publisher?: string
   title?: string
   targeting?: string
+  /** attrs.creative_targeting / targeting only — not buying-demo fallback */
+  creativeTargeting?: string
+  placement?: string
+  daypart?: string
   creative?: string
   /** Search / social / programmatic bid strategy when present */
   bidStrategy?: string
@@ -29,24 +33,40 @@ export type NormalisedLineItem = {
   bursts: NormalisedBurst[]
 }
 
-/** Gantt sideline: publisher (left) • bid strategy or placement fields (right). */
+/** First non-empty line of a multi-line label (gantt sideline stays one line). */
+function firstLineLabel(value: unknown): string | undefined {
+  const cleaned = cleanLabel(value)
+  if (!cleaned) return undefined
+  const line = cleaned
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .find(Boolean)
+  return line || undefined
+}
+
+/**
+ * Client-facing gantt sideline: `{publisher} • {targeting/site/placement}`.
+ * Priority: creative_targeting → site (≠ left) → placement → daypart → Line item {id}.
+ * Bid strategy is intentionally omitted (internal buying detail).
+ */
 export function buildGanttSidelineLabel(item: NormalisedLineItem): string {
   const publisher = item.publisher || item.platform || item.network || item.site || item.station
   const labelLeft = (publisher ?? "—").trim()
-  const bid = cleanLabel(firstNonEmpty(item.bidStrategy))
-  if (bid) {
-    return `${labelLeft} • ${bid}`
-  }
-  const placementParts = [
-    cleanLabel(item.network),
-    cleanLabel(item.site),
-    cleanLabel(item.station),
-    cleanLabel(item.platform),
-  ].filter(Boolean) as string[]
   const leftLower = labelLeft.toLowerCase()
-  const deduped = placementParts.filter((p, i) => placementParts.indexOf(p) === i && p.toLowerCase() !== leftLower)
+
+  const targeting = firstLineLabel(item.creativeTargeting)
+  const site = cleanLabel(item.site)
+  const siteUsable = site && site.toLowerCase() !== leftLower ? site : undefined
+  const placement = firstLineLabel(item.placement)
+  const daypart = firstLineLabel(item.daypart)
+
   const labelRight =
-    deduped.length > 0 ? deduped.join(" · ") : `Line item ${item.lineItemId || "—"}`
+    targeting ||
+    siteUsable ||
+    placement ||
+    daypart ||
+    `Line item ${item.lineItemId || "—"}`
+
   return `${labelLeft} • ${labelRight}`
 }
 
@@ -408,6 +428,9 @@ export function normaliseLineItemsByType(lineItemsByMediaType: Record<string, an
         publisher,
         title: coerceString(title),
         targeting: targeting || undefined,
+        creativeTargeting: targetingBase || undefined,
+        placement: placement || undefined,
+        daypart: daypart || undefined,
         creative: creative || coerceString(item?.creative),
         bidStrategy: bidStrategy || undefined,
         buyType,
