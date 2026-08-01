@@ -67,8 +67,8 @@ export function ClientKpiSlideOver({
               <div className="flex items-start gap-2 rounded-lg border border-[color-mix(in_srgb,var(--pacing-on-track)_20%,transparent)] bg-pacing-on-track-bg px-4 py-3 text-sm text-status-on-track-fg">
                 <BarChart3 className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>
-                  KPI benchmarks are stored per client in Xano. Add rows for each publisher and media type; bid strategy
-                  options depend on the selected media type.
+                  Add rows for each publisher and media type; bid strategy options depend on the selected media type.
+                  Groups are ordered digital-first.
                 </span>
               </div>
             </div>

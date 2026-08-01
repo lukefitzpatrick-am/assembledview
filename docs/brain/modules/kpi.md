@@ -15,6 +15,7 @@ Three-tier KPI target resolution — publisher benchmark → client override →
 - `lib/kpi/kpiWriteHandlers.ts` — admin write matrix (POST/PATCH/DELETE + campaign sync): named validation codes (`KPI_INVALID_JSON` / `KPI_INVALID_ID` / `KPI_VALIDATION_FAILED` → 400); upstream Xano null/throw → `KPI_UPSTREAM_FAILED` (502). Routes are thin auth + this module. Tests: `npm run test:kpi-writes`.
 - `app/api/kpis/{campaign,campaign/sync,client,publisher}` — CRUD; campaign GET uses `checkClientMbaAccess`; client/publisher GET and all writes (`POST`/`PATCH`/`DELETE` + `campaign/sync` POST) are `requireRole(["admin"])` (SEC-6 FIXED; PS-1 live-verified — GETs match writes so create/edit via `lib/api/kpi.ts` stay reachable; `manager` removed from UserRole). **C-18 FIXED (`0e34fc13` / S7):** write matrix via `kpiWriteHandlers` — named 400s / 502 upstream; decimal ≤1 percent bodies.
 - `components/kpis/{KPIEditModal,KPISection,kpiHost}` — shared modal + the `KpiHost` contract with two deliberately different persistence semantics (media-plan host defers to campaign save; pacing host syncs immediately).
+- `components/dashboard/ClientKpiSection` (+ `ClientKpiSlideOver`) — client hub KPI editor; rows nest in collapsible media-type groups via `lib/kpi/clientKpiMediaOrder.ts` (digital first). Display/grouping only — write path still Xano via existing `/api/kpis/client` handlers (C-18).
 
 ## Consumed by (41 files)
 
