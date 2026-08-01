@@ -322,6 +322,13 @@ import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
 import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { normaliseStatus, mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
+import {
+  DOC_SKIP_REASON,
+  DOC_STEP_MBA,
+  DOC_STEP_MEDIA_PLAN,
+  classifyDocStepFailure,
+  shouldSkipDocsForCampaignStatus,
+} from "@/lib/docs/saveDocSteps"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
@@ -6820,7 +6827,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   };
 
   // Helper function to update save status
-  const updateSaveStatus = (name: string, status: 'pending' | 'success' | 'error', error?: string) => {
+  const updateSaveStatus = (name: string, status: SaveStatusItem['status'], error?: string) => {
     setSaveStatus(prev => {
       const existing = prev.find(item => item.name === name)
       if (!existing) {
@@ -7920,12 +7927,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const savePromises: Promise<any>[] = []
       const clientName = formValues.mp_clientname || selectedClient?.clientname_input || ""
 
-      // 4a. Generate + upload documents to Xano (no downloads)
-      updateSaveStatus("MBA PDF Upload", "pending")
-      updateSaveStatus("Media Plan Upload", "pending")
+      // 4a. Generate + upload documents to Xano (no downloads).
+      // Below approved: PC3 correctly refuses render — show SKIPPED, not ✗.
+      updateSaveStatus(DOC_STEP_MBA, "pending")
+      updateSaveStatus(DOC_STEP_MEDIA_PLAN, "pending")
       const uploadVersionDocuments = async (): Promise<void> => {
         if (!versionId) {
           throw new Error("Missing media plan version ID for document upload")
+        }
+
+        if (shouldSkipDocsForCampaignStatus(formValues.mp_campaignstatus)) {
+          updateSaveStatus(DOC_STEP_MBA, "skipped", DOC_SKIP_REASON)
+          updateSaveStatus(DOC_STEP_MEDIA_PLAN, "skipped", DOC_SKIP_REASON)
+          return
         }
 
         const planVersionForDocs = String(numericSavedVersion || nextVersion || targetSaveVersion)
@@ -7937,18 +7951,30 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           mbaBlob = mba.blob
           mbaFileName = mba.fileName
         } catch (mbaErr: any) {
-          // PC3: draft/unapproved → 422; skip MBA upload, keep Excel path.
-          console.warn("MBA PDF skipped (persisted-render gate):", mbaErr?.message || mbaErr)
-          updateSaveStatus(
-            "MBA PDF Upload",
-            "error",
+          // Defense: PC3 gate message → skipped; real MBA failures stay errors.
+          console.warn("MBA PDF skipped or failed:", mbaErr?.message || mbaErr)
+          const classified = classifyDocStepFailure(
             mbaErr?.message || "MBA requires approved-or-beyond published version"
           )
+          updateSaveStatus(DOC_STEP_MBA, classified.status, classified.error)
         }
 
-        const { blob: mpBlob, fileName: mpFileName } = await generateMediaPlanXlsxBlob({
-          planVersion: planVersionForDocs,
-        })
+        let mpBlob: Blob
+        let mpFileName: string
+        try {
+          const mp = await generateMediaPlanXlsxBlob({
+            planVersion: planVersionForDocs,
+          })
+          mpBlob = mp.blob
+          mpFileName = mp.fileName
+        } catch (mpErr: any) {
+          const message = mpErr?.message || String(mpErr)
+          console.error("Media plan workbook generation failed:", mpErr)
+          const classified = classifyDocStepFailure(message)
+          updateSaveStatus(DOC_STEP_MEDIA_PLAN, classified.status, classified.error)
+          // Do not paint MBA as failed when only Excel generation failed.
+          return
+        }
 
         const mbaPdfFile = mbaBlob
           ? new File([mbaBlob], mbaFileName, { type: "application/pdf" })
@@ -8023,16 +8049,31 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             mpClientName: formValues.mp_clientname || selectedClient?.clientname_input || "",
           })
 
-          if (mbaPdfFile) updateSaveStatus("MBA PDF Upload", "success")
-          updateSaveStatus("Media Plan Upload", "success")
+          if (mbaPdfFile) {
+            updateSaveStatus(DOC_STEP_MBA, "success")
+          } else {
+            // Leave an earlier skip/error alone; only settle if still pending.
+            setSaveStatus((prev) =>
+              prev.map((item) =>
+                item.name === DOC_STEP_MBA && item.status === "pending"
+                  ? { ...item, status: "skipped", error: DOC_SKIP_REASON }
+                  : item
+              )
+            )
+          }
+          updateSaveStatus(DOC_STEP_MEDIA_PLAN, "success")
           if (aaMediaPlanFile) {
             updateSaveStatus("AA Media Plan Upload", "success")
           }
         } catch (err: any) {
           const message = err?.message || String(err)
           console.error("Document upload failed:", err)
-          updateSaveStatus("MBA PDF Upload", "error", message)
-          updateSaveStatus("Media Plan Upload", "error", message)
+          const classified = classifyDocStepFailure(message)
+          // Upload failure is real for files we attempted; don't overwrite MBA skip.
+          if (mbaPdfFile) {
+            updateSaveStatus(DOC_STEP_MBA, classified.status, classified.error)
+          }
+          updateSaveStatus(DOC_STEP_MEDIA_PLAN, classified.status, classified.error)
           if (aaMediaPlanFile) {
             updateSaveStatus("AA Media Plan Upload", "error", message)
           }
@@ -8043,8 +8084,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         documentUploadPromise = uploadVersionDocuments().catch((err: any) => {
           const message = err?.message || String(err)
           console.error("Document upload failed:", err)
-          updateSaveStatus("MBA PDF Upload", "error", message)
-          updateSaveStatus("Media Plan Upload", "error", message)
+          const classified = classifyDocStepFailure(message)
+          setSaveStatus((prev) =>
+            prev.map((item) => {
+              if (item.name !== DOC_STEP_MBA && item.name !== DOC_STEP_MEDIA_PLAN) {
+                return item
+              }
+              if (item.status === "skipped" || item.status === "success") return item
+              return { ...item, status: classified.status, error: classified.error }
+            })
+          )
         })
       }
 
@@ -8433,8 +8482,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         documentUploadPromise = uploadVersionDocuments().catch((err: any) => {
           const message = err?.message || String(err)
           console.error("Document upload failed:", err)
-          updateSaveStatus("MBA PDF Upload", "error", message)
-          updateSaveStatus("Media Plan Upload", "error", message)
+          const classified = classifyDocStepFailure(message)
+          setSaveStatus((prev) =>
+            prev.map((item) => {
+              if (item.name !== DOC_STEP_MBA && item.name !== DOC_STEP_MEDIA_PLAN) {
+                return item
+              }
+              if (item.status === "skipped" || item.status === "success") return item
+              return { ...item, status: classified.status, error: classified.error }
+            })
+          )
         })
       }
 
