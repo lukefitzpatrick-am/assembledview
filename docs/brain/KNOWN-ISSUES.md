@@ -62,6 +62,17 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | C-23 | **Xano mirror dropped schedule blobs** — `mirrorInputFromSave` omitted `legacySchedules` so mirrored versions were line-items-only (krusty015 recon); failures lived only in the in-memory shadow-diff ring buffer and vanished on restart | FIXED (`9eccdd51` / S2) — return blobs from `savePlanVersion`, pass through `mirrorInputFromSave`; durable `app_notifications` (`xano_mirror_failed`) + resolve on retry |
 | C-24 | **Draft doc-step skip** — SavingModal treated below-approved MBA PDF / Media Plan file skips as errors (“Saving with Errors”) | FIXED (`231fc295` / S3) — `lib/docs/saveDocSteps.ts` marks skips; modal does not enter error state for skips alone |
 | C-25 | **Dashboard monthly treemap** still hit Xano custom endpoints under `DATA_BACKEND=postgres` | FIXED (`73fd1bbe` / S1) — `getGlobalMonthly{Publisher,Client}Spend` postgres path via `schedule_months` aggregates |
+| C-26 | **`schedule_months.line_item_id` vs `line_items.line_item_id` join key mismatch** — schedule cells often store `billing-{mediaType}::{lineId}` while `line_items` stores bare `{lineId}`; exact-equality joins miss all rows → Unspecified publishers + client-pays filter never applies | Partially fixed for finance sections (`lib/finance/sections/scheduleLineJoinSql.ts` exact OR `SPLIT_PART` suffix) used by costs/summary + sections summary delivery joins + investment cut. `lib/data/dashboardMonthlySpend.ts` still exact-equality (dead/black treemap root cause when postgres-served) |
+| C-27 | **Investment cut fee line-month coverage near zero** — published-tip `schedule_months` often media-only for legacy/ETL tips (O4.5/C-21 class); FY2025 probe: billing 2/1686 media months have fee rows (~0.1%), delivery 0/1773 | Open — cut surfaces `coverage.fee` + caveat; margin view must join `mba_fee_snapshots` / recompute feePct×media; do not treat `fee_cents` as complete; **agency-economics presets are current-FY-only** until this is fixed (422 `AGENCY_ECONOMICS_HISTORIC_FY_BLOCKED`) |
+| C-28 | **Agency economics Luke opens** — (1) whether cut `adserving_cents` counts as agency revenue (forecast maps `adservingTechFees` into `service_fee_digital`, not 1:1 with schedule adserving); (2) margin_pct RAG thresholds; (3) billingAgency grain for revenue (retainer is client-level — currently refused) | Open — defaults: adserving excluded, margin neutral, billingAgency blocked for revenue measures |
+
+## Finance hub UX (UX-*) — closed by FN7 sections cutover
+
+| ID | Issue | Status |
+|---|---|---|
+| UX-1 | **Load-gate** — classic hub toolbar required explicit Load after filter Apply; easy to stare at stale/empty data | FIXED (FN7) — classic hub deleted; sections use Apply → auto-load (`useFinanceScope` / section data hooks) |
+| UX-2 | **$0 / empty landing** — hub Overview KPI hero + empty month range looked “all zeros” before Load | FIXED (FN7) — hub Overview/hero removed; `/finance` → sections overview (`FinanceSectionsOverview` / summary API) |
+| UX-3 | **Dead treemaps on hub Overview** — `global-monthly-*` / exact schedule join → black empty charts (related C-26 on dashboard path) | FIXED (FN7) for hub surface — Overview treemaps deleted with hub; sections costs/investment use `scheduleLineJoinSql` (C-26 residual remains on `dashboardMonthlySpend.ts` only) |
 
 ## Build / tooling (B-*)
 
@@ -98,6 +109,12 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 | D-8 | `app/management/page.tsx` is a stub (inert date-range picker removed — read-only placeholder only); `docs/design-refresh/BASELINE.md` is an unfilled template | FIXED (management route + stub removed; User Management stays at `/admin/users/new`) — BASELINE.md template still unfilled |
 | D-9 | `lib/codex/**` is the Tasks domain, not AVA — naming is misleading |
 | D-10 | Stale docs that contradict code: `PERF-DISCOVERY-2-CACHE-DESIGN.md` ("zero unstable_cache usages" — now false), `FINANCE-HUB-STAGES-DISCOVERY.md` (references deleted `components/finance/tabs/`), `README.md` Xano config section (references nonexistent `lib/xano/config.ts`) |
+
+## Features / integrations (F-*)
+
+| ID | Issue | Status |
+|---|---|---|
+| F-27 | Xano `codex` API group (`XANO_CODEX_BASE_URL` + `lib/api/codex.ts` proxy) backs `/api/codex/*` | FIXED (C0-2) — Postgres-native Codex (`lib/codex/repo.ts`); flag `CODEX_V2=on`; Xano path deleted |
 
 ## Open product decisions (needs Luke)
 

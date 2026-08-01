@@ -19,8 +19,8 @@
 
 ## Tasks ("codex")
 
-- `app/tasks/**` + `components/tasks/TaskFormDialog.tsx` + `app/api/codex/{tasks,tasks/[id],client_notes}` — Xano-backed task board. `_shared.ts` has the retry/backoff wrapper (5s timeout, 2 retries, 6s overall).
-- **`lib/codex/**` is the Tasks domain, not AVA** — naming is misleading; it's just types.
+- `app/tasks/**` + `components/tasks/TaskFormDialog.tsx` + `app/api/codex/{tasks,tasks/[id],client_notes,team}` — Postgres-native when `CODEX_V2=on` (`lib/codex/repo.ts` / Drizzle). Flag off → routes 404. Auth: admin-only shadow (`CODEX_SHADOW_ROLES`). Soft delete via `deleted_at`.
+- **`lib/codex/**` is the Tasks domain, not AVA** — naming is historical; types + repo live here.
 - List UI uses `ViewState` (`lib/ui/viewState.ts`) via `ViewStateBoundary` so a fetch failure cannot render alongside "no tasks" empty copy; client/status/assignee/search exclusion uses `filtered-empty` + Clear filters.
 
 ## Knowledge hub (`src/**`)

@@ -1,56 +1,43 @@
 import { NextResponse } from "next/server"
-import { getCodexBaseUrl } from "@/lib/api/codex"
-import {
-  axiosErrorResponse,
-  codexApiClient,
-  requireCodexInternalAccess,
-  retryApiCall,
-  withOverallTimeout,
-} from "../_shared"
+import { listClientNotes } from "@/lib/codex/repo"
+import { codexFlagGuard, requireCodexInternalAccess } from "../_shared"
 
 export const runtime = "nodejs"
 
-const FORWARD_QUERY_KEYS = [
-  "page",
-  "per_page",
-  "client_id",
-  "source",
-  "mba_number",
-] as const
-
-function capPerPage(raw: string | null): string | null {
-  if (raw == null || raw === "") return null
-  const n = Number(raw)
-  if (!Number.isFinite(n) || n < 1) return "1"
-  return String(Math.min(Math.floor(n), 100))
-}
-
 export async function GET(request: Request) {
+  const flag = codexFlagGuard()
+  if (flag) return flag
+
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
 
   try {
     const url = new URL(request.url)
-    const upstream = new URL(`${getCodexBaseUrl()}/client_notes`)
+    const clientIdRaw = url.searchParams.get("client_id")
+    const clientId =
+      clientIdRaw != null && clientIdRaw !== ""
+        ? Number(clientIdRaw)
+        : undefined
 
-    for (const key of FORWARD_QUERY_KEYS) {
-      const value = url.searchParams.get(key)
-      if (value == null || value === "") continue
-      if (key === "per_page") {
-        const capped = capPerPage(value)
-        if (capped) upstream.searchParams.set(key, capped)
-        continue
-      }
-      upstream.searchParams.set(key, value)
-    }
+    const data = await listClientNotes({
+      clientId:
+        clientId != null && Number.isFinite(clientId) ? clientId : undefined,
+      mbaNumber: url.searchParams.get("mba_number") || undefined,
+      meetingBefore: url.searchParams.get("meeting_before") || undefined,
+      meetingAfter: url.searchParams.get("meeting_after") || undefined,
+      page: Number(url.searchParams.get("page") || 1),
+      perPage: Number(url.searchParams.get("per_page") || 50),
+    })
 
-    const response = await withOverallTimeout(
-      retryApiCall(() => codexApiClient.get(upstream.toString()))
-    )
-
-    return NextResponse.json(response.data)
+    return NextResponse.json(data)
   } catch (error) {
     console.error("Failed to fetch codex client notes:", error)
-    return axiosErrorResponse(error, "Failed to fetch client notes")
+    return NextResponse.json(
+      {
+        error: "Failed to fetch client notes",
+        message: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    )
   }
 }

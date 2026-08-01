@@ -47,7 +47,12 @@ export type CodexTask = {
   mba_number?: string | null
   description?: string | null
   client_visible?: boolean | null
+  /** @deprecated prefer created_by_email — kept for TasksPageClient compat */
   created_by?: string | null
+  created_by_email?: string | null
+  category?: string | null
+  source?: string | null
+  deleted_at?: string | null
   updated_at?: string | null
   created_at?: string | null
 }
