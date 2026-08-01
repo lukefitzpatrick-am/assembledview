@@ -1,5 +1,7 @@
 # Domain 5 — Finance Hub UX Redesign (Stage 0 Discovery)
 
+**FN7 status (2026-08-01):** Classic hub cut over to Finance sections IA. Register items **Load-gate (F5.3 / UX-1)**, **$0/empty landing (UX-2)**, **dead hub Overview treemaps (F10 / UX-3)**, **CF1** are **FIXED (FN7)** (see `docs/brain/KNOWN-ISSUES.md` UX-* rows). This file remains historical discovery; product surface is `components/finance/sections/*`.
+
 **Branch:** `domain-5-finance-ux`  
 **Date:** 2026-05-27  
 **Mode:** Read-only discovery (this file only). No application code was modified.
@@ -654,7 +656,7 @@ For each job, where the current UI obstructs it. Confidence ratings denote how s
 
 - **F5.1 (~95%)** The 20-row-repetition problem (Image 3). Identical-description-identical-amount line items should collapse to a grouped row with expand affordance.
 - **F5.2 (~90%)** No rolled-up "this client owes us $X this month for $Y media + $Z fees + $W production" view at the client header. The summary the user is mentally building is exactly what should display by default.
-- **F5.3 (~85%)** Load required before any data appears. Load button is far from the primary action.
+- **F5.3 (~85%)** Load required before any data appears. Load button is far from the primary action. **FIXED (FN7)** — classic hub deleted; sections Apply → auto-load (UX-1).
 - **F5.4 (~70%)** "AA plan" export per media plan is noise for clients that aren't Advertising Associates handovers.
 
 ### J6. Edit a billing schedule
@@ -682,9 +684,9 @@ For each job, where the current UI obstructs it. Confidence ratings denote how s
 
 ### J10 / J11. Spend by publisher / spend by client across the year
 
-- **F10.1 (~80%)** Treemaps show relative size, not absolute amounts or trends. Wrong visualisation for the question.
-- **F10.2 (~70%)** No drilldown from the treemap to contributing line items.
-- **F10.3 (~60%)** These charts live on Overview, which the finance team opens least often. Data is in the wrong place for the users who'd benefit from it.
+- **F10.1 (~80%)** Treemaps show relative size, not absolute amounts or trends. Wrong visualisation for the question. **FIXED (FN7)** for hub surface — Overview treemaps removed with hub (UX-3); C-26 residual on dashboard path only.
+- **F10.2 (~70%)** No drilldown from the treemap to contributing line items. **FIXED (FN7)** — hub surface gone.
+- **F10.3 (~60%)** These charts live on Overview, which the finance team opens least often. Data is in the wrong place for the users who'd benefit from it. **FIXED (FN7)** — hub Overview gone.
 
 ### J13. Custom view for one-off analysis
 
@@ -696,7 +698,7 @@ For each job, where the current UI obstructs it. Confidence ratings denote how s
 
 ### Cross-cutting frictions (not tied to a single job)
 
-- **CF1 (~90%)** KPI hero is fixed on all tabs. Useful on Overview, noise on the four working tabs. ~150px of fixed vertical real estate paid for on every load.
+- **CF1 (~90%)** KPI hero is fixed on all tabs. Useful on Overview, noise on the four working tabs. ~150px of fixed vertical real estate paid for on every load. **FIXED (FN7)** — hub hero deleted; sections landing has no tab-strip KPI hero (UX-2).
 - **CF2 (~90%)** Five tabs implying equality. Overview and Forecast are read-only summaries; Client Billing, Publisher Invoices, Accrual are working surfaces. IA should reflect this hierarchy.
 - **CF3 (~90%)** Filter bar lives above tabs; some filters apply differently per tab (Forecast ignores month range entirely). Per-tab filter affordances would let each surface ask for only what it needs.
 - **CF4 (~90%)** No multi-select / bulk actions anywhere.

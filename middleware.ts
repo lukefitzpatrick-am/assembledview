@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { auth0 } from './lib/auth0';
+import { FINANCE_TAB_TO_SECTION_PATH } from './lib/finance/sections/nav';
 import { getUserClientIdentifier, getUserRoles } from './lib/rbac';
 
 const STATIC_PATHS = ['/favicon.ico', '/robots.txt', '/sitemap.xml'];
@@ -149,6 +150,28 @@ export async function middleware(request: NextRequest) {
 
   if (redirectTarget) {
     return NextResponse.redirect(new URL(redirectTarget, request.url));
+  }
+
+  // Finance sections IA (FN7). Kill-switch removed — rollback is git revert of FN7 commit.
+  // Tab deep-links → section paths; bare /finance → landing rewrite (/finance/home).
+  if (isAdmin && pathname === '/finance') {
+    const tab = request.nextUrl.searchParams.get('tab');
+    if (tab) {
+      const dest = FINANCE_TAB_TO_SECTION_PATH[tab];
+      if (dest) {
+        const url = new URL(dest, request.url);
+        // Preserve non-tab query (e.g. fmode) when present.
+        for (const [k, v] of request.nextUrl.searchParams.entries()) {
+          if (k === 'tab') continue;
+          url.searchParams.set(k, v);
+        }
+        return NextResponse.redirect(url);
+      }
+    } else {
+      const rewriteUrl = request.nextUrl.clone();
+      rewriteUrl.pathname = '/finance/home';
+      return NextResponse.rewrite(rewriteUrl);
+    }
   }
 
   // Recognised staff (admin) can proceed.

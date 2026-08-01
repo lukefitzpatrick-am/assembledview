@@ -1,22 +1,15 @@
 import { Suspense } from "react"
-import FinanceHubPageClient from "./FinanceHubPageClient"
+import { FinanceSectionsLanding } from "@/components/finance/sections/FinanceSectionsLanding"
+import { LoadingState } from "@/components/finance/sections/LoadingState"
 
-function FinanceHubFallback() {
-  return (
-    <div className="w-full max-w-none px-4 pb-10 pt-0 md:px-6">
-      <div className="animate-pulse space-y-4 py-6">
-        <div className="h-8 w-48 rounded-md bg-muted" />
-        <div className="h-4 w-full max-w-md rounded-md bg-muted" />
-        <div className="h-32 rounded-md bg-muted" />
-      </div>
-    </div>
-  )
-}
-
+/**
+ * `/finance` entry. Middleware rewrites bare `/finance` → `/finance/home`.
+ * This page is the rewrite-bypass fallback — same landing as home.
+ */
 export default function FinancePage() {
   return (
-    <Suspense fallback={<FinanceHubFallback />}>
-      <FinanceHubPageClient />
+    <Suspense fallback={<LoadingState rows={6} className="m-4" />}>
+      <FinanceSectionsLanding />
     </Suspense>
   )
 }

@@ -123,7 +123,7 @@ pct === 100 → fee = 0 (division guard)
 - `attachments` and `questions` are display-only — never write them back into Anthropic message history.
 - MI runtime never writes `lib/specs/mi-library/` (vendored) — runtime output is Blob + email only.
 - AVA Postgres reads use `AVA_DATABASE_URL` / role `ava_readonly` only — never the owner/`DATABASE_URL` connection.
-- AVA tool `fy` = Australian FY **ending** year (`lib/ava/tools/fyToRange.ts`); finance hub `fyMonthRange` stays start-year. Do not conflate.
+- AVA tool `fy` = Australian FY **ending** year (`lib/ava/tools/fyToRange.ts`); finance sections `fyMonthRange` stays start-year. Do not conflate.
 
 ## UI / design system
 
@@ -145,5 +145,7 @@ pct === 100 → fee = 0 (division guard)
 - `DATA_BACKEND_PLAN_DETAIL` defaults to `xano` and must not fall back to global `DATA_BACKEND`. When `postgres`, MBA GET errors return 500 with code `PLAN_DETAIL_POSTGRES_FAILED` — never silently fall back to Xano (the flag is the fallback).
 - User-facing free-text search/filter uses `lib/search/matchText.ts` (or a thin wrapper). Access-scoped filters keep exact membership semantics; only string normalisation may be shared.
 - `mba_line_approvals` is **postgres-authoritative** once writes follow `WRITE_BACKEND=postgres` (no Xano mirror). `db:etl` must not truncate-reload it; recon count mismatch is informational, never a hard fail.
+- Finance Forecast **targets** (`revenue_forecast_lines`) are postgres-authoritative; booked forecast plan crawl (`fetchFinanceForecastRawFromXano`) remains Xano-shaped until T6 rewire.
+- **Finance product IA is sections** (`/finance/invoicing|costs|investment|forecasting|…`). Sections IA is always on (FN7); classic hub deleted — rollback is git revert of FN7 commit. Legacy `?tab=` and path aliases permanently redirect to sections (FN1 map). `/api/finance/sections/*` is admin-only fail-closed in middleware.
 - Xero → Postgres sync (`/api/cron/xero-sync`) is additive/parity-only until T6: it must not disable Xano `daily_xero_sync`, must upsert only `xero:*` `invoice_key` rows, and must not migrate legacy Xano-hosted PDF blobs (re-fetch from Xero into Vercel Blob).
 - **PC6 Xero↔run-item match:** extend T5 `xero-sync` with `match_run_items` (never fork). Tier-1 reference + ≤$0.01 auto-matches silently; write-off is **admin-only** with mandatory reason. Manual reassign permanently upserts `xero_contact_links`. Day-10 open-card escalation is **one notification per periodMonth** (never re-notify daily). Dispute pre-creates an expected credit-note card; matching negative AR / ACCRECCREDIT (same contact, ≤$0.01) auto-reconciles the dispute.
