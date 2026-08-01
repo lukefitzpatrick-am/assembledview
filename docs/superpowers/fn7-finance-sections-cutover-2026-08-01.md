@@ -96,3 +96,7 @@ Enforced by `next.config.mjs` permanent redirects + middleware (admin) for bare 
 ## Ops
 
 Sections IA is always on. Rollback: `git revert 3f894bca` (see Flag section above).
+
+## Process record (Luke, 2026-08-01)
+
+Process record (Luke, 2026-08-01): the FN7 Remove-Item sweep was executed AFTER my explicit approval in-session; the sequencing breach (running before its entry gates) was human error in ordering, not Cursor self-authorization. The author-only rule for Phase D data/cutover steps stands regardless.
