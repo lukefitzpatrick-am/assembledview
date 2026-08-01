@@ -41,7 +41,7 @@ Create/edit load with `skipLineItems=true` and hydrate channels via `DATA_BACKEN
 
 ## Load
 
-Header via `GET …?skipLineItems=true&billingScheduleFull=1&version=N`, then per-channel line items (60s soft cache + in-flight dedupe). `channelHydrationGate.computeAllChannelsHydrated` gates Save until every enabled container settles. Channel GETs are FK-first (`fetchChannelLineItemsByMba`) with a 5-attempt param-shape fallback for legacy rows.
+Header via `GET …?skipLineItems=true&billingScheduleFull=1&version=N`, then per-channel line items (60s soft cache + in-flight dedupe). `channelHydrationGate.computeAllChannelsHydrated` gates Save until every enabled container settles. Channel GETs are FK-first (`fetchChannelLineItemsByMba`) with a 5-attempt param-shape fallback for legacy rows. Edit-page `mba_line_approvals` hydrate uses `fetchMbaLineApprovalsClient` → `coalescedGetJson` (30s TTL); effect deps on `billingFeeSeedEnabledConfigs` can re-enter, but same-URL callers share one GET; save/approval PATCH invalidates.
 
 Edit-page channel-load budgets (Xano fan-out): **45s** initial + **90s** auto-retry; manual retry **180s**; hydration watchdog **150s** (must exceed initial+auto-retry). Late success after the watchdog still applies data and clears that channel's error/`did not finish loading` toast via `mediaLoadStatusAfterChannelSuccess` / `lineItemLoadToastAfterChannelSuccess`.
 

@@ -1,7 +1,18 @@
 /**
  * Browser client for mba_line_approvals (absence = approved / all-in).
  * Hits Next.js proxies — fail-soft when the API is unavailable.
+ *
+ * GET uses `coalescedGetJson` (URL-keyed in-flight + ≤30s TTL) so edit-page
+ * hydrate effect re-runs share one network call. PATCH invalidates that key.
  */
+
+import {
+  coalescedGetJson,
+  invalidateCoalescedGetJson,
+} from "@/lib/api/coalescedGetJson"
+
+/** Same-render-cycle window for approvals hydrate churn (≤30s). */
+const MBA_LINE_APPROVALS_GET_TTL_MS = 30_000
 
 export type MbaLineApprovalRow = {
   line_item_id: string
@@ -21,38 +32,53 @@ export type FetchMbaLineApprovalsResult =
   | { ok: true; rows: []; available: false }
   | { ok: false; error: string; available: false }
 
+/** Stable GET URL — also the coalescedGetJson cache key. */
+export function mbaLineApprovalsGetUrl(
+  mbaNumber: string,
+  mediaPlanVersion: number
+): string {
+  const qs = new URLSearchParams({
+    mba_number: mbaNumber,
+    media_plan_version: String(mediaPlanVersion),
+  })
+  return `/api/mba-line-approvals?${qs}`
+}
+
+async function parseMbaLineApprovalsResponse(
+  res: Response
+): Promise<FetchMbaLineApprovalsResult> {
+  if (res.status === 404) {
+    return { ok: true, rows: [], available: false }
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    return {
+      ok: false,
+      error: err.error || `Failed to load approvals (${res.status})`,
+      available: false,
+    }
+  }
+  const data = await res.json()
+  const rows = Array.isArray(data?.lines)
+    ? data.lines
+    : Array.isArray(data)
+      ? data
+      : []
+  return { ok: true, rows, available: data?.available !== false }
+}
+
 /** GET approvals for mba + version number. Absence of rows ⇒ all approved. */
 export async function fetchMbaLineApprovalsClient(params: {
   mbaNumber: string
   mediaPlanVersion: number
 }): Promise<FetchMbaLineApprovalsResult> {
+  const url = mbaLineApprovalsGetUrl(params.mbaNumber, params.mediaPlanVersion)
   try {
-    const qs = new URLSearchParams({
-      mba_number: params.mbaNumber,
-      media_plan_version: String(params.mediaPlanVersion),
+    return await coalescedGetJson<FetchMbaLineApprovalsResult>(url, {
+      ttlMs: MBA_LINE_APPROVALS_GET_TTL_MS,
+      init: { method: "GET", cache: "no-store" },
+      parseResponse: parseMbaLineApprovalsResponse,
     })
-    const res = await fetch(`/api/mba-line-approvals?${qs}`, {
-      method: "GET",
-      cache: "no-store",
-    })
-    if (res.status === 404) {
-      return { ok: true, rows: [], available: false }
-    }
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      return {
-        ok: false,
-        error: err.error || `Failed to load approvals (${res.status})`,
-        available: false,
-      }
-    }
-    const data = await res.json()
-    const rows = Array.isArray(data?.lines)
-      ? data.lines
-      : Array.isArray(data)
-        ? data
-        : []
-    return { ok: true, rows, available: data?.available !== false }
   } catch (e: any) {
     return {
       ok: false,
@@ -89,6 +115,9 @@ export async function patchMbaLineApprovalsClient(params: {
         available: false,
       }
     }
+    invalidateCoalescedGetJson(
+      mbaLineApprovalsGetUrl(params.mbaNumber, params.mediaPlanVersion)
+    )
     return { ok: true }
   } catch (e: any) {
     return {
