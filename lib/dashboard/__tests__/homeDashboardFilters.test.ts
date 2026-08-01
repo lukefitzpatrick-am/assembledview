@@ -6,6 +6,7 @@ import {
   computeHomeLiveKpiCounts,
   defaultDashboardViewFilters,
   describeHomeMetricsFilterScope,
+  isLiveScopeStatus,
 } from "@/lib/dashboard/homeDashboardFilters"
 
 const plans = [
@@ -82,5 +83,25 @@ describe("homeDashboardFilters", () => {
         campaignSearch: "NZ",
       }),
     ).toBe('Filtered: 1 client / search "NZ"')
+  })
+
+  it("dedupes live clients by normalized name case/whitespace", () => {
+    const kpis = computeHomeLiveKpiCounts(
+      [{ mp_clientname: "Penfolds" }, { mp_clientname: "penfolds" }, { mp_clientname: "Penfolds " }],
+      [{ client_name: "PENFOLDS" }, { client_name: "Acme" }],
+    )
+    expect(kpis.liveCampaigns).toBe(3)
+    expect(kpis.liveScopes).toBe(2)
+    expect(kpis.liveClients).toBe(2)
+  })
+
+  it("treats scope status variants as live", () => {
+    expect(isLiveScopeStatus("Approved")).toBe(true)
+    expect(isLiveScopeStatus("approved")).toBe(true)
+    expect(isLiveScopeStatus("In-Progress")).toBe(true)
+    expect(isLiveScopeStatus("In Progress")).toBe(true)
+    expect(isLiveScopeStatus(" in-progress ")).toBe(true)
+    expect(isLiveScopeStatus("Draft")).toBe(false)
+    expect(isLiveScopeStatus("Completed")).toBe(false)
   })
 })

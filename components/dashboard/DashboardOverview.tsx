@@ -52,6 +52,7 @@ import {
   computeHomeLiveKpiCounts,
   defaultDashboardViewFilters,
   describeHomeMetricsFilterScope,
+  isLiveScopeStatus,
   normalizeClientFilterValue,
   type DashboardViewFilters,
 } from "@/lib/dashboard/homeDashboardFilters"
@@ -766,7 +767,7 @@ export default function DashboardOverview({
   }, [mediaPlans])
 
   const unfilteredLiveScopes = useMemo(
-    () => scopes.filter((scope) => scope.project_status === "Approved" || scope.project_status === "In-Progress"),
+    () => scopes.filter((scope) => isLiveScopeStatus(scope.project_status)),
     [scopes],
   )
 
@@ -1393,8 +1394,7 @@ export default function DashboardOverview({
       })
     }
 
-    const getLiveScopes = () =>
-      scopes.filter((scope) => scope.project_status === "Approved" || scope.project_status === "In-Progress")
+    const getLiveScopes = () => scopes.filter((scope) => isLiveScopeStatus(scope.project_status))
 
     const safeDate = (value: string) => {
       const d = new Date(value)

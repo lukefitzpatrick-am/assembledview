@@ -41,6 +41,16 @@ export const normalizeDashboardSearch = (value: string) => normalizeSearchText(v
 
 export const normalizeClientFilterValue = (value: string) => normalizeSearchText(value)
 
+/** Live scopes: Approved / In-Progress, tolerant of case, hyphen/space, and trim. */
+export function isLiveScopeStatus(status?: string | null): boolean {
+  const normalized = (status || "")
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/[-\s]+/g, "-")
+  return normalized === "approved" || normalized === "in-progress"
+}
+
 export function applyDashboardTableFiltersToPlans<T extends DashboardPlanFilterRow>(
   plans: T[],
   filters: DashboardViewFilters,
@@ -109,10 +119,16 @@ export function computeHomeLiveKpiCounts(
 ): HomeLiveKpiCounts {
   const liveClients = new Set<string>()
   for (const campaign of liveCampaigns) {
-    if (campaign.mp_clientname) liveClients.add(campaign.mp_clientname)
+    if (campaign.mp_clientname) {
+      const key = normalizeClientFilterValue(campaign.mp_clientname)
+      if (key) liveClients.add(key)
+    }
   }
   for (const scope of liveScopes) {
-    if (scope.client_name) liveClients.add(scope.client_name)
+    if (scope.client_name) {
+      const key = normalizeClientFilterValue(scope.client_name)
+      if (key) liveClients.add(key)
+    }
   }
   return {
     liveCampaigns: liveCampaigns.length,
