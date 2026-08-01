@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { BarChart3, DollarSign, FileText } from "lucide-react"
+import { BarChart3, Brain, DollarSign, FileText } from "lucide-react"
 
 import {
   PAGE_HERO_PADDING,
@@ -28,6 +28,8 @@ export interface HeroBannerProps {
   onOpenDetails: () => void
   onOpenFinance: () => void
   onOpenKPIs: () => void
+  /** Opens Client Brain slide-over (hub/admin rail — same gate as sibling icons). */
+  onOpenBrain?: () => void
   isAdmin?: boolean
   /** Client hub (/client/[slug]): omit benchmark line and Avg ROAS meta. */
   clientHubLayout?: boolean
@@ -62,12 +64,14 @@ export function HeroBanner({
   onOpenDetails,
   onOpenFinance,
   onOpenKPIs,
+  onOpenBrain,
   isAdmin = false,
   clientHubLayout = false,
   clientRecord = null,
 }: HeroBannerProps) {
   const showBenchmarkLine = !clientHubLayout
   const showProfileLinks = clientHubLayout && isAdmin
+  const showBrainIcon = Boolean(isAdmin && onOpenBrain && clientHubLayout)
 
   const detail = (
     <>
@@ -204,6 +208,23 @@ export function HeroBanner({
                 </TooltipTrigger>
                 <TooltipContent side="left">KPIs & requirements</TooltipContent>
               </Tooltip>
+
+              {showBrainIcon ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={onOpenBrain}
+                      title="Client Brain"
+                      aria-label="Client Brain"
+                      className="interactive flex h-10 w-10 items-center justify-center rounded-pill border border-border bg-card text-muted-foreground shadow-e0 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                      <Brain className="h-4 w-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">Client Brain</TooltipContent>
+                </Tooltip>
+              ) : null}
             </div>
           </TooltipProvider>
         </div>

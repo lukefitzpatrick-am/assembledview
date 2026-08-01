@@ -78,7 +78,7 @@ Related (out of merge core, but same slug tree):
 | Behaviour | `adminHub` (`/client/[slug]`) | `tenant` (`/dashboard/[slug]`) |
 |-----------|-------------------------------|--------------------------------|
 | Edit media plans from cards | `canEdit` true (`:99`) | false |
-| `clientRecord` / brain | Shown — `ClientBrainCard` (`:315–321`); passed into hero | Not passed from page; brain section omitted |
+| `clientRecord` / brain | Hub/admin hero rail → `ClientBrainSlideOver` / `ClientBrainPanel`; passed into hero | Not passed from page; brain omitted |
 | Hero layout | `clientHubLayout` — hide benchmark/ROAS chrome (`HeroBanner.tsx:32–33, 69–70`); profile links when admin (`:70`) | Default tenant hero |
 | KPI extras | `campaignsYtd` tiles (`ClientDashboardPageContent.tsx:337–338`) | omitted |
 | Slide-overs (Details / Finance / KPIs) | Mounted when `isAdmin` from mode (`:447–484`) | **Not mounted** (`isAdmin === false` even if Auth0 user is admin) |
@@ -141,7 +141,7 @@ Getting (1) without (2) would expose admin hub fields (brain, editable client ro
 
 | Tab | Intended content | Supplying component(s) today | Exists? |
 |-----|------------------|------------------------------|---------|
-| **Overview** | Hero, KPI bar, spending insights, optional brain (admin) | `HeroBanner`, `HeroKPIBar`, `SpendingInsightsSection`, `ClientBrainCard` (hub-only today) — currently composed in `ClientDashboardPageContent` | **Yes** (composed; not a standalone Overview tab shell) |
+| **Overview** | Hero, KPI bar, spending insights; brain via hub/admin slide-over | `HeroBanner`, `HeroKPIBar`, `SpendingInsightsSection`, `ClientBrainSlideOver` (hub/admin rail) — composed in `ClientDashboardPageContent` | **Yes** (composed; not a standalone Overview tab shell) |
 | **Campaigns** | Status pills + campaign card grid + upcoming | Same file `:346–442` (`CampaignStatusPills`, `CampaignCardCompact`, `UpcomingCampaignsSection`) | **Yes** (section, not tab) |
 | **Finance** | FY / quarter / billing | `ClientFinanceSlideOver` → `UpcomingBillingSection`, `ClientFinanceExcelExportDialog` (`components/dashboard/modals/ClientFinanceSlideOver.tsx`, `components/client-hub/*`) | **Yes** as **slide-over**, not a full-page tab; hub variant richer |
 | **KPIs** | Client + publisher KPI editors | `ClientKpiSlideOver` → `ClientKpiSection` | **Yes** as **slide-over** |

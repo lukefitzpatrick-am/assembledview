@@ -10,11 +10,11 @@ import { AnimatePresence, motion, useReducedMotion, type Variants } from "framer
 
 import { CampaignCardCompact } from "@/components/dashboard/CampaignCardCompact"
 import { CampaignStatusPills, type CampaignStatus } from "@/components/dashboard/CampaignStatusPills"
-import { ClientBrainCard } from "@/components/dashboard/ClientBrainCard"
 import { HeroBanner } from "@/components/dashboard/HeroBanner"
 import { HeroKPIBar } from "@/components/dashboard/HeroKPIBar"
 import { SpendingInsightsSection } from "@/components/dashboard/SpendingInsightsSection"
 import { UpcomingCampaignsSection } from "@/components/dashboard/UpcomingCampaignsSection"
+import { ClientBrainSlideOver } from "@/components/dashboard/modals/ClientBrainSlideOver"
 import { ClientDetailsSlideOver } from "@/components/dashboard/modals/ClientDetailsSlideOver"
 import { ClientFinanceSlideOver } from "@/components/dashboard/modals/ClientFinanceSlideOver"
 import { ClientKpiSlideOver } from "@/components/dashboard/modals/ClientKpiSlideOver"
@@ -130,6 +130,7 @@ export function ClientDashboardPageContent({
   const [detailsModalOpen, setDetailsModalOpen] = useState(false)
   const [financeModalOpen, setFinanceModalOpen] = useState(false)
   const [kpisModalOpen, setKpisModalOpen] = useState(false)
+  const [brainModalOpen, setBrainModalOpen] = useState(false)
   const allCampaigns = useMemo(
     () =>
       [
@@ -311,20 +312,12 @@ export function ClientDashboardPageContent({
             onOpenDetails={() => setDetailsModalOpen(true)}
             onOpenFinance={() => setFinanceModalOpen(true)}
             onOpenKPIs={() => setKpisModalOpen(true)}
+            onOpenBrain={isClientHub ? () => setBrainModalOpen(true) : undefined}
             isAdmin={isAdmin}
             clientHubLayout={isClientHub}
             clientRecord={isClientHub ? clientData.clientRecord : null}
           />
         </motion.section>
-
-        {isClientHub ? (
-          <motion.section variants={sectionVariants} className="mt-6 w-full lg:mt-8">
-            <ClientBrainCard
-              clientName={clientData.clientName}
-              record={clientData.clientRecord}
-            />
-          </motion.section>
-        ) : null}
 
         <motion.section variants={sectionVariants} className="mt-6 w-full lg:mt-8">
           {/* HeroKPIBar: averageRoas / roasTrend omitted (fabricated); restore with real KPI aggregation (Domain 10). */}
@@ -487,6 +480,16 @@ export function ClientDashboardPageContent({
             }
             brandColour={clientData.brandColour}
           />
+
+          {isClientHub ? (
+            <ClientBrainSlideOver
+              open={brainModalOpen}
+              onOpenChange={setBrainModalOpen}
+              clientName={clientData.clientName}
+              clientRecord={clientData.clientRecord ?? null}
+              brandColour={clientData.brandColour}
+            />
+          ) : null}
         </>
       )}
     </div>
