@@ -92,6 +92,14 @@ function dueDateToPayload(d: Date | null | undefined): string | null {
   return format(d, "yyyy-MM-dd")
 }
 
+export type TaskFormCreatePrefill = {
+  title?: string
+  client_id?: number
+  mba_number?: string
+  category?: TaskCategory
+  description?: string
+}
+
 type TaskFormDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -99,6 +107,8 @@ type TaskFormDialogProps = {
   clients: ClientOption[]
   teamMembers: TeamMember[]
   onSaved: () => void
+  /** When creating (task null), merge these into the empty-form defaults. */
+  createPrefill?: TaskFormCreatePrefill | null
 }
 
 export function TaskFormDialog({
@@ -108,6 +118,7 @@ export function TaskFormDialog({
   clients,
   teamMembers,
   onSaved,
+  createPrefill = null,
 }: TaskFormDialogProps) {
   const { toast } = useToast()
   const [submitting, setSubmitting] = useState(false)
@@ -231,17 +242,27 @@ export function TaskFormDialog({
         const rosterMatch = activeMembers.find(
           (m) => m.email.toLowerCase() === meLower
         )
+        const prefillCategory =
+          createPrefill?.category && isTaskCategory(createPrefill.category)
+            ? createPrefill.category
+            : "other"
+        const prefillClientId =
+          typeof createPrefill?.client_id === "number" &&
+          Number.isFinite(createPrefill.client_id) &&
+          createPrefill.client_id > 0
+            ? createPrefill.client_id
+            : 0
         form.reset({
-          title: "",
-          client_id: 0,
-          mba_number: "",
+          title: createPrefill?.title?.trim() || "",
+          client_id: prefillClientId,
+          mba_number: createPrefill?.mba_number?.trim() || "",
           status: "todo",
           priority: "normal",
-          category: "other",
+          category: prefillCategory,
           assignee_email: rosterMatch?.email ?? meEmail,
           assignee_name: rosterMatch?.name ?? (meName || meEmail),
           due_date: null,
-          description: "",
+          description: createPrefill?.description ?? "",
           client_visible: false,
         })
       }
@@ -251,7 +272,7 @@ export function TaskFormDialog({
     return () => {
       cancelled = true
     }
-  }, [open, task, form, activeMembers])
+  }, [open, task, form, activeMembers, createPrefill])
 
   const onSubmit = form.handleSubmit(async (values) => {
     setSubmitting(true)

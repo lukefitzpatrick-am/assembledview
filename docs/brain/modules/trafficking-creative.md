@@ -24,6 +24,7 @@
 ## Access model
 
 - Staff trafficking/creative pages guard by **excluding** role `client` (not requiring admin) — a role that is neither gets through.
+- `/creative` admin landing is process-first (`CreativeAdminLanding`: search-ads → Ask Ava, upload → existing `CreativeCampaignPicker`, screenshots → Codex `TaskFormDialog` when `CODEX_V2=on`). Non-admin staff keep the filter-first picker; client dashboard creative is untouched.
 - Creative API MBA surfaces call `checkClientMbaAccess` for **all** roles (SEC-G); helper scopes only `admin` as unscoped — empty-MBA non-admin sessions → 403.
 - Client-facing creative view is separate: `app/dashboard/[slug]/creative` (tenant-checked with `notFound()`).
 
