@@ -114,7 +114,7 @@ One register, stable IDs. **Check here before "discovering" a bug** — it may b
 
 | ID | Issue | Status |
 |---|---|---|
-| F-27 | Xano `codex` API group (`XANO_CODEX_BASE_URL` + `lib/api/codex.ts` proxy) backs `/api/codex/*` | FIXED (C0-2) — Postgres-native Codex (`lib/codex/repo.ts`); flag `CODEX_V2=on`; Xano path deleted |
+| F-27 | Xano `codex` API group (`XANO_CODEX_BASE_URL` + `lib/api/codex.ts` proxy) backs `/api/codex/*` | FIXED (`6772069b` / C0-2) — Postgres-native Codex (`lib/codex/repo.ts`); flag `CODEX_V2=on`; Xano path deleted |
 
 ## Open product decisions (needs Luke)
 
