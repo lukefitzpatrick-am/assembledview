@@ -13,7 +13,7 @@ Source: live code on `localhost` working tree (not memory)
 | **Adserving** | Month header `adservingTechFees` | Campaign-level service amount on the month row. |
 | **Production** | Month header `production`; line mediaKey `production` skipped in payables extract | Production is **not** in payable media lines; may appear as month service. |
 | **Version pool** | `lib/finance/relevantPlanVersions.ts` | Masters + **all versions**, then `selectRelevantVersionsForMonth` / `buildMbaToLatestVersionMap` — **latest overlapping version per MBA for the calendar month**, not necessarily `published_version_id`. |
-| **Statuses** | `lib/finance/financeTabFilterScope.ts` `PAYABLE_STATUSES` | `expected` \| `invoiced` \| `paid` (matches Overview `KPI_PAYABLE_STATUSES`). |
+| **Campaign statuses** | `filterPlanVersionsByIncludeDrafts` when `include_drafts=0` | Hub UI default: **booked \| approved \| completed** only (`filterBillingRecords.ts:86–95`). `PAYABLE_STATUSES` (`expected\|invoiced\|paid`) is finance-record status, not campaign_status. Full scoping: `fs2-payables-status-scoping-2026-08-01.md`. |
 
 ## What sections Costs / summary payables count
 
