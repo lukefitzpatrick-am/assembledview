@@ -18,7 +18,6 @@ import { buildLineItemKpiTargetMap } from "@/lib/kpi/lineItemKpiTargets"
 import { clearAssistantContext, setAssistantContext } from "@/lib/assistantBridge"
 import type { PageContext } from "@/lib/ava/types"
 
-import { AvaPacingNudge } from "@/components/ava/AvaPacingNudge"
 import CampaignHeroBanner from "@/components/dashboard/campaign/CampaignHeroBanner"
 import CampaignSummaryRow from "@/components/dashboard/campaign/CampaignSummaryRow"
 import SpendChartsRow from "@/components/dashboard/campaign/SpendChartsRow"
@@ -609,9 +608,6 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
               }}
               brandColour={brandColour}
             />
-            {pacePct !== undefined ? (
-              <AvaPacingNudge pacePct={pacePct} className="mt-3" />
-            ) : null}
             </div>
           </Suspense>
         </SectionBoundary>

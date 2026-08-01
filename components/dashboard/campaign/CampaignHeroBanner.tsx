@@ -14,10 +14,7 @@ import { formatDateRange } from "@/lib/format/date"
 import { formatMoneyCompact } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import AdminDateRangeSelector from "@/app/dashboard/[slug]/[mba_number]/components/AdminDateRangeSelector"
-import {
-  AvaCampaignCommentaryAction,
-  AvaCampaignReadAction,
-} from "@/components/ava/AvaSkillActionSets"
+import { AvaCampaignReadAction } from "@/components/ava/AvaSkillActionSets"
 
 interface CampaignHeroBannerProps {
   campaign: {
@@ -168,7 +165,6 @@ export default function CampaignHeroBanner({
             <Download className="h-3.5 w-3.5" aria-hidden />
             Downloads
           </Button>
-          <AvaCampaignCommentaryAction />
           <AvaCampaignReadAction />
         </div>
       </div>
