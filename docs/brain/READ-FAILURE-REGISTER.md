@@ -26,7 +26,7 @@ read layer at T6. Listed so M7 does not “fix” them into ViewState churn:
 | `fetchPlanMastersFromXano` | Dual endpoint 404 → `[]` discovery |
 | `fetchPacingMastersFromXano` | Same |
 | `loadFinanceForecastDataset` versions `.catch(() => [])` | `fetchAllXanoPages` |
-| Catch-all proxies + MBA GET `!skipLineItems` fan-out | KNOWN-ISSUES C-22 / SEC-1 |
+| Catch-all proxies + MBA GET Xano fan-out (`DATA_BACKEND_PLAN_DETAIL=xano`) | KNOWN-ISSUES C-22 / SEC-1; postgres path is hard-fail 500 |
 | KPI bulk 404-skip in Xano campaign KPI crawl | Continues per-MBA; other errors already throw |
 
 ## Freshness

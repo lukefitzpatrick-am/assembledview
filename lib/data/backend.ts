@@ -24,6 +24,13 @@ export type DataBackendDomain =
   | "plans"
   | "approvals"
 
+/**
+ * MBA GET detail route (`/api/mediaplans/mba/[mba_number]`) only.
+ * Intentionally does NOT fall back to global `DATA_BACKEND` — default `xano`
+ * stays inert even when other domains are on postgres (C-22 soak gate).
+ */
+export type PlanDetailBackend = "xano" | "postgres"
+
 function parseDataBackend(raw: string | undefined): DataBackend {
   const v = (raw ?? "xano").trim().toLowerCase()
   if (v === "shadow" || v === "postgres") return v
@@ -51,5 +58,14 @@ export function getDataBackendFor(domain: DataBackendDomain | string): DataBacke
 /** Plan write sink. Default `xano` — no user-facing change until flipped. */
 export function getWriteBackend(): WriteBackend {
   const v = (process.env.WRITE_BACKEND ?? "xano").trim().toLowerCase()
+  return v === "postgres" ? "postgres" : "xano"
+}
+
+/**
+ * MBA combined-detail GET backend. Env `DATA_BACKEND_PLAN_DETAIL` only
+ * (`xano` | `postgres`). Default `xano` — flipping is Luke's post-verify step.
+ */
+export function getPlanDetailBackend(): PlanDetailBackend {
+  const v = (process.env.DATA_BACKEND_PLAN_DETAIL ?? "xano").trim().toLowerCase()
   return v === "postgres" ? "postgres" : "xano"
 }

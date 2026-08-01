@@ -1,6 +1,11 @@
 import assert from "node:assert/strict"
 import { describe, it, beforeEach, afterEach } from "node:test"
-import { getDataBackend, getDataBackendFor, getWriteBackend } from "../backend"
+import {
+  getDataBackend,
+  getDataBackendFor,
+  getPlanDetailBackend,
+  getWriteBackend,
+} from "../backend"
 import {
   __resetShadowDiffStoreForTests,
   compareReferenceRows,
@@ -123,6 +128,38 @@ describe("getDataBackendFor", () => {
     process.env.DATA_BACKEND = "postgres"
     process.env.DATA_BACKEND_REFERENCE = "   "
     assert.equal(getDataBackendFor("reference"), "postgres")
+  })
+})
+
+describe("getPlanDetailBackend (C-22)", () => {
+  const keys = ["DATA_BACKEND_PLAN_DETAIL", "DATA_BACKEND"] as const
+  const prev: Record<string, string | undefined> = {}
+
+  beforeEach(() => {
+    for (const k of keys) prev[k] = process.env[k]
+  })
+
+  afterEach(() => {
+    for (const k of keys) {
+      if (prev[k] === undefined) delete process.env[k]
+      else process.env[k] = prev[k]
+    }
+  })
+
+  it("defaults to xano (inert — route stays on Xano fan-out)", () => {
+    delete process.env.DATA_BACKEND_PLAN_DETAIL
+    assert.equal(getPlanDetailBackend(), "xano")
+  })
+
+  it("does NOT fall back to global DATA_BACKEND", () => {
+    delete process.env.DATA_BACKEND_PLAN_DETAIL
+    process.env.DATA_BACKEND = "postgres"
+    assert.equal(getPlanDetailBackend(), "xano")
+  })
+
+  it("honours DATA_BACKEND_PLAN_DETAIL=postgres", () => {
+    process.env.DATA_BACKEND_PLAN_DETAIL = "postgres"
+    assert.equal(getPlanDetailBackend(), "postgres")
   })
 })
 

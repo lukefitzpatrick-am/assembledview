@@ -31,6 +31,11 @@ import {
   countPublishIntegrityChildren,
   isPublishVersionAdvance,
 } from "@/lib/mediaplan/publishVersionIntegrity"
+import { getPlanDetailBackend } from "@/lib/data/backend"
+import {
+  PLAN_DETAIL_POSTGRES_ERROR_CODE,
+  readMbaPlanDetailFromPostgres,
+} from "@/lib/data/readMbaPlanDetail"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -815,6 +820,38 @@ export async function GET(
       requestUrl.searchParams.get("includeVersionsMeta") === "1" ||
       requestUrl.searchParams.get("includeVersionsMeta") === "true"
     const skipLineItems = requestUrl.searchParams.get("skipLineItems") === "true"
+
+    // C-22: Postgres detail behind DATA_BACKEND_PLAN_DETAIL (default xano = inert).
+    // Never silently fall back to Xano — the flag is the fallback.
+    if (getPlanDetailBackend() === "postgres") {
+      const pgResult = await readMbaPlanDetailFromPostgres({
+        mbaNumber: mba_number,
+        requestedVersionNumber:
+          requestedVersionNumber != null && !Number.isNaN(requestedVersionNumber)
+            ? requestedVersionNumber
+            : null,
+        skipLineItems,
+        includeVersionsMeta,
+        billingScheduleFull,
+        requestedStartDateParam,
+        requestedEndDateParam,
+      })
+      if (!pgResult.ok) {
+        return NextResponse.json(
+          {
+            error: pgResult.error,
+            ...(pgResult.status === 500
+              ? { code: PLAN_DETAIL_POSTGRES_ERROR_CODE }
+              : {}),
+          },
+          { status: pgResult.status }
+        )
+      }
+      const response = NextResponse.json(pgResult.data)
+      response.headers.set("Cache-Control", "no-store, max-age=0")
+      response.headers.set("x-plan-detail-backend", "postgres")
+      return response
+    }
 
     const timings: Record<string, number> = {}
     const mark = (label: string, startedAt: number) => {
