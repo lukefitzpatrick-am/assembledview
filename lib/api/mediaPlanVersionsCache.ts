@@ -77,13 +77,23 @@ function stripScheduleFields(row: any): any {
 /**
  * Fetch the versions list. Prefer paged walk via fetchAllXanoPages; also accept a
  * bare array if an env override points at a non-paged endpoint.
- * Honors DATA_BACKEND_PLANS: postgres rebuilds latest-per-MBA from consolidated versions.
+ * Honors DATA_BACKEND_PLANS: postgres rebuilds latest-per-MBA from consolidated versions
+ * and overlays master-owned scalars (`mp_client_name`) — Xano `_latest` had these
+ * inline; Postgres versions do not (DI-9b; twin of mediaPlansListCache / DI-9).
  */
 async function fetchUpstream(): Promise<any[]> {
   const { getDataBackendFor } = await import("@/lib/data/backend")
   if (getDataBackendFor("plans") === "postgres") {
-    const { readPlanVersions } = await import("@/lib/data/readMediaPlans")
-    const all = await readPlanVersions()
+    const { readPlanVersions, readPlanMasters } = await import(
+      "@/lib/data/readMediaPlans"
+    )
+    const { applyMasterOwnedOverlayByMba } = await import(
+      "@/lib/api/overlayMasterOwnedListFields"
+    )
+    const [all, masters] = await Promise.all([
+      readPlanVersions(),
+      readPlanMasters(),
+    ])
     const latestByMba = new Map<string, any>()
     for (const plan of all) {
       const mba = plan?.mba_number
@@ -99,7 +109,8 @@ async function fetchUpstream(): Promise<any[]> {
         latestByMba.set(String(mba), plan)
       }
     }
-    return Array.from(latestByMba.values()).map(stripScheduleFields)
+    const latest = Array.from(latestByMba.values()).map(stripScheduleFields)
+    return applyMasterOwnedOverlayByMba(latest, masters)
   }
 
   // shadow / xano: serve Xano `_latest` (shadow compare happens via readPlanVersions elsewhere)
