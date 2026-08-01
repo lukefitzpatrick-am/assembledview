@@ -7,7 +7,13 @@ import {
   fetchCampaignKpis,
   updateCampaignKpi,
 } from "@/lib/kpi/campaignKpi"
-import { campaignKpiCreateBodySchema, campaignKpiPatchBodySchema } from "@/lib/kpi/types"
+import {
+  handleCampaignKpiDelete,
+  handleCampaignKpiPatch,
+  handleCampaignKpiPost,
+  mapKpiWriteCatch,
+  readKpiJsonRequest,
+} from "@/lib/kpi/kpiWriteHandlers"
 
 export const runtime = "nodejs"
 
@@ -45,19 +51,18 @@ export async function POST(request: NextRequest) {
   if ("response" in gate) return gate.response
 
   try {
-    const body = await request.json()
-    const parsed = campaignKpiCreateBodySchema.safeParse(body)
-    if (!parsed.success) {
-      const msg =
-        parsed.error.issues.map((i) => i.message).join("; ") || "Validation failed"
-      return NextResponse.json({ error: msg }, { status: 400 })
+    const json = await readKpiJsonRequest(request)
+    if (!("ok" in json)) {
+      return NextResponse.json(json.body, { status: json.status })
     }
-    const results = await createCampaignKpis(parsed.data)
-    return NextResponse.json(results, { status: 201 })
+    const result = await handleCampaignKpiPost(json.data, {
+      create: createCampaignKpis,
+    })
+    return NextResponse.json(result.body, { status: result.status })
   } catch (error) {
     console.error("POST /api/kpis/campaign:", error)
-    const message = error instanceof Error ? error.message : "Internal server error"
-    return NextResponse.json({ error: message }, { status: 500 })
+    const mapped = mapKpiWriteCatch(error)
+    return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }
 
@@ -66,25 +71,18 @@ export async function PATCH(request: NextRequest) {
   if ("response" in gate) return gate.response
 
   try {
-    const body = await request.json()
-    const parsed = campaignKpiPatchBodySchema.safeParse(body)
-    if (!parsed.success) {
-      const msg =
-        parsed.error.issues.map((i) => i.message).join("; ") || "Validation failed"
-      return NextResponse.json({ error: msg }, { status: 400 })
+    const json = await readKpiJsonRequest(request)
+    if (!("ok" in json)) {
+      return NextResponse.json(json.body, { status: json.status })
     }
-    const { id, ...rest } = parsed.data
-    const result = await updateCampaignKpi(id, rest)
-    if (result === null) {
-      return NextResponse.json(
-        { error: "Failed to update campaign KPI" },
-        { status: 500 },
-      )
-    }
-    return NextResponse.json(result)
+    const result = await handleCampaignKpiPatch(json.data, {
+      update: updateCampaignKpi,
+    })
+    return NextResponse.json(result.body, { status: result.status })
   } catch (error) {
     console.error("PATCH /api/kpis/campaign:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const mapped = mapKpiWriteCatch(error)
+    return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }
 
@@ -93,20 +91,14 @@ export async function DELETE(request: NextRequest) {
   if ("response" in gate) return gate.response
 
   try {
-    const id = request.nextUrl.searchParams.get("id")
-    if (!id?.trim()) {
-      return NextResponse.json({ error: "id is required" }, { status: 400 })
-    }
-    const ok = await deleteCampaignKpi(Number(id))
-    if (!ok) {
-      return NextResponse.json(
-        { error: "Failed to delete campaign KPI" },
-        { status: 500 },
-      )
-    }
-    return NextResponse.json({ success: true })
+    const result = await handleCampaignKpiDelete(
+      request.nextUrl.searchParams.get("id"),
+      { delete: deleteCampaignKpi },
+    )
+    return NextResponse.json(result.body, { status: result.status })
   } catch (error) {
     console.error("DELETE /api/kpis/campaign:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    const mapped = mapKpiWriteCatch(error)
+    return NextResponse.json(mapped.body, { status: mapped.status })
   }
 }

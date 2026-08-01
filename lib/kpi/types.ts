@@ -23,11 +23,12 @@ export interface ClientKPI {
   publisher_name: string
   media_type: string
   bid_strategy: string
-  ctr: number
-  cpv: number
-  conversion_rate: number
-  vtr: number
-  frequency: number
+  /** null = unset (no target); 0 = deliberate zero target */
+  ctr: number | null
+  cpv: number | null
+  conversion_rate: number | null
+  vtr: number | null
+  frequency: number | null
 }
 
 export interface CampaignKPI {
@@ -94,11 +95,12 @@ export interface ClientKpi {
   publisher_name: string
   media_type: string
   bid_strategy: string
-  ctr: number
-  cpv: number
-  conversion_rate: number
-  vtr: number
-  frequency: number
+  /** null = unset (no target); 0 = deliberate zero target */
+  ctr: number | null
+  cpv: number | null
+  conversion_rate: number | null
+  vtr: number | null
+  frequency: number | null
 }
 
 export type ClientKpiInput = Omit<ClientKpi, "id" | "created_at">
@@ -310,15 +312,6 @@ export type PublisherKpiInput = Omit<PublisherKpi, "id" | "created_at">
 
 // --- Zod (shared with publisher + campaign + client body schemas) ---
 
-/** Legacy coerce-to-0 metric (client KPI bodies still use this). */
-const kpiMetric = z
-  .union([z.string(), z.number(), z.null(), z.undefined()])
-  .transform((v) => {
-    if (v === "" || v === null || v === undefined) return 0
-    const n = typeof v === "number" ? v : Number(String(v).trim())
-    return Number.isFinite(n) ? n : 0
-  })
-
 /**
  * Null for unset, zero or positive number when set.
  * Negatives are rejected. Use null to express "no target" and 0 for a real zero target.
@@ -335,13 +328,14 @@ const kpiMetricNullable = z
     message: "Targets cannot be negative.",
   })
 
-/** Percent metrics stored as decimals (0–1). */
+/** Percent metrics stored as decimals (0–1). UI sends percentage points converted client-side. */
 const kpiPercentMetricNullable = kpiMetricNullable.refine(
   (v) => v === null || v <= 1,
   { message: "Percent targets must be between 0 and 100." },
 )
 
 const nonEmptyStr = z.string().trim().min(1, "Required")
+const kpiRowIdSchema = z.coerce.number().int().positive("id must be a positive integer")
 
 export const publisherKpiCreateBodySchema = z.object({
   publisher: nonEmptyStr,
@@ -356,7 +350,7 @@ export const publisherKpiCreateBodySchema = z.object({
 
 export const publisherKpiPatchBodySchema = z
   .object({
-    id: z.coerce.number(),
+    id: kpiRowIdSchema,
     publisher: z.string().trim().min(1).optional(),
     media_type: z.string().trim().min(1).optional(),
     bid_strategy: z.string().trim().min(1).optional(),
@@ -393,17 +387,17 @@ const campaignKpiItemSchema = z.object({
   publisher: nonEmptyStr,
   bid_strategy: nonEmptyStr,
   line_item_id: z.string().trim().min(1, "line_item_id is required"),
-  ctr: kpiMetricNullable.nullable().default(null),
+  ctr: kpiPercentMetricNullable.nullable().default(null),
   cpv: kpiMetricNullable.nullable().default(null),
-  conversion_rate: kpiMetricNullable.nullable().default(null),
-  vtr: kpiMetricNullable.nullable().default(null),
+  conversion_rate: kpiPercentMetricNullable.nullable().default(null),
+  vtr: kpiPercentMetricNullable.nullable().default(null),
   frequency: kpiMetricNullable.nullable().default(null),
 })
 
 export const campaignKpiCreateBodySchema = z.array(campaignKpiItemSchema)
 
 export const campaignKpiPatchBodySchema = z.object({
-  id: z.coerce.number(),
+  id: kpiRowIdSchema,
   mp_client_name: z.string().trim().min(1).optional(),
   mba_number: z.string().trim().min(1).optional(),
   version_number: z.coerce.number().optional(),
@@ -412,39 +406,39 @@ export const campaignKpiPatchBodySchema = z.object({
   publisher: z.string().trim().min(1).optional(),
   bid_strategy: z.string().trim().min(1).optional(),
   line_item_id: z.string().trim().min(1).optional(),
-  ctr: kpiMetricNullable.nullable().optional(),
+  ctr: kpiPercentMetricNullable.nullable().optional(),
   cpv: kpiMetricNullable.nullable().optional(),
-  conversion_rate: kpiMetricNullable.nullable().optional(),
-  vtr: kpiMetricNullable.nullable().optional(),
+  conversion_rate: kpiPercentMetricNullable.nullable().optional(),
+  vtr: kpiPercentMetricNullable.nullable().optional(),
   frequency: kpiMetricNullable.nullable().optional(),
 })
 
-// --- new: client KPI API request bodies (match prior manual checks) ---
+// --- client KPI API request bodies (decimal percent contract; unset = null) ---
 
 export const clientKpiCreateBodySchema = z.object({
   mp_client_name: nonEmptyStr,
   publisher_name: nonEmptyStr,
   media_type: nonEmptyStr,
   bid_strategy: z.string().optional().default(""),
-  ctr: kpiMetric.optional().default(0),
-  cpv: kpiMetric.optional().default(0),
-  conversion_rate: kpiMetric.optional().default(0),
-  vtr: kpiMetric.optional().default(0),
-  frequency: kpiMetric.optional().default(0),
+  ctr: kpiPercentMetricNullable.optional().default(null),
+  cpv: kpiMetricNullable.optional().default(null),
+  conversion_rate: kpiPercentMetricNullable.optional().default(null),
+  vtr: kpiPercentMetricNullable.optional().default(null),
+  frequency: kpiMetricNullable.optional().default(null),
 })
 
 export const clientKpiPatchBodySchema = z
-  .object({ id: z.coerce.number() })
+  .object({ id: kpiRowIdSchema })
   .merge(
     z.object({
       mp_client_name: z.string().trim().min(1).optional(),
       publisher_name: z.string().trim().min(1).optional(),
       media_type: z.string().trim().min(1).optional(),
       bid_strategy: z.string().optional(),
-      ctr: kpiMetric.optional(),
-      cpv: kpiMetric.optional(),
-      conversion_rate: kpiMetric.optional(),
-      vtr: kpiMetric.optional(),
-      frequency: kpiMetric.optional(),
+      ctr: kpiPercentMetricNullable.optional(),
+      cpv: kpiMetricNullable.optional(),
+      conversion_rate: kpiPercentMetricNullable.optional(),
+      vtr: kpiPercentMetricNullable.optional(),
+      frequency: kpiMetricNullable.optional(),
     }),
   )

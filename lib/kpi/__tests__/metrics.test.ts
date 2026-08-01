@@ -6,7 +6,11 @@ import {
   validateKpiMetricValue,
 } from "../metrics.js"
 import { emptyPublisherKpiMetricDefaults } from "../publisherKpiDefaults.js"
-import { publisherKpiCreateBodySchema } from "../types.js"
+import {
+  campaignKpiCreateBodySchema,
+  clientKpiCreateBodySchema,
+  publisherKpiCreateBodySchema,
+} from "../types.js"
 
 test("sub-1% target round-trips: enter 0.45 → store decimal → display 0.45%, not 45%", () => {
   const stored = parsePercentHeuristic("0.45")
@@ -89,6 +93,58 @@ test("publisher create schema rejects negatives and percent > 100pp", () => {
     frequency: null,
   })
   assert.equal(over.success, false)
+})
+
+test("campaign + client create schemas enforce decimal percent (≤1), unset null", () => {
+  const campaign = campaignKpiCreateBodySchema.parse([
+    {
+      mp_client_name: "Acme",
+      mba_number: "MBA-1",
+      version_number: 1,
+      campaign_name: "Spring",
+      media_type: "digitalDisplay",
+      publisher: "pub_1",
+      bid_strategy: "cpm",
+      line_item_id: "li_1",
+      ctr: 0.0045,
+    },
+  ])
+  assert.equal(campaign[0]!.ctr, 0.0045)
+  assert.equal(campaign[0]!.vtr, null)
+
+  assert.equal(
+    campaignKpiCreateBodySchema.safeParse([
+      {
+        mp_client_name: "Acme",
+        mba_number: "MBA-1",
+        version_number: 1,
+        campaign_name: "Spring",
+        media_type: "digitalDisplay",
+        publisher: "pub_1",
+        bid_strategy: "cpm",
+        line_item_id: "li_1",
+        ctr: 5,
+      },
+    ]).success,
+    false,
+  )
+
+  const client = clientKpiCreateBodySchema.parse({
+    mp_client_name: "Acme",
+    publisher_name: "Pub",
+    media_type: "search",
+  })
+  assert.equal(client.ctr, null)
+  assert.equal(client.frequency, null)
+  assert.equal(
+    clientKpiCreateBodySchema.safeParse({
+      mp_client_name: "Acme",
+      publisher_name: "Pub",
+      media_type: "search",
+      ctr: 12,
+    }).success,
+    false,
+  )
 })
 
 test("validateKpiMetricValue: percent 0–100pp, frequency >= 0, cpv >= 0", () => {
