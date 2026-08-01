@@ -10,6 +10,10 @@ import {
   xanoFinancePatch,
 } from "@/lib/finance/xanoFinanceApi"
 import { readFinanceBillingRecords } from "@/lib/data/readFinance"
+import {
+  enrichPendingFromXero,
+  loadMbaOptionsForQueue,
+} from "@/lib/finance/sections/xero/enrichPendingFromXero"
 
 export const maxDuration = 60
 
@@ -53,12 +57,17 @@ export async function GET(request: NextRequest) {
         }),
     ])
 
-    const pending = capRows(
+    const pendingRaw = capRows(
       billingRows.filter((row) => {
         const r = asRecord(row)
         return r != null && r.has_pending_edits === true
       })
     )
+
+    const [pending, mbaOptions] = await Promise.all([
+      enrichPendingFromXero(pendingRaw),
+      loadMbaOptionsForQueue(),
+    ])
 
     const exceptionRows = parseXanoListPayload(exceptionsRaw)
     const exceptions = capRows(
@@ -75,6 +84,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       pending,
       exceptions,
+      mbaOptions,
       meta: {
         pending_count: pending.length,
         exceptions_count: exceptions.length,
