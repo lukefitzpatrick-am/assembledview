@@ -97,6 +97,7 @@ pct === 100 → fee = 0 (division guard)
 - `pacing_mappings` writes must write through to `MART_PACING.DIM_PLAN_MAPPING` then refresh facts — refresh order: `FACT_DELIVERY_DAILY` before `FACT_LINE_ITEM_PACING_DAILY`. Snowflake deletes are soft (`IS_ACTIVE = FALSE`).
 - Snowflake dynamic tables can't ALTER the query body — adding a platform is `CREATE OR REPLACE`; new stage views must match `V_GOOGLE_ADS_AD_GROUP_DAILY` column list/order/types exactly.
 - `MART.XANO_LINE_ITEMS_SNAPSHOT` ingest source is gated by `LINE_ITEM_SNAPSHOT_SOURCE` (`xano` \| `parity` \| `postgres`). Default remains **xano**; `parity` reports only (still MERGEs Xano); flip to `postgres` only after a clean MBA row/spend parity report (Luke).
+- Snapshot warehouse readers do not tip-select from `XANO_LINE_ITEMS_SNAPSHOT` — ingest/parity must pre-scope to `published_version_id` tip rows.
 
 ## KPI law
 

@@ -57,6 +57,23 @@ Largest spend deltas: `PENFOLD020`, `PENFOLD015`, `PENFOLD018` (duplicate-class 
 
 Probe `PENFOLD020`: **16/20** channel tables `complete=false` (early-stop). Tip-scope closed the “PG inflated by history” gap, but mismatches rose — many MBAs now show **Xano rows > tip PG** (missing/wrong `published_version_id`, or Xano channel tables not tip-only). Flip still **held**.
 
+### Tip×tip re-run (2026-08-02, v3 — both sides tip)
+
+Xano crawl filtered to PG `published_version_id` (FK `media_plan_version`, fallback `version_number`). Cron / `LINE_ITEM_SNAPSHOT_SOURCE` unchanged; MERGE still full Xano crawl.
+
+| Metric | Tip PG vs all-version Xano | Tip×tip |
+|--------|---------------------------:|--------:|
+| xano_raw (scoped) / pg_raw | 2,073 deduped / 1,927 | **1,320 → 1,293 deduped / 1,927** |
+| mba_mismatches | 55 | **26** |
+| spend_delta_abs_sum | ~451.5k | **~117.2k** |
+| xano_complete | false | **false** (pagination early-stop) |
+
+**Pointer audit:** 178 masters; 176 with `published_version_id`; **2 null** (`golf022`, `test123001`); **7 stale vs latest booked/approved/completed** (`BOSS011`, `buxton003`, `candel002`, `cuheal001`, `hartm009`, `jayco004`, `malay001`) — published tip is often newer planned/cancelled than the latest booked row.
+
+**Reader contract (from code, confidence 88%):** Snowflake/mart consumers of `MART.XANO_LINE_ITEMS_SNAPSHOT` do **not** tip-select or version-filter (e.g. `sp_refresh_fixed_cost_reported_daily` selects `WHERE FIXED_COST_MEDIA = TRUE` only). Ingest MERGE keys on `LINE_ITEM_ID` and collapses dupes by newest `xano_created_at` — it does not choose a published tip. Live pacing pages tip-select from Xano channel tables (`filterByMbaAndVersion`), not from the snapshot. Therefore “correct” snapshot contents are **pre-scoped tip rows** (one live plan version per MBA).
+
+Residual mismatches still dominated by Xano pagination under-count (PG > tip Xano on PENFOLD*/krusty001). Flip still **held**.
+
 ## Flip (after clean report)
 
 ```bash

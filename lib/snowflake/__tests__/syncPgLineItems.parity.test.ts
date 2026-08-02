@@ -11,6 +11,10 @@ import {
   spendFromBurstsJson,
 } from "../lineItemSnapshotParity.js"
 import { CHANNEL_TO_SOURCE_TABLE, mapPgLineItemToSnapshot } from "../pgLineItemSnapshotMap.js"
+import {
+  filterXanoItemsToPublishedTips,
+  type PublishedTipPointer,
+} from "../tipScopeLineItems.js"
 
 function item(overrides: Partial<XanoLineItem> & { line_item_id: string }): XanoLineItem {
   return {
@@ -125,4 +129,50 @@ test("mapPgLineItemToSnapshot maps channel to SOURCE_TABLE", () => {
   assert.equal(mapped!.line_item_name, "Meta - Lowest - CPC")
   assert.equal(mapped!.xano_row_id, 42)
   assert.equal(mapped!.mba_number, "test001")
+})
+
+test("filterXanoItemsToPublishedTips keeps tip FK / version_number only", () => {
+  const tips: PublishedTipPointer[] = [
+    {
+      mba_number: "krusty010",
+      master_id: 1,
+      published_version_id: 1049,
+      version_number: 2,
+      published_campaign_status: "booked",
+    },
+  ]
+  const items = [
+    item({
+      line_item_id: "tip-fk",
+      mba_number: "krusty010",
+      media_plan_version_id: 1049,
+      version_number: 2,
+    }),
+    item({
+      line_item_id: "old-fk",
+      mba_number: "krusty010",
+      media_plan_version_id: 900,
+      version_number: 1,
+    }),
+    item({
+      line_item_id: "tip-vn-fallback",
+      mba_number: "krusty010",
+      media_plan_version_id: 2, // Root-Cause-C: version number in FK field
+      version_number: 2,
+    }),
+    item({
+      line_item_id: "other-mba",
+      mba_number: "orphan",
+      media_plan_version_id: 1049,
+      version_number: 2,
+    }),
+  ]
+  const { items: kept, stats } = filterXanoItemsToPublishedTips(items, tips)
+  assert.equal(kept.length, 2)
+  assert.deepEqual(
+    kept.map((i) => i.line_item_id).sort(),
+    ["tip-fk", "tip-vn-fallback"]
+  )
+  assert.equal(stats.dropped_no_tip_master, 1)
+  assert.equal(stats.dropped_version_mismatch, 1)
 })

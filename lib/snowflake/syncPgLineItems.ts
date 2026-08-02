@@ -7,6 +7,8 @@ import {
   type LineItemSnapshotParityReport,
   type LineItemSnapshotSource,
 } from "@/lib/snowflake/lineItemSnapshotParity"
+import { auditPublishedVersionPointers } from "@/lib/snowflake/publishedVersionPointerAudit"
+import { filterXanoItemsToPublishedTips } from "@/lib/snowflake/tipScopeLineItems"
 import { syncLineItemsToSnowflake } from "@/lib/snowflake/syncXanoLineItems"
 import { fetchAllXanoLineItems } from "@/lib/xano/fetchAllLineItems"
 
@@ -69,12 +71,18 @@ export async function runLineItemSnapshotSync(
   }
 
   if (source === "parity") {
-    const [xanoResult, pgResult] = await Promise.all([
+    const [xanoResult, pgResult, pointerAudit] = await Promise.all([
       fetchAllXanoLineItems(),
       fetchAllPgLineItems(),
+      auditPublishedVersionPointers(),
     ])
-    const parity = buildLineItemSnapshotParityReport(
+    // Compare tip-to-tip (PG published_version_id). MERGE still writes full Xano crawl.
+    const tipScoped = filterXanoItemsToPublishedTips(
       xanoResult.items,
+      pointerAudit.tip_pointers
+    )
+    const parity = buildLineItemSnapshotParityReport(
+      tipScoped.items,
       pgResult.items,
       {
         xanoComplete: xanoResult.complete,
@@ -82,7 +90,7 @@ export async function runLineItemSnapshotSync(
       }
     )
     console.log(
-      `[line-item-snapshot] parity: xano=${parity.xano_deduped} pg=${parity.pg_deduped} mba_mismatches=${parity.mba_mismatches} spend_delta_abs=${parity.spend_delta_abs_sum}`
+      `[line-item-snapshot] parity (tip×tip): xano_tip=${parity.xano_deduped} pg=${parity.pg_deduped} mba_mismatches=${parity.mba_mismatches} spend_delta_abs=${parity.spend_delta_abs_sum} null_ptr=${pointerAudit.null_published.length} stale_ptr=${pointerAudit.stale_vs_latest_booked.length}`
     )
     // Do not switch — keep warehouse on Xano until Luke flips source=postgres.
     const sync = await syncLineItemsToSnowflake(

@@ -28,6 +28,13 @@ export interface XanoLineItem {
   xano_row_id: number
   /** Unix milliseconds (normalized from Xano `created_at`). */
   xano_created_at: number
+  /**
+   * Version FK from Xano channel row (`media_plan_version` / `_id`).
+   * Used for tip-scope parity only — not written to Snowflake.
+   */
+  media_plan_version_id?: number | null
+  /** Version number from Xano channel row — tip-scope fallback. */
+  version_number?: number | null
 }
 
 export interface FetchAllXanoLineItemsResult {
@@ -76,6 +83,12 @@ function normaliseLineItemId(raw: unknown): string | null {
   return s.length > 0 ? s : null
 }
 
+function coerceOptionalInt(raw: unknown): number | null {
+  if (raw == null || raw === "") return null
+  const n = typeof raw === "number" ? raw : Number(raw)
+  return Number.isFinite(n) ? Math.trunc(n) : null
+}
+
 function mapRowToLineItem(row: Record<string, unknown>, table: XanoMediaPlanTable): XanoLineItem | null {
   const line_item_id = normaliseLineItemId(row.line_item_id ?? row.lineItemId)
   if (!line_item_id) return null
@@ -83,6 +96,11 @@ function mapRowToLineItem(row: Record<string, unknown>, table: XanoMediaPlanTabl
   const idRaw = row.id ?? row.ID
   const xano_row_id = typeof idRaw === "number" ? idRaw : Number(idRaw)
   if (!Number.isFinite(xano_row_id)) return null
+
+  const media_plan_version_id = coerceOptionalInt(
+    row.media_plan_version_id ?? row.media_plan_versionID ?? row.media_plan_version
+  )
+  const version_number = coerceOptionalInt(row.version_number ?? row.versionNumber)
 
   return {
     line_item_id,
@@ -96,6 +114,8 @@ function mapRowToLineItem(row: Record<string, unknown>, table: XanoMediaPlanTabl
     source_table: table.table_name,
     xano_row_id,
     xano_created_at: coerceCreatedAtMs(row.created_at ?? row.createdAt),
+    media_plan_version_id,
+    version_number,
   }
 }
 
