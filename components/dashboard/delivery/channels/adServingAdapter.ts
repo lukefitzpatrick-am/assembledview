@@ -1,4 +1,4 @@
-import { getMediaColor } from "@/lib/charts/registry"
+import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { getLineItemKpiRow } from "@/lib/kpi/lineItemKpiTargets"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
@@ -182,7 +182,10 @@ export function buildAdServingSection(input: {
   if (!adRows.length) return null
 
   const asAtISO = getMelbourneTodayISO()
-  const accentColour = brandColour ?? getMediaColor("digital_display")
+  // Channel chrome uses media-type colour; brandColour stays on chart props only (AVU5-4).
+  // Ad serving borrows digital_display — collides with a real Digital Display channel (see AVU5-3 report).
+  const mediaTypeColour = channelMediaTypeColour("ad-serving")
+  const accentColour = mediaTypeColour
 
   const metrics = normalized.map((item) => {
     const id = item.line_item_id!
@@ -403,7 +406,7 @@ export function buildAdServingSection(input: {
         tone: "cm360",
       },
     ],
-    mediaTypeColour: accentColour,
+    mediaTypeColour,
     aggregate: {
       summaryChips: [
         { label: "Served impressions", value: formatWholeNumber(rollup.impressions) },

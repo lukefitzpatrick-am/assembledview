@@ -1,5 +1,6 @@
 import { formatMoney } from "@/lib/format/money"
 import { getDeterministicColor, getMediaColor } from "@/lib/charts/registry"
+import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import { clipDateRangeToCampaign, type DateRange } from "@/lib/dashboard/dateFilter"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
@@ -175,7 +176,10 @@ export function buildSearchSection(input: {
 
   const aggregateTrack = pacingPctToStatus(totalDerived.clicksPacingPct)
 
-  const accentColour = brandColour ?? searchSeriesPalette.cost
+  // Channel chrome uses media-type colour; brandColour stays on chart props only (AVU5-4).
+  // searchSeriesPalette.cost === getMediaColor("search") — confirmed equal; keep palette for series accents.
+  const mediaTypeColour = channelMediaTypeColour("search")
+  const accentColour = mediaTypeColour
 
   const avgDeliveryPct =
     ((typeof totalDerived.budgetPacingPct === "number" ? totalDerived.budgetPacingPct : 0) +
@@ -326,7 +330,7 @@ export function buildSearchSection(input: {
     dateRange: { startISO: campaignStart, endISO: campaignEnd },
     lastSyncedAt,
     connections: [{ label: "Google Ads connected", tone: "google-ads" }],
-    mediaTypeColour: accentColour,
+    mediaTypeColour,
     aggregate: {
       summaryChips,
       progressCards: [spendCard, deliverableCard],
