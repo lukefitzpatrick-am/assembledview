@@ -131,8 +131,9 @@ export async function fetchAllXanoPagesWithCompleteness(
 
       if (i > 0 && addedThisPage === 0) {
         // We received a page, but nothing new was added => pagination likely ignored.
-        // Stop to avoid duplicating the same records over and over.
+        // Stop to avoid duplicating the same records over and over — walk is incomplete.
         console.warn(`[${label}] Pagination appears unsupported; stopping early after page ${page}`)
+        complete = false
         break
       }
 
@@ -184,6 +185,7 @@ export async function fetchAllXanoPagesWithCompleteness(
 
         if (i > 0 && addedThisPage === 0) {
           console.warn(`[${label}] Pagination appears unsupported; stopping early after page ${page}`)
+          complete = false
           break
         }
 

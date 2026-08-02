@@ -37,6 +37,26 @@ Clean gate (suggested): `mba_mismatches = 0` and `spend_delta_abs_sum ≤ 0.01` 
 
 Largest spend deltas: `PENFOLD020`, `PENFOLD015`, `PENFOLD018` (duplicate-class MBAs in `PLANS_DUPLICATE_CLASS_MBAS`). Many Xano channel tables logged **“Pagination appears unsupported; stopping early after page 2”** while still marking `complete=true` — Xano side under-counts; treat Xano completeness confidence **&lt;70%**. Prefer investigating pagination / tip-version scope before flipping.
 
+## Follow-up (hold flip — earn the conclusion)
+
+1. **Tip-scope PG** — `fetchAllPgLineItems()` defaults to `published_version_id` only (`scope: "all"` diagnostic).
+2. **Pagination honesty** — unsupported-pagination early-stop now sets `complete=false` (was wrongly `true`).
+3. **Probe one big MBA** — `scripts/verify/probe-xano-line-item-pagination.ts --mba=PENFOLD020`.
+4. Set **`LINE_ITEM_SNAPSHOT_SOURCE=parity`** for a cron cycle (MERGE still Xano). Needs a production redeploy for the new env to bind.
+5. PENFOLD deltas may resolve to “PG right, Xano always under-counted” — **earn that**, do not waive.
+
+### Tip-scoped re-run (2026-08-02, after fix)
+
+| Metric | Pre (all-versions PG) | Post (tip PG) |
+|--------|----------------------:|--------------:|
+| pg_raw / pg_deduped | 13,987 / 2,578 | **1,927 / 1,927** |
+| xano_deduped | 2,073 | 2,073 |
+| xano_complete | true (lie) | **false** |
+| mba_mismatches | 28 | **55** |
+| spend_delta_abs_sum | ~1.26M | **~451.5k** |
+
+Probe `PENFOLD020`: **16/20** channel tables `complete=false` (early-stop). Tip-scope closed the “PG inflated by history” gap, but mismatches rose — many MBAs now show **Xano rows > tip PG** (missing/wrong `published_version_id`, or Xano channel tables not tip-only). Flip still **held**.
+
 ## Flip (after clean report)
 
 ```bash

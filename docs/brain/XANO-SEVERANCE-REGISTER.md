@@ -353,30 +353,23 @@ Update READ-FAILURE-REGISTER + this register. REPORT: crawl sites removed, soak 
 
 ### X6 — Vault file migration (media_plan / mba_pdf / aa_media_plan → Blob)
 
+**Decision: Vercel Blob (B)** — not Supabase Storage. Creative/Xero already Blob; ~512 MiB plan files enumerable from PG jsonb only (no vault listing API). Spec + caveats: `docs/superpowers/x6-vault-to-vercel-blob-2026-08-02.md` (checksum every copy; vault-URL read-fallback until a week of zero fallback reads).
+
 ```
 PASTE INTO CURSOR — X6: migrate Xano vault plan files to Vercel Blob
-
-Branch: localhost. Sizing from XANO-SEVERANCE-REGISTER.md §2:
-  ~512 MiB Postgres / ~529 MiB Xano export; 819+819+261 field-hits; creative/xero = 0.
-1. Script: for each media_plan_versions row with a2.xano.io/vault (or /vault path),
-   download → put on Vercel Blob → rewrite jsonb {url,pathname,filename,size,mime}.
-2. Dual-run safe: leave Xano blobs intact until verify; PG is authoritative for app reads
-   once WRITE_BACKEND=postgres document upload is Blob-native.
-3. Rewire /api/mediaplans/versions/[id]/documents off XANO_SAVE_FILE_BASE_URL.
-4. AA export / mba PDF download paths must use new URLs.
-5. Do not migrate Xero PDFs (already Blob). Update register §2 with post-migration zeros.
-REPORT: rows migrated, bytes, failures, residual vault counts.
+(Decision locked: Vercel Blob. Checksum + vault fallback required.)
 ```
 
 ### X7 — Snowflake line-item snapshot from Postgres (parity → STOP flip)
 
 ```
-DONE (code): fetchAllPgLineItems + runLineItemSnapshotSync; cron env
-LINE_ITEM_SNAPSHOT_SOURCE=xano|parity|postgres (default xano). Parity reports
-MBA row counts + burst spend sums; MERGEs Xano until Luke flips to postgres.
-STOP: docs/superpowers/x7-line-item-snapshot-pg-stop-2026-08-02.md
-Author verify: npm run verify:line-item-snapshot-parity
-(Former register “kill lib/api.ts Xano” work moves to X8 / T7.)
+DONE (code): fetchAllPgLineItems tip-scopes published_version_id by default;
+runLineItemSnapshotSync; cron env LINE_ITEM_SNAPSHOT_SOURCE=xano|parity|postgres
+(default xano). Parity MERGEs Xano until Luke flips. Early-stop pagination now
+sets complete=false. STOP: docs/superpowers/x7-line-item-snapshot-pg-stop-2026-08-02.md
+Author: npm run verify:line-item-snapshot-parity
+Probe: scripts/verify/probe-xano-line-item-pagination.ts --mba=PENFOLD020
+Hold flip until tip-scoped parity is clean — earn “PG right / Xano under-count”.
 ```
 
 ### X8 — last Xano callers (env-literal severance)

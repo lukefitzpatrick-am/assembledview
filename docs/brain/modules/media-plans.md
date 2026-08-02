@@ -37,7 +37,7 @@ The campaign builder. Creates an MBA-numbered plan (`media_plan_master`), cuts i
 
 ### Full MBA GET `!skipLineItems` (C-22 / X2)
 
-Create/edit load with `skipLineItems=true` and hydrate channels via `DATA_BACKEND_PLANS` / `readMediaPlans` per-channel readers. Full combined GET (`!skipLineItems`) serves from one `line_items` query set (`readMbaPlanDetail` + `mbaGetAssemble`); shape parity suite: `lib/data/__tests__/mbaPlanDetailParity.test.ts`. `nextVersionNumber` = tip+1 (O4.6). `DATA_BACKEND_PLAN_DETAIL=xano` → 410. Snowflake `XANO_LINE_ITEMS_SNAPSHOT` ingest: X7 PG path behind `LINE_ITEM_SNAPSHOT_SOURCE` (default xano until Luke STOP flip).
+Create/edit load with `skipLineItems=true` and hydrate channels via `DATA_BACKEND_PLANS` / `readMediaPlans` per-channel readers. Full combined GET (`!skipLineItems`) serves from one `line_items` query set (`readMbaPlanDetail` + `mbaGetAssemble`); shape parity suite: `lib/data/__tests__/mbaPlanDetailParity.test.ts`. `nextVersionNumber` = tip+1 (O4.6). `DATA_BACKEND_PLAN_DETAIL=xano` → 410. Snowflake `XANO_LINE_ITEMS_SNAPSHOT` ingest: X7 PG path behind `LINE_ITEM_SNAPSHOT_SOURCE` (default xano until Luke STOP flip). PG fetch tip-scopes `published_version_id` by default.
 
 ## Load
 

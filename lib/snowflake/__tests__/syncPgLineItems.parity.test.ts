@@ -1,4 +1,7 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { test } from "node:test"
 
 import type { XanoLineItem } from "../../xano/fetchAllLineItems.js"
@@ -29,6 +32,14 @@ test("normaliseLineItemSnapshotSource", () => {
   assert.equal(normaliseLineItemSnapshotSource("parity"), "parity")
   assert.equal(normaliseLineItemSnapshotSource("PG"), "postgres")
   assert.equal(normaliseLineItemSnapshotSource("postgres"), "postgres")
+})
+
+test("PG snapshot default scope is tip (published_version_id), not all versions", () => {
+  // Contract check without importing server-only fetchAllPgLineItems.
+  const here = dirname(fileURLToPath(import.meta.url))
+  const src = readFileSync(join(here, "../fetchAllPgLineItems.ts"), "utf8")
+  assert.match(src, /options\?\.scope === "all" \? "all" : "tip"/)
+  assert.match(src, /publishedVersionId/)
 })
 
 test("spendFromBurstsJson prefers budget then media+fee", () => {
