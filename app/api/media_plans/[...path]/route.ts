@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createChannelLineItemsGetHandler } from "@/lib/api/channelLineItemsGetHandler"
 import { isChannelLineItemEndpoint } from "@/lib/api/fetchChannelLineItemsByMba"
-import { getDataBackendFor } from "@/lib/data/backend"
+import { getDataBackendFor, getWriteBackend } from "@/lib/data/backend"
 import { xanoAuthHeader, xanoUrl } from "@/lib/api/xano"
 import { requireRole } from "@/lib/requireRole"
 import { checkMediaPlansProxyPath } from "@/lib/security/proxyAllowlist"
@@ -131,10 +131,31 @@ export async function GET(request: Request, context: Ctx) {
   return proxy(request, context)
 }
 
+/**
+ * X2: under WRITE_BACKEND=postgres, channel line-item mutations go through
+ * `POST /api/plans/save` (savePlan txn) — catch-all Xano CRUD is retired.
+ * When WRITE_BACKEND=xano, legacy replaceChannelLineItems still proxies.
+ */
+function retiredChannelWriteResponse(parts: string[] | undefined): NextResponse | null {
+  if (getWriteBackend() !== "postgres") return null
+  const segment = parts?.[0] ?? ""
+  if (!segment || !isChannelLineItemEndpoint(segment)) return null
+  return NextResponse.json(
+    {
+      error:
+        "Channel line-item writes via /api/media_plans catch-all are retired under WRITE_BACKEND=postgres. Use POST /api/plans/save.",
+      code: "MEDIA_PLANS_CHANNEL_WRITE_GONE",
+    },
+    { status: 410 }
+  )
+}
+
 export async function POST(request: Request, context: Ctx) {
   const { path: parts } = await context.params
   const denied = await requireProxyStaff(request, (parts || []).join("/") || "media_plans")
   if (denied) return denied
+  const gone = retiredChannelWriteResponse(parts)
+  if (gone) return gone
   return proxy(request, context)
 }
 
@@ -142,6 +163,8 @@ export async function PUT(request: Request, context: Ctx) {
   const { path: parts } = await context.params
   const denied = await requireProxyStaff(request, (parts || []).join("/") || "media_plans")
   if (denied) return denied
+  const gone = retiredChannelWriteResponse(parts)
+  if (gone) return gone
   return proxy(request, context)
 }
 
@@ -149,5 +172,7 @@ export async function DELETE(request: Request, context: Ctx) {
   const { path: parts } = await context.params
   const denied = await requireProxyStaff(request, (parts || []).join("/") || "media_plans")
   if (denied) return denied
+  const gone = retiredChannelWriteResponse(parts)
+  if (gone) return gone
   return proxy(request, context)
 }

@@ -23,14 +23,14 @@ Living inventory of every Next.js surface that still depends on Xano. Built by X
 
 | Verdict | Count | Notes |
 |---|---:|---|
-| DUAL-DONE (read path at least) | 22 | Includes channel GETs; writes on same file may still be PORT |
-| PORT | 38 | Dominant remaining work |
-| RETIRE(dead) | 13 | Channel POSTs ×9 + campaigns×2 + accrual + check-id |
+| DUAL-DONE (read path at least) | ~25 | Channel GETs + billing override writes + PLAN_DETAIL GET (X2) |
+| PORT | ~33 | Dominant remaining work (finance writes, creative, pacing, …) |
+| RETIRE(dead) | ~16 | Channel POSTs×10 + TV `[id]` + campaigns×2 + accrual + check-id (X2 executed for channel family) |
 | MIRROR | 2 | `plans/save` mirror half + `admin/xano-mirror/retry` |
 | TOOLING | 5 | admin×3, cron sync, spend-parity |
 | NOT-XANO | 3 | `chat-v2`, `cron/xero-sync`, `mediaplans/[id]/download` |
 
-Method-split rows (GET dual / POST retire) are counted once per file under the **dominant remaining** verdict in the table below; channel POST death is called out in Notes.
+Method-split rows (GET dual / POST retire) are counted once per file under the **dominant remaining** verdict in the table below; X2 channel POST death is executed (handlers deleted).
 
 ### Lib live-call files (~33)
 

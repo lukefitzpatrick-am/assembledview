@@ -20,7 +20,7 @@ The server-side data-access + identity layer everything sits on: Xano URL/auth c
 - Alias pairs both live: `XANO_MEDIA_PLANS_BASE_URL` / `XANO_MEDIAPLANS_BASE_URL`. Fallback chain order matters.
 - `XANO_BASE_URL` triples as generic fallback AND the assistant endpoint — setting it wrong silently mis-routes clients/media-plans calls.
 - `DATA_BACKEND` (`xano` \| `shadow` \| `postgres`, default `xano`) — unknown values fall back to `xano`. Per-domain `DATA_BACKEND_<DOMAIN>` overrides when set. `postgres`/`shadow` need `DATABASE_URL`. Shadow diffs are in-memory per process (not durable across cold starts).
-- `DATA_BACKEND_PLAN_DETAIL` (`xano` \| `postgres`, default `xano`) — MBA combined-detail GET only; does not inherit global `DATA_BACKEND`.
+- `DATA_BACKEND_PLAN_DETAIL` (`xano` \| `postgres`, default `postgres`) — MBA combined-detail GET only; does not inherit global `DATA_BACKEND`. Postgres is the only implemented branch; `xano` → 410 (`PLAN_DETAIL_XANO_GONE`).
 - Missing `XANO_API_KEY` → **no auth header, no error** (only `requireXanoAuthHeaderRecord` throws). `getRequiredEnv` returns `""` in the browser.
 - Module-scope throws (boot failures, not 500s): `lib/auth0.ts`, `lib/api/auth0Management.ts`, `lib/api.ts:17-18`, admin users route.
 - `http://localhost:3000` fallbacks reachable in prod if `NEXT_PUBLIC_BASE_URL`/`AUTH0_BASE_URL` unset: `internalBaseUrl.ts`, `frameSign.ts`, `lib/utils/auth.ts`, account page.
