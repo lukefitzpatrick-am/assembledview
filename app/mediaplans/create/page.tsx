@@ -5335,6 +5335,9 @@ function CreateMediaPlan() {
                 campaignStartDate: toDateOnlyString(fv.mp_campaigndates_start),
                 campaignEndDate: toDateOnlyString(fv.mp_campaigndates_end),
                 campaignBudgetCents: budgetCents,
+                clientId: selectedClientId
+                  ? Number(selectedClientId) || null
+                  : null,
               },
             },
             { feeLoading: feeLoadingForSave, adservaudio }

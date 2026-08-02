@@ -112,9 +112,9 @@ SQL used (Postgres):
 | `/api/campaigns/[mba_number]/billing-schedule` | GET | same Xano crawl → PDF | always-xano | ZERO fetch | RETIRE(dead) |
 | `/api/chat-v2` | POST | none (prompt text) | n/a | `ChatWidget.tsx` | NOT-XANO |
 | `/api/clients` | GET | `readClientsList` / cache | DATA_BACKEND_CLIENTS | create/edit, scopes, admin | DUAL-DONE |
-| `/api/clients` | POST | `getXanoClientsCollectionUrl` create | always-xano | admin/clients flows | PORT |
+| `/api/clients` | POST | PG-first `writeClients` + Xano mirror (`xano_client_mirror_failed`) | PG authoritative (X1) | admin/clients flows | MIRROR (write) |
 | `/api/clients/[id]` | GET | `readClientById` / slug helpers | DATA_BACKEND_CLIENTS | client surfaces | DUAL-DONE |
-| `/api/clients/[id]` | PUT/PATCH | axios clients collection | always-xano | client edit | PORT |
+| `/api/clients/[id]` | PUT/PATCH | PG-first `writeClients` + Xano mirror | PG authoritative (X1) | client edit | MIRROR (write) |
 | `/api/creative-assets` | GET/POST | `lib/creative/xanoCreativeAssets` | always-xano | Creative UI | PORT |
 | `/api/creative-assets/upload` | POST | createIdempotent → Xano | always-xano | `CreativeUploadZone.tsx` | PORT |
 | `/api/creative-assets/ad-copy` | POST | getById Xano | always-xano | `CopyChatPanel.tsx` | PORT |

@@ -190,6 +190,11 @@ export async function POST(request: NextRequest) {
       .limit(1)
     if (!existing) {
       try {
+        const { resolveClientIdForMaster } = await import("@/lib/data/writeClients")
+        const resolvedClientId = await resolveClientIdForMaster({
+          clientId: body.ensureMaster.clientId ?? null,
+          mpClientName: body.ensureMaster.mpClientName ?? null,
+        })
         await db.insert(schema.mediaPlanMasters).values({
           id: body.masterId,
           mbaNumber: body.ensureMaster.mbaNumber,
@@ -202,7 +207,7 @@ export async function POST(request: NextRequest) {
           campaignStartDate: body.ensureMaster.campaignStartDate ?? null,
           campaignEndDate: body.ensureMaster.campaignEndDate ?? null,
           campaignBudgetCents: body.ensureMaster.campaignBudgetCents ?? null,
-          clientId: body.ensureMaster.clientId ?? null,
+          clientId: resolvedClientId,
         })
       } catch (err) {
         console.error("[plans/save] ensureMaster insert failed", err)
