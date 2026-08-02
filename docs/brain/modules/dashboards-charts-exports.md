@@ -21,7 +21,8 @@
 - `lib/chart-theme.ts` — palettes (`CHART_PALETTE`, colour-blind, sequential/diverging/status) — "no chart hard-codes a hex". `channelColorFor` resolves known media types via `MEDIA_TYPE_REGISTRY` first (gantt chips / spend series), then coarse `CHANNEL_COLORS` aggregates, then palette index.
 - `lib/charts/registry.ts` — `MEDIA_TYPE_REGISTRY`, THE media-type chart colour/label source, mirroring `mediaTypeTheme` in `lib/utils` (two overlapping colour sources — keep in sync). Pills use `getMediaBadgeStyle` (`MediaChannelTag` on dashboard cards, mediaplans list, publishers) — do not add a local tone map.
 - `lib/charts/theme.ts` — Recharts plumbing: Tailwind arbitrary selectors keyed on Recharts' literal default strokes (`#ccc`/`#fff`) — **a Recharts upgrade that changes those defaults silently un-styles every chart**.
-- `components/charts/system/*` — the chart component library; PNG export via html2canvas (client-only, breaks on cross-origin images).
+- `components/charts/system/*` — the chart component library; PNG export via html2canvas (client-only, breaks on cross-origin images). Vertical `BarChart` / `ComboChart` category ticks use file-local `denseCategoryAxisProps` (≤8 plain; 9–20 angled `interval: 0`; >20 angled `interval: "preserveStartEnd"` + `minTickGap: 12`) — thins labels only, never data points. Width-aware target tick counts (ResizeObserver) are not wired yet.
+
 - **B2-1 chart export:** `BaseChartCard` always exposes a shared overflow menu (Download PNG + Download CSV when `exportSeries` is set). Filenames `{page}-{title-slug}-{yyyymmdd}.{png|csv}` via `lib/charts/chartExport.ts`. CSV columns = x + one per series; values are raw (not display-formatted). Visible to any role that can see the chart (no admin gate). Charts not on `BaseChartCard` stay unwired (list in the B2-1 report — do not hand-wire one-offs).
 - Normative UI rules: `docs/design-refresh/SYSTEM_RULES.md` (see INVARIANTS UI section).
 

@@ -40,6 +40,33 @@ const vfMap = {
   dollars: fmt.currencyCompact, number: fmt.number, compact: fmt.compact,
   percent: (n: number) => fmt.percent(n > 1 ? n / 100 : n),
 };
+
+/**
+ * Category X-axis label density for vertical BarChart / ComboChart.
+ * Data points are never thinned — only which tick labels are drawn.
+ * Width-aware target counts (ResizeObserver) are out of scope; preserveStartEnd
+ * uses Recharts' own collision pass so first/last category labels stay visible.
+ */
+function denseCategoryAxisProps(count: number): {
+  angle?: number
+  textAnchor?: 'end'
+  height?: number
+  interval?: number | 'preserveStartEnd'
+  minTickGap?: number
+} {
+  if (count <= 8) return {}
+  const angled = { angle: -25, textAnchor: 'end' as const, height: 52 }
+  // 9–20: show every label (current behaviour — already readable at -25°)
+  if (count <= 20) return { ...angled, interval: 0 }
+  // >20: thin labels. preserveStartEnd (not ceil(n/12)) — Recharts 2.x ignores
+  // minTickGap on numeric interval, and numeric steps drop the last tick unless
+  // (n-1) % (interval+1) === 0 (bad for campaign date ranges).
+  return {
+    ...angled,
+    interval: 'preserveStartEnd',
+    minTickGap: 12,
+  }
+}
 function withConfig(series: Series[]): ChartConfig {
   return series.reduce((a, s, i) => {
     a[s.key] = { label: s.label, color: s.color ?? `var(--av-chart-${(i % 8) + 1})` };
@@ -78,11 +105,10 @@ export function BarChart({
   const stackId = layout === 'group' ? undefined : 'a';
   const filterLegend = onSeriesClick && (showLegend ?? series.length > 1);
   const bottomMargin = filterLegend && legendVerticalAlign === 'bottom' ? 56 : 4;
-  const xAxisHeight = !horizontal && data.length > 8 ? 52 : 28;
   const cat = (
     <XAxis dataKey={xKey} type={horizontal ? 'category' : 'category'} {...axisProps}
       {...(horizontal ? { width: 80 } : {})}
-      {...(!horizontal && data.length > 8 ? { angle: -25, textAnchor: 'end' as const, height: xAxisHeight, interval: 0 } : {})} />
+      {...(!horizontal ? denseCategoryAxisProps(data.length) : {})} />
   );
   const num = (
     <YAxis tickFormatter={layout === 'expand' ? (v) => fmt.percent(v) : vf}
@@ -220,7 +246,7 @@ export function ComboChart({
   const cfg = withConfig([...bars, ...lines]);
   const bvf = vfMap[bars[0]?.format ?? barFormat];
   const lvf = vfMap[lines[0]?.format ?? lineFormat];
-  const xAxisHeight = data.length > 8 ? 52 : 28;
+  const categoryAxis = denseCategoryAxisProps(data.length);
   return (
     <ChartContainer config={cfg} className={className}>
       <ComposedChart
@@ -232,9 +258,7 @@ export function ComboChart({
         <XAxis
           dataKey={xKey}
           {...axisProps}
-          {...(data.length > 8
-            ? { angle: -25, textAnchor: 'end' as const, height: xAxisHeight, interval: 0 }
-            : {})}
+          {...categoryAxis}
         />
         <YAxis yAxisId="l" width={44} tickFormatter={bvf} {...axisProps} />
         <YAxis yAxisId="r" orientation="right" width={40} tickFormatter={lvf} {...axisProps} />
