@@ -6,9 +6,8 @@ import { Button } from "@/components/ui/button"
 import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary"
 import { resolveListViewState } from "@/lib/ui/viewState"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Input } from "@/components/ui/input"
 import { format } from "date-fns"
-import { PlusCircle, Search, X } from "lucide-react"
+import { PlusCircle } from "lucide-react"
 import { MediaChannelTag, mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
 import { cn } from "@/lib/utils"
 import { compareValues, SortableTableHeader, SortDirection } from "@/components/ui/sortable-table-header"
@@ -18,6 +17,7 @@ import { Panel, PanelActions, PanelContent, PanelHeader, PanelTitle } from "@/co
 import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPreference"
 import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import { DashboardCampaignPlanCard, dashboardCampaignGridClassName } from "@/components/dashboard/DashboardEntityCards"
+import { DashboardFilterBar } from "@/components/dashboard/DashboardFilterBar"
 import { formatAUD } from "@/lib/format/money"
 import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
 import {
@@ -33,6 +33,23 @@ import {
   serializeAuFySearchParam,
   type AuFyFilterValue,
 } from "@/lib/dates/auFinancialYear"
+import { useAuthContext } from "@/contexts/AuthContext"
+import {
+  defaultDashboardViewFilters,
+  normalizeClientFilterValue,
+  type DashboardViewFilters,
+} from "@/lib/dashboard/homeDashboardFilters"
+import {
+  findPinnedClientsView,
+  legacyPinnedClientsKeyForUser,
+  parseSavedViewsFromStorageJson,
+  readClientsFromLegacyPinKey,
+  savedViewsListKeyForUser,
+  serializeSavedViewsToStorageJson,
+  upsertPinnedClientsView,
+  type SavedDashboardViewRecord,
+} from "@/lib/dashboard/savedDashboardViews"
+import type { MultiSelectOption } from "@/components/ui/multi-select-combobox"
 
 const slugifyClientName = (name?: string | null) => {
   if (!name || typeof name !== "string") return ""
@@ -99,6 +116,7 @@ function MediaPlansPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
+  const { user, isLoading: authLoading } = useAuthContext()
   const { mode: listGridMode, setMode: setListGridMode } = useListGridLayoutPreference()
   const [mediaPlans, setMediaPlans] = useState<MediaPlan[]>([])
   const [filteredPlans, setFilteredPlans] = useState<MediaPlan[]>([])
@@ -107,11 +125,48 @@ function MediaPlansPageInner() {
   const [listMayBeStale, setListMayBeStale] = useState(false)
   const [listFetchedAt, setListFetchedAt] = useState<number | null>(null)
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get("q") ?? "")
+  const [selectedClients, setSelectedClients] = useState<string[]>([])
   const [fyFilter, setFyFilter] = useState<AuFyFilterValue>(() =>
     parseAuFySearchParam(searchParams.get("fy")),
   )
   const [sortStates, setSortStates] = useState<Record<string, SortState>>({})
   const [urlHydrated, setUrlHydrated] = useState(false)
+  const [pinsHydrated, setPinsHydrated] = useState(false)
+  const [savedViews, setSavedViews] = useState<SavedDashboardViewRecord[]>([])
+  const [savedViewJustSaved, setSavedViewJustSaved] = useState(false)
+
+  const dashboardStorageUserId = useMemo(() => {
+    if (!user) return null
+    const anyUser = user as { sub?: string; email?: string; name?: string }
+    const id = (anyUser?.sub || anyUser?.email || anyUser?.name || "").toString().trim()
+    return id || null
+  }, [user])
+
+  const savedViewsListKey = savedViewsListKeyForUser(dashboardStorageUserId)
+  const legacyPinnedClientsKey = legacyPinnedClientsKeyForUser(dashboardStorageUserId)
+
+  const dashboardFilters: DashboardViewFilters = useMemo(
+    () => ({
+      ...defaultDashboardViewFilters(),
+      campaignSearch: searchTerm,
+      clients: selectedClients,
+    }),
+    [searchTerm, selectedClients],
+  )
+
+  const clientFilterOptions: MultiSelectOption[] = useMemo(() => {
+    const seen = new Set<string>()
+    const options: MultiSelectOption[] = []
+    for (const plan of mediaPlans) {
+      const label = String(plan.mp_client_name ?? "").trim()
+      if (!label) continue
+      const value = normalizeClientFilterValue(label)
+      if (!value || seen.has(value)) continue
+      seen.add(value)
+      options.push({ value, label })
+    }
+    return options.sort((a, b) => a.label.localeCompare(b.label))
+  }, [mediaPlans])
 
   const getNextDirection = (current: SortDirection) =>
     current === "asc" ? "desc" : current === "desc" ? null : "asc"
@@ -260,6 +315,50 @@ function MediaPlansPageInner() {
     setUrlHydrated(true)
   }, [searchParams, urlHydrated])
 
+  // Load Home-shared pinned clients once auth settles.
+  useEffect(() => {
+    if (pinsHydrated) return
+    if (authLoading) return
+    if (!dashboardStorageUserId || !savedViewsListKey) {
+      setPinsHydrated(true)
+      return
+    }
+    let loadedViews: SavedDashboardViewRecord[] = []
+    try {
+      loadedViews = parseSavedViewsFromStorageJson(
+        window.localStorage.getItem(savedViewsListKey),
+      )
+      if (loadedViews.length === 0 && legacyPinnedClientsKey) {
+        const legacyClients = readClientsFromLegacyPinKey(legacyPinnedClientsKey)
+        if (legacyClients.length > 0) {
+          loadedViews = upsertPinnedClientsView([], legacyClients)
+          try {
+            window.localStorage.setItem(
+              savedViewsListKey,
+              serializeSavedViewsToStorageJson(loadedViews),
+            )
+          } catch {
+            // ignore
+          }
+        }
+      }
+    } catch {
+      loadedViews = []
+    }
+    setSavedViews(loadedViews)
+    const pinned = findPinnedClientsView(loadedViews)
+    if (pinned?.filters.clients?.length) {
+      setSelectedClients([...pinned.filters.clients])
+    }
+    setPinsHydrated(true)
+  }, [
+    pinsHydrated,
+    authLoading,
+    dashboardStorageUserId,
+    savedViewsListKey,
+    legacyPinnedClientsKey,
+  ])
+
   useEffect(() => {
     if (!urlHydrated) return
     const params = new URLSearchParams(searchParams.toString())
@@ -280,8 +379,11 @@ function MediaPlansPageInner() {
     return filteredPlans.filter(plan => plan.campaign_status === status);
   };
 
-  // Search + AU FY overlap — fail-closed: never throw on missing string fields
+  // Search + client pins + AU FY overlap — fail-closed: never throw on missing string fields
   useEffect(() => {
+    const selectedClientKeys = new Set(
+      selectedClients.map((c) => normalizeClientFilterValue(c)).filter(Boolean),
+    )
     const filtered = mediaPlans.filter((plan) => {
       if (
         !campaignOverlapsAuFinancialYear(
@@ -292,11 +394,15 @@ function MediaPlansPageInner() {
       ) {
         return false
       }
+      if (selectedClientKeys.size > 0) {
+        const clientKey = normalizeClientFilterValue(plan.mp_client_name || "")
+        if (!selectedClientKeys.has(clientKey)) return false
+      }
       if (!searchTerm.trim()) return true
       return matchesMediaPlanSearch(plan, searchTerm)
     })
     setFilteredPlans(filtered)
-  }, [searchTerm, fyFilter, mediaPlans])
+  }, [searchTerm, selectedClients, fyFilter, mediaPlans])
 
   // Get media type tags for a campaign
   const getMediaTypeTags = (plan: MediaPlan) => {
@@ -365,9 +471,71 @@ function MediaPlansPageInner() {
   }
 
   const clearCampaignFilters = useCallback(() => {
+    // Active filter only — do not wipe FY or saved client pins (Home clear semantics).
     setSearchTerm("")
-    setFyFilter(parseAuFySearchParam(null))
+    setSelectedClients([])
   }, [])
+
+  const handleFiltersChange = useCallback((next: DashboardViewFilters) => {
+    setSearchTerm(next.campaignSearch)
+    setSelectedClients([...next.clients])
+  }, [])
+
+  const writeSavedViewsToStorage = useCallback(
+    (views: SavedDashboardViewRecord[]) => {
+      if (!savedViewsListKey) return
+      try {
+        window.localStorage.setItem(savedViewsListKey, serializeSavedViewsToStorageJson(views))
+      } catch {
+        // ignore
+      }
+    },
+    [savedViewsListKey],
+  )
+
+  const handleSaveSelectedClients = useCallback(() => {
+    if (!savedViewsListKey) return
+    const views = upsertPinnedClientsView(savedViews, selectedClients)
+    setSavedViews(views)
+    writeSavedViewsToStorage(views)
+    if (legacyPinnedClientsKey) {
+      try {
+        if (selectedClients.length === 0) {
+          window.localStorage.removeItem(legacyPinnedClientsKey)
+        } else {
+          window.localStorage.setItem(legacyPinnedClientsKey, JSON.stringify(selectedClients))
+        }
+      } catch {
+        // ignore
+      }
+    }
+    setSavedViewJustSaved(true)
+    window.setTimeout(() => setSavedViewJustSaved(false), 1500)
+  }, [
+    savedViewsListKey,
+    savedViews,
+    selectedClients,
+    writeSavedViewsToStorage,
+    legacyPinnedClientsKey,
+  ])
+
+  const handleClearAllSavedViews = useCallback(() => {
+    if (!savedViewsListKey) return
+    try {
+      window.localStorage.removeItem(savedViewsListKey)
+    } catch {
+      // ignore
+    }
+    if (legacyPinnedClientsKey) {
+      try {
+        window.localStorage.removeItem(legacyPinnedClientsKey)
+      } catch {
+        // ignore
+      }
+    }
+    setSavedViews([])
+    setSavedViewJustSaved(false)
+  }, [savedViewsListKey, legacyPinnedClientsKey])
 
   const formatDate = useCallback(
     (value: string) => safeFormatDate(value, "dd/MM/yyyy", value || "—"),
@@ -375,7 +543,9 @@ function MediaPlansPageInner() {
   )
 
   const fyIsDefault = fyFilter === parseAuFySearchParam(null)
-  const filtersActive = Boolean(searchTerm.trim()) || !fyIsDefault
+  const filtersActive =
+    Boolean(searchTerm.trim()) || selectedClients.length > 0 || !fyIsDefault
+  const countActive = filtersActive
 
   const campaignsViewState = useMemo(
     () =>
@@ -408,80 +578,60 @@ function MediaPlansPageInner() {
     ]
   )
 
-  const searchActive = Boolean(searchTerm.trim())
-  const countActive = filtersActive
-
   return (
-    <div className="w-full max-w-none space-y-6 px-4 pb-12 pt-0 md:px-6">
+    <div className="flex h-full w-full flex-col gap-6 px-4 pb-10 pt-6 max-[375px]:pb-28 md:px-6">
       <MediaPlanEditorHero
-        className="mb-2 pt-6 md:pt-8"
+        className="mb-1"
+        compact
         title="Campaigns"
         detail={
           <p>Search campaigns, create a new plan, and jump into edits or dashboards.</p>
         }
-        actionsFloor="toolbar"
         actions={
-          // One toolbar unit: Layout + AVU4-9 search + Create stay together; hero wrap (not mid-header orphan).
-          <div className="flex w-full flex-wrap items-center justify-start gap-3 sm:w-auto sm:flex-nowrap md:justify-end">
-            <ListGridToggle
-              value={listGridMode}
-              onChange={setListGridMode}
-              className="shrink-0"
-            />
-            {/* Fixed search + counter slots so Create Campaign never shifts on type/focus/clear (AVU4-9). */}
-            <div className="flex shrink-0 items-center gap-2">
-              <div className="relative w-72 shrink-0">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  placeholder="Search campaigns..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full border-border/50 bg-background/80 pl-10 pr-9 backdrop-blur-sm"
-                  aria-label="Search campaigns"
-                />
-                {searchActive ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearchTerm("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-1 text-muted-foreground hover:text-foreground"
-                    aria-label="Clear search"
-                    title="Clear search"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                ) : null}
-              </div>
-              <span
-                className="inline-flex h-9 w-[11.5rem] shrink-0 items-center text-xs tabular-nums text-muted-foreground"
-                aria-live="polite"
-              >
-                {loading ? (
-                  countActive ? (
-                    <span
-                      className="inline-block h-3 w-24 animate-pulse rounded bg-muted"
-                      aria-hidden
-                    />
-                  ) : null
-                ) : countActive ? (
-                  <>
-                    {filteredPlans.length} of {mediaPlans.length} campaigns
-                  </>
-                ) : null}
-              </span>
-            </div>
-            <Button
-              className="shrink-0 whitespace-nowrap"
-              onClick={() => router.push("/mediaplans/create")}
-            >
-              <PlusCircle className="mr-2 h-4 w-4" />
-              Create Campaign
-            </Button>
-          </div>
+          <Button
+            type="button"
+            className="h-9 whitespace-nowrap"
+            onClick={() => router.push("/mediaplans/create")}
+          >
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Create Campaign
+          </Button>
         }
       />
-      <div className="flex flex-wrap items-center gap-3">
-        <AuFinancialYearFilterPills value={fyFilter} onChange={setFyFilter} />
+
+      <DashboardFilterBar
+        filters={dashboardFilters}
+        onFiltersChange={handleFiltersChange}
+        clientFilterOptions={clientFilterOptions}
+        savedViews={savedViews}
+        savedViewsListKey={savedViewsListKey}
+        savedViewJustSaved={savedViewJustSaved}
+        onSaveSelectedClients={handleSaveSelectedClients}
+        onClearAllSavedViews={handleClearAllSavedViews}
+        onClearFilters={clearCampaignFilters}
+      />
+
+      <div className="mb-4 flex flex-col gap-3 pt-4 scroll-mt-4 sm:flex-row sm:items-center sm:justify-between">
+        <span
+          className="inline-flex h-9 w-[11.5rem] shrink-0 items-center text-xs tabular-nums text-muted-foreground"
+          aria-live="polite"
+        >
+          {loading ? (
+            countActive ? (
+              <span className="inline-block h-3 w-24 animate-pulse rounded bg-muted" aria-hidden />
+            ) : null
+          ) : countActive ? (
+            <>
+              {filteredPlans.length} of {mediaPlans.length} campaigns
+            </>
+          ) : null}
+        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <AuFinancialYearFilterPills value={fyFilter} onChange={setFyFilter} />
+          <ListGridToggle value={listGridMode} onChange={setListGridMode} />
+        </div>
       </div>
+
       <PanelRow>
           <PanelRowCell
             span="full"
@@ -513,7 +663,7 @@ function MediaPlansPageInner() {
               </Button>
             }
             filteredEmptyTitle="No campaigns match these filters"
-            filteredEmptyMessage="Clear search and financial-year filters to see all campaigns again."
+            filteredEmptyMessage="Clear search and client filters to see more campaigns, or adjust the financial year."
             loadingRows={6}
           >
             {() => (
@@ -720,7 +870,7 @@ export default function MediaPlansPage() {
   return (
     <Suspense
       fallback={
-        <div className="w-full max-w-none space-y-6 px-4 pb-12 pt-8 md:px-6">
+        <div className="flex h-full w-full flex-col gap-6 px-4 pb-10 pt-6 md:px-6">
           <p className="text-sm text-muted-foreground">Loading campaigns…</p>
         </div>
       }
