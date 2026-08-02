@@ -1,4 +1,5 @@
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
+import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
 
 /**
  * The manual billing grid reads `lineItem` from `manualBillingMonths[0]` (first month) only.
@@ -18,9 +19,10 @@ export function syncLineItemMonthlyAmountAcrossAllMonthRows(
     const liObj = m.lineItems as Record<string, BillingLineItem[] | undefined>
     const list = liObj[mediaKey]
     if (!list) continue
-    const li = list.find((l) => l.id === lineItemId)
-    if (!li) continue
-    li.monthlyAmounts[monthYear] = numericValue
-    li.totalAmount = Object.values(li.monthlyAmounts).reduce((s, v) => s + (v || 0), 0)
+    for (const li of list) {
+      if (!billingOverrideLineIdsMatch(String(li.id ?? ""), lineItemId)) continue
+      li.monthlyAmounts[monthYear] = numericValue
+      li.totalAmount = Object.values(li.monthlyAmounts).reduce((s, v) => s + (v || 0), 0)
+    }
   }
 }

@@ -524,23 +524,27 @@ function appendMissingLineItemsOnly(
   const resync = Boolean(opts?.resyncExistingFromTemplate)
   const isManualBilling = Boolean(opts?.isManualBilling)
   const list = existingItems.map((li) => cloneBillingMonthGraph(li))
-  const oldIds = new Set(list.map((li) => billingLineItemIdKey(li.id)))
+  const findExisting = (candidateId: string) =>
+    list.find((li) => billingOverrideLineIdsMatch(String(li.id ?? ""), candidateId))
   let didAppend = false
   // Single-line scheme-drift reconcile: a line saved under a pre-migration id scheme will not
   // match the regenerated current-scheme template id. When the bucket holds exactly one existing
   // and one template line, they are unambiguously the same logical line, so adopt the current id
   // onto the existing row rather than appending a duplicate. Multi-line buckets are excluded:
   // there is no safe 1:1 mapping, so they fall through to existing behaviour and the save validator.
+  // Bare ↔ `billing-{media}::` is NOT scheme-drift — billingOverrideLineIdsMatch already unifies them.
   const singleLineSchemeDrift =
     existingItems.length === 1 &&
     templateItems.length === 1 &&
-    !oldIds.has(billingLineItemIdKey(templateItems[0]?.id))
+    !billingOverrideLineIdsMatch(
+      String(existingItems[0]?.id ?? ""),
+      String(templateItems[0]?.id ?? "")
+    )
   for (const tLi of templateItems) {
     const tid = billingLineItemIdKey(tLi.id)
     if (!tid) continue
-    if (oldIds.has(tid)) {
-      const existing = list.find((li) => billingLineItemIdKey(li.id) === tid)
-      if (!existing) continue
+    const existing = findExisting(tid)
+    if (existing) {
       const shouldResync = shouldResyncBillingLineFromAuto(existing, isManualBilling)
       if (resync && shouldResync) {
         resyncExistingLineItemFromTemplate(existing, tLi, allCampaignMonthKeys)
@@ -558,30 +562,29 @@ function appendMissingLineItemsOnly(
       continue
     }
     if (singleLineSchemeDrift) {
-      const existing = list[0]
-      if (existing) {
-        const shouldResync = shouldResyncBillingLineFromAuto(existing, isManualBilling)
+      const only = list[0]
+      if (only) {
+        const shouldResync = shouldResyncBillingLineFromAuto(only, isManualBilling)
         if (resync && shouldResync) {
-          resyncExistingLineItemFromTemplate(existing, tLi, allCampaignMonthKeys)
-        } else if (shouldResync && existing.totalAmount === 0 && tLi.totalAmount > 0) {
+          resyncExistingLineItemFromTemplate(only, tLi, allCampaignMonthKeys)
+        } else if (shouldResync && only.totalAmount === 0 && tLi.totalAmount > 0) {
           const seeded = seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys)
-          existing.monthlyAmounts = seeded.monthlyAmounts
-          existing.totalAmount = seeded.totalAmount
-          if (seeded.feeMonthlyAmounts) existing.feeMonthlyAmounts = seeded.feeMonthlyAmounts
-          if (seeded.totalFeeAmount != null) existing.totalFeeAmount = seeded.totalFeeAmount
-          if (seeded.adServingMonthlyAmounts) existing.adServingMonthlyAmounts = seeded.adServingMonthlyAmounts
-          if (seeded.totalAdServingAmount != null) existing.totalAdServingAmount = seeded.totalAdServingAmount
+          only.monthlyAmounts = seeded.monthlyAmounts
+          only.totalAmount = seeded.totalAmount
+          if (seeded.feeMonthlyAmounts) only.feeMonthlyAmounts = seeded.feeMonthlyAmounts
+          if (seeded.totalFeeAmount != null) only.totalFeeAmount = seeded.totalFeeAmount
+          if (seeded.adServingMonthlyAmounts) only.adServingMonthlyAmounts = seeded.adServingMonthlyAmounts
+          if (seeded.totalAdServingAmount != null) only.totalAdServingAmount = seeded.totalAdServingAmount
         }
         // Adopt the current-scheme id (overrides the legacy-id pin that resync would otherwise restore).
-        const oldId = billingLineItemIdKey(existing.id)
-        existing.id = tLi.id
+        const oldId = billingLineItemIdKey(only.id)
+        only.id = tLi.id
         didAppend = true
         billingAppendDebug("scheme-drift reconcile (single-line)", { from: oldId, to: tLi.id })
         continue
       }
     }
     list.push(seedLineItemMonthKeysFromTemplate(tLi, allCampaignMonthKeys))
-    oldIds.add(tid)
     didAppend = true
   }
   return { list, didAppend }
@@ -4383,8 +4386,24 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   async function handleManualBillingOpen() {
     // Clone `workingBillingMonths` into modal-local state; working stays unchanged until explicit save.
     // After load from `media_plan_versions`, only append missing line-item IDs from auto; do not rebuild from containers or re-total months here.
-    const sourceMonths = workingBillingMonths
+    // Fresh drafts / header-only blobs: fall back to computed auto schedule so Adjust timing isn't $0.
+    const workingHasLineDetail = billingMonthsHaveDetailedLineItems(workingBillingMonths)
+    const autoForModal =
+      (manualBillingAutoReferenceMonths?.length ?? 0) > 0
+        ? (manualBillingAutoReferenceMonths as BillingMonth[])
+        : autoReferenceBillingMonths.length > 0
+          ? attachLineItemsToMonths(
+              deepCloneBillingMonthsState(autoReferenceBillingMonths),
+              "billing"
+            )
+          : []
+    const borrowedAutoSchedule = !workingHasLineDetail && autoForModal.length > 0
+    const sourceMonths = borrowedAutoSchedule ? autoForModal : workingBillingMonths
     const deepCopiedMonths = JSON.parse(JSON.stringify(sourceMonths)) as BillingMonth[]
+    // When we had to borrow auto months, allow the container second-pass below.
+    if (borrowedAutoSchedule) {
+      hasPersistedBillingScheduleRef.current = false
+    }
 
     // Generate line items for each media type
     const mediaTypeMap: Record<string, { lineItems: any[], key: string }> = {
@@ -4467,10 +4486,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           // No existing items for this media type — inject all generated
           li[mediaKey] = generatedList
         } else {
-          const existingIds = new Set(existing.map((item) => billingLineItemIdKey(item.id)))
           const newItems = generatedList.filter((item) => {
             const kid = billingLineItemIdKey(item.id)
-            return Boolean(kid) && !existingIds.has(kid)
+            if (!kid) return false
+            return !existing.some((ex) =>
+              billingOverrideLineIdsMatch(String(ex.id ?? ""), kid)
+            )
           })
           if (newItems.length > 0) {
             li[mediaKey] = [...existing, ...newItems]
@@ -5453,10 +5474,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         if (!existing || existing.length === 0) {
           li[key] = generatedList
         } else {
-          const existingIds = new Set(existing.map((lineItem) => billingLineItemIdKey(lineItem.id)))
           const newItems = generatedList.filter((lineItem) => {
             const kid = billingLineItemIdKey(lineItem.id)
-            return Boolean(kid) && !existingIds.has(kid)
+            if (!kid) return false
+            return !existing.some((ex) =>
+              billingOverrideLineIdsMatch(String(ex.id ?? ""), kid)
+            )
           })
           if (newItems.length > 0) {
             li[key] = [...existing, ...newItems]
@@ -12212,7 +12235,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                     <li>
                       Difference:{" "}
                       <span className="font-medium">
-                        {feeDriftValidation.diff >= 0 ? "+" : "âˆ’"}
+                        {feeDriftValidation.diff >= 0 ? "+" : "−"}
                         {mbaCurrencyFormatter.format(Math.abs(feeDriftValidation.diff))}
                       </span>
                     </li>
@@ -12730,7 +12753,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                             <>
                               <span className="mx-2">Â·</span>
                               <span className="text-status-behind-fg">
-                                Diff: {agencyFeeMonthTotalDrift >= 0 ? "+" : "âˆ’"}
+                                Diff: {agencyFeeMonthTotalDrift >= 0 ? "+" : "−"}
                                 {mbaCurrencyFormatter.format(Math.abs(agencyFeeMonthTotalDrift))}
                               </span>
                             </>

@@ -467,3 +467,99 @@ test("sliceContainerBurstsForLineItem respects line order", () => {
   assert.equal(slice.length, 1)
   assert.equal(slice[0]!.feeAmount, 3)
 })
+
+test("X2: does not inject decorated duplicate when bare persisted line id already exists", () => {
+  const months: BillingMonth[] = [
+    {
+      monthYear: "August 2026",
+      mediaTotal: "$10,163.93",
+      feeTotal: "$2,540.98",
+      totalAmount: "$12,704.91",
+      adservingTechFees: "$0.00",
+      production: "$0.00",
+      mediaCosts: emptyMediaCosts(),
+      lineItems: {
+        progBvod: [
+          {
+            id: "supabase001PB1",
+            header1: "progBvod",
+            header2: "supabase001PB1",
+            monthlyAmounts: { "August 2026": 10163.93, "September 2026": 9836.07 },
+            totalAmount: 20000,
+            feeMonthlyAmounts: { "August 2026": 2540.98, "September 2026": 2459.02 },
+            totalFeeAmount: 5000,
+            billingMode: "auto",
+          },
+        ],
+      },
+    },
+    {
+      monthYear: "September 2026",
+      mediaTotal: "$9,836.07",
+      feeTotal: "$2,459.02",
+      totalAmount: "$12,295.09",
+      adservingTechFees: "$0.00",
+      production: "$0.00",
+      mediaCosts: emptyMediaCosts(),
+      lineItems: {
+        progBvod: [
+          {
+            id: "supabase001PB1",
+            header1: "progBvod",
+            header2: "supabase001PB1",
+            monthlyAmounts: { "August 2026": 10163.93, "September 2026": 9836.07 },
+            totalAmount: 20000,
+            feeMonthlyAmounts: { "August 2026": 2540.98, "September 2026": 2459.02 },
+            totalFeeAmount: 5000,
+            billingMode: "auto",
+          },
+        ],
+      },
+    },
+  ]
+
+  const lineItems = [
+    {
+      line_item_id: "supabase001PB1",
+      platform: "DV360",
+      targeting: "BVOD",
+      bursts_json: [
+        {
+          startDate: "2026-08-01",
+          endDate: "2026-09-30",
+          feeAmount: "$5,000.00",
+          budget: "$20,000.00",
+        },
+      ],
+    },
+  ]
+
+  const containerBursts: BillingBurst[] = [
+    {
+      startDate: new Date("2026-08-01"),
+      endDate: new Date("2026-09-30"),
+      mediaAmount: 20000,
+      feeAmount: 5000,
+      totalAmount: 25000,
+      mediaType: "prog bvod",
+      feePercentage: 25,
+      clientPaysForMedia: false,
+      budgetIncludesFees: false,
+      deliverables: 0,
+      buyType: "cpm",
+      noAdserving: false,
+    },
+  ]
+
+  const result = seedBillingMonthsLineFees(
+    months,
+    [{ billingKey: "progBvod", lineItems, containerBursts }],
+    stableId
+  )
+
+  assert.equal(result.linesInjected, 0, "must not inject billing-progBvod:: duplicate beside bare id")
+  const group = result.months[0]!.lineItems!.progBvod!
+  assert.equal(group.length, 1)
+  assert.equal(group[0]!.id, "supabase001PB1")
+  assert.equal(group[0]!.monthlyAmounts["August 2026"], 10163.93)
+})
