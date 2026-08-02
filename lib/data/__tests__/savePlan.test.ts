@@ -787,6 +787,164 @@ test("savePlan MB-1: media override → blob billingMode=manual + months == sche
   }
 })
 
+test("savePlan MB-2: publish carries billing_overrides to new version + schedule source=override", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const db = getDb()
+  const twoMonthLine = baseLine(LINE_A, 1000, {
+    bursts: [
+      {
+        startDate: "2026-06-01",
+        endDate: "2026-07-31",
+        budget: 1000,
+        buyAmount: 1,
+      },
+    ],
+  })
+  const v1 = await savePlanVersion(draftInput(masterId, [twoMonthLine]))
+  await db.insert(schema.billingOverrides).values({
+    versionId: v1.versionId,
+    lineItemId: LINE_A,
+    component: "media",
+    mode: "manual",
+    reason: "manual",
+    months: [{ month: "2026-06", amount: 1000 }],
+    dateBasis: "mb2-carry",
+  })
+  // Draft re-save so v1 schedule_months/blob reflect the override (MB-1).
+  await savePlanVersion(draftInput(masterId, [twoMonthLine]))
+
+  const published = await savePlanVersion({
+    ...draftInput(masterId, [twoMonthLine]),
+    mode: "publish",
+    versionNumber: 1,
+    campaignStatus: "booked",
+  })
+  assert.equal(published.versionNumber, 2)
+  assert.notEqual(published.versionId, v1.versionId)
+  assert.deepEqual(published.droppedBillingOverrides ?? [], [])
+
+  const carried = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, published.versionId))
+  assert.equal(carried.length, 1)
+  assert.equal(carried[0]!.lineItemId, LINE_A)
+  assert.equal(carried[0]!.component, "media")
+  assert.deepEqual(carried[0]!.months, [{ month: "2026-06", amount: 1000 }])
+
+  const snap = await snapshot(published.versionId)
+  const june = snap.months.find(
+    (r) =>
+      r.basis === "billing" &&
+      r.component === "media" &&
+      r.lineItemId === LINE_A &&
+      String(r.month).slice(0, 7) === "2026-06"
+  )
+  assert.ok(june)
+  assert.equal(june!.source, "override")
+  assert.equal(Number(june!.amountCents), toCents(1000))
+
+  const notes = await db.execute(sql`
+    SELECT kind, payload
+    FROM app_notifications
+    WHERE kind = 'billing_overrides_publish_carry'
+      AND payload->>'mba' = ${MBA}
+      AND (payload->>'toVersionId')::bigint = ${published.versionId}
+    ORDER BY id DESC
+    LIMIT 1
+  `)
+  const noteRows = Array.from(notes as Iterable<Record<string, unknown>>)
+  assert.ok(noteRows.length >= 1, "expected app_notifications audit for carry")
+})
+
+test("savePlan MB-2: publish drops overrides for deleted lines and names them in response", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const db = getDb()
+  const v1 = await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1000), baseLine(LINE_B, 500)])
+  )
+  await db.insert(schema.billingOverrides).values({
+    versionId: v1.versionId,
+    lineItemId: LINE_A,
+    component: "media",
+    mode: "manual",
+    reason: "manual",
+    months: [{ month: "2026-05", amount: 1000 }],
+    dateBasis: "mb2-drop",
+  })
+  await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1000), baseLine(LINE_B, 500)])
+  )
+
+  // Publish without LINE_A — override must be dropped and named, not silent.
+  const published = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_B, 500)]),
+    mode: "publish",
+    versionNumber: 1,
+    campaignStatus: "booked",
+  })
+  assert.equal(published.versionNumber, 2)
+  assert.ok(
+    (published.droppedBillingOverrides ?? []).some(
+      (d) => d.lineItemId === LINE_A && d.component === "media"
+    ),
+    "dropped list must name LINE_A"
+  )
+
+  const carried = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, published.versionId))
+  assert.equal(carried.length, 0)
+
+  const snap = await snapshot(published.versionId)
+  assert.ok(
+    !snap.months.some(
+      (r) =>
+        r.lineItemId === LINE_A &&
+        r.basis === "billing" &&
+        r.source === "override"
+    )
+  )
+
+  const notes = await db.execute(sql`
+    SELECT payload
+    FROM app_notifications
+    WHERE kind = 'billing_overrides_publish_carry'
+      AND payload->>'mba' = ${MBA}
+      AND (payload->>'toVersionId')::bigint = ${published.versionId}
+    ORDER BY id DESC
+    LIMIT 1
+  `)
+  const noteRows = Array.from(notes as Iterable<Record<string, unknown>>)
+  assert.ok(noteRows.length >= 1)
+  const payload = noteRows[0]!.payload as {
+    dropped?: Array<{ lineItemId?: string }>
+  }
+  assert.ok(
+    (payload.dropped ?? []).some((d) => d.lineItemId === LINE_A),
+    "audit payload must list dropped LINE_A"
+  )
+})
+
 test("savePlan O4.6: publish ignores stale client versionNumber — writes tip+1", async (t) => {
   if (!hasDb) {
     t.skip("DATABASE_URL not set")

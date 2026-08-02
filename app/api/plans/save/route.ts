@@ -354,6 +354,10 @@ export async function POST(request: NextRequest) {
       ...(result.billingCorrection
         ? { billingCorrection: result.billingCorrection }
         : {}),
+      ...(result.droppedBillingOverrides &&
+      result.droppedBillingOverrides.length > 0
+        ? { droppedBillingOverrides: result.droppedBillingOverrides }
+        : {}),
       ...(mirror.mirror === "failed" ? { mirrorError: mirror.error } : {}),
     })
   } catch (err) {
