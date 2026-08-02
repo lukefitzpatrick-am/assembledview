@@ -1,9 +1,7 @@
--- AUTHOR ONLY. X7: golf022 has NULL media_plan_masters.published_version_id
--- (pointer audit null_published). Claude applies via MCP after reviewing SELECT.
+-- AUTHOR ONLY. X7: golf022 NULL published_version_id — CLOSED (do not apply UPDATE).
 --
--- Author probe (2026-08-02, localhost PG): master id=191, campaign_status=completed,
--- published_version_id NULL, and ZERO rows in media_plan_versions for this master.
--- There is no tip id to set until a version row exists (migrate/create first).
+-- Verdict (2026-08-02): zero versions in both stores (PG + Xano). NULL tip is
+-- correct. Master id=191, campaign_status=completed. a07d1224 UPDATE unapplied.
 -- media_plan_versions has created_at only (no updated_at) — aliased as updated below.
 
 -- (1) Master pointer + versions (id, version_number, status, updated)

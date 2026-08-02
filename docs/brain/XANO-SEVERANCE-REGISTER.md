@@ -122,7 +122,7 @@ SQL used (Postgres):
 | `/api/creative-assets/[id]/download` | GET | getById PG | PG (X4) | Creative UI | DUAL-DONE (PG) |
 | `/api/creative-assets/[id]/frame` | GET | getById PG | PG (X4) | Creative UI | DUAL-DONE (PG) |
 | `/api/creative-assets/[id]/preview/[[...path]]` | GET | getById PG | PG (X4) | Creative UI | DUAL-DONE (PG) |
-| `/api/cron/xano-line-item-sync` | GET | `runLineItemSnapshotSync` → Snowflake | `LINE_ITEM_SNAPSHOT_SOURCE` (default xano; parity/postgres X7 STOP) | Vercel cron (no app fetch) | TOOLING |
+| `/api/cron/xano-line-item-sync` | GET | `runLineItemSnapshotSync` → Snowflake | `LINE_ITEM_SNAPSHOT_SOURCE` (X7 flip earned; prod postgres after X-series merge; parity until then) | Vercel cron (no app fetch) | TOOLING |
 | `/api/cron/xero-sync` | GET/POST | none (comment only) | n/a | Vercel cron | NOT-XANO |
 | `/api/dashboard/spend-parity` | GET | via `global.ts` → `xanoDashboardsUrl` when plans≠pg | DATA_BACKEND_PLANS indirect | ZERO product callers | TOOLING |
 | `/api/finance/accrual` | GET | — | — | ZERO — UI uses billing+payables | RETIRE(dead) executed (410 X3) |
@@ -363,13 +363,15 @@ PASTE INTO CURSOR — X6: migrate Xano vault plan files to Vercel Blob
 ### X7 — Snowflake line-item snapshot from Postgres (parity → STOP flip)
 
 ```
-DONE (code): fetchAllPgLineItems tip-scopes published_version_id by default;
-runLineItemSnapshotSync; cron env LINE_ITEM_SNAPSHOT_SOURCE=xano|parity|postgres
-(default xano). Parity MERGEs Xano until Luke flips. Early-stop pagination now
-sets complete=false. STOP: docs/superpowers/x7-line-item-snapshot-pg-stop-2026-08-02.md
+DONE (code + verdict): tip-scoped PG sync + tip×tip parity; crawl complete=false on
+early-stop. STOP: docs/superpowers/x7-line-item-snapshot-pg-stop-2026-08-02.md
+VERDICT (Luke/Claude 2026-08-02): flip EARNED — Xano UI tip rows match PG
+(glenda008 4/4, CHALLEN004 18/18); crawl under-counted (3 / 16). PG tip is
+snapshot source of truth. Prod LINE_ITEM_SNAPSHOT_SOURCE=postgres ONLY after
+X-series merge ships sync code; until then parity mode (MERGE still Xano).
+golf022: zero versions both stores — NULL published_version_id correct;
+scripts/fix-golf022-published-pointer.sql UPDATE unapplied / closed.
 Author: npm run verify:line-item-snapshot-parity
-Probe: scripts/verify/probe-xano-line-item-pagination.ts --mba=PENFOLD020
-Hold flip until tip-scoped parity is clean — earn “PG right / Xano under-count”.
 ```
 
 ### X8 — last Xano callers (env-literal severance)

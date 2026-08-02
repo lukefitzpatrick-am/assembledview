@@ -6,7 +6,7 @@ Tracks actual delivery (Snowflake facts) against plan (Xano media plans) at line
 
 - `lib/pacing/maths/index.ts` — pacing arithmetic + 7-state `PacingStatus` ladder (order mirrors Snowflake `V_LINE_ITEM_PACING` — DO NOT REORDER; ±5%/±15% bands) + Melbourne date helpers.
 - `lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts` — search composer AND the de-facto shared layer: `fetchAllMasters`, `fetchCurrentVersionRowsForMasters` are imported by every other channel. Masters/versions go through `lib/data/readPacing.ts` (`DATA_BACKEND_PACING`).
-- `lib/data/readPacing.ts` — pacing-owned Xano reads: `media_plan_master`, `media_plan_versions`, `pacing_orphan_fixes`. Channel `media_plan_*` line GETs remain direct Xano until T2e. Snapshot sync cron gated by `LINE_ITEM_SNAPSHOT_SOURCE` (`xano` default; `parity` reports PG vs Xano; `postgres` after Luke STOP).
+- `lib/data/readPacing.ts` — pacing-owned Xano reads: `media_plan_master`, `media_plan_versions`, `pacing_orphan_fixes`. Channel `media_plan_*` line GETs remain direct Xano until T2e. Snapshot sync cron gated by `LINE_ITEM_SNAPSHOT_SOURCE` (X7 flip earned — prod `postgres` after X-series merge; until then `parity` / MERGE Xano).
 - `lib/pacing/{social,programmatic,ad-serving,direct}/fetch*Rows.ts` — per-channel composers (social/programmatic near-copies of search; direct returns grouped shape).
 - `lib/pacing/campaigns/pacingRowsCache.ts` — five `unstable_cache` wrappers, 4h TTL, tag `pacing-campaigns`; the chokepoint for every read path.
 - `lib/pacing/overview/buildOverviewPayload.ts` — `Promise.allSettled` fan-out over all 5 channels, 45s per-source timeout, partial-200 with `unavailableSources`.
@@ -22,7 +22,7 @@ Tracks actual delivery (Snowflake facts) against plan (Xano media plans) at line
 
 ## Snowflake tables
 
-`MART.SEARCH_PACING_FACT` (search + orphans), `MART.PACING_FACT` (programmatic, ad-serving), `MART.SOCIAL_PACING_FACT` (Meta/TikTok), `MART.FIXED_COST_{LINE_ITEM,BURST,REPORTED_DAILY}_FACT` (direct), `MART.XANO_LINE_ITEMS_SNAPSHOT` (cron-merged plan — default Xano; PG path ready behind `LINE_ITEM_SNAPSHOT_SOURCE`). Join key: `line_item_id` lowercased+trimmed — forget the `.toLowerCase().trim()` and you get silent `no-data` rows, not errors.
+`MART.SEARCH_PACING_FACT` (search + orphans), `MART.PACING_FACT` (programmatic, ad-serving), `MART.SOCIAL_PACING_FACT` (Meta/TikTok), `MART.FIXED_COST_{LINE_ITEM,BURST,REPORTED_DAILY}_FACT` (direct), `MART.XANO_LINE_ITEMS_SNAPSHOT` (cron-merged plan — X7 flip earned, PG tip SoT; prod `postgres` after X-series merge). Join key: `line_item_id` lowercased+trimmed — forget the `.toLowerCase().trim()` and you get silent `no-data` rows, not errors.
 
 ## Data flow (search, representative)
 
