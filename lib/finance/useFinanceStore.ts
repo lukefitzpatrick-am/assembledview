@@ -8,6 +8,7 @@ import type {
 import { fetchBillingRecords, fetchPayablesRecords, FinanceHttpError } from "@/lib/finance/api"
 import { getCurrentBillingMonth, australianFyStartYearForDate } from "@/lib/finance/months"
 import { expandMonthRange } from "@/lib/finance/monthRange"
+import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
 
 export type FinanceHubTab =
   | "overview"
@@ -273,7 +274,9 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
         return {
           ...record,
           line_items: record.line_items.map((lineItem) =>
-            lineItem.id === lineItemId ? { ...lineItem, ...updates } : lineItem
+            billingOverrideLineIdsMatch(String(lineItem.id ?? ""), lineItemId)
+              ? { ...lineItem, ...updates }
+              : lineItem
           ),
         }
       }),

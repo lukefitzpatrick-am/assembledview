@@ -10,6 +10,7 @@ import {
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
 import { recalculateBillingMonths } from "@/lib/billing/recalculateBillingMonths"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
+import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
 import { roundMoney2 } from "@/lib/format/money"
 
 const balancingMonthByLine = new Map<string, string>()
@@ -32,7 +33,11 @@ function findMediaKey(months: BillingMonth[], lineItemId: string): string | null
   for (const m of months) {
     if (!m.lineItems) continue
     for (const [key, items] of Object.entries(m.lineItems)) {
-      if ((items as BillingLineItem[] | undefined)?.some((li) => li.id === lineItemId)) {
+      if (
+        (items as BillingLineItem[] | undefined)?.some((li) =>
+          billingOverrideLineIdsMatch(String(li.id ?? ""), lineItemId)
+        )
+      ) {
         return key
       }
     }
@@ -47,7 +52,7 @@ function lineTotalAcrossMonths(months: BillingMonth[], lineItemId: string): numb
     for (const items of Object.values(m.lineItems)) {
       if (!Array.isArray(items)) continue
       for (const li of items as BillingLineItem[]) {
-        if (li.id !== lineItemId) continue
+        if (!billingOverrideLineIdsMatch(String(li.id ?? ""), lineItemId)) continue
         sum += Number(li.monthlyAmounts?.[m.monthYear] ?? 0) || 0
       }
     }
@@ -81,7 +86,9 @@ export function rebalanceLineOnSchedule(args: {
     const items = m.lineItems?.[mediaKey as keyof typeof m.lineItems] as
       | BillingLineItem[]
       | undefined
-    const li = items?.find((x) => x.id === args.lineItemId)
+    const li = items?.find((x) =>
+      billingOverrideLineIdsMatch(String(x.id ?? ""), args.lineItemId)
+    )
     amount = Number(li?.monthlyAmounts?.[m.monthYear] ?? 0) || 0
     return { month: m.monthYear, amount }
   })
@@ -121,7 +128,9 @@ export function collectLineMonthPairs(
     const items = m.lineItems?.[mediaKey as keyof typeof m.lineItems] as
       | BillingLineItem[]
       | undefined
-    const li = items?.find((x) => x.id === lineItemId)
+    const li = items?.find((x) =>
+      billingOverrideLineIdsMatch(String(x.id ?? ""), lineItemId)
+    )
     return {
       month: m.monthYear,
       amount: Number(li?.monthlyAmounts?.[m.monthYear] ?? 0) || 0,

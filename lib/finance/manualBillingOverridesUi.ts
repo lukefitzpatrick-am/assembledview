@@ -410,6 +410,54 @@ export function applyLinePrebillToMonths(
   return months
 }
 
+/**
+ * Restore monthlyAmounts from `preBillSnapshot` after Prebill uncheck.
+ * Matches bare ↔ `billing-{media}::` ids (C-34 / MB-4). Returns false when
+ * no matching line carries a snapshot (caller should no-op).
+ */
+export function restoreLinePrebillSnapshot(
+  months: BillingMonth[],
+  mediaKey: string,
+  lineItemId: string
+): boolean {
+  if (!months.length) return false
+  const monthYears = months.map((m) => m.monthYear)
+  const firstList = months[0]?.lineItems?.[mediaKey as keyof NonNullable<BillingMonth["lineItems"]>] as
+    | BillingLineItem[]
+    | undefined
+  if (!firstList) return false
+  const firstLine = firstList.find((li) =>
+    billingOverrideLineIdsMatch(String(li.id ?? ""), lineItemId)
+  )
+  if (!firstLine?.preBillSnapshot) return false
+
+  const desired: Record<string, number> = {}
+  for (const monthYear of monthYears) {
+    desired[monthYear] = firstLine.preBillSnapshot?.[monthYear] || 0
+  }
+
+  for (const month of months) {
+    const list = month.lineItems?.[mediaKey as keyof typeof month.lineItems] as
+      | BillingLineItem[]
+      | undefined
+    if (!list) continue
+    const li = list.find((x) =>
+      billingOverrideLineIdsMatch(String(x.id ?? ""), lineItemId)
+    )
+    if (!li) continue
+    for (const monthYear of monthYears) {
+      li.monthlyAmounts[monthYear] = desired[monthYear] || 0
+    }
+    li.totalAmount = monthYears.reduce(
+      (sum, monthYear) => sum + (li.monthlyAmounts?.[monthYear] || 0),
+      0
+    )
+    li.preBill = false
+    li.preBillSnapshot = undefined
+  }
+  return true
+}
+
 /** ISO month amounts for a prepayment override row (optimistic panels + replace_line). */
 export function buildPrepaymentOverrideMonths(
   months: BillingMonth[],

@@ -139,6 +139,7 @@ import {
   extractOverrideMonthsFromSchedule,
   listManualOverrideLineIds,
   removeOptimisticMediaOverrideRow,
+  restoreLinePrebillSnapshot,
   sumLineMediaAcrossMonths,
   toBillingOverrideLineItemId,
   upsertLineOverrideMeta,
@@ -3973,7 +3974,7 @@ function CreateMediaPlan() {
           copy
             .map((m) =>
               (m.lineItems?.[liKeyForPrev] as BillingLineItem[] | undefined)?.find(
-                (li) => li.id === lineItemId
+                (li) => billingOverrideLineIdsMatch(String(li.id ?? ""), lineItemId)
               )?.monthlyAmounts?.[monthYear]
             )
             .find((v) => typeof v === "number") ?? 0
@@ -4194,33 +4195,7 @@ function CreateMediaPlan() {
     const copy = deepCloneBillingMonths(manualBillingMonths)
     if (copy.length === 0) return
     const formatter = mbaCurrencyFormatter
-    const monthYears = copy.map((m) => m.monthYear)
-    const firstMonthLineItems = copy[0]?.lineItems?.[
-      mediaKey as keyof NonNullable<BillingMonth["lineItems"]>
-    ] as BillingLineItem[] | undefined
-    if (!firstMonthLineItems) return
-    const firstLineItem = firstMonthLineItems.find((li) => li.id === lineItemId)
-    if (!firstLineItem?.preBillSnapshot) return
-
-    const desired: Record<string, number> = {}
-    monthYears.forEach((my) => {
-      desired[my] = firstLineItem.preBillSnapshot?.[my] || 0
-    })
-
-    copy.forEach((month) => {
-      const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
-        | BillingLineItem[]
-        | undefined
-      if (!monthLineItems) return
-      const li = monthLineItems.find((x) => x.id === lineItemId)
-      if (!li) return
-      monthYears.forEach((my) => {
-        li.monthlyAmounts[my] = desired[my] || 0
-      })
-      li.totalAmount = monthYears.reduce((sum, my) => sum + (li.monthlyAmounts?.[my] || 0), 0)
-      li.preBill = false
-      li.preBillSnapshot = undefined
-    })
+    if (!restoreLinePrebillSnapshot(copy, mediaKey, lineItemId)) return
 
     copy.forEach((month) => {
       const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
@@ -4262,7 +4237,9 @@ function CreateMediaPlan() {
         | BillingLineItem[]
         | undefined
       if (!monthLineItems) return
-      const li = monthLineItems.find((x) => x.id === lineItemId)
+      const li = monthLineItems.find((x) =>
+        billingOverrideLineIdsMatch(String(x.id ?? ""), lineItemId)
+      )
       if (!li) return
       li.monthlyAmounts = { ...snapshot.monthlyAmounts }
       li.totalAmount = Object.values(li.monthlyAmounts).reduce((sum, v) => sum + (v || 0), 0)

@@ -209,6 +209,7 @@ import {
   clearLineOverrideMeta,
   listManualOverrideLineIds,
   removeOptimisticMediaOverrideRow,
+  restoreLinePrebillSnapshot,
   sumLineMediaAcrossMonths,
   toBillingOverrideLineItemId,
   upsertLineOverrideMeta,
@@ -4691,7 +4692,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           copy
             .map((m) =>
               (m.lineItems?.[liKeyForPrev] as BillingLineItemType[] | undefined)?.find(
-                (li) => li.id === lineItemId
+                (li) => billingOverrideLineIdsMatch(String(li.id ?? ""), lineItemId)
               )?.monthlyAmounts?.[monthYear]
             )
             .find((v) => typeof v === "number") ?? 0
@@ -4990,36 +4991,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     if (copy.length === 0) return
 
     const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
-    const monthYears = copy.map((m) => m.monthYear)
-    const firstMonthLineItems = copy[0]?.lineItems?.[mediaKey as keyof typeof copy[0]["lineItems"]] as
-      | BillingLineItemType[]
-      | undefined
-    if (!firstMonthLineItems) return
-    const firstLineItem = firstMonthLineItems.find((li) => li.id === lineItemId)
-    if (!firstLineItem?.preBillSnapshot) return
-
-    const desired: Record<string, number> = {}
-    monthYears.forEach((monthYear) => {
-      desired[monthYear] = firstLineItem.preBillSnapshot?.[monthYear] || 0
-    })
-
-    copy.forEach((month) => {
-      const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
-        | BillingLineItemType[]
-        | undefined
-      if (!monthLineItems) return
-      const li = monthLineItems.find((x) => x.id === lineItemId)
-      if (!li) return
-      monthYears.forEach((monthYear) => {
-        li.monthlyAmounts[monthYear] = desired[monthYear] || 0
-      })
-      li.totalAmount = monthYears.reduce(
-        (sum, monthYear) => sum + (li.monthlyAmounts?.[monthYear] || 0),
-        0
-      )
-      li.preBill = false
-      li.preBillSnapshot = undefined
-    })
+    if (!restoreLinePrebillSnapshot(copy, mediaKey, lineItemId)) return
 
     copy.forEach((month) => {
       const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
@@ -5832,8 +5804,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
         for (const exp of expected) {
           const act =
-            actualGroup.find((li) => li.id === exp.id) ??
-            actualGroup.find((li) => billingHeadersMatch(li, exp))
+            actualGroup.find((li) =>
+              billingOverrideLineIdsMatch(String(li.id ?? ""), String(exp.id ?? ""))
+            ) ?? actualGroup.find((li) => billingHeadersMatch(li, exp))
           if (act) unmatchedActual.delete(act.id)
 
           const currentMediaTotal = act
