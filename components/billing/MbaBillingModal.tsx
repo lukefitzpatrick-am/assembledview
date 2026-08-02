@@ -743,9 +743,11 @@ export function MbaBillingModal({
               </div>
             </div>
           ) : null}
+          {/* Single banner instance — do not also mount BillingDivergenceModal. */}
           {showDivergenceBanner && billingDivergence?.isDivergent ? (
-            <div className="border-b border-border px-6 py-3">
+            <div className="border-b border-border px-6 py-3" data-billing-divergence-banner="1">
               <BillingDivergenceBanner
+                key="mba-billing-divergence-banner"
                 divergence={billingDivergence}
                 onAcknowledge={onAcknowledgeDivergence}
               />

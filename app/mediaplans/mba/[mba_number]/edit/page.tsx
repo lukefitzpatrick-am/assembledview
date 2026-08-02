@@ -5557,6 +5557,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     billingLineItemsFollowAutoRef.current = true
     setIsManualBilling(false)
     setBillingDivergence(null)
+    setShowDivergenceBanner(false)
     setManualBillingMonths([])
     setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
     manualBillingCostPreBillSnapshotRef.current = {}
@@ -9987,6 +9988,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       })
       setBillingDivergence(result)
       setIsManualBilling(hasExplicitManualBillingLines(workingBillingMonths))
+      // Keep a single banner surface in sync with working drift (hydrate owns first paint;
+      // debounce must show after a real manual edit and clear after reset-to-auto).
+      if (result.isDivergent && FF_BILLING_DIVERGENCE_ENABLED) {
+        const ackKey = `billingDivergenceAcknowledged:${mbaNumber}:${selectedVersionNumber}`
+        const acked =
+          typeof window !== "undefined" && Boolean(window.sessionStorage.getItem(ackKey))
+        setShowDivergenceBanner(!acked)
+      } else {
+        setShowDivergenceBanner(false)
+      }
     }, 500)
 
     return () => window.clearTimeout(tid)
@@ -9996,6 +10007,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     workingBillingMonths,
     autoReferenceBillingMonths,
     attachLineItemsToMonths,
+    mbaNumber,
+    selectedVersionNumber,
   ])
 
   /**

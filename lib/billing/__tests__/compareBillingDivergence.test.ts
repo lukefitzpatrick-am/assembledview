@@ -148,6 +148,86 @@ test("line in computed only → missing_in_saved", () => {
   assert.equal(result.divergentLines[0]!.kind, "missing_in_saved")
 })
 
+test("BUX-1: bare saved id vs decorated computed id with same totals → not divergent", () => {
+  // postgres legacy_schedules often keep bare line_item_id; auto-attach uses billing-{media}::…
+  const saved = [
+    month("May 2025", {
+      mediaTotal: "$1,000.00",
+      feeTotal: "$100.00",
+      lines: {
+        progBvod: [
+          line("supabase001PB1", {
+            header1: "Quantcast – Direct",
+            header2: "test",
+            totalAmount: 1000,
+            totalAdServingAmount: 0,
+          }),
+        ],
+      },
+    }),
+  ]
+  const computed = [
+    month("May 2025", {
+      mediaTotal: "$1,000.00",
+      feeTotal: "$100.00",
+      lines: {
+        progBvod: [
+          line("billing-progBvod::supabase001PB1", {
+            header1: "Quantcast – Direct",
+            header2: "test",
+            totalAmount: 1000,
+            totalAdServingAmount: 0,
+          }),
+        ],
+      },
+    }),
+  ]
+  const result = compareBillingDivergence(saved, computed)
+  assert.equal(result.isDivergent, false)
+  assert.equal(result.divergentLines.length, 0)
+  assert.equal(result.divergentMonths.length, 0)
+})
+
+test("BUX-1: bare vs decorated with real line_total drift → one divergent line", () => {
+  const saved = [
+    month("May 2025", {
+      mediaTotal: "$1,200.00",
+      lines: {
+        progBvod: [
+          line("supabase001PB1", {
+            header1: "Quantcast – Direct",
+            header2: "test",
+            totalAmount: 1200,
+          }),
+        ],
+      },
+    }),
+  ]
+  const computed = [
+    month("May 2025", {
+      mediaTotal: "$1,000.00",
+      lines: {
+        progBvod: [
+          line("billing-progBvod::supabase001PB1", {
+            header1: "Quantcast – Direct",
+            header2: "test",
+            totalAmount: 1000,
+          }),
+        ],
+      },
+    }),
+  ]
+  const result = compareBillingDivergence(saved, computed)
+  assert.equal(result.isDivergent, true)
+  assert.equal(result.divergentLines.length, 1)
+  assert.equal(result.divergentLines[0]!.kind, "line_total")
+  assert.ok(
+    result.divergentLines.every(
+      (d) => d.kind !== "missing_in_saved" && d.kind !== "missing_in_computed"
+    )
+  )
+})
+
 test("month only in saved with positive media → divergentMonths", () => {
   const saved = [month("May 2025", { mediaTotal: "$2,000.00", feeTotal: "$50.00" })]
   const computed: BillingMonth[] = []

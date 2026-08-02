@@ -1,5 +1,9 @@
 import type { BillingMonth, BillingLineItem } from "@/lib/billing/types"
 import { formatMoney } from "@/lib/format/money"
+import {
+  billingOverrideLineIdsMatch,
+  toBillingOverrideLineItemId,
+} from "@/lib/finance/manualBillingOverridesUi"
 
 const DIVERGENCE_TOLERANCE = 0.01
 
@@ -63,6 +67,11 @@ function exceedsTolerance(a: number, b: number): boolean {
   return Math.abs(a - b) > DIVERGENCE_TOLERANCE
 }
 
+/**
+ * Index lines by canonical override id (bare `line_item_id`).
+ * Persisted schedules often store bare ids while auto-attach uses
+ * `billing-{media}::{raw}` — C-34 / BUX-1: never treat those as distinct lines.
+ */
 function collectLinesById(months: BillingMonth[]): Map<string, CollectedLine> {
   const map = new Map<string, CollectedLine>()
   for (const month of months) {
@@ -72,12 +81,36 @@ function collectLinesById(months: BillingMonth[]): Map<string, CollectedLine> {
       const arr = items as BillingLineItem[] | undefined
       if (!arr?.length) continue
       for (const line of arr) {
-        if (!line.id) continue
-        map.set(line.id, { mediaKey, line })
+        const rawId = String(line.id ?? "").trim()
+        if (!rawId) continue
+        const canonical = toBillingOverrideLineItemId(rawId)
+        if (!canonical) continue
+        // Prefer the first occurrence; later months share the same line totals.
+        if (!map.has(canonical)) {
+          map.set(canonical, { mediaKey, line })
+        }
       }
     }
   }
   return map
+}
+
+/** Resolve a collected line by bare or decorated id (C-34 equivalence). */
+function getCollectedLine(
+  map: Map<string, CollectedLine>,
+  lineItemId: string
+): CollectedLine | undefined {
+  const direct = map.get(lineItemId)
+  if (direct) return direct
+  const canonical = toBillingOverrideLineItemId(lineItemId)
+  if (canonical && canonical !== lineItemId) {
+    const byCanonical = map.get(canonical)
+    if (byCanonical) return byCanonical
+  }
+  for (const [id, entry] of map) {
+    if (billingOverrideLineIdsMatch(id, lineItemId)) return entry
+  }
+  return undefined
 }
 
 function monthValue(month: BillingMonth | undefined, field: MonthField): number {
@@ -165,61 +198,62 @@ export function compareBillingDivergence(
   if (shouldCompareLineItems) {
     const savedLines = collectLinesById(saved)
     const computedLines = collectLinesById(effectiveComputed)
+    // Keys are already canonical (bare line_item_id) — bare↔decorated collapse in collect.
     const allLineIds = new Set([...savedLines.keys(), ...computedLines.keys()])
 
     for (const lineItemId of allLineIds) {
-    const savedEntry = savedLines.get(lineItemId)
-    const computedEntry = computedLines.get(lineItemId)
+      const savedEntry = getCollectedLine(savedLines, lineItemId)
+      const computedEntry = getCollectedLine(computedLines, lineItemId)
 
-    if (savedEntry && !computedEntry) {
-      pushLineDivergence(divergentLines, {
-        mediaKey: savedEntry.mediaKey,
-        lineItemId,
-        header1: savedEntry.line.header1,
-        header2: savedEntry.line.header2,
-        savedTotal: savedEntry.line.totalAmount ?? 0,
-        computedTotal: 0,
-        kind: "missing_in_computed",
-      })
-      continue
-    }
+      if (savedEntry && !computedEntry) {
+        pushLineDivergence(divergentLines, {
+          mediaKey: savedEntry.mediaKey,
+          lineItemId: String(savedEntry.line.id ?? lineItemId),
+          header1: savedEntry.line.header1,
+          header2: savedEntry.line.header2,
+          savedTotal: savedEntry.line.totalAmount ?? 0,
+          computedTotal: 0,
+          kind: "missing_in_computed",
+        })
+        continue
+      }
 
-    if (!savedEntry && computedEntry) {
-      pushLineDivergence(divergentLines, {
-        mediaKey: computedEntry.mediaKey,
-        lineItemId,
-        header1: computedEntry.line.header1,
-        header2: computedEntry.line.header2,
-        savedTotal: 0,
-        computedTotal: computedEntry.line.totalAmount ?? 0,
-        kind: "missing_in_saved",
-      })
-      continue
-    }
+      if (!savedEntry && computedEntry) {
+        pushLineDivergence(divergentLines, {
+          mediaKey: computedEntry.mediaKey,
+          lineItemId: String(computedEntry.line.id ?? lineItemId),
+          header1: computedEntry.line.header1,
+          header2: computedEntry.line.header2,
+          savedTotal: 0,
+          computedTotal: computedEntry.line.totalAmount ?? 0,
+          kind: "missing_in_saved",
+        })
+        continue
+      }
 
-    if (!savedEntry || !computedEntry) continue
+      if (!savedEntry || !computedEntry) continue
 
-    const { mediaKey, line: savedLine } = savedEntry
-    const { line: computedLine } = computedEntry
+      const { mediaKey, line: savedLine } = savedEntry
+      const { line: computedLine } = computedEntry
 
-    compareLineNumericField(
-      divergentLines,
-      mediaKey,
-      savedLine,
-      computedLine,
-      "line_total",
-      savedLine.totalAmount ?? 0,
-      computedLine.totalAmount ?? 0
-    )
-    compareLineNumericField(
-      divergentLines,
-      mediaKey,
-      savedLine,
-      computedLine,
-      "adserving_total",
-      savedLine.totalAdServingAmount ?? 0,
-      computedLine.totalAdServingAmount ?? 0
-    )
+      compareLineNumericField(
+        divergentLines,
+        mediaKey,
+        savedLine,
+        computedLine,
+        "line_total",
+        savedLine.totalAmount ?? 0,
+        computedLine.totalAmount ?? 0
+      )
+      compareLineNumericField(
+        divergentLines,
+        mediaKey,
+        savedLine,
+        computedLine,
+        "adserving_total",
+        savedLine.totalAdServingAmount ?? 0,
+        computedLine.totalAdServingAmount ?? 0
+      )
     }
   }
 
