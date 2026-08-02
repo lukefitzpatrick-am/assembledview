@@ -233,16 +233,26 @@ export function LineTimingInlineEditor({
               <span className="num">{formatAUD(expectedMediaTotal)}</span>
             </span>
             {gate.ok ? (
-              <Badge variant="good" size="sm" className="rounded-pill font-medium">
-                months = line media
+              <Badge
+                variant="good"
+                size="sm"
+                className="rounded-pill font-medium"
+                title="Month amounts sum to this line's media total"
+              >
+                Months match line
               </Badge>
             ) : (
               <Badge variant="blocking" size="sm" className="rounded-pill font-medium">
-                off by {formatAUD(offByAbs)} — fix before saving
+                Off by {formatAUD(offByAbs)} — fix before saving
               </Badge>
             )}
             {isPrepaid ? (
-              <Badge variant="attention" size="sm" className="rounded-pill font-medium">
+              <Badge
+                variant="attention"
+                size="sm"
+                className="rounded-pill font-medium"
+                title="Media is billed up front (prepayment) rather than spread across delivery months"
+              >
                 Prepaid
               </Badge>
             ) : null}

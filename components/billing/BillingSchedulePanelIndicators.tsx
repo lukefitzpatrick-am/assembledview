@@ -13,7 +13,7 @@ import type {
   MonthDotIndicator,
 } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 
-/** Manual-count + prepay-reason pills under the Billing Schedule title. */
+/** Manual / Prepaid pills under the Billing Schedule title (one label per concept). */
 export function BillingScheduleTitlePills({
   pills,
 }: {
@@ -21,21 +21,35 @@ export function BillingScheduleTitlePills({
 }) {
   if (pills.length === 0) return null
   return (
-    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-      {pills.map((p) => (
-        <Badge
-          key={p.key}
-          variant={p.tone === "amber" ? "attention" : "secondary"}
-          size="sm"
-          className={cn(
-            "rounded-pill font-medium",
-            p.tone !== "amber" && "text-muted-foreground"
-          )}
-        >
-          {p.label}
-        </Badge>
-      ))}
-    </div>
+    <TooltipProvider delayDuration={200}>
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+        {pills.map((p) => {
+          const badge = (
+            <Badge
+              variant={p.tone === "amber" ? "attention" : "secondary"}
+              size="sm"
+              className={cn(
+                "rounded-pill font-medium",
+                p.tone !== "amber" && "text-muted-foreground"
+              )}
+            >
+              {p.label}
+            </Badge>
+          )
+          if (!p.tooltip) return <span key={p.key}>{badge}</span>
+          return (
+            <Tooltip key={p.key}>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">{badge}</span>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="max-w-xs text-xs">
+                {p.tooltip}
+              </TooltipContent>
+            </Tooltip>
+          )
+        })}
+      </div>
+    </TooltipProvider>
   )
 }
 
@@ -53,7 +67,7 @@ export function EditBillingOverrideDot({ show }: { show: boolean }) {
 
 /**
  * Per-month status dot. Prepay and manual are both attention (amber) —
- * prepay is no longer coded as on-track blue.
+ * hover explains the month differs from auto billing (BUX-3).
  */
 export function BillingMonthStatusDot({ indicator }: { indicator?: MonthDotIndicator }) {
   if (!indicator) return null
@@ -77,7 +91,7 @@ export function BillingMonthStatusDot({ indicator }: { indicator?: MonthDotIndic
 /** Good: quiet tick on Grand Total when billing = MBA. */
 export function BillingEqualsMbaPill({
   show,
-  title = "Billing totals match MBA",
+  title = "Billable totals match the MBA",
 }: {
   show: boolean
   title?: string
@@ -90,7 +104,7 @@ export function BillingEqualsMbaPill({
       className="ml-2 rounded-pill font-normal"
       title={title}
     >
-      ✓ = MBA
+      Matches MBA
     </Badge>
   )
 }
@@ -103,9 +117,9 @@ export function BillingMismatchMbaPill({ show }: { show: boolean }) {
       variant="blocking"
       size="sm"
       className="ml-2 rounded-pill font-medium"
-      title="Billing totals do not match MBA"
+      title="Billable totals do not match the MBA"
     >
-      ≠ MBA
+      Doesn&apos;t match MBA
     </Badge>
   )
 }

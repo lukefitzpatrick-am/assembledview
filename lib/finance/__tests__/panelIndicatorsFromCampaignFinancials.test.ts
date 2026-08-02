@@ -65,9 +65,17 @@ test("panel indicators: manual + fee override surface pills and amber Edit Billi
 
   assert.equal(indicators.mbaDetails.byMediaType.search?.manual, true)
   assert.equal(indicators.mbaDetails.byMediaType.search?.feeAdjusted, true)
-  assert.ok(indicators.billingSchedule.titlePills.some((p) => p.key === "manual-count"))
+  const manualPill = indicators.billingSchedule.titlePills.find((p) => p.key === "manual-count")
+  assert.ok(manualPill)
+  assert.equal(manualPill?.label, "Manual")
+  assert.match(manualPill?.tooltip ?? "", /invoicing/i)
+  const prepaidPill = indicators.billingSchedule.titlePills.find((p) => p.key === "prepay-reason")
+  if (prepaidPill) assert.equal(prepaidPill.label, "Prepaid")
   assert.equal(indicators.billingSchedule.editBillingHasOverride, true)
   assert.equal(indicators.mbaDetails.mbaFeeAdjusted, true)
+  const monthDots = Object.values(indicators.billingSchedule.byMonth)
+  assert.ok(monthDots.length > 0)
+  assert.ok(monthDots.every((d) => d.hover === "This month differs from auto billing"))
 })
 
 test("panel indicators: clientPays on media-type row when any in-scope line is client-pays", () => {

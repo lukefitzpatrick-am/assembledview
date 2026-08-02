@@ -30,7 +30,6 @@ import {
   BillingEqualsMbaPill,
   BillingMismatchMbaPill,
   BillingMonthStatusDot,
-  BillingScheduleTitlePills,
   EditBillingOverrideDot,
 } from "@/components/billing/BillingSchedulePanelIndicators"
 import {
@@ -235,17 +234,7 @@ function HeaderStrip({
   const total = lines.length
   const approved = lines.filter((l) => !l.flags.excluded).length
   const manual = lines.filter((l) => l.flags.manualBilling && !l.flags.excluded).length
-  const clientPays = lines.filter((l) => l.flags.clientPaysForMedia && !l.flags.excluded).length
-  const billingNeDelivery = financials.deliveryVsBillingDelta.filter(
-    (d) => Math.abs(d.media) > 0.005 || d.reasons.some((r) => r !== "rounding")
-  ).length
-  // CORE validation only (subtracts client-pays media). Never compare schedule grand total to MBA nett.
-  const billableEquals = financials.validation.billableEqualsMba
-  const rec = reconciliationBadgeVisibility(reconciliationReady, billableEquals)
   const partialLabel = panelIndicators.mbaDetails.partialLabel
-
-  const quiet =
-    !partialLabel && manual === 0 && clientPays === 0 && billingNeDelivery === 0
 
   const months = monthYears ?? []
   const selected = selectedMonthYears ?? months
@@ -263,62 +252,64 @@ function HeaderStrip({
     onSelectedMonthYearsChange([...selected, monthYear])
   }
 
+  // BUX-3: one status row — MBA version · approval · billing mode. No glyph jargon chips;
+  // real saved-vs-auto drift stays in BillingDivergenceBanner (words).
   return (
     <div className="space-y-2 border-b border-border bg-surface-panel px-6 py-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary" size="sm" className="rounded-pill font-medium">
-          MBA {versionLabel}
-        </Badge>
-        {/* Core signal — same Partial MBA · X of Y as MBA Details panel */}
-        <MbaPartialScopePill label={partialLabel} />
-        {!partialLabel && total > 0 ? (
-          <Badge variant="good" size="sm" className="rounded-pill font-medium">
-            <span className="num">{`${approved} of ${total} approved`}</span>
+      <TooltipProvider delayDuration={200}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" size="sm" className="rounded-pill font-medium">
+            MBA {versionLabel}
           </Badge>
-        ) : null}
-        {manual > 0 ? (
-          <Badge variant="attention" size="sm" className="rounded-pill font-medium">
-            <span className="num">{manual}</span> manual
-          </Badge>
-        ) : null}
-        {clientPays > 0 ? (
-          <Badge variant="secondary" size="sm" className="rounded-pill font-medium text-muted-foreground">
-            client-pays: <span className="num">{clientPays}</span>
-          </Badge>
-        ) : null}
-        {billingNeDelivery > 0 ? (
-          <Badge variant="attention" size="sm" className="rounded-pill font-medium">
-            billing≠delivery: <span className="num">{billingNeDelivery}</span>
-          </Badge>
-        ) : null}
-        {!reconciliationReady ? (
-          <Badge
-            variant="secondary"
-            size="sm"
-            className="rounded-pill font-medium text-muted-foreground"
-            title="Waiting for all media channels to finish loading"
-          >
-            Loading channels…
-          </Badge>
-        ) : rec.showEquals ? (
-          <Badge variant="good" size="sm" className="rounded-pill font-medium" title="Billable totals match MBA">
-            <Check className="mr-1 h-3.5 w-3.5" aria-hidden />
-            billable = MBA
-          </Badge>
-        ) : rec.showMismatch && total > 0 ? (
-          <Badge
-            variant="blocking"
-            size="sm"
-            className="rounded-pill font-medium"
-            title="Billable totals do not match MBA"
-          >
-            billing ≠ MBA
-          </Badge>
-        ) : null}
-        {quiet && rec.showEquals && total > 0 ? (
-          <span className="text-xs text-muted-foreground">Clean plan</span>
-        ) : null}
-      </div>
+          <MbaPartialScopePill label={partialLabel} />
+          {!partialLabel && total > 0 ? (
+            <Badge variant="good" size="sm" className="rounded-pill font-medium">
+              <span className="num">{`${approved} of ${total} approved`}</span>
+            </Badge>
+          ) : null}
+          {total > 0 ? (
+            manual > 0 ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <Badge variant="attention" size="sm" className="rounded-pill font-medium">
+                      Manual billing — <span className="num">{manual}</span>{" "}
+                      {manual === 1 ? "line" : "lines"}
+                    </Badge>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs text-xs">
+                  Billing months were set manually and may differ from auto-calculated delivery
+                  timing for invoicing.
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <Badge variant="secondary" size="sm" className="rounded-pill font-medium">
+                      Auto billing
+                    </Badge>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs text-xs">
+                  Invoice months follow delivery timing computed from bursts and line items.
+                </TooltipContent>
+              </Tooltip>
+            )
+          ) : null}
+          {!reconciliationReady ? (
+            <Badge
+              variant="secondary"
+              size="sm"
+              className="rounded-pill font-medium text-muted-foreground"
+              title="Waiting for all media channels to finish loading"
+            >
+              Loading channels…
+            </Badge>
+          ) : null}
+        </div>
+      </TooltipProvider>
       {showMonthChips ? (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">MBA covers:</span>
@@ -457,31 +448,70 @@ function ScopeLineRow({
                 Not in MBA
               </Badge>
             )}
-            {line.flags.prepaid && !muted ? (
-              <Badge variant="attention" size="sm" className="rounded-pill font-normal">
-                Prepaid
-              </Badge>
-            ) : null}
-            {line.flags.manualBilling && !muted && !line.flags.prepaid ? (
-              <Badge variant="attention" size="sm" className="rounded-pill font-normal">
-                Manual
-              </Badge>
-            ) : null}
-            {line.flags.manualFee && !muted ? (
-              <Badge variant="attention" size="sm" className="rounded-pill font-normal">
-                Fee adjusted
-              </Badge>
-            ) : null}
-            {line.flags.clientPaysForMedia && !muted ? (
-              <Badge variant="secondary" size="sm" className="rounded-pill font-normal">
-                Client pays
-              </Badge>
-            ) : null}
-            {dateBasisChoice && !muted ? (
-              <Badge variant="attention" size="sm" className="rounded-pill font-normal">
-                Dates changed
-              </Badge>
-            ) : null}
+            <TooltipProvider delayDuration={200}>
+              {line.flags.prepaid && !muted ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                        Prepaid
+                      </Badge>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    Media is billed up front (prepayment) rather than spread across delivery months.
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+              {line.flags.manualBilling && !muted && !line.flags.prepaid ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                        Manual
+                      </Badge>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    Billing months were set manually and may differ from auto-calculated delivery
+                    timing for invoicing.
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+              {line.flags.manualFee && !muted ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                        Fee adjusted
+                      </Badge>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    Fee months were adjusted manually for invoicing.
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+              {line.flags.clientPaysForMedia && !muted ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <Badge variant="secondary" size="sm" className="rounded-pill font-normal">
+                        Client pays
+                      </Badge>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    Client pays media cost directly; it is excluded from billable MBA totals.
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+              {dateBasisChoice && !muted ? (
+                <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                  Dates changed
+                </Badge>
+              ) : null}
+            </TooltipProvider>
           </div>
           {line.subtitle ? (
             <p className="truncate text-xs text-muted-foreground">{line.subtitle}</p>
@@ -941,7 +971,7 @@ export function MbaBillingModal({
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Billing schedule
                   </h3>
-                  <BillingScheduleTitlePills pills={panelIndicators.billingSchedule.titlePills} />
+                  {/* BUX-3: billing mode lives in the header status row — no duplicate title pills. */}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   {onResetBillingToAuto ? (

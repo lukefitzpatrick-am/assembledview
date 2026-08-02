@@ -112,7 +112,7 @@ export function MbaBillingAutoCalcSummary({
           ) : mbaRec.showEquals ? (
             <Badge variant="good" size="sm" className="rounded-pill font-medium" title="Billable totals match MBA">
               <Check className="mr-1 h-3.5 w-3.5" aria-hidden />
-              billable = MBA
+              Matches MBA
             </Badge>
           ) : mbaRec.showMismatch ? (
             <Badge
@@ -121,7 +121,7 @@ export function MbaBillingAutoCalcSummary({
               className="rounded-pill font-medium"
               title="Billable totals do not match MBA"
             >
-              billing ≠ MBA
+              Doesn&apos;t match MBA
             </Badge>
           ) : null}
         </div>

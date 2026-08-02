@@ -4,7 +4,6 @@
  */
 
 import type { CampaignFinancials } from "@/lib/finance/campaignFinancials.types"
-import { parseMoneyInput, formatMoney } from "@/lib/format/money"
 
 export type MediaTypeRowIndicators = {
   muted: boolean
@@ -31,8 +30,8 @@ export type MbaDetailsPanelIndicatorModel = {
 }
 
 export type BillingSchedulePanelIndicatorModel = {
-  /** Pills under the Billing Schedule title. */
-  titlePills: { key: string; label: string; tone: "amber" | "muted" }[]
+  /** Pills under the Billing Schedule title (one label per concept; prefer modal status row). */
+  titlePills: { key: string; label: string; tone: "amber" | "muted"; tooltip?: string }[]
   /** Amber dot on Edit Billing when any override exists. */
   editBillingHasOverride: boolean
   byMonth: Record<string, MonthDotIndicator>
@@ -42,22 +41,6 @@ export type BillingSchedulePanelIndicatorModel = {
 export type PanelIndicatorsFromCampaignFinancials = {
   mbaDetails: MbaDetailsPanelIndicatorModel
   billingSchedule: BillingSchedulePanelIndicatorModel
-}
-
-function parseScheduleMoney(value: string | undefined): number {
-  return parseMoneyInput(value ?? 0) ?? 0
-}
-
-function formatHoverMoney(n: number): string {
-  return formatMoney(n)
-}
-
-function reasonLabel(reasons: string[]): string {
-  if (reasons.includes("prepayment")) return "prepayment"
-  if (reasons.includes("manual")) return "manual"
-  if (reasons.includes("client_terms")) return "client terms"
-  const filtered = reasons.filter((r) => r !== "rounding" && r !== "excluded")
-  return filtered[0] ?? reasons[0] ?? "override"
 }
 
 /**
@@ -128,25 +111,26 @@ export function panelIndicatorsFromCampaignFinancials(
   if (manualLines.length > 0) {
     titlePills.push({
       key: "manual-count",
-      label: `${manualLines.length} manual`,
+      label:
+        manualLines.length === 1
+          ? "Manual"
+          : `Manual · ${manualLines.length}`,
       tone: "amber",
+      tooltip:
+        "Billing months were set manually and may differ from auto-calculated delivery timing for invoicing.",
     })
   }
   if (hasPrepayDelta) {
     titlePills.push({
       key: "prepay-reason",
-      label: "Prepayment",
+      label: "Prepaid",
       // Attention (amber) — same meaning family as manual overrides.
       tone: "amber",
+      tooltip:
+        "Media is billed up front (prepayment) rather than spread across delivery months.",
     })
   }
 
-  const deliveryByMonth = new Map(
-    financials.deliverySchedule.map((m) => [m.monthYear, m] as const)
-  )
-  const billingByMonth = new Map(
-    financials.billingSchedule.map((m) => [m.monthYear, m] as const)
-  )
   const deltaByMonth = new Map(
     financials.deliveryVsBillingDelta.map((d) => [d.month, d] as const)
   )
@@ -161,12 +145,10 @@ export function panelIndicatorsFromCampaignFinancials(
     )
     if (!isPrepay && !isManualMonth) continue
 
-    const calc = parseScheduleMoney(deliveryByMonth.get(monthYear)?.mediaTotal)
-    const set = parseScheduleMoney(billingByMonth.get(monthYear)?.mediaTotal)
-    const reason = reasonLabel(delta?.reasons ?? (isPrepay ? ["prepayment"] : ["manual"]))
     byMonth[monthYear] = {
       tone: isPrepay ? "prepay" : "manual",
-      hover: `${formatHoverMoney(calc)} → ${formatHoverMoney(set)} · ${reason}`,
+      // BUX-3: plain-language tooltip (no $ → $ · reason glyph jargon).
+      hover: "This month differs from auto billing",
     }
   }
 
