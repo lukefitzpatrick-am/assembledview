@@ -5352,22 +5352,31 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
 
     const versionId = await resolveMediaPlanVersionRowId()
-    if (versionId != null) {
-      try {
-        await resetBillingOverrideLineClient({
-          media_plan_version_id: versionId,
-          mba_number: mbaNumber,
-          line_item_id: toBillingOverrideLineItemId(lineItemId),
-          // omit component → clear both media and fee override rows
-        })
-      } catch (err: any) {
-        toast({
-          variant: "destructive",
-          title: "Could not clear billing override",
-          description: err?.message || "Reset aborted.",
-        })
-        return
-      }
+    // MB-3: never clear local override state when the version row is unresolved —
+    // silent local reset with a live override row is worse than a failed reset.
+    if (versionId == null) {
+      toast({
+        variant: "destructive",
+        title: "Cannot reset this line",
+        description:
+          "Could not resolve the media plan version for this MBA. Reload the page and try again — local billing was left unchanged.",
+      })
+      return
+    }
+    try {
+      await resetBillingOverrideLineClient({
+        media_plan_version_id: versionId,
+        mba_number: mbaNumber,
+        line_item_id: toBillingOverrideLineItemId(lineItemId),
+        // omit component → clear both media and fee override rows
+      })
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Could not clear billing override",
+        description: err?.message || "Reset aborted.",
+      })
+      return
     }
     clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId)
     setBillingOverrideRowsForPanels((prev) => removeOptimisticMediaOverrideRow(prev, lineItemId))

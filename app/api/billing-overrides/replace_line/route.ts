@@ -68,8 +68,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, data })
   } catch (error) {
     if (error instanceof BillingOverrideWriteError) {
-      const status = error.code === "NOT_FOUND" ? 404 : 400
-      return NextResponse.json({ error: error.message }, { status })
+      const status =
+        error.code === "NOT_FOUND"
+          ? 404
+          : error.code === "SUM_VIOLATION"
+            ? 409
+            : 400
+      return NextResponse.json(
+        {
+          error: error.message,
+          code: error.code,
+          ...(error.delta != null ? { delta: error.delta } : {}),
+          ...(error.expected != null ? { expected: error.expected } : {}),
+          ...(error.actual != null ? { actual: error.actual } : {}),
+        },
+        { status }
+      )
     }
     console.error("[api/billing-overrides/replace_line POST]", error)
     return NextResponse.json({ error: "Failed to replace billing override line" }, { status: 500 })
