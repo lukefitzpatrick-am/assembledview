@@ -1716,6 +1716,7 @@ if (HYDRATION_WATCHDOG_MS <= LINE_ITEM_TIMEOUT_INITIAL_MS + LINE_ITEM_TIMEOUT_AU
  *
  * Toggling to false suppresses the banner and first-visit modal but does NOT
  * stop compareBillingDivergence from running — it only hides its UI consumers.
+ * Compare itself is also gated on `allChannelsHydrated` (BUX-5).
  */
 const FF_BILLING_DIVERGENCE_ENABLED = true
 
@@ -9951,14 +9952,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   /**
    * After persisted billing hydrates, compare saved baseline to auto-reference once per MBA/version load.
    * Sets manual mode for the banner and billing state.
+   * BUX-5: wait for `allChannelsHydrated` (same gate as "Loading channels…") — `loadPhase === ready`
+   * alone still leaves empty channel line arrays, so auto-reference looks empty and false-diverges.
    */
   useEffect(() => {
     if (billingDivergenceHydrateCheckedRef.current) return
-    // Gate: do not surface the divergence banner until line items have finished
-    // loading. Without this, the comparator runs against empty *MediaLineItems
-    // arrays and produces false-positive missing_in_computed divergence against
-    // the fully-populated saved billing schedule.
-    if (loadPhase !== "ready") return
+    if (loadPhase !== "ready" || !allChannelsHydrated) return
     if (
       savedBillingMonths.length === 0 ||
       workingBillingMonths.length === 0 ||
@@ -9991,6 +9990,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     mbaNumber,
     selectedVersionNumber,
     loadPhase,
+    allChannelsHydrated,
     savedBillingMonths,
     workingBillingMonths,
     autoReferenceBillingMonths,
@@ -9999,10 +9999,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   /**
    * Re-evaluate divergence as working billing changes (debounced). Banner ack is hydrate-only.
+   * BUX-5: same channel-hydration gate as the one-shot compare.
    */
   useEffect(() => {
     if (!hasPersistedBillingSchedule) return
-    if (loadPhase !== "ready") return
+    if (loadPhase !== "ready" || !allChannelsHydrated) return
     if (workingBillingMonths.length === 0 || autoReferenceBillingMonths.length === 0) return
 
     const tid = window.setTimeout(() => {
@@ -10027,6 +10028,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [
     hasPersistedBillingSchedule,
     loadPhase,
+    allChannelsHydrated,
     workingBillingMonths,
     autoReferenceBillingMonths,
     attachLineItemsToMonths,
@@ -12336,7 +12338,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         onResetBillingToAuto={() => setFullBillingResetConfirmOpen(true)}
         billingDivergence={billingDivergence}
         showDivergenceBanner={
-          FF_BILLING_DIVERGENCE_ENABLED && showDivergenceBanner
+          FF_BILLING_DIVERGENCE_ENABLED &&
+          allChannelsHydrated &&
+          showDivergenceBanner
         }
         onAcknowledgeDivergence={handleAcknowledgeDivergence}
         overridesLoadNotice={billingOverridesLoadNotice}

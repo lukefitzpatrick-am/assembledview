@@ -773,8 +773,11 @@ export function MbaBillingModal({
               </div>
             </div>
           ) : null}
-          {/* Single banner instance — do not also mount BillingDivergenceModal. */}
-          {showDivergenceBanner && billingDivergence?.isDivergent ? (
+          {/* Single banner instance — do not also mount BillingDivergenceModal.
+              BUX-5: hide while channels still hydrating (same as "Loading channels…"). */}
+          {showDivergenceBanner &&
+          reconciliationReady &&
+          billingDivergence?.isDivergent ? (
             <div className="border-b border-border px-6 py-3" data-billing-divergence-banner="1">
               <BillingDivergenceBanner
                 key="mba-billing-divergence-banner"
