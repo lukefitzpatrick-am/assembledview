@@ -1,37 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
-import axios from "axios"
-import { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import {
+  BillingOverrideWriteError,
+  replaceBillingOverrideLine,
+} from "@/lib/data/writeBillingOverrides"
 
 export const dynamic = "force-dynamic"
 
-const MEDIA_PLANS_ENV_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
-const XANO_TIMEOUT_MS = 15_000
-
-/**
- * Resolve audit identity for Xano `created_by` (text field — stores stringified
- * values). Prefer email; fall back to display name / Auth0 sub; never invent a
- * silent empty string that Xano rejects as Missing param.
- */
-function resolveCreatedBy(user: {
-  id: number
-  name?: string | null
-  email?: string | null
-}): string | null {
-  const email = typeof user.email === "string" ? user.email.trim() : ""
-  if (email) return email
-  const name = typeof user.name === "string" ? user.name.trim() : ""
-  if (name) return name
-  // Numeric id is last resort (often 0 when Auth0 has no users_id claim).
-  if (user.id != null && Number.isFinite(user.id)) return String(user.id)
-  return null
-}
-
 /**
  * POST /api/billing-overrides/replace_line
- * Proxies Xano POST /billing_overrides/replace_line
- * Body: { media_plan_version_id, mba_number, line_item_id, component: 'media'|'fee', months, date_basis, mode?, reason? }
- * Server attaches `created_by` from the authenticated session.
+ * Upserts `billing_overrides` in Postgres (X2 — Xano replace_line retired).
+ * Body: { media_plan_version_id, mba_number, line_item_id, component, months, date_basis, mode?, reason? }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -53,10 +32,10 @@ export async function POST(request: NextRequest) {
       mbaNumberRaw != null && String(mbaNumberRaw).trim() !== ""
         ? String(mbaNumberRaw).trim()
         : ""
-    const component = String(b.component ?? "media").toLowerCase() === "fee" ? "fee" : "media"
+    const component =
+      String(b.component ?? "media").toLowerCase() === "fee" ? "fee" : "media"
     const months = b.months
     const dateBasis = b.date_basis ?? b.dateBasis
-    const createdBy = resolveCreatedBy(user)
 
     if (versionId == null || !lineItemId || !Array.isArray(months) || !dateBasis) {
       return NextResponse.json(
@@ -75,45 +54,23 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!createdBy) {
-      return NextResponse.json(
-        { error: "created_by could not be resolved from the authenticated session" },
-        { status: 400 }
-      )
-    }
-
-    const payload = {
-      media_plan_version_id: versionId,
-      media_plan_version: versionId,
-      mba_number: mbaNumber,
-      line_item_id: String(lineItemId),
+    const data = await replaceBillingOverrideLine({
+      versionId: Number(versionId),
+      mbaNumber,
+      lineItemId: String(lineItemId),
       component,
-      mode: b.mode ?? "manual",
-      reason: b.reason ?? "manual",
       months,
-      date_basis: String(dateBasis),
       dateBasis: String(dateBasis),
-      created_by: createdBy,
-    }
+      mode: b.mode != null ? String(b.mode) : "manual",
+      reason: b.reason != null ? String(b.reason) : "manual",
+    })
 
-    const baseUrl = getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
-    const response = await axios.post(`${baseUrl}/billing_overrides/replace_line`, payload, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS,
-      validateStatus: (s) => s >= 200 && s < 500, })
-
-    if (response.status >= 400) {
-      return NextResponse.json(
-        {
-          error:
-            (response.data as { message?: string })?.message ||
-            "replace_line failed upstream",
-          upstream: response.data,
-        },
-        { status: response.status }
-      )
-    }
-
-    return NextResponse.json({ ok: true, data: response.data })
+    return NextResponse.json({ ok: true, data })
   } catch (error) {
+    if (error instanceof BillingOverrideWriteError) {
+      const status = error.code === "NOT_FOUND" ? 404 : 400
+      return NextResponse.json({ error: error.message }, { status })
+    }
     console.error("[api/billing-overrides/replace_line POST]", error)
     return NextResponse.json({ error: "Failed to replace billing override line" }, { status: 500 })
   }

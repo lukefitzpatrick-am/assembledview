@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
-import axios from "axios"
-import { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { readBillingOverridesForVersion } from "@/lib/data/readFinance"
 
 export const dynamic = "force-dynamic"
 
-const MEDIA_PLANS_ENV_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
-const XANO_TIMEOUT_MS = 15_000
-
 /**
  * GET /api/billing-overrides?media_plan_version_id=
- * Reads via DATA_BACKEND_FINANCE / DATA_BACKEND (writes stay on Xano).
+ * Reads via DATA_BACKEND_FINANCE / DATA_BACKEND.
+ * Writes: replace_line / reset_line → Postgres (`writeBillingOverrides`, X2).
  */
 export async function GET(request: NextRequest) {
   try {
