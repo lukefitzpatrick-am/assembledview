@@ -6838,6 +6838,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       return
     }
 
+    // BUX-6: never toast success when nothing was written (silent no-op looked "saved").
+    if (result.replacedMedia + result.replacedFee + result.reset === 0) {
+      toast({
+        variant: "destructive",
+        title: "Nothing to save",
+        description:
+          "No manual billing lines were found to persist. Adjust timing / Prebill first, then retry.",
+      })
+      return
+    }
+
     // Update working billing for on-screen timing only — do NOT write billingSchedule JSON here.
     // Campaign save (C1 omit-mode) recomputes the billed schedule server-side WITH these overrides attached.
     const applied = JSON.parse(JSON.stringify(manualBillingMonths)) as BillingMonth[]

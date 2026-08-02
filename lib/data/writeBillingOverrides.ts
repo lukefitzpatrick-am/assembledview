@@ -2,11 +2,16 @@
  * Manual Billing → billing_overrides mutate path (X2).
  * Replaces Xano `/billing_overrides/replace_line` + `/reset_line`.
  * Response shapes stay `{ ok: true, data }` for billingOverridesClient.
+ *
+ * BUX-6: after upsert, also mirrors amounts onto billing-basis `schedule_months`
+ * with `source='override'` (delivery-basis rows untouched).
  */
 
 import { and, eq } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { mapBillingOverrideFromPostgres } from "@/lib/data/readFinance"
+import { normalizeMonthKey } from "@/lib/finance/accrual"
+import { toCents } from "@/scripts/migration/_shared"
 
 export type BillingOverrideComponent = "media" | "fee"
 
@@ -40,6 +45,75 @@ export class BillingOverrideWriteError extends Error {
 
 function normalizeComponent(raw: unknown): BillingOverrideComponent {
   return String(raw ?? "media").toLowerCase() === "fee" ? "fee" : "media"
+}
+
+function monthToDate(monthKey: string): string | null {
+  if (!/^\d{4}-\d{2}$/.test(monthKey)) return null
+  return `${monthKey}-01`
+}
+
+/**
+ * Upsert billing-basis schedule_months for one override line (source=override).
+ * Never deletes delivery-basis rows. Inserts missing billing months when needed.
+ */
+async function mirrorOverrideIntoBillingScheduleMonths(args: {
+  versionId: number
+  lineItemId: string
+  component: BillingOverrideComponent
+  months: unknown
+}): Promise<void> {
+  let monthsRaw = args.months
+  if (typeof monthsRaw === "string") {
+    try {
+      monthsRaw = JSON.parse(monthsRaw)
+    } catch {
+      return
+    }
+  }
+  if (!Array.isArray(monthsRaw)) return
+
+  const db = getDb()
+  for (const entry of monthsRaw) {
+    if (!entry || typeof entry !== "object") continue
+    const monthLabel = String((entry as { month?: unknown }).month ?? "").trim()
+    const monthKey = normalizeMonthKey(monthLabel)
+    if (!monthKey) continue
+    const monthDate = monthToDate(monthKey)
+    if (!monthDate) continue
+    const amountRaw = (entry as { amount?: unknown }).amount
+    const amountNum =
+      typeof amountRaw === "number"
+        ? amountRaw
+        : Number.parseFloat(String(amountRaw ?? "").replace(/[$,\s]/g, ""))
+    if (!Number.isFinite(amountNum)) continue
+    const amountCents = toCents(amountNum)
+
+    await db
+      .insert(schema.scheduleMonths)
+      .values({
+        versionId: args.versionId,
+        lineItemId: args.lineItemId,
+        component: args.component,
+        basis: "billing",
+        month: monthDate,
+        amountCents,
+        source: "override",
+      })
+      .onConflictDoUpdate({
+        target: [
+          schema.scheduleMonths.versionId,
+          schema.scheduleMonths.lineItemId,
+          schema.scheduleMonths.component,
+          schema.scheduleMonths.basis,
+          schema.scheduleMonths.month,
+        ],
+        set: {
+          amountCents,
+          source: "override",
+        },
+      })
+  }
+
 }
 
 /** Defence-in-depth: version row must exist and match mba_number. */
@@ -137,6 +211,27 @@ export async function replaceBillingOverrideLine(
   if (!row) {
     throw new BillingOverrideWriteError("BAD_REQUEST", "replace_line upsert returned no row")
   }
+
+  try {
+    await mirrorOverrideIntoBillingScheduleMonths({
+      versionId,
+      lineItemId,
+      component,
+      months: input.months,
+    })
+  } catch (err) {
+    console.error("[writeBillingOverrides] schedule_months mirror failed", {
+      versionId,
+      lineItemId,
+      component,
+      message: err instanceof Error ? err.message : String(err),
+    })
+    throw new BillingOverrideWriteError(
+      "BAD_REQUEST",
+      "Override saved but billing schedule_months mirror failed — retry Save billing changes"
+    )
+  }
+
   return mapBillingOverrideFromPostgres(row as Record<string, unknown>)
 }
 

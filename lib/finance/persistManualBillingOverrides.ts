@@ -70,21 +70,41 @@ export async function persistManualBillingOverrides(args: {
   }
 
   const current = listManualOverrideLineIds(months)
-  const currentMedia = new Set(current.media.map(toBillingOverrideLineItemId))
-  const currentFee = new Set(current.fee.map(toBillingOverrideLineItemId))
+  // Prefer schedule row ids (may be billing-prefixed); also accept meta keys from Prebill.
+  const mediaWriteIds = new Map<string, string>() // canon → billingRowId for extract
+  const feeWriteIds = new Map<string, string>()
+  for (const billingRowId of current.media) {
+    mediaWriteIds.set(toBillingOverrideLineItemId(billingRowId), billingRowId)
+  }
+  for (const billingRowId of current.fee) {
+    feeWriteIds.set(toBillingOverrideLineItemId(billingRowId), billingRowId)
+  }
 
   const previousMedia = new Set<string>()
   const previousFee = new Set<string>()
   for (const [key, list] of metaByLine) {
     const canon = toBillingOverrideLineItemId(key)
     for (const m of list) {
-      if (m.component === "fee") previousFee.add(canon)
-      else previousMedia.add(canon)
+      if (m.component === "fee") {
+        previousFee.add(canon)
+        // BUX-6: Prebill stamps meta even when billingMode stamp missed (id shape mismatch).
+        if (m.mode === "manual" && !feeWriteIds.has(canon)) {
+          feeWriteIds.set(canon, key)
+        }
+      } else {
+        previousMedia.add(canon)
+        if (m.mode === "manual" && !mediaWriteIds.has(canon)) {
+          mediaWriteIds.set(canon, key)
+        }
+      }
     }
   }
 
+  const currentMedia = new Set(mediaWriteIds.keys())
+  const currentFee = new Set(feeWriteIds.keys())
+
   // Validate all media manuals before any writes.
-  for (const billingRowId of current.media) {
+  for (const billingRowId of mediaWriteIds.values()) {
     const monthsIso = extractOverrideMonthsFromSchedule(months, billingRowId, "media")
     const expected = sumLineMediaAcrossMonths(autoMonthsForMediaTotals, billingRowId)
     const gate = validateManualMediaMonthsSum(monthsIso, expected)
@@ -100,9 +120,15 @@ export async function persistManualBillingOverrides(args: {
   let replacedFee = 0
   let reset = 0
 
-  for (const billingRowId of current.media) {
-    const lineItemId = toBillingOverrideLineItemId(billingRowId)
+  for (const [lineItemId, billingRowId] of mediaWriteIds) {
     const dateBasis = await computeBillingOverrideDateBasis(getBurstsForLine(billingRowId))
+    const monthsIso = extractOverrideMonthsFromSchedule(months, billingRowId, "media")
+    if (monthsIso.length === 0) {
+      return {
+        ok: false,
+        message: `No month amounts found to persist for media line ${lineItemId}.`,
+      }
+    }
     await replaceBillingOverrideLineClient({
       media_plan_version_id: versionId,
       mba_number: mba,
@@ -110,15 +136,21 @@ export async function persistManualBillingOverrides(args: {
       component: "media",
       mode: "manual",
       reason: reasonFromMeta(metaByLine, billingRowId, "media"),
-      months: extractOverrideMonthsFromSchedule(months, billingRowId, "media"),
+      months: monthsIso,
       date_basis: dateBasis,
     })
     replacedMedia += 1
   }
 
-  for (const billingRowId of current.fee) {
-    const lineItemId = toBillingOverrideLineItemId(billingRowId)
+  for (const [lineItemId, billingRowId] of feeWriteIds) {
     const dateBasis = await computeBillingOverrideDateBasis(getBurstsForLine(billingRowId))
+    const monthsIso = extractOverrideMonthsFromSchedule(months, billingRowId, "fee")
+    if (monthsIso.length === 0) {
+      return {
+        ok: false,
+        message: `No month amounts found to persist for fee line ${lineItemId}.`,
+      }
+    }
     await replaceBillingOverrideLineClient({
       media_plan_version_id: versionId,
       mba_number: mba,
@@ -126,7 +158,7 @@ export async function persistManualBillingOverrides(args: {
       component: "fee",
       mode: "manual",
       reason: reasonFromMeta(metaByLine, billingRowId, "fee"),
-      months: extractOverrideMonthsFromSchedule(months, billingRowId, "fee"),
+      months: monthsIso,
       date_basis: dateBasis,
     })
     replacedFee += 1
