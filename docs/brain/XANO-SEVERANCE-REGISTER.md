@@ -135,7 +135,7 @@ SQL used (Postgres):
 | `/api/finance/data` | GET | `relevantPlanVersions` + `readClients`/`readPublishers` | DATA_BACKEND_PLANS/CLIENTS/PUBLISHERS | Excel export dialog, UpcomingBilling | DUAL-DONE (X3 ported) |
 | `/api/finance/edits` | GET | `readFinance*` | DATA_BACKEND_FINANCE | `lib/finance/api.ts` | DUAL-DONE |
 | `/api/finance/edits` | POST | `xanoFinancePost(finance_edits)` | always-xano | store / api | PORT |
-| `/api/finance/forecast/snapshots` | GET/POST | Xano snapshot query/persist (`XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL`) | always-xano | Forecasting clients | PORT |
+| `/api/finance/forecast/snapshots` | GET/POST | `pgSnapshots` (DATABASE_URL; migration `0016`) | PG (X5) | Forecasting clients | DUAL-DONE (PG) |
 | `/api/finance/forecast/snapshots/[id]/lines` | GET | `fetchFinanceForecastSnapshotLinesFromXano` | always-xano | Forecasting | PORT |
 | `/api/finance/forecast/snapshots/variance` | POST | Xano snapshot + forecast loaders | always-xano | Variance client | PORT |
 | `/api/finance/payables` | GET | `XANO_CLIENTS_BASE_URL` + publisher cache | always-xano env | `lib/finance/api.ts` | PORT |
@@ -230,9 +230,11 @@ SQL used (Postgres):
 | `lib/finance/materialiseFinanceBillingRecord.ts` | finance_billing_records GET/POST | none | mark-billed, notes | PORT |
 | `lib/finance/writeFinanceAuditEdits.ts` | finance_edits POST | none | finance edits | PORT |
 | `lib/finance/relevantPlanVersions.ts` | masters + versions crawl | none | finance hub relevance | PORT |
-| `lib/finance/forecast/snapshot/xanoSnapshotQuery.ts` | forecast snapshots list/lines | env base URL | snapshot APIs | PORT |
-| `lib/finance/forecast/snapshot/xanoPersistSnapshot.ts` | snapshots create | env base URL | snapshot create | PORT |
+| `lib/finance/forecast/snapshot/pgSnapshots.ts` | finance_forecast_snapshots(+lines) | DATABASE_URL | snapshot APIs | DUAL-DONE (PG) |
+| `lib/finance/forecast/snapshot/xanoSnapshotQuery.ts` | re-exports PG; Legacy* for data-move | author-only Xano | migrate script | TOOLING |
+| `lib/finance/forecast/snapshot/xanoPersistSnapshot.ts` | snapshots create (unused by app) | env base URL | migrate only | RETIRE(dead)/TOOLING |
 | `lib/finance/forecast/targets/xanoTargetLines.ts` | revenue_forecast_lines | env; app uses pgTargetLines | `db:migrate-forecast-targets` only | RETIRE(dead)/TOOLING |
+| `lib/data/writeKpi.ts` | campaign_kpi / client_kpi mirror | PG write + mirror | kpi API | MIRROR (write) |
 | `lib/finance/forecast/server/loadFinanceForecastDataset.ts` | versions + clients + publishers pages | none (T6 soft catch) | forecasting booked mode | PORT |
 | `lib/creative/xanoCreativeAssets.ts` | `creative_asset` CRUD | none | creative-assets API, Ava | PORT |
 | `lib/planning/xanoPlanningAudiences.ts` | `planning_audiences` CRUD | none | planning audiences API, Ava | PORT |
@@ -240,7 +242,8 @@ SQL used (Postgres):
 | `lib/xano/ava.ts` | versions + masters | none | Ava tools | PORT |
 | `lib/xano/pacingOrphanFixes.ts` | POST pacing_orphan_fixes | write always-xano | assignOrphanLineItem | PORT |
 | `lib/pacing/**/resolveLive*LineItems.ts` + `fetchSearchPacingCampaignRows.ts` | channel line pages | lines not dual | pacing campaign APIs | PORT |
-| `lib/kpi/{campaign,client,publisher}Kpi.ts` | KPI writes axios (reads via readKpi) | read dual; write unguarded | KPI sync / reports | PORT (writes) |
+| `lib/kpi/{campaign,client}Kpi.ts` | writes via `writeKpi` (PG+mirror); reads via readKpi | PG write (X5) | KPI sync / reports | MIRROR (write) |
+| `lib/kpi/publisherKpi.ts` | KPI writes axios | write still Xano | publisher KPI admin | PORT (writes) |
 | `lib/clients/fetchClientRowByUrlSlug.ts` | full clients list axios | **no** DATA_BACKEND | dashboard slug, auth MBA, clients API | PORT |
 | `lib/mediaplan/reapUnpublishedStagedVersions.ts` | versions + channel DELETE | none | MBA GET cleanup | PORT |
 | `lib/ops/health/checks.ts` | GET clients probe | none | ops-health cron | TOOLING |

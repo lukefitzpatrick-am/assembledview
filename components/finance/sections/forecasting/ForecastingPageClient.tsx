@@ -833,7 +833,7 @@ export default function ForecastingPageClient() {
                   disabled={snapshotBusy || loading || snapshotConfigured !== true}
                   title={
                     snapshotConfigured === false
-                      ? "Snapshot storage is not configured (XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL)."
+                      ? "Snapshot storage is not configured (DATABASE_URL / apply 0016_finance_forecast_snapshots)."
                       : snapshotConfigured == null
                         ? "Checking snapshot storage…"
                         : "Save an immutable snapshot using current FY, scenario, and filters (server-calculated)."
@@ -857,9 +857,9 @@ export default function ForecastingPageClient() {
                 <Alert className="rounded-card border-border bg-surface-panel">
                   <AlertTitle className="text-sm">Snapshots unavailable</AlertTitle>
                   <AlertDescription className="text-sm text-muted-foreground">
-                    Snapshot storage is not configured. Set{" "}
-                    <span className="font-mono text-xs">XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL</span> on the
-                    server to enable Take snapshot.
+                    Snapshot storage is not configured. Ensure{" "}
+                    <span className="font-mono text-xs">DATABASE_URL</span> is set and migration{" "}
+                    <span className="font-mono text-xs">0016_finance_forecast_snapshots</span> is applied.
                   </AlertDescription>
                 </Alert>
               ) : null}

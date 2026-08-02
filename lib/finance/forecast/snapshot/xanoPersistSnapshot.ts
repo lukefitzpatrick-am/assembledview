@@ -1,16 +1,13 @@
+/**
+ * @deprecated App persists via `pgSnapshots.persistFinanceForecastSnapshotToPostgres` (X5).
+ * Kept for emergency/manual Xano writes only — do not wire routes here.
+ */
 import { xanoPostHeaderRecord } from "@/lib/api/xano"
 import type { FinanceForecastSnapshotStagingPayload } from "@/lib/types/financeForecastSnapshot"
 
 const createPath = "finance_forecast_snapshots_create"
 
-/**
- * Persists an immutable snapshot header + lines to Xano in one request.
- * Configure `XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL` to your api group base
- * (see `docs/finance-forecast-snapshots-xano.md`).
- *
- * Expected Xano function input: `{ header, lines }` matching staging payload shapes
- * (lines without `snapshot_id`; Xano assigns ids and sets `snapshot_id` on each line).
- */
+/** @deprecated Use persistFinanceForecastSnapshotToPostgres. */
 export async function persistFinanceForecastSnapshotToXano(
   payload: FinanceForecastSnapshotStagingPayload
 ): Promise<{ snapshot_id: string }> {

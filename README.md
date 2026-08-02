@@ -107,7 +107,7 @@ Many routes call Xano REST groups. Typical variables (not exhaustive—grep `pro
 - `XANO_PUBLISHERS_BASE_URL`, `XANO_MEDIA_CONTAINERS_BASE_URL`, `XANO_MEDIA_DETAILS_BASE_URL`
 - `XANO_SCOPES_BASE_URL`, `XANO_SAVE_FILE_BASE_URL`
 - `XANO_PACING_BASE_URL`, `XANO_SAVED_VIEWS_BASE_URL` ([lib/xano/config.ts](lib/xano/config.ts))
-- `XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL` — finance forecast snapshots (optional paths `XANO_FINANCE_FORECAST_SNAPSHOTS_LIST_PATH`, `XANO_FINANCE_FORECAST_SNAPSHOTS_LINES_PATH`)
+- Finance forecast snapshots persist to Postgres (`DATABASE_URL` + migration `0016_finance_forecast_snapshots`). `XANO_FINANCE_FORECAST_SNAPSHOTS_*` is author-only for `npm run db:migrate-forecast-snapshots`.
 - Resilience: `XANO_TIMEOUT_MS`, `XANO_MAX_RETRIES`, `XANO_OVERALL_TIMEOUT_MS`
 
 ### Snowflake

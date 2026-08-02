@@ -337,7 +337,8 @@ export default function FinanceForecastVariancePageClient() {
         <Alert>
           <AlertTitle>Snapshot storage not configured</AlertTitle>
           <AlertDescription>
-            Set <span className="font-mono text-xs">XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL</span> to list and compare
+            Ensure <span className="font-mono text-xs">DATABASE_URL</span> is set and migration{" "}
+            <span className="font-mono text-xs">0016_finance_forecast_snapshots</span> is applied to list and compare
             snapshots from Xano.
           </AlertDescription>
         </Alert>
