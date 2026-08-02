@@ -2,11 +2,16 @@
  * T4a — one transactional media-plan save on Postgres (`DATABASE_URL`).
  *
  * Replaces the Xano 20-table fan-out with a single Drizzle transaction:
- * version upsert → replace-set line_items → server-compute schedule_months
- * (+ billing_overrides → source='override') → legacy_schedules mirror →
+ * resolve versionId → load billing_overrides → attachOverridesToLineInputs →
+ * computeCampaignFinancials → replace-set line_items → explode schedule_months
+ * → reconcileOverrideSources (source='override') → legacy_schedules mirror →
  * publish guards (BOSS006) + mba_fee_snapshots.
  *
- * Not wired from the editor until T4c; gated by `WRITE_BACKEND=postgres`.
+ * Financials (and therefore the billing blob) are computed WITH overrides
+ * attached so blob months and schedule_months agree. Delivery stays
+ * override-free inside computeCampaignFinancials.
+ *
+ * Gated by `WRITE_BACKEND=postgres`.
  */
 import { and, count, eq, sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
@@ -450,65 +455,6 @@ export async function savePlanVersion(
 
   const lineInputs = toLineItemInputs(input.lineItems)
   const feeLoading = input.feeLoading ?? {}
-  const financials = computeCampaignFinancials(lineInputs, {
-    feeLoading,
-  }, {
-    getRateForMediaType: input.getRateForMediaType,
-    adservaudio: input.adservaudio,
-  })
-
-  // O4.5 tripwire (always-on, never blocks): non-zero resolved feePct but $0 fee total.
-  // SAVE_GATE_FULL_SCOPE will enforce later; silence here caused krusty015 v3 fee wipe.
-  {
-    const feeTotal = Number(financials.mbaScopeTotals?.fee ?? 0)
-    if (Number.isFinite(feeTotal) && Math.abs(feeTotal) < 0.005) {
-      const nonzeroPctLines: Array<{ lineItemId: string; mediaType: string; feePct: number }> =
-        []
-      for (const line of lineInputs) {
-        if (line.approval === "excluded") continue
-        const feePct =
-          typeof line.feePct === "number" && Number.isFinite(line.feePct)
-            ? line.feePct
-            : resolveFeePctFromFeeLoading(line.mediaType, feeLoading)
-        if (feePct > 0 && (Number(line.enteredAmount) || 0) > 0) {
-          nonzeroPctLines.push({
-            lineItemId: String(line.lineItemId),
-            mediaType: line.mediaType,
-            feePct,
-          })
-        }
-      }
-      if (nonzeroPctLines.length > 0) {
-        console.error("[savePlan-fee-zero]", {
-          mba: input.mbaNumber,
-          version: input.versionNumber,
-          mode: input.mode,
-          feeTotal,
-          feeLoadingKeys: Object.keys(feeLoading),
-          lines: nonzeroPctLines.slice(0, 12),
-        })
-      }
-    }
-  }
-
-  // O4: never block on AUTO preview drift — server schedule is authoritative.
-  // Surface a correction summary when the editor sent a working preview.
-  let billingCorrection: AutoBillingCorrectionSummary | null = null
-  const preview = input.clientBillingSchedulePreview
-  if (Array.isArray(preview) && preview.length > 0) {
-    const evaluated = evaluatePostgresAutoDivergence({
-      working: preview,
-      autoReference: financials.billingSchedule,
-    })
-    if (evaluated.autoOnly) {
-      billingCorrection = evaluated.correction
-    }
-  }
-
-  const legacySchedules = {
-    billingSchedule: financials.billingSchedule,
-    deliverySchedule: financials.deliverySchedule,
-  }
 
   const lineIds = input.lineItems.map((l) => String(l.lineItemId).trim())
   /** Captured for 23505 messaging — publish path may differ from client number. */
@@ -516,12 +462,15 @@ export async function savePlanVersion(
 
   try {
     const result = await db.transaction(async (tx) => {
+      // MB-1 order (one txn): resolve versionId → load overrides → attach →
+      // compute financials → explode → reconcile. Publish tip+1 stays inside
+      // the txn (resolveVersionNumberForSave) — no pre-txn version upsert.
       const versionNumber = await resolveVersionNumberForSave(tx as Tx, input)
       attemptedVersionNumber = versionNumber
       const versionId = await upsertVersionRow(
         tx as Tx,
         input,
-        legacySchedules,
+        { billingSchedule: [], deliverySchedule: [] },
         versionNumber
       )
 
@@ -557,6 +506,108 @@ export async function savePlanVersion(
         await input._testHooks.afterLineItemsInsert()
       }
 
+      const overrideRows = await tx
+        .select({
+          lineItemId: schema.billingOverrides.lineItemId,
+          component: schema.billingOverrides.component,
+          months: schema.billingOverrides.months,
+          mode: schema.billingOverrides.mode,
+          reason: schema.billingOverrides.reason,
+          dateBasis: schema.billingOverrides.dateBasis,
+        })
+        .from(schema.billingOverrides)
+        .where(eq(schema.billingOverrides.versionId, versionId))
+
+      const overrideRowsForAttach: BillingOverrideRow[] = overrideRows.map((r) => ({
+        line_item_id: r.lineItemId,
+        component: r.component === "fee" ? "fee" : "media",
+        mode: r.mode ?? "manual",
+        reason: r.reason,
+        months: r.months as BillingOverrideRow["months"],
+        date_basis: r.dateBasis,
+      }))
+      const lineItemsWithOverrides = attachOverridesToLineInputs(
+        lineInputs,
+        overrideRowsForAttach
+      )
+
+      // Billing schedule + blob from override-attached inputs; delivery months
+      // remain burst-prorated (billingOverride does not touch delivery).
+      const financials = computeCampaignFinancials(
+        lineItemsWithOverrides,
+        { feeLoading },
+        {
+          getRateForMediaType: input.getRateForMediaType,
+          adservaudio: input.adservaudio,
+        }
+      )
+
+      // O4.5 tripwire (always-on, never blocks): non-zero resolved feePct but $0 fee total.
+      {
+        const feeTotal = Number(financials.mbaScopeTotals?.fee ?? 0)
+        if (Number.isFinite(feeTotal) && Math.abs(feeTotal) < 0.005) {
+          const nonzeroPctLines: Array<{
+            lineItemId: string
+            mediaType: string
+            feePct: number
+          }> = []
+          for (const line of lineInputs) {
+            if (line.approval === "excluded") continue
+            const feePct =
+              typeof line.feePct === "number" && Number.isFinite(line.feePct)
+                ? line.feePct
+                : resolveFeePctFromFeeLoading(line.mediaType, feeLoading)
+            if (feePct > 0 && (Number(line.enteredAmount) || 0) > 0) {
+              nonzeroPctLines.push({
+                lineItemId: String(line.lineItemId),
+                mediaType: line.mediaType,
+                feePct,
+              })
+            }
+          }
+          if (nonzeroPctLines.length > 0) {
+            console.error("[savePlan-fee-zero]", {
+              mba: input.mbaNumber,
+              version: input.versionNumber,
+              mode: input.mode,
+              feeTotal,
+              feeLoadingKeys: Object.keys(feeLoading),
+              lines: nonzeroPctLines.slice(0, 12),
+            })
+          }
+        }
+      }
+
+      // O4: never block on AUTO preview drift — server schedule is authoritative.
+      let billingCorrection: AutoBillingCorrectionSummary | null = null
+      const preview = input.clientBillingSchedulePreview
+      if (Array.isArray(preview) && preview.length > 0) {
+        const evaluated = evaluatePostgresAutoDivergence({
+          working: preview,
+          autoReference: financials.billingSchedule,
+        })
+        if (evaluated.autoOnly) {
+          billingCorrection = evaluated.correction
+        }
+      }
+
+      // O4: keep C2 manual sum gate (auto drift never blocks on this path).
+      const sumViolations = validateManualOverrideSumRules({
+        lineItems: lineItemsWithOverrides,
+        financials,
+      })
+      if (sumViolations.length > 0) {
+        throw new SavePlanError(
+          "BILLING_OVERRIDE_SUM_VIOLATION",
+          sumViolations.map((v) => v.message).join("\n")
+        )
+      }
+
+      const legacySchedules = {
+        billingSchedule: financials.billingSchedule,
+        deliverySchedule: financials.deliverySchedule,
+      }
+
       const billingExplode = explodeScheduleToMonthRows(
         versionId,
         "billing",
@@ -579,42 +630,7 @@ export async function savePlanVersion(
         )
       }
 
-      const overrideRows = await tx
-        .select({
-          lineItemId: schema.billingOverrides.lineItemId,
-          component: schema.billingOverrides.component,
-          months: schema.billingOverrides.months,
-          mode: schema.billingOverrides.mode,
-          reason: schema.billingOverrides.reason,
-          dateBasis: schema.billingOverrides.dateBasis,
-        })
-        .from(schema.billingOverrides)
-        .where(eq(schema.billingOverrides.versionId, versionId))
-
-      // O4: keep C2 manual sum gate (auto drift never blocks on this path).
-      const overrideRowsForAttach: BillingOverrideRow[] = overrideRows.map((r) => ({
-        line_item_id: r.lineItemId,
-        component: r.component === "fee" ? "fee" : "media",
-        mode: r.mode ?? "manual",
-        reason: r.reason,
-        months: r.months as BillingOverrideRow["months"],
-        date_basis: r.dateBasis,
-      }))
-      const lineItemsWithOverrides = attachOverridesToLineInputs(
-        lineInputs,
-        overrideRowsForAttach
-      )
-      const sumViolations = validateManualOverrideSumRules({
-        lineItems: lineItemsWithOverrides,
-        financials,
-      })
-      if (sumViolations.length > 0) {
-        throw new SavePlanError(
-          "BILLING_OVERRIDE_SUM_VIOLATION",
-          sumViolations.map((v) => v.message).join("\n")
-        )
-      }
-
+      // Belt-and-braces: stamp source='override' (amounts already match via compute).
       const scheduleRows = reconcileOverrideSources(
         [...billingExplode.rows, ...deliveryExplode.rows],
         overrideRows.map((r) => ({
@@ -642,8 +658,7 @@ export async function savePlanVersion(
         )
       }
 
-      // legacy_schedules already written on version upsert; reaffirm after schedules
-      // so the mirror matches the just-computed T4a.0-enriched shape.
+      // Mirror override-aware billing + override-free delivery into the blob.
       await tx
         .update(schema.mediaPlanVersions)
         .set({ legacySchedules })

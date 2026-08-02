@@ -613,6 +613,180 @@ test("savePlan O4: manual override months survive auto-drift recompute untouched
   assert.equal(Number(juneManual!.amountCents), toCents(1000))
 })
 
+/**
+ * MB-1: savePlanVersion must compute financials WITH billing_overrides attached
+ * so legacy_schedules blob and schedule_months agree (blob default / shadow both
+ * serve the blob — mismatch surfaces as auto months on every finance read).
+ */
+test("savePlan MB-1: media override → blob billingMode=manual + months == schedule_months override cents", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const db = getDb()
+  const twoMonthLine = baseLine(LINE_A, 1000, {
+    bursts: [
+      {
+        startDate: "2026-06-01",
+        endDate: "2026-07-31",
+        budget: 1000,
+        buyAmount: 1,
+      },
+    ],
+  })
+  const first = await savePlanVersion(draftInput(masterId, [twoMonthLine]))
+  const before = await snapshot(first.versionId)
+  const deliveryBefore = before.months
+    .filter((r) => r.basis === "delivery" && r.lineItemId === LINE_A)
+    .map((r) => ({
+      month: String(r.month).slice(0, 7),
+      component: r.component,
+      amountCents: Number(r.amountCents),
+      source: r.source,
+    }))
+    .sort((a, b) =>
+      `${a.component}|${a.month}`.localeCompare(`${b.component}|${b.month}`)
+    )
+  assert.ok(deliveryBefore.length > 0)
+  assert.ok(deliveryBefore.every((r) => r.source === "computed"))
+
+  await db.insert(schema.billingOverrides).values({
+    versionId: first.versionId,
+    lineItemId: LINE_A,
+    component: "media",
+    mode: "manual",
+    reason: "manual",
+    months: [{ month: "2026-06", amount: 1000 }],
+    dateBasis: "mb1-blob-parity",
+  })
+
+  const saved = await savePlanVersion(draftInput(masterId, [twoMonthLine]))
+  assert.equal(saved.versionId, first.versionId)
+  const snap = await snapshot(saved.versionId)
+  const legacy = snap.version?.legacySchedules as {
+    billingSchedule?: Array<{
+      monthYear?: string
+      lineItems?: Record<
+        string,
+        Array<{
+          id?: string
+          billingMode?: string
+          monthlyAmounts?: Record<string, number>
+        }>
+      >
+    }>
+    deliverySchedule?: unknown
+  } | null
+  assert.ok(legacy?.billingSchedule, "expected legacy_schedules.billingSchedule")
+
+  // Collect blob media monthlyAmounts for LINE_A keyed by YYYY-MM.
+  // Each month's lineItems carries the full monthlyAmounts map — read once.
+  const scheduleMonthToKey = (monthYear: string): string => {
+    if (/^\d{4}-\d{2}/.test(monthYear)) return monthYear.slice(0, 7)
+    const m = monthYear.match(
+      /^(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{4})$/i
+    )
+    if (!m) return ""
+    const idx = [
+      "january",
+      "february",
+      "march",
+      "april",
+      "may",
+      "june",
+      "july",
+      "august",
+      "september",
+      "october",
+      "november",
+      "december",
+    ].indexOf(m[1]!.toLowerCase())
+    return idx < 0 ? "" : `${m[2]}-${String(idx + 1).padStart(2, "0")}`
+  }
+  const blobMediaByMonth = new Map<string, number>()
+  let sawManualMode = false
+  for (const month of legacy!.billingSchedule!) {
+    const buckets = month.lineItems ?? {}
+    for (const lines of Object.values(buckets)) {
+      for (const line of lines ?? []) {
+        if (String(line.id ?? "").trim() !== LINE_A) continue
+        if (line.billingMode === "manual") sawManualMode = true
+        if (blobMediaByMonth.size > 0) continue
+        for (const [monthYear, amount] of Object.entries(
+          line.monthlyAmounts ?? {}
+        )) {
+          const key = scheduleMonthToKey(monthYear)
+          if (!key) continue
+          blobMediaByMonth.set(key, Number(amount || 0))
+        }
+      }
+    }
+  }
+  assert.equal(sawManualMode, true, "blob line must stamp billingMode=manual")
+  assert.equal(blobMediaByMonth.get("2026-06"), 1000)
+  assert.equal(blobMediaByMonth.get("2026-07") ?? 0, 0)
+
+  const billingOverrideRows = snap.months.filter(
+    (r) =>
+      r.basis === "billing" &&
+      r.component === "media" &&
+      r.lineItemId === LINE_A &&
+      r.source === "override"
+  )
+  assert.ok(billingOverrideRows.length >= 1)
+  for (const row of billingOverrideRows) {
+    const monthKey = String(row.month).slice(0, 7)
+    const blobDollars = blobMediaByMonth.get(monthKey)
+    assert.equal(
+      blobDollars,
+      Number(row.amountCents) / 100,
+      `blob month ${monthKey} must equal schedule_months override cents`
+    )
+  }
+  assert.equal(
+    Number(
+      billingOverrideRows.find((r) => String(r.month).slice(0, 7) === "2026-06")
+        ?.amountCents
+    ),
+    toCents(1000)
+  )
+
+  // Delivery basis stays override-free and computed (same cents as pre-override).
+  const deliveryAfter = snap.months
+    .filter((r) => r.basis === "delivery" && r.lineItemId === LINE_A)
+    .map((r) => ({
+      month: String(r.month).slice(0, 7),
+      component: r.component,
+      amountCents: Number(r.amountCents),
+      source: r.source,
+    }))
+    .sort((a, b) =>
+      `${a.component}|${a.month}`.localeCompare(`${b.component}|${b.month}`)
+    )
+  assert.deepEqual(deliveryAfter, deliveryBefore)
+  assert.ok(deliveryAfter.every((r) => r.source === "computed"))
+
+  // Belt-and-braces: every billing source=override row matches blob monthlyAmounts.
+  const allBillingOverrides = snap.months.filter(
+    (r) => r.basis === "billing" && r.source === "override"
+  )
+  for (const row of allBillingOverrides) {
+    if (row.component !== "media") continue
+    const monthKey = String(row.month).slice(0, 7)
+    assert.equal(
+      blobMediaByMonth.get(monthKey),
+      Number(row.amountCents) / 100,
+      `override row ${row.lineItemId}/${monthKey} must match blob`
+    )
+  }
+})
+
 test("savePlan O4.6: publish ignores stale client versionNumber — writes tip+1", async (t) => {
   if (!hasDb) {
     t.skip("DATABASE_URL not set")
