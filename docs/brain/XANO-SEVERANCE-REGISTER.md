@@ -52,7 +52,7 @@ Method-split rows (GET dual / POST retire) are counted once per file under the *
 | **`/api/finance/xero-queue` Xano bits** | Callers: `components/finance/sections/xero/XeroExceptionsPanel.tsx` GET+POST. Always hits `xero_sync_exceptions` via `xanoUrl(..., XANO_CLIENTS_BASE_URL)` + assign via `xanoFinancePatch`. Billing list half uses `readFinanceBillingRecords` (`DATA_BACKEND_FINANCE`). | **PORT** (exceptions always-Xano) — not dead |
 | **`/api/dashboard/spend-parity`** | Zero `fetch('/api/dashboard/spend-parity')` outside its own file. `NODE_ENV===production` → 404. | **TOOLING** (dev harness; no product callers) |
 | **`XANO_CODEX_*` remnant** | `rg XANO_CODEX` over `*.ts/tsx/js/mjs` → **0 hits**. F-27 FIXED — Postgres Codex + `CODEX_V2`. | **Gone** |
-| **Channel-route dead exports (S2 extend)** | Browser GETs: `lib/api.ts` `fetchLineItemsFromApi` → `/api/media_plans/{channel}`. Creates: `createCinemaLineItem` / `createSearchLineItem` / etc. POST **direct** to `${MEDIA_PLANS_BASE_URL}/media_plan_*` (server), **not** `/api/media_plans/...`. Zero client `fetch` to channel POSTs for cinema, digi-bvod, influencers, integration, newspaper, production, prog-video, search, social. **Television** POST/PUT/DELETE still hit `/api/media_plans/television`. | Channel **POST wrappers RETIRE(dead)**; channel **GETs DUAL-DONE**; TV mutate **PORT** |
+| **Channel-route dead exports (S2 extend)** | Browser GETs: `lib/api.ts` `fetchLineItemsFromApi` → `/api/media_plans/{channel}`. Creates hit Xano direct from `lib/api.ts` (X7). Dedicated channel POSTs + `television/[id]` + TV CRUD exports **deleted (X2)**. Catch-all channel writes → 410 under `WRITE_BACKEND=postgres`. | Channel **POST RETIRE executed**; GETs **DUAL-DONE**; TV mutate **RETIRE executed** |
 
 ---
 
@@ -106,8 +106,8 @@ SQL used (Postgres):
 | `/api/admin/migration-diffs` | GET | Probes `readFinance` / `readMediaPlans` / schedule (shadow ring) | DATA_BACKEND shadow tooling | ZERO UI fetch | TOOLING |
 | `/api/admin/xano-mirror/retry` | POST | `retryMirrorFromPostgres` → Xano write-back | MIRROR | toast/docs refs; no dedicated UI fetch found | MIRROR |
 | `/api/billing-overrides` | GET | `readBillingOverridesForVersion` | DATA_BACKEND_FINANCE | `lib/finance/billingOverridesClient.ts` | DUAL-DONE |
-| `/api/billing-overrides/replace_line` | POST | `XANO_MEDIA_PLANS` `/billing_overrides/replace_line` | always-xano | `billingOverridesClient.ts` | PORT |
-| `/api/billing-overrides/reset_line` | POST | DELETE/POST billing_overrides reset | always-xano | `billingOverridesClient.ts` | PORT |
+| `/api/billing-overrides/replace_line` | POST | `writeBillingOverrides.replaceBillingOverrideLine` → PG | PG (X2) | `billingOverridesClient.ts` | DUAL-DONE (ported) |
+| `/api/billing-overrides/reset_line` | POST | `writeBillingOverrides.resetBillingOverrideLine` → PG | PG (X2) | `billingOverridesClient.ts` | DUAL-DONE (ported) |
 | `/api/campaigns/[mba_number]` | GET | `xanoUrl` master/versions + `fetchAllXanoPages` | always-xano | ZERO fetch (comment-only on edit page) | RETIRE(dead) |
 | `/api/campaigns/[mba_number]/billing-schedule` | GET | same Xano crawl → PDF | always-xano | ZERO fetch | RETIRE(dead) |
 | `/api/chat-v2` | POST | none (prompt text) | n/a | `ChatWidget.tsx` | NOT-XANO |
@@ -150,25 +150,33 @@ SQL used (Postgres):
 | `/api/media-details/[...path]` | GET | `readReferenceMediaDetail` / proxy | DATA_BACKEND (reference) | `lib/api.ts`, allowlist | DUAL-DONE |
 | `/api/media-details/[...path]` | POST/PUT/PATCH/DELETE | proxy `XANO_MEDIA_DETAILS_BASE_URL` | always-xano | staff proxy | PORT |
 | `/api/media_plans/[...path]` | GET | masters/versions/channel via DATA_BACKEND_PLANS dual | DATA_BACKEND_PLANS | `lib/api.ts`, dashboards | DUAL-DONE |
-| `/api/media_plans/[...path]` | POST/PUT/DELETE | proxy `XANO_MEDIA_PLANS_BASE_URL` | always-xano | staff proxy + saves | PORT |
+| `/api/media_plans/[...path]` | POST/PUT/DELETE | channel writes → 410 when `WRITE_BACKEND=postgres`; else Xano proxy | WRITE_BACKEND | `replaceChannelLineItems` (xano write path) | RETIRE(dead) channel writes under pg / PORT legacy xano |
 | `/api/media_plans/cinema` | GET | dual channel handler | DATA_BACKEND_PLANS | `lib/api.ts` browser GET | DUAL-DONE |
-| `/api/media_plans/cinema` | POST | `cinema_line_items` | always-xano | ZERO — creates hit Xano direct | RETIRE(dead) |
-| `/api/media_plans/digi-bvod` | GET/POST | same pattern | DATA_BACKEND_PLANS / always | GET live; POST ZERO | DUAL-DONE / RETIRE(dead) POST |
-| `/api/media_plans/influencers` | GET/POST | same | same | GET live; POST ZERO | DUAL-DONE / RETIRE(dead) POST |
-| `/api/media_plans/integration` | GET/POST | same | same | GET live; POST ZERO | DUAL-DONE / RETIRE(dead) POST |
-| `/api/media_plans/newspaper` | GET/POST | same | same | GET live; POST ZERO | DUAL-DONE / RETIRE(dead) POST |
-| `/api/media_plans/production` | GET/POST | same | same | GET live; POST ZERO | DUAL-DONE / RETIRE(dead) POST |
-| `/api/media_plans/prog-video` | GET/POST | same | same | GET live; POST ZERO | DUAL-DONE / RETIRE(dead) POST |
-| `/api/media_plans/search` | GET/POST | same | same | GET live; POST ZERO | DUAL-DONE / RETIRE(dead) POST |
-| `/api/media_plans/social` | GET/POST | same | same | GET live; POST ZERO | DUAL-DONE / RETIRE(dead) POST |
+| `/api/media_plans/cinema` | POST | — | — | ZERO — handler deleted (X2) | RETIRE(dead) executed |
+| `/api/media_plans/digi-bvod` | GET | dual | DATA_BACKEND_PLANS | GET live | DUAL-DONE |
+| `/api/media_plans/digi-bvod` | POST | — | — | handler deleted (X2) | RETIRE(dead) executed |
+| `/api/media_plans/influencers` | GET | dual | DATA_BACKEND_PLANS | GET live | DUAL-DONE |
+| `/api/media_plans/influencers` | POST | — | — | handler deleted (X2) | RETIRE(dead) executed |
+| `/api/media_plans/integration` | GET | dual | DATA_BACKEND_PLANS | GET live | DUAL-DONE |
+| `/api/media_plans/integration` | POST | — | — | handler deleted (X2) | RETIRE(dead) executed |
+| `/api/media_plans/newspaper` | GET | dual | DATA_BACKEND_PLANS | GET live | DUAL-DONE |
+| `/api/media_plans/newspaper` | POST | — | — | handler deleted (X2) | RETIRE(dead) executed |
+| `/api/media_plans/production` | GET | dual | DATA_BACKEND_PLANS | GET live | DUAL-DONE |
+| `/api/media_plans/production` | POST | — | — | handler deleted (X2) | RETIRE(dead) executed |
+| `/api/media_plans/prog-video` | GET | dual | DATA_BACKEND_PLANS | GET live | DUAL-DONE |
+| `/api/media_plans/prog-video` | POST | — | — | handler deleted (X2) | RETIRE(dead) executed |
+| `/api/media_plans/search` | GET | dual | DATA_BACKEND_PLANS | GET live | DUAL-DONE |
+| `/api/media_plans/search` | POST | — | — | handler deleted (X2) | RETIRE(dead) executed |
+| `/api/media_plans/social` | GET | dual | DATA_BACKEND_PLANS | GET live | DUAL-DONE |
+| `/api/media_plans/social` | POST | — | — | handler deleted (X2) | RETIRE(dead) executed |
 | `/api/media_plans/television` | GET | dual | DATA_BACKEND_PLANS | `lib/api.ts` | DUAL-DONE |
-| `/api/media_plans/television` | POST | `media_plan_television` | always-xano | `lib/api.ts` | PORT |
-| `/api/media_plans/television/[id]` | PUT/DELETE | `television_line_items/:id` | always-xano | `lib/api.ts` | PORT |
+| `/api/media_plans/television` | POST | — | — | handler deleted (X2) | RETIRE(dead) executed |
+| `/api/media_plans/television/[id]` | PUT/DELETE | — | — | route deleted (X2); dead exports removed | RETIRE(dead) executed |
 | `/api/mediaplans` | GET/POST | `media_plan_master` via xanoUrl / list cache dual | DATA_BACKEND_PLANS (list) | mediaplans pages, dashboard | PORT (create) / DUAL-DONE (list when plans=pg) |
 | `/api/mediaplans/mbanumber` | GET | `media_plan_master` query | always-xano | create + edit | PORT |
 | `/api/mediaplans/[id]/mbanumber` | POST | `generate_mbanumber` | always-xano | create flow | PORT |
 | `/api/mediaplans/[id]/download` | GET | none (comment) | n/a | download UIs | NOT-XANO |
-| `/api/mediaplans/mba/[mba_number]` | GET | Xano fan-out **or** `readMbaPlanDetail` | DATA_BACKEND_PLAN_DETAIL (default xano) | edit/create/dashboard/trafficking | DUAL-DONE (inert until flip) |
+| `/api/mediaplans/mba/[mba_number]` | GET | `readMbaPlanDetail` only; `xano` → 410 | DATA_BACKEND_PLAN_DETAIL (default postgres) | edit/create/dashboard/trafficking | DUAL-DONE (X2 postgres-only) |
 | `/api/mediaplans/mba/[mba_number]` | PUT/PATCH | Xano tables + publish | always-xano / WRITE_BACKEND for pg save path | edit/create | PORT |
 | `/api/mediaplans/versions/[id]/billing-schedule` | PATCH | versions + overrides | always-xano write | ActionBar, inline schedule | PORT |
 | `/api/mediaplans/versions/[id]/documents` | POST | `XANO_MEDIA_PLANS` + `XANO_SAVE_FILE_BASE_URL` | always-xano | `lib/api.ts` | PORT |

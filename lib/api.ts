@@ -3058,34 +3058,6 @@ export async function getTelevisionLineItemsByMBA(mbaNumber: string, mediaPlanVe
   }
 }
 
-export async function createTelevisionLineItem(data: Partial<TelevisionLineItem>): Promise<TelevisionLineItem> {
-  const response = await fetch(`/api/media_plans/television`, {
-    method: 'POST',
-    headers: xanoPostHeaderRecord(),
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) throw new Error("Failed to create television line item");
-  return response.json();
-}
-
-export async function updateTelevisionLineItem(id: number, data: Partial<TelevisionLineItem>): Promise<TelevisionLineItem> {
-  const response = await fetch(`/api/media_plans/television/${id}`, {
-    method: 'PUT',
-    headers: xanoPostHeaderRecord(),
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) throw new Error("Failed to update television line item");
-  return response.json();
-}
-
-export async function deleteTelevisionLineItem(id: number): Promise<void> {
-  const response = await fetch(`/api/media_plans/television/${id}`, {
-    method: 'DELETE',
-  headers: xanoAuthHeaderRecord(),
-  });
-  if (!response.ok) throw new Error("Failed to delete television line item");
-}
-
 // Missing GET Functions
 export async function getIntegrationLineItemsByMBA(mbaNumber: string, mediaPlanVersion?: number, timeoutMs?: number): Promise<IntegrationLineItem[]> {
   if (isBrowser) {

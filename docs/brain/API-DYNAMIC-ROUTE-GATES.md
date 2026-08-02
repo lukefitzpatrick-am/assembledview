@@ -29,19 +29,10 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `publishers/[publisherId]` | GET | `publishers` GET | session (middleware) | session (middleware) | OK |
 | `publishers/[publisherId]` | PUT | `publishers` POST | `requireRole(admin)` | `requireRole(admin)` | **GATED (SEC-G)** |
 | `media-container-best-practice/[id]` | PUT | collection POST | `requireRole(admin)` + audit stamp | `requireRole(admin)` + audit stamp | **GATED (SEC-G)** |
-| `media_plans/television/[id]` | PUT | catch-all peer | `requireRole(admin)` | `requireRole(admin)` | **GATED (SEC-G)** |
-| `media_plans/television/[id]` | DELETE | catch-all peer | `requireRole(admin)` | `requireRole(admin)` | **GATED (SEC-G)** |
-| `media_plans/television` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual |
-| `media_plans/social` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
-| `media_plans/newspaper` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
-| `media_plans/influencers` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
-| `media_plans/integration` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
-| `media_plans/search` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
-| `media_plans/cinema` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
-| `media_plans/production` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
-| `media_plans/prog-video` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
-| `media_plans/digi-bvod` | POST | catch-all peer | `requireRole(admin)` | — | **GATED (SEC-G)** residual (sibling inventory) |
-| `media_plans/[...path]` | * | catch-all | — | `requireRole(admin)` | N/A |
+| `media_plans/television/[id]` | PUT/DELETE | — | — | — | **RETIRED (X2)** — route deleted |
+| `media_plans/<channel>` dedicated POSTs | POST | — | — | — | **RETIRED (X2)** — GET-only dual handlers remain |
+| `media_plans/[...path]` | GET | catch-all | — | `requireRole(admin)` + dual channel/master reads | OK |
+| `media_plans/[...path]` | POST/PUT/DELETE | catch-all | — | `requireRole(admin)`; channel writes 410 when `WRITE_BACKEND=postgres` | **X2** |
 | `media-details/[...path]` | * | catch-all | — | `requireRole(admin)` | N/A |
 | `codex/tasks/[id]` | PATCH | `codex/tasks` | `requireCodexInternalAccess` | same | OK |
 | `dashboard/[slug]` | GET | client dashboard | — | session + slug / admin | OK |
@@ -63,13 +54,13 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `clients/[id]` | PUT/PATCH | `clients` POST | `requireRole(admin)` | `requireRole(admin)` | OK |
 | `clients/[id]` | GET | `clients` GET | `requireRole(admin)` | session + client own-id (admin any-id) | **INTENTIONAL** |
 
-**Counts:** 27 dynamic route files; O6 gated 5 methods; SEC-G gated publishers/best-practice/television writes + creative soft-spot + 10 dedicated channel collection POSTs (residual close); `clients/[id]` GET stays intentional split. `prog-ooh` / `prog-display` dedicated routes are GET-only (no POST to gate).
+**Counts:** dynamic route inventory trimmed by X2 (dedicated channel POSTs + `television/[id]` retired). O6 gated 5 methods; SEC-G publishers/best-practice + creative soft-spot remain; `clients/[id]` GET stays intentional split.
 
 ## Morning answers (SEC-G — applied)
 
 1. **`publishers/*`** — writes (`POST` / `PUT`) → `requireRole(admin)`; GETs stay session-auth (reference data for create/edit).
 2. **`media-container-best-practice/*`** — writes (`POST` / `PUT`) → `requireRole(admin)`; keep `_name` audit stamp after the gate; reads stay session-auth.
-3. **`media_plans/television/[id]`** PUT+DELETE → `requireRole(admin)` to match catch-all. Only dedicated channel `[id]` mutate path in inventory. Verified: no client-role call site writes channel line items (`replaceChannelLineItems` → catch-all; `createTelevisionLineItem` / update / delete are dead exports). **Residual closed:** dedicated collection `POST` on `television` + nine sibling channel collection POSTs (`social`, `newspaper`, `influencers`, `integration`, `search`, `cinema`, `production`, `prog-video`, `digi-bvod`) now `requireRole(admin)` identically.
+3. **`media_plans` dedicated mutates** — X2 retired `television/[id]` and all dedicated channel collection POSTs (dead exports / zero browser callers). Live channel writes: `WRITE_BACKEND=postgres` → `/api/plans/save`; `WRITE_BACKEND=xano` → catch-all `replaceChannelLineItems` (still admin-gated).
 4. **`clients/[id]` GET** — **intentional split**: collection is admin-only; `[id]` GET allows admin any-id + client own-id only. Do not apply collection `requireRole` (breaks client self-read).
 5. **Creative soft-spot** — all creative MBA-scoped handlers call `checkClientMbaAccess`; helper itself now scopes **only admin** as unscoped (empty `mba_numbers` on non-admin → 403). Closes empty-MBA non-admin sessions across every consumer of the helper.
 6. **Forecast snapshots** — deferred (not in SEC-G apply list).
