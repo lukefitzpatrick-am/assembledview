@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import axios from "axios"
-import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { getCachedPublishersList } from "@/lib/api/publishersCache"
+import { createPublisherPostgresFirst } from "@/lib/data/writePublishers"
 import { requireRole } from "@/lib/requireRole"
 
 /** Session-auth only (middleware) — reference data for create/edit surfaces. */
@@ -26,11 +25,22 @@ export async function POST(req: NextRequest) {
     const gate = await requireRole(req, ["admin"])
     if ("response" in gate) return gate.response
 
-    const body = await req.json()
-    const response = await axios.post(xanoUrl("post_publishers", "XANO_PUBLISHERS_BASE_URL"), body, { headers: xanoPostHeaderRecord() })
-    return NextResponse.json(response.data, { status: 201 })
+    const body = (await req.json()) as Record<string, unknown>
+    const { row, mirror } = await createPublisherPostgresFirst(body)
+    return NextResponse.json({ ...row, mirror }, { status: 201 })
   } catch (error) {
     console.error("Failed to create publisher:", error)
-    return NextResponse.json({ error: "Failed to create publisher" }, { status: 500 })
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.startsWith("Missing required fields")) {
+      const details = message.replace(/^Missing required fields:\s*/, "").split(", ")
+      return NextResponse.json(
+        { error: "Missing required fields", details },
+        { status: 400 }
+      )
+    }
+    return NextResponse.json(
+      { error: "Failed to create publisher", message },
+      { status: 500 }
+    )
   }
 }

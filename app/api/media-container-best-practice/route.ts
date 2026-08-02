@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
-import axios from "axios"
-import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import {
   getCachedMediaContainerBestPractice,
-  invalidateMediaContainerBestPracticeCache,
 } from "@/lib/api/mediaContainerBestPracticeCache"
+import { createMediaContainerBestPracticePostgresFirst } from "@/lib/data/writeMediaContainerBestPractice"
 import { requireRole } from "@/lib/requireRole"
 
 /** Session-auth only (middleware) — reference data for create/edit surfaces. */
@@ -30,18 +28,21 @@ export async function POST(req: NextRequest) {
     const gate = await requireRole(req, ["admin"])
     if ("response" in gate) return gate.response
 
-    const body = await req.json()
+    const body = (await req.json()) as Record<string, unknown>
     const currentUser = await getCurrentUser(req)
-    const response = await axios.post(xanoUrl("media_container_best_practice", "XANO_PUBLISHERS_BASE_URL"), {
-        ...body,
-        _name: currentUser?.email ?? currentUser?.name ?? null,
-      }, { headers: xanoPostHeaderRecord() })
-    invalidateMediaContainerBestPracticeCache()
-    return NextResponse.json(response.data, { status: 201 })
+    const { row, mirror } = await createMediaContainerBestPracticePostgresFirst({
+      ...body,
+      _name: currentUser?.email ?? currentUser?.name ?? null,
+    })
+    return NextResponse.json({ ...row, mirror }, { status: 201 })
   } catch (error) {
     console.error("Failed to create media-container best practice:", error)
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.startsWith("Missing required fields")) {
+      return NextResponse.json({ error: message }, { status: 400 })
+    }
     return NextResponse.json(
-      { error: "Failed to create media-container best practice" },
+      { error: "Failed to create media-container best practice", message },
       { status: 500 },
     )
   }

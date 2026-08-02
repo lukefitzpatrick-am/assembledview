@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import axios from "axios"
-import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { getPublisherByPublisherId } from "@/lib/api/publishers"
-import { bodyForPublisherPut } from "@/lib/publisher/normalizePublisher"
+import {
+  updatePublisherPostgresFirst,
+} from "@/lib/data/writePublishers"
 import { requireRole } from "@/lib/requireRole"
 
 /** Session-auth only (middleware) — reference data for create/edit surfaces. */
@@ -27,16 +27,25 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ publ
     if ("response" in gate) return gate.response
 
     const { publisherId } = await params
-    const existing = await getPublisherByPublisherId(publisherId)
-    if (!existing) {
+    const body = (await req.json()) as Record<string, unknown>
+    const result = await updatePublisherPostgresFirst(publisherId, body)
+    if ("notFound" in result) {
       return NextResponse.json({ error: "Publisher not found" }, { status: 404 })
     }
-    const body = await req.json()
-    const payload = bodyForPublisherPut(body)
-    const response = await axios.put(`${xanoUrl("edit_publishers", "XANO_PUBLISHERS_BASE_URL")}/${existing.id}`, payload, { headers: xanoPostHeaderRecord() })
-    return NextResponse.json(response.data)
+    return NextResponse.json({ ...result.row, mirror: result.mirror })
   } catch (error) {
     console.error("Failed to update publisher:", error)
-    return NextResponse.json({ error: "Failed to update publisher" }, { status: 500 })
+    const message = error instanceof Error ? error.message : String(error)
+    if (message.startsWith("Missing required fields")) {
+      const details = message.replace(/^Missing required fields:\s*/, "").split(", ")
+      return NextResponse.json(
+        { error: "Missing required fields", details },
+        { status: 400 }
+      )
+    }
+    return NextResponse.json(
+      { error: "Failed to update publisher", message },
+      { status: 500 }
+    )
   }
 }

@@ -1,10 +1,12 @@
 import axios from "axios"
 import { parseXanoListPayload, xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { getDataBackendFor } from "@/lib/data/backend"
 
 /**
  * Coalesced TTL cache for `/api/media-container-best-practice`.
  * Best-practice rows change rarely — default 10 minutes.
  * Serves last-known-good on upstream failure (`stale: true`).
+ * Postgres when DATA_BACKEND_PUBLISHERS/DATA_BACKEND=postgres (X4 writes are PG-first).
  */
 
 const DEFAULT_TTL_MS = 10 * 60_000
@@ -30,6 +32,12 @@ function cacheTtlMs(): number {
 }
 
 async function fetchUpstream(): Promise<any[]> {
+  if (getDataBackendFor("publishers") === "postgres") {
+    const { fetchMediaContainerBestPracticeFromPostgres } = await import(
+      "@/lib/data/writeMediaContainerBestPractice"
+    )
+    return fetchMediaContainerBestPracticeFromPostgres()
+  }
   const response = await axios.get(
     xanoUrl("media_container_best_practice", "XANO_PUBLISHERS_BASE_URL"),
     {

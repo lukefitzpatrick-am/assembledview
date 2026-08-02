@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server"
-import axios from "axios"
-import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { isPublisherIdUnique } from "@/lib/data/writePublishers"
 
+/**
+ * Uniqueness check for publisher business key `publisherid`.
+ * PG-backed (X4) — ZERO in-repo fetch; kept for external/admin bookmarks.
+ */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const id = searchParams.get("id")
@@ -11,15 +14,10 @@ export async function GET(req: Request) {
   }
 
   try {
-    // Use the correct endpoint for fetching publishers
-    const response = await axios.get(xanoUrl("publishers", "XANO_PUBLISHERS_BASE_URL"), { headers: xanoAuthHeaderRecord(), params: { publisherid: id }, })
-
-    const publishers = response.data
-    const isUnique = publishers.length === 0
+    const isUnique = await isPublisherIdUnique(id)
     return NextResponse.json({ isUnique })
   } catch (error) {
     console.error("Failed to check publisher ID uniqueness:", error)
     return NextResponse.json({ error: "Failed to check publisher ID uniqueness" }, { status: 500 })
   }
 }
-

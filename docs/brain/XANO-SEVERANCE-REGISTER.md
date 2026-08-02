@@ -145,10 +145,10 @@ SQL used (Postgres):
 | `/api/finance/sow` | GET | `readScopeOfWork` | DATA_BACKEND_FINANCE | Client hub + scope extract | DUAL-DONE (X3 — no residual Xano imports) |
 | `/api/finance/xero-queue` | GET/POST | `xero_sync_exceptions` + `xanoFinancePatch`; billing via readFinance | mixed | `XeroExceptionsPanel.tsx` | PORT |
 | `/api/mba-line-approvals` | GET/PATCH | `readApprovals` / `writeApprovals` | DATA_BACKEND_APPROVALS + WRITE_BACKEND | `mbaLineApprovalsClient.ts` | DUAL-DONE |
-| `/api/media-container-best-practice` | GET/POST | `xanoUrl` + `XANO_PUBLISHERS_BASE_URL` | always-xano | admin, create/edit, trafficking | PORT |
-| `/api/media-container-best-practice/[id]` | PUT | xanoUrl PUT | always-xano | admin | PORT |
+| `/api/media-container-best-practice` | GET/POST | GET cache dual; POST `writeMediaContainerBestPractice` + Xano mirror | PG write (X4); GET via DATA_BACKEND_PUBLISHERS | admin, create/edit, trafficking | MIRROR (write) / DUAL-DONE (GET) |
+| `/api/media-container-best-practice/[id]` | PUT | `writeMediaContainerBestPractice` + Xano mirror | PG write (X4) | admin | MIRROR (write) |
 | `/api/media-details/[...path]` | GET | `readReferenceMediaDetail` / proxy | DATA_BACKEND (reference) | `lib/api.ts`, allowlist | DUAL-DONE |
-| `/api/media-details/[...path]` | POST/PUT/PATCH/DELETE | proxy `XANO_MEDIA_DETAILS_BASE_URL` | always-xano | staff proxy | PORT |
+| `/api/media-details/[...path]` | POST/PUT/PATCH/DELETE | allowlisted POST → `writeReferenceMediaDetail` + Xano mirror; else proxy | PG write (X4) for creates | staff proxy / create* helpers | MIRROR (write creates) |
 | `/api/media_plans/[...path]` | GET | masters/versions/channel via DATA_BACKEND_PLANS dual | DATA_BACKEND_PLANS | `lib/api.ts`, dashboards | DUAL-DONE |
 | `/api/media_plans/[...path]` | POST/PUT/DELETE | channel writes → 410 when `WRITE_BACKEND=postgres`; else Xano proxy | WRITE_BACKEND | `replaceChannelLineItems` (xano write path) | RETIRE(dead) channel writes under pg / PORT legacy xano |
 | `/api/media_plans/cinema` | GET | dual channel handler | DATA_BACKEND_PLANS | `lib/api.ts` browser GET | DUAL-DONE |
@@ -188,9 +188,9 @@ SQL used (Postgres):
 | `/api/planning/audiences/by-mba` | GET | same | always-xano | PlannedAudienceSection | PORT |
 | `/api/plans/save` | POST | Postgres `savePlanVersion` + `mirrorPlanToXano` | WRITE_BACKEND + mirror | `buildPostgresSavePayload` / create+edit | MIRROR (+ PG write) |
 | `/api/publishers` | GET | `readPublishersList` | DATA_BACKEND_PUBLISHERS | Publishers, create/edit | DUAL-DONE |
-| `/api/publishers` | POST | `post_publishers` | always-xano | Publishers | PORT |
-| `/api/publishers/[publisherId]` | GET/PUT | PUT `edit_publishers`; GET cache/list | writes always-xano | Publishers UI | PORT |
-| `/api/publishers/check-id` | GET | `publishers?publisherid=` | always-xano | ZERO fetch | RETIRE(dead) |
+| `/api/publishers` | POST | `writePublishers` + Xano mirror (`xano_publisher_mirror_failed`) | PG authoritative (X4) | Publishers | MIRROR (write) |
+| `/api/publishers/[publisherId]` | GET/PUT | GET dual list; PUT `writePublishers` + Xano mirror | PG write (X4) | Publishers UI | MIRROR (write) / DUAL-DONE (GET) |
+| `/api/publishers/check-id` | GET | PG `publishers.publisherid` uniqueness | PG (X4) | ZERO in-repo fetch; external bookmarks | DUAL-DONE (ported) |
 | `/api/scopes-of-work` | GET | `readScopeOfWork` | DATA_BACKEND_FINANCE | scopes, DashboardOverview | DUAL-DONE |
 | `/api/scopes-of-work` | POST | `XANO_SCOPES_BASE_URL` | always-xano | scopes pages | PORT |
 | `/api/scopes-of-work/[id]` | GET/PUT | `scope_of_work` XANO_SCOPES | always-xano | scopes pages | PORT |
@@ -212,6 +212,9 @@ SQL used (Postgres):
 | `lib/data/readMediaPlans.ts` | masters/versions/channel pages | DATA_BACKEND_PLANS | plan probes, PG reassembly | DUAL-DONE |
 | `lib/data/readApprovals.ts` | mba_line_approvals | DATA_BACKEND_APPROVALS | mba-line-approvals route | DUAL-DONE |
 | `lib/data/readReferenceMediaDetail.ts` | media-details reference tables | DATA_BACKEND reference | media-details route | DUAL-DONE |
+| `lib/data/writePublishers.ts` | `post_publishers` / `edit_publishers` mirror | PG write + mirror | publishers API | MIRROR (write) |
+| `lib/data/writeReferenceMediaDetail.ts` | media-details POST_* / site creates mirror | PG write + mirror | media-details route | MIRROR (write) |
+| `lib/data/writeMediaContainerBestPractice.ts` | media_container_best_practice mirror | PG write + mirror | best-practice API | MIRROR (write) |
 | `lib/data/writeApprovals.ts` | PATCH mba_line_approvals | WRITE_BACKEND | approvals API | DUAL-DONE |
 | `lib/data/mirrorToXano.ts` | channel replace + version/master mirror | post-PG always-on | plans/save, xano-mirror/retry | MIRROR |
 | `lib/api/fetchChannelLineItemsByMba.ts` | channel `media_plan_*` pages | DATA_BACKEND_PLANS | MBA GET, integrity, proxy | DUAL-DONE |

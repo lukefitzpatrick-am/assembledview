@@ -6,6 +6,10 @@ import { logProxy403 } from "@/lib/security/logProxy403"
 import { getDataBackend } from "@/lib/data/backend"
 import { isReferenceTablePath } from "@/lib/data/referenceTables"
 import { readReferenceMediaDetail } from "@/lib/data/readReferenceMediaDetail"
+import {
+  createReferenceMediaDetailPostgresFirst,
+  isReferenceWritePath,
+} from "@/lib/data/writeReferenceMediaDetail"
 
 type Params = { params: Promise<{ path: string[] }> }
 
@@ -59,6 +63,38 @@ async function proxyRequest(request: Request, { params }: Params, method: string
         {
           error: "Failed to read media details reference data",
           details: error?.message || "Unknown error",
+        },
+        { status: 500 }
+      )
+    }
+  }
+
+  // X4: allowlisted reference creates → PG first + Xano mirror.
+  if (method === "POST" && pathSegments.length === 1 && isReferenceWritePath(pathSegments[0])) {
+    try {
+      const raw = await request.text()
+      const body =
+        raw && raw.length > 0
+          ? (JSON.parse(raw) as Record<string, unknown>)
+          : ({} as Record<string, unknown>)
+      const { row, mirror } = await createReferenceMediaDetailPostgresFirst(
+        pathSegments[0],
+        body
+      )
+      return NextResponse.json({ ...row, mirror }, { status: 201 })
+    } catch (error: any) {
+      console.error("[media-details reference write] error", {
+        path: pathSegments[0],
+        error,
+      })
+      const message = error instanceof Error ? error.message : String(error)
+      if (message.startsWith("Missing required fields")) {
+        return NextResponse.json({ error: message }, { status: 400 })
+      }
+      return NextResponse.json(
+        {
+          error: "Failed to write media details reference data",
+          details: message,
         },
         { status: 500 }
       )
