@@ -24,6 +24,16 @@ export function validateAgencyFeeMonthTotalDrift(
   options?: { tolerance?: number }
 ): FeeDriftValidationResult {
   const toleranceUsed = options?.tolerance ?? DEFAULT_TOLERANCE
+  // MB-6: empty draft = nothing to check (not "fees are $0 vs derived").
+  if (!months.length) {
+    return {
+      withinTolerance: true,
+      sumOfMonthFeeTotals: 0,
+      derivedCampaignFee,
+      diff: 0,
+      toleranceUsed,
+    }
+  }
   const sumOfMonthFeeTotals = months.reduce((sum, m) => sum + parseMoney(m.feeTotal), 0)
   const diff = sumOfMonthFeeTotals - derivedCampaignFee
   const withinTolerance = Math.abs(diff) < toleranceUsed

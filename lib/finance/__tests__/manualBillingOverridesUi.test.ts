@@ -8,6 +8,7 @@ import {
   billingOverrideLineIdsMatch,
   buildPrepaymentOverrideMonths,
   extractOverrideMonthsFromSchedule,
+  rebuildTimingDraftAfterBillingSave,
   toBillingOverrideLineItemId,
   upsertLineOverrideMeta,
   upsertOptimisticPrepaymentOverrideRow,
@@ -15,6 +16,7 @@ import {
   type LineOverrideMeta,
 } from "../manualBillingOverridesUi.js"
 import type { BillingMonth } from "@/lib/billing/types"
+import { validateAgencyFeeMonthTotalDrift } from "@/lib/billing/validateAgencyFeeMonthTotalDrift.js"
 
 test("toBillingOverrideLineItemId strips billing- prefix", () => {
   assert.equal(toBillingOverrideLineItemId("billing-search::S-1"), "S-1")
@@ -48,6 +50,130 @@ test("validateManualMediaMonthsSum blocks non-timing amount changes", () => {
   assert.equal(bad.ok, false)
   if (bad.ok) return
   assert.match(bad.message, /sum to the line media total/i)
+})
+
+test("validateManualMediaMonthsSum skips empty draft (MB-6)", () => {
+  // Absent draft must never report "Off by $20,000" against the line total.
+  const gate = validateManualMediaMonthsSum([], 20_000)
+  assert.equal(gate.ok, true)
+})
+
+/**
+ * MB-6 regression: after Save billing changes, rebuild draft from persisted overrides
+ * (option a) so the open MBA modal keeps month inputs + green sum gate; a second Save
+ * must not raise fee-drift against an empty draft.
+ */
+test("MB-6: rebuild after save keeps month amounts and sum/fee gates green", () => {
+  const autoReference: BillingMonth[] = [
+    {
+      monthYear: "August 2026",
+      mediaTotal: "$10,000.00",
+      feeTotal: "$2,500.00",
+      totalAmount: "$12,500.00",
+      adservingTechFees: "$0.00",
+      production: "$0.00",
+      mediaCosts: {} as BillingMonth["mediaCosts"],
+      lineItems: {
+        search: [
+          {
+            id: "billing-search::supabase001PB1",
+            header1: "Google",
+            header2: "Search",
+            monthlyAmounts: { "August 2026": 10_000, "September 2026": 10_000 },
+            feeMonthlyAmounts: { "August 2026": 2500, "September 2026": 2500 },
+            totalAmount: 20_000,
+            billingMode: "auto",
+          },
+        ],
+      },
+    },
+    {
+      monthYear: "September 2026",
+      mediaTotal: "$10,000.00",
+      feeTotal: "$2,500.00",
+      totalAmount: "$12,500.00",
+      adservingTechFees: "$0.00",
+      production: "$0.00",
+      mediaCosts: {} as BillingMonth["mediaCosts"],
+      lineItems: {
+        search: [
+          {
+            id: "billing-search::supabase001PB1",
+            header1: "Google",
+            header2: "Search",
+            monthlyAmounts: { "August 2026": 10_000, "September 2026": 10_000 },
+            feeMonthlyAmounts: { "August 2026": 2500, "September 2026": 2500 },
+            totalAmount: 20_000,
+            billingMode: "auto",
+          },
+        ],
+      },
+    },
+  ]
+
+  // Prebill-shaped draft the user just saved (Aug $20k / Sep $0).
+  const savedMonths: BillingMonth[] = JSON.parse(JSON.stringify(autoReference))
+  for (const m of savedMonths) {
+    const li = m.lineItems!.search![0]!
+    li.monthlyAmounts = { "August 2026": 20_000, "September 2026": 0 }
+    li.feeMonthlyAmounts = { "August 2026": 5000, "September 2026": 0 }
+    li.billingMode = "manual"
+    li.preBill = true
+  }
+  // Month header fee totals match the prepaid fee shape (derived campaign fee = $5,000).
+  savedMonths[0]!.feeTotal = "$5,000.00"
+  savedMonths[1]!.feeTotal = "$0.00"
+
+  const persistedRows = [
+    {
+      line_item_id: "supabase001PB1",
+      component: "media" as const,
+      mode: "manual" as const,
+      reason: "prepayment",
+      date_basis: "basis",
+      months: [
+        { month: "2026-08", amount: 20_000 },
+        { month: "2026-09", amount: 0 },
+      ],
+    },
+  ]
+
+  // Bug path: wipe months but leave draftReady → empty monthYears, false $20k Off-by.
+  const strandedEmpty = validateManualMediaMonthsSum([], 20_000)
+  assert.equal(strandedEmpty.ok, true, "empty draft must skip media sum gate")
+  const strandedFee = validateAgencyFeeMonthTotalDrift([], 5000)
+  assert.equal(strandedFee.withinTolerance, true, "empty draft must skip fee drift")
+
+  // Option (a): rebuild from persisted rows over auto reference (mock persist ok).
+  const { draftMonths, metaByLine } = rebuildTimingDraftAfterBillingSave({
+    savedMonths,
+    autoReferenceMonths: autoReference,
+    persistedRows,
+  })
+
+  assert.equal(draftMonths.length, 2, "modal still has two month rows (inputs)")
+  const extracted = extractOverrideMonthsFromSchedule(
+    draftMonths,
+    "billing-search::supabase001PB1",
+    "media"
+  )
+  assert.deepEqual(extracted, [
+    { month: "2026-08", amount: 20_000 },
+    { month: "2026-09", amount: 0 },
+  ])
+  assert.equal(metaByLine.get("supabase001PB1")?.[0]?.reason, "prepayment")
+
+  const sumGate = validateManualMediaMonthsSum(extracted, 20_000)
+  assert.equal(sumGate.ok, true, 'sum gate reads "Months match line"')
+
+  // Second Save: fee months from rebuilt draft vs derived $5,000 — no fee-drift dialog.
+  const feeMonths: BillingMonth[] = draftMonths.map((m, i) => ({
+    ...m,
+    feeTotal: savedMonths[i]!.feeTotal,
+  }))
+  const secondSaveFee = validateAgencyFeeMonthTotalDrift(feeMonths, 5000)
+  assert.equal(secondSaveFee.withinTolerance, true)
+  assert.equal(secondSaveFee.diff, 0)
 })
 
 test("apply + extract round-trip ISO months for media override", () => {

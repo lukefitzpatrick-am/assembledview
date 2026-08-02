@@ -208,6 +208,7 @@ import {
   buildPrepaymentOverrideMonths,
   clearLineOverrideMeta,
   listManualOverrideLineIds,
+  rebuildTimingDraftAfterBillingSave,
   removeOptimisticMediaOverrideRow,
   restoreLinePrebillSnapshot,
   sumLineMediaAcrossMonths,
@@ -3269,6 +3270,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       workingBillingMonthsRef.current = []
       billingLineItemsFollowAutoRef.current = false
       setManualBillingMonths([])
+      setManualBillingDraftReady(false)
       setIsManualBillingModalOpen(false)
       setFullBillingResetConfirmOpen(false)
       setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
@@ -5541,6 +5543,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setBillingDivergence(null)
     setShowDivergenceBanner(false)
     setManualBillingMonths([])
+    setManualBillingDraftReady(false)
+    manualBillingOverrideMetaRef.current = new Map()
     setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
     manualBillingCostPreBillSnapshotRef.current = {}
   }, [calculateBillingSchedule, campaignStartDate, campaignEndDate])
@@ -6838,10 +6842,40 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     workingBillingMonthsRef.current = applied
     setIsManualBilling(true)
     billingLineItemsFollowAutoRef.current = billingMonthsHaveExplicitLineModes(applied)
+    // MB-6: close Advanced only — keep MBA modal timing draft populated (option a).
+    // Never wipe months while draftReady stays true (empty draft → $0 / Off by line total).
     setIsManualBillingModalOpen(false)
-    setManualBillingMonths([])
     setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
-    void refreshBillingOverrideRowsForPanels(versionId)
+
+    const autoRef =
+      (manualBillingAutoReferenceMonths?.length ?? 0) > 0
+        ? (manualBillingAutoReferenceMonths as BillingMonth[])
+        : autoReferenceBillingMonths
+    try {
+      const rows = await fetchBillingOverridesClient(versionId)
+      const { draftMonths, metaByLine } = rebuildTimingDraftAfterBillingSave({
+        savedMonths: applied,
+        autoReferenceMonths: autoRef,
+        persistedRows: Array.isArray(rows) ? rows : [],
+      })
+      setManualBillingMonths(draftMonths)
+      if (metaByLine.size > 0) {
+        manualBillingOverrideMetaRef.current = metaByLine
+      }
+      // meta empty + rows empty: keep the meta that drove this successful persist
+      setManualBillingDraftReady(true)
+      setBillingOverrideRowsForPanels(Array.isArray(rows) ? rows : [])
+      setBillingOverridesLoadNotice(null)
+    } catch (err) {
+      console.warn(
+        "[manual-billing] rebuild draft after save failed; keeping just-saved months",
+        err instanceof Error ? err.message : err
+      )
+      setManualBillingMonths(applied)
+      setManualBillingDraftReady(true)
+      void refreshBillingOverrideRowsForPanels(versionId)
+    }
+
     toast({
       title: "Billing applied",
       description: `Overrides saved (${result.replacedMedia} media, ${result.replacedFee} fee${result.reset ? `, ${result.reset} reset` : ""}${
@@ -12300,8 +12334,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         onOpenChange={(open) => {
           setIsMbaBillingModalOpen(open)
           if (!open) {
+            // MB-6: draft teardown clears months + meta together (never leave stale meta).
             setIsManualBillingModalOpen(false)
             setManualBillingDraftReady(false)
+            setManualBillingMonths([])
+            manualBillingOverrideMetaRef.current = new Map()
             setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
           }
         }}
@@ -12342,9 +12379,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           void handleManualBillingOpen()
         }}
         onCloseTimingDraft={() => {
+          // MB-6: same teardown triad as modal close — ready + months + meta.
           setManualBillingDraftReady(false)
           setIsManualBillingModalOpen(false)
           setManualBillingMonths([])
+          manualBillingOverrideMetaRef.current = new Map()
           setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
         }}
         showAdvancedEditor={isManualBillingModalOpen}

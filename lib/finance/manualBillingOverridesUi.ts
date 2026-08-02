@@ -149,11 +149,13 @@ export function extractOverrideMonthsFromSchedule(
 /**
  * Timing-only gate: manual media months must sum to the line's media total (±$0.01).
  * `expectedMediaTotal` is the AUTO / booked line media (before override retiming).
+ * Empty months = no draft to check (MB-6) — skip, never "off by the whole line".
  */
 export function validateManualMediaMonthsSum(
   months: MonthAmount[],
   expectedMediaTotal: number
 ): { ok: true } | { ok: false; message: string; actual: number; expected: number; delta: number } {
+  if (!months.length) return { ok: true }
   const actual = roundMoney2(months.reduce((s, m) => s + (Number(m.amount) || 0), 0))
   const expected = roundMoney2(expectedMediaTotal)
   const delta = roundMoney2(actual - expected)
@@ -165,6 +167,32 @@ export function validateManualMediaMonthsSum(
     delta,
     message: `Manual billing months must sum to the line media total (timing only). Got ${actual.toFixed(2)}, expected ${expected.toFixed(2)} (Δ ${delta >= 0 ? "+" : ""}${delta.toFixed(2)}).`,
   }
+}
+
+function deepCloneBillingMonths(months: BillingMonth[]): BillingMonth[] {
+  return JSON.parse(JSON.stringify(months)) as BillingMonth[]
+}
+
+/**
+ * MB-6 — after a successful Save billing changes, rebuild the open timing draft from
+ * persisted override rows overlaid on the auto reference (fallback: the just-saved months).
+ * Keeps Adjust timing showing real month inputs instead of an empty stranded draft.
+ */
+export function rebuildTimingDraftAfterBillingSave(args: {
+  savedMonths: BillingMonth[]
+  autoReferenceMonths: BillingMonth[]
+  persistedRows: BillingOverrideRow[]
+}): { draftMonths: BillingMonth[]; metaByLine: Map<string, LineOverrideMeta[]> } {
+  const saved = deepCloneBillingMonths(args.savedMonths)
+  if (!args.persistedRows.length) {
+    return { draftMonths: saved, metaByLine: new Map() }
+  }
+  const base =
+    args.autoReferenceMonths.length > 0
+      ? deepCloneBillingMonths(args.autoReferenceMonths)
+      : saved
+  const { months, metaByLine } = applyBillingOverrideRowsToMonths(base, args.persistedRows)
+  return { draftMonths: months, metaByLine }
 }
 
 /**

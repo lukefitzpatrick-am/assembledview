@@ -4317,6 +4317,7 @@ function CreateMediaPlan() {
     setIsManualBilling(false)
     setHasPendingManualBilling(false)
     setManualBillingMonths([])
+    setManualBillingDraftReady(false)
     setManualBillingTotal("$0.00")
     setManualBillingAutoReferenceMonths([])
     manualBillingAutoReferenceMonthsRef.current = []
@@ -7698,6 +7699,10 @@ const handleSaveAll = async () => {
           if (!open) {
             setIsManualBillingModalOpen(false)
             setManualBillingDraftReady(false)
+            if (!hasPendingManualBilling) {
+              setManualBillingMonths([])
+              manualBillingOverrideMetaRef.current = new Map()
+            }
             setBillingError({ show: false, messages: [] })
           }
         }}
@@ -7731,6 +7736,7 @@ const handleSaveAll = async () => {
           setIsManualBillingModalOpen(false)
           if (!hasPendingManualBilling) {
             setManualBillingMonths([])
+            manualBillingOverrideMetaRef.current = new Map()
           }
           setBillingError({ show: false, messages: [] })
         }}
