@@ -60,4 +60,4 @@ Boot warming via `instrumentation.ts` → dynamic `instrumentation.node.ts` only
 
 ## Deploy config
 
-`vercel.json` crons: xano-line-item-sync (daily 19:00 UTC), ops-health (22:00), pacing-digest (Mon/Thu 22:30), creative-upload-digest (hourly). `next.config.mjs`: `serverExternalPackages: ["postgres"]`, snowflake-sdk externalised, finance redirects, pdfkit fs fallbacks. Regions iad1/syd1/sin1.
+`vercel.json` crons: xano-line-item-sync (daily 19:00 UTC; `LINE_ITEM_SNAPSHOT_SOURCE`), ops-health (22:00), pacing-digest (Mon/Thu 22:30), creative-upload-digest (hourly). `next.config.mjs`: `serverExternalPackages: ["postgres"]`, snowflake-sdk externalised, finance redirects, pdfkit fs fallbacks. Regions iad1/syd1/sin1.

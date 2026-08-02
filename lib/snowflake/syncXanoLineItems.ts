@@ -17,9 +17,11 @@ import type { XanoLineItem } from "@/lib/xano/fetchAllLineItems"
 
 /**
  * Merges plan line items into `ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT`.
- * Source remains `fetchAllXanoLineItems` (Xano) until T6 — do not switch this
- * path to Postgres / `DATA_BACKEND_PACING` here. See
- * `scripts/migration/DISPOSITIONS.md` § T6 — XANO_LINE_ITEMS_SNAPSHOT.
+ * Source-agnostic MERGE — callers pass Xano (`fetchAllXanoLineItems`) or PG
+ * (`fetchAllPgLineItems`) rows. Cron gate: `LINE_ITEM_SNAPSHOT_SOURCE` via
+ * `runLineItemSnapshotSync` (default xano; parity reports without switching;
+ * postgres only after Luke STOP flip). See
+ * `docs/superpowers/x7-line-item-snapshot-pg-stop-2026-08-02.md`.
  */
 
 const SNAPSHOT = "ASSEMBLEDVIEW.MART.XANO_LINE_ITEMS_SNAPSHOT"

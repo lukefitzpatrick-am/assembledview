@@ -116,15 +116,16 @@ Booked MBAs in this class (empty both sides): **BOSS002** v1, **buxton003** v3, 
 
 ---
 
-## T6 — `XANO_LINE_ITEMS_SNAPSHOT` repoint (deferred)
+## T6 — `XANO_LINE_ITEMS_SNAPSHOT` repoint (X7 code landed; flip STOP)
 
 | Field | Value |
 |---|---|
-| Current source | `lib/xano/fetchAllLineItems.ts` → cron `app/api/cron/xano-line-item-sync` → `lib/snowflake/syncXanoLineItems.ts` → `MART.XANO_LINE_ITEMS_SNAPSHOT` |
-| T2d decision | **FROZEN on Xano.** Do not wire through `DATA_BACKEND_PACING` / Postgres. Pacing overview + campaign delivery keep reading plan lines from Xano channel tables until T2e; the warehouse snapshot stays Xano-fed until deployment. |
-| Where the repoint happens | **T6 deployment campaign** (handoff §5 T6): after domain flips + soak, repoint the snapshot ingest to Postgres `line_items` (or a view), dual-run parity, then disable the Xano crawl. |
-| Related | Channel `media_plan_*` GETs used by `resolveLive*LineItems` / burst context → **T2e media-plans** (reassemble from consolidated `line_items`). |
-| Who / date | Cursor (T2d) · 2026-07-30 |
+| Current source | Cron `app/api/cron/xano-line-item-sync` → `runLineItemSnapshotSync` → `syncLineItemsToSnowflake` → `MART.XANO_LINE_ITEMS_SNAPSHOT` |
+| Env gate | `LINE_ITEM_SNAPSHOT_SOURCE=xano\|parity\|postgres` (default **xano**). Parity fetches Xano+PG, reports MBA row/spend diffs, MERGEs **Xano only**. |
+| PG crawl | `lib/snowflake/fetchAllPgLineItems.ts` (`line_items` × `media_plan_versions`) |
+| Flip | Luke sets `postgres` only after clean parity — `docs/superpowers/x7-line-item-snapshot-pg-stop-2026-08-02.md`. Cron path retires at T7. |
+| Related | Channel live resolvers may still hit Xano until T2e/X8; snapshot ingest is independent. |
+| Who / date | Cursor (X7) · 2026-08-02 |
 
 ---
 

@@ -122,7 +122,7 @@ SQL used (Postgres):
 | `/api/creative-assets/[id]/download` | GET | getById | always-xano | Creative UI | PORT |
 | `/api/creative-assets/[id]/frame` | GET | getById | always-xano | Creative UI | PORT |
 | `/api/creative-assets/[id]/preview/[[...path]]` | GET | getById | always-xano | Creative UI | PORT |
-| `/api/cron/xano-line-item-sync` | GET | `fetchAllXanoLineItems` → Snowflake | always-xano until T6 | Vercel cron (no app fetch) | TOOLING |
+| `/api/cron/xano-line-item-sync` | GET | `runLineItemSnapshotSync` → Snowflake | `LINE_ITEM_SNAPSHOT_SOURCE` (default xano; parity/postgres X7 STOP) | Vercel cron (no app fetch) | TOOLING |
 | `/api/cron/xero-sync` | GET/POST | none (comment only) | n/a | Vercel cron | NOT-XANO |
 | `/api/dashboard/spend-parity` | GET | via `global.ts` → `xanoDashboardsUrl` when plans≠pg | DATA_BACKEND_PLANS indirect | ZERO product callers | TOOLING |
 | `/api/finance/accrual` | GET | — | — | ZERO — UI uses billing+payables | RETIRE(dead) executed (410 X3) |
@@ -238,7 +238,7 @@ SQL used (Postgres):
 | `lib/finance/forecast/server/loadFinanceForecastDataset.ts` | versions + clients + publishers pages | none (T6 soft catch) | forecasting booked mode | PORT |
 | `lib/creative/xanoCreativeAssets.ts` | `creative_asset` CRUD | none | creative-assets API, Ava | PORT |
 | `lib/planning/xanoPlanningAudiences.ts` | `planning_audiences` CRUD | none | planning audiences API, Ava | PORT |
-| `lib/xano/fetchAllLineItems.ts` | all channel tables completeness | **not** DATA_BACKEND_PACING (frozen→T6) | cron xano-line-item-sync | TOOLING |
+| `lib/xano/fetchAllLineItems.ts` | all channel tables completeness | `LINE_ITEM_SNAPSHOT_SOURCE` (X7) | cron xano-line-item-sync | TOOLING |
 | `lib/xano/ava.ts` | versions + masters | none | Ava tools | PORT |
 | `lib/xano/pacingOrphanFixes.ts` | POST pacing_orphan_fixes | write always-xano | assignOrphanLineItem | PORT |
 | `lib/pacing/**/resolveLive*LineItems.ts` + `fetchSearchPacingCampaignRows.ts` | channel line pages | lines not dual | pacing campaign APIs | PORT |
@@ -367,19 +367,15 @@ Branch: localhost. Sizing from XANO-SEVERANCE-REGISTER.md §2:
 REPORT: rows migrated, bytes, failures, residual vault counts.
 ```
 
-### X7 — Kill browser/server direct Xano in lib/api.ts + disable mirror
+### X7 — Snowflake line-item snapshot from Postgres (parity → STOP flip)
 
 ```
-PASTE INTO CURSOR — X7: remove lib/api.ts direct Xano + turn off mirror
-
-PREREQ: WRITE_BACKEND=postgres soaked; X3–X5 green for domains you touch.
-1. All create/update/delete*LineItem in lib/api.ts must go through /api/plans/save or
-   Postgres channel writers — no MEDIA_PLANS_BASE_URL from browser/server SDK.
-2. Gate or delete mirrorToXano + /api/admin/xano-mirror/retry (or flag MIRROR_TO_XANO=off).
-3. fetchClientRowByUrlSlug → readClients dual path.
-4. KPI writes → Postgres (readKpi already dual).
-5. Update INVARIANTS if mirror stops being required.
-REPORT: remaining getXanoBaseUrl call sites (rg), confidence.
+DONE (code): fetchAllPgLineItems + runLineItemSnapshotSync; cron env
+LINE_ITEM_SNAPSHOT_SOURCE=xano|parity|postgres (default xano). Parity reports
+MBA row counts + burst spend sums; MERGEs Xano until Luke flips to postgres.
+STOP: docs/superpowers/x7-line-item-snapshot-pg-stop-2026-08-02.md
+Author verify: npm run verify:line-item-snapshot-parity
+(Former register “kill lib/api.ts Xano” work moves to X8 / T7.)
 ```
 
 ### X8 — T6 cutover / decommission prep
