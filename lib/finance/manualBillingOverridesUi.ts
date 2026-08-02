@@ -4,7 +4,10 @@
  */
 
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
-import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
+import {
+  syncLineItemFeeMonthlyAmountAcrossAllMonthRows,
+  syncLineItemMonthlyAmountAcrossAllMonthRows,
+} from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
 import {
   isoMonthToScheduleMonthYear,
   scheduleMonthYearToIso,
@@ -439,6 +442,32 @@ export function applyLinePrebillToMonths(
 }
 
 /**
+ * MB-8 — dump line fee into the earliest campaign/draft month (component=fee lane).
+ * Companion to {@link applyLinePrebillToMonths} for "Media + fee" prebill.
+ */
+export function applyLineFeePrebillToMonths(
+  months: BillingMonth[],
+  mediaKey: string,
+  lineItemId: string,
+  lineFeeTotal: number
+): BillingMonth[] {
+  if (!months.length) return months
+  const earliest = months[0]!.monthYear
+  const total = roundMoney2(lineFeeTotal)
+  for (const month of months) {
+    const amount = month.monthYear === earliest ? total : 0
+    syncLineItemFeeMonthlyAmountAcrossAllMonthRows(
+      months,
+      mediaKey,
+      lineItemId,
+      month.monthYear,
+      amount
+    )
+  }
+  return months
+}
+
+/**
  * Restore monthlyAmounts from `preBillSnapshot` after Prebill uncheck.
  * Matches bare ↔ `billing-{media}::` ids (C-34 / MB-4). Returns false when
  * no matching line carries a snapshot (caller should no-op).
@@ -533,6 +562,41 @@ export function removeOptimisticMediaOverrideRow(
   const canon = toBillingOverrideLineItemId(lineItemId)
   return rows.filter((r) => {
     if (rowComponent(r) !== "media") return true
+    return toBillingOverrideLineItemId(rowLineId(r)) !== canon
+  })
+}
+
+/** Merge/replace a fee prepayment row (MB-8 media + fee). */
+export function upsertOptimisticFeePrepaymentOverrideRow(
+  rows: BillingOverrideRow[],
+  lineItemId: string,
+  months: MonthAmount[],
+  dateBasis = ""
+): BillingOverrideRow[] {
+  const canon = toBillingOverrideLineItemId(lineItemId)
+  const next = rows.filter((r) => {
+    if (rowComponent(r) !== "fee") return true
+    return toBillingOverrideLineItemId(rowLineId(r)) !== canon
+  })
+  next.push({
+    line_item_id: canon,
+    component: "fee",
+    mode: "manual",
+    reason: "prepayment",
+    months,
+    date_basis: dateBasis,
+  })
+  return next
+}
+
+/** Drop fee override rows for a line (optimistic clear). */
+export function removeOptimisticFeeOverrideRow(
+  rows: BillingOverrideRow[],
+  lineItemId: string
+): BillingOverrideRow[] {
+  const canon = toBillingOverrideLineItemId(lineItemId)
+  return rows.filter((r) => {
+    if (rowComponent(r) !== "fee") return true
     return toBillingOverrideLineItemId(rowLineId(r)) !== canon
   })
 }

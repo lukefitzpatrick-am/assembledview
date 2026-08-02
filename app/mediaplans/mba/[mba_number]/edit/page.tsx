@@ -202,22 +202,37 @@ import {
 } from "@/lib/finance/billingOverridesClient"
 import {
   applyBillingOverrideRowsToMonths,
+  applyLineFeePrebillToMonths,
   applyLinePrebillToMonths,
   billingOverrideLineIdsMatch,
   buildPrepaymentOverrideMonths,
   clearLineOverrideMeta,
   listManualOverrideLineIds,
   rebuildTimingDraftAfterBillingSave,
+  removeOptimisticFeeOverrideRow,
   removeOptimisticMediaOverrideRow,
   restoreLinePrebillSnapshot,
+  sumLineFeeAcrossMonths,
   sumLineMediaAcrossMonths,
   toBillingOverrideLineItemId,
   upsertLineOverrideMeta,
+  upsertOptimisticFeePrepaymentOverrideRow,
   upsertOptimisticPrepaymentOverrideRow,
   validateManualMediaMonthsSum,
   type LineOverrideMeta,
 } from "@/lib/finance/manualBillingOverridesUi"
-import { resolveMbaBillingModalState } from "@/lib/finance/resolveMbaBillingModalState"
+import {
+  resolveMbaBillingModalState,
+  syncBillingMonthHeadersFromLineItems,
+} from "@/lib/finance/resolveMbaBillingModalState"
+import {
+  clearPrebillScopeSessionMemory,
+  createPrebillScopeSessionMemory,
+  rememberPrebillScope,
+  rememberedPrebillScope,
+  type PrebillScope,
+} from "@/lib/billing/prebillScope"
+import { PrebillScopeDialog } from "@/components/billing/PrebillScopeDialog"
 import {
   applyCollisionDecision,
   detectBillingCollisions,
@@ -1981,6 +1996,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }>({})
   /** Reason / dateBasis from billing_overrides rows (keyed by line_item_id). */
   const manualBillingOverrideMetaRef = useRef<Map<string, LineOverrideMeta[]>>(new Map())
+  /** MB-8: last Prebill scope + per-line confirms for this draft session. */
+  const prebillScopeMemoryRef = useRef(createPrebillScopeSessionMemory())
+  const [prebillScopePrompt, setPrebillScopePrompt] = useState<{
+    mediaKey: string
+    lineItemId: string
+    defaultScope: PrebillScope
+  } | null>(null)
   /** Canonical line ids present on last hydrated / saved billing baseline (C3 preserve-prior). */
   const persistedBillingLineIdsRef = useRef<Set<string>>(new Set())
   /** Table overrides for panel indicators only (save path still attaches server-side). */
@@ -4902,8 +4924,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   /**
-   * ⚡ Prebill — dump full line-media into the earliest campaign/draft month (months[0]),
-   * reason=prepayment in metaByLine (persist → billing_overrides) + optimistic panel row.
+   * ⚡ Prebill — dump into earliest month. MB-8: ask media-only vs media+fee once per
+   * line per draft session (default media-only).
    */
   async function handleManualBillingLineItemPrebill(mediaKey: string, lineItemId: string) {
     let base = manualBillingMonths
@@ -4920,11 +4942,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       base = opened
     }
 
-    const copy = deepCloneBillingMonthsState(base)
     const autoMonths =
       (manualBillingAutoReferenceMonths?.length ?? 0) > 0
         ? (manualBillingAutoReferenceMonths as BillingMonth[])
-        : copy
+        : base
     const lineMediaTotal = sumLineMediaAcrossMonths(autoMonths, lineItemId)
     if (lineMediaTotal <= 0.005) {
       toast({
@@ -4934,6 +4955,45 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       })
       return
     }
+
+    const lineFeeTotal = sumLineFeeAcrossMonths(autoMonths, lineItemId)
+    // No fee to move → media-only without prompting.
+    if (lineFeeTotal <= 0.005) {
+      applyManualBillingPrebillScope(mediaKey, lineItemId, "media_only", base)
+      return
+    }
+
+    const remembered = rememberedPrebillScope(prebillScopeMemoryRef.current, lineItemId)
+    if (remembered) {
+      applyManualBillingPrebillScope(mediaKey, lineItemId, remembered, base)
+      return
+    }
+
+    setPrebillScopePrompt({
+      mediaKey,
+      lineItemId,
+      defaultScope: prebillScopeMemoryRef.current.lastChoice,
+    })
+  }
+
+  function applyManualBillingPrebillScope(
+    mediaKey: string,
+    lineItemId: string,
+    scope: PrebillScope,
+    baseMonths?: BillingMonth[]
+  ) {
+    const base = baseMonths ?? manualBillingMonths
+    if (!base.length) return
+
+    rememberPrebillScope(prebillScopeMemoryRef.current, lineItemId, scope)
+
+    const copy = deepCloneBillingMonthsState(base)
+    const autoMonths =
+      (manualBillingAutoReferenceMonths?.length ?? 0) > 0
+        ? (manualBillingAutoReferenceMonths as BillingMonth[])
+        : copy
+    const lineMediaTotal = sumLineMediaAcrossMonths(autoMonths, lineItemId)
+    const lineFeeTotal = sumLineFeeAcrossMonths(autoMonths, lineItemId)
 
     // Snapshot prior distribution for Advanced checkbox uncheck.
     for (const month of copy) {
@@ -4946,21 +5006,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
 
     applyLinePrebillToMonths(copy, mediaKey, lineItemId, lineMediaTotal)
-    const formatter = new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" })
-    copy.forEach((month) => {
-      const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
-        | BillingLineItemType[]
-        | undefined
-      if (!monthLineItems) return
-      const mediaTypeTotal = monthLineItems.reduce(
-        (sum, li) => sum + (li.monthlyAmounts?.[month.monthYear] || 0),
-        0
-      )
-      if (month.mediaCosts && mediaKey in month.mediaCosts) {
-        ;(month.mediaCosts as Record<string, string>)[mediaKey] = formatter.format(mediaTypeTotal)
-      }
-    })
-    recalculateManualBillingTotals(copy, formatter)
+    if (scope === "media_and_fee" && lineFeeTotal > 0.005) {
+      applyLineFeePrebillToMonths(copy, mediaKey, lineItemId, lineFeeTotal)
+    }
+
+    syncBillingMonthHeadersFromLineItems(copy)
     const next = applyBillingLineMode(copy, lineItemId, "manual")
     setManualBillingMonths(next)
 
@@ -4970,13 +5020,39 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       dateBasis: "",
       component: "media",
     })
-    setBillingOverrideRowsForPanels((prev) =>
-      upsertOptimisticPrepaymentOverrideRow(
+    if (scope === "media_and_fee" && lineFeeTotal > 0.005) {
+      upsertLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, {
+        mode: "manual",
+        reason: "prepayment",
+        dateBasis: "",
+        component: "fee",
+      })
+    } else {
+      clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, "fee")
+    }
+
+    const mediaOverrideMonths = buildPrepaymentOverrideMonths(next, lineMediaTotal)
+    const feeOverrideMonths =
+      scope === "media_and_fee" && lineFeeTotal > 0.005
+        ? buildPrepaymentOverrideMonths(next, lineFeeTotal)
+        : null
+    setBillingOverrideRowsForPanels((prev) => {
+      let rows = upsertOptimisticPrepaymentOverrideRow(
         prev,
         lineItemId,
-        buildPrepaymentOverrideMonths(next, lineMediaTotal)
+        mediaOverrideMonths
       )
-    )
+      if (feeOverrideMonths) {
+        rows = upsertOptimisticFeePrepaymentOverrideRow(
+          rows,
+          lineItemId,
+          feeOverrideMonths
+        )
+      } else {
+        rows = removeOptimisticFeeOverrideRow(rows, lineItemId)
+      }
+      return rows
+    })
   }
 
   function handleManualBillingLineItemPreBillToggle(
@@ -5013,13 +5089,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setManualBillingMonths(applyBillingLineMode(copy, lineItemId, "manual"))
     // Keep manual override but drop prepayment reason so panel prepay dots clear.
     clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, "media")
+    clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, "fee")
     upsertLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, {
       mode: "manual",
       reason: "manual",
       dateBasis: "",
       component: "media",
     })
-    setBillingOverrideRowsForPanels((prev) => removeOptimisticMediaOverrideRow(prev, lineItemId))
+    setBillingOverrideRowsForPanels((prev) =>
+      removeOptimisticFeeOverrideRow(
+        removeOptimisticMediaOverrideRow(prev, lineItemId),
+        lineItemId
+      )
+    )
   }
 
   function handleManualBillingCostPreBillToggle(costKey: "fee" | "adServing" | "production", nextChecked: boolean) {
@@ -5353,7 +5435,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       return
     }
     clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId)
-    setBillingOverrideRowsForPanels((prev) => removeOptimisticMediaOverrideRow(prev, lineItemId))
+    setBillingOverrideRowsForPanels((prev) =>
+      removeOptimisticFeeOverrideRow(
+        removeOptimisticMediaOverrideRow(prev, lineItemId),
+        lineItemId
+      )
+    )
 
     const template = attachLineItemsToMonthsRef.current(
       deepCloneBillingMonthsState(autoAgg),
@@ -12241,6 +12328,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }}
       />
 
+      <PrebillScopeDialog
+        open={prebillScopePrompt != null}
+        defaultScope={prebillScopePrompt?.defaultScope ?? "media_only"}
+        onCancel={() => setPrebillScopePrompt(null)}
+        onChoose={(scope) => {
+          const pending = prebillScopePrompt
+          setPrebillScopePrompt(null)
+          if (!pending) return
+          applyManualBillingPrebillScope(pending.mediaKey, pending.lineItemId, scope)
+        }}
+      />
+
       <AlertDialog open={fullBillingResetConfirmOpen} onOpenChange={setFullBillingResetConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -12345,6 +12444,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             setManualBillingDraftReady(false)
             setManualBillingMonths([])
             manualBillingOverrideMetaRef.current = new Map()
+            clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
+            setPrebillScopePrompt(null)
             setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
           }
         }}
@@ -12391,6 +12492,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           setIsManualBillingModalOpen(false)
           setManualBillingMonths([])
           manualBillingOverrideMetaRef.current = new Map()
+          clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
+          setPrebillScopePrompt(null)
           setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
         }}
         showAdvancedEditor={isManualBillingModalOpen && mbaBillingModalState.viewReady}

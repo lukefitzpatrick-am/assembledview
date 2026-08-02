@@ -15,6 +15,7 @@ import {
 import { scheduleMonthYearToIso } from "@/lib/finance/computeCampaignFinancials"
 import { validateManualMediaMonthsSum } from "@/lib/finance/manualBillingOverridesUi"
 import { formatAUD, roundMoney2 } from "@/lib/format/money"
+import { prebillBadgeTooltip, type PrebillBadgeLabel } from "@/lib/billing/prebillScope"
 import { cn } from "@/lib/utils"
 
 /** Inline keep/reset when override dateBasis no longer matches burst dates (was AlertDialog). */
@@ -37,6 +38,9 @@ export type LineTimingInlineEditorProps = {
   onCommit: (mediaKey: string, lineItemId: string, monthYear: string, raw: string) => void
   onResetToAuto: (mediaKey: string, lineItemId: string) => void
   onPrebill: (mediaKey: string, lineItemId: string) => void
+  /** MB-8: "Prepaid" | "Media prepaid" — same word as line / container pills. */
+  prebillBadgeLabel?: "Prepaid" | "Media prepaid" | null
+  /** @deprecated Prefer prebillBadgeLabel */
   isPrepaid?: boolean
   /** Client-pays: media cells locked at $0; only fee timing is editable elsewhere. */
   clientPaysForMedia?: boolean
@@ -62,6 +66,7 @@ export function LineTimingInlineEditor({
   onCommit,
   onResetToAuto,
   onPrebill,
+  prebillBadgeLabel = null,
   isPrepaid = false,
   clientPaysForMedia = false,
   dateBasisChoice = null,
@@ -102,6 +107,9 @@ export function LineTimingInlineEditor({
   const displayAmounts = balancer
     ? balancer.months.map((m) => ({ monthYear: m.month, amount: m.amount }))
     : monthAmounts
+
+  const resolvedPrebillLabel: PrebillBadgeLabel | null =
+    prebillBadgeLabel ?? (isPrepaid ? "Prepaid" : null)
 
   const runningTotal = roundMoney2(displayAmounts.reduce((s, m) => s + m.amount, 0))
   const gate = validateManualMediaMonthsSum(
@@ -246,19 +254,19 @@ export function LineTimingInlineEditor({
                 Off by {formatAUD(offByAbs)} — fix before saving
               </Badge>
             )}
-            {isPrepaid ? (
+            {resolvedPrebillLabel ? (
               <Badge
                 variant="attention"
                 size="sm"
                 className="rounded-pill font-medium"
-                title="Media is billed up front (prepayment) rather than spread across delivery months"
+                title={prebillBadgeTooltip(resolvedPrebillLabel)}
               >
-                Prepaid
+                {resolvedPrebillLabel}
               </Badge>
             ) : null}
           </div>
           <div className="flex flex-wrap items-center gap-1">
-            {!isPrepaid ? (
+            {!resolvedPrebillLabel ? (
               <Button
                 type="button"
                 variant="ghost"

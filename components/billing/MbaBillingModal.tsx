@@ -51,6 +51,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { formatMoney } from "@/lib/format/money"
+import {
+  prebillBadgeLabelFromFlags,
+  prebillBadgeTooltip,
+} from "@/lib/billing/prebillScope"
 
 /** Collapsed-by-default expand memory for the browser session (survives modal close). */
 const sessionExpandedByMediaType: Record<string, boolean> = {}
@@ -69,7 +73,10 @@ export type MbaBillingScopeLine = {
     manualBilling: boolean
     manualFee: boolean
     clientPaysForMedia: boolean
+    /** Media + fee prebill — badge "Prepaid". */
     prepaid: boolean
+    /** Media-only prebill — badge "Media prepaid". */
+    mediaPrepaid: boolean
   }
 }
 
@@ -449,21 +456,28 @@ function ScopeLineRow({
               </Badge>
             )}
             <TooltipProvider delayDuration={200}>
-              {line.flags.prepaid && !muted ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <Badge variant="attention" size="sm" className="rounded-pill font-normal">
-                        Prepaid
-                      </Badge>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs text-xs">
-                    Media is billed up front (prepayment) rather than spread across delivery months.
-                  </TooltipContent>
-                </Tooltip>
-              ) : null}
-              {line.flags.manualBilling && !muted && !line.flags.prepaid ? (
+              {(() => {
+                const prebillLabel = prebillBadgeLabelFromFlags(line.flags)
+                if (!prebillLabel || muted) return null
+                return (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                          {prebillLabel}
+                        </Badge>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs">
+                      {prebillBadgeTooltip(prebillLabel)}
+                    </TooltipContent>
+                  </Tooltip>
+                )
+              })()}
+              {line.flags.manualBilling &&
+              !muted &&
+              !line.flags.prepaid &&
+              !line.flags.mediaPrepaid ? (
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span className="inline-flex">
@@ -535,7 +549,7 @@ function ScopeLineRow({
                 />
                 Adjust timing
               </Button>
-              {!line.flags.prepaid ? (
+              {!line.flags.prepaid && !line.flags.mediaPrepaid ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -566,7 +580,7 @@ function ScopeLineRow({
           onCommit={lineTiming.onCommit}
           onResetToAuto={lineTiming.onResetLine}
           onPrebill={lineTiming.onPrebillLine}
-          isPrepaid={line.flags.prepaid}
+          prebillBadgeLabel={prebillBadgeLabelFromFlags(line.flags)}
           clientPaysForMedia={line.flags.clientPaysForMedia}
           dateBasisChoice={dateBasisChoice}
           formatter={lineTiming.formatter}

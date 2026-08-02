@@ -102,32 +102,47 @@ export function panelIndicatorsFromCampaignFinancials(
     }
   }
 
-  const manualLines = perLine.filter((l) => l.flags.manualBilling && !l.flags.excluded)
-  const hasPrepayDelta = financials.deliveryVsBillingDelta.some((d) =>
-    d.reasons.includes("prepayment")
+  // Lines with any billing timing override (manual / media prepaid / full prepaid).
+  const timingOverrideLines = perLine.filter(
+    (l) =>
+      !l.flags.excluded &&
+      (l.flags.manualBilling || l.flags.prepaid || l.flags.mediaPrepaid)
   )
+  // Title "Manual" only when not already labeled Prepaid / Media prepaid.
+  const manualOnlyLines = timingOverrideLines.filter(
+    (l) => l.flags.manualBilling && !l.flags.prepaid && !l.flags.mediaPrepaid
+  )
+  const hasFullPrepaid = perLine.some((l) => !l.flags.excluded && l.flags.prepaid)
+  const hasMediaPrepaid = perLine.some((l) => !l.flags.excluded && l.flags.mediaPrepaid)
 
   const titlePills: BillingSchedulePanelIndicatorModel["titlePills"] = []
-  if (manualLines.length > 0) {
+  if (manualOnlyLines.length > 0) {
     titlePills.push({
       key: "manual-count",
       label:
-        manualLines.length === 1
+        manualOnlyLines.length === 1
           ? "Manual"
-          : `Manual · ${manualLines.length}`,
+          : `Manual · ${manualOnlyLines.length}`,
       tone: "amber",
       tooltip:
         "Billing months were set manually and may differ from auto-calculated delivery timing for invoicing.",
     })
   }
-  if (hasPrepayDelta) {
+  // MB-8: same badge words as line / timing editor — Prepaid only when media+fee.
+  if (hasFullPrepaid) {
     titlePills.push({
       key: "prepay-reason",
       label: "Prepaid",
-      // Attention (amber) — same meaning family as manual overrides.
       tone: "amber",
       tooltip:
-        "Media is billed up front (prepayment) rather than spread across delivery months.",
+        "Media and agency fee are billed up front (prepayment) rather than spread across delivery months.",
+    })
+  } else if (hasMediaPrepaid) {
+    titlePills.push({
+      key: "prepay-reason",
+      label: "Media prepaid",
+      tone: "amber",
+      tooltip: "Media is billed up front; agency fee stays on delivery timing.",
     })
   }
 
@@ -139,10 +154,14 @@ export function panelIndicatorsFromCampaignFinancials(
   for (const month of financials.billingSchedule) {
     const monthYear = month.monthYear
     const delta = deltaByMonth.get(monthYear)
-    const isPrepay = Boolean(delta?.reasons.includes("prepayment"))
-    const isManualMonth = manualLines.some((l) =>
+    const lineHasAmount = (l: (typeof perLine)[number]) =>
       l.billingMonths.some((m) => m.month === monthYear && Math.abs(m.amount) > 0.005)
-    )
+    const isPrepay =
+      Boolean(delta?.reasons.includes("prepayment")) ||
+      timingOverrideLines.some(
+        (l) => (l.flags.prepaid || l.flags.mediaPrepaid) && lineHasAmount(l)
+      )
+    const isManualMonth = timingOverrideLines.some(lineHasAmount)
     if (!isPrepay && !isManualMonth) continue
 
     byMonth[monthYear] = {
@@ -161,7 +180,8 @@ export function panelIndicatorsFromCampaignFinancials(
     },
     billingSchedule: {
       titlePills,
-      editBillingHasOverride: manualLines.length > 0 || perLine.some((l) => l.flags.manualFee),
+      editBillingHasOverride:
+        timingOverrideLines.length > 0 || perLine.some((l) => l.flags.manualFee),
       byMonth,
       billableEqualsMba: financials.validation.billableEqualsMba,
     },

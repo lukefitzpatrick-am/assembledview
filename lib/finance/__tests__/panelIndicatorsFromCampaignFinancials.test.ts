@@ -65,17 +65,47 @@ test("panel indicators: manual + fee override surface pills and amber Edit Billi
 
   assert.equal(indicators.mbaDetails.byMediaType.search?.manual, true)
   assert.equal(indicators.mbaDetails.byMediaType.search?.feeAdjusted, true)
+  // MB-8: media-prepaid lines are not double-counted as Manual title pills
   const manualPill = indicators.billingSchedule.titlePills.find((p) => p.key === "manual-count")
-  assert.ok(manualPill)
-  assert.equal(manualPill?.label, "Manual")
-  assert.match(manualPill?.tooltip ?? "", /invoicing/i)
+  assert.equal(manualPill, undefined)
   const prepaidPill = indicators.billingSchedule.titlePills.find((p) => p.key === "prepay-reason")
-  if (prepaidPill) assert.equal(prepaidPill.label, "Prepaid")
+  assert.ok(prepaidPill, "expected a prepay-reason title pill")
+  assert.equal(prepaidPill!.label, "Media prepaid")
+  assert.match(prepaidPill?.tooltip ?? "", /delivery timing/i)
   assert.equal(indicators.billingSchedule.editBillingHasOverride, true)
   assert.equal(indicators.mbaDetails.mbaFeeAdjusted, true)
   const monthDots = Object.values(indicators.billingSchedule.byMonth)
   assert.ok(monthDots.length > 0)
   assert.ok(monthDots.every((d) => d.hover === "This month differs from auto billing"))
+})
+
+test("panel indicators MB-8: media+fee prepayment → Prepaid pill", () => {
+  const financials = computeCampaignFinancials(
+    [
+      searchLine({
+        billingOverride: {
+          mode: "manual",
+          reason: "prepayment",
+          months: [{ month: "2026-06", amount: 1000 }],
+          dateBasis: "2026-06-01|2026-06-30",
+        },
+        feeOverride: {
+          mode: "manual",
+          reason: "prepayment",
+          months: [{ month: "2026-06", amount: 50 }],
+          dateBasis: "2026-06-01|2026-06-30",
+          component: "fee",
+        },
+      }),
+    ],
+    { feeLoading: {} }
+  )
+  const indicators = panelIndicatorsFromCampaignFinancials(financials)
+  const prepaidPill = indicators.billingSchedule.titlePills.find((p) => p.key === "prepay-reason")
+  assert.ok(prepaidPill)
+  assert.equal(prepaidPill!.label, "Prepaid")
+  assert.equal(financials.perLine[0]!.flags.prepaid, true)
+  assert.equal(financials.perLine[0]!.flags.mediaPrepaid, false)
 })
 
 test("panel indicators: clientPays on media-type row when any in-scope line is client-pays", () => {

@@ -132,21 +132,37 @@ import {
 import { getMediaTypeHeadersForSchedule } from "@/lib/billing/mediaTypeHeaders"
 import { persistManualBillingOverrides } from "@/lib/finance/persistManualBillingOverrides"
 import {
+  applyLineFeePrebillToMonths,
   applyLinePrebillToMonths,
   billingOverrideLineIdsMatch,
   buildPrepaymentOverrideMonths,
   clearLineOverrideMeta,
   extractOverrideMonthsFromSchedule,
   listManualOverrideLineIds,
+  removeOptimisticFeeOverrideRow,
   removeOptimisticMediaOverrideRow,
   restoreLinePrebillSnapshot,
+  sumLineFeeAcrossMonths,
   sumLineMediaAcrossMonths,
   toBillingOverrideLineItemId,
   upsertLineOverrideMeta,
+  upsertOptimisticFeePrepaymentOverrideRow,
   upsertOptimisticPrepaymentOverrideRow,
   validateManualMediaMonthsSum,
   type LineOverrideMeta,
 } from "@/lib/finance/manualBillingOverridesUi"
+import {
+  resolveMbaBillingModalState,
+  syncBillingMonthHeadersFromLineItems,
+} from "@/lib/finance/resolveMbaBillingModalState"
+import {
+  clearPrebillScopeSessionMemory,
+  createPrebillScopeSessionMemory,
+  rememberPrebillScope,
+  rememberedPrebillScope,
+  type PrebillScope,
+} from "@/lib/billing/prebillScope"
+import { PrebillScopeDialog } from "@/components/billing/PrebillScopeDialog"
 import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import type { BurstDateLike } from "@/lib/finance/billingOverrideDateBasis"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
@@ -224,7 +240,6 @@ import {
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { stampClientFeePctOnLineItems } from "@/lib/finance/stampClientFeePctOnLineItems"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
-import { resolveMbaBillingModalState } from "@/lib/finance/resolveMbaBillingModalState"
 import {
   computeChannelDuplicateStats,
   formatSaveModeLabel,
@@ -851,6 +866,13 @@ function CreateMediaPlan() {
   >({})
   /** Empty on create — no fetchBillingOverridesClient until after save. */
   const manualBillingOverrideMetaRef = useRef<Map<string, LineOverrideMeta[]>>(new Map())
+  /** MB-8: Prebill scope memory for this draft session. */
+  const prebillScopeMemoryRef = useRef(createPrebillScopeSessionMemory())
+  const [prebillScopePrompt, setPrebillScopePrompt] = useState<{
+    mediaKey: string
+    lineItemId: string
+    defaultScope: PrebillScope
+  } | null>(null)
   /**
    * Optimistic override rows for live panel financials (prepayment etc.) before campaign save
    * persists them via metaByLine → billing_overrides.
@@ -4174,9 +4196,8 @@ function CreateMediaPlan() {
       base = opened
     }
 
-    const copy = deepCloneBillingMonths(base)
     const autoMonths =
-      manualBillingAutoReferenceMonths.length > 0 ? manualBillingAutoReferenceMonths : copy
+      manualBillingAutoReferenceMonths.length > 0 ? manualBillingAutoReferenceMonths : base
     const lineMediaTotal = sumLineMediaAcrossMonths(autoMonths, lineItemId)
     if (lineMediaTotal <= 0.005) {
       toast({
@@ -4186,6 +4207,42 @@ function CreateMediaPlan() {
       })
       return
     }
+
+    const lineFeeTotal = sumLineFeeAcrossMonths(autoMonths, lineItemId)
+    if (lineFeeTotal <= 0.005) {
+      applyManualBillingPrebillScope(mediaKey, lineItemId, "media_only", base)
+      return
+    }
+
+    const remembered = rememberedPrebillScope(prebillScopeMemoryRef.current, lineItemId)
+    if (remembered) {
+      applyManualBillingPrebillScope(mediaKey, lineItemId, remembered, base)
+      return
+    }
+
+    setPrebillScopePrompt({
+      mediaKey,
+      lineItemId,
+      defaultScope: prebillScopeMemoryRef.current.lastChoice,
+    })
+  }
+
+  function applyManualBillingPrebillScope(
+    mediaKey: string,
+    lineItemId: string,
+    scope: PrebillScope,
+    baseMonths?: BillingMonth[]
+  ) {
+    const base = baseMonths ?? manualBillingMonths
+    if (!base.length) return
+
+    rememberPrebillScope(prebillScopeMemoryRef.current, lineItemId, scope)
+
+    const copy = deepCloneBillingMonths(base)
+    const autoMonths =
+      manualBillingAutoReferenceMonths.length > 0 ? manualBillingAutoReferenceMonths : copy
+    const lineMediaTotal = sumLineMediaAcrossMonths(autoMonths, lineItemId)
+    const lineFeeTotal = sumLineFeeAcrossMonths(autoMonths, lineItemId)
 
     for (const month of copy) {
       const list = month.lineItems?.[mediaKey as keyof typeof month.lineItems] as
@@ -4197,20 +4254,13 @@ function CreateMediaPlan() {
     }
 
     applyLinePrebillToMonths(copy, mediaKey, lineItemId, lineMediaTotal)
-    const formatter = mbaCurrencyFormatter
-    copy.forEach((month) => {
-      const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
-        | BillingLineItem[]
-        | undefined
-      if (!monthLineItems) return
-      const mediaTypeTotal = monthLineItems.reduce(
-        (sum, li) => sum + (li.monthlyAmounts?.[month.monthYear] || 0),
-        0
-      )
-      ;(month.mediaCosts as Record<string, string>)[mediaKey] = formatter.format(mediaTypeTotal)
-    })
+    if (scope === "media_and_fee" && lineFeeTotal > 0.005) {
+      applyLineFeePrebillToMonths(copy, mediaKey, lineItemId, lineFeeTotal)
+    }
 
+    syncBillingMonthHeadersFromLineItems(copy)
     const next = applyBillingLineMode(copy, lineItemId, "manual")
+    const formatter = mbaCurrencyFormatter
     const grandTotalNumber = recalculateManualBillingTotals(next, formatter)
     setManualBillingTotal(formatter.format(grandTotalNumber))
     setManualBillingMonths(next)
@@ -4221,13 +4271,31 @@ function CreateMediaPlan() {
       dateBasis: "",
       component: "media",
     })
-    setDraftBillingOverrideRows((prev) =>
-      upsertOptimisticPrepaymentOverrideRow(
-        prev,
-        lineItemId,
-        buildPrepaymentOverrideMonths(next, lineMediaTotal)
-      )
-    )
+    if (scope === "media_and_fee" && lineFeeTotal > 0.005) {
+      upsertLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, {
+        mode: "manual",
+        reason: "prepayment",
+        dateBasis: "",
+        component: "fee",
+      })
+    } else {
+      clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, "fee")
+    }
+
+    const mediaOverrideMonths = buildPrepaymentOverrideMonths(next, lineMediaTotal)
+    const feeOverrideMonths =
+      scope === "media_and_fee" && lineFeeTotal > 0.005
+        ? buildPrepaymentOverrideMonths(next, lineFeeTotal)
+        : null
+    setDraftBillingOverrideRows((prev) => {
+      let rows = upsertOptimisticPrepaymentOverrideRow(prev, lineItemId, mediaOverrideMonths)
+      if (feeOverrideMonths) {
+        rows = upsertOptimisticFeePrepaymentOverrideRow(rows, lineItemId, feeOverrideMonths)
+      } else {
+        rows = removeOptimisticFeeOverrideRow(rows, lineItemId)
+      }
+      return rows
+    })
   }
 
   function handleManualBillingLineItemPreBillToggle(
@@ -4262,13 +4330,19 @@ function CreateMediaPlan() {
     setManualBillingTotal(formatter.format(grandTotalNumber))
     setManualBillingMonths(next)
     clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, "media")
+    clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, "fee")
     upsertLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, {
       mode: "manual",
       reason: "manual",
       dateBasis: "",
       component: "media",
     })
-    setDraftBillingOverrideRows((prev) => removeOptimisticMediaOverrideRow(prev, lineItemId))
+    setDraftBillingOverrideRows((prev) =>
+      removeOptimisticFeeOverrideRow(
+        removeOptimisticMediaOverrideRow(prev, lineItemId),
+        lineItemId
+      )
+    )
   }
 
   function handleManualBillingLineItemResetToAuto(mediaKey: string, lineItemId: string) {
@@ -4278,7 +4352,12 @@ function CreateMediaPlan() {
     if (!snapshot) return
 
     clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId)
-    setDraftBillingOverrideRows((prev) => removeOptimisticMediaOverrideRow(prev, lineItemId))
+    setDraftBillingOverrideRows((prev) =>
+      removeOptimisticFeeOverrideRow(
+        removeOptimisticMediaOverrideRow(prev, lineItemId),
+        lineItemId
+      )
+    )
 
     copy.forEach((month) => {
       const monthLineItems = month?.lineItems?.[mediaKey as keyof typeof month.lineItems] as
@@ -7750,7 +7829,9 @@ const handleSaveAll = async () => {
             if (!hasPendingManualBilling) {
               setManualBillingMonths([])
               manualBillingOverrideMetaRef.current = new Map()
+              clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
             }
+            setPrebillScopePrompt(null)
             setBillingError({ show: false, messages: [] })
           }
         }}
@@ -7786,7 +7867,9 @@ const handleSaveAll = async () => {
           if (!hasPendingManualBilling) {
             setManualBillingMonths([])
             manualBillingOverrideMetaRef.current = new Map()
+            clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
           }
+          setPrebillScopePrompt(null)
           setBillingError({ show: false, messages: [] })
         }}
         showAdvancedEditor={isManualBillingModalOpen && mbaBillingModalState.viewReady}
@@ -8268,6 +8351,18 @@ const handleSaveAll = async () => {
             </Button>
           </div>
         }
+      />
+
+      <PrebillScopeDialog
+        open={prebillScopePrompt != null}
+        defaultScope={prebillScopePrompt?.defaultScope ?? "media_only"}
+        onCancel={() => setPrebillScopePrompt(null)}
+        onChoose={(scope) => {
+          const pending = prebillScopePrompt
+          setPrebillScopePrompt(null)
+          if (!pending) return
+          applyManualBillingPrebillScope(pending.mediaKey, pending.lineItemId, scope)
+        }}
       />
 
       <AlertDialog open={fullBillingResetConfirmOpen} onOpenChange={setFullBillingResetConfirmOpen}>
