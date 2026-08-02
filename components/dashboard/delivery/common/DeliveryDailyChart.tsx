@@ -4,9 +4,12 @@ import { useMemo } from "react"
 
 import { BaseChartCard, ComboChart, MultiLineChart } from "@/components/charts/system"
 import { EmptyState } from "@/components/ui/states"
-import { channelColorFor, STATUS } from "@/lib/chart-theme"
+import { channelColorFor } from "@/lib/chart-theme"
 
+import { DELIVERY_DAILY_METRIC_LINE_COLOR } from "./deliveryDailyChartColors"
 import { withDateLabels } from "./deliveryChartReshape"
+
+export { DELIVERY_DAILY_METRIC_LINE_COLOR, DELIVERY_DAILY_METRIC_LINE_THEME_HEXES } from "./deliveryDailyChartColors"
 
 export interface DeliveryDailyChartProps {
   daily: Array<Record<string, string | number>>
@@ -42,7 +45,7 @@ export function DeliveryDailyChart({
   // Channel aggregate charts: media type wins. Brand remains a fallback for callers that omit mediaTypeColour.
   const spendColor =
     mediaTypeColour?.trim() || brandColour?.trim() || channelColorFor(leftSeries?.key ?? "spend", 0)
-  const metricColor = STATUS.onTrack
+  const metricColor = DELIVERY_DAILY_METRIC_LINE_COLOR
 
   const chartWrapStyle = { height } as const
 
