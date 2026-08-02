@@ -224,6 +224,7 @@ import {
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
 import { stampClientFeePctOnLineItems } from "@/lib/finance/stampClientFeePctOnLineItems"
 import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
+import { resolveMbaBillingModalState } from "@/lib/finance/resolveMbaBillingModalState"
 import {
   computeChannelDuplicateStats,
   formatSaveModeLabel,
@@ -1953,6 +1954,49 @@ function CreateMediaPlan() {
     })
   }, [billingSaveInputs, campaignStart, campaignEnd, partialMBAMonthYears])
 
+  /**
+   * MB-7 — MbaBillingModal view only. Bare line inputs + draftBillingOverrideRows,
+   * with open timing draft layered on top. Version-save still uses billingSaveInputs
+   * / campaignFinancials (persistence unchanged).
+   */
+  const mbaBillingModalState = useMemo(() => {
+    const start =
+      campaignStart instanceof Date && !Number.isNaN(campaignStart.getTime())
+        ? campaignStart
+        : undefined
+    const end =
+      campaignEnd instanceof Date && !Number.isNaN(campaignEnd.getTime())
+        ? campaignEnd
+        : undefined
+    return resolveMbaBillingModalState({
+      lineItems: buildEditorLineItemInputs(billingFeeSeedEnabledConfigs, {
+        isPartialMBA,
+        partialMBASelectedLineItemIds,
+      }),
+      feeLoading: billingSaveInputs.feeLoading,
+      campaignStart: start,
+      campaignEnd: end,
+      selectedMonthYears:
+        partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
+      overrideRows: draftBillingOverrideRows,
+      draftReady: manualBillingDraftReady,
+      draftMonths: manualBillingMonths,
+      metaByLine: manualBillingOverrideMetaRef.current,
+      isPartialMBA,
+    })
+  }, [
+    billingFeeSeedEnabledConfigs,
+    isPartialMBA,
+    partialMBASelectedLineItemIds,
+    partialMBAMonthYears,
+    draftBillingOverrideRows,
+    billingSaveInputs.feeLoading,
+    campaignStart,
+    campaignEnd,
+    manualBillingDraftReady,
+    manualBillingMonths,
+  ])
+
   const campaignFinancialsMediaByKey = useMemo(() => {
     const out: Record<string, number> = {}
     for (const line of campaignFinancials.perLine) {
@@ -2049,7 +2093,7 @@ function CreateMediaPlan() {
         rawById.set(id, raw)
       })
     }
-    return campaignFinancials.perLine.map((line) => {
+    return mbaBillingModalState.financials.perLine.map((line) => {
       const mediaLabel = mediaLabelByBillingKey[line.mediaType] ?? line.mediaType
       const lineNumber = (indexByMedia.get(line.mediaType) ?? 0) + 1
       indexByMedia.set(line.mediaType, lineNumber)
@@ -2071,7 +2115,11 @@ function CreateMediaPlan() {
         flags: line.flags,
       }
     })
-  }, [campaignFinancials.perLine, billingFeeSeedEnabledConfigs, mediaLabelByBillingKey])
+  }, [
+    mbaBillingModalState.financials.perLine,
+    billingFeeSeedEnabledConfigs,
+    mediaLabelByBillingKey,
+  ])
 
   // Campaign budget = total investment (grossMedia + fee + adServing + production, ex GST).
   const totalInvestmentAllocated = useMemo(
@@ -7707,8 +7755,9 @@ const handleSaveAll = async () => {
           }
         }}
         versionLabel="v1"
-        financials={campaignFinancials}
-        panelIndicators={panelIndicators}
+        financials={mbaBillingModalState.financials}
+        panelIndicators={mbaBillingModalState.panelIndicators}
+        reconciliationReady={mbaBillingModalState.viewReady}
         scopeLines={mbaBillingScopeLines}
         onToggleLineApproved={handleMbaBillingToggleLine}
         onToggleContainerApproved={handleMbaBillingToggleContainer}
@@ -7725,9 +7774,9 @@ const handleSaveAll = async () => {
         }
         onSelectedMonthYearsChange={handlePartialMBAMonthsChange}
         onDownloadExcel={handleDownloadBillingScheduleExcel}
-        downloadDisabled={campaignFinancials.billingSchedule.length === 0}
+        downloadDisabled={mbaBillingModalState.financials.billingSchedule.length === 0}
         onResetBillingToAuto={() => setFullBillingResetConfirmOpen(true)}
-        timingDraftReady={manualBillingDraftReady}
+        timingDraftReady={manualBillingDraftReady && mbaBillingModalState.viewReady}
         onEnsureTimingDraft={() => {
           handleManualBillingOpen()
         }}
@@ -7740,7 +7789,7 @@ const handleSaveAll = async () => {
           }
           setBillingError({ show: false, messages: [] })
         }}
-        showAdvancedEditor={isManualBillingModalOpen}
+        showAdvancedEditor={isManualBillingModalOpen && mbaBillingModalState.viewReady}
         onToggleAdvancedEditor={() => {
           if (isManualBillingModalOpen) {
             setIsManualBillingModalOpen(false)
@@ -7752,13 +7801,13 @@ const handleSaveAll = async () => {
           setIsManualBillingModalOpen(true)
         }}
         lineTiming={{
-          monthYears: manualBillingMonths.map((m) => m.monthYear),
+          monthYears: mbaBillingModalState.resolvedMonths.map((m) => m.monthYear),
           getAmount: manualBillingSpreadsheetCallbacks.getLineItemAmount,
           getExpectedMediaTotal: (_mediaKey, lineItemId) =>
             sumLineMediaAcrossMonths(
               manualBillingAutoReferenceMonths.length > 0
                 ? manualBillingAutoReferenceMonths
-                : manualBillingMonths,
+                : mbaBillingModalState.resolvedMonths,
               lineItemId
             ),
           onCommit: manualBillingSpreadsheetCallbacks.onLineItemPaste,
@@ -7768,7 +7817,7 @@ const handleSaveAll = async () => {
         }}
         manualBillingEditor={
           <ManualBillingSpreadsheetProvider
-            months={manualBillingMonths}
+            months={mbaBillingModalState.resolvedMonths}
             autoReferenceMonths={
               manualBillingAutoReferenceMonths.length > 0
                 ? manualBillingAutoReferenceMonths

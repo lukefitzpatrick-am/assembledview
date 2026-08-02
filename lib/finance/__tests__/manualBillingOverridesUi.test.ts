@@ -17,6 +17,11 @@ import {
 } from "../manualBillingOverridesUi.js"
 import type { BillingMonth } from "@/lib/billing/types"
 import { validateAgencyFeeMonthTotalDrift } from "@/lib/billing/validateAgencyFeeMonthTotalDrift.js"
+import {
+  assertMbaBillingModalMonthsAgree,
+  resolveMbaBillingModalState,
+} from "../resolveMbaBillingModalState.js"
+import type { LineItemInput } from "@/lib/finance/campaignFinancials.types"
 
 test("toBillingOverrideLineItemId strips billing- prefix", () => {
   assert.equal(toBillingOverrideLineItemId("billing-search::S-1"), "S-1")
@@ -174,6 +179,34 @@ test("MB-6: rebuild after save keeps month amounts and sum/fee gates green", () 
   const secondSaveFee = validateAgencyFeeMonthTotalDrift(feeMonths, 5000)
   assert.equal(secondSaveFee.withinTolerance, true)
   assert.equal(secondSaveFee.diff, 0)
+
+  // MB-7: after save, left months and right schedule Media agree to the cent (invariant).
+  const line: LineItemInput = {
+    lineItemId: "supabase001PB1",
+    mediaType: "search",
+    buyType: "cpc",
+    rate: 1,
+    enteredAmount: 20_000,
+    budgetIncludesFees: false,
+    clientPaysForMedia: false,
+    feePct: 25,
+    bursts: [
+      { startDate: "2026-08-01", endDate: "2026-09-30", budget: 20_000 },
+    ],
+    approval: "approved",
+  }
+  const modalView = resolveMbaBillingModalState({
+    lineItems: [line],
+    feeLoading: { feesearch: 25 },
+    overrideRows: persistedRows,
+    draftReady: true,
+    draftMonths,
+    campaignStart: new Date("2026-08-01"),
+    campaignEnd: new Date("2026-09-30"),
+  })
+  assert.doesNotThrow(() =>
+    assertMbaBillingModalMonthsAgree(modalView, "MB-6→MB-7 after-save")
+  )
 })
 
 test("apply + extract round-trip ISO months for media override", () => {

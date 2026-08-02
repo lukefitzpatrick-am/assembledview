@@ -153,7 +153,6 @@ import {
   editorBillingStableLineItemId,
 } from "@/lib/finance/buildEditorLineItemInputs"
 import { computeCampaignFinancials, scheduleMonthYearToIso } from "@/lib/finance/computeCampaignFinancials"
-import { panelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import {
   computeAllChannelsHydrated,
   computeChannelDuplicateStats,
@@ -218,6 +217,7 @@ import {
   validateManualMediaMonthsSum,
   type LineOverrideMeta,
 } from "@/lib/finance/manualBillingOverridesUi"
+import { resolveMbaBillingModalState } from "@/lib/finance/resolveMbaBillingModalState"
 import {
   applyCollisionDecision,
   detectBillingCollisions,
@@ -6307,17 +6307,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [campaignFinancials])
 
   /**
-   * Core financials for panel indicators only — attaches billing_overrides so
-   * manual / fee / prepay flags surface. Save PUT still sends bare inputs (server attaches).
+   * MB-7 — single resolved view for MbaBillingModal (and panel badges that share it).
+   * Core line inputs + billing_overrides, with open timing draft layered on top.
+   * Save PUT still uses bare `campaignFinancials` / billingSaveInputs (server attaches).
    */
-  const campaignFinancialsForPanels = useMemo(() => {
-    const lineItems = attachOverridesToLineInputs(
-      buildEditorLineItemInputs(billingFeeSeedEnabledConfigs, {
-        isPartialMBA,
-        partialMBASelectedLineItemIds,
-      }),
-      billingOverrideRowsForPanels
-    )
+  const mbaBillingModalState = useMemo(() => {
     const start =
       campaignStartDate instanceof Date && !Number.isNaN(campaignStartDate.getTime())
         ? campaignStartDate
@@ -6326,11 +6320,21 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       campaignEndDate instanceof Date && !Number.isNaN(campaignEndDate.getTime())
         ? campaignEndDate
         : undefined
-    return computeCampaignFinancials(lineItems, { feeLoading: billingSaveInputs.feeLoading }, {
+    return resolveMbaBillingModalState({
+      lineItems: buildEditorLineItemInputs(billingFeeSeedEnabledConfigs, {
+        isPartialMBA,
+        partialMBASelectedLineItemIds,
+      }),
+      feeLoading: billingSaveInputs.feeLoading,
       campaignStart: start,
       campaignEnd: end,
       selectedMonthYears:
         partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
+      overrideRows: billingOverrideRowsForPanels,
+      draftReady: manualBillingDraftReady,
+      draftMonths: manualBillingMonths,
+      metaByLine: manualBillingOverrideMetaRef.current,
+      isPartialMBA,
     })
   }, [
     billingFeeSeedEnabledConfigs,
@@ -6341,9 +6345,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     billingSaveInputs.feeLoading,
     campaignStartDate,
     campaignEndDate,
+    manualBillingDraftReady,
+    manualBillingMonths,
     getRateForMediaType,
     adservaudio,
   ])
+
+  const campaignFinancialsForPanels = mbaBillingModalState.financials
+  const panelIndicators = mbaBillingModalState.panelIndicators
 
   const campaignFinancialsForPanelsMediaByKey = useMemo(() => {
     const out: Record<string, number> = {}
@@ -6353,15 +6362,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
     return out
   }, [campaignFinancialsForPanels])
-
-  const panelIndicators = useMemo(
-    () =>
-      panelIndicatorsFromCampaignFinancials(campaignFinancialsForPanels, {
-        isPartialMBA,
-        selectedMonthYears: partialMBAMonthYears,
-      }),
-    [campaignFinancialsForPanels, isPartialMBA, partialMBAMonthYears]
-  )
 
   // Live editor stats — Save gate re-evaluates as the user prunes/edits rows.
   const liveChannelDuplicateSummary = useMemo(
@@ -6718,9 +6718,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   async function handleManualBillingSave(forceIgnoreMismatch?: boolean, overrideFeeDrift?: boolean) {
     // BUX-2: every exit path must toast or open a visible dialog. Do not silently return.
+    // MB-7: gates read the same resolved months the modal displays (not a divergent raw draft).
+    const monthsForGates = mbaBillingModalState.viewReady
+      ? mbaBillingModalState.resolvedMonths.length > 0
+        ? mbaBillingModalState.resolvedMonths
+        : manualBillingMonths
+      : []
     let preservedNoticeCount = 0
     if (!forceIgnoreMismatch) {
-      const v = validateBillingBeforeSave(manualBillingMonths, { feeCheck: true })
+      const v = validateBillingBeforeSave(monthsForGates, { feeCheck: true })
       // Preserved manual≠burst drift is expected after a real month edit — same as campaign
       // save (notices only). Only structural blockingErrors gate the override PATCH.
       if (v.blockingErrors.length > 0) {
@@ -6747,7 +6753,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
 
     const derivedCampaignFee = computeDerivedCampaignFeeAmount(billingFeeSeedEnabledConfigs).totalFeeAmount
-    const feeDrift = validateAgencyFeeMonthTotalDrift(manualBillingMonths, derivedCampaignFee)
+    const feeDrift = validateAgencyFeeMonthTotalDrift(monthsForGates, derivedCampaignFee)
     if (!feeDrift.withinTolerance && !overrideFeeDrift) {
       pendingManualBillingSaveForceIgnoreRef.current = Boolean(forceIgnoreMismatch)
       setFeeDriftValidation(feeDrift)
@@ -12343,9 +12349,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           }
         }}
         versionLabel={`v${selectedVersionNumber ?? mediaPlan?.version_number ?? 1}`}
-        financials={campaignFinancialsForPanels}
-        panelIndicators={panelIndicators}
-        reconciliationReady={allChannelsHydrated}
+        financials={mbaBillingModalState.financials}
+        panelIndicators={mbaBillingModalState.panelIndicators}
+        reconciliationReady={allChannelsHydrated && mbaBillingModalState.viewReady}
         scopeLines={mbaBillingScopeLines}
         onToggleLineApproved={handleMbaBillingToggleLine}
         onToggleContainerApproved={handleMbaBillingToggleContainer}
@@ -12364,17 +12370,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
         onSelectedMonthYearsChange={handlePartialMBAMonthsChange}
         onDownloadExcel={handleDownloadBillingScheduleExcel}
-        downloadDisabled={campaignFinancialsForPanels.billingSchedule.length === 0}
+        downloadDisabled={mbaBillingModalState.financials.billingSchedule.length === 0}
         onResetBillingToAuto={() => setFullBillingResetConfirmOpen(true)}
         billingDivergence={billingDivergence}
         showDivergenceBanner={
           FF_BILLING_DIVERGENCE_ENABLED &&
           allChannelsHydrated &&
+          mbaBillingModalState.viewReady &&
           showDivergenceBanner
         }
         onAcknowledgeDivergence={handleAcknowledgeDivergence}
         overridesLoadNotice={billingOverridesLoadNotice}
-        timingDraftReady={manualBillingDraftReady}
+        timingDraftReady={manualBillingDraftReady && mbaBillingModalState.viewReady}
         onEnsureTimingDraft={() => {
           void handleManualBillingOpen()
         }}
@@ -12386,7 +12393,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           manualBillingOverrideMetaRef.current = new Map()
           setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
         }}
-        showAdvancedEditor={isManualBillingModalOpen}
+        showAdvancedEditor={isManualBillingModalOpen && mbaBillingModalState.viewReady}
         onToggleAdvancedEditor={() => {
           if (isManualBillingModalOpen) {
             setIsManualBillingModalOpen(false)
@@ -12400,13 +12407,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           }
         }}
         lineTiming={{
-          monthYears: manualBillingMonths.map((m) => m.monthYear),
+          monthYears: mbaBillingModalState.resolvedMonths.map((m) => m.monthYear),
           getAmount: manualBillingSpreadsheetCallbacks.getLineItemAmount,
           getExpectedMediaTotal: (_mediaKey, lineItemId) =>
             sumLineMediaAcrossMonths(
               (manualBillingAutoReferenceMonths?.length ?? 0) > 0
                 ? (manualBillingAutoReferenceMonths as BillingMonth[])
-                : manualBillingMonths,
+                : mbaBillingModalState.resolvedMonths,
               lineItemId
             ),
           onCommit: manualBillingSpreadsheetCallbacks.onLineItemPaste,
@@ -12434,13 +12441,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 billingOverrideLineIdsMatch(l.lineItemId, lineItemId)
               )?.mediaType ?? ""
             let balancerReanchorPreview: string | null = null
-            if (isBillingBalancerEnabled() && manualBillingMonths.length > 0) {
-              const allowed = manualBillingMonths.map((m) => m.monthYear)
-              const pairs = collectLineMonthPairs(manualBillingMonths, lineItemId)
+            const resolvedForBalancer = mbaBillingModalState.resolvedMonths
+            if (isBillingBalancerEnabled() && resolvedForBalancer.length > 0) {
+              const allowed = resolvedForBalancer.map((m) => m.monthYear)
+              const pairs = collectLineMonthPairs(resolvedForBalancer, lineItemId)
               const lineTotal = sumLineMediaAcrossMonths(
                 (manualBillingAutoReferenceMonths?.length ?? 0) > 0
                   ? (manualBillingAutoReferenceMonths as BillingMonth[])
-                  : manualBillingMonths,
+                  : resolvedForBalancer,
                 lineItemId
               )
               const { preview, movedFrom } = reanchorOutOfSpanToBalancer({
@@ -12472,7 +12480,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }}
         manualBillingEditor={
         <ManualBillingSpreadsheetProvider
-          months={manualBillingMonths}
+          months={mbaBillingModalState.resolvedMonths}
           autoReferenceMonths={manualBillingAutoReferenceMonths}
           expandedAccordionValues={manualBillingAccordionExpanded}
           mediaSections={manualBillingMediaSections}
