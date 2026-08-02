@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import axios from "axios"
 import {
   formatInvoiceDate,
   extractLineItemsFromBillingSchedule,
@@ -7,12 +6,29 @@ import {
   mergeFinanceLineItems,
   financeClientNamesMatch,
 } from "@/lib/finance/utils"
-import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
+import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMonthsSource"
 import { requireFinanceAdmin } from "@/lib/requireRole"
+import { readClientsList } from "@/lib/data/readClients"
+import { readPublishersList } from "@/lib/data/readPublishers"
 
 export const maxDuration = 60
 
+function asRecordList(body: unknown): Record<string, unknown>[] {
+  if (Array.isArray(body)) return body as Record<string, unknown>[]
+  if (body && typeof body === "object") {
+    const o = body as Record<string, unknown>
+    if (Array.isArray(o.items)) return o.items as Record<string, unknown>[]
+    if (Array.isArray(o.data)) return o.data as Record<string, unknown>[]
+  }
+  return []
+}
+
+/**
+ * GET /api/finance/data?month=YYYY-MM&client=
+ * Legacy hub Excel export — versions via DATA_BACKEND_PLANS readers,
+ * clients/publishers via DATA_BACKEND_CLIENTS / PUBLISHERS (X3).
+ */
 export async function GET(request: NextRequest) {
   const gate = await requireFinanceAdmin(request)
   if ("response" in gate) return gate.response
@@ -36,46 +52,38 @@ export async function GET(request: NextRequest) {
     }
 
     const { year, month, allVersions, relevantVersions } = versionsResult
+    await hydrateVersionsFinanceScheduleSource(relevantVersions)
 
-    // Fetch clients and publishers in parallel
-    const [clientsResponse, publishersResponse] = await Promise.all([
-      axios.get(xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL"), { headers: xanoAuthHeaderRecord() }).catch(() => ({ data: [] })),
-      axios.get(xanoUrl("get_publishers", "XANO_PUBLISHERS_BASE_URL"), { headers: xanoAuthHeaderRecord() }).catch(() => ({ data: [] })),
+    const [clientsRes, publishersRes] = await Promise.all([
+      readClientsList(),
+      readPublishersList(),
     ])
+    const clients = asRecordList(clientsRes.body)
+    const publishers = asRecordList(publishersRes.body)
 
-    const clients = Array.isArray(clientsResponse.data) ? clientsResponse.data : []
-    const publishers = Array.isArray(publishersResponse.data) ? publishersResponse.data : []
-
-    // Create lookup maps
-    const clientMap = new Map<string, any>()
-    clients.forEach((client: any) => {
-      const name = client.clientname_input || client.mp_client_name || client.name
-      if (name) {
-        clientMap.set(name, client)
-      }
+    const clientMap = new Map<string, Record<string, unknown>>()
+    clients.forEach((client) => {
+      const name = String(
+        client.clientname_input || client.mp_client_name || client.name || ""
+      ).trim()
+      if (name) clientMap.set(name, client)
     })
 
-    const publisherMap = new Map<string, any>()
-    publishers.forEach((publisher: any) => {
-      const name = publisher.publisher_name
-      if (name) {
-        publisherMap.set(name, publisher)
-      }
+    const publisherMap = new Map<string, Record<string, unknown>>()
+    publishers.forEach((publisher) => {
+      const name = String(publisher.publisher_name || "").trim()
+      if (name) publisherMap.set(name, publisher)
     })
 
-    // Process each campaign
-    const bookedApprovedCampaigns: any[] = []
-    const otherCampaigns: any[] = []
+    const bookedApprovedCampaigns: Record<string, unknown>[] = []
+    const otherCampaigns: Record<string, unknown>[] = []
 
     for (const version of relevantVersions) {
       const mbaNumber = version.mba_number
-
-      // Get client info
       const clientName = version.mp_client_name || version.campaign_name
-      const client = clientName ? clientMap.get(clientName) : null
+      const client = clientName ? clientMap.get(String(clientName)) : null
 
-      // Try to extract billing schedule from version
-      let billingSchedule: any = null
+      let billingSchedule: unknown = null
       if (version.billingSchedule) {
         try {
           billingSchedule =
@@ -87,46 +95,34 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Extract line items from billing schedule JSON
       const financeLineItems = extractLineItemsFromBillingSchedule(
         billingSchedule,
         year,
         month,
         publisherMap
       )
-
-      // Merge duplicates within this MBA by exact match on (itemCode, mediaType, description)
       const mergedLineItems = mergeFinanceLineItems(financeLineItems)
-
-      // Extract service amounts from billing schedule
       const serviceAmounts = extractServiceAmountsFromBillingSchedule(
         billingSchedule,
         year,
         month
       )
 
-      // Calculate total campaign amount (line items + services)
       const totalLineItemsAmount = mergedLineItems.reduce((sum, item) => sum + item.amount, 0)
       const totalServicesAmount =
         serviceAmounts.adservingTechFees +
         serviceAmounts.production +
         serviceAmounts.assembledFee
       const totalCampaignAmount = totalLineItemsAmount + totalServicesAmount
-
-      // Skip campaigns with $0 spend
       if (totalCampaignAmount === 0) continue
 
-      // Build service rows
-      const serviceRows: any[] = []
-
-      // T.Adserving - Adserving and Tech Fees
+      const serviceRows: Record<string, unknown>[] = []
       serviceRows.push({
         itemCode: "T.Adserving",
         service: "Adserving and Tech Fees",
         amount: serviceAmounts.adservingTechFees,
       })
 
-      // Production - check if we have both agencies
       const hasAdvertisingAssociates = mergedLineItems.some((li) => li.itemCode.startsWith("G."))
       const hasAssembledMedia = mergedLineItems.some((li) => li.itemCode.startsWith("D."))
 
@@ -145,7 +141,6 @@ export async function GET(request: NextRequest) {
         })
       }
 
-      // Service - Assembled Fee
       serviceRows.push({
         itemCode: "Service",
         service: "Assembled Fee",
@@ -165,8 +160,7 @@ export async function GET(request: NextRequest) {
         total: totalCampaignAmount,
       }
 
-      // Separate by status
-      const status = (version.campaign_status || "").toLowerCase()
+      const status = String(version.campaign_status || "").toLowerCase()
       if (status === "booked" || status === "approved") {
         bookedApprovedCampaigns.push(campaignData)
       } else {
@@ -176,7 +170,9 @@ export async function GET(request: NextRequest) {
 
     const filterByClient = (list: typeof bookedApprovedCampaigns) => {
       if (!clientFilter) return list
-      return list.filter((c) => financeClientNamesMatch(c.clientName, clientFilter))
+      return list.filter((c) =>
+        financeClientNamesMatch(String(c.clientName ?? ""), clientFilter)
+      )
     }
 
     const bookedFiltered = filterByClient(bookedApprovedCampaigns)
@@ -200,12 +196,12 @@ export async function GET(request: NextRequest) {
       other: otherFiltered,
       meta,
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching finance data:", error)
+    const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json(
-      { error: "Failed to fetch finance data", details: error.message },
+      { error: "Failed to fetch finance data", details: message },
       { status: 500 }
     )
   }
 }
-

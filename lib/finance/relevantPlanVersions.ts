@@ -2,6 +2,8 @@ import axios from "axios"
 import { campaignOverlapsMonth } from "@/lib/finance/utils"
 import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
+import { getDataBackendFor } from "@/lib/data/backend"
+import { readPlanMasters, readPlanVersions } from "@/lib/data/readMediaPlans"
 
 export type RelevantVersionsResult = {
   year: number
@@ -81,7 +83,38 @@ export function selectRelevantVersionsForMonth(
   })
 }
 
+function normaliseMbaKey(v: unknown): string {
+  return String(v ?? "")
+    .trim()
+    .toLowerCase()
+}
+
+/**
+ * Masters + full version history for finance month selection.
+ * Postgres when DATA_BACKEND_PLANS=postgres (X3); else Xano crawl.
+ * PG versions get mp_client_name from the master (versions table has no client name).
+ */
 async function fetchMastersAndAllVersions(): Promise<{ masters: any[]; allVersions: any[] }> {
+  if (getDataBackendFor("plans") === "postgres") {
+    const [masters, allVersions] = await Promise.all([
+      readPlanMasters(),
+      readPlanVersions(),
+    ])
+    const clientByMba = new Map<string, string>()
+    for (const m of masters) {
+      const mba = normaliseMbaKey(m.mba_number)
+      if (!mba) continue
+      const name = String(m.mp_client_name ?? "").trim()
+      if (name) clientByMba.set(mba, name)
+    }
+    for (const v of allVersions) {
+      if (v.mp_client_name != null && String(v.mp_client_name).trim() !== "") continue
+      const name = clientByMba.get(normaliseMbaKey(v.mba_number))
+      if (name) v.mp_client_name = name
+    }
+    return { masters, allVersions }
+  }
+
   const mastersResponse = await axios.get(
     xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]),
     { headers: xanoAuthHeaderRecord() },

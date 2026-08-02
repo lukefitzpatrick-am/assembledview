@@ -108,8 +108,8 @@ SQL used (Postgres):
 | `/api/billing-overrides` | GET | `readBillingOverridesForVersion` | DATA_BACKEND_FINANCE | `lib/finance/billingOverridesClient.ts` | DUAL-DONE |
 | `/api/billing-overrides/replace_line` | POST | `writeBillingOverrides.replaceBillingOverrideLine` → PG | PG (X2) | `billingOverridesClient.ts` | DUAL-DONE (ported) |
 | `/api/billing-overrides/reset_line` | POST | `writeBillingOverrides.resetBillingOverrideLine` → PG | PG (X2) | `billingOverridesClient.ts` | DUAL-DONE (ported) |
-| `/api/campaigns/[mba_number]` | GET | `xanoUrl` master/versions + `fetchAllXanoPages` | always-xano | ZERO fetch (comment-only on edit page) | RETIRE(dead) |
-| `/api/campaigns/[mba_number]/billing-schedule` | GET | same Xano crawl → PDF | always-xano | ZERO fetch | RETIRE(dead) |
+| `/api/campaigns/[mba_number]` | GET | — | — | ZERO fetch | RETIRE(dead) executed (410 X3) |
+| `/api/campaigns/[mba_number]/billing-schedule` | GET | — | — | ZERO fetch | RETIRE(dead) executed (410 X3) |
 | `/api/chat-v2` | POST | none (prompt text) | n/a | `ChatWidget.tsx` | NOT-XANO |
 | `/api/clients` | GET | `readClientsList` / cache | DATA_BACKEND_CLIENTS | create/edit, scopes, admin | DUAL-DONE |
 | `/api/clients` | POST | PG-first `writeClients` + Xano mirror (`xano_client_mirror_failed`) | PG authoritative (X1) | admin/clients flows | MIRROR (write) |
@@ -125,14 +125,14 @@ SQL used (Postgres):
 | `/api/cron/xano-line-item-sync` | GET | `fetchAllXanoLineItems` → Snowflake | always-xano until T6 | Vercel cron (no app fetch) | TOOLING |
 | `/api/cron/xero-sync` | GET/POST | none (comment only) | n/a | Vercel cron | NOT-XANO |
 | `/api/dashboard/spend-parity` | GET | via `global.ts` → `xanoDashboardsUrl` when plans≠pg | DATA_BACKEND_PLANS indirect | ZERO product callers | TOOLING |
-| `/api/finance/accrual` | GET | `xanoUrl` master/versions crawl | always-xano | ZERO — UI uses billing+payables | RETIRE(dead) |
+| `/api/finance/accrual` | GET | — | — | ZERO — UI uses billing+payables | RETIRE(dead) executed (410 X3) |
 | `/api/finance/billing` | GET | Hub compose; hard-requires `XANO_CLIENTS_BASE_URL`; schedule via DATA_BACKEND_FINANCE_SCHEDULE; `xanoReferenceCache` | partial | `lib/finance/api.ts`, costs accrual | PORT |
 | `/api/finance/billing/[id]` | PATCH | `xanoFinancePatch(finance_billing_records/:id)` | always-xano | `lib/finance/api.ts` | PORT |
 | `/api/finance/billing/line-items` | POST | `xanoFinancePost` | always-xano | `lib/finance/api.ts` | PORT |
 | `/api/finance/billing/line-items/[id]` | PATCH/DELETE | xanoFinancePatch/Delete | always-xano | `lib/finance/api.ts` | PORT |
 | `/api/finance/billing/mark-billed` | POST | xanoFinanceGet/Patch | always-xano | `lib/finance/api.ts` | PORT |
 | `/api/finance/billing/notes` | POST | xanoFinancePatch | always-xano | `lib/finance/api.ts` | PORT |
-| `/api/finance/data` | GET | `xanoUrl(get_clients/get_publishers)` | always-xano | Excel export dialog, UpcomingBilling | PORT |
+| `/api/finance/data` | GET | `relevantPlanVersions` + `readClients`/`readPublishers` | DATA_BACKEND_PLANS/CLIENTS/PUBLISHERS | Excel export dialog, UpcomingBilling | DUAL-DONE (X3 ported) |
 | `/api/finance/edits` | GET | `readFinance*` | DATA_BACKEND_FINANCE | `lib/finance/api.ts` | DUAL-DONE |
 | `/api/finance/edits` | POST | `xanoFinancePost(finance_edits)` | always-xano | store / api | PORT |
 | `/api/finance/forecast/snapshots` | GET/POST | Xano snapshot query/persist (`XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL`) | always-xano | Forecasting clients | PORT |
@@ -142,7 +142,7 @@ SQL used (Postgres):
 | `/api/finance/publishers` | GET | `readFinanceBillingRecords` | DATA_BACKEND_FINANCE | payables aggregator | DUAL-DONE |
 | `/api/finance/receivables/aa-media-plan` | GET | AA export via Xano auth | always-xano | `MediaPlanActionBar.tsx` | PORT |
 | `/api/finance/saved-views` | GET/POST | readFinance + `xanoFinancePost(finance_saved_views)` | mixed | `lib/finance/api.ts` | PORT |
-| `/api/finance/sow` | GET | `readScopeOfWork` | DATA_BACKEND_FINANCE | Client hub + scope extract | DUAL-DONE |
+| `/api/finance/sow` | GET | `readScopeOfWork` | DATA_BACKEND_FINANCE | Client hub + scope extract | DUAL-DONE (X3 — no residual Xano imports) |
 | `/api/finance/xero-queue` | GET/POST | `xero_sync_exceptions` + `xanoFinancePatch`; billing via readFinance | mixed | `XeroExceptionsPanel.tsx` | PORT |
 | `/api/mba-line-approvals` | GET/PATCH | `readApprovals` / `writeApprovals` | DATA_BACKEND_APPROVALS + WRITE_BACKEND | `mbaLineApprovalsClient.ts` | DUAL-DONE |
 | `/api/media-container-best-practice` | GET/POST | `xanoUrl` + `XANO_PUBLISHERS_BASE_URL` | always-xano | admin, create/edit, trafficking | PORT |
@@ -173,12 +173,12 @@ SQL used (Postgres):
 | `/api/media_plans/television` | POST | — | — | handler deleted (X2) | RETIRE(dead) executed |
 | `/api/media_plans/television/[id]` | PUT/DELETE | — | — | route deleted (X2); dead exports removed | RETIRE(dead) executed |
 | `/api/mediaplans` | GET/POST | `media_plan_master` via xanoUrl / list cache dual | DATA_BACKEND_PLANS (list) | mediaplans pages, dashboard | PORT (create) / DUAL-DONE (list when plans=pg) |
-| `/api/mediaplans/mbanumber` | GET | `media_plan_master` query | always-xano | create + edit | PORT |
-| `/api/mediaplans/[id]/mbanumber` | POST | `generate_mbanumber` | always-xano | create flow | PORT |
+| `/api/mediaplans/mbanumber` | GET | `readPlanMasters` suffix scan | DATA_BACKEND_PLANS | create + edit | DUAL-DONE (X3 ported) |
+| `/api/mediaplans/[id]/mbanumber` | POST | — | — | ZERO fetch | RETIRE(dead) executed (410 X3) |
 | `/api/mediaplans/[id]/download` | GET | none (comment) | n/a | download UIs | NOT-XANO |
 | `/api/mediaplans/mba/[mba_number]` | GET | `readMbaPlanDetail` only; `xano` → 410 | DATA_BACKEND_PLAN_DETAIL (default postgres) | edit/create/dashboard/trafficking | DUAL-DONE (X2 postgres-only) |
 | `/api/mediaplans/mba/[mba_number]` | PUT/PATCH | Xano tables + publish | always-xano / WRITE_BACKEND for pg save path | edit/create | PORT |
-| `/api/mediaplans/versions/[id]/billing-schedule` | PATCH | versions + overrides | always-xano write | ActionBar, inline schedule | PORT |
+| `/api/mediaplans/versions/[id]/billing-schedule` | PATCH | `writeBillingSchedule` → PG `legacy_schedules` + billing `schedule_months` | PG (X3) | ActionBar, inline schedule | DUAL-DONE (ported) |
 | `/api/mediaplans/versions/[id]/documents` | POST | `XANO_MEDIA_PLANS` + `XANO_SAVE_FILE_BASE_URL` | always-xano | `lib/api.ts` | PORT |
 | `/api/pacing/campaigns` | GET | search lines Xano + masters/versions dual | DATA_BACKEND_PACING partial | `CampaignsClient.tsx` | PORT |
 | `/api/pacing/programmatic-campaigns` | GET | prog lines Xano + dual masters | DATA_BACKEND_PACING partial | `ProgrammaticCampaignsClient.tsx` | PORT |

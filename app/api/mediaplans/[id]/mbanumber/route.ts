@@ -1,38 +1,24 @@
 import { NextRequest, NextResponse } from "next/server"
-import axios from "axios"
-import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { requireRole } from "@/lib/requireRole"
 
-const XANO_TIMEOUT_MS = 15_000
-
+/**
+ * POST /api/mediaplans/[id]/mbanumber — retired (X3).
+ * X-AUDIT-1: zero in-repo fetch callers; minting uses GET /api/mediaplans/mbanumber.
+ */
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  try {
-    // AuthZ: match mediaplans collection POST — MBA mint is staff-only.
-    const gate = await requireRole(request, ["admin"])
-    if ("response" in gate) return gate.response
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
 
-    const { id } = await params
-    const response = await axios.post(`${xanoUrl("generate_mbanumber", "XANO_MEDIAPLANS_BASE_URL")}/${id}`, undefined, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS })
-    return NextResponse.json(response.data)
-  } catch (error) {
-    console.error("Error generating MBA number:", error)
-    if (axios.isAxiosError(error)) {
-      console.error("Axios error details:", {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-      })
-      return NextResponse.json(
-        { error: `Failed to generate MBA number: ${error.response?.data?.message || error.message}` },
-        { status: error.response?.status || 500 }
-      )
-    }
-    return NextResponse.json(
-      { error: "Failed to generate MBA number" },
-      { status: 500 }
-    )
-  }
-} 
+  await params
+  return NextResponse.json(
+    {
+      error:
+        "POST /api/mediaplans/[id]/mbanumber is retired (X3). Use GET /api/mediaplans/mbanumber?mbaidentifier=",
+      code: "MBANUMBER_BY_ID_GONE",
+    },
+    { status: 410 }
+  )
+}

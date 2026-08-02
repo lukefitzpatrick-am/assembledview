@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import axios from "axios"
-import { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
+import { eq } from "drizzle-orm"
+import { getDb, schema } from "@/db"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { readBillingOverridesForVersion } from "@/lib/data/readFinance"
+import {
+  BillingScheduleWriteError,
+  patchBillingScheduleOnPostgres,
+} from "@/lib/data/writeBillingSchedule"
 import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import type { FeeLoading, LineItemInput } from "@/lib/finance/campaignFinancials.types"
 import { clearRelevantPlanVersionsCache } from "@/lib/finance/relevantPlanVersions"
@@ -11,9 +15,10 @@ import { diffBillingSchedules } from "@/lib/finance/scheduleDiff"
 import { writeScheduleDiffEdits } from "@/lib/finance/writeFinanceAuditEdits"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
-const MEDIA_PLANS_ENV_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
-const XANO_LONG_TIMEOUT_MS = 30_000
-
+/**
+ * PATCH /api/mediaplans/versions/[id]/billing-schedule
+ * Postgres legacy_schedules + billing schedule_months (X3).
+ */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -26,15 +31,9 @@ export async function PATCH(
     if (!id) {
       return NextResponse.json({ error: "Missing version id" }, { status: 400 })
     }
-
-    let mediaPlansBaseUrl: string
-    try {
-      mediaPlansBaseUrl = getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
-    } catch {
-      return NextResponse.json(
-        { error: "XANO_MEDIA_PLANS_BASE_URL (or XANO_MEDIAPLANS_BASE_URL) is not configured" },
-        { status: 500 }
-      )
+    const versionId = Number(id)
+    if (!Number.isFinite(versionId) || versionId <= 0) {
+      return NextResponse.json({ error: "Invalid version id" }, { status: 400 })
     }
 
     const body = await request.json().catch(() => null)
@@ -45,34 +44,41 @@ export async function PATCH(
       )
     }
 
-    // Domain 5 Stage 2.2b — read current schedule before PATCH so we can audit the diff.
-    let oldSchedule: unknown = null
-    let versionRow: Record<string, unknown> | null = null
-    try {
-      const currentVersionRes = await axios.get(`${mediaPlansBaseUrl}/media_plan_versions/${encodeURIComponent(id)}`, { headers: xanoAuthHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS })
-      versionRow =
-        currentVersionRes.data && typeof currentVersionRes.data === "object"
-          ? (currentVersionRes.data as Record<string, unknown>)
-          : null
-      const raw = versionRow?.billingSchedule
-      oldSchedule = typeof raw === "string" ? JSON.parse(raw) : raw
-    } catch (preReadError) {
-      console.error("[billing-schedule-patch] pre-read failed; audit will be empty", {
-        id,
-        message: preReadError instanceof Error ? preReadError.message : String(preReadError),
-      })
+    const db = getDb()
+    const versionRows = await db
+      .select()
+      .from(schema.mediaPlanVersions)
+      .where(eq(schema.mediaPlanVersions.id, versionId))
+      .limit(1)
+    const versionPg = versionRows[0]
+    if (!versionPg) {
+      return NextResponse.json({ error: "Media plan version not found" }, { status: 404 })
+    }
+
+    const legacy =
+      versionPg.legacySchedules && typeof versionPg.legacySchedules === "object"
+        ? (versionPg.legacySchedules as Record<string, unknown>)
+        : {}
+    const oldSchedule = legacy.billingSchedule ?? null
+    const versionRow: Record<string, unknown> = {
+      id: versionPg.id,
+      mba_number: versionPg.mbaNumber,
+      campaign_start_date: versionPg.campaignStartDate,
+      campaign_end_date: versionPg.campaignEndDate,
+      billingSchedule: legacy.billingSchedule ?? null,
+      deliverySchedule: legacy.deliverySchedule ?? null,
     }
 
     const bodyRecord = body as Record<string, unknown>
-    // Allow omit: generate from recompute when lineItems present (C1).
-    const clientSentSchedule = Object.prototype.hasOwnProperty.call(bodyRecord, "billingSchedule")
+    const clientSentSchedule = Object.prototype.hasOwnProperty.call(
+      bodyRecord,
+      "billingSchedule"
+    )
     const clientBillingSchedule = clientSentSchedule
       ? bodyRecord.billingSchedule
       : undefined
 
     if (!clientSentSchedule) {
-      // Historically required billingSchedule; keep requiring it unless lineItems
-      // are supplied so the server can regenerate.
       const hasLineItems =
         Array.isArray(bodyRecord.lineItems) || Array.isArray(bodyRecord.financialLineItems)
       if (!hasLineItems) {
@@ -84,8 +90,8 @@ export async function PATCH(
     }
 
     let scheduleToPersist: unknown = clientBillingSchedule
+    let deliveryToPersist: unknown | undefined
     let inputsHash: string | undefined
-    const patchPayload: Record<string, unknown> = {}
 
     const financialLineItems = (Array.isArray(bodyRecord.lineItems)
       ? bodyRecord.lineItems
@@ -97,11 +103,11 @@ export async function PATCH(
       null) as FeeLoading | null
 
     if (financialLineItems && financialLineItems.length > 0 && feeLoading) {
-      const overrideRows = (await readBillingOverridesForVersion(id, {
-        baseUrl: mediaPlansBaseUrl,
-      })) as BillingOverrideRow[]
-      const startRaw = versionRow?.campaign_start_date
-      const endRaw = versionRow?.campaign_end_date
+      const overrideRows = (await readBillingOverridesForVersion(
+        versionId
+      )) as BillingOverrideRow[]
+      const startRaw = versionRow.campaign_start_date
+      const endRaw = versionRow.campaign_end_date
       const recompute = recomputeAndValidateBillingScheduleOnSave({
         lineItems: financialLineItems,
         feeLoading,
@@ -117,32 +123,28 @@ export async function PATCH(
       }
       scheduleToPersist = recompute.billingSchedule
       inputsHash = recompute.inputs_hash
-      patchPayload.billingSchedule = scheduleToPersist
-      patchPayload.inputs_hash = inputsHash
-      patchPayload.rebill_needed = false
       if (recompute.generatedFromServer) {
-        patchPayload.deliverySchedule = recompute.deliverySchedule
-        patchPayload.delivery_schedule = recompute.deliverySchedule
+        deliveryToPersist = recompute.deliverySchedule
       }
-    } else {
-      if (scheduleToPersist == null) {
-        return NextResponse.json(
-          { error: "billingSchedule cannot be null — omit with lineItems to regenerate, or send a schedule" },
-          { status: 400 }
-        )
-      }
-      patchPayload.billingSchedule = scheduleToPersist
-      console.warn(
-        "[billing-schedule-patch] C1 skipped (no lineItems+feeLoading); persisting client schedule as-is"
+    } else if (scheduleToPersist == null) {
+      return NextResponse.json(
+        {
+          error:
+            "billingSchedule cannot be null — omit with lineItems to regenerate, or send a schedule",
+        },
+        { status: 400 }
       )
     }
 
-    const xanoResponse = await axios.patch(`${mediaPlansBaseUrl}/media_plan_versions/${encodeURIComponent(id)}`, patchPayload, { headers: xanoPostHeaderRecord(), timeout: XANO_LONG_TIMEOUT_MS })
+    const patched = await patchBillingScheduleOnPostgres({
+      versionId,
+      billingSchedule: scheduleToPersist,
+      ...(deliveryToPersist != null ? { deliverySchedule: deliveryToPersist } : {}),
+      inputsHash: inputsHash ?? null,
+    })
 
     clearRelevantPlanVersionsCache()
 
-    // Domain 5 Stage 2.2b — audit writes after successful PATCH.
-    // Failures are logged, not propagated. Schedule save remains authoritative.
     try {
       const user = await getCurrentUser(request)
       const changes = diffBillingSchedules(oldSchedule, scheduleToPersist)
@@ -166,16 +168,20 @@ export async function PATCH(
 
     return NextResponse.json({
       ok: true,
-      data: xanoResponse.data,
+      data: {
+        id: patched.versionId,
+        mba_number: patched.mbaNumber,
+        billingSchedule: patched.legacySchedules.billingSchedule,
+        deliverySchedule: patched.legacySchedules.deliverySchedule,
+      },
       ...(inputsHash ? { inputs_hash: inputsHash, rebill_needed: false } : {}),
     })
   } catch (error) {
-    const status = (error as { response?: { status?: number } })?.response?.status || 500
-    console.error("[api/mediaplans/versions/billing-schedule PATCH]", {
-      error,
-      status,
-      upstream: (error as { response?: { data?: unknown } })?.response?.data,
-    })
-    return NextResponse.json({ error: "Failed to patch billing schedule" }, { status })
+    if (error instanceof BillingScheduleWriteError) {
+      const status = error.code === "NOT_FOUND" ? 404 : 400
+      return NextResponse.json({ error: error.message }, { status })
+    }
+    console.error("[api/mediaplans/versions/billing-schedule PATCH]", error)
+    return NextResponse.json({ error: "Failed to patch billing schedule" }, { status: 500 })
   }
 }

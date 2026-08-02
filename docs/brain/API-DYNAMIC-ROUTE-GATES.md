@@ -23,9 +23,9 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 |---|---|---|---|---|---|
 | `scopes-of-work/[id]` | GET | `scopes-of-work` GET | `requireRole(admin)` | `requireRole(admin)` | **GATED (O6)** |
 | `scopes-of-work/[id]` | PUT | `scopes-of-work` POST | `requireRole(admin)` | `requireRole(admin)` | **GATED (O6)** |
-| `campaigns/[mba_number]` | GET | peer `mediaplans/mba/[mba_number]` | `checkClientMbaAccess` | `checkClientMbaAccess` | **GATED (O6)** |
-| `campaigns/[mba_number]/billing-schedule` | GET | same peer | `checkClientMbaAccess` | `checkClientMbaAccess` | **GATED (O6)** |
-| `mediaplans/[id]/mbanumber` | POST | `mediaplans` POST | `requireRole(admin)` | `requireRole(admin)` | **GATED (O6)** |
+| `campaigns/[mba_number]` | GET | — | `checkClientMbaAccess` | 410 `CAMPAIGNS_MBA_GONE` | **RETIRED (X3)** |
+| `campaigns/[mba_number]/billing-schedule` | GET | — | `checkClientMbaAccess` | 410 | **RETIRED (X3)** |
+| `mediaplans/[id]/mbanumber` | POST | — | `requireRole(admin)` | 410 `MBANUMBER_BY_ID_GONE` | **RETIRED (X3)** |
 | `publishers/[publisherId]` | GET | `publishers` GET | session (middleware) | session (middleware) | OK |
 | `publishers/[publisherId]` | PUT | `publishers` POST | `requireRole(admin)` | `requireRole(admin)` | **GATED (SEC-G)** |
 | `media-container-best-practice/[id]` | PUT | collection POST | `requireRole(admin)` + audit stamp | `requireRole(admin)` + audit stamp | **GATED (SEC-G)** |
