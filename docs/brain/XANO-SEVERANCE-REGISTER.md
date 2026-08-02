@@ -226,7 +226,7 @@ SQL used (Postgres):
 | `lib/api/dashboard/{client,publisher,finance}.ts` | versions + channel fan-out | mostly unguarded | client/publisher/finance dashboards | PORT |
 | `lib/finance/xanoFinanceApi.ts` | finance_billing_* / edits / saved_views | none (writes) | finance write routes, xero-queue | PORT |
 | `lib/finance/xanoReferenceCache.ts` | clients + get_publishers TTL | none | Ava, MBA GET, dashboard | PORT (retire behind dual readers) |
-| `lib/finance/billingOverrides.ts` | `billing_overrides` axios | none | edit/create, schedule recompute | PORT |
+| `lib/finance/billingOverrides.ts` | attach helpers only (`attachOverridesToLineInputs` / `*FromRow`); Xano soft-fail GET `fetchBillingOverridesForVersion` **deleted** (MB-5 — returned `[]` on miss → silent manual erase) | n/a (pure) | savePlan, recompute, UI | RETIRE(dead fetch) / KEEP(attach) — reads via `readBillingOverridesForVersion` (PG dual) |
 | `lib/finance/materialiseFinanceBillingRecord.ts` | finance_billing_records GET/POST | none | mark-billed, notes | PORT |
 | `lib/finance/writeFinanceAuditEdits.ts` | finance_edits POST | none | finance edits | PORT |
 | `lib/finance/relevantPlanVersions.ts` | masters + versions crawl | none | finance hub relevance | PORT |

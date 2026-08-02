@@ -33,6 +33,8 @@ function shouldSkipFile(filePath) {
   const base = path.basename(filePath)
   if (base.endsWith(".test.ts") || base.endsWith(".test.tsx")) return true
   if (base === "check-billing-line-id-equality.mjs") return true
+  // Finance hub BillingLineItem.id is a numeric PK, not schedule line identity.
+  if (base === "useFinanceStore.ts") return true
   return false
 }
 

@@ -8,7 +8,6 @@ import type {
 import { fetchBillingRecords, fetchPayablesRecords, FinanceHttpError } from "@/lib/finance/api"
 import { getCurrentBillingMonth, australianFyStartYearForDate } from "@/lib/finance/months"
 import { expandMonthRange } from "@/lib/finance/monthRange"
-import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
 
 export type FinanceHubTab =
   | "overview"
@@ -273,10 +272,9 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
         if (record.id !== recordId) return record
         return {
           ...record,
+          // Numeric finance_billing_line_items PK — not schedule bare↔billing-:: ids (MB-4).
           line_items: record.line_items.map((lineItem) =>
-            billingOverrideLineIdsMatch(String(lineItem.id ?? ""), lineItemId)
-              ? { ...lineItem, ...updates }
-              : lineItem
+            lineItem.id === lineItemId ? { ...lineItem, ...updates } : lineItem
           ),
         }
       }),
