@@ -8,7 +8,7 @@ import "server-only"
 import { eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
-import { xanoPostHeaderRecord } from "@/lib/api/xano"
+import { xanoPostHeaderRecord, getXanoTimeoutMs } from "@/lib/api/xano"
 import { invalidateClientsCache } from "@/lib/cache/clientsCache"
 import { invalidateCachedClients } from "@/lib/finance/xanoReferenceCache"
 import { mapClientRowFromPostgres } from "@/lib/data/readClients"
@@ -226,7 +226,7 @@ async function mirrorClientToXano(input: {
   snakeRow: Record<string, unknown>
 }): Promise<ClientMirrorResult> {
   const base = getXanoClientsCollectionUrl()
-  const timeoutMs = Number(process.env.XANO_TIMEOUT_MS ?? 8000)
+  const timeoutMs = getXanoTimeoutMs()
   const headers = {
     "Content-Type": "application/json",
     ...xanoPostHeaderRecord(),

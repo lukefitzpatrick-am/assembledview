@@ -1,10 +1,8 @@
-import axios from "axios"
 import type AvaTool from "./types"
 import { invalidateClientsCache } from "@/lib/cache/clientsCache"
 import { fetchClientById } from "@/lib/clients/fetchClientById"
-import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
-import { xanoAuthHeaderRecord } from "@/lib/api/xano"
 import { invalidateCachedClients } from "@/lib/finance/xanoReferenceCache"
+import { updateClientPostgresFirst } from "@/lib/data/writeClients"
 import {
   CLIENT_LINK_FIELDS,
   type ClientLinkField,
@@ -26,7 +24,7 @@ export const saveClientBrainTool: AvaTool = {
       properties: {
         client_id: {
           type: "number",
-          description: "Numeric Xano client id.",
+          description: "Numeric client id.",
         },
         client_brain: {
           type: "string",
@@ -110,20 +108,19 @@ export const saveClientBrainTool: AvaTool = {
         appliedLinks[field] = next
       }
 
-      const url = `${getXanoClientsCollectionUrl()}/${encodeURIComponent(String(clientId))}`
-      const response = await axios.patch(url, patch, {
-        headers: {
-          "Content-Type": "application/json",
-          ...xanoAuthHeaderRecord(),
-        },
-        timeout: Number(process.env.XANO_TIMEOUT_MS ?? 15000),
-      })
+      const result = await updateClientPostgresFirst(clientId, patch, "patch")
+      if ("notFound" in result) {
+        return {
+          content: `No client found for id ${clientId}.`,
+          isError: true,
+        }
+      }
       invalidateClientsCache()
       invalidateCachedClients()
 
       const saved =
-        response.data && typeof response.data === "object"
-          ? (response.data as Record<string, unknown>)
+        result.row && typeof result.row === "object"
+          ? (result.row as Record<string, unknown>)
           : ((await fetchClientById(clientId)) ?? existing)
 
       return {

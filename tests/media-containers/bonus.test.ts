@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-const ENV_SKIP = !process.env.XANO_PUBLISHERS_BASE_URL
+const ENV_SKIP = !process.env["XANO_PUBLISHERS_BASE_URL"]
   ? "Missing XANO_PUBLISHERS_BASE_URL (integration test requires Xano env)"
   : false
 

@@ -15,11 +15,11 @@
 ## Creative
 
 - `components/creative/CreativeAssetManager.tsx` — asset table/upload/filters + Search Ad Workshop; AVA surface `creative`.
-- `lib/creative/xanoCreativeAssets.ts` — Xano CRUD (`creative_asset` table) incl. `createIdempotent`.
+- `lib/creative/xanoCreativeAssets.ts` — Postgres CRUD via Drizzle (`schema.creativeAsset`); keeps legacy export names / `XanoCreativeAssetError`. API snake_case shape; `uploaded_by_name` is `""` on read (no PG column). Incl. `createIdempotent`.
 - `lib/creative/{adCopy,searchCopy}/**` — Claude copy generation (shares `lib/ava/anthropic`); client-brain fetch; web research; in-memory rate limits.
 - `lib/creative/liveMockup/**` — ScreenshotOne (HMAC-signed), creative injection into live ad slots, **SSRF guards** (`validateTargetUrl` + `privateIp`) — changes there are security changes; `block_ads=false`/`ignore_host_errors=true` are deliberate.
 - `lib/creative/getPrivateBlob.ts` — **cross-domain**: shared by creative, MI-spec, and performance-report download routes.
-- `lib/creative/types.ts` — `CREATIVE_ASSET_CREATE_BODY_KEYS`/`WRITABLE_KEYS` lists must both be edited when adding a Xano column or POSTs silently drop the field.
+- `lib/creative/types.ts` — `CREATIVE_ASSET_CREATE_BODY_KEYS`/`WRITABLE_KEYS` lists must both be edited when adding a column or POSTs silently drop the field.
 
 ## Access model
 

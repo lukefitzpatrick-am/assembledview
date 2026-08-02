@@ -7,7 +7,7 @@ import "server-only"
 
 import { sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
-import { xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { xanoPostHeaderRecord, xanoUrl, getXanoTimeoutMs } from "@/lib/api/xano"
 import {
   isReferenceTablePath,
   type ReferenceTablePath,
@@ -180,7 +180,7 @@ async function mirrorReferenceCreateToXano(input: {
   rowId: number
   snakeRow: Record<string, unknown>
 }): Promise<ReferenceMirrorResult> {
-  const timeoutMs = Number(process.env.XANO_TIMEOUT_MS ?? 8000)
+  const timeoutMs = getXanoTimeoutMs()
   try {
     const res = await fetch(xanoUrl(input.xanoPath, "XANO_MEDIA_DETAILS_BASE_URL"), {
       method: "POST",

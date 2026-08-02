@@ -4,7 +4,7 @@ import {
   Client,
   ClientHubSummary,
 } from '@/lib/types/dashboard'
-import { parseXanoListPayload } from '@/lib/api/xano'
+import { parseXanoListPayload, peekXanoEnv } from '@/lib/api/xano'
 import { getXanoClientsCollectionUrl, xanoMediaPlansUrl } from '@/lib/api/xanoClients'
 import { fetchAllXanoPages } from '@/lib/api/xanoPagination'
 import { resolveClientGroup } from '@/lib/clients/clientGroup'
@@ -795,9 +795,9 @@ export async function getClientDashboardData(
   options?: { financialYearStartYear?: number },
 ): Promise<ClientDashboardData | null> {
   console.log('[dashboard] getClientDashboardData called with slug:', slug, 'ENV check:', {
-    XANO_BASE_URL: !!process.env.XANO_BASE_URL,
-    XANO_MEDIA_PLANS_BASE_URL: !!process.env.XANO_MEDIA_PLANS_BASE_URL,
-    XANO_CLIENTS_COLLECTION_URL: !!process.env.XANO_CLIENTS_COLLECTION_URL,
+    XANO_BASE_URL: !!peekXanoEnv('XANO_BASE_URL'),
+    XANO_MEDIA_PLANS_BASE_URL: !!peekXanoEnv('XANO_MEDIA_PLANS_BASE_URL'),
+    XANO_CLIENTS_COLLECTION_URL: !!peekXanoEnv('XANO_CLIENTS_COLLECTION_URL'),
   })
   if (!slug || typeof slug !== 'string' || slug.trim().length === 0) {
     console.error('Invalid slug provided for dashboard:', slug)

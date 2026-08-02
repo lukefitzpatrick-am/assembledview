@@ -51,10 +51,10 @@ test("normalizeTargetLine accepts financial_year alias", () => {
 })
 
 test("fetchRevenueForecastTargetLinesFromXano lists via mocked fetch", async () => {
-  const prevBase = process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL
-  const prevClients = process.env.XANO_CLIENTS_BASE_URL
-  process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL = "https://xano.test/api:targets"
-  delete process.env.XANO_CLIENTS_BASE_URL
+  const prevBase = process.env["XANO_FINANCE_FORECAST_TARGETS_BASE_URL"]
+  const prevClients = process.env["XANO_CLIENTS_BASE_URL"]
+  process.env["XANO_FINANCE_FORECAST_TARGETS_BASE_URL"] = "https://xano.test/api:targets"
+  delete process.env["XANO_CLIENTS_BASE_URL"]
 
   assert.equal(isXanoTargetStorageConfigured(), true)
 
@@ -91,16 +91,16 @@ test("fetchRevenueForecastTargetLinesFromXano lists via mocked fetch", async () 
     assert.equal(calls.length, 1)
   } finally {
     globalThis.fetch = originalFetch
-    if (prevBase === undefined) delete process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL
-    else process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL = prevBase
-    if (prevClients === undefined) delete process.env.XANO_CLIENTS_BASE_URL
-    else process.env.XANO_CLIENTS_BASE_URL = prevClients
+    if (prevBase === undefined) delete process.env["XANO_FINANCE_FORECAST_TARGETS_BASE_URL"]
+    else process.env["XANO_FINANCE_FORECAST_TARGETS_BASE_URL"] = prevBase
+    if (prevClients === undefined) delete process.env["XANO_CLIENTS_BASE_URL"]
+    else process.env["XANO_CLIENTS_BASE_URL"] = prevClients
   }
 })
 
 test("upsertRevenueForecastTargetLineOnXano POSTs when no existing row", async () => {
-  const prevBase = process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL
-  process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL = "https://xano.test/api:targets"
+  const prevBase = process.env["XANO_FINANCE_FORECAST_TARGETS_BASE_URL"]
+  process.env["XANO_FINANCE_FORECAST_TARGETS_BASE_URL"] = "https://xano.test/api:targets"
 
   const originalFetch = globalThis.fetch
   const methods: string[] = []
@@ -151,7 +151,7 @@ test("upsertRevenueForecastTargetLineOnXano POSTs when no existing row", async (
     assert.deepEqual(methods, ["GET", "POST"])
   } finally {
     globalThis.fetch = originalFetch
-    if (prevBase === undefined) delete process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL
-    else process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL = prevBase
+    if (prevBase === undefined) delete process.env["XANO_FINANCE_FORECAST_TARGETS_BASE_URL"]
+    else process.env["XANO_FINANCE_FORECAST_TARGETS_BASE_URL"] = prevBase
   }
 })

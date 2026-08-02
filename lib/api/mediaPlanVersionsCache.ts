@@ -1,5 +1,5 @@
 import { fetchAllXanoPagesWithCompleteness } from "@/lib/api/xanoPagination"
-import { parseXanoListPayload, xanoUrl } from "@/lib/api/xano"
+import { parseXanoListPayload, peekXanoEnv, xanoUrl } from "@/lib/api/xano"
 
 /**
  * Shared coalesced cache for the dashboard's latest media_plan_versions list.
@@ -55,7 +55,7 @@ function cacheTtlMs(): number {
 }
 
 function versionsPath(): string {
-  const override = process.env.XANO_MEDIA_PLAN_VERSIONS_PATH?.trim()
+  const override = peekXanoEnv("XANO_MEDIA_PLAN_VERSIONS_PATH")
   return override && override.length > 0
     ? override.replace(/^\//, "")
     : "media_plan_versions_latest"

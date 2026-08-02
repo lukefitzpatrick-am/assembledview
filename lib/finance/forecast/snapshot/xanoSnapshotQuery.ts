@@ -3,7 +3,7 @@
  * Legacy Xano helpers kept for author-only data-move scripts.
  */
 
-import { xanoAuthHeaderRecord } from "@/lib/api/xano"
+import { peekXanoEnv, xanoAuthHeaderRecord } from "@/lib/api/xano"
 import type {
   FinanceForecastSnapshotLineRecord,
   FinanceForecastSnapshotRecord,
@@ -42,9 +42,9 @@ export async function findFinanceForecastSnapshotHeader(
 // --- Author-only Xano crawl (data-move) ---
 
 const LIST_PATH =
-  process.env.XANO_FINANCE_FORECAST_SNAPSHOTS_LIST_PATH ?? "finance_forecast_snapshots_list"
+  peekXanoEnv("XANO_FINANCE_FORECAST_SNAPSHOTS_LIST_PATH") ?? "finance_forecast_snapshots_list"
 const LINES_PATH =
-  process.env.XANO_FINANCE_FORECAST_SNAPSHOTS_LINES_PATH ?? "finance_forecast_snapshot_lines"
+  peekXanoEnv("XANO_FINANCE_FORECAST_SNAPSHOTS_LINES_PATH") ?? "finance_forecast_snapshot_lines"
 
 function unwrapArray(payload: unknown): unknown[] {
   if (Array.isArray(payload)) return payload
@@ -96,7 +96,7 @@ function normalizeLine(
 export async function fetchFinanceForecastSnapshotListFromXanoLegacy(): Promise<
   FinanceForecastSnapshotRecord[]
 > {
-  const base = process.env.XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL?.replace(/\/$/, "")
+  const base = peekXanoEnv("XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL")?.replace(/\/$/, "")
   if (!base) return []
   const url = `${base}/${LIST_PATH}`
   const res = await fetch(url, {
@@ -115,7 +115,7 @@ export async function fetchFinanceForecastSnapshotListFromXanoLegacy(): Promise<
 export async function fetchFinanceForecastSnapshotLinesFromXanoLegacy(
   snapshotId: string
 ): Promise<FinanceForecastSnapshotLineRecord[]> {
-  const base = process.env.XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL?.replace(/\/$/, "")
+  const base = peekXanoEnv("XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL")?.replace(/\/$/, "")
   if (!base) return []
   const q = new URLSearchParams()
   q.set("snapshot_id", snapshotId)

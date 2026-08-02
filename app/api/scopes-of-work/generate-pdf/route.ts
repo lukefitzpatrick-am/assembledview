@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { generateScopeOfWork } from "@/lib/generateScopeOfWork"
 import { requireRole } from "@/lib/requireRole"
-import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { fetchScopeOfWorkByIdFromPostgres } from "@/lib/data/writeScopeOfWork"
 
 const SMART_DOUBLE_QUOTES = new Set(["\u201C", "\u201D", "\u201E", "\u201F", "\u2033", "\u2036"])
 const SMART_SINGLE_QUOTES = new Set(["\u2018", "\u2019", "\u201A", "\u201B", "\u2032", "\u2035"])
@@ -79,17 +79,14 @@ export async function POST(req: NextRequest) {
     let payload = body
     const sowId = body?.id != null ? Number(body.id) : NaN
     if (Number.isFinite(sowId) && sowId > 0) {
-      const res = await fetch(`${xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL")}/${sowId}`, {
-        headers: xanoAuthHeaderRecord(),
-        cache: "no-store",
-      })
-      if (!res.ok) {
+      const row = await fetchScopeOfWorkByIdFromPostgres(sowId)
+      if (!row) {
         return NextResponse.json(
           { error: `Persisted SOW ${sowId} not found`, code: "NOT_FOUND" },
           { status: 404 }
         )
       }
-      payload = await res.json()
+      payload = row
     }
 
     if (!payload.project_name || !payload.client_name) {

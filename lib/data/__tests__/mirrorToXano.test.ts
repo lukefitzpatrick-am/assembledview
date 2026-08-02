@@ -18,10 +18,10 @@ import {
   withInsertBeforeDelete,
 } from "@/lib/api/replaceChannelLineItems"
 
-process.env.XANO_MEDIA_PLANS_BASE_URL ??= "https://example.test/media-plans"
-process.env.XANO_PUBLISHERS_BASE_URL ??= "https://example.test/publishers"
-process.env.XANO_CLIENTS_BASE_URL ??= "https://example.test/clients"
-process.env.XANO_MEDIA_DETAILS_BASE_URL ??= "https://example.test/media-details"
+process.env["XANO_MEDIA_PLANS_BASE_URL"] ??= "https://example.test/media-plans"
+process.env["XANO_PUBLISHERS_BASE_URL"] ??= "https://example.test/publishers"
+process.env["XANO_CLIENTS_BASE_URL"] ??= "https://example.test/clients"
+process.env["XANO_MEDIA_DETAILS_BASE_URL"] ??= "https://example.test/media-details"
 
 function baseInput(
   overrides: Partial<MirrorPlanToXanoInput> = {}
