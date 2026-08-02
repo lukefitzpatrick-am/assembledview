@@ -17,28 +17,30 @@ Living inventory of every Next.js surface that still depends on Xano. Built by X
 
 ---
 
-## Tallies
+## Tallies (post X1–X9; refresh 2026-08-03)
+
+Pre-series tallies (~33 PORT) are obsolete. Dominant remaining Xano HTTP is finance hub writes, pacing crawls, dashboards leftovers, and plan-version Xano PUT when `WRITE_BACKEND=xano`.
 
 ### `app/api` route files (77)
 
 | Verdict | Count | Notes |
 |---|---:|---|
-| DUAL-DONE (read path at least) | ~25 | Channel GETs + billing override writes + PLAN_DETAIL GET (X2) |
-| PORT | ~33 | Dominant remaining work (finance writes, creative, pacing, …) |
-| RETIRE(dead) | ~16 | Channel POSTs×10 + TV `[id]` + campaigns×2 + accrual + check-id (X2 executed for channel family) |
-| MIRROR | 2 | `plans/save` mirror half + `admin/xano-mirror/retry` |
+| DUAL-DONE (read path at least) | ~28 | Channel GETs + billing overrides + PLAN_DETAIL + clients + approvals |
+| PORT | ~22 | Finance writes, xero-queue exceptions, pacing/dashboard crawls, MBA PUT under xano write |
+| RETIRE(dead) | ~16 | Channel POSTs×10 + TV `[id]` + campaigns×2 + accrual + check-id (X2) |
+| MIRROR | 3 | `plans/save` + `admin/xano-mirror/retry` + `POST /api/mediaplans` master mirror (X9) |
 | TOOLING | 5 | admin×3, cron sync, spend-parity |
 | NOT-XANO | 3 | `chat-v2`, `cron/xero-sync`, `mediaplans/[id]/download` |
 
-Method-split rows (GET dual / POST retire) are counted once per file under the **dominant remaining** verdict in the table below; X2 channel POST death is executed (handlers deleted).
+Method-split rows counted once per file under the **dominant remaining** verdict; X2 channel POST death is executed.
 
 ### Lib live-call files (~33)
 
 | Verdict | Count |
 |---|---:|
-| DUAL-DONE | 12 |
-| PORT | 17 |
-| MIRROR | 1 |
+| DUAL-DONE | 14 |
+| PORT | 12 |
+| MIRROR | 2 (`mirrorToXano` + `writeMediaPlanMasters` / `writeClients` mirrors) |
 | TOOLING | 3 |
 | RETIRE(dead)/TOOLING | 1 (`xanoTargetLines` — app dead, migration script only) |
 
@@ -172,7 +174,7 @@ SQL used (Postgres):
 | `/api/media_plans/television` | GET | dual | DATA_BACKEND_PLANS | `lib/api.ts` | DUAL-DONE |
 | `/api/media_plans/television` | POST | — | — | handler deleted (X2) | RETIRE(dead) executed |
 | `/api/media_plans/television/[id]` | PUT/DELETE | — | — | route deleted (X2); dead exports removed | RETIRE(dead) executed |
-| `/api/mediaplans` | GET/POST | `media_plan_master` via xanoUrl / list cache dual | DATA_BACKEND_PLANS (list) | mediaplans pages, dashboard | PORT (create) / DUAL-DONE (list when plans=pg) |
+| `/api/mediaplans` | GET/POST | GET list dual; **POST** PG-first `writeMediaPlanMasters` + Xano mirror (`xano_master_mirror_failed`) | DATA_BACKEND_PLANS (list); PG identity (X9) | create page `createMediaPlan` | MIRROR (create) / DUAL-DONE (list) |
 | `/api/mediaplans/mbanumber` | GET | `readPlanMasters` suffix scan | DATA_BACKEND_PLANS | create + edit | DUAL-DONE (X3 ported) |
 | `/api/mediaplans/[id]/mbanumber` | POST | — | — | ZERO fetch | RETIRE(dead) executed (410 X3) |
 | `/api/mediaplans/[id]/download` | GET | none (comment) | n/a | download UIs | NOT-XANO |
@@ -227,6 +229,7 @@ SQL used (Postgres):
 | `lib/finance/xanoFinanceApi.ts` | finance_billing_* / edits / saved_views | none (writes) | finance write routes, xero-queue | PORT |
 | `lib/finance/xanoReferenceCache.ts` | clients + get_publishers TTL | none | Ava, MBA GET, dashboard | PORT (retire behind dual readers) |
 | `lib/finance/billingOverrides.ts` | attach helpers only (`attachOverridesToLineInputs` / `*FromRow`); Xano soft-fail GET `fetchBillingOverridesForVersion` **deleted** (MB-5 — returned `[]` on miss → silent manual erase) | n/a (pure) | savePlan, recompute, UI | RETIRE(dead fetch) / KEEP(attach) — reads via `readBillingOverridesForVersion` (PG dual) |
+| `lib/data/writeMediaPlanMasters.ts` | PG insert `media_plan_masters` (seq) + Xano POST with explicit `id` | PG authoritative (X9) | `POST /api/mediaplans` | MIRROR (write) |
 | `lib/finance/materialiseFinanceBillingRecord.ts` | finance_billing_records GET/POST | none | mark-billed, notes | PORT |
 | `lib/finance/writeFinanceAuditEdits.ts` | finance_edits POST | none | finance edits | PORT |
 | `lib/finance/relevantPlanVersions.ts` | masters + versions crawl | none | finance hub relevance | PORT |
@@ -269,9 +272,18 @@ SQL used (Postgres):
 
 ---
 
-## §6 Owner prompts (X1–X8)
+## §6 Owner prompts (X1–X9)
 
 Paste each block into a fresh Cursor agent. Change code only inside that prompt’s scope. Update this register + brain in the same commit.
+
+### X9 — media_plan_master identity from Postgres (T7 blocker)
+
+```
+DONE: POST /api/mediaplans → createMediaPlanMasterPostgresFirst (seq sync + insert +
+Xano mirror with explicit id; MBA uniqueness on PG). ensureMaster on /api/plans/save
+is a logged safety net only. Live seq before: max_id=10000128, seq_last=10000262
+(ahead — no author DDL). Caveat: Xano explicit-id POST ~80% reliable (same as X1 clients).
+```
 
 ### X1 — Retire proven-dead API surfaces
 

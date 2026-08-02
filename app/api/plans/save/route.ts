@@ -108,7 +108,7 @@ const bodySchema = z.object({
   selectedMonthYears: z.array(z.string()).optional(),
   /** O4 — working billing snapshot for AUTO correction toast (not authoritative). */
   clientBillingSchedulePreview: z.array(z.any()).optional().nullable(),
-  /** Create-path: insert PG master with Xano-aligned id when missing. */
+  /** Safety net only (X9): master should already exist from POST /api/mediaplans. */
   ensureMaster: ensureMasterSchema.optional(),
   /** PC7: tip version id the editor started from — 409 if tip moved. */
   baseVersionId: z.number().int().positive().optional().nullable(),
@@ -180,7 +180,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Create-path: dual-write PG master with the Xano-aligned id before savePlanVersion.
+  // X9 safety net — masters are created PG-first via POST /api/mediaplans.
+  // Log when this path still inserts (should be rare after X9).
   if (body.ensureMaster) {
     const db = getDb()
     const [existing] = await db
@@ -189,6 +190,10 @@ export async function POST(request: NextRequest) {
       .where(eq(schema.mediaPlanMasters.id, body.masterId))
       .limit(1)
     if (!existing) {
+      console.warn("[plans/save] ensureMaster safety-net insert firing", {
+        masterId: body.masterId,
+        mbaNumber: body.ensureMaster.mbaNumber,
+      })
       try {
         const { resolveClientIdForMaster } = await import("@/lib/data/writeClients")
         const resolvedClientId = await resolveClientIdForMaster({

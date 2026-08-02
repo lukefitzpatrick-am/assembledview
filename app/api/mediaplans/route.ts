@@ -1,7 +1,4 @@
 import { NextRequest, NextResponse } from "next/server"
-import axios from "axios"
-import { toMelbourneDateString } from "@/lib/timezone"
-import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { findExistingMasterByMbaNumber } from "@/lib/api/mediaPlanMasterLookup"
 import { requireRole } from "@/lib/requireRole"
 import { resolveClientMbaScope } from "@/lib/auth/checkClientMbaAccess"
@@ -9,12 +6,11 @@ import {
   fetchMediaPlansListFallback,
   getCachedMediaPlansList,
 } from "@/lib/api/mediaPlansListCache"
+import { createMediaPlanMasterPostgresFirst } from "@/lib/data/writeMediaPlanMasters"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const maxDuration = 60
-
-const XANO_TIMEOUT_MS = 15_000
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,7 +19,8 @@ export async function POST(request: NextRequest) {
 
     const data = await request.json()
     const mbaNumberRaw = data.mbanumber ?? data.mba_number ?? ""
-    const mbaNumber = typeof mbaNumberRaw === "string" ? mbaNumberRaw.trim() : String(mbaNumberRaw).trim()
+    const mbaNumber =
+      typeof mbaNumberRaw === "string" ? mbaNumberRaw.trim() : String(mbaNumberRaw).trim()
 
     if (!mbaNumber) {
       return NextResponse.json(
@@ -47,54 +44,51 @@ export async function POST(request: NextRequest) {
     } catch (preCheckErr) {
       console.error("MBA uniqueness pre-check failed (proceeding with create):", preCheckErr)
     }
-    
-    // First, create MediaPlanMaster record
-    // For new media plans, version_number is always set to 1
-    const mediaPlanMasterData = {
-      mp_client_name: data.mp_client_name,
-      mba_number: mbaNumber,
-      mp_campaignname: data.mp_campaignname,
-      version_number: 1, // Always 1 for new media plans created from create page
-      campaign_status: data.mp_campaignstatus || "Draft",
-      campaign_start_date: data.mp_campaigndates_start ? toMelbourneDateString(data.mp_campaigndates_start) : data.mp_campaigndates_start,
-      campaign_end_date: data.mp_campaigndates_end ? toMelbourneDateString(data.mp_campaigndates_end) : data.mp_campaigndates_end,
-      mp_campaignbudget: data.mp_campaignbudget
-    }
 
-    // Create MediaPlanMaster
-    const masterResponse = await axios.post(xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), mediaPlanMasterData, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS })
-    
-    // Note: Version creation is handled separately by handleSaveMediaPlanVersion 
-    // which includes all fields (brand, client_contact, po_number, mediatype flags, billing schedule)
-    // This prevents duplicate entries with incomplete data
-    
+    const { master, mirror } = await createMediaPlanMasterPostgresFirst({
+      mbaNumber,
+      mpClientName: data.mp_client_name ?? null,
+      campaignName: data.mp_campaignname ?? null,
+      campaignStatus: data.mp_campaignstatus || "Draft",
+      campaignStartDate: data.mp_campaigndates_start ?? null,
+      campaignEndDate: data.mp_campaigndates_end ?? null,
+      campaignBudget: data.mp_campaignbudget ?? null,
+      clientId:
+        typeof data.client_id === "number"
+          ? data.client_id
+          : typeof data.clients_id === "number"
+            ? data.clients_id
+            : null,
+    })
+
+    // Version creation is handled separately by handleSaveMediaPlanVersion /
+    // POST /api/plans/save — this endpoint only allocates the master identity.
     return NextResponse.json({
-      master: masterResponse.data
+      master,
+      mirror,
     })
   } catch (error) {
-    console.error("Failed to create media plan:", error);
-    
-    // Provide more detailed error information
-    let errorMessage = "Failed to create media plan";
-    let statusCode = 500;
-    
-    if (axios.isAxiosError(error)) {
-      console.error("Axios error details:", {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data
-      });
-      
-      // Extract error message from Xano response
-      const xanoError = error.response?.data?.error || error.response?.data?.message;
-      errorMessage = xanoError || error.message || "Failed to create media plan";
-      statusCode = error.response?.status || 500;
+    console.error("Failed to create media plan:", error)
+
+    let errorMessage = "Failed to create media plan"
+    let statusCode = 500
+    let code: string | undefined
+
+    if (error && typeof error === "object" && "code" in error) {
+      const pgCode = String((error as { code?: unknown }).code ?? "")
+      if (pgCode === "23505") {
+        errorMessage = "A media plan with this MBA number already exists."
+        statusCode = 409
+        code = "MBA_NUMBER_TAKEN"
+      }
+    } else if (error instanceof Error && error.message) {
+      errorMessage = error.message
     }
-    
+
     return NextResponse.json(
-      { error: errorMessage },
+      { error: errorMessage, ...(code ? { code } : {}) },
       { status: statusCode }
-    );
+    )
   }
 }
 
@@ -158,26 +152,15 @@ export async function GET(request: NextRequest) {
       }
     }
   } catch (error) {
-    console.error("Failed to fetch media plans:", error);
-    
-    // Provide more detailed error information
-    let errorMessage = "Failed to fetch media plans";
-    let statusCode = 500;
-    
-    if (axios.isAxiosError(error)) {
-      console.error("Axios error details:", {
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data
-      });
-      
-      errorMessage = error.response?.data?.message || error.message || "Failed to fetch media plans";
-      statusCode = error.response?.status || 500;
+    console.error("Failed to fetch media plans:", error)
+
+    let errorMessage = "Failed to fetch media plans"
+    let statusCode = 500
+
+    if (error instanceof Error && error.message) {
+      errorMessage = error.message
     }
-    
-    return NextResponse.json(
-      { error: errorMessage },
-      { status: statusCode }
-    );
+
+    return NextResponse.json({ error: errorMessage }, { status: statusCode })
   }
 }
