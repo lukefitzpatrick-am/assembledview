@@ -6730,15 +6730,32 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const agencyFeeMonthTotalDrift = manualBillingMonthFeeSum - derivedCampaignFeeFromBursts
 
   async function handleManualBillingSave(forceIgnoreMismatch?: boolean, overrideFeeDrift?: boolean) {
+    // BUX-2: every exit path must toast or open a visible dialog. Do not silently return.
+    let preservedNoticeCount = 0
     if (!forceIgnoreMismatch) {
       const v = validateBillingBeforeSave(manualBillingMonths, { feeCheck: true })
-      if (v.blockingErrors.length > 0 || v.preservedManualOverrides.length > 0) {
+      // Preserved manual≠burst drift is expected after a real month edit — same as campaign
+      // save (notices only). Only structural blockingErrors gate the override PATCH.
+      if (v.blockingErrors.length > 0) {
         setBillingError({
           show: true,
           blockingErrors: v.blockingErrors,
           preservedOverrides: v.preservedManualOverrides,
         })
+        setIsManualBillingModalOpen(true)
+        toast({
+          variant: "destructive",
+          title: "Billing save blocked",
+          description:
+            v.blockingErrors.length === 1
+              ? v.blockingErrors[0]
+              : `${v.blockingErrors.length} issues must be fixed — see Advanced editor, then retry or Save anyway.`,
+        })
         return
+      }
+      preservedNoticeCount = v.preservedManualOverrides.length
+      if (preservedNoticeCount > 0) {
+        setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
       }
     }
 
@@ -6748,6 +6765,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       pendingManualBillingSaveForceIgnoreRef.current = Boolean(forceIgnoreMismatch)
       setFeeDriftValidation(feeDrift)
       setFeeDriftConfirmOpen(true)
+      toast({
+        title: "Confirm fee total difference",
+        description: "Agency fee months differ from the derived campaign fee — confirm in the dialog to continue.",
+      })
       return
     }
 
@@ -6829,7 +6850,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     void refreshBillingOverrideRowsForPanels(versionId)
     toast({
       title: "Billing applied",
-      description: `Overrides saved (${result.replacedMedia} media, ${result.replacedFee} fee${result.reset ? `, ${result.reset} reset` : ""}). Save the plan so C1 recomputes the schedule with overrides attached.`,
+      description: `Overrides saved (${result.replacedMedia} media, ${result.replacedFee} fee${result.reset ? `, ${result.reset} reset` : ""}${
+        preservedNoticeCount > 0 ? `; ${preservedNoticeCount} manual≠auto difference(s) kept` : ""
+      }). Save the plan so C1 recomputes the schedule with overrides attached.`,
     })
   }
 
