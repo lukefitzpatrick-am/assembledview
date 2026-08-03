@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import {
   billingEqualsMbaLabel,
   editBillingOverrideDotLabel,
+  type BillingTimingProvenance,
 } from "@/lib/billing/manualBillingVocabulary"
 import type {
   BillingSchedulePanelIndicatorModel,
@@ -63,8 +64,8 @@ export function EditBillingOverrideDot({
   provenance = null,
 }: {
   show: boolean
-  /** MB-21: saved vs unsaved — drives aria-label / title. */
-  provenance?: "saved" | "unsaved" | null
+  /** MB-24: draft / unsaved / saved — drives aria-label / title. */
+  provenance?: BillingTimingProvenance | null
 }) {
   if (!show) return null
   const label = provenance

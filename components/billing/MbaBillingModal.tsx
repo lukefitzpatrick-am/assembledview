@@ -53,6 +53,7 @@ import {
 import { formatMoney } from "@/lib/format/money"
 import {
   clientPaysBadgeLabel,
+  draftContradictsSavedForLine,
   feeAdjustedBadgeLabel,
   formatManualBillingStatusLabel,
   manualBillingHeaderLabel,
@@ -185,11 +186,13 @@ export type MbaBillingModalProps = {
   billingTimingReadOnly?: boolean
   billingTimingReadOnlyMessage?: string
   /**
-   * MB-21: pending + table carriers for saved/unsaved labels on line badges,
-   * header, Edit Billing dot, and Matches MBA.
+   * MB-21/MB-24: pending + fetch-only saved carriers for provenance labels.
+   * Optional draftOverrideRows (open editor layered rows) → "not applied".
    */
   pendingOverrideRows?: BillingOverrideRow[]
   tableOverrideRows?: BillingOverrideRow[]
+  /** MB-24: open timing draft as override-shaped rows (precedence: draft > pending > saved). */
+  draftOverrideRows?: BillingOverrideRow[]
   footer?: ReactNode
   /**
    * False while channel containers are still hydrating. Suppresses green/red
@@ -260,6 +263,7 @@ function HeaderStrip({
   reconciliationReady = true,
   pendingOverrideRows,
   tableOverrideRows,
+  draftOverrideRows,
 }: {
   versionLabel: string
   financials: CampaignFinancials
@@ -270,6 +274,7 @@ function HeaderStrip({
   reconciliationReady?: boolean
   pendingOverrideRows?: BillingOverrideRow[]
   tableOverrideRows?: BillingOverrideRow[]
+  draftOverrideRows?: BillingOverrideRow[]
 }) {
   const lines = financials.perLine
   const total = lines.length
@@ -278,7 +283,11 @@ function HeaderStrip({
   const partialLabel = panelIndicators.mbaDetails.partialLabel
   const campaignProvenance: BillingTimingProvenance | null =
     pendingOverrideRows && tableOverrideRows
-      ? resolveCampaignBillingTimingProvenance(pendingOverrideRows, tableOverrideRows)
+      ? resolveCampaignBillingTimingProvenance(
+          pendingOverrideRows,
+          tableOverrideRows,
+          draftOverrideRows
+        )
       : panelIndicators.billingSchedule.editBillingOverrideProvenance ?? null
 
   const months = monthYears ?? []
@@ -412,7 +421,8 @@ function lineStatusDisplay(
   lineItemId: string,
   kind: "prepaidMediaAndFee" | "prepaidMedia" | "manualTiming" | "feeAdjusted",
   pendingRows: BillingOverrideRow[] | undefined,
-  tableRows: BillingOverrideRow[] | undefined
+  tableRows: BillingOverrideRow[] | undefined,
+  draftRows?: BillingOverrideRow[] | null
 ): { label: string; tooltip: string } {
   const base =
     kind === "prepaidMediaAndFee"
@@ -436,7 +446,8 @@ function lineStatusDisplay(
   const provenance = resolveLineBillingTimingProvenance(
     lineItemId,
     pendingRows,
-    tableRows
+    tableRows,
+    draftRows
   )
   if (!provenance) {
     return {
@@ -449,7 +460,12 @@ function lineStatusDisplay(
             : "Fee months were adjusted manually for invoicing.",
     }
   }
-  const differs = pendingContradictsSavedForLine(lineItemId, pendingRows, tableRows)
+  const differs =
+    (provenance === "draft" &&
+      Boolean(draftRows) &&
+      draftContradictsSavedForLine(lineItemId, draftRows!, tableRows)) ||
+    (provenance === "unsaved" &&
+      pendingContradictsSavedForLine(lineItemId, pendingRows, tableRows))
   return {
     label: formatManualBillingStatusLabel(kind, provenance, {
       differsFromSaved: differs,
@@ -467,6 +483,7 @@ function ScopeLineRow({
   lineTiming,
   pendingOverrideRows,
   tableOverrideRows,
+  draftOverrideRows,
 }: {
   line: MbaBillingScopeLine
   versionLabel: string
@@ -476,6 +493,7 @@ function ScopeLineRow({
   lineTiming?: MbaBillingLineTimingApi
   pendingOverrideRows?: BillingOverrideRow[]
   tableOverrideRows?: BillingOverrideRow[]
+  draftOverrideRows?: BillingOverrideRow[]
 }) {
   const muted = line.flags.excluded
   const dateBasisChoice = lineTiming?.getDateBasisChoice?.(line.lineItemId) ?? null
@@ -558,7 +576,8 @@ function ScopeLineRow({
                   line.lineItemId,
                   kind,
                   pendingOverrideRows,
-                  tableOverrideRows
+                  tableOverrideRows,
+                  draftOverrideRows
                 )
                 return (
                   <Tooltip>
@@ -584,7 +603,8 @@ function ScopeLineRow({
                     line.lineItemId,
                     "manualTiming",
                     pendingOverrideRows,
-                    tableOverrideRows
+                    tableOverrideRows,
+                    draftOverrideRows
                   )
                   return (
                     <Tooltip>
@@ -608,7 +628,8 @@ function ScopeLineRow({
                     line.lineItemId,
                     "feeAdjusted",
                     pendingOverrideRows,
-                    tableOverrideRows
+                    tableOverrideRows,
+                    draftOverrideRows
                   )
                   return (
                     <Tooltip>
@@ -708,7 +729,8 @@ function ScopeLineRow({
               line.lineItemId,
               kind,
               pendingOverrideRows,
-              tableOverrideRows
+              tableOverrideRows,
+              draftOverrideRows
             ).label
           })()}
           clientPaysForMedia={line.flags.clientPaysForMedia}
@@ -796,6 +818,7 @@ export function MbaBillingModal({
   billingTimingReadOnlyMessage,
   pendingOverrideRows,
   tableOverrideRows,
+  draftOverrideRows,
   footer,
   reconciliationReady = true,
 }: MbaBillingModalProps) {
@@ -804,7 +827,11 @@ export function MbaBillingModal({
   const editDotProvenance =
     panelIndicators.billingSchedule.editBillingOverrideProvenance ??
     (pendingOverrideRows && tableOverrideRows
-      ? resolveCampaignBillingTimingProvenance(pendingOverrideRows, tableOverrideRows)
+      ? resolveCampaignBillingTimingProvenance(
+          pendingOverrideRows,
+          tableOverrideRows,
+          draftOverrideRows
+        )
       : null)
   const advancedOpen =
     !timingLocked && (showAdvancedEditor ?? showManualEditor ?? false)
@@ -924,6 +951,7 @@ export function MbaBillingModal({
             reconciliationReady={reconciliationReady}
             pendingOverrideRows={pendingOverrideRows}
             tableOverrideRows={tableOverrideRows}
+            draftOverrideRows={draftOverrideRows}
           />
           {timingLocked ? (
             <div className="border-b border-border px-6 py-3">
@@ -1098,6 +1126,7 @@ export function MbaBillingModal({
                                 lineTiming={effectiveLineTiming}
                                 pendingOverrideRows={pendingOverrideRows}
                                 tableOverrideRows={tableOverrideRows}
+                                draftOverrideRows={draftOverrideRows}
                               />
                             ))}
                           </div>

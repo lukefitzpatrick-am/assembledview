@@ -126,8 +126,15 @@ export function panelIndicatorsFromCampaignFinancials(
     if (opts?.lineTimingProvenance) {
       for (const l of inScope) {
         const p = opts.lineTimingProvenance(l.lineItemId)
-        if (p === "unsaved") timingProvenance = "unsaved"
-        else if (p === "saved" && timingProvenance !== "unsaved") {
+        // MB-24 precedence: draft > unsaved > saved
+        if (p === "draft") timingProvenance = "draft"
+        else if (p === "unsaved" && timingProvenance !== "draft") {
+          timingProvenance = "unsaved"
+        } else if (
+          p === "saved" &&
+          timingProvenance !== "draft" &&
+          timingProvenance !== "unsaved"
+        ) {
           timingProvenance = "saved"
         }
         if (opts.lineDiffersFromSaved?.(l.lineItemId)) differsFromSaved = true
@@ -171,7 +178,10 @@ export function panelIndicatorsFromCampaignFinancials(
   const annotate = (base: string): string => {
     if (!campaignProvenance) return base
     let label = withBillingTimingProvenance(base, campaignProvenance)
-    if (campaignDiffers && campaignProvenance === "unsaved") {
+    if (
+      campaignDiffers &&
+      (campaignProvenance === "unsaved" || campaignProvenance === "draft")
+    ) {
       label = `${label} · ${MANUAL_BILLING_VOCAB.differsFromSaved}`
     }
     return label
@@ -187,10 +197,14 @@ export function panelIndicatorsFromCampaignFinancials(
       tone: "amber",
       tooltip: campaignProvenance
         ? campaignDiffers
-          ? "Shown timing is unsaved and differs from saved billing overrides."
-          : campaignProvenance === "unsaved"
-            ? "Manual billing timing is applied on this page but not yet saved with the plan."
-            : "Billing months were set manually and may differ from auto-calculated delivery timing for invoicing."
+          ? campaignProvenance === "draft"
+            ? "Shown timing is not applied and differs from saved billing overrides."
+            : "Shown timing is unsaved and differs from saved billing overrides."
+          : campaignProvenance === "draft"
+            ? "Manual billing timing is edited in the open dialog but not yet Applied."
+            : campaignProvenance === "unsaved"
+              ? "Manual billing timing is applied on this page but not yet saved with the plan."
+              : "Billing months were set manually and may differ from auto-calculated delivery timing for invoicing."
         : "Billing months were set manually and may differ from auto-calculated delivery timing for invoicing.",
     })
   }
@@ -201,7 +215,9 @@ export function panelIndicatorsFromCampaignFinancials(
       label: annotate(MANUAL_BILLING_VOCAB.prepaidMediaAndFee),
       tone: "amber",
       tooltip: campaignDiffers
-        ? "Shown timing is unsaved and differs from saved billing overrides."
+        ? campaignProvenance === "draft"
+          ? "Shown timing is not applied and differs from saved billing overrides."
+          : "Shown timing is unsaved and differs from saved billing overrides."
         : "Media and agency fee are billed up front (prepayment) rather than spread across delivery months.",
     })
   } else if (hasMediaPrepaid) {
@@ -210,7 +226,9 @@ export function panelIndicatorsFromCampaignFinancials(
       label: annotate(MANUAL_BILLING_VOCAB.prepaidMedia),
       tone: "amber",
       tooltip: campaignDiffers
-        ? "Shown timing is unsaved and differs from saved billing overrides."
+        ? campaignProvenance === "draft"
+          ? "Shown timing is not applied and differs from saved billing overrides."
+          : "Shown timing is unsaved and differs from saved billing overrides."
         : "Media is billed up front; agency fee stays on delivery timing.",
     })
   }

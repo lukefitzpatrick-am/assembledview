@@ -1,10 +1,10 @@
 /**
  * MB-20 — named client carrier for unsaved manual billing timing the user has
- * Applied but not yet saved with the campaign (Apply still persists overrides
- * until MB-23 removes that write).
+ * Applied but not yet saved with the campaign.
  *
- * Precedence for modal / panel override rows (one place):
- *   pending (unsaved) > table (saved billing_overrides) > computed auto
+ * Precedence for modal / panel override rows (MB-24):
+ *   pending (unsaved) > savedBillingOverrideRows (fetch-only) > computed auto
+ * Open draft layers for display; never merges into the save payload until Apply.
  *
  * Derivation of pending rows uses existing `layerDraftMonthsOntoOverrideRows`
  * only — do not add a second draft→rows path.
@@ -32,17 +32,17 @@ export function buildPendingBillingOverrideRows(
 }
 
 /**
- * Precedence: pending (unsaved) > table (saved) > computed auto.
- * Non-empty pending wins; otherwise fall through to DB/optimistic table rows.
+ * Precedence: pending (unsaved) > saved (fetch-only table) > computed auto.
+ * Non-empty pending wins; otherwise fall through to savedBillingOverrideRows.
  */
 export function resolveBillingOverrideRowsForModal(
   pendingBillingOverrideRows: BillingOverrideRow[] | null | undefined,
-  billingOverrideRowsForPanels: BillingOverrideRow[]
+  savedBillingOverrideRows: BillingOverrideRow[]
 ): BillingOverrideRow[] {
   if (pendingBillingOverrideRows && pendingBillingOverrideRows.length > 0) {
     return pendingBillingOverrideRows
   }
-  return billingOverrideRowsForPanels ?? []
+  return savedBillingOverrideRows ?? []
 }
 
 /** Drop a line from the pending carrier (Reset to auto) so pending and table agree. */

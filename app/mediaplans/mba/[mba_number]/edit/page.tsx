@@ -205,18 +205,13 @@ import {
   applyLineFeePrebillToMonths,
   applyLinePrebillToMonths,
   billingOverrideLineIdsMatch,
-  buildPrepaymentOverrideMonths,
   clearLineOverrideMeta,
   listManualOverrideLineIds,
-  removeOptimisticFeeOverrideRow,
-  removeOptimisticMediaOverrideRow,
   restoreLinePrebillSnapshot,
   sumLineFeeAcrossMonths,
   sumLineMediaAcrossMonths,
   toBillingOverrideLineItemId,
   upsertLineOverrideMeta,
-  upsertOptimisticFeePrepaymentOverrideRow,
-  upsertOptimisticPrepaymentOverrideRow,
   validateManualMediaMonthsSum,
   type LineOverrideMeta,
 } from "@/lib/finance/manualBillingOverridesUi"
@@ -2018,13 +2013,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   } | null>(null)
   /** Canonical line ids present on last hydrated / saved billing baseline (C3 preserve-prior). */
   const persistedBillingLineIdsRef = useRef<Set<string>>(new Set())
-  /** Table overrides for panel indicators only (save path still attaches server-side). */
-  const [billingOverrideRowsForPanels, setBillingOverrideRowsForPanels] = useState<
+  /**
+   * MB-24 — fetch-only saved billing_overrides for provenance + save baseline.
+   * Written ONLY by successful fetch and plan-change reset. Never optimistic.
+   */
+  const [savedBillingOverrideRows, setSavedBillingOverrideRows] = useState<
     BillingOverrideRow[]
   >([])
   /**
    * MB-20 — unsaved manual billing timing the user has Applied but not campaign-saved.
-   * Precedence for modal resolve: pending (unsaved) > table (saved) > computed auto.
+   * Precedence for modal resolve: pending (unsaved) > saved (fetch-only) > computed auto.
    * Derived only via `buildPendingBillingOverrideRows` → `layerDraftMonthsOntoOverrideRows`.
    */
   const [pendingBillingOverrideRows, setPendingBillingOverrideRows] = useState<
@@ -3313,7 +3311,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       setSavedBillingMonths([])
       savedBillingMonthsRef.current = []
       persistedBillingLineIdsRef.current = new Set()
-      setBillingOverrideRowsForPanels([])
+      setSavedBillingOverrideRows([])
       setPendingBillingOverrideRows([])
       pendingBillingOverrideMetaRef.current = new Map()
       setWorkingBillingMonths([])
@@ -4419,20 +4417,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       // Skip until a real version row id exists (empty → client 400 / noisy toast).
       // MB-18: unresolved id is a race — clear any latched notice, do not set one.
       if (!isUsableBillingVersionId(id)) {
-        setBillingOverrideRowsForPanels([])
+        setSavedBillingOverrideRows([])
         setBillingOverridesLoadNotice(nextBillingOverridesLoadNotice({ kind: "version_unresolved" }))
         return
       }
       try {
         const rows = await fetchBillingOverridesClient(id)
-        setBillingOverrideRowsForPanels(Array.isArray(rows) ? rows : [])
+        setSavedBillingOverrideRows(Array.isArray(rows) ? rows : [])
         setBillingOverridesLoadNotice(nextBillingOverridesLoadNotice({ kind: "fetch_ok" }))
       } catch (err) {
         console.warn(
           "[panels] failed to load billing overrides for indicators",
           err instanceof Error ? err.message : err
         )
-        setBillingOverrideRowsForPanels([])
+        setSavedBillingOverrideRows([])
         setBillingOverridesLoadNotice(nextBillingOverridesLoadNotice({ kind: "fetch_failed" }))
       }
     },
@@ -4621,7 +4619,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     if (isUsableBillingVersionId(versionId)) {
       try {
         const rows = await fetchBillingOverridesClient(versionId)
-        setBillingOverrideRowsForPanels(rows)
+        setSavedBillingOverrideRows(rows)
         setBillingOverridesLoadNotice(nextBillingOverridesLoadNotice({ kind: "fetch_ok" }))
         // MB-20: pending (Applied, unsaved) wins over fetched table rows for the draft overlay.
         const rowsForOverlay = resolveBillingOverrideRowsForModal(
@@ -5100,28 +5098,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId, "fee")
     }
 
-    const mediaOverrideMonths = buildPrepaymentOverrideMonths(next, lineMediaTotal)
-    const feeOverrideMonths =
-      scope === "media_and_fee" && lineFeeTotal > 0.005
-        ? buildPrepaymentOverrideMonths(next, lineFeeTotal)
-        : null
-    setBillingOverrideRowsForPanels((prev) => {
-      let rows = upsertOptimisticPrepaymentOverrideRow(
-        prev,
-        lineItemId,
-        mediaOverrideMonths
-      )
-      if (feeOverrideMonths) {
-        rows = upsertOptimisticFeePrepaymentOverrideRow(
-          rows,
-          lineItemId,
-          feeOverrideMonths
-        )
-      } else {
-        rows = removeOptimisticFeeOverrideRow(rows, lineItemId)
-      }
-      return rows
-    })
+    // MB-24: Prebill mutates draft months + meta only. Display comes from
+    // resolveMbaBillingModalState (draft layer). Never write savedBillingOverrideRows.
   }
 
   function handleManualBillingLineItemPreBillToggle(
@@ -5165,12 +5143,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       dateBasis: "",
       component: "media",
     })
-    setBillingOverrideRowsForPanels((prev) =>
-      removeOptimisticFeeOverrideRow(
-        removeOptimisticMediaOverrideRow(prev, lineItemId),
-        lineItemId
-      )
-    )
+    // MB-24: uncheck clears meta + draft months only — not the fetch-only saved cache.
   }
 
   function handleManualBillingCostPreBillToggle(costKey: "fee" | "adServing" | "production", nextChecked: boolean) {
@@ -5481,13 +5454,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setPendingBillingOverrideRows((prev) =>
       removeLineFromPendingBillingOverrideRows(prev, lineItemId)
     )
-    // Optimistic UI only — table rows are re-fetched / REPLACE-SET on campaign save.
-    setBillingOverrideRowsForPanels((prev) =>
-      removeOptimisticFeeOverrideRow(
-        removeOptimisticMediaOverrideRow(prev, lineItemId),
-        lineItemId
-      )
-    )
+    // MB-24: never strip savedBillingOverrideRows optimistically — Cancel/display
+    // read draft + pending; campaign save REPLACE-SET commits the reset.
 
     const template = attachLineItemsToMonthsRef.current(
       deepCloneBillingMonthsState(autoAgg),
@@ -6173,8 +6141,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       try {
         const rows = resolveBillingOverrideRowsForModal(
           pendingBillingOverrideRows,
-          billingOverrideRowsForPanels.length > 0
-            ? billingOverrideRowsForPanels
+          savedBillingOverrideRows.length > 0
+            ? savedBillingOverrideRows
             : await fetchBillingOverridesClient(versionId)
         )
         const stale = await findStaleDateBasisOverrides({
@@ -6203,7 +6171,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open + override rows + activity; open handler is stable enough
   }, [
     isMbaBillingModalOpen,
-    billingOverrideRowsForPanels,
+    savedBillingOverrideRows,
     pendingBillingOverrideRows,
     buildIncomingActivity,
     manualBillingDraftReady,
@@ -6241,7 +6209,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         })
 
       setPendingBillingOverrideRows((prev) => patchRows(prev))
-      setBillingOverrideRowsForPanels((prev) => patchRows(prev))
+      // MB-24: date-basis keep patches pending only — never the fetch-only saved cache.
 
       // PC4 balancer: re-anchor out-of-span months into the draft (local).
       if (isBillingBalancerEnabled() && manualBillingMonths.length > 0) {
@@ -6329,8 +6297,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   /**
    * Shared line/fee inputs for panel financials and version-save bodies (C1 omit mode).
-   * MB-22: pending (Applied, unsaved) merged over saved billing_overrides so the
+   * MB-22: pending (Applied, unsaved) merged over savedBillingOverrideRows so the
    * save payload states the full intended override set for every line.
+   * Un-Applied draft never reaches this merge (MB-24).
    */
   const billingSaveInputs = useMemo(() => {
     const lineItems = attachOverridesToLineInputs(
@@ -6340,7 +6309,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }),
       mergePendingOverSavedOverrideRows(
         pendingBillingOverrideRows,
-        billingOverrideRowsForPanels
+        savedBillingOverrideRows
       )
     )
     const feeLoading = buildFeeLoadingFromEditorFees({
@@ -6371,7 +6340,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     isPartialMBA,
     partialMBASelectedLineItemIds,
     pendingBillingOverrideRows,
-    billingOverrideRowsForPanels,
+    savedBillingOverrideRows,
     feeTelevision,
     feeRadio,
     feeNewspapers,
@@ -6428,8 +6397,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   /**
    * MB-7 — single resolved view for MbaBillingModal (and panel badges that share it).
    * Core line inputs + override rows, with open timing draft layered on top.
-   * MB-20 precedence for override rows: pending (unsaved) > table (saved) > computed auto.
-   * Save PUT uses billingSaveInputs with pending∪saved overrides (MB-22).
+   * MB-20/MB-24 precedence for override rows: pending (unsaved) > saved (fetch-only) > computed auto.
+   * Open draft layers for display only; provenance is draft > pending > saved.
+   * Save PUT uses billingSaveInputs with pending∪saved overrides (MB-22) — never draft.
    */
   const mbaBillingModalState = useMemo(() => {
     const start =
@@ -6442,7 +6412,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         : undefined
     const overrideRows = resolveBillingOverrideRowsForModal(
       pendingBillingOverrideRows,
-      billingOverrideRowsForPanels
+      savedBillingOverrideRows
     )
     const metaByLine =
       manualBillingDraftReady
@@ -6462,7 +6432,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
       overrideRows,
       pendingOverrideRows: pendingBillingOverrideRows,
-      tableOverrideRows: billingOverrideRowsForPanels,
+      tableOverrideRows: savedBillingOverrideRows,
       draftReady: manualBillingDraftReady,
       draftMonths: manualBillingMonths,
       metaByLine,
@@ -6473,7 +6443,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     isPartialMBA,
     partialMBASelectedLineItemIds,
     partialMBAMonthYears,
-    billingOverrideRowsForPanels,
+    savedBillingOverrideRows,
     pendingBillingOverrideRows,
     billingSaveInputs.feeLoading,
     campaignStartDate,
@@ -9636,7 +9606,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }),
       resolveBillingOverrideRowsForModal(
         pendingBillingOverrideRows,
-        billingOverrideRowsForPanels
+        savedBillingOverrideRows
       )
     )
     const start =
@@ -12442,7 +12412,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         open={isMbaBillingModalOpen}
         onOpenChange={(open) => {
           if (!open) {
-            // MB-20 Cancel path (X / Escape / footer Cancel): discard draft + pending.
+            // MB-20/MB-24 Cancel path (X / Escape / footer Cancel): discard draft +
+            // pending. savedBillingOverrideRows is fetch-only — untouched — so the
+            // screen returns to the saved picture immediately (no refetch wait).
             setIsManualBillingModalOpen(false)
             setManualBillingDraftReady(false)
             setManualBillingMonths([])
@@ -12456,7 +12428,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           setIsMbaBillingModalOpen(open)
         }}
         onCancelBilling={() => {
-          // Explicit Cancel — same teardown as X / Escape.
+          // Explicit Cancel — same teardown as X / Escape (MB-24: saved cache untouched).
           setIsMbaBillingModalOpen(false)
           setIsManualBillingModalOpen(false)
           setManualBillingDraftReady(false)
@@ -12506,7 +12478,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         onAcknowledgeDivergence={handleAcknowledgeDivergence}
         overridesLoadNotice={billingOverridesLoadNotice}
         pendingOverrideRows={pendingBillingOverrideRows}
-        tableOverrideRows={billingOverrideRowsForPanels}
+        tableOverrideRows={savedBillingOverrideRows}
+        draftOverrideRows={
+          manualBillingDraftReady && mbaBillingModalState.viewReady
+            ? mbaBillingModalState.effectiveOverrideRows
+            : undefined
+        }
         billingTimingReadOnly={isApprovedOrBeyond(
           mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
         )}

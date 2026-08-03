@@ -95,7 +95,7 @@ type Session = {
   pendingMeta: Map<string, LineOverrideMeta[]>
   draftReady: boolean
   draftMonths: BillingMonth[]
-  /** DB / optimistic table rows — intentionally empty in reopen tests. */
+  /** Fetch-only saved table rows — never optimistic (MB-24). */
   billingOverrideRowsForPanels: ReturnType<typeof buildPendingBillingOverrideRows>
 }
 

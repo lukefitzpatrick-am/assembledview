@@ -5,11 +5,14 @@
  * top. Both modal halves (left Adjust timing, right schedule table) read this
  * result so they cannot disagree to the cent.
  *
- * Caller supplies override rows already resolved with MB-20 precedence:
- * pending (unsaved) > table (saved) > computed auto.
+ * Caller supplies override rows already resolved with MB-20/MB-24 precedence:
+ * pending (unsaved) > savedBillingOverrideRows (fetch-only) > computed auto.
+ * Open draft layers on top for display; provenance is draft > pending > saved.
  */
 
 import {
+  draftContradictsSavedAnywhere,
+  draftContradictsSavedForLine,
   pendingContradictsSavedAnywhere,
   resolveCampaignBillingTimingProvenance,
   resolveLineBillingTimingProvenance,
@@ -43,15 +46,18 @@ export type ResolveMbaBillingModalStateArgs = {
   campaignStart?: Date
   campaignEnd?: Date
   selectedMonthYears?: string[]
-  /** Persisted + optimistic billing_overrides (or already-resolved effective rows). */
+  /** Resolved pending∪saved override rows (or already-resolved effective rows). */
   overrideRows: BillingOverrideRow[]
   /**
-   * MB-21: raw pending carrier (Applied, unsaved). When set with `tableOverrideRows`,
-   * panel indicators get saved/unsaved provenance. Display still uses `overrideRows`
-   * (caller applies pending > table precedence).
+   * MB-21/MB-24: raw pending carrier (Applied, unsaved). When set with
+   * `tableOverrideRows`, panel indicators get draft/unsaved/saved provenance.
+   * Display still uses `overrideRows` (caller applies pending > saved precedence).
    */
   pendingOverrideRows?: BillingOverrideRow[]
-  /** MB-21: saved table rows for provenance (may differ from overrideRows when pending wins). */
+  /**
+   * MB-24: fetch-only saved table rows for provenance (never optimistic).
+   * May differ from overrideRows when pending wins.
+   */
   tableOverrideRows?: BillingOverrideRow[]
   /** True while Adjust timing / Advanced draft session is open. */
   draftReady: boolean
@@ -209,25 +215,39 @@ export function resolveMbaBillingModalState(
   const draftSessionActive = Boolean(args.draftReady)
   const draftMonths = args.draftMonths ?? []
 
+  const pendingRows = args.pendingOverrideRows
+  const tableRows = args.tableOverrideRows
+
+  const buildProvenanceOpts = (draftRowsForProvenance?: BillingOverrideRow[]) => {
+    if (pendingRows === undefined || tableRows === undefined) return {}
+    const draft = draftRowsForProvenance ?? null
+    return {
+      timingProvenance: resolveCampaignBillingTimingProvenance(
+        pendingRows,
+        tableRows,
+        draft
+      ),
+      differsFromSaved:
+        (draft != null && draftContradictsSavedAnywhere(draft, tableRows)) ||
+        pendingContradictsSavedAnywhere(pendingRows, tableRows),
+      lineTimingProvenance: (lineItemId: string) =>
+        resolveLineBillingTimingProvenance(
+          lineItemId,
+          pendingRows,
+          tableRows,
+          draft
+        ),
+      lineDiffersFromSaved: (lineItemId: string) =>
+        (draft != null &&
+          draftContradictsSavedForLine(lineItemId, draft, tableRows)) ||
+        pendingContradictsSavedForLine(lineItemId, pendingRows, tableRows),
+    }
+  }
+
   // Stranded draftReady + empty months — both halves empty (MB-6 failure shape).
   if (draftSessionActive && draftMonths.length === 0) {
     const financials = emptyCampaignFinancials()
-    const pendingRows = args.pendingOverrideRows
-    const tableRows = args.tableOverrideRows
-    const provenanceOpts =
-      pendingRows !== undefined && tableRows !== undefined
-        ? {
-            timingProvenance: resolveCampaignBillingTimingProvenance(
-              pendingRows,
-              tableRows
-            ),
-            differsFromSaved: pendingContradictsSavedAnywhere(pendingRows, tableRows),
-            lineTimingProvenance: (lineItemId: string) =>
-              resolveLineBillingTimingProvenance(lineItemId, pendingRows, tableRows),
-            lineDiffersFromSaved: (lineItemId: string) =>
-              pendingContradictsSavedForLine(lineItemId, pendingRows, tableRows),
-          }
-        : {}
+    const provenanceOpts = buildProvenanceOpts()
     return {
       viewReady: false,
       draftSessionActive,
@@ -269,22 +289,11 @@ export function resolveMbaBillingModalState(
 
   const resolvedMonths = draftSessionActive ? draftMonths : []
 
-  const pendingRows = args.pendingOverrideRows
-  const tableRows = args.tableOverrideRows
-  const provenanceOpts =
-    pendingRows !== undefined && tableRows !== undefined
-      ? {
-          timingProvenance: resolveCampaignBillingTimingProvenance(
-            pendingRows,
-            tableRows
-          ),
-          differsFromSaved: pendingContradictsSavedAnywhere(pendingRows, tableRows),
-          lineTimingProvenance: (lineItemId: string) =>
-            resolveLineBillingTimingProvenance(lineItemId, pendingRows, tableRows),
-          lineDiffersFromSaved: (lineItemId: string) =>
-            pendingContradictsSavedForLine(lineItemId, pendingRows, tableRows),
-        }
-      : {}
+  // MB-24: open draft rows feed provenance so Prebill-before-Apply is "not applied",
+  // never "saved". Pass the layered draft rows only while the session is healthy.
+  const draftRowsForProvenance =
+    draftSessionActive && draftMonths.length > 0 ? effectiveOverrideRows : undefined
+  const provenanceOpts = buildProvenanceOpts(draftRowsForProvenance)
 
   return {
     viewReady: true,
