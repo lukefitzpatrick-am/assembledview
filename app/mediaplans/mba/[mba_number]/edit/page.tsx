@@ -258,7 +258,10 @@ import {
 } from "@/lib/billing/rebalanceLineOnSchedule"
 import { isBillingBalancerEnabled, reanchorOutOfSpanToBalancer } from "@/lib/billing/balancer"
 import { writeCollisionDecisionEdits } from "@/lib/billing/writeCollisionAuditEdits"
-import { persistManualBillingOverrides } from "@/lib/finance/persistManualBillingOverrides"
+import {
+  manualBillingPersistSkipNotice,
+  persistManualBillingOverrides,
+} from "@/lib/finance/persistManualBillingOverrides"
 import {
   collectPersistedBillingLineIds,
   diffBillingActivity,
@@ -6941,11 +6944,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     // BUX-6: never toast success when nothing was written (silent no-op looked "saved").
     if (result.replacedMedia + result.replacedFee + result.reset === 0) {
+      const skipNotice = manualBillingPersistSkipNotice(result.skippedEmptyMonths)
       toast({
         variant: "destructive",
         title: "Nothing to save",
-        description:
-          "No manual billing lines were found to persist. Adjust timing / Prebill first, then retry.",
+        description: skipNotice
+          ? `No living manual lines were persisted. ${skipNotice} Adjust timing / Prebill on a current plan line, then retry.`
+          : "No manual billing lines were found to persist. Adjust timing / Prebill first, then retry.",
       })
       return
     }
@@ -7019,11 +7024,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       void refreshBillingOverrideRowsForPanels(versionId)
     }
 
+    const skipNotice = manualBillingPersistSkipNotice(result.skippedEmptyMonths)
     toast({
       title: "Billing applied",
       description: `Overrides saved (${result.replacedMedia} media, ${result.replacedFee} fee${result.reset ? `, ${result.reset} reset` : ""}${
         preservedNoticeCount > 0 ? `; ${preservedNoticeCount} manual≠auto difference(s) kept` : ""
-      }). Save the plan so C1 recomputes the schedule with overrides attached.`,
+      }${skipNotice ? `; ${skipNotice}` : ""}). Save the plan so C1 recomputes the schedule with overrides attached.`,
     })
   }
 

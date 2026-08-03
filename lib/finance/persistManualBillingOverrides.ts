@@ -23,7 +23,14 @@ import {
 } from "@/lib/finance/manualBillingOverridesUi"
 
 export type PersistManualBillingOverridesResult =
-  | { ok: true; replacedMedia: number; replacedFee: number; reset: number }
+  | {
+      ok: true
+      replacedMedia: number
+      replacedFee: number
+      reset: number
+      /** Canon line ids skipped because extract found no month amounts (MB-19 orphans). */
+      skippedEmptyMonths: string[]
+    }
   | { ok: false; message: string }
 
 function reasonFromMeta(
@@ -41,10 +48,23 @@ function reasonFromMeta(
 }
 
 /**
+ * MB-19 — actionable copy when override meta named lines that are absent from the draft
+ * schedule (deleted lines / orphans). Leaves the DB row in place (skip, do not reset).
+ */
+export function manualBillingPersistSkipNotice(skippedLineIds: string[]): string | null {
+  const n = skippedLineIds.length
+  if (n === 0) return null
+  return n === 1
+    ? "1 override was skipped because that plan line is no longer present."
+    : `${n} overrides were skipped because those plan lines are no longer present.`
+}
+
+/**
  * Write current modal draft to billing_overrides.
  * - Validates media sum == line media total (from auto schedule) before replace_line(media).
  * - Fee lanes → replace_line(component=fee) with no sum gate.
  * - Lines that had table overrides but are no longer manual → reset_line.
+ * - MB-19: empty monthsIso skips that line (continue) — never aborts the whole save.
  */
 export async function persistManualBillingOverrides(args: {
   versionId: string | number
@@ -119,16 +139,16 @@ export async function persistManualBillingOverrides(args: {
   let replacedMedia = 0
   let replacedFee = 0
   let reset = 0
+  const skippedEmptyMonths: string[] = []
 
   for (const [lineItemId, billingRowId] of mediaWriteIds) {
-    const dateBasis = await computeBillingOverrideDateBasis(getBurstsForLine(billingRowId))
     const monthsIso = extractOverrideMonthsFromSchedule(months, billingRowId, "media")
+    // MB-19: orphan / absent line — skip this row; do not abort sibling writes; leave DB row.
     if (monthsIso.length === 0) {
-      return {
-        ok: false,
-        message: `No month amounts found to persist for media line ${lineItemId}.`,
-      }
+      skippedEmptyMonths.push(lineItemId)
+      continue
     }
+    const dateBasis = await computeBillingOverrideDateBasis(getBurstsForLine(billingRowId))
     await replaceBillingOverrideLineClient({
       media_plan_version_id: versionId,
       mba_number: mba,
@@ -143,14 +163,12 @@ export async function persistManualBillingOverrides(args: {
   }
 
   for (const [lineItemId, billingRowId] of feeWriteIds) {
-    const dateBasis = await computeBillingOverrideDateBasis(getBurstsForLine(billingRowId))
     const monthsIso = extractOverrideMonthsFromSchedule(months, billingRowId, "fee")
     if (monthsIso.length === 0) {
-      return {
-        ok: false,
-        message: `No month amounts found to persist for fee line ${lineItemId}.`,
-      }
+      skippedEmptyMonths.push(lineItemId)
+      continue
     }
+    const dateBasis = await computeBillingOverrideDateBasis(getBurstsForLine(billingRowId))
     await replaceBillingOverrideLineClient({
       media_plan_version_id: versionId,
       mba_number: mba,
@@ -185,5 +203,5 @@ export async function persistManualBillingOverrides(args: {
     reset += 1
   }
 
-  return { ok: true, replacedMedia, replacedFee, reset }
+  return { ok: true, replacedMedia, replacedFee, reset, skippedEmptyMonths }
 }
