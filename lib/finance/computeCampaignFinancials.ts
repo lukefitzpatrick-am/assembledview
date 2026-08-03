@@ -861,7 +861,12 @@ function toPerLineResult(line: ResolvedLine): PerLineResult {
       clientPaysForMedia: line.clientPaysForMedia,
       manualBilling: line.billingOverride?.mode === "manual",
       manualFee: line.feeOverride?.mode === "manual",
-      prepaid: line.billingOverride?.reason === "prepayment",
+      prepaid:
+        line.billingOverride?.reason === "prepayment" &&
+        line.feeOverride?.reason === "prepayment",
+      mediaPrepaid:
+        line.billingOverride?.reason === "prepayment" &&
+        line.feeOverride?.reason !== "prepayment",
       excluded: line.excluded,
     },
   }

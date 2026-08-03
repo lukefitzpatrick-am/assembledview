@@ -80,14 +80,19 @@ export function diffBillingActivity(args: {
   persistedLineIds: Iterable<string>
   incoming: BillingActivityLine[]
 }): BillingActivityDiff {
+  // MB-11: both prior and incoming membership use canonical bare ids.
   const priorSet = new Set(
     [...args.persistedLineIds].map((id) => toBillingOverrideLineItemId(String(id))).filter(Boolean)
   )
-  const incomingIds = new Set(args.incoming.map((l) => l.lineItemId))
+  const incomingIds = new Set(
+    args.incoming
+      .map((l) => toBillingOverrideLineItemId(String(l.lineItemId ?? "").trim()))
+      .filter(Boolean)
+  )
 
   const priorLineIds = [...priorSet].filter((id) => incomingIds.has(id)).sort()
   const newActivity = args.incoming
-    .filter((l) => !priorSet.has(l.lineItemId))
+    .filter((l) => !priorSet.has(toBillingOverrideLineItemId(String(l.lineItemId ?? "").trim())))
     .slice()
     .sort((a, b) => a.lineItemId.localeCompare(b.lineItemId))
   const removedLineIds = [...priorSet].filter((id) => !incomingIds.has(id)).sort()
@@ -123,7 +128,13 @@ export async function findStaleDateBasisOverrides(args: {
   overrideRows: BillingOverrideRow[]
   incoming: BillingActivityLine[]
 }): Promise<StaleDateBasisOverride[]> {
-  const byId = new Map(args.incoming.map((l) => [l.lineItemId, l]))
+  // MB-11: Map keyed on canonical id so decorated incoming still resolves.
+  const byId = new Map(
+    args.incoming.map((l) => [
+      toBillingOverrideLineItemId(String(l.lineItemId ?? "").trim()),
+      l,
+    ])
+  )
   const out: StaleDateBasisOverride[] = []
 
   for (const row of args.overrideRows) {
@@ -132,10 +143,8 @@ export async function findStaleDateBasisOverrides(args: {
     const stored = rowDateBasis(row)
     if (!stored) continue
 
-    const line = byId.get(lineItemId)
-    // Also accept prefixed match on incoming labels map
     const matched =
-      line ??
+      byId.get(toBillingOverrideLineItemId(lineItemId)) ??
       args.incoming.find((l) => billingOverrideLineIdsMatch(l.lineItemId, lineItemId))
     if (!matched) continue
 

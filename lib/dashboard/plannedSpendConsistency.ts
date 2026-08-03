@@ -22,7 +22,7 @@
 
 /** Client-safe mirror of `isBookedApprovedCompleted` (`lib/api/dashboard/shared.ts`).
  * Duplicated rather than imported: `shared.ts` pulls in the server-only Xano axios client
- * (reads `process.env.XANO_API_KEY`), so importing it from a "use client" component risks
+ * (reads the Xano API key from env), so importing it from a "use client" component risks
  * bundling server credentials into the client bundle. Keep this predicate in sync with
  * `lib/api/dashboard/shared.ts#isBookedApprovedCompleted`. */
 export function isPlannedBasisCampaignStatus(status: string | null | undefined): boolean {

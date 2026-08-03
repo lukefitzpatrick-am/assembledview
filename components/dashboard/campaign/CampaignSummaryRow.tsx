@@ -8,9 +8,8 @@ import {
   campaignPacingVerdict,
   campaignPacingVerdictSentence,
 } from "@/lib/dashboard/campaignPacingVerdict"
-import { formatNumberCompact } from "@/lib/format/chartFormat"
 import { formatDateShort } from "@/lib/format/date"
-import { formatMoneyCompact, formatPercent } from "@/lib/format/money"
+import { formatMoneyCompact } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 
 export interface CampaignSummarySectionProps {
@@ -46,15 +45,6 @@ export interface CampaignSummarySectionProps {
   embedded?: boolean
 }
 
-function formatAsOfCaption(asOf: string | undefined): string | null {
-  if (!asOf?.trim()) return null
-  const label = formatDateShort(`${asOf}T00:00:00`)
-  if (label === "—") return null
-  // Short day+month for the as-of line (drop year from "1 Apr 2026")
-  const short = label.replace(/\s+\d{4}$/, "")
-  return `As of ${short} · refreshes ~6:30am (Melbourne)`
-}
-
 function clampPct(value: number): number {
   if (!Number.isFinite(value)) return 0
   return Math.max(0, Math.min(100, value))
@@ -82,11 +72,6 @@ export default function CampaignSummaryRow({
   const timePct = clampPct(time.timeElapsedPct)
   const timeColor = brandColour?.trim() ? brandColour : timelineElapsedFallbackColor(timePct)
 
-  const totalPlannedSpend =
-    typeof spend.totalPlannedSpend === "number" && Number.isFinite(spend.totalPlannedSpend)
-      ? spend.totalPlannedSpend
-      : undefined
-
   // Campaign has started once any day has elapsed — before that, "no delivery yet" is expected
   // and unremarkable, so we show the neutral "—" rather than the "No delivery reported yet" nudge.
   const hasStarted = time.daysElapsed > 0 || timePct > 0
@@ -102,17 +87,6 @@ export default function CampaignSummaryRow({
         : undefined,
     deliveredSpend: deliveredInput,
   })
-
-  const deliveredImpressions =
-    hasDelivery && typeof delivered?.impressions === "number" && Number.isFinite(delivered.impressions) && delivered.impressions > 0
-      ? delivered.impressions
-      : undefined
-  const asOfCaption = formatAsOfCaption(delivered?.asOf)
-
-  const expectedPctOfBudgetLabel =
-    budget > 0 && expectedSpend !== undefined && expectedSpend >= 0
-      ? `${formatPercent((expectedSpend / budget) * 100)} of plan budget`
-      : null
 
   const pacingResolved = campaignPacingVerdict({
     budget,
@@ -130,6 +104,8 @@ export default function CampaignSummaryRow({
   const dayCurrent = Math.max(0, Math.round(time.daysElapsed))
   const dayTotal = Math.max(0, Math.round(time.daysInCampaign))
   const daysRem = Math.max(0, Math.round(time.daysRemaining))
+
+  const deliveryEmptyCaption = hasStarted ? "No delivery reported yet" : "Campaign not started"
 
   const sharedCard = cn("rounded-2xl border border-border/60 bg-card", embedded && "border-0 bg-transparent")
 
@@ -156,69 +132,47 @@ export default function CampaignSummaryRow({
             <h3 className="text-sm font-semibold text-foreground">Budget &amp; Spend</h3>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2 sm:gap-3 lg:grid-cols-4">
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">Budget</div>
               <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
                 {formatMoneyCompact(budget)}
               </div>
-              <div className="text-[11px] text-muted-foreground">Plan budget · campaign total</div>
             </div>
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">Expected Spend</div>
               <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
                 {expectedSpend !== undefined ? formatMoneyCompact(expectedSpend) : "—"}
               </div>
-              <div className="text-[11px] text-muted-foreground">
-                Monthly plan · prorated to date
-                {expectedPctOfBudgetLabel ? ` · ${expectedPctOfBudgetLabel}` : ""}
-              </div>
-              {totalPlannedSpend !== undefined && totalPlannedSpend > 0 ? (
-                <div className="text-[11px] text-muted-foreground">
-                  Planned campaign total:{" "}
-                  <span className="font-medium text-foreground">{formatMoneyCompact(totalPlannedSpend)}</span>
-                </div>
-              ) : expectedSpend === undefined ? (
+              {expectedSpend === undefined ? (
                 <div className="text-[11px] text-muted-foreground">Monthly plan data unavailable</div>
               ) : null}
             </div>
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">Delivered to date</div>
               {hasDelivery && deliveredSpend !== undefined ? (
-                <>
-                  <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
-                    {formatMoneyCompact(deliveredSpend)}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground">
-                    Snowflake delivery
-                    {deliveredImpressions !== undefined
-                      ? ` · ${formatNumberCompact(deliveredImpressions)} impressions`
-                      : ""}
-                  </div>
-                  {asOfCaption ? <div className="text-[11px] text-muted-foreground">{asOfCaption}</div> : null}
-                </>
-              ) : hasStarted ? (
-                <>
-                  <div className="text-xl font-bold tabular-nums text-muted-foreground md:text-2xl">—</div>
-                  <div className="text-[11px] text-muted-foreground">Snowflake delivery · no delivery reported yet</div>
-                </>
+                <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
+                  {formatMoneyCompact(deliveredSpend)}
+                </div>
               ) : (
                 <>
                   <div className="text-xl font-bold tabular-nums text-muted-foreground md:text-2xl">—</div>
-                  <div className="text-[11px] text-muted-foreground">Snowflake delivery · campaign not started</div>
+                  <div className="text-[11px] text-muted-foreground">{deliveryEmptyCaption}</div>
                 </>
               )}
             </div>
             <div className="space-y-1">
               <div className="text-xs font-medium text-muted-foreground">Remaining</div>
-              <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
-                {remaining !== undefined ? formatMoneyCompact(remaining) : "—"}
-              </div>
-              <div className="text-[11px] text-muted-foreground">
-                {remaining !== undefined
-                  ? "budget − delivered to date"
-                  : "Requires delivered spend"}
-              </div>
+              {remaining !== undefined ? (
+                <div className="text-xl font-bold tabular-nums text-foreground md:text-2xl">
+                  {formatMoneyCompact(remaining)}
+                </div>
+              ) : (
+                <>
+                  <div className="text-xl font-bold tabular-nums text-muted-foreground md:text-2xl">—</div>
+                  <div className="text-[11px] text-muted-foreground">{deliveryEmptyCaption}</div>
+                </>
+              )}
             </div>
           </div>
         </article>

@@ -113,3 +113,30 @@ export function requireXanoAuthHeaderRecord(): Record<string, string> {
   }
   return headers
 }
+
+/** Optional peek — does not throw when unset (mirror / dual-path plumbing). */
+export function peekXanoEnv(key: string): string | undefined {
+  const value = process.env[key]?.trim()
+  return value || undefined
+}
+
+/** Outbound Xano HTTP timeout (ms). Default 8000. */
+export function getXanoTimeoutMs(fallback = 8000): number {
+  const raw = process.env.XANO_TIMEOUT_MS
+  if (raw == null || raw.trim() === "") return fallback
+  const n = Number(raw)
+  return Number.isFinite(n) && n > 0 ? n : fallback
+}
+
+/**
+ * Test helper: set/clear Xano env keys without callers writing `process.env.XANO*`.
+ * Keys must be full env names (e.g. `XANO_CLIENTS_BASE_URL`).
+ */
+export function setXanoEnvForTests(
+  vars: Record<string, string | undefined>
+): void {
+  for (const [key, value] of Object.entries(vars)) {
+    if (value === undefined) delete process.env[key]
+    else process.env[key] = value
+  }
+}

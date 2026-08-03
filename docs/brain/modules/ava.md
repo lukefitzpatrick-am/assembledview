@@ -17,7 +17,7 @@ In-product Claude agent mounted as a floating chat widget on every page. Reads a
 
 ## Depends on
 
-Nearly everything (read tools): media-containers API, pacing caches + maths, delivery snapshot, finance xanoReferenceCache, clients cache, naming templates/compose, creative xano assets, planning meta, specs, RBAC. Postgres plan/finance/xero reads go through `db/avaClient.ts` (`AVA_DATABASE_URL` only) when configured.
+Nearly everything (read tools): media-containers API, pacing caches + maths, delivery snapshot, finance xanoReferenceCache, clients cache, naming templates/compose, creative assets (PG via `xanoCreativeAssets`), planning audiences (PG via `xanoPlanningAudiences`) + meta, specs, RBAC. Campaign summary helpers in `lib/xano/ava.ts` read masters/versions from Postgres. `save_client_brain` writes via `updateClientPostgresFirst` (Xano mirror best-effort). Postgres plan/finance/xero reads go through `db/avaClient.ts` (`AVA_DATABASE_URL` only) when configured.
 
 ## Consumed by
 

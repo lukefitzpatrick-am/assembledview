@@ -1,26 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
-import axios from "axios"
 import { auth0 } from "@/lib/auth0"
-import { invalidateClientsCache } from "@/lib/cache/clientsCache"
-import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
-import { xanoPostHeaderRecord } from "@/lib/api/xano"
-import { getUserRoles, getUserClientIdentifier } from "@/lib/rbac"
 import { fetchXanoClientRowByUrlSlug } from "@/lib/clients/fetchClientRowByUrlSlug"
 import { requireRole } from "@/lib/requireRole"
-
-const clientsUrl = getXanoClientsCollectionUrl()
+import { getUserRoles, getUserClientIdentifier } from "@/lib/rbac"
+import { updateClientPostgresFirst } from "@/lib/data/writeClients"
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    // AuthZ: client mutations are staff-only (admin|manager); prevents client-role IDOR writes.
     const gate = await requireRole(req, ["admin"])
     if ("response" in gate) return gate.response
 
     const { id } = await params
-    const body = await req.json()
-    const response = await axios.put(`${clientsUrl}/${id}`, body, { headers: xanoPostHeaderRecord() })
-    invalidateClientsCache()
-    return NextResponse.json(response.data)
+    const body = (await req.json()) as Record<string, unknown>
+    const result = await updateClientPostgresFirst(id, body, "update")
+    if ("notFound" in result) {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 })
+    }
+    return NextResponse.json({ ...result.row, mirror: result.mirror })
   } catch (error) {
     console.error("Failed to update client:", error)
     return NextResponse.json({ error: "Failed to update client" }, { status: 500 })
@@ -29,15 +25,16 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    // AuthZ: client mutations are staff-only (admin|manager); prevents client-role IDOR writes.
     const gate = await requireRole(req, ["admin"])
     if ("response" in gate) return gate.response
 
     const { id } = await params
-    const body = await req.json()
-    const response = await axios.patch(`${clientsUrl}/${id}`, body, { headers: xanoPostHeaderRecord() })
-    invalidateClientsCache()
-    return NextResponse.json(response.data)
+    const body = (await req.json()) as Record<string, unknown>
+    const result = await updateClientPostgresFirst(id, body, "patch")
+    if ("notFound" in result) {
+      return NextResponse.json({ error: "Client not found" }, { status: 404 })
+    }
+    return NextResponse.json({ ...result.row, mirror: result.mirror })
   } catch (error) {
     console.error("Failed to patch client:", error)
     return NextResponse.json({ error: "Failed to patch client" }, { status: 500 })

@@ -108,7 +108,19 @@ const bodySchema = z.object({
   selectedMonthYears: z.array(z.string()).optional(),
   /** O4 — working billing snapshot for AUTO correction toast (not authoritative). */
   clientBillingSchedulePreview: z.array(z.any()).optional().nullable(),
-  /** Create-path: insert PG master with Xano-aligned id when missing. */
+  /**
+   * MB-25 — override REPLACE-SET intent.
+   * authoritative:true only after a successful billing_overrides GET.
+   * Missing → treated as not authoritative (skip REPLACE-SET).
+   */
+  billingOverrides: z
+    .object({
+      authoritative: z.boolean(),
+      clearedLineIds: z.array(z.string()),
+    })
+    .optional()
+    .nullable(),
+  /** Safety net only (X9): master should already exist from POST /api/mediaplans. */
   ensureMaster: ensureMasterSchema.optional(),
   /** PC7: tip version id the editor started from — 409 if tip moved. */
   baseVersionId: z.number().int().positive().optional().nullable(),
@@ -180,7 +192,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Create-path: dual-write PG master with the Xano-aligned id before savePlanVersion.
+  // X9 safety net — masters are created PG-first via POST /api/mediaplans.
+  // Log when this path still inserts (should be rare after X9).
   if (body.ensureMaster) {
     const db = getDb()
     const [existing] = await db
@@ -189,7 +202,16 @@ export async function POST(request: NextRequest) {
       .where(eq(schema.mediaPlanMasters.id, body.masterId))
       .limit(1)
     if (!existing) {
+      console.warn("[plans/save] ensureMaster safety-net insert firing", {
+        masterId: body.masterId,
+        mbaNumber: body.ensureMaster.mbaNumber,
+      })
       try {
+        const { resolveClientIdForMaster } = await import("@/lib/data/writeClients")
+        const resolvedClientId = await resolveClientIdForMaster({
+          clientId: body.ensureMaster.clientId ?? null,
+          mpClientName: body.ensureMaster.mpClientName ?? null,
+        })
         await db.insert(schema.mediaPlanMasters).values({
           id: body.masterId,
           mbaNumber: body.ensureMaster.mbaNumber,
@@ -202,7 +224,7 @@ export async function POST(request: NextRequest) {
           campaignStartDate: body.ensureMaster.campaignStartDate ?? null,
           campaignEndDate: body.ensureMaster.campaignEndDate ?? null,
           campaignBudgetCents: body.ensureMaster.campaignBudgetCents ?? null,
-          clientId: body.ensureMaster.clientId ?? null,
+          clientId: resolvedClientId,
         })
       } catch (err) {
         console.error("[plans/save] ensureMaster insert failed", err)
@@ -291,6 +313,7 @@ export async function POST(request: NextRequest) {
       | import("@/lib/billing/types").BillingMonth[]
       | null
       | undefined,
+    billingOverrides: body.billingOverrides ?? null,
     lineItems: body.lineItems.map((l) => ({
       ...l,
       channel: l.channel as (typeof LINE_CHANNELS)[number],
@@ -348,6 +371,10 @@ export async function POST(request: NextRequest) {
       mirrorDurationMs: mirror.durationMs,
       ...(result.billingCorrection
         ? { billingCorrection: result.billingCorrection }
+        : {}),
+      ...(result.droppedBillingOverrides &&
+      result.droppedBillingOverrides.length > 0
+        ? { droppedBillingOverrides: result.droppedBillingOverrides }
         : {}),
       ...(mirror.mirror === "failed" ? { mirrorError: mirror.error } : {}),
     })

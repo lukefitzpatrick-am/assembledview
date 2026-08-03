@@ -1,5 +1,4 @@
 import { formatMoney } from "@/lib/format/money"
-import { getMediaColor } from "@/lib/charts/registry"
 import type { DateRange } from "@/lib/dashboard/dateFilter"
 import { clipDateRangeToCampaign, parseDateOnly } from "@/lib/dashboard/dateFilter"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
@@ -31,6 +30,7 @@ import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-serv
 import type { ProgressCardProps } from "../shared/ProgressCard"
 import type { KpiTileProps } from "../shared/KpiTile"
 import type { LineItemBlockProps } from "../shared/LineItemBlock"
+import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { ChannelKey, ChannelSectionData } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
@@ -324,7 +324,9 @@ export function buildProgrammaticChannelSection(input: {
     ),
   )
 
-  const accentColour = brandColour ?? getMediaColor("programmatic")
+  // Channel chrome uses media-type colour; brandColour stays on chart props only (AVU5-4).
+  const mediaTypeColour = channelMediaTypeColour(key)
+  const accentColour = mediaTypeColour
   const isVideoChannel = snowflakeChannel === "programmatic-video"
 
   const aggregateTrack = pacingPctToStatus(aggregatePacing.deliverable?.pacingPct)
@@ -477,7 +479,7 @@ export function buildProgrammaticChannelSection(input: {
     dateRange: { startISO: campaignStart, endISO: campaignEnd },
     lastSyncedAt,
     connections: [{ label: programmaticConnectionLabel(normalized), tone: "dv360" }],
-    mediaTypeColour: accentColour,
+    mediaTypeColour,
     aggregate: {
       summaryChips,
       progressCards: [spendCard, deliverableCard],

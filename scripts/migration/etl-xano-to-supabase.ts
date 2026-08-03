@@ -862,10 +862,14 @@ async function main(): Promise<void> {
       // mba_line_approvals: postgres-authoritative — sequence left untouched
     ]
     for (const t of seqTables) {
+      // X9.1: never rewind — GREATEST(max(id), last_value) in one statement.
       await sql.unsafe(`
         SELECT setval(
           pg_get_serial_sequence('${t}', 'id'),
-          COALESCE((SELECT MAX(id) FROM "${t}"), 1),
+          GREATEST(
+            COALESCE((SELECT MAX(id)::bigint FROM "${t}"), 0),
+            (SELECT last_value FROM pg_get_serial_sequence('${t}', 'id')::regclass)
+          ),
           true
         )
       `)

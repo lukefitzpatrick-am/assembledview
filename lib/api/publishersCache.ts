@@ -124,3 +124,9 @@ export async function getCachedPublishersList(
   const result = await promise
   return project(result.data, result.stale)
 }
+
+/** Drop cache so the next get hits upstream (e.g. after publisher POST/PUT). */
+export function invalidatePublishersCache(): void {
+  cacheEntry = null
+  inFlightPromise = null
+}

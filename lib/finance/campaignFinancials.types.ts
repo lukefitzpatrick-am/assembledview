@@ -122,8 +122,16 @@ export type PerLineResultFlags = {
   manualBilling: boolean
   /** True when the line carries a manual fee override (timing and/or amount). */
   manualFee: boolean
-  /** True when media billingOverride.reason is prepayment (full-line dump to earliest month). */
+  /**
+   * MB-8: media AND fee override reason is prepayment (whole line billed up front).
+   * Badge word: "Prepaid".
+   */
   prepaid: boolean
+  /**
+   * MB-8: media prepayment only — fee stays on delivery timing.
+   * Badge word: "Media prepaid".
+   */
+  mediaPrepaid: boolean
   excluded: boolean
 }
 

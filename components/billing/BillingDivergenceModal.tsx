@@ -6,19 +6,31 @@ import {
   summarizeBillingDivergence,
   type BillingDivergenceResult,
 } from "@/lib/billing/compareBillingDivergence"
+import type { DialogStackingLayer } from "@/lib/ui/stackingLayers"
 
 type Props = {
   open: boolean
   divergence: BillingDivergenceResult | null
   onAcknowledge: () => void
+  /**
+   * Overlay stack tier (MB-29). Pass `nested` when opened from inside a Dialog or Sheet.
+   * Default `modal` — caller property, not hardcoded on this dialog.
+   */
+  layer?: DialogStackingLayer
 }
 
-export function BillingDivergenceModal({ open, divergence, onAcknowledge }: Props) {
+export function BillingDivergenceModal({
+  open,
+  divergence,
+  onAcknowledge,
+  layer = "modal",
+}: Props) {
   const summary = divergence ? summarizeBillingDivergence(divergence) : null
 
   return (
     <Dialog open={open} onOpenChange={() => {}}>
       <DialogContent
+        layer={layer}
         className="max-w-lg"
         onPointerDownOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}

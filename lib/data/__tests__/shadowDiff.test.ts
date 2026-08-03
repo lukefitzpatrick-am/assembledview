@@ -146,14 +146,19 @@ describe("getPlanDetailBackend (C-22)", () => {
     }
   })
 
-  it("defaults to xano (inert — route stays on Xano fan-out)", () => {
+  it("defaults to postgres (X2 — only implemented PLAN_DETAIL branch)", () => {
     delete process.env.DATA_BACKEND_PLAN_DETAIL
-    assert.equal(getPlanDetailBackend(), "xano")
+    assert.equal(getPlanDetailBackend(), "postgres")
   })
 
   it("does NOT fall back to global DATA_BACKEND", () => {
     delete process.env.DATA_BACKEND_PLAN_DETAIL
-    process.env.DATA_BACKEND = "postgres"
+    process.env.DATA_BACKEND = "xano"
+    assert.equal(getPlanDetailBackend(), "postgres")
+  })
+
+  it("honours DATA_BACKEND_PLAN_DETAIL=xano (route returns 410)", () => {
+    process.env.DATA_BACKEND_PLAN_DETAIL = "xano"
     assert.equal(getPlanDetailBackend(), "xano")
   })
 

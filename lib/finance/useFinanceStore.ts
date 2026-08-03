@@ -272,6 +272,7 @@ export const useFinanceStore = create<FinanceStore>((set, get) => ({
         if (record.id !== recordId) return record
         return {
           ...record,
+          // Numeric finance_billing_line_items PK — not schedule bare↔billing-:: ids (MB-4).
           line_items: record.line_items.map((lineItem) =>
             lineItem.id === lineItemId ? { ...lineItem, ...updates } : lineItem
           ),

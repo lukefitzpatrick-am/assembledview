@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server"
-import axios from "axios"
-import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
-const XANO_TIMEOUT_MS = Number(process.env.XANO_TIMEOUT_MS || 10_000)
+import { readPlanMasters } from "@/lib/data/readMediaPlans"
 
+/**
+ * GET /api/mediaplans/mbanumber?mbaidentifier=
+ * Next MBA number for a client identifier — Postgres masters (X3).
+ * Response includes both `mba_number` and `mbanumber` for create/edit callers.
+ */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const mbaidentifierRaw = searchParams.get("mbaidentifier")
@@ -13,23 +16,15 @@ export async function GET(req: Request) {
   }
 
   try {
-    // Fetch existing media plans with the same MBA Identifier
-    const response = await axios.get(xanoUrl("media_plan_master", ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"]), { headers: xanoAuthHeaderRecord(), params: { mbaidentifier },
-        timeout: XANO_TIMEOUT_MS, })
-
-    // Handle both array and object responses from Xano
-    const existingPlans = Array.isArray(response.data) 
-      ? response.data 
-      : response.data 
-        ? [response.data] 
-        : []
+    const existingPlans = await readPlanMasters()
+    const prefix = mbaidentifier.toLowerCase()
 
     let maxNumber = 0
     for (const plan of existingPlans) {
       const num = plan?.mba_number
-      if (plan && typeof num === "string" && num.startsWith(mbaidentifier)) {
-        const numberPart = Number.parseInt(num.slice(-3))
-        if (!isNaN(numberPart) && numberPart > maxNumber) {
+      if (plan && typeof num === "string" && num.toLowerCase().startsWith(prefix)) {
+        const numberPart = Number.parseInt(num.slice(-3), 10)
+        if (!Number.isNaN(numberPart) && numberPart > maxNumber) {
           maxNumber = numberPart
         }
       }
@@ -38,16 +33,9 @@ export async function GET(req: Request) {
     const newNumber = maxNumber + 1
     const mba_number = `${mbaidentifier}${newNumber.toString().padStart(3, "0")}`
 
-    return NextResponse.json({ mba_number })
+    return NextResponse.json({ mba_number, mbanumber: mba_number })
   } catch (error) {
-    console.error("Failed to generate MBA number:", error)
-    if (axios.isAxiosError(error)) {
-      const errorMessage = error.response?.data?.message || error.response?.data?.error || error.message
-      const statusCode = error.response?.status || (error.code === "ECONNABORTED" ? 504 : 500)
-      console.error(`API error details: ${errorMessage}, Status: ${statusCode}`)
-      return NextResponse.json({ error: errorMessage }, { status: statusCode })
-    }
+    console.error("[api/mediaplans/mbanumber GET]", error)
     return NextResponse.json({ error: "Failed to generate MBA number" }, { status: 500 })
   }
 }
-

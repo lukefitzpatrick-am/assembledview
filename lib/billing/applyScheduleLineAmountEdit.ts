@@ -2,6 +2,7 @@ import { applyBillingLineMode } from "@/lib/billing/applyBillingLineMode"
 import { formatBillingCurrency, recalculateBillingMonths } from "@/lib/billing/recalculateBillingMonths"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
+import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
 
 export type ScheduleMonthCostField = "feeTotal" | "adservingTechFees" | "production"
 
@@ -17,7 +18,11 @@ export function findMediaKeyForScheduleLine(
     if (!m.lineItems) continue
     for (const [key, items] of Object.entries(m.lineItems)) {
       const arr = items as BillingLineItem[] | undefined
-      if (arr?.some((li) => li.id === lineItemId)) return key
+      if (
+        arr?.some((li) => billingOverrideLineIdsMatch(String(li.id ?? ""), lineItemId))
+      ) {
+        return key
+      }
     }
   }
   return null

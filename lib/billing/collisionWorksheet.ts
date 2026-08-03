@@ -9,6 +9,7 @@ import {
   distributeEvenly,
   type MonthAmountPair,
 } from "@/lib/billing/balancer"
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 
 export type CollisionDecision = "keep_shape_delta" | "rescale" | "recalc_auto"
 
@@ -109,7 +110,8 @@ export function applyBulkCollisionDecision(
 ): Map<string, { months: MonthAmountPair[] | null; balancingMonth: string }> {
   const out = new Map<string, { months: MonthAmountPair[] | null; balancingMonth: string }>()
   for (const row of rows) {
-    out.set(row.lineItemId, applyCollisionDecision(row, decision))
+    // MB-11: canonical key so callers can look up bare or decorated ids.
+    out.set(toBillingOverrideLineItemId(row.lineItemId), applyCollisionDecision(row, decision))
   }
   return out
 }

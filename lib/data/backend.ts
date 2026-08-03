@@ -26,8 +26,9 @@ export type DataBackendDomain =
 
 /**
  * MBA GET detail route (`/api/mediaplans/mba/[mba_number]`) only.
- * Intentionally does NOT fall back to global `DATA_BACKEND` — default `xano`
- * stays inert even when other domains are on postgres (C-22 soak gate).
+ * Intentionally does NOT fall back to global `DATA_BACKEND`.
+ * Default `postgres` (X2 / C-22 closeout). `xano` remains a parsable value
+ * but the route returns 410 — postgres is the only implemented branch.
  */
 export type PlanDetailBackend = "xano" | "postgres"
 
@@ -63,9 +64,10 @@ export function getWriteBackend(): WriteBackend {
 
 /**
  * MBA combined-detail GET backend. Env `DATA_BACKEND_PLAN_DETAIL` only
- * (`xano` | `postgres`). Default `xano` — flipping is Luke's post-verify step.
+ * (`xano` | `postgres`). Default `postgres` (X2). Setting `xano` is rejected
+ * at the MBA route with 410 — do not reintroduce the fan-out.
  */
 export function getPlanDetailBackend(): PlanDetailBackend {
-  const v = (process.env.DATA_BACKEND_PLAN_DETAIL ?? "xano").trim().toLowerCase()
-  return v === "postgres" ? "postgres" : "xano"
+  const v = (process.env.DATA_BACKEND_PLAN_DETAIL ?? "postgres").trim().toLowerCase()
+  return v === "xano" ? "xano" : "postgres"
 }

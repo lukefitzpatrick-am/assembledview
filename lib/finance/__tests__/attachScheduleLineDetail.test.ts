@@ -144,7 +144,7 @@ test("mixed fixture: server schedule has detailed lineItems + header invariant",
   assert.ok((pd!.feeMonthlyAmounts?.["May 2026"] ?? 0) > 0)
   assert.ok(pd!.adServingMonthlyAmounts)
 
-  // Manual / prepayment line.
+  // Manual / prepayment line — billing basis only.
   const soc = may!.lineItems!.socialMedia!.find(
     (li) => li.id === "billing-socialMedia::BOSS001SOC001"
   )
@@ -156,6 +156,58 @@ test("mixed fixture: server schedule has detailed lineItems + header invariant",
 
   // Production sits under production key; does not inflate mediaTotal.
   assert.ok(may!.lineItems?.production?.length)
+})
+
+test("MB-12: delivery lineItems keep auto / no preBill when media override is attached", () => {
+  const lines = boss001StyleFixture().map((line) =>
+    line.lineItemId === "billing-socialMedia::BOSS001SOC001"
+      ? {
+          ...line,
+          feeOverride: {
+            mode: "manual" as const,
+            reason: "manual" as const,
+            dateBasis: "test",
+            months: [{ month: "2026-05", amount: 400 }],
+          },
+        }
+      : line
+  )
+  const financials = computeCampaignFinancials(lines, {
+    feeLoading: {},
+  })
+
+  const mayBilling = financials.billingSchedule.find(
+    (m) => m.monthYear === "May 2026"
+  )
+  const mayDelivery = financials.deliverySchedule.find(
+    (m) => m.monthYear === "May 2026"
+  )
+  assert.ok(mayBilling?.lineItems?.socialMedia?.length)
+  assert.ok(mayDelivery?.lineItems?.socialMedia?.length)
+
+  const billingSoc = mayBilling!.lineItems!.socialMedia!.find(
+    (li) => li.id === "billing-socialMedia::BOSS001SOC001"
+  )
+  const deliverySoc = mayDelivery!.lineItems!.socialMedia!.find(
+    (li) => li.id === "billing-socialMedia::BOSS001SOC001"
+  )
+  assert.ok(billingSoc)
+  assert.ok(deliverySoc)
+
+  // Billing blob unchanged — still stamps override metadata.
+  assert.equal(billingSoc!.billingMode, "manual")
+  assert.equal(billingSoc!.feeBillingMode, "manual")
+  assert.equal(billingSoc!.preBill, true)
+  assert.equal(billingSoc!.monthlyAmounts["May 2026"], 4_000)
+  assert.equal(billingSoc!.monthlyAmounts["June 2026"] ?? 0, 0)
+
+  // Delivery amounts stay on delivery timing (override-free money).
+  assert.ok((deliverySoc!.monthlyAmounts["May 2026"] ?? 0) > 0)
+  assert.ok((deliverySoc!.monthlyAmounts["June 2026"] ?? 0) > 0)
+  // MB-12: billingMode / preBill / feeBillingMode are billing-basis only.
+  assert.equal(deliverySoc!.billingMode, "auto")
+  assert.equal(deliverySoc!.feeBillingMode, "auto")
+  assert.notEqual(deliverySoc!.preBill, true)
 })
 
 test("recomputeBillingScheduleOnSave omit path carries lineItems", () => {

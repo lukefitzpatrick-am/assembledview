@@ -1,18 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
-import axios from "axios"
-import { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import {
+  BillingOverrideWriteError,
+  resetBillingOverrideLine,
+} from "@/lib/data/writeBillingOverrides"
 
 export const dynamic = "force-dynamic"
 
-const MEDIA_PLANS_ENV_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
-const XANO_TIMEOUT_MS = 15_000
-
 /**
  * POST /api/billing-overrides/reset_line
- * Proxies Xano DELETE /billing_overrides/reset_line (body: version + line + mba_number + optional component).
- * "Reset to auto" for Manual Billing — removes the override row(s).
- * mba_number is defence-in-depth (upstream can delete by version_id alone).
+ * Deletes `billing_overrides` row(s) in Postgres (X2 — Xano reset_line retired).
+ * Body: { media_plan_version_id, mba_number, line_item_id, component? }
  */
 export async function POST(request: NextRequest) {
   try {
@@ -49,42 +47,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const payload: Record<string, unknown> = {
-      media_plan_version_id: versionId,
-      media_plan_version: versionId,
-      mba_number: mbaNumber,
-      line_item_id: String(lineItemId),
-    }
-    if (b.component != null) {
-      payload.component =
-        String(b.component).toLowerCase() === "fee" ? "fee" : "media"
-    }
+    const component =
+      b.component != null
+        ? String(b.component).toLowerCase() === "fee"
+          ? ("fee" as const)
+          : ("media" as const)
+        : null
 
-    const baseUrl = getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
+    const data = await resetBillingOverrideLine({
+      versionId: Number(versionId),
+      mbaNumber,
+      lineItemId: String(lineItemId),
+      component,
+    })
 
-    // Prefer DELETE; fall back to POST if upstream only exposes POST.
-    let response = await axios.delete(`${baseUrl}/billing_overrides/reset_line`, { headers: xanoAuthHeaderRecord(), data: payload,
-      timeout: XANO_TIMEOUT_MS,
-      validateStatus: (s) => s >= 200 && s < 500, })
-    if (response.status === 404 || response.status === 405) {
-      response = await axios.post(`${baseUrl}/billing_overrides/reset_line`, payload, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS,
-        validateStatus: (s) => s >= 200 && s < 500, })
-    }
-
-    if (response.status >= 400) {
+    return NextResponse.json({ ok: true, data })
+  } catch (error) {
+    if (error instanceof BillingOverrideWriteError) {
+      const status =
+        error.code === "NOT_FOUND"
+          ? 404
+          : error.code === "VERSION_PUBLISHED_IMMUTABLE"
+            ? 409
+            : 400
       return NextResponse.json(
-        {
-          error:
-            (response.data as { message?: string })?.message ||
-            "reset_line failed upstream",
-          upstream: response.data,
-        },
-        { status: response.status }
+        { error: error.message, code: error.code },
+        { status }
       )
     }
-
-    return NextResponse.json({ ok: true, data: response.data })
-  } catch (error) {
     console.error("[api/billing-overrides/reset_line POST]", error)
     return NextResponse.json({ error: "Failed to reset billing override line" }, { status: 500 })
   }

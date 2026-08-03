@@ -1,6 +1,6 @@
 /**
  * Postgres reader for GET /api/mediaplans/mba/[mba_number] (C-22).
- * Gated by DATA_BACKEND_PLAN_DETAIL — default xano leaves this unused.
+ * Gated by DATA_BACKEND_PLAN_DETAIL — default postgres (X2); `xano` → 410.
  *
  * One query set: master + versions for MBA + all line_items for the target
  * version (no 20× channel fan-out / param-shape retries).

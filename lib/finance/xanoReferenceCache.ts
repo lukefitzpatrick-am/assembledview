@@ -54,6 +54,11 @@ export function invalidateCachedClients() {
   clientsCacheEntry = null
 }
 
+/** Drop publishers list cache after publisher writes (X4). */
+export function invalidateCachedPublishers() {
+  publishersCacheEntry = null
+}
+
 export async function getCachedPublishers(): Promise<any[]> {
   const now = Date.now()
   if (publishersCacheEntry && publishersCacheEntry.expiresAt > now) {

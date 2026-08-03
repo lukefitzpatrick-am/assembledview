@@ -9,6 +9,7 @@ import {
   isFinanceExcludedCampaignStatus,
   isFinanceIncludedCampaignStatus,
 } from "@/lib/finance/sections/financeCampaignStatus"
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 import { isServiceLineItemId } from "@/lib/finance/sections/serviceLineBucket"
 
 export const CLIENT_PAYS_PAGE_CAPTION =
@@ -163,16 +164,17 @@ export function nestClientPaysRows(rows: FlatClientPaysRow[]): ClientPaysClientN
     if (row.campaignName && !mba.campaignName) mba.campaignName = row.campaignName
     if (row.campaignStatus) mba.campaignStatus = row.campaignStatus
 
-    let line = mba.lines.get(row.lineItemId)
+    const canonLineId = toBillingOverrideLineItemId(row.lineItemId)
+    let line = mba.lines.get(canonLineId)
     if (!line) {
       line = {
-        lineItemId: row.lineItemId,
+        lineItemId: canonLineId,
         publisher: row.publisher,
         channel: row.channel,
         totalCents: 0,
         byMonth: {},
       }
-      mba.lines.set(row.lineItemId, line)
+      mba.lines.set(canonLineId, line)
     }
     line.totalCents += row.mediaCents
     line.byMonth[row.month] = (line.byMonth[row.month] ?? 0) + row.mediaCents

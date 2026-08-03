@@ -9,10 +9,10 @@ import { describe, it, before } from "node:test"
  * Reimplemented (not cherry-picked): save*LineItems now go through
  * replaceChannelLineItems, so the shared semaphore lives there.
  */
-process.env.XANO_PUBLISHERS_BASE_URL ??= "https://example.test/publishers"
-process.env.XANO_CLIENTS_BASE_URL ??= "https://example.test/clients"
-process.env.XANO_MEDIA_DETAILS_BASE_URL ??= "https://example.test/media-details"
-process.env.XANO_MEDIA_PLANS_BASE_URL ??= "https://example.test/media-plans"
+process.env["XANO_PUBLISHERS_BASE_URL"] ??= "https://example.test/publishers"
+process.env["XANO_CLIENTS_BASE_URL"] ??= "https://example.test/clients"
+process.env["XANO_MEDIA_DETAILS_BASE_URL"] ??= "https://example.test/media-details"
+process.env["XANO_MEDIA_PLANS_BASE_URL"] ??= "https://example.test/media-plans"
 
 describe("save*LineItems shared write concurrency", () => {
   let saveTelevisionLineItems: typeof import("@/lib/api").saveTelevisionLineItems

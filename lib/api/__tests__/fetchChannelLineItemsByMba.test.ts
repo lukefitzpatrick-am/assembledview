@@ -11,8 +11,8 @@ import assert from "node:assert/strict"
 import { beforeEach, mock, test } from "node:test"
 import axios from "axios"
 
-process.env.XANO_MEDIA_PLANS_BASE_URL ||= "https://xano.test/api"
-process.env.XANO_MEDIAPLANS_BASE_URL ||= "https://xano.test/api"
+process.env["XANO_MEDIA_PLANS_BASE_URL"] ||= "https://xano.test/api"
+process.env["XANO_MEDIAPLANS_BASE_URL"] ||= "https://xano.test/api"
 
 const mockGet = mock.fn(async (..._args: unknown[]): Promise<{ data: unknown }> => ({ data: [] }))
 axios.get = mockGet as typeof axios.get

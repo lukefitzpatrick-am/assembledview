@@ -93,7 +93,9 @@ function perLineFromScheduleMonths(months: BillingMonth[]): PerLineResult[] {
               clientPaysForMedia: item.clientPaysForMedia === true,
               manualBilling: item.billingMode === "manual",
               manualFee: item.feeBillingMode === "manual",
-              prepaid: item.preBill === true,
+              // Persisted schedule has preBill for media dump; full Prepaid needs fee row reason.
+              prepaid: false,
+              mediaPrepaid: item.preBill === true,
               excluded: false,
             },
           })

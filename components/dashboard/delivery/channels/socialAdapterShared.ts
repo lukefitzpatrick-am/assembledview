@@ -1,4 +1,4 @@
-import { getMediaColor } from "@/lib/charts/registry"
+import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-service"
 import type { KPITargetsMap } from "@/lib/kpi/deliveryTargets"
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
@@ -282,7 +282,9 @@ export function buildSocialChannelSectionForPlatform(input: {
 
   const kpisRaw = summarizeActuals(metrics.flatMap((m) => m.actualsDaily))
 
-  const accentColour = brandColour ?? getMediaColor("socialmedia")
+  // Channel chrome uses media-type colour; brandColour stays on chart props only (AVU5-4).
+  const mediaTypeColour = channelMediaTypeColour(key)
+  const accentColour = mediaTypeColour
   const includeVideo = isVideoBuySocial(activeItems)
 
   const summaryChips = [
@@ -413,7 +415,7 @@ export function buildSocialChannelSectionForPlatform(input: {
       platform === "meta"
         ? [{ label: "Meta connected", tone: "meta" }]
         : [{ label: "TikTok connected", tone: "tiktok" }],
-    mediaTypeColour: accentColour,
+    mediaTypeColour,
     aggregate: {
       summaryChips,
       progressCards: [spendCard, deliverableCard],

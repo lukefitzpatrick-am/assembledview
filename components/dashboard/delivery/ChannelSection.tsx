@@ -9,10 +9,12 @@ import {
 } from "@/components/ui/accordion"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { getMediaBadgeStyle } from "@/lib/charts/registry"
 import { ProgressCard } from "./shared/ProgressCard"
 import { KpiBand } from "./shared/KpiBand"
 import { LineItemBlock } from "./shared/LineItemBlock"
 import { DeliveryDailyChart } from "./common/DeliveryDailyChart"
+import { channelMediaRegistryKey } from "./channels/channelMediaTypeColour"
 import { getChannelIcon } from "./channels/getChannelIcon"
 import type { ChannelSectionData } from "./channels/types"
 
@@ -46,15 +48,26 @@ export interface ChannelSectionProps {
 export function ChannelSection({ data, defaultOpen = false, onRefresh }: ChannelSectionProps) {
   const Icon = getChannelIcon(data.key)
   const accordionDefault = defaultOpen ? [data.key] : []
+  const badge = getMediaBadgeStyle(channelMediaRegistryKey(data.key))
 
   return (
     <Accordion type="multiple" defaultValue={accordionDefault} className="w-full">
       <AccordionItem value={data.key} className="overflow-hidden rounded-2xl border border-border/60 bg-card">
         <AccordionTrigger className="px-4 py-3 hover:no-underline">
           <div className="flex w-full items-center gap-3">
-            <Icon className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
+            <span
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border"
+              style={{
+                backgroundColor: badge.backgroundColor,
+                borderColor: badge.borderColor,
+                color: badge.color,
+              }}
+              aria-hidden
+            >
+              <Icon className="h-4 w-4" />
+            </span>
             <div className="min-w-0 flex-1 text-left">
-              <p className="text-sm font-semibold">{data.title}</p>
+              <p className="text-sm font-semibold text-foreground">{data.title}</p>
               <p className="text-xs text-muted-foreground">
                 {formatDateRange(data.dateRange.startISO, data.dateRange.endISO)}
               </p>
@@ -145,6 +158,7 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
             daily={data.aggregate.chart.daily}
             series={data.aggregate.chart.series}
             asAtDate={data.aggregate.chart.asAtDate}
+            mediaTypeColour={data.mediaTypeColour}
             brandColour={data.aggregate.chart.brandColour}
             title="Daily delivery"
             subtitle={data.aggregate.chart.series.map((s) => s.label).join(" + ")}

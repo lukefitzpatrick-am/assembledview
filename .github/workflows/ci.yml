@@ -31,6 +31,9 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      - name: Ban strict billing line id equality (MB-4)
+        run: npm run check:billing-line-id-equality
+
   knip:
     name: knip (report-only)
     runs-on: ubuntu-latest

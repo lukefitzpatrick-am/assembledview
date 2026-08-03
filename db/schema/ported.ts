@@ -569,6 +569,69 @@ export const radioStations = pgTable(
   ],
 )
 
+export const financeForecastSnapshots = pgTable(
+  "finance_forecast_snapshots",
+  {
+    id: bigint("id", { mode: "number" }).generatedByDefaultAsIdentity().primaryKey(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    snapshotLabel: text("snapshot_label").notNull(),
+    snapshotType: text("snapshot_type").notNull(),
+    financialYear: integer("financial_year").notNull(),
+    scenario: text("scenario").notNull(),
+    takenAt: timestamp("taken_at", { withTimezone: true, mode: "string" }).notNull(),
+    takenBy: text("taken_by"),
+    notes: text("notes"),
+    sourceVersionSummary: text("source_version_summary"),
+    filterContextJson: text("filter_context_json"),
+  },
+  (table) => [
+    index("idx_finance_forecast_snapshots_fy_scenario_taken").on(
+      table.financialYear,
+      table.scenario,
+      table.takenAt
+    ),
+  ],
+)
+
+export const financeForecastSnapshotLines = pgTable(
+  "finance_forecast_snapshot_lines",
+  {
+    id: bigint("id", { mode: "number" }).generatedByDefaultAsIdentity().primaryKey(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" }).notNull().defaultNow(),
+    snapshotId: bigint("snapshot_id", { mode: "number" })
+      .notNull()
+      .references(() => financeForecastSnapshots.id, { onDelete: "cascade" }),
+    clientId: text("client_id").notNull(),
+    clientName: text("client_name").notNull(),
+    campaignId: text("campaign_id"),
+    mbaNumber: text("mba_number"),
+    mediaPlanVersionId: text("media_plan_version_id"),
+    versionNumber: bigint("version_number", { mode: "number" }),
+    groupKey: text("group_key").notNull(),
+    lineKey: text("line_key").notNull(),
+    monthKey: text("month_key").notNull(),
+    amount: numeric("amount").notNull(),
+    fyTotal: numeric("fy_total").notNull(),
+    sourceHash: text("source_hash"),
+    sourceDebugJson: text("source_debug_json"),
+  },
+  (table) => [
+    index("idx_ffsl_snapshot_client_line_month").on(
+      table.snapshotId,
+      table.clientId,
+      table.lineKey,
+      table.monthKey
+    ),
+    index("idx_ffsl_snapshot_group_line_month").on(
+      table.snapshotId,
+      table.groupKey,
+      table.lineKey,
+      table.monthKey
+    ),
+    index("idx_ffsl_snapshot_month").on(table.snapshotId, table.monthKey),
+  ],
+)
+
 export const revenueForecastLines = pgTable(
   "revenue_forecast_lines",
   {

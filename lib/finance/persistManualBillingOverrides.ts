@@ -23,7 +23,14 @@ import {
 } from "@/lib/finance/manualBillingOverridesUi"
 
 export type PersistManualBillingOverridesResult =
-  | { ok: true; replacedMedia: number; replacedFee: number; reset: number }
+  | {
+      ok: true
+      replacedMedia: number
+      replacedFee: number
+      reset: number
+      /** Canon line ids skipped because extract found no month amounts (MB-19 orphans). */
+      skippedEmptyMonths: string[]
+    }
   | { ok: false; message: string }
 
 function reasonFromMeta(
@@ -41,10 +48,23 @@ function reasonFromMeta(
 }
 
 /**
+ * MB-19 — actionable copy when override meta named lines that are absent from the draft
+ * schedule (deleted lines / orphans). Leaves the DB row in place (skip, do not reset).
+ */
+export function manualBillingPersistSkipNotice(skippedLineIds: string[]): string | null {
+  const n = skippedLineIds.length
+  if (n === 0) return null
+  return n === 1
+    ? "1 override was skipped because that plan line is no longer present."
+    : `${n} overrides were skipped because those plan lines are no longer present.`
+}
+
+/**
  * Write current modal draft to billing_overrides.
  * - Validates media sum == line media total (from auto schedule) before replace_line(media).
  * - Fee lanes → replace_line(component=fee) with no sum gate.
  * - Lines that had table overrides but are no longer manual → reset_line.
+ * - MB-19: empty monthsIso skips that line (continue) — never aborts the whole save.
  */
 export async function persistManualBillingOverrides(args: {
   versionId: string | number
@@ -70,21 +90,41 @@ export async function persistManualBillingOverrides(args: {
   }
 
   const current = listManualOverrideLineIds(months)
-  const currentMedia = new Set(current.media.map(toBillingOverrideLineItemId))
-  const currentFee = new Set(current.fee.map(toBillingOverrideLineItemId))
+  // Prefer schedule row ids (may be billing-prefixed); also accept meta keys from Prebill.
+  const mediaWriteIds = new Map<string, string>() // canon → billingRowId for extract
+  const feeWriteIds = new Map<string, string>()
+  for (const billingRowId of current.media) {
+    mediaWriteIds.set(toBillingOverrideLineItemId(billingRowId), billingRowId)
+  }
+  for (const billingRowId of current.fee) {
+    feeWriteIds.set(toBillingOverrideLineItemId(billingRowId), billingRowId)
+  }
 
   const previousMedia = new Set<string>()
   const previousFee = new Set<string>()
   for (const [key, list] of metaByLine) {
     const canon = toBillingOverrideLineItemId(key)
     for (const m of list) {
-      if (m.component === "fee") previousFee.add(canon)
-      else previousMedia.add(canon)
+      if (m.component === "fee") {
+        previousFee.add(canon)
+        // BUX-6: Prebill stamps meta even when billingMode stamp missed (id shape mismatch).
+        if (m.mode === "manual" && !feeWriteIds.has(canon)) {
+          feeWriteIds.set(canon, key)
+        }
+      } else {
+        previousMedia.add(canon)
+        if (m.mode === "manual" && !mediaWriteIds.has(canon)) {
+          mediaWriteIds.set(canon, key)
+        }
+      }
     }
   }
 
+  const currentMedia = new Set(mediaWriteIds.keys())
+  const currentFee = new Set(feeWriteIds.keys())
+
   // Validate all media manuals before any writes.
-  for (const billingRowId of current.media) {
+  for (const billingRowId of mediaWriteIds.values()) {
     const monthsIso = extractOverrideMonthsFromSchedule(months, billingRowId, "media")
     const expected = sumLineMediaAcrossMonths(autoMonthsForMediaTotals, billingRowId)
     const gate = validateManualMediaMonthsSum(monthsIso, expected)
@@ -99,9 +139,15 @@ export async function persistManualBillingOverrides(args: {
   let replacedMedia = 0
   let replacedFee = 0
   let reset = 0
+  const skippedEmptyMonths: string[] = []
 
-  for (const billingRowId of current.media) {
-    const lineItemId = toBillingOverrideLineItemId(billingRowId)
+  for (const [lineItemId, billingRowId] of mediaWriteIds) {
+    const monthsIso = extractOverrideMonthsFromSchedule(months, billingRowId, "media")
+    // MB-19: orphan / absent line — skip this row; do not abort sibling writes; leave DB row.
+    if (monthsIso.length === 0) {
+      skippedEmptyMonths.push(lineItemId)
+      continue
+    }
     const dateBasis = await computeBillingOverrideDateBasis(getBurstsForLine(billingRowId))
     await replaceBillingOverrideLineClient({
       media_plan_version_id: versionId,
@@ -110,14 +156,18 @@ export async function persistManualBillingOverrides(args: {
       component: "media",
       mode: "manual",
       reason: reasonFromMeta(metaByLine, billingRowId, "media"),
-      months: extractOverrideMonthsFromSchedule(months, billingRowId, "media"),
+      months: monthsIso,
       date_basis: dateBasis,
     })
     replacedMedia += 1
   }
 
-  for (const billingRowId of current.fee) {
-    const lineItemId = toBillingOverrideLineItemId(billingRowId)
+  for (const [lineItemId, billingRowId] of feeWriteIds) {
+    const monthsIso = extractOverrideMonthsFromSchedule(months, billingRowId, "fee")
+    if (monthsIso.length === 0) {
+      skippedEmptyMonths.push(lineItemId)
+      continue
+    }
     const dateBasis = await computeBillingOverrideDateBasis(getBurstsForLine(billingRowId))
     await replaceBillingOverrideLineClient({
       media_plan_version_id: versionId,
@@ -126,7 +176,7 @@ export async function persistManualBillingOverrides(args: {
       component: "fee",
       mode: "manual",
       reason: reasonFromMeta(metaByLine, billingRowId, "fee"),
-      months: extractOverrideMonthsFromSchedule(months, billingRowId, "fee"),
+      months: monthsIso,
       date_basis: dateBasis,
     })
     replacedFee += 1
@@ -153,5 +203,5 @@ export async function persistManualBillingOverrides(args: {
     reset += 1
   }
 
-  return { ok: true, replacedMedia, replacedFee, reset }
+  return { ok: true, replacedMedia, replacedFee, reset, skippedEmptyMonths }
 }

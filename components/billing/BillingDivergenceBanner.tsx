@@ -17,8 +17,9 @@ type Props = {
 }
 
 /**
- * Inline attention banner for manual billing vs auto-computed differences.
- * Used inside MbaBillingModal (replaces BillingDivergenceModal stacking).
+ * Inline attention banner for UNINTENDED billing divergence (MB-9).
+ * Parent gates with {@link isUnintendedBillingDivergence} — deliberate reconciling
+ * Prebill / Adjust timing must not mount this.
  */
 export function BillingDivergenceBanner({ divergence, onAcknowledge, className }: Props) {
   const [expanded, setExpanded] = useState(false)
@@ -40,10 +41,10 @@ export function BillingDivergenceBanner({ divergence, onAcknowledge, className }
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
         <div className="min-w-0 flex-1 space-y-2">
           <div>
-            <p className="text-sm font-semibold">This campaign has manual billing differences</p>
+            <p className="text-sm font-semibold">Billing no longer reconciles</p>
             <p className="mt-1 text-sm opacity-90">
               {summary.headline ||
-                "The saved billing schedule differs from what would be computed from the current bursts and line items."}
+                "Saved manual billing no longer matches line totals or the current plan — review before continuing."}
             </p>
           </div>
           {hasDetails ? (

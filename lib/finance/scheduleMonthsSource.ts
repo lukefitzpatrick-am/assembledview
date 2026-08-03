@@ -24,6 +24,7 @@ import {
   scheduleMonthYearToIso,
 } from "@/lib/finance/computeCampaignFinancials"
 import { getBillingSchedule, getDeliverySchedule } from "@/lib/finance/normalizeFields"
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 import { roundMoney2 } from "@/lib/format/money"
 import type { ScheduleBasis, ScheduleComponent } from "@/scripts/migration/_scheduleTransform"
 
@@ -186,10 +187,11 @@ function ensureMonth(map: Map<string, MonthAccum>, monthKey: string): MonthAccum
 }
 
 function ensureLine(month: MonthAccum, lineItemId: string, mediaType: MediaCostKey): LineAccum {
-  let line = month.lines.get(lineItemId)
+  const canonId = toBillingOverrideLineItemId(lineItemId)
+  let line = month.lines.get(canonId)
   if (!line) {
     line = {
-      id: lineItemId,
+      id: canonId,
       mediaType,
       monthlyAmounts: {},
       feeMonthlyAmounts: {},
@@ -197,7 +199,7 @@ function ensureLine(month: MonthAccum, lineItemId: string, mediaType: MediaCostK
       mediaOverride: false,
       feeOverride: false,
     }
-    month.lines.set(lineItemId, line)
+    month.lines.set(canonId, line)
   }
   return line
 }

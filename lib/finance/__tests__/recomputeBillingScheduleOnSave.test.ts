@@ -155,3 +155,31 @@ test("manual media override that fails sum rule → 409 sumViolations (C2 gate)"
   assert.ok(msg.includes("manual months add to"), `human sum copy: ${msg}`)
   assert.ok(msg.includes("off by"), `delta in message: ${msg}`)
 })
+
+test("manual fee override that fails sum rule → 409 (MB-22 D2 fee gate)", () => {
+  const result = recomputeAndValidateBillingScheduleOnSave({
+    lineItems: [
+      searchLine({
+        label: "Search Fee Line",
+        feeOverride: {
+          mode: "manual",
+          reason: "manual",
+          dateBasis: "x",
+          // Auto fee at 20% of $10k = $2000
+          months: [{ month: "2026-06", amount: 1 }],
+        },
+      }),
+    ],
+    feeLoading: {},
+    clientBillingSchedule: null,
+    overrideRows: [],
+  })
+  assert.equal(result.ok, false)
+  if (result.ok) return
+  assert.equal(result.status, 409)
+  assert.equal(result.body.code, "BILLING_OVERRIDE_SUM_VIOLATION")
+  const v = result.body.sumViolations?.[0]
+  assert.ok(v)
+  assert.equal(v!.component, "fee")
+  assert.ok(v!.message.includes("Search Fee Line"))
+})

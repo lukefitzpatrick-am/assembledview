@@ -1,19 +1,17 @@
 import "server-only"
 
-import axios, { AxiosError } from "axios"
-import { parseXanoListPayload, requireXanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
-import { getCachedClientsList } from "@/lib/cache/clientsCache"
+import { eq, sql } from "drizzle-orm"
+import { getDb, schema } from "@/db"
 import type {
   PlanningAudienceRow,
   PlanningAudienceWritable,
 } from "./audienceTypes"
-import { resolveClientsIdByMbaIdentifier } from "./resolveClientsIdByMbaIdentifier"
 
 export type { PlanningAudienceRow, PlanningAudienceWritable } from "./audienceTypes"
 export { resolveClientsIdByMbaIdentifier } from "./resolveClientsIdByMbaIdentifier"
 
-const PLANNING_AUDIENCES_PATH = "planning_audiences"
-const XANO_TIMEOUT_MS = 15_000
+type PlanningAudiencePgRow = typeof schema.planningAudiences.$inferSelect
+type PlanningAudienceInsert = typeof schema.planningAudiences.$inferInsert
 
 export class XanoPlanningAudienceError extends Error {
   readonly status: number
@@ -25,62 +23,72 @@ export class XanoPlanningAudienceError extends Error {
   }
 }
 
-function authHeaders(): Record<string, string> {
-  try {
-    return {
-      ...requireXanoAuthHeaderRecord(),
-      "Content-Type": "application/json",
-    }
-  } catch {
-    throw new XanoPlanningAudienceError("Missing XANO_API_KEY", 500)
-  }
-}
-
-function mapAxiosError(error: unknown, context: string): never {
+function mapDbError(error: unknown, context: string): never {
   if (error instanceof XanoPlanningAudienceError) {
     throw error
   }
-  if (axios.isAxiosError(error)) {
-    const ax = error as AxiosError
-    const status = ax.response?.status ?? 502
-    const detail =
-      typeof ax.response?.data === "object" && ax.response.data !== null
-        ? JSON.stringify(ax.response.data)
-        : ax.message
-    console.error(`[planning-audiences] ${context}`, status, detail)
-    throw new XanoPlanningAudienceError(`${context} failed (${status})`, status)
-  }
   console.error(`[planning-audiences] ${context}`, error)
+  const message = error instanceof Error ? error.message : String(error)
+  if (message.includes("DATABASE_URL")) {
+    throw new XanoPlanningAudienceError("DATABASE_URL is not set", 500)
+  }
   throw new XanoPlanningAudienceError(`${context} failed`, 502)
 }
 
-function asRow(row: unknown): PlanningAudienceRow {
-  return row as PlanningAudienceRow
+function toUnixMs(value: string | null | undefined): number {
+  if (!value) return 0
+  const ms = Date.parse(value)
+  return Number.isFinite(ms) ? ms : 0
 }
 
-function parseList(data: unknown): PlanningAudienceRow[] {
-  const list = Array.isArray(data) ? data : parseXanoListPayload(data)
-  return list.map(asRow)
+function numOrZero(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  const n = Number(value)
+  return Number.isFinite(n) ? n : 0
+}
+
+function rowToApi(row: PlanningAudiencePgRow): PlanningAudienceRow {
+  return {
+    id: row.id,
+    created_at: toUnixMs(row.createdAt),
+    clients_id: row.clientsId ?? 0,
+    mba_number: row.mbaNumber ?? null,
+    name: row.name ?? "",
+    definition_json: row.definitionJson ?? null,
+    composed_wc: numOrZero(row.composedWc),
+    client_visible: Boolean(row.clientVisible),
+    created_by_email: row.createdByEmail ?? "",
+  }
+}
+
+function writableToInsert(body: PlanningAudienceWritable): PlanningAudienceInsert {
+  return {
+    clientsId: body.clients_id,
+    mbaNumber: body.mba_number ?? null,
+    name: body.name,
+    definitionJson: body.definition_json ?? null,
+    composedWc: String(body.composed_wc),
+    clientVisible: body.client_visible ?? false,
+    createdByEmail: body.created_by_email,
+  }
 }
 
 export async function listPlanningAudiences(opts?: {
   clientsId?: number
 }): Promise<PlanningAudienceRow[]> {
   try {
-    const base = xanoUrl(PLANNING_AUDIENCES_PATH, "XANO_CLIENTS_BASE_URL")
-    const url =
-      opts?.clientsId != null
-        ? `${base}?clients_id=${encodeURIComponent(String(opts.clientsId))}`
-        : base
-    const response = await axios.get(url, {
-      headers: authHeaders(),
-      timeout: XANO_TIMEOUT_MS,
-    })
-    const rows = parseList(response.data)
-    if (opts?.clientsId == null) return rows
-    return rows.filter((row) => Number(row.clients_id) === opts.clientsId)
+    const db = getDb()
+    if (opts?.clientsId == null) {
+      const rows = await db.select().from(schema.planningAudiences)
+      return rows.map(rowToApi)
+    }
+    const rows = await db
+      .select()
+      .from(schema.planningAudiences)
+      .where(eq(schema.planningAudiences.clientsId, opts.clientsId))
+    return rows.map(rowToApi)
   } catch (error) {
-    mapAxiosError(error, "listPlanningAudiences")
+    mapDbError(error, "listPlanningAudiences")
   }
 }
 
@@ -88,35 +96,34 @@ export async function createPlanningAudience(
   body: PlanningAudienceWritable
 ): Promise<PlanningAudienceRow> {
   try {
-    const response = await axios.post(
-      xanoUrl(PLANNING_AUDIENCES_PATH, "XANO_CLIENTS_BASE_URL"),
-      {
-        ...body,
-        client_visible: body.client_visible ?? false,
-      },
-      {
-        headers: authHeaders(),
-        timeout: XANO_TIMEOUT_MS,
-      }
-    )
-    return asRow(response.data)
+    const db = getDb()
+    const [row] = await db
+      .insert(schema.planningAudiences)
+      .values(writableToInsert(body))
+      .returning()
+    if (!row) {
+      throw new XanoPlanningAudienceError("create failed: no row returned", 502)
+    }
+    return rowToApi(row)
   } catch (error) {
-    mapAxiosError(error, "createPlanningAudience")
+    mapDbError(error, "createPlanningAudience")
   }
 }
 
 export async function getPlanningAudience(id: number): Promise<PlanningAudienceRow> {
   try {
-    const response = await axios.get(
-      `${xanoUrl(PLANNING_AUDIENCES_PATH, "XANO_CLIENTS_BASE_URL")}/${encodeURIComponent(String(id))}`,
-      {
-        headers: authHeaders(),
-        timeout: XANO_TIMEOUT_MS,
-      }
-    )
-    return asRow(response.data)
+    const db = getDb()
+    const [row] = await db
+      .select()
+      .from(schema.planningAudiences)
+      .where(eq(schema.planningAudiences.id, id))
+      .limit(1)
+    if (!row) {
+      throw new XanoPlanningAudienceError("Audience not found", 404)
+    }
+    return rowToApi(row)
   } catch (error) {
-    mapAxiosError(error, "getPlanningAudience")
+    mapDbError(error, "getPlanningAudience")
   }
 }
 
@@ -129,17 +136,23 @@ export async function updatePlanningAudience(
   }
 ): Promise<PlanningAudienceRow> {
   try {
-    const response = await axios.patch(
-      `${xanoUrl(PLANNING_AUDIENCES_PATH, "XANO_CLIENTS_BASE_URL")}/${encodeURIComponent(String(id))}`,
-      patch,
-      {
-        headers: authHeaders(),
-        timeout: XANO_TIMEOUT_MS,
-      }
-    )
-    return asRow(response.data)
+    const db = getDb()
+    const set: Partial<PlanningAudienceInsert> = {}
+    if (patch.mba_number !== undefined) set.mbaNumber = patch.mba_number
+    if (patch.client_visible !== undefined) set.clientVisible = patch.client_visible
+    if (patch.name !== undefined) set.name = patch.name
+
+    const [row] = await db
+      .update(schema.planningAudiences)
+      .set(set)
+      .where(eq(schema.planningAudiences.id, id))
+      .returning()
+    if (!row) {
+      throw new XanoPlanningAudienceError("Audience not found", 404)
+    }
+    return rowToApi(row)
   } catch (error) {
-    mapAxiosError(error, "updatePlanningAudience")
+    mapDbError(error, "updatePlanningAudience")
   }
 }
 
@@ -149,21 +162,13 @@ export async function listPlanningAudiencesByMba(
   const needle = mbaNumber.trim().toLowerCase()
   if (!needle) return []
   try {
-    // Xano requires clients_id on GET planning_audiences; mba_number alone → 400.
-    const { data: clients } = await getCachedClientsList()
-    const clientsId = resolveClientsIdByMbaIdentifier(mbaNumber, clients)
-    if (clientsId == null) {
-      console.warn(
-        "[planning-audiences] listPlanningAudiencesByMba: no clients_id for mba",
-        mbaNumber.trim()
-      )
-      return []
-    }
-    const rows = await listPlanningAudiences({ clientsId })
-    return rows.filter(
-      (row) => String(row.mba_number ?? "").trim().toLowerCase() === needle
-    )
+    const db = getDb()
+    const rows = await db
+      .select()
+      .from(schema.planningAudiences)
+      .where(sql`lower(${schema.planningAudiences.mbaNumber}) = ${needle}`)
+    return rows.map(rowToApi)
   } catch (error) {
-    mapAxiosError(error, "listPlanningAudiencesByMba")
+    mapDbError(error, "listPlanningAudiencesByMba")
   }
 }

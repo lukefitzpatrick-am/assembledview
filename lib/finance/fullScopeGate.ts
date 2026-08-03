@@ -6,6 +6,7 @@
  */
 
 import type { ApprovedSlice } from "@/lib/finance/approvedSlice"
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 import type { ScheduleMonthInsert } from "@/scripts/migration/_scheduleTransform"
 
 export type SaveGateFullScopeMode = "off" | "log" | "enforce"
@@ -86,7 +87,11 @@ export function sumBillingScheduleFullScopeCents(
 
   for (const r of rows) {
     if (!isBillingBasis(r)) continue
-    const id = String(r.lineItemId ?? "").trim()
+    const rawId = String(r.lineItemId ?? "").trim()
+    // Keep __service__* keys as-is; canonicalize real line ids (MB-11).
+    const id = rawId.startsWith("__service__")
+      ? rawId
+      : toBillingOverrideLineItemId(rawId)
     const cents = Number(r.amountCents) || 0
     if (!id || cents === 0) continue
 
@@ -147,7 +152,7 @@ function sliceByLine(slice: ApprovedSlice) {
     { media: number; fee: number; adserving: number; production: number }
   >()
   for (const l of slice.lines) {
-    byLine.set(l.lineItemId, {
+    byLine.set(toBillingOverrideLineItemId(l.lineItemId), {
       media: l.mediaCents,
       fee: l.feeCents,
       adserving: l.adservingCents,

@@ -1,7 +1,7 @@
 /**
  * Shared MBA GET response assembly (master ∪ version ∪ lineItems ∪ metrics).
  * Used by the Postgres plan-detail path; Xano route keeps its inline copy until
- * cutover so default `DATA_BACKEND_PLAN_DETAIL=xano` stays byte-identical.
+ * cutover so postgres `readMbaPlanDetail` stays shape-compatible with edit consumers.
  */
 
 import { parseDateSafe as safeParseDate } from "@/lib/dates/parseDateSafe"

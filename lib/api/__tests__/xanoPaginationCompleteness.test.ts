@@ -38,6 +38,30 @@ test("marks pagination incomplete when a non-404 page error is swallowed", async
   assert.equal(result.complete, false)
 })
 
+test("marks incomplete when pagination is unsupported (duplicate page, early stop)", async () => {
+  mockGet.mock.mockImplementation(async () => ({
+    // Full page of the same rows every time — classic "ignores page/offset" Xano shape.
+    data: [
+      { id: 1, line_item_id: "LI-1" },
+      { id: 2, line_item_id: "LI-2" },
+    ],
+  }))
+
+  const result = await fetchAllXanoPagesWithCompleteness(
+    "https://xano.test/media_plan_search",
+    {},
+    "TEST_DUP_PAGE",
+    2,
+    5
+  )
+
+  assert.deepEqual(result.items, [
+    { id: 1, line_item_id: "LI-1" },
+    { id: 2, line_item_id: "LI-2" },
+  ])
+  assert.equal(result.complete, false)
+})
+
 test("keeps pagination complete when a 404 terminates pagination", async () => {
   let callNumber = 0
   mockGet.mock.mockImplementation(async () => {

@@ -6,6 +6,7 @@ import type { ManualBillingSpreadsheetCallbacks } from "@/components/billing/man
 import type { BillingLineMode } from "@/lib/billing/applyBillingLineMode"
 import { isBillingBalancerEnabled } from "@/lib/billing/balancer"
 import { rebalanceLineOnSchedule } from "@/lib/billing/rebalanceLineOnSchedule"
+import { resolveManualBillingLineItemAmount } from "@/lib/billing/resolveManualBillingLineItemAmount"
 import { syncLineItemMonthlyAmountAcrossAllMonthRows } from "@/lib/billing/syncLineItemAmountAcrossMonthRows"
 import { recalculateBillingMonths } from "@/lib/billing/recalculateBillingMonths"
 
@@ -40,13 +41,8 @@ export function useManualBillingSpreadsheetCallbacks({
   getExpectedMediaTotal,
 }: UseManualBillingSpreadsheetCallbacksArgs): ManualBillingSpreadsheetCallbacks {
   const getLineItemAmount = useCallback(
-    (mediaKey: string, lineItemId: string, monthYear: string) => {
-      const list = manualBillingMonths[0]?.lineItems?.[
-        mediaKey as keyof NonNullable<BillingMonth["lineItems"]>
-      ] as BillingLineItem[] | undefined
-      const li = list?.find((l) => l.id === lineItemId)
-      return li?.monthlyAmounts?.[monthYear] ?? 0
-    },
+    (mediaKey: string, lineItemId: string, monthYear: string) =>
+      resolveManualBillingLineItemAmount(manualBillingMonths, mediaKey, lineItemId, monthYear),
     [manualBillingMonths]
   )
 

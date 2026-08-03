@@ -23,7 +23,7 @@ const MEDIA_PLANS_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL
  *
  * Channel `media_plan_*` line-item tables stay on Xano until T2e (media-plans
  * domain reassembles from consolidated `line_items`).
- * `fetchAllLineItems` → `XANO_LINE_ITEMS_SNAPSHOT` stays on Xano until T6.
+ * Snapshot sync: `LINE_ITEM_SNAPSHOT_SOURCE` (X7) — default Xano; PG behind STOP.
  */
 
 function asRecordList(body: unknown): Record<string, unknown>[] {

@@ -1,4 +1,5 @@
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
+import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
 
 export type BillingLineMode = NonNullable<BillingLineItem["billingMode"]>
 
@@ -64,7 +65,8 @@ export function applyBillingLineMode(
 
       let changedGroup = false
       const nextLines = lines.map((line) => {
-        if (line.id === lineItemId) {
+        // C-34 / BUX-6: bare schedule ids vs billing-{media}:: scope ids must match.
+        if (billingOverrideLineIdsMatch(String(line.id ?? ""), lineItemId)) {
           foundTarget = true
           if (line.billingMode === mode) return line
           changedGroup = true

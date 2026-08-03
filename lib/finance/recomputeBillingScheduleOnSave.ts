@@ -27,6 +27,7 @@ import {
   type ComputeCampaignFinancialsOpts,
 } from "@/lib/finance/computeCampaignFinancials"
 import { computeBillingInputsHash } from "@/lib/finance/computeBillingInputsHash"
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 import { formatAUD, roundMoney2 } from "@/lib/format/money"
 
 export const BILLING_AUTO_EQUALITY_TOLERANCE = 0.01
@@ -94,7 +95,7 @@ function collectScheduleLines(months: BillingMonth[]): Map<string, CollectedLine
     for (const items of Object.values(lineItems)) {
       if (!Array.isArray(items)) continue
       for (const item of items as BillingLineItem[]) {
-        const id = String(item.id ?? "").trim()
+        const id = toBillingOverrideLineItemId(String(item.id ?? "").trim())
         if (!id) continue
         const mediaAmt = Number(item.monthlyAmounts?.[month.monthYear] ?? 0) || 0
         const feeAmt = Number(item.feeMonthlyAmounts?.[month.monthYear] ?? 0) || 0
@@ -142,26 +143,39 @@ function isManualFeeLine(
 }
 
 /**
- * C2 sum rules (partial):
- * - Manual media override months must sum to the line's computed media (±$0.01).
- * - Fee overrides define the effective fee by construction — no sum equality check.
+ * C2 / MB-22 D2 sum gate (blocking):
+ * - Manual media override months must sum to the line's AUTO media (±$0.01).
+ * - Manual fee override months must sum to the line's AUTO fee (±$0.01).
+ * Baseline is burst-derived auto totals (D3) — pass override-free financials,
+ * not enteredAmount and not override-attached fee (which equals the override sum).
+ * Excluded lines still validate when they carry an override (partial MBA).
  */
 export function validateManualOverrideSumRules(args: {
   lineItems: LineItemInput[]
-  financials: CampaignFinancials
+  /**
+   * AUTO (override-free) financials — D3 baseline for media and fee.
+   * Callers may still pass `financials` as an alias for older call sites.
+   */
+  autoFinancials?: CampaignFinancials
+  /** @deprecated Prefer `autoFinancials` — treated as the auto baseline. */
+  financials?: CampaignFinancials
 }): ManualSumViolation[] {
-  const perLineById = new Map(args.financials.perLine.map((p) => [p.lineItemId, p]))
+  const baseline = args.autoFinancials ?? args.financials
+  if (!baseline) return []
+  const perLineById = new Map(
+    baseline.perLine.map((p) => [toBillingOverrideLineItemId(p.lineItemId), p])
+  )
   const violations: ManualSumViolation[] = []
 
   for (const line of args.lineItems) {
-    const pl = perLineById.get(line.lineItemId)
-    if (!pl || pl.flags.excluded) continue
+    const pl = perLineById.get(toBillingOverrideLineItemId(line.lineItemId))
+    if (!pl) continue
 
     if (line.billingOverride?.mode === "manual" && line.billingOverride.months?.length) {
       const actual = roundMoney2(
         line.billingOverride.months.reduce((s, m) => s + (Number(m.amount) || 0), 0)
       )
-      // Media override must sum to booked line media (client-pays → billable media 0).
+      // Media override must sum to auto line media (client-pays → billable media 0).
       const expected = line.clientPaysForMedia ? 0 : roundMoney2(pl.media)
       if (exceedsTolerance(actual, expected)) {
         const delta = roundMoney2(actual - expected)
@@ -177,7 +191,24 @@ export function validateManualOverrideSumRules(args: {
       }
     }
 
-    // Fee override: effective fee IS the override sum (B2). No C2 sum equality gate.
+    if (line.feeOverride?.mode === "manual" && line.feeOverride.months?.length) {
+      const actual = roundMoney2(
+        line.feeOverride.months.reduce((s, m) => s + (Number(m.amount) || 0), 0)
+      )
+      const expected = roundMoney2(pl.fee)
+      if (exceedsTolerance(actual, expected)) {
+        const delta = roundMoney2(actual - expected)
+        const label = String(line.label ?? "").trim() || line.lineItemId
+        violations.push({
+          lineItemId: line.lineItemId,
+          component: "fee",
+          expected,
+          actual,
+          delta,
+          message: `${label}: fee months add to ${formatAUD(actual)} but auto fee is ${formatAUD(expected)} — adjust the months to match (off by ${formatAUD(Math.abs(delta))}).`,
+        })
+      }
+    }
   }
 
   return violations
@@ -189,8 +220,12 @@ function compareAutoLines(args: {
   financials: CampaignFinancials
 }): AutoLineDelta[] {
   const clientLines = collectScheduleLines(args.clientSchedule)
-  const perLineById = new Map(args.financials.perLine.map((p) => [p.lineItemId, p]))
-  const inputById = new Map(args.lineItems.map((l) => [l.lineItemId, l]))
+  const perLineById = new Map(
+    args.financials.perLine.map((p) => [toBillingOverrideLineItemId(p.lineItemId), p])
+  )
+  const inputById = new Map(
+    args.lineItems.map((l) => [toBillingOverrideLineItemId(l.lineItemId), l])
+  )
   const deltas: AutoLineDelta[] = []
 
   // Server authoritative per-line totals come from computeCampaignFinancials.
@@ -198,7 +233,7 @@ function compareAutoLines(args: {
   // client payloads may still omit them — fall back to perLine when absent.
   for (const pl of args.financials.perLine) {
     if (pl.flags.excluded) continue
-    const id = pl.lineItemId
+    const id = toBillingOverrideLineItemId(pl.lineItemId)
     const client = clientLines.get(id)
     const input = inputById.get(id)
     const serverMedia = roundMoney2(
@@ -313,6 +348,16 @@ export function recomputeAndValidateBillingScheduleOnSave(args: {
   }
 
   const lineItems = attachOverridesToLineInputs(args.lineItems, args.overrideRows)
+  const autoLineItems = lineItems.map((l) => ({
+    ...l,
+    billingOverride: undefined,
+    feeOverride: undefined,
+  }))
+  const autoFinancials = computeCampaignFinancials(
+    autoLineItems,
+    { feeLoading: args.feeLoading },
+    args.opts
+  )
   const financials = computeCampaignFinancials(
     lineItems,
     { feeLoading: args.feeLoading },
@@ -321,7 +366,10 @@ export function recomputeAndValidateBillingScheduleOnSave(args: {
   const inputs_hash = computeBillingInputsHash(lineItems)
   const omitted = clientScheduleOmitted(args.clientBillingSchedule)
 
-  const sumViolations = validateManualOverrideSumRules({ lineItems, financials })
+  const sumViolations = validateManualOverrideSumRules({
+    lineItems,
+    autoFinancials,
+  })
   if (sumViolations.length > 0) {
     return {
       ok: false,

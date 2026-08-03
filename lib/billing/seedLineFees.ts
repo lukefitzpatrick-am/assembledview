@@ -1,6 +1,7 @@
 import { getScheduleHeaders } from "@/lib/billing/scheduleHeaders"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import type { BillingBurst, BillingLineItem, BillingMonth } from "@/lib/billing/types"
+import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
 import { resolveLineDimensions } from "@/lib/finance/resolveLineDimensions"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 
@@ -195,7 +196,11 @@ function injectMissingFeeLinesFromMedia(
     const burstSources = burstsForLineItem(sourceLine, liIndex, lineItems, containerBursts)
     if (!burstSourcesHavePositiveFee(burstSources)) return
 
-    const existsOnCanonical = record[billingKey]!.some((li) => li.id === id)
+    // Bare persisted ids (`supabase001PB1`) must match decorated scope ids
+    // (`billing-progBvod::…`) — otherwise we inject a $0 duplicate and Adjust timing reads $0.
+    const existsOnCanonical = record[billingKey]!.some((li) =>
+      billingOverrideLineIdsMatch(String(li.id ?? ""), id)
+    )
     if (existsOnCanonical) return
 
     const clientPays = lineClientPaysForMedia(sourceLine)
@@ -206,7 +211,7 @@ function injectMissingFeeLinesFromMedia(
       if (!month.lineItems) month.lineItems = {}
       const monthRecord = month.lineItems as Record<string, BillingLineItem[]>
       const group = monthRecord[billingKey] ?? []
-      if (group.some((li) => li.id === id)) continue
+      if (group.some((li) => billingOverrideLineIdsMatch(String(li.id ?? ""), id))) continue
       monthRecord[billingKey] = [...group, { ...synthetic, monthlyAmounts: { ...synthetic.monthlyAmounts } }]
     }
   })
@@ -266,8 +271,11 @@ export function seedBillingMonthsLineFees(
     if (!canonicalGroup?.length) continue
 
     for (const billingLine of canonicalGroup) {
-      const liIndex = lineItems.findIndex(
-        (item, idx) => stableLineItemId(billingKey, item, idx) === billingLine.id
+      const liIndex = lineItems.findIndex((item, idx) =>
+        billingOverrideLineIdsMatch(
+          stableLineItemId(billingKey, item, idx),
+          String(billingLine.id ?? "")
+        )
       )
       if (liIndex < 0) continue
       if (billingLine.billingMode === "manual") continue
@@ -296,7 +304,9 @@ export function seedBillingMonthsLineFees(
         if (!month.lineItems) month.lineItems = {}
         const group = (month.lineItems as Record<string, BillingLineItem[]>)[billingKey]
         if (!group?.length) continue
-        const idx = group.findIndex((li) => li.id === billingLine.id)
+        const idx = group.findIndex((li) =>
+          billingOverrideLineIdsMatch(String(li.id ?? ""), String(billingLine.id ?? ""))
+        )
         if (idx < 0) continue
         group[idx] = {
           ...group[idx]!,

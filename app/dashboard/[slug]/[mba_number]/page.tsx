@@ -14,6 +14,7 @@ import {
 import { ErrorState } from "@/components/ui/states"
 import { hasReportedDeliveredSpend } from "@/lib/delivery/deliveredTotals"
 import { getDeliveredTotalsForCampaign } from "@/lib/delivery/getDeliveredTotalsForCampaign"
+import { peekXanoEnv } from "@/lib/api/xano"
 
 export const maxDuration = 60
 
@@ -472,9 +473,9 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   }
 
   const xanoFileOrigin =
-    resolveXanoOrigin(process.env.XANO_SAVE_FILE_BASE_URL) ||
-    resolveXanoOrigin(process.env.XANO_MEDIA_PLANS_BASE_URL) ||
-    resolveXanoOrigin(process.env.XANO_MEDIAPLANS_BASE_URL)
+    resolveXanoOrigin(peekXanoEnv("XANO_SAVE_FILE_BASE_URL")) ||
+    resolveXanoOrigin(peekXanoEnv("XANO_MEDIA_PLANS_BASE_URL")) ||
+    resolveXanoOrigin(peekXanoEnv("XANO_MEDIAPLANS_BASE_URL"))
 
   // Public File metadata fields are stored on media_plan_versions
   const mediaPlanFileMeta =

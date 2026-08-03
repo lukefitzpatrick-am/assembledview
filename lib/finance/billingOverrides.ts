@@ -1,10 +1,12 @@
 /**
- * Load `billing_overrides` for a media_plan_version and attach them onto
- * {@link LineItemInput} as `billingOverride` (media) / `feeOverride` (fee).
+ * Attach `billing_overrides` rows onto {@link LineItemInput} as
+ * `billingOverride` (media) / `feeOverride` (fee).
+ *
+ * Row I/O is Postgres via `lib/data/readBillingOverrides` /
+ * `writeBillingOverrides` — do not reintroduce a soft-fail Xano GET here
+ * (MB-5: erased manual billing on upstream miss).
  */
 
-import axios from "axios"
-import { getXanoBaseUrl, parseXanoListPayload, xanoAuthHeaderRecord } from "@/lib/api/xano"
 import type {
   BillingOverride,
   BillingOverrideReason,
@@ -14,12 +16,9 @@ import type {
 } from "@/lib/finance/campaignFinancials.types"
 import { parseMoneyInput, roundMoney2 } from "@/lib/format/money"
 
-const XANO_TIMEOUT_MS = 15_000
-const MEDIA_PLANS_ENV_KEYS = ["XANO_MEDIA_PLANS_BASE_URL", "XANO_MEDIAPLANS_BASE_URL"] as const
-
 export type BillingOverrideComponent = "media" | "fee"
 
-/** Raw row shape from GET /billing_overrides (Xano). */
+/** Raw override row shape (Postgres / API / client panels). */
 export type BillingOverrideRow = {
   id?: number | string
   media_plan_version?: number | string
@@ -65,8 +64,15 @@ function asOverrideReason(raw: unknown): BillingOverrideReason | undefined {
   return undefined
 }
 
+/** Bare line id for Map keys (MB-11 — strip `billing-{media}::` when present). */
+function canonicalLineItemId(raw: unknown): string {
+  const s = String(raw ?? "").trim()
+  const m = /^billing-[^:]+::(.+)$/.exec(s)
+  return m?.[1] ? m[1].trim() : s
+}
+
 function rowLineItemId(row: BillingOverrideRow): string {
-  return String(row.line_item_id ?? row.lineItemId ?? "").trim()
+  return canonicalLineItemId(row.line_item_id ?? row.lineItemId)
 }
 
 function rowComponent(row: BillingOverrideRow): BillingOverrideComponent {
@@ -76,66 +82,6 @@ function rowComponent(row: BillingOverrideRow): BillingOverrideComponent {
 
 function rowDateBasis(row: BillingOverrideRow): string {
   return String(row.date_basis ?? row.dateBasis ?? "").trim()
-}
-
-function versionIdMatches(row: BillingOverrideRow, versionId: string | number): boolean {
-  const candidates = [
-    row.media_plan_version,
-    row.media_plan_version_id,
-    row.media_plan_versions_id,
-    row.version_id,
-  ]
-  const target = String(versionId)
-  return candidates.some((c) => c != null && String(c) === target)
-}
-
-/**
- * GET /billing_overrides filtered to a media_plan_version id.
- * Returns [] when the table/endpoint is missing or empty (soft-fail).
- */
-export async function fetchBillingOverridesForVersion(
-  versionId: string | number,
-  opts?: { baseUrl?: string }
-): Promise<BillingOverrideRow[]> {
-  if (versionId == null || String(versionId).trim() === "") return []
-
-  let baseUrl = opts?.baseUrl
-  try {
-    baseUrl ??= getXanoBaseUrl([...MEDIA_PLANS_ENV_KEYS])
-  } catch {
-    return []
-  }
-
-  try {
-    // Xano requires `media_plan_version` (confirmed: `_id` aliases → 400 Missing param).
-    const response = await axios.get(`${baseUrl}/billing_overrides`, {
-      params: {
-        media_plan_version: versionId,
-        page: 1,
-        per_page: 200,
-      },
-      headers: xanoAuthHeaderRecord(),
-      timeout: XANO_TIMEOUT_MS,
-      validateStatus: (s) => s >= 200 && s < 500,
-    })
-    if (response.status === 404) return []
-    if (response.status >= 400) {
-      console.warn("[billingOverrides] GET failed", {
-        versionId,
-        status: response.status,
-        upstream: response.data,
-      })
-      return []
-    }
-    const rows = parseXanoListPayload(response.data) as BillingOverrideRow[]
-    return rows.filter((r) => versionIdMatches(r, versionId) || !r.media_plan_version_id)
-  } catch (error) {
-    console.warn("[billingOverrides] GET threw; treating as no overrides", {
-      versionId,
-      message: error instanceof Error ? error.message : String(error),
-    })
-    return []
-  }
 }
 
 export function billingOverrideFromRow(row: BillingOverrideRow): BillingOverride | null {
@@ -190,14 +136,10 @@ export function attachOverridesToLineInputs(
   if (mediaByLine.size === 0 && feeByLine.size === 0) return lineItems
 
   return lineItems.map((line) => {
-    const canon = (() => {
-      const s = String(line.lineItemId ?? "").trim()
-      const m = /^billing-[^:]+::(.+)$/.exec(s)
-      return m?.[1] ? m[1].trim() : s
-    })()
-    const media =
-      mediaByLine.get(line.lineItemId) ?? (canon ? mediaByLine.get(canon) : undefined)
-    const fee = feeByLine.get(line.lineItemId) ?? (canon ? feeByLine.get(canon) : undefined)
+    const canon = canonicalLineItemId(line.lineItemId)
+    // MB-11: both Map keys and lookup go through the same canonical id.
+    const media = canon ? mediaByLine.get(canon) : undefined
+    const fee = canon ? feeByLine.get(canon) : undefined
     if (!media && !fee) return line
     return {
       ...line,

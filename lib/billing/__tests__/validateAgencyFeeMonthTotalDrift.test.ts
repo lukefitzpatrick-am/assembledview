@@ -80,9 +80,9 @@ test("custom tolerance respected", () => {
   assert.equal(result.toleranceUsed, 5)
 })
 
-test("empty months → sum 0, diff = -derived", () => {
+test("empty months → skip (MB-6: absent draft is not a fee drift)", () => {
   const result = validateAgencyFeeMonthTotalDrift([], 10100)
   assert.equal(result.sumOfMonthFeeTotals, 0)
-  assert.equal(result.diff, -10100)
-  assert.equal(result.withinTolerance, false)
+  assert.equal(result.diff, 0)
+  assert.equal(result.withinTolerance, true)
 })

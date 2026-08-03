@@ -10,7 +10,7 @@ import {
 import { checkSnapshotDuplicateGuard, recordSnapshotDedupeGuard } from "@/lib/finance/forecast/snapshot/duplicateGuard"
 import { formatAutomatedSnapshotLabel } from "@/lib/finance/forecast/snapshot/labels"
 import { hashFinanceForecastDataset } from "@/lib/finance/forecast/snapshot/serializeForSnapshotHash"
-import { persistFinanceForecastSnapshotToXano } from "@/lib/finance/forecast/snapshot/xanoPersistSnapshot"
+import { persistFinanceForecastSnapshotToPostgres } from "@/lib/finance/forecast/snapshot/pgSnapshots"
 import {
   loadFinanceForecastDataset,
   normalizeScenario,
@@ -69,7 +69,7 @@ type SnapshotSuccessBody = {
 }
 
 /**
- * GET — List snapshot headers (admin only). Requires `XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL`.
+ * GET — List snapshot headers (admin only). Requires `DATABASE_URL` (PG snapshots, X5).
  */
 export async function GET(request: NextRequest) {
   const session = await auth0.getSession(request)
@@ -288,7 +288,7 @@ async function handleServerComputedSnapshot(
     dataset_hash,
   }
 
-  if (!process.env.XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL) {
+  if (!isSnapshotStorageConfigured()) {
     recordSnapshotDedupeGuard({
       userKey,
       fy,
@@ -305,7 +305,7 @@ async function handleServerComputedSnapshot(
   }
 
   try {
-    const { snapshot_id } = await persistFinanceForecastSnapshotToXano(staging)
+    const { snapshot_id } = await persistFinanceForecastSnapshotToPostgres(staging)
     recordSnapshotDedupeGuard({
       userKey,
       fy,
@@ -386,7 +386,7 @@ async function handleLegacySuppliedDataset(
 
   const dataset_hash = hashFinanceForecastDataset(dataset)
 
-  if (!process.env.XANO_FINANCE_FORECAST_SNAPSHOTS_BASE_URL) {
+  if (!isSnapshotStorageConfigured()) {
     return noStore({
       ok: true,
       persisted: false,
@@ -400,7 +400,7 @@ async function handleLegacySuppliedDataset(
   }
 
   try {
-    const { snapshot_id } = await persistFinanceForecastSnapshotToXano(staging)
+    const { snapshot_id } = await persistFinanceForecastSnapshotToPostgres(staging)
     return noStore({
       ok: true,
       persisted: true,

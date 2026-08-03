@@ -43,6 +43,28 @@ function month(lineItems: BillingMonth["lineItems"]): BillingMonth {
   }
 }
 
+test("manual mode matches bare schedule id to billing-prefixed scope id (C-34 / BUX-6)", () => {
+  const result = applyBillingLineMode(
+    [
+      month({
+        search: [
+          {
+            id: "supabase001PB1",
+            header1: "Publisher",
+            header2: "Line",
+            monthlyAmounts: { "May 2026": 100 },
+            totalAmount: 100,
+          },
+        ],
+      }),
+    ],
+    "billing-search::supabase001PB1",
+    "manual"
+  )
+
+  assert.equal(result[0]!.lineItems!.search![0]!.billingMode, "manual")
+})
+
 test("manual mode stamps legacy sibling lines to explicit auto", () => {
   const result = applyBillingLineMode(
     [

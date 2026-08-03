@@ -97,12 +97,16 @@ function publisherIdFromUrlSegment(segment: string): string {
   }
 }
 
-/** Resolve by Xano business key `publisherid` (URL segment may be encoded). */
+/** Resolve by business key `publisherid` (URL segment may be encoded). Honors DATA_BACKEND_PUBLISHERS. */
 export async function getPublisherByPublisherId(segment: string): Promise<Publisher | null> {
   const key = publisherIdFromUrlSegment(segment)
   if (!key) return null
-  const list = await fetchPublishersFromXano()
-  const found = list.find((p) => String(p.publisherid ?? "").trim() === key)
+  const { readPublishersList } = await import("@/lib/data/readPublishers")
+  const result = await readPublishersList()
+  if (result.status >= 400 || !Array.isArray(result.body)) return null
+  const found = (result.body as Publisher[]).find(
+    (p) => String(p.publisherid ?? "").trim() === key
+  )
   return found ?? null
 }
 

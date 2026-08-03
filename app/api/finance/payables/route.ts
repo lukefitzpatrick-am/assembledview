@@ -21,8 +21,6 @@ export const maxDuration = 60
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-const XANO_BASE = process.env.XANO_CLIENTS_BASE_URL
-
 /**
  * Read-only publisher payables: rows are derived live from `media_plan_versions.deliverySchedule`
  * (and `delivery_schedule`). This route does not read or write Xano `finance_billing_records`.
@@ -83,9 +81,9 @@ export async function GET(request: NextRequest) {
   const query = searchParamsRecord(request.nextUrl.searchParams)
 
   try {
-    if (!XANO_BASE) {
+    if (!process.env.DATABASE_URL) {
       console.error("[finance-api] payables GET missing env", { requestUrl, query, upstreamBody: null })
-      return NextResponse.json({ error: "Missing XANO_CLIENTS_BASE_URL" }, { status: 500 })
+      return NextResponse.json({ error: "Missing DATABASE_URL" }, { status: 500 })
     }
 
     const searchParams = request.nextUrl.searchParams

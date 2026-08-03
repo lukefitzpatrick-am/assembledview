@@ -1,4 +1,4 @@
-import { xanoUrl } from "@/lib/api/xano"
+import { peekXanoEnv, xanoUrl } from "@/lib/api/xano"
 
 const CLIENTS_BASE_ENV_KEYS = ["XANO_CLIENTS_BASE_URL", "XANO_BASE_URL"] as const
 
@@ -13,9 +13,9 @@ export function getXanoClientsCollectionUrl(): string {
  */
 export function getXanoMediaPlansBaseUrl(): string {
   const explicit =
-    process.env.XANO_MEDIA_PLANS_BASE_URL?.trim() ||
-    process.env.XANO_MEDIAPLANS_BASE_URL?.trim()
-  const fallbackBase = process.env.XANO_BASE_URL?.trim()
+    peekXanoEnv("XANO_MEDIA_PLANS_BASE_URL") ||
+    peekXanoEnv("XANO_MEDIAPLANS_BASE_URL")
+  const fallbackBase = peekXanoEnv("XANO_BASE_URL")
   const resolved = explicit || fallbackBase
   if (!resolved) {
     console.warn(
@@ -38,7 +38,7 @@ export function xanoMediaPlansUrl(path: string): string {
  * Requires `XANO_DASHBOARDS_BASE_URL`.
  */
 export function getXanoDashboardsBaseUrl(): string {
-  const resolved = process.env.XANO_DASHBOARDS_BASE_URL?.trim()
+  const resolved = peekXanoEnv("XANO_DASHBOARDS_BASE_URL")
   if (!resolved) {
     console.warn(
       "[xanoClients] getXanoDashboardsBaseUrl: XANO_DASHBOARDS_BASE_URL is not set; dashboard spend calls will fail.",

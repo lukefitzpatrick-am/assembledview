@@ -2,10 +2,10 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 test("DigiDisplay burst builder attaches canonical line item id for KPI join", async () => {
-  process.env.XANO_PUBLISHERS_BASE_URL = "https://example.test"
-  process.env.XANO_CLIENTS_BASE_URL = "https://example.test"
-  process.env.XANO_MEDIA_DETAILS_BASE_URL = "https://example.test"
-  process.env.XANO_MEDIA_PLANS_BASE_URL = "https://example.test"
+  process.env["XANO_PUBLISHERS_BASE_URL"] = "https://example.test"
+  process.env["XANO_CLIENTS_BASE_URL"] = "https://example.test"
+  process.env["XANO_MEDIA_DETAILS_BASE_URL"] = "https://example.test"
+  process.env["XANO_MEDIA_PLANS_BASE_URL"] = "https://example.test"
 
   const { getDigiDisplayBursts } = await import(
     "@/components/media-containers/DigitalDisplayContainer"

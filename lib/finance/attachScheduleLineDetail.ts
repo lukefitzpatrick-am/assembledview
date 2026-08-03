@@ -175,10 +175,18 @@ function buildBillingLineItem(
       )
     : undefined
 
+  // MB-12: override metadata is billing-basis only. Delivery amounts stay auto;
+  // stamping manual/preBill on delivery lied after MB-1 attached overrides to financials.
   const billingMode: BillingLineItem["billingMode"] =
-    line.billingOverride?.mode === "manual" ? "manual" : "auto"
+    basis === "billing" && line.billingOverride?.mode === "manual"
+      ? "manual"
+      : "auto"
   const feeBillingMode: BillingLineItem["feeBillingMode"] =
-    line.feeOverride?.mode === "manual" ? "manual" : "auto"
+    basis === "billing" && line.feeOverride?.mode === "manual"
+      ? "manual"
+      : "auto"
+  const preBill =
+    basis === "billing" && line.billingOverride?.reason === "prepayment"
 
   const label = String(line.label ?? "").trim()
   const header1 = label || line.scheduleMediaType || "Item"
@@ -199,7 +207,7 @@ function buildBillingLineItem(
     feeMonthlyAmounts,
     totalFeeAmount,
     ...(line.clientPaysForMedia ? { clientPaysForMedia: true } : {}),
-    ...(line.billingOverride?.reason === "prepayment" ? { preBill: true } : {}),
+    ...(preBill ? { preBill: true } : {}),
     ...(adServingMonthlyAmounts
       ? { adServingMonthlyAmounts, totalAdServingAmount }
       : {}),

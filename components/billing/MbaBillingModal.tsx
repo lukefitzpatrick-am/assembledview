@@ -30,7 +30,6 @@ import {
   BillingEqualsMbaPill,
   BillingMismatchMbaPill,
   BillingMonthStatusDot,
-  BillingScheduleTitlePills,
   EditBillingOverrideDot,
 } from "@/components/billing/BillingSchedulePanelIndicators"
 import {
@@ -52,6 +51,22 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { formatMoney } from "@/lib/format/money"
+import {
+  clientPaysBadgeLabel,
+  draftContradictsSavedForLine,
+  feeAdjustedBadgeLabel,
+  formatManualBillingStatusLabel,
+  manualBillingHeaderLabel,
+  manualTimingBadgeLabel,
+  pendingContradictsSavedForLine,
+  prebillBadgeTooltip,
+  prebillStatusLabelFromFlags,
+  provenanceTooltip,
+  resolveCampaignBillingTimingProvenance,
+  resolveLineBillingTimingProvenance,
+  type BillingTimingProvenance,
+} from "@/lib/billing/manualBillingVocabulary"
+import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 
 /** Collapsed-by-default expand memory for the browser session (survives modal close). */
 const sessionExpandedByMediaType: Record<string, boolean> = {}
@@ -70,7 +85,10 @@ export type MbaBillingScopeLine = {
     manualBilling: boolean
     manualFee: boolean
     clientPaysForMedia: boolean
+    /** Media + fee prebill — badge "Prepaid". */
     prepaid: boolean
+    /** Media-only prebill — badge "Media prepaid". */
+    mediaPrepaid: boolean
   }
 }
 
@@ -125,8 +143,17 @@ export type MbaBillingModalProps = {
   timingDraftReady?: boolean
   /** Prepare the shared manual-billing draft (Edit timing). */
   onEnsureTimingDraft?: () => void
-  /** Close / discard the timing draft session. */
+  /**
+   * @deprecated MB-26 — Done removed. Apply is the terminal action (closes modal).
+   * Kept optional so stale callers typecheck; the button is not rendered.
+   */
   onCloseTimingDraft?: () => void
+  /**
+   * Cancel — discard timing draft AND pendingBillingOverrideRows (MB-20).
+   * Parent should route Dialog X / Escape via onOpenChange(false).
+   * Toolbar Cancel removed (MB-26) — footer Cancel only.
+   */
+  onCancelBilling?: () => void
   /** When true, show the Advanced spreadsheet on the billing side. */
   showAdvancedEditor?: boolean
   onToggleAdvancedEditor?: () => void
@@ -154,6 +181,20 @@ export type MbaBillingModalProps = {
    * Non-blocking amber notice when billing_overrides GET failed (once, not per line).
    */
   overridesLoadNotice?: string | null
+  /**
+   * MB-15c — published (approved-or-beyond) versions are immutable to billing writers.
+   * Hides Edit timing / Adjust timing / Prebill / Save / Reset; shows lock copy instead.
+   */
+  billingTimingReadOnly?: boolean
+  billingTimingReadOnlyMessage?: string
+  /**
+   * MB-21/MB-24: pending + fetch-only saved carriers for provenance labels.
+   * Optional draftOverrideRows (open editor layered rows) → "not applied".
+   */
+  pendingOverrideRows?: BillingOverrideRow[]
+  tableOverrideRows?: BillingOverrideRow[]
+  /** MB-24: open timing draft as override-shaped rows (precedence: draft > pending > saved). */
+  draftOverrideRows?: BillingOverrideRow[]
   footer?: ReactNode
   /**
    * False while channel containers are still hydrating. Suppresses green/red
@@ -222,6 +263,9 @@ function HeaderStrip({
   selectedMonthYears,
   onSelectedMonthYearsChange,
   reconciliationReady = true,
+  pendingOverrideRows,
+  tableOverrideRows,
+  draftOverrideRows,
 }: {
   versionLabel: string
   financials: CampaignFinancials
@@ -230,22 +274,23 @@ function HeaderStrip({
   selectedMonthYears?: string[]
   onSelectedMonthYearsChange?: (next: string[]) => void
   reconciliationReady?: boolean
+  pendingOverrideRows?: BillingOverrideRow[]
+  tableOverrideRows?: BillingOverrideRow[]
+  draftOverrideRows?: BillingOverrideRow[]
 }) {
   const lines = financials.perLine
   const total = lines.length
   const approved = lines.filter((l) => !l.flags.excluded).length
   const manual = lines.filter((l) => l.flags.manualBilling && !l.flags.excluded).length
-  const clientPays = lines.filter((l) => l.flags.clientPaysForMedia && !l.flags.excluded).length
-  const billingNeDelivery = financials.deliveryVsBillingDelta.filter(
-    (d) => Math.abs(d.media) > 0.005 || d.reasons.some((r) => r !== "rounding")
-  ).length
-  // CORE validation only (subtracts client-pays media). Never compare schedule grand total to MBA nett.
-  const billableEquals = financials.validation.billableEqualsMba
-  const rec = reconciliationBadgeVisibility(reconciliationReady, billableEquals)
   const partialLabel = panelIndicators.mbaDetails.partialLabel
-
-  const quiet =
-    !partialLabel && manual === 0 && clientPays === 0 && billingNeDelivery === 0
+  const campaignProvenance: BillingTimingProvenance | null =
+    pendingOverrideRows != null && tableOverrideRows != null
+      ? resolveCampaignBillingTimingProvenance(
+          pendingOverrideRows,
+          tableOverrideRows,
+          draftOverrideRows
+        )
+      : panelIndicators.billingSchedule.editBillingOverrideProvenance ?? null
 
   const months = monthYears ?? []
   const selected = selectedMonthYears ?? months
@@ -263,62 +308,65 @@ function HeaderStrip({
     onSelectedMonthYearsChange([...selected, monthYear])
   }
 
+  // BUX-3: one status row — MBA version · approval · billing mode. No glyph jargon chips;
+  // real saved-vs-auto drift stays in BillingDivergenceBanner (words).
   return (
     <div className="space-y-2 border-b border-border bg-surface-panel px-6 py-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge variant="secondary" size="sm" className="rounded-pill font-medium">
-          MBA {versionLabel}
-        </Badge>
-        {/* Core signal — same Partial MBA · X of Y as MBA Details panel */}
-        <MbaPartialScopePill label={partialLabel} />
-        {!partialLabel && total > 0 ? (
-          <Badge variant="good" size="sm" className="rounded-pill font-medium">
-            <span className="num">{`${approved} of ${total} approved`}</span>
+      <TooltipProvider delayDuration={200}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" size="sm" className="rounded-pill font-medium">
+            MBA {versionLabel}
           </Badge>
-        ) : null}
-        {manual > 0 ? (
-          <Badge variant="attention" size="sm" className="rounded-pill font-medium">
-            <span className="num">{manual}</span> manual
-          </Badge>
-        ) : null}
-        {clientPays > 0 ? (
-          <Badge variant="secondary" size="sm" className="rounded-pill font-medium text-muted-foreground">
-            client-pays: <span className="num">{clientPays}</span>
-          </Badge>
-        ) : null}
-        {billingNeDelivery > 0 ? (
-          <Badge variant="attention" size="sm" className="rounded-pill font-medium">
-            billing≠delivery: <span className="num">{billingNeDelivery}</span>
-          </Badge>
-        ) : null}
-        {!reconciliationReady ? (
-          <Badge
-            variant="secondary"
-            size="sm"
-            className="rounded-pill font-medium text-muted-foreground"
-            title="Waiting for all media channels to finish loading"
-          >
-            Loading channels…
-          </Badge>
-        ) : rec.showEquals ? (
-          <Badge variant="good" size="sm" className="rounded-pill font-medium" title="Billable totals match MBA">
-            <Check className="mr-1 h-3.5 w-3.5" aria-hidden />
-            billable = MBA
-          </Badge>
-        ) : rec.showMismatch && total > 0 ? (
-          <Badge
-            variant="blocking"
-            size="sm"
-            className="rounded-pill font-medium"
-            title="Billable totals do not match MBA"
-          >
-            billing ≠ MBA
-          </Badge>
-        ) : null}
-        {quiet && rec.showEquals && total > 0 ? (
-          <span className="text-xs text-muted-foreground">Clean plan</span>
-        ) : null}
-      </div>
+          <MbaPartialScopePill label={partialLabel} />
+          {!partialLabel && total > 0 ? (
+            <Badge variant="good" size="sm" className="rounded-pill font-medium">
+              <span className="num">{`${approved} of ${total} approved`}</span>
+            </Badge>
+          ) : null}
+          {total > 0 ? (
+            manual > 0 ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <Badge variant="attention" size="sm" className="rounded-pill font-medium">
+                      <span className="num">
+                        {manualBillingHeaderLabel(manual, campaignProvenance)}
+                      </span>
+                    </Badge>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs text-xs">
+                  Billing months were set manually and may differ from auto-calculated delivery
+                  timing for invoicing.
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="inline-flex">
+                    <Badge variant="secondary" size="sm" className="rounded-pill font-medium">
+                      Auto billing
+                    </Badge>
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs text-xs">
+                  Invoice months follow delivery timing computed from bursts and line items.
+                </TooltipContent>
+              </Tooltip>
+            )
+          ) : null}
+          {!reconciliationReady ? (
+            <Badge
+              variant="secondary"
+              size="sm"
+              className="rounded-pill font-medium text-muted-foreground"
+              title="Waiting for all media channels to finish loading"
+            >
+              Loading channels…
+            </Badge>
+          ) : null}
+        </div>
+      </TooltipProvider>
       {showMonthChips ? (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-muted-foreground">MBA covers:</span>
@@ -371,6 +419,63 @@ function inMbaVersionPillLabel(versionLabel: string): string {
   return /^v/i.test(v) ? `In MBA ${v}` : `In MBA v${v}`
 }
 
+function lineStatusDisplay(
+  lineItemId: string,
+  kind: "prepaidMediaAndFee" | "prepaidMedia" | "manualTiming" | "feeAdjusted",
+  pendingRows: BillingOverrideRow[] | undefined,
+  tableRows: BillingOverrideRow[] | undefined,
+  draftRows?: BillingOverrideRow[] | null
+): { label: string; tooltip: string } {
+  const base =
+    kind === "prepaidMediaAndFee"
+      ? "Prepaid"
+      : kind === "prepaidMedia"
+        ? "Media prepaid"
+        : kind === "manualTiming"
+          ? "Manual"
+          : "Fee adjusted"
+  if (!pendingRows || !tableRows) {
+    return {
+      label: base,
+      tooltip:
+        kind === "prepaidMediaAndFee" || kind === "prepaidMedia"
+          ? prebillBadgeTooltip(base as "Prepaid" | "Media prepaid")
+          : kind === "manualTiming"
+            ? "Billing months were set manually and may differ from auto-calculated delivery timing for invoicing."
+            : "Fee months were adjusted manually for invoicing.",
+    }
+  }
+  const provenance = resolveLineBillingTimingProvenance(
+    lineItemId,
+    pendingRows,
+    tableRows,
+    draftRows
+  )
+  if (!provenance) {
+    return {
+      label: base,
+      tooltip:
+        kind === "prepaidMediaAndFee" || kind === "prepaidMedia"
+          ? prebillBadgeTooltip(base as "Prepaid" | "Media prepaid")
+          : kind === "manualTiming"
+            ? "Billing months were set manually and may differ from auto-calculated delivery timing for invoicing."
+            : "Fee months were adjusted manually for invoicing.",
+    }
+  }
+  const differs =
+    (provenance === "draft" &&
+      Boolean(draftRows) &&
+      draftContradictsSavedForLine(lineItemId, draftRows!, tableRows)) ||
+    (provenance === "unsaved" &&
+      pendingContradictsSavedForLine(lineItemId, pendingRows, tableRows))
+  return {
+    label: formatManualBillingStatusLabel(kind, provenance, {
+      differsFromSaved: differs,
+    }),
+    tooltip: provenanceTooltip(provenance, { differsFromSaved: differs }),
+  }
+}
+
 function ScopeLineRow({
   line,
   versionLabel,
@@ -378,6 +483,9 @@ function ScopeLineRow({
   timingDraftReady,
   onEnsureTimingDraft,
   lineTiming,
+  pendingOverrideRows,
+  tableOverrideRows,
+  draftOverrideRows,
 }: {
   line: MbaBillingScopeLine
   versionLabel: string
@@ -385,6 +493,9 @@ function ScopeLineRow({
   timingDraftReady?: boolean
   onEnsureTimingDraft?: () => void
   lineTiming?: MbaBillingLineTimingApi
+  pendingOverrideRows?: BillingOverrideRow[]
+  tableOverrideRows?: BillingOverrideRow[]
+  draftOverrideRows?: BillingOverrideRow[]
 }) {
   const muted = line.flags.excluded
   const dateBasisChoice = lineTiming?.getDateBasisChoice?.(line.lineItemId) ?? null
@@ -457,31 +568,107 @@ function ScopeLineRow({
                 Not in MBA
               </Badge>
             )}
-            {line.flags.prepaid && !muted ? (
-              <Badge variant="attention" size="sm" className="rounded-pill font-normal">
-                Prepaid
-              </Badge>
-            ) : null}
-            {line.flags.manualBilling && !muted && !line.flags.prepaid ? (
-              <Badge variant="attention" size="sm" className="rounded-pill font-normal">
-                Manual
-              </Badge>
-            ) : null}
-            {line.flags.manualFee && !muted ? (
-              <Badge variant="attention" size="sm" className="rounded-pill font-normal">
-                Fee adjusted
-              </Badge>
-            ) : null}
-            {line.flags.clientPaysForMedia && !muted ? (
-              <Badge variant="secondary" size="sm" className="rounded-pill font-normal">
-                Client pays
-              </Badge>
-            ) : null}
-            {dateBasisChoice && !muted ? (
-              <Badge variant="attention" size="sm" className="rounded-pill font-normal">
-                Dates changed
-              </Badge>
-            ) : null}
+            <TooltipProvider delayDuration={200}>
+              {(() => {
+                const prebillBase = prebillStatusLabelFromFlags(line.flags)
+                if (!prebillBase || muted) return null
+                const kind =
+                  prebillBase === "Prepaid" ? "prepaidMediaAndFee" : "prepaidMedia"
+                const { label, tooltip } = lineStatusDisplay(
+                  line.lineItemId,
+                  kind,
+                  pendingOverrideRows,
+                  tableOverrideRows,
+                  draftOverrideRows
+                )
+                return (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex">
+                        <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                          {label}
+                        </Badge>
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs">
+                      {tooltip}
+                    </TooltipContent>
+                  </Tooltip>
+                )
+              })()}
+              {line.flags.manualBilling &&
+              !muted &&
+              !line.flags.prepaid &&
+              !line.flags.mediaPrepaid ? (
+                (() => {
+                  const { label, tooltip } = lineStatusDisplay(
+                    line.lineItemId,
+                    "manualTiming",
+                    pendingOverrideRows,
+                    tableOverrideRows,
+                    draftOverrideRows
+                  )
+                  return (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                            {label}
+                          </Badge>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        {tooltip}
+                      </TooltipContent>
+                    </Tooltip>
+                  )
+                })()
+              ) : null}
+              {line.flags.manualFee && !muted ? (
+                (() => {
+                  const { label, tooltip } = lineStatusDisplay(
+                    line.lineItemId,
+                    "feeAdjusted",
+                    pendingOverrideRows,
+                    tableOverrideRows,
+                    draftOverrideRows
+                  )
+                  return (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                            {label}
+                          </Badge>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        {tooltip}
+                      </TooltipContent>
+                    </Tooltip>
+                  )
+                })()
+              ) : null}
+              {line.flags.clientPaysForMedia && !muted ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex">
+                      <Badge variant="secondary" size="sm" className="rounded-pill font-normal">
+                        {clientPaysBadgeLabel()}
+                      </Badge>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    Client pays media cost directly; it is excluded from billable MBA totals.
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+              {dateBasisChoice && !muted ? (
+                <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                  Dates changed
+                </Badge>
+              ) : null}
+            </TooltipProvider>
           </div>
           {line.subtitle ? (
             <p className="truncate text-xs text-muted-foreground">{line.subtitle}</p>
@@ -505,7 +692,7 @@ function ScopeLineRow({
                 />
                 Adjust timing
               </Button>
-              {!line.flags.prepaid ? (
+              {!line.flags.prepaid && !line.flags.mediaPrepaid ? (
                 <Button
                   type="button"
                   variant="ghost"
@@ -536,7 +723,18 @@ function ScopeLineRow({
           onCommit={lineTiming.onCommit}
           onResetToAuto={lineTiming.onResetLine}
           onPrebill={lineTiming.onPrebillLine}
-          isPrepaid={line.flags.prepaid}
+          prebillBadgeLabel={(() => {
+            const base = prebillStatusLabelFromFlags(line.flags)
+            if (!base) return null
+            const kind = base === "Prepaid" ? "prepaidMediaAndFee" : "prepaidMedia"
+            return lineStatusDisplay(
+              line.lineItemId,
+              kind,
+              pendingOverrideRows,
+              tableOverrideRows,
+              draftOverrideRows
+            ).label
+          })()}
           clientPaysForMedia={line.flags.clientPaysForMedia}
           dateBasisChoice={dateBasisChoice}
           formatter={lineTiming.formatter}
@@ -607,6 +805,7 @@ export function MbaBillingModal({
   timingDraftReady,
   onEnsureTimingDraft,
   onCloseTimingDraft,
+  onCancelBilling,
   showAdvancedEditor,
   onToggleAdvancedEditor,
   showManualEditor,
@@ -617,18 +816,43 @@ export function MbaBillingModal({
   showDivergenceBanner = false,
   onAcknowledgeDivergence,
   overridesLoadNotice = null,
+  billingTimingReadOnly = false,
+  billingTimingReadOnlyMessage,
+  pendingOverrideRows,
+  tableOverrideRows,
+  draftOverrideRows,
   footer,
   reconciliationReady = true,
 }: MbaBillingModalProps) {
-  const advancedOpen = showAdvancedEditor ?? showManualEditor ?? false
-  const draftReady = timingDraftReady ?? advancedOpen
-  const ensureDraft =
-    onEnsureTimingDraft ??
-    (onToggleManualEditor && !advancedOpen ? onToggleManualEditor : undefined)
-  const toggleAdvanced =
-    onToggleAdvancedEditor ??
-    (onToggleManualEditor && draftReady ? onToggleManualEditor : undefined)
-  const closeDraft = onCloseTimingDraft
+  // MB-26: Done / toolbar Cancel removed — keep props for typecompat only.
+  void onCloseTimingDraft
+  void onCancelBilling
+  const timingLocked = Boolean(billingTimingReadOnly)
+  const hasPendingBilling = (pendingOverrideRows?.length ?? 0) > 0
+  // MB-26: one provenance for header pill AND Advanced/Edit amber dot (MB-24 carriers).
+  const campaignProvenance: BillingTimingProvenance | null =
+    pendingOverrideRows != null && tableOverrideRows != null
+      ? resolveCampaignBillingTimingProvenance(
+          pendingOverrideRows,
+          tableOverrideRows,
+          draftOverrideRows
+        )
+      : panelIndicators.billingSchedule.editBillingOverrideProvenance ?? null
+  const editDotProvenance = campaignProvenance
+  const advancedOpen =
+    !timingLocked && (showAdvancedEditor ?? showManualEditor ?? false)
+  const draftReady =
+    !timingLocked && (timingDraftReady ?? advancedOpen)
+  const ensureDraft = timingLocked
+    ? undefined
+    : onEnsureTimingDraft ??
+      (onToggleManualEditor && !advancedOpen ? onToggleManualEditor : undefined)
+  const toggleAdvanced = timingLocked
+    ? undefined
+    : onToggleAdvancedEditor ??
+      (onToggleManualEditor && draftReady ? onToggleManualEditor : undefined)
+  const effectiveLineTiming = timingLocked ? undefined : lineTiming
+  const effectiveResetBilling = timingLocked ? undefined : onResetBillingToAuto
   const t = financials.mbaScopeTotals
   const schedule = financials.billingSchedule
   const byMedia = panelIndicators.mbaDetails.byMediaType
@@ -729,7 +953,23 @@ export function MbaBillingModal({
             selectedMonthYears={selectedMonthYears}
             onSelectedMonthYearsChange={onSelectedMonthYearsChange}
             reconciliationReady={reconciliationReady}
+            pendingOverrideRows={pendingOverrideRows}
+            tableOverrideRows={tableOverrideRows}
+            draftOverrideRows={draftOverrideRows}
           />
+          {timingLocked ? (
+            <div className="border-b border-border px-6 py-3">
+              <div
+                role="status"
+                className="rounded-card border border-border bg-surface-panel px-4 py-3 text-foreground"
+              >
+                <p className="text-sm">
+                  {billingTimingReadOnlyMessage ??
+                    "Billing timing is locked on this published version. Change timing by publishing a new version."}
+                </p>
+              </div>
+            </div>
+          ) : null}
           {overridesLoadNotice ? (
             <div className="border-b border-border px-6 py-3">
               <div
@@ -743,9 +983,14 @@ export function MbaBillingModal({
               </div>
             </div>
           ) : null}
-          {showDivergenceBanner && billingDivergence?.isDivergent ? (
-            <div className="border-b border-border px-6 py-3">
+          {/* Single banner instance — do not also mount BillingDivergenceModal.
+              BUX-5: hide while channels still hydrating (same as "Loading channels…"). */}
+          {showDivergenceBanner &&
+          reconciliationReady &&
+          billingDivergence?.isDivergent ? (
+            <div className="border-b border-border px-6 py-3" data-billing-divergence-banner="1">
               <BillingDivergenceBanner
+                key="mba-billing-divergence-banner"
                 divergence={billingDivergence}
                 onAcknowledge={onAcknowledgeDivergence}
               />
@@ -882,7 +1127,10 @@ export function MbaBillingModal({
                                 onToggleLineApproved={onToggleLineApproved}
                                 timingDraftReady={draftReady}
                                 onEnsureTimingDraft={ensureDraft}
-                                lineTiming={lineTiming}
+                                lineTiming={effectiveLineTiming}
+                                pendingOverrideRows={pendingOverrideRows}
+                                tableOverrideRows={tableOverrideRows}
+                                draftOverrideRows={draftOverrideRows}
                               />
                             ))}
                           </div>
@@ -939,15 +1187,16 @@ export function MbaBillingModal({
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Billing schedule
                   </h3>
-                  <BillingScheduleTitlePills pills={panelIndicators.billingSchedule.titlePills} />
+                  {/* BUX-3: billing mode lives in the header status row — no duplicate title pills. */}
                 </div>
+                {/* MB-26: tools left (Reset / Excel / Edit / Advanced) — exits live in footer only. */}
                 <div className="flex flex-wrap items-center gap-2">
-                  {onResetBillingToAuto ? (
+                  {effectiveResetBilling ? (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={onResetBillingToAuto}
+                      onClick={effectiveResetBilling}
                     >
                       Reset billing to auto
                     </Button>
@@ -964,7 +1213,12 @@ export function MbaBillingModal({
                       Excel
                     </Button>
                   ) : null}
-                  {ensureDraft || toggleAdvanced || closeDraft ? (
+                  {timingLocked ? (
+                    <p className="max-w-sm text-xs text-muted-foreground">
+                      {billingTimingReadOnlyMessage ??
+                        "Billing timing is locked on this published version. Change timing by publishing a new version."}
+                    </p>
+                  ) : ensureDraft || toggleAdvanced ? (
                     <>
                       {!draftReady && ensureDraft ? (
                         <Button
@@ -977,6 +1231,7 @@ export function MbaBillingModal({
                           Edit timing
                           <EditBillingOverrideDot
                             show={panelIndicators.billingSchedule.editBillingHasOverride}
+                            provenance={editDotProvenance}
                           />
                         </Button>
                       ) : null}
@@ -991,12 +1246,8 @@ export function MbaBillingModal({
                           {advancedOpen ? "Hide advanced" : "Advanced editor"}
                           <EditBillingOverrideDot
                             show={panelIndicators.billingSchedule.editBillingHasOverride}
+                            provenance={editDotProvenance}
                           />
-                        </Button>
-                      ) : null}
-                      {draftReady && closeDraft ? (
-                        <Button type="button" size="sm" variant="ghost" onClick={closeDraft}>
-                          Done
                         </Button>
                       ) : null}
                     </>
@@ -1050,7 +1301,10 @@ export function MbaBillingModal({
                             <span className="inline-flex items-center">
                               Grand Total
                               {/* Same core flag as header — not grandTotal vs MBA scope nett. */}
-                              <BillingEqualsMbaPill show={billingRec.showEquals} />
+                              <BillingEqualsMbaPill
+                                show={billingRec.showEquals}
+                                hasPending={hasPendingBilling}
+                              />
                               <BillingMismatchMbaPill show={billingRec.showMismatch} />
                             </span>
                           </TableCell>
@@ -1088,6 +1342,7 @@ export function MbaBillingModal({
                     <BillingEqualsMbaPill
                       show={financials.validation.billableEqualsMba}
                       title="Billing reconciles to MBA total"
+                      hasPending={hasPendingBilling}
                     />
                   </p>
                 ) : null}
@@ -1105,11 +1360,13 @@ export function MbaBillingModal({
           </div>
         </div>
 
-        {/* Sticky footer */}
+        {/* Sticky footer — MB-26: decision pair; pr clears Ask Ava FAB (z-assistant). */}
         {footer ? (
-          <div className="shrink-0 border-t border-border bg-background px-6 py-3">{footer}</div>
+          <div className="shrink-0 border-t border-border bg-background px-6 py-3 pr-28">
+            {footer}
+          </div>
         ) : (
-          <div className="flex shrink-0 justify-end border-t border-border bg-background px-6 py-3">
+          <div className="flex shrink-0 justify-end border-t border-border bg-background px-6 py-3 pr-28">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               <X className="mr-1.5 h-3.5 w-3.5" />
               Close

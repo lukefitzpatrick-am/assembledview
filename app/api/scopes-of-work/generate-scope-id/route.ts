@@ -1,57 +1,55 @@
-import { NextResponse } from "next/server"
-import axios from "axios"
-import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
+import { NextRequest, NextResponse } from "next/server"
+import { fetchScopeOfWorkFromPostgres } from "@/lib/data/readFinance"
+import { requireRole } from "@/lib/requireRole"
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const mbaIdentifier = body.mbaIdentifier;
+    const gate = await requireRole(req, ["admin"])
+    if ("response" in gate) return gate.response
+
+    const body = await req.json()
+    const mbaIdentifier = body.mbaIdentifier
 
     if (!mbaIdentifier) {
-      return NextResponse.json({ error: "MBA Identifier is required" }, { status: 400 });
+      return NextResponse.json({ error: "MBA Identifier is required" }, { status: 400 })
     }
 
-    // Fetch all existing scopes
-    const response = await axios.get(xanoUrl("scope_of_work", "XANO_SCOPES_BASE_URL"), { headers: xanoAuthHeaderRecord() });
+    const allScopes = await fetchScopeOfWorkFromPostgres()
 
-    const allScopes = Array.isArray(response.data) ? response.data : [];
-    
-    // Filter scopes for this client
     const existingScopes = allScopes.filter(
-      (scope: any) => scope.client_name === body.clientName
-    );
+      (scope) => String(scope.client_name ?? "") === String(body.clientName ?? "")
+    )
 
-    // Find the highest scope number for this client
-    // Check project_name for scope ID pattern (since schema doesn't have dedicated scope_id field)
-    let maxNumber = 0;
-    const scopeIdPrefix = `${mbaIdentifier}_sow`;
-    
+    let maxNumber = 0
+    const scopeIdPrefix = `${mbaIdentifier}_sow`
+
     for (const scope of existingScopes) {
-      // Check if project_name contains the scope ID pattern
       if (scope.project_name) {
-        const match = scope.project_name.match(new RegExp(`${scopeIdPrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\d+)`));
+        const match = String(scope.project_name).match(
+          new RegExp(
+            `${scopeIdPrefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\d+)`
+          )
+        )
         if (match) {
-          const numberPart = parseInt(match[1], 10);
+          const numberPart = parseInt(match[1], 10)
           if (!isNaN(numberPart) && numberPart > maxNumber) {
-            maxNumber = numberPart;
+            maxNumber = numberPart
           }
         }
       }
+      const scopeId = String(scope.scope_id ?? "")
+      if (scopeId.startsWith(scopeIdPrefix)) {
+        const n = parseInt(scopeId.slice(scopeIdPrefix.length), 10)
+        if (!isNaN(n) && n > maxNumber) maxNumber = n
+      }
     }
 
-    // If no existing scopes found, check if we can query by a different method
-    // For now, we'll increment from maxNumber found
-    const newNumber = maxNumber + 1;
-    const scopeId = `${scopeIdPrefix}${newNumber.toString().padStart(3, "0")}`;
+    const newNumber = maxNumber + 1
+    const scopeId = `${scopeIdPrefix}${newNumber.toString().padStart(3, "0")}`
 
-    return NextResponse.json({ scopeId });
+    return NextResponse.json({ scopeId })
   } catch (error) {
-    console.error("Failed to generate scope ID:", error);
-    if (axios.isAxiosError(error)) {
-      const errorMessage = error.response?.data?.message || error.message;
-      return NextResponse.json({ error: errorMessage }, { status: error.response?.status || 500 });
-    }
-    return NextResponse.json({ error: "Failed to generate scope ID" }, { status: 500 });
+    console.error("Failed to generate scope ID:", error)
+    return NextResponse.json({ error: "Failed to generate scope ID" }, { status: 500 })
   }
 }
-

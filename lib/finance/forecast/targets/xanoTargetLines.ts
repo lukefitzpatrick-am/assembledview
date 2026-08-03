@@ -4,7 +4,11 @@
  * Kept for optional one-off migration (`npm run db:migrate-forecast-targets`).
  */
 
-import { xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
+import {
+  peekXanoEnv,
+  xanoAuthHeaderRecord,
+  xanoPostHeaderRecord,
+} from "@/lib/api/xano"
 import type {
   FinanceForecastTargetLine,
   FinanceForecastTargetUpsertCell,
@@ -27,16 +31,16 @@ export {
 const DEFAULT_PATH = "revenue_forecast_lines"
 
 function targetsBaseUrl(): string | null {
-  const dedicated = process.env.XANO_FINANCE_FORECAST_TARGETS_BASE_URL?.trim()
+  const dedicated = peekXanoEnv("XANO_FINANCE_FORECAST_TARGETS_BASE_URL")
   if (dedicated) return dedicated.replace(/\/$/, "")
-  const clients = process.env.XANO_CLIENTS_BASE_URL?.trim()
+  const clients = peekXanoEnv("XANO_CLIENTS_BASE_URL")
   if (clients) return clients.replace(/\/$/, "")
   return null
 }
 
 function targetsPath(): string {
   return (
-    process.env.XANO_FINANCE_FORECAST_TARGETS_PATH?.trim().replace(/^\//, "") ||
+    peekXanoEnv("XANO_FINANCE_FORECAST_TARGETS_PATH")?.replace(/^\//, "") ||
     DEFAULT_PATH
   )
 }

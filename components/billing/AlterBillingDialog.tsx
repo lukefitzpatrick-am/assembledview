@@ -31,6 +31,7 @@ import {
   setLineBalancingMonth,
 } from "@/lib/billing/rebalanceLineOnSchedule"
 import { formatBillingCurrency } from "@/lib/billing/recalculateBillingMonths"
+import type { DialogStackingLayer } from "@/lib/ui/stackingLayers"
 import type { BillingMonth, BillingLineItem as BillingLineItemType } from "@/lib/billing/types"
 
 const GRAND_TOTAL_TOLERANCE = 0.01
@@ -48,6 +49,11 @@ type Props = {
   onSave: (months: BillingMonth[]) => void | Promise<void>
   /** When true, the Save button shows a spinner and is disabled. */
   isSaving?: boolean
+  /**
+   * Overlay stack tier (MB-29). Pass `nested` when opened from inside a Dialog or Sheet.
+   * Default `modal` — caller property, not hardcoded on this dialog.
+   */
+  layer?: DialogStackingLayer
 }
 
 function parseCurrency(value: unknown): number {
@@ -83,6 +89,7 @@ export function AlterBillingDialog({
   mbaNumber,
   onSave,
   isSaving = false,
+  layer = "modal",
 }: Props) {
   const [months, setMonths] = useState<BillingMonth[]>([])
   const [originalGrandTotal, setOriginalGrandTotal] = useState(0)
@@ -174,7 +181,10 @@ export function AlterBillingDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !isSaving && onOpenChange(next)}>
-      <DialogContent className="flex max-h-[90vh] max-w-5xl flex-col overflow-hidden p-0">
+      <DialogContent
+        layer={layer}
+        className="flex max-h-[90vh] max-w-5xl flex-col overflow-hidden p-0"
+      >
         <div className="h-1 shrink-0 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className="shrink-0 border-b px-6 py-4">

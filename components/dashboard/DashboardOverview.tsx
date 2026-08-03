@@ -61,8 +61,17 @@ import {
   normalizeClientFilterValue,
   type DashboardViewFilters,
 } from "@/lib/dashboard/homeDashboardFilters"
+import {
+  cloneDashboardViewFilters,
+  findPinnedClientsView,
+  parseSavedViewsFromStorageJson,
+  readClientsFromLegacyPinKey,
+  serializeSavedViewsToStorageJson,
+  upsertPinnedClientsView,
+  type SavedDashboardViewRecord,
+} from "@/lib/dashboard/savedDashboardViews"
 
-export type { DashboardViewFilters }
+export type { DashboardViewFilters, SavedDashboardViewRecord }
 
 // Types reused from the original dashboard page
 type MediaPlan = {
@@ -191,15 +200,6 @@ const buildDashboardFiltersSearchParams = (
   return params
 }
 
-function cloneDashboardViewFilters(f: DashboardViewFilters): DashboardViewFilters {
-  return {
-    campaignSearch: f.campaignSearch,
-    clients: [...f.clients],
-    publishers: [...f.publishers],
-    month: f.month,
-  }
-}
-
 function dashboardViewFiltersEqual(a: DashboardViewFilters, b: DashboardViewFilters): boolean {
   if (a.campaignSearch !== b.campaignSearch || a.month !== b.month) return false
   if (a.clients.length !== b.clients.length || a.publishers.length !== b.publishers.length) return false
@@ -219,96 +219,6 @@ const searchParamsHasAnyDashboardFilters = (sp: URLSearchParams): boolean =>
       sp.getAll("publisher").filter(Boolean).length ||
       (sp.get("month") || "").trim(),
   )
-
-export type SavedDashboardViewRecord = {
-  id: string
-  name: string
-  filters: DashboardViewFilters
-  templateId: string
-  panels: DashboardTemplatePanels
-  mobileOpen: DashboardTemplateMobileOpen
-  createdAt: string
-}
-
-function normalizeDashboardTemplatePanels(raw: unknown): DashboardTemplatePanels {
-  const d = executiveOverviewTemplate.panels
-  if (!raw || typeof raw !== "object") return { ...d }
-  const p = raw as Record<string, unknown>
-  return {
-    keyMetrics: Boolean(p.keyMetrics),
-    spendBreakdown: Boolean(p.spendBreakdown),
-    monthlyTrends: Boolean(p.monthlyTrends),
-    liveCampaigns: Boolean(p.liveCampaigns),
-    scopes: Boolean(p.scopes),
-    dueSoon: Boolean(p.dueSoon),
-    finishedRecently: Boolean(p.finishedRecently),
-  }
-}
-
-function normalizeDashboardTemplateMobileOpen(raw: unknown): DashboardTemplateMobileOpen {
-  const d = executiveOverviewTemplate.mobileOpen
-  if (!raw || typeof raw !== "object") return { ...d }
-  const p = raw as Record<string, unknown>
-  return {
-    monthlyTrends: Boolean(p.monthlyTrends),
-    scopes: Boolean(p.scopes),
-    dueSoon: Boolean(p.dueSoon),
-    finishedRecently: Boolean(p.finishedRecently),
-  }
-}
-
-function normalizeSavedDashboardViewEntry(x: unknown): SavedDashboardViewRecord | null {
-  if (!x || typeof x !== "object") return null
-  const o = x as Record<string, unknown>
-  if (typeof o.id !== "string" || typeof o.name !== "string") return null
-  const f = o.filters
-  if (!f || typeof f !== "object" || Array.isArray(f)) return null
-  const fr = f as Record<string, unknown>
-  const filters: DashboardViewFilters = {
-    campaignSearch: typeof fr.campaignSearch === "string" ? fr.campaignSearch : "",
-    clients: Array.isArray(fr.clients) ? fr.clients.map((c) => String(c)).filter(Boolean) : [],
-    publishers: Array.isArray(fr.publishers) ? fr.publishers.map((p) => String(p)).filter(Boolean) : [],
-    month:
-      typeof fr.month === "string" && fr.month.trim()
-        ? fr.month.trim()
-        : null,
-  }
-  const templateId =
-    typeof o.templateId === "string" && getDashboardTemplateById(o.templateId)
-      ? o.templateId
-      : executiveOverviewTemplate.id
-  return {
-    id: o.id,
-    name: o.name,
-    filters,
-    templateId,
-    panels: normalizeDashboardTemplatePanels(o.panels),
-    mobileOpen: normalizeDashboardTemplateMobileOpen(o.mobileOpen),
-    createdAt: typeof o.createdAt === "string" ? o.createdAt : new Date().toISOString(),
-  }
-}
-
-function parseSavedViewsFromStorageJson(raw: string | null): SavedDashboardViewRecord[] {
-  if (!raw) return []
-  try {
-    const p = JSON.parse(raw) as unknown
-    if (Array.isArray(p)) {
-      return p.map(normalizeSavedDashboardViewEntry).filter((v): v is SavedDashboardViewRecord => v != null)
-    }
-    if (p && typeof p === "object" && Array.isArray((p as { views?: unknown }).views)) {
-      return ((p as { views: unknown[] }).views || [])
-        .map(normalizeSavedDashboardViewEntry)
-        .filter((v): v is SavedDashboardViewRecord => v != null)
-    }
-  } catch {
-    // ignore
-  }
-  return []
-}
-
-function serializeSavedViewsToStorageJson(views: SavedDashboardViewRecord[]): string {
-  return JSON.stringify({ views })
-}
 
 function applyTemplateToDashboardUi(
   templateId: string,
@@ -393,30 +303,6 @@ const formatCurrency = (amount: number) => formatMoney(amount)
 
 /** Never throw — one bad row must not blank Home via the error boundary. */
 const formatDate = (dateString: string) => safeFormatDate(dateString)
-
-/** Canonical name for the client-pin saved view (legacy migrate used "Saved clients"). */
-const PINNED_CLIENTS_VIEW_NAME = "Pinned clients"
-const LEGACY_PINNED_CLIENTS_VIEW_NAMES = new Set([PINNED_CLIENTS_VIEW_NAME, "Saved clients"])
-
-function findPinnedClientsView(
-  views: SavedDashboardViewRecord[],
-): SavedDashboardViewRecord | undefined {
-  return views.find((v) => LEGACY_PINNED_CLIENTS_VIEW_NAMES.has(v.name))
-}
-
-function readClientsFromLegacyPinKey(key: string | null): string[] {
-  if (!key) return []
-  try {
-    const raw = window.localStorage.getItem(key)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed)
-      ? parsed.map((v) => (typeof v === "string" ? v : "")).filter(Boolean)
-      : []
-  } catch {
-    return []
-  }
-}
 
 type DashboardErrorCopy = { title: string; detail: string }
 
@@ -1179,29 +1065,16 @@ export default function DashboardOverview({
   const handleSaveSelectedClients = useCallback(() => {
     if (!savedViewsListKey) return
     const clients = [...dashboardFilters.clients]
-    const existing = findPinnedClientsView(savedViews)
-    const nextRecord: SavedDashboardViewRecord = {
-      id: existing?.id ?? crypto.randomUUID(),
-      name: PINNED_CLIENTS_VIEW_NAME,
-      filters: {
-        ...(existing ? cloneDashboardViewFilters(existing.filters) : defaultDashboardViewFilters()),
-        clients,
+    const views = upsertPinnedClientsView(savedViews, clients, {
+      templateId: selectedTemplateId,
+      panels: layoutPanels,
+      mobileOpen: {
+        monthlyTrends: openMonthlyCharts,
+        scopes: openScopesPanel,
+        dueSoon: openDueSoonPanel,
+        finishedRecently: openFinishedPanel,
       },
-      templateId: existing?.templateId ?? selectedTemplateId,
-      panels: existing ? { ...existing.panels } : { ...layoutPanels },
-      mobileOpen: existing
-        ? { ...existing.mobileOpen }
-        : {
-            monthlyTrends: openMonthlyCharts,
-            scopes: openScopesPanel,
-            dueSoon: openDueSoonPanel,
-            finishedRecently: openFinishedPanel,
-          },
-      createdAt: existing?.createdAt ?? new Date().toISOString(),
-    }
-    const views = existing
-      ? savedViews.map((v) => (v.id === existing.id ? nextRecord : v))
-      : [...savedViews, nextRecord]
+    })
     setSavedViews(views)
     writeSavedViewsToStorage(views)
     // Keep legacy key in sync for older hydrate paths; saved view is the restore source.

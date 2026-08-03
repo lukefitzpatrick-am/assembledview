@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import axios from "axios"
 import { formatInvoiceDate, financeClientNamesMatch, type FinanceLineItem } from "@/lib/finance/utils"
 import {
   extractLineItemsFromScopeCost,
   extractLineItemsFromScopeSchedule,
   parseScopeJSON,
 } from "@/lib/finance/scopeScheduleExtract"
-import { xanoAuthHeaderRecord, xanoPostHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 import { readScopeOfWork } from "@/lib/data/readFinance"
 
@@ -20,9 +18,9 @@ type ScopeOfWork = {
   project_status?: string
   scope_date?: string
   payment_terms_and_conditions?: string
-  billing_schedule?: any
-  billingSchedule?: any
-  cost?: any
+  billing_schedule?: unknown
+  billingSchedule?: unknown
+  cost?: unknown
 }
 
 type FinanceServiceRow = {
@@ -44,6 +42,9 @@ type FinanceCampaignData = {
   total: number
 }
 
+/**
+ * GET /api/finance/sow — already dual via readScopeOfWork (X3 cleanup: no Xano imports).
+ */
 export async function GET(request: NextRequest) {
   const gate = await requireFinanceAdmin(request)
   if ("response" in gate) return gate.response
@@ -82,13 +83,12 @@ export async function GET(request: NextRequest) {
       if (total <= 0) return
 
       const paymentTerms = scope.payment_terms_and_conditions || "Net 30 days"
-      const paymentDays = 30
       const campaignData: FinanceCampaignData = {
         clientName: scope.client_name || "Unknown Client",
         mbaNumber: scope.scope_id || scope.id?.toString() || "SOW",
         poNumber: "",
         campaignName: scope.project_name || "Scope of Work",
-        paymentDays,
+        paymentDays: 30,
         paymentTerms,
         invoiceDate: formatInvoiceDate(year, month),
         lineItems,
@@ -115,34 +115,12 @@ export async function GET(request: NextRequest) {
         otherCount: other.length,
       },
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error fetching finance SOW data:", error)
-    return NextResponse.json({ error: "Failed to fetch finance SOW data", details: error.message }, { status: 500 })
+    const details = error instanceof Error ? error.message : String(error)
+    return NextResponse.json(
+      { error: "Failed to fetch finance SOW data", details },
+      { status: 500 }
+    )
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
