@@ -201,6 +201,7 @@ import {
   replaceBillingOverrideLineClient,
   resetBillingOverrideLineClient,
 } from "@/lib/finance/billingOverridesClient"
+import { nextBillingOverridesLoadNotice } from "@/lib/finance/billingOverridesLoadNotice"
 import {
   applyBillingOverrideRowsToMonths,
   applyLineFeePrebillToMonths,
@@ -2022,7 +2023,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   >([])
   /**
    * Non-blocking amber notice when overrides GET fails (shown once — not per line).
-   * Upstream error stays in console.warn.
+   * Upstream error stays in console.warn. MB-18: never set for unresolved version id.
    */
   const [billingOverridesLoadNotice, setBillingOverridesLoadNotice] = useState<string | null>(
     null
@@ -4394,23 +4395,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     async (versionId?: string | number | null) => {
       const id = versionId ?? mediaPlanVersionId
       // Skip until a real version row id exists (empty → client 400 / noisy toast).
+      // MB-18: unresolved id is a race — clear any latched notice, do not set one.
       if (!isUsableBillingVersionId(id)) {
         setBillingOverrideRowsForPanels([])
+        setBillingOverridesLoadNotice(nextBillingOverridesLoadNotice({ kind: "version_unresolved" }))
         return
       }
       try {
         const rows = await fetchBillingOverridesClient(id)
         setBillingOverrideRowsForPanels(Array.isArray(rows) ? rows : [])
-        setBillingOverridesLoadNotice(null)
+        setBillingOverridesLoadNotice(nextBillingOverridesLoadNotice({ kind: "fetch_ok" }))
       } catch (err) {
         console.warn(
           "[panels] failed to load billing overrides for indicators",
           err instanceof Error ? err.message : err
         )
         setBillingOverrideRowsForPanels([])
-        setBillingOverridesLoadNotice(
-          "Manual billing overrides could not be loaded — manual timing may display as auto"
-        )
+        setBillingOverridesLoadNotice(nextBillingOverridesLoadNotice({ kind: "fetch_failed" }))
       }
     },
     [mediaPlanVersionId]
@@ -4602,26 +4603,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         monthsForModal = months
         manualBillingOverrideMetaRef.current = metaByLine
         setBillingOverrideRowsForPanels(rows)
-        setBillingOverridesLoadNotice(null)
+        setBillingOverridesLoadNotice(nextBillingOverridesLoadNotice({ kind: "fetch_ok" }))
       } catch (err: any) {
         console.warn(
           "[manual-billing] failed to load billing overrides on modal open",
           err?.message || err
         )
-        setBillingOverridesLoadNotice(
-          "Manual billing overrides could not be loaded — manual timing may display as auto"
-        )
+        setBillingOverridesLoadNotice(nextBillingOverridesLoadNotice({ kind: "fetch_failed" }))
       }
     } else {
+      // MB-18: no version id yet (fresh load race) — open quietly with schedule only.
+      // Do not set an error notice; refreshBillingOverrideRowsForPanels runs once
+      // mediaPlanVersionId resolves.
       console.warn(
-        "[manual-billing] missing media_plan_versions row id; overrides cannot load"
+        "[manual-billing] missing media_plan_versions row id; overrides deferred until id resolves"
       )
-      setBillingOverridesLoadNotice(
-        "Manual billing overrides could not be loaded — manual timing may display as auto"
-      )
+      setBillingOverridesLoadNotice(nextBillingOverridesLoadNotice({ kind: "version_unresolved" }))
     }
-    // No version id yet (fresh load race): open quietly with schedule only.
-    // refreshBillingOverrideRowsForPanels runs once mediaPlanVersionId resolves.
 
     setManualBillingMonths(monthsForModal)
     // UI-only state: reset pre-bill toggles for cost rows on open

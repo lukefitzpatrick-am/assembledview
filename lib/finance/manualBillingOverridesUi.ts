@@ -240,6 +240,37 @@ function mediaKeyForOverrideLine(
   return null
 }
 
+function collectDraftBucketKeys(months: BillingMonth[]): string[] {
+  const keys = new Set<string>()
+  for (const month of months) {
+    if (!month.lineItems) continue
+    for (const k of Object.keys(month.lineItems)) keys.add(k)
+  }
+  return [...keys].sort()
+}
+
+/**
+ * MB-18 — null mediaKey after meta stamp would leave mode=manual + AUTO amounts.
+ * Loud in dev; no-op control flow stays correct. Not the MB-14 admin-notify path
+ * (`reportBillingOverridesRefetchAnomaly`) — that is post-persist async audit.
+ */
+export function warnBillingOverrideMediaKeyMiss(args: {
+  lineItemId: string
+  component: "media" | "fee"
+  availableBucketKeys: string[]
+  warnedLineIds?: Set<string>
+}): void {
+  const canon = toBillingOverrideLineItemId(args.lineItemId)
+  if (!canon) return
+  if (args.warnedLineIds?.has(canon)) return
+  args.warnedLineIds?.add(canon)
+  console.warn("[applyBillingOverrideRowsToMonths] no mediaKey for override line", {
+    line_item_id: args.lineItemId,
+    component: args.component,
+    availableBucketKeys: args.availableBucketKeys,
+  })
+}
+
 /** Stamp billingMode=manual on every month row's matching line (media sync helper does not). */
 function stampLineBillingModeManual(
   months: BillingMonth[],
@@ -293,6 +324,8 @@ export function applyBillingOverrideRowsToMonths(
 
   const metaByLine = new Map<string, LineOverrideMeta[]>()
   const scheduleLines = collectScheduleLinesById(next)
+  const availableBucketKeys = collectDraftBucketKeys(next)
+  const warnedMediaKeyMiss = new Set<string>()
 
   for (const row of rows) {
     const id = rowLineId(row)
@@ -312,7 +345,15 @@ export function applyBillingOverrideRowsToMonths(
       })
       metaByLine.set(id, list)
 
-      if (!mediaKey) continue
+      if (!mediaKey) {
+        warnBillingOverrideMediaKeyMiss({
+          lineItemId: id,
+          component: "fee",
+          availableBucketKeys,
+          warnedLineIds: warnedMediaKeyMiss,
+        })
+        continue
+      }
       for (const { month, amount } of fee.months) {
         const monthYear = isoMonthToScheduleMonthYear(month)
         // fee sync stamps feeBillingMode=manual + recomputes totalFeeAmount on every row
@@ -338,7 +379,15 @@ export function applyBillingOverrideRowsToMonths(
     })
     metaByLine.set(id, list)
 
-    if (!mediaKey) continue
+    if (!mediaKey) {
+      warnBillingOverrideMediaKeyMiss({
+        lineItemId: id,
+        component: "media",
+        availableBucketKeys,
+        warnedLineIds: warnedMediaKeyMiss,
+      })
+      continue
+    }
     for (const { month, amount } of media.months) {
       const monthYear = isoMonthToScheduleMonthYear(month)
       // media sync recomputes totalAmount on every row; billingMode stamped below
