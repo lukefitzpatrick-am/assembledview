@@ -109,24 +109,12 @@ function emptySession(): Session {
   }
 }
 
-/** Apply: promote draft → pending (layerDraftMonthsOntoOverrideRows) + keep working months aside. */
+/** Apply: promote draft → pending and tear the draft down (MB-26 terminal). */
 function applyPending(session: Session, draft: BillingMonth[], meta: Map<string, LineOverrideMeta[]>): Session {
   return {
     ...session,
     pendingBillingOverrideRows: buildPendingBillingOverrideRows(draft, meta),
     pendingMeta: cloneLineOverrideMetaMap(meta),
-    draftReady: true,
-    draftMonths: draft,
-  }
-}
-
-/**
- * Done (timing): tear down draft session, keep pending.
- * Distinct from Cancel — pending survives so reopen does not need a refetch.
- */
-function closeTimingDraftKeepingPending(session: Session): Session {
-  return {
-    ...session,
     draftReady: false,
     draftMonths: [],
   }
@@ -192,7 +180,7 @@ test("MB-20: precedence — pending (unsaved) > table (saved) > computed auto", 
   assert.deepEqual(fromEmpty, [])
 })
 
-test("MB-20: Apply then close then reopen — months come from pending, not table refetch", () => {
+test("MB-20/MB-26: Apply closes draft — months come from pending, not table refetch", () => {
   const draft = prebillDraftMonths()
   const meta = new Map<string, LineOverrideMeta[]>([
     [
@@ -204,12 +192,9 @@ test("MB-20: Apply then close then reopen — months come from pending, not tabl
   let session = emptySession()
   session = applyPending(session, draft, meta)
   assert.ok(session.pendingBillingOverrideRows.length > 0)
-
-  // Done: draft gone; pending retained. Table stays empty (no refetch).
-  session = closeTimingDraftKeepingPending(session)
+  // MB-26: Apply tears the draft — no separate Done step.
   assert.equal(session.draftReady, false)
   assert.equal(session.draftMonths.length, 0)
-  assert.ok(session.pendingBillingOverrideRows.length > 0)
   assert.equal(session.billingOverrideRowsForPanels.length, 0)
 
   const state = resolveFromSession(session)

@@ -4517,7 +4517,11 @@ function CreateMediaPlan() {
     setHasPendingManualBilling(true)
     setIsManualBilling(true)
     setIsManualBillingModalOpen(false)
+    // MB-26: Apply is terminal — close MBA modal; keep months for reopen / save.
+    setManualBillingDraftReady(false)
+    setIsMbaBillingModalOpen(false)
     setBillingError({ show: false, messages: [] })
+    setHasUnsavedChanges(true)
     toast({
       title: "Manual billing applied",
       description:
@@ -7802,17 +7806,6 @@ const handleSaveAll = async () => {
           if (isApprovedOrBeyond(form.watch("mp_campaignstatus"))) return
           handleManualBillingOpen()
         }}
-        onCloseTimingDraft={() => {
-          setManualBillingDraftReady(false)
-          setIsManualBillingModalOpen(false)
-          if (!hasPendingManualBilling) {
-            setManualBillingMonths([])
-            manualBillingOverrideMetaRef.current = new Map()
-            clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
-          }
-          setPrebillScopePrompt(null)
-          setBillingError({ show: false, messages: [] })
-        }}
         showAdvancedEditor={isManualBillingModalOpen && mbaBillingModalState.viewReady}
         onToggleAdvancedEditor={() => {
           if (isManualBillingModalOpen) {
@@ -8253,7 +8246,7 @@ const handleSaveAll = async () => {
                     setBillingError({ show: false, messages: [] })
                   }}
                 >
-                  Cancel
+                  Hide advanced
                 </Button>
                 <Button
                   type="button"
@@ -8262,25 +8255,32 @@ const handleSaveAll = async () => {
                 >
                   Reset billing to auto
                 </Button>
-                <Button type="button" variant="action" onClick={handleManualBillingApply}>
-                  Apply billing changes
-                </Button>
               </div>
             </div>
           </ManualBillingSpreadsheetProvider>
         }
         footer={
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsMbaBillingModalOpen(false)}
+              >
+                Cancel
+              </Button>
               {isPartialMBA ? (
                 <Button type="button" variant="outline" size="sm" onClick={handlePartialMBASave}>
                   Apply scope
                 </Button>
               ) : null}
             </div>
-            <Button type="button" variant="outline" onClick={() => setIsMbaBillingModalOpen(false)}>
-              Close
-            </Button>
+            {manualBillingDraftReady &&
+            !isApprovedOrBeyond(form.watch("mp_campaignstatus")) ? (
+              <Button type="button" variant="action" size="sm" onClick={handleManualBillingApply}>
+                Apply
+              </Button>
+            ) : null}
           </div>
         }
       />

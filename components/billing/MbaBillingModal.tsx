@@ -144,12 +144,14 @@ export type MbaBillingModalProps = {
   /** Prepare the shared manual-billing draft (Edit timing). */
   onEnsureTimingDraft?: () => void
   /**
-   * Done — close the timing draft session while keeping Applied pending rows (MB-20).
+   * @deprecated MB-26 — Done removed. Apply is the terminal action (closes modal).
+   * Kept optional so stale callers typecheck; the button is not rendered.
    */
   onCloseTimingDraft?: () => void
   /**
    * Cancel — discard timing draft AND pendingBillingOverrideRows (MB-20).
-   * Parent should also route Dialog X / Escape here via onOpenChange(false).
+   * Parent should route Dialog X / Escape via onOpenChange(false).
+   * Toolbar Cancel removed (MB-26) — footer Cancel only.
    */
   onCancelBilling?: () => void
   /** When true, show the Advanced spreadsheet on the billing side. */
@@ -282,7 +284,7 @@ function HeaderStrip({
   const manual = lines.filter((l) => l.flags.manualBilling && !l.flags.excluded).length
   const partialLabel = panelIndicators.mbaDetails.partialLabel
   const campaignProvenance: BillingTimingProvenance | null =
-    pendingOverrideRows && tableOverrideRows
+    pendingOverrideRows != null && tableOverrideRows != null
       ? resolveCampaignBillingTimingProvenance(
           pendingOverrideRows,
           tableOverrideRows,
@@ -822,17 +824,21 @@ export function MbaBillingModal({
   footer,
   reconciliationReady = true,
 }: MbaBillingModalProps) {
+  // MB-26: Done / toolbar Cancel removed — keep props for typecompat only.
+  void onCloseTimingDraft
+  void onCancelBilling
   const timingLocked = Boolean(billingTimingReadOnly)
   const hasPendingBilling = (pendingOverrideRows?.length ?? 0) > 0
-  const editDotProvenance =
-    panelIndicators.billingSchedule.editBillingOverrideProvenance ??
-    (pendingOverrideRows && tableOverrideRows
+  // MB-26: one provenance for header pill AND Advanced/Edit amber dot (MB-24 carriers).
+  const campaignProvenance: BillingTimingProvenance | null =
+    pendingOverrideRows != null && tableOverrideRows != null
       ? resolveCampaignBillingTimingProvenance(
           pendingOverrideRows,
           tableOverrideRows,
           draftOverrideRows
         )
-      : null)
+      : panelIndicators.billingSchedule.editBillingOverrideProvenance ?? null
+  const editDotProvenance = campaignProvenance
   const advancedOpen =
     !timingLocked && (showAdvancedEditor ?? showManualEditor ?? false)
   const draftReady =
@@ -845,8 +851,6 @@ export function MbaBillingModal({
     ? undefined
     : onToggleAdvancedEditor ??
       (onToggleManualEditor && draftReady ? onToggleManualEditor : undefined)
-  const closeDraft = timingLocked ? undefined : onCloseTimingDraft
-  const cancelBilling = timingLocked ? undefined : onCancelBilling
   const effectiveLineTiming = timingLocked ? undefined : lineTiming
   const effectiveResetBilling = timingLocked ? undefined : onResetBillingToAuto
   const t = financials.mbaScopeTotals
@@ -928,7 +932,10 @@ export function MbaBillingModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[calc(100vh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-none flex-col gap-0 overflow-hidden p-0">
+      <DialogContent
+        overlayClassName="z-[60]"
+        className="flex h-[calc(100vh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-none flex-col gap-0 overflow-hidden p-0 z-[60]"
+      >
         {/* Sticky header: brand bar + title + status strip */}
         <div className="shrink-0">
           <div className="h-1 bg-primary" />
@@ -1185,6 +1192,7 @@ export function MbaBillingModal({
                   </h3>
                   {/* BUX-3: billing mode lives in the header status row — no duplicate title pills. */}
                 </div>
+                {/* MB-26: tools left (Reset / Excel / Edit / Advanced) — exits live in footer only. */}
                 <div className="flex flex-wrap items-center gap-2">
                   {effectiveResetBilling ? (
                     <Button
@@ -1213,7 +1221,7 @@ export function MbaBillingModal({
                       {billingTimingReadOnlyMessage ??
                         "Billing timing is locked on this published version. Change timing by publishing a new version."}
                     </p>
-                  ) : ensureDraft || toggleAdvanced || closeDraft || cancelBilling ? (
+                  ) : ensureDraft || toggleAdvanced ? (
                     <>
                       {!draftReady && ensureDraft ? (
                         <Button
@@ -1243,16 +1251,6 @@ export function MbaBillingModal({
                             show={panelIndicators.billingSchedule.editBillingHasOverride}
                             provenance={editDotProvenance}
                           />
-                        </Button>
-                      ) : null}
-                      {draftReady && closeDraft ? (
-                        <Button type="button" size="sm" variant="ghost" onClick={closeDraft}>
-                          Done
-                        </Button>
-                      ) : null}
-                      {draftReady && cancelBilling ? (
-                        <Button type="button" size="sm" variant="outline" onClick={cancelBilling}>
-                          Cancel
                         </Button>
                       ) : null}
                     </>
@@ -1365,11 +1363,13 @@ export function MbaBillingModal({
           </div>
         </div>
 
-        {/* Sticky footer */}
+        {/* Sticky footer — MB-26: decision pair; pr clears Ask Ava FAB (z-50). */}
         {footer ? (
-          <div className="shrink-0 border-t border-border bg-background px-6 py-3">{footer}</div>
+          <div className="shrink-0 border-t border-border bg-background px-6 py-3 pr-28">
+            {footer}
+          </div>
         ) : (
-          <div className="flex shrink-0 justify-end border-t border-border bg-background px-6 py-3">
+          <div className="flex shrink-0 justify-end border-t border-border bg-background px-6 py-3 pr-28">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               <X className="mr-1.5 h-3.5 w-3.5" />
               Close

@@ -2000,6 +2000,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   /** Shared manualBillingMonths prepared for inline Adjust timing (+ Advanced). */
   const [manualBillingDraftReady, setManualBillingDraftReady] = useState(false)
   const [isMbaBillingModalOpen, setIsMbaBillingModalOpen] = useState(false)
+  /** MB-26: Apply closes the modal — skip Cancel teardown so pending survives. */
+  const skipMbaBillingCancelTeardownRef = useRef(false)
   const [manualBillingAccordionExpanded, setManualBillingAccordionExpanded] = useState<string[]>([])
   const [manualBillingCostPreBill, setManualBillingCostPreBill] = useState<{
     fee: boolean;
@@ -6962,11 +6964,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     workingBillingMonthsRef.current = applied
     setIsManualBilling(true)
     billingLineItemsFollowAutoRef.current = billingMonthsHaveExplicitLineModes(applied)
-    // MB-6: close Advanced only — keep MBA modal timing draft populated.
+    // MB-26: Apply is terminal — tear draft down and close the MBA modal.
+    // Pending carrier holds the applied timing; campaign Save commits it.
     setIsManualBillingModalOpen(false)
     setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
-    setManualBillingMonths(applied)
-    setManualBillingDraftReady(true)
+    setManualBillingMonths([])
+    setManualBillingDraftReady(false)
+    manualBillingOverrideMetaRef.current = new Map()
+    clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
+    setPrebillScopePrompt(null)
+    skipMbaBillingCancelTeardownRef.current = true
+    setIsMbaBillingModalOpen(false)
+    markUnsavedChanges()
 
     toast({
       title: "Billing applied",
@@ -12495,23 +12504,30 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         open={isMbaBillingModalOpen}
         onOpenChange={(open) => {
           if (!open) {
-            // MB-20/MB-24/MB-25 Cancel: discard draft + pending + Reset tombstone.
-            // savedBillingOverrideRows is fetch-only — untouched.
-            setIsManualBillingModalOpen(false)
-            setManualBillingDraftReady(false)
-            setManualBillingMonths([])
-            manualBillingOverrideMetaRef.current = new Map()
-            setPendingBillingOverrideRows([])
-            pendingBillingOverrideMetaRef.current = new Map()
-            setClearedBillingOverrideLineIds([])
-            clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
-            setPrebillScopePrompt(null)
-            setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
+            if (skipMbaBillingCancelTeardownRef.current) {
+              // MB-26 Apply close — pending retained; draft already torn down.
+              skipMbaBillingCancelTeardownRef.current = false
+              setIsManualBillingModalOpen(false)
+            } else {
+              // MB-20/MB-24/MB-25 Cancel: discard draft + pending + Reset tombstone.
+              // savedBillingOverrideRows is fetch-only — untouched.
+              setIsManualBillingModalOpen(false)
+              setManualBillingDraftReady(false)
+              setManualBillingMonths([])
+              manualBillingOverrideMetaRef.current = new Map()
+              setPendingBillingOverrideRows([])
+              pendingBillingOverrideMetaRef.current = new Map()
+              setClearedBillingOverrideLineIds([])
+              clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
+              setPrebillScopePrompt(null)
+              setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
+            }
           }
           setIsMbaBillingModalOpen(open)
         }}
         onCancelBilling={() => {
           // Explicit Cancel — same teardown as X / Escape (MB-25: clear tombstone).
+          skipMbaBillingCancelTeardownRef.current = false
           setIsMbaBillingModalOpen(false)
           setIsManualBillingModalOpen(false)
           setManualBillingDraftReady(false)
@@ -12583,16 +12599,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             return
           }
           void handleManualBillingOpen()
-        }}
-        onCloseTimingDraft={() => {
-          // MB-20 Done: tear down draft session only — keep pendingBillingOverrideRows.
-          setManualBillingDraftReady(false)
-          setIsManualBillingModalOpen(false)
-          setManualBillingMonths([])
-          manualBillingOverrideMetaRef.current = new Map()
-          clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
-          setPrebillScopePrompt(null)
-          setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
         }}
         showAdvancedEditor={isManualBillingModalOpen && mbaBillingModalState.viewReady}
         onToggleAdvancedEditor={() => {
@@ -12724,9 +12730,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   }}
                 >
                   Reset billing to auto
-                </Button>
-                <Button type="button" size="sm" variant="action" onClick={() => handleManualBillingSave()}>
-                  Apply
                 </Button>
               </div>
             </div>
@@ -13288,42 +13291,43 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
         footer={
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  // MB-20/MB-25/MB-26 Cancel — discard draft + pending + Reset tombstone
+                  // (same as X / Escape / onCancelBilling).
+                  skipMbaBillingCancelTeardownRef.current = false
+                  setIsMbaBillingModalOpen(false)
+                  setIsManualBillingModalOpen(false)
+                  setManualBillingDraftReady(false)
+                  setManualBillingMonths([])
+                  manualBillingOverrideMetaRef.current = new Map()
+                  setPendingBillingOverrideRows([])
+                  pendingBillingOverrideMetaRef.current = new Map()
+                  setClearedBillingOverrideLineIds([])
+                  clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
+                  setPrebillScopePrompt(null)
+                  setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
+                }}
+              >
+                Cancel
+              </Button>
               {isPartialMBA ? (
                 <Button type="button" variant="outline" size="sm" onClick={handlePartialMBASave}>
                   Apply scope
                 </Button>
               ) : null}
-              {manualBillingDraftReady &&
-              !isApprovedOrBeyond(
-                mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
-              ) ? (
-                <Button type="button" variant="action" size="sm" onClick={() => handleManualBillingSave()}>
-                  Apply
-                </Button>
-              ) : null}
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                // MB-20/MB-25 Cancel — discard draft + pending + Reset tombstone
-                // (same as X / Escape / onCancelBilling).
-                setIsMbaBillingModalOpen(false)
-                setIsManualBillingModalOpen(false)
-                setManualBillingDraftReady(false)
-                setManualBillingMonths([])
-                manualBillingOverrideMetaRef.current = new Map()
-                setPendingBillingOverrideRows([])
-                pendingBillingOverrideMetaRef.current = new Map()
-                setClearedBillingOverrideLineIds([])
-                clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
-                setPrebillScopePrompt(null)
-                setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
-              }}
-            >
-              Cancel
-            </Button>
+            {manualBillingDraftReady &&
+            !isApprovedOrBeyond(
+              mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
+            ) ? (
+              <Button type="button" variant="action" size="sm" onClick={() => handleManualBillingSave()}>
+                Apply
+              </Button>
+            ) : null}
           </div>
         }
       />
