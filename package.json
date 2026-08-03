@@ -10,6 +10,7 @@
     "check:billing-line-id-equality": "node scripts/check-billing-line-id-equality.mjs",
     "check:stacking-layers": "node scripts/check-stacking-layers.mjs",
     "typecheck": "tsc --noEmit",
+    "test:all": "node scripts/run-test-all.mjs",
     "test:billing-line-id-match": "tsx --test lib/billing/__tests__/billingLineIdMatch.mb4.test.ts lib/billing/__tests__/canonicalBillingLineIdMembership.mb11.test.ts",
     "test:client-dashboard": "tsx --test lib/client-dashboard/__tests__/theme.test.ts",
     "build:learning": "node --loader ts-node/esm scripts/build-learning-terms.ts",
