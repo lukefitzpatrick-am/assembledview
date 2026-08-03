@@ -86,7 +86,7 @@ export function computeBurstAmounts({
   feePct,
   buyType,
 }: ComputeBurstAmountsInput): ComputeBurstAmountsOutput {
-  const bt = String(buyType || "").toLowerCase()
+  const bt = String(buyType || "").trim().toLowerCase()
   if (bt === "bonus" || bt === "package_inclusions") {
     return { mediaAmount: 0, deliveryMediaAmount: 0, feeAmount: 0, totalAmount: 0 }
   }

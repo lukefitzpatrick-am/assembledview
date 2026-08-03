@@ -14,6 +14,7 @@ pct === 100 → fee = 0 (division guard)
 
 - Fee is a **slice of gross**, never `net × fee%` stacked on net (the legacy anti-pattern).
 - Container `get*Bursts` helpers and `useMediaChannelContainer` pass `buyType` into `computeBurstAmounts` so UI rollups match finance for bonus / package_inclusions.
+- `buyType` match is case-insensitive and trimmed (`"Bonus"` / `" bonus "` → zero).
 - Never round fee% before applying to gross. Never sum net media and apply fee% once at channel level.
 - Rounding order: full float per burst → round at burst level (AUD 2dp) → sum rounded burst fees for campaign totals.
 - All fee rates are 0–100 percent points, never 0–1. Missing/null → 0 at compute boundaries.
