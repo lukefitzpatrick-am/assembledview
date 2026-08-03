@@ -1,9 +1,6 @@
 import type { BillingMonth, BillingLineItem } from "@/lib/billing/types"
 import { formatMoney } from "@/lib/format/money"
-import {
-  billingOverrideLineIdsMatch,
-  toBillingOverrideLineItemId,
-} from "@/lib/finance/manualBillingOverridesUi"
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 
 const DIVERGENCE_TOLERANCE = 0.01
 
@@ -95,22 +92,14 @@ function collectLinesById(months: BillingMonth[]): Map<string, CollectedLine> {
   return map
 }
 
-/** Resolve a collected line by bare or decorated id (C-34 equivalence). */
+/** Resolve a collected line by bare or decorated id (C-34 / MB-11). */
 function getCollectedLine(
   map: Map<string, CollectedLine>,
   lineItemId: string
 ): CollectedLine | undefined {
-  const direct = map.get(lineItemId)
-  if (direct) return direct
   const canonical = toBillingOverrideLineItemId(lineItemId)
-  if (canonical && canonical !== lineItemId) {
-    const byCanonical = map.get(canonical)
-    if (byCanonical) return byCanonical
-  }
-  for (const [id, entry] of map) {
-    if (billingOverrideLineIdsMatch(id, lineItemId)) return entry
-  }
-  return undefined
+  if (!canonical) return undefined
+  return map.get(canonical)
 }
 
 function monthValue(month: BillingMonth | undefined, field: MonthField): number {

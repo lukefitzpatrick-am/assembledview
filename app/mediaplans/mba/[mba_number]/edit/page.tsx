@@ -6767,7 +6767,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const items = config.lineItems ?? []
       items.forEach((raw, index) => {
         const id = editorBillingStableLineItemId(config.billingKey, raw, index)
-        rawById.set(id, raw)
+        // MB-11: key on canonical bare id so perLine lookup matches.
+        rawById.set(toBillingOverrideLineItemId(id), raw)
       })
     }
     return campaignFinancialsForPanels.perLine.map((line) => {
@@ -6777,7 +6778,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const { title, subtitle } = buildMbaBillingScopeLineLabel({
         mediaType: line.mediaType,
         mediaLabel,
-        lineItem: rawById.get(line.lineItemId) ?? {},
+        lineItem: rawById.get(toBillingOverrideLineItemId(line.lineItemId)) ?? {},
         lineNumber,
       })
       return {
@@ -9789,9 +9790,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   function handleMbaBillingToggleLine(lineItemId: string, mediaType: string, approved: boolean) {
-    const existing = new Set(partialMBASelectedLineItemIds[mediaType] || [])
-    if (approved) existing.add(lineItemId)
-    else existing.delete(lineItemId)
+    const existing = new Set(
+      (partialMBASelectedLineItemIds[mediaType] || []).map((id) =>
+        toBillingOverrideLineItemId(id)
+      )
+    )
+    const canonId = toBillingOverrideLineItemId(lineItemId)
+    if (approved) existing.add(canonId)
+    else existing.delete(canonId)
     const nextSelected = { ...partialMBASelectedLineItemIds, [mediaType]: Array.from(existing) }
     // If we had an empty map (all-in / not partial yet), seed all other media from current approved lines.
     if (!isPartialMBA && Object.keys(partialMBASelectedLineItemIds).length === 0) {
@@ -9948,9 +9954,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   function handlePartialMBAToggleLineItem(mediaKey: string, lineItemId: string, enabled: boolean) {
-    const existing = new Set(partialMBASelectedLineItemIds[mediaKey] || [])
-    if (enabled) existing.add(lineItemId)
-    else existing.delete(lineItemId)
+    const existing = new Set(
+      (partialMBASelectedLineItemIds[mediaKey] || []).map((id) =>
+        toBillingOverrideLineItemId(id)
+      )
+    )
+    const canonId = toBillingOverrideLineItemId(lineItemId)
+    if (enabled) existing.add(canonId)
+    else existing.delete(canonId)
     const nextSelected = { ...partialMBASelectedLineItemIds, [mediaKey]: Array.from(existing) }
     setPartialMBASelectedLineItemIds(nextSelected)
     const nextEnabled = { ...partialMBAMediaEnabled, [mediaKey]: nextSelected[mediaKey].length > 0 }

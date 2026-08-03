@@ -2,6 +2,8 @@
  * Map C1/C2 billing save API error bodies to human toast / save-status text.
  */
 
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
+
 export type BillingSaveErrorBody = {
   code?: string
   error?: string
@@ -47,9 +49,15 @@ export function withMbaScopeLineLabels<T extends { lineItemId: string; label?: s
   lineItems: T[],
   scopeLines: Array<{ lineItemId: string; title: string }>
 ): Array<T & { label: string }> {
-  const byId = new Map(scopeLines.map((s) => [s.lineItemId, s.title]))
-  return lineItems.map((line) => ({
-    ...line,
-    label: byId.get(line.lineItemId) || line.label || line.lineItemId,
-  }))
+  // MB-11: scope may use billing-{media}:: while save lines are bare.
+  const byId = new Map(
+    scopeLines.map((s) => [toBillingOverrideLineItemId(s.lineItemId), s.title])
+  )
+  return lineItems.map((line) => {
+    const canon = toBillingOverrideLineItemId(line.lineItemId)
+    return {
+      ...line,
+      label: byId.get(canon) || line.label || line.lineItemId,
+    }
+  })
 }

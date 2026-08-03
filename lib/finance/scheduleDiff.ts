@@ -1,4 +1,5 @@
 import type { BillingScheduleEntry } from "@/lib/billing/buildBillingSchedule"
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 
 /**
  * Domain 5 Stage 2.2b — diff two billingSchedule / deliverySchedule JSON arrays
@@ -77,9 +78,9 @@ export function diffBillingSchedules(
   const newLines = flatten(newSchedule)
 
   const oldById = new Map<string, ScheduleLine>()
-  for (const l of oldLines) oldById.set(l.lineItemId, l)
+  for (const l of oldLines) oldById.set(toBillingOverrideLineItemId(l.lineItemId), l)
   const newById = new Map<string, ScheduleLine>()
-  for (const l of newLines) newById.set(l.lineItemId, l)
+  for (const l of newLines) newById.set(toBillingOverrideLineItemId(l.lineItemId), l)
 
   const changes: ScheduleDiffChange[] = []
 

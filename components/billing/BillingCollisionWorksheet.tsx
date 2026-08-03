@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { CollisionDecision, CollisionRow } from "@/lib/billing/collisionWorksheet"
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 
@@ -51,13 +52,14 @@ export function BillingCollisionWorksheet({
   useEffect(() => {
     if (!open) return
     const m = new Map<string, CollisionDecision>()
-    for (const r of rows) m.set(r.lineItemId, "keep_shape_delta")
+    // MB-11: choices Map keyed on canonical bare id.
+    for (const r of rows) m.set(toBillingOverrideLineItemId(r.lineItemId), "keep_shape_delta")
     setChoices(m)
   }, [open, rows])
 
   const setAll = (decision: CollisionDecision) => {
     const next = new Map<string, CollisionDecision>()
-    for (const r of rows) next.set(r.lineItemId, decision)
+    for (const r of rows) next.set(toBillingOverrideLineItemId(r.lineItemId), decision)
     setChoices(next)
   }
 
@@ -106,9 +108,10 @@ export function BillingCollisionWorksheet({
             </TableHeader>
             <TableBody>
               {rows.map((r) => {
-                const decision = choices.get(r.lineItemId) ?? "keep_shape_delta"
+                const canonId = toBillingOverrideLineItemId(r.lineItemId)
+                const decision = choices.get(canonId) ?? "keep_shape_delta"
                 return (
-                  <TableRow key={r.lineItemId}>
+                  <TableRow key={canonId}>
                     <TableCell className="max-w-[14rem] truncate text-sm" title={r.label}>
                       {r.label || r.lineItemId}
                     </TableCell>
@@ -130,7 +133,7 @@ export function BillingCollisionWorksheet({
                           const v = e.target.value as CollisionDecision
                           setChoices((prev) => {
                             const next = new Map(prev)
-                            next.set(r.lineItemId, v)
+                            next.set(canonId, v)
                             return next
                           })
                         }}
@@ -166,7 +169,9 @@ export function BillingCollisionWorksheet({
               onConfirm(
                 rows.map((r) => ({
                   lineItemId: r.lineItemId,
-                  decision: choices.get(r.lineItemId) ?? "keep_shape_delta",
+                  decision:
+                    choices.get(toBillingOverrideLineItemId(r.lineItemId)) ??
+                    "keep_shape_delta",
                 }))
               )
             }}

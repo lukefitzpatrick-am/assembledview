@@ -27,6 +27,7 @@ import {
   type ComputeCampaignFinancialsOpts,
 } from "@/lib/finance/computeCampaignFinancials"
 import { computeBillingInputsHash } from "@/lib/finance/computeBillingInputsHash"
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 import { formatAUD, roundMoney2 } from "@/lib/format/money"
 
 export const BILLING_AUTO_EQUALITY_TOLERANCE = 0.01
@@ -94,7 +95,7 @@ function collectScheduleLines(months: BillingMonth[]): Map<string, CollectedLine
     for (const items of Object.values(lineItems)) {
       if (!Array.isArray(items)) continue
       for (const item of items as BillingLineItem[]) {
-        const id = String(item.id ?? "").trim()
+        const id = toBillingOverrideLineItemId(String(item.id ?? "").trim())
         if (!id) continue
         const mediaAmt = Number(item.monthlyAmounts?.[month.monthYear] ?? 0) || 0
         const feeAmt = Number(item.feeMonthlyAmounts?.[month.monthYear] ?? 0) || 0
@@ -150,11 +151,13 @@ export function validateManualOverrideSumRules(args: {
   lineItems: LineItemInput[]
   financials: CampaignFinancials
 }): ManualSumViolation[] {
-  const perLineById = new Map(args.financials.perLine.map((p) => [p.lineItemId, p]))
+  const perLineById = new Map(
+    args.financials.perLine.map((p) => [toBillingOverrideLineItemId(p.lineItemId), p])
+  )
   const violations: ManualSumViolation[] = []
 
   for (const line of args.lineItems) {
-    const pl = perLineById.get(line.lineItemId)
+    const pl = perLineById.get(toBillingOverrideLineItemId(line.lineItemId))
     if (!pl || pl.flags.excluded) continue
 
     if (line.billingOverride?.mode === "manual" && line.billingOverride.months?.length) {
@@ -189,8 +192,12 @@ function compareAutoLines(args: {
   financials: CampaignFinancials
 }): AutoLineDelta[] {
   const clientLines = collectScheduleLines(args.clientSchedule)
-  const perLineById = new Map(args.financials.perLine.map((p) => [p.lineItemId, p]))
-  const inputById = new Map(args.lineItems.map((l) => [l.lineItemId, l]))
+  const perLineById = new Map(
+    args.financials.perLine.map((p) => [toBillingOverrideLineItemId(p.lineItemId), p])
+  )
+  const inputById = new Map(
+    args.lineItems.map((l) => [toBillingOverrideLineItemId(l.lineItemId), l])
+  )
   const deltas: AutoLineDelta[] = []
 
   // Server authoritative per-line totals come from computeCampaignFinancials.
@@ -198,7 +205,7 @@ function compareAutoLines(args: {
   // client payloads may still omit them — fall back to perLine when absent.
   for (const pl of args.financials.perLine) {
     if (pl.flags.excluded) continue
-    const id = pl.lineItemId
+    const id = toBillingOverrideLineItemId(pl.lineItemId)
     const client = clientLines.get(id)
     const input = inputById.get(id)
     const serverMedia = roundMoney2(

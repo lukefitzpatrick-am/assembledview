@@ -59,7 +59,31 @@ export function billingOverrideLineIdsMatch(a: string, b: string): boolean {
   return toBillingOverrideLineItemId(left) === toBillingOverrideLineItemId(right)
 }
 
-/** Walk schedule months and collect unique line items by id. */
+/**
+ * MB-11 — Set of canonical (bare) billing line ids for membership tests.
+ * Both sides of `.has` / Map keys must go through this (never raw decorated).
+ */
+export function buildCanonicalBillingLineIdSet(
+  ids: Iterable<string>
+): Set<string> {
+  const out = new Set<string>()
+  for (const raw of ids) {
+    const canon = toBillingOverrideLineItemId(String(raw ?? "").trim())
+    if (canon) out.add(canon)
+  }
+  return out
+}
+
+/** Membership against a set built by {@link buildCanonicalBillingLineIdSet}. */
+export function canonicalBillingLineIdSetHas(
+  set: ReadonlySet<string>,
+  id: string
+): boolean {
+  const canon = toBillingOverrideLineItemId(String(id ?? "").trim())
+  return Boolean(canon) && set.has(canon)
+}
+
+/** Walk schedule months and collect unique line items by canonical id (MB-11). */
 export function collectScheduleLinesById(
   months: BillingMonth[]
 ): Map<string, { mediaKey: string; line: BillingLineItem }> {
@@ -70,7 +94,7 @@ export function collectScheduleLinesById(
     for (const [mediaKey, items] of Object.entries(lineItems)) {
       if (!Array.isArray(items)) continue
       for (const line of items) {
-        const id = String(line.id ?? "").trim()
+        const id = toBillingOverrideLineItemId(String(line.id ?? "").trim())
         if (!id || map.has(id)) continue
         map.set(id, { mediaKey, line })
       }

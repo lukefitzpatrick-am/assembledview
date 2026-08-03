@@ -1,4 +1,5 @@
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 
 export const BILLING_AMOUNT_DIVERGENCE_TOLERANCE = 0.01
 
@@ -15,13 +16,14 @@ export const MANUAL_BILLING_ADJUSTMENT_TOOLTIP =
 export const DIVERGENT_BILLING_CELL_TOOLTIP = "Differs from calculated total"
 
 function billingCellKey(lineItemId: string, monthYear: string): string {
-  return `${lineItemId}::${monthYear}`
+  return `${toBillingOverrideLineItemId(lineItemId)}::${monthYear}`
 }
 
 function exceedsTolerance(a: number, b: number): boolean {
   return Math.abs(a - b) > BILLING_AMOUNT_DIVERGENCE_TOLERANCE
 }
 
+/** MB-11 — key on canonical bare id so bare/decorated schedules share a row. */
 function collectLinesById(months: BillingMonth[]): Map<string, BillingLineItem> {
   const map = new Map<string, BillingLineItem>()
   for (const month of months) {
@@ -31,8 +33,9 @@ function collectLinesById(months: BillingMonth[]): Map<string, BillingLineItem> 
       const arr = items as BillingLineItem[] | undefined
       if (!arr?.length) continue
       for (const line of arr) {
-        if (!line.id) continue
-        map.set(line.id, line)
+        const id = toBillingOverrideLineItemId(String(line.id ?? "").trim())
+        if (!id || map.has(id)) continue
+        map.set(id, line)
       }
     }
   }
@@ -70,15 +73,15 @@ export function buildBillingLineAdjustmentMaps(
     ...autoReferenceMonths.map((m) => m.monthYear),
   ])
 
-  for (const [lineItemId, workingLine] of workingLines) {
+  for (const [canonId, workingLine] of workingLines) {
     if (workingLine.billingMode === "manual") continue
 
-    const autoLine = autoLines.get(lineItemId)
+    const autoLine = autoLines.get(canonId)
     for (const monthYear of monthYears) {
       const workingAmount = workingLine.monthlyAmounts?.[monthYear] ?? 0
       const autoAmount = autoLine?.monthlyAmounts?.[monthYear] ?? 0
       if (exceedsTolerance(workingAmount, autoAmount)) {
-        divergentCells.add(billingCellKey(lineItemId, monthYear))
+        divergentCells.add(billingCellKey(canonId, monthYear))
       }
     }
   }
@@ -91,7 +94,8 @@ export function getBillingCellAdjustmentKind(
   lineItemId: string,
   monthYear: string
 ): BillingCellAdjustmentKind | null {
-  if (maps.manualLineIds.has(lineItemId)) return "manual"
-  if (maps.divergentCells.has(billingCellKey(lineItemId, monthYear))) return "divergent"
+  const canon = toBillingOverrideLineItemId(String(lineItemId ?? "").trim())
+  if (maps.manualLineIds.has(canon)) return "manual"
+  if (maps.divergentCells.has(billingCellKey(canon, monthYear))) return "divergent"
   return null
 }

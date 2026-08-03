@@ -866,6 +866,64 @@ test("savePlan MB-2: publish carries billing_overrides to new version + schedule
   assert.ok(noteRows.length >= 1, "expected app_notifications audit for carry")
 })
 
+test("savePlan MB-11: publish carries when living id is decorated and override id is bare", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const db = getDb()
+  const bareId = LINE_A
+  const decoratedId = `billing-search::${LINE_A}`
+  const twoMonthLine = baseLine(bareId, 1000, {
+    bursts: [
+      {
+        startDate: "2026-06-01",
+        endDate: "2026-07-31",
+        budget: 1000,
+        buyAmount: 1,
+      },
+    ],
+  })
+  const v1 = await savePlanVersion(draftInput(masterId, [twoMonthLine]))
+  await db.insert(schema.billingOverrides).values({
+    versionId: v1.versionId,
+    lineItemId: bareId,
+    component: "media",
+    mode: "manual",
+    reason: "manual",
+    months: [{ month: "2026-06", amount: 1000 }],
+    dateBasis: "mb11-carry",
+  })
+  await savePlanVersion(draftInput(masterId, [twoMonthLine]))
+
+  // Publish with decorated schedule id — must still match bare override (not drop).
+  const published = await savePlanVersion({
+    ...draftInput(masterId, [{ ...twoMonthLine, lineItemId: decoratedId }]),
+    mode: "publish",
+    versionNumber: 1,
+    campaignStatus: "booked",
+  })
+  assert.equal(published.versionNumber, 2)
+  assert.deepEqual(
+    published.droppedBillingOverrides ?? [],
+    [],
+    "decorated living id must not drop bare override"
+  )
+
+  const carried = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, published.versionId))
+  assert.equal(carried.length, 1)
+  assert.equal(carried[0]!.lineItemId, bareId)
+})
+
 test("savePlan MB-2: publish drops overrides for deleted lines and names them in response", async (t) => {
   if (!hasDb) {
     t.skip("DATABASE_URL not set")

@@ -64,8 +64,15 @@ function asOverrideReason(raw: unknown): BillingOverrideReason | undefined {
   return undefined
 }
 
+/** Bare line id for Map keys (MB-11 — strip `billing-{media}::` when present). */
+function canonicalLineItemId(raw: unknown): string {
+  const s = String(raw ?? "").trim()
+  const m = /^billing-[^:]+::(.+)$/.exec(s)
+  return m?.[1] ? m[1].trim() : s
+}
+
 function rowLineItemId(row: BillingOverrideRow): string {
-  return String(row.line_item_id ?? row.lineItemId ?? "").trim()
+  return canonicalLineItemId(row.line_item_id ?? row.lineItemId)
 }
 
 function rowComponent(row: BillingOverrideRow): BillingOverrideComponent {
@@ -129,14 +136,10 @@ export function attachOverridesToLineInputs(
   if (mediaByLine.size === 0 && feeByLine.size === 0) return lineItems
 
   return lineItems.map((line) => {
-    const canon = (() => {
-      const s = String(line.lineItemId ?? "").trim()
-      const m = /^billing-[^:]+::(.+)$/.exec(s)
-      return m?.[1] ? m[1].trim() : s
-    })()
-    const media =
-      mediaByLine.get(line.lineItemId) ?? (canon ? mediaByLine.get(canon) : undefined)
-    const fee = feeByLine.get(line.lineItemId) ?? (canon ? feeByLine.get(canon) : undefined)
+    const canon = canonicalLineItemId(line.lineItemId)
+    // MB-11: both Map keys and lookup go through the same canonical id.
+    const media = canon ? mediaByLine.get(canon) : undefined
+    const fee = canon ? feeByLine.get(canon) : undefined
     if (!media && !fee) return line
     return {
       ...line,

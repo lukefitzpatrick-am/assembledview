@@ -44,6 +44,10 @@ import {
   attachOverridesToLineInputs,
   type BillingOverrideRow,
 } from "@/lib/finance/billingOverrides"
+import {
+  buildCanonicalBillingLineIdSet,
+  canonicalBillingLineIdSetHas,
+} from "@/lib/finance/manualBillingOverridesUi"
 import { validateManualOverrideSumRules } from "@/lib/finance/recomputeBillingScheduleOnSave"
 import type { BillingMonth } from "@/lib/billing/types"
 import {
@@ -445,7 +449,8 @@ async function carryBillingOverridesToNewVersion(
     const lineItemId = String(row.lineItemId ?? "").trim()
     const component: "media" | "fee" =
       row.component === "fee" ? "fee" : "media"
-    if (!lineItemId || !args.livingLineItemIds.has(lineItemId)) {
+    // MB-11: membership is canonical (bare ↔ billing-{media}::bare).
+    if (!lineItemId || !canonicalBillingLineIdSetHas(args.livingLineItemIds, lineItemId)) {
       dropped.push({
         lineItemId: lineItemId || "(missing)",
         component,
@@ -630,8 +635,9 @@ export async function savePlanVersion(
         fromVersionId: number | null
       } | null = null
       if (input.mode === "publish" || input.mode === "new_version") {
-        const livingIds = new Set(
-          input.lineItems.map((l) => String(l.lineItemId).trim()).filter(Boolean)
+        // MB-11: canonicalise living ids so decorated schedule ids match bare overrides.
+        const livingIds = buildCanonicalBillingLineIdSet(
+          input.lineItems.map((l) => String(l.lineItemId ?? ""))
         )
         carryAudit = await carryBillingOverridesToNewVersion(tx as Tx, {
           masterId: input.masterId,

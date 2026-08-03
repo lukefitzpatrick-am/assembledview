@@ -18,6 +18,7 @@ import type {
 } from "@/lib/finance/campaignFinancials.types"
 import type { ComputeCampaignFinancialsOpts } from "@/lib/finance/computeCampaignFinancials"
 import { formatAUD, roundMoney2 } from "@/lib/format/money"
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 
 export const PLANC_C1_FULLSCOPE_LOG_PREFIX = "[planc-c1-fullscope]"
 export const PLANC_C1_FULL_SCOPE_TOLERANCE = 0.01
@@ -71,13 +72,13 @@ export function collectClientAdServingByLine(
     for (const items of Object.values(month.lineItems)) {
       if (!Array.isArray(items)) continue
       for (const item of items as BillingLineItem[]) {
-        const id = String(item.id ?? "").trim()
+        const id = toBillingOverrideLineItemId(String(item.id ?? "").trim())
         if (!id) continue
         const stamped = item.adServingMonthlyAmounts != null
         const monthAmt = Number(item.adServingMonthlyAmounts?.[month.monthYear] ?? 0) || 0
         const existing = map.get(id)
         const label =
-          [item.header1, item.header2].filter(Boolean).join(" ΓÇö ").trim() || id
+          [item.header1, item.header2].filter(Boolean).join(" — ").trim() || id
         if (existing) {
           existing.total = roundMoney2(existing.total + monthAmt)
           existing.hasStamp = existing.hasStamp || stamped
@@ -97,7 +98,7 @@ export function collectClientAdServingByLine(
     for (const items of Object.values(month.lineItems)) {
       if (!Array.isArray(items)) continue
       for (const item of items as BillingLineItem[]) {
-        const id = String(item.id ?? "").trim()
+        const id = toBillingOverrideLineItemId(String(item.id ?? "").trim())
         if (!id) continue
         const existing = map.get(id)
         if (!existing) continue
@@ -124,11 +125,11 @@ export function collectClientProductionByLine(
     const prodItems = month.lineItems?.production
     if (!Array.isArray(prodItems)) continue
     for (const item of prodItems as BillingLineItem[]) {
-      const id = String(item.id ?? "").trim()
+      const id = toBillingOverrideLineItemId(String(item.id ?? "").trim())
       if (!id) continue
       const amt = Number(item.monthlyAmounts?.[month.monthYear] ?? 0) || 0
       const label =
-        [item.header1, item.header2].filter(Boolean).join(" ΓÇö ").trim() || id
+        [item.header1, item.header2].filter(Boolean).join(" — ").trim() || id
       const existing = map.get(id)
       if (existing) {
         existing.total = roundMoney2(existing.total + amt)
@@ -168,8 +169,9 @@ export function computeExpectedAdServingByLine(
 
   for (const line of lineItems) {
     if (line.approval === "excluded") continue
+    const canonId = toBillingOverrideLineItemId(line.lineItemId)
     if (line.noAdserving) {
-      map.set(line.lineItemId, 0)
+      map.set(canonId, 0)
       continue
     }
     const mediaType = String(line.mediaType ?? "")
@@ -233,7 +235,7 @@ export function computeExpectedAdServingByLine(
         })
       }
     }
-    map.set(line.lineItemId, roundMoney2(total))
+    map.set(canonId, roundMoney2(total))
   }
   return map
 }
@@ -261,9 +263,13 @@ export function collectFullScopeDeltas(args: {
   version?: Record<string, unknown>
 }): FullScopeDelta[] {
   const deltas: FullScopeDelta[] = []
-  const inputById = new Map(args.lineItems.map((l) => [l.lineItemId, l]))
+  const inputById = new Map(
+    args.lineItems.map((l) => [toBillingOverrideLineItemId(l.lineItemId), l])
+  )
   const labelFor = (id: string, fallback?: string) =>
-    String(inputById.get(id)?.label ?? "").trim() || fallback || id
+    String(inputById.get(toBillingOverrideLineItemId(id))?.label ?? "").trim() ||
+    fallback ||
+    id
 
   // --- Per-line adserving (only when client stamped adServingMonthlyAmounts) ---
   const clientAds = collectClientAdServingByLine(args.clientSchedule)
@@ -318,10 +324,12 @@ export function collectFullScopeDeltas(args: {
 
   // --- Per-line production (production media-type rows) ---
   const clientProd = collectClientProductionByLine(args.clientSchedule)
-  const perLineById = new Map(args.financials.perLine.map((p) => [p.lineItemId, p]))
+  const perLineById = new Map(
+    args.financials.perLine.map((p) => [toBillingOverrideLineItemId(p.lineItemId), p])
+  )
   if (clientProd.size > 0) {
     for (const [id, client] of clientProd) {
-      const pl = perLineById.get(id)
+      const pl = perLineById.get(toBillingOverrideLineItemId(id))
       if (pl?.flags.excluded) continue
       const serverTotal = pl
         ? roundMoney2(pl.billingMonths.reduce((s, m) => s + m.amount, 0))
