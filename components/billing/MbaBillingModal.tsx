@@ -135,8 +135,15 @@ export type MbaBillingModalProps = {
   timingDraftReady?: boolean
   /** Prepare the shared manual-billing draft (Edit timing). */
   onEnsureTimingDraft?: () => void
-  /** Close / discard the timing draft session. */
+  /**
+   * Done — close the timing draft session while keeping Applied pending rows (MB-20).
+   */
   onCloseTimingDraft?: () => void
+  /**
+   * Cancel — discard timing draft AND pendingBillingOverrideRows (MB-20).
+   * Parent should also route Dialog X / Escape here via onOpenChange(false).
+   */
+  onCancelBilling?: () => void
   /** When true, show the Advanced spreadsheet on the billing side. */
   showAdvancedEditor?: boolean
   onToggleAdvancedEditor?: () => void
@@ -660,6 +667,7 @@ export function MbaBillingModal({
   timingDraftReady,
   onEnsureTimingDraft,
   onCloseTimingDraft,
+  onCancelBilling,
   showAdvancedEditor,
   onToggleAdvancedEditor,
   showManualEditor,
@@ -689,6 +697,7 @@ export function MbaBillingModal({
     : onToggleAdvancedEditor ??
       (onToggleManualEditor && draftReady ? onToggleManualEditor : undefined)
   const closeDraft = timingLocked ? undefined : onCloseTimingDraft
+  const cancelBilling = timingLocked ? undefined : onCancelBilling
   const effectiveLineTiming = timingLocked ? undefined : lineTiming
   const effectiveResetBilling = timingLocked ? undefined : onResetBillingToAuto
   const t = financials.mbaScopeTotals
@@ -1049,7 +1058,7 @@ export function MbaBillingModal({
                       {billingTimingReadOnlyMessage ??
                         "Billing timing is locked on this published version. Change timing by publishing a new version."}
                     </p>
-                  ) : ensureDraft || toggleAdvanced || closeDraft ? (
+                  ) : ensureDraft || toggleAdvanced || closeDraft || cancelBilling ? (
                     <>
                       {!draftReady && ensureDraft ? (
                         <Button
@@ -1082,6 +1091,11 @@ export function MbaBillingModal({
                       {draftReady && closeDraft ? (
                         <Button type="button" size="sm" variant="ghost" onClick={closeDraft}>
                           Done
+                        </Button>
+                      ) : null}
+                      {draftReady && cancelBilling ? (
+                        <Button type="button" size="sm" variant="outline" onClick={cancelBilling}>
+                          Cancel
                         </Button>
                       ) : null}
                     </>

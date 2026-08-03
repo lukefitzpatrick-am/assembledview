@@ -4,6 +4,9 @@
  * Core financials + override rows form the base; an open timing draft layers on
  * top. Both modal halves (left Adjust timing, right schedule table) read this
  * result so they cannot disagree to the cent.
+ *
+ * Caller supplies override rows already resolved with MB-20 precedence:
+ * pending (unsaved) > table (saved) > computed auto.
  */
 
 import type { BillingMonth } from "@/lib/billing/types"

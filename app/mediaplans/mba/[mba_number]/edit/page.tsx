@@ -229,6 +229,12 @@ import {
   syncBillingMonthHeadersFromLineItems,
 } from "@/lib/finance/resolveMbaBillingModalState"
 import {
+  buildPendingBillingOverrideRows,
+  cloneLineOverrideMetaMap,
+  removeLineFromPendingBillingOverrideRows,
+  resolveBillingOverrideRowsForModal,
+} from "@/lib/finance/pendingBillingOverrides"
+import {
   buildBillingOverridesRefetchAnomalyPayload,
   decidePostPersistOverrideMetaUpdate,
   reportBillingOverridesRefetchAnomaly,
@@ -2025,6 +2031,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     BillingOverrideRow[]
   >([])
   /**
+   * MB-20 — unsaved manual billing timing the user has Applied but not campaign-saved.
+   * Precedence for modal resolve: pending (unsaved) > table (saved) > computed auto.
+   * Derived only via `buildPendingBillingOverrideRows` → `layerDraftMonthsOntoOverrideRows`.
+   */
+  const [pendingBillingOverrideRows, setPendingBillingOverrideRows] = useState<
+    BillingOverrideRow[]
+  >([])
+  const pendingBillingOverrideRowsRef = useRef<BillingOverrideRow[]>([])
+  pendingBillingOverrideRowsRef.current = pendingBillingOverrideRows
+  /** Reason / date_basis for pending rows (mirrors manualBillingOverrideMetaRef at Apply). */
+  const pendingBillingOverrideMetaRef = useRef<Map<string, LineOverrideMeta[]>>(new Map())
+  /**
    * Non-blocking amber notice when overrides GET fails (shown once — not per line).
    * Upstream error stays in console.warn. MB-18: never set for unresolved version id.
    */
@@ -3297,6 +3315,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       savedBillingMonthsRef.current = []
       persistedBillingLineIdsRef.current = new Set()
       setBillingOverrideRowsForPanels([])
+      setPendingBillingOverrideRows([])
+      pendingBillingOverrideMetaRef.current = new Map()
       setWorkingBillingMonths([])
       setBillingHydrationComplete(false)
       setAutoReferenceBillingMonths([])
@@ -4602,17 +4622,44 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     if (isUsableBillingVersionId(versionId)) {
       try {
         const rows = await fetchBillingOverridesClient(versionId)
-        const { months, metaByLine } = applyBillingOverrideRowsToMonths(deepCopiedMonths, rows)
-        monthsForModal = months
-        manualBillingOverrideMetaRef.current = metaByLine
         setBillingOverrideRowsForPanels(rows)
         setBillingOverridesLoadNotice(nextBillingOverridesLoadNotice({ kind: "fetch_ok" }))
+        // MB-20: pending (Applied, unsaved) wins over fetched table rows for the draft overlay.
+        const rowsForOverlay = resolveBillingOverrideRowsForModal(
+          pendingBillingOverrideRowsRef.current,
+          Array.isArray(rows) ? rows : []
+        )
+        const { months, metaByLine } = applyBillingOverrideRowsToMonths(
+          deepCopiedMonths,
+          rowsForOverlay
+        )
+        monthsForModal = months
+        if (pendingBillingOverrideRowsRef.current.length > 0) {
+          manualBillingOverrideMetaRef.current =
+            pendingBillingOverrideMetaRef.current.size > 0
+              ? cloneLineOverrideMetaMap(pendingBillingOverrideMetaRef.current)
+              : metaByLine
+        } else {
+          manualBillingOverrideMetaRef.current = metaByLine
+        }
       } catch (err: any) {
         console.warn(
           "[manual-billing] failed to load billing overrides on modal open",
           err?.message || err
         )
         setBillingOverridesLoadNotice(nextBillingOverridesLoadNotice({ kind: "fetch_failed" }))
+        // Still open from pending when present (no refetch required).
+        if (pendingBillingOverrideRowsRef.current.length > 0) {
+          const { months, metaByLine } = applyBillingOverrideRowsToMonths(
+            deepCopiedMonths,
+            pendingBillingOverrideRowsRef.current
+          )
+          monthsForModal = months
+          manualBillingOverrideMetaRef.current =
+            pendingBillingOverrideMetaRef.current.size > 0
+              ? cloneLineOverrideMetaMap(pendingBillingOverrideMetaRef.current)
+              : metaByLine
+        }
       }
     } else {
       // MB-18: no version id yet (fresh load race) — open quietly with schedule only.
@@ -4622,6 +4669,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         "[manual-billing] missing media_plan_versions row id; overrides deferred until id resolves"
       )
       setBillingOverridesLoadNotice(nextBillingOverridesLoadNotice({ kind: "version_unresolved" }))
+      if (pendingBillingOverrideRowsRef.current.length > 0) {
+        const { months, metaByLine } = applyBillingOverrideRowsToMonths(
+          deepCopiedMonths,
+          pendingBillingOverrideRowsRef.current
+        )
+        monthsForModal = months
+        manualBillingOverrideMetaRef.current =
+          pendingBillingOverrideMetaRef.current.size > 0
+            ? cloneLineOverrideMetaMap(pendingBillingOverrideMetaRef.current)
+            : metaByLine
+      }
     }
 
     setManualBillingMonths(monthsForModal)
@@ -5447,6 +5505,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       return
     }
     clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId)
+    clearLineOverrideMeta(pendingBillingOverrideMetaRef.current, lineItemId)
+    setPendingBillingOverrideRows((prev) =>
+      removeLineFromPendingBillingOverrideRows(prev, lineItemId)
+    )
     setBillingOverrideRowsForPanels((prev) =>
       removeOptimisticFeeOverrideRow(
         removeOptimisticMediaOverrideRow(prev, lineItemId),
@@ -5644,6 +5706,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setManualBillingMonths([])
     setManualBillingDraftReady(false)
     manualBillingOverrideMetaRef.current = new Map()
+    setPendingBillingOverrideRows([])
+    pendingBillingOverrideMetaRef.current = new Map()
     setManualBillingCostPreBill({ fee: false, adServing: false, production: false })
     manualBillingCostPreBillSnapshotRef.current = {}
   }, [calculateBillingSchedule, campaignStartDate, campaignEndDate])
@@ -6134,10 +6198,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       const versionId = await resolveMediaPlanVersionRowId()
       if (!isUsableBillingVersionId(versionId) || cancelled) return
       try {
-        const rows =
+        const rows = resolveBillingOverrideRowsForModal(
+          pendingBillingOverrideRows,
           billingOverrideRowsForPanels.length > 0
             ? billingOverrideRowsForPanels
             : await fetchBillingOverridesClient(versionId)
+        )
         const stale = await findStaleDateBasisOverrides({
           overrideRows: rows,
           incoming: buildIncomingActivity(),
@@ -6165,6 +6231,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [
     isMbaBillingModalOpen,
     billingOverrideRowsForPanels,
+    pendingBillingOverrideRows,
     buildIncomingActivity,
     manualBillingDraftReady,
     resolveMediaPlanVersionRowId,
@@ -6407,7 +6474,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   /**
    * MB-7 — single resolved view for MbaBillingModal (and panel badges that share it).
-   * Core line inputs + billing_overrides, with open timing draft layered on top.
+   * Core line inputs + override rows, with open timing draft layered on top.
+   * MB-20 precedence for override rows: pending (unsaved) > table (saved) > computed auto.
    * Save PUT still uses bare `campaignFinancials` / billingSaveInputs (server attaches).
    */
   const mbaBillingModalState = useMemo(() => {
@@ -6419,6 +6487,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       campaignEndDate instanceof Date && !Number.isNaN(campaignEndDate.getTime())
         ? campaignEndDate
         : undefined
+    const overrideRows = resolveBillingOverrideRowsForModal(
+      pendingBillingOverrideRows,
+      billingOverrideRowsForPanels
+    )
+    const metaByLine =
+      manualBillingDraftReady
+        ? manualBillingOverrideMetaRef.current
+        : pendingBillingOverrideRows.length > 0
+          ? pendingBillingOverrideMetaRef.current
+          : manualBillingOverrideMetaRef.current
     return resolveMbaBillingModalState({
       lineItems: buildEditorLineItemInputs(billingFeeSeedEnabledConfigs, {
         isPartialMBA,
@@ -6429,10 +6507,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       campaignEnd: end,
       selectedMonthYears:
         partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
-      overrideRows: billingOverrideRowsForPanels,
+      overrideRows,
       draftReady: manualBillingDraftReady,
       draftMonths: manualBillingMonths,
-      metaByLine: manualBillingOverrideMetaRef.current,
+      metaByLine,
       isPartialMBA,
     })
   }, [
@@ -6441,6 +6519,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     partialMBASelectedLineItemIds,
     partialMBAMonthYears,
     billingOverrideRowsForPanels,
+    pendingBillingOverrideRows,
     billingSaveInputs.feeLoading,
     campaignStartDate,
     campaignEndDate,
@@ -6958,6 +7037,15 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     // Update working billing for on-screen timing only — do NOT write billingSchedule JSON here.
     // Campaign save (C1 omit-mode) recomputes the billed schedule server-side WITH these overrides attached.
     const applied = JSON.parse(JSON.stringify(manualBillingMonths)) as BillingMonth[]
+    // MB-20: promote draft → pending carrier (Apply). Persist still runs above until MB-23.
+    const pendingRows = buildPendingBillingOverrideRows(
+      applied,
+      manualBillingOverrideMetaRef.current
+    )
+    setPendingBillingOverrideRows(pendingRows)
+    pendingBillingOverrideMetaRef.current = cloneLineOverrideMetaMap(
+      manualBillingOverrideMetaRef.current
+    )
     setWorkingBillingMonths(applied)
     workingBillingMonthsRef.current = applied
     setIsManualBilling(true)
@@ -9703,12 +9791,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     ) as Record<string, string>
 
     // Provisional core financials for the selection (force partial so approvals apply).
+    // MB-20: same pending > table precedence as mbaBillingModalState.
     const provisionalLineItems = attachOverridesToLineInputs(
       buildEditorLineItemInputs(billingFeeSeedEnabledConfigs, {
         isPartialMBA: true,
         partialMBASelectedLineItemIds: nextSelectedIds,
       }),
-      billingOverrideRowsForPanels
+      resolveBillingOverrideRowsForModal(
+        pendingBillingOverrideRows,
+        billingOverrideRowsForPanels
+      )
     )
     const start =
       campaignStartDate instanceof Date && !Number.isNaN(campaignStartDate.getTime())
@@ -12512,17 +12604,32 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       <MbaBillingModal
         open={isMbaBillingModalOpen}
         onOpenChange={(open) => {
-          setIsMbaBillingModalOpen(open)
           if (!open) {
-            // MB-6: draft teardown clears months + meta together (never leave stale meta).
+            // MB-20 Cancel path (X / Escape / footer Cancel): discard draft + pending.
             setIsManualBillingModalOpen(false)
             setManualBillingDraftReady(false)
             setManualBillingMonths([])
             manualBillingOverrideMetaRef.current = new Map()
+            setPendingBillingOverrideRows([])
+            pendingBillingOverrideMetaRef.current = new Map()
             clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
             setPrebillScopePrompt(null)
             setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
           }
+          setIsMbaBillingModalOpen(open)
+        }}
+        onCancelBilling={() => {
+          // Explicit Cancel — same teardown as X / Escape.
+          setIsMbaBillingModalOpen(false)
+          setIsManualBillingModalOpen(false)
+          setManualBillingDraftReady(false)
+          setManualBillingMonths([])
+          manualBillingOverrideMetaRef.current = new Map()
+          setPendingBillingOverrideRows([])
+          pendingBillingOverrideMetaRef.current = new Map()
+          clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
+          setPrebillScopePrompt(null)
+          setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
         }}
         versionLabel={`v${selectedVersionNumber ?? mediaPlan?.version_number ?? 1}`}
         financials={mbaBillingModalState.financials}
@@ -12578,7 +12685,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           void handleManualBillingOpen()
         }}
         onCloseTimingDraft={() => {
-          // MB-6: same teardown triad as modal close — ready + months + meta.
+          // MB-20 Done: tear down draft session only — keep pendingBillingOverrideRows.
           setManualBillingDraftReady(false)
           setIsManualBillingModalOpen(false)
           setManualBillingMonths([])
@@ -12719,7 +12826,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   Reset billing to auto
                 </Button>
                 <Button type="button" size="sm" variant="action" onClick={() => handleManualBillingSave()}>
-                  Save billing changes
+                  Apply
                 </Button>
               </div>
             </div>
@@ -13292,12 +13399,28 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
               ) ? (
                 <Button type="button" variant="action" size="sm" onClick={() => handleManualBillingSave()}>
-                  Save billing changes
+                  Apply
                 </Button>
               ) : null}
             </div>
-            <Button type="button" variant="outline" onClick={() => setIsMbaBillingModalOpen(false)}>
-              Close
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                // MB-20 Cancel — discard draft + pending (same as X / Escape).
+                setIsMbaBillingModalOpen(false)
+                setIsManualBillingModalOpen(false)
+                setManualBillingDraftReady(false)
+                setManualBillingMonths([])
+                manualBillingOverrideMetaRef.current = new Map()
+                setPendingBillingOverrideRows([])
+                pendingBillingOverrideMetaRef.current = new Map()
+                clearPrebillScopeSessionMemory(prebillScopeMemoryRef.current)
+                setPrebillScopePrompt(null)
+                setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
+              }}
+            >
+              Cancel
             </Button>
           </div>
         }
