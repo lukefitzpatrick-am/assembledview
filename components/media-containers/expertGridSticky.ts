@@ -32,10 +32,10 @@ export const EXPERT_GRID_ROW_CLASS =
 export const EXPERT_GRID_WEEK_BODY_Z = "relative z-0"
 
 const STICKY_TH_CORNER_BASE =
-  "sticky top-0 z-[60] border-b border-r bg-background px-1.5 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))]"
+  "sticky top-0 z-eg-sticky border-b border-r bg-background px-1.5 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))]"
 
 const STICKY_TH_WEEK_BASE =
-  "sticky top-0 z-[55] border-b border-r bg-background px-1 py-3.5 text-center text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))] align-middle"
+  "sticky top-0 z-eg-sticky-week border-b border-r bg-background px-1 py-3.5 text-center text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))] align-middle"
 
 const STICKY_TD_BASE = cn(
   "border-b border-r bg-background px-1 py-0 align-middle overflow-hidden",

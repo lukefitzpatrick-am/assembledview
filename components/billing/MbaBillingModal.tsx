@@ -932,10 +932,7 @@ export function MbaBillingModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        overlayClassName="z-[60]"
-        className="flex h-[calc(100vh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-none flex-col gap-0 overflow-hidden p-0 z-[60]"
-      >
+      <DialogContent className="flex h-[calc(100vh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-none flex-col gap-0 overflow-hidden p-0">
         {/* Sticky header: brand bar + title + status strip */}
         <div className="shrink-0">
           <div className="h-1 bg-primary" />
@@ -1363,7 +1360,7 @@ export function MbaBillingModal({
           </div>
         </div>
 
-        {/* Sticky footer — MB-26: decision pair; pr clears Ask Ava FAB (z-50). */}
+        {/* Sticky footer — MB-26: decision pair; pr clears Ask Ava FAB (z-assistant). */}
         {footer ? (
           <div className="shrink-0 border-t border-border bg-background px-6 py-3 pr-28">
             {footer}

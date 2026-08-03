@@ -205,6 +205,31 @@ module.exports = {
         frame: "var(--radius-frame)",
         pill: "var(--radius-pill)",
       },
+      /**
+       * Overlay stacking scale (MB-29). Documented in lib/ui/stackingLayers.ts.
+       * Same-tier rule: a surface opened from inside another must use a higher
+       * layer — never rely on portal DOM order among peers.
+       * eg-* tokens are in-surface (ExpertGrid), not the overlay ladder.
+       */
+      zIndex: {
+        chrome: "40",
+        assistant: "50",
+        modal: "60",
+        nested: "70",
+        popover: "80",
+        tooltip: "90",
+        toast: "100",
+        "eg-under": "1",
+        "eg-ring-lo": "5",
+        "eg-ring": "6",
+        "eg-ring-hi": "7",
+        "eg-sticky-week": "10",
+        "eg-resize": "15",
+        "eg-sticky": "20",
+        "eg-cell-float": "30",
+        "eg-hint": "35",
+        "eg-cell-float-hi": "40",
+      },
       boxShadow: {
         card: "0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)",
         "card-hover": "0 4px 12px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.06)",

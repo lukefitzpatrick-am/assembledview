@@ -2917,7 +2917,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       <Card className="relative overflow-hidden border-0 shadow-md">
         {spanEdgeResize ? (
           <div
-            className="pointer-events-none fixed z-[100] rounded-md border border-border bg-background px-2 py-1 text-xs tabular-nums shadow-md"
+            className="pointer-events-none fixed z-eg-hint rounded-md border border-border bg-background px-2 py-1 text-xs tabular-nums shadow-md"
             style={{
               left: spanEdgeResize.clientX + 12,
               top: spanEdgeResize.clientY - 28,
@@ -4272,7 +4272,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                   "bg-pacing-ahead-bg",
                                 !isMergedAnchorCell &&
                                   inMergePulseHighlight &&
-                                  "z-[5] bg-primary/10 ring-2 ring-inset ring-primary/45",
+                                  "z-eg-ring-lo bg-primary/10 ring-2 ring-inset ring-primary/45",
                                 !isMergedAnchorCell &&
                                   multiHighlight &&
                                   !isRangeOutlined &&
@@ -4285,12 +4285,12 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                   "ring-2 ring-dashed ring-pacing-ahead animate-pulse",
                                 !isMergedAnchorCell &&
                                   mergeReadyOnCell &&
-                                  "search-expert-week-cell--merge-ready z-[6] bg-pacing-behind-bg ring-2 ring-inset ring-pacing-behind shadow-e0",
+                                  "search-expert-week-cell--merge-ready z-eg-ring bg-pacing-behind-bg ring-2 ring-inset ring-pacing-behind shadow-e0",
                                 isDragDropTargetValid &&
-                                  "z-[6] ring-2 ring-inset ring-pacing-on-track bg-pacing-on-track-bg",
+                                  "z-eg-ring ring-2 ring-inset ring-pacing-on-track bg-pacing-on-track-bg",
                                 isDragDropTargetCell &&
                                   !isDragDropTargetValid &&
-                                  "z-[6] ring-1 ring-inset ring-destructive/55 bg-destructive/8",
+                                  "z-eg-ring ring-1 ring-inset ring-destructive/55 bg-destructive/8",
                                 isMergedAnchorCell && "bg-transparent overflow-hidden",
                                 isDraggableWeekCell && "cursor-grab",
                                 isDragDropTargetCell &&
@@ -4303,12 +4303,12 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                 isFocusVisible &&
                                   !isMergedAnchorCell &&
                                   !mergeReadyOnCell &&
-                                  "z-[6] ring-2 ring-primary ring-offset-1 ring-offset-background shadow-md",
+                                  "z-eg-ring ring-2 ring-primary ring-offset-1 ring-offset-background shadow-md",
                                 // Live feedback while a span edge is dragged.
                                 spanEdgeResize !== null &&
                                   mSpan !== null &&
                                   spanEdgeResize.spanId === mSpan.id &&
-                                  "z-[7] ring-2 ring-primary ring-inset"
+                                  "z-eg-ring-hi ring-2 ring-primary ring-inset"
                               )
                               const mergedAnchorWrapperClassName = cn(
                                 !isMergedAnchorCell &&
@@ -4331,7 +4331,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                   : !isMergedAnchorCell &&
                                       "focus-visible:ring-primary/55",
                                 isMergedAnchorCell &&
-                                  "absolute inset-0 z-[1] max-h-none",
+                                  "absolute inset-0 z-eg-under max-h-none",
                                 isFocusVisible &&
                                   !isMergedAnchorCell &&
                                   !mergeReadyOnCell &&
@@ -4896,7 +4896,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                           role="separator"
                                           aria-label="Resize merged burst from its start week"
                                           title="Drag to resize burst (start edge)"
-                                          className="absolute inset-y-0 left-0 z-[55] w-1.5 cursor-ew-resize transition-colors hover:bg-primary/50"
+                                          className="absolute inset-y-0 left-0 z-eg-resize w-1.5 cursor-ew-resize transition-colors hover:bg-primary/50"
                                           onPointerDown={(e) => {
                                             e.preventDefault()
                                             e.stopPropagation()
@@ -4916,7 +4916,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                           role="separator"
                                           aria-label="Resize merged burst from its end week"
                                           title="Drag to resize burst (end edge)"
-                                          className="absolute inset-y-0 right-0 z-[55] w-1.5 cursor-ew-resize transition-colors hover:bg-primary/50"
+                                          className="absolute inset-y-0 right-0 z-eg-resize w-1.5 cursor-ew-resize transition-colors hover:bg-primary/50"
                                           onPointerDown={(e) => {
                                             e.preventDefault()
                                             e.stopPropagation()
@@ -4937,7 +4937,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                     {mSpan ? (
                                       <button
                                         type="button"
-                                        className="pointer-events-auto absolute right-1 top-1 z-[60] inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-destructive/60 bg-pacing-critical-bg text-status-critical-fg shadow-e1 transition-colors hover:border-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                        className="pointer-events-auto absolute right-1 top-1 z-eg-cell-float inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-destructive/60 bg-pacing-critical-bg text-status-critical-fg shadow-e1 transition-colors hover:border-destructive hover:bg-destructive hover:text-destructive-foreground"
                                         aria-label="Unmerge weeks"
                                         title="Unmerge weeks"
                                         onMouseDown={(e) => {
@@ -4961,7 +4961,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                     {showMergeContextTrigger ? (
                                       <button
                                         type="button"
-                                        className="pointer-events-auto absolute right-0 top-0 z-[70] flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background/95 shadow-md transition-colors hover:bg-muted"
+                                        className="pointer-events-auto absolute right-0 top-0 z-eg-cell-float-hi flex h-6 w-6 items-center justify-center rounded-md border border-border bg-background/95 shadow-md transition-colors hover:bg-muted"
                                         aria-label="Merge selected weeks into one burst"
                                         title="Merge selected weeks into one burst"
                                         onMouseDown={(e) => {
@@ -5174,7 +5174,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
           </div>
         </div>
         {DEBUG_SEARCH_MERGE ? (
-          <div className="pointer-events-none absolute bottom-2 right-2 z-50 max-w-[360px] rounded-md border bg-background/95 p-2 text-[11px] leading-snug shadow-lg">
+          <div className="pointer-events-none absolute bottom-2 right-2 z-eg-hint max-w-[360px] rounded-md border bg-background/95 p-2 text-[11px] leading-snug shadow-lg">
             <div className="mb-1 font-medium text-foreground">Search merge debug</div>
             <pre className="whitespace-pre-wrap break-words text-muted-foreground">
 {JSON.stringify(
