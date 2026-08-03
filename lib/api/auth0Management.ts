@@ -17,6 +17,17 @@ type Auth0User = {
   app_metadata?: Record<string, unknown>;
 };
 
+/** Wider projection for the admin users list (not used by searchAuth0Users). */
+export type Auth0ListedUser = {
+  user_id: string;
+  email?: string;
+  name?: string;
+  last_login?: string;
+  logins_count?: number;
+  blocked?: boolean;
+  app_metadata?: Record<string, unknown>;
+};
+
 export class Auth0HttpError extends Error {
   status: number;
   body: unknown;
@@ -147,6 +158,135 @@ export async function searchAuth0Users(params: {
   }
 
   return results;
+}
+
+/** Default fields for admin list — wider than searchAuth0Users (refresh-slug). */
+const LIST_ALL_AUTH0_USER_FIELDS = [
+  'user_id',
+  'email',
+  'name',
+  'last_login',
+  'logins_count',
+  'blocked',
+  'app_metadata',
+] as const;
+
+/**
+ * In-memory TTL cache for full Auth0 user lists (keyed by Lucene query).
+ * Auth0 Management API is ~2 req/s on typical tenants; listAllAuth0Users walks
+ * every page with no backoff, so a short TTL coalesces admin UI pagination /
+ * remounts. 60s balances freshness after invite/edit against multi-page storms.
+ */
+const AUTH0_USERS_LIST_TTL_MS = 60_000;
+
+type Auth0UsersListCacheEntry = {
+  users: Auth0ListedUser[];
+  fetchedAt: number;
+};
+
+const auth0UsersListCache = new Map<string, Auth0UsersListCacheEntry>();
+const auth0UsersListInFlight = new Map<string, Promise<Auth0ListedUser[]>>();
+
+function auth0UsersListCacheKey(query?: string): string {
+  return String(query ?? '').trim();
+}
+
+/** Drop cached Auth0 user lists (e.g. after admin create/update). */
+export function invalidateAuth0UsersListCache(): void {
+  auth0UsersListCache.clear();
+  auth0UsersListInFlight.clear();
+}
+
+async function fetchAllAuth0UsersUncached(query?: string): Promise<Auth0ListedUser[]> {
+  const token = await getManagementToken();
+  const safePerPage = 100;
+  const fields = LIST_ALL_AUTH0_USER_FIELDS.join(',');
+  const q = String(query ?? '').trim();
+
+  const results: Auth0ListedUser[] = [];
+  let page = 0;
+
+  while (true) {
+    const url = new URL(`https://${getManagementDomain()}/api/v2/users`);
+    url.searchParams.set('search_engine', 'v3');
+    if (q) url.searchParams.set('q', q);
+    url.searchParams.set('per_page', String(safePerPage));
+    url.searchParams.set('page', String(page));
+    url.searchParams.set('include_totals', 'false');
+    url.searchParams.set('fields', fields);
+    url.searchParams.set('include_fields', 'true');
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorBody = await parseResponseBody(response);
+      throw new Auth0HttpError('Failed to list Auth0 users', response.status, errorBody);
+    }
+
+    const pageData = (await response.json()) as unknown;
+    const users = Array.isArray(pageData) ? (pageData as Auth0ListedUser[]) : [];
+    results.push(...users);
+
+    if (users.length < safePerPage) break;
+    page += 1;
+  }
+
+  return results;
+}
+
+async function getCachedAllAuth0Users(query?: string): Promise<Auth0ListedUser[]> {
+  const key = auth0UsersListCacheKey(query);
+  const now = Date.now();
+  const hit = auth0UsersListCache.get(key);
+  if (hit && now - hit.fetchedAt < AUTH0_USERS_LIST_TTL_MS) {
+    return hit.users;
+  }
+
+  const existing = auth0UsersListInFlight.get(key);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    try {
+      const users = await fetchAllAuth0UsersUncached(query || undefined);
+      auth0UsersListCache.set(key, { users, fetchedAt: Date.now() });
+      return users;
+    } finally {
+      auth0UsersListInFlight.delete(key);
+    }
+  })();
+
+  auth0UsersListInFlight.set(key, promise);
+  return promise;
+}
+
+/**
+ * Paginated Auth0 user list for the admin users page.
+ * Fetches (and caches) the full matching set, then slices locally so UI page
+ * changes do not re-walk Management API pages within the TTL.
+ */
+export async function listAllAuth0Users(params: {
+  page?: number;
+  perPage?: number;
+  query?: string;
+}): Promise<{ users: Auth0ListedUser[]; total: number; page: number }> {
+  const pageRaw = Number(params.page ?? 0);
+  const page = Number.isFinite(pageRaw) && pageRaw >= 0 ? Math.floor(pageRaw) : 0;
+  const perPageRaw = Number(params.perPage ?? 50);
+  const perPage =
+    Number.isFinite(perPageRaw) && perPageRaw > 0 && perPageRaw <= 100
+      ? Math.floor(perPageRaw)
+      : 50;
+
+  const all = await getCachedAllAuth0Users(params.query);
+  const total = all.length;
+  const start = page * perPage;
+  const users = all.slice(start, start + perPage);
+  return { users, total, page };
 }
 
 export async function listAuth0UsersByClientSlug(clientSlug: string): Promise<Auth0User[]> {

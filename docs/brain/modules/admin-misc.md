@@ -6,7 +6,7 @@
 
 ## Admin & users
 
-- `app/api/admin/users/route.ts` — the real work: `requireAdmin` → zod → Auth0 Management API (create user, assign role by **Role ID** `rol_…` from `AUTH0_ROLE_ADMIN_ID`/`AUTH0_ROLE_CLIENT_ID`, not names) → password ticket → invite email. Rolls back the created user on failure. Rejects numeric `clientSlug` (historical bug guard).
+- `app/api/admin/users/route.ts` — `requireAdmin` → Auth0 Management API. **GET** lists users (`listAllAuth0Users`, 60s in-process TTL cache) returning denormalised `app_metadata.role` (can drift from Auth0 RBAC — not authoritative). **POST** creates user → assign role by **Role ID** `rol_…` from `AUTH0_ROLE_ADMIN_ID`/`AUTH0_ROLE_CLIENT_ID` → password ticket → invite email (rolls back on failure). **PUT** updates metadata/role. Rejects numeric `clientSlug` (historical bug guard).
 - `app/admin/**` uses client-side `AdminGuard`; server enforcement lives only in the API routes.
 - Access-denied UI is one shared `components/AccessDenied.tsx` (`reason`: permission / unconfigured / unauthorized). Routes `/403`, `/forbidden`, `/unauthorized` stay as thin wrappers — middleware fail-closed redirects target them; do not delete the routes.
 - Sidebar logo and breadcrumb root link to `/dashboard` (in-app landing), not marketing `/`.

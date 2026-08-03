@@ -5,11 +5,82 @@ import {
   createAuth0User,
   createPasswordChangeTicket,
   deleteAuth0User,
+  invalidateAuth0UsersListCache,
+  listAllAuth0Users,
   updateAuth0UserMetadata,
   Auth0HttpError,
+  type Auth0ListedUser,
 } from '@/lib/api/auth0Management';
 import { sendInviteEmail } from '@/lib/email/inviteSender';
 import { requireAdmin } from '@/lib/requireRole';
+
+function deriveRoleFromAppMetadata(appMetadata: Record<string, unknown> | undefined): string | null {
+  const raw = appMetadata?.role;
+  if (typeof raw !== 'string') return null;
+  const trimmed = raw.trim().toLowerCase();
+  return trimmed || null;
+}
+
+function mapListedUser(user: Auth0ListedUser) {
+  const appMetadata =
+    user.app_metadata && typeof user.app_metadata === 'object'
+      ? (user.app_metadata as Record<string, unknown>)
+      : undefined;
+  const clientSlugRaw = appMetadata?.client_slug;
+  const clientSlug =
+    typeof clientSlugRaw === 'string' && clientSlugRaw.trim()
+      ? clientSlugRaw.trim().toLowerCase()
+      : null;
+
+  return {
+    user_id: user.user_id,
+    email: user.email ?? null,
+    name: user.name ?? null,
+    // DENORMALISED COPY of the Auth0 role assignment (written into app_metadata on
+    // create/update). Can drift from the real Auth0 Authorization Core / RBAC role —
+    // do not present this as authoritative without also reading assigned roles.
+    role: deriveRoleFromAppMetadata(appMetadata),
+    clientSlug,
+    lastLogin: user.last_login ?? null,
+    blocked: Boolean(user.blocked),
+  };
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const sessionResult = await requireAdmin(request);
+    if ('response' in sessionResult) return sessionResult.response;
+
+    const url = new URL(request.url);
+    const pageRaw = Number(url.searchParams.get('page') ?? '0');
+    const perPageRaw = Number(url.searchParams.get('perPage') ?? '50');
+    const query = url.searchParams.get('query')?.trim() || undefined;
+
+    const page = Number.isFinite(pageRaw) && pageRaw >= 0 ? Math.floor(pageRaw) : 0;
+    const perPage =
+      Number.isFinite(perPageRaw) && perPageRaw > 0 && perPageRaw <= 100
+        ? Math.floor(perPageRaw)
+        : 50;
+
+    const listed = await listAllAuth0Users({ page, perPage, query });
+    return NextResponse.json({
+      users: listed.users.map(mapListedUser),
+      total: listed.total,
+      page: listed.page,
+    });
+  } catch (error) {
+    console.error('Admin user list failed', error);
+    if (error instanceof Auth0HttpError) {
+      return NextResponse.json(
+        { error: 'auth0_list_failed', details: error.body, status: error.status },
+        { status: 400 },
+      );
+    }
+    const message =
+      error instanceof Error ? error.message : 'Failed to list users. Check server logs for details.';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
 
 const basePayloadSchema = z.object({
   firstName: z.string().trim().min(1, 'First name is required'),
@@ -130,6 +201,7 @@ export async function POST(request: NextRequest) {
         ticketUrl,
       });
 
+      invalidateAuth0UsersListCache();
       return NextResponse.json({ ok: true, userId: createdUser.user_id });
     } catch (error) {
       console.error(`[admin-user-create] step=${currentStep} failed`, error);
@@ -225,6 +297,7 @@ export async function PUT(request: NextRequest) {
       app_metadata: appMetadata,
     });
 
+    invalidateAuth0UsersListCache();
     return NextResponse.json({ ok: true, userId });
   } catch (error) {
     console.error('Admin user update failed', error);
