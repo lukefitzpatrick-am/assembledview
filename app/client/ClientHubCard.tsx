@@ -30,16 +30,6 @@ export function ClientHubCard({ row }: { row: ClientHubSummary }) {
                 <CardTitle className="text-lg font-semibold leading-snug line-clamp-2">
                   {row.clientName}
                 </CardTitle>
-                {row.hasClientBrain ? (
-                  <Badge
-                    variant="secondary"
-                    size="sm"
-                    className="mt-0.5 shrink-0"
-                    title="Marketing brain on file"
-                  >
-                    brain ✓
-                  </Badge>
-                ) : null}
               </div>
               <CardDescription className="text-xs">View dashboard &amp; details</CardDescription>
             </div>
