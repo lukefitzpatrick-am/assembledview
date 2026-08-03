@@ -535,6 +535,8 @@ export const PROGVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgVideoE
 
 /** Match labels/values on Prog Display / Prog OOH buy-type combobox. */
 export const PROGDISPLAY_BUY_TYPE_OPTIONS: ComboboxOption[] = [
+  { value: "bonus", label: "Bonus" },
+  { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
   { value: "cpv", label: "CPV" },
@@ -821,6 +823,8 @@ export const PROGAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgAudioE
 
 /** Match labels/values on ProgBVODContainer buy-type combobox. */
 export const PROGBVOD_BUY_TYPE_OPTIONS: ComboboxOption[] = [
+  { value: "bonus", label: "Bonus" },
+  { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
   { value: "cpv", label: "CPV" },
@@ -962,6 +966,8 @@ export const PROGBVOD_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgBvodExp
   }
 
 export const PROGOOH_BUY_TYPE_OPTIONS: ComboboxOption[] = [
+  { value: "bonus", label: "Bonus" },
+  { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
   { value: "cpv", label: "CPV" },
@@ -2106,6 +2112,7 @@ export const BVOD_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<BvodExpertSched
 
 export const TV_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "bonus", label: "Bonus" },
+  { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpm", label: "CPM" },
   { value: "cpt", label: "CPT" },
   { value: "fixed_cost", label: "Fixed Cost" },
