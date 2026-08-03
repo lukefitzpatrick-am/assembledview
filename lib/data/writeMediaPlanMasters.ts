@@ -82,13 +82,20 @@ export function buildXanoMasterMirrorPayload(
   }
 }
 
-/** After ETL explicit-id loads, identity can lag max(id) — sync before insert. */
+/**
+ * After ETL explicit-id loads, identity can lag max(id). Advance the sequence
+ * to cover MAX(id) when behind — never rewind when last_value is already ahead
+ * (X9.1: setval(MAX) alone reissues ids that may still exist in Xano).
+ */
 export async function syncMediaPlanMastersIdSequence(): Promise<void> {
   const db = getDb()
   await db.execute(sql`
     SELECT setval(
-      pg_get_serial_sequence('media_plan_masters', 'id'),
-      COALESCE((SELECT MAX(id) FROM media_plan_masters), 1),
+      'media_plan_masters_id_seq',
+      GREATEST(
+        COALESCE((SELECT MAX(id)::bigint FROM media_plan_masters), 0),
+        (SELECT last_value FROM media_plan_masters_id_seq)
+      ),
       true
     )
   `)
@@ -225,7 +232,8 @@ export async function createMediaPlanMasterPostgresFirst(
   const budgetDollars =
     campaignBudgetCents != null ? campaignBudgetCents / 100 : null
 
-  await syncMediaPlanMastersIdSequence()
+  // Sequence owns allocation on the hot path (X9.1). Post-ETL lag is fixed by
+  // syncMediaPlanMastersIdSequence (no-rewind) at migration/ETL — not per insert.
 
   const clientId = await resolveClientIdForMaster({
     clientId: input.clientId ?? null,

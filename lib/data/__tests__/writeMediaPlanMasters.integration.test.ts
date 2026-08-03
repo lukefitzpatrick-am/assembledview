@@ -45,6 +45,8 @@ describe("X9 createMediaPlanMasterPostgresFirst", () => {
       return
     }
     const db = getDb()
+    // Post-ETL only: advance if behind. Must not rewind when ahead (X9.1).
+    await syncMediaPlanMastersIdSequence()
     const before = await db.execute(sql`
       SELECT
         (SELECT max(id)::bigint FROM media_plan_masters) AS max_id,
@@ -52,8 +54,6 @@ describe("X9 createMediaPlanMasterPostgresFirst", () => {
     `)
     const beforeRow = (before as unknown as { max_id: string; seq_last: string }[])[0]!
     const maxBefore = Number(beforeRow.max_id)
-
-    await syncMediaPlanMastersIdSequence()
 
     const { master, mirror } = await createMediaPlanMasterPostgresFirst({
       mbaNumber: MBA,

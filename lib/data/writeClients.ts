@@ -184,13 +184,19 @@ export function invalidateAllClientsCaches(): void {
   invalidateCachedClients()
 }
 
-/** After ETL explicit-id loads, identity can lag max(id) — sync before insert. */
+/**
+ * After ETL explicit-id loads, identity can lag max(id). Advance when behind;
+ * never rewind when last_value is already ahead (X9.1).
+ */
 export async function syncClientsIdSequence(): Promise<void> {
   const db = getDb()
   await db.execute(sql`
     SELECT setval(
-      pg_get_serial_sequence('clients', 'id'),
-      COALESCE((SELECT MAX(id) FROM clients), 1),
+      'clients_id_seq',
+      GREATEST(
+        COALESCE((SELECT MAX(id)::bigint FROM clients), 0),
+        (SELECT last_value FROM clients_id_seq)
+      ),
       true
     )
   `)
@@ -286,7 +292,8 @@ export async function createClientPostgresFirst(
   body: Record<string, unknown>
 ): Promise<ClientWriteResult> {
   const snake = normalizeClientWritePayload(body, { requireIdentity: true })
-  await syncClientsIdSequence()
+  // Sequence owns allocation on the hot path (X9.1). Use syncClientsIdSequence
+  // after ETL / migration only — never rewind via per-insert setval(MAX).
   const db = getDb()
   const [inserted] = await db
     .insert(schema.clients)
