@@ -16,6 +16,7 @@ export const OOH_BUY_TYPE_OPTIONS = [
   "cpm",
   "fixed_cost",
   "package",
+  "package_inclusions",
   "panels",
 ] as const
 
@@ -38,6 +39,7 @@ export const OOH_BUY_TYPE_LABEL_BY_VALUE: Record<string, string> = {
   cpm: "CPM",
   fixed_cost: "Fixed Cost",
   package: "Package",
+  package_inclusions: "Package Inclusions",
   panels: "Panels",
 }
 
