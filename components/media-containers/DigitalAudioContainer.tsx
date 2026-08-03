@@ -193,6 +193,7 @@ export function getDigiAudioBursts(
         budgetIncludesFees: !!li.budgetIncludesFees,
         clientPaysForMedia: !!li.clientPaysForMedia,
         feePct: pct,
+        buyType: li.buyType,
       })
 
       return {

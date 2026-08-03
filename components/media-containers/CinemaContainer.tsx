@@ -150,6 +150,7 @@ export function getCinemaBursts(
         budgetIncludesFees: !!li.budgetIncludesFees,
         clientPaysForMedia: !!li.clientPaysForMedia,
         feePct: pct,
+        buyType: li.buyType,
       })
 
       return {
