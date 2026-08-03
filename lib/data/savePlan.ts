@@ -22,6 +22,10 @@
  * a payload line with no override deletes that line's rows. Scoped only to
  * line ids in the payload (partial MBA still emits every line).
  *
+ * MB-25: REPLACE-SET runs only when `billingOverrides.authoritative === true`
+ * (client loaded overrides successfully). Otherwise skip and leave DB rows
+ * untouched. `clearedLineIds` deletes Reset-to-auto lines even after refetch.
+ *
  * Gated by `WRITE_BACKEND=postgres`.
  */
 import { and, count, eq, inArray, sql } from "drizzle-orm"
@@ -54,6 +58,10 @@ import {
   buildCanonicalBillingLineIdSet,
   canonicalBillingLineIdSetHas,
 } from "@/lib/finance/manualBillingOverridesUi"
+import {
+  shouldReplaceBillingOverridesFromPayload,
+  type BillingOverridesSaveEnvelope,
+} from "@/lib/finance/billingOverridesSaveIntent"
 import { validateManualOverrideSumRules } from "@/lib/finance/recomputeBillingScheduleOnSave"
 import type { BillingMonth } from "@/lib/billing/types"
 import {
@@ -136,6 +144,12 @@ export type SavePlanVersionInput = {
    * AUTO drift vs server recompute never blocks; manual C2 still does.
    */
   clientBillingSchedulePreview?: BillingMonth[] | null
+  /**
+   * MB-25 — override REPLACE-SET intent. `authoritative: true` only when the
+   * client successfully loaded billing_overrides. Missing / false → skip
+   * REPLACE-SET (never delete on unknown).
+   */
+  billingOverrides?: BillingOverridesSaveEnvelope | null
   /**
    * Test-only injection point for the PENFOLD016/BOSS006 kill-shot.
    * Must throw to abort between line_items and schedule_months writes.
@@ -489,21 +503,38 @@ async function carryBillingOverridesToNewVersion(
 }
 
 /**
- * MB-22 REPLACE-SET: for each line id present in the payload, billing_overrides
- * become exactly the payload's billingOverride / feeOverride. A payload line
- * with no override deletes that line's rows. Scoped to payload line ids only
- * (canonical match so bare ↔ decorated ids after MB-2 carry still clear).
+ * MB-22 REPLACE-SET + MB-25 intent gate.
+ * For each line id present in the payload, billing_overrides become exactly
+ * the payload's billingOverride / feeOverride. A payload line with no override
+ * deletes that line's rows. Scoped to payload line ids only (canonical match).
+ * Additionally deletes every clearedLineIds entry (Reset-to-auto tombstone).
  */
 async function replaceBillingOverridesFromPayload(
   tx: Tx,
   versionId: number,
-  lineItems: SavePlanLineItem[]
-): Promise<void> {
-  if (lineItems.length === 0) return
+  lineItems: SavePlanLineItem[],
+  envelope: BillingOverridesSaveEnvelope | null | undefined
+): Promise<"applied" | "skipped"> {
+  if (!shouldReplaceBillingOverridesFromPayload(envelope)) {
+    console.warn(
+      "[savePlan] MB-25: skipping billing_overrides REPLACE-SET (authoritative≠true)",
+      {
+        versionId,
+        authoritative: envelope?.authoritative ?? null,
+        clearedLineIds: envelope?.clearedLineIds?.length ?? 0,
+      }
+    )
+    return "skipped"
+  }
 
-  const payloadCanon = buildCanonicalBillingLineIdSet(
-    lineItems.map((l) => String(l.lineItemId ?? ""))
-  )
+  if (lineItems.length === 0 && !(envelope?.clearedLineIds?.length)) {
+    return "applied"
+  }
+
+  const payloadCanon = buildCanonicalBillingLineIdSet([
+    ...lineItems.map((l) => String(l.lineItemId ?? "")),
+    ...(envelope?.clearedLineIds ?? []),
+  ])
 
   const existing = await tx
     .select({
@@ -535,9 +566,15 @@ async function replaceBillingOverridesFromPayload(
     dateBasis: string
   }> = []
 
+  const clearedCanon = buildCanonicalBillingLineIdSet(
+    envelope?.clearedLineIds ?? []
+  )
+
   for (const line of lineItems) {
     const lineItemId = String(line.lineItemId ?? "").trim()
     if (!lineItemId) continue
+    // Tombstoned lines stay deleted even if a stale override slipped onto the line.
+    if (canonicalBillingLineIdSetHas(clearedCanon, lineItemId)) continue
 
     const media = line.billingOverride
     if (
@@ -577,6 +614,7 @@ async function replaceBillingOverridesFromPayload(
   if (inserts.length > 0) {
     await tx.insert(schema.billingOverrides).values(inserts)
   }
+  return "applied"
 }
 
 async function upsertVersionRow(
@@ -749,13 +787,13 @@ export async function savePlanVersion(
         droppedBillingOverrides = carryAudit.dropped
       }
 
-      // MB-22: payload REPLACE-SET for every line id in the save body (before
-      // the MB-1 read). Carry (above) may have seeded tip−1 rows; the payload
-      // then becomes the full intended set for lines it includes.
+      // MB-22/MB-25: payload REPLACE-SET when authoritative; otherwise leave DB
+      // rows untouched (never delete on unknown/failed load).
       await replaceBillingOverridesFromPayload(
         tx as Tx,
         versionId,
-        input.lineItems
+        input.lineItems,
+        input.billingOverrides
       )
 
       const overrideRows = await tx

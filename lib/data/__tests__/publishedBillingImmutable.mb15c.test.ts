@@ -107,6 +107,7 @@ function draftInput(
     channelFlags: { mp_search: true },
     lineItems: lines,
     feeLoading: { feesearch: 10 },
+    billingOverrides: { authoritative: true, clearedLineIds: [] },
     ...extra,
   }
 }

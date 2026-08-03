@@ -124,6 +124,8 @@ function draftInput(
     channelFlags: { mp_search: true },
     lineItems: lines,
     feeLoading: { feesearch: 10 },
+    // MB-25: tests that write overrides assert a successful load.
+    billingOverrides: { authoritative: true, clearedLineIds: [] },
     ...extra,
   }
 }
@@ -1364,6 +1366,136 @@ test("savePlan MB-22: publish with override → new version has it", async (t) =
     .where(eq(schema.billingOverrides.versionId, published.versionId))
   assert.equal(rows.length, 1)
   assert.deepEqual(rows[0]!.months, [{ month: "2026-06", amount: 1000 }])
+})
+
+test("savePlan MB-25 (a): authoritative false leaves pre-existing overrides untouched", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const db = getDb()
+  const withOverride = baseLine(LINE_A, 1000, {
+    bursts: [
+      {
+        startDate: "2026-06-01",
+        endDate: "2026-07-31",
+        budget: 1000,
+        buyAmount: 1,
+      },
+    ],
+    billingOverride: {
+      mode: "manual",
+      reason: "prepayment",
+      months: [{ month: "2026-06", amount: 1000 }],
+      dateBasis: "mb25-a",
+    },
+  })
+  const first = await savePlanVersion(draftInput(masterId, [withOverride]))
+  const before = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, first.versionId))
+  assert.equal(before.length, 1)
+
+  // Simulate failed GET: client sends no overrides on lines + authoritative false.
+  await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1000)], {
+      billingOverrides: { authoritative: false, clearedLineIds: [] },
+    })
+  )
+  const after = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, first.versionId))
+  assert.equal(after.length, 1)
+  assert.deepEqual(after[0]!.months, [{ month: "2026-06", amount: 1000 }])
+})
+
+test("savePlan MB-25 (b): clearedLineIds deletes reset line; sibling survives", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const db = getDb()
+  const lineA = baseLine(LINE_A, 1000, {
+    bursts: [
+      {
+        startDate: "2026-06-01",
+        endDate: "2026-07-31",
+        budget: 1000,
+        buyAmount: 1,
+      },
+    ],
+    billingOverride: {
+      mode: "manual",
+      reason: "prepayment",
+      months: [{ month: "2026-06", amount: 1000 }],
+      dateBasis: "mb25-b-a",
+    },
+  })
+  const lineB = baseLine(LINE_B, 500, {
+    bursts: [
+      {
+        startDate: "2026-06-01",
+        endDate: "2026-07-31",
+        budget: 500,
+        buyAmount: 1,
+      },
+    ],
+    billingOverride: {
+      mode: "manual",
+      reason: "manual",
+      months: [{ month: "2026-06", amount: 500 }],
+      dateBasis: "mb25-b-b",
+    },
+  })
+  const first = await savePlanVersion(draftInput(masterId, [lineA, lineB]))
+  assert.equal(
+    (
+      await db
+        .select()
+        .from(schema.billingOverrides)
+        .where(eq(schema.billingOverrides.versionId, first.versionId))
+    ).length,
+    2
+  )
+
+  // Reset A: payload keeps B override, tombstones A, no override on A.
+  await savePlanVersion(
+    draftInput(
+      masterId,
+      [
+        baseLine(LINE_A, 1000, {
+          bursts: lineA.bursts as SavePlanLineItem["bursts"],
+        }),
+        lineB,
+      ],
+      {
+        billingOverrides: {
+          authoritative: true,
+          clearedLineIds: [LINE_A],
+        },
+      }
+    )
+  )
+  const after = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, first.versionId))
+  assert.equal(after.length, 1)
+  assert.equal(after[0]!.lineItemId, LINE_B)
 })
 
 test("savePlan: close db pool", async () => {

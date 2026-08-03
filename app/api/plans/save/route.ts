@@ -108,6 +108,18 @@ const bodySchema = z.object({
   selectedMonthYears: z.array(z.string()).optional(),
   /** O4 — working billing snapshot for AUTO correction toast (not authoritative). */
   clientBillingSchedulePreview: z.array(z.any()).optional().nullable(),
+  /**
+   * MB-25 — override REPLACE-SET intent.
+   * authoritative:true only after a successful billing_overrides GET.
+   * Missing → treated as not authoritative (skip REPLACE-SET).
+   */
+  billingOverrides: z
+    .object({
+      authoritative: z.boolean(),
+      clearedLineIds: z.array(z.string()),
+    })
+    .optional()
+    .nullable(),
   /** Safety net only (X9): master should already exist from POST /api/mediaplans. */
   ensureMaster: ensureMasterSchema.optional(),
   /** PC7: tip version id the editor started from — 409 if tip moved. */
@@ -301,6 +313,7 @@ export async function POST(request: NextRequest) {
       | import("@/lib/billing/types").BillingMonth[]
       | null
       | undefined,
+    billingOverrides: body.billingOverrides ?? null,
     lineItems: body.lineItems.map((l) => ({
       ...l,
       channel: l.channel as (typeof LINE_CHANNELS)[number],

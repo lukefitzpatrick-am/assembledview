@@ -5407,6 +5407,8 @@ function CreateMediaPlan() {
               poNumber: fv.mp_ponumber ?? null,
               campaignBudgetCents: budgetCents,
               fixedFee: Boolean(fv.mp_fixedfee),
+              // Create: first save has no prior table to destroy — authoritative.
+              billingOverrides: { authoritative: true, clearedLineIds: [] },
               channelFlags: {
                 mp_television: Boolean(fv.mp_television),
                 mp_radio: Boolean(fv.mp_radio),

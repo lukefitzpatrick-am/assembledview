@@ -256,6 +256,14 @@ export type PlansSaveRequestBody = {
   baseVersionId?: number | null
   /** O4 — working billing for AUTO correction toast (server still authoritative). */
   clientBillingSchedulePreview?: BillingMonth[] | null
+  /**
+   * MB-25 — override REPLACE-SET intent. authoritative:true only when the
+   * client successfully loaded billing_overrides.
+   */
+  billingOverrides?: {
+    authoritative: boolean
+    clearedLineIds: string[]
+  } | null
 }
 
 export type PlansSaveResponse = {
