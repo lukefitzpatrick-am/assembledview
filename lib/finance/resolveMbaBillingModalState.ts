@@ -308,6 +308,18 @@ export function collectMbaBillingModalMonthAgreement(
   return pairs
 }
 
+/**
+ * MB-10 — months the fee-drift gate AND fee-sum displays must read.
+ * Same selection as handleManualBillingSave (never a parallel raw-draft sum).
+ */
+export function monthsForMbaBillingGates(
+  state: Pick<ResolveMbaBillingModalStateResult, "viewReady" | "resolvedMonths">,
+  draftFallback: BillingMonth[]
+): BillingMonth[] {
+  if (!state.viewReady) return []
+  return state.resolvedMonths.length > 0 ? state.resolvedMonths : draftFallback
+}
+
 /** Assert left/right month Media columns agree within $0.01 (MB-7 invariant). */
 export function assertMbaBillingModalMonthsAgree(
   state: ResolveMbaBillingModalStateResult,

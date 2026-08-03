@@ -223,9 +223,15 @@ import {
   type LineOverrideMeta,
 } from "@/lib/finance/manualBillingOverridesUi"
 import {
+  monthsForMbaBillingGates,
   resolveMbaBillingModalState,
   syncBillingMonthHeadersFromLineItems,
 } from "@/lib/finance/resolveMbaBillingModalState"
+import {
+  buildBillingOverridesRefetchAnomalyPayload,
+  decidePostPersistOverrideMetaUpdate,
+  reportBillingOverridesRefetchAnomaly,
+} from "@/lib/billing/postPersistOverrideRefetchAnomaly"
 import {
   clearPrebillScopeSessionMemory,
   createPrebillScopeSessionMemory,
@@ -6793,25 +6799,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     [billingFeeSeedEnabledConfigs]
   )
 
-  const manualBillingMonthFeeSum = useMemo(
-    () =>
-      manualBillingMonths.reduce(
-        (acc, m) => acc + (parseFloat(String(m.feeTotal || "$0").replace(/[^0-9.-]/g, "")) || 0),
-        0
-      ),
-    [manualBillingMonths]
+  // MB-10: fee dialog / Advanced footer read the same months the gate uses — never a
+  // parallel raw-draft sum (Aug 2 "$0 Current sum" vs $5k schedule shape).
+  const monthsForFeeDisplay = useMemo(
+    () => monthsForMbaBillingGates(mbaBillingModalState, manualBillingMonths),
+    [mbaBillingModalState, manualBillingMonths]
   )
-
-  const agencyFeeMonthTotalDrift = manualBillingMonthFeeSum - derivedCampaignFeeFromBursts
+  const feeMonthTotalForDisplay = useMemo(
+    () => validateAgencyFeeMonthTotalDrift(monthsForFeeDisplay, derivedCampaignFeeFromBursts),
+    [monthsForFeeDisplay, derivedCampaignFeeFromBursts]
+  )
+  const manualBillingMonthFeeSum = feeMonthTotalForDisplay.sumOfMonthFeeTotals
+  const agencyFeeMonthTotalDrift = feeMonthTotalForDisplay.diff
 
   async function handleManualBillingSave(forceIgnoreMismatch?: boolean, overrideFeeDrift?: boolean) {
     // BUX-2: every exit path must toast or open a visible dialog. Do not silently return.
-    // MB-7: gates read the same resolved months the modal displays (not a divergent raw draft).
-    const monthsForGates = mbaBillingModalState.viewReady
-      ? mbaBillingModalState.resolvedMonths.length > 0
-        ? mbaBillingModalState.resolvedMonths
-        : manualBillingMonths
-      : []
+    // MB-7/MB-10: gates + display share monthsForMbaBillingGates (not a divergent raw draft).
+    const monthsForGates = monthsForMbaBillingGates(mbaBillingModalState, manualBillingMonths)
     let preservedNoticeCount = 0
     if (!forceIgnoreMismatch) {
       const v = validateBillingBeforeSave(monthsForGates, { feeCheck: true })
@@ -6953,17 +6957,45 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         persistedRows: Array.isArray(rows) ? rows : [],
       })
       setManualBillingMonths(draftMonths)
-      if (metaByLine.size > 0) {
+      // MB-14: keep recovery (retain prior meta when refetch empty) but make it loud —
+      // empty rows after a successful write is a real contradiction, not a soft no-op.
+      const metaDecision = decidePostPersistOverrideMetaUpdate({
+        metaByLineSize: metaByLine.size,
+        refetchRowCount: Array.isArray(rows) ? rows.length : 0,
+      })
+      if (!metaDecision.retainPriorMeta) {
         manualBillingOverrideMetaRef.current = metaByLine
+      } else if (metaDecision.shouldReportAnomaly && metaDecision.reason) {
+        void reportBillingOverridesRefetchAnomaly(
+          buildBillingOverridesRefetchAnomalyPayload({
+            versionId,
+            mba: mbaNumber,
+            reason: metaDecision.reason,
+            replacedMedia: result.replacedMedia,
+            replacedFee: result.replacedFee,
+            reset: result.reset,
+            refetchRowCount: Array.isArray(rows) ? rows.length : 0,
+            retainedPriorMeta: true,
+          })
+        )
       }
-      // meta empty + rows empty: keep the meta that drove this successful persist
       setManualBillingDraftReady(true)
       setBillingOverrideRowsForPanels(Array.isArray(rows) ? rows : [])
       setBillingOverridesLoadNotice(null)
     } catch (err) {
-      console.warn(
-        "[manual-billing] rebuild draft after save failed; keeping just-saved months",
-        err instanceof Error ? err.message : err
+      // MB-14: retain just-saved months + prior meta; surface the contradiction.
+      const errMsg = err instanceof Error ? err.message : String(err)
+      void reportBillingOverridesRefetchAnomaly(
+        buildBillingOverridesRefetchAnomalyPayload({
+          versionId,
+          mba: mbaNumber,
+          reason: "refetch_threw",
+          replacedMedia: result.replacedMedia,
+          replacedFee: result.replacedFee,
+          reset: result.reset,
+          error: errMsg,
+          retainedPriorMeta: true,
+        })
       )
       setManualBillingMonths(applied)
       setManualBillingDraftReady(true)
@@ -13006,12 +13038,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                             currency: "AUD",
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
-                          }).format(
-                            manualBillingMonths.reduce(
-                              (acc, m) => acc + (parseFloat(String(m.feeTotal || "$0").replace(/[^0-9.-]/g, "")) || 0),
-                              0
-                            )
-                          )}
+                          }).format(manualBillingMonthFeeSum)}
                         </TableCell>
                       </TableRow>
 

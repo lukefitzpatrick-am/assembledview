@@ -152,9 +152,11 @@ import {
   type LineOverrideMeta,
 } from "@/lib/finance/manualBillingOverridesUi"
 import {
+  monthsForMbaBillingGates,
   resolveMbaBillingModalState,
   syncBillingMonthHeadersFromLineItems,
 } from "@/lib/finance/resolveMbaBillingModalState"
+import { validateAgencyFeeMonthTotalDrift } from "@/lib/billing/validateAgencyFeeMonthTotalDrift"
 import {
   clearPrebillScopeSessionMemory,
   createPrebillScopeSessionMemory,
@@ -2018,6 +2020,12 @@ function CreateMediaPlan() {
     manualBillingDraftReady,
     manualBillingMonths,
   ])
+
+  // MB-10: Advanced fee Total column reads the same months selection as edit's fee gate.
+  const manualBillingMonthFeeSum = useMemo(() => {
+    const months = monthsForMbaBillingGates(mbaBillingModalState, manualBillingMonths)
+    return validateAgencyFeeMonthTotalDrift(months, 0).sumOfMonthFeeTotals
+  }, [mbaBillingModalState, manualBillingMonths])
 
   const campaignFinancialsMediaByKey = useMemo(() => {
     const out: Record<string, number> = {}
@@ -8167,16 +8175,7 @@ const handleSaveAll = async () => {
                               </TableCell>
                             ))}
                             <TableCell className="text-right font-semibold">
-                              {mbaCurrencyFormatter.format(
-                                manualBillingMonths.reduce(
-                                  (acc, m) =>
-                                    acc +
-                                    (parseFloat(
-                                      String(m.feeTotal || "$0").replace(/[^0-9.-]/g, "")
-                                    ) || 0),
-                                  0
-                                )
-                              )}
+                              {mbaCurrencyFormatter.format(manualBillingMonthFeeSum)}
                             </TableCell>
                           </TableRow>
                           <TableRow>
