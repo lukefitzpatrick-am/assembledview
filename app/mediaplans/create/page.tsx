@@ -4477,7 +4477,7 @@ function CreateMediaPlan() {
     })
   }, [handleResetBillingScheduleToAuto])
 
-  /** Apply locally only — persist waits until first save has version.id. */
+  /** Apply locally only — campaign save commits via MB-22 REPLACE-SET. */
   function handleManualBillingApply() {
     const autoMonths =
       manualBillingAutoReferenceMonthsRef.current.length > 0
@@ -4510,7 +4510,7 @@ function CreateMediaPlan() {
       return
     }
 
-    // Snapshot auto reference at apply so save persist uses the same basis
+    // Snapshot auto reference at apply so save payload uses the same basis
     const autoSnap = deepCloneBillingMonths(autoMonths)
     manualBillingAutoReferenceMonthsRef.current = autoSnap
     setManualBillingAutoReferenceMonths(autoSnap)
@@ -4521,7 +4521,7 @@ function CreateMediaPlan() {
     toast({
       title: "Manual billing applied",
       description:
-        "Timing kept locally. Overrides will be saved when you save the campaign (after version id).",
+        "Timing kept locally. Save the campaign to commit overrides (works before a version row exists).",
     })
   }
 

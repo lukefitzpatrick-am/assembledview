@@ -54,7 +54,7 @@ export type LineTimingInlineEditorProps = {
 
 /**
  * Per-line month inputs wired to the same manual-billing getter/setter as the Advanced spreadsheet.
- * Does not persist — parent Apply/Save still calls persistManualBillingOverrides.
+ * Does not persist — parent Apply promotes pending; campaign save commits (MB-23).
  * When NEXT_PUBLIC_BILLING_BALANCER=on, one month is ⚖ balancing (computed, never typed).
  */
 export function LineTimingInlineEditor({

@@ -198,8 +198,6 @@ import type { BurstDateLike } from "@/lib/finance/billingOverrideDateBasis"
 import {
   fetchBillingOverridesClient,
   isUsableBillingVersionId,
-  replaceBillingOverrideLineClient,
-  resetBillingOverrideLineClient,
 } from "@/lib/finance/billingOverridesClient"
 import { nextBillingOverridesLoadNotice } from "@/lib/finance/billingOverridesLoadNotice"
 import {
@@ -210,7 +208,6 @@ import {
   buildPrepaymentOverrideMonths,
   clearLineOverrideMeta,
   listManualOverrideLineIds,
-  rebuildTimingDraftAfterBillingSave,
   removeOptimisticFeeOverrideRow,
   removeOptimisticMediaOverrideRow,
   restoreLinePrebillSnapshot,
@@ -235,11 +232,6 @@ import {
   removeLineFromPendingBillingOverrideRows,
   resolveBillingOverrideRowsForModal,
 } from "@/lib/finance/pendingBillingOverrides"
-import {
-  buildBillingOverridesRefetchAnomalyPayload,
-  decidePostPersistOverrideMetaUpdate,
-  reportBillingOverridesRefetchAnomaly,
-} from "@/lib/billing/postPersistOverrideRefetchAnomaly"
 import {
   clearPrebillScopeSessionMemory,
   createPrebillScopeSessionMemory,
@@ -266,7 +258,6 @@ import {
 import { isBillingBalancerEnabled, reanchorOutOfSpanToBalancer } from "@/lib/billing/balancer"
 import { writeCollisionDecisionEdits } from "@/lib/billing/writeCollisionAuditEdits"
 import {
-  manualBillingPersistSkipNotice,
   persistManualBillingOverrides,
 } from "@/lib/finance/persistManualBillingOverrides"
 import {
@@ -5469,11 +5460,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [adservaudio, getRateForMediaType]);
 
   /**
-   * Level 2 — per–line-item reset (modal draft): copy that row from the auto template built as
-   * `attachLineItemsToMonths(deepClone(autoReferenceBillingMonths), "billing")` — same source as append-merge,
-   * not ad-hoc container regen during the click handler. Also clears billing_overrides for the line.
+   * Level 2 — per–line-item reset (modal draft): copy that row from the auto template
+   * and clear the line from pending (MB-23). Deletion of billing_overrides happens at
+   * campaign save via MB-22 REPLACE-SET — no modal DB write.
    */
-  const handleManualBillingLineItemResetToAuto = useCallback(async (mediaKey: string, lineItemId: string) => {
+  const handleManualBillingLineItemResetToAuto = useCallback((mediaKey: string, lineItemId: string) => {
     const autoAgg = autoReferenceBillingMonthsRef.current
     if (!autoAgg.length) {
       toast({
@@ -5485,38 +5476,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       return
     }
 
-    const versionId = await resolveMediaPlanVersionRowId()
-    // MB-3: never clear local override state when the version row is unresolved —
-    // silent local reset with a live override row is worse than a failed reset.
-    if (versionId == null) {
-      toast({
-        variant: "destructive",
-        title: "Cannot reset this line",
-        description:
-          "Could not resolve the media plan version for this MBA. Reload the page and try again — local billing was left unchanged.",
-      })
-      return
-    }
-    try {
-      await resetBillingOverrideLineClient({
-        media_plan_version_id: versionId,
-        mba_number: mbaNumber,
-        line_item_id: toBillingOverrideLineItemId(lineItemId),
-        // omit component → clear both media and fee override rows
-      })
-    } catch (err: any) {
-      toast({
-        variant: "destructive",
-        title: "Could not clear billing override",
-        description: err?.message || "Reset aborted.",
-      })
-      return
-    }
     clearLineOverrideMeta(manualBillingOverrideMetaRef.current, lineItemId)
     clearLineOverrideMeta(pendingBillingOverrideMetaRef.current, lineItemId)
     setPendingBillingOverrideRows((prev) =>
       removeLineFromPendingBillingOverrideRows(prev, lineItemId)
     )
+    // Optimistic UI only — table rows are re-fetched / REPLACE-SET on campaign save.
     setBillingOverrideRowsForPanels((prev) =>
       removeOptimisticFeeOverrideRow(
         removeOptimisticMediaOverrideRow(prev, lineItemId),
@@ -5566,7 +5531,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     recalculateManualBillingTotals(copyWithAutoMode, formatter)
     setManualBillingMonths(copyWithAutoMode)
-  }, [manualBillingMonths, resolveMediaPlanVersionRowId, mbaNumber])
+  }, [manualBillingMonths])
 
   const attachLineItemsToMonths = useCallback((
     months: BillingMonth[],
@@ -6246,146 +6211,120 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   ])
 
   const handleDateBasisKeepForLine = useCallback(
-    async (lineItemId: string) => {
+    (lineItemId: string) => {
       const stale = dateBasisStaleOverrides.filter((s) =>
         billingOverrideLineIdsMatch(s.lineItemId, lineItemId)
       )
       if (!stale.length) return
-      const versionId = await resolveMediaPlanVersionRowId()
-      if (!isUsableBillingVersionId(versionId)) {
-        toast({
-          variant: "destructive",
-          title: "Cannot keep timing",
-          description: "Missing media plan version id.",
-        })
-        return
-      }
-      try {
-        const rows =
-          billingOverrideRowsForPanels.length > 0
-            ? billingOverrideRowsForPanels
-            : await fetchBillingOverridesClient(versionId)
 
-        // PC4: when balancer is on, re-anchor out-of-span months into the balancing
-        // month before refreshing date_basis (compose with DateBasis keep).
-        if (isBillingBalancerEnabled()) {
-          for (const s of stale) {
-            if (s.component !== "media") continue
-            const row = rows.find(
-              (r) =>
-                toBillingOverrideLineItemId(String(r.line_item_id ?? r.lineItemId ?? "")) ===
-                  s.lineItemId &&
-                String(r.component ?? "media").toLowerCase() !== "fee"
-            )
-            if (!row) continue
-            const monthsRaw = (row.months ?? []) as { month?: string; amount?: number }[]
-            const pairs = monthsRaw.map((m) => ({
-              month: String(m.month ?? ""),
-              amount: Number(m.amount) || 0,
-            }))
-            const allowed = workingBillingMonthsRef.current.map((m) => m.monthYear)
-            const lineTotal = sumLineMediaAcrossMonths(
-              autoReferenceBillingMonthsRef.current,
-              s.lineItemId
-            )
-            const { preview, movedFrom } = reanchorOutOfSpanToBalancer({
-              months: pairs,
-              allowedMonths: allowed,
-              balancingMonth: getLineBalancingMonth(s.lineItemId, allowed),
-              lineTotal,
-            })
-            if (movedFrom.length > 0 || preview.months.length > 0) {
-              await replaceBillingOverrideLineClient({
-                media_plan_version_id: versionId,
-                mba_number: mbaNumber,
-                line_item_id: s.lineItemId,
-                component: "media",
-                mode: "manual",
-                reason: "manual",
-                months: preview.months.map((m) => ({
-                  month: scheduleMonthYearToIso(m.month),
-                  amount: m.amount,
-                })),
-                date_basis: s.currentDateBasis,
-              })
+      // MB-23: refresh date_basis in local pending/panels only — campaign save commits.
+      const patchRows = (rows: BillingOverrideRow[]): BillingOverrideRow[] =>
+        rows.map((row) => {
+          const id = toBillingOverrideLineItemId(
+            String(row.line_item_id ?? row.lineItemId ?? "")
+          )
+          const component =
+            String(row.component ?? "media").trim().toLowerCase() === "fee"
+              ? "fee"
+              : "media"
+          const match = stale.find(
+            (s) =>
+              billingOverrideLineIdsMatch(s.lineItemId, id) &&
+              s.component === component
+          )
+          if (!match) return row
+          return {
+            ...row,
+            date_basis: match.currentDateBasis,
+            dateBasis: match.currentDateBasis,
+          }
+        })
+
+      setPendingBillingOverrideRows((prev) => patchRows(prev))
+      setBillingOverrideRowsForPanels((prev) => patchRows(prev))
+
+      // PC4 balancer: re-anchor out-of-span months into the draft (local).
+      if (isBillingBalancerEnabled() && manualBillingMonths.length > 0) {
+        let nextMonths = deepCloneBillingMonthsState(manualBillingMonths)
+        for (const s of stale) {
+          if (s.component !== "media") continue
+          const pairs = collectLineMonthPairs(nextMonths, s.lineItemId)
+          const allowed = workingBillingMonthsRef.current.map((m) => m.monthYear)
+          const lineTotal = sumLineMediaAcrossMonths(
+            autoReferenceBillingMonthsRef.current,
+            s.lineItemId
+          )
+          const { preview, movedFrom } = reanchorOutOfSpanToBalancer({
+            months: pairs.map((p) => ({ month: p.month, amount: p.amount })),
+            allowedMonths: allowed,
+            balancingMonth: getLineBalancingMonth(s.lineItemId, allowed),
+            lineTotal,
+          })
+          if (movedFrom.length === 0 && preview.months.length === 0) continue
+          const mediaKey = (() => {
+            for (const month of nextMonths) {
+              if (!month.lineItems) continue
+              for (const [key, items] of Object.entries(month.lineItems)) {
+                if (!Array.isArray(items)) continue
+                if (
+                  items.some((li) =>
+                    billingOverrideLineIdsMatch(String(li.id ?? ""), s.lineItemId)
+                  )
+                ) {
+                  return key
+                }
+              }
             }
+            return null
+          })()
+          if (!mediaKey) continue
+          for (const p of preview.months) {
+            syncLineItemMonthlyAmountAcrossAllMonthRows(
+              nextMonths,
+              mediaKey,
+              s.lineItemId,
+              p.month,
+              p.amount
+            )
           }
         }
-
-        await applyDateBasisKeepOrReset({
-          versionId,
-          mbaNumber,
-          decision: "keep",
-          stale,
-          overrideRows: rows,
+        const formatter = new Intl.NumberFormat("en-AU", {
+          style: "currency",
+          currency: "AUD",
         })
-        await refreshBillingOverrideRowsForPanels(versionId)
-        setDateBasisStaleOverrides((prev) =>
-          prev.filter((s) => !billingOverrideLineIdsMatch(s.lineItemId, lineItemId))
+        recalculateManualBillingTotals(nextMonths, formatter)
+        setManualBillingMonths(nextMonths)
+        // Rebuild pending from the reanchored draft so save payload stays truthful.
+        const pendingRows = buildPendingBillingOverrideRows(
+          nextMonths,
+          manualBillingOverrideMetaRef.current
         )
-        toast({
-          title: "Timing kept",
-          description: "Override amounts preserved; date basis refreshed for this line.",
-        })
-      } catch (err: any) {
-        toast({
-          variant: "destructive",
-          title: "Could not keep timing",
-          description: err?.message || "Try again.",
-        })
+        setPendingBillingOverrideRows(pendingRows)
+        pendingBillingOverrideMetaRef.current = cloneLineOverrideMetaMap(
+          manualBillingOverrideMetaRef.current
+        )
       }
-    },
-    [
-      dateBasisStaleOverrides,
-      billingOverrideRowsForPanels,
-      resolveMediaPlanVersionRowId,
-      refreshBillingOverrideRowsForPanels,
-      mbaNumber,
-    ]
-  )
 
-  const handleDateBasisResetForLine = useCallback(
-    async (mediaKey: string, lineItemId: string) => {
-      const stale = dateBasisStaleOverrides.filter((s) =>
-        billingOverrideLineIdsMatch(s.lineItemId, lineItemId)
-      )
-      const versionId = await resolveMediaPlanVersionRowId()
-      if (isUsableBillingVersionId(versionId) && stale.length > 0) {
-        try {
-          const rows =
-            billingOverrideRowsForPanels.length > 0
-              ? billingOverrideRowsForPanels
-              : await fetchBillingOverridesClient(versionId)
-          await applyDateBasisKeepOrReset({
-            versionId,
-            mbaNumber,
-            decision: "reset",
-            stale,
-            overrideRows: rows,
-          })
-          await refreshBillingOverrideRowsForPanels(versionId)
-        } catch (err: any) {
-          toast({
-            variant: "destructive",
-            title: "Could not reset override",
-            description: err?.message || "Try again.",
-          })
-          return
-        }
-      }
       setDateBasisStaleOverrides((prev) =>
         prev.filter((s) => !billingOverrideLineIdsMatch(s.lineItemId, lineItemId))
       )
-      await handleManualBillingLineItemResetToAuto(mediaKey, lineItemId)
+      toast({
+        title: "Timing kept",
+        description:
+          "Override amounts preserved locally; date basis refreshed. Save the campaign to commit.",
+      })
     },
-    [
-      dateBasisStaleOverrides,
-      billingOverrideRowsForPanels,
-      resolveMediaPlanVersionRowId,
-      refreshBillingOverrideRowsForPanels,
-      handleManualBillingLineItemResetToAuto,
-      mbaNumber,
-    ]
+    [dateBasisStaleOverrides, manualBillingMonths]
+  )
+
+  const handleDateBasisResetForLine = useCallback(
+    (mediaKey: string, lineItemId: string) => {
+      setDateBasisStaleOverrides((prev) =>
+        prev.filter((s) => !billingOverrideLineIdsMatch(s.lineItemId, lineItemId))
+      )
+      handleManualBillingLineItemResetToAuto(mediaKey, lineItemId)
+    },
+    [handleManualBillingLineItemResetToAuto]
   )
 
   /**
@@ -6935,7 +6874,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     if (!forceIgnoreMismatch) {
       const v = validateBillingBeforeSave(monthsForGates, { feeCheck: true })
       // Preserved manual≠burst drift is expected after a real month edit — same as campaign
-      // save (notices only). Only structural blockingErrors gate the override PATCH.
+      // save (notices only). Only structural blockingErrors gate Apply.
       if (v.blockingErrors.length > 0) {
         setBillingError({
           show: true,
@@ -6945,11 +6884,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         setIsManualBillingModalOpen(true)
         toast({
           variant: "destructive",
-          title: "Billing save blocked",
+          title: "Billing apply blocked",
           description:
             v.blockingErrors.length === 1
               ? v.blockingErrors[0]
-              : `${v.blockingErrors.length} issues must be fixed — see Advanced editor, then retry or Save anyway.`,
+              : `${v.blockingErrors.length} issues must be fixed — see Advanced editor, then retry or Apply anyway.`,
         })
         return
       }
@@ -6972,92 +6911,27 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       return
     }
 
-    const versionId = await resolveMediaPlanVersionRowId()
-    if (versionId == null) {
-      toast({
-        variant: "destructive",
-        title: "Cannot save billing overrides",
-        description:
-          "Missing media_plan_versions row id. Overrides key on the version DB id, not the version number.",
-      })
-      return
-    }
-
-    const getBurstsForLine = (billingRowId: string): BurstDateLike[] => {
-      const canon = toBillingOverrideLineItemId(billingRowId)
-      for (const config of billingFeeSeedEnabledConfigs) {
-        const items = config.lineItems ?? []
-        for (let i = 0; i < items.length; i++) {
-          const stableId = editorBillingStableLineItemId(config.billingKey, items[i], i)
-          if (
-            billingOverrideLineIdsMatch(stableId, billingRowId) ||
-            toBillingOverrideLineItemId(stableId) === canon
-          ) {
-            return resolveLineItemBursts(items[i]).map((b: any) => ({
-              startDate: String(b?.startDate ?? b?.start_date ?? ""),
-              endDate: String(b?.endDate ?? b?.end_date ?? ""),
-            }))
-          }
-        }
-      }
-      return []
-    }
-
-    // Surface C2 helpers that persist also uses (keeps imports live for media-sum gate / replace_line).
+    // Surface C2 helpers still used by gates (keeps imports live for media-sum).
     void listManualOverrideLineIds
     void validateManualMediaMonthsSum
-    void replaceBillingOverrideLineClient
 
-    let result: Awaited<ReturnType<typeof persistManualBillingOverrides>>
-    try {
-      result = await persistManualBillingOverrides({
-        versionId,
-        mbaNumber,
-        months: manualBillingMonths,
-        autoMonthsForMediaTotals:
-          manualBillingAutoReferenceMonths ?? autoReferenceBillingMonths,
-        metaByLine: manualBillingOverrideMetaRef.current,
-        getBurstsForLine,
-      })
-    } catch (err: any) {
-      toast({
-        variant: "destructive",
-        title: "Billing override save failed",
-        description: err?.message || "Could not write billing_overrides.",
-      })
-      return
-    }
-
-    if (!result.ok) {
-      toast({
-        variant: "destructive",
-        title: "Billing override blocked",
-        description: result.message,
-      })
-      return
-    }
-
-    // BUX-6: never toast success when nothing was written (silent no-op looked "saved").
-    if (result.replacedMedia + result.replacedFee + result.reset === 0) {
-      const skipNotice = manualBillingPersistSkipNotice(result.skippedEmptyMonths)
-      toast({
-        variant: "destructive",
-        title: "Nothing to save",
-        description: skipNotice
-          ? `No living manual lines were persisted. ${skipNotice} Adjust timing / Prebill on a current plan line, then retry.`
-          : "No manual billing lines were found to persist. Adjust timing / Prebill first, then retry.",
-      })
-      return
-    }
-
-    // Update working billing for on-screen timing only — do NOT write billingSchedule JSON here.
-    // Campaign save (C1 omit-mode) recomputes the billed schedule server-side WITH these overrides attached.
+    // MB-23: Apply is state-only — promote draft → pending. Campaign save commits
+    // via MB-22 REPLACE-SET. No version id required; no /api/billing-overrides write.
     const applied = JSON.parse(JSON.stringify(manualBillingMonths)) as BillingMonth[]
-    // MB-20: promote draft → pending carrier (Apply). Persist still runs above until MB-23.
     const pendingRows = buildPendingBillingOverrideRows(
       applied,
       manualBillingOverrideMetaRef.current
     )
+    if (pendingRows.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Nothing to apply",
+        description:
+          "No manual billing lines were found. Adjust timing / Prebill first, then retry.",
+      })
+      return
+    }
+
     setPendingBillingOverrideRows(pendingRows)
     pendingBillingOverrideMetaRef.current = cloneLineOverrideMetaMap(
       manualBillingOverrideMetaRef.current
@@ -7066,74 +6940,21 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     workingBillingMonthsRef.current = applied
     setIsManualBilling(true)
     billingLineItemsFollowAutoRef.current = billingMonthsHaveExplicitLineModes(applied)
-    // MB-6: close Advanced only — keep MBA modal timing draft populated (option a).
-    // Never wipe months while draftReady stays true (empty draft → $0 / Off by line total).
+    // MB-6: close Advanced only — keep MBA modal timing draft populated.
     setIsManualBillingModalOpen(false)
     setBillingError({ show: false, blockingErrors: [], preservedOverrides: [] })
+    setManualBillingMonths(applied)
+    setManualBillingDraftReady(true)
 
-    const autoRef =
-      (manualBillingAutoReferenceMonths?.length ?? 0) > 0
-        ? (manualBillingAutoReferenceMonths as BillingMonth[])
-        : autoReferenceBillingMonths
-    try {
-      const rows = await fetchBillingOverridesClient(versionId)
-      const { draftMonths, metaByLine } = rebuildTimingDraftAfterBillingSave({
-        savedMonths: applied,
-        autoReferenceMonths: autoRef,
-        persistedRows: Array.isArray(rows) ? rows : [],
-      })
-      setManualBillingMonths(draftMonths)
-      // MB-14: keep recovery (retain prior meta when refetch empty) but make it loud —
-      // empty rows after a successful write is a real contradiction, not a soft no-op.
-      const metaDecision = decidePostPersistOverrideMetaUpdate({
-        metaByLineSize: metaByLine.size,
-        refetchRowCount: Array.isArray(rows) ? rows.length : 0,
-      })
-      if (!metaDecision.retainPriorMeta) {
-        manualBillingOverrideMetaRef.current = metaByLine
-      } else if (metaDecision.shouldReportAnomaly && metaDecision.reason) {
-        void reportBillingOverridesRefetchAnomaly(
-          buildBillingOverridesRefetchAnomalyPayload({
-            versionId,
-            mba: mbaNumber,
-            reason: metaDecision.reason,
-            replacedMedia: result.replacedMedia,
-            replacedFee: result.replacedFee,
-            reset: result.reset,
-            refetchRowCount: Array.isArray(rows) ? rows.length : 0,
-            retainedPriorMeta: true,
-          })
-        )
-      }
-      setManualBillingDraftReady(true)
-      setBillingOverrideRowsForPanels(Array.isArray(rows) ? rows : [])
-      setBillingOverridesLoadNotice(null)
-    } catch (err) {
-      // MB-14: retain just-saved months + prior meta; surface the contradiction.
-      const errMsg = err instanceof Error ? err.message : String(err)
-      void reportBillingOverridesRefetchAnomaly(
-        buildBillingOverridesRefetchAnomalyPayload({
-          versionId,
-          mba: mbaNumber,
-          reason: "refetch_threw",
-          replacedMedia: result.replacedMedia,
-          replacedFee: result.replacedFee,
-          reset: result.reset,
-          error: errMsg,
-          retainedPriorMeta: true,
-        })
-      )
-      setManualBillingMonths(applied)
-      setManualBillingDraftReady(true)
-      void refreshBillingOverrideRowsForPanels(versionId)
-    }
-
-    const skipNotice = manualBillingPersistSkipNotice(result.skippedEmptyMonths)
     toast({
       title: "Billing applied",
-      description: `Overrides saved (${result.replacedMedia} media, ${result.replacedFee} fee${result.reset ? `, ${result.reset} reset` : ""}${
-        preservedNoticeCount > 0 ? `; ${preservedNoticeCount} manual≠auto difference(s) kept` : ""
-      }${skipNotice ? `; ${skipNotice}` : ""}). Save the plan so C1 recomputes the schedule with overrides attached.`,
+      description: `Timing kept locally (${pendingRows.length} override row${
+        pendingRows.length === 1 ? "" : "s"
+      }${
+        preservedNoticeCount > 0
+          ? `; ${preservedNoticeCount} manual≠auto difference(s) kept`
+          : ""
+      }). Save the campaign to commit overrides.`,
     })
   }
 
