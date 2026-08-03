@@ -81,7 +81,7 @@ export const ROUTE_MANIFEST_EXCLUSIONS: ReadonlyArray<{
  * Top cluster: Home + Knowledge Hub. Groups: Plan / Deliver / Finance / Admin (muted).
  * "Client Dashboards" is a collapsible, not a route — rendered under Creative in Deliver by
  * AppSidebar. Finance has four sidebar items (FIN-1). Create Campaign is palette-only (verb).
- * Footer: UserMenu only (invite lives in Admin group as "New user").
+ * Footer: UserMenu only (Users list in Admin; invite via /admin/users/new).
  */
 export type AdminSidebarGroupTone = "default" | "muted"
 
@@ -119,7 +119,7 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
     id: "admin",
     label: "Admin",
     tone: "muted",
-    paths: ["/tasks", "/client", "/publishers", "/admin/users/new"],
+    paths: ["/tasks", "/client", "/publishers", "/admin/users"],
   },
 ] as const
 
@@ -290,12 +290,23 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     // Verb — not a sidebar noun. Reachable from /mediaplans CTA + palette.
   },
   {
+    path: "/admin/users",
+    label: "Users",
+    title: "Users",
+    icon: "Users",
+    inPalette: true,
+    inSidebar: true,
+    roles: ["admin"],
+    searchTerms: "user management invite admin enrol enrolment users list",
+    group: "admin",
+  },
+  {
     path: "/admin/users/new",
     label: "New user",
     title: "New user",
     icon: "UserCircle",
     inPalette: true,
-    inSidebar: true,
+    inSidebar: false,
     roles: ["admin"],
     searchTerms: "user management invite admin enrol enrolment new user",
     group: "admin",
@@ -314,14 +325,6 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     path: "/admin",
     label: "Admin",
     title: "Admin",
-    inPalette: false,
-    hasPage: false,
-    group: "crumb",
-  },
-  {
-    path: "/admin/users",
-    label: "Users",
-    title: "Users",
     inPalette: false,
     hasPage: false,
     group: "crumb",

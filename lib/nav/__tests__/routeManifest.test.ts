@@ -74,17 +74,21 @@ test("Campaigns and Planning nouns are consistent across surfaces", () => {
   assert.equal(pageMetadata("/tools/behavioural-planner").title, "Planning")
 })
 
-test("Home / Clients / New user labels and Create Campaign is palette-only", () => {
+test("Home / Clients / Users labels and Create Campaign is palette-only", () => {
   assert.equal(getRouteByExactPath("/dashboard")!.label, "Home")
   assert.equal(getRouteByExactPath("/client")!.label, "Clients")
+  assert.equal(getRouteByExactPath("/admin/users")!.label, "Users")
   assert.equal(getRouteByExactPath("/admin/users/new")!.label, "New user")
+  assert.equal(getRouteByExactPath("/admin/users/new")!.inSidebar, false)
+  assert.ok(getPaletteNav(true).some((p) => p.path === "/admin/users/new"))
   const create = getRouteByExactPath("/mediaplans/create")!
   assert.equal(create.label, "Create Campaign")
   assert.equal(create.inSidebar, false)
   assert.ok(getPaletteNav(true).some((p) => p.path === "/mediaplans/create"))
   assert.ok(!(ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/mediaplans/create"))
   assert.ok((ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/tasks"))
-  assert.ok((ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/users/new"))
+  assert.ok((ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/users"))
+  assert.ok(!(ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/users/new"))
   assert.equal(getRouteByExactPath("/tasks")!.inSidebar, true)
   assert.equal(getRouteByExactPath("/tasks")!.label, "Codex")
 })
@@ -114,7 +118,7 @@ test("sidebar groups match Plan / Deliver / Finance / Admin IA (FIN-1)", async (
       {
         id: "admin",
         label: "Admin",
-        paths: ["/tasks", "/client", "/publishers", "/admin/users/new"],
+        paths: ["/tasks", "/client", "/publishers", "/admin/users"],
       },
     ]
   )
@@ -129,9 +133,11 @@ test("sidebar groups match Plan / Deliver / Finance / Admin IA (FIN-1)", async (
 })
 
 test("breadcrumb intermediates that have no page are not linkable", () => {
-  for (const p of ["/tools", "/admin", "/admin/users", "/mediaplans/mba", "/mediaplans/mba/ABC-1"]) {
+  for (const p of ["/tools", "/admin", "/mediaplans/mba", "/mediaplans/mba/ABC-1"]) {
     assert.equal(isLinkablePath(p), false, p)
   }
+  assert.equal(isLinkablePath("/admin/users"), true)
+  assert.equal(isLinkablePath("/admin/users/new"), true)
   assert.equal(isLinkablePath("/mediaplans"), true)
   assert.equal(isLinkablePath("/tools/behavioural-planner"), true)
 })
