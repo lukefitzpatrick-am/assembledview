@@ -11,6 +11,7 @@ import {
   Auth0HttpError,
   type Auth0ListedUser,
 } from '@/lib/api/auth0Management';
+import { assertCanGrantAdminRole } from '@/lib/auth/canGrantAdminRole';
 import { sendInviteEmail } from '@/lib/email/inviteSender';
 import { requireAdmin } from '@/lib/requireRole';
 
@@ -142,6 +143,11 @@ export async function POST(request: NextRequest) {
     }
 
     const { firstName, lastName, email, password, role, clientSlug, mbaNumbers, primaryMbaNumber } = parsed.data;
+
+    // REVIEW: policy lands in USR-4 — SUPERADMIN_EMAIL_ALLOWLIST fail-closed.
+    const grantDenied = assertCanGrantAdminRole(sessionResult.session, role);
+    if (grantDenied) return grantDenied;
+
     const normalizedClientSlug =
       role === 'client' && clientSlug ? clientSlug.trim().toLowerCase() : undefined;
 
@@ -273,6 +279,11 @@ export async function PUT(request: NextRequest) {
     }
 
     const { firstName, lastName, email, role, clientSlug, mbaNumbers, primaryMbaNumber, userId } = parsed.data;
+
+    // REVIEW: policy lands in USR-4 — SUPERADMIN_EMAIL_ALLOWLIST fail-closed.
+    const grantDenied = assertCanGrantAdminRole(sessionResult.session, role);
+    if (grantDenied) return grantDenied;
+
     const normalizedClientSlug =
       role === 'client' && clientSlug ? clientSlug.trim().toLowerCase() : undefined;
 
