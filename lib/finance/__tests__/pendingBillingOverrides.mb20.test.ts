@@ -6,6 +6,7 @@ import type { LineItemInput } from "@/lib/finance/campaignFinancials.types"
 import {
   buildPendingBillingOverrideRows,
   cloneLineOverrideMetaMap,
+  mergePendingOverSavedOverrideRows,
   removeLineFromPendingBillingOverrideRows,
   resolveBillingOverrideRowsForModal,
 } from "../pendingBillingOverrides.js"
@@ -296,4 +297,39 @@ test("MB-20: Reset to auto removes line from pending carrier", () => {
     next.filter((r) => String(r.line_item_id ?? "").includes("supabase001PB1")).length,
     0
   )
+})
+
+test("MB-22: mergePendingOverSavedOverrideRows — pending replaces line, keeps other saved", () => {
+  const saved = [
+    {
+      line_item_id: "LINE-A",
+      component: "media" as const,
+      mode: "manual",
+      months: [{ month: "2026-05", amount: 100 }],
+      date_basis: "saved-a",
+    },
+    {
+      line_item_id: "LINE-B",
+      component: "media" as const,
+      mode: "manual",
+      months: [{ month: "2026-05", amount: 500 }],
+      date_basis: "saved-b",
+    },
+  ]
+  const pending = [
+    {
+      line_item_id: "LINE-A",
+      component: "media" as const,
+      mode: "manual",
+      months: [{ month: "2026-05", amount: 100 }],
+      date_basis: "pending-a",
+    },
+  ]
+  const merged = mergePendingOverSavedOverrideRows(pending, saved)
+  assert.equal(merged.length, 2)
+  const a = merged.find((r) => r.line_item_id === "LINE-A")
+  const b = merged.find((r) => r.line_item_id === "LINE-B")
+  assert.equal(a?.date_basis, "pending-a")
+  assert.equal(b?.date_basis, "saved-b")
+  assert.deepEqual(mergePendingOverSavedOverrideRows([], saved), saved)
 })

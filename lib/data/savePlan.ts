@@ -13,12 +13,18 @@
  * override-free inside computeCampaignFinancials.
  *
  * MB-2: publish/new_version copies base-tip overrides onto the new versionId
- * before the override read that feeds financials; deleted-line overrides are
- * dropped and named in the response (never silent).
+ * before the MB-22 payload replace-set and the override read that feeds
+ * financials; deleted-line overrides are dropped and named in the response
+ * (never silent).
+ *
+ * MB-22: for every line_item_id present in the save payload, billing_overrides
+ * become exactly the payload's billingOverride/feeOverride (REPLACE-SET);
+ * a payload line with no override deletes that line's rows. Scoped only to
+ * line ids in the payload (partial MBA still emits every line).
  *
  * Gated by `WRITE_BACKEND=postgres`.
  */
-import { and, count, eq, sql } from "drizzle-orm"
+import { and, count, eq, inArray, sql } from "drizzle-orm"
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 
 import { getDb, schema, type Db } from "@/db"
@@ -482,6 +488,97 @@ async function carryBillingOverridesToNewVersion(
   return { carried: toCopy.length, dropped, fromVersionId: base.id }
 }
 
+/**
+ * MB-22 REPLACE-SET: for each line id present in the payload, billing_overrides
+ * become exactly the payload's billingOverride / feeOverride. A payload line
+ * with no override deletes that line's rows. Scoped to payload line ids only
+ * (canonical match so bare ↔ decorated ids after MB-2 carry still clear).
+ */
+async function replaceBillingOverridesFromPayload(
+  tx: Tx,
+  versionId: number,
+  lineItems: SavePlanLineItem[]
+): Promise<void> {
+  if (lineItems.length === 0) return
+
+  const payloadCanon = buildCanonicalBillingLineIdSet(
+    lineItems.map((l) => String(l.lineItemId ?? ""))
+  )
+
+  const existing = await tx
+    .select({
+      id: schema.billingOverrides.id,
+      lineItemId: schema.billingOverrides.lineItemId,
+    })
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, versionId))
+
+  const idsToDelete = existing
+    .filter((r) =>
+      canonicalBillingLineIdSetHas(payloadCanon, String(r.lineItemId ?? ""))
+    )
+    .map((r) => r.id)
+
+  if (idsToDelete.length > 0) {
+    await tx
+      .delete(schema.billingOverrides)
+      .where(inArray(schema.billingOverrides.id, idsToDelete))
+  }
+
+  const inserts: Array<{
+    versionId: number
+    lineItemId: string
+    component: "media" | "fee"
+    mode: string
+    reason: string | null
+    months: unknown
+    dateBasis: string
+  }> = []
+
+  for (const line of lineItems) {
+    const lineItemId = String(line.lineItemId ?? "").trim()
+    if (!lineItemId) continue
+
+    const media = line.billingOverride
+    if (
+      media?.mode === "manual" &&
+      Array.isArray(media.months) &&
+      media.months.length > 0
+    ) {
+      inserts.push({
+        versionId,
+        lineItemId,
+        component: "media",
+        mode: "manual",
+        reason: media.reason ?? "manual",
+        months: media.months,
+        dateBasis: String(media.dateBasis ?? ""),
+      })
+    }
+
+    const fee = line.feeOverride
+    if (
+      fee?.mode === "manual" &&
+      Array.isArray(fee.months) &&
+      fee.months.length > 0
+    ) {
+      inserts.push({
+        versionId,
+        lineItemId,
+        component: "fee",
+        mode: "manual",
+        reason: fee.reason ?? "manual",
+        months: fee.months,
+        dateBasis: String(fee.dateBasis ?? ""),
+      })
+    }
+  }
+
+  if (inserts.length > 0) {
+    await tx.insert(schema.billingOverrides).values(inserts)
+  }
+}
+
 async function upsertVersionRow(
   tx: Tx,
   input: SavePlanVersionInput,
@@ -652,6 +749,15 @@ export async function savePlanVersion(
         droppedBillingOverrides = carryAudit.dropped
       }
 
+      // MB-22: payload REPLACE-SET for every line id in the save body (before
+      // the MB-1 read). Carry (above) may have seeded tip−1 rows; the payload
+      // then becomes the full intended set for lines it includes.
+      await replaceBillingOverridesFromPayload(
+        tx as Tx,
+        versionId,
+        input.lineItems
+      )
+
       const overrideRows = await tx
         .select({
           lineItemId: schema.billingOverrides.lineItemId,
@@ -679,6 +785,18 @@ export async function savePlanVersion(
 
       // Billing schedule + blob from override-attached inputs; delivery months
       // remain burst-prorated (billingOverride does not touch delivery).
+      const autoFinancials = computeCampaignFinancials(
+        lineInputs.map((l) => ({
+          ...l,
+          billingOverride: undefined,
+          feeOverride: undefined,
+        })),
+        { feeLoading },
+        {
+          getRateForMediaType: input.getRateForMediaType,
+          adservaudio: input.adservaudio,
+        }
+      )
       const financials = computeCampaignFinancials(
         lineItemsWithOverrides,
         { feeLoading },
@@ -737,12 +855,12 @@ export async function savePlanVersion(
         }
       }
 
-      // O4 / MB-2: C2 manual sum gate against NEW version line media totals.
+      // O4 / MB-22 D2: blocking media+fee sum gate vs AUTO burst-derived totals.
       // PC4 collision worksheet is client-only — when months no longer sum after
       // a media-total change, block here with named lines (never copy blind).
       const sumViolations = validateManualOverrideSumRules({
         lineItems: lineItemsWithOverrides,
-        financials,
+        autoFinancials,
       })
       if (sumViolations.length > 0) {
         throw new SavePlanError(

@@ -449,7 +449,6 @@ test("savePlan: billing_overrides → schedule_months source=override, then comp
     await wipeMba()
   })
 
-  const db = getDb()
   const first = await savePlanVersion(
     draftInput(masterId, [baseLine(LINE_A, 1000)])
   )
@@ -470,19 +469,18 @@ test("savePlan: billing_overrides → schedule_months source=override, then comp
   const overrideAmountDollars = 1000
   const overrideCents = toCents(overrideAmountDollars)
 
-  // Seed override outside savePlan's txn (suite pattern: committed fixture + wipeMba cleanup).
-  await db.insert(schema.billingOverrides).values({
-    versionId: first.versionId,
-    lineItemId: LINE_A,
-    component: "media",
-    mode: "manual",
-    reason: "manual",
-    months: [{ month: monthKey, amount: overrideAmountDollars }],
-    dateBasis: "o2-override-fixture",
-  })
-
+  // MB-22: override rides the save payload (REPLACE-SET), not a pre-seeded DB row.
   const withOverride = await savePlanVersion(
-    draftInput(masterId, [baseLine(LINE_A, 1000)])
+    draftInput(masterId, [
+      baseLine(LINE_A, 1000, {
+        billingOverride: {
+          mode: "manual",
+          reason: "manual",
+          months: [{ month: monthKey, amount: overrideAmountDollars }],
+          dateBasis: "o2-override-fixture",
+        },
+      }),
+    ])
   )
   assert.equal(withOverride.versionId, first.versionId)
   const mid = await snapshot(withOverride.versionId)
@@ -497,10 +495,7 @@ test("savePlan: billing_overrides → schedule_months source=override, then comp
   assert.equal(overridden[0]!.source, "override")
   assert.equal(Number(overridden[0]!.amountCents), overrideCents)
 
-  await db
-    .delete(schema.billingOverrides)
-    .where(eq(schema.billingOverrides.versionId, first.versionId))
-
+  // Payload line with no override → REPLACE-SET deletes rows → computed.
   const cleared = await savePlanVersion(
     draftInput(masterId, [baseLine(LINE_A, 1000)])
   )
@@ -529,25 +524,27 @@ test("savePlan O4: C2 sum violation blocks save (manual override)", async (t) =>
     await wipeMba()
   })
 
-  const db = getDb()
-  const first = await savePlanVersion(
-    draftInput(masterId, [baseLine(LINE_A, 1000)])
-  )
-  await db.insert(schema.billingOverrides).values({
-    versionId: first.versionId,
-    lineItemId: LINE_A,
-    component: "media",
-    mode: "manual",
-    reason: "manual",
-    months: [{ month: "2026-05", amount: 777.77 }],
-    dateBasis: "o4-c2-block",
-  })
+  await savePlanVersion(draftInput(masterId, [baseLine(LINE_A, 1000)]))
 
   await assert.rejects(
-    () => savePlanVersion(draftInput(masterId, [baseLine(LINE_A, 1000)])),
+    () =>
+      savePlanVersion(
+        draftInput(masterId, [
+          baseLine(LINE_A, 1000, {
+            label: "Search Brand",
+            billingOverride: {
+              mode: "manual",
+              reason: "manual",
+              months: [{ month: "2026-05", amount: 777.77 }],
+              dateBasis: "o4-c2-block",
+            },
+          }),
+        ])
+      ),
     (err: unknown) =>
       err instanceof SavePlanError &&
-      err.code === "BILLING_OVERRIDE_SUM_VIOLATION"
+      err.code === "BILLING_OVERRIDE_SUM_VIOLATION" &&
+      err.message.includes("Search Brand")
   )
 })
 
@@ -562,7 +559,6 @@ test("savePlan O4: manual override months survive auto-drift recompute untouched
     await wipeMba()
   })
 
-  const db = getDb()
   // Two-month flight: auto recompute splits media; manual packs it into June.
   const twoMonthLine = baseLine(LINE_A, 1000, {
     bursts: [
@@ -588,17 +584,17 @@ test("savePlan O4: manual override months survive auto-drift recompute untouched
   // Auto split should not already be the full $1000 on June alone.
   assert.notEqual(Number(juneAuto!.amountCents), toCents(1000))
 
-  await db.insert(schema.billingOverrides).values({
-    versionId: first.versionId,
-    lineItemId: LINE_A,
-    component: "media",
-    mode: "manual",
-    reason: "manual",
-    months: [{ month: "2026-06", amount: 1000 }],
-    dateBasis: "o4-manual-survive",
-  })
+  const overrideLine = {
+    ...twoMonthLine,
+    billingOverride: {
+      mode: "manual" as const,
+      reason: "manual" as const,
+      months: [{ month: "2026-06", amount: 1000 }],
+      dateBasis: "o4-manual-survive",
+    },
+  }
 
-  const afterDrift = await savePlanVersion(draftInput(masterId, [twoMonthLine]))
+  const afterDrift = await savePlanVersion(draftInput(masterId, [overrideLine]))
   assert.equal(afterDrift.versionId, first.versionId)
   const mid = await snapshot(afterDrift.versionId)
   const juneManual = mid.months.find(
@@ -629,7 +625,6 @@ test("savePlan MB-1: media override → blob billingMode=manual + months == sche
     await wipeMba()
   })
 
-  const db = getDb()
   const twoMonthLine = baseLine(LINE_A, 1000, {
     bursts: [
       {
@@ -656,17 +651,17 @@ test("savePlan MB-1: media override → blob billingMode=manual + months == sche
   assert.ok(deliveryBefore.length > 0)
   assert.ok(deliveryBefore.every((r) => r.source === "computed"))
 
-  await db.insert(schema.billingOverrides).values({
-    versionId: first.versionId,
-    lineItemId: LINE_A,
-    component: "media",
-    mode: "manual",
-    reason: "manual",
-    months: [{ month: "2026-06", amount: 1000 }],
-    dateBasis: "mb1-blob-parity",
-  })
+  const overrideLine = {
+    ...twoMonthLine,
+    billingOverride: {
+      mode: "manual" as const,
+      reason: "manual" as const,
+      months: [{ month: "2026-06", amount: 1000 }],
+      dateBasis: "mb1-blob-parity",
+    },
+  }
 
-  const saved = await savePlanVersion(draftInput(masterId, [twoMonthLine]))
+  const saved = await savePlanVersion(draftInput(masterId, [overrideLine]))
   assert.equal(saved.versionId, first.versionId)
   const snap = await snapshot(saved.versionId)
   const legacy = snap.version?.legacySchedules as {
@@ -809,21 +804,19 @@ test("savePlan MB-2: publish carries billing_overrides to new version + schedule
       },
     ],
   })
-  const v1 = await savePlanVersion(draftInput(masterId, [twoMonthLine]))
-  await db.insert(schema.billingOverrides).values({
-    versionId: v1.versionId,
-    lineItemId: LINE_A,
-    component: "media",
-    mode: "manual",
-    reason: "manual",
-    months: [{ month: "2026-06", amount: 1000 }],
-    dateBasis: "mb2-carry",
-  })
-  // Draft re-save so v1 schedule_months/blob reflect the override (MB-1).
-  await savePlanVersion(draftInput(masterId, [twoMonthLine]))
+  const overrideLine = {
+    ...twoMonthLine,
+    billingOverride: {
+      mode: "manual" as const,
+      reason: "manual" as const,
+      months: [{ month: "2026-06", amount: 1000 }],
+      dateBasis: "mb2-carry",
+    },
+  }
+  const v1 = await savePlanVersion(draftInput(masterId, [overrideLine]))
 
   const published = await savePlanVersion({
-    ...draftInput(masterId, [twoMonthLine]),
+    ...draftInput(masterId, [overrideLine]),
     mode: "publish",
     versionNumber: 1,
     campaignStatus: "booked",
@@ -890,21 +883,22 @@ test("savePlan MB-11: publish carries when living id is decorated and override i
       },
     ],
   })
-  const v1 = await savePlanVersion(draftInput(masterId, [twoMonthLine]))
-  await db.insert(schema.billingOverrides).values({
-    versionId: v1.versionId,
-    lineItemId: bareId,
-    component: "media",
-    mode: "manual",
-    reason: "manual",
+  const override = {
+    mode: "manual" as const,
+    reason: "manual" as const,
     months: [{ month: "2026-06", amount: 1000 }],
     dateBasis: "mb11-carry",
-  })
-  await savePlanVersion(draftInput(masterId, [twoMonthLine]))
+  }
+  await savePlanVersion(
+    draftInput(masterId, [{ ...twoMonthLine, billingOverride: override }])
+  )
 
-  // Publish with decorated schedule id — must still match bare override (not drop).
+  // Publish with decorated schedule id + same override — REPLACE-SET writes
+  // decorated id; carry+canonical delete still clears the bare tip−1 row first.
   const published = await savePlanVersion({
-    ...draftInput(masterId, [{ ...twoMonthLine, lineItemId: decoratedId }]),
+    ...draftInput(masterId, [
+      { ...twoMonthLine, lineItemId: decoratedId, billingOverride: override },
+    ]),
     mode: "publish",
     versionNumber: 1,
     campaignStatus: "booked",
@@ -921,7 +915,8 @@ test("savePlan MB-11: publish carries when living id is decorated and override i
     .from(schema.billingOverrides)
     .where(eq(schema.billingOverrides.versionId, published.versionId))
   assert.equal(carried.length, 1)
-  assert.equal(carried[0]!.lineItemId, bareId)
+  assert.equal(carried[0]!.lineItemId, decoratedId)
+  assert.deepEqual(carried[0]!.months, [{ month: "2026-06", amount: 1000 }])
 })
 
 test("savePlan MB-2: publish drops overrides for deleted lines and names them in response", async (t) => {
@@ -936,20 +931,18 @@ test("savePlan MB-2: publish drops overrides for deleted lines and names them in
   })
 
   const db = getDb()
-  const v1 = await savePlanVersion(
-    draftInput(masterId, [baseLine(LINE_A, 1000), baseLine(LINE_B, 500)])
-  )
-  await db.insert(schema.billingOverrides).values({
-    versionId: v1.versionId,
-    lineItemId: LINE_A,
-    component: "media",
-    mode: "manual",
-    reason: "manual",
-    months: [{ month: "2026-05", amount: 1000 }],
-    dateBasis: "mb2-drop",
-  })
   await savePlanVersion(
-    draftInput(masterId, [baseLine(LINE_A, 1000), baseLine(LINE_B, 500)])
+    draftInput(masterId, [
+      baseLine(LINE_A, 1000, {
+        billingOverride: {
+          mode: "manual",
+          reason: "manual",
+          months: [{ month: "2026-05", amount: 1000 }],
+          dateBasis: "mb2-drop",
+        },
+      }),
+      baseLine(LINE_B, 500),
+    ])
   )
 
   // Publish without LINE_A — override must be dropped and named, not silent.
@@ -1092,6 +1085,285 @@ test("savePlan O4.6: draft-overwrite still targets the loaded version", async (t
   const snap = await snapshot(overwrite.versionId)
   assert.equal(snap.version?.versionNumber, 1)
   assert.equal(snap.version?.campaignName, "Draft overwrite target")
+})
+
+test("savePlan MB-22: media override from payload → billing_overrides + schedule source=override", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const db = getDb()
+  const twoMonthLine = baseLine(LINE_A, 1000, {
+    bursts: [
+      {
+        startDate: "2026-06-01",
+        endDate: "2026-07-31",
+        budget: 1000,
+        buyAmount: 1,
+      },
+    ],
+    billingOverride: {
+      mode: "manual",
+      reason: "prepayment",
+      months: [{ month: "2026-06", amount: 1000 }],
+      dateBasis: "mb22-media",
+    },
+  })
+  const first = await savePlanVersion(draftInput(masterId, [twoMonthLine]))
+  const rows = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, first.versionId))
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0]!.component, "media")
+  assert.deepEqual(rows[0]!.months, [{ month: "2026-06", amount: 1000 }])
+
+  const snap = await snapshot(first.versionId)
+  const billing = snap.months.filter(
+    (r) =>
+      r.basis === "billing" &&
+      r.component === "media" &&
+      r.lineItemId === LINE_A &&
+      r.source === "override"
+  )
+  assert.ok(billing.length >= 1)
+  assert.equal(
+    Number(
+      billing.find((r) => String(r.month).slice(0, 7) === "2026-06")?.amountCents
+    ),
+    toCents(1000)
+  )
+  assert.ok(
+    snap.months
+      .filter((r) => r.basis === "delivery" && r.lineItemId === LINE_A)
+      .every((r) => r.source === "computed")
+  )
+})
+
+test("savePlan MB-22: fee override from payload → billing_overrides fee row", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const db = getDb()
+  // Seed auto first to learn the AUTO fee total (fee is a slice of gross — not net×%).
+  const bare = baseLine(LINE_A, 1000, {
+    bursts: [
+      {
+        startDate: "2026-06-01",
+        endDate: "2026-07-31",
+        budget: 1000,
+        buyAmount: 1,
+      },
+    ],
+  })
+  const first = await savePlanVersion(draftInput(masterId, [bare]))
+  const autoFeeCents = (
+    await snapshot(first.versionId)
+  ).months
+    .filter(
+      (r) =>
+        r.basis === "billing" &&
+        r.component === "fee" &&
+        r.lineItemId === LINE_A
+    )
+    .reduce((s, r) => s + Number(r.amountCents), 0)
+  const autoFeeDollars = autoFeeCents / 100
+  assert.ok(autoFeeDollars > 0)
+
+  const line = {
+    ...bare,
+    feeOverride: {
+      mode: "manual" as const,
+      reason: "manual" as const,
+      months: [{ month: "2026-06", amount: autoFeeDollars }],
+      dateBasis: "mb22-fee",
+      component: "fee" as const,
+    },
+  }
+  const saved = await savePlanVersion(draftInput(masterId, [line]))
+  const rows = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, saved.versionId))
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0]!.component, "fee")
+  assert.deepEqual(rows[0]!.months, [{ month: "2026-06", amount: autoFeeDollars }])
+
+  const snap = await snapshot(saved.versionId)
+  const feeRows = snap.months.filter(
+    (r) =>
+      r.basis === "billing" &&
+      r.component === "fee" &&
+      r.lineItemId === LINE_A &&
+      r.source === "override"
+  )
+  assert.ok(feeRows.length >= 1)
+})
+
+test("savePlan MB-22: non-reconciling override rolls back and names the line", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const first = await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1000)])
+  )
+  const before = await snapshot(first.versionId)
+
+  await assert.rejects(
+    () =>
+      savePlanVersion(
+        draftInput(masterId, [
+          baseLine(LINE_A, 1000, {
+            label: "Off-by Search",
+            billingOverride: {
+              mode: "manual",
+              reason: "manual",
+              months: [{ month: "2026-05", amount: 50 }],
+              dateBasis: "mb22-gate",
+            },
+          }),
+        ])
+      ),
+    (err: unknown) =>
+      err instanceof SavePlanError &&
+      err.code === "BILLING_OVERRIDE_SUM_VIOLATION" &&
+      err.message.includes("Off-by Search")
+  )
+
+  const after = await snapshot(first.versionId)
+  assert.equal(after.lines.length, before.lines.length)
+  assert.equal(after.months.length, before.months.length)
+  const db = getDb()
+  const overrides = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, first.versionId))
+  assert.equal(overrides.length, 0)
+})
+
+test("savePlan MB-22: partial-MBA excluded line override survives byte-identical", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const db = getDb()
+  const months = [{ month: "2026-05", amount: 500 }] as const
+  const excludedOverride = {
+    mode: "manual" as const,
+    reason: "manual" as const,
+    months: [...months],
+    dateBasis: "mb22-excluded",
+  }
+  // Payload always covers every line (buildEditorLineItemInputs); B is excluded
+  // but still carries its override — REPLACE-SET must not delete it.
+  const saved = await savePlanVersion(
+    draftInput(masterId, [
+      baseLine(LINE_A, 1000, { approval: "approved" }),
+      baseLine(LINE_B, 500, {
+        approval: "excluded",
+        billingOverride: excludedOverride,
+      }),
+    ])
+  )
+
+  const rows = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, saved.versionId))
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0]!.lineItemId, LINE_B)
+  assert.deepEqual(rows[0]!.months, [{ month: "2026-05", amount: 500 }])
+  assert.equal(rows[0]!.dateBasis, "mb22-excluded")
+
+  // Re-save with same excluded+override payload — byte-identical survive.
+  await savePlanVersion(
+    draftInput(masterId, [
+      baseLine(LINE_A, 1000, { approval: "approved" }),
+      baseLine(LINE_B, 500, {
+        approval: "excluded",
+        billingOverride: excludedOverride,
+      }),
+    ])
+  )
+  const again = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, saved.versionId))
+  assert.equal(again.length, 1)
+  assert.deepEqual(again[0]!.months, [{ month: "2026-05", amount: 500 }])
+  assert.equal(again[0]!.mode, "manual")
+  assert.equal(again[0]!.reason, "manual")
+  assert.equal(again[0]!.dateBasis, "mb22-excluded")
+})
+
+test("savePlan MB-22: publish with override → new version has it", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const db = getDb()
+  const overrideLine = baseLine(LINE_A, 1000, {
+    bursts: [
+      {
+        startDate: "2026-06-01",
+        endDate: "2026-07-31",
+        budget: 1000,
+        buyAmount: 1,
+      },
+    ],
+    billingOverride: {
+      mode: "manual",
+      reason: "manual",
+      months: [{ month: "2026-06", amount: 1000 }],
+      dateBasis: "mb22-publish",
+    },
+  })
+  const v1 = await savePlanVersion(draftInput(masterId, [overrideLine]))
+  const published = await savePlanVersion({
+    ...draftInput(masterId, [overrideLine]),
+    mode: "publish",
+    versionNumber: 1,
+    campaignStatus: "booked",
+  })
+  assert.notEqual(published.versionId, v1.versionId)
+  const rows = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, published.versionId))
+  assert.equal(rows.length, 1)
+  assert.deepEqual(rows[0]!.months, [{ month: "2026-06", amount: 1000 }])
 })
 
 test("savePlan: close db pool", async () => {

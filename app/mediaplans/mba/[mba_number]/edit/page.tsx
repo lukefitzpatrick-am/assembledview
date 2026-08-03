@@ -231,6 +231,7 @@ import {
 import {
   buildPendingBillingOverrideRows,
   cloneLineOverrideMetaMap,
+  mergePendingOverSavedOverrideRows,
   removeLineFromPendingBillingOverrideRows,
   resolveBillingOverrideRowsForModal,
 } from "@/lib/finance/pendingBillingOverrides"
@@ -6389,7 +6390,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   /**
    * Shared line/fee inputs for panel financials and version-save bodies (C1 omit mode).
-   * Overrides: pass [] — the server attaches billing_overrides on save.
+   * MB-22: pending (Applied, unsaved) merged over saved billing_overrides so the
+   * save payload states the full intended override set for every line.
    */
   const billingSaveInputs = useMemo(() => {
     const lineItems = attachOverridesToLineInputs(
@@ -6397,7 +6399,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         isPartialMBA,
         partialMBASelectedLineItemIds,
       }),
-      []
+      mergePendingOverSavedOverrideRows(
+        pendingBillingOverrideRows,
+        billingOverrideRowsForPanels
+      )
     )
     const feeLoading = buildFeeLoadingFromEditorFees({
       feetelevision: feeTelevision,
@@ -6426,6 +6431,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     billingFeeSeedEnabledConfigs,
     isPartialMBA,
     partialMBASelectedLineItemIds,
+    pendingBillingOverrideRows,
+    billingOverrideRowsForPanels,
     feeTelevision,
     feeRadio,
     feeNewspapers,
@@ -6483,7 +6490,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
    * MB-7 — single resolved view for MbaBillingModal (and panel badges that share it).
    * Core line inputs + override rows, with open timing draft layered on top.
    * MB-20 precedence for override rows: pending (unsaved) > table (saved) > computed auto.
-   * Save PUT still uses bare `campaignFinancials` / billingSaveInputs (server attaches).
+   * Save PUT uses billingSaveInputs with pending∪saved overrides (MB-22).
    */
   const mbaBillingModalState = useMemo(() => {
     const start =

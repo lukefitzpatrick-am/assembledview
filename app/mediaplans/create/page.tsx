@@ -130,7 +130,6 @@ import {
   rebalanceLineOnSchedule,
 } from "@/lib/billing/rebalanceLineOnSchedule"
 import { getMediaTypeHeadersForSchedule } from "@/lib/billing/mediaTypeHeaders"
-import { persistManualBillingOverrides } from "@/lib/finance/persistManualBillingOverrides"
 import {
   applyLineFeePrebillToMonths,
   applyLinePrebillToMonths,
@@ -1900,7 +1899,8 @@ function CreateMediaPlan() {
 
   /**
    * Shared line/fee inputs for panel financials and version-save bodies (C1 omit mode).
-   * Create saves via MBA PUT — server recomputes schedules from these inputs.
+   * Create saves via MBA PUT / postgres — draftBillingOverrideRows ride the payload
+   * (MB-22); no post-save persistManualBillingOverrides.
    */
   const billingSaveInputs = useMemo(() => {
     const lineItems = attachOverridesToLineInputs(
@@ -5576,7 +5576,8 @@ function CreateMediaPlan() {
 
       /**
        * C1 preferred: MBA PUT omit-mode (server recomputes billing/delivery + inputs_hash).
-       * Manual billing months apply locally; overrides persist after version.id (below).
+       * MB-22: overrides ride billingSaveInputs on the PUT/postgres body — no
+       * post-save persistManualBillingOverrides.
        */
       let version: {
         id: number
@@ -5815,99 +5816,9 @@ function CreateMediaPlan() {
         )
       }
 
-      // Deferred manual billing: persist overrides once we have version.id, then follow-up omit PUT
-      const pendingManualIds = listManualOverrideLineIds(manualBillingMonths)
-      const shouldPersistManualBilling =
-        hasPendingManualBilling &&
-        manualBillingMonths.length > 0 &&
-        (pendingManualIds.media.length > 0 || pendingManualIds.fee.length > 0)
-
-      if (shouldPersistManualBilling) {
-        const autoMonthsForMediaTotals =
-          manualBillingAutoReferenceMonthsRef.current.length > 0
-            ? manualBillingAutoReferenceMonthsRef.current
-            : attachLineItemsForManualBillingEditor(
-                campaignFinancials.billingSchedule.length > 0
-                  ? campaignFinancials.billingSchedule
-                  : billingMonths
-              ).months
-
-        const getBurstsForLine = (billingRowId: string): BurstDateLike[] => {
-          const canon = toBillingOverrideLineItemId(billingRowId)
-          for (const config of billingFeeSeedEnabledConfigs) {
-            const items = config.lineItems ?? []
-            for (let i = 0; i < items.length; i++) {
-              const stableId = editorBillingStableLineItemId(config.billingKey, items[i], i)
-              if (
-                billingOverrideLineIdsMatch(stableId, billingRowId) ||
-                toBillingOverrideLineItemId(stableId) === canon
-              ) {
-                return resolveLineItemBursts(items[i]).map((b: any) => ({
-                  startDate: String(b?.startDate ?? b?.start_date ?? ""),
-                  endDate: String(b?.endDate ?? b?.end_date ?? ""),
-                }))
-              }
-            }
-          }
-          return []
-        }
-
-        let persistResult: Awaited<ReturnType<typeof persistManualBillingOverrides>>
-        try {
-          persistResult = await persistManualBillingOverrides({
-            versionId: version.id,
-            mbaNumber: String(fv.mba_number || ""),
-            months: manualBillingMonths,
-            autoMonthsForMediaTotals,
-            metaByLine: manualBillingOverrideMetaRef.current,
-            getBurstsForLine,
-          })
-        } catch (err: any) {
-          toast({
-            variant: "destructive",
-            title: "Billing override save failed",
-            description: err?.message || "Could not write billing_overrides.",
-          })
-          throw err instanceof Error
-            ? err
-            : new Error(err?.message || "Billing override save failed")
-        }
-
-        if (!persistResult.ok) {
-          toast({
-            variant: "destructive",
-            title: "Billing override blocked",
-            description: persistResult.message,
-          })
-          throw new Error(persistResult.message)
-        }
-
-        // Follow-up omit-mode PUT so server regenerates schedule with overrides attached
-        const followUpRes = await fetch(
-          `/api/mediaplans/mba/${encodeURIComponent(String(fv.mba_number))}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(omitModeBody()),
-          }
-        )
-        if (!followUpRes.ok) {
-          const errorBody = await followUpRes.json().catch(
-            () => ({} as { error?: string; code?: string })
-          )
-          const msg = humaniseBillingSaveError(
-            errorBody,
-            `Follow-up MBA PUT after billing overrides failed (${followUpRes.status})`
-          )
-          toast({
-            variant: "destructive",
-            title: "Billing schedule refresh failed",
-            description: msg,
-          })
-          updateSaveStatus("Media Plan Version", "error", msg)
-          throw new Error(msg)
-        }
-
+      // MB-22: overrides are on billingSaveInputs (draftBillingOverrideRows) and
+      // ride the save/PUT body — no post-save replace_line + follow-up PUT.
+      if (hasPendingManualBilling) {
         setHasPendingManualBilling(false)
       }
 

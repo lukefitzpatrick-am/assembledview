@@ -15,6 +15,7 @@ import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import {
   removeOptimisticFeeOverrideRow,
   removeOptimisticMediaOverrideRow,
+  toBillingOverrideLineItemId,
   type LineOverrideMeta,
 } from "@/lib/finance/manualBillingOverridesUi"
 import { layerDraftMonthsOntoOverrideRows } from "@/lib/finance/resolveMbaBillingModalState"
@@ -53,6 +54,36 @@ export function removeLineFromPendingBillingOverrideRows(
     removeOptimisticMediaOverrideRow(pending, lineItemId),
     lineItemId
   )
+}
+
+/**
+ * MB-22 — full intended override set for the save payload.
+ * Pending rows replace every saved row for the same line id (media + fee);
+ * lines only present in saved keep their saved rows. Empty pending → saved.
+ */
+export function mergePendingOverSavedOverrideRows(
+  pending: BillingOverrideRow[] | null | undefined,
+  saved: BillingOverrideRow[] | null | undefined
+): BillingOverrideRow[] {
+  const savedRows = saved ?? []
+  const pendingRows = pending ?? []
+  if (pendingRows.length === 0) return [...savedRows]
+
+  const pendingLineIds = new Set<string>()
+  for (const row of pendingRows) {
+    const id = toBillingOverrideLineItemId(
+      String(row.line_item_id ?? row.lineItemId ?? "")
+    )
+    if (id) pendingLineIds.add(id)
+  }
+
+  const kept = savedRows.filter((row) => {
+    const id = toBillingOverrideLineItemId(
+      String(row.line_item_id ?? row.lineItemId ?? "")
+    )
+    return Boolean(id) && !pendingLineIds.has(id)
+  })
+  return [...kept, ...pendingRows]
 }
 
 /** Snapshot reason / date_basis meta alongside pending rows. */
