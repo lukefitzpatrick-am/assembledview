@@ -1264,6 +1264,9 @@ useEffect(() => {
                         const bursts = form.getValues(`cinemalineItems.${li}.bursts`) || [];
                         bursts.forEach((_, bi) => handleValueChange(li, bi, !!checked));
                       }}
+                      onComboboxValueChange={(key, li, value) => {
+                        if (key === "buyType") handleBuyTypeChange(li, value);
+                      }}
                       fieldAdornments={{
                         station: (
                           <Button

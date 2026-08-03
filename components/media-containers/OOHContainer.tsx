@@ -1240,6 +1240,9 @@ useEffect(() => {
                         const bursts = form.getValues(`lineItems.${li}.bursts`) || [];
                         bursts.forEach((_, bi) => handleValueChange(li, bi, !!checked));
                       }}
+                      onComboboxValueChange={(key, li, value) => {
+                        if (key === "buyType") handleBuyTypeChange(li, value);
+                      }}
                       summaryRow={
                         <div className="border-b px-6 py-2">
                           <div className="grid grid-cols-4 gap-4 text-sm">
