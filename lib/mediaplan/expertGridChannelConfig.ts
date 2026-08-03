@@ -251,6 +251,7 @@ export function normalizeOptionPaste(
 
 export const SEARCH_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "bonus", label: "Bonus" },
+  { value: "package", label: "Package" },
   { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
@@ -392,6 +393,7 @@ export const SEARCH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<SearchExpertS
 /** Match labels/values on ProgVideoContainer buy-type combobox. */
 export const PROGVIDEO_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "bonus", label: "Bonus" },
+  { value: "package", label: "Package" },
   { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
@@ -536,6 +538,7 @@ export const PROGVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgVideoE
 /** Match labels/values on Prog Display / Prog OOH buy-type combobox. */
 export const PROGDISPLAY_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "bonus", label: "Bonus" },
+  { value: "package", label: "Package" },
   { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
@@ -680,6 +683,7 @@ export const PROGDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgDisp
 /** Match labels/values on ProgAudioContainer buy-type combobox. */
 export const PROGAUDIO_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "bonus", label: "Bonus" },
+  { value: "package", label: "Package" },
   { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
@@ -824,6 +828,7 @@ export const PROGAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgAudioE
 /** Match labels/values on ProgBVODContainer buy-type combobox. */
 export const PROGBVOD_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "bonus", label: "Bonus" },
+  { value: "package", label: "Package" },
   { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
@@ -967,6 +972,7 @@ export const PROGBVOD_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgBvodExp
 
 export const PROGOOH_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "bonus", label: "Bonus" },
+  { value: "package", label: "Package" },
   { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
@@ -1110,6 +1116,7 @@ export const PROGOOH_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<ProgOohExper
 
 export const SOCIALMEDIA_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "bonus", label: "Bonus" },
+  { value: "package", label: "Package" },
   { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
@@ -1608,6 +1615,7 @@ export function expertGridBodyDescriptorColumns(
 
 export const DIGITALDISPLAY_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "bonus", label: "Bonus" },
+  { value: "package", label: "Package" },
   { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
@@ -1727,6 +1735,7 @@ export const DIGITALDISPLAY_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<Digit
 
 export const DIGIVIDEO_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "bonus", label: "Bonus" },
+  { value: "package", label: "Package" },
   { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
@@ -1856,6 +1865,7 @@ export const DIGIVIDEO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigiVideoE
 
 export const DIGIAUDIO_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "bonus", label: "Bonus" },
+  { value: "package", label: "Package" },
   { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
@@ -1984,6 +1994,7 @@ export const DIGIAUDIO_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<DigitalAud
 
 export const BVOD_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "bonus", label: "Bonus" },
+  { value: "package", label: "Package" },
   { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
@@ -2727,6 +2738,7 @@ export const MAGAZINES_EXPERT_CHANNEL_CONFIG: ExpertGridChannelConfig<MagazinesE
 
 export const INFLUENCERS_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "bonus", label: "Bonus" },
+  { value: "package", label: "Package" },
   { value: "package_inclusions", label: "Package Inclusions" },
   { value: "cpc", label: "CPC" },
   { value: "cpm", label: "CPM" },
