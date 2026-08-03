@@ -78,6 +78,7 @@ export function extractAndFormatBursts(lineItem: any, feePct?: number): any[] {
 
   const budgetIncludesFees = getBooleanField(lineItem, 'budget_includes_fees', 'budgetIncludesFees', false);
   const clientPaysForMedia = getBooleanField(lineItem, 'client_pays_for_media', 'clientPaysForMedia', false);
+  const buyType = lineItem.buy_type !== undefined ? lineItem.buy_type : lineItem.buyType;
 
   const normalizedFeePct = normalizeFeePct(feePct);
   const effectiveFeePct = normalizedFeePct !== undefined
@@ -104,6 +105,7 @@ export function extractAndFormatBursts(lineItem: any, feePct?: number): any[] {
     feePct: effectiveFeePct,
     budgetIncludesFees,
     clientPaysForMedia,
+    buyType,
   });
 
   return serializedBursts.map((serializedBurst, index) => {

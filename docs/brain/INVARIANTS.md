@@ -64,6 +64,7 @@ pct === 100 → fee = 0 (division guard)
 
 - Money fields are **formatted strings** (`mediaAmount`, `feeAmount`).
 - `mediaAmount` = *planned* media, sourced from `deliveryMediaAmount` → non-zero for client-pays lines.
+- Persist path passes line `buy_type`/`buyType` into `serializeBurstsJson` → `computeBurstAmounts`, so `bonus` / `package_inclusions` always write zero media/fee.
 - `lib/pacing/burst/parseBursts.ts` key names are contractually aligned with the serializer — change both or neither.
 - Expert grids' `sumFee` reads `expertRowFeeSplit` output, NOT `bursts_json[].fee` — orthogonal paths that look identical.
 - Burst money as `z.number()` vs string: `baseBurstShape` in `lib/mediaplan/schemas.ts` is extended by every channel schema — a type change there fans out to all of them.
