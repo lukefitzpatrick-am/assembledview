@@ -10,12 +10,10 @@ import {
   Download,
   Key,
   Mail,
-  MoreHorizontal,
   Plug,
   Shield,
   Trash2,
   User,
-  UserPlus,
   Users,
 } from "lucide-react"
 
@@ -24,18 +22,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import { Switch } from "@/components/ui/switch"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { getRouteByExactPath } from "@/lib/nav/routeManifest"
 import { getUserDisplayName, getUserInitials, getUserRoles } from "@/lib/rbac"
 
 const notificationRows = [
@@ -169,19 +159,30 @@ export default function AccountPage() {
             <div>
               <h1 className="text-3xl font-bold text-foreground">Account Settings</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Manage your profile, team access, connected systems, and notification preferences.
+                Manage your profile, connected systems, and notification preferences.
               </p>
             </div>
           </div>
-          <Button variant="outline" onClick={() => (window.location.href = "/auth/logout")}>
-            Sign Out
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.push("/admin/users")}
+              >
+                <Users className="mr-2 h-4 w-4" aria-hidden />
+                {getRouteByExactPath("/admin/users")?.label ?? "Users"}
+              </Button>
+            ) : null}
+            <Button variant="outline" onClick={() => (window.location.href = "/auth/logout")}>
+              Sign Out
+            </Button>
+          </div>
         </div>
 
         <Tabs defaultValue="profile" className="rounded-frame border border-border bg-card p-6 shadow-e1">
           <TabsList aria-label="Settings sections" className="w-full justify-start overflow-x-auto">
             <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="team">Team</TabsTrigger>
             <TabsTrigger value="integrations">Integrations</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
           </TabsList>
@@ -329,105 +330,6 @@ export default function AccountPage() {
                     Delete Account
                   </Button>
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="team" className="space-y-6">
-            <Card className="rounded-card border-border bg-card shadow-e0">
-              <CardHeader className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2 text-foreground">
-                    <Users className="h-5 w-5 text-muted-foreground" aria-hidden />
-                    Team Members
-                  </CardTitle>
-                  <CardDescription>People with access through your Auth0 organization and roles.</CardDescription>
-                </div>
-                <Button type="button" onClick={() => router.push("/admin/users/new")} disabled={!isAdmin}>
-                  <UserPlus className="mr-2 h-4 w-4" aria-hidden />
-                  Invite member
-                </Button>
-              </CardHeader>
-              <CardContent>
-                <div className="overflow-hidden rounded-card border border-border">
-                  <Table>
-                    <TableHeader className="bg-surface-panel">
-                      <TableRow>
-                        <TableHead>Member</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="w-12">
-                          <span className="sr-only">Actions</span>
-                        </TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      <TableRow>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-9 w-9 border border-border">
-                              <AvatarImage src={user.picture} alt={displayName} />
-                              <AvatarFallback className="bg-pacing-ahead-bg text-status-ahead-fg">
-                                {initials}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="font-medium text-foreground">{displayName}</p>
-                              <p className="text-sm text-muted-foreground">{user.email}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {userRoles.length > 0 ? (
-                            <div className="flex flex-wrap gap-2">
-                              {userRoles.map((role) => (
-                                <Badge
-                                  key={role}
-                                  variant={role === "admin" ? "critical" : "secondary"}
-                                  className="capitalize"
-                                >
-                                  {role}
-                                </Badge>
-                              ))}
-                            </div>
-                          ) : (
-                            <Badge variant="outline">Unassigned</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={user.email_verified ? "ahead" : "critical"} dot>
-                            {user.email_verified ? "Active" : "Verify email"}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" aria-label="Member actions">
-                                <MoreHorizontal className="h-4 w-4" aria-hidden />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="rounded-card border-border bg-popover shadow-e2">
-                              <DropdownMenuLabel>Member actions</DropdownMenuLabel>
-                              <DropdownMenuItem onClick={handleProfileEdit}>Open profile management</DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                onClick={() => router.push("/admin/users/new")}
-                                disabled={!isAdmin}
-                              >
-                                Invite teammate
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    </TableBody>
-                  </Table>
-                </div>
-                {!isAdmin ? (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    Invite access is available to admin users only.
-                  </p>
-                ) : null}
               </CardContent>
             </Card>
           </TabsContent>
