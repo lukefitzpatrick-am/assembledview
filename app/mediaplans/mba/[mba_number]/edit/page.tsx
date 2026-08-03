@@ -132,6 +132,12 @@ import {
 } from "@/lib/api"
 import type { BillingMonth, BillingLineItem as BillingLineItemType, BillingBurst } from "@/lib/billing/types"
 import { computeAppendNewMediaTypeBucket } from "@/lib/billing/appendNewMediaTypeBucket"
+import { appendAutoLineItemTemplateIntoWorking as appendAutoLineItemTemplateIntoWorkingLib } from "@/lib/billing/appendAutoReferenceIntoWorking"
+import type { CanonicalBillingLineCollapse } from "@/lib/billing/dedupeWorkingBillingCanonicalLines"
+import {
+  buildWorkingBillingCanonicalDedupePayload,
+  reportWorkingBillingCanonicalDedupe,
+} from "@/lib/billing/workingBillingCanonicalDedupeAnomaly"
 import {
   compareBillingDivergence,
   isUnintendedBillingDivergence,
@@ -1002,7 +1008,13 @@ function appendAutoReferenceIntoWorkingBilling(
   autoReferenceMonths: BillingMonth[],
   formatter: Intl.NumberFormat,
   attachLineItemsToMonths: (months: BillingMonth[], mode: "billing" | "delivery") => BillingMonth[],
-  opts?: { isManualBilling?: boolean; resyncExistingFromTemplate?: boolean }
+  opts?: {
+    isManualBilling?: boolean
+    resyncExistingFromTemplate?: boolean
+    onCanonicalDedupe?: (
+      collapses: Array<CanonicalBillingLineCollapse & { mediaKey: string; monthYear: string }>
+    ) => void
+  }
 ): BillingMonth[] {
   billingAppendDebug("appendAutoReferenceIntoWorkingBilling", {
     autoRefMonths: autoReferenceMonths.length,
@@ -1015,7 +1027,13 @@ function appendAutoReferenceIntoWorkingBilling(
     workingMonths,
     attachLineItemsToMonths
   )
-  return appendAutoLineItemTemplateIntoWorking(workingMonths, templateWithLineItems, formatter, opts)
+  // MB-30: use lib merge (canonical dedupe loud guard). Local duplicate helpers remain unused by this path.
+  return appendAutoLineItemTemplateIntoWorkingLib(
+    workingMonths,
+    templateWithLineItems,
+    formatter,
+    opts
+  )
 }
 
 /** Unwrap string / `{ months: [...] }` / top-level array from media_plan_versions or API. */
@@ -3233,6 +3251,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         {
           isManualBilling: isManualBillingRef.current,
           resyncExistingFromTemplate: true,
+          onCanonicalDedupe: (collapses) => {
+            const versionId = mediaPlanVersionId ?? "unknown"
+            void reportWorkingBillingCanonicalDedupe(
+              buildWorkingBillingCanonicalDedupePayload({
+                versionId,
+                mba: String(mbaNumber ?? ""),
+                collapses,
+              })
+            )
+          },
         }
       )
       setWorkingBillingMonths(merged)
@@ -10309,6 +10337,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       })
 
       const followAuto = billingLineItemsFollowAutoRef.current
+      // MB-30: log container id fields alongside template ids (lib logs template.progBvod[].id).
+      console.warn(
+        "[MB-30 append] progBvod container id fields",
+        (progBvodMediaLineItems ?? []).map((li: any, i: number) => ({
+          index: i,
+          line_item_id: li?.line_item_id ?? null,
+          id: li?.id ?? null,
+          billingStable: billingStableLineItemId("progBvod", li, i),
+        }))
+      )
       const merged = appendAutoReferenceIntoWorkingBilling(
         source,
         autoRef,
@@ -10318,8 +10356,27 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           ? {
               isManualBilling: isManualBillingRef.current,
               resyncExistingFromTemplate: true,
+              onCanonicalDedupe: (collapses) => {
+                void reportWorkingBillingCanonicalDedupe(
+                  buildWorkingBillingCanonicalDedupePayload({
+                    versionId: mediaPlanVersionId ?? "unknown",
+                    mba: String(mbaNumber ?? ""),
+                    collapses,
+                  })
+                )
+              },
             }
-          : undefined
+          : {
+              onCanonicalDedupe: (collapses) => {
+                void reportWorkingBillingCanonicalDedupe(
+                  buildWorkingBillingCanonicalDedupePayload({
+                    versionId: mediaPlanVersionId ?? "unknown",
+                    mba: String(mbaNumber ?? ""),
+                    collapses,
+                  })
+                )
+              },
+            }
       )
       if (JSON.stringify(merged) === JSON.stringify(source)) {
         billingAppendDebug("append skipped: merged deep-equals working snapshot", {
