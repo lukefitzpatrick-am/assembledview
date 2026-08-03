@@ -3,12 +3,21 @@
  * Derives ONLY from {@link CampaignFinancials} — no recompute of totals.
  */
 
+import { MANUAL_BILLING_VOCAB } from "@/lib/billing/manualBillingVocabulary"
 import type { CampaignFinancials } from "@/lib/finance/campaignFinancials.types"
 
 export type MediaTypeRowIndicators = {
   muted: boolean
   notInMba: boolean
+  /**
+   * Manual timing only (not prepaid). MB-9: prepaid lines use prepaid / mediaPrepaid
+   * so the container pill shares the same word as the line badge.
+   */
   manual: boolean
+  /** Media + fee prepayment — badge "Prepaid". */
+  prepaid: boolean
+  /** Media-only prepayment — badge "Media prepaid". */
+  mediaPrepaid: boolean
   feeAdjusted: boolean
   /** True when any non-excluded line in this media type is client-pays-for-media. */
   clientPays: boolean
@@ -91,14 +100,18 @@ export function panelIndicatorsFromCampaignFinancials(
   }
   for (const [key, lines] of linesByMedia) {
     const allExcluded = lines.every((l) => l.flags.excluded)
+    const inScope = lines.filter((l) => !l.flags.excluded)
     byMediaType[key] = {
       muted: allExcluded,
       notInMba: allExcluded,
-      manual: lines.some((l) => l.flags.manualBilling),
-      feeAdjusted: lines.some((l) => l.flags.manualFee),
-      clientPays: lines.some(
-        (l) => !l.flags.excluded && l.flags.clientPaysForMedia
+      // MB-9: one word per state — Manual only when not already Prepaid / Media prepaid.
+      manual: inScope.some(
+        (l) => l.flags.manualBilling && !l.flags.prepaid && !l.flags.mediaPrepaid
       ),
+      prepaid: inScope.some((l) => l.flags.prepaid),
+      mediaPrepaid: inScope.some((l) => l.flags.mediaPrepaid),
+      feeAdjusted: lines.some((l) => l.flags.manualFee),
+      clientPays: inScope.some((l) => l.flags.clientPaysForMedia),
     }
   }
 
@@ -121,18 +134,18 @@ export function panelIndicatorsFromCampaignFinancials(
       key: "manual-count",
       label:
         manualOnlyLines.length === 1
-          ? "Manual"
-          : `Manual · ${manualOnlyLines.length}`,
+          ? MANUAL_BILLING_VOCAB.manualTiming
+          : `${MANUAL_BILLING_VOCAB.manualTiming} · ${manualOnlyLines.length}`,
       tone: "amber",
       tooltip:
         "Billing months were set manually and may differ from auto-calculated delivery timing for invoicing.",
     })
   }
-  // MB-8: same badge words as line / timing editor — Prepaid only when media+fee.
+  // MB-8/9: same badge words as line / timing editor — Prepaid only when media+fee.
   if (hasFullPrepaid) {
     titlePills.push({
       key: "prepay-reason",
-      label: "Prepaid",
+      label: MANUAL_BILLING_VOCAB.prepaidMediaAndFee,
       tone: "amber",
       tooltip:
         "Media and agency fee are billed up front (prepayment) rather than spread across delivery months.",
@@ -140,36 +153,16 @@ export function panelIndicatorsFromCampaignFinancials(
   } else if (hasMediaPrepaid) {
     titlePills.push({
       key: "prepay-reason",
-      label: "Media prepaid",
+      label: MANUAL_BILLING_VOCAB.prepaidMedia,
       tone: "amber",
       tooltip: "Media is billed up front; agency fee stays on delivery timing.",
     })
   }
 
-  const deltaByMonth = new Map(
-    financials.deliveryVsBillingDelta.map((d) => [d.month, d] as const)
-  )
-
+  // MB-9: amber month dots treated deliberate Prebill / Adjust timing as an anomaly.
+  // Calm status lives on the header pill + Prepaid/Manual/Media prepaid badges;
+  // real reconciliation failures use the unintended-divergence banner / Off-by / blocking pills.
   const byMonth: Record<string, MonthDotIndicator> = {}
-  for (const month of financials.billingSchedule) {
-    const monthYear = month.monthYear
-    const delta = deltaByMonth.get(monthYear)
-    const lineHasAmount = (l: (typeof perLine)[number]) =>
-      l.billingMonths.some((m) => m.month === monthYear && Math.abs(m.amount) > 0.005)
-    const isPrepay =
-      Boolean(delta?.reasons.includes("prepayment")) ||
-      timingOverrideLines.some(
-        (l) => (l.flags.prepaid || l.flags.mediaPrepaid) && lineHasAmount(l)
-      )
-    const isManualMonth = timingOverrideLines.some(lineHasAmount)
-    if (!isPrepay && !isManualMonth) continue
-
-    byMonth[monthYear] = {
-      tone: isPrepay ? "prepay" : "manual",
-      // BUX-3: plain-language tooltip (no $ → $ · reason glyph jargon).
-      hover: "This month differs from auto billing",
-    }
-  }
 
   return {
     mbaDetails: {

@@ -52,9 +52,13 @@ import {
 } from "@/components/ui/tooltip"
 import { formatMoney } from "@/lib/format/money"
 import {
-  prebillBadgeLabelFromFlags,
+  clientPaysBadgeLabel,
+  feeAdjustedBadgeLabel,
+  manualBillingHeaderLabel,
+  manualTimingBadgeLabel,
   prebillBadgeTooltip,
-} from "@/lib/billing/prebillScope"
+  prebillStatusLabelFromFlags,
+} from "@/lib/billing/manualBillingVocabulary"
 
 /** Collapsed-by-default expand memory for the browser session (survives modal close). */
 const sessionExpandedByMediaType: Record<string, boolean> = {}
@@ -280,8 +284,7 @@ function HeaderStrip({
                 <TooltipTrigger asChild>
                   <span className="inline-flex">
                     <Badge variant="attention" size="sm" className="rounded-pill font-medium">
-                      Manual billing — <span className="num">{manual}</span>{" "}
-                      {manual === 1 ? "line" : "lines"}
+                      <span className="num">{manualBillingHeaderLabel(manual)}</span>
                     </Badge>
                   </span>
                 </TooltipTrigger>
@@ -457,7 +460,7 @@ function ScopeLineRow({
             )}
             <TooltipProvider delayDuration={200}>
               {(() => {
-                const prebillLabel = prebillBadgeLabelFromFlags(line.flags)
+                const prebillLabel = prebillStatusLabelFromFlags(line.flags)
                 if (!prebillLabel || muted) return null
                 return (
                   <Tooltip>
@@ -482,7 +485,7 @@ function ScopeLineRow({
                   <TooltipTrigger asChild>
                     <span className="inline-flex">
                       <Badge variant="attention" size="sm" className="rounded-pill font-normal">
-                        Manual
+                        {manualTimingBadgeLabel()}
                       </Badge>
                     </span>
                   </TooltipTrigger>
@@ -497,7 +500,7 @@ function ScopeLineRow({
                   <TooltipTrigger asChild>
                     <span className="inline-flex">
                       <Badge variant="attention" size="sm" className="rounded-pill font-normal">
-                        Fee adjusted
+                        {feeAdjustedBadgeLabel()}
                       </Badge>
                     </span>
                   </TooltipTrigger>
@@ -511,7 +514,7 @@ function ScopeLineRow({
                   <TooltipTrigger asChild>
                     <span className="inline-flex">
                       <Badge variant="secondary" size="sm" className="rounded-pill font-normal">
-                        Client pays
+                        {clientPaysBadgeLabel()}
                       </Badge>
                     </span>
                   </TooltipTrigger>
@@ -580,7 +583,7 @@ function ScopeLineRow({
           onCommit={lineTiming.onCommit}
           onResetToAuto={lineTiming.onResetLine}
           onPrebill={lineTiming.onPrebillLine}
-          prebillBadgeLabel={prebillBadgeLabelFromFlags(line.flags)}
+          prebillBadgeLabel={prebillStatusLabelFromFlags(line.flags)}
           clientPaysForMedia={line.flags.clientPaysForMedia}
           dateBasisChoice={dateBasisChoice}
           formatter={lineTiming.formatter}

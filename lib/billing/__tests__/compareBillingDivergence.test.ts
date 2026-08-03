@@ -3,6 +3,7 @@ import test from "node:test"
 
 import {
   compareBillingDivergence,
+  isUnintendedBillingDivergence,
   summarizeBillingDivergence,
   type AttachLineItemsCallback,
 } from "../compareBillingDivergence.js"
@@ -146,6 +147,41 @@ test("line in computed only → missing_in_saved", () => {
   assert.equal(result.isDivergent, true)
   assert.equal(result.divergentLines.length, 1)
   assert.equal(result.divergentLines[0]!.kind, "missing_in_saved")
+})
+
+test("MB-9: month-only redistribution (reconciling line totals) is not unintended", () => {
+  const li = line("li-1", { totalAmount: 20_000 })
+  const saved = [
+    month("August 2026", { mediaTotal: "$20,000.00", feeTotal: "$2,540.98", lines: { search: [li] } }),
+    month("September 2026", { mediaTotal: "$0.00", feeTotal: "$2,459.02", lines: { search: [li] } }),
+  ]
+  const computed = [
+    month("August 2026", { mediaTotal: "$10,000.00", feeTotal: "$2,540.98", lines: { search: [li] } }),
+    month("September 2026", {
+      mediaTotal: "$10,000.00",
+      feeTotal: "$2,459.02",
+      lines: { search: [li] },
+    }),
+  ]
+  const result = compareBillingDivergence(saved, computed)
+  assert.equal(result.isDivergent, true, "month headers still differ")
+  assert.ok(result.divergentMonths.length >= 1)
+  assert.equal(result.divergentLines.length, 0)
+  assert.equal(isUnintendedBillingDivergence(result), false)
+})
+
+test("MB-9: line_total break is unintended", () => {
+  const saved = [month("May 2025", { lines: { search: [line("li-1", { totalAmount: 9000 })] } })]
+  const computed = [month("May 2025", { lines: { search: [line("li-1", { totalAmount: 10_000 })] } })]
+  const result = compareBillingDivergence(saved, computed)
+  assert.equal(isUnintendedBillingDivergence(result), true)
+})
+
+test("MB-9: missing_in_computed (stranded override) is unintended", () => {
+  const saved = [month("May 2025", { lines: { search: [line("li-1", { totalAmount: 500 })] } })]
+  const computed = [month("May 2025", { lines: { search: [] } })]
+  const result = compareBillingDivergence(saved, computed)
+  assert.equal(isUnintendedBillingDivergence(result), true)
 })
 
 test("BUX-1: bare saved id vs decorated computed id with same totals → not divergent", () => {

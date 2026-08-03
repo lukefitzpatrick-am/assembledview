@@ -63,9 +63,10 @@ test("panel indicators: manual + fee override surface pills and amber Edit Billi
   )
   const indicators = panelIndicatorsFromCampaignFinancials(financials)
 
-  assert.equal(indicators.mbaDetails.byMediaType.search?.manual, true)
+  // MB-9: container row shares Media prepaid (not Manual) with the line badge
+  assert.equal(indicators.mbaDetails.byMediaType.search?.manual, false)
+  assert.equal(indicators.mbaDetails.byMediaType.search?.mediaPrepaid, true)
   assert.equal(indicators.mbaDetails.byMediaType.search?.feeAdjusted, true)
-  // MB-8: media-prepaid lines are not double-counted as Manual title pills
   const manualPill = indicators.billingSchedule.titlePills.find((p) => p.key === "manual-count")
   assert.equal(manualPill, undefined)
   const prepaidPill = indicators.billingSchedule.titlePills.find((p) => p.key === "prepay-reason")
@@ -74,9 +75,8 @@ test("panel indicators: manual + fee override surface pills and amber Edit Billi
   assert.match(prepaidPill?.tooltip ?? "", /delivery timing/i)
   assert.equal(indicators.billingSchedule.editBillingHasOverride, true)
   assert.equal(indicators.mbaDetails.mbaFeeAdjusted, true)
-  const monthDots = Object.values(indicators.billingSchedule.byMonth)
-  assert.ok(monthDots.length > 0)
-  assert.ok(monthDots.every((d) => d.hover === "This month differs from auto billing"))
+  // MB-9: no amber month-dot false alarms for deliberate timing
+  assert.equal(Object.keys(indicators.billingSchedule.byMonth).length, 0)
 })
 
 test("panel indicators MB-8: media+fee prepayment → Prepaid pill", () => {

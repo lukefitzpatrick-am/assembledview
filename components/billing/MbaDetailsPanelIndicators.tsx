@@ -7,6 +7,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  MANUAL_BILLING_VOCAB,
+  clientPaysBadgeLabel,
+  feeAdjustedBadgeLabel,
+  manualTimingBadgeLabel,
+  prebillBadgeTooltip,
+  prebillStatusLabelFromFlags,
+} from "@/lib/billing/manualBillingVocabulary"
 import { cn } from "@/lib/utils"
 import type { MediaTypeRowIndicators } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 
@@ -49,9 +57,13 @@ export function MbaPartialScopePill({ label }: { label: string | null }) {
   )
 }
 
-/** Per media-type row status pills (Manual / Fee adjusted / Client pays / Not in MBA). */
+/** Per media-type row status pills — MB-9 vocabulary (same words as line badges). */
 export function MbaMediaTypeRowPills({ row }: { row?: MediaTypeRowIndicators }) {
   if (!row) return null
+  const prebillLabel = prebillStatusLabelFromFlags({
+    prepaid: row.prepaid,
+    mediaPrepaid: row.mediaPrepaid,
+  })
   return (
     <TooltipProvider delayDuration={200}>
       <span className="ml-2 inline-flex flex-wrap items-center gap-1">
@@ -64,18 +76,25 @@ export function MbaMediaTypeRowPills({ row }: { row?: MediaTypeRowIndicators }) 
             Not in MBA
           </Badge>
         ) : null}
-        {row.manual ? (
+        {prebillLabel ? (
           <ExplainedBadge
-            label="Manual"
+            label={prebillLabel}
             variant="attention"
-            dot
+            className="rounded-pill font-medium"
+            tooltip={prebillBadgeTooltip(prebillLabel)}
+          />
+        ) : null}
+        {row.manual && !prebillLabel ? (
+          <ExplainedBadge
+            label={manualTimingBadgeLabel()}
+            variant="attention"
             className="rounded-pill font-medium"
             tooltip="Billing months were set manually and may differ from auto-calculated delivery timing for invoicing."
           />
         ) : null}
         {row.feeAdjusted ? (
           <ExplainedBadge
-            label="Fee adjusted"
+            label={feeAdjustedBadgeLabel()}
             variant="attention"
             className="rounded-pill font-medium"
             tooltip="Fee months were adjusted manually for invoicing."
@@ -83,7 +102,7 @@ export function MbaMediaTypeRowPills({ row }: { row?: MediaTypeRowIndicators }) 
         ) : null}
         {row.clientPays && !row.notInMba ? (
           <ExplainedBadge
-            label="Client pays"
+            label={clientPaysBadgeLabel()}
             variant="attention"
             className="rounded-pill font-medium"
             tooltip="Client pays media cost directly; it is excluded from billable MBA totals."
@@ -130,7 +149,7 @@ export function MbaFeeAdjustedPill({ show }: { show: boolean }) {
   return (
     <TooltipProvider delayDuration={200}>
       <ExplainedBadge
-        label="Fee adjusted"
+        label={MANUAL_BILLING_VOCAB.feeAdjusted}
         variant="attention"
         className="ml-2 rounded-pill font-medium"
         tooltip="Campaign fee total was adjusted manually for invoicing."

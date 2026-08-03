@@ -134,6 +134,7 @@ import type { BillingMonth, BillingLineItem as BillingLineItemType, BillingBurst
 import { computeAppendNewMediaTypeBucket } from "@/lib/billing/appendNewMediaTypeBucket"
 import {
   compareBillingDivergence,
+  isUnintendedBillingDivergence,
   type BillingDivergenceResult,
 } from "@/lib/billing/compareBillingDivergence"
 import { computeAdServingCost } from "@/lib/billing/computeAdServingCost"
@@ -10098,7 +10099,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       hasExplicitManualBillingLines(savedBillingMonths) ||
         hasExplicitManualBillingLines(workingBillingMonths)
     )
-    if (result.isDivergent && FF_BILLING_DIVERGENCE_ENABLED) {
+    // MB-9: Acknowledge banner only for unintended divergence (sum break / stranded override).
+    // Month-only redistribution from deliberate Prebill stays calm (header pill).
+    if (
+      result.isDivergent &&
+      isUnintendedBillingDivergence(result) &&
+      FF_BILLING_DIVERGENCE_ENABLED
+    ) {
       const ackKey = `billingDivergenceAcknowledged:${mbaNumber}:${selectedVersionNumber}`
       const acked =
         typeof window !== "undefined" && Boolean(window.sessionStorage.getItem(ackKey))
@@ -10132,9 +10139,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       })
       setBillingDivergence(result)
       setIsManualBilling(hasExplicitManualBillingLines(workingBillingMonths))
-      // Keep a single banner surface in sync with working drift (hydrate owns first paint;
-      // debounce must show after a real manual edit and clear after reset-to-auto).
-      if (result.isDivergent && FF_BILLING_DIVERGENCE_ENABLED) {
+      // MB-9: sync banner with unintended drift only (not deliberate reconciling timing).
+      if (
+        result.isDivergent &&
+        isUnintendedBillingDivergence(result) &&
+        FF_BILLING_DIVERGENCE_ENABLED
+      ) {
         const ackKey = `billingDivergenceAcknowledged:${mbaNumber}:${selectedVersionNumber}`
         const acked =
           typeof window !== "undefined" && Boolean(window.sessionStorage.getItem(ackKey))

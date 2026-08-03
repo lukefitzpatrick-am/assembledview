@@ -308,6 +308,24 @@ function formatCountPhrase(count: number, singular: string, plural: string): str
   return `${count} ${plural}`
 }
 
+/**
+ * MB-9 — banner / acknowledge only for UNINTENDED divergence:
+ * - line media (or adserving) total no longer reconciles to the auto/computed line total
+ * - stranded override / plan change (line missing on one side — PC4 collision shape)
+ *
+ * Month-header redistribution alone (deliberate Prebill / Adjust timing that still
+ * sums to the line total) is NOT unintended — the header pill already states manual mode.
+ */
+export function isUnintendedBillingDivergence(result: BillingDivergenceResult): boolean {
+  return result.divergentLines.some(
+    (d) =>
+      d.kind === "line_total" ||
+      d.kind === "adserving_total" ||
+      d.kind === "missing_in_saved" ||
+      d.kind === "missing_in_computed"
+  )
+}
+
 export function summarizeBillingDivergence(result: BillingDivergenceResult): {
   headline: string
   lineMessages: string[]
