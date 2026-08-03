@@ -349,6 +349,10 @@ import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { normaliseStatus, mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import {
+  isApprovedOrBeyond,
+  publishedBillingTimingLockedMessage,
+} from "@/lib/docs/isApprovedOrBeyond"
+import {
   DOC_SKIP_REASON,
   DOC_STEP_MBA,
   DOC_STEP_MEDIA_PLAN,
@@ -6814,6 +6818,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const agencyFeeMonthTotalDrift = feeMonthTotalForDisplay.diff
 
   async function handleManualBillingSave(forceIgnoreMismatch?: boolean, overrideFeeDrift?: boolean) {
+    // MB-15c: published versions are immutable to billing writers (server refuses too).
+    const persistedStatusForBilling =
+      mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
+    if (isApprovedOrBeyond(persistedStatusForBilling)) {
+      toast({
+        variant: "destructive",
+        title: "Billing timing locked",
+        description: publishedBillingTimingLockedMessage({
+          status: persistedStatusForBilling,
+          versionNumber: selectedVersionNumber ?? mediaPlan?.version_number,
+        }),
+      })
+      return
+    }
     // BUX-2: every exit path must toast or open a visible dialog. Do not silently return.
     // MB-7/MB-10: gates + display share monthsForMbaBillingGates (not a divergent raw draft).
     const monthsForGates = monthsForMbaBillingGates(mbaBillingModalState, manualBillingMonths)
@@ -12525,7 +12543,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         onSelectedMonthYearsChange={handlePartialMBAMonthsChange}
         onDownloadExcel={handleDownloadBillingScheduleExcel}
         downloadDisabled={mbaBillingModalState.financials.billingSchedule.length === 0}
-        onResetBillingToAuto={() => setFullBillingResetConfirmOpen(true)}
+        onResetBillingToAuto={
+          isApprovedOrBeyond(mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus)
+            ? undefined
+            : () => setFullBillingResetConfirmOpen(true)
+        }
         billingDivergence={billingDivergence}
         showDivergenceBanner={
           FF_BILLING_DIVERGENCE_ENABLED &&
@@ -12535,8 +12557,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
         onAcknowledgeDivergence={handleAcknowledgeDivergence}
         overridesLoadNotice={billingOverridesLoadNotice}
+        billingTimingReadOnly={isApprovedOrBeyond(
+          mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
+        )}
+        billingTimingReadOnlyMessage={publishedBillingTimingLockedMessage({
+          status: mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus,
+          versionNumber: selectedVersionNumber ?? mediaPlan?.version_number,
+        })}
         timingDraftReady={manualBillingDraftReady && mbaBillingModalState.viewReady}
         onEnsureTimingDraft={() => {
+          if (
+            isApprovedOrBeyond(mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus)
+          ) {
+            return
+          }
           void handleManualBillingOpen()
         }}
         onCloseTimingDraft={() => {
@@ -13249,7 +13283,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   Apply scope
                 </Button>
               ) : null}
-              {manualBillingDraftReady ? (
+              {manualBillingDraftReady &&
+              !isApprovedOrBeyond(
+                mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
+              ) ? (
                 <Button type="button" variant="action" size="sm" onClick={() => handleManualBillingSave()}>
                   Save billing changes
                 </Button>

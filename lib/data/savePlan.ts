@@ -395,6 +395,10 @@ type BaseOverrideRow = {
  * MB-2 — when publish/new_version inserts a new version row, copy billing_overrides
  * from the prior tip (version_number = newVn − 1) for line_item_ids that still
  * exist. Deleted-line overrides are returned as `dropped` (never silent).
+ *
+ * TRANSITIONAL (VC-3): once Revisions land, the revision holds its own overrides
+ * and Publish promotes them. At that point copying from tip−1 becomes a competing
+ * second source and this carry must go. Do not expand this path meanwhile.
  */
 async function carryBillingOverridesToNewVersion(
   tx: Tx,

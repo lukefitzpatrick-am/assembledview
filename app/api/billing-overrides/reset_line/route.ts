@@ -64,8 +64,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, data })
   } catch (error) {
     if (error instanceof BillingOverrideWriteError) {
-      const status = error.code === "NOT_FOUND" ? 404 : 400
-      return NextResponse.json({ error: error.message }, { status })
+      const status =
+        error.code === "NOT_FOUND"
+          ? 404
+          : error.code === "VERSION_PUBLISHED_IMMUTABLE"
+            ? 409
+            : 400
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status }
+      )
     }
     console.error("[api/billing-overrides/reset_line POST]", error)
     return NextResponse.json({ error: "Failed to reset billing override line" }, { status: 500 })

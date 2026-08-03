@@ -251,6 +251,10 @@ import { useWriteBackend } from "@/lib/data/WriteBackendContext"
 import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
 import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import {
+  isApprovedOrBeyond,
+  publishedBillingTimingLockedMessage,
+} from "@/lib/docs/isApprovedOrBeyond"
+import {
   DOC_SKIP_REASON,
   DOC_STEP_MBA,
   DOC_STEP_MEDIA_PLAN,
@@ -7870,9 +7874,19 @@ const handleSaveAll = async () => {
         onSelectedMonthYearsChange={handlePartialMBAMonthsChange}
         onDownloadExcel={handleDownloadBillingScheduleExcel}
         downloadDisabled={mbaBillingModalState.financials.billingSchedule.length === 0}
-        onResetBillingToAuto={() => setFullBillingResetConfirmOpen(true)}
+        onResetBillingToAuto={
+          isApprovedOrBeyond(form.watch("mp_campaignstatus"))
+            ? undefined
+            : () => setFullBillingResetConfirmOpen(true)
+        }
+        billingTimingReadOnly={isApprovedOrBeyond(form.watch("mp_campaignstatus"))}
+        billingTimingReadOnlyMessage={publishedBillingTimingLockedMessage({
+          status: form.watch("mp_campaignstatus"),
+          versionNumber: 1,
+        })}
         timingDraftReady={manualBillingDraftReady && mbaBillingModalState.viewReady}
         onEnsureTimingDraft={() => {
+          if (isApprovedOrBeyond(form.watch("mp_campaignstatus"))) return
           handleManualBillingOpen()
         }}
         onCloseTimingDraft={() => {

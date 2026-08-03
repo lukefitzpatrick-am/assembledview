@@ -71,7 +71,8 @@ export async function POST(request: NextRequest) {
       const status =
         error.code === "NOT_FOUND"
           ? 404
-          : error.code === "SUM_VIOLATION"
+          : error.code === "SUM_VIOLATION" ||
+              error.code === "VERSION_PUBLISHED_IMMUTABLE"
             ? 409
             : 400
       return NextResponse.json(

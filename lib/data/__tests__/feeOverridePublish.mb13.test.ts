@@ -12,8 +12,8 @@ import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
 import { toCents } from "../../../scripts/migration/_shared.js"
 import type { ApprovedSlice } from "@/lib/finance/approvedSlice"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
-import { computeSnapshotChecksum } from "@/lib/docs/snapshotChecksum"
 import {
+  BillingOverrideWriteError,
   replaceBillingOverrideLine,
   resetBillingOverrideLine,
 } from "../writeBillingOverrides.js"
@@ -285,7 +285,7 @@ test("MB-13.1: first publish with fee override — slice + scope follow override
   )
 })
 
-test("MB-13.2: fee override after first publish — slice stays frozen; schedule diverges; checksum stale", async (t) => {
+test("MB-13.2 / MB-15c: fee override after first publish is refused; published bytes unchanged", async (t) => {
   if (!hasDb) {
     t.skip("DATABASE_URL not set")
     return
@@ -327,75 +327,42 @@ test("MB-13.2: fee override after first publish — slice stays frozen; schedule
     .where(eq(schema.scheduleMonths.versionId, published.versionId))
   assert.equal(billingFeeCentsSum(monthsBefore, LINE_A), toCents(calculatedFee))
 
-  // Add fee override on the already-published version (Alter Billing / Prebill fee lane).
-  await replaceBillingOverrideLine({
-    versionId: published.versionId,
-    mbaNumber: MBA,
-    lineItemId: LINE_A,
-    component: "fee",
-    mode: "manual",
-    reason: "manual",
-    months: feeOverrideMonths(OVERRIDE_FEE),
-    dateBasis: "mb13-2-after-publish",
-  })
+  // MB-15c: post-publish billing writers refuse — no schedule/slice/checksum drift.
+  await assert.rejects(
+    () =>
+      replaceBillingOverrideLine({
+        versionId: published.versionId,
+        mbaNumber: MBA,
+        lineItemId: LINE_A,
+        component: "fee",
+        mode: "manual",
+        reason: "manual",
+        months: feeOverrideMonths(OVERRIDE_FEE),
+        dateBasis: "mb13-2-after-publish",
+      }),
+    (err: unknown) =>
+      err instanceof BillingOverrideWriteError &&
+      err.code === "VERSION_PUBLISHED_IMMUTABLE"
+  )
 
   const [afterVersion] = await db
     .select()
     .from(schema.mediaPlanVersions)
     .where(eq(schema.mediaPlanVersions.id, published.versionId))
   const sliceAfter = asSlice(afterVersion?.approvedSlice)
-  assert.equal(
-    sliceAfter.lines[0]!.feeCents,
-    toCents(calculatedFee),
-    "FINDING pinned: approved_slice stays at calculated fee after post-publish fee override"
-  )
-  assert.deepEqual(
-    sliceAfter,
-    frozen,
-    "approved_slice object must be byte-stable (write-once freeze)"
-  )
+  assert.deepEqual(sliceAfter, frozen)
+  assert.equal(String(afterVersion?.snapshotChecksum ?? ""), checksumBefore)
 
   const monthsAfter = await db
     .select()
     .from(schema.scheduleMonths)
     .where(eq(schema.scheduleMonths.versionId, published.versionId))
-  const liveFeeCents = billingFeeCentsSum(monthsAfter, LINE_A)
-  assert.equal(liveFeeCents, toCents(OVERRIDE_FEE))
-  assert.notEqual(
-    liveFeeCents,
-    sliceAfter.lines[0]!.feeCents,
-    "FINDING: live billing fee cents disagree with frozen approved_slice.feeCents"
-  )
-
-  const checksumAfter = String(afterVersion?.snapshotChecksum ?? "")
-  assert.equal(
-    checksumAfter,
-    checksumBefore,
-    "MB-15c surface: replace_line does NOT rewrite snapshot_checksum on an already-published version"
-  )
-
-  // Recomputed checksum over current schedule + frozen slice + fee rates WOULD change.
-  const [feeSnap] = await db
+  assert.equal(billingFeeCentsSum(monthsAfter, LINE_A), toCents(calculatedFee))
+  const feeOverrides = await db
     .select()
-    .from(schema.mbaFeeSnapshots)
-    .where(eq(schema.mbaFeeSnapshots.versionId, published.versionId))
-  const recomputed = computeSnapshotChecksum({
-    scheduleMonths: monthsAfter.map((r) => ({
-      lineItemId: r.lineItemId,
-      component: r.component,
-      basis: r.basis,
-      month: String(r.month).slice(0, 10),
-      amountCents: Number(r.amountCents) || 0,
-      source: String(r.source ?? "computed"),
-    })),
-    approvedSlice: sliceAfter,
-    feeSnapshot: feeSnap?.fees ?? { feesearch: FEE_PCT },
-  })
-  assert.notEqual(
-    recomputed,
-    checksumBefore,
-    "MB-15c surface: fee override changes the checksum *payload* (schedule_months); stored column is left stale"
-  )
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, published.versionId))
+  assert.equal(feeOverrides.length, 0)
 })
 
 test("MB-13.3: MB-8 media+fee Prebill — both rows round-trip; reset_line clears both", async (t) => {

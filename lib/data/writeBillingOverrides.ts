@@ -15,6 +15,7 @@
 import { and, eq } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { mapBillingOverrideFromPostgres } from "@/lib/data/readFinance"
+import { isApprovedOrBeyond } from "@/lib/docs/isApprovedOrBeyond"
 import { normalizeMonthKey } from "@/lib/finance/accrual"
 import {
   attachOverridesToLineInputs,
@@ -51,7 +52,11 @@ export type ResetBillingOverrideLineInput = {
 
 export class BillingOverrideWriteError extends Error {
   constructor(
-    public readonly code: "NOT_FOUND" | "BAD_REQUEST" | "SUM_VIOLATION",
+    public readonly code:
+      | "NOT_FOUND"
+      | "BAD_REQUEST"
+      | "SUM_VIOLATION"
+      | "VERSION_PUBLISHED_IMMUTABLE",
     message: string,
     public readonly delta?: number,
     public readonly expected?: number,
@@ -388,12 +393,18 @@ async function reaffirmLegacySchedulesAfterOverrideChange(
 async function assertVersionOwnedByMba(
   versionId: number,
   mbaNumber: string
-): Promise<void> {
+): Promise<{
+  id: number
+  versionNumber: number
+  campaignStatus: string | null
+}> {
   const db = getDb()
   const rows = await db
     .select({
       id: schema.mediaPlanVersions.id,
       mbaNumber: schema.mediaPlanVersions.mbaNumber,
+      versionNumber: schema.mediaPlanVersions.versionNumber,
+      campaignStatus: schema.mediaPlanVersions.campaignStatus,
     })
     .from(schema.mediaPlanVersions)
     .where(eq(schema.mediaPlanVersions.id, versionId))
@@ -412,6 +423,28 @@ async function assertVersionOwnedByMba(
       `media_plan_version ${versionId} does not belong to MBA ${mbaNumber}`
     )
   }
+  return {
+    id: row.id,
+    versionNumber: Number(row.versionNumber),
+    campaignStatus: row.campaignStatus,
+  }
+}
+
+/**
+ * MB-15c — published versions are immutable to billing writers.
+ * Same approved-or-beyond predicate as MBA generate (`isApprovedOrBeyond`).
+ */
+async function assertVersionBillingMutable(
+  versionId: number,
+  mbaNumber: string
+): Promise<void> {
+  const row = await assertVersionOwnedByMba(versionId, mbaNumber)
+  if (!isApprovedOrBeyond(row.campaignStatus)) return
+  const status = String(row.campaignStatus ?? "").trim() || "unknown"
+  throw new BillingOverrideWriteError(
+    "VERSION_PUBLISHED_IMMUTABLE",
+    `VERSION_PUBLISHED_IMMUTABLE: version ${row.id} (v${row.versionNumber}, status ${status}) — billing_overrides and billing-basis schedule_months are immutable after publish. Publish a new version to change billing timing.`
+  )
 }
 
 /**
@@ -443,7 +476,7 @@ export async function replaceBillingOverrideLine(
     throw new BillingOverrideWriteError("BAD_REQUEST", "months[] is required")
   }
 
-  await assertVersionOwnedByMba(versionId, mbaNumber)
+  await assertVersionBillingMutable(versionId, mbaNumber)
 
   const payloadMonths = parseMonthsPayload(input.months)
   if (payloadMonths.length === 0) {
@@ -600,7 +633,7 @@ export async function resetBillingOverrideLine(
     throw new BillingOverrideWriteError("BAD_REQUEST", "line_item_id is required")
   }
 
-  await assertVersionOwnedByMba(versionId, mbaNumber)
+  await assertVersionBillingMutable(versionId, mbaNumber)
 
   const db = getDb()
   const predicates = [

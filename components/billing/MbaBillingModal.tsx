@@ -164,6 +164,12 @@ export type MbaBillingModalProps = {
    * Non-blocking amber notice when billing_overrides GET failed (once, not per line).
    */
   overridesLoadNotice?: string | null
+  /**
+   * MB-15c — published (approved-or-beyond) versions are immutable to billing writers.
+   * Hides Edit timing / Adjust timing / Prebill / Save / Reset; shows lock copy instead.
+   */
+  billingTimingReadOnly?: boolean
+  billingTimingReadOnlyMessage?: string
   footer?: ReactNode
   /**
    * False while channel containers are still hydrating. Suppresses green/red
@@ -664,18 +670,27 @@ export function MbaBillingModal({
   showDivergenceBanner = false,
   onAcknowledgeDivergence,
   overridesLoadNotice = null,
+  billingTimingReadOnly = false,
+  billingTimingReadOnlyMessage,
   footer,
   reconciliationReady = true,
 }: MbaBillingModalProps) {
-  const advancedOpen = showAdvancedEditor ?? showManualEditor ?? false
-  const draftReady = timingDraftReady ?? advancedOpen
-  const ensureDraft =
-    onEnsureTimingDraft ??
-    (onToggleManualEditor && !advancedOpen ? onToggleManualEditor : undefined)
-  const toggleAdvanced =
-    onToggleAdvancedEditor ??
-    (onToggleManualEditor && draftReady ? onToggleManualEditor : undefined)
-  const closeDraft = onCloseTimingDraft
+  const timingLocked = Boolean(billingTimingReadOnly)
+  const advancedOpen =
+    !timingLocked && (showAdvancedEditor ?? showManualEditor ?? false)
+  const draftReady =
+    !timingLocked && (timingDraftReady ?? advancedOpen)
+  const ensureDraft = timingLocked
+    ? undefined
+    : onEnsureTimingDraft ??
+      (onToggleManualEditor && !advancedOpen ? onToggleManualEditor : undefined)
+  const toggleAdvanced = timingLocked
+    ? undefined
+    : onToggleAdvancedEditor ??
+      (onToggleManualEditor && draftReady ? onToggleManualEditor : undefined)
+  const closeDraft = timingLocked ? undefined : onCloseTimingDraft
+  const effectiveLineTiming = timingLocked ? undefined : lineTiming
+  const effectiveResetBilling = timingLocked ? undefined : onResetBillingToAuto
   const t = financials.mbaScopeTotals
   const schedule = financials.billingSchedule
   const byMedia = panelIndicators.mbaDetails.byMediaType
@@ -777,6 +792,19 @@ export function MbaBillingModal({
             onSelectedMonthYearsChange={onSelectedMonthYearsChange}
             reconciliationReady={reconciliationReady}
           />
+          {timingLocked ? (
+            <div className="border-b border-border px-6 py-3">
+              <div
+                role="status"
+                className="rounded-card border border-border bg-surface-panel px-4 py-3 text-foreground"
+              >
+                <p className="text-sm">
+                  {billingTimingReadOnlyMessage ??
+                    "Billing timing is locked on this published version. Change timing by publishing a new version."}
+                </p>
+              </div>
+            </div>
+          ) : null}
           {overridesLoadNotice ? (
             <div className="border-b border-border px-6 py-3">
               <div
@@ -934,7 +962,7 @@ export function MbaBillingModal({
                                 onToggleLineApproved={onToggleLineApproved}
                                 timingDraftReady={draftReady}
                                 onEnsureTimingDraft={ensureDraft}
-                                lineTiming={lineTiming}
+                                lineTiming={effectiveLineTiming}
                               />
                             ))}
                           </div>
@@ -994,12 +1022,12 @@ export function MbaBillingModal({
                   {/* BUX-3: billing mode lives in the header status row — no duplicate title pills. */}
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {onResetBillingToAuto ? (
+                  {effectiveResetBilling ? (
                     <Button
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={onResetBillingToAuto}
+                      onClick={effectiveResetBilling}
                     >
                       Reset billing to auto
                     </Button>
@@ -1016,7 +1044,12 @@ export function MbaBillingModal({
                       Excel
                     </Button>
                   ) : null}
-                  {ensureDraft || toggleAdvanced || closeDraft ? (
+                  {timingLocked ? (
+                    <p className="max-w-sm text-xs text-muted-foreground">
+                      {billingTimingReadOnlyMessage ??
+                        "Billing timing is locked on this published version. Change timing by publishing a new version."}
+                    </p>
+                  ) : ensureDraft || toggleAdvanced || closeDraft ? (
                     <>
                       {!draftReady && ensureDraft ? (
                         <Button
