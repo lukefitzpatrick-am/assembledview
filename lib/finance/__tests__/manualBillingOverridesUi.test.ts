@@ -15,7 +15,8 @@ import {
   validateManualMediaMonthsSum,
   type LineOverrideMeta,
 } from "../manualBillingOverridesUi.js"
-import type { BillingMonth } from "@/lib/billing/types"
+import { resolveManualBillingLineItemAmount } from "@/lib/billing/resolveManualBillingLineItemAmount.js"
+import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { validateAgencyFeeMonthTotalDrift } from "@/lib/billing/validateAgencyFeeMonthTotalDrift.js"
 import {
   assertMbaBillingModalMonthsAgree,
@@ -207,6 +208,241 @@ test("MB-6: rebuild after save keeps month amounts and sum/fee gates green", () 
   assert.doesNotThrow(() =>
     assertMbaBillingModalMonthsAgree(modalView, "MB-6→MB-7 after-save")
   )
+})
+
+/** Fee-lane mirror of resolveManualBillingLineItemAmount — grid reads months[0] only. */
+function resolveFeeAmountFromMonths0(
+  months: BillingMonth[],
+  mediaKey: string,
+  lineItemId: string,
+  monthYear: string
+): number {
+  const list = months[0]?.lineItems?.[
+    mediaKey as keyof NonNullable<BillingMonth["lineItems"]>
+  ] as BillingLineItem[] | undefined
+  if (!list?.length) return 0
+  let best: number | undefined
+  for (const li of list) {
+    if (!billingOverrideLineIdsMatch(String(li.id ?? ""), lineItemId)) continue
+    const amount = li.feeMonthlyAmounts?.[monthYear] ?? 0
+    if (best === undefined || Math.abs(amount) > Math.abs(best)) best = amount
+  }
+  return best ?? 0
+}
+
+function buildNMonthAutoBase(args: {
+  mediaKey: string
+  lineId: string
+  monthYears: string[]
+  mediaAmounts: number[]
+  feeAmounts: number[]
+}): BillingMonth[] {
+  const { mediaKey, lineId, monthYears, mediaAmounts, feeAmounts } = args
+  const monthlyAmounts: Record<string, number> = {}
+  const feeMonthlyAmounts: Record<string, number> = {}
+  for (let i = 0; i < monthYears.length; i++) {
+    monthlyAmounts[monthYears[i]!] = mediaAmounts[i]!
+    feeMonthlyAmounts[monthYears[i]!] = feeAmounts[i]!
+  }
+  const mediaTotal = mediaAmounts.reduce((s, v) => s + v, 0)
+  const feeTotal = feeAmounts.reduce((s, v) => s + v, 0)
+  return monthYears.map((monthYear, i) => ({
+    monthYear,
+    mediaTotal: `$${mediaAmounts[i]!.toFixed(2)}`,
+    feeTotal: `$${feeAmounts[i]!.toFixed(2)}`,
+    totalAmount: `$${(mediaAmounts[i]! + feeAmounts[i]!).toFixed(2)}`,
+    adservingTechFees: "$0.00",
+    production: "$0.00",
+    mediaCosts: {} as BillingMonth["mediaCosts"],
+    lineItems: {
+      [mediaKey]: [
+        {
+          id: lineId,
+          header1: "Pub",
+          header2: "Line",
+          monthlyAmounts: { ...monthlyAmounts },
+          feeMonthlyAmounts: { ...feeMonthlyAmounts },
+          totalAmount: mediaTotal,
+          totalFeeAmount: feeTotal,
+          billingMode: "auto" as const,
+        },
+      ],
+    },
+  }))
+}
+
+/**
+ * MB-17: applyBillingOverrideRowsToMonths must write each month amount onto ALL
+ * month rows' line instances — the editor reads via months[0]
+ * (resolveManualBillingLineItemAmount). Asserting monthRow[1].lineItems alone
+ * does NOT catch the bug.
+ */
+test("MB-17: overlay media override readable via months[0] for month 2+ (2-mo + 6-mo)", () => {
+  // Live shape: supabase001PB1 auto Aug 10163.93 / Sep 9836.07 → Prebill Aug 20000 / Sep 0
+  const twoMo = buildNMonthAutoBase({
+    mediaKey: "progBvod",
+    lineId: "billing-progBvod::supabase001PB1",
+    monthYears: ["August 2026", "September 2026"],
+    mediaAmounts: [10_163.93, 9_836.07],
+    feeAmounts: [2_540.98, 2_459.02],
+  })
+  const { months: overlaid2 } = applyBillingOverrideRowsToMonths(twoMo, [
+    {
+      line_item_id: "supabase001PB1",
+      component: "media",
+      mode: "manual",
+      reason: "prepayment",
+      date_basis: "basis",
+      months: [
+        { month: "2026-08", amount: 20_000 },
+        { month: "2026-09", amount: 0 },
+      ],
+    },
+  ])
+  assert.equal(
+    resolveManualBillingLineItemAmount(
+      overlaid2,
+      "progBvod",
+      "billing-progBvod::supabase001PB1",
+      "August 2026"
+    ),
+    20_000
+  )
+  assert.equal(
+    resolveManualBillingLineItemAmount(
+      overlaid2,
+      "progBvod",
+      "supabase001PB1",
+      "September 2026"
+    ),
+    0,
+    "Sep must read 0 from months[0], not stale AUTO 9836.07"
+  )
+  assert.equal(overlaid2[0]!.lineItems!.progBvod![0]!.billingMode, "manual")
+
+  // 6-month: only month 0 was right before the fix — lock the full span
+  const sixLabels = [
+    "January 2026",
+    "February 2026",
+    "March 2026",
+    "April 2026",
+    "May 2026",
+    "June 2026",
+  ]
+  const sixIso = [
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+  ]
+  const autoSix = [1000, 1000, 1000, 1000, 1000, 1000]
+  const overrideSix = [6000, 0, 0, 0, 0, 0]
+  const sixMo = buildNMonthAutoBase({
+    mediaKey: "search",
+    lineId: "S-6",
+    monthYears: sixLabels,
+    mediaAmounts: autoSix,
+    feeAmounts: autoSix.map((v) => v * 0.25),
+  })
+  const { months: overlaid6 } = applyBillingOverrideRowsToMonths(sixMo, [
+    {
+      line_item_id: "S-6",
+      component: "media",
+      mode: "manual",
+      reason: "manual",
+      date_basis: "basis",
+      months: sixIso.map((month, i) => ({ month, amount: overrideSix[i]! })),
+    },
+  ])
+  for (let i = 0; i < sixLabels.length; i++) {
+    assert.equal(
+      resolveManualBillingLineItemAmount(overlaid6, "search", "S-6", sixLabels[i]!),
+      overrideSix[i]!,
+      `6-mo media month ${sixLabels[i]} via months[0]`
+    )
+  }
+})
+
+test("MB-17: overlay fee override readable via months[0] for month 2+ (2-mo + 6-mo)", () => {
+  const twoMo = buildNMonthAutoBase({
+    mediaKey: "progBvod",
+    lineId: "billing-progBvod::supabase001PB1",
+    monthYears: ["August 2026", "September 2026"],
+    mediaAmounts: [10_163.93, 9_836.07],
+    feeAmounts: [2_540.98, 2_459.02],
+  })
+  const { months: overlaid2 } = applyBillingOverrideRowsToMonths(twoMo, [
+    {
+      line_item_id: "supabase001PB1",
+      component: "fee",
+      mode: "manual",
+      reason: "prepayment",
+      date_basis: "basis",
+      months: [
+        { month: "2026-08", amount: 5_000 },
+        { month: "2026-09", amount: 0 },
+      ],
+    },
+  ])
+  assert.equal(
+    resolveFeeAmountFromMonths0(
+      overlaid2,
+      "progBvod",
+      "billing-progBvod::supabase001PB1",
+      "August 2026"
+    ),
+    5_000
+  )
+  assert.equal(
+    resolveFeeAmountFromMonths0(overlaid2, "progBvod", "supabase001PB1", "September 2026"),
+    0,
+    "Sep fee must read 0 from months[0], not stale AUTO"
+  )
+  assert.equal(overlaid2[0]!.lineItems!.progBvod![0]!.feeBillingMode, "manual")
+
+  const sixLabels = [
+    "January 2026",
+    "February 2026",
+    "March 2026",
+    "April 2026",
+    "May 2026",
+    "June 2026",
+  ]
+  const sixIso = [
+    "2026-01",
+    "2026-02",
+    "2026-03",
+    "2026-04",
+    "2026-05",
+    "2026-06",
+  ]
+  const feeOverride = [2500, 0, 0, 0, 0, 0]
+  const sixMo = buildNMonthAutoBase({
+    mediaKey: "search",
+    lineId: "S-6",
+    monthYears: sixLabels,
+    mediaAmounts: [1000, 1000, 1000, 1000, 1000, 1000],
+    feeAmounts: [400, 400, 400, 400, 400, 500],
+  })
+  const { months: overlaid6 } = applyBillingOverrideRowsToMonths(sixMo, [
+    {
+      line_item_id: "S-6",
+      component: "fee",
+      mode: "manual",
+      reason: "manual",
+      date_basis: "basis",
+      months: sixIso.map((month, i) => ({ month, amount: feeOverride[i]! })),
+    },
+  ])
+  for (let i = 0; i < sixLabels.length; i++) {
+    assert.equal(
+      resolveFeeAmountFromMonths0(overlaid6, "search", "S-6", sixLabels[i]!),
+      feeOverride[i]!,
+      `6-mo fee month ${sixLabels[i]} via months[0]`
+    )
+  }
 })
 
 test("apply + extract round-trip ISO months for media override", () => {

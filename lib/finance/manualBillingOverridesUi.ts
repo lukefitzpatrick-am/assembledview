@@ -223,9 +223,50 @@ export function rebuildTimingDraftAfterBillingSave(args: {
 }
 
 /**
+ * Resolve the schedule mediaKey for an override line id (bare or decorated).
+ * Overlay iterates every bucket; sync helpers need the key — look it up once from
+ * the draft rather than generalising the helpers (keeps cell-edit API unchanged).
+ */
+function mediaKeyForOverrideLine(
+  scheduleLines: Map<string, { mediaKey: string; line: BillingLineItem }>,
+  lineItemId: string
+): string | null {
+  const canon = toBillingOverrideLineItemId(lineItemId)
+  const hit = scheduleLines.get(canon)
+  if (hit) return hit.mediaKey
+  for (const [key, value] of scheduleLines) {
+    if (billingOverrideLineIdsMatch(key, lineItemId)) return value.mediaKey
+  }
+  return null
+}
+
+/** Stamp billingMode=manual on every month row's matching line (media sync helper does not). */
+function stampLineBillingModeManual(
+  months: BillingMonth[],
+  mediaKey: string,
+  lineItemId: string
+): void {
+  for (const month of months) {
+    if (!month.lineItems) continue
+    const list = month.lineItems[mediaKey as keyof typeof month.lineItems] as
+      | BillingLineItem[]
+      | undefined
+    if (!list) continue
+    for (const line of list) {
+      if (!billingOverrideLineIdsMatch(String(line.id ?? ""), lineItemId)) continue
+      line.billingMode = "manual"
+    }
+  }
+}
+
+/**
  * Apply table override rows onto a BillingMonth[] draft for the Manual Billing modal.
  * Preserves mode / reason / dateBasis on each line (UI reads billingMode / feeBillingMode;
  * meta is returned separately for callers that need reason/dateBasis).
+ *
+ * MB-17: writes each month amount onto ALL month rows' line instances via
+ * syncLineItem*AcrossAllMonthRows — the grid reads from months[0] only
+ * (see syncLineItemAmountAcrossMonthRows.ts / resolveManualBillingLineItemAmount).
  */
 export function applyBillingOverrideRowsToMonths(
   months: BillingMonth[],
@@ -251,11 +292,13 @@ export function applyBillingOverrideRowsToMonths(
   })) as BillingMonth[]
 
   const metaByLine = new Map<string, LineOverrideMeta[]>()
+  const scheduleLines = collectScheduleLinesById(next)
 
   for (const row of rows) {
     const id = rowLineId(row)
     if (!id) continue
     const component = rowComponent(row)
+    const mediaKey = mediaKeyForOverrideLine(scheduleLines, id)
 
     if (component === "fee") {
       const fee = feeOverrideFromRow(row)
@@ -269,20 +312,17 @@ export function applyBillingOverrideRowsToMonths(
       })
       metaByLine.set(id, list)
 
+      if (!mediaKey) continue
       for (const { month, amount } of fee.months) {
         const monthYear = isoMonthToScheduleMonthYear(month)
-        const monthRow = next.find((m) => m.monthYear === monthYear)
-        if (!monthRow?.lineItems) continue
-        for (const items of Object.values(monthRow.lineItems)) {
-          if (!Array.isArray(items)) continue
-          for (const line of items) {
-            if (!billingOverrideLineIdsMatch(String(line.id ?? ""), id)) continue
-            if (!line.feeMonthlyAmounts) line.feeMonthlyAmounts = {}
-            line.feeMonthlyAmounts[monthYear] = roundMoney2(amount)
-            line.feeBillingMode = "manual"
-            line.totalFeeAmount = undefined
-          }
-        }
+        // fee sync stamps feeBillingMode=manual + recomputes totalFeeAmount on every row
+        syncLineItemFeeMonthlyAmountAcrossAllMonthRows(
+          next,
+          mediaKey,
+          id,
+          monthYear,
+          roundMoney2(amount)
+        )
       }
       continue
     }
@@ -298,23 +338,25 @@ export function applyBillingOverrideRowsToMonths(
     })
     metaByLine.set(id, list)
 
+    if (!mediaKey) continue
     for (const { month, amount } of media.months) {
       const monthYear = isoMonthToScheduleMonthYear(month)
-      const monthRow = next.find((m) => m.monthYear === monthYear)
-      if (!monthRow?.lineItems) continue
-      for (const items of Object.values(monthRow.lineItems)) {
-        if (!Array.isArray(items)) continue
-        for (const line of items) {
-          if (!billingOverrideLineIdsMatch(String(line.id ?? ""), id)) continue
-          if (!line.monthlyAmounts) line.monthlyAmounts = {}
-          line.monthlyAmounts[monthYear] = roundMoney2(amount)
-          line.billingMode = "manual"
-        }
-      }
+      // media sync recomputes totalAmount on every row; billingMode stamped below
+      syncLineItemMonthlyAmountAcrossAllMonthRows(
+        next,
+        mediaKey,
+        id,
+        monthYear,
+        roundMoney2(amount)
+      )
     }
+    stampLineBillingModeManual(next, mediaKey, id)
   }
 
   // Refresh line totals after overlays.
+  // Sync helpers already recompute totalAmount / totalFeeAmount from Object.values on
+  // each write, but this span-sum pass keeps totals aligned to campaign monthYears only
+  // (drops orphan keys) and was the previous post-overlay contract — keep it.
   const lineMedia = new Map<string, number>()
   const lineFee = new Map<string, number>()
   for (const month of next) {
