@@ -9,6 +9,12 @@
  * pending (unsaved) > table (saved) > computed auto.
  */
 
+import {
+  pendingContradictsSavedAnywhere,
+  resolveCampaignBillingTimingProvenance,
+  resolveLineBillingTimingProvenance,
+  pendingContradictsSavedForLine,
+} from "@/lib/billing/manualBillingVocabulary"
 import type { BillingMonth } from "@/lib/billing/types"
 import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 import { attachOverridesToLineInputs } from "@/lib/finance/billingOverrides"
@@ -37,8 +43,16 @@ export type ResolveMbaBillingModalStateArgs = {
   campaignStart?: Date
   campaignEnd?: Date
   selectedMonthYears?: string[]
-  /** Persisted + optimistic billing_overrides */
+  /** Persisted + optimistic billing_overrides (or already-resolved effective rows). */
   overrideRows: BillingOverrideRow[]
+  /**
+   * MB-21: raw pending carrier (Applied, unsaved). When set with `tableOverrideRows`,
+   * panel indicators get saved/unsaved provenance. Display still uses `overrideRows`
+   * (caller applies pending > table precedence).
+   */
+  pendingOverrideRows?: BillingOverrideRow[]
+  /** MB-21: saved table rows for provenance (may differ from overrideRows when pending wins). */
+  tableOverrideRows?: BillingOverrideRow[]
   /** True while Adjust timing / Advanced draft session is open. */
   draftReady: boolean
   draftMonths: BillingMonth[]
@@ -198,6 +212,22 @@ export function resolveMbaBillingModalState(
   // Stranded draftReady + empty months — both halves empty (MB-6 failure shape).
   if (draftSessionActive && draftMonths.length === 0) {
     const financials = emptyCampaignFinancials()
+    const pendingRows = args.pendingOverrideRows
+    const tableRows = args.tableOverrideRows
+    const provenanceOpts =
+      pendingRows !== undefined && tableRows !== undefined
+        ? {
+            timingProvenance: resolveCampaignBillingTimingProvenance(
+              pendingRows,
+              tableRows
+            ),
+            differsFromSaved: pendingContradictsSavedAnywhere(pendingRows, tableRows),
+            lineTimingProvenance: (lineItemId: string) =>
+              resolveLineBillingTimingProvenance(lineItemId, pendingRows, tableRows),
+            lineDiffersFromSaved: (lineItemId: string) =>
+              pendingContradictsSavedForLine(lineItemId, pendingRows, tableRows),
+          }
+        : {}
     return {
       viewReady: false,
       draftSessionActive,
@@ -205,6 +235,7 @@ export function resolveMbaBillingModalState(
       panelIndicators: panelIndicatorsFromCampaignFinancials(financials, {
         isPartialMBA: args.isPartialMBA,
         selectedMonthYears: args.selectedMonthYears,
+        ...provenanceOpts,
       }),
       resolvedMonths: [],
       effectiveOverrideRows: [...(args.overrideRows ?? [])],
@@ -238,6 +269,23 @@ export function resolveMbaBillingModalState(
 
   const resolvedMonths = draftSessionActive ? draftMonths : []
 
+  const pendingRows = args.pendingOverrideRows
+  const tableRows = args.tableOverrideRows
+  const provenanceOpts =
+    pendingRows !== undefined && tableRows !== undefined
+      ? {
+          timingProvenance: resolveCampaignBillingTimingProvenance(
+            pendingRows,
+            tableRows
+          ),
+          differsFromSaved: pendingContradictsSavedAnywhere(pendingRows, tableRows),
+          lineTimingProvenance: (lineItemId: string) =>
+            resolveLineBillingTimingProvenance(lineItemId, pendingRows, tableRows),
+          lineDiffersFromSaved: (lineItemId: string) =>
+            pendingContradictsSavedForLine(lineItemId, pendingRows, tableRows),
+        }
+      : {}
+
   return {
     viewReady: true,
     draftSessionActive,
@@ -245,6 +293,7 @@ export function resolveMbaBillingModalState(
     panelIndicators: panelIndicatorsFromCampaignFinancials(financials, {
       isPartialMBA: args.isPartialMBA,
       selectedMonthYears: args.selectedMonthYears,
+      ...provenanceOpts,
     }),
     resolvedMonths,
     effectiveOverrideRows,

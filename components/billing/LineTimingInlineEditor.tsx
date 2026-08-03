@@ -15,7 +15,7 @@ import {
 import { scheduleMonthYearToIso } from "@/lib/finance/computeCampaignFinancials"
 import { validateManualMediaMonthsSum } from "@/lib/finance/manualBillingOverridesUi"
 import { formatAUD, roundMoney2 } from "@/lib/format/money"
-import { prebillBadgeTooltip, type PrebillBadgeLabel } from "@/lib/billing/prebillScope"
+import { prebillBadgeTooltip } from "@/lib/billing/prebillScope"
 import { cn } from "@/lib/utils"
 
 /** Inline keep/reset when override dateBasis no longer matches burst dates (was AlertDialog). */
@@ -38,8 +38,8 @@ export type LineTimingInlineEditorProps = {
   onCommit: (mediaKey: string, lineItemId: string, monthYear: string, raw: string) => void
   onResetToAuto: (mediaKey: string, lineItemId: string) => void
   onPrebill: (mediaKey: string, lineItemId: string) => void
-  /** MB-8: "Prepaid" | "Media prepaid" — same word as line / container pills. */
-  prebillBadgeLabel?: "Prepaid" | "Media prepaid" | null
+  /** MB-8/MB-21: "Prepaid" | "Media prepaid" | with · saved|unsaved — same word as line / container pills. */
+  prebillBadgeLabel?: string | null
   /** @deprecated Prefer prebillBadgeLabel */
   isPrepaid?: boolean
   /** Client-pays: media cells locked at $0; only fee timing is editable elsewhere. */
@@ -108,7 +108,7 @@ export function LineTimingInlineEditor({
     ? balancer.months.map((m) => ({ monthYear: m.month, amount: m.amount }))
     : monthAmounts
 
-  const resolvedPrebillLabel: PrebillBadgeLabel | null =
+  const resolvedPrebillLabel: string | null =
     prebillBadgeLabel ?? (isPrepaid ? "Prepaid" : null)
 
   const runningTotal = roundMoney2(displayAmounts.reduce((s, m) => s + m.amount, 0))
@@ -259,7 +259,19 @@ export function LineTimingInlineEditor({
                 variant="attention"
                 size="sm"
                 className="rounded-pill font-medium"
-                title={prebillBadgeTooltip(resolvedPrebillLabel)}
+                title={
+                  resolvedPrebillLabel.includes("unsaved")
+                    ? resolvedPrebillLabel.includes("differs from saved")
+                      ? "Shown timing is unsaved and differs from saved billing overrides."
+                      : "Manual billing timing is applied on this page but not yet saved with the plan."
+                    : resolvedPrebillLabel.includes("saved")
+                      ? "Manual billing timing is saved in billing overrides."
+                      : prebillBadgeTooltip(
+                          resolvedPrebillLabel.startsWith("Prepaid")
+                            ? "Prepaid"
+                            : "Media prepaid"
+                        )
+                }
               >
                 {resolvedPrebillLabel}
               </Badge>

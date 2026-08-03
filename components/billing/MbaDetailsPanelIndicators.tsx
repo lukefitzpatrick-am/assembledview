@@ -11,9 +11,11 @@ import {
   MANUAL_BILLING_VOCAB,
   clientPaysBadgeLabel,
   feeAdjustedBadgeLabel,
+  formatManualBillingStatusLabel,
   manualTimingBadgeLabel,
   prebillBadgeTooltip,
   prebillStatusLabelFromFlags,
+  provenanceTooltip,
 } from "@/lib/billing/manualBillingVocabulary"
 import { cn } from "@/lib/utils"
 import type { MediaTypeRowIndicators } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
@@ -57,13 +59,41 @@ export function MbaPartialScopePill({ label }: { label: string | null }) {
   )
 }
 
-/** Per media-type row status pills — MB-9 vocabulary (same words as line badges). */
+/** Per media-type row status pills — MB-9 vocabulary + MB-21 saved/unsaved axis. */
 export function MbaMediaTypeRowPills({ row }: { row?: MediaTypeRowIndicators }) {
   if (!row) return null
-  const prebillLabel = prebillStatusLabelFromFlags({
+  const prebillBase = prebillStatusLabelFromFlags({
     prepaid: row.prepaid,
     mediaPrepaid: row.mediaPrepaid,
   })
+  const provenance = row.timingProvenance ?? null
+  const differs = Boolean(row.differsFromSaved)
+  const annotate = (base: string) => {
+    if (!provenance) return base
+    return formatManualBillingStatusLabel(
+      base === MANUAL_BILLING_VOCAB.prepaidMediaAndFee
+        ? "prepaidMediaAndFee"
+        : base === MANUAL_BILLING_VOCAB.prepaidMedia
+          ? "prepaidMedia"
+          : base === MANUAL_BILLING_VOCAB.manualTiming
+            ? "manualTiming"
+            : base === MANUAL_BILLING_VOCAB.feeAdjusted
+              ? "feeAdjusted"
+              : "clientPays",
+      provenance,
+      { differsFromSaved: differs }
+    )
+  }
+  const prebillLabel = prebillBase
+    ? provenance
+      ? annotate(prebillBase)
+      : prebillBase
+    : null
+  const prebillTooltip = prebillBase
+    ? provenance
+      ? provenanceTooltip(provenance, { differsFromSaved: differs })
+      : prebillBadgeTooltip(prebillBase)
+    : ""
   return (
     <TooltipProvider delayDuration={200}>
       <span className="ml-2 inline-flex flex-wrap items-center gap-1">
@@ -81,20 +111,34 @@ export function MbaMediaTypeRowPills({ row }: { row?: MediaTypeRowIndicators }) 
             label={prebillLabel}
             variant="attention"
             className="rounded-pill font-medium"
-            tooltip={prebillBadgeTooltip(prebillLabel)}
+            tooltip={prebillTooltip}
           />
         ) : null}
         {row.manual && !prebillLabel ? (
           <ExplainedBadge
-            label={manualTimingBadgeLabel()}
+            label={
+              provenance
+                ? formatManualBillingStatusLabel("manualTiming", provenance, {
+                    differsFromSaved: differs,
+                  })
+                : manualTimingBadgeLabel()
+            }
             variant="attention"
             className="rounded-pill font-medium"
-            tooltip="Billing months were set manually and may differ from auto-calculated delivery timing for invoicing."
+            tooltip={
+              provenance
+                ? provenanceTooltip(provenance, { differsFromSaved: differs })
+                : "Billing months were set manually and may differ from auto-calculated delivery timing for invoicing."
+            }
           />
         ) : null}
         {row.feeAdjusted ? (
           <ExplainedBadge
-            label={feeAdjustedBadgeLabel()}
+            label={
+              provenance
+                ? formatManualBillingStatusLabel("feeAdjusted", provenance)
+                : feeAdjustedBadgeLabel()
+            }
             variant="attention"
             className="rounded-pill font-medium"
             tooltip="Fee months were adjusted manually for invoicing."

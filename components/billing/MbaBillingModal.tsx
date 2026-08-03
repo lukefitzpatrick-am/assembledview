@@ -54,11 +54,18 @@ import { formatMoney } from "@/lib/format/money"
 import {
   clientPaysBadgeLabel,
   feeAdjustedBadgeLabel,
+  formatManualBillingStatusLabel,
   manualBillingHeaderLabel,
   manualTimingBadgeLabel,
+  pendingContradictsSavedForLine,
   prebillBadgeTooltip,
   prebillStatusLabelFromFlags,
+  provenanceTooltip,
+  resolveCampaignBillingTimingProvenance,
+  resolveLineBillingTimingProvenance,
+  type BillingTimingProvenance,
 } from "@/lib/billing/manualBillingVocabulary"
+import type { BillingOverrideRow } from "@/lib/finance/billingOverrides"
 
 /** Collapsed-by-default expand memory for the browser session (survives modal close). */
 const sessionExpandedByMediaType: Record<string, boolean> = {}
@@ -177,6 +184,12 @@ export type MbaBillingModalProps = {
    */
   billingTimingReadOnly?: boolean
   billingTimingReadOnlyMessage?: string
+  /**
+   * MB-21: pending + table carriers for saved/unsaved labels on line badges,
+   * header, Edit Billing dot, and Matches MBA.
+   */
+  pendingOverrideRows?: BillingOverrideRow[]
+  tableOverrideRows?: BillingOverrideRow[]
   footer?: ReactNode
   /**
    * False while channel containers are still hydrating. Suppresses green/red
@@ -245,6 +258,8 @@ function HeaderStrip({
   selectedMonthYears,
   onSelectedMonthYearsChange,
   reconciliationReady = true,
+  pendingOverrideRows,
+  tableOverrideRows,
 }: {
   versionLabel: string
   financials: CampaignFinancials
@@ -253,12 +268,18 @@ function HeaderStrip({
   selectedMonthYears?: string[]
   onSelectedMonthYearsChange?: (next: string[]) => void
   reconciliationReady?: boolean
+  pendingOverrideRows?: BillingOverrideRow[]
+  tableOverrideRows?: BillingOverrideRow[]
 }) {
   const lines = financials.perLine
   const total = lines.length
   const approved = lines.filter((l) => !l.flags.excluded).length
   const manual = lines.filter((l) => l.flags.manualBilling && !l.flags.excluded).length
   const partialLabel = panelIndicators.mbaDetails.partialLabel
+  const campaignProvenance: BillingTimingProvenance | null =
+    pendingOverrideRows && tableOverrideRows
+      ? resolveCampaignBillingTimingProvenance(pendingOverrideRows, tableOverrideRows)
+      : panelIndicators.billingSchedule.editBillingOverrideProvenance ?? null
 
   const months = monthYears ?? []
   const selected = selectedMonthYears ?? months
@@ -297,7 +318,9 @@ function HeaderStrip({
                 <TooltipTrigger asChild>
                   <span className="inline-flex">
                     <Badge variant="attention" size="sm" className="rounded-pill font-medium">
-                      <span className="num">{manualBillingHeaderLabel(manual)}</span>
+                      <span className="num">
+                        {manualBillingHeaderLabel(manual, campaignProvenance)}
+                      </span>
                     </Badge>
                   </span>
                 </TooltipTrigger>
@@ -385,6 +408,56 @@ function inMbaVersionPillLabel(versionLabel: string): string {
   return /^v/i.test(v) ? `In MBA ${v}` : `In MBA v${v}`
 }
 
+function lineStatusDisplay(
+  lineItemId: string,
+  kind: "prepaidMediaAndFee" | "prepaidMedia" | "manualTiming" | "feeAdjusted",
+  pendingRows: BillingOverrideRow[] | undefined,
+  tableRows: BillingOverrideRow[] | undefined
+): { label: string; tooltip: string } {
+  const base =
+    kind === "prepaidMediaAndFee"
+      ? "Prepaid"
+      : kind === "prepaidMedia"
+        ? "Media prepaid"
+        : kind === "manualTiming"
+          ? "Manual"
+          : "Fee adjusted"
+  if (!pendingRows || !tableRows) {
+    return {
+      label: base,
+      tooltip:
+        kind === "prepaidMediaAndFee" || kind === "prepaidMedia"
+          ? prebillBadgeTooltip(base as "Prepaid" | "Media prepaid")
+          : kind === "manualTiming"
+            ? "Billing months were set manually and may differ from auto-calculated delivery timing for invoicing."
+            : "Fee months were adjusted manually for invoicing.",
+    }
+  }
+  const provenance = resolveLineBillingTimingProvenance(
+    lineItemId,
+    pendingRows,
+    tableRows
+  )
+  if (!provenance) {
+    return {
+      label: base,
+      tooltip:
+        kind === "prepaidMediaAndFee" || kind === "prepaidMedia"
+          ? prebillBadgeTooltip(base as "Prepaid" | "Media prepaid")
+          : kind === "manualTiming"
+            ? "Billing months were set manually and may differ from auto-calculated delivery timing for invoicing."
+            : "Fee months were adjusted manually for invoicing.",
+    }
+  }
+  const differs = pendingContradictsSavedForLine(lineItemId, pendingRows, tableRows)
+  return {
+    label: formatManualBillingStatusLabel(kind, provenance, {
+      differsFromSaved: differs,
+    }),
+    tooltip: provenanceTooltip(provenance, { differsFromSaved: differs }),
+  }
+}
+
 function ScopeLineRow({
   line,
   versionLabel,
@@ -392,6 +465,8 @@ function ScopeLineRow({
   timingDraftReady,
   onEnsureTimingDraft,
   lineTiming,
+  pendingOverrideRows,
+  tableOverrideRows,
 }: {
   line: MbaBillingScopeLine
   versionLabel: string
@@ -399,6 +474,8 @@ function ScopeLineRow({
   timingDraftReady?: boolean
   onEnsureTimingDraft?: () => void
   lineTiming?: MbaBillingLineTimingApi
+  pendingOverrideRows?: BillingOverrideRow[]
+  tableOverrideRows?: BillingOverrideRow[]
 }) {
   const muted = line.flags.excluded
   const dateBasisChoice = lineTiming?.getDateBasisChoice?.(line.lineItemId) ?? null
@@ -473,19 +550,27 @@ function ScopeLineRow({
             )}
             <TooltipProvider delayDuration={200}>
               {(() => {
-                const prebillLabel = prebillStatusLabelFromFlags(line.flags)
-                if (!prebillLabel || muted) return null
+                const prebillBase = prebillStatusLabelFromFlags(line.flags)
+                if (!prebillBase || muted) return null
+                const kind =
+                  prebillBase === "Prepaid" ? "prepaidMediaAndFee" : "prepaidMedia"
+                const { label, tooltip } = lineStatusDisplay(
+                  line.lineItemId,
+                  kind,
+                  pendingOverrideRows,
+                  tableOverrideRows
+                )
                 return (
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <span className="inline-flex">
                         <Badge variant="attention" size="sm" className="rounded-pill font-normal">
-                          {prebillLabel}
+                          {label}
                         </Badge>
                       </span>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs text-xs">
-                      {prebillBadgeTooltip(prebillLabel)}
+                      {tooltip}
                     </TooltipContent>
                   </Tooltip>
                 )
@@ -494,33 +579,52 @@ function ScopeLineRow({
               !muted &&
               !line.flags.prepaid &&
               !line.flags.mediaPrepaid ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <Badge variant="attention" size="sm" className="rounded-pill font-normal">
-                        {manualTimingBadgeLabel()}
-                      </Badge>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs text-xs">
-                    Billing months were set manually and may differ from auto-calculated delivery
-                    timing for invoicing.
-                  </TooltipContent>
-                </Tooltip>
+                (() => {
+                  const { label, tooltip } = lineStatusDisplay(
+                    line.lineItemId,
+                    "manualTiming",
+                    pendingOverrideRows,
+                    tableOverrideRows
+                  )
+                  return (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                            {label}
+                          </Badge>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        {tooltip}
+                      </TooltipContent>
+                    </Tooltip>
+                  )
+                })()
               ) : null}
               {line.flags.manualFee && !muted ? (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="inline-flex">
-                      <Badge variant="attention" size="sm" className="rounded-pill font-normal">
-                        {feeAdjustedBadgeLabel()}
-                      </Badge>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent side="top" className="max-w-xs text-xs">
-                    Fee months were adjusted manually for invoicing.
-                  </TooltipContent>
-                </Tooltip>
+                (() => {
+                  const { label, tooltip } = lineStatusDisplay(
+                    line.lineItemId,
+                    "feeAdjusted",
+                    pendingOverrideRows,
+                    tableOverrideRows
+                  )
+                  return (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex">
+                          <Badge variant="attention" size="sm" className="rounded-pill font-normal">
+                            {label}
+                          </Badge>
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        {tooltip}
+                      </TooltipContent>
+                    </Tooltip>
+                  )
+                })()
               ) : null}
               {line.flags.clientPaysForMedia && !muted ? (
                 <Tooltip>
@@ -596,7 +700,17 @@ function ScopeLineRow({
           onCommit={lineTiming.onCommit}
           onResetToAuto={lineTiming.onResetLine}
           onPrebill={lineTiming.onPrebillLine}
-          prebillBadgeLabel={prebillStatusLabelFromFlags(line.flags)}
+          prebillBadgeLabel={(() => {
+            const base = prebillStatusLabelFromFlags(line.flags)
+            if (!base) return null
+            const kind = base === "Prepaid" ? "prepaidMediaAndFee" : "prepaidMedia"
+            return lineStatusDisplay(
+              line.lineItemId,
+              kind,
+              pendingOverrideRows,
+              tableOverrideRows
+            ).label
+          })()}
           clientPaysForMedia={line.flags.clientPaysForMedia}
           dateBasisChoice={dateBasisChoice}
           formatter={lineTiming.formatter}
@@ -680,10 +794,18 @@ export function MbaBillingModal({
   overridesLoadNotice = null,
   billingTimingReadOnly = false,
   billingTimingReadOnlyMessage,
+  pendingOverrideRows,
+  tableOverrideRows,
   footer,
   reconciliationReady = true,
 }: MbaBillingModalProps) {
   const timingLocked = Boolean(billingTimingReadOnly)
+  const hasPendingBilling = (pendingOverrideRows?.length ?? 0) > 0
+  const editDotProvenance =
+    panelIndicators.billingSchedule.editBillingOverrideProvenance ??
+    (pendingOverrideRows && tableOverrideRows
+      ? resolveCampaignBillingTimingProvenance(pendingOverrideRows, tableOverrideRows)
+      : null)
   const advancedOpen =
     !timingLocked && (showAdvancedEditor ?? showManualEditor ?? false)
   const draftReady =
@@ -800,6 +922,8 @@ export function MbaBillingModal({
             selectedMonthYears={selectedMonthYears}
             onSelectedMonthYearsChange={onSelectedMonthYearsChange}
             reconciliationReady={reconciliationReady}
+            pendingOverrideRows={pendingOverrideRows}
+            tableOverrideRows={tableOverrideRows}
           />
           {timingLocked ? (
             <div className="border-b border-border px-6 py-3">
@@ -972,6 +1096,8 @@ export function MbaBillingModal({
                                 timingDraftReady={draftReady}
                                 onEnsureTimingDraft={ensureDraft}
                                 lineTiming={effectiveLineTiming}
+                                pendingOverrideRows={pendingOverrideRows}
+                                tableOverrideRows={tableOverrideRows}
                               />
                             ))}
                           </div>
@@ -1071,6 +1197,7 @@ export function MbaBillingModal({
                           Edit timing
                           <EditBillingOverrideDot
                             show={panelIndicators.billingSchedule.editBillingHasOverride}
+                            provenance={editDotProvenance}
                           />
                         </Button>
                       ) : null}
@@ -1085,6 +1212,7 @@ export function MbaBillingModal({
                           {advancedOpen ? "Hide advanced" : "Advanced editor"}
                           <EditBillingOverrideDot
                             show={panelIndicators.billingSchedule.editBillingHasOverride}
+                            provenance={editDotProvenance}
                           />
                         </Button>
                       ) : null}
@@ -1149,7 +1277,10 @@ export function MbaBillingModal({
                             <span className="inline-flex items-center">
                               Grand Total
                               {/* Same core flag as header — not grandTotal vs MBA scope nett. */}
-                              <BillingEqualsMbaPill show={billingRec.showEquals} />
+                              <BillingEqualsMbaPill
+                                show={billingRec.showEquals}
+                                hasPending={hasPendingBilling}
+                              />
                               <BillingMismatchMbaPill show={billingRec.showMismatch} />
                             </span>
                           </TableCell>
@@ -1187,6 +1318,7 @@ export function MbaBillingModal({
                     <BillingEqualsMbaPill
                       show={financials.validation.billableEqualsMba}
                       title="Billing reconciles to MBA total"
+                      hasPending={hasPendingBilling}
                     />
                   </p>
                 ) : null}

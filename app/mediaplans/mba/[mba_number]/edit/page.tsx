@@ -2485,6 +2485,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setHasUnsavedChanges(true)
   }, [])
 
+  /** MB-21: pending Applied billing must trip the existing unsaved affordance. */
+  useEffect(() => {
+    if (pendingBillingOverrideRows.length > 0) {
+      markUnsavedChanges()
+    }
+  }, [pendingBillingOverrideRows, markUnsavedChanges])
+
   /** Totals / line-item publishes — silent during bootstrap + short post-fee settle. */
   const markPassiveChannelChange = useCallback(() => {
     if (!navigationHydratedRef.current) return
@@ -6508,6 +6515,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       selectedMonthYears:
         partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
       overrideRows,
+      pendingOverrideRows: pendingBillingOverrideRows,
+      tableOverrideRows: billingOverrideRowsForPanels,
       draftReady: manualBillingDraftReady,
       draftMonths: manualBillingMonths,
       metaByLine,
@@ -12668,6 +12677,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
         onAcknowledgeDivergence={handleAcknowledgeDivergence}
         overridesLoadNotice={billingOverridesLoadNotice}
+        pendingOverrideRows={pendingBillingOverrideRows}
+        tableOverrideRows={billingOverrideRowsForPanels}
         billingTimingReadOnly={isApprovedOrBeyond(
           mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
         )}

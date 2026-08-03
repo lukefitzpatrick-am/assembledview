@@ -8,6 +8,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import {
+  billingEqualsMbaLabel,
+  editBillingOverrideDotLabel,
+} from "@/lib/billing/manualBillingVocabulary"
 import type {
   BillingSchedulePanelIndicatorModel,
   MonthDotIndicator,
@@ -54,13 +58,23 @@ export function BillingScheduleTitlePills({
 }
 
 /** Amber attention dot-badge overlaid on Edit Billing when any override exists. */
-export function EditBillingOverrideDot({ show }: { show: boolean }) {
+export function EditBillingOverrideDot({
+  show,
+  provenance = null,
+}: {
+  show: boolean
+  /** MB-21: saved vs unsaved — drives aria-label / title. */
+  provenance?: "saved" | "unsaved" | null
+}) {
   if (!show) return null
+  const label = provenance
+    ? editBillingOverrideDotLabel(provenance)
+    : "Billing overrides present"
   return (
     <span
       className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-pill bg-status-attention ring-2 ring-card"
-      aria-label="Billing overrides present"
-      title="Billing overrides present"
+      aria-label={label}
+      title={label}
     />
   )
 }
@@ -92,19 +106,27 @@ export function BillingMonthStatusDot({ indicator }: { indicator?: MonthDotIndic
 export function BillingEqualsMbaPill({
   show,
   title = "Billable totals match the MBA",
+  hasPending = false,
 }: {
   show: boolean
   title?: string
+  /** MB-21: pending rows → label states schedule is unsaved (not a persistence claim). */
+  hasPending?: boolean
 }) {
   if (!show) return null
+  const label = billingEqualsMbaLabel({ matches: true, hasPending })
   return (
     <Badge
       variant="good"
       size="sm"
       className="ml-2 rounded-pill font-normal"
-      title={title}
+      title={
+        hasPending
+          ? "Totals match the MBA on screen — billing timing is unsaved"
+          : title
+      }
     >
-      Matches MBA
+      {label}
     </Badge>
   )
 }

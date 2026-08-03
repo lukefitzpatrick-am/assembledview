@@ -3,7 +3,7 @@
  * Derives ONLY from {@link CampaignFinancials} — no recompute of totals.
  */
 
-import { MANUAL_BILLING_VOCAB } from "@/lib/billing/manualBillingVocabulary"
+import { MANUAL_BILLING_VOCAB, withBillingTimingProvenance, type BillingTimingProvenance } from "@/lib/billing/manualBillingVocabulary"
 import type { CampaignFinancials } from "@/lib/finance/campaignFinancials.types"
 
 export type MediaTypeRowIndicators = {
@@ -21,6 +21,10 @@ export type MediaTypeRowIndicators = {
   feeAdjusted: boolean
   /** True when any non-excluded line in this media type is client-pays-for-media. */
   clientPays: boolean
+  /** MB-21: saved vs unsaved for this container's timing (pending wins). */
+  timingProvenance?: BillingTimingProvenance | null
+  /** MB-21: pending months disagree with saved table for a line in this media type. */
+  differsFromSaved?: boolean
 }
 
 export type MonthDotIndicator = {
@@ -43,8 +47,12 @@ export type BillingSchedulePanelIndicatorModel = {
   titlePills: { key: string; label: string; tone: "amber" | "muted"; tooltip?: string }[]
   /** Amber dot on Edit Billing when any override exists. */
   editBillingHasOverride: boolean
+  /** MB-21: provenance for EditBillingOverrideDot aria/title. */
+  editBillingOverrideProvenance?: BillingTimingProvenance | null
   byMonth: Record<string, MonthDotIndicator>
   billableEqualsMba: boolean
+  /** MB-21: pending carrier present — Matches MBA must not read as persistence. */
+  hasUnsavedBillingTiming?: boolean
 }
 
 export type PanelIndicatorsFromCampaignFinancials = {
@@ -64,6 +72,18 @@ export function panelIndicatorsFromCampaignFinancials(
     isPartialMBA?: boolean
     /** Selected MBA month keys; when a proper subset of delivery months → month partial. */
     selectedMonthYears?: readonly string[]
+    /**
+     * MB-21: campaign-level saved/unsaved for title pills + Edit Billing dot.
+     * Omit to keep bare MB-9 words (unit tests / surfaces without pending).
+     */
+    timingProvenance?: BillingTimingProvenance | null
+    /** MB-21: any pending line contradicts saved table months. */
+    differsFromSaved?: boolean
+    /** Per-line provenance for container aggregation (canonical or decorated id). */
+    lineTimingProvenance?: (
+      lineItemId: string
+    ) => BillingTimingProvenance | null
+    lineDiffersFromSaved?: (lineItemId: string) => boolean
   }
 ): PanelIndicatorsFromCampaignFinancials {
   const perLine = financials.perLine
@@ -101,6 +121,21 @@ export function panelIndicatorsFromCampaignFinancials(
   for (const [key, lines] of linesByMedia) {
     const allExcluded = lines.every((l) => l.flags.excluded)
     const inScope = lines.filter((l) => !l.flags.excluded)
+    let timingProvenance: BillingTimingProvenance | null | undefined
+    let differsFromSaved = false
+    if (opts?.lineTimingProvenance) {
+      for (const l of inScope) {
+        const p = opts.lineTimingProvenance(l.lineItemId)
+        if (p === "unsaved") timingProvenance = "unsaved"
+        else if (p === "saved" && timingProvenance !== "unsaved") {
+          timingProvenance = "saved"
+        }
+        if (opts.lineDiffersFromSaved?.(l.lineItemId)) differsFromSaved = true
+      }
+    } else if (opts?.timingProvenance) {
+      timingProvenance = opts.timingProvenance
+      differsFromSaved = Boolean(opts.differsFromSaved)
+    }
     byMediaType[key] = {
       muted: allExcluded,
       notInMba: allExcluded,
@@ -112,6 +147,8 @@ export function panelIndicatorsFromCampaignFinancials(
       mediaPrepaid: inScope.some((l) => l.flags.mediaPrepaid),
       feeAdjusted: lines.some((l) => l.flags.manualFee),
       clientPays: inScope.some((l) => l.flags.clientPaysForMedia),
+      timingProvenance: timingProvenance ?? null,
+      differsFromSaved,
     }
   }
 
@@ -129,33 +166,52 @@ export function panelIndicatorsFromCampaignFinancials(
   const hasMediaPrepaid = perLine.some((l) => !l.flags.excluded && l.flags.mediaPrepaid)
 
   const titlePills: BillingSchedulePanelIndicatorModel["titlePills"] = []
+  const campaignProvenance = opts?.timingProvenance ?? null
+  const campaignDiffers = Boolean(opts?.differsFromSaved)
+  const annotate = (base: string): string => {
+    if (!campaignProvenance) return base
+    let label = withBillingTimingProvenance(base, campaignProvenance)
+    if (campaignDiffers && campaignProvenance === "unsaved") {
+      label = `${label} · ${MANUAL_BILLING_VOCAB.differsFromSaved}`
+    }
+    return label
+  }
   if (manualOnlyLines.length > 0) {
     titlePills.push({
       key: "manual-count",
-      label:
+      label: annotate(
         manualOnlyLines.length === 1
           ? MANUAL_BILLING_VOCAB.manualTiming
-          : `${MANUAL_BILLING_VOCAB.manualTiming} · ${manualOnlyLines.length}`,
+          : `${MANUAL_BILLING_VOCAB.manualTiming} · ${manualOnlyLines.length}`
+      ),
       tone: "amber",
-      tooltip:
-        "Billing months were set manually and may differ from auto-calculated delivery timing for invoicing.",
+      tooltip: campaignProvenance
+        ? campaignDiffers
+          ? "Shown timing is unsaved and differs from saved billing overrides."
+          : campaignProvenance === "unsaved"
+            ? "Manual billing timing is applied on this page but not yet saved with the plan."
+            : "Billing months were set manually and may differ from auto-calculated delivery timing for invoicing."
+        : "Billing months were set manually and may differ from auto-calculated delivery timing for invoicing.",
     })
   }
   // MB-8/9: same badge words as line / timing editor — Prepaid only when media+fee.
   if (hasFullPrepaid) {
     titlePills.push({
       key: "prepay-reason",
-      label: MANUAL_BILLING_VOCAB.prepaidMediaAndFee,
+      label: annotate(MANUAL_BILLING_VOCAB.prepaidMediaAndFee),
       tone: "amber",
-      tooltip:
-        "Media and agency fee are billed up front (prepayment) rather than spread across delivery months.",
+      tooltip: campaignDiffers
+        ? "Shown timing is unsaved and differs from saved billing overrides."
+        : "Media and agency fee are billed up front (prepayment) rather than spread across delivery months.",
     })
   } else if (hasMediaPrepaid) {
     titlePills.push({
       key: "prepay-reason",
-      label: MANUAL_BILLING_VOCAB.prepaidMedia,
+      label: annotate(MANUAL_BILLING_VOCAB.prepaidMedia),
       tone: "amber",
-      tooltip: "Media is billed up front; agency fee stays on delivery timing.",
+      tooltip: campaignDiffers
+        ? "Shown timing is unsaved and differs from saved billing overrides."
+        : "Media is billed up front; agency fee stays on delivery timing.",
     })
   }
 
@@ -175,8 +231,10 @@ export function panelIndicatorsFromCampaignFinancials(
       titlePills,
       editBillingHasOverride:
         timingOverrideLines.length > 0 || perLine.some((l) => l.flags.manualFee),
+      editBillingOverrideProvenance: campaignProvenance,
       byMonth,
       billableEqualsMba: financials.validation.billableEqualsMba,
+      hasUnsavedBillingTiming: campaignProvenance === "unsaved",
     },
   }
 }

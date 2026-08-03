@@ -26,6 +26,7 @@ import type { CampaignFinancials } from "@/lib/finance/campaignFinancials.types"
 import type { PanelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelIndicatorsFromCampaignFinancials"
 import { reconciliationBadgeVisibility } from "@/lib/mediaplan/channelHydrationGate"
 import { formatMoney } from "@/lib/format/money"
+import { billingEqualsMbaLabel } from "@/lib/billing/manualBillingVocabulary"
 
 function parseScheduleMoney(value: string | undefined): number {
   return parseFloat(String(value ?? "0").replace(/[^0-9.-]/g, "")) || 0
@@ -72,6 +73,7 @@ export function MbaBillingAutoCalcSummary({
     panelIndicators.billingSchedule.billableEqualsMba,
     { duplicatesDetected }
   )
+  const hasPending = Boolean(panelIndicators.billingSchedule.hasUnsavedBillingTiming)
 
   const mediaBreakdown: { mediaType: string; media: number }[] = []
   if (financials.perLine.length > 0) {
@@ -110,9 +112,18 @@ export function MbaBillingAutoCalcSummary({
               Loading channels…
             </Badge>
           ) : mbaRec.showEquals ? (
-            <Badge variant="good" size="sm" className="rounded-pill font-medium" title="Billable totals match MBA">
+            <Badge
+              variant="good"
+              size="sm"
+              className="rounded-pill font-medium"
+              title={
+                hasPending
+                  ? "Totals match the MBA on screen — billing timing is unsaved"
+                  : "Billable totals match MBA"
+              }
+            >
               <Check className="mr-1 h-3.5 w-3.5" aria-hidden />
-              Matches MBA
+              {billingEqualsMbaLabel({ matches: true, hasPending })}
             </Badge>
           ) : mbaRec.showMismatch ? (
             <Badge
@@ -208,7 +219,10 @@ export function MbaBillingAutoCalcSummary({
                 <TableCell>
                   <span className="inline-flex items-center">
                     Grand Total
-                    <BillingEqualsMbaPill show={billingRec.showEquals} />
+                    <BillingEqualsMbaPill
+                      show={billingRec.showEquals}
+                      hasPending={hasPending}
+                    />
                     <BillingMismatchMbaPill show={billingRec.showMismatch} />
                   </span>
                 </TableCell>
@@ -237,6 +251,7 @@ export function MbaBillingAutoCalcSummary({
               <BillingEqualsMbaPill
                 show={!duplicatesDetected && financials.validation.billableEqualsMba}
                 title="Billing reconciles to MBA total"
+                hasPending={hasPending}
               />
             </p>
           ) : null}
