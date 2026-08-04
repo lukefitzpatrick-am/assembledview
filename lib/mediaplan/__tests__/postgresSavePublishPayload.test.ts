@@ -169,7 +169,7 @@ describe("publish-branch postgres save payload (2-line social)", () => {
 })
 
 describe("O4.5 publish/status-change carries feeLoading (shared assembler)", () => {
-  it("assemblePlansSaveRequestBody always attaches feeLoading + feeSnapshot + adservaudio", () => {
+  it("assemblePlansSaveRequestBody always attaches feeLoading + feeSnapshot + adserv rates", () => {
     const mode = resolvePostgresSaveMode({
       campaignStatus: "Booked",
       forceIncrement: false,

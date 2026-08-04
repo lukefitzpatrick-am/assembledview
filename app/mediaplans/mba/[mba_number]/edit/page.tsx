@@ -145,6 +145,7 @@ import {
 } from "@/lib/billing/compareBillingDivergence"
 import { computeMediaLineAdServingMonthlyAmounts } from "@/lib/billing/computeMediaLineAdServingMonthly"
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
+import { createAdServingRateResolver } from "@/lib/billing/adServingRateResolver"
 import { mergeInvestmentMonths } from "@/lib/billing/mergeInvestmentMonths"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
 import { prepareBillingMonthsForLineItemExport } from "@/lib/billing/prepareBillingMonthsForLineItemExport"
@@ -3146,28 +3147,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [selectedVersionNumber, mediaPlan?.version_number, form])
   
   const getRateForMediaType = useCallback((mediaType: string): number => {
-    switch (mediaType) {
-      case "progVideo":
-      case "progBvod":
-      case "digiVideo":
-      case "digi video":
-      case "bvod":
-      case "BVOD":
-      case "Prog BVOD":
-      case "Digi Video":
-      case "Prog Video":
-        return adservvideo ?? 0
-      case "progAudio":
-      case "digiAudio":
-      case "digi audio":
-        return adservaudio ?? 0
-      case "progDisplay":
-      case "digiDisplay":
-      case "digi display":
-        return adservdisplay ?? 0
-      default:
-        return adservimp ?? 0
-    }
+    return createAdServingRateResolver({
+      video: adservvideo ?? 0,
+      audio: adservaudio ?? 0,
+      display: adservdisplay ?? 0,
+      imp: adservimp ?? 0,
+    })(mediaType)
   }, [adservvideo, adservaudio, adservdisplay, adservimp])
 
   /**
