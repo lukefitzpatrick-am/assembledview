@@ -33,6 +33,7 @@ export default defineConfig({
       "lib/pacing/__tests__/statusUi.test.ts",
       "components/pacing/__tests__/PacingStatusSummary.test.tsx",
       "hooks/__tests__/usePlanDraftSession.test.tsx",
+      "components/mediaplans/__tests__/ExpertApplyDirtyClearOnSave.characterisation.test.tsx",
     ],
     exclude: [
       "**/node_modules/**",
