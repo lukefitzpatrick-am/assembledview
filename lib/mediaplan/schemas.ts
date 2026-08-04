@@ -264,7 +264,8 @@ export const magazineslineItemSchema = z.object({
 })
 
 // --- OOH ---------------------------------------------------------------------
-// Note: OOH uses `noAdserving` (camelCase A) instead of `noadserving`.
+// C-36: OOH uses `noAdserving` (camelCase A) instead of `noadserving` — intentional
+// exception; checkbox/hydration/expert paths depend on it. Not ad-serving-eligible.
 
 export const oohlineItemSchema = z.object({
   network: z.string().min(1, "Network is required"),
@@ -391,7 +392,9 @@ export const influencersLineItemSchema = z.object({
 })
 
 // --- Integration -------------------------------------------------------------
-// Note: Integration uses `noAdserving` (camelCase A) instead of `noadserving`.
+// C-36: Integration uses `noAdserving` (camelCase A) instead of `noadserving` —
+// intentional exception; checkbox/hydration/expert paths depend on it. Not
+// ad-serving-eligible.
 
 export const integrationLineItemSchema = z.object({
   platform: z.string().min(1, "Platform is required"),

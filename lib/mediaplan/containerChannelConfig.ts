@@ -2446,6 +2446,8 @@ export const INTEGRATION_CONTAINER_CONFIG: ContainerChannelConfig = {
       inApi: true,
     },
     {
+      // C-36: Integration keeps camel `noAdserving` (all other channels: `noadserving`).
+      // Load-bearing for IntegrationContainer + schemas + expert mappings — do not flip alone.
       camel: "noAdserving",
       snake: "no_adserving",
       excel: null,
@@ -2576,6 +2578,8 @@ export const OOH_CONTAINER_CONFIG: ContainerChannelConfig = {
       inApi: true,
     },
     {
+      // C-36: OOH keeps camel `noAdserving` (all other channels: `noadserving`).
+      // Load-bearing for OOHContainer + schemas + expert mappings — do not flip alone.
       camel: "noAdserving",
       snake: "no_adserving",
       excel: null,
