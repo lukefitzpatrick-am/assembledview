@@ -21,6 +21,7 @@ This rule is enforced for AI tools via `/CLAUDE.md` (Claude) and `/.cursor/rules
 | [KNOWN-ISSUES.md](./KNOWN-ISSUES.md) | Recorded tech debt & security findings, with IDs. Check before "discovering" a bug that's already known |
 | [version-control-stage1-consumers.md](./version-control-stage1-consumers.md) | Stage 1 VC: every site that infers publication from `campaign_status` (input to `published_at` migration) |
 | [codex-write-failure-static.md](./codex-write-failure-static.md) | Codex tasks/team zero-writes: flag/role/page auth + create-path static diagnosis (pre-browser) |
+| [codex-team-create-never-reached.md](./codex-team-create-never-reached.md) | Why `team_members` seq never advanced while tasks insert works — path trace, no fix |
 | [READ-FAILURE-REGISTER.md](./READ-FAILURE-REGISTER.md) | M7: lib/data catch→[] conversions vs dying-at-T6 Xano page wrappers |
 | [API-DYNAMIC-ROUTE-GATES.md](./API-DYNAMIC-ROUTE-GATES.md) | O6 / SEC-10 inventory of `app/api/**/[param]` gates vs collection siblings — input for T6 RLS (admin \| client) |
 | [XANO-SEVERANCE-REGISTER.md](./XANO-SEVERANCE-REGISTER.md) | X-AUDIT-1: every `app/api` + lib live Xano dependency, verdicts (DUAL-DONE/PORT/RETIRE/MIRROR/TOOLING), vault storage sizing, X1–X8 owner prompts |
