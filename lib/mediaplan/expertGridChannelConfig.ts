@@ -2129,8 +2129,7 @@ export const TV_BUY_TYPE_OPTIONS: ComboboxOption[] = [
   { value: "fixed_cost", label: "Fixed Cost" },
   { value: "package", label: "Package" },
   { value: "spots", label: "Spots" },
-  { value: "CPP", label: "CPP" },
-  { value: "cpp", label: "CPP (lower)" },
+  { value: "cpp", label: "CPP" },
 ]
 
 export function createEmptyTelevisionExpertRow(

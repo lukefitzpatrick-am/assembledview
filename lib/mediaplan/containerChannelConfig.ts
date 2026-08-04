@@ -1642,7 +1642,7 @@ export const TELEVISION_CONTAINER_CONFIG: ContainerChannelConfig = {
       camel: "buyType",
       snake: "buy_type",
       excel: null,
-      default: "CPP",
+      default: "cpp",
       inDefaults: true,
       inHydration: true,
       inApi: true,
