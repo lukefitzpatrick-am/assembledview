@@ -190,12 +190,21 @@ describe("O4.5 publish/status-change carries feeLoading (shared assembler)", () 
         campaignStatus: mapCampaignStatusForPersist("Booked"),
         lineItems,
       },
-      { feeLoading: { ...KRUSTY015_FEE_LOADING }, adservaudio: 0.15 }
+      {
+        feeLoading: { ...KRUSTY015_FEE_LOADING },
+        adservaudio: 0.15,
+        adservdisplay: 2.5,
+        adservvideo: 1.1,
+        adservimp: 0.5,
+      }
     )
 
     assert.deepEqual(body.feeLoading, { feesocial: 20 })
     assert.deepEqual(body.feeSnapshot, { feesocial: 20 })
     assert.equal(body.adservaudio, 0.15)
+    assert.equal(body.adservdisplay, 2.5)
+    assert.equal(body.adservvideo, 1.1)
+    assert.equal(body.adservimp, 0.5)
     assert.equal(body.mode, "publish")
     assert.equal(body.campaignStatus, "booked")
   })

@@ -15,6 +15,7 @@ import {
   type SavePlanVersionInput,
 } from "../savePlan.js"
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials.js"
+import { createAdServingRateResolver } from "@/lib/billing/adServingRateResolver.js"
 import { explodeScheduleToMonthRows, sumScheduleCents } from "../../../scripts/migration/_scheduleTransform.js"
 import { toCents } from "../../../scripts/migration/_shared.js"
 
@@ -1496,6 +1497,92 @@ test("savePlan MB-25 (b): clearedLineIds deletes reset line; sibling survives", 
     .where(eq(schema.billingOverrides.versionId, first.versionId))
   assert.equal(after.length, 1)
   assert.equal(after[0]!.lineItemId, LINE_B)
+})
+
+test("savePlan: eligible non-excluded line writes adserving rows on billing + delivery", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const pdId = `${MBA.toUpperCase()}PD001`
+  const getRateForMediaType = createAdServingRateResolver({
+    video: 0,
+    audio: 0,
+    display: 2.5,
+    imp: 0,
+  })
+  const line: SavePlanLineItem = {
+    lineItemId: pdId,
+    channel: "prog_display",
+    mediaType: "progDisplay",
+    buyType: "cpm",
+    rate: 10,
+    enteredAmount: 5_000,
+    budgetIncludesFees: false,
+    clientPaysForMedia: false,
+    noAdserving: false,
+    feePct: 15,
+    approval: "approved",
+    bursts: [
+      {
+        startDate: "2026-05-01",
+        endDate: "2026-05-31",
+        budget: 5_000,
+        buyAmount: 10,
+        deliverables: 500_000,
+      },
+    ],
+  }
+
+  const result = await savePlanVersion(
+    draftInput(masterId, [line], {
+      channelFlags: { mp_progdisplay: true },
+      feeLoading: { feeprogdisplay: 15 },
+      getRateForMediaType,
+      adservaudio: 0,
+    })
+  )
+
+  // Persist path: schedule_months rows.
+  const snap = await snapshot(result.versionId)
+  const adBilling = snap.months.filter(
+    (r) => r.component === "adserving" && r.basis === "billing"
+  )
+  const adDelivery = snap.months.filter(
+    (r) => r.component === "adserving" && r.basis === "delivery"
+  )
+  assert.ok(adBilling.length > 0, "DB must have adserving rows on billing basis")
+  assert.ok(adDelivery.length > 0, "DB must have adserving rows on delivery basis")
+  assert.ok(adBilling.every((r) => Number(r.amountCents) > 0))
+  assert.ok(adDelivery.every((r) => Number(r.amountCents) > 0))
+
+  // Explode the persisted blobs (not just in-memory recompute).
+  const billingExplode = explodeScheduleToMonthRows(
+    result.versionId,
+    "billing",
+    result.legacySchedules.billingSchedule
+  )
+  const deliveryExplode = explodeScheduleToMonthRows(
+    result.versionId,
+    "delivery",
+    result.legacySchedules.deliverySchedule
+  )
+  assert.equal(billingExplode.failureReason, null)
+  assert.equal(deliveryExplode.failureReason, null)
+  assert.ok(
+    billingExplode.rows.some((r) => r.component === "adserving" && r.amountCents > 0),
+    "explode(billing) must yield adserving rows"
+  )
+  assert.ok(
+    deliveryExplode.rows.some((r) => r.component === "adserving" && r.amountCents > 0),
+    "explode(delivery) must yield adserving rows"
+  )
 })
 
 test("savePlan: close db pool", async () => {

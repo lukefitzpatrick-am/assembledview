@@ -5482,7 +5482,13 @@ function CreateMediaPlan() {
                   : null,
               },
             },
-            { feeLoading: feeLoadingForSave, adservaudio }
+            {
+              feeLoading: feeLoadingForSave,
+              adservaudio,
+              adservvideo,
+              adservdisplay,
+              adservimp,
+            }
           )
         )
 

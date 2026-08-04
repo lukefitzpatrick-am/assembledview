@@ -38,6 +38,11 @@ import {
   computeCampaignFinancials,
   resolveFeePctFromFeeLoading,
 } from "@/lib/finance/computeCampaignFinancials"
+import {
+  evaluateAdServingZeroTripwire,
+  lineAdServingTotalsFromSchedule,
+  logAdServingZeroTripwire,
+} from "@/lib/billing/adServingSaveTripwire"
 import { computeApprovedSlice, type ApprovedSlice } from "@/lib/finance/approvedSlice"
 import { computeSnapshotChecksum } from "@/lib/docs/snapshotChecksum"
 import {
@@ -877,6 +882,35 @@ export async function savePlanVersion(
               lines: nonzeroPctLines.slice(0, 12),
             })
           }
+        }
+      }
+
+      // Ad-serving twin of O4.5 (always-on, never blocks): campaign-total $0
+      // with eligible chargeable lines, OR partial — some eligible lines charge
+      // and others unexpectedly stay $0.
+      {
+        const adServingTotal = Number(financials.mbaScopeTotals?.adServing ?? 0)
+        const noAdservingByLineId = new Map(
+          lineInputs.map(
+            (l) => [String(l.lineItemId), Boolean(l.noAdserving)] as const
+          )
+        )
+        const trip = evaluateAdServingZeroTripwire({
+          adServingTotal,
+          perLine: financials.perLine,
+          noAdservingByLineId,
+          lineAdServingById: lineAdServingTotalsFromSchedule(
+            financials.billingSchedule
+          ),
+        })
+        if (trip) {
+          logAdServingZeroTripwire(trip, {
+            mba: input.mbaNumber,
+            version: input.versionNumber,
+            mode: input.mode,
+            hasResolver: typeof input.getRateForMediaType === "function",
+            adservaudio: input.adservaudio ?? null,
+          })
         }
       }
 

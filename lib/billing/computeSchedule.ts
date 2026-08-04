@@ -3,6 +3,23 @@ import { computeAdServingCost } from "./computeAdServingCost";
 import { prorateAcrossMonths } from "./prorateAcrossMonths";
 import type { BillingBurst, BillingMonth } from "./types";
 
+/**
+ * Media keys that receive ad-serving distribution in {@link computeBillingAndDeliveryMonths}.
+ * R1 pin: keep in lockstep with `AD_SERVING_ELIGIBLE_MEDIA_TYPES` (adServingRateResolver).
+ * Do not narrow without updating the pin test.
+ */
+export const AD_SERVING_SCHEDULE_MEDIA_TYPES = [
+  "digiAudio",
+  "digiDisplay",
+  "digiVideo",
+  "bvod",
+  "progAudio",
+  "progVideo",
+  "progBvod",
+  "progOoh",
+  "progDisplay",
+] as const
+
 type MonthEntry = {
   totalMedia: number;
   totalFee: number;
@@ -198,15 +215,9 @@ export function computeBillingAndDeliveryMonths(
     }
   }
 
-  (b.digiAudio ?? []).forEach((x) => distributeAdServing(x, "digiAudio"));
-  (b.digiDisplay ?? []).forEach((x) => distributeAdServing(x, "digiDisplay"));
-  (b.digiVideo ?? []).forEach((x) => distributeAdServing(x, "digiVideo"));
-  (b.bvod ?? []).forEach((x) => distributeAdServing(x, "bvod"));
-  (b.progAudio ?? []).forEach((x) => distributeAdServing(x, "progAudio"));
-  (b.progVideo ?? []).forEach((x) => distributeAdServing(x, "progVideo"));
-  (b.progBvod ?? []).forEach((x) => distributeAdServing(x, "progBvod"));
-  (b.progOoh ?? []).forEach((x) => distributeAdServing(x, "progOoh"));
-  (b.progDisplay ?? []).forEach((x) => distributeAdServing(x, "progDisplay"));
+  for (const mediaType of AD_SERVING_SCHEDULE_MEDIA_TYPES) {
+    (b[mediaType] ?? []).forEach((x) => distributeAdServing(x, mediaType));
+  }
 
   const billingMonths: BillingMonth[] = Object.entries(billingMap).map(
     ([monthYear, { totalMedia, totalFee, adServing, productionTotal, mediaCosts }]) => ({

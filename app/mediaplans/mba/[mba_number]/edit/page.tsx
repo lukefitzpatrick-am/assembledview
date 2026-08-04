@@ -7622,6 +7622,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             {
               feeLoading: feeLoadingForSave,
               adservaudio,
+              adservvideo,
+              adservdisplay,
+              adservimp,
             }
           )
         )

@@ -20,6 +20,7 @@ import {
   resolvePublishedVersionId,
 } from "@/lib/mediaplan/drafts/serverStore"
 import { buildStaleBaseCompare } from "@/lib/mediaplan/drafts/pill"
+import { createAdServingRateResolver } from "@/lib/billing/adServingRateResolver"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -104,6 +105,9 @@ const bodySchema = z.object({
   feeLoading: z.record(z.string(), z.number()),
   feeSnapshot: z.record(z.string(), z.unknown()).optional(),
   adservaudio: z.number().optional(),
+  adservvideo: z.number().optional(),
+  adservdisplay: z.number().optional(),
+  adservimp: z.number().optional(),
   /** Month chips at approve/publish — drives approved_slice. */
   selectedMonthYears: z.array(z.string()).optional(),
   /** O4 — working billing snapshot for AUTO correction toast (not authoritative). */
@@ -287,6 +291,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const adservRates = {
+    video: body.adservvideo ?? 0,
+    audio: body.adservaudio ?? 0,
+    display: body.adservdisplay ?? 0,
+    imp: body.adservimp ?? 0,
+  }
+  const getRateForMediaType = createAdServingRateResolver(adservRates)
+
   const saveInput = {
     masterId: body.masterId,
     mbaNumber: body.mbaNumber,
@@ -308,6 +320,7 @@ export async function POST(request: NextRequest) {
     feeLoading: body.feeLoading,
     feeSnapshot: body.feeSnapshot,
     adservaudio: body.adservaudio,
+    getRateForMediaType,
     selectedMonthYears: body.selectedMonthYears,
     clientBillingSchedulePreview: body.clientBillingSchedulePreview as
       | import("@/lib/billing/types").BillingMonth[]

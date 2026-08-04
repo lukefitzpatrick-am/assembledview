@@ -198,27 +198,43 @@ export function buildSavePlanLineItemsFromSnapshots(
 }
 
 /**
- * Shared T4c body assembly — feeLoading / feeSnapshot / adservaudio always ride
+ * Shared T4c body assembly — feeLoading / feeSnapshot / adserv* rates always ride
  * the same path for draft overwrite and publish/status-change. Callers must not
  * wire fee fields per-branch.
  */
 export function assemblePlansSaveRequestBody(
-  base: Omit<PlansSaveRequestBody, "feeLoading" | "feeSnapshot" | "adservaudio">,
+  base: Omit<
+    PlansSaveRequestBody,
+    | "feeLoading"
+    | "feeSnapshot"
+    | "adservaudio"
+    | "adservvideo"
+    | "adservdisplay"
+    | "adservimp"
+  >,
   fees: {
     feeLoading: FeeLoading
     adservaudio?: number | null
+    adservvideo?: number | null
+    adservdisplay?: number | null
+    adservimp?: number | null
   }
 ): PlansSaveRequestBody {
   const feeLoading = fees.feeLoading ?? {}
-  const adserv =
-    typeof fees.adservaudio === "number" && Number.isFinite(fees.adservaudio)
-      ? fees.adservaudio
-      : undefined
+  const pickRate = (v: number | null | undefined): number | undefined =>
+    typeof v === "number" && Number.isFinite(v) ? v : undefined
+  const adservaudio = pickRate(fees.adservaudio)
+  const adservvideo = pickRate(fees.adservvideo)
+  const adservdisplay = pickRate(fees.adservdisplay)
+  const adservimp = pickRate(fees.adservimp)
   return {
     ...base,
     feeLoading,
     feeSnapshot: feeLoading as Record<string, unknown>,
-    ...(adserv !== undefined ? { adservaudio: adserv } : {}),
+    ...(adservaudio !== undefined ? { adservaudio } : {}),
+    ...(adservvideo !== undefined ? { adservvideo } : {}),
+    ...(adservdisplay !== undefined ? { adservdisplay } : {}),
+    ...(adservimp !== undefined ? { adservimp } : {}),
   }
 }
 
@@ -241,6 +257,9 @@ export type PlansSaveRequestBody = {
   feeLoading: FeeLoading
   feeSnapshot?: Record<string, unknown>
   adservaudio?: number
+  adservvideo?: number
+  adservdisplay?: number
+  adservimp?: number
   /** Create-path: insert PG master with this id when missing (ETL-aligned). */
   ensureMaster?: {
     mbaNumber: string
