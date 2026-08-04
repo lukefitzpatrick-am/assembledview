@@ -46,6 +46,9 @@ export type ResolveMbaBillingModalStateArgs = {
   campaignStart?: Date
   campaignEnd?: Date
   selectedMonthYears?: string[]
+  /** Client ad-serving rates — required for live MBA Scope "Ad Serving & Tech". */
+  getRateForMediaType?: (mediaType: string) => number
+  adservaudio?: number
   /** Resolved pending∪saved override rows (or already-resolved effective rows). */
   overrideRows: BillingOverrideRow[]
   /**
@@ -276,6 +279,8 @@ export function resolveMbaBillingModalState(
     campaignStart: args.campaignStart,
     campaignEnd: args.campaignEnd,
     selectedMonthYears: args.selectedMonthYears,
+    getRateForMediaType: args.getRateForMediaType,
+    adservaudio: args.adservaudio,
   })
 
   // Healthy draft session: right table reads the same BillingMonth[] as the left editor.

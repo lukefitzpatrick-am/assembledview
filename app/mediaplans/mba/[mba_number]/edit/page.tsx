@@ -5439,7 +5439,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           }
         });
 
-      // Ad serving per month — LINE flag only (never burst.noAdserving from bursts_json)
+      // Ad serving per month — LINE flag only (never burst.noAdserving from bursts_json).
+      // Flag lives on `lineItem` (arg); callers re-invoke when *MediaLineItems change
+      // (attachLineItemsToMonths deps). Callback deps are rates only — do not add a
+      // line-flag fingerprint here (would churn this hot callback for free).
       const { monthlyAmounts: adServingMonthlyAmounts, totalAdServingAmount } =
         computeMediaLineAdServingMonthlyAmounts({
           lineItem: lineItem as Record<string, unknown>,
@@ -6428,8 +6431,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       campaignEnd: end,
       selectedMonthYears:
         partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
+      // Same rate fn as schedule / generateBillingLineItems — without this,
+      // mbaScopeTotals.adServing stays $0 and No Ad Serving toggles are invisible.
+      getRateForMediaType,
+      adservaudio: adservaudio ?? 0,
     })
-  }, [billingSaveInputs, campaignStartDate, campaignEndDate, partialMBAMonthYears])
+  }, [
+    billingSaveInputs,
+    campaignStartDate,
+    campaignEndDate,
+    partialMBAMonthYears,
+    getRateForMediaType,
+    adservaudio,
+  ])
 
   const campaignFinancialsMediaByKey = useMemo(() => {
     const out: Record<string, number> = {}
@@ -6479,6 +6493,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       campaignEnd: end,
       selectedMonthYears:
         partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
+      getRateForMediaType,
+      adservaudio: adservaudio ?? 0,
       overrideRows,
       pendingOverrideRows: pendingBillingOverrideRows,
       tableOverrideRows: savedBillingOverrideRows,
