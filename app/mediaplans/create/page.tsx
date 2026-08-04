@@ -74,6 +74,7 @@ import { SavingModal, type SaveStatusItem } from "@/components/ui/saving-modal"
 import { OutcomeModal } from "@/components/outcome-modal"
 import type { BillingBurst, BillingMonth, BillingLineItem } from "@/lib/billing/types" // adjust path if needed
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
+import { createAdServingRateResolver } from "@/lib/billing/adServingRateResolver"
 import {
   billingMonthsHaveDetailedLineItems,
   computeLineItemTotalsFromDeliveryMonths,
@@ -1220,28 +1221,12 @@ function CreateMediaPlan() {
   }, [])
 
   const getRateForMediaType = useCallback((mediaType: string): number => {
-    switch (mediaType) {
-      case "progVideo":
-      case "progBvod":
-      case "digiVideo":
-      case "digi video":
-      case "bvod":
-      case "BVOD":
-      case "Prog BVOD":
-      case "Digi Video":
-      case "Prog Video":
-        return adservvideo ?? 0
-      case "progAudio":
-      case "digiAudio":
-      case "digi audio":
-        return adservaudio ?? 0
-      case "progDisplay":
-      case "digiDisplay":
-      case "digi display":
-        return adservdisplay ?? 0
-      default:
-        return adservimp ?? 0
-    }
+    return createAdServingRateResolver({
+      video: adservvideo ?? 0,
+      audio: adservaudio ?? 0,
+      display: adservdisplay ?? 0,
+      imp: adservimp ?? 0,
+    })(mediaType)
   }, [adservvideo, adservaudio, adservdisplay, adservimp])
 
   // Reset the delivery schedule snapshot only when the campaign date range changes,
@@ -5469,7 +5454,7 @@ function CreateMediaPlan() {
                   : null,
               },
             },
-            { feeLoading: feeLoadingForSave, adservaudio }
+            { feeLoading: feeLoadingForSave, adservaudio, adservvideo, adservdisplay, adservimp }
           )
         )
 
