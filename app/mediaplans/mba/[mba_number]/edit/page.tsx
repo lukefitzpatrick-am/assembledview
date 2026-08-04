@@ -143,7 +143,7 @@ import {
   isUnintendedBillingDivergence,
   type BillingDivergenceResult,
 } from "@/lib/billing/compareBillingDivergence"
-import { computeAdServingCost } from "@/lib/billing/computeAdServingCost"
+import { computeMediaLineAdServingMonthlyAmounts } from "@/lib/billing/computeMediaLineAdServingMonthly"
 import { computeBillingAndDeliveryMonths } from "@/lib/billing/computeSchedule"
 import { mergeInvestmentMonths } from "@/lib/billing/mergeInvestmentMonths"
 import { prorateAcrossMonths } from "@/lib/billing/prorateAcrossMonths"
@@ -5439,44 +5439,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           }
         });
 
-      // Ad serving per month (line fees come from seed effect — burst.feeAmount, not % inference)
-      const adServingMonthlyAmounts: Record<string, number> = {}
-      monthKeys.forEach((key) => {
-        adServingMonthlyAmounts[key] = 0
-      })
-
-      bursts.forEach((burst: any) => {
-        const startDate = coerceBurstDateLocal(burst.startDate)
-        const endDate = coerceBurstDateLocal(burst.endDate)
-        if (!startDate || !endDate) return
-
-        const deliverables = Number(burst.deliverables || 0)
-        const noAdserving = Boolean(burst.noAdserving)
-        let adServingForBurst = 0
-        if (!noAdserving && deliverables > 0) {
-          adServingForBurst = computeAdServingCost({
-            quantity: deliverables,
-            buyType: burst.buyType || "",
-            mediaType,
-            rate: getRateForMediaType(mediaType),
-            adservaudio,
-            adServingRatePct: burst.adServingRatePct,
-            adServingImpressions: burst.adServingImpressions,
-          })
-        }
-
-        const shares = prorateAcrossMonths({
-          amount: adServingForBurst,
-          burstStart: startDate,
-          burstEnd: endDate,
+      // Ad serving per month — LINE flag only (never burst.noAdserving from bursts_json)
+      const { monthlyAmounts: adServingMonthlyAmounts, totalAdServingAmount } =
+        computeMediaLineAdServingMonthlyAmounts({
+          lineItem: lineItem as Record<string, unknown>,
+          bursts,
           monthKeys,
+          mediaType,
+          getRateForMediaType,
+          adservaudio,
         })
-        for (const monthKey of monthKeys) {
-          adServingMonthlyAmounts[monthKey] += shares[monthKey] ?? 0
-        }
-      })
-
-      const totalAdServingAmount = Object.values(adServingMonthlyAmounts).reduce((sum, val) => sum + val, 0)
 
       // Create or update line item
       const totalAmount = Object.values(monthlyAmounts).reduce((sum, val) => sum + val, 0);
