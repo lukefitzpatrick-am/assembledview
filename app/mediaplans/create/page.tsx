@@ -1964,8 +1964,17 @@ function CreateMediaPlan() {
       campaignEnd: end,
       selectedMonthYears:
         partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
+      getRateForMediaType,
+      adservaudio: adservaudio ?? 0,
     })
-  }, [billingSaveInputs, campaignStart, campaignEnd, partialMBAMonthYears])
+  }, [
+    billingSaveInputs,
+    campaignStart,
+    campaignEnd,
+    partialMBAMonthYears,
+    getRateForMediaType,
+    adservaudio,
+  ])
 
   /**
    * MB-7 — MbaBillingModal view only. Bare line inputs + draftBillingOverrideRows,
@@ -1991,6 +2000,8 @@ function CreateMediaPlan() {
       campaignEnd: end,
       selectedMonthYears:
         partialMBAMonthYears.length > 0 ? partialMBAMonthYears : undefined,
+      getRateForMediaType,
+      adservaudio: adservaudio ?? 0,
       overrideRows: draftBillingOverrideRows,
       draftReady: manualBillingDraftReady,
       draftMonths: manualBillingMonths,
@@ -2008,6 +2019,8 @@ function CreateMediaPlan() {
     campaignEnd,
     manualBillingDraftReady,
     manualBillingMonths,
+    getRateForMediaType,
+    adservaudio,
   ])
 
   // MB-10: Advanced fee Total column reads the same months selection as edit's fee gate.

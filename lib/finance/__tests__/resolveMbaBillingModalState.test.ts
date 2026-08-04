@@ -230,3 +230,75 @@ test("MB-7: mid-edit draft session — left and right share the same BillingMont
   assert.strictEqual(state.resolvedMonths, draft)
   assertInvariant(state, "mid-edit")
 })
+
+test("AS-3: MBA Scope adServing reacts to rates + line noAdserving", () => {
+  const RATE = 2.5
+  const getRate = (mediaType: string) =>
+    mediaType === "progDisplay" || mediaType === "prog display" ? RATE : 0
+
+  const progLine = (noAdserving: boolean): LineItemInput => ({
+    lineItemId: "billing-progDisplay::BOSS011PD1",
+    mediaType: "progDisplay",
+    buyType: "cpm",
+    rate: 10,
+    enteredAmount: 5_000,
+    budgetIncludesFees: false,
+    clientPaysForMedia: false,
+    feePct: 15,
+    noAdserving,
+    bursts: [
+      {
+        startDate: "2026-05-01",
+        endDate: "2026-05-31",
+        budget: 5_000,
+        buyAmount: 10,
+        deliverables: 500_000,
+      },
+    ],
+    approval: "approved",
+  })
+
+  const charged = resolveMbaBillingModalState({
+    lineItems: [progLine(false)],
+    feeLoading: {},
+    overrideRows: [],
+    draftReady: false,
+    draftMonths: [],
+    campaignStart: new Date(2026, 4, 1),
+    campaignEnd: new Date(2026, 4, 31),
+    getRateForMediaType: getRate,
+    adservaudio: 0,
+  })
+  assert.ok(
+    charged.financials.mbaScopeTotals.adServing > 0,
+    "with rates + flag false, Ad Serving & Tech must be non-zero"
+  )
+
+  const excluded = resolveMbaBillingModalState({
+    lineItems: [progLine(true)],
+    feeLoading: {},
+    overrideRows: [],
+    draftReady: false,
+    draftMonths: [],
+    campaignStart: new Date(2026, 4, 1),
+    campaignEnd: new Date(2026, 4, 31),
+    getRateForMediaType: getRate,
+    adservaudio: 0,
+  })
+  assert.equal(excluded.financials.mbaScopeTotals.adServing, 0)
+
+  const noRates = resolveMbaBillingModalState({
+    lineItems: [progLine(false)],
+    feeLoading: {},
+    overrideRows: [],
+    draftReady: false,
+    draftMonths: [],
+    campaignStart: new Date(2026, 4, 1),
+    campaignEnd: new Date(2026, 4, 31),
+  })
+  assert.equal(
+    noRates.financials.mbaScopeTotals.adServing,
+    0,
+    "missing getRateForMediaType must not silently invent ad serving"
+  )
+})
