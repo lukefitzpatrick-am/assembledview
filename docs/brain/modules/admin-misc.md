@@ -28,6 +28,7 @@
 - `components/tasks/{TaskFormDialog,TeamMemberFormDialog}.tsx` + `app/api/codex/{tasks,tasks/[id],client_notes,team}` — Postgres-native when `CODEX_V2=on` (`lib/codex/repo.ts` / Drizzle). Flag off → routes 404 **and** server page shows "Codex is not enabled" (no client fetch). Auth: `CODEX_SHADOW_ROLES` (admin in shadow); 403 → gated empty state.
 - Assignee picker is team-roster Select (active members; stores `assignee_email` + `assignee_name`). Categories/sources live in `lib/codex/types.ts` (`TASK_CATEGORIES` / `TASK_SOURCES` / `TeamMember`). Soft delete via `deleted_at` (confirm → DELETE; no trash UI). Source chip when `source !== 'manual'`.
 - **`lib/codex/**` is the Tasks domain, not AVA** — naming is historical; types + repo live here.
+- **DI-12:** no FK from Codex `client_id` columns to `clients` (0013 deliberate until T6). POST tasks validates presence only, not existence — see `docs/brain/codex-client-id-fk.md`.
 - List UI uses `ViewState` (`lib/ui/viewState.ts`) via `ViewStateBoundary` so a fetch failure cannot render alongside "no tasks" empty copy; client/status/assignee/search exclusion uses `filtered-empty` + Clear filters. Team empty: "Add the team to enable assignment".
 
 ## Knowledge hub (`src/**`)
