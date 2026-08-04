@@ -546,8 +546,7 @@ export default function CinemaContainer({
 
       if (
         buyTypeLower === "bonus" ||
-        buyTypeLower === "package_inclusions" ||
-        buyTypeLower === "package"
+        buyTypeLower === "package_inclusions"
       ) {
         return parseFloat(
           String(burst?.calculatedValue ?? burst?.deliverables ?? 0)

@@ -720,13 +720,12 @@ export default function OohContainer({
     const buyAmount = parseFloat(burst?.buyAmount?.replace(/[^0-9.]/g, "") || "1");
     const buyTypeRaw = form.getValues(`lineItems.${lineItemIndex}.buyType`);
 
-    // HOTFIX: Bonus, package_inclusions, and package deliverables are entered manually
-    // (via the expert grid). Do not recompute and overwrite them.
+    // Bonus / package_inclusions deliverables are entered manually (expert grid).
+    // Package uses canonical derived maths via computeDeliverableFromMedia below.
     const buyTypeLower = String(buyTypeRaw || "").toLowerCase();
     if (
       buyTypeLower === "bonus" ||
-      buyTypeLower === "package_inclusions" ||
-      buyTypeLower === "package"
+      buyTypeLower === "package_inclusions"
     ) {
       return;
     }
