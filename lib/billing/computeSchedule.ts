@@ -167,6 +167,9 @@ export function computeBillingAndDeliveryMonths(
   });
 
   function distributeAdServing(burst: BillingBurst, mediaType: string) {
+    // burst.noAdserving is a LINE stamp from computeCampaignFinancials /
+    // container get*Bursts (line.noAdserving → BillingBurst). Not a persisted
+    // burst-json input — never treat bursts_json.noAdserving as a second source.
     if (burst.noAdserving) return;
     const monthKeys = Object.keys(billingMap);
     const deliverableShares = prorateAcrossMonths({

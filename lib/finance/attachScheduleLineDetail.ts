@@ -109,6 +109,8 @@ function adServingMonthlyAmountsForLine(
   for (const key of monthKeys) out[key] = 0
 
   for (const burst of line.bursts) {
+    // Stamped from line.noAdserving in computeCampaignFinancials — not a
+    // burst-json input. See resolveLineNoAdserving / AS-2.
     if (burst.noAdserving) continue
     const deliverables = Number(burst.deliverables || 0)
     if (deliverables <= 0) continue

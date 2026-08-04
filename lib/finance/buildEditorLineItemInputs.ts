@@ -3,6 +3,7 @@
  */
 
 import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
+import { resolveLineNoAdserving as resolveNoAdserving } from "@/lib/billing/resolveLineNoAdserving"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { resolveProductionBurstBudget } from "@/lib/mediaplan/resolveProductionBurstBudget"
 import { parseMoneyInput } from "@/lib/format/money"
@@ -104,12 +105,6 @@ function resolveClientPaysForMedia(lineItem: Record<string, unknown>): boolean {
     lineItem.client_pays_for_media ??
       lineItem.clientPaysForMedia ??
       lineItem.client_pays_media
-  )
-}
-
-function resolveNoAdserving(lineItem: Record<string, unknown>): boolean {
-  return Boolean(
-    lineItem.no_adserving ?? lineItem.noadserving ?? lineItem.noAdserving ?? false
   )
 }
 
