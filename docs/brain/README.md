@@ -19,6 +19,7 @@ This rule is enforced for AI tools via `/CLAUDE.md` (Claude) and `/.cursor/rules
 | [BLAST-RADIUS.md](./BLAST-RADIUS.md) | **"If I touch X, what else breaks?"** Choke points ranked by import count + per-file impact tables |
 | [INVARIANTS.md](./INVARIANTS.md) | Locked decisions and laws every change must respect (fee formulas, versioning rules, ZERO-$ LAW, naming law…) |
 | [KNOWN-ISSUES.md](./KNOWN-ISSUES.md) | Recorded tech debt & security findings, with IDs. Check before "discovering" a bug that's already known |
+| [version-control-stage1-consumers.md](./version-control-stage1-consumers.md) | Stage 1 VC: every site that infers publication from `campaign_status` (input to `published_at` migration) |
 | [READ-FAILURE-REGISTER.md](./READ-FAILURE-REGISTER.md) | M7: lib/data catch→[] conversions vs dying-at-T6 Xano page wrappers |
 | [API-DYNAMIC-ROUTE-GATES.md](./API-DYNAMIC-ROUTE-GATES.md) | O6 / SEC-10 inventory of `app/api/**/[param]` gates vs collection siblings — input for T6 RLS (admin \| client) |
 | [XANO-SEVERANCE-REGISTER.md](./XANO-SEVERANCE-REGISTER.md) | X-AUDIT-1: every `app/api` + lib live Xano dependency, verdicts (DUAL-DONE/PORT/RETIRE/MIRROR/TOOLING), vault storage sizing, X1–X8 owner prompts |
