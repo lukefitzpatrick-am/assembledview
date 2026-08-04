@@ -69,7 +69,7 @@
     "probe:finance-investment-actuals": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx scripts/verify/finance-investment-actuals-probe.ts",
     "test:approved-slice": "tsx --test lib/finance/__tests__/approvedSlice.test.ts",
     "test:c1-fullscope-drift": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx scripts/c1-fullscope-drift.ts",
-    "test:save-plan": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/data/__tests__/savePlan.test.ts",
+    "test:save-plan": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/data/__tests__/savePlan.test.ts lib/data/__tests__/savePlan.adServingTripwire.test.ts",
     "test:write-billing-overrides": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/data/__tests__/writeBillingOverrides.test.ts",
     "test:mb13-fee-override-publish": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/data/__tests__/feeOverridePublish.mb13.test.ts",
     "test:mb15c-published-immutable": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/data/__tests__/publishedBillingImmutable.mb15c.test.ts",
