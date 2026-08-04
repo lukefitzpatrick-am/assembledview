@@ -38,6 +38,7 @@ import {
   computeCampaignFinancials,
   resolveFeePctFromFeeLoading,
 } from "@/lib/finance/computeCampaignFinancials"
+import { isAdServingEligibleMediaType } from "@/lib/billing/adServingRateResolver"
 import { computeApprovedSlice, type ApprovedSlice } from "@/lib/finance/approvedSlice"
 import { computeSnapshotChecksum } from "@/lib/docs/snapshotChecksum"
 import {
@@ -875,6 +876,45 @@ export async function savePlanVersion(
               feeTotal,
               feeLoadingKeys: Object.keys(feeLoading),
               lines: nonzeroPctLines.slice(0, 12),
+            })
+          }
+        }
+      }
+
+      // Ad-serving twin of O4.5 (always-on, never blocks): eligible lines with
+      // deliverables but campaign ad-serving total is $0 (usually missing resolver).
+      {
+        const adServingTotal = Number(financials.mbaScopeTotals?.adServing ?? 0)
+        if (Number.isFinite(adServingTotal) && Math.abs(adServingTotal) < 0.005) {
+          const lineById = new Map(
+            lineInputs.map((l) => [String(l.lineItemId), l] as const)
+          )
+          const eligibleLines: Array<{
+            lineItemId: string
+            mediaType: string
+            deliverables: number
+          }> = []
+          for (const pl of financials.perLine) {
+            if (pl.flags.excluded) continue
+            if (!isAdServingEligibleMediaType(pl.mediaType)) continue
+            const src = lineById.get(String(pl.lineItemId))
+            if (src?.noAdserving) continue
+            if (!(pl.deliverables > 0)) continue
+            eligibleLines.push({
+              lineItemId: String(pl.lineItemId),
+              mediaType: pl.mediaType,
+              deliverables: pl.deliverables,
+            })
+          }
+          if (eligibleLines.length > 0) {
+            console.error("[savePlan-adserving-zero]", {
+              mba: input.mbaNumber,
+              version: input.versionNumber,
+              mode: input.mode,
+              adServingTotal,
+              hasResolver: typeof input.getRateForMediaType === "function",
+              adservaudio: input.adservaudio ?? null,
+              lines: eligibleLines.slice(0, 12),
             })
           }
         }
