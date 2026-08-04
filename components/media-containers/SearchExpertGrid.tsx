@@ -25,6 +25,10 @@ export interface SearchExpertGridProps {
   /** Platform names (search publishers API) for platform combobox + fuzzy matching */
   publishers?: { publisher_name: string }[]
   onReorder?: () => void
+  /** Controlled week-start; parent owns state so Apply columns match grid keys. */
+  weekStartsOn?: import("@/lib/utils/weeklyGanttColumns").WeekStartsOn
+  onWeekStartsOnChange?: (v: import("@/lib/utils/weeklyGanttColumns").WeekStartsOn) => void
+
 }
 
 export function SearchExpertGrid({ feesearch, ...rest }: SearchExpertGridProps) {

@@ -164,6 +164,8 @@ export default function MediaChannelContainer({
     mbaNumber,
     reorderedRef,
     fieldKey,
+    weekStartsOn,
+    setWeekStartsOn,
   } = useMediaChannelContainer(config, {
     clientId,
     feePct,
@@ -520,6 +522,8 @@ export default function MediaChannelContainer({
                 rows={expertRows}
                 onRowsChange={handleExpertRowsChange}
                 publishers={publishers}
+                weekStartsOn={weekStartsOn}
+                onWeekStartsOnChange={setWeekStartsOn}
                 onReorder={() => {
                   reorderedRef.current = true
                 }}

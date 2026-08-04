@@ -109,7 +109,7 @@ import {
   mergeProductionStandardFromExpertWithPrevious,
   serializeProductionExpertRowsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
-import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
 
 const MEDIA_ACCENT_HEX = getMediaTypeThemeHex("production")
 
@@ -266,10 +266,11 @@ export default function ProductionContainer({
   const reorderedRef = useRef(false)
   productionExpertModalOpenRef.current = productionExpertModalOpen
 
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
   const productionExpertWeekColumns = useMemo(
-    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
-    [campaignStartDate, campaignEndDate]
-  )
+    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
+    [campaignStartDate, campaignEndDate, weekStartsOn]
+  );
 
   const productionTypeComboboxOptions = useMemo(
     () =>
@@ -1032,6 +1033,8 @@ export default function ProductionContainer({
                 onReorder={() => {
                   reorderedRef.current = true
                 }}
+                weekStartsOn={weekStartsOn}
+                onWeekStartsOnChange={setWeekStartsOn}
               />
             </div>
           </ComboboxModalProvider>

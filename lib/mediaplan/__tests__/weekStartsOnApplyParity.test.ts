@@ -1,14 +1,7 @@
 /**
- * CHARACTERISATION TEST — documents CURRENT (buggy) Apply behaviour.
- *
- * Hypothesis: ExpertGrid rebuckets row.weeklyValues onto Monday week keys when the
- * user switches weekStartsOn, then pushes those rows to the parent via onRowsChange.
- * Containers still build Apply columns with buildWeeklyGanttColumnsFromCampaign(start, end)
- * (default weekStartsOn=0 = Sunday). mapOohExpertRowsToStandardLineItems then looks up
- * row.weeklyValues[col.weekKey] with Sunday keys → undefined → quantity silently dropped.
- *
- * When the gated weekStartsOn fix pack lands, flip the Apply-with-Sunday assertion to
- * expect conserved quantities (or delete this file in favour of a green parity suite).
+ * Apply parity: ExpertGrid rebuckets onto Monday week keys when weekStartsOn=1;
+ * containers that own the same weekStartsOn state must build Apply columns with
+ * matching keys so quantities are conserved.
  */
 import assert from "node:assert/strict"
 import test from "node:test"
@@ -47,7 +40,7 @@ function baseOohRow(
   }
 }
 
-test("CHARACTERISATION (buggy): Monday-rebucketed OOH qty is dropped when Apply uses Sunday columns", () => {
+test("Apply parity: Monday-rebucketed OOH qty conserved when Apply uses Monday columns", () => {
   const sundayCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 0)
   const mondayCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 1)
   assert.notEqual(
@@ -67,17 +60,16 @@ test("CHARACTERISATION (buggy): Monday-rebucketed OOH qty is dropped when Apply 
   )
   assert.ok(rebucketed)
 
-  // Quantities survive on Monday keys (grid state after weekStartsOn change).
   const mondayQtyTotal = Object.values(rebucketed.weeklyValues).reduce<number>(
     (s, v) => s + (typeof v === "number" ? v : 0),
     0
   )
   assert.equal(mondayQtyTotal, 10)
 
-  // Apply path as containers do today: Sunday default columns + Monday-keyed rows.
+  // Fixed Apply path: same weekStartsOn as the grid (Monday columns).
   const [line] = mapOohExpertRowsToStandardLineItems(
     [rebucketed],
-    sundayCols,
+    mondayCols,
     CS,
     CE
   )
@@ -87,19 +79,11 @@ test("CHARACTERISATION (buggy): Monday-rebucketed OOH qty is dropped when Apply 
     (s, b) => s + (Number(b.calculatedValue) || 0),
     0
   )
-  // CURRENT BUG: Sunday col.weekKey lookups miss Monday keys → no bursts / zero qty.
   assert.equal(
     appliedQty,
-    0,
-    "characterises silent qty drop when Apply columns disagree with rebucketed keys"
+    10,
+    "Apply columns must match rebucketed Monday keys so qty is conserved"
   )
-  assert.equal(
-    line.bursts.every((b) => !b.budget || b.budget === "0" || Number(b.calculatedValue) === 0) ||
-      line.bursts.length === 1,
-    true
-  )
-  // emptyOohLineItem placeholder when no weeks matched: single empty burst, calculatedValue 0
-  assert.equal(line.bursts[0]!.calculatedValue, 0)
 })
 
 test("control: same Monday-rebucketed rows Apply correctly against Monday columns", () => {
@@ -131,33 +115,27 @@ test("control: same Monday-rebucketed rows Apply correctly against Monday column
   assert.equal(appliedQty, 10)
 })
 
-test("CHARACTERISATION: rebucketRowsForWeekStartsOn clears mergedWeekSpans", () => {
+test("Sunday default unchanged: Sunday-keyed rows Apply with Sunday columns keep qty 10", () => {
   const sundayCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 0)
-  const mondayCols = buildWeeklyGanttColumnsFromCampaign(CS, CE, 1)
-  const weeklyValues: OohExpertScheduleRow["weeklyValues"] = {}
-  for (const c of sundayCols) weeklyValues[c.weekKey] = ""
 
-  const [next] = rebucketRowsForWeekStartsOn(
-    [
-      {
-        ...baseOohRow(weeklyValues),
-        mergedWeekSpans: [
-          {
-            startWeekKey: sundayCols[0]!.weekKey,
-            endWeekKey: sundayCols[1]!.weekKey,
-            totalQty: 140,
-          },
-        ],
-      },
-    ],
+  const sundayWeekly: OohExpertScheduleRow["weeklyValues"] = {}
+  for (const c of sundayCols) sundayWeekly[c.weekKey] = ""
+  sundayWeekly[sundayCols[0]!.weekKey] = 10
+
+  const [line] = mapOohExpertRowsToStandardLineItems(
+    [baseOohRow(sundayWeekly)],
     sundayCols,
-    mondayCols
+    CS,
+    CE
   )
-  assert.ok(next)
-  assert.deepEqual(next.mergedWeekSpans, [])
-  const total = Object.values(next.weeklyValues).reduce<number>(
-    (s, v) => s + (typeof v === "number" ? v : 0),
+  assert.ok(line)
+  const appliedQty = line.bursts.reduce(
+    (s, b) => s + (Number(b.calculatedValue) || 0),
     0
   )
-  assert.equal(total, 140)
+  assert.equal(
+    appliedQty,
+    10,
+    "Sunday-default Apply path must behave exactly as before the controlled lift"
+  )
 })

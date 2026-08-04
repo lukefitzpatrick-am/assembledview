@@ -106,7 +106,7 @@ import {
   serializeDigiAudioExpertRowsBaseline,
   serializeDigiAudioStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
-import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
 
 const AD_SERVING_OVERRIDE_BURST_GRID =
   "grid grid-cols-8 gap-3 items-end flex-1 min-w-0"
@@ -286,10 +286,11 @@ export default function DigiAudioContainer({
   const digiAudioExpertModalOpenRef = useRef(false)
   digiAudioExpertModalOpenRef.current = digiAudioExpertModalOpen
 
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
   const digiAudioExpertWeekColumns = useMemo(
-    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
-    [campaignStartDate, campaignEndDate]
-  )
+    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
+    [campaignStartDate, campaignEndDate, weekStartsOn]
+  );
 
   const [isAddSiteDialogOpen, setIsAddSiteDialogOpen] = useState(false);
   const [newSiteName, setNewSiteName] = useState("");
@@ -1524,6 +1525,8 @@ useEffect(() => {
                 rows={expertDigiAudioRows}
                 onRowsChange={handleExpertDigiAudioRowsChange}
                 publishers={publishers}
+                weekStartsOn={weekStartsOn}
+                onWeekStartsOnChange={setWeekStartsOn}
                 digiAudioSites={audioSites}
                 onReorder={() => {
                   reorderedRef.current = true;

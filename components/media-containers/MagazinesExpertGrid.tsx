@@ -29,6 +29,10 @@ export interface MagazinesExpertGridProps {
   /** Ad size options for the size combobox-dynamic column */
   adSizes?: ComboboxOption[]
   onReorder?: () => void
+  /** Controlled week-start; parent owns state so Apply columns match grid keys. */
+  weekStartsOn?: import("@/lib/utils/weeklyGanttColumns").WeekStartsOn
+  onWeekStartsOnChange?: (v: import("@/lib/utils/weeklyGanttColumns").WeekStartsOn) => void
+
 }
 
 export function MagazinesExpertGrid({

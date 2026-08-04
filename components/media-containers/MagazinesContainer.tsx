@@ -101,7 +101,7 @@ import {
   serializeMagazinesExpertRowsBaseline,
   serializeMagazineStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
-import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
 import {
   getMediaTypeThemeHex,
   mediaTypeAccentTextStyle,
@@ -488,10 +488,11 @@ const form = useForm<MagazinesFormValues>({
   const magazinesExpertModalOpenRef = useRef(false)
   magazinesExpertModalOpenRef.current = magazinesExpertModalOpen
 
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
   const magazinesExpertWeekColumns = useMemo(
-    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
-    [campaignStartDate, campaignEndDate]
-  )
+    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
+    [campaignStartDate, campaignEndDate, weekStartsOn]
+  );
 
   const magazineAdSizeOptions = useMemo(
     () =>
@@ -1653,6 +1654,8 @@ useEffect(() => {
                 rows={expertMagazinesRows}
                 onRowsChange={handleExpertMagazinesRowsChange}
                 publishers={publishers}
+                weekStartsOn={weekStartsOn}
+                onWeekStartsOnChange={setWeekStartsOn}
                 magazines={magazines}
                 adSizes={magazineAdSizeOptions}
                 onReorder={() => {

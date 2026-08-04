@@ -60,7 +60,7 @@ import { getMediaTypeThemeHex } from "@/lib/mediaplan/mediaTypeAccents"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers, reassignLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import { ComboboxModalProvider } from "@/components/ui/combobox"
-import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
 import { CinemaExpertGrid, createEmptyCinemaExpertRow } from "@/components/media-containers/CinemaExpertGrid"
 import type { CinemaExpertScheduleRow } from "@/lib/mediaplan/expertModeWeeklySchedule"
 import {
@@ -375,10 +375,11 @@ export default function CinemaContainer({
   const cinemaStandardBaselineRef = useRef("")
   const cinemaExpertRowsBaselineRef = useRef("")
   const reorderedRef = useRef(false)
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
   const cinemaExpertWeekColumns = useMemo(
-    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
-    [campaignStartDate, campaignEndDate]
-  )
+    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
+    [campaignStartDate, campaignEndDate, weekStartsOn]
+  );
 
   const collapseAllLineItems = useCallback(() => {
     const items = form.getValues("cinemalineItems") || []
@@ -1469,6 +1470,8 @@ useEffect(() => {
                 rows={expertCinemaRows}
                 onRowsChange={handleExpertCinemaRowsChange}
                 publishers={publishers}
+                weekStartsOn={weekStartsOn}
+                onWeekStartsOnChange={setWeekStartsOn}
                 cinemaStations={cinemaStations}
                 onReorder={() => { reorderedRef.current = true }}
               />

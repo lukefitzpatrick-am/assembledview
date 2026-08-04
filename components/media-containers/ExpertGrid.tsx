@@ -360,6 +360,14 @@ export interface ExpertGridProps<TRow extends ExpertScheduleRowCommon = ExpertSc
    */
   extraComboboxOptions?: Partial<Record<string, ComboboxOption[]>>
   onReorder?: () => void
+  /**
+   * Controlled week-start (0=Sun … 6=Sat). When omitted, ExpertGrid keeps
+   * internal state defaulting to Sunday. Parents that Apply must pass this
+   * (and `onWeekStartsOnChange`) so Apply columns match grid week keys.
+   * Not persisted to the database.
+   */
+  weekStartsOn?: WeekStartsOn
+  onWeekStartsOnChange?: (v: WeekStartsOn) => void
 }
 
 
@@ -420,6 +428,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   titles = [],
   extraComboboxOptions,
   onReorder,
+  weekStartsOn: weekStartsOnProp,
+  onWeekStartsOnChange,
 }: ExpertGridProps<TRow>) {
   const MEDIA_ACCENT_HEX = getMediaTypeThemeHex(config.mediaTypeKey)
   const searchExpertHeaderCellBgStyle = {
@@ -448,7 +458,9 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     [publishers]
   )
 
-  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0)
+  const [uncontrolledWeekStartsOn, setUncontrolledWeekStartsOn] =
+    useState<WeekStartsOn>(0)
+  const weekStartsOn = weekStartsOnProp ?? uncontrolledWeekStartsOn
   const weekColumns = useMemo(
     () =>
       buildWeeklyGanttColumnsFromCampaign(
@@ -880,9 +892,19 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
         newColumns
       )
       setExpandedWeekKeys(new Set())
-      setWeekStartsOn(next)
+      if (weekStartsOnProp === undefined) {
+        setUncontrolledWeekStartsOn(next)
+      }
+      onWeekStartsOnChange?.(next)
     },
-    [weekStartsOn, weekColumns, campaignStartDate, campaignEndDate]
+    [
+      weekStartsOn,
+      weekStartsOnProp,
+      onWeekStartsOnChange,
+      weekColumns,
+      campaignStartDate,
+      campaignEndDate,
+    ]
   )
   useEffect(() => {
     const pending = pendingWeekRebucketRef.current

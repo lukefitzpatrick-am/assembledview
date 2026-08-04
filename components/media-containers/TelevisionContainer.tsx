@@ -113,7 +113,7 @@ import {
   serializeTelevisionExpertRowsBaseline,
   serializeTelevisionStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
-import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
 import { MEDIA_TYPE_ID_CODES, buildLineItemId } from "@/lib/mediaplan/lineItemIds"
 import {
   assignStableLineItemNumbers,
@@ -298,10 +298,11 @@ export default function TelevisionContainer({
     onMediaLineItemsChange,
   ])
 
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
   const tvExpertWeekColumns = useMemo(
-    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
-    [campaignStartDate, campaignEndDate]
-  )
+    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
+    [campaignStartDate, campaignEndDate, weekStartsOn]
+  );
 
   const createLineItemId = useCallback(
     (lineNumber: number) =>
@@ -1850,6 +1851,8 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
                 rows={expertTvRows}
                 onRowsChange={handleExpertTvRowsChange}
                 publishers={publishers}
+                weekStartsOn={weekStartsOn}
+                onWeekStartsOnChange={setWeekStartsOn}
                 tvStations={tvStations}
                 onReorder={() => {
                   reorderedRef.current = true;

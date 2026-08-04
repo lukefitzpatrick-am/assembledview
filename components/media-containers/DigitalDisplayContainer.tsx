@@ -107,7 +107,7 @@ import {
   serializeDigiDisplayExpertRowsBaseline,
   serializeDigiDisplayStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
-import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -378,10 +378,11 @@ export default function DigiDisplayContainer({
   const digiDisplayExpertModalOpenRef = useRef(false)
   digiDisplayExpertModalOpenRef.current = digiDisplayExpertModalOpen
 
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
   const digiDisplayExpertWeekColumns = useMemo(
-    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
-    [campaignStartDate, campaignEndDate]
-  )
+    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
+    [campaignStartDate, campaignEndDate, weekStartsOn]
+  );
 
   const [isAddSiteDialogOpen, setIsAddSiteDialogOpen] = useState(false);
   const [newSiteName, setNewSiteName] = useState("");
@@ -1677,6 +1678,8 @@ useEffect(() => {
                 rows={expertDigiDisplayRows}
                 onRowsChange={handleExpertDigiDisplayRowsChange}
                 publishers={publishers}
+                weekStartsOn={weekStartsOn}
+                onWeekStartsOnChange={setWeekStartsOn}
                 digiDisplaySites={digidisplaySites}
                 onReorder={() => {
                   reorderedRef.current = true;

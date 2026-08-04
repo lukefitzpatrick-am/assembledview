@@ -106,7 +106,7 @@ import {
   serializeSocialMediaExpertRowsBaseline,
   serializeSocialMediaStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
-import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -272,10 +272,11 @@ export default function SocialMediaContainer({
   const socialExpertModalOpenRef = useRef(false)
   socialExpertModalOpenRef.current = socialExpertModalOpen
 
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
   const socialExpertWeekColumns = useMemo(
-    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
-    [campaignStartDate, campaignEndDate]
-  )
+    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
+    [campaignStartDate, campaignEndDate, weekStartsOn]
+  );
   
   // Form initialization
   const form = useForm({
@@ -1350,6 +1351,8 @@ const getBursts = () => {
                 rows={expertSocialRows}
                 onRowsChange={handleExpertSocialRowsChange}
                 publishers={publishers}
+                weekStartsOn={weekStartsOn}
+                onWeekStartsOnChange={setWeekStartsOn}
                 onReorder={() => {
                   reorderedRef.current = true;
                 }}

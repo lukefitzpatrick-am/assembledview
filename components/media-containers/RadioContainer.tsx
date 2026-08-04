@@ -86,7 +86,7 @@ import {
   computeDeliverableFromMedia,
   computeLoadedDeliverables,
 } from "@/lib/mediaplan/deliverableBudget"
-import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
@@ -248,9 +248,10 @@ export default function RadioContainer({
   const reorderedRef = useRef(false);
   radioExpertModalOpenRef.current = radioExpertModalOpen;
 
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
   const radioExpertWeekColumns = useMemo(
-    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
-    [campaignStartDate, campaignEndDate]
+    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
+    [campaignStartDate, campaignEndDate, weekStartsOn]
   );
 
   // Deterministic ID generator aligned with what is shown in the UI
@@ -1623,6 +1624,8 @@ useEffect(() => {
                 rows={expertRadioRows}
                 onRowsChange={handleExpertRadioRowsChange}
                 publishers={publishers}
+                weekStartsOn={weekStartsOn}
+                onWeekStartsOnChange={setWeekStartsOn}
                 radioStations={radioStations}
                 onReorder={() => {
                   reorderedRef.current = true;

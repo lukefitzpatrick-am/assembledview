@@ -82,7 +82,7 @@ import {
   serializeIntegrationExpertRowsBaseline,
   serializeIntegrationStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
-import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -325,10 +325,11 @@ export default function IntegrationContainer({
   const integrationExpertModalOpenRef = useRef(false)
   integrationExpertModalOpenRef.current = integrationExpertModalOpen
 
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
   const integrationExpertWeekColumns = useMemo(
-    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
-    [campaignStartDate, campaignEndDate]
-  )
+    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
+    [campaignStartDate, campaignEndDate, weekStartsOn]
+  );
 
   useLayoutEffect(() => {
     integrationStandardBaselineRef.current =
@@ -1338,6 +1339,8 @@ useEffect(() => {
                 rows={expertIntegrationRows}
                 onRowsChange={handleExpertIntegrationRowsChange}
                 publishers={publishers}
+                weekStartsOn={weekStartsOn}
+                onWeekStartsOnChange={setWeekStartsOn}
                 onReorder={() => {
                   reorderedRef.current = true;
                 }}

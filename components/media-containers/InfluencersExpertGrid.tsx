@@ -25,6 +25,10 @@ export interface InfluencersExpertGridProps {
   /** Publisher/platform/network names for combobox + fuzzy matching */
   publishers?: { publisher_name: string }[]
   onReorder?: () => void
+  /** Controlled week-start; parent owns state so Apply columns match grid keys. */
+  weekStartsOn?: import("@/lib/utils/weeklyGanttColumns").WeekStartsOn
+  onWeekStartsOnChange?: (v: import("@/lib/utils/weeklyGanttColumns").WeekStartsOn) => void
+
 }
 
 export function InfluencersExpertGrid({

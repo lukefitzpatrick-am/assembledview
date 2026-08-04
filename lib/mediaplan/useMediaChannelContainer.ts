@@ -37,7 +37,10 @@ import type { BillingBurst } from "@/lib/billing/types"
 import type { LineItem } from "@/lib/generateMediaPlan"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import { coerceBurstDateLocal } from "@/lib/mediaplan/burstDate"
-import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import {
+  buildWeeklyGanttColumnsFromCampaign,
+  type WeekStartsOn,
+} from "@/lib/utils/weeklyGanttColumns"
 import {
   coerceBuyTypeWithDevWarn,
   computeDeliverableFromMedia,
@@ -270,9 +273,15 @@ export function useMediaChannelContainer(
   const expertModalOpenRef = useRef(false)
   expertModalOpenRef.current = expertModalOpen
 
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0)
   const expertWeekColumns = useMemo(
-    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
-    [campaignStartDate, campaignEndDate],
+    () =>
+      buildWeeklyGanttColumnsFromCampaign(
+        campaignStartDate,
+        campaignEndDate,
+        weekStartsOn,
+      ),
+    [campaignStartDate, campaignEndDate, weekStartsOn],
   )
 
   useLayoutEffect(() => {
@@ -1023,6 +1032,8 @@ export function useMediaChannelContainer(
     expertExitConfirmOpen,
     expertRows,
     expertWeekColumns,
+    weekStartsOn,
+    setWeekStartsOn,
     expertApplyPendingPageSave,
     expertSegmentAttention,
     openExpertModal,

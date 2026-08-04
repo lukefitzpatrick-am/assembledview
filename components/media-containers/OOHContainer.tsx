@@ -82,7 +82,7 @@ import {
   serializeOohExpertRowsBaseline,
   serializeOohStandardLineItemsBaseline,
 } from "@/lib/mediaplan/expertModeSwitch"
-import { buildWeeklyGanttColumnsFromCampaign } from "@/lib/utils/weeklyGanttColumns"
+import { buildWeeklyGanttColumnsFromCampaign, type WeekStartsOn } from "@/lib/utils/weeklyGanttColumns"
 import { defaultMediaBurstStartDate, defaultMediaBurstEndDate } from "@/lib/date-picker-anchor"
 import MediaContainerTimelineCollapsible from "@/components/media-containers/MediaContainerTimelineCollapsible"
 import MediaContainerSummarySection from "@/components/media-containers/MediaContainerSummarySection"
@@ -249,9 +249,10 @@ export default function OohContainer({
   const oohExpertRowsBaselineRef = useRef<string>("");
   oohExpertModalOpenRef.current = oohExpertModalOpen;
 
+  const [weekStartsOn, setWeekStartsOn] = useState<WeekStartsOn>(0);
   const oohExpertWeekColumns = useMemo(
-    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate),
-    [campaignStartDate, campaignEndDate]
+    () => buildWeeklyGanttColumnsFromCampaign(campaignStartDate, campaignEndDate, weekStartsOn),
+    [campaignStartDate, campaignEndDate, weekStartsOn]
   );
 
   // Deterministic ID generator aligned with UI label
@@ -1366,6 +1367,8 @@ useEffect(() => {
                   reorderedRef.current = true;
                 }}
                 publishers={publishers}
+                weekStartsOn={weekStartsOn}
+                onWeekStartsOnChange={setWeekStartsOn}
               />
             </div>
           </ComboboxModalProvider>
