@@ -144,6 +144,7 @@ export function TasksPageClient() {
   const [sort, setSort] = useState("due_date")
 
   const [clients, setClients] = useState<ClientOption[]>([])
+  const [clientsError, setClientsError] = useState<string | null>(null)
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [teamLoading, setTeamLoading] = useState(true)
   const [teamError, setTeamError] = useState<string | null>(null)
@@ -164,24 +165,32 @@ export function TasksPageClient() {
     return map
   }, [clients])
 
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const res = await fetch("/api/clients")
-        if (!res.ok) return
-        const data = await res.json()
-        if (!cancelled && Array.isArray(data)) {
-          setClients(data as ClientOption[])
-        }
-      } catch (error) {
-        console.error("Failed to load clients for tasks filters:", error)
+  const fetchClients = useCallback(async () => {
+    try {
+      const res = await fetch("/api/clients")
+      if (!res.ok) return
+      // Fail-soft: route returns 200 [] + x-warning when upstream throws.
+      // Do not treat that as a healthy empty client list (INVARIANTS fail-soft law).
+      if (res.headers.get("x-warning") === "clients-unavailable") {
+        setClients([])
+        setClientsError("Client list unavailable — try again")
+        return
       }
-    })()
-    return () => {
-      cancelled = true
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        setClientsError(null)
+        setClients(data as ClientOption[])
+      }
+    } catch (error) {
+      console.error("Failed to load clients for tasks filters:", error)
+      setClients([])
+      setClientsError("Client list unavailable — try again")
     }
   }, [])
+
+  useEffect(() => {
+    void fetchClients()
+  }, [fetchClients])
 
   const fetchTeam = useCallback(async () => {
     setTeamLoading(true)
@@ -307,23 +316,30 @@ export function TasksPageClient() {
     () =>
       resolveListViewState({
         loading: isLoading,
-        error: loadError,
+        error: clientsError ?? loadError,
         items: tasks,
         visible: filteredTasks,
         filtersActive: tasksFiltersActive,
         clear: clearTaskFilters,
         retry: () => {
+          if (clientsError) {
+            setClientsError(null)
+            void fetchClients()
+            return
+          }
           setLoadError(null)
           void fetchTasks()
         },
       }),
     [
       isLoading,
+      clientsError,
       loadError,
       tasks,
       filteredTasks,
       tasksFiltersActive,
       clearTaskFilters,
+      fetchClients,
       fetchTasks,
     ]
   )
@@ -832,7 +848,9 @@ export function TasksPageClient() {
 
           <ViewStateBoundary
             state={tasksViewState}
-            errorTitle="Couldn't load tasks"
+            errorTitle={
+              clientsError ? "Client list unavailable" : "Couldn't load tasks"
+            }
             emptyTitle="No tasks yet — create the first one"
             emptyMessage="Create a task to track follow-ups across clients and campaigns."
             emptyAction={

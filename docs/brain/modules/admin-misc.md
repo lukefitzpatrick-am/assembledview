@@ -25,6 +25,7 @@
 
 - Sidebar label is **Codex** (Luke); page keeps the shadow badge. Sidebar entry is hidden for roles outside `CODEX_SHADOW_ROLES` (`lib/codex/shadowRoles.ts`) so a visible link never 403s the team. Two tabs: Tasks | Team.
 - Default list (`mine=1`): `assignee_email = me OR created_by_email = me` (includes unassigned tasks I created). **All tasks** toggle clears that scope so null-assignee rows stay visible. Exact `assignee_email` filter still excludes unassigned by design.
+- Clients load reads `x-warning: clients-unavailable` from `GET /api/clients` and surfaces ViewState error (not an empty Client select). Other callers: `docs/brain/fail-soft-consumers.md`.
 - `components/tasks/{TaskFormDialog,TeamMemberFormDialog}.tsx` + `app/api/codex/{tasks,tasks/[id],client_notes,team}` — Postgres-native when `CODEX_V2=on` (`lib/codex/repo.ts` / Drizzle). Flag off → routes 404 **and** server page shows "Codex is not enabled" (no client fetch). Auth: `CODEX_SHADOW_ROLES` (admin in shadow); 403 → gated empty state.
 - Assignee picker is team-roster Select (active members; stores `assignee_email` + `assignee_name`). Categories/sources live in `lib/codex/types.ts` (`TASK_CATEGORIES` / `TASK_SOURCES` / `TeamMember`). Soft delete via `deleted_at` (confirm → DELETE; no trash UI). Source chip when `source !== 'manual'`.
 - **`lib/codex/**` is the Tasks domain, not AVA** — naming is historical; types + repo live here.
