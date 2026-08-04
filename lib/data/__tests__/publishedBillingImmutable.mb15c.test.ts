@@ -283,6 +283,20 @@ test("MB-15c (iii): publish then attempt — refused; published version byte-ide
   })
 
   const line = baseLine(LINE_A, 1000)
+  // MB-22: override must ride the save payload (REPLACE-SET). An intermediate
+  // draft/publish save with a bare line would wipe a DB-only override before
+  // the immutability reject can run.
+  const billingOverride = {
+    mode: "manual" as const,
+    reason: "prepayment" as const,
+    dateBasis: "mb15c-before-publish",
+    months: [
+      { month: "2026-06", amount: 1000 },
+      { month: "2026-07", amount: 0 },
+    ],
+  }
+  const lineWithOverride = baseLine(LINE_A, 1000, { billingOverride })
+
   const draft = await savePlanVersion(draftInput(masterId, [line]))
   await replaceBillingOverrideLine({
     versionId: draft.versionId,
@@ -291,16 +305,13 @@ test("MB-15c (iii): publish then attempt — refused; published version byte-ide
     component: "media",
     mode: "manual",
     reason: "prepayment",
-    months: [
-      { month: "2026-06", amount: 1000 },
-      { month: "2026-07", amount: 0 },
-    ],
-    dateBasis: "mb15c-before-publish",
+    months: billingOverride.months,
+    dateBasis: billingOverride.dateBasis,
   })
-  await savePlanVersion(draftInput(masterId, [line]))
+  await savePlanVersion(draftInput(masterId, [lineWithOverride]))
 
   const published = await savePlanVersion({
-    ...draftInput(masterId, [line]),
+    ...draftInput(masterId, [lineWithOverride]),
     mode: "publish",
     campaignStatus: "booked",
     feeSnapshot: { feesearch: 10 },
@@ -310,6 +321,8 @@ test("MB-15c (iii): publish then attempt — refused; published version byte-ide
 
   const before = await snapshotBillingState(published.versionId)
   assert.ok(before.checksum.length >= 16)
+  // Precondition: published version still carries the override — otherwise the
+  // reject below would be vacuous (nothing left to illegally mutate).
   assert.notEqual(before.overridesJson, "[]")
 
   await assert.rejects(
