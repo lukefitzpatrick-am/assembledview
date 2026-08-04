@@ -67,3 +67,6 @@ scripts/ps1-sec-live-probe.mjs
 # PC6 matcher replay output (regenerate via npm run replay:pc6-matcher)
 /pc6-matcher-replay-report.json
 
+# C1 full-scope drift report (regenerate via npm run test:c1-fullscope-drift)
+scripts/c1-fullscope-drift-report.csv
+
