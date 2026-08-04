@@ -2,6 +2,8 @@
  * Run every package.json `test:*` script (except `test:all`) in declaration order.
  * Continues after failures so the full pass/fail table is always printed.
  * Exit 1 if any suite fails.
+ *
+ * Auto-includes new suites (e.g. `test:codex-flag-auth`) — no hardcoded list.
  */
 import { spawnSync } from "node:child_process"
 import { readFileSync } from "node:fs"
