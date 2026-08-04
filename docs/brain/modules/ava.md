@@ -31,4 +31,5 @@ Nearly everything (read tools): media-containers API, pacing caches + maths, del
 - Rate limiters are in-process Maps — per-instance only on serverless.
 - Skill markdown edits: content lives in-repo (`lib/ava/skills/content/`), vendored from the Assembled skills — keep in sync deliberately, not ad hoc.
 - Postgres reads for AVA use `AVA_DATABASE_URL` as role `ava_readonly` (`db/migrations/0003_ava_readonly.sql`: explicit SELECT allowlist + `ava_read` RLS policies, `statement_timeout=5s`, `default_transaction_read_only=on`). Never the owner/`DATABASE_URL` connection.
+- **`client_notes` stays on the AVA allowlist (Q22)** — deliberate; Stage 3 populated notes are chat-queryable. New Codex tables from 0013 are not granted to AVA. See `docs/brain/modules/codex.md`.
 - AVA tool `fy` is the Australian FY **ending** year via shared `lib/ava/tools/fyToRange.ts` (`fy=2026` → Jul 2025–Jun 2026). Distinct from finance hub `fyMonthRange` (start-year). Responses that apply an fy filter echo `range` (e.g. `"2025-07..2026-06"`).

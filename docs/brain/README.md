@@ -35,7 +35,8 @@ This rule is enforced for AI tools via `/CLAUDE.md` (Claude) and `/.cursor/rules
 | [modules/kpi.md](./modules/kpi.md) | Three-tier KPI targets, fan-out, delivery target curves |
 | [modules/trafficking-creative.md](./modules/trafficking-creative.md) | Naming/trafficking builder, creative assets, mockups, ad copy |
 | [modules/dashboards-charts-exports.md](./modules/dashboards-charts-exports.md) | Client dashboards, chart system, document/export generation, email |
-| [modules/admin-misc.md](./modules/admin-misc.md) | Admin/users, tasks, knowledge hub, scripts |
+| [modules/admin-misc.md](./modules/admin-misc.md) | Admin/users, knowledge hub, scripts (Codex → [modules/codex.md](./modules/codex.md)) |
+| [modules/codex.md](./modules/codex.md) | Codex Stage 0: Tasks/Team UI, API gates, 12 tables, fortnight observations log |
 
 ## How to keep it alive
 

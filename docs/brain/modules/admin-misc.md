@@ -23,14 +23,12 @@
 
 ## Codex (`/tasks`)
 
+Full module page: **[`modules/codex.md`](./codex.md)** (Stage 0 surface, API gates, 12 tables, fortnight observations log, Q22/Q23 decisions).
+
 - Sidebar label is **Codex** (Luke); page keeps the shadow badge. Sidebar entry is hidden for roles outside `CODEX_SHADOW_ROLES` (`lib/codex/shadowRoles.ts`) so a visible link never 403s the team. Two tabs: Tasks | Team.
-- Default list (`mine=1`): `assignee_email = me OR created_by_email = me` (includes unassigned tasks I created). **All tasks** toggle clears that scope so null-assignee rows stay visible. Exact `assignee_email` filter still excludes unassigned by design.
-- Clients load reads `x-warning: clients-unavailable` from `GET /api/clients` and surfaces ViewState error (not an empty Client select). Other callers: `docs/brain/fail-soft-consumers.md`.
-- `components/tasks/{TaskFormDialog,TeamMemberFormDialog}.tsx` + `app/api/codex/{tasks,tasks/[id],client_notes,team}` — Postgres-native when `CODEX_V2=on` (`lib/codex/repo.ts` / Drizzle). Flag off → routes 404 **and** server page shows "Codex is not enabled" (no client fetch). Auth: `CODEX_SHADOW_ROLES` (admin in shadow); 403 → gated empty state.
-- Assignee picker is team-roster Select (active members; stores `assignee_email` + `assignee_name`). Categories/sources live in `lib/codex/types.ts` (`TASK_CATEGORIES` / `TASK_SOURCES` / `TeamMember`). Soft delete via `deleted_at` (confirm → DELETE; no trash UI). Source chip when `source !== 'manual'`.
-- **`lib/codex/**` is the Tasks domain, not AVA** — naming is historical; types + repo live here.
-- **DI-12:** no FK from Codex `client_id` columns to `clients` (0013 deliberate until T6). POST tasks validates presence only, not existence — see `docs/brain/codex-client-id-fk.md`.
-- List UI uses `ViewState` (`lib/ui/viewState.ts`) via `ViewStateBoundary` so a fetch failure cannot render alongside "no tasks" empty copy; client/status/assignee/search exclusion uses `filtered-empty` + Clear filters. Team empty: "Add the team to enable assignment".
+- Default list (`mine=1`): `assignee_email = me OR created_by_email = me` (includes unassigned tasks I created). **All tasks** toggle clears that scope so null-assignee rows stay visible.
+- Clients load reads `x-warning: clients-unavailable` from `GET /api/clients` and surfaces ViewState error — `docs/brain/fail-soft-consumers.md`.
+- **`lib/codex/**` is the Tasks domain, not AVA.** DI-12 / C-39 / DI-13 tracked in KNOWN-ISSUES.
 
 ## Knowledge hub (`src/**`)
 

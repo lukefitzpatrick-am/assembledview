@@ -135,6 +135,7 @@ pct === 100 → fee = 0 (division guard)
 - `attachments` and `questions` are display-only — never write them back into Anthropic message history.
 - MI runtime never writes `lib/specs/mi-library/` (vendored) — runtime output is Blob + email only.
 - AVA Postgres reads use `AVA_DATABASE_URL` / role `ava_readonly` only — never the owner/`DATABASE_URL` connection.
+- **AVA retains SELECT on `client_notes`** via the `ava_readonly` allowlist (0003) — deliberate (Q22). When Stage 3 populates notes, they are AVA-chat-queryable. Do not revoke as Codex tidy-up. New 0013 Codex tables stay deny-by-default for AVA until explicitly allowlisted.
 - AVA tool `fy` = Australian FY **ending** year (`lib/ava/tools/fyToRange.ts`); finance sections `fyMonthRange` stays start-year. Do not conflate.
 
 ## UI / design system
