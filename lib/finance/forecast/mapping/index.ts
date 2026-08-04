@@ -26,7 +26,6 @@ export {
   CLIENT_FIELD_MONTHLY_RETAINER,
   CLIENT_PROG_FEE_FIELDS,
   FORECAST_BILLING_LINE_ORDER,
-  FORECAST_COMMISSION_RATE_GREATER_THAN_ONE_IS_PERCENT,
   FORECAST_DIRECT_MANAGED_DIGITAL_MEDIA_TYPE_KEYS,
   FORECAST_MAPPING_SCHEMA_GAPS,
   FORECAST_MEDIA_TYPE_TO_PUBLISHER_COMMISSION_FIELDS,
@@ -50,6 +49,7 @@ export {
 
 export {
   applyForecastCommissionRate,
+  logForecastCommissionScaleTripwire,
   normalizePublisherBillingAgency,
   readPublisherCommissionRate,
   resolveRevenueCommissionBucket,

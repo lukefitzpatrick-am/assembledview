@@ -6,7 +6,6 @@
 import type { FinanceForecastPublisherInput } from "@/lib/types/financeForecast"
 import type { ForecastBillingAgencyNormalized, ForecastRevenueCommissionBucket } from "./types"
 import {
-  FORECAST_COMMISSION_RATE_GREATER_THAN_ONE_IS_PERCENT,
   FORECAST_DIRECT_MANAGED_DIGITAL_MEDIA_TYPE_KEYS,
   FORECAST_MEDIA_TYPE_TO_PUBLISHER_COMMISSION_FIELDS,
   FORECAST_SEARCH_SOCIAL_MEDIA_TYPE_KEYS,
@@ -74,7 +73,7 @@ export function resolveRevenueCommissionBucket(args: {
 
 /**
  * Read commission **rate** from publisher row for a given internal media type key.
- * Returns raw numeric as stored in Xano (see `FORECAST_COMMISSION_RATE_GREATER_THAN_ONE_IS_PERCENT`).
+ * Returns raw numeric as stored (whole percent — see `applyForecastCommissionRate`).
  */
 export function readPublisherCommissionRate(
   publisher: FinanceForecastPublisherInput | null,
@@ -91,15 +90,34 @@ export function readPublisherCommissionRate(
   return 0
 }
 
+/** Process-local once-flag — never blocks; mirrors `[savePlan-adserving-zero]`. */
+let forecastCommissionScaleTripwireLogged = false
+
 /**
- * Convert media $ × stored comms rate → commission $ (see definitions for scale rule).
+ * Always-on, never-blocking tripwire: a `*_comms` value in (0, 1] after the
+ * 2026-08-04 whole-percent normalisation is a data error, not a decimal unit.
+ * Logs `[forecast-commission-scale]` once per process — does not throw.
+ */
+export function logForecastCommissionScaleTripwire(commsRaw: number): void {
+  if (!(commsRaw > 0 && commsRaw <= 1)) return
+  if (forecastCommissionScaleTripwireLogged) return
+  forecastCommissionScaleTripwireLogged = true
+  console.error("[forecast-commission-scale]", {
+    message:
+      "publisher *_comms in (0,1] after whole-percent normalisation — treating as whole percent /100 (data error, not decimal fraction)",
+    commsRaw,
+  })
+}
+
+/**
+ * Convert media $ × stored comms rate → commission $.
+ * Unconditional whole-percent (`rate / 100`). Safe: DB normalised 2026-08-04;
+ * no values remain in (0, 1] — that band is a data error, not a different unit.
  */
 export function applyForecastCommissionRate(mediaAmount: number, commsRaw: number): number {
   if (!Number.isFinite(mediaAmount) || mediaAmount <= 0 || commsRaw <= 0) return 0
-  if (!FORECAST_COMMISSION_RATE_GREATER_THAN_ONE_IS_PERCENT) {
-    return round2(mediaAmount * commsRaw)
-  }
-  const rate = commsRaw <= 1 ? commsRaw : commsRaw / 100
+  logForecastCommissionScaleTripwire(commsRaw)
+  const rate = commsRaw / 100
   return round2(mediaAmount * rate)
 }
 

@@ -96,10 +96,11 @@ export const FORECAST_MEDIA_TYPE_TO_PUBLISHER_COMMISSION_FIELDS: Readonly<
 
 /**
  * How raw `*_comms` values are turned into a monetary commission amount.
- * **Rule:** value ≤ 1 → treated as decimal fraction (0.2 = 20%); value > 1 → whole percent (20 = 20%).
- * Confirm with finance if Xano ever stores basis points or another scale — adjust only here.
+ * **Rule:** unconditional whole-percent — `rate / 100` (20 = 20%).
+ * Safe because publishers `*_comms` were normalised on 2026-08-04 to whole percent;
+ * the ambiguous zone (0, 1] is empty in the DB. A value in (0, 1] is a data error,
+ * not a decimal-fraction unit — see tripwire in `applyForecastCommissionRate`.
  */
-export const FORECAST_COMMISSION_RATE_GREATER_THAN_ONE_IS_PERCENT = true
 
 // ---------------------------------------------------------------------------
 // Client record: fee / retainer fields (see `lib/validations/client.ts`)
