@@ -41,7 +41,7 @@ Editor → `buildEditorLineItemInputs` → `PATCH /api/mediaplans/versions/[id]/
 
 - Two engines produce `CampaignFinancials` (line items vs persisted JSON) with silently different completeness. `mbaScopeFromSchedules` prefers the **delivery** schedule to avoid double client-pays subtraction — fragile, untested boundary.
 - `mbaScopeTotals.grossMedia` excludes production (own MBA component via schedule `production` field); Excel breakdown already filtered `mp_production` while the totals block used unfiltered grossMedia — that mismatch is the production-double-count class of bug.
-- MBA scope UI (`MbaBillingAutoCalcSummary`, `MbaBillingModal`) keeps production visible in the per-media breakdown/group tree, muted with a “billed separately” qualifier — not additive into Gross Media; the Production total row below remains the additive component.
+- MBA scope summary (`MbaBillingAutoCalcSummary`) omits production from the per-media breakdown rows (those rows sum to Gross Media); Production remains only as the additive `t.production` line. Modal scope tree (`MbaBillingModal`) still shows the production group with “billed separately” for approve/exclude.
 - `receivableMergeKey`/`composeInvoiceKey` changes orphan persisted status rows (billed reappears as unbilled).
 - Payment terms "Net 30" hardcoded ×4; GST 10% centralised in `lib/finance/gst.ts` (good).
 - Synthetic client IDs from djb2 name-hash fallback (C-16); synthetic record ids are per-request counters — store updates can't address derived rows.
