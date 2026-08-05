@@ -71,6 +71,7 @@ pct === 100 → fee = 0 (division guard)
 ## Campaign budget remaining (create + edit wizard)
 
 - Campaign budget means **total investment including fees** = `mbaScopeTotals.nettExGst` = grossMedia + fee + adServing + production, ex GST.
+- `mbaScopeTotals.grossMedia` excludes production lines (`scheduleMediaType` / perLine `mediaType`); production is only the `production` component — never both, or nettExGst double-counts it.
 - DRAFT SUMMARY “Budget remaining” = `campaignBudget − nettExGst` on **both** create and edit (`lib/mediaplan/campaignBudgetRemaining.ts`). Never subtract media-only (`grossMedia`).
 - Overspend is strict `< 0` on the cent-rounded remaining — no dollar-band tolerance to hide true fee/rounding composition.
 
