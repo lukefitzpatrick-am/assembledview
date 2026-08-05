@@ -317,18 +317,46 @@ test("production is not gross media (main path)", () => {
 })
 
 test("production is not gross media (month-scoped path)", () => {
-  const result = computeCampaignFinancials(productionDoubleCountLines(), { feeLoading: {} }, {
-    selectedMonthYears: ["September 2026", "October 2026", "November 2026"],
+  const lines = productionDoubleCountLines()
+  const full = computeCampaignFinancials(lines, { feeLoading: {} })
+  // Strict subset — must not cover every delivery month or scopeCampaignFinancialsToSelectedMonths
+  // early-returns and this test would never hit the L1102 grossMedia reduce.
+  const scoped = computeCampaignFinancials(lines, { feeLoading: {} }, {
+    selectedMonthYears: ["October 2026"],
   })
-  const t = result.mbaScopeTotals
-  assert.equal(t.grossMedia, 100_000, "production EXCLUDED from grossMedia")
-  assert.equal(t.production, 1_000)
-  assert.equal(t.fee, 0)
-  assert.equal(t.adServing, 0)
-  assert.equal(t.nettExGst, 101_000, "production counted exactly once")
+  assert.ok(
+    scoped.billingSchedule.length < full.billingSchedule.length,
+    "scoping must actually run (billing months narrowed); otherwise L1102 is untested"
+  )
+  assert.equal(scoped.billingSchedule.length, 1)
+  assert.equal(scoped.billingSchedule[0]?.monthYear, "October 2026")
+
+  const t = scoped.mbaScopeTotals
+  const approved = scoped.perLine.filter((l) => !l.flags.excluded)
+  const nonProdMedia = approved
+    .filter((l) => l.mediaType !== "production")
+    .reduce((s, l) => s + l.media, 0)
+  const allMedia = approved.reduce((s, l) => s + l.media, 0)
+  const productionLineMedia = approved
+    .filter((l) => l.mediaType === "production")
+    .reduce((s, l) => s + l.media, 0)
+
+  // (b) selected month genuinely contains production
+  assert.ok(productionLineMedia > 0, "October scoped production line media must be > 0")
+  // (c) FIRST bug catcher — if production creeps back into grossMedia, this fails (L1102)
+  assert.equal(
+    t.grossMedia,
+    allMedia - productionLineMedia,
+    "grossMedia must equal all scoped media minus production (L1102 exclude)"
+  )
+  // (a) grossMedia === Σ scoped non-production perLine.media
+  assert.equal(t.grossMedia, nonProdMedia)
+  // (d)
+  assert.ok(t.production > 0)
+  // (e) — round to cents (same as core) so day-proration float dust does not flake
   assert.equal(
     t.nettExGst,
-    t.grossMedia + t.fee + t.adServing + t.production,
+    Math.round((t.grossMedia + t.fee + t.adServing + t.production) * 100) / 100,
     "nettExGst === grossMedia + fee + adServing + production"
   )
 })
