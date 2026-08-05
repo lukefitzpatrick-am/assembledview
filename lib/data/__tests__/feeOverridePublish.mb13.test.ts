@@ -179,28 +179,27 @@ test("MB-13.1: first publish with fee override — slice + scope follow override
     await wipeMba()
   })
 
-  const line = twoMonthLine()
-  const baseline = computeCampaignFinancials([lineInputForCompute(line)], {
-    feeLoading: { feesearch: FEE_PCT },
-  })
+  // MB-22: override rides the save payload (REPLACE-SET), not a pre-seeded DB row.
+  // Production stamps feeOverride onto every payload line (buildPostgresSavePayload).
+  const feeOverride = {
+    mode: "manual" as const,
+    reason: "manual" as const,
+    dateBasis: "mb13-1",
+    component: "fee" as const,
+    months: feeOverrideMonths(OVERRIDE_FEE),
+  }
+  const line = twoMonthLine({ feeOverride })
+  const baseline = computeCampaignFinancials(
+    [lineInputForCompute(twoMonthLine())],
+    { feeLoading: { feesearch: FEE_PCT } }
+  )
   const calculatedFee = baseline.mbaScopeTotals.fee
   assert.ok(calculatedFee > 0)
   assert.notEqual(calculatedFee, OVERRIDE_FEE)
   assert.equal(baseline.mbaScopeTotals.nettExGst, MEDIA + calculatedFee)
 
   const withOverride = computeCampaignFinancials(
-    [
-      lineInputForCompute({
-        ...line,
-        feeOverride: {
-          mode: "manual",
-          reason: "manual",
-          dateBasis: "mb13-1",
-          component: "fee",
-          months: feeOverrideMonths(OVERRIDE_FEE),
-        },
-      }),
-    ],
+    [lineInputForCompute(line)],
     { feeLoading: { feesearch: FEE_PCT } }
   )
   assert.equal(withOverride.mbaScopeTotals.fee, OVERRIDE_FEE)
@@ -208,16 +207,7 @@ test("MB-13.1: first publish with fee override — slice + scope follow override
   assert.notEqual(withOverride.mbaScopeTotals.fee, calculatedFee)
 
   const db = getDb()
-  const v1 = await savePlanVersion(draftInput(masterId, [line]))
-  await db.insert(schema.billingOverrides).values({
-    versionId: v1.versionId,
-    lineItemId: LINE_A,
-    component: "fee",
-    mode: "manual",
-    reason: "manual",
-    months: feeOverrideMonths(OVERRIDE_FEE),
-    dateBasis: "mb13-1",
-  })
+  await savePlanVersion(draftInput(masterId, [line]))
   await savePlanVersion(draftInput(masterId, [line]))
 
   const published = await savePlanVersion({
