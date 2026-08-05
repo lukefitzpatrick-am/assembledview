@@ -27,7 +27,6 @@ import type { PanelIndicatorsFromCampaignFinancials } from "@/lib/finance/panelI
 import { reconciliationBadgeVisibility } from "@/lib/mediaplan/channelHydrationGate"
 import { formatMoney } from "@/lib/format/money"
 import { billingEqualsMbaLabel } from "@/lib/billing/manualBillingVocabulary"
-import { cn } from "@/lib/utils"
 
 function parseScheduleMoney(value: string | undefined): number {
   return parseFloat(String(value ?? "0").replace(/[^0-9.-]/g, "")) || 0
@@ -76,11 +75,14 @@ export function MbaBillingAutoCalcSummary({
   )
   const hasPending = Boolean(panelIndicators.billingSchedule.hasUnsavedBillingTiming)
 
+  // Breakdown rows exclude production (shown only as t.production below).
+  // Remaining rows sum to Gross Media (t.grossMedia) exactly — presentation only.
   const mediaBreakdown: { mediaType: string; media: number }[] = []
   if (financials.perLine.length > 0) {
     const sums = new Map<string, number>()
     for (const line of financials.perLine) {
       if (line.flags.excluded) continue
+      if (line.mediaType === "production") continue
       if (!sums.has(line.mediaType)) {
         mediaBreakdown.push({ mediaType: line.mediaType, media: 0 })
         sums.set(line.mediaType, mediaBreakdown.length - 1)
@@ -138,29 +140,17 @@ export function MbaBillingAutoCalcSummary({
           ) : null}
         </div>
         <div className="space-y-2 px-5 py-4">
-          {mediaBreakdown.map(({ mediaType, media }) => {
-            const isProduction = mediaType === "production"
-            const baseLabel = mediaLabelByType[mediaType] ?? mediaType
-            return (
-              <div
-                key={mediaType}
-                className={cn(
-                  "flex items-center justify-between py-0.5 pl-4",
-                  isProduction && "opacity-70"
-                )}
-                title={
-                  isProduction
-                    ? "Not included in Gross Media — shown on its own line below."
-                    : undefined
-                }
-              >
-                <span className="text-sm text-muted-foreground">
-                  {isProduction ? `${baseLabel} · billed separately` : baseLabel}
-                </span>
-                <span className="num text-sm text-muted-foreground">{formatMoney(media)}</span>
-              </div>
-            )
-          })}
+          {mediaBreakdown.map(({ mediaType, media }) => (
+            <div
+              key={mediaType}
+              className="flex items-center justify-between py-0.5 pl-4"
+            >
+              <span className="text-sm text-muted-foreground">
+                {mediaLabelByType[mediaType] ?? mediaType}
+              </span>
+              <span className="num text-sm text-muted-foreground">{formatMoney(media)}</span>
+            </div>
+          ))}
           <div className="flex items-center justify-between py-0.5">
             <span className="text-sm text-muted-foreground">Gross Media</span>
             <span className="num text-sm font-medium">{formatMoney(t.grossMedia)}</span>
