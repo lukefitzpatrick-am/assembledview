@@ -6,6 +6,7 @@ import {
   BaseChartCard,
   DonutChart,
   HorizontalBarChart,
+  ShareBreakdownLegend,
   StackedBarChart,
 } from "@/components/charts/system"
 import { EmptyState } from "@/components/ui/states"
@@ -406,14 +407,21 @@ export default function SpendChartsRow({
           }}
         >
           {mediaChannelTotal > 0 ? (
-            <DonutChart
-              data={mediaChannelDonutData}
-              centerValue={chartFmt.currencyCompact(mediaChannelTotal)}
-              centerLabel="Total"
-              valueFormat="dollars"
-              plotHeight={CHART_PLOT_HEIGHT}
-              className="w-full"
-            />
+            <>
+              <DonutChart
+                data={mediaChannelDonutData}
+                centerValue={chartFmt.currencyCompact(mediaChannelTotal)}
+                centerLabel="Total"
+                valueFormat="dollars"
+                plotHeight={CHART_PLOT_HEIGHT}
+                className="w-full"
+              />
+              <ShareBreakdownLegend
+                items={mediaChannelDonutData}
+                total={mediaChannelTotal}
+                valueFormat="dollars"
+              />
+            </>
           ) : (
             <EmptyState
               className={`${CHART_EMPTY_CLASS} border-0 bg-transparent`}

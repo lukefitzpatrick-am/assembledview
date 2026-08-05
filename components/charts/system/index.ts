@@ -23,6 +23,15 @@ export {
   type DonutProps, type TreemapProps,
 } from './composition-charts';
 
+export {
+  ShareBreakdownLegend,
+  buildShareBreakdownRows,
+  allocateSharePercents,
+  type ShareBreakdownItem,
+  type ShareBreakdownRow,
+  type ShareBreakdownLegendProps,
+} from './share-breakdown-legend';
+
 // Distribution & relationship
 export {
   ScatterChart, RadarChart, SlopeChart,
