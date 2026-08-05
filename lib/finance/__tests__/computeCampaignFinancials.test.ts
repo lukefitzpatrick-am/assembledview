@@ -2,7 +2,51 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { computeCampaignFinancials } from "../computeCampaignFinancials.js"
+import { computeCampaignFinancialsFromVersion } from "../computeCampaignFinancialsFromVersion.js"
 import type { LineItemInput } from "../campaignFinancials.types.js"
+
+/** Radio + production — surfaces production double-count in mbaScopeTotals.grossMedia. */
+function productionDoubleCountLines(): LineItemInput[] {
+  return [
+    {
+      lineItemId: "RADIO1",
+      mediaType: "radio",
+      buyType: "cpm",
+      rate: 10,
+      enteredAmount: 100_000,
+      budgetIncludesFees: false,
+      clientPaysForMedia: false,
+      feePct: 0,
+      bursts: [
+        {
+          startDate: "2026-09-01",
+          endDate: "2026-11-30",
+          budget: 100_000,
+          buyAmount: 10,
+        },
+      ],
+      approval: "approved",
+    },
+    {
+      lineItemId: "PROD1",
+      mediaType: "production",
+      buyType: "fixed_cost",
+      rate: 0,
+      enteredAmount: 1_000,
+      budgetIncludesFees: false,
+      clientPaysForMedia: false,
+      feePct: 0,
+      bursts: [
+        {
+          startDate: "2026-09-01",
+          endDate: "2026-11-30",
+          budget: 1_000,
+        },
+      ],
+      approval: "approved",
+    },
+  ]
+}
 
 test("computeCampaignFinancials: fee from feeLoading + budgetIncludesFees split", () => {
   const line: LineItemInput = {
@@ -255,4 +299,65 @@ test("computeCampaignFinancials: selectedMonthYears scopes billing+MBA, keeps de
   assert.equal(augOnly.billingSchedule[0]?.monthYear, "August 2026")
   assert.ok(augOnly.mbaScopeTotals.grossMedia < full.mbaScopeTotals.grossMedia)
   assert.ok(augOnly.mbaScopeTotals.grossMedia > 0)
+})
+
+test("production is not gross media (main path)", () => {
+  const result = computeCampaignFinancials(productionDoubleCountLines(), { feeLoading: {} })
+  const t = result.mbaScopeTotals
+  assert.equal(t.grossMedia, 100_000, "production EXCLUDED from grossMedia")
+  assert.equal(t.production, 1_000)
+  assert.equal(t.fee, 0)
+  assert.equal(t.adServing, 0)
+  assert.equal(t.nettExGst, 101_000, "production counted exactly once")
+  assert.equal(
+    t.nettExGst,
+    t.grossMedia + t.fee + t.adServing + t.production,
+    "nettExGst === grossMedia + fee + adServing + production"
+  )
+})
+
+test("production is not gross media (month-scoped path)", () => {
+  const result = computeCampaignFinancials(productionDoubleCountLines(), { feeLoading: {} }, {
+    selectedMonthYears: ["September 2026", "October 2026", "November 2026"],
+  })
+  const t = result.mbaScopeTotals
+  assert.equal(t.grossMedia, 100_000, "production EXCLUDED from grossMedia")
+  assert.equal(t.production, 1_000)
+  assert.equal(t.fee, 0)
+  assert.equal(t.adServing, 0)
+  assert.equal(t.nettExGst, 101_000, "production counted exactly once")
+  assert.equal(
+    t.nettExGst,
+    t.grossMedia + t.fee + t.adServing + t.production,
+    "nettExGst === grossMedia + fee + adServing + production"
+  )
+})
+
+test("editor path agrees with persisted path on a plan with production", () => {
+  const lines = productionDoubleCountLines()
+  const editor = computeCampaignFinancials(lines, { feeLoading: {} })
+  // Same shape as versionPathClientPays / deriveFromVersionCore: BillingMonth[] on the version.
+  const fromVersion = computeCampaignFinancialsFromVersion({
+    billingSchedule: editor.billingSchedule,
+    deliverySchedule: editor.deliverySchedule,
+  })
+  assert.ok(fromVersion, "expected hydrated financials from persisted schedules")
+  assert.equal(editor.mbaScopeTotals.grossMedia, fromVersion.mbaScopeTotals.grossMedia)
+  assert.equal(editor.mbaScopeTotals.production, fromVersion.mbaScopeTotals.production)
+  assert.equal(editor.mbaScopeTotals.nettExGst, fromVersion.mbaScopeTotals.nettExGst)
+})
+
+test("MBA totals block agrees with its own breakdown rows", () => {
+  const result = computeCampaignFinancials(productionDoubleCountLines(), { feeLoading: {} })
+  // Mirrors edit page: breakdown excludes mp_production; totals.gross_media = mbaScopeTotals.grossMedia.
+  const gross_media = result.perLine
+    .filter((l) => !l.flags.excluded && l.mediaType !== "production")
+    .map((l) => ({ media_type: l.mediaType, gross_amount: l.media }))
+  const totals = { gross_media: result.mbaScopeTotals.grossMedia }
+  const rowsSum = gross_media.reduce((s, r) => s + r.gross_amount, 0)
+  assert.equal(
+    totals.gross_media,
+    rowsSum,
+    `totals.gross_media (${totals.gross_media}) must equal sum of gross_media[].gross_amount (${rowsSum})`
+  )
 })
