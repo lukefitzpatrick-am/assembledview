@@ -22,6 +22,7 @@ import {
 } from "@/lib/kpi/deliveryTargetCurve"
 import { clipDateRangeToCampaign, filterDailySeriesByRange, parseDateOnly, type DateRange } from "@/lib/dashboard/dateFilter"
 import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
+import { deliverableLabelForMetricKey } from "@/lib/delivery/deliverableLabel"
 
 
 export type SocialLineItem = {
@@ -455,17 +456,7 @@ function buildSocialTargetCurveLineItem(item: SocialLineItem, bursts: Burst[]): 
 }
 
 export function getDeliverableLabel(deliverableKey: ReturnType<typeof getDeliverableKey> | null) {
-  switch (deliverableKey) {
-    case "clicks":
-      return "Clicks"
-    case "results":
-      return "Conversions"
-    case "video_3s_views":
-      return "Video Views"
-    case "impressions":
-    default:
-      return "Impressions"
-  }
+  return deliverableLabelForMetricKey(deliverableKey)
 }
 
 export function normalizeLineItems(lineItems: SocialLineItem[]) {

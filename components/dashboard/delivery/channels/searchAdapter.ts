@@ -31,6 +31,10 @@ import type { LineItemBlockProps } from "../shared/LineItemBlock"
 import type { ChannelSectionData } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
+import {
+  aggregateDeliverableLabel,
+  deliverableLabelForBuyType,
+} from "@/lib/delivery/deliverableLabel"
 
 const searchSeriesPalette = {
   cost: getMediaColor("search"),
@@ -213,7 +217,9 @@ export function buildSearchSection(input: {
   }
 
   const deliverableCard: ProgressCardProps = {
-    title: "Deliverable delivery",
+    title: `${aggregateDeliverableLabel(
+      Array.from(scheduleByLineItemId.values()).map((s) => s.buyType),
+    )} delivery`,
     value: formatWholeNumber(totals.clicks),
     detail: `Delivered ${formatWholeNumber(totals.clicks)} · Planned ${formatWholeNumber(totalSchedule.clicksBooked)}`,
     progress: clicksRatio,
@@ -516,7 +522,7 @@ function buildSearchLineItemBlocks(input: {
             dense: true,
           },
           {
-            title: "Deliverable delivery",
+            title: `${deliverableLabelForBuyType(schedule?.buyType)} delivery`,
             value: formatWholeNumber(liTotals.clicks),
             detail: `Delivered ${formatWholeNumber(liTotals.clicks)} · Planned ${formatWholeNumber(clicksFull.bookedTotal)}`,
             progress: delR,

@@ -23,6 +23,7 @@ import {
   parseDateOnly,
   type DateRange,
 } from "@/lib/dashboard/dateFilter"
+import { deliverableLabelForMetricKey } from "@/lib/delivery/deliverableLabel"
 export type ProgrammaticLineItem = {
   line_item_id: string
   line_item_name?: string
@@ -730,17 +731,7 @@ export function buildProgrammaticLineItemMetrics(
 }
 
 export function getProgrammaticDeliverableLabel(key: ProgrammaticLineItemMetrics["deliverableKey"]) {
-  switch (key) {
-    case "clicks":
-      return "Clicks"
-    case "conversions":
-      return "Conversions"
-    case "videoViews":
-      return "Video Views"
-    case "impressions":
-    default:
-      return "Impressions"
-  }
+  return deliverableLabelForMetricKey(key)
 }
 
 export function buildProgrammaticAggregatedMetrics(
