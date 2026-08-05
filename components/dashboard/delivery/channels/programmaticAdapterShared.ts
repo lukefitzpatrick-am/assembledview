@@ -34,6 +34,7 @@ import { channelMediaTypeColour } from "./channelMediaTypeColour"
 import type { ChannelKey, ChannelSectionData } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
+import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 
 function pctVarianceFromPacingPct(pct: number | undefined): number {
   if (pct === undefined || Number.isNaN(pct)) return 0
@@ -421,8 +422,10 @@ export function buildProgrammaticChannelSection(input: {
         ? { video_3s_views: Number(d.videoViews ?? 0) }
         : { impressions: Number(d.impressions ?? 0) }),
     }))
+    const displayName = deliveryLineItemDisplayName(li as Record<string, unknown>)
     const block: LineItemBlockProps = {
-      name: String(li.line_item_name ?? li.lineItemName ?? li.line_item_id ?? "Line item"),
+      name: displayName.label,
+      fullName: displayName.full,
       platform: String(m.lineItem.buy_type ?? ""),
       progressCards: [
         {
