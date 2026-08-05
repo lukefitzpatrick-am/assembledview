@@ -8,7 +8,7 @@ This repo uses a trunk-based workflow with one working branch (`localhost`) and 
 
 `main` is the **deploy target**. It auto-deploys on push. It must only contain commits that have been smoke-tested and approved. It is updated exclusively by cherry-picking specific commits from `localhost`.
 
-There are no other branches. No `feature/*`, no `domain-*-long-lived`, no `hotfix/*`. If you find yourself reaching for a branch, you almost certainly want a commit on `localhost` instead.
+There are no other branches. No `feature/*`, no `domain-*-long-lived`, no standing `hotfix/*`. If you find yourself reaching for a branch, you almost certainly want a commit on `localhost` instead. See **Emergency hotfix exception** below for the only approved deviation.
 
 ## The three principles
 
@@ -173,6 +173,19 @@ Redeploy the recorded prior production deployment ID. Finance sections have no f
 ### After the event
 
 Standing branching rules in this document resume unchanged: cherry-pick only to `main`, no merge of `localhost` into `main`, no force-push, no other branches.
+
+## Emergency hotfix exception
+
+**When permitted:** A short-lived `hotfix/*` branch cut from `origin/main` (not from `localhost`) is allowed only when a production defect must ship without carrying in-flight `localhost` work, and Luke has explicitly approved the exception for that incident.
+
+**Rules:**
+
+1. Cut from `origin/main` after `git fetch`. Confirm the base SHA before any fix commits.
+2. Keep the branch minimal — characterisation tests + the fix + required brain/docs. No drive-by `localhost` WIP.
+3. After smoke on the hotfix tip, **cherry-pick the fix commit(s) to both `main` and `localhost`** (deploy path remains cherry-pick-only onto `main`; `localhost` must receive the same commits so the trunks reconverge).
+4. **Delete the hotfix branch immediately after** both cherry-picks land (local and remote if pushed). Do not leave `hotfix/*` as a standing lane.
+
+This exception does not authorize feature branches, long-lived forks, or merging `localhost` into `main`.
 
 ## When this document is wrong
 

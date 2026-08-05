@@ -275,8 +275,8 @@ test("MB-30 DIAG: empty progBvod lineItems but prepaid under wrong key → AUTO 
 
   // Mis-keyed bucket (legacy label) still holds the override row.
   const working: BillingMonth[] = [
-    month(AUG, { bvod: [prepaid] } as BillingMonth["lineItems"], "$20,000.00"),
-    month(SEP, { bvod: [JSON.parse(JSON.stringify(prepaid))] } as BillingMonth["lineItems"], "$0.00"),
+    month(AUG, { bvod: [prepaid] } as NonNullable<BillingMonth["lineItems"]>, "$20,000.00"),
+    month(SEP, { bvod: [JSON.parse(JSON.stringify(prepaid))] } as NonNullable<BillingMonth["lineItems"]>, "$0.00"),
   ]
   // Fix mediaCosts.progBvod residual that mirrors the live Aug header.
   for (const m of working) {
