@@ -1058,6 +1058,7 @@ export function MbaBillingModal({
                       : group.partial
                         ? "indeterminate"
                         : false
+                    const isProduction = group.mediaType === "production"
                     return (
                       <div
                         key={group.mediaType}
@@ -1066,7 +1067,7 @@ export function MbaBillingModal({
                         <div
                           className={cn(
                             "flex items-center gap-2 px-2 py-2",
-                            group.noneApproved && "opacity-70"
+                            (group.noneApproved || isProduction) && "opacity-70"
                           )}
                         >
                           <button
@@ -1084,9 +1085,21 @@ export function MbaBillingModal({
                             />
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-center gap-1.5">
-                                <span className="truncate text-sm font-semibold text-foreground">
+                                <span
+                                  className={cn(
+                                    "truncate text-sm font-semibold",
+                                    isProduction ? "text-muted-foreground" : "text-foreground"
+                                  )}
+                                  title={
+                                    isProduction
+                                      ? "Not included in Gross Media — shown on its own line below."
+                                      : undefined
+                                  }
+                                >
                                   <span className="num">
-                                    {`${group.mediaLabel} · ${group.approvedCount} of ${group.totalCount}`}
+                                    {isProduction
+                                      ? `${group.mediaLabel} · billed separately · ${group.approvedCount} of ${group.totalCount}`
+                                      : `${group.mediaLabel} · ${group.approvedCount} of ${group.totalCount}`}
                                   </span>
                                 </span>
                                 <ContainerStatusCheck
@@ -1097,7 +1110,12 @@ export function MbaBillingModal({
                               </div>
                             </div>
                             <div className="shrink-0 text-right">
-                              <div className="num text-sm font-medium">
+                              <div
+                                className={cn(
+                                  "num text-sm font-medium",
+                                  isProduction && "text-muted-foreground"
+                                )}
+                              >
                                 {formatMoney(group.mediaSum)}
                               </div>
                               <div className="num text-xs text-muted-foreground">
