@@ -22,17 +22,18 @@ export type MediaMixMonthlyRow = {
 }
 
 /**
- * True for schedule slices that are not planned media (fee bucket only).
+ * True for schedule slices that are not planned media.
  * Display-layer filter for the media-mix donut / monthly chart — do not use to change
  * `channelTotalsFromDeliverySchedule` / Planned-to-date totals.
  *
- * Fee key: monthlySpendArrayFromDeliverySchedule hardcodes `"Fees"` for
- * feeTotal + production + adservingTechFees. Case-insensitive / trimmed.
- * Does NOT exclude `Production` as its own mediaType label (separate Luke call).
+ * Excludes:
+ * - `"Fees"` — hardcoded rollup of feeTotal + production + adservingTechFees
+ * - `"production"` / `"Production"` — not gross media (origin/main 1d84899f); types-shape
+ *   can still emit a Production label while costs-shape skips `mediaCosts.production`
  */
 export function isNonMediaMixSlice(mediaType: string): boolean {
   const key = String(mediaType ?? "").trim().toLowerCase()
-  return key === "fees"
+  return key === "fees" || key === "production"
 }
 
 /**

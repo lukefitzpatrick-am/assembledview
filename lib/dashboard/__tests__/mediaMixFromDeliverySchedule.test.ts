@@ -20,13 +20,58 @@ describe("MEDIA_MIX_DONUT_BASIS_CAPTION", () => {
 })
 
 describe("isNonMediaMixSlice", () => {
-  it("matches the Fees bucket only (case/trim insensitive)", () => {
+  it("matches Fees and Production (case/trim insensitive); not media channels", () => {
     expect(isNonMediaMixSlice("Fees")).toBe(true)
     expect(isNonMediaMixSlice(" fees ")).toBe(true)
     expect(isNonMediaMixSlice("FEES")).toBe(true)
+    expect(isNonMediaMixSlice("Production")).toBe(true)
+    expect(isNonMediaMixSlice("production")).toBe(true)
+    expect(isNonMediaMixSlice(" PRODUCTION ")).toBe(true)
     expect(isNonMediaMixSlice("Search")).toBe(false)
-    expect(isNonMediaMixSlice("Production")).toBe(false)
     expect(isNonMediaMixSlice("")).toBe(false)
+  })
+
+  it("types-shape Production entry is excluded from the display filter", () => {
+    const typesShape = [
+      {
+        month: "May 2020",
+        mediaTypes: [
+          {
+            mediaType: "Search",
+            lineItems: [{ amount: "$1,000.00" }],
+          },
+          {
+            mediaType: "Production",
+            lineItems: [{ amount: "$500.00" }],
+          },
+        ],
+        feeTotal: "$0.00",
+      },
+    ]
+    const all = channelTotalsFromDeliverySchedule(typesShape)
+    expect(all.some((r) => r.channel === "Production")).toBe(true)
+    expect(all.some((r) => r.channel === "Search")).toBe(true)
+    const media = all.filter((r) => !isNonMediaMixSlice(r.channel))
+    expect(media.map((r) => r.channel)).toEqual(["Search"])
+    expect(media.reduce((s, r) => s + r.spend, 0)).toBeCloseTo(1000, 2)
+  })
+
+  it("costs-shape still has no Production slice (skipped upstream); Fees still filtered", () => {
+    const costsShape = [
+      {
+        month: "June 2020",
+        mediaCosts: { search: "$800.00", production: "$200.00" },
+        mediaTotal: "$800.00",
+        feeTotal: "$50.00",
+        production: "$200.00",
+        totalAmount: "$1,050.00",
+      },
+    ]
+    const all = channelTotalsFromDeliverySchedule(costsShape)
+    expect(all.some((r) => /production/i.test(r.channel))).toBe(false)
+    expect(all.some((r) => r.channel === "Fees")).toBe(true)
+    const media = all.filter((r) => !isNonMediaMixSlice(r.channel))
+    expect(media.map((r) => r.channel)).toEqual(["Search"])
   })
 })
 
