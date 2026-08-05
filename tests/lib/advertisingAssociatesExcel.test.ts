@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import type { LineItem, MediaItems } from "../../lib/generateMediaPlan.js"
 import type { Publisher } from "../../lib/types/publisher.js"
+import { addGst } from "../../lib/finance/gst.js"
 import {
   advertisingAssociatesFilteredPlanHasLineItems,
   buildAdvertisingAssociatesMbaDataFromMediaItems,
@@ -131,6 +132,74 @@ test("buildAdvertisingAssociatesMbaDataFromMediaItems splits media vs production
   assert.equal(mba.totals.total_inc_gst, 264)
   assert.ok(mba.gross_media.some((r) => r.media_type === "Television" && r.gross_amount === 200))
   assert.ok(mba.gross_media.some((r) => r.media_type === "Production" && r.gross_amount === 40))
+})
+
+/**
+ * Workbook totals contract (Luke N56 / N61 defect class).
+ * AA builder (advertisingAssociatesExcel.ts:186-218) is the reference: production is its own
+ * totals component; Total Gross Media never includes it. Standard Media Plan Excel omits
+ * production from gross_media[] entirely (edit page filters mp_production); AA still lists a
+ * Production breakdown row but excludes it from totals.gross_media — both shapes must satisfy
+ * the additive identities below.
+ */
+test("mbaData totals contract: Gross Media = row sum; nett + GST identities hold with production", () => {
+  const filtered: MediaItems = {
+    ...emptyMediaItems(),
+    radio: [
+      baseLine({
+        network: "Acme AA",
+        startDate: "2026-09-01",
+        endDate: "2026-11-30",
+        grossMedia: "100000",
+      }),
+    ],
+    production: [
+      baseLine({
+        network: "Acme AA",
+        startDate: "2026-09-01",
+        endDate: "2026-11-30",
+        grossMedia: "1000",
+      }),
+    ],
+  }
+  const aa = buildAdvertisingAssociatesMbaDataFromMediaItems(filtered)
+
+  // AA lists Production in gross_media[]; Total Gross Media excludes it.
+  const aaMediaRows = aa.gross_media.filter((r) => r.media_type !== "Production")
+  assert.equal(
+    aa.totals.gross_media,
+    aaMediaRows.reduce((s, r) => s + r.gross_amount, 0),
+    "AA totals.gross_media must equal non-production gross_media rows"
+  )
+
+  // Standard workbook shape (edit/create Media Plan): production omitted from gross_media[].
+  const standard = {
+    gross_media: aaMediaRows,
+    totals: {
+      gross_media: aa.totals.gross_media,
+      service_fee: aa.totals.service_fee,
+      production: aa.totals.production,
+      adserving: aa.totals.adserving,
+      totals_ex_gst: aa.totals.totals_ex_gst,
+      total_inc_gst: addGst(aa.totals.totals_ex_gst),
+    },
+  }
+
+  // (a) Total Gross Media === Σ media-type rows printed above it
+  assert.equal(
+    standard.totals.gross_media,
+    standard.gross_media.reduce((s, r) => s + r.gross_amount, 0)
+  )
+  // (b) Total Ex GST === gross + fee + adserving + production (each once)
+  assert.equal(
+    standard.totals.totals_ex_gst,
+    standard.totals.gross_media +
+      standard.totals.service_fee +
+      standard.totals.adserving +
+      standard.totals.production
+  )
+  // (c) Total Inc GST via shared GST helper
+  assert.equal(standard.totals.total_inc_gst, addGst(standard.totals.totals_ex_gst))
 })
 
 test("parseLineItemGrossMedia strips currency", () => {
