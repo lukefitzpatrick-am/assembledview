@@ -21,6 +21,8 @@ import {
   type OnTrackStatus,
 } from "@/lib/kpi/deliveryTargetCurve"
 import { clipDateRangeToCampaign, filterDailySeriesByRange, parseDateOnly, type DateRange } from "@/lib/dashboard/dateFilter"
+import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
+import { deliverableLabelForMetricKey } from "@/lib/delivery/deliverableLabel"
 
 
 export type SocialLineItem = {
@@ -339,11 +341,17 @@ function formatCompactNumber(value: number | undefined) {
 }
 
 export function formatLineItemHeader(lineItem: SocialLineItem) {
-  const platform = String(lineItem.platform ?? "").trim()
-  const targeting = String((lineItem as any).creative_targeting ?? "").trim()
-  const parts = [platform, targeting].filter(Boolean)
-  if (parts.length) return parts.join(" • ")
-  return lineItem.line_item_name || lineItem.line_item_id || "Line item"
+  // Narrow to the fields the pre-helper header used so publisher/creative extras
+  // cannot change social accordion titles. Unclamped (.full) keeps long Meta strings intact.
+  return deliveryLineItemDisplayName(
+    {
+      platform: lineItem.platform,
+      creative_targeting: (lineItem as { creative_targeting?: unknown }).creative_targeting,
+      line_item_name: lineItem.line_item_name,
+      line_item_id: lineItem.line_item_id,
+    },
+    { maxLength: Number.POSITIVE_INFINITY },
+  ).full
 }
 
 export function getLineItemNameCandidate(item: SocialLineItem) {
@@ -448,17 +456,7 @@ function buildSocialTargetCurveLineItem(item: SocialLineItem, bursts: Burst[]): 
 }
 
 export function getDeliverableLabel(deliverableKey: ReturnType<typeof getDeliverableKey> | null) {
-  switch (deliverableKey) {
-    case "clicks":
-      return "Clicks"
-    case "results":
-      return "Conversions"
-    case "video_3s_views":
-      return "Video Views"
-    case "impressions":
-    default:
-      return "Impressions"
-  }
+  return deliverableLabelForMetricKey(deliverableKey)
 }
 
 export function normalizeLineItems(lineItems: SocialLineItem[]) {

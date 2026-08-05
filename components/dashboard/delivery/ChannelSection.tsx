@@ -17,6 +17,7 @@ import { DeliveryDailyChart } from "./common/DeliveryDailyChart"
 import { channelMediaRegistryKey } from "./channels/channelMediaTypeColour"
 import { getChannelIcon } from "./channels/getChannelIcon"
 import type { ChannelSectionData } from "./channels/types"
+import { shouldShowChannelAggregate } from "./shouldShowChannelAggregate"
 
 function formatLastSynced(d: Date | null): string {
   if (!d) return "Not yet synced"
@@ -45,10 +46,62 @@ export interface ChannelSectionProps {
   onRefresh?: () => void
 }
 
+export { shouldShowChannelAggregate } from "./shouldShowChannelAggregate"
+
 export function ChannelSection({ data, defaultOpen = false, onRefresh }: ChannelSectionProps) {
   const Icon = getChannelIcon(data.key)
   const accordionDefault = defaultOpen ? [data.key] : []
   const badge = getMediaBadgeStyle(channelMediaRegistryKey(data.key))
+  // Adapters still compute `aggregate` on ChannelSectionData; this only gates render.
+  const showAggregate = shouldShowChannelAggregate(data.key, data.lineItems.length)
+  const flatSingleLine =
+    !showAggregate && data.lineItems.length === 1 ? data.lineItems[0] : null
+
+  const actionButtons = (
+    <div className="flex items-center gap-1">
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label="Refresh"
+        onClick={onRefresh}
+        disabled={!onRefresh}
+        title={onRefresh ? "Refresh channel delivery" : "Refresh is not available for this channel yet"}
+      >
+        <RefreshCw className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label="Export image"
+        disabled
+        title="Image export is not wired yet"
+      >
+        <ImageDown className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label="Export CSV"
+        disabled
+        title="CSV export is not wired yet"
+      >
+        <FileSpreadsheet className="h-4 w-4" />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label="Copy link"
+        disabled
+        title="Copy link is not wired yet"
+      >
+        <Copy className="h-4 w-4" />
+      </Button>
+    </div>
+  )
 
   return (
     <Accordion type="multiple" defaultValue={accordionDefault} className="w-full">
@@ -89,82 +142,56 @@ export function ChannelSection({ data, defaultOpen = false, onRefresh }: Channel
           </div>
         </AccordionTrigger>
         <AccordionContent className="space-y-4 p-4 pt-0">
-          {/* Aggregate */}
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border/40 pt-4">
-            <div className="flex flex-wrap gap-2">
-              {data.aggregate.summaryChips.map((c) => (
-                <div
-                  key={c.label}
-                  className="rounded-lg bg-muted/40 px-3 py-1.5"
-                >
-                  <p className="text-[11px] text-muted-foreground">{c.label}</p>
-                  <p className="text-sm font-semibold tabular-nums">{c.value}</p>
-                </div>
-              ))}
-            </div>
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Refresh"
-                onClick={onRefresh}
-                disabled={!onRefresh}
-                title={onRefresh ? "Refresh channel delivery" : "Refresh is not available for this channel yet"}
-              >
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Export image"
-                disabled
-                title="Image export is not wired yet"
-              >
-                <ImageDown className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Export CSV"
-                disabled
-                title="CSV export is not wired yet"
-              >
-                <FileSpreadsheet className="h-4 w-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label="Copy link"
-                disabled
-                title="Copy link is not wired yet"
-              >
-                <Copy className="h-4 w-4" />
-              </Button>
-            </div>
+          {/* Actions always render; chips only with the aggregate roll-up. */}
+          <div
+            className={
+              showAggregate
+                ? "flex flex-wrap items-center justify-between gap-3 border-t border-border/40 pt-4"
+                : "flex flex-wrap items-center justify-end gap-3 border-t border-border/40 pt-4"
+            }
+          >
+            {showAggregate ? (
+              <div className="flex flex-wrap gap-2">
+                {data.aggregate.summaryChips.map((c) => (
+                  <div
+                    key={c.label}
+                    className="rounded-lg bg-muted/40 px-3 py-1.5"
+                  >
+                    <p className="text-[11px] text-muted-foreground">{c.label}</p>
+                    <p className="text-sm font-semibold tabular-nums">{c.value}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {actionButtons}
           </div>
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <ProgressCard {...data.aggregate.progressCards[0]} />
-            <ProgressCard {...data.aggregate.progressCards[1]} />
-          </div>
+          {showAggregate ? (
+            <>
+              <div className="grid gap-3 md:grid-cols-2">
+                <ProgressCard {...data.aggregate.progressCards[0]} />
+                <ProgressCard {...data.aggregate.progressCards[1]} />
+              </div>
 
-          <KpiBand {...data.aggregate.kpiBand} />
+              <KpiBand {...data.aggregate.kpiBand} />
 
-          <DeliveryDailyChart
-            daily={data.aggregate.chart.daily}
-            series={data.aggregate.chart.series}
-            asAtDate={data.aggregate.chart.asAtDate}
-            mediaTypeColour={data.mediaTypeColour}
-            brandColour={data.aggregate.chart.brandColour}
-            title="Daily delivery"
-            subtitle={data.aggregate.chart.series.map((s) => s.label).join(" + ")}
-          />
+              <DeliveryDailyChart
+                daily={data.aggregate.chart.daily}
+                series={data.aggregate.chart.series}
+                asAtDate={data.aggregate.chart.asAtDate}
+                mediaTypeColour={data.mediaTypeColour}
+                brandColour={data.aggregate.chart.brandColour}
+                title="Daily delivery"
+                subtitle={data.aggregate.chart.series.map((s) => s.label).join(" + ")}
+              />
+            </>
+          ) : null}
 
-          {data.lineItems.length > 0 ? (
+          {flatSingleLine ? (
+            <div className="overflow-hidden rounded-xl border border-border/40 bg-card p-3">
+              <LineItemBlock {...flatSingleLine.block} />
+            </div>
+          ) : data.lineItems.length > 0 ? (
             <div className="space-y-2 pt-2">
               <p className="text-xs font-medium text-muted-foreground">
                 Line items ({data.lineItems.length})

@@ -7,10 +7,12 @@ import {
   BaseChartCard,
   Sparkline,
   StackedBarChart,
+  triggerDownload,
 } from "@/components/charts/system"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/states"
+import { toast } from "@/components/ui/use-toast"
 import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layout/Panel"
 import {
   reshapeAllocationOverTime,
@@ -138,30 +140,70 @@ export default function MediaPlanVizSection({
 
     setExporting(true)
     try {
+      // fonts.ready can hang in some browsers — race a short timeout
       try {
-        await document.fonts.ready
+        await Promise.race([
+          document.fonts.ready,
+          new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+        ])
       } catch {
         /* Font Loading API optional */
       }
-      await new Promise<void>((resolve) => {
-        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-      })
+      // Double-rAF never fires in a background/hidden tab — race a timeout so Exporting… cannot stick
+      await Promise.race([
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+        new Promise<void>((resolve) => setTimeout(resolve, 250)),
+      ])
 
+      // Resolve a real colour: html2canvas cannot parse "hsl(var(--card))" (Unsupported angle type).
+      // Same trap as chart-shell captureNodePng — Canvas/html2canvas need a computed literal, not var().
+      const computedBg = getComputedStyle(el).backgroundColor
+      const backgroundColor =
+        computedBg && computedBg !== "rgba(0, 0, 0, 0)" ? computedBg : "#ffffff"
+
+      // Prefer html2canvas over captureNodePng's SVG fast path: the gantt paints with
+      // fill="var(--av-label)" etc., and a standalone serialised SVG cannot resolve CSS
+      // custom properties (colours go black / drop out). html2canvas uses computed styles.
       const html2canvas = (await import("html2canvas")).default
-      const canvas = await html2canvas(el, {
-        backgroundColor: "hsl(var(--card))",
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        onclone: prepareMediaPlanExportClone,
-      })
-      const link = document.createElement("a")
-      link.href = canvas.toDataURL("image/png")
+      const canvas = await Promise.race([
+        html2canvas(el, {
+          backgroundColor,
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          width: el.scrollWidth,
+          height: el.scrollHeight,
+          windowWidth: Math.max(el.scrollWidth, document.documentElement.clientWidth),
+          onclone: prepareMediaPlanExportClone,
+        }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("PNG export timed out")), 20000),
+        ),
+      ])
+
       const viewPart =
         view === "timeline" ? `timeline-${timelineGranularity}` : view === "table" ? "table" : "summary"
       const base = sanitizeFilenameBase(["media-plan", clientSlug, mbaNumber, viewPart])
-      link.download = `${base}.png`
-      link.click()
+      const filename = `${base}.png`
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), "image/png"),
+      )
+      if (blob) {
+        triggerDownload(blob, filename)
+      } else {
+        const res = await fetch(canvas.toDataURL("image/png"))
+        triggerDownload(await res.blob(), filename)
+      }
+    } catch (err) {
+      console.error("PNG export failed", err)
+      toast({
+        variant: "destructive",
+        title: "PNG export failed",
+        description: err instanceof Error ? err.message : "Could not export the media plan image.",
+      })
     } finally {
       setExporting(false)
     }

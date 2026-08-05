@@ -11,6 +11,7 @@ import type { LineItemBlockProps } from "../shared/LineItemBlock"
 import type { DeliveryStatus } from "../shared/statusColours"
 import type { ChannelSectionData } from "./types"
 import { aggregateDailyRows } from "./aggregateDaily"
+import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 
 type AdServingLineItem = {
   line_item_id?: string
@@ -329,8 +330,10 @@ export function buildAdServingSection(input: {
       impressions: d.impressions,
     }))
 
+    const displayName = deliveryLineItemDisplayName(m.item as Record<string, unknown>)
     const block: LineItemBlockProps = {
-      name: String(m.item.line_item_name ?? m.item.lineItemName ?? m.id),
+      name: displayName.label,
+      fullName: displayName.full,
       platform: String(m.item.buy_type ?? m.item.platform ?? "CM360"),
       progressCards: [
         deliveryProgressCard({

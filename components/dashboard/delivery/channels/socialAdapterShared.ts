@@ -34,6 +34,7 @@ import type { LineItemBlockProps } from "../shared/LineItemBlock"
 import type { ChannelKey, ChannelSectionData } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
+import { aggregateDeliverableLabel } from "@/lib/delivery/deliverableLabel"
 
 function pctVarianceFromPacingPct(pct: number | undefined): number {
   if (pct === undefined || Number.isNaN(pct)) return 0
@@ -317,7 +318,7 @@ export function buildSocialChannelSectionForPlatform(input: {
   }
 
   const deliverableCard: ProgressCardProps = {
-    title: "Deliverable delivery",
+    title: `${aggregateDeliverableLabel(activeItems.map((li) => li.buy_type))} delivery`,
     value: formatWholeNumber(aggregatePacing.deliverable?.actualToDate ?? 0),
     detail: `Delivered ${formatWholeNumber(aggregatePacing.deliverable?.actualToDate ?? 0)} · Planned ${formatWholeNumber(bookedTotals.deliverables)}`,
     progress: delRatio,

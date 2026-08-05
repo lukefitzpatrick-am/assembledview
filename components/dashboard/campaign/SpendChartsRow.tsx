@@ -6,6 +6,7 @@ import {
   BaseChartCard,
   DonutChart,
   HorizontalBarChart,
+  ShareBreakdownLegend,
   StackedBarChart,
 } from "@/components/charts/system"
 import { EmptyState } from "@/components/ui/states"
@@ -16,6 +17,7 @@ import { channelColorFor, fmt as chartFmt } from "@/lib/chart-theme"
 import {
   MEDIA_MIX_DONUT_BASIS_CAPTION,
   channelTotalsFromDeliverySchedule,
+  isNonMediaMixSlice,
   mediaMixTotalFromDeliverySchedule,
   monthlyMixFromDeliverySchedule,
 } from "@/lib/dashboard/mediaMixFromDeliverySchedule"
@@ -203,8 +205,9 @@ export default function SpendChartsRow({
       ? campaignSpendToDate
       : channelTotalsSum
   const largestChannel = useMemo(() => {
-    if (!channelData.length) return "—"
-    const top = [...channelData].sort((a, b) => b.spend - a.spend)[0]
+    const mediaOnly = channelData.filter((c) => !isNonMediaMixSlice(c.channel))
+    if (!mediaOnly.length) return "—"
+    const top = [...mediaOnly].sort((a, b) => b.spend - a.spend)[0]
     return top?.channel ?? "—"
   }, [channelData])
   const monthWithHighestSpend = useMemo(() => {
@@ -223,10 +226,12 @@ export default function SpendChartsRow({
 
   const mediaChannelPieData = useMemo(
     () =>
-      channelData.map((c) => ({
-        mediaType: c.channel,
-        amount: Number(c.spend) || 0,
-      })),
+      channelData
+        .filter((c) => !isNonMediaMixSlice(c.channel))
+        .map((c) => ({
+          mediaType: c.channel,
+          amount: Number(c.spend) || 0,
+        })),
     [channelData],
   )
 
@@ -235,7 +240,7 @@ export default function SpendChartsRow({
       monthlyData.map((row) => ({
         month: String(row.month),
         data: Object.entries(row)
-          .filter(([k]) => k !== "month")
+          .filter(([k]) => k !== "month" && !isNonMediaMixSlice(k))
           .map(([mediaType, amount]) => ({
             mediaType,
             amount: Number(amount) || 0,
@@ -397,7 +402,7 @@ export default function SpendChartsRow({
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 md:items-stretch">
         <BaseChartCard
           title="Planned media by type"
-          subtitle={`${MEDIA_MIX_DONUT_BASIS_CAPTION} · Total: ${chartFmt.currencyCompact(mediaChannelTotal)}`}
+          subtitle={`${MEDIA_MIX_DONUT_BASIS_CAPTION} · excludes fees · Total: ${chartFmt.currencyCompact(mediaChannelTotal)}`}
           exportPage="dashboard"
           exportSeries={{
             data: mediaChannelDonutData,
@@ -406,18 +411,25 @@ export default function SpendChartsRow({
           }}
         >
           {mediaChannelTotal > 0 ? (
-            <DonutChart
-              data={mediaChannelDonutData}
-              centerValue={chartFmt.currencyCompact(mediaChannelTotal)}
-              centerLabel="Total"
-              valueFormat="dollars"
-              plotHeight={CHART_PLOT_HEIGHT}
-              className="w-full"
-            />
+            <>
+              <DonutChart
+                data={mediaChannelDonutData}
+                centerValue={chartFmt.currencyCompact(mediaChannelTotal)}
+                centerLabel="Total"
+                valueFormat="dollars"
+                plotHeight={CHART_PLOT_HEIGHT}
+                className="w-full"
+              />
+              <ShareBreakdownLegend
+                items={mediaChannelDonutData}
+                total={mediaChannelTotal}
+                valueFormat="dollars"
+              />
+            </>
           ) : (
             <EmptyState
               className={`${CHART_EMPTY_CLASS} border-0 bg-transparent`}
-              title="No planned media data available"
+              title="No planned media for this period"
               message={null}
             />
           )}
@@ -454,7 +466,7 @@ export default function SpendChartsRow({
 
       <BaseChartCard
         title="Planned media by month"
-        subtitle={`gross media by month, planned · As at ${asAtDate}`}
+        subtitle={`gross media by month, planned · excludes fees · As at ${asAtDate}`}
         exportPage="dashboard"
         exportSeries={{
           data: pivotedMonthly,
