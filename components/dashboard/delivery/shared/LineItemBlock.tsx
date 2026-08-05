@@ -3,6 +3,10 @@ import type { TargetCurvePoint } from "@/lib/kpi/deliveryTargetCurve"
 import { ProgressCard, type ProgressCardProps } from "./ProgressCard"
 import { KpiBand, type KpiBandProps } from "./KpiBand"
 import { DeliveryDailyChart } from "@/components/dashboard/delivery/common/DeliveryDailyChart"
+import {
+  AdGroupBreakdownTable,
+  type AdGroupBreakdownRow,
+} from "./AdGroupBreakdownTable"
 
 type CumulativeChart = {
   kind: "cumulative-vs-target"
@@ -36,6 +40,11 @@ export interface LineItemBlockProps {
   progressCards: [ProgressCardProps, ProgressCardProps]
   kpiBand: KpiBandProps
   chart: LineItemChart
+  /** Search only: delivered ad-group actuals (no planned). */
+  adGroupBreakdown?: {
+    rows: AdGroupBreakdownRow[]
+    knownPlanLineIds: string[]
+  }
 }
 
 export function LineItemBlock({
@@ -45,6 +54,7 @@ export function LineItemBlock({
   progressCards,
   kpiBand,
   chart,
+  adGroupBreakdown,
 }: LineItemBlockProps) {
   return (
     <div className="rounded-xl border border-border/40 bg-muted/10 p-4 space-y-4">
@@ -81,6 +91,12 @@ export function LineItemBlock({
           subtitle={chart.series.map((s) => s.label).join(" + ")}
         />
       )}
+      {adGroupBreakdown && adGroupBreakdown.rows.length > 0 ? (
+        <AdGroupBreakdownTable
+          rows={adGroupBreakdown.rows}
+          knownPlanLineIds={adGroupBreakdown.knownPlanLineIds}
+        />
+      ) : null}
     </div>
   )
 }

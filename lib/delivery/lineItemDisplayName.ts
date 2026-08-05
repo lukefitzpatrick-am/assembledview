@@ -3,6 +3,58 @@
  * Display-only — never use for id matching, pacing, or Snowflake joins.
  */
 
+/** Trailing segment shape matching plan line ids (e.g. BOSS002SE1, BOSS005SE1). */
+const PLAN_CODE_SUFFIX_SHAPE = /^[A-Za-z]{2,10}\d{3}[A-Za-z]{2}\d+$/
+
+/** Warn once per distinct secondary-stripped suffix (rollover codes not on this plan). */
+const warnedPlanCodeSuffixes = new Set<string>()
+
+/**
+ * Strip the final "-" segment when it is a plan line id (or plan-code shaped).
+ * Google Ads AD_GROUP_NAME often ends `-BOSS005SE1`; clients must not see that code.
+ * Does not alter Snowflake data — display only.
+ */
+export function stripPlanCodeSuffix(
+  adGroupName: string,
+  knownPlanLineIds: string[],
+): string {
+  const raw = String(adGroupName ?? "")
+  if (!raw.trim()) return raw
+
+  const lastDash = raw.lastIndexOf("-")
+  if (lastDash < 0) return raw
+
+  const head = raw.slice(0, lastDash)
+  const suffix = raw.slice(lastDash + 1).trim()
+  if (!suffix) return raw
+
+  const known = new Set(
+    knownPlanLineIds
+      .map((id) => String(id ?? "").trim().toLowerCase())
+      .filter((id) => Boolean(id) && id !== "undefined" && id !== "null"),
+  )
+  const suffixKey = suffix.toLowerCase()
+
+  let shouldStrip = false
+  if (known.has(suffixKey)) {
+    shouldStrip = true
+  } else if (PLAN_CODE_SUFFIX_SHAPE.test(suffix)) {
+    shouldStrip = true
+    if (!warnedPlanCodeSuffixes.has(suffixKey)) {
+      warnedPlanCodeSuffixes.add(suffixKey)
+      console.warn(
+        "[stripPlanCodeSuffix] stripped plan-code-shaped suffix not in known plan lines:",
+        suffix,
+      )
+    }
+  }
+
+  if (!shouldStrip) return raw
+
+  const cleaned = head.replace(/[-\s]+$/u, "").trim()
+  return cleaned || raw
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>

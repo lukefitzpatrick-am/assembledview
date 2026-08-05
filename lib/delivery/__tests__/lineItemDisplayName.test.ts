@@ -4,6 +4,7 @@ import test from "node:test"
 import {
   clampDisplayLabel,
   deliveryLineItemDisplayName,
+  stripPlanCodeSuffix,
 } from "../lineItemDisplayName.js"
 
 /** Real BOSS005 v17 published tip (measured in Supabase) — targeting is 160 chars, not 222. */
@@ -120,4 +121,65 @@ test("social parity: Meta header matches pre-refactor formatLineItemHeader", () 
 
 test("clampDisplayLabel is a no-op when under max", () => {
   assert.equal(clampDisplayLabel("short", 90), "short")
+})
+
+test("stripPlanCodeSuffix — primary: known plan line id", () => {
+  assert.equal(
+    stripPlanCodeSuffix("Trailers-BOSS005SE1", ["BOSS005SE1"]),
+    "Trailers",
+  )
+  assert.equal(
+    stripPlanCodeSuffix("Service bodies-boss005se1", ["BOSS005SE1"]),
+    "Service bodies",
+  )
+})
+
+test("stripPlanCodeSuffix — secondary: plan-code shape not in known ids (rollover)", () => {
+  assert.equal(
+    stripPlanCodeSuffix("Canopies-BOSS002SE1", ["BOSS005SE1"]),
+    "Canopies",
+  )
+})
+
+test("stripPlanCodeSuffix — BOSS005 expected display names", () => {
+  const known = ["BOSS005SE1"]
+  const raw = [
+    "Trailers-BOSS002SE1",
+    "Service bodies-BOSS002SE1",
+    "Canopies-BOSS002SE1",
+    "Ute-BOSS002SE1",
+    "Trays-BOSS002SE1",
+    "Toolbox-BOSS002SE1",
+    "Tandem-BOSS002SE1",
+    "Bronco built-BOSS002SE1",
+    "Boss-BOSS002SE1",
+    "axle-BOSS002SE1",
+  ]
+  assert.deepEqual(
+    raw.map((n) => stripPlanCodeSuffix(n, known)),
+    [
+      "Trailers",
+      "Service bodies",
+      "Canopies",
+      "Ute",
+      "Trays",
+      "Toolbox",
+      "Tandem",
+      "Bronco built",
+      "Boss",
+      "axle",
+    ],
+  )
+})
+
+test("stripPlanCodeSuffix — leave alone when suffix is not a plan code", () => {
+  assert.equal(
+    stripPlanCodeSuffix("Brand-Awareness-AU", ["BOSS005SE1"]),
+    "Brand-Awareness-AU",
+  )
+})
+
+test("stripPlanCodeSuffix — never return empty; no dash unchanged", () => {
+  assert.equal(stripPlanCodeSuffix("-BOSS005SE1", ["BOSS005SE1"]), "-BOSS005SE1")
+  assert.equal(stripPlanCodeSuffix("Trailers", ["BOSS005SE1"]), "Trailers")
 })

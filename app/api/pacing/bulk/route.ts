@@ -153,6 +153,7 @@ export async function POST(request: NextRequest) {
               totals: { cost: 0, clicks: 0, conversions: 0, revenue: 0, impressions: 0, topImpressionPct: null },
               daily: [],
               lineItems: [],
+              adGroups: [],
               keywords: [],
               error: message || "Search pacing failed",
             } satisfies SearchPacingResponse
