@@ -42,6 +42,8 @@ export function usePlanDraftSession(args: {
   campaignStatus: string | null | undefined
   publishedVersionNumber: number
   versionRowCount: number
+  /** VC Stage 1 — tip `published_at`; null = unpublished overwrite. */
+  tipPublishedAt?: string | null
   forceIncrement?: boolean
   getSnapshot: () => PlanDraftStateV1
   onRestore: (state: PlanDraftStateV1) => void
@@ -88,12 +90,14 @@ export function usePlanDraftSession(args: {
         forceIncrement: Boolean(args.forceIncrement),
         publishedVersionNumber: args.publishedVersionNumber,
         versionRowCount: args.versionRowCount,
+        tipPublishedAt: args.tipPublishedAt,
       }),
     [
       args.campaignStatus,
       args.forceIncrement,
       args.publishedVersionNumber,
       args.versionRowCount,
+      args.tipPublishedAt,
     ]
   )
 

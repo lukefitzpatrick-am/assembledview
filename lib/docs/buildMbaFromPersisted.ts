@@ -25,7 +25,7 @@ import {
   snapshotChecksumFooter,
   type ChecksumScheduleRow,
 } from "@/lib/docs/snapshotChecksum"
-import { isApprovedOrBeyond } from "@/lib/docs/isApprovedOrBeyond"
+import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 
 export class PersistedDocError extends Error {
   constructor(
@@ -145,11 +145,10 @@ export async function buildMbaFromPersisted(args: {
     )
   }
 
-  const status = String(version.campaignStatus ?? "")
-  if (!isApprovedOrBeyond(status)) {
+  if (!isVersionPublished(version)) {
     throw new PersistedDocError(
       "NOT_APPROVED",
-      `Document render requires approved-or-beyond status (got "${status || "empty"}")`
+      `Document render requires a published version (published_at set; campaign_status="${String(version.campaignStatus ?? "") || "empty"}")`
     )
   }
 

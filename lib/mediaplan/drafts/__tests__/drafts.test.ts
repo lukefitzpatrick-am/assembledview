@@ -19,6 +19,7 @@ describe("PC7 pill shares T4c resolvePostgresSaveMode", () => {
       forceIncrement: false,
       publishedVersionNumber: 2,
       versionRowCount: 2,
+      tipPublishedAt: null,
     })
     const pill = describePlanSavePill({
       modeResolved: mode,
@@ -38,6 +39,7 @@ describe("PC7 pill shares T4c resolvePostgresSaveMode", () => {
       forceIncrement: false,
       publishedVersionNumber: 1,
       versionRowCount: 1,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
     })
     const pill = describePlanSavePill({
       modeResolved: mode,
@@ -55,6 +57,7 @@ describe("PC7 pill shares T4c resolvePostgresSaveMode", () => {
       forceIncrement: false,
       publishedVersionNumber: 3,
       versionRowCount: 3,
+      tipPublishedAt: null,
     })
     const pill = describePlanSavePill({
       modeResolved: mode,

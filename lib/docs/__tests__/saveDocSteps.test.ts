@@ -13,19 +13,35 @@ import {
   type SaveDocStepItem,
 } from "../saveDocSteps"
 
-describe("shouldSkipDocsForCampaignStatus", () => {
-  it("skips draft / planned / empty", () => {
-    assert.equal(shouldSkipDocsForCampaignStatus("draft"), true)
-    assert.equal(shouldSkipDocsForCampaignStatus("Draft"), true)
-    assert.equal(shouldSkipDocsForCampaignStatus("planned"), true)
-    assert.equal(shouldSkipDocsForCampaignStatus(""), true)
+describe("shouldSkipDocsForCampaignStatus (publication)", () => {
+  it("skips when unpublished / null version", () => {
+    assert.equal(shouldSkipDocsForCampaignStatus({ publishedAt: null }), true)
+    assert.equal(shouldSkipDocsForCampaignStatus({ published_at: null }), true)
     assert.equal(shouldSkipDocsForCampaignStatus(null), true)
+    assert.equal(shouldSkipDocsForCampaignStatus(undefined), true)
   })
 
-  it("does not skip approved / booked / completed", () => {
-    assert.equal(shouldSkipDocsForCampaignStatus("approved"), false)
-    assert.equal(shouldSkipDocsForCampaignStatus("booked"), false)
-    assert.equal(shouldSkipDocsForCampaignStatus("completed"), false)
+  it("does not skip when published_at is set", () => {
+    assert.equal(
+      shouldSkipDocsForCampaignStatus({ publishedAt: "2026-06-01T00:00:00.000Z" }),
+      false
+    )
+    assert.equal(
+      shouldSkipDocsForCampaignStatus({ published_at: "2026-06-01T00:00:00.000Z" }),
+      false
+    )
+  })
+
+  // VC1-3 acceptance
+  it("VC1-3: published + campaign_status=draft → docs generate (do not skip)", () => {
+    assert.equal(
+      shouldSkipDocsForCampaignStatus({ publishedAt: "2026-06-01T00:00:00.000Z" }),
+      false
+    )
+  })
+
+  it("VC1-3: unpublished + campaign_status=approved → docs skipped", () => {
+    assert.equal(shouldSkipDocsForCampaignStatus({ publishedAt: null }), true)
   })
 })
 
@@ -34,6 +50,12 @@ describe("isExpectedDocGateSkipError", () => {
     assert.equal(
       isExpectedDocGateSkipError(
         'Document render requires approved-or-beyond status (got "draft")'
+      ),
+      true
+    )
+    assert.equal(
+      isExpectedDocGateSkipError(
+        'Document download requires a published version (published_at set; campaign_status="draft")'
       ),
       true
     )
@@ -52,7 +74,7 @@ describe("isExpectedDocGateSkipError", () => {
 })
 
 describe("saving dialog state with skipped doc steps", () => {
-  it("draft save → doc steps skipped → success/complete, not errors", () => {
+  it("unpublished save → doc steps skipped → success/complete, not errors", () => {
     const items: SaveDocStepItem[] = [
       { name: "Media Plan Version", status: "success" },
       ...skippedDocStepItems(),
@@ -67,7 +89,7 @@ describe("saving dialog state with skipped doc steps", () => {
     )
   })
 
-  it("approved publish with forced doc failure → error state preserved", () => {
+  it("published publish with forced doc failure → error state preserved", () => {
     const items = [
       { name: "Media Plan Version", status: "success" },
       {
@@ -95,7 +117,7 @@ describe("saving dialog state with skipped doc steps", () => {
 describe("classifyDocStepFailure", () => {
   it("reclassifies PC3 gate as skipped with stable copy", () => {
     const c = classifyDocStepFailure(
-      'Document render requires approved-or-beyond status (got "draft")'
+      'Document render requires a published version (published_at set; campaign_status="draft")'
     )
     assert.equal(c.status, "skipped")
     assert.equal(c.error, DOC_SKIP_REASON)

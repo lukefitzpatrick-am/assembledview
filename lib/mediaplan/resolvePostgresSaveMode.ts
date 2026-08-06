@@ -1,10 +1,14 @@
 import type { SavePlanMode } from "@/lib/data/savePlan"
 import { nextMbaVersionNumber } from "@/lib/mediaplan/nextMbaVersionNumber"
-import { normaliseStatus } from "@/lib/mediaplan/campaignStatusGuard"
+import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 
 export type ResolvePostgresSaveModeInput = {
-  /** Form / master campaign status (draft vs approved/…). */
-  campaignStatus: string | null | undefined
+  /**
+   * @deprecated VC Stage 1 — no longer used for overwrite vs publish.
+   * Retained so call sites can keep passing campaign status for other UI copy
+   * without a twin-signature rewrite; publication uses `tipPublishedAt` only.
+   */
+  campaignStatus?: string | null | undefined
   /**
    * Approval-set change after a persisted baseline — mirrors PUT `forceIncrement`
    * (cuts a new version even while still Draft).
@@ -14,6 +18,12 @@ export type ResolvePostgresSaveModeInput = {
   publishedVersionNumber: number
   /** Count of existing version rows for this MBA (0 → first save is v1). */
   versionRowCount: number
+  /**
+   * VC Stage 1 — `published_at` of the tip version being saved over.
+   * Overwrite in place iff this is unpublished (null) and tip > 0.
+   * Omit only when tip is 0 (first save); when tip > 0, pass the row value.
+   */
+  tipPublishedAt?: string | null
 }
 
 export type ResolvePostgresSaveModeResult = {
@@ -29,17 +39,16 @@ export type ResolvePostgresSaveModeResult = {
 }
 
 /**
- * Map create/edit save intent onto T4a modes, mirroring MBA PUT semantics
- * (3e22b836 / ddc1ebbe):
+ * Map create/edit save intent onto T4a modes.
  *
- * - Draft + existing published row + !forceIncrement → **overwrite in place**
- *   (`mode: "draft"`, same version_number).
- * - Otherwise → cut next version and advance publish pointer in one txn
- *   (`mode: "publish"`). Today's Xano path stages then PATCH-publishes; Postgres
- *   collapses that into one transactional publish. `campaignStatus` is passed
- *   through so a Draft first-save can still publish v1 while remaining Draft.
+ * VC Stage 1: overwrite in place iff the tip version is **unpublished**
+ * (`published_at` null) and tip > 0 and !forceIncrement — never
+ * `campaign_status === "draft"`. A published tip (including
+ * `campaign_status=draft`) always cuts a new version via `mode: "publish"`.
+ * An unpublished tip (including `campaign_status=approved`) overwrites.
  *
- * `new_version` is unused by the editor (no stage-without-publish UI path).
+ * `new_version` is unused by the editor (no stage-without-publish UI path) —
+ * this helper must never return it.
  *
  * Edit may pass `versionRowCount: 0` while the tip exists (version history is
  * lazy-loaded). Treat published tip as proof of at least that many rows so
@@ -49,14 +58,22 @@ export type ResolvePostgresSaveModeResult = {
 export function resolvePostgresSaveMode(
   input: ResolvePostgresSaveModeInput
 ): ResolvePostgresSaveModeResult {
-  const status = normaliseStatus(input.campaignStatus ?? "")
   const published = Number(input.publishedVersionNumber) || 0
   const rowCountRaw = Math.max(0, Number(input.versionRowCount) || 0)
   const rowCount =
     rowCountRaw === 0 && published > 0 ? published : rowCountRaw
 
-  const overwrite =
-    status === "draft" && published > 0 && !input.forceIncrement
+  // Tip unpublished → overwrite; tip published → spawn. No status fallback.
+  // When tip > 0 and tipPublishedAt is omitted, assume published (spawn) so a
+  // forgotten caller cannot overwrite a live tip. Pass `null` for unpublished.
+  const tipPublishedAt =
+    published > 0 && input.tipPublishedAt === undefined
+      ? "assumed-published"
+      : (input.tipPublishedAt ?? null)
+  const tipUnpublished =
+    published > 0 && !isVersionPublished({ publishedAt: tipPublishedAt })
+
+  const overwrite = tipUnpublished && !input.forceIncrement
 
   if (overwrite) {
     return {

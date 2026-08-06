@@ -104,6 +104,7 @@ describe("publish-branch postgres save payload (2-line social)", () => {
       publishedVersionNumber: 1,
       // Same lazy-empty history the edit footer/save path can see.
       versionRowCount: 0,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
     })
     assert.equal(mode.mode, "publish")
     assert.equal(mode.versionNumber, 2)
@@ -128,6 +129,7 @@ describe("publish-branch postgres save payload (2-line social)", () => {
       forceIncrement: false,
       publishedVersionNumber: 1,
       versionRowCount: 0,
+      tipPublishedAt: null,
     })
     assert.deepEqual(mode, {
       mode: "draft",
@@ -175,6 +177,7 @@ describe("O4.5 publish/status-change carries feeLoading (shared assembler)", () 
       forceIncrement: false,
       publishedVersionNumber: 2,
       versionRowCount: 0,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
     })
     assert.equal(mode.mode, "publish")
 

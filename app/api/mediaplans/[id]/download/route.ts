@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 import { requireRole } from "@/lib/requireRole"
-import { isApprovedOrBeyond } from "@/lib/docs/isApprovedOrBeyond"
+import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -35,6 +35,7 @@ export async function GET(
         mbaNumber: schema.mediaPlanVersions.mbaNumber,
         versionNumber: schema.mediaPlanVersions.versionNumber,
         campaignStatus: schema.mediaPlanVersions.campaignStatus,
+        publishedAt: schema.mediaPlanVersions.publishedAt,
         mediaPlanFile: schema.mediaPlanVersions.mediaPlanFile,
         mbaPdfFile: schema.mediaPlanVersions.mbaPdfFile,
         snapshotChecksum: schema.mediaPlanVersions.snapshotChecksum,
@@ -46,10 +47,10 @@ export async function GET(
     if (!version) {
       return NextResponse.json({ error: "Version not found" }, { status: 404 })
     }
-    if (!isApprovedOrBeyond(version.campaignStatus)) {
+    if (!isVersionPublished(version)) {
       return NextResponse.json(
         {
-          error: `Document download requires approved-or-beyond status (got "${version.campaignStatus || "empty"}")`,
+          error: `Document download requires a published version (published_at set; campaign_status="${version.campaignStatus || "empty"}")`,
           code: "NOT_APPROVED",
         },
         { status: 422 }

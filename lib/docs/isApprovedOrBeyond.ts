@@ -1,9 +1,11 @@
 /**
- * PC3 / MB-15c — approved-or-beyond gate.
+ * PC3 / commercial — approved-or-beyond gate (Bucket B).
  * approved / booked / completed (case-insensitive). Draft/planned/cancelled → false.
  *
- * Single definition for MBA document generate AND published-version billing immutability.
- * Uses mediaplan status normalisation (not a second status vocabulary).
+ * VC Stage 1: do NOT use this for publication. Publication is
+ * `isVersionPublished` (`published_at != null`) in
+ * `lib/mediaplan/versionPublication.ts`. This helper remains for genuine
+ * commercial-status consumers.
  */
 
 import { normaliseStatus } from "@/lib/mediaplan/campaignStatusGuard"

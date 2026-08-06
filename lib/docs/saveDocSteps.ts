@@ -1,12 +1,12 @@
 /**
  * Save-dialog document steps (MBA PDF / Media Plan file).
- * PC3 correctly refuses docs below approved — the dialog must show that as a
- * neutral SKIP, not a red failure ("my save failed").
+ * Unpublished versions skip doc generation — show as a neutral SKIP, not a
+ * red failure ("my save failed").
  */
 
-import { isApprovedOrBeyond } from "@/lib/docs/isApprovedOrBeyond"
+import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 
-export const DOC_SKIP_REASON = "Documents generate from approved versions"
+export const DOC_SKIP_REASON = "Documents generate from published versions"
 
 export const DOC_STEP_MBA = "MBA PDF Upload"
 export const DOC_STEP_MEDIA_PLAN = "Media Plan Upload"
@@ -20,10 +20,20 @@ export type SaveDocStepItem = {
   error?: string
 }
 
-/** True when campaign status is below approved — doc generation is an expected skip. */
-export function shouldSkipDocsForCampaignStatus(status: unknown): boolean {
-  return !isApprovedOrBeyond(status)
+/**
+ * True when the version is unpublished — doc generation is an expected skip.
+ * VC Stage 1: publication only (`published_at`); never campaign_status.
+ */
+export function shouldSkipDocsForCampaignStatus(version: {
+  publishedAt?: string | null
+  published_at?: string | null
+} | null | undefined): boolean {
+  if (version == null) return true
+  return !isVersionPublished(version)
 }
+
+/** Alias — prefer this name at new call sites. */
+export const shouldSkipDocsForUnpublishedVersion = shouldSkipDocsForCampaignStatus
 
 /** PC3 / persisted-render gate messages that must never look like save failures. */
 export function isExpectedDocGateSkipError(message: unknown): boolean {
@@ -32,7 +42,9 @@ export function isExpectedDocGateSkipError(message: unknown): boolean {
   return (
     /approved-or-beyond/i.test(m) ||
     /Document render requires/i.test(m) ||
-    /Document download requires/i.test(m)
+    /Document download requires/i.test(m) ||
+    /unpublished/i.test(m) ||
+    /published version/i.test(m)
   )
 }
 

@@ -24,12 +24,13 @@ describe("mapUiMediaTypeToLineChannel", () => {
 })
 
 describe("resolvePostgresSaveMode", () => {
-  it("maps draft+existing → overwrite / T4a draft (3e22b836 in-place)", () => {
+  it("unpublished tip → overwrite / T4a draft (in-place)", () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "Draft",
       forceIncrement: false,
       publishedVersionNumber: 1,
       versionRowCount: 1,
+      tipPublishedAt: null,
     })
     assert.deepEqual(r, {
       mode: "draft",
@@ -38,12 +39,13 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  it("maps draft+forceIncrement → publish / next version", () => {
+  it("unpublished tip + forceIncrement → publish / next version", () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "draft",
       forceIncrement: true,
       publishedVersionNumber: 2,
       versionRowCount: 2,
+      tipPublishedAt: null,
     })
     assert.equal(r.mode, "publish")
     assert.equal(r.versionNumber, 3)
@@ -56,6 +58,7 @@ describe("resolvePostgresSaveMode", () => {
       forceIncrement: false,
       publishedVersionNumber: 0,
       versionRowCount: 0,
+      tipPublishedAt: null,
     })
     assert.deepEqual(r, {
       mode: "publish",
@@ -64,25 +67,26 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  it("maps approved status → publish next", () => {
+  it("published tip → publish next (status irrelevant)", () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "Approved",
       forceIncrement: false,
       publishedVersionNumber: 1,
       versionRowCount: 1,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
     })
     assert.equal(r.mode, "publish")
     assert.equal(r.versionNumber, 2)
     assert.equal(r.uiMode, "increment")
   })
 
-  it("draft→booked on v1 with lazy-empty versionRowCount → publish v2 (not Will create v1)", () => {
-    // Edit page loads tip without versions[] until the switcher opens.
+  it("draft→booked on published v1 with lazy-empty versionRowCount → publish v2", () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "Booked",
       forceIncrement: false,
       publishedVersionNumber: 1,
       versionRowCount: 0,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
     })
     assert.deepEqual(r, {
       mode: "publish",
@@ -91,17 +95,62 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  it("draft overwrite still works when version history is lazy-empty", () => {
+  it("unpublished overwrite still works when version history is lazy-empty", () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "Draft",
       forceIncrement: false,
       publishedVersionNumber: 1,
       versionRowCount: 0,
+      tipPublishedAt: null,
     })
     assert.deepEqual(r, {
       mode: "draft",
       versionNumber: 1,
       uiMode: "overwrite",
     })
+  })
+
+  // VC1-3 acceptance — previously unrepresentable cross-states
+  it("VC1-3: published + campaign_status=draft → spawn (not overwrite)", () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "draft",
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 1,
+      tipPublishedAt: "2026-06-01T00:00:00.000Z",
+    })
+    assert.deepEqual(r, {
+      mode: "publish",
+      versionNumber: 2,
+      uiMode: "increment",
+    })
+  })
+
+  it("VC1-3: unpublished + campaign_status=approved → overwrite in place", () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "approved",
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 1,
+      tipPublishedAt: null,
+    })
+    assert.deepEqual(r, {
+      mode: "draft",
+      versionNumber: 1,
+      uiMode: "overwrite",
+    })
+  })
+
+  it("never returns new_version", () => {
+    for (const tipPublishedAt of [null, "2026-01-01T00:00:00.000Z", undefined] as const) {
+      const r = resolvePostgresSaveMode({
+        campaignStatus: "draft",
+        forceIncrement: false,
+        publishedVersionNumber: 1,
+        versionRowCount: 1,
+        tipPublishedAt,
+      })
+      assert.notEqual(r.mode, "new_version")
+    }
   })
 })

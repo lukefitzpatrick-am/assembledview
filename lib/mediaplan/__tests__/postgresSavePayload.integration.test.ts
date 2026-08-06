@@ -104,6 +104,7 @@ describe("2. version resolution with versions[] UNLOADED", () => {
       forceIncrement: false,
       publishedVersionNumber: 1,
       versionRowCount: 0,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
     })
     assert.deepEqual(mode, {
       mode: "publish",
@@ -119,6 +120,7 @@ describe("2. version resolution with versions[] UNLOADED", () => {
       forceIncrement: false,
       publishedVersionNumber: 1,
       versionRowCount: 0,
+      tipPublishedAt: null,
     })
     assert.deepEqual(mode, {
       mode: "draft",
@@ -136,6 +138,8 @@ describe("2. version resolution with versions[] UNLOADED", () => {
         forceIncrement: false,
         publishedVersionNumber: tipPublished,
         versionRowCount: 0,
+        tipPublishedAt:
+          status === "Draft" ? null : "2026-01-15T00:00:00.000Z",
       })
       assert.equal(
         formatSaveModeLabel(mode.uiMode, mode.versionNumber),

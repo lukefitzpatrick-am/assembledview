@@ -168,7 +168,7 @@ async function snapshotBillingState(versionId: number) {
   }
 }
 
-test("MB-15c (i): replace_line against approved version → VERSION_PUBLISHED_IMMUTABLE, nothing written", async (t) => {
+test("MB-15c (i): replace_line against published version → VERSION_PUBLISHED_IMMUTABLE, nothing written", async (t) => {
   if (!hasDb) {
     t.skip("DATABASE_URL not set")
     return
@@ -233,7 +233,7 @@ test("MB-15c (i): replace_line against approved version → VERSION_PUBLISHED_IM
   assert.equal(after.monthsJson, before.monthsJson)
 })
 
-test("MB-15c (ii): same replace_line against a draft version succeeds", async (t) => {
+test("MB-15c (ii): same replace_line against an unpublished version succeeds", async (t) => {
   if (!hasDb) {
     t.skip("DATABASE_URL not set")
     return
@@ -269,6 +269,87 @@ test("MB-15c (ii): same replace_line against a draft version succeeds", async (t
     .where(eq(schema.billingOverrides.versionId, draft.versionId))
   assert.equal(overrides.length, 1)
   assert.equal(overrides[0]!.component, "media")
+})
+
+test("VC1-3: published + campaign_status=draft → billing IMMUTABLE", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const line = baseLine(LINE_A, 1000)
+  const published = await savePlanVersion({
+    ...draftInput(masterId, [line]),
+    mode: "publish",
+    campaignStatus: "draft",
+    feeSnapshot: { feesearch: 10 },
+  })
+  assert.equal(published.published, true)
+
+  await assert.rejects(
+    () =>
+      replaceBillingOverrideLine({
+        versionId: published.versionId,
+        mbaNumber: MBA,
+        lineItemId: LINE_A,
+        component: "media",
+        mode: "manual",
+        reason: "manual",
+        months: [
+          { month: "2026-06", amount: 1000 },
+          { month: "2026-07", amount: 0 },
+        ],
+        dateBasis: "vc13-published-draft",
+      }),
+    (err: unknown) =>
+      err instanceof BillingOverrideWriteError &&
+      err.code === "VERSION_PUBLISHED_IMMUTABLE"
+  )
+})
+
+test("VC1-3: unpublished + campaign_status=approved → billing MUTABLE", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const line = baseLine(LINE_A, 1000)
+  const draft = await savePlanVersion({
+    ...draftInput(masterId, [line]),
+    campaignStatus: "approved",
+  })
+  assert.equal(draft.published, false)
+
+  await replaceBillingOverrideLine({
+    versionId: draft.versionId,
+    mbaNumber: MBA,
+    lineItemId: LINE_A,
+    component: "media",
+    mode: "manual",
+    reason: "manual",
+    months: [
+      { month: "2026-06", amount: 1000 },
+      { month: "2026-07", amount: 0 },
+    ],
+    dateBasis: "vc13-unpublished-approved",
+  })
+
+  const db = getDb()
+  const overrides = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, draft.versionId))
+  assert.equal(overrides.length, 1)
 })
 
 test("MB-15c (iii): publish then attempt — refused; published version byte-identical", async (t) => {
