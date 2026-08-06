@@ -96,10 +96,11 @@ export const FORECAST_MEDIA_TYPE_TO_PUBLISHER_COMMISSION_FIELDS: Readonly<
 
 /**
  * How raw `*_comms` values are turned into a monetary commission amount.
- * **Rule:** unconditional whole-percent — `rate / 100` (20 = 20%).
+ * **Rule:** retained = `max(0, rate − 2) / 100` of GROSS media (AA takes 2%, fixed).
  * Safe because publishers `*_comms` were normalised on 2026-08-04 to whole percent;
  * the ambiguous zone (0, 1] is empty in the DB. A value in (0, 1] is a data error,
  * not a decimal-fraction unit — see tripwire in `applyForecastCommissionRate`.
+ * Zero-AA clamp: `retainedCommissionRate` / `[retained-commission-zero-aa]`.
  */
 
 // ---------------------------------------------------------------------------

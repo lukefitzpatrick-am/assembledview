@@ -13,6 +13,10 @@ import {
   PUBLISHER_BILLING_AGENCY_ASSEMBLED_MEDIA,
   PUBLISHER_TYPE_DIRECT,
 } from "./definitions"
+import {
+  retainedCommissionRate,
+  type RetainedCommissionLogContext,
+} from "@/lib/finance/retainedCommission"
 
 function norm(s: unknown): string {
   return String(s ?? "")
@@ -110,15 +114,30 @@ export function logForecastCommissionScaleTripwire(commsRaw: number): void {
 }
 
 /**
- * Convert media $ × stored comms rate → commission $.
- * Unconditional whole-percent (`rate / 100`). Safe: DB normalised 2026-08-04;
- * no values remain in (0, 1] — that band is a data error, not a different unit.
+ * Convert GROSS media $ × stored comms rate → retained commission $.
+ * Retained rate = max(0, rate − AA_COMMISSION_RATE) (see retainedCommission.ts).
+ * Unconditional whole-percent after clamp (`retained / 100`). Safe: DB normalised
+ * 2026-08-04; (0,1] band is a data error, not a different unit.
+ *
+ * Client-pays lines earn nothing — asserted here so a caller that forgot the
+ * extractBillableLines skip cannot accidentally commission them.
  */
-export function applyForecastCommissionRate(mediaAmount: number, commsRaw: number): number {
-  if (!Number.isFinite(mediaAmount) || mediaAmount <= 0 || commsRaw <= 0) return 0
+export function applyForecastCommissionRate(
+  mediaAmount: number,
+  commsRaw: number,
+  opts?: RetainedCommissionLogContext & { clientPaysForMedia?: boolean }
+): number {
+  // Client-pays: media is not agency-billable — never earn commission.
+  if (opts?.clientPaysForMedia) return 0
+  if (!Number.isFinite(mediaAmount) || mediaAmount <= 0) return 0
+  if (!Number.isFinite(commsRaw)) return 0
   logForecastCommissionScaleTripwire(commsRaw)
-  const rate = commsRaw / 100
-  return round2(mediaAmount * rate)
+  const retainedPct = retainedCommissionRate(commsRaw, {
+    publisher: opts?.publisher,
+    lineItemId: opts?.lineItemId,
+  })
+  if (retainedPct <= 0) return 0
+  return round2(mediaAmount * (retainedPct / 100))
 }
 
 function round2(n: number): number {

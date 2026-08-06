@@ -647,6 +647,8 @@ function buildLinesForCampaign(args: {
         mediaTypeDisplay: "Aggregated",
         mediaTypeKey: "unknown",
         mediaAmount: monthMedia,
+        lineItemId: null,
+        clientPaysForMedia: false,
       })
     }
 
@@ -685,7 +687,11 @@ function buildLinesForCampaign(args: {
       const mtKey = row.mediaTypeKey
       const mediaAmt = row.mediaAmount
       const comms = readPublisherCommissionRate(row.publisher, mtKey)
-      const commsAmt = applyForecastCommissionRate(mediaAmt, comms)
+      const commsAmt = applyForecastCommissionRate(mediaAmt, comms, {
+        publisher: String(row.publisher.publisher_name ?? "").trim() || null,
+        lineItemId: row.lineItemId,
+        clientPaysForMedia: row.clientPaysForMedia,
+      })
 
       const bucket = resolveRevenueCommissionBucket({
         mediaTypeKey: mtKey,
@@ -906,6 +912,8 @@ type BillableRow = {
   mediaTypeDisplay: string
   mediaTypeKey: string
   mediaAmount: number
+  lineItemId: string | null
+  clientPaysForMedia: boolean
 }
 
 function extractBillableLinesForMonth(
@@ -955,11 +963,19 @@ function extractBillableLinesForMonth(
           billingagency: PUBLISHER_BILLING_AGENCY_ASSEMBLED_MEDIA,
         } as FinanceForecastPublisherInput)
 
+      const rawLineId = lineItem.lineItemId ?? lineItem.line_item_id ?? lineItem.id
+      const lineItemId =
+        rawLineId != null && String(rawLineId).trim() !== ""
+          ? String(rawLineId).trim()
+          : null
+
       out.push({
         publisher,
         mediaTypeDisplay: String(mediaTypeDisplay),
         mediaTypeKey,
         mediaAmount: round2(amount),
+        lineItemId,
+        clientPaysForMedia: false,
       })
     }
   }

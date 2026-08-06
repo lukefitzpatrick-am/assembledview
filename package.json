@@ -22,6 +22,7 @@
     "test:expert-paste": "node --loader ts-node/esm tests/lib/expertGridPaste.test.ts",
     "test:spreadsheet": "tsx --test tests/lib/spreadsheetSelection.test.ts",
     "test:finance-forecast": "tsx --test tests/finance/buildFinanceForecastDataset.test.ts tests/finance/varianceEngine.test.ts",
+    "test:retained-commission": "tsx --test lib/finance/__tests__/retainedCommission.test.ts",
     "test:finance-filters": "tsx --test lib/finance/__tests__/filterBillingRecords.test.ts",
     "test:billing-divergence": "tsx --test lib/billing/__tests__/compareBillingDivergence.test.ts",
     "test:billing-seed-fees": "tsx --test lib/billing/__tests__/seedLineFees.test.ts",
