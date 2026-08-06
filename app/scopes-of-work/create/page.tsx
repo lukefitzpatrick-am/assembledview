@@ -16,6 +16,10 @@ import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { Plus, Trash2, Download, Save } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
+import {
+  applyClientsFetchResult,
+  fetchClientsList,
+} from "@/lib/clients/fetchClientsList"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatAUD } from "@/lib/format/money"
@@ -98,6 +102,7 @@ const formatMonthDisplay = (monthStr: string): string => {
 export default function CreateScopePage() {
   const router = useRouter()
   const [clients, setClients] = useState<Client[]>([])
+  const [clientsError, setClientsError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
@@ -150,24 +155,34 @@ export default function CreateScopePage() {
 
   // Fetch clients
   useEffect(() => {
-    const fetchClients = async () => {
+    const loadClients = async () => {
       try {
-        const response = await fetch("/api/clients")
-        if (!response.ok) {
-          throw new Error("Failed to fetch clients")
+        setIsLoading(true)
+        const result = await fetchClientsList<Client>()
+        const ui = applyClientsFetchResult(result)
+        setClients(ui.clients)
+        setClientsError(ui.clientsError)
+        if (ui.clientsError) {
+          toast({
+            title: "Error",
+            description: ui.clientsError,
+            variant: "destructive",
+          })
         }
-        const data = await response.json()
-        setClients(data)
       } catch (error) {
         console.error("Error fetching clients:", error)
+        setClients([])
+        setClientsError("Client list unavailable — try again")
         toast({
           title: "Error",
           description: "Failed to load clients",
           variant: "destructive",
         })
+      } finally {
+        setIsLoading(false)
       }
     }
-    fetchClients()
+    void loadClients()
   }, [])
 
   const scopeIdFailureToast = () => {
@@ -253,6 +268,14 @@ export default function CreateScopePage() {
   }
 
   const onSubmit = async (data: ScopeFormValues) => {
+    if (clientsError) {
+      toast({
+        title: "Save disabled",
+        description: clientsError,
+        variant: "destructive",
+      })
+      return
+    }
     setIsSaving(true)
     try {
       const response = await fetch("/api/scopes-of-work", {
@@ -361,6 +384,11 @@ export default function CreateScopePage() {
                       <FormItem>
                         <FormLabel>Client Name</FormLabel>
                         <FormControl>
+                          {clientsError ? (
+                            <p role="alert" className="rounded-input border border-status-critical-fg/30 bg-status-critical/10 px-3 py-2 text-sm text-status-critical-fg">
+                              {clientsError}
+                            </p>
+                          ) : (
                           <Combobox
                             value={clients.find((client) => client.mp_client_name === field.value)?.id.toString() || ""}
                             onValueChange={(value) => {
@@ -378,6 +406,7 @@ export default function CreateScopePage() {
                               keywords: client.mbaidentifier,
                             }))}
                           />
+                          )}
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -940,7 +969,7 @@ export default function CreateScopePage() {
           </Button>
           <Button
             onClick={form.handleSubmit(onSubmit)}
-            disabled={isSaving || (Boolean(selectedClient) && !scopeId)}
+            disabled={isSaving || Boolean(clientsError) || (Boolean(selectedClient) && !scopeId)}
           >
             <Save className="mr-2 h-4 w-4" />
             {isSaving ? "Saving..." : "Save Scope"}

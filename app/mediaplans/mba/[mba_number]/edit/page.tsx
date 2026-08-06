@@ -337,6 +337,10 @@ import { generateMediaPlan, MediaPlanHeader, LineItem, MediaItems } from '@/lib/
 import type { MediaContainerBestPractice, Publisher } from "@/lib/types/publisher"
 import { fetchMediaPlanMbaCoalesced } from "@/lib/mediaplan/fetchMediaPlanMbaCoalesced"
 import { coalescedGetJson } from "@/lib/api/coalescedGetJson"
+import {
+  applyClientsFetchResult,
+  fetchClientsList,
+} from "@/lib/clients/fetchClientsList"
 // --- KPI domain (Stage 2) ---
 import { KPISection } from "@/components/kpis/KPISection"
 import { createMediaPlanKpiHost } from "@/components/kpis/kpiHost"
@@ -362,7 +366,10 @@ import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { normaliseStatus, mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
-import { publishedBillingTimingLockedMessage } from "@/lib/docs/isApprovedOrBeyond"
+import {
+  isApprovedOrBeyond,
+  publishedBillingTimingLockedMessage,
+} from "@/lib/docs/isApprovedOrBeyond"
 import {
   DOC_SKIP_REASON,
   DOC_STEP_MBA,
@@ -1785,6 +1792,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
 
   const [clients, setClients] = useState<Client[]>([])
+  const [clientsError, setClientsError] = useState<string | null>(null)
   const [availableVersions, setAvailableVersions] = useState<Array<{
     id?: number
     version_number: number
@@ -2405,7 +2413,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       coalescedGetJson<Publisher[]>("/api/publishers"),
       coalescedGetJson<MediaContainerBestPractice[]>("/api/media-container-best-practice"),
       getPublisherKPIs(),
-      coalescedGetJson<Client[]>("/api/clients"),
+      fetchClientsList<Client>(),
     ]).then(([pubs, bp, kpis, clientsResult]) => {
       if (cancelled) return
       if (pubs.status === "fulfilled") {
@@ -2425,9 +2433,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         console.error("[KPI] failed to load publisher KPIs:", kpis.reason)
       }
       if (clientsResult.status === "fulfilled") {
-        setClients(Array.isArray(clientsResult.value) ? clientsResult.value : [])
+        const ui = applyClientsFetchResult(clientsResult.value)
+        setClients(ui.clients)
+        setClientsError(ui.clientsError)
       } else {
         console.error("Error fetching clients:", clientsResult.reason)
+        setClients([])
+        setClientsError("Client list unavailable — try again")
       }
     })
     return () => {
@@ -2900,6 +2912,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     mediaPlan,
   ])
   const isPublished = isVersionPublished({ publishedAt: selectedVersionPublishedAt })
+  // Stage 1 scope: publication (published_at) answers "may the client have this".
+  // Mutability still keys off commercial status until Stage 2 makes published
+  // versions immutable deliberately. Do not merge these two predicates —
+  // they are different sets (planned is downloadable but not frozen).
+  const billingTimingLocked = isApprovedOrBeyond(
+    watchedCampaignStatus ?? mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
+  )
   const draftBlocksDownloadMessage =
     "Publish this version to download and send to client"
   const watchedClientName = useWatch({ control: form.control, name: 'mp_clientname' })
@@ -6602,6 +6621,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const saveBlockedByDuplicates = !isSaveAllowedAfterHydration(true, {
     duplicatesDetected: liveChannelDuplicateSummary.duplicatesDetected,
   })
+  const saveBlockedByClientsError = Boolean(clientsError)
 
   const predictedSaveModeLabel = useMemo(() => {
     if (saveModeLabel) return saveModeLabel
@@ -6910,8 +6930,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const agencyFeeMonthTotalDrift = feeMonthTotalForDisplay.diff
 
   async function handleManualBillingSave(forceIgnoreMismatch?: boolean, overrideFeeDrift?: boolean) {
-    // MB-15c: published versions are immutable to billing writers (server refuses too).
-    if (isPublished) {
+    // MB-15c: approved-or-beyond versions are immutable to billing writers (server refuses too).
+    if (billingTimingLocked) {
       toast({
         variant: "destructive",
         title: "Billing timing locked",
@@ -7071,6 +7091,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [])
 
   const handleSaveAll = async () => {
+    if (saveBlockedByClientsError) {
+      toast({
+        title: "Save disabled",
+        description: clientsError ?? "Client list unavailable — try again",
+        variant: "destructive",
+      })
+      return
+    }
     if (saveBlockedByDuplicates) {
       toast({
         title: "Save disabled",
@@ -11166,9 +11194,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           type="button"
           variant="action"
           onClick={handleSaveAll}
-          disabled={isSaving || isLoading || saveBlockedByDuplicates || saveHeldForHydration}
+          disabled={
+            isSaving ||
+            isLoading ||
+            saveBlockedByDuplicates ||
+            saveHeldForHydration ||
+            saveBlockedByClientsError
+          }
           title={
-            saveHeldForHydration || isLoading
+            saveBlockedByClientsError
+              ? clientsError ?? "Client list unavailable"
+              : saveHeldForHydration || isLoading
               ? saveHydrationHoldReason ?? "Waiting for channels to load — you can't save yet"
               : undefined
           }
@@ -11176,6 +11212,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         >
           {isSaving
             ? "Saving..."
+            : saveBlockedByClientsError
+              ? "Client list unavailable"
             : saveHeldForHydration || isLoading
               ? saveHydrationHoldReason ?? "Waiting for channels…"
               : "Save"}
@@ -11554,8 +11592,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         onExit={handleExit}
         exitLabel="Exit to Campaigns"
         isSaving={isSaving}
-        saveDisabled={isLoading || saveHeldForHydration}
-        saveDisabledReason={saveHydrationHoldReason}
+        saveDisabled={isLoading || saveHeldForHydration || saveBlockedByClientsError}
+        saveDisabledReason={
+          saveBlockedByClientsError
+            ? clientsError ?? "Client list unavailable — try again"
+            : saveHydrationHoldReason
+        }
         bottomBar={wizardBottomBar}
       >
           <Form {...form}>
@@ -11621,9 +11663,29 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                     <FormControl>
                       <Input {...field} disabled />
                     </FormControl>
-                    <FormDescription className="text-[11px]">
-                      Client cannot be changed for existing campaigns.
-                    </FormDescription>
+                    {clientsError ? (
+                      <p role="alert" className="text-sm text-status-critical-fg">
+                        {clientsError}{" "}
+                        <button
+                          type="button"
+                          className="underline"
+                          onClick={() => {
+                            setClientsError(null)
+                            void fetchClientsList<Client>().then((result) => {
+                              const ui = applyClientsFetchResult(result)
+                              setClients(ui.clients)
+                              setClientsError(ui.clientsError)
+                            })
+                          }}
+                        >
+                          Retry
+                        </button>
+                      </p>
+                    ) : (
+                      <FormDescription className="text-[11px]">
+                        Client cannot be changed for existing campaigns.
+                      </FormDescription>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -12407,8 +12469,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         onSave={handleSaveAll}
         onLeave={confirmNavigation}
         isSaving={isLoading || isSaving}
-        saveDisabled={saveBlockedByDuplicates}
-        saveDisabledReason="Duplicate line-item rows detected — fix them before saving."
+        saveDisabled={saveBlockedByDuplicates || saveBlockedByClientsError}
+        saveDisabledReason={
+          saveBlockedByClientsError
+            ? clientsError ?? "Client list unavailable — try again"
+            : "Duplicate line-item rows detected — fix them before saving."
+        }
       />
 
       <MediaPlanLoadStatusPill
@@ -12640,7 +12706,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         onDownloadExcel={handleDownloadBillingScheduleExcel}
         downloadDisabled={mbaBillingModalState.financials.billingSchedule.length === 0}
         onResetBillingToAuto={
-          isPublished ? undefined : () => setFullBillingResetConfirmOpen(true)
+          billingTimingLocked ? undefined : () => setFullBillingResetConfirmOpen(true)
         }
         billingDivergence={billingDivergence}
         showDivergenceBanner={
@@ -12658,14 +12724,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             ? mbaBillingModalState.effectiveOverrideRows
             : undefined
         }
-        billingTimingReadOnly={isPublished}
+        billingTimingReadOnly={billingTimingLocked}
         billingTimingReadOnlyMessage={publishedBillingTimingLockedMessage({
           status: mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus,
           versionNumber: selectedVersionNumber ?? mediaPlan?.version_number,
         })}
         timingDraftReady={manualBillingDraftReady && mbaBillingModalState.viewReady}
         onEnsureTimingDraft={() => {
-          if (isPublished) {
+          if (billingTimingLocked) {
             return
           }
           void handleManualBillingOpen()
@@ -13390,7 +13456,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 </Button>
               ) : null}
             </div>
-            {manualBillingDraftReady && !isPublished ? (
+            {manualBillingDraftReady && !billingTimingLocked ? (
               <Button type="button" variant="action" size="sm" onClick={() => handleManualBillingSave()}>
                 Apply
               </Button>

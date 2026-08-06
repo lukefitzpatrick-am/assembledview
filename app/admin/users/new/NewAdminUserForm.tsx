@@ -6,6 +6,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Combobox } from "@/components/ui/combobox"
 import { useAuthContext } from "@/contexts/AuthContext"
+import {
+  applyClientsFetchResult,
+  fetchClientsList,
+} from "@/lib/clients/fetchClientsList"
 import { getClientDisplayName } from "@/lib/clients/slug"
 import { resolveAuth0ClientIdentifier } from "@/lib/clients/auth0ClientIdentifier"
 
@@ -29,6 +33,7 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
   const [role, setRole] = useState<Role>("client")
   const [clientSlug, setClientSlug] = useState<string>("")
   const [clients, setClients] = useState<ClientOption[]>([])
+  const [clientsError, setClientsError] = useState<string | null>(null)
   const [status, setStatus] = useState<Status>("idle")
   const [error, setError] = useState<string | null>(null)
 
@@ -45,13 +50,13 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
   }, [canGrantAdminRole, role])
 
   useEffect(() => {
-    async function fetchClients() {
+    async function loadClients() {
       try {
-        const resp = await fetch("/api/clients")
-        if (!resp.ok) throw new Error("Failed to fetch clients")
-        const data = await resp.json()
-        if (Array.isArray(data)) {
-          const normalized = data
+        const result = await fetchClientsList()
+        const ui = applyClientsFetchResult(result)
+        setClientsError(ui.clientsError)
+        if (!ui.clientsError) {
+          const normalized = ui.clients
             .map((raw: Record<string, unknown>) => {
               const name = getClientDisplayName(raw)
               const auth0ClientId = resolveAuth0ClientIdentifier(raw)
@@ -62,13 +67,17 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
             })
             .filter((c: ClientOption) => Boolean(c.auth0ClientId))
           setClients(normalized)
+        } else {
+          setClients([])
         }
       } catch (err) {
         console.error("Failed to load clients list", err)
+        setClients([])
+        setClientsError("Client list unavailable — try again")
       }
     }
     if (isAdmin) {
-      void fetchClients()
+      void loadClients()
     }
   }, [isAdmin])
 
@@ -78,6 +87,11 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
     setError(null)
 
     try {
+      if (role === "client" && clientsError) {
+        setStatus("error")
+        setError(clientsError)
+        return
+      }
       if (role === "client" && !clientSlug) {
         setStatus("error")
         setError("Client is required when role is Client.")
@@ -198,17 +212,23 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
         {role === "client" && (
           <div className="flex flex-col gap-2">
             <Label htmlFor="clientSlug">Client</Label>
-            <Combobox
-              value={clientSlug}
-              onValueChange={setClientSlug}
-              placeholder="Select client"
-              searchPlaceholder="Search clients..."
-              emptyText={clients.length === 0 ? "No clients available." : "No clients found."}
-              options={clients.map((client) => ({
-                value: client.auth0ClientId,
-                label: client.mp_client_name,
-              }))}
-            />
+            {clientsError ? (
+              <p role="alert" className="rounded-input border border-status-critical-fg/30 bg-status-critical/10 px-3 py-2 text-sm text-status-critical-fg">
+                {clientsError}
+              </p>
+            ) : (
+              <Combobox
+                value={clientSlug}
+                onValueChange={setClientSlug}
+                placeholder="Select client"
+                searchPlaceholder="Search clients..."
+                emptyText={clients.length === 0 ? "No clients available." : "No clients found."}
+                options={clients.map((client) => ({
+                  value: client.auth0ClientId,
+                  label: client.mp_client_name,
+                }))}
+              />
+            )}
             <p className="text-xs text-muted-foreground">
               Stored in Auth0 as client slug (MBA identifier when set, otherwise the client URL
               slug — never the numeric Xano id).
@@ -216,7 +236,10 @@ export function NewAdminUserForm({ canGrantAdminRole }: NewAdminUserFormProps) {
           </div>
         )}
 
-        <Button type="submit" disabled={status === "loading"}>
+        <Button
+          type="submit"
+          disabled={status === "loading" || (role === "client" && Boolean(clientsError))}
+        >
           {status === "loading" ? "Creating..." : "Create user"}
         </Button>
 

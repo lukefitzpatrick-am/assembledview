@@ -49,6 +49,10 @@ import { EmptyState } from "@/components/ui/states"
 import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary"
 import { useToast } from "@/components/ui/use-toast"
 import { cn } from "@/lib/utils"
+import {
+  applyClientsFetchResult,
+  fetchClientsList,
+} from "@/lib/clients/fetchClientsList"
 import { getClientDisplayName } from "@/lib/clients/slug"
 import { resolveListViewState } from "@/lib/ui/viewState"
 import {
@@ -166,26 +170,10 @@ export function TasksPageClient() {
   }, [clients])
 
   const fetchClients = useCallback(async () => {
-    try {
-      const res = await fetch("/api/clients")
-      if (!res.ok) return
-      // Fail-soft: route returns 200 [] + x-warning when upstream throws.
-      // Do not treat that as a healthy empty client list (INVARIANTS fail-soft law).
-      if (res.headers.get("x-warning") === "clients-unavailable") {
-        setClients([])
-        setClientsError("Client list unavailable — try again")
-        return
-      }
-      const data = await res.json()
-      if (Array.isArray(data)) {
-        setClientsError(null)
-        setClients(data as ClientOption[])
-      }
-    } catch (error) {
-      console.error("Failed to load clients for tasks filters:", error)
-      setClients([])
-      setClientsError("Client list unavailable — try again")
-    }
+    const result = await fetchClientsList<ClientOption>()
+    const ui = applyClientsFetchResult(result)
+    setClients(ui.clients)
+    setClientsError(ui.clientsError)
   }, [])
 
   useEffect(() => {

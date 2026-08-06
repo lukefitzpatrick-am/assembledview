@@ -16,6 +16,10 @@ import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { Plus, Trash2, Download, Save } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui/use-toast"
+import {
+  applyClientsFetchResult,
+  fetchClientsList,
+} from "@/lib/clients/fetchClientsList"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatAUD } from "@/lib/format/money"
@@ -124,6 +128,7 @@ export default function EditScopePage() {
   const params = useParams()
   const id = params?.id as string
   const [clients, setClients] = useState<Client[]>([])
+  const [clientsError, setClientsError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
   const [isDownloading, setIsDownloading] = useState(false)
@@ -177,19 +182,19 @@ export default function EditScopePage() {
 
   // Fetch clients
   useEffect(() => {
-    const fetchClients = async () => {
+    const loadClients = async () => {
       try {
-        const response = await fetch("/api/clients")
-        if (!response.ok) {
-          throw new Error("Failed to fetch clients")
-        }
-        const data = await response.json()
-        setClients(data)
+        const result = await fetchClientsList<Client>()
+        const ui = applyClientsFetchResult(result)
+        setClients(ui.clients)
+        setClientsError(ui.clientsError)
       } catch (error) {
         console.error("Error fetching clients:", error)
+        setClients([])
+        setClientsError("Client list unavailable — try again")
       }
     }
-    fetchClients()
+    void loadClients()
   }, [])
 
   // Fetch scope data and find latest version
@@ -345,6 +350,14 @@ export default function EditScopePage() {
   }
 
   const onSubmit = async (data: ScopeFormValues) => {
+    if (clientsError) {
+      toast({
+        title: "Save disabled",
+        description: clientsError,
+        variant: "destructive",
+      })
+      return
+    }
     setIsSaving(true)
     try {
       // Generate new scope_id based on the version being saved
@@ -473,6 +486,11 @@ export default function EditScopePage() {
                         <FormControl>
                           <Input {...field} readOnly disabled className="bg-muted cursor-not-allowed" />
                         </FormControl>
+                        {clientsError ? (
+                          <p role="alert" className="text-sm text-status-critical-fg">
+                            {clientsError}
+                          </p>
+                        ) : null}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -1026,7 +1044,7 @@ export default function EditScopePage() {
           </Button>
           <Button
             onClick={form.handleSubmit(onSubmit)}
-            disabled={isSaving}
+            disabled={isSaving || Boolean(clientsError)}
           >
             <Save className="mr-2 h-4 w-4" />
             {isSaving ? "Saving..." : "Save Scope"}

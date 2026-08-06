@@ -58,6 +58,10 @@ import { sortByLabel } from "@/lib/utils/sort"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { UnsavedChangesDialog } from "@/components/mediaplans/UnsavedChangesDialog"
 import { toast } from "@/components/ui/use-toast"
+import {
+  applyClientsFetchResult,
+  fetchClientsList,
+} from "@/lib/clients/fetchClientsList"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { parsePrefillYmd } from "@/lib/mediaplan/createPrefill"
 import { PlannerCreateTargetsStrip } from "@/components/mediaplans/PlannerCreateTargetsStrip"
@@ -250,8 +254,10 @@ import {
 import { useWriteBackend } from "@/lib/data/WriteBackendContext"
 import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
 import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
-import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
-import { publishedBillingTimingLockedMessage } from "@/lib/docs/isApprovedOrBeyond"
+import {
+  isApprovedOrBeyond,
+  publishedBillingTimingLockedMessage,
+} from "@/lib/docs/isApprovedOrBeyond"
 import {
   DOC_SKIP_REASON,
   DOC_STEP_MBA,
@@ -582,6 +588,7 @@ function CreateMediaPlan() {
   const searchParams = useSearchParams()
   const [clients, setClients] = useState<Client[]>([])
   const [clientsReady, setClientsReady] = useState(false)
+  const [clientsError, setClientsError] = useState<string | null>(null)
   const [reportId, setReportId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState<string>("")
@@ -932,8 +939,12 @@ function CreateMediaPlan() {
   })
 
   // VC Stage 1 — create has no published tip mid-session (first save publishes then navigates).
-  // Same predicate as edit `isPublished`; twin billing UX must not use campaign_status.
-  const isPublished = isVersionPublished({ publishedAt: null })
+  // Download/docs use published_at on edit; create has nothing to gate mid-session.
+  // Stage 1 scope: publication (published_at) answers "may the client have this".
+  // Mutability still keys off commercial status until Stage 2 makes published
+  // versions immutable deliberately. Do not merge these two predicates —
+  // they are different sets (planned is downloadable but not frozen).
+  const billingTimingLocked = isApprovedOrBeyond(form.watch("mp_campaignstatus"))
 
   useEffect(() => {
     navigationHydratedRef.current = true;
@@ -2100,6 +2111,7 @@ function CreateMediaPlan() {
   const saveBlockedByDuplicates = !isSaveAllowedAfterHydration(true, {
     duplicatesDetected,
   })
+  const saveBlockedByClientsError = Boolean(clientsError)
 
   const predictedSaveModeLabel = useMemo(() => {
     if (saveModeLabel) return saveModeLabel
@@ -3141,13 +3153,14 @@ function CreateMediaPlan() {
   async function fetchClients() {
     try {
       setIsLoading(true)
-      const response = await fetch("/api/clients")
-      if (!response.ok) {
-        throw new Error("Failed to fetch clients")
-      }
-      const data = await response.json()
-      setClients(data)
+      const result = await fetchClientsList<Client>()
+      const ui = applyClientsFetchResult(result)
+      setClients(ui.clients)
+      setClientsError(ui.clientsError)
     } catch (error) {
+      console.error("Failed to load clients:", error)
+      setClients([])
+      setClientsError("Client list unavailable — try again")
     } finally {
       setIsLoading(false)
       setClientsReady(true)
@@ -6594,6 +6607,14 @@ function CreateMediaPlan() {
   // in page.tsx
 
 const handleSaveAll = async () => {
+    if (saveBlockedByClientsError) {
+      toast({
+        title: "Save disabled",
+        description: clientsError ?? "Client list unavailable — try again",
+        variant: "destructive",
+      })
+      return
+    }
     if (saveBlockedByDuplicates) {
       toast({
         title: "Save disabled",
@@ -7170,7 +7191,12 @@ const handleSaveAll = async () => {
           type="button"
           variant="action"
           onClick={handleSaveAll}
-          disabled={isWizardSaving || saveBlockedByDuplicates}
+          disabled={isWizardSaving || saveBlockedByDuplicates || saveBlockedByClientsError}
+          title={
+            saveBlockedByClientsError
+              ? clientsError ?? "Client list unavailable"
+              : undefined
+          }
           className="h-9 shrink-0 rounded-pill px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
         >
           {isWizardSaving ? "Saving..." : planDraft.enabled ? "Save" : "Save draft"}
@@ -7313,9 +7339,28 @@ const handleSaveAll = async () => {
                     <Field
                       label="Client Name"
                       required
-                      error={fieldState.error?.message}
+                      error={fieldState.error?.message || clientsError || undefined}
                     >
                       {(controlProps) => (
+                        <>
+                        {clientsError ? (
+                          <div
+                            role="alert"
+                            className="mb-2 rounded-input border border-status-critical-fg/30 bg-status-critical/10 px-3 py-2 text-sm text-status-critical-fg"
+                          >
+                            {clientsError}
+                            <button
+                              type="button"
+                              className="ml-2 underline"
+                              onClick={() => {
+                                setClientsError(null)
+                                void fetchClients()
+                              }}
+                            >
+                              Retry
+                            </button>
+                          </div>
+                        ) : null}
                         <Popover open={isClientPopoverOpen} onOpenChange={setIsClientPopoverOpen}>
                           <PopoverTrigger asChild>
                             <Button
@@ -7323,11 +7368,14 @@ const handleSaveAll = async () => {
                               variant="outline"
                               role="combobox"
                               aria-expanded={isClientPopoverOpen}
+                              disabled={Boolean(clientsError)}
                               className="w-full justify-between"
                             >
                               <span className="truncate">
                                 {selectedClient
                                   ? selectedClient.mp_client_name
+                                  : clientsError
+                                    ? "Client list unavailable"
                                   : isLoading
                                     ? "Loading clients..."
                                     : "Select a client"}
@@ -7373,6 +7421,7 @@ const handleSaveAll = async () => {
                             </Command>
                           </PopoverContent>
                         </Popover>
+                        </>
                       )}
                     </Field>
                   )
@@ -7802,16 +7851,16 @@ const handleSaveAll = async () => {
         onDownloadExcel={handleDownloadBillingScheduleExcel}
         downloadDisabled={mbaBillingModalState.financials.billingSchedule.length === 0}
         onResetBillingToAuto={
-          isPublished ? undefined : () => setFullBillingResetConfirmOpen(true)
+          billingTimingLocked ? undefined : () => setFullBillingResetConfirmOpen(true)
         }
-        billingTimingReadOnly={isPublished}
+        billingTimingReadOnly={billingTimingLocked}
         billingTimingReadOnlyMessage={publishedBillingTimingLockedMessage({
           status: form.watch("mp_campaignstatus"),
           versionNumber: 1,
         })}
         timingDraftReady={manualBillingDraftReady && mbaBillingModalState.viewReady}
         onEnsureTimingDraft={() => {
-          if (isPublished) return
+          if (billingTimingLocked) return
           handleManualBillingOpen()
         }}
         showAdvancedEditor={isManualBillingModalOpen && mbaBillingModalState.viewReady}
@@ -8283,7 +8332,7 @@ const handleSaveAll = async () => {
                 </Button>
               ) : null}
             </div>
-            {manualBillingDraftReady && !isPublished ? (
+            {manualBillingDraftReady && !billingTimingLocked ? (
               <Button type="button" variant="action" size="sm" onClick={handleManualBillingApply}>
                 Apply
               </Button>
@@ -8887,8 +8936,12 @@ const handleSaveAll = async () => {
         onSave={handleSaveAll}
         onLeave={confirmNavigation}
         isSaving={isLoading || isPlanSaving || isVersionSaving}
-        saveDisabled={saveBlockedByDuplicates}
-        saveDisabledReason="Duplicate line-item rows detected — fix them before saving."
+        saveDisabled={saveBlockedByDuplicates || saveBlockedByClientsError}
+        saveDisabledReason={
+          saveBlockedByClientsError
+            ? clientsError ?? "Client list unavailable — try again"
+            : "Duplicate line-item rows detected — fix them before saving."
+        }
       />
     </>
   )
