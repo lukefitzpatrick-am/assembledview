@@ -1,6 +1,9 @@
 /**
- * MB-13 — pin what a fee-component billing_override does to
- * approved_slice, mba_fee_snapshots, mbaScopeTotals, and snapshot_checksum.
+ * MB-13 — fee override is timing-only: months must redistribute the auto fee
+ * (sum ≡ calculatedFee). Pins that first publish freezes approved_slice to the
+ * auto fee, stamps schedule_months fee rows source=override with retimed
+ * amounts, keeps mba_fee_snapshots as rates, refuses post-publish fee writes
+ * (MB-15c), and that media+fee Prebill + reset_line clear both rows.
  * Requires DATABASE_URL. Skips when unset.
  */
 import assert from "node:assert/strict"
@@ -33,7 +36,7 @@ const LINE_A = `${MBA.toUpperCase()}SEA001`
 /** $1000 media @ 10% feePct — calculated fee is a gross slice (~$111.11), not net×%. */
 const MEDIA = 1000
 const FEE_PCT = 10
-/** Deliberate fee amount change (not timing-only). */
+/** MB-13.2 only: refused post-publish amount (never lands). */
 const OVERRIDE_FEE = 250
 
 function twoMonthLine(
@@ -168,7 +171,7 @@ function billingFeeCentsSum(
     .reduce((s, r) => s + Number(r.amountCents), 0)
 }
 
-test("MB-13.1: first publish with fee override — slice + scope follow override; fee snapshot stays rates", async (t) => {
+test("MB-13.1: fee override retimes across months but cannot change the amount; slice freezes the auto fee", async (t) => {
   if (!hasDb) {
     t.skip("DATABASE_URL not set")
     return
@@ -179,32 +182,33 @@ test("MB-13.1: first publish with fee override — slice + scope follow override
     await wipeMba()
   })
 
-  // MB-22: override rides the save payload (REPLACE-SET), not a pre-seeded DB row.
-  // Production stamps feeOverride onto every payload line (buildPostgresSavePayload).
-  const feeOverride = {
-    mode: "manual" as const,
-    reason: "manual" as const,
-    dateBasis: "mb13-1",
-    component: "fee" as const,
-    months: feeOverrideMonths(OVERRIDE_FEE),
-  }
-  const line = twoMonthLine({ feeOverride })
+  // Derive auto fee from the override-free line — do not hardcode.
   const baseline = computeCampaignFinancials(
     [lineInputForCompute(twoMonthLine())],
     { feeLoading: { feesearch: FEE_PCT } }
   )
   const calculatedFee = baseline.mbaScopeTotals.fee
   assert.ok(calculatedFee > 0)
-  assert.notEqual(calculatedFee, OVERRIDE_FEE)
   assert.equal(baseline.mbaScopeTotals.nettExGst, MEDIA + calculatedFee)
+
+  // MB-22: override rides the save payload (REPLACE-SET), not a pre-seeded DB row.
+  // Production stamps feeOverride onto every payload line (buildPostgresSavePayload).
+  // Redistribute calculatedFee into June (whole) + July ($0) — genuine retiming, sum preserved.
+  const feeOverride = {
+    mode: "manual" as const,
+    reason: "manual" as const,
+    dateBasis: "mb13-1",
+    component: "fee" as const,
+    months: feeOverrideMonths(calculatedFee),
+  }
+  const line = twoMonthLine({ feeOverride })
 
   const withOverride = computeCampaignFinancials(
     [lineInputForCompute(line)],
     { feeLoading: { feesearch: FEE_PCT } }
   )
-  assert.equal(withOverride.mbaScopeTotals.fee, OVERRIDE_FEE)
-  assert.equal(withOverride.mbaScopeTotals.nettExGst, MEDIA + OVERRIDE_FEE)
-  assert.notEqual(withOverride.mbaScopeTotals.fee, calculatedFee)
+  assert.equal(withOverride.mbaScopeTotals.fee, calculatedFee)
+  assert.equal(withOverride.mbaFeeAdjusted, false)
 
   const db = getDb()
   await savePlanVersion(draftInput(masterId, [line]))
@@ -229,8 +233,8 @@ test("MB-13.1: first publish with fee override — slice + scope follow override
   assert.equal(slice.lines[0]!.lineItemId, LINE_A)
   assert.equal(
     slice.lines[0]!.feeCents,
-    toCents(OVERRIDE_FEE),
-    "approved_slice.feeCents must use override fee, not calculated"
+    toCents(calculatedFee),
+    "approved_slice.feeCents freezes the auto fee — the only fee that can exist"
   )
   assert.equal(slice.lines[0]!.mediaCents, toCents(MEDIA))
   assert.equal(
@@ -240,11 +244,6 @@ test("MB-13.1: first publish with fee override — slice + scope follow override
         s + l.mediaCents + l.feeCents + l.adservingCents + l.productionCents,
       0
     )
-  )
-  assert.notEqual(
-    slice.lines[0]!.feeCents,
-    toCents(calculatedFee),
-    "slice must not freeze calculated fee when fee override was attached"
   )
 
   const [feeSnap] = await db
@@ -259,20 +258,33 @@ test("MB-13.1: first publish with fee override — slice + scope follow override
     .select()
     .from(schema.scheduleMonths)
     .where(eq(schema.scheduleMonths.versionId, published.versionId))
+  const billingFeeRows = months.filter(
+    (r) =>
+      r.basis === "billing" &&
+      r.component === "fee" &&
+      r.lineItemId === LINE_A
+  )
   assert.equal(
     billingFeeCentsSum(months, LINE_A),
-    toCents(OVERRIDE_FEE),
-    "billing schedule_months fee cents follow override"
+    toCents(calculatedFee),
+    "billing schedule_months fee cents sum to auto fee"
   )
+  const juneFee = billingFeeRows.find(
+    (r) => String(r.month).slice(0, 7) === "2026-06"
+  )
+  const julyFee = billingFeeRows.find(
+    (r) => String(r.month).slice(0, 7) === "2026-07"
+  )
+  assert.equal(
+    Number(juneFee?.amountCents),
+    toCents(calculatedFee),
+    "2026-06 carries the whole retimed fee"
+  )
+  assert.equal(Number(julyFee?.amountCents), 0, "2026-07 fee is $0 after retiming")
   assert.ok(
-    months.some(
-      (r) =>
-        r.basis === "billing" &&
-        r.component === "fee" &&
-        r.lineItemId === LINE_A &&
-        r.source === "override"
-    ),
-    "fee override rows stamped source=override"
+    billingFeeRows.length > 0 &&
+      billingFeeRows.every((r) => r.source === "override"),
+    "every billing fee row stamped source=override"
   )
 })
 
