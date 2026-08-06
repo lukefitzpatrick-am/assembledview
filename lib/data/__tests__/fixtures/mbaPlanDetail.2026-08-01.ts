@@ -55,6 +55,9 @@ export const FIXTURE_VERSION_XANO: Record<string, unknown> = {
   po_number: "PO-0042",
   mp_campaignbudget: 50000,
   fixed_fee: null,
+  // VC Stage 1 columns — Xano historically lacked these; parity fixtures pin null.
+  published_at: null,
+  published_by: null,
   // Version rows historically omit mp_client_name in Postgres; Xano _latest may
   // denormalise it — overlay from master is required (DI-9).
   mp_television: false,
@@ -156,11 +159,15 @@ export const FIXTURE_VERSIONS_META = [
     id: 2201,
     version_number: 1,
     created_at: 1704067200000,
+    published_at: null,
+    published_by: null,
   },
   {
     id: 2202,
     version_number: 2,
     created_at: 1735689600000,
+    published_at: null,
+    published_by: null,
   },
 ]
 

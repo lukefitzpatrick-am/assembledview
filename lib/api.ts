@@ -612,6 +612,9 @@ interface MediaPlanVersion {
   billingSchedule?: any;
   deliverySchedule?: any;
   created_at?: number;
+  /** VC Stage 1: wall-clock publication; null/absent = unpublished. */
+  published_at?: string | null;
+  published_by?: string | null;
 }
 
 interface Publisher {

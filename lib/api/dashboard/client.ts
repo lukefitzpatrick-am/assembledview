@@ -200,6 +200,9 @@ export type MediaPlanVersionListEntry = {
   versionNumber: number
   planDate?: string
   id?: number
+  /** VC Stage 1 — threaded from MBA GET versions meta; unused by picker yet. */
+  publishedAt?: string | null
+  publishedBy?: string | null
 }
 
 /**
@@ -250,7 +253,23 @@ export function mapMbaCampaignResponseVersionsToListEntries(
       if (Number.isFinite(p)) id = p
     }
 
-    entries.push({ versionNumber: vn, planDate, id })
+    entries.push({
+      versionNumber: vn,
+      planDate,
+      id,
+      publishedAt:
+        v.published_at != null
+          ? String(v.published_at)
+          : v.publishedAt != null
+            ? String(v.publishedAt)
+            : null,
+      publishedBy:
+        v.published_by != null
+          ? String(v.published_by)
+          : v.publishedBy != null
+            ? String(v.publishedBy)
+            : null,
+    })
   }
 
   entries.sort((a, b) => b.versionNumber - a.versionNumber)
@@ -286,7 +305,23 @@ export async function fetchVersionsForMba(mbaNumber: string): Promise<MediaPlanV
             : undefined
     const idRaw = v.id
     const id = typeof idRaw === "number" ? idRaw : undefined
-    out.push({ versionNumber, planDate, id })
+    out.push({
+      versionNumber,
+      planDate,
+      id,
+      publishedAt:
+        v.published_at != null
+          ? String(v.published_at)
+          : v.publishedAt != null
+            ? String(v.publishedAt)
+            : null,
+      publishedBy:
+        v.published_by != null
+          ? String(v.published_by)
+          : v.publishedBy != null
+            ? String(v.publishedBy)
+            : null,
+    })
   }
   return out.sort((a, b) => b.versionNumber - a.versionNumber)
 }

@@ -66,6 +66,9 @@ export const mediaPlanVersions = pgTable(
   approvedSlice: jsonb('approved_slice'),
   /** PC3: sha256 hex of canonical schedule_months + approved_slice + fee snapshot. */
   snapshotChecksum: text('snapshot_checksum'),
+  /** VC Stage 1: wall-clock publication; null = unpublished. Never infer from campaign_status. */
+  publishedAt: timestamp('published_at', { withTimezone: true, mode: "string" }),
+  publishedBy: text('published_by'),
   mediaPlanFile: jsonb('media_plan_file'),
   mbaPdfFile: jsonb('mba_pdf_file'),
   aaMediaPlanFile: jsonb('aa_media_plan_file'),

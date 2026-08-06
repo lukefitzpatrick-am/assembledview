@@ -586,7 +586,13 @@ export type MbaGetAssembleInput = {
   masterData: Record<string, unknown>
   versionData: Record<string, unknown>
   lineItemsData: MbaGetMediaLineItems
-  versionsMetadata: Array<{ id: unknown; version_number: number; created_at: unknown }>
+  versionsMetadata: Array<{
+    id: unknown
+    version_number: number
+    created_at: unknown
+    published_at?: unknown
+    published_by?: unknown
+  }>
   /** Published watermark (master.version_number). */
   latestVersionNumber: number
   /**

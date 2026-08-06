@@ -56,7 +56,7 @@
     "replay:pc6-matcher": "tsx scripts/pc6-matcher-replay.ts",
     "test:line-item-attrs": "tsx --test db/schema/__tests__/lineItemAttrs.test.ts",
     "test:shadow-diff": "tsx --test lib/data/__tests__/shadowDiff.test.ts",
-    "test:mba-plan-detail": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/data/__tests__/mbaPlanDetailParity.test.ts",
+    "test:mba-plan-detail": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/data/__tests__/mbaPlanDetailParity.test.ts lib/mediaplan/__tests__/versionPublication.test.ts",
     "test:match-text": "tsx --test lib/search/__tests__/matchText.test.ts lib/mediaplans/__tests__/matchesMediaPlanSearch.test.ts",
     "soak:s8-perf": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx scripts/verify/soak-s8-perf-baseline.ts",
     "test:approvals": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test --test-force-exit lib/data/__tests__/readApprovals.test.ts",

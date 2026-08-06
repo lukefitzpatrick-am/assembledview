@@ -278,6 +278,8 @@ export async function readMbaPlanDetailFromPostgres(
       id: unknown
       version_number: number
       created_at: unknown
+      published_at: unknown
+      published_by: unknown
     }> = []
     if (query.includeVersionsMeta) {
       versionsMetadata = versions
@@ -285,6 +287,8 @@ export async function readMbaPlanDetailFromPostgres(
           id: v.id,
           version_number: parseMbaGetVersion(v.version_number) ?? 0,
           created_at: v.created_at ?? null,
+          published_at: v.published_at ?? null,
+          published_by: v.published_by ?? null,
         }))
         .filter((v) => v.version_number > 0 && v.version_number <= publishedCap)
     }

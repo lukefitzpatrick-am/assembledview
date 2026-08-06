@@ -378,6 +378,9 @@ export function mapPlanVersionFromPostgres(
     media_plan: api.media_plan_file ?? null,
     mba_pdf: api.mba_pdf_file ?? null,
     aa_media_plan: api.aa_media_plan_file ?? null,
+    // VC Stage 1 — publication columns (null = unpublished). Do not drop.
+    published_at: api.published_at ?? null,
+    published_by: api.published_by ?? null,
     ...flagFields,
     ...(created != null ? { created_at: created } : {}),
   }

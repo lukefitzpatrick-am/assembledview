@@ -54,7 +54,9 @@ export function numericVersion(v: any): number {
 }
 
 /** Same rule as mediaplans editor: one row per MBA — the highest version_number (tie-break: updated_at).
- * When `publishedVersionNumber` is provided, never pick a staged-but-unpublished row. */
+ * When `publishedVersionNumber` is provided, never pick a staged-but-unpublished row.
+ * Version rows may carry VC Stage 1 `published_at` / `published_by`; this picker does not
+ * use them yet (tip watermark remains master.version_number / publishedVersionNumber). */
 export function pickHighestVersionRow(
   versions: any[],
   publishedVersionNumber?: number,

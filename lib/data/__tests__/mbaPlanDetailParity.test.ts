@@ -193,6 +193,8 @@ function assemblePostgresPath(opts?: {
     mbaPdfFile: null,
     aaMediaPlanFile: null,
     createdAt: "2025-01-01T00:00:00.000Z",
+    publishedAt: null,
+    publishedBy: null,
   }
 
   const publishedApi = {
