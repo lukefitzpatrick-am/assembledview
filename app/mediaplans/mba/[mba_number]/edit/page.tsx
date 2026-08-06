@@ -361,10 +361,8 @@ import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
 import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { normaliseStatus, mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
-import {
-  isApprovedOrBeyond,
-  publishedBillingTimingLockedMessage,
-} from "@/lib/docs/isApprovedOrBeyond"
+import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
+import { publishedBillingTimingLockedMessage } from "@/lib/docs/isApprovedOrBeyond"
 import {
   DOC_SKIP_REASON,
   DOC_STEP_MBA,
@@ -1787,7 +1785,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
 
   const [clients, setClients] = useState<Client[]>([])
-  const [availableVersions, setAvailableVersions] = useState<Array<{ id?: number; version_number: number; created_at?: number | string | null }>>([])
+  const [availableVersions, setAvailableVersions] = useState<Array<{
+    id?: number
+    version_number: number
+    created_at?: number | string | null
+    published_at?: string | null
+    published_by?: string | null
+  }>>([])
   const versionsMetaLoadedRef = useRef(false)
   const versionsMetaInflightRef = useRef<Promise<void> | null>(null)
   const [latestVersionNumber, setLatestVersionNumber] = useState<number>(1)
@@ -2880,12 +2884,24 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const campaignBudget = useWatch({ control: form.control, name: 'mp_campaignbudget' })
   const watchedCampaignName = useWatch({ control: form.control, name: 'mp_campaignname' })
   const watchedCampaignStatus = useWatch({ control: form.control, name: 'mp_campaignstatus' })
-  const isPublished =
-    normaliseStatus(
-      watchedCampaignStatus ?? mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
-    ) !== "draft"
+  // VC Stage 1 — publication from selected version's published_at, never campaign_status.
+  const selectedVersionPublishedAt = useMemo(() => {
+    const vn =
+      selectedVersionNumber ??
+      (typeof mediaPlan?.version_number === "number" ? mediaPlan.version_number : null)
+    if (vn != null) {
+      const fromMeta = availableVersions.find((v) => v.version_number === vn)?.published_at
+      if (fromMeta !== undefined) return fromMeta
+    }
+    return (mediaPlan as { published_at?: string | null } | null)?.published_at ?? null
+  }, [
+    selectedVersionNumber,
+    availableVersions,
+    mediaPlan,
+  ])
+  const isPublished = isVersionPublished({ publishedAt: selectedVersionPublishedAt })
   const draftBlocksDownloadMessage =
-    "Set this campaign out of Draft to download and send to client"
+    "Publish this version to download and send to client"
   const watchedClientName = useWatch({ control: form.control, name: 'mp_clientname' })
   // totalInvestment is wired from mbaScopeTotals.nettExGst (total investment, ex GST).
   const budgetRemaining = useMemo(
@@ -3572,7 +3588,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         const versionsFromApi = Array.isArray(data.versions) ? data.versions.map((v: any) => ({
           id: v.id,
           version_number: typeof v.version_number === 'string' ? parseInt(v.version_number, 10) : v.version_number,
-          created_at: v.created_at ?? null
+          created_at: v.created_at ?? null,
+          published_at: v.published_at ?? null,
+          published_by: v.published_by ?? null,
         })) : []
         if (versionsFromApi.length > 0) {
           setAvailableVersions(versionsFromApi)
@@ -6593,12 +6611,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         : typeof mediaPlan?.version_number === "number"
           ? mediaPlan.version_number
           : Number(selectedVersionNumber) || 0
+    const tipPublishedAt =
+      (mediaPlan as { published_at?: string | null } | null)?.published_at !== undefined
+        ? (mediaPlan as { published_at?: string | null }).published_at
+        : availableVersions.find((v) => v.version_number === publishedVersionNumber)
+            ?.published_at
     const modeResolved = resolvePostgresSaveMode({
       campaignStatus:
         watchedCampaignStatus ?? mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus,
       forceIncrement: false,
       publishedVersionNumber,
       versionRowCount: availableVersions.length,
+      tipPublishedAt,
     })
     return formatSaveModeLabel(modeResolved.uiMode, modeResolved.versionNumber)
   }, [
@@ -6607,9 +6631,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     mediaPlan?.campaign_status,
     mediaPlan?.mp_campaignstatus,
     mediaPlan?.version_number,
+    (mediaPlan as { published_at?: string | null } | null)?.published_at,
     selectedVersionNumber,
     latestVersionNumber,
-    availableVersions.length,
+    availableVersions,
   ])
 
   const draftBaseVersionId =
@@ -6630,6 +6655,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         ? latestVersionNumber
         : Number(mediaPlan?.version_number) || 0,
     versionRowCount: availableVersions.length,
+    tipPublishedAt:
+      (mediaPlan as { published_at?: string | null } | null)?.published_at !== undefined
+        ? (mediaPlan as { published_at?: string | null }).published_at
+        : availableVersions.find(
+            (v) =>
+              v.version_number ===
+              (typeof latestVersionNumber === "number"
+                ? latestVersionNumber
+                : Number(mediaPlan?.version_number) || 0)
+          )?.published_at,
     getSnapshot: () =>
       buildPlanDraftSnapshot({
         mbaNumber: String(mbaNumber ?? ""),
@@ -6876,14 +6911,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   async function handleManualBillingSave(forceIgnoreMismatch?: boolean, overrideFeeDrift?: boolean) {
     // MB-15c: published versions are immutable to billing writers (server refuses too).
-    const persistedStatusForBilling =
-      mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
-    if (isApprovedOrBeyond(persistedStatusForBilling)) {
+    if (isPublished) {
       toast({
         variant: "destructive",
         title: "Billing timing locked",
         description: publishedBillingTimingLockedMessage({
-          status: persistedStatusForBilling,
+          status: mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus,
           versionNumber: selectedVersionNumber ?? mediaPlan?.version_number,
         }),
       })
@@ -7468,6 +7501,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           forceIncrement: forceIncrementForApprovals,
           publishedVersionNumber,
           versionRowCount: availableVersions.length,
+          tipPublishedAt:
+            (mediaPlan as { published_at?: string | null } | null)?.published_at !== undefined
+              ? (mediaPlan as { published_at?: string | null }).published_at
+              : availableVersions.find((v) => v.version_number === publishedVersionNumber)
+                  ?.published_at,
         })
 
         setSaveModeLabel(
@@ -8158,7 +8196,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           throw new Error("Missing media plan version ID for document upload")
         }
 
-        if (shouldSkipDocsForCampaignStatus(formValues.mp_campaignstatus)) {
+        if (shouldSkipDocsForCampaignStatus(
+          isOverwriteMode ? { publishedAt: null } : { publishedAt: "this-save" }
+        )) {
           updateSaveStatus(DOC_STEP_MBA, "skipped", DOC_SKIP_REASON)
           updateSaveStatus(DOC_STEP_MEDIA_PLAN, "skipped", DOC_SKIP_REASON)
           return
@@ -10675,6 +10715,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   ? parseInt(v.version_number, 10)
                   : v.version_number,
               created_at: v.created_at ?? null,
+              published_at: v.published_at ?? null,
+              published_by: v.published_by ?? null,
             }))
           : []
         setAvailableVersions(versionsFromApi)
@@ -12598,9 +12640,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         onDownloadExcel={handleDownloadBillingScheduleExcel}
         downloadDisabled={mbaBillingModalState.financials.billingSchedule.length === 0}
         onResetBillingToAuto={
-          isApprovedOrBeyond(mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus)
-            ? undefined
-            : () => setFullBillingResetConfirmOpen(true)
+          isPublished ? undefined : () => setFullBillingResetConfirmOpen(true)
         }
         billingDivergence={billingDivergence}
         showDivergenceBanner={
@@ -12618,18 +12658,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             ? mbaBillingModalState.effectiveOverrideRows
             : undefined
         }
-        billingTimingReadOnly={isApprovedOrBeyond(
-          mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
-        )}
+        billingTimingReadOnly={isPublished}
         billingTimingReadOnlyMessage={publishedBillingTimingLockedMessage({
           status: mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus,
           versionNumber: selectedVersionNumber ?? mediaPlan?.version_number,
         })}
         timingDraftReady={manualBillingDraftReady && mbaBillingModalState.viewReady}
         onEnsureTimingDraft={() => {
-          if (
-            isApprovedOrBeyond(mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus)
-          ) {
+          if (isPublished) {
             return
           }
           void handleManualBillingOpen()
@@ -13354,10 +13390,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 </Button>
               ) : null}
             </div>
-            {manualBillingDraftReady &&
-            !isApprovedOrBeyond(
-              mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
-            ) ? (
+            {manualBillingDraftReady && !isPublished ? (
               <Button type="button" variant="action" size="sm" onClick={() => handleManualBillingSave()}>
                 Apply
               </Button>

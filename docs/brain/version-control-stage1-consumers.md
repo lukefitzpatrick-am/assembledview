@@ -1,8 +1,8 @@
 # Version control Stage 1 — status→publication consumers
 
-**Status:** inventory for Claude migration input (Q19a, 4 Aug). No DDL in this doc.
+**Status:** Step 4 client publication gates landed — edit `isPublished` + download/billing UX and create twins read `isVersionPublished` / `published_at` (no status fallback). Bucket C remains for VC1-5.
 **Decision:** backfill ALL existing `media_plan_versions` rows as published once `published_at` exists. Stage 1 proceeds.
-**Fact:** `media_plan_versions` has **no** published column today. Publication is inferred from `campaign_status` (and, separately, tip authority already lives on `media_plan_master.version_number`).
+**Fact:** `media_plan_versions.published_at` (timestamptz, null) + `published_by` (text, null, lowercase CHECK) exist (migration 0018). Canonical predicate: `lib/mediaplan/versionPublication.ts` `isVersionPublished` = `publishedAt ?? published_at != null` only. Write: publish-only stamp inside the save txn; draft/`new_version` never stamp; draft re-save never clears. Server + client Bucket A read gates use that predicate. `isApprovedOrBeyond` remains commercial-only (Bucket B). `canReturnToDraft` / status dropdown filters stay commercial.
 
 ## Stage 1 size
 
@@ -18,9 +18,10 @@
 
 | Predicate | Rule today | Includes `planned`? | Role |
 |---|---|---|---|
-| `isPublished` (edit only) | `normaliseStatus(...) !== "draft"` | **yes** | Download / send-to-client UX |
-| `isApprovedOrBeyond` | `approved \| booked \| completed` | **no** | Docs generate, download API, MB-15c billing lock |
-| `resolvePostgresSaveMode` overwrite | `status === "draft" && publishedTip > 0 && !forceIncrement` | n/a | May overwrite tip in place |
+| `isVersionPublished` | `published_at != null` (`lib/mediaplan/versionPublication.ts`) | n/a | **Canonical publication** — Stage 1 target; no status fallback |
+| `isPublished` (edit+create) | `isVersionPublished(selected version)` | n/a | Download / send-to-client / billing timing UX |
+| `isApprovedOrBeyond` | `approved \| booked \| completed` | **no** | Commercial helper only — not a publication gate |
+| `resolvePostgresSaveMode` overwrite | tip unpublished (`published_at` null) && tip > 0 && !forceIncrement | n/a | May overwrite tip in place |
 | `isFinanceIncludedCampaignStatus` | same set as approved-or-beyond | no | Finance totals — **B**, not publication |
 | `publishedVersionFromMaster` / `filterPublishedVersions` | `master.version_number` | n/a | **Already tip-based** — not status inference; out of Stage 1 scope |
 

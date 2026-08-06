@@ -250,10 +250,8 @@ import {
 import { useWriteBackend } from "@/lib/data/WriteBackendContext"
 import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
 import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
-import {
-  isApprovedOrBeyond,
-  publishedBillingTimingLockedMessage,
-} from "@/lib/docs/isApprovedOrBeyond"
+import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
+import { publishedBillingTimingLockedMessage } from "@/lib/docs/isApprovedOrBeyond"
 import {
   DOC_SKIP_REASON,
   DOC_STEP_MBA,
@@ -932,6 +930,10 @@ function CreateMediaPlan() {
       billingSchedule: [],
     },
   })
+
+  // VC Stage 1 — create has no published tip mid-session (first save publishes then navigates).
+  // Same predicate as edit `isPublished`; twin billing UX must not use campaign_status.
+  const isPublished = isVersionPublished({ publishedAt: null })
 
   useEffect(() => {
     navigationHydratedRef.current = true;
@@ -5338,6 +5340,7 @@ function CreateMediaPlan() {
           forceIncrement: false,
           publishedVersionNumber: 0,
           versionRowCount: 0,
+          tipPublishedAt: null,
         })
 
         setSaveModeLabel(
@@ -5888,7 +5891,10 @@ function CreateMediaPlan() {
       updateSaveStatus(DOC_STEP_MBA, "pending")
       updateSaveStatus(DOC_STEP_MEDIA_PLAN, "pending")
       const documentUploadPromise = (async () => {
-        if (shouldSkipDocsForCampaignStatus(fv.mp_campaignstatus)) {
+        if (shouldSkipDocsForCampaignStatus(
+          // Create first-save always publishes v1 — docs must run (VC Stage 1).
+          { publishedAt: "this-save" }
+        )) {
           updateSaveStatus(DOC_STEP_MBA, "skipped", DOC_SKIP_REASON)
           updateSaveStatus(DOC_STEP_MEDIA_PLAN, "skipped", DOC_SKIP_REASON)
           return
@@ -7796,18 +7802,16 @@ const handleSaveAll = async () => {
         onDownloadExcel={handleDownloadBillingScheduleExcel}
         downloadDisabled={mbaBillingModalState.financials.billingSchedule.length === 0}
         onResetBillingToAuto={
-          isApprovedOrBeyond(form.watch("mp_campaignstatus"))
-            ? undefined
-            : () => setFullBillingResetConfirmOpen(true)
+          isPublished ? undefined : () => setFullBillingResetConfirmOpen(true)
         }
-        billingTimingReadOnly={isApprovedOrBeyond(form.watch("mp_campaignstatus"))}
+        billingTimingReadOnly={isPublished}
         billingTimingReadOnlyMessage={publishedBillingTimingLockedMessage({
           status: form.watch("mp_campaignstatus"),
           versionNumber: 1,
         })}
         timingDraftReady={manualBillingDraftReady && mbaBillingModalState.viewReady}
         onEnsureTimingDraft={() => {
-          if (isApprovedOrBeyond(form.watch("mp_campaignstatus"))) return
+          if (isPublished) return
           handleManualBillingOpen()
         }}
         showAdvancedEditor={isManualBillingModalOpen && mbaBillingModalState.viewReady}
@@ -8279,8 +8283,7 @@ const handleSaveAll = async () => {
                 </Button>
               ) : null}
             </div>
-            {manualBillingDraftReady &&
-            !isApprovedOrBeyond(form.watch("mp_campaignstatus")) ? (
+            {manualBillingDraftReady && !isPublished ? (
               <Button type="button" variant="action" size="sm" onClick={handleManualBillingApply}>
                 Apply
               </Button>
