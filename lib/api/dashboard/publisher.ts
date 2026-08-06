@@ -4,11 +4,11 @@ import { xanoMediaPlansUrl } from '@/lib/api/xanoClients'
 import { fetchAllXanoPages } from '@/lib/api/xanoPagination'
 import {
   getAustralianFinancialYear,
-  isBookedApprovedCompleted,
   normalizeSchedule,
   parseMonthYear,
   getMonthYearValue,
   parseMoney,
+  resolveDashboardCommercialLiveVersionRow,
 } from './shared'
 
 function lineItemMatchesPublisher(li: any, publisherName: string, publisherId: string): boolean {
@@ -69,15 +69,11 @@ export async function getPublisherDashboardData(publisher: Publisher): Promise<P
     return acc
   }, {} as Record<string, any[]>)
 
+  // VC1-5: tip via published_at; commercial via BAC on that tip only (no master tip map here).
   const chosenByMBA: Record<string, any> = {}
-  Object.entries(versionsByMBA).forEach(([, versions]) => {
-    const list = versions as { version_number?: number; campaign_status?: string; mba_number?: string }[]
-    const sorted = list.slice().sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
-    const picked = sorted.find((v: any) => isBookedApprovedCompleted(v.campaign_status))
-    if (picked) {
-      const mba = picked.mba_number
-      if (mba) chosenByMBA[mba] = picked
-    }
+  Object.entries(versionsByMBA).forEach(([, versions]: [string, any[]]) => {
+    const picked = resolveDashboardCommercialLiveVersionRow(versions)
+    if (picked?.mba_number) chosenByMBA[picked.mba_number] = picked
   })
 
   const campaignRows: PublisherCampaignRow[] = []

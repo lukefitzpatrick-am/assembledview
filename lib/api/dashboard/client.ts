@@ -24,7 +24,7 @@ import {
   isDashboardDebug,
   normalizeStatus,
   normalizeMbaKey,
-  pickHighestVersionRow,
+  resolveDashboardLiveVersionRow,
   isBookedApprovedCompleted,
   hasBookedApprovedCompletedTag,
   slugifyClientName,
@@ -505,7 +505,7 @@ export function buildClientDashboardDataFromVersions(
     versions: clientVersions.length,
   })
 
-    // One row per MBA: highest version_number (matches mediaplans MBA edit — latest version wins).
+    // VC1-5: tip = master tip / published_at (never campaign_status). Commercial filter is separate below.
     const versionsByMBA = clientVersions.reduce((acc: Record<string, any[]>, version: any) => {
       const key = normalizeMbaKey(version.mba_number)
       if (!key) return acc
@@ -518,7 +518,7 @@ export function buildClientDashboardDataFromVersions(
 
     Object.entries(versionsByMBA).forEach(([mbaKey, versions]: [string, any[]]) => {
       const published = publishedByMba?.get(mbaKey)
-      const chosenVersion = pickHighestVersionRow(versions, published)
+      const chosenVersion = resolveDashboardLiveVersionRow(versions, published)
       if (chosenVersion) {
         selectedVersionByMBA[mbaKey] = chosenVersion
       }

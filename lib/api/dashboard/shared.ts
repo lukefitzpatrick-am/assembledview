@@ -53,18 +53,15 @@ export function numericVersion(v: any): number {
   return parseVersionNumber(v?.version_number ?? v?.versionNumber)
 }
 
-/** Same rule as mediaplans editor: one row per MBA — the highest version_number (tie-break: updated_at).
- * When `publishedVersionNumber` is provided, never pick a staged-but-unpublished row.
- * Version rows may carry VC Stage 1 `published_at` / `published_by`; this picker does not
- * use them yet (tip watermark remains master.version_number / publishedVersionNumber). */
-export function pickHighestVersionRow(
-  versions: any[],
-  publishedVersionNumber?: number,
-): any | null {
+function versionPublishedAt(v: any): string | null {
+  const raw = v?.published_at ?? v?.publishedAt
+  if (raw == null) return null
+  const s = String(raw).trim()
+  return s.length > 0 ? s : null
+}
+
+function pickMaxVersionRow(versions: any[]): any | null {
   if (!Array.isArray(versions) || versions.length === 0) return null
-  if (publishedVersionNumber != null && publishedVersionNumber > 0) {
-    return pickPublishedVersionRow(versions, publishedVersionNumber)
-  }
   return versions.reduce((best, v) => {
     const vn = numericVersion(v)
     const bn = numericVersion(best)
@@ -93,9 +90,57 @@ export function normalizeTags(value: any): string[] {
   return []
 }
 
+/** Commercial inclusion only — booked | approved | completed. Not tip picking. */
 export const isBookedApprovedCompleted = (status: any) => {
   const normalized = normalizeStatus(status)
   return normalized === 'booked' || normalized === 'approved' || normalized === 'completed'
+}
+
+/**
+ * VC1-5 — which version is live for dashboard numbers.
+ *
+ * Order: caller `publishedVersionNumber` (master tip) → else highest version with
+ * `published_at` non-null. Never reads `campaign_status`.
+ *
+ * Commercial inclusion is a separate predicate (`isBookedApprovedCompleted`).
+ */
+export function resolveDashboardLiveVersionRow(
+  versions: any[],
+  publishedVersionNumber?: number | null,
+): any | null {
+  if (!Array.isArray(versions) || versions.length === 0) return null
+  if (publishedVersionNumber != null && publishedVersionNumber > 0) {
+    return pickPublishedVersionRow(versions, publishedVersionNumber)
+  }
+  const publishedRows = versions.filter((v) => versionPublishedAt(v) != null)
+  return pickMaxVersionRow(publishedRows)
+}
+
+/**
+ * Same tip rule as {@link resolveDashboardLiveVersionRow}. Kept for existing
+ * call sites; prefer the VC1-5 name at new call sites.
+ */
+export function pickHighestVersionRow(
+  versions: any[],
+  publishedVersionNumber?: number,
+): any | null {
+  return resolveDashboardLiveVersionRow(versions, publishedVersionNumber)
+}
+
+/**
+ * Live tip then commercial gate — for dashboard spend aggregators that used to
+ * answer both questions with `isBookedApprovedCompleted` alone.
+ */
+export function resolveDashboardCommercialLiveVersionRow(
+  versions: any[],
+  publishedVersionNumber?: number | null,
+): any | null {
+  const live = resolveDashboardLiveVersionRow(versions, publishedVersionNumber)
+  if (!live) return null
+  if (!isBookedApprovedCompleted(live.campaign_status ?? live.campaignStatus)) {
+    return null
+  }
+  return live
 }
 
 export function hasBookedApprovedCompletedTag(value: any): boolean {

@@ -15,11 +15,11 @@ import { getCachedClients } from '@/lib/finance/xanoReferenceCache'
 import {
   apiClient,
   getAustralianFinancialYear,
-  isBookedApprovedCompleted,
   normalizeSchedule,
   parseMonthYear,
   getMonthYearValue,
   parseMoney,
+  resolveDashboardCommercialLiveVersionRow,
 } from './shared'
 
 /**
@@ -60,21 +60,10 @@ export async function getGlobalMonthlySpend(): Promise<GlobalMonthlySpend[]> {
     return acc
   }, {} as Record<string, any[]>)
 
+  // VC1-5: tip via published_at (no master tip here); commercial via BAC on that tip only.
   const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]: [string, any[]]) => {
-    const sorted = versions
-      .slice()
-      .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
-
-    const bookedApproved = sorted.find((v: any) => isBookedApprovedCompleted(v.campaign_status))
-
-    if (bookedApproved) {
-      acc[mbaNumber] = bookedApproved
-      return acc
-    }
-
-    if (sorted[0]) {
-      acc[mbaNumber] = sorted[0]
-    }
+    const chosen = resolveDashboardCommercialLiveVersionRow(versions)
+    if (chosen) acc[mbaNumber] = chosen
     return acc
   }, {} as Record<string, any>)
 
@@ -130,21 +119,10 @@ export async function getGlobalMonthlyPublisherSpendLegacy(): Promise<GlobalMont
     return acc
   }, {} as Record<string, any[]>)
 
+  // VC1-5: tip via published_at; commercial via BAC on that tip only.
   const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]: [string, any[]]) => {
-    const sorted = versions
-      .slice()
-      .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
-
-    const bookedApproved = sorted.find((v: any) => isBookedApprovedCompleted(v.campaign_status))
-
-    if (bookedApproved) {
-      acc[mbaNumber] = bookedApproved
-      return acc
-    }
-
-    if (sorted[0]) {
-      acc[mbaNumber] = sorted[0]
-    }
+    const chosen = resolveDashboardCommercialLiveVersionRow(versions)
+    if (chosen) acc[mbaNumber] = chosen
     return acc
   }, {} as Record<string, any>)
 
@@ -256,21 +234,10 @@ export async function getGlobalMonthlyClientSpendLegacy(): Promise<{
     return acc
   }, {} as Record<string, any[]>)
 
+  // VC1-5: tip via published_at; commercial via BAC on that tip only.
   const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce((acc: Record<string, any>, [mbaNumber, versions]: [string, any[]]) => {
-    const sorted = versions
-      .slice()
-      .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
-
-    const bookedApproved = sorted.find((v: any) => isBookedApprovedCompleted(v.campaign_status))
-
-    if (bookedApproved) {
-      acc[mbaNumber] = bookedApproved
-      return acc
-    }
-
-    if (sorted[0]) {
-      acc[mbaNumber] = sorted[0]
-    }
+    const chosen = resolveDashboardCommercialLiveVersionRow(versions)
+    if (chosen) acc[mbaNumber] = chosen
     return acc
   }, {} as Record<string, any>)
 

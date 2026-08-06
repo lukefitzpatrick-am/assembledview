@@ -21,6 +21,8 @@
  */
 
 /** Client-safe mirror of `isBookedApprovedCompleted` (`lib/api/dashboard/shared.ts`).
+ * Commercial inclusion only (booked|approved|completed) — not tip picking.
+ * Tip resolution lives in `resolveDashboardLiveVersionRow` on the server aggregation path.
  * Duplicated rather than imported: `shared.ts` pulls in the server-only Xano axios client
  * (reads the Xano API key from env), so importing it from a "use client" component risks
  * bundling server credentials into the client bundle. Keep this predicate in sync with

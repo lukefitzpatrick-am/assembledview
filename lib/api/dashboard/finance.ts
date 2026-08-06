@@ -11,12 +11,11 @@ import {
   apiClient,
   getTzParts,
   getAustralianFinancialYearWindow,
-  isBookedApprovedCompleted,
   normalizeMbaKey,
   normalizeSchedule,
   parseMonthYear,
   getMonthYearValue,
-  pickHighestVersionRow,
+  resolveDashboardCommercialLiveVersionRow,
   sumLineItems,
   sumDeliveryScheduleMonthAgencyMedia,
 } from './shared'
@@ -103,30 +102,13 @@ export async function getFinanceHubScheduleFytdTotals(
     return acc
   }, {} as Record<string, any[]>)
 
+  // VC1-5: tip = master.version_number (publishedVersionNumber); commercial = BAC on that tip.
   const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce(
     (acc: Record<string, any>, [mbaNumber, versions]: [string, any[]]) => {
       const mbaKey = normalizeMbaKey(mbaNumber) || String(mbaNumber)
       const published = publishedByMba.get(mbaKey)
-      // Prefer booked/approved/completed among published versions only.
-      const candidatePool =
-        published != null && published > 0
-          ? versions.filter((v: any) => {
-              const vn = Number(v?.version_number ?? v?.versionNumber ?? 0)
-              return Number.isFinite(vn) && vn > 0 && vn <= published
-            })
-          : versions
-      const sorted = candidatePool
-        .slice()
-        .sort((a, b) => (b.version_number || 0) - (a.version_number || 0))
-      const bookedApproved = sorted.find((v: any) => isBookedApprovedCompleted(v.campaign_status))
-      if (bookedApproved) {
-        acc[mbaNumber] = bookedApproved
-        return acc
-      }
-      const highest = pickHighestVersionRow(versions, published)
-      if (highest) {
-        acc[mbaNumber] = highest
-      }
+      const chosen = resolveDashboardCommercialLiveVersionRow(versions, published)
+      if (chosen) acc[mbaNumber] = chosen
       return acc
     },
     {} as Record<string, any>
