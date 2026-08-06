@@ -6,7 +6,7 @@ import { clipDateRangeToCampaign, type DateRange } from "@/lib/dashboard/dateFil
 import { normaliseRatioTarget } from "@/lib/kpi/normaliseRatioTarget"
 import { aggregateRatioTargetFromLineItems, getLineItemKpiRow } from "@/lib/kpi/lineItemKpiTargets"
 import type { CampaignKPI } from "@/lib/kpi/types"
-import type { SearchPacingLineItemSeries, SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
+import type { SearchPacingAdGroupRow, SearchPacingLineItemSeries, SearchPacingResponse } from "@/lib/snowflake/search-pacing-service"
 import {
   aggregateDailyTotals,
   buildDailyClicksMapFromSpendSeries,
@@ -31,6 +31,10 @@ import type { LineItemBlockProps } from "../shared/LineItemBlock"
 import type { ChannelSectionData } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
+import {
+  aggregateDeliverableLabel,
+  deliverableLabelForBuyType,
+} from "@/lib/delivery/deliverableLabel"
 
 const searchSeriesPalette = {
   cost: getMediaColor("search"),
@@ -213,7 +217,9 @@ export function buildSearchSection(input: {
   }
 
   const deliverableCard: ProgressCardProps = {
-    title: "Deliverable delivery",
+    title: `${aggregateDeliverableLabel(
+      Array.from(scheduleByLineItemId.values()).map((s) => s.buyType),
+    )} delivery`,
     value: formatWholeNumber(totals.clicks),
     detail: `Delivered ${formatWholeNumber(totals.clicks)} · Planned ${formatWholeNumber(totalSchedule.clicksBooked)}`,
     progress: clicksRatio,
@@ -307,8 +313,12 @@ export function buildSearchSection(input: {
   ]
 
   const lineItemsPayload = Array.isArray(searchData.lineItems) ? searchData.lineItems : []
+  const adGroupsPayload = Array.isArray(searchData.adGroups) ? searchData.adGroups : []
+  const knownPlanLineIds = searchLineItemIdSources(searchLineItems).map((r) => r.line_item_id)
   const accordionItems = buildSearchLineItemBlocks({
     lineItems: lineItemsPayload,
+    adGroups: adGroupsPayload,
+    knownPlanLineIds,
     searchLineItems,
     scheduleByLineItemId,
     filterRange,
@@ -369,6 +379,8 @@ function findSearchLineItemSource(searchLineItems: unknown[] | undefined, id: st
 
 function buildSearchLineItemBlocks(input: {
   lineItems: SearchPacingLineItemSeries[]
+  adGroups: SearchPacingAdGroupRow[]
+  knownPlanLineIds: string[]
   searchLineItems: unknown[] | undefined
   scheduleByLineItemId: ReturnType<typeof buildSearchScheduleByLineItem>
   filterRange: DateRange
@@ -385,6 +397,8 @@ function buildSearchLineItemBlocks(input: {
 }): Array<{ id: string; block: LineItemBlockProps }> {
   const {
     lineItems,
+    adGroups,
+    knownPlanLineIds,
     searchLineItems,
     scheduleByLineItemId,
     filterRange,
@@ -501,6 +515,15 @@ function buildSearchLineItemBlocks(input: {
         accentColour: searchSeriesPalette.clicks,
       }
 
+      const lineAdGroups = adGroups
+        .filter((g) => String(g.lineItemId ?? "").trim().toLowerCase() === id)
+        .map((g) => ({
+          name: g.name,
+          spend: Number(g.totals?.cost ?? 0),
+          clicks: Number(g.totals?.clicks ?? 0),
+          impressions: Number(g.totals?.impressions ?? 0),
+        }))
+
       const block: LineItemBlockProps = {
         name: String(li.lineItemName ?? li.lineItemId),
         platform: schedule?.buyType ? String(schedule.buyType) : undefined,
@@ -516,7 +539,7 @@ function buildSearchLineItemBlocks(input: {
             dense: true,
           },
           {
-            title: "Deliverable delivery",
+            title: `${deliverableLabelForBuyType(schedule?.buyType)} delivery`,
             value: formatWholeNumber(liTotals.clicks),
             detail: `Delivered ${formatWholeNumber(liTotals.clicks)} · Planned ${formatWholeNumber(clicksFull.bookedTotal)}`,
             progress: delR,
@@ -583,6 +606,14 @@ function buildSearchLineItemBlocks(input: {
           asAtDate: pacingWindow.asAtISO ?? null,
           brandColour,
         },
+        ...(lineAdGroups.length > 0
+          ? {
+              adGroupBreakdown: {
+                rows: lineAdGroups,
+                knownPlanLineIds,
+              },
+            }
+          : {}),
       }
 
       return { id, block }

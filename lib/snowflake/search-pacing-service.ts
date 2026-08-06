@@ -30,10 +30,19 @@ export type SearchPacingLineItemSeries = {
   daily: SearchPacingDailyRow[]
 }
 
+/** Totals-only ad-group grain (LINE_ITEM_NAME = Google Ads AD_GROUP_NAME). No daily series. */
+export type SearchPacingAdGroupRow = {
+  lineItemId: string
+  name: string
+  totals: SearchPacingTotals
+}
+
 export type SearchPacingResponse = {
   totals: SearchPacingTotals
   daily: SearchPacingDailyRow[]
   lineItems: SearchPacingLineItemSeries[]
+  /** Optional: per plan-line ad-group actuals for client delivery breakdown. */
+  adGroups?: SearchPacingAdGroupRow[]
   keywords: any[]
   error?: string
 }
@@ -97,6 +106,16 @@ type LineItemDailySnowflakeRow = DailySnowflakeRow & {
   LINE_ITEM_NAME: string | null
 }
 
+type AdGroupTotalsSnowflakeRow = {
+  LINE_ITEM_ID: string | null
+  LINE_ITEM_NAME: string | null
+  COST: number | null
+  CLICKS: number | null
+  IMPRESSIONS: number | null
+  CONVERSIONS: number | null
+  TOP_IMPRESSION_PCT: number | null
+}
+
 function normalizeLineItemIds(ids: unknown): string[] {
   if (!Array.isArray(ids)) return []
   return Array.from(
@@ -119,15 +138,15 @@ export async function getSearchPacingData(opts: {
   const requestId = opts.requestId ?? "search"
   const normalizedLineItemIds = normalizeLineItemIds(opts.lineItemIds)
   if (!normalizedLineItemIds.length) {
-    return { totals: emptyTotals(), daily: [], lineItems: [], keywords: [], error: "lineItemIds is required" }
+    return { totals: emptyTotals(), daily: [], lineItems: [], adGroups: [], keywords: [], error: "lineItemIds is required" }
   }
 
   const { start, end } = buildDateRange(opts.startDate, opts.endDate)
   if (!isISODate(start) || !isISODate(end)) {
-    return { totals: emptyTotals(), daily: [], lineItems: [], keywords: [], error: "Invalid date range" }
+    return { totals: emptyTotals(), daily: [], lineItems: [], adGroups: [], keywords: [], error: "Invalid date range" }
   }
   if (end < start) {
-    return { totals: emptyTotals(), daily: [], lineItems: [], keywords: [], error: "endDate must be >= startDate" }
+    return { totals: emptyTotals(), daily: [], lineItems: [], adGroups: [], keywords: [], error: "endDate must be >= startDate" }
   }
 
   const originalCount = normalizedLineItemIds.length
@@ -304,7 +323,50 @@ export async function getSearchPacingData(opts: {
     }
   })
 
-  return { totals, daily, lineItems, keywords: [] }
+  // Totals-only ad-group rollup (same WHERE). No daily rows — payload stays small at 45 names/line.
+  const adGroupSql = `
+      SELECT
+        LOWER(TRIM(COALESCE(CAST(LINE_ITEM_ID AS VARCHAR), ''))) AS LINE_ITEM_ID,
+        LINE_ITEM_NAME AS LINE_ITEM_NAME,
+        SUM(AMOUNT_SPENT) AS COST,
+        SUM(CLICKS) AS CLICKS,
+        SUM(IMPRESSIONS) AS IMPRESSIONS,
+        SUM(CONVERSIONS) AS CONVERSIONS,
+        SUM(IMPRESSIONS * TOP_IMPRESSION_PERCENTAGE) / NULLIF(SUM(IMPRESSIONS), 0) AS TOP_IMPRESSION_PCT
+      FROM ASSEMBLEDVIEW.MART.SEARCH_PACING_FACT
+      WHERE ${whereClause}
+        AND CAST(DATE_DAY AS DATE) BETWEEN TO_DATE(?) AND TO_DATE(?)
+      GROUP BY LOWER(TRIM(COALESCE(CAST(LINE_ITEM_ID AS VARCHAR), ''))), LINE_ITEM_NAME
+      LIMIT ${QUERY_ROW_LIMIT}
+    `
+
+  const adGroupRowsRaw = await querySnowflake<AdGroupTotalsSnowflakeRow>(adGroupSql, dailyBinds, {
+    requestId,
+    signal: opts.signal,
+    label: "pacing_search_fact_adgroup_totals",
+  })
+
+  const adGroups: SearchPacingAdGroupRow[] = (adGroupRowsRaw ?? [])
+    .map((r) => {
+      const lineItemId = String(r.LINE_ITEM_ID ?? "").trim()
+      const name = String(r.LINE_ITEM_NAME ?? "").trim()
+      if (!lineItemId || !name) return null
+      return {
+        lineItemId,
+        name,
+        totals: {
+          cost: toNumber(r.COST),
+          clicks: toNumber(r.CLICKS),
+          impressions: toNumber(r.IMPRESSIONS),
+          conversions: toNumber(r.CONVERSIONS),
+          revenue: 0,
+          topImpressionPct: toNullableNumber(r.TOP_IMPRESSION_PCT),
+        },
+      }
+    })
+    .filter((row): row is SearchPacingAdGroupRow => Boolean(row))
+
+  return { totals, daily, lineItems, adGroups, keywords: [] }
 }
 
 function emptyTotals(): SearchPacingTotals {
