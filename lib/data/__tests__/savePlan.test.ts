@@ -1585,6 +1585,145 @@ test("savePlan: eligible non-excluded line writes adserving rows on billing + de
   )
 })
 
+test("VC Stage 1: publish stamps published_at (server now) + lowercased published_by", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  await savePlanVersion(draftInput(masterId, [baseLine(LINE_A, 1000)]))
+  const beforeMs = Date.now()
+  const published = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1000)]),
+    mode: "publish",
+    versionNumber: 1,
+    campaignStatus: "booked",
+    publishedByEmail: "Luke@Assembled.Media",
+  })
+  const afterMs = Date.now()
+  const snap = await snapshot(published.versionId)
+  assert.ok(snap.version?.publishedAt, "published_at must be set")
+  const stampedMs = new Date(String(snap.version!.publishedAt)).getTime()
+  assert.ok(Number.isFinite(stampedMs), "published_at parses")
+  assert.ok(
+    stampedMs >= beforeMs - 5_000 && stampedMs <= afterMs + 5_000,
+    `published_at within ~5s of now (got ${snap.version!.publishedAt})`
+  )
+  assert.equal(snap.version?.publishedBy, "luke@assembled.media")
+})
+
+test("VC Stage 1: draft save leaves published_at null", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const draft = await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1000)], {
+      publishedByEmail: "should-not-stamp@example.com",
+    })
+  )
+  const snap = await snapshot(draft.versionId)
+  assert.equal(snap.version?.publishedAt, null)
+  assert.equal(snap.version?.publishedBy, null)
+})
+
+test("VC Stage 1: draft re-save of published version does not clear or re-stamp", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  await savePlanVersion(draftInput(masterId, [baseLine(LINE_A, 1000)]))
+  const published = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1000)]),
+    mode: "publish",
+    campaignStatus: "booked",
+    publishedByEmail: "publisher@example.com",
+  })
+  const before = await snapshot(published.versionId)
+  assert.ok(before.version?.publishedAt)
+  assert.equal(before.version?.publishedBy, "publisher@example.com")
+
+  // Allow clock to advance so a re-stamp would be detectable.
+  await new Promise((r) => setTimeout(r, 50))
+
+  const again = await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1100)], {
+      versionNumber: published.versionNumber,
+      campaignName: "Draft re-save after publish",
+    })
+  )
+  assert.equal(again.versionId, published.versionId)
+  const after = await snapshot(published.versionId)
+  assert.equal(after.version?.publishedAt, before.version?.publishedAt)
+  assert.equal(after.version?.publishedBy, before.version?.publishedBy)
+  assert.equal(after.version?.campaignName, "Draft re-save after publish")
+})
+
+test("VC Stage 1: new_version inserts unpublished (published_at null)", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  await savePlanVersion(draftInput(masterId, [baseLine(LINE_A, 1000)]))
+  const staged = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1000)]),
+    mode: "new_version",
+    campaignStatus: "draft",
+    publishedByEmail: "should-not-stamp@example.com",
+  })
+  assert.equal(staged.versionNumber, 2)
+  assert.equal(staged.published, false)
+  const snap = await snapshot(staged.versionId)
+  assert.equal(snap.version?.publishedAt, null)
+  assert.equal(snap.version?.publishedBy, null)
+})
+
+test("VC Stage 1: publish with no email stamps published_at, published_by null", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  await savePlanVersion(draftInput(masterId, [baseLine(LINE_A, 1000)]))
+  const published = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1000)]),
+    mode: "publish",
+    campaignStatus: "booked",
+    publishedByEmail: null,
+  })
+  const snap = await snapshot(published.versionId)
+  assert.ok(snap.version?.publishedAt)
+  assert.equal(snap.version?.publishedBy, null)
+})
+
 test("savePlan: close db pool", async () => {
   if (hasDb) await closeDb()
 })

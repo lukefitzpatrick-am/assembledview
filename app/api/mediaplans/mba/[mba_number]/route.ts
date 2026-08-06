@@ -36,6 +36,14 @@ import {
   PLAN_DETAIL_POSTGRES_ERROR_CODE,
   readMbaPlanDetailFromPostgres,
 } from "@/lib/data/readMbaPlanDetail"
+import {
+  readVersionPublishedAtByMbaVersion,
+  stampVersionPublicationByMbaVersion,
+} from "@/lib/data/stampVersionPublication"
+import {
+  isVersionPublished,
+  normalisePublishedByEmail,
+} from "@/lib/mediaplan/versionPublication"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -966,23 +974,31 @@ export async function PUT(
       latestVersionNumber || 0
     )
     const overwriteTargetRow = previousVersion
-    const incomingStatus = normalise(
-      data.mp_campaignstatus ??
-        data.campaign_status ??
-        overwriteTargetRow?.campaign_status ??
-        masterData.campaign_status
-    )
-    // Draft saves overwrite the current working version in place (number unchanged).
-    // Leaving "draft" (publish) falls through to the increment branch and cuts a new version.
-    // forceIncrement: approval-set change after a persisted baseline must cut vN → vN+1 even on draft.
+    // Unpublished tip → overwrite in place; published tip → cut a new version.
+    // VC Stage 1: publication is published_at, never campaign_status === "draft".
+    // forceIncrement: approval-set change after a persisted baseline must cut vN → vN+1.
     const forceIncrement =
       data.forceIncrement === true ||
       data.force_increment === true ||
       data.forceNewVersion === true
-    const overwriteMode =
-      overwriteTargetRow != null && incomingStatus === "draft" && !forceIncrement
     const overwriteTargetId = overwriteTargetRow?.id
     const overwriteTargetVersionNumber = parseVersion(overwriteTargetRow?.version_number) || 1
+    // Xano tip rows may lack published_at — read Postgres mirror (same key as stamp).
+    const tipPublishedAtFromRow =
+      overwriteTargetRow?.published_at ?? overwriteTargetRow?.publishedAt ?? undefined
+    const tipPublishedAt =
+      tipPublishedAtFromRow !== undefined && tipPublishedAtFromRow !== null
+        ? String(tipPublishedAtFromRow)
+        : overwriteTargetRow != null
+          ? await readVersionPublishedAtByMbaVersion({
+              mbaNumber: mba_number,
+              versionNumber: overwriteTargetVersionNumber,
+            })
+          : null
+    const overwriteMode =
+      overwriteTargetRow != null &&
+      !isVersionPublished({ publishedAt: tipPublishedAt }) &&
+      !forceIncrement
     
     const campaignStartDate = data.mp_campaigndates_start ?? masterData.campaign_start_date
     const campaignEndDate = data.mp_campaigndates_end ?? masterData.campaign_end_date
@@ -1196,7 +1212,19 @@ export async function PUT(
           versionId: versionResponse.data?.id,
         })
       } else {
+        // Immediate publish (no defer): advance master.version_number now.
         masterUpdateResponse = await axios.patch(`${mediaPlansBaseUrl}/media_plan_master/${masterData.id}`, masterUpdateData, { headers: xanoPostHeaderRecord(), timeout: XANO_TIMEOUT_MS })
+        // VC Stage 1 — stamp Postgres publication for the new tip (best-effort).
+        try {
+          const actor = await getCurrentUser(request)
+          await stampVersionPublicationByMbaVersion({
+            mbaNumber: mba_number,
+            versionNumber: nextVersionNumber,
+            publishedByEmail: normalisePublishedByEmail(actor?.email ?? null),
+          })
+        } catch (stampErr) {
+          console.warn("[mba-put] publish stamp failed", stampErr)
+        }
       }
     }
 
@@ -1492,6 +1520,22 @@ export async function PATCH(
     
     // Check if the update was successful
     if (masterUpdateResponse.status >= 200 && masterUpdateResponse.status < 300) {
+      // VC Stage 1 — deferred publish (PATCH advances watermark): stamp the tip.
+      if (isPublishVersionAdvance(data)) {
+        try {
+          const targetPublishVersion = parseVersion(data.version_number)
+          if (targetPublishVersion != null && targetPublishVersion > 0) {
+            const actor = await getCurrentUser(request)
+            await stampVersionPublicationByMbaVersion({
+              mbaNumber: mba_number,
+              versionNumber: targetPublishVersion,
+              publishedByEmail: normalisePublishedByEmail(actor?.email ?? null),
+            })
+          }
+        } catch (stampErr) {
+          console.warn("[mba-patch] publish stamp failed", stampErr)
+        }
+      }
       console.log(`[PATCH] Successfully updated master ID ${numericMasterId}`)
       console.log("[PATCH] Master updated response:", masterUpdateResponse.data)
       

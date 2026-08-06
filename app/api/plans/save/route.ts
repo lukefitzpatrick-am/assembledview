@@ -21,6 +21,10 @@ import {
 } from "@/lib/mediaplan/drafts/serverStore"
 import { buildStaleBaseCompare } from "@/lib/mediaplan/drafts/pill"
 import { createAdServingRateResolver } from "@/lib/billing/adServingRateResolver"
+import {
+  normalisePublishedByEmail,
+  warnIfPublishMissingPublishedBy,
+} from "@/lib/mediaplan/versionPublication"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -299,6 +303,16 @@ export async function POST(request: NextRequest) {
   }
   const getRateForMediaType = createAdServingRateResolver(adservRates)
 
+  // VC Stage 1 — same session identity resolution as PC7 draft cleanup below.
+  const sessionUser = (gate as { session?: { user?: { email?: string; sub?: string } } })
+    .session?.user
+  const publishedByEmail = normalisePublishedByEmail(
+    sessionUser?.email || sessionUser?.sub || null
+  )
+  warnIfPublishMissingPublishedBy(body.mode, publishedByEmail, {
+    mbaNumber: body.mbaNumber,
+  })
+
   const saveInput = {
     masterId: body.masterId,
     mbaNumber: body.mbaNumber,
@@ -327,6 +341,7 @@ export async function POST(request: NextRequest) {
       | null
       | undefined,
     billingOverrides: body.billingOverrides ?? null,
+    publishedByEmail,
     lineItems: body.lineItems.map((l) => ({
       ...l,
       channel: l.channel as (typeof LINE_CHANNELS)[number],

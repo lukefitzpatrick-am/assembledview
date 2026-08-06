@@ -74,6 +74,7 @@ import {
   type AutoBillingCorrectionSummary,
 } from "@/lib/billing/postgresAutoBillingCorrection"
 import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
+import { normalisePublishedByEmail } from "@/lib/mediaplan/versionPublication"
 import { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolation"
 import {
   explodeScheduleToMonthRows,
@@ -137,6 +138,11 @@ export type SavePlanVersionInput = {
   feeLoading: FeeLoading
   /** On publish — stored in mba_fee_snapshots.fees (defaults to feeLoading). */
   feeSnapshot?: Record<string, unknown>
+  /**
+   * VC Stage 1 — lowercased email of the publisher. Required for mode:'publish'
+   * from the route (missing → stamp published_at, leave published_by null).
+   */
+  publishedByEmail?: string | null
   /**
    * Month chips at approve time (`January 2026` / `2026-01`). Empty → all
    * billing months in the approved slice.
@@ -650,6 +656,8 @@ async function upsertVersionRow(
   }
 
   if (input.mode === "draft") {
+    // Draft overwrite must NOT touch published_at / published_by — a re-save of
+    // an already-published row must not clear or re-stamp publication.
     const existing = await tx
       .select({ id: schema.mediaPlanVersions.id })
       .from(schema.mediaPlanVersions)
@@ -684,6 +692,10 @@ async function upsertVersionRow(
     }
   }
 
+  // Insert path: draft (first row) / publish / new_version.
+  // VC Stage 1 asymmetry (intentional — do not "tidy"): only mode==='publish'
+  // stamps published_at below. mode==='new_version' inserts without advancing the
+  // publish tip, so the row stays unpublished (published_at null) by definition.
   const [inserted] = await tx
     .insert(schema.mediaPlanVersions)
     .values(baseValues)
@@ -1093,9 +1105,16 @@ export async function savePlanVersion(
         }
 
         const status = resolvePersistedCampaignStatus(input)
+        // VC Stage 1: stamp publication in the SAME txn as the rest of publish.
+        // A published-but-unstamped row is the failure mode Stage 1 removes.
+        // draft / new_version never reach this block.
         await tx
           .update(schema.mediaPlanVersions)
-          .set({ campaignStatus: status })
+          .set({
+            campaignStatus: status,
+            publishedAt: sql`now()`,
+            publishedBy: normalisePublishedByEmail(input.publishedByEmail),
+          })
           .where(eq(schema.mediaPlanVersions.id, versionId))
 
         await tx
