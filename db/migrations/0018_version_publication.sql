@@ -18,6 +18,12 @@ COMMENT ON COLUMN media_plan_versions.published_at IS
 COMMENT ON COLUMN media_plan_versions.published_by IS
   'VC Stage 1: actor who published (lowercase text). NULL when unpublished or unknown.';
 
+CREATE TABLE IF NOT EXISTS public.migration_markers (
+  key         text primary key,
+  applied_at  timestamptz not null default now(),
+  note        text
+);
+
 DO $$
 BEGIN
   IF NOT EXISTS (
