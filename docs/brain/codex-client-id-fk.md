@@ -42,40 +42,15 @@ Report only. No schema change, no migration. Confirms Claude’s live finding (4
 
 ### POST `/api/codex/tasks`
 
-Requires `client_id` to be present and (if a number) finite. **Does not** look up `clients`. Then calls `createTask` with `Number(clientId)`.
-
-```130:154:app/api/codex/tasks/route.ts
-    if (
-      clientId === undefined ||
-      clientId === null ||
-      clientId === "" ||
-      (typeof clientId === "number" && !Number.isFinite(clientId))
-    ) {
-      return NextResponse.json(
-        { error: "bad_request", message: "client_id is required." },
-        { status: 400 }
-      )
-    }
-    // ...
-    const task = await createTask(
-      {
-        title,
-        clientId: Number(clientId),
-```
-
-### `createTask` (repo)
-
-Inserts `clientId: input.clientId` with no existence check:
-
-```246:248:lib/codex/repo.ts
-    .values({
-      title: input.title,
-      clientId: input.clientId,
-```
+Requires `client_id` to be present and finite, then **`codexClientExists`** (`lib/codex/clientExists.ts`) — 400 `{ error: "bad_request", message: "client_id N does not exist." }` if missing. Still **no DB FK** until T6.
 
 ### PATCH `/api/codex/tasks/[id]`
 
-`PATCH_ALLOWLIST` **excludes** `client_id`. `UpdateTaskInput` has no `clientId` field. Patch cannot retarget a task to another client — and cannot repair or introduce orphans via PATCH. Orphans are create-time (or direct SQL) only.
+Allowlist includes `client_id`. When set, same app-level exists-check before `updateTask`. `assignee_email` is passed through raw — repo lowercases.
+
+### `createTask` (repo)
+
+Inserts `clientId: input.clientId` with no existence check (route is the gate). Repo may still be called with a sentinel id in Stage 0 guarantee tests.
 
 ### UI
 
@@ -97,7 +72,7 @@ Exact count **unknown** without a live query. Proven floor from Claude (4 Aug): 
 
 ### Recommendation
 
-1. **Ship (a) immediately** before Stage 1 puts real volume in `tasks` — closes the silent orphan path the UI does not protect against for API callers, no migration, no ETL collision.
+1. **(a) shipped** (Stage 0 hardening) — `codexClientExists` on task create + PATCH `client_id`.
 2. **Plan (b) for T6** (or whenever `clients` truncate-reload ends): clean orphans first (`UPDATE`/`DELETE`/`repoint`), then add `ON DELETE RESTRICT`. Do **not** add the FK while ETL still truncates `clients`.
 3. **Do not** choose (c) for `tasks` while the form treats client as required.
 

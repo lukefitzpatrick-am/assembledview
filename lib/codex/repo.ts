@@ -25,6 +25,9 @@ export { clampPerPage, parseStatusFilter } from "@/lib/codex/queryHelpers"
 
 const { tasks, clientNotes, teamMembers, codexActivity } = schema
 
+/** Root `db` or a `db.transaction` callback handle — both share the query API. */
+type DbExecutor = Db | Parameters<Parameters<Db["transaction"]>[0]>[0]
+
 export type TaskSort = "due_date_asc" | "due_date_desc" | "created_at_desc"
 
 export type ListTasksFilters = {
@@ -75,6 +78,8 @@ export type UpdateTaskInput = {
   mbaNumber?: string | null
   category?: string | null
   clientVisible?: boolean | null
+  /** App-level exists-check required at the route when set (no DB FK until T6). */
+  clientId?: number
 }
 
 export type ListClientNotesFilters = {
@@ -150,7 +155,7 @@ function taskRowToApi(row: typeof tasks.$inferSelect): CodexTask {
 }
 
 async function appendActivity(
-  database: Db,
+  database: DbExecutor,
   args: {
     entityType: string
     entityId: number
@@ -240,36 +245,38 @@ export async function createTask(
   actorEmail: string | null = input.createdByEmail,
   database: Db = db
 ): Promise<CodexTask> {
-  const now = new Date().toISOString()
-  const [row] = await database
-    .insert(tasks)
-    .values({
-      title: input.title,
-      clientId: input.clientId,
-      description: input.description ?? null,
-      status: input.status?.trim() || "todo",
-      priority: input.priority ?? "normal",
-      assigneeEmail: input.assigneeEmail?.trim().toLowerCase() || null,
-      assigneeName: input.assigneeName ?? null,
-      dueDate: input.dueDate ?? null,
-      mbaNumber: input.mbaNumber ?? null,
-      category: input.category ?? null,
-      clientVisible: input.clientVisible ?? false,
-      source: input.source?.trim() || "manual",
-      createdByEmail: input.createdByEmail.trim().toLowerCase(),
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning()
+  return database.transaction(async (tx) => {
+    const now = new Date().toISOString()
+    const [row] = await tx
+      .insert(tasks)
+      .values({
+        title: input.title,
+        clientId: input.clientId,
+        description: input.description ?? null,
+        status: input.status?.trim() || "todo",
+        priority: input.priority ?? "normal",
+        assigneeEmail: input.assigneeEmail?.trim().toLowerCase() || null,
+        assigneeName: input.assigneeName ?? null,
+        dueDate: input.dueDate ?? null,
+        mbaNumber: input.mbaNumber ?? null,
+        category: input.category ?? null,
+        clientVisible: input.clientVisible ?? false,
+        source: input.source?.trim() || "manual",
+        createdByEmail: input.createdByEmail.trim().toLowerCase(),
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning()
 
-  await appendActivity(database, {
-    entityType: "task",
-    entityId: row.id,
-    actorEmail: actorEmail?.toLowerCase() ?? null,
-    action: "create",
-    after: taskRowToApi(row),
+    await appendActivity(tx, {
+      entityType: "task",
+      entityId: row.id,
+      actorEmail: actorEmail?.toLowerCase() ?? null,
+      action: "create",
+      after: taskRowToApi(row),
+    })
+    return taskRowToApi(row)
   })
-  return taskRowToApi(row)
 }
 
 export async function updateTask(
@@ -278,41 +285,44 @@ export async function updateTask(
   actorEmail: string | null,
   database: Db = db
 ): Promise<CodexTask | null> {
-  const [before] = await database.select().from(tasks).where(eq(tasks.id, id)).limit(1)
-  if (!before || before.deletedAt) return null
+  return database.transaction(async (tx) => {
+    const [before] = await tx.select().from(tasks).where(eq(tasks.id, id)).limit(1)
+    if (!before || before.deletedAt) return null
 
-  const values: Partial<typeof tasks.$inferInsert> = {
-    updatedAt: new Date().toISOString(),
-  }
-  if (patch.title !== undefined) values.title = patch.title
-  if (patch.description !== undefined) values.description = patch.description
-  if (patch.status !== undefined) values.status = patch.status
-  if (patch.priority !== undefined) values.priority = patch.priority
-  if (patch.assigneeEmail !== undefined) {
-    values.assigneeEmail = patch.assigneeEmail?.trim().toLowerCase() || null
-  }
-  if (patch.assigneeName !== undefined) values.assigneeName = patch.assigneeName
-  if (patch.dueDate !== undefined) values.dueDate = patch.dueDate
-  if (patch.mbaNumber !== undefined) values.mbaNumber = patch.mbaNumber
-  if (patch.category !== undefined) values.category = patch.category
-  if (patch.clientVisible !== undefined) values.clientVisible = patch.clientVisible
+    const values: Partial<typeof tasks.$inferInsert> = {
+      updatedAt: new Date().toISOString(),
+    }
+    if (patch.title !== undefined) values.title = patch.title
+    if (patch.description !== undefined) values.description = patch.description
+    if (patch.status !== undefined) values.status = patch.status
+    if (patch.priority !== undefined) values.priority = patch.priority
+    if (patch.assigneeEmail !== undefined) {
+      values.assigneeEmail = patch.assigneeEmail?.trim().toLowerCase() || null
+    }
+    if (patch.assigneeName !== undefined) values.assigneeName = patch.assigneeName
+    if (patch.dueDate !== undefined) values.dueDate = patch.dueDate
+    if (patch.mbaNumber !== undefined) values.mbaNumber = patch.mbaNumber
+    if (patch.category !== undefined) values.category = patch.category
+    if (patch.clientVisible !== undefined) values.clientVisible = patch.clientVisible
+    if (patch.clientId !== undefined) values.clientId = patch.clientId
 
-  const [row] = await database
-    .update(tasks)
-    .set(values)
-    .where(and(eq(tasks.id, id), isNull(tasks.deletedAt)))
-    .returning()
-  if (!row) return null
+    const [row] = await tx
+      .update(tasks)
+      .set(values)
+      .where(and(eq(tasks.id, id), isNull(tasks.deletedAt)))
+      .returning()
+    if (!row) return null
 
-  await appendActivity(database, {
-    entityType: "task",
-    entityId: id,
-    actorEmail: actorEmail?.toLowerCase() ?? null,
-    action: "update",
-    before: taskRowToApi(before),
-    after: taskRowToApi(row),
+    await appendActivity(tx, {
+      entityType: "task",
+      entityId: id,
+      actorEmail: actorEmail?.toLowerCase() ?? null,
+      action: "update",
+      before: taskRowToApi(before),
+      after: taskRowToApi(row),
+    })
+    return taskRowToApi(row)
   })
-  return taskRowToApi(row)
 }
 
 export async function softDeleteTask(
@@ -320,26 +330,28 @@ export async function softDeleteTask(
   actorEmail: string | null,
   database: Db = db
 ): Promise<boolean> {
-  const [before] = await database.select().from(tasks).where(eq(tasks.id, id)).limit(1)
-  if (!before || before.deletedAt) return false
+  return database.transaction(async (tx) => {
+    const [before] = await tx.select().from(tasks).where(eq(tasks.id, id)).limit(1)
+    if (!before || before.deletedAt) return false
 
-  const deletedAt = new Date().toISOString()
-  const [row] = await database
-    .update(tasks)
-    .set({ deletedAt, updatedAt: deletedAt })
-    .where(and(eq(tasks.id, id), isNull(tasks.deletedAt)))
-    .returning()
-  if (!row) return false
+    const deletedAt = new Date().toISOString()
+    const [row] = await tx
+      .update(tasks)
+      .set({ deletedAt, updatedAt: deletedAt })
+      .where(and(eq(tasks.id, id), isNull(tasks.deletedAt)))
+      .returning()
+    if (!row) return false
 
-  await appendActivity(database, {
-    entityType: "task",
-    entityId: id,
-    actorEmail: actorEmail?.toLowerCase() ?? null,
-    action: "soft_delete",
-    before: taskRowToApi(before),
-    after: { ...taskRowToApi(row), deleted_at: deletedAt },
+    await appendActivity(tx, {
+      entityType: "task",
+      entityId: id,
+      actorEmail: actorEmail?.toLowerCase() ?? null,
+      action: "soft_delete",
+      before: taskRowToApi(before),
+      after: { ...taskRowToApi(row), deleted_at: deletedAt },
+    })
+    return true
   })
-  return true
 }
 
 export async function listClientNotes(
@@ -439,31 +451,33 @@ export async function createTeamMember(
   actorEmail: string | null,
   database: Db = db
 ): Promise<TeamMember> {
-  const now = new Date().toISOString()
-  const email = input.email.trim().toLowerCase()
-  const [row] = await database
-    .insert(teamMembers)
-    .values({
-      email,
-      name: input.name.trim(),
-      roleTitle: input.roleTitle ?? null,
-      active: input.active ?? true,
-      capacityNotes: input.capacityNotes ?? null,
-      workingStyle: input.workingStyle ?? null,
-      defaultClientIds: input.defaultClientIds ?? [],
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning()
+  return database.transaction(async (tx) => {
+    const now = new Date().toISOString()
+    const email = input.email.trim().toLowerCase()
+    const [row] = await tx
+      .insert(teamMembers)
+      .values({
+        email,
+        name: input.name.trim(),
+        roleTitle: input.roleTitle ?? null,
+        active: input.active ?? true,
+        capacityNotes: input.capacityNotes ?? null,
+        workingStyle: input.workingStyle ?? null,
+        defaultClientIds: input.defaultClientIds ?? [],
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning()
 
-  await appendActivity(database, {
-    entityType: "team_member",
-    entityId: row.id,
-    actorEmail: actorEmail?.toLowerCase() ?? null,
-    action: "create",
-    after: teamRowToApi(row),
+    await appendActivity(tx, {
+      entityType: "team_member",
+      entityId: row.id,
+      actorEmail: actorEmail?.toLowerCase() ?? null,
+      action: "create",
+      after: teamRowToApi(row),
+    })
+    return teamRowToApi(row)
   })
-  return teamRowToApi(row)
 }
 
 export async function updateTeamMember(
@@ -472,41 +486,43 @@ export async function updateTeamMember(
   actorEmail: string | null,
   database: Db = db
 ): Promise<TeamMember | null> {
-  const [before] = await database
-    .select()
-    .from(teamMembers)
-    .where(eq(teamMembers.id, id))
-    .limit(1)
-  if (!before) return null
+  return database.transaction(async (tx) => {
+    const [before] = await tx
+      .select()
+      .from(teamMembers)
+      .where(eq(teamMembers.id, id))
+      .limit(1)
+    if (!before) return null
 
-  const values: Partial<typeof teamMembers.$inferInsert> = {
-    updatedAt: new Date().toISOString(),
-  }
-  if (patch.email !== undefined) values.email = patch.email.trim().toLowerCase()
-  if (patch.name !== undefined) values.name = patch.name.trim()
-  if (patch.roleTitle !== undefined) values.roleTitle = patch.roleTitle
-  if (patch.active !== undefined) values.active = patch.active
-  if (patch.capacityNotes !== undefined) values.capacityNotes = patch.capacityNotes
-  if (patch.workingStyle !== undefined) values.workingStyle = patch.workingStyle
-  if (patch.defaultClientIds !== undefined) {
-    values.defaultClientIds = patch.defaultClientIds
-  }
+    const values: Partial<typeof teamMembers.$inferInsert> = {
+      updatedAt: new Date().toISOString(),
+    }
+    if (patch.email !== undefined) values.email = patch.email.trim().toLowerCase()
+    if (patch.name !== undefined) values.name = patch.name.trim()
+    if (patch.roleTitle !== undefined) values.roleTitle = patch.roleTitle
+    if (patch.active !== undefined) values.active = patch.active
+    if (patch.capacityNotes !== undefined) values.capacityNotes = patch.capacityNotes
+    if (patch.workingStyle !== undefined) values.workingStyle = patch.workingStyle
+    if (patch.defaultClientIds !== undefined) {
+      values.defaultClientIds = patch.defaultClientIds
+    }
 
-  const [row] = await database
-    .update(teamMembers)
-    .set(values)
-    .where(eq(teamMembers.id, id))
-    .returning()
-  if (!row) return null
+    const [row] = await tx
+      .update(teamMembers)
+      .set(values)
+      .where(eq(teamMembers.id, id))
+      .returning()
+    if (!row) return null
 
-  await appendActivity(database, {
-    entityType: "team_member",
-    entityId: id,
-    actorEmail: actorEmail?.toLowerCase() ?? null,
-    action: "update",
-    before: teamRowToApi(before),
-    after: teamRowToApi(row),
+    await appendActivity(tx, {
+      entityType: "team_member",
+      entityId: id,
+      actorEmail: actorEmail?.toLowerCase() ?? null,
+      action: "update",
+      before: teamRowToApi(before),
+      after: teamRowToApi(row),
+    })
+    return teamRowToApi(row)
   })
-  return teamRowToApi(row)
 }
 

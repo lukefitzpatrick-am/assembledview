@@ -50,7 +50,7 @@ Every handler: `codexFlagGuard()` then `requireCodexInternalAccess()` (`app/api/
 3. Session but role outside `CODEX_SHADOW_ROLES` → **403** `{ error: "forbidden" }`.
 4. Admin (shadow allowlist) → handler runs.
 
-Middleware only authenticates; tenant/role is per-route. Writes stamp email identity (lowercased/trimmed) and append `codex_activity` (see KNOWN-ISSUES for actor_kind / orphan activity).
+Middleware only authenticates; tenant/role is per-route. Writes stamp email identity (lowercased/trimmed) and append `codex_activity` **in the same `db.transaction` as the mutation** (Stage 0 hardening). `client_id` on create/PATCH is app-checked via `codexClientExists` (no DB FK until T6 — DI-12).
 
 ---
 
@@ -109,4 +109,4 @@ Append dated one-liners during the fortnight. Format:
 - YYYY-MM-DD — <short fact or bug>; severity if known (blocks / annoy / observe)
 ```
 
-(empty — fill as bugs accumulate)
+- 2026-08-06 — Mutation + `appendActivity` now share one transaction (rollback if activity fails). App-level `client_id` exists-check on create/PATCH (DI-12; still no DB FK). Assignee lowercasing coverage + route raw-passthrough pin. Write-failure doc corrected: `.env.local` has `CODEX_V2=on`; stale dev server was the local flag-off cause.

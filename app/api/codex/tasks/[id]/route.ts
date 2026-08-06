@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import { codexClientExists } from "@/lib/codex/clientExists"
 import { softDeleteTask, updateTask } from "@/lib/codex/repo"
 import {
   codexFlagGuard,
@@ -22,6 +23,7 @@ const PATCH_ALLOWLIST = [
   "mba_number",
   "category",
   "client_visible",
+  "client_id",
 ] as const
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -77,6 +79,7 @@ export async function PATCH(request: Request, context: RouteContext) {
           patch.priority = typeof v === "string" ? v : null
           break
         case "assignee_email":
+          // Repo is the only normalisation point — pass the raw string through.
           patch.assigneeEmail = typeof v === "string" ? v : null
           break
         case "assignee_name":
@@ -94,6 +97,29 @@ export async function PATCH(request: Request, context: RouteContext) {
         case "client_visible":
           if (typeof v === "boolean") patch.clientVisible = v
           break
+        case "client_id": {
+          const clientIdNum = Number(v)
+          if (!Number.isFinite(clientIdNum) || clientIdNum < 1) {
+            return NextResponse.json(
+              {
+                error: "bad_request",
+                message: "client_id must be a positive integer.",
+              },
+              { status: 400 }
+            )
+          }
+          if (!(await codexClientExists(clientIdNum))) {
+            return NextResponse.json(
+              {
+                error: "bad_request",
+                message: `client_id ${clientIdNum} does not exist.`,
+              },
+              { status: 400 }
+            )
+          }
+          patch.clientId = clientIdNum
+          break
+        }
       }
     }
 

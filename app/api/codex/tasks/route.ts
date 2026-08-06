@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import { codexClientExists } from "@/lib/codex/clientExists"
 import { resolveListAssigneeScope } from "@/lib/codex/queryHelpers"
 import {
   createTask,
@@ -139,6 +140,24 @@ export async function POST(request: Request) {
       )
     }
 
+    const clientIdNum = Number(clientId)
+    if (!Number.isFinite(clientIdNum) || clientIdNum < 1) {
+      return NextResponse.json(
+        { error: "bad_request", message: "client_id must be a positive integer." },
+        { status: 400 }
+      )
+    }
+
+    if (!(await codexClientExists(clientIdNum))) {
+      return NextResponse.json(
+        {
+          error: "bad_request",
+          message: `client_id ${clientIdNum} does not exist.`,
+        },
+        { status: 400 }
+      )
+    }
+
     const currentUser = await getCurrentUser(request)
     const createdByEmail = sessionEmail(auth.session, currentUser?.email)
     if (!createdByEmail) {
@@ -151,7 +170,7 @@ export async function POST(request: Request) {
     const task = await createTask(
       {
         title,
-        clientId: Number(clientId),
+        clientId: clientIdNum,
         description:
           typeof raw.description === "string" ? raw.description : null,
         status: typeof raw.status === "string" ? raw.status : null,

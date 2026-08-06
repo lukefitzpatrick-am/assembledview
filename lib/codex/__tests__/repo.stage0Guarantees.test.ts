@@ -2,18 +2,15 @@
  * Codex Stage 0 guarantees — permanent pin of the 4 Aug live-SQL smoke checks.
  * Requires DATABASE_URL. Skips when unset.
  *
- * FINDING (activity atomicity): createTask / updateTask / softDeleteTask /
- * createTeamMember / updateTeamMember call appendActivity AFTER the mutation
- * with no shared transaction. A failure in appendActivity can leave the
- * mutation committed without an activity row. The inverse cannot happen
- * (activity is second). Early refusals (deleted update, double soft-delete)
- * never call appendActivity — those cases are asserted below.
+ * Activity atomicity: createTask / updateTask / softDeleteTask /
+ * createTeamMember / updateTeamMember wrap mutation + appendActivity in one
+ * db.transaction. A failure in appendActivity rolls the mutation back.
  */
 import assert from "node:assert/strict"
 import { after, describe, it } from "node:test"
 import { and, eq, inArray } from "drizzle-orm"
 
-import { getDb, schema, closeDb } from "@/db"
+import { getDb, schema, closeDb, type Db } from "@/db"
 import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
 import {
   createTask,
@@ -29,14 +26,46 @@ loadEnvLocal()
 
 const hasDb = Boolean(process.env.DATABASE_URL?.trim())
 
-const MIXED = " Luke.Fitzpatrick@Assembled.com.au "
-const NORMALISED = "luke.fitzpatrick@assembled.com.au"
-/** Sentinel client_id — no FK on tasks.client_id. */
+/** Exact casing from Stage 0 hardening brief — AssembledMedia.com.au. */
+const MIXED = "Luke.Fitzpatrick@AssembledMedia.com.au"
+const NORMALISED = "luke.fitzpatrick@assembledmedia.com.au"
+/** Sentinel client_id — no FK on tasks.client_id (repo tests bypass API exists-check). */
 const CLIENT_ID = 900_090_004
 const RUN = `s0g${Date.now().toString(36)}`
 
 const taskIds: number[] = []
 const teamIds: number[] = []
+
+/**
+ * Db proxy: real transaction + queries, but insert into codex_activity throws.
+ * Forces appendActivity failure so we can assert mutation rollback.
+ */
+function dbThatFailsActivityWrite(database: Db): Db {
+  return new Proxy(database as object, {
+    get(target, prop, receiver) {
+      if (prop === "transaction") {
+        return (fn: (tx: Db) => Promise<unknown>) =>
+          (target as Db).transaction(async (innerTx) =>
+            fn(dbThatFailsActivityWrite(innerTx as unknown as Db))
+          )
+      }
+      if (prop === "insert") {
+        return (table: unknown) => {
+          if (table === schema.codexActivity) {
+            return {
+              values: () => {
+                throw new Error("forced appendActivity failure")
+              },
+            }
+          }
+          return (target as Db).insert(table as never)
+        }
+      }
+      const value = Reflect.get(target, prop, receiver)
+      return typeof value === "function" ? value.bind(target) : value
+    },
+  }) as Db
+}
 
 async function wipe(): Promise<void> {
   if (!hasDb) return
@@ -92,7 +121,23 @@ async function activityFor(
 }
 
 describe("Codex Stage 0 — email normalisation", { skip: !hasDb }, () => {
-  it("createTask lowercases+trims created_by_email; null assignee stays null", async () => {
+  it('createTask stores assignee_email lowercased from "Luke.Fitzpatrick@AssembledMedia.com.au"', async () => {
+    const database = getDb()
+    const task = await createTask(
+      {
+        title: `${RUN} create with assignee`,
+        clientId: CLIENT_ID,
+        createdByEmail: "creator@example.com",
+        assigneeEmail: MIXED,
+      },
+      "creator@example.com",
+      database
+    )
+    taskIds.push(Number(task.id))
+    assert.equal(task.assignee_email, NORMALISED)
+  })
+
+  it("createTask null assignee stays null", async () => {
     const database = getDb()
     const task = await createTask(
       {
@@ -109,24 +154,7 @@ describe("Codex Stage 0 — email normalisation", { skip: !hasDb }, () => {
     assert.equal(task.assignee_email, null)
   })
 
-  it("createTask lowercases+trims populated assignee_email", async () => {
-    const database = getDb()
-    const task = await createTask(
-      {
-        title: `${RUN} create with assignee`,
-        clientId: CLIENT_ID,
-        createdByEmail: MIXED,
-        assigneeEmail: MIXED,
-      },
-      MIXED,
-      database
-    )
-    taskIds.push(Number(task.id))
-    assert.equal(task.assignee_email, NORMALISED)
-    assert.equal(task.created_by_email, NORMALISED)
-  })
-
-  it("updateTask lowercases+trims assignee_email on PATCH (null and populated)", async () => {
+  it("updateTask lowercases mixed-case assignee_email; null clears it", async () => {
     const database = getDb()
     const task = await createTask(
       {
@@ -182,6 +210,67 @@ describe("Codex Stage 0 — email normalisation", { skip: !hasDb }, () => {
     )
     assert.ok(updated)
     assert.equal(updated.email, emailBNorm)
+  })
+})
+
+describe("Codex Stage 0 — mutation+activity atomicity", { skip: !hasDb }, () => {
+  it("createTask rolls back when appendActivity throws — no task row left", async () => {
+    const database = getDb()
+    const title = `${RUN} atomicity create fail`
+    const failing = dbThatFailsActivityWrite(database)
+
+    await assert.rejects(
+      () =>
+        createTask(
+          {
+            title,
+            clientId: CLIENT_ID,
+            createdByEmail: MIXED,
+          },
+          MIXED,
+          failing
+        ),
+      /forced appendActivity failure/
+    )
+
+    const [row] = await database
+      .select({ id: schema.tasks.id })
+      .from(schema.tasks)
+      .where(eq(schema.tasks.title, title))
+      .limit(1)
+    assert.equal(row, undefined, "mutation must roll back when activity write fails")
+  })
+
+  it("updateTask rolls back title change when appendActivity throws", async () => {
+    const database = getDb()
+    const task = await createTask(
+      {
+        title: `${RUN} atomicity update base`,
+        clientId: CLIENT_ID,
+        createdByEmail: MIXED,
+      },
+      MIXED,
+      database
+    )
+    const id = Number(task.id)
+    taskIds.push(id)
+    const beforeTitle = task.title
+
+    const failing = dbThatFailsActivityWrite(database)
+    await assert.rejects(
+      () =>
+        updateTask(
+          id,
+          { title: `${RUN} atomicity update SHOULD NOT STICK` },
+          MIXED,
+          failing
+        ),
+      /forced appendActivity failure/
+    )
+
+    const after = await getTask(id, database)
+    assert.ok(after)
+    assert.equal(after.title, beforeTitle)
   })
 })
 
@@ -293,7 +382,7 @@ describe("Codex Stage 0 — activity log", { skip: !hasDb }, () => {
     assert.ok(createRow)
     assert.equal(createRow.before, null)
     assert.ok(createRow.after)
-    assert.equal(createRow.actorEmail, MIXED.toLowerCase())
+    assert.equal(createRow.actorEmail, NORMALISED)
     assert.equal(createRow.actorKind, "user")
   })
 
@@ -317,7 +406,7 @@ describe("Codex Stage 0 — activity log", { skip: !hasDb }, () => {
     assert.ok(updateRow)
     assert.ok(updateRow.before, "update must record before")
     assert.ok(updateRow.after, "update must record after")
-    assert.equal(updateRow.actorEmail, MIXED.toLowerCase())
+    assert.equal(updateRow.actorEmail, NORMALISED)
     assert.equal(updateRow.actorKind, "user")
   })
 
@@ -343,7 +432,7 @@ describe("Codex Stage 0 — activity log", { skip: !hasDb }, () => {
     assert.ok(del.after, "soft_delete must record after")
     const after = del.after as { deleted_at?: string | null }
     assert.ok(after.deleted_at, "soft_delete after.deleted_at must be set")
-    assert.equal(del.actorEmail, MIXED.toLowerCase())
+    assert.equal(del.actorEmail, NORMALISED)
     assert.equal(del.actorKind, "user")
   })
 })

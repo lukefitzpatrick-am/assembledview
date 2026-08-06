@@ -117,7 +117,7 @@ export default function TasksPage() {
 
 **Plain answer:** there is **no** Codex-specific page-level auth. Auth for the page is **generic staff middleware (must be `admin`)**. Shadow-role enforcement for writes/lists is **API-only** (plus client EmptyState on 403).
 
-**Local env note (static):** workspace `.env.local` has **no** `CODEX_V2` key (ripgrep). Flag therefore evaluates **off** in local Next unless set elsewhere (shell / Vercel). That alone yields page EmptyState + API 404 and **zero DB writes** — consistent with “today: zero writes … before the database.”
+**Local env note (static):** workspace `.env.local` **does** set `CODEX_V2=on` (line 90). An earlier static pass wrongly claimed the key was absent. The real local write-failure root cause was a **stale Next.js dev server** started before that env line existed — process env stayed off until restart. Fresh `next dev` with the key present evaluates the flag **on**.
 
 ---
 
@@ -181,7 +181,7 @@ Same flag + same `requireCodexInternalAccess` as tasks. If tasks inserted on 1 A
 
 | Rank | Cause | Evidence for | Evidence against | Confidence |
 |---|---|---|---|---|
-| **1** | **`CODEX_V2` not `on` in the process serving the browser** | Flag checked first → **404**, no DB; page EmptyState; local `.env.local` lacks `CODEX_V2`; “today zero writes before DB” | 1 Aug writes prove flag was on *somewhere* then; prod/Vercel may still have it | **~70% for today’s local/dev failure** (code + env absence). Browser status **404** proves it. |
+| **1** | **`CODEX_V2` not `on` in the process serving the browser** | Flag checked first → **404**, no DB; page EmptyState; stale `next dev` can keep a pre-key process env even when `.env.local` has `CODEX_V2=on` | `.env.local` line 90 has the key; 1 Aug writes prove flag was on *somewhere* then; prod/Vercel may still have it | **~70% for today’s local/dev failure** when the running process predates the env line. Browser status **404** proves flag-off in *that* process. |
 | **2** | **Create never submitted (esp. Team); task create blocked on missing client** | Team seq never used; Team is secondary tab; task zod requires positive `client_id` | Doesn’t explain *today* if user is actively clicking create with client selected | **~55% for team-never**; **~40% for task UX block** when clients list empty / none selected |
 | **3** | **403 — session lacks normalised `admin`** | `CODEX_SHADOW_ROLES=["admin"]`; client EmptyState on 403; tests assert client→403 | Same `getUserRoles` as rest of app; middleware already requires admin for `/tasks` | **~25%** unless allowlisted-only “admin” or empty roles somehow still browsing (unlikely past middleware) |
 | **4** | **Role-source mismatch (Codex vs requireAdmin)** | Hypothesised in prompt | **Provably false for claim source** — both use `getUserRoles`. Only allowlist / flag differ | **~10%** as stated; allowlist-without-role is the only related variant (~20%) |
@@ -190,7 +190,7 @@ Same flag + same `requireCodexInternalAccess` as tasks. If tasks inserted on 1 A
 
 ### Top pick
 
-**For today’s zero writes:** `CODEX_V2` off in the running server → flag gate 404 / page EmptyState. **Provable from code + local env absence;** confirmed when Network shows **404** `{ error: "not_found" }` on any `/api/codex/*`.
+**For today’s zero writes:** `CODEX_V2` off **in the Node process serving the browser** → flag gate 404 / page EmptyState. File presence of `CODEX_V2=on` in `.env.local` is necessary but not sufficient — a stale `next dev` started before the key was added still runs with the flag off until restart.
 
 **For team never having a row while tasks once did:** not a separate server bug — **team create never hit `insert`**; most likely UI path unused (or never got past flag/auth). Task create is stricter (`client_id`) but still succeeded twice historically.
 
