@@ -9,13 +9,14 @@
  * MB-3: reset_line restores those billing-basis rows to computed auto amounts
  * (recompute via computeCampaignFinancials — never copy delivery). replace_line
  * mirrors EVERY billing month for the line (zeros included) and server-gates
- * media month sum ≡ line media total ±$0.01.
+ * media month sum ≡ line media total ±$0.01 AND fee month sum ≡ auto fee
+ * ±$0.01 (same rule as validateManualOverrideSumRules / savePlan).
  */
 
 import { and, eq } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { mapBillingOverrideFromPostgres } from "@/lib/data/readFinance"
-import { isApprovedOrBeyond } from "@/lib/docs/isApprovedOrBeyond"
+import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 import { normalizeMonthKey } from "@/lib/finance/accrual"
 import {
   attachOverridesToLineInputs,
@@ -27,7 +28,8 @@ import type {
   LineItemInput,
   MonthAmount,
 } from "@/lib/finance/campaignFinancials.types"
-import { roundMoney2 } from "@/lib/format/money"
+import { billingOverrideLineIdsMatch } from "@/lib/finance/manualBillingOverridesUi"
+import { formatAUD, roundMoney2 } from "@/lib/format/money"
 import { toCents } from "@/scripts/migration/_shared"
 
 export type BillingOverrideComponent = "media" | "fee"
@@ -179,12 +181,14 @@ async function loadVersionLineInputsForCompute(versionId: number): Promise<{
 /**
  * Auto (override-free) billing month amounts for one line/component — derived
  * via computeCampaignFinancials, not delivery-basis copy.
+ * `lineComponentTotal` is component-correct: media → pl.media, fee → pl.fee
+ * (with schedule_months fallback when draft reload lacks feePct / fee snapshot).
  */
 async function computeAutoBillingMonthsForLine(args: {
   versionId: number
   lineItemId: string
   component: BillingOverrideComponent
-}): Promise<{ months: MonthAmount[]; lineMediaTotal: number }> {
+}): Promise<{ months: MonthAmount[]; lineComponentTotal: number }> {
   const { lineInputs, feeLoading } = await loadVersionLineInputsForCompute(
     args.versionId
   )
@@ -192,7 +196,6 @@ async function computeAutoBillingMonthsForLine(args: {
   const pl = financials.perLine.find(
     (p) => String(p.lineItemId).trim() === args.lineItemId
   )
-  const lineMediaTotal = pl ? roundMoney2(pl.media) : 0
 
   const byIso = new Map<string, number>()
   for (const month of financials.billingSchedule) {
@@ -212,20 +215,109 @@ async function computeAutoBillingMonthsForLine(args: {
     }
   }
 
-  // Fallback: perLine.billingMonths when lineItems absent on headers.
+  // Fallback: per-line months when lineItems absent on headers.
   if (byIso.size === 0 && pl) {
-    for (const m of pl.billingMonths) {
-      if (args.component !== "media") continue
-      const iso = scheduleMonthYearToIso(m.month)
-      if (!iso) continue
-      byIso.set(iso, roundMoney2(m.amount))
+    if (args.component === "media") {
+      for (const m of pl.billingMonths) {
+        const iso = scheduleMonthYearToIso(m.month)
+        if (!iso) continue
+        byIso.set(iso, roundMoney2(m.amount))
+      }
+    } else {
+      // Fee counterpart of pl.billingMonths: schedule feeMonthlyAmounts for this
+      // line (canonical id match — primary walk uses strict equality).
+      for (const month of financials.billingSchedule) {
+        const iso = scheduleMonthYearToIso(String(month.monthYear ?? ""))
+        if (!iso) continue
+        const buckets = month.lineItems ?? {}
+        for (const items of Object.values(buckets)) {
+          if (!Array.isArray(items)) continue
+          for (const line of items) {
+            if (
+              !billingOverrideLineIdsMatch(
+                String(line.id ?? ""),
+                args.lineItemId
+              )
+            ) {
+              continue
+            }
+            const amt =
+              Number(line.feeMonthlyAmounts?.[month.monthYear] ?? 0) || 0
+            byIso.set(iso, roundMoney2((byIso.get(iso) ?? 0) + amt))
+          }
+        }
+      }
     }
   }
 
-  const months = [...byIso.entries()]
+  let months = [...byIso.entries()]
     .map(([month, amount]) => ({ month, amount }))
     .sort((a, b) => a.month.localeCompare(b.month))
-  return { months, lineMediaTotal }
+
+  if (args.component === "fee") {
+    let lineComponentTotal = pl ? roundMoney2(pl.fee) : 0
+    const monthsSum = roundMoney2(
+      months.reduce((s, m) => s + (Number(m.amount) || 0), 0)
+    )
+
+    // Draft tip often has no mba_fee_snapshots and may lack attrs.feePct, so
+    // recompute yields pl.fee=0 even though savePlan already wrote the auto fee
+    // into schedule_months. Timing-only gate must use that persisted auto fee —
+    // never silently expect $0 (would accept any override amount).
+    if (lineComponentTotal === 0 && monthsSum === 0) {
+      const db = getDb()
+      const persisted = await db
+        .select({
+          month: schema.scheduleMonths.month,
+          amountCents: schema.scheduleMonths.amountCents,
+          source: schema.scheduleMonths.source,
+        })
+        .from(schema.scheduleMonths)
+        .where(
+          and(
+            eq(schema.scheduleMonths.versionId, args.versionId),
+            eq(schema.scheduleMonths.lineItemId, args.lineItemId),
+            eq(schema.scheduleMonths.component, "fee"),
+            eq(schema.scheduleMonths.basis, "billing")
+          )
+        )
+      const autoRows = persisted.filter((r) => r.source === "computed")
+      const useRows = autoRows.length > 0 ? autoRows : []
+      if (useRows.length > 0) {
+        const persistedByIso = new Map<string, number>()
+        for (const r of useRows) {
+          const iso = String(r.month).slice(0, 7)
+          if (!/^\d{4}-\d{2}$/.test(iso)) continue
+          persistedByIso.set(
+            iso,
+            roundMoney2(
+              (persistedByIso.get(iso) ?? 0) + (Number(r.amountCents) || 0) / 100
+            )
+          )
+        }
+        months = [...persistedByIso.entries()]
+          .map(([month, amount]) => ({ month, amount }))
+          .sort((a, b) => a.month.localeCompare(b.month))
+        lineComponentTotal = roundMoney2(
+          months.reduce((s, m) => s + (Number(m.amount) || 0), 0)
+        )
+      }
+    }
+
+    // Never accept against an empty span (INVARIANTS fail-soft ban).
+    if (months.length === 0) {
+      throw new BillingOverrideWriteError(
+        "BAD_REQUEST",
+        `Cannot derive auto fee baseline for line ${args.lineItemId}`
+      )
+    }
+    return { months, lineComponentTotal }
+  }
+
+  return {
+    months,
+    lineComponentTotal: pl ? roundMoney2(pl.media) : 0,
+  }
 }
 
 /**
@@ -397,6 +489,7 @@ async function assertVersionOwnedByMba(
   id: number
   versionNumber: number
   campaignStatus: string | null
+  publishedAt: string | null
 }> {
   const db = getDb()
   const rows = await db
@@ -405,6 +498,7 @@ async function assertVersionOwnedByMba(
       mbaNumber: schema.mediaPlanVersions.mbaNumber,
       versionNumber: schema.mediaPlanVersions.versionNumber,
       campaignStatus: schema.mediaPlanVersions.campaignStatus,
+      publishedAt: schema.mediaPlanVersions.publishedAt,
     })
     .from(schema.mediaPlanVersions)
     .where(eq(schema.mediaPlanVersions.id, versionId))
@@ -427,19 +521,20 @@ async function assertVersionOwnedByMba(
     id: row.id,
     versionNumber: Number(row.versionNumber),
     campaignStatus: row.campaignStatus,
+    publishedAt: row.publishedAt != null ? String(row.publishedAt) : null,
   }
 }
 
 /**
  * MB-15c — published versions are immutable to billing writers.
- * Same approved-or-beyond predicate as MBA generate (`isApprovedOrBeyond`).
+ * VC Stage 1: gate on published_at via isVersionPublished — never campaign_status.
  */
 async function assertVersionBillingMutable(
   versionId: number,
   mbaNumber: string
 ): Promise<void> {
   const row = await assertVersionOwnedByMba(versionId, mbaNumber)
-  if (!isApprovedOrBeyond(row.campaignStatus)) return
+  if (!isVersionPublished({ publishedAt: row.publishedAt })) return
   const status = String(row.campaignStatus ?? "").trim() || "unknown"
   throw new BillingOverrideWriteError(
     "VERSION_PUBLISHED_IMMUTABLE",
@@ -483,7 +578,7 @@ export async function replaceBillingOverrideLine(
     throw new BillingOverrideWriteError("BAD_REQUEST", "months[] is required")
   }
 
-  const { months: autoSpan, lineMediaTotal } =
+  const { months: autoSpan, lineComponentTotal } =
     await computeAutoBillingMonthsForLine({
       versionId,
       lineItemId,
@@ -491,21 +586,23 @@ export async function replaceBillingOverrideLine(
     })
   const fullMonths = expandOverrideMonthsToFullSpan(payloadMonths, autoSpan)
 
-  if (component === "media") {
-    const actual = roundMoney2(
-      fullMonths.reduce((s, m) => s + (Number(m.amount) || 0), 0)
+  const actual = roundMoney2(
+    fullMonths.reduce((s, m) => s + (Number(m.amount) || 0), 0)
+  )
+  const expected = roundMoney2(lineComponentTotal)
+  const delta = roundMoney2(actual - expected)
+  if (Math.abs(delta) > MEDIA_SUM_TOLERANCE) {
+    const message =
+      component === "fee"
+        ? `Fee months add to ${formatAUD(actual)} but auto fee is ${formatAUD(expected)} — adjust the months to match (off by ${formatAUD(Math.abs(delta))}).`
+        : `Manual billing months must sum to the line media total (timing only). Got ${actual.toFixed(2)}, expected ${expected.toFixed(2)} (Δ ${delta >= 0 ? "+" : ""}${delta.toFixed(2)}).`
+    throw new BillingOverrideWriteError(
+      "SUM_VIOLATION",
+      message,
+      delta,
+      expected,
+      actual
     )
-    const expected = roundMoney2(lineMediaTotal)
-    const delta = roundMoney2(actual - expected)
-    if (Math.abs(delta) > MEDIA_SUM_TOLERANCE) {
-      throw new BillingOverrideWriteError(
-        "SUM_VIOLATION",
-        `Manual billing months must sum to the line media total (timing only). Got ${actual.toFixed(2)}, expected ${expected.toFixed(2)} (Δ ${delta >= 0 ? "+" : ""}${delta.toFixed(2)}).`,
-        delta,
-        expected,
-        actual
-      )
-    }
   }
 
   const db = getDb()
@@ -556,35 +653,37 @@ export async function replaceBillingOverrideLine(
         db: tx as unknown as ReturnType<typeof getDb>,
       })
 
-      // Belt-and-braces: re-read billing media months and sum-check.
-      if (component === "media") {
-        const rows = await tx
-          .select({
-            amountCents: schema.scheduleMonths.amountCents,
-          })
-          .from(schema.scheduleMonths)
-          .where(
-            and(
-              eq(schema.scheduleMonths.versionId, versionId),
-              eq(schema.scheduleMonths.lineItemId, lineItemId),
-              eq(schema.scheduleMonths.component, "media"),
-              eq(schema.scheduleMonths.basis, "billing")
-            )
+      // Belt-and-braces: re-read billing months and sum-check (media + fee).
+      const rows = await tx
+        .select({
+          amountCents: schema.scheduleMonths.amountCents,
+        })
+        .from(schema.scheduleMonths)
+        .where(
+          and(
+            eq(schema.scheduleMonths.versionId, versionId),
+            eq(schema.scheduleMonths.lineItemId, lineItemId),
+            eq(schema.scheduleMonths.component, component),
+            eq(schema.scheduleMonths.basis, "billing")
           )
-        const actual = roundMoney2(
-          rows.reduce((s, r) => s + (Number(r.amountCents) || 0) / 100, 0)
         )
-        const expected = roundMoney2(lineMediaTotal)
-        const delta = roundMoney2(actual - expected)
-        if (Math.abs(delta) > MEDIA_SUM_TOLERANCE) {
-          throw new BillingOverrideWriteError(
-            "SUM_VIOLATION",
-            `After mirror, billing media months sum to ${actual.toFixed(2)} but line media is ${expected.toFixed(2)} (Δ ${delta >= 0 ? "+" : ""}${delta.toFixed(2)}).`,
-            delta,
-            expected,
-            actual
-          )
-        }
+      const mirroredActual = roundMoney2(
+        rows.reduce((s, r) => s + (Number(r.amountCents) || 0) / 100, 0)
+      )
+      const mirroredExpected = roundMoney2(lineComponentTotal)
+      const mirroredDelta = roundMoney2(mirroredActual - mirroredExpected)
+      if (Math.abs(mirroredDelta) > MEDIA_SUM_TOLERANCE) {
+        const message =
+          component === "fee"
+            ? `Fee months add to ${formatAUD(mirroredActual)} but auto fee is ${formatAUD(mirroredExpected)} — adjust the months to match (off by ${formatAUD(Math.abs(mirroredDelta))}).`
+            : `After mirror, billing media months sum to ${mirroredActual.toFixed(2)} but line media is ${mirroredExpected.toFixed(2)} (Δ ${mirroredDelta >= 0 ? "+" : ""}${mirroredDelta.toFixed(2)}).`
+        throw new BillingOverrideWriteError(
+          "SUM_VIOLATION",
+          message,
+          mirroredDelta,
+          mirroredExpected,
+          mirroredActual
+        )
       }
 
       await reaffirmLegacySchedulesAfterOverrideChange(
