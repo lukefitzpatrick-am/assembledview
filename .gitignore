@@ -50,6 +50,9 @@ xano-metadata-token.txt
 # Xano / migration snapshots (large; regenerate via npm run xano:export)
 /exports/
 
+_claude_repo_snapshot.tgz
+*.tgz
+
 .worktrees/
 
 # O1 / local scratch — never track
