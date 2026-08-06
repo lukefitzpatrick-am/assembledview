@@ -16,7 +16,7 @@
 import { and, eq } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { mapBillingOverrideFromPostgres } from "@/lib/data/readFinance"
-import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
+import { isApprovedOrBeyond } from "@/lib/docs/isApprovedOrBeyond"
 import { normalizeMonthKey } from "@/lib/finance/accrual"
 import {
   attachOverridesToLineInputs,
@@ -526,19 +526,27 @@ async function assertVersionOwnedByMba(
 }
 
 /**
- * MB-15c — published versions are immutable to billing writers.
- * VC Stage 1: gate on published_at via isVersionPublished — never campaign_status.
+ * MB-15c — approved-or-beyond versions are immutable to billing writers.
+ *
+ * Stage 1 scope: publication (published_at) answers "may the client have this".
+ * Mutability still keys off commercial status until Stage 2 makes published
+ * versions immutable deliberately. Do not merge these two predicates —
+ * they are different sets (planned is downloadable but not frozen).
+ *
+ * `publishedAt` is still selected on the ownership row (VC1-1 plumbing); it is
+ * not the mutability gate here.
  */
 async function assertVersionBillingMutable(
   versionId: number,
   mbaNumber: string
 ): Promise<void> {
   const row = await assertVersionOwnedByMba(versionId, mbaNumber)
-  if (!isVersionPublished({ publishedAt: row.publishedAt })) return
+  void row.publishedAt
+  if (!isApprovedOrBeyond(row.campaignStatus)) return
   const status = String(row.campaignStatus ?? "").trim() || "unknown"
   throw new BillingOverrideWriteError(
     "VERSION_PUBLISHED_IMMUTABLE",
-    `VERSION_PUBLISHED_IMMUTABLE: version ${row.id} (v${row.versionNumber}, status ${status}) — billing_overrides and billing-basis schedule_months are immutable after publish. Publish a new version to change billing timing.`
+    `VERSION_PUBLISHED_IMMUTABLE: version ${row.id} (v${row.versionNumber}, status ${status}) — billing_overrides and billing-basis schedule_months are immutable after approved. Publish a new version to change billing timing.`
   )
 }
 

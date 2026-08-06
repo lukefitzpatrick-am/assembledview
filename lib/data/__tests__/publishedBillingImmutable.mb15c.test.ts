@@ -271,7 +271,7 @@ test("MB-15c (ii): same replace_line against an unpublished version succeeds", a
   assert.equal(overrides[0]!.component, "media")
 })
 
-test("VC1-3: published + campaign_status=draft → billing IMMUTABLE", async (t) => {
+test("VC1-3: published + status 'draft' -> downloads allowed, docs generate, billing MUTABLE", async (t) => {
   if (!hasDb) {
     t.skip("DATABASE_URL not set")
     return
@@ -291,6 +291,90 @@ test("VC1-3: published + campaign_status=draft → billing IMMUTABLE", async (t)
   })
   assert.equal(published.published, true)
 
+  await replaceBillingOverrideLine({
+    versionId: published.versionId,
+    mbaNumber: MBA,
+    lineItemId: LINE_A,
+    component: "media",
+    mode: "manual",
+    reason: "manual",
+    months: [
+      { month: "2026-06", amount: 1000 },
+      { month: "2026-07", amount: 0 },
+    ],
+    dateBasis: "vc13-published-draft-mutable",
+  })
+
+  const db = getDb()
+  const overrides = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, published.versionId))
+  assert.equal(overrides.length, 1)
+})
+
+test("VC1-3: published + status 'planned' -> downloads allowed, docs generate, billing MUTABLE", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const line = baseLine(LINE_A, 1000)
+  const published = await savePlanVersion({
+    ...draftInput(masterId, [line]),
+    mode: "publish",
+    campaignStatus: "planned",
+    feeSnapshot: { feesearch: 10 },
+  })
+  assert.equal(published.published, true)
+
+  await replaceBillingOverrideLine({
+    versionId: published.versionId,
+    mbaNumber: MBA,
+    lineItemId: LINE_A,
+    component: "media",
+    mode: "manual",
+    reason: "manual",
+    months: [
+      { month: "2026-06", amount: 1000 },
+      { month: "2026-07", amount: 0 },
+    ],
+    dateBasis: "vc13-published-planned-mutable",
+  })
+
+  const db = getDb()
+  const overrides = await db
+    .select()
+    .from(schema.billingOverrides)
+    .where(eq(schema.billingOverrides.versionId, published.versionId))
+  assert.equal(overrides.length, 1)
+})
+
+test("VC1-3: published + status 'approved' -> downloads allowed, docs generate, billing IMMUTABLE", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const line = baseLine(LINE_A, 1000)
+  const published = await savePlanVersion({
+    ...draftInput(masterId, [line]),
+    mode: "publish",
+    campaignStatus: "approved",
+    feeSnapshot: { feesearch: 10 },
+  })
+  assert.equal(published.published, true)
+
   await assert.rejects(
     () =>
       replaceBillingOverrideLine({
@@ -304,7 +388,7 @@ test("VC1-3: published + campaign_status=draft → billing IMMUTABLE", async (t)
           { month: "2026-06", amount: 1000 },
           { month: "2026-07", amount: 0 },
         ],
-        dateBasis: "vc13-published-draft",
+        dateBasis: "vc13-published-approved-immutable",
       }),
     (err: unknown) =>
       err instanceof BillingOverrideWriteError &&
@@ -312,7 +396,7 @@ test("VC1-3: published + campaign_status=draft → billing IMMUTABLE", async (t)
   )
 })
 
-test("VC1-3: unpublished + campaign_status=approved → billing MUTABLE", async (t) => {
+test("VC1-3: unpublished (draft) -> downloads refused, docs skipped, billing MUTABLE, save OVERWRITES in place", async (t) => {
   if (!hasDb) {
     t.skip("DATABASE_URL not set")
     return
@@ -326,7 +410,7 @@ test("VC1-3: unpublished + campaign_status=approved → billing MUTABLE", async 
   const line = baseLine(LINE_A, 1000)
   const draft = await savePlanVersion({
     ...draftInput(masterId, [line]),
-    campaignStatus: "approved",
+    campaignStatus: "draft",
   })
   assert.equal(draft.published, false)
 
@@ -341,7 +425,7 @@ test("VC1-3: unpublished + campaign_status=approved → billing MUTABLE", async 
       { month: "2026-06", amount: 1000 },
       { month: "2026-07", amount: 0 },
     ],
-    dateBasis: "vc13-unpublished-approved",
+    dateBasis: "vc13-unpublished-draft-mutable",
   })
 
   const db = getDb()

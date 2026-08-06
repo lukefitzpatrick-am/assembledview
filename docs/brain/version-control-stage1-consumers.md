@@ -1,15 +1,15 @@
 # Version control Stage 1 — status→publication consumers
 
-**Status:** Step 4 client publication gates landed — edit `isPublished` + download/billing UX and create twins read `isVersionPublished` / `published_at` (no status fallback). Bucket C remains for VC1-5.
-**Decision:** backfill ALL existing `media_plan_versions` rows as published once `published_at` exists. Stage 1 proceeds.
-**Fact:** `media_plan_versions.published_at` (timestamptz, null) + `published_by` (text, null, lowercase CHECK) exist (migration 0018). Canonical predicate: `lib/mediaplan/versionPublication.ts` `isVersionPublished` = `publishedAt ?? published_at != null` only. Write: publish-only stamp inside the save txn; draft/`new_version` never stamp; draft re-save never clears. Server + client Bucket A read gates use that predicate. `isApprovedOrBeyond` remains commercial-only (Bucket B). `canReturnToDraft` / status dropdown filters stay commercial.
+**Status:** Step 4 client publication gates landed for download/docs/save-mode. Billing mutability (MB-15c write path + modal lock + fee-override spawn) stays on `isApprovedOrBeyond` until Stage 2 — planned is downloadable but not frozen. **Bucket C (VC1-5) split:** tip = `resolveDashboardLiveVersionRow` / commercial = `isBookedApprovedCompleted` (unchanged set).
+**Decision:** backfill ALL existing `media_plan_versions` rows as published once `published_at` exists. Stage 1 proceeds. **0018a** restores draft-row parity (`campaign_status=draft` → clear `published_at`).
+**Fact:** `media_plan_versions.published_at` (timestamptz, null) + `published_by` (text, null, lowercase CHECK) exist (migration 0018). Canonical publication predicate: `lib/mediaplan/versionPublication.ts` `isVersionPublished` = `publishedAt ?? published_at != null` only. Write: publish-only stamp inside the save txn; draft/`new_version` never stamp; draft re-save never clears. Download/docs/save-mode use that predicate. `isApprovedOrBeyond` remains the billing-mutability gate (Bucket B). `canReturnToDraft` / status dropdown filters stay commercial.
 
 ## Stage 1 size
 
 | Metric | Count |
 |---|---|
 | **Bucket A (production call sites that must repoint)** | **32** |
-| Bucket C (ambiguous — Luke) | 6 |
+| Bucket C (VC1-5 tip/commercial split) | 6 (split done) |
 | Bucket B (commercial status — leave alone; listed for exclusion) | not in Stage 1 |
 
 **32 is Stage 1's real size** — every row in [Bucket A](#bucket-a--publication-inference-stage-1-must-repoint).
@@ -19,8 +19,8 @@
 | Predicate | Rule today | Includes `planned`? | Role |
 |---|---|---|---|
 | `isVersionPublished` | `published_at != null` (`lib/mediaplan/versionPublication.ts`) | n/a | **Canonical publication** — Stage 1 target; no status fallback |
-| `isPublished` (edit+create) | `isVersionPublished(selected version)` | n/a | Download / send-to-client / billing timing UX |
-| `isApprovedOrBeyond` | `approved \| booked \| completed` | **no** | Commercial helper only — not a publication gate |
+| `isPublished` (edit+create) | `isVersionPublished(selected version)` | n/a | Download / send-to-client UX only |
+| `isApprovedOrBeyond` | `approved \| booked \| completed` | **no** | **Billing mutability** (MB-15c) + commercial helpers — not a publication gate |
 | `resolvePostgresSaveMode` overwrite | tip unpublished (`published_at` null) && tip > 0 && !forceIncrement | n/a | May overwrite tip in place |
 | `isFinanceIncludedCampaignStatus` | same set as approved-or-beyond | no | Finance totals — **B**, not publication |
 | `publishedVersionFromMaster` / `filterPublishedVersions` | `master.version_number` | n/a | **Already tip-based** — not status inference; out of Stage 1 scope |
@@ -42,8 +42,8 @@ Live invariant already proves status ≠ publication: a publish-mode save can le
 | `lib/docs/buildMbaFromPersisted.ts:149-152` | A | Server MBA render requires approved-or-beyond | Require `published_at` (plus existing `approved_slice`) | 422 on valid published drafts; or render unpublished rows |
 | `app/api/mediaplans/generate-pdf/route.ts:78-85` | A | PDF metadata route refuses non-approved status | `published_at` | Client can’t fetch stored docs for published draft tips |
 | `app/api/mediaplans/[id]/download/route.ts:49-56` | A | Stored file download refuses non-approved status | `published_at` | Downloads fail for published draft; succeed for unpublished approved (if that state exists) |
-| `lib/data/writeBillingOverrides.ts:442-447` | A | MB-15c: refuse billing_overrides writes after “publish” | Immutable when version has `published_at` | Billing mutable on live tip, or locked on unpublished drafts |
-| `lib/finance/planMbaFeeOverridePersistence.ts:43-45,70` | A | Fee-amount change on approved+ → spawn version (don’t mutate in place) | Spawn when **version published**; inplace when unpublished | Mutates live MBA fee dollars; or forces spawn on unpublished drafts |
+| `lib/data/writeBillingOverrides.ts` assertVersionBillingMutable | B | MB-15c: refuse billing_overrides writes after approved+ | Stay on `isApprovedOrBeyond` until Stage 2 | Freezing planned/cancelled tips early; or mutable approved MBAs |
+| `lib/finance/planMbaFeeOverridePersistence.ts` spawn vs inplace | B | Fee-amount change on approved+ → spawn version | Stay on `isApprovedOrBeyond` until Stage 2 | Same split as MB-15c |
 | `app/mediaplans/mba/[mba_number]/edit/page.tsx:2883-2886` | A | Defines `isPublished` = not draft (download eligibility) | `selectedVersion.published_at` (or tip published) | Entire download cluster wrong for draft-status published tips |
 | `app/mediaplans/mba/[mba_number]/edit/page.tsx:8977` | A | Block Generate MBA PDF toast | version `published_at` | Client blocked from docs they already “have” via tip |
 | `app/mediaplans/mba/[mba_number]/edit/page.tsx:9018` | A | Block media-plan download toast | version `published_at` | Same |
@@ -57,33 +57,33 @@ Live invariant already proves status ≠ publication: a publish-mode save can le
 | `app/mediaplans/mba/[mba_number]/edit/page.tsx:11250,11258,11261` | A | Disable secondary download path | version `published_at` | UX gate wrong |
 | `app/mediaplans/mba/[mba_number]/edit/page.tsx:11295` | A | Download title when draft | version `published_at` | UX gate wrong |
 | `app/mediaplans/mba/[mba_number]/edit/page.tsx:8161` | A | Skip doc upload steps on save by status | skip if saving **unpublished** version | Docs skipped/generated on wrong versions |
-| `app/mediaplans/mba/[mba_number]/edit/page.tsx:6881` | A | Block manual billing save (MB-15c UI) | lock if version `published_at` | Timing edits on live tip, or lock on unpublished |
-| `app/mediaplans/mba/[mba_number]/edit/page.tsx:12601` | A | Hide reset-billing-to-auto when approved+ | hide when published | Same |
-| `app/mediaplans/mba/[mba_number]/edit/page.tsx:12621-12623` | A | `billingTimingReadOnly` | published_at | Same |
-| `app/mediaplans/mba/[mba_number]/edit/page.tsx:12631` | A | Refuse open timing draft when approved+ | published_at | Same |
-| `app/mediaplans/mba/[mba_number]/edit/page.tsx:13358` | A | Hide Apply billing button when approved+ | published_at | Same |
+| `app/mediaplans/mba/[mba_number]/edit/page.tsx` billing save / reset / timingReadOnly / Apply | B | MB-15c UI lock | `isApprovedOrBeyond` until Stage 2 | UI/server disagree if moved to published_at early |
+| `app/mediaplans/create/page.tsx` billing twin locks | B | Same as edit | `isApprovedOrBeyond` until Stage 2 | Twin drift |
 | `app/mediaplans/create/page.tsx:5891` | A | Skip doc upload on create-save by status | published_at of new version / mode | First publish may skip docs incorrectly |
-| `app/mediaplans/create/page.tsx:7799` | A | Hide reset-billing-to-auto | published_at | Create rarely published mid-session, but twin of edit |
-| `app/mediaplans/create/page.tsx:7803` | A | `billingTimingReadOnly` | published_at | Twin of edit |
-| `app/mediaplans/create/page.tsx:7810` | A | Refuse ensure timing draft | published_at | Twin of edit |
-| `app/mediaplans/create/page.tsx:8283` | A | Hide Apply billing when approved+ | published_at | Twin of edit |
 
 Billing-overrides API routes (`replace_line` / `reset_line`) only map `VERSION_PUBLISHED_IMMUTABLE` from `writeBillingOverrides` — counted once at the lib gate, not again at the route.
 
 ---
 
-## Bucket C — ambiguous (flag for Luke)
+## Bucket C — tip vs commercial (VC1-5 split)
 
-| file:line | bucket | what it decides | why ambiguous | ask Luke |
-|---|---|---|---|---|
-| `lib/api/dashboard/shared.ts:94-97` | C | `isBookedApprovedCompleted` — tip/fallback picker + chart inclusion | Same set as finance include, but used to **pick which version is live** when tip arg missing | Is dashboard tip fallback Stage 1 (→ `published_at` / master tip only) or commercial filter (B)? |
-| `lib/api/dashboard/global.ts:68,138,264` | C | Pick version by booked/approved/completed | Tip authority vs in-market filter | Same |
-| `lib/api/dashboard/finance.ts:121` | C | Same picker | Same | Same |
-| `lib/api/dashboard/publisher.ts:76` | C | Same picker | Same | Same |
-| `lib/api/dashboard/client.ts:311,592,600` | C | Filter campaigns/versions into dashboard | Mix of “is live” and “counts in spend” | Split tip vs commercial filter? |
-| `lib/dashboard/plannedSpendConsistency.ts:23-27` | C | Client mirror of above | Same | Same |
+Dashboard aggregators used to answer **which version is live** and **does it count commercially** with one BAC predicate. Split:
 
-Prefer answering C by making dashboard always take `publishedVersionNumber` / `published_at` and leaving status filters as B-only.
+| Question | Helper | Rule |
+|---|---|---|
+| Which version is live? | `resolveDashboardLiveVersionRow` in `lib/api/dashboard/shared.ts` | Caller `publishedVersionNumber` (master tip) → else highest version with `published_at` non-null. **Never** `campaign_status`. `pickHighestVersionRow` delegates here. |
+| Does it count commercially? | `isBookedApprovedCompleted` (name + set unchanged) | `booked \| approved \| completed` only — Bucket B |
+
+| site | tip | commercial |
+|---|---|---|
+| `shared.ts` | `resolveDashboardLiveVersionRow` (+ `resolveDashboardCommercialLiveVersionRow` = tip then BAC) | `isBookedApprovedCompleted` |
+| `global.ts` (3 aggregators) | via commercial-live helper (`published_at` fallback; no master tip map) | BAC on tip |
+| `finance.ts` | master tip arg into commercial-live helper | BAC on tip |
+| `publisher.ts` | via commercial-live helper | BAC on tip |
+| `client.ts` | `resolveDashboardLiveVersionRow` (+ master tip) | `isBookedApprovedCompleted` on campaigns/schedules |
+| `plannedSpendConsistency.ts` | **none** — commercial-only client mirror | `isPlannedBasisCampaignStatus` ≡ BAC |
+
+Fixture proof: `lib/api/dashboard/__tests__/vc15DashboardTipCommercial.fixture.test.ts` — client media totals identical to the cent before/after when tips are BAC.
 
 ---
 

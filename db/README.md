@@ -1,12 +1,16 @@
 # `db/` — Supabase schema (migration)
 
-**Source of truth for what is live:** `db/migrations/0001_ported_tables.sql` + `0002_plan_core.sql` + `0003_ava_readonly.sql` + `0004_clients_missing_columns.sql` + `0005_finance_billing_amount_hash.sql` + `0006_xero_client_aliases.sql` + `0007_mba_line_approvals.sql` + `0008_approved_slice_adserving.sql` + `0009_snapshot_checksum.sql` + `0010_finance_periods.sql` + `0011_xero_invoice_matches.sql` + `0012_plan_working_drafts.sql` + `0013_codex_v2.sql` (apply via Supabase SQL Editor; do not `db:migrate` the drizzle baseline). Codex tables live in `db/schema/codex.ts` and are excluded from ETL truncate-reload.
+**Source of truth for what is live:** `db/migrations/0001_ported_tables.sql` + `0002_plan_core.sql` + `0003_ava_readonly.sql` + `0004_clients_missing_columns.sql` + `0005_finance_billing_amount_hash.sql` + `0006_xero_client_aliases.sql` + `0007_mba_line_approvals.sql` + `0008_approved_slice_adserving.sql` + `0009_snapshot_checksum.sql` + `0010_finance_periods.sql` + `0011_xero_invoice_matches.sql` + `0012_plan_working_drafts.sql` + `0013_codex_v2.sql` + `0018_version_publication.sql` + `0018a_version_publication_parity.sql` (apply via Supabase SQL Editor; do not `db:migrate` the drizzle baseline). Codex tables live in `db/schema/codex.ts` and are excluded from ETL truncate-reload.
 
-**Drizzle mirror:** `db/schema/*.ts` — generated from those SQL files (`node scripts/migration/_gen-drizzle-schema.mjs`), then hand-kept in sync.
+**Drizzle mirror:** `db/schema/*.ts` — generated from those SQL files (`node scripts/migration/_gen-drizzle-schema.mjs`), then hand-kept in sync. `migration_markers` lives in `db/schema/migrationMarkers.ts`.
 
 **Drizzle kit output:** `db/drizzle/` — baseline snapshot only. The `0000_*.sql` file mirrors the live schema for `drizzle-kit generate` bookkeeping. **Do not `db:migrate` it against Supabase** — tables already exist. Seed `drizzle.__drizzle_migrations` (or use `drizzle-kit pull --init`) before relying on migrate for *future* changes.
 
 **App usage:** reference + publishers + clients + kpi reads (`lib/data/read*.ts`) when `DATA_BACKEND` / `DATA_BACKEND_<DOMAIN>` is `shadow` or `postgres`. Expand per Phase 2 domain.
+
+## Backfilling migrations
+
+A migration that backfills existing rows **must** be guarded by a `migration_markers` key (see 0018 / 0018a). Never use `WHERE col IS NULL` alone as the re-run guard — after the feature is live, NULL means a genuine unpublished/unfilled state, and a re-run would corrupt it.
 
 ## Env
 

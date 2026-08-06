@@ -110,8 +110,8 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  // VC1-3 acceptance — previously unrepresentable cross-states
-  it("VC1-3: published + campaign_status=draft → spawn (not overwrite)", () => {
+  // VC1-3 acceptance — save-mode stays on published_at; fourth row is the draft-tip overwrite regression
+  it("VC1-3: published + status 'draft' -> downloads allowed, docs generate, billing MUTABLE", () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "draft",
       forceIncrement: false,
@@ -126,9 +126,39 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  it("VC1-3: unpublished + campaign_status=approved → overwrite in place", () => {
+  it("VC1-3: published + status 'planned' -> downloads allowed, docs generate, billing MUTABLE", () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "planned",
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 1,
+      tipPublishedAt: "2026-06-01T00:00:00.000Z",
+    })
+    assert.deepEqual(r, {
+      mode: "publish",
+      versionNumber: 2,
+      uiMode: "increment",
+    })
+  })
+
+  it("VC1-3: published + status 'approved' -> downloads allowed, docs generate, billing IMMUTABLE", () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "approved",
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 1,
+      tipPublishedAt: "2026-06-01T00:00:00.000Z",
+    })
+    assert.deepEqual(r, {
+      mode: "publish",
+      versionNumber: 2,
+      uiMode: "increment",
+    })
+  })
+
+  it("VC1-3: unpublished (draft) -> downloads refused, docs skipped, billing MUTABLE, save OVERWRITES in place", () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "draft",
       forceIncrement: false,
       publishedVersionNumber: 1,
       versionRowCount: 1,

@@ -32,15 +32,29 @@ describe("shouldSkipDocsForCampaignStatus (publication)", () => {
     )
   })
 
-  // VC1-3 acceptance
-  it("VC1-3: published + campaign_status=draft → docs generate (do not skip)", () => {
+  // VC1-3 acceptance — publication (docs) vs commercial mutability are different sets
+  it("VC1-3: published + status 'draft' -> downloads allowed, docs generate, billing MUTABLE", () => {
     assert.equal(
       shouldSkipDocsForCampaignStatus({ publishedAt: "2026-06-01T00:00:00.000Z" }),
       false
     )
   })
 
-  it("VC1-3: unpublished + campaign_status=approved → docs skipped", () => {
+  it("VC1-3: published + status 'planned' -> downloads allowed, docs generate, billing MUTABLE", () => {
+    assert.equal(
+      shouldSkipDocsForCampaignStatus({ publishedAt: "2026-06-01T00:00:00.000Z" }),
+      false
+    )
+  })
+
+  it("VC1-3: published + status 'approved' -> downloads allowed, docs generate, billing IMMUTABLE", () => {
+    assert.equal(
+      shouldSkipDocsForCampaignStatus({ publishedAt: "2026-06-01T00:00:00.000Z" }),
+      false
+    )
+  })
+
+  it("VC1-3: unpublished (draft) -> downloads refused, docs skipped, billing MUTABLE, save OVERWRITES in place", () => {
     assert.equal(shouldSkipDocsForCampaignStatus({ publishedAt: null }), true)
   })
 })

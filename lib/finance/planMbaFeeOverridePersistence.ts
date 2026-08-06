@@ -3,13 +3,13 @@
  *
  * TRADE-OFF: With MBA fee following the per-line fee override, billing fee == MBA fee
  * by construction, so `validation.billableEqualsMba` no longer catches fee drift.
- * The compensating control for fee is this version/publication trigger (media remains
- * gated by the billable=MBA check). Never mutate a published MBA's dollar total in
+ * The compensating control for fee is this version/approval trigger (media remains
+ * gated by the billable=MBA check). Never mutate an approved MBA's dollar total in
  * place — spawn the next media_plan_version carrying the override instead.
  */
 
 import type { CampaignFinancials, LineItemInput } from "@/lib/finance/campaignFinancials.types"
-import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
+import { isApprovedOrBeyond } from "@/lib/docs/isApprovedOrBeyond"
 
 export type MbaFeeOverridePriorStatus =
   | "draft"
@@ -35,7 +35,7 @@ export type MbaFeeOverridePersistencePlan =
       action: "spawn_version"
       rebill_needed: true
       mbaFeeAdjusted: true
-      /** Status for the new version — prior published row stays untouched. */
+      /** Status for the new version — prior approved row stays untouched. */
       nextStatus: "pending-approval"
       /** Line inputs to persist on the new version (includes fee overrides). */
       lineItems: LineItemInput[]
@@ -46,11 +46,13 @@ export type MbaFeeOverridePersistencePlan =
  * a new draft/pending-approval version.
  *
  * Timing-only overrides (`mbaFeeAdjusted === false`) are a noop for versioning.
- * Amount changes on an unpublished version apply in place; on a published version
- * they spawn the next version and set `rebill_needed`.
+ * Amount changes on a non-approved MBA apply in place; on an approved MBA they
+ * spawn the next version and set `rebill_needed`.
  *
- * VC Stage 1: spawn iff `priorPublishedAt` is non-null via `isVersionPublished`.
- * `priorStatus` is retained for callers/tests but is not the publication gate.
+ * Stage 1 scope: publication (published_at) answers "may the client have this".
+ * Mutability still keys off commercial status until Stage 2 makes published
+ * versions immutable deliberately. Do not merge these two predicates —
+ * they are different sets (planned is downloadable but not frozen).
  *
  * MB-13: both write paths refuse amount-changing fee overrides, so the
  * `mbaFeeAdjusted === true` branches below are unreachable for gated data
@@ -59,8 +61,8 @@ export type MbaFeeOverridePersistencePlan =
 export function planMbaFeeOverridePersistence(input: {
   priorStatus: MbaFeeOverridePriorStatus
   /**
-   * VC Stage 1 — `published_at` of the version being overridden.
-   * Omit / null = unpublished → apply_inplace; non-null → spawn_version.
+   * VC1-1 plumbing — selected but not the mutability gate (Stage 1).
+   * Spawn/in-place uses `priorStatus` via `isApprovedOrBeyond`.
    */
   priorPublishedAt?: string | null
   financials: Pick<CampaignFinancials, "mbaFeeAdjusted" | "rebill_needed">
@@ -75,8 +77,10 @@ export function planMbaFeeOverridePersistence(input: {
     }
   }
 
+  void input.priorPublishedAt
+
   // Defect path: amount-changing override reached compute despite write gates.
-  if (isVersionPublished({ publishedAt: input.priorPublishedAt ?? null })) {
+  if (isApprovedOrBeyond(String(input.priorStatus ?? ""))) {
     return {
       action: "spawn_version",
       rebill_needed: true,

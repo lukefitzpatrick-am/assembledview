@@ -191,7 +191,7 @@ test("compute DETECTS illegal fee-amount reduction on APPROVED (mbaFeeAdjusted);
   assert.equal(priorApprovedSnapshot.lineItems[0]!.feeOverride, undefined)
 })
 
-test("VC1-3: published + campaign_status=draft → spawn_version", () => {
+test("VC1-3: published + status 'draft' -> downloads allowed, docs generate, billing MUTABLE", () => {
   const line = twoMonthSearchLine({
     feeOverride: {
       mode: "manual",
@@ -209,10 +209,31 @@ test("VC1-3: published + campaign_status=draft → spawn_version", () => {
     financials: result,
     lineItems: [line],
   })
-  assert.equal(plan.action, "spawn_version")
+  assert.equal(plan.action, "apply_inplace")
 })
 
-test("VC1-3: unpublished + campaign_status=approved → apply_inplace", () => {
+test("VC1-3: published + status 'planned' -> downloads allowed, docs generate, billing MUTABLE", () => {
+  const line = twoMonthSearchLine({
+    feeOverride: {
+      mode: "manual",
+      reason: "manual",
+      months: [{ month: "2026-06", amount: 1200 }],
+      dateBasis: "2026-06-01|2026-07-31",
+      component: "fee",
+    },
+  })
+  const result = computeCampaignFinancials([line], { feeLoading: {} })
+  assert.equal(result.mbaFeeAdjusted, true)
+  const plan = planMbaFeeOverridePersistence({
+    priorStatus: "planned",
+    priorPublishedAt: "2026-06-01T00:00:00.000Z",
+    financials: result,
+    lineItems: [line],
+  })
+  assert.equal(plan.action, "apply_inplace")
+})
+
+test("VC1-3: published + status 'approved' -> downloads allowed, docs generate, billing IMMUTABLE", () => {
   const line = twoMonthSearchLine({
     feeOverride: {
       mode: "manual",
@@ -226,6 +247,27 @@ test("VC1-3: unpublished + campaign_status=approved → apply_inplace", () => {
   assert.equal(result.mbaFeeAdjusted, true)
   const plan = planMbaFeeOverridePersistence({
     priorStatus: "approved",
+    priorPublishedAt: "2026-06-01T00:00:00.000Z",
+    financials: result,
+    lineItems: [line],
+  })
+  assert.equal(plan.action, "spawn_version")
+})
+
+test("VC1-3: unpublished (draft) -> downloads refused, docs skipped, billing MUTABLE, save OVERWRITES in place", () => {
+  const line = twoMonthSearchLine({
+    feeOverride: {
+      mode: "manual",
+      reason: "manual",
+      months: [{ month: "2026-06", amount: 1200 }],
+      dateBasis: "2026-06-01|2026-07-31",
+      component: "fee",
+    },
+  })
+  const result = computeCampaignFinancials([line], { feeLoading: {} })
+  assert.equal(result.mbaFeeAdjusted, true)
+  const plan = planMbaFeeOverridePersistence({
+    priorStatus: "draft",
     priorPublishedAt: null,
     financials: result,
     lineItems: [line],

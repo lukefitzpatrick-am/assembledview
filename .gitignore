@@ -30,8 +30,9 @@ tsc-out.txt
 .vercel
 .env*.local
 
-# local/dev-only
-/.vscode/
+# local/dev-only — track shared editor settings only
+/.vscode/*
+!/.vscode/settings.json
 /secrets/
 snowflake.log
 .superpowers/
