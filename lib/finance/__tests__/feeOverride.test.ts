@@ -71,6 +71,7 @@ test("fee override retimed only: sum preserved → mbaFeeAdjusted false, noop ve
 
   const plan = planMbaFeeOverridePersistence({
     priorStatus: "approved",
+    priorPublishedAt: "2026-01-15T00:00:00.000Z",
     financials: result,
     lineItems: [line],
   })
@@ -79,10 +80,13 @@ test("fee override retimed only: sum preserved → mbaFeeAdjusted false, noop ve
 })
 
 /**
- * (ii) Fee reduced on one line of a DRAFT MBA → mbaScopeTotals.fee + nett lower,
- * billing matches, gate true, flags.manualFee, mbaFeeAdjusted, apply in place.
+ * (ii) DETECTOR: illegal amount-reducing fee override on a DRAFT MBA.
+ * compute sets mbaFeeAdjusted / rebill_needed and the planner would apply_inplace.
+ * Write gates refuse this shape — see validateManualOverrideSumRules (savePlan)
+ * and replaceBillingOverrideLine (SUM_VIOLATION). Kept to pin the detector, not
+ * to document a supported product path.
  */
-test("fee override reduced on DRAFT MBA: mba fee follows, apply_inplace", () => {
+test("compute DETECTS illegal fee-amount reduction on DRAFT (mbaFeeAdjusted); write gates refuse it", () => {
   const baseline = computeCampaignFinancials([twoMonthSearchLine()], { feeLoading: {} })
   assert.equal(baseline.mbaScopeTotals.fee, 2000)
 
@@ -127,6 +131,7 @@ test("fee override reduced on DRAFT MBA: mba fee follows, apply_inplace", () => 
 
   const plan = planMbaFeeOverridePersistence({
     priorStatus: "draft",
+    priorPublishedAt: null,
     financials: result,
     lineItems: [line],
   })
@@ -136,10 +141,12 @@ test("fee override reduced on DRAFT MBA: mba fee follows, apply_inplace", () => 
 })
 
 /**
- * (iii) Fee reduced on an APPROVED MBA → spawn pending-approval version carrying
- * the override; prior approved version untouched; rebill_needed true.
+ * (iii) DETECTOR: illegal amount-reducing fee override on an APPROVED MBA.
+ * compute sets mbaFeeAdjusted; planner would spawn_version. Write gates refuse
+ * this shape — see validateManualOverrideSumRules (savePlan) and
+ * replaceBillingOverrideLine (SUM_VIOLATION). Kept to pin the detector.
  */
-test("fee override reduced on APPROVED MBA: spawn_version pending-approval", () => {
+test("compute DETECTS illegal fee-amount reduction on APPROVED (mbaFeeAdjusted); write gates refuse it", () => {
   const priorApprovedSnapshot = {
     status: "approved" as const,
     mbaFee: 2000,
@@ -165,6 +172,7 @@ test("fee override reduced on APPROVED MBA: spawn_version pending-approval", () 
 
   const plan = planMbaFeeOverridePersistence({
     priorStatus: priorApprovedSnapshot.status,
+    priorPublishedAt: "2026-01-15T00:00:00.000Z",
     financials: result,
     lineItems: [line],
   })
@@ -181,4 +189,46 @@ test("fee override reduced on APPROVED MBA: spawn_version pending-approval", () 
   assert.equal(priorApprovedSnapshot.status, "approved")
   assert.equal(priorApprovedSnapshot.mbaFee, 2000)
   assert.equal(priorApprovedSnapshot.lineItems[0]!.feeOverride, undefined)
+})
+
+test("VC1-3: published + campaign_status=draft → spawn_version", () => {
+  const line = twoMonthSearchLine({
+    feeOverride: {
+      mode: "manual",
+      reason: "manual",
+      months: [{ month: "2026-06", amount: 1200 }],
+      dateBasis: "2026-06-01|2026-07-31",
+      component: "fee",
+    },
+  })
+  const result = computeCampaignFinancials([line], { feeLoading: {} })
+  assert.equal(result.mbaFeeAdjusted, true)
+  const plan = planMbaFeeOverridePersistence({
+    priorStatus: "draft",
+    priorPublishedAt: "2026-06-01T00:00:00.000Z",
+    financials: result,
+    lineItems: [line],
+  })
+  assert.equal(plan.action, "spawn_version")
+})
+
+test("VC1-3: unpublished + campaign_status=approved → apply_inplace", () => {
+  const line = twoMonthSearchLine({
+    feeOverride: {
+      mode: "manual",
+      reason: "manual",
+      months: [{ month: "2026-06", amount: 1200 }],
+      dateBasis: "2026-06-01|2026-07-31",
+      component: "fee",
+    },
+  })
+  const result = computeCampaignFinancials([line], { feeLoading: {} })
+  assert.equal(result.mbaFeeAdjusted, true)
+  const plan = planMbaFeeOverridePersistence({
+    priorStatus: "approved",
+    priorPublishedAt: null,
+    financials: result,
+    lineItems: [line],
+  })
+  assert.equal(plan.action, "apply_inplace")
 })

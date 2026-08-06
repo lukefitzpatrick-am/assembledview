@@ -1009,6 +1009,11 @@ export function computeCampaignFinancials(
     nettIncGst,
   }
 
+  // mbaFeeAdjusted is TRUE only when a fee override reached compute whose months
+  // do not sum to the calculated fee. Since 6 Aug 2026 both write paths refuse
+  // such an override, so this must be false for all persisted data. If it is
+  // ever true in production, a write gate has been bypassed — treat it as a
+  // defect signal, not a feature.
   const mbaFeeAdjusted = Math.abs(fee - calculatedFeeTotal) > 0.005
   const rebill_needed = mbaFeeAdjusted
 

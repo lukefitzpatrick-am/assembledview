@@ -184,7 +184,7 @@ Standing branching rules in this document resume unchanged: cherry-pick only to 
 2. Keep the branch minimal — characterisation tests + the fix + required brain/docs. No drive-by `localhost` WIP.
 3. After smoke on the hotfix tip, **cherry-pick the fix commit(s) to both `main` and `localhost`** (deploy path remains cherry-pick-only onto `main`; `localhost` must receive the same commits so the trunks reconverge).
 4. **Delete the hotfix branch immediately after** both cherry-picks land (local and remote if pushed). Do not leave `hotfix/*` as a standing lane.
-5. **Merge `origin/main` into `localhost` immediately after every hotfix reaches production.** Do not leave the same hotfix applied independently on both trunks — that pattern has forced a conflict-resolution pass three times. Prefer one shared ancestry over twin independent applications.
+5. **Merge `origin/main` into `localhost` immediately after every hotfix reaches production.** Do not leave the same hotfix applied independently on both trunks — that pattern has forced a conflict-resolution pass three times. Prefer one shared ancestry over twin independent applications. **C-numbers are allocated on `localhost` only** (see `docs/brain/KNOWN-ISSUES.md`); a hotfix must not mint or renumber C-IDs on `main` — log them on `localhost` after this merge-back.
 
 This exception does not authorize feature branches, long-lived forks, or merging `localhost` into `main`.
 
