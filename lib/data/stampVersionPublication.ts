@@ -4,6 +4,9 @@
  *
  * Does not throw on missing rows — Xano-only tips may lack a Postgres mirror.
  * Never clears an existing stamp when called; always sets now() + normalised by.
+ *
+ * VC Stage 2a: deliberately unguarded — this stamps publication itself
+ * (`published_at`). assertVersionMutable would make every publish stamp fail.
  */
 import { and, eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"

@@ -178,8 +178,16 @@ export async function PATCH(
     })
   } catch (error) {
     if (error instanceof BillingScheduleWriteError) {
-      const status = error.code === "NOT_FOUND" ? 404 : 400
-      return NextResponse.json({ error: error.message }, { status })
+      const status =
+        error.code === "NOT_FOUND"
+          ? 404
+          : error.code === "VERSION_PUBLISHED_IMMUTABLE"
+            ? 409
+            : 400
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status }
+      )
     }
     console.error("[api/mediaplans/versions/billing-schedule PATCH]", error)
     return NextResponse.json({ error: "Failed to patch billing schedule" }, { status: 500 })

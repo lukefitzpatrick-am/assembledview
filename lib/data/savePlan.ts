@@ -74,6 +74,10 @@ import {
   type AutoBillingCorrectionSummary,
 } from "@/lib/billing/postgresAutoBillingCorrection"
 import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
+import {
+  assertVersionMutable,
+  VersionImmutableError,
+} from "@/lib/mediaplan/assertVersionMutable"
 import { normalisePublishedByEmail } from "@/lib/mediaplan/versionPublication"
 import { classifySaveUniqueViolation } from "@/lib/data/classifySaveUniqueViolation"
 import {
@@ -212,6 +216,7 @@ export type SavePlanErrorCode =
   | "UNIQUE_VIOLATION"
   | "C1_FULL_SCOPE"
   | "BILLING_OVERRIDE_SUM_VIOLATION"
+  | "VERSION_PUBLISHED_IMMUTABLE"
 
 export class SavePlanError extends Error {
   readonly code: SavePlanErrorCode
@@ -658,6 +663,8 @@ async function upsertVersionRow(
   if (input.mode === "draft") {
     // Draft overwrite must NOT touch published_at / published_by — a re-save of
     // an already-published row must not clear or re-stamp publication.
+    // VC Stage 2a: refuse the overwrite when published_at is set (P1-2 routes
+    // around this path; do not change save-mode behaviour here).
     const existing = await tx
       .select({ id: schema.mediaPlanVersions.id })
       .from(schema.mediaPlanVersions)
@@ -669,6 +676,14 @@ async function upsertVersionRow(
       )
       .limit(1)
     if (existing[0]) {
+      try {
+        await assertVersionMutable(existing[0].id, tx as Db)
+      } catch (err) {
+        if (err instanceof VersionImmutableError) {
+          throw new SavePlanError("VERSION_PUBLISHED_IMMUTABLE", err.message)
+        }
+        throw err
+      }
       await tx
         .update(schema.mediaPlanVersions)
         .set({
@@ -1060,6 +1075,10 @@ export async function savePlanVersion(
         }
 
         // PC2: freeze approved_slice once (never mutate after write).
+        // VC Stage 2a: do NOT assertVersionMutable here — this is first-write
+        // on a new publish row (published_at still null). Guarding would block
+        // legitimate first publish; re-mutation is already prevented by the
+        // null-check below.
         const [existingSliceRow] = await tx
           .select({ approvedSlice: schema.mediaPlanVersions.approvedSlice })
           .from(schema.mediaPlanVersions)
@@ -1158,6 +1177,10 @@ export async function savePlanVersion(
         }
 
         // PC3: snapshot_checksum over schedule_months + approved_slice + fee snapshot.
+        // VC Stage 2a: do NOT assertVersionMutable here — runs after published_at
+        // is stamped in this same txn (first-write on publish). A guard would
+        // break every publish; there is no separate checksum mutator for
+        // already-published rows (cron tripwire is report-only).
         const checksumRows = scheduleRows.map((r) => ({
           lineItemId: r.lineItemId,
           component: r.component,

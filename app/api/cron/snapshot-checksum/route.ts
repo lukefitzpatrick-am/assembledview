@@ -14,6 +14,11 @@ export const preferredRegion = ["syd1"]
  * PC3 weekly tripwire — recompute snapshot_checksum vs stored for recent
  * published versions. Report-only (never writes).
  *
+ * VC Stage 2a: deliberately unguarded — this route does not mutate version
+ * contents. A wrongly applied assertVersionMutable here would be a no-op for
+ * writes but could still break the tripwire if it started throwing on
+ * published rows; leave read-only.
+ *
  * Auth: CRON_SECRET via x-cron-secret or Authorization Bearer.
  */
 export async function GET(request: Request) {

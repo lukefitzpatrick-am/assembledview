@@ -5,7 +5,11 @@
  */
 
 import { and, eq } from "drizzle-orm"
-import { getDb, schema } from "@/db"
+import { getDb, schema, type Db } from "@/db"
+import {
+  assertVersionMutable,
+  VersionImmutableError,
+} from "@/lib/mediaplan/assertVersionMutable"
 import { normalizeMonthKey } from "@/lib/finance/accrual"
 import {
   explodeScheduleToMonthRows,
@@ -112,7 +116,7 @@ export type PatchBillingScheduleResult = {
 
 export class BillingScheduleWriteError extends Error {
   constructor(
-    public readonly code: "NOT_FOUND" | "BAD_REQUEST",
+    public readonly code: "NOT_FOUND" | "BAD_REQUEST" | "VERSION_PUBLISHED_IMMUTABLE",
     message: string
   ) {
     super(message)
@@ -176,6 +180,19 @@ export async function patchBillingScheduleOnPostgres(
         "NOT_FOUND",
         `media_plan_version ${versionId} not found`
       )
+    }
+
+    // VC Stage 2a: published versions are immutable (all schedule bases).
+    try {
+      await assertVersionMutable(versionId, tx as unknown as Db)
+    } catch (err) {
+      if (err instanceof VersionImmutableError) {
+        throw new BillingScheduleWriteError(
+          "VERSION_PUBLISHED_IMMUTABLE",
+          err.message
+        )
+      }
+      throw err
     }
 
     const prevLegacy =

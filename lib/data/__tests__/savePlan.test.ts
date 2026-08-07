@@ -1638,7 +1638,7 @@ test("VC Stage 1: draft save leaves published_at null", async (t) => {
   assert.equal(snap.version?.publishedBy, null)
 })
 
-test("VC Stage 1: draft re-save of published version does not clear or re-stamp", async (t) => {
+test("VC Stage 2a: draft re-save of published version → VERSION_PUBLISHED_IMMUTABLE, nothing written", async (t) => {
   if (!hasDb) {
     t.skip("DATABASE_URL not set")
     return
@@ -1659,21 +1659,29 @@ test("VC Stage 1: draft re-save of published version does not clear or re-stamp"
   const before = await snapshot(published.versionId)
   assert.ok(before.version?.publishedAt)
   assert.equal(before.version?.publishedBy, "publisher@example.com")
+  assert.equal(before.version?.campaignName, "T4a kill-shot")
 
-  // Allow clock to advance so a re-stamp would be detectable.
-  await new Promise((r) => setTimeout(r, 50))
-
-  const again = await savePlanVersion(
-    draftInput(masterId, [baseLine(LINE_A, 1100)], {
-      versionNumber: published.versionNumber,
-      campaignName: "Draft re-save after publish",
-    })
+  await assert.rejects(
+    () =>
+      savePlanVersion(
+        draftInput(masterId, [baseLine(LINE_A, 1100)], {
+          versionNumber: published.versionNumber,
+          campaignName: "Draft re-save after publish",
+        })
+      ),
+    (err: unknown) =>
+      err instanceof SavePlanError &&
+      err.code === "VERSION_PUBLISHED_IMMUTABLE" &&
+      err.message.includes(String(published.versionId)) &&
+      err.message.includes(`v${published.versionNumber}`)
   )
-  assert.equal(again.versionId, published.versionId)
+
   const after = await snapshot(published.versionId)
   assert.equal(after.version?.publishedAt, before.version?.publishedAt)
   assert.equal(after.version?.publishedBy, before.version?.publishedBy)
-  assert.equal(after.version?.campaignName, "Draft re-save after publish")
+  assert.equal(after.version?.campaignName, before.version?.campaignName)
+  assert.equal(after.lines.length, before.lines.length)
+  assert.equal(after.months.length, before.months.length)
 })
 
 test("VC Stage 1: new_version inserts unpublished (published_at null)", async (t) => {

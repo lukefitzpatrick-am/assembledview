@@ -23,6 +23,11 @@ const bodySchema = z.object({
  * POST /api/admin/fee-snapshots/resnapshot — explicit admin overwrite of
  * mba_fee_snapshots (write-once publish path). Reason required; audited to
  * finance_edits.
+ *
+ * VC Stage 2a: deliberately unguarded — this is the admin checksum/fee repair
+ * hatch for published versions (Audit §5.3 write-once override). Applying
+ * assertVersionMutable here would make fee-snapshot repair impossible at 3am.
+ * Does not mutate line_items / schedule_months / approved_slice.
  */
 export async function POST(request: NextRequest) {
   const gate = await requireFinanceAdmin(request)

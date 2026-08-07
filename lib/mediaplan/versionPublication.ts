@@ -5,6 +5,11 @@
  * `campaign_status` (or approved/booked/completed) as publication — that
  * inference is exactly what Stage 1 removes. Do not add a status fallback
  * or "or approved" escape hatch here.
+ *
+ * Mutability (Stage 2a): `assertVersionMutable` in
+ * `lib/mediaplan/assertVersionMutable.ts` (server-only sibling — throws
+ * `VERSION_PUBLISHED_IMMUTABLE` when `published_at` is set). Kept out of this
+ * file so client pages can import `isVersionPublished` without pulling DB.
  */
 
 export function isVersionPublished(v: {
