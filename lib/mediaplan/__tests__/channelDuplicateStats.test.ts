@@ -109,8 +109,9 @@ describe("channelDuplicateStats", () => {
     ).toBe(true)
   })
 
-  it("formatSaveModeLabel: draft overwrite vs next increment", () => {
+  it("formatSaveModeLabel: draft overwrite vs next increment vs working draft", () => {
     expect(formatSaveModeLabel("overwrite", 1)).toBe("Draft — overwrites v1")
     expect(formatSaveModeLabel("increment", 2)).toBe("Will create v2")
+    expect(formatSaveModeLabel("working_draft", 1)).toBe("Working draft of v1")
   })
 })

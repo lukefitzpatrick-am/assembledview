@@ -141,11 +141,12 @@ export function isSaveAllowedAfterHydration(
 
 /** Label for the sticky Save affordance from PUT mode / predicted next save. */
 export function formatSaveModeLabel(
-  mode: "overwrite" | "increment",
+  mode: "overwrite" | "increment" | "working_draft",
   versionNumber: number
 ): string {
   const n = Math.max(1, Math.trunc(Number(versionNumber) || 1))
   if (mode === "overwrite") return `Draft — overwrites v${n}`
+  if (mode === "working_draft") return `Working draft of v${n}`
   return `Will create v${n}`
 }
 

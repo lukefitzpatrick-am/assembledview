@@ -22,6 +22,8 @@ export function describePlanSavePill(args: {
     primary = `Editing v${m.versionNumber} — unpublished draft`
   } else if (m.uiMode === "overwrite") {
     primary = `Draft of v${m.versionNumber} — publish overwrites v${m.versionNumber}`
+  } else if (m.uiMode === "working_draft") {
+    primary = `Working draft of v${m.versionNumber} — publish creates next version`
   } else {
     primary = `Publish will create v${m.versionNumber}`
   }

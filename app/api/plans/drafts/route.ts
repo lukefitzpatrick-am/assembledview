@@ -24,16 +24,20 @@ function userId(gate: unknown): { id: string; label: string } {
   return { id, label }
 }
 
-/** GET ?masterId= — own draft + other editors' open drafts. */
+/**
+ * GET ?masterId= — own draft + other editors' open drafts.
+ * Stage 2b: persistence always on (offer on load). `enabled` still reports the
+ * autosave flag for chrome.
+ */
 export async function GET(request: NextRequest) {
   const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
-  if (!isPlanDraftsEnabled()) {
-    return NextResponse.json({ enabled: false, draft: null, others: [] })
-  }
 
   const url = new URL(request.url)
   if (url.searchParams.get("nudge") === "1") {
+    if (!isPlanDraftsEnabled()) {
+      return NextResponse.json({ enabled: false, nudged: 0 })
+    }
     const n = await nudgeStaleDrafts()
     return NextResponse.json({ enabled: true, nudged: n })
   }
@@ -48,7 +52,7 @@ export async function GET(request: NextRequest) {
     listOtherWorkingDrafts({ masterId, excludeUserId: u.id }),
   ])
   return NextResponse.json({
-    enabled: true,
+    enabled: isPlanDraftsEnabled(),
     draft,
     others: others.map((o) => ({
       userId: o.userId,
@@ -59,13 +63,10 @@ export async function GET(request: NextRequest) {
   })
 }
 
-/** PUT — upsert server draft (tier 2). */
+/** PUT — upsert server draft (Stage 2b working draft + PC7 tier 2). */
 export async function PUT(request: NextRequest) {
   const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
-  if (!isPlanDraftsEnabled()) {
-    return NextResponse.json({ error: "PLAN_DRAFTS off" }, { status: 409 })
-  }
 
   const body = (await request.json()) as {
     masterId: number
@@ -83,16 +84,13 @@ export async function PUT(request: NextRequest) {
     baseVersionId: body.baseVersionId ?? body.state.baseVersionId ?? null,
     state: body.state,
   })
-  return NextResponse.json({ ok: true, draft: row })
+  return NextResponse.json({ ok: true, draft: row, enabled: isPlanDraftsEnabled() })
 }
 
-/** DELETE — discard server draft. */
+/** DELETE — discard server draft (must delete the row, not just hide the offer). */
 export async function DELETE(request: NextRequest) {
   const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
-  if (!isPlanDraftsEnabled()) {
-    return NextResponse.json({ ok: true, skipped: true })
-  }
   const url = new URL(request.url)
   const masterId = Number(url.searchParams.get("masterId"))
   if (!Number.isFinite(masterId) || masterId <= 0) {

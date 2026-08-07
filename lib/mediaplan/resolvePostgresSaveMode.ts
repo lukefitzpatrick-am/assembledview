@@ -24,35 +24,48 @@ export type ResolvePostgresSaveModeInput = {
    * Omit only when tip is 0 (first save); when tip > 0, pass the row value.
    */
   tipPublishedAt?: string | null
+  /**
+   * VC Stage 2b — `save` (default) vs explicit `publish`.
+   * Save on a published tip → working draft (no version cut).
+   * Publish / forceIncrement → cut next version as today.
+   */
+  intent?: "save" | "publish"
 }
 
-export type ResolvePostgresSaveModeResult = {
-  /** T4a `savePlanVersion` mode. */
-  mode: SavePlanMode
-  /** Version number written by the txn. */
-  versionNumber: number
-  /**
-   * UI label mode — matches today's `formatSaveModeLabel` / PUT `mode` field.
-   * `overwrite` ⟺ in-place draft replace-set (T4a `draft`).
-   */
-  uiMode: "overwrite" | "increment"
-}
+export type ResolvePostgresSaveModeResult =
+  | {
+      /** T4a `savePlanVersion` mode. */
+      mode: "draft"
+      versionNumber: number
+      uiMode: "overwrite"
+    }
+  | {
+      mode: "publish"
+      versionNumber: number
+      uiMode: "increment"
+    }
+  | {
+      /**
+       * Never POST to `/api/plans/save` — write `plan_working_drafts` instead.
+       * `new_version` stays unused in Stage 2.
+       */
+      mode: null
+      versionNumber: number
+      uiMode: "working_draft"
+    }
 
 /**
- * Map create/edit save intent onto T4a modes.
+ * Map create/edit save intent onto T4a modes / Stage 2b working draft.
  *
- * VC Stage 1: overwrite in place iff the tip version is **unpublished**
- * (`published_at` null) and tip > 0 and !forceIncrement — never
- * `campaign_status === "draft"`. A published tip (including
- * `campaign_status=draft`) always cuts a new version via `mode: "publish"`.
- * An unpublished tip (including `campaign_status=approved`) overwrites.
+ * - Unpublished tip + save + !forceIncrement → overwrite in place (`draft`).
+ * - Published tip + save + !forceIncrement → `working_draft` (version row untouched).
+ * - First create (tip 0), forceIncrement, or intent `publish` → `publish` / increment.
  *
- * `new_version` is unused by the editor (no stage-without-publish UI path) —
- * this helper must never return it.
+ * `new_version` is unused by the editor (Stage 3) — this helper must never return it.
  *
  * Edit may pass `versionRowCount: 0` while the tip exists (version history is
  * lazy-loaded). Treat published tip as proof of at least that many rows so
- * draft→booked never resolves to "Will create v1" / INSERT version_number=1.
+ * publish never resolves to "Will create v1" / INSERT version_number=1.
  * Create still passes published=0 + rowCount=0 → first publish v1.
  */
 export function resolvePostgresSaveMode(
@@ -62,10 +75,12 @@ export function resolvePostgresSaveMode(
   const rowCountRaw = Math.max(0, Number(input.versionRowCount) || 0)
   const rowCount =
     rowCountRaw === 0 && published > 0 ? published : rowCountRaw
+  const intent = input.intent === "publish" ? "publish" : "save"
 
-  // Tip unpublished → overwrite; tip published → spawn. No status fallback.
-  // When tip > 0 and tipPublishedAt is omitted, assume published (spawn) so a
-  // forgotten caller cannot overwrite a live tip. Pass `null` for unpublished.
+  // Tip unpublished → overwrite; tip published → working draft (save) or spawn
+  // (publish / forceIncrement). No status fallback.
+  // When tip > 0 and tipPublishedAt is omitted, assume published so a forgotten
+  // caller cannot overwrite a live tip. Pass `null` for unpublished.
   const tipPublishedAt =
     published > 0 && input.tipPublishedAt === undefined
       ? "assumed-published"
@@ -73,7 +88,8 @@ export function resolvePostgresSaveMode(
   const tipUnpublished =
     published > 0 && !isVersionPublished({ publishedAt: tipPublishedAt })
 
-  const overwrite = tipUnpublished && !input.forceIncrement
+  const overwrite =
+    tipUnpublished && !input.forceIncrement && intent !== "publish"
 
   if (overwrite) {
     return {
@@ -83,10 +99,43 @@ export function resolvePostgresSaveMode(
     }
   }
 
+  const tipPublished =
+    published > 0 && isVersionPublished({ publishedAt: tipPublishedAt })
+  if (
+    tipPublished &&
+    !input.forceIncrement &&
+    intent === "save"
+  ) {
+    return {
+      mode: null,
+      versionNumber: published,
+      uiMode: "working_draft",
+    }
+  }
+
   const versionNumber = nextMbaVersionNumber(rowCount, published)
   return {
     mode: "publish",
     versionNumber,
     uiMode: "increment",
   }
+}
+
+/** Narrow helper — true when the editor must not call `/api/plans/save`. */
+export function isWorkingDraftSaveMode(
+  r: ResolvePostgresSaveModeResult
+): r is Extract<ResolvePostgresSaveModeResult, { uiMode: "working_draft" }> {
+  return r.uiMode === "working_draft"
+}
+
+/** SavePlanMode for POST bodies — never call when `uiMode === "working_draft"`. */
+export function savePlanModeOrThrow(
+  r: ResolvePostgresSaveModeResult
+): SavePlanMode {
+  if (r.mode == null) {
+    throw new Error(
+      "working_draft save must write plan_working_drafts — not /api/plans/save"
+    )
+  }
+  return r.mode
 }

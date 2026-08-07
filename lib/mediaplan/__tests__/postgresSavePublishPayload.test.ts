@@ -97,7 +97,7 @@ describe("publish-branch postgres save payload (2-line social)", () => {
     assert.equal(new Set(lineItems.map((l) => l.lineItemId)).size, 2)
   })
 
-  it("draft→booked on v1: mode publish + versionNumber 2 + label Will create v2", () => {
+  it("draft→booked on v1: intent publish → mode publish + versionNumber 2 + label Will create v2", () => {
     const mode = resolvePostgresSaveMode({
       campaignStatus: "Booked",
       forceIncrement: false,
@@ -105,11 +105,25 @@ describe("publish-branch postgres save payload (2-line social)", () => {
       // Same lazy-empty history the edit footer/save path can see.
       versionRowCount: 0,
       tipPublishedAt: "2026-01-15T00:00:00.000Z",
+      intent: "publish",
     })
     assert.equal(mode.mode, "publish")
     assert.equal(mode.versionNumber, 2)
     assert.equal(mode.uiMode, "increment")
     assert.equal(formatSaveModeLabel(mode.uiMode, mode.versionNumber), "Will create v2")
+  })
+
+  it("VC Stage 2b: save on published tip → working_draft label", () => {
+    const mode = resolvePostgresSaveMode({
+      campaignStatus: "Booked",
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 0,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
+    })
+    assert.equal(mode.uiMode, "working_draft")
+    assert.equal(mode.mode, null)
+    assert.equal(formatSaveModeLabel(mode.uiMode, mode.versionNumber), "Working draft of v1")
   })
 
   it("campaignStatus maps UI Booked → persisted booked (Xano lowercase; no Approved default)", () => {
@@ -178,6 +192,7 @@ describe("O4.5 publish/status-change carries feeLoading (shared assembler)", () 
       publishedVersionNumber: 2,
       versionRowCount: 0,
       tipPublishedAt: "2026-01-15T00:00:00.000Z",
+      intent: "publish",
     })
     assert.equal(mode.mode, "publish")
 

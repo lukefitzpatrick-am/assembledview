@@ -1,6 +1,6 @@
 # Version control Stage 1 — status→publication consumers
 
-**Status:** Step 4 client publication gates landed for download/docs/save-mode. Billing mutability (MB-15c write path + modal lock + fee-override spawn) stays on `isApprovedOrBeyond` until Stage 2 — planned is downloadable but not frozen. **Bucket C (VC1-5) split:** tip = `resolveDashboardLiveVersionRow` / commercial = `isBookedApprovedCompleted` (unchanged set).
+**Status:** Step 4 client publication gates landed for download/docs/save-mode. Stage 2a persistence immutability landed (`assertVersionMutable` on draft overwrite + schedule patch). Stage 2b: save on published tip → `working_draft` / `plan_working_drafts` (version row untouched); publish intent cuts next version and clears draft. Billing mutability (MB-15c write path + modal lock + fee-override spawn) stays on `isApprovedOrBeyond` until Stage 2 P3 — planned is downloadable but not frozen for billing writers. **Bucket C (VC1-5) split:** tip = `resolveDashboardLiveVersionRow` / commercial = `isBookedApprovedCompleted` (unchanged set).
 **Decision:** backfill ALL existing `media_plan_versions` rows as published once `published_at` exists. Stage 1 proceeds. **0018a** restores draft-row parity (`campaign_status=draft` → clear `published_at`).
 **Fact:** `media_plan_versions.published_at` (timestamptz, null) + `published_by` (text, null, lowercase CHECK) exist (migration 0018). Canonical publication predicate: `lib/mediaplan/versionPublication.ts` `isVersionPublished` = `publishedAt ?? published_at != null` only. Write: publish-only stamp inside the save txn; draft/`new_version` never stamp; draft re-save never clears. Download/docs/save-mode use that predicate. `isApprovedOrBeyond` remains the billing-mutability gate (Bucket B). `canReturnToDraft` / status dropdown filters stay commercial.
 
@@ -21,7 +21,8 @@
 | `isVersionPublished` | `published_at != null` (`lib/mediaplan/versionPublication.ts`) | n/a | **Canonical publication** — Stage 1 target; no status fallback |
 | `isPublished` (edit+create) | `isVersionPublished(selected version)` | n/a | Download / send-to-client UX only |
 | `isApprovedOrBeyond` | `approved \| booked \| completed` | **no** | **Billing mutability** (MB-15c) + commercial helpers — not a publication gate |
-| `resolvePostgresSaveMode` overwrite | tip unpublished (`published_at` null) && tip > 0 && !forceIncrement | n/a | May overwrite tip in place |
+| `resolvePostgresSaveMode` overwrite | tip unpublished (`published_at` null) && tip > 0 && !forceIncrement && intent≠publish | n/a | May overwrite tip in place |
+| `resolvePostgresSaveMode` working_draft | tip published && !forceIncrement && intent=save | n/a | Write `plan_working_drafts`; tip byte-identical |
 | `isFinanceIncludedCampaignStatus` | same set as approved-or-beyond | no | Finance totals — **B**, not publication |
 | `publishedVersionFromMaster` / `filterPublishedVersions` | `master.version_number` | n/a | **Already tip-based** — not status inference; out of Stage 1 scope |
 
@@ -123,7 +124,7 @@ These use `master.version_number` / `publishedVersionNumber` / `filterPublishedV
 |---|---|
 | API | `app/api/plans/save/route.ts:90` accepts `z.enum(["draft", "new_version", "publish"])` |
 | Persistence | `lib/data/savePlan.ts` handles `new_version` (insert next version, copy overrides; does **not** advance publish tip the way `publish` does — see O4.6 / mirror comments) |
-| Mode resolver | `resolvePostgresSaveMode` **only** returns `"draft"` or `"publish"` — comment at L42: unused by editor |
+| Mode resolver | `resolvePostgresSaveMode` returns `"draft"` / `"publish"` / `working_draft` (`mode: null`) — never `"new_version"` |
 | UI / components | No caller under `app/` or `components/` sends `mode: "new_version"` |
 
 Claude’s read is correct: API-capable, editor-unreachable. Stage 1 does not need a UI for it unless a later VC stage introduces stage-without-publish.

@@ -67,7 +67,7 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  it("published tip → publish next (status irrelevant)", () => {
+  it("VC Stage 2b: published tip + save intent → working_draft (no version cut)", () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "Approved",
       forceIncrement: false,
@@ -75,15 +75,47 @@ describe("resolvePostgresSaveMode", () => {
       versionRowCount: 1,
       tipPublishedAt: "2026-01-15T00:00:00.000Z",
     })
+    assert.deepEqual(r, {
+      mode: null,
+      versionNumber: 1,
+      uiMode: "working_draft",
+    })
+  })
+
+  it("VC Stage 2b: published tip + intent publish → publish next", () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "Approved",
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 1,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
+      intent: "publish",
+    })
     assert.equal(r.mode, "publish")
     assert.equal(r.versionNumber, 2)
     assert.equal(r.uiMode, "increment")
   })
 
-  it("draft→booked on published v1 with lazy-empty versionRowCount → publish v2", () => {
+  it("draft→booked on published v1 with lazy-empty versionRowCount + publish intent → publish v2", () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "Booked",
       forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 0,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
+      intent: "publish",
+    })
+    assert.deepEqual(r, {
+      mode: "publish",
+      versionNumber: 2,
+      uiMode: "increment",
+    })
+  })
+
+  it("published tip + forceIncrement → publish next (byte-identical to Stage 1)", () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "Booked",
+      forceIncrement: true,
       publishedVersionNumber: 1,
       versionRowCount: 0,
       tipPublishedAt: "2026-01-15T00:00:00.000Z",
@@ -110,8 +142,8 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  // VC1-3 acceptance — save-mode stays on published_at; fourth row is the draft-tip overwrite regression
-  it("VC1-3: published + status 'draft' -> downloads allowed, docs generate, billing MUTABLE", () => {
+  // VC1-3 / Stage 2b — save on published tip writes working draft; publish is explicit
+  it("VC1-3: published + status 'draft' + save → working_draft", () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "draft",
       forceIncrement: false,
@@ -119,14 +151,12 @@ describe("resolvePostgresSaveMode", () => {
       versionRowCount: 1,
       tipPublishedAt: "2026-06-01T00:00:00.000Z",
     })
-    assert.deepEqual(r, {
-      mode: "publish",
-      versionNumber: 2,
-      uiMode: "increment",
-    })
+    assert.equal(r.uiMode, "working_draft")
+    assert.equal(r.versionNumber, 1)
+    assert.equal(r.mode, null)
   })
 
-  it("VC1-3: published + status 'planned' -> downloads allowed, docs generate, billing MUTABLE", () => {
+  it("VC1-3: published + status 'planned' + save → working_draft", () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "planned",
       forceIncrement: false,
@@ -134,14 +164,11 @@ describe("resolvePostgresSaveMode", () => {
       versionRowCount: 1,
       tipPublishedAt: "2026-06-01T00:00:00.000Z",
     })
-    assert.deepEqual(r, {
-      mode: "publish",
-      versionNumber: 2,
-      uiMode: "increment",
-    })
+    assert.equal(r.uiMode, "working_draft")
+    assert.equal(r.versionNumber, 1)
   })
 
-  it("VC1-3: published + status 'approved' -> downloads allowed, docs generate, billing IMMUTABLE", () => {
+  it("VC1-3: published + status 'approved' + save → working_draft", () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "approved",
       forceIncrement: false,
@@ -149,14 +176,11 @@ describe("resolvePostgresSaveMode", () => {
       versionRowCount: 1,
       tipPublishedAt: "2026-06-01T00:00:00.000Z",
     })
-    assert.deepEqual(r, {
-      mode: "publish",
-      versionNumber: 2,
-      uiMode: "increment",
-    })
+    assert.equal(r.uiMode, "working_draft")
+    assert.equal(r.versionNumber, 1)
   })
 
-  it("VC1-3: unpublished (draft) -> downloads refused, docs skipped, billing MUTABLE, save OVERWRITES in place", () => {
+  it("VC1-3: unpublished (draft) -> save OVERWRITES in place", () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "draft",
       forceIncrement: false,
@@ -180,7 +204,7 @@ describe("resolvePostgresSaveMode", () => {
         versionRowCount: 1,
         tipPublishedAt,
       })
-      assert.notEqual(r.mode, "new_version")
+      assert.notEqual(r.mode as string | null, "new_version")
     }
   })
 })

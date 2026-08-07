@@ -40,6 +40,7 @@ describe("PC7 pill shares T4c resolvePostgresSaveMode", () => {
       publishedVersionNumber: 1,
       versionRowCount: 1,
       tipPublishedAt: "2026-01-15T00:00:00.000Z",
+      intent: "publish",
     })
     const pill = describePlanSavePill({
       modeResolved: mode,
@@ -49,6 +50,24 @@ describe("PC7 pill shares T4c resolvePostgresSaveMode", () => {
     })
     assert.equal(mode.uiMode, "increment")
     assert.match(pill.primary, /Publish will create v2/i)
+  })
+
+  it("working_draft → Working draft of v{n}", () => {
+    const mode = resolvePostgresSaveMode({
+      campaignStatus: "Approved",
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 1,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
+    })
+    const pill = describePlanSavePill({
+      modeResolved: mode,
+      hasWorkingDraft: true,
+      autosavedSecondsAgo: null,
+      editingUnpublishedDraft: false,
+    })
+    assert.equal(mode.uiMode, "working_draft")
+    assert.match(pill.primary, /Working draft of v1/i)
   })
 
   it("editing unpublished draft label", () => {

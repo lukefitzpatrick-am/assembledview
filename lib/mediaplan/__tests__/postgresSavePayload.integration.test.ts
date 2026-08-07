@@ -98,13 +98,30 @@ describe("1. masterId = masters.id (never version row id)", () => {
 })
 
 describe("2. version resolution with versions[] UNLOADED", () => {
-  it("leave-draft (Booked) + versionRowCount=0 + tip published>0 → publish next", () => {
+  it("leave-draft (Booked) + versionRowCount=0 + tip published → working_draft on save", () => {
     const { mode, label } = footerLabelFromMode({
       campaignStatus: "Booked",
       forceIncrement: false,
       publishedVersionNumber: 1,
       versionRowCount: 0,
       tipPublishedAt: "2026-01-15T00:00:00.000Z",
+    })
+    assert.deepEqual(mode, {
+      mode: null,
+      versionNumber: 1,
+      uiMode: "working_draft",
+    })
+    assert.equal(label, "Working draft of v1")
+  })
+
+  it("leave-draft (Booked) + intent publish → publish next", () => {
+    const { mode, label } = footerLabelFromMode({
+      campaignStatus: "Booked",
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 0,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
+      intent: "publish",
     })
     assert.deepEqual(mode, {
       mode: "publish",

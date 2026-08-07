@@ -13,7 +13,6 @@ import {
 import { SavePlanError, savePlanVersion } from "@/lib/data/savePlan"
 import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import { requireRole } from "@/lib/requireRole"
-import { isPlanDraftsEnabled } from "@/lib/mediaplan/drafts/flag"
 import {
   countVersionLines,
   deleteWorkingDraft,
@@ -173,8 +172,9 @@ export async function POST(request: NextRequest) {
   if (!access.ok) return access.response
 
   // PC7 stale-base: tip moved since editor loaded base_version_id.
+  // Always on when baseVersionId is sent (Stage 2b working drafts are
+  // load-bearing even if NEXT_PUBLIC_PLAN_DRAFTS autosave chrome is off).
   if (
-    isPlanDraftsEnabled() &&
     body.baseVersionId != null &&
     (body.mode === "publish" || body.mode === "new_version")
   ) {
@@ -378,15 +378,14 @@ export async function POST(request: NextRequest) {
       )
     )
 
-    // PC7: clear server working draft once tier 3 (save/publish) lands.
-    if (isPlanDraftsEnabled()) {
-      try {
-        const g = gate as { session?: { user?: { email?: string; sub?: string } } }
-        const uid = String(g.session?.user?.email || g.session?.user?.sub || "")
-        if (uid) await deleteWorkingDraft({ masterId: body.masterId, userId: uid })
-      } catch (err) {
-        console.warn("[PC7] clear working draft after save failed", err)
-      }
+    // PC7 / Stage 2b: clear server working draft once tier 3 (save/publish) lands.
+    // Always run — working drafts are load-bearing even when NEXT_PUBLIC_PLAN_DRAFTS is off.
+    try {
+      const g = gate as { session?: { user?: { email?: string; sub?: string } } }
+      const uid = String(g.session?.user?.email || g.session?.user?.sub || "")
+      if (uid) await deleteWorkingDraft({ masterId: body.masterId, userId: uid })
+    } catch (err) {
+      console.warn("[PC7] clear working draft after save failed", err)
     }
 
     return NextResponse.json({
@@ -411,7 +410,8 @@ export async function POST(request: NextRequest) {
       const status =
         err.code === "BOSS006_EMPTY_PUBLISH" ||
         err.code === "C1_FULL_SCOPE" ||
-        err.code === "BILLING_OVERRIDE_SUM_VIOLATION"
+        err.code === "BILLING_OVERRIDE_SUM_VIOLATION" ||
+        err.code === "VERSION_PUBLISHED_IMMUTABLE"
           ? 409
           : err.code === "MASTER_NOT_FOUND"
             ? 404
