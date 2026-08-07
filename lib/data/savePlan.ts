@@ -677,7 +677,7 @@ async function upsertVersionRow(
       .limit(1)
     if (existing[0]) {
       try {
-        await assertVersionMutable(existing[0].id, tx as Db)
+        await assertVersionMutable(existing[0].id, tx)
       } catch (err) {
         if (err instanceof VersionImmutableError) {
           throw new SavePlanError("VERSION_PUBLISHED_IMMUTABLE", err.message)

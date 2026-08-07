@@ -5,7 +5,7 @@
  */
 
 import { and, eq } from "drizzle-orm"
-import { getDb, schema, type Db } from "@/db"
+import { getDb, schema } from "@/db"
 import {
   assertVersionMutable,
   VersionImmutableError,
@@ -184,7 +184,7 @@ export async function patchBillingScheduleOnPostgres(
 
     // VC Stage 2a: published versions are immutable (all schedule bases).
     try {
-      await assertVersionMutable(versionId, tx as unknown as Db)
+      await assertVersionMutable(versionId, tx)
     } catch (err) {
       if (err instanceof VersionImmutableError) {
         throw new BillingScheduleWriteError(

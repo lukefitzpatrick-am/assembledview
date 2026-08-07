@@ -25,13 +25,20 @@ export class VersionImmutableError extends Error {
 }
 
 /**
+ * Minimal DB surface for the publication check — accepts root `db` or a
+ * transaction handle (including savePlan's `Tx` alias) without casting.
+ * Same idea as `lib/codex/repo.ts` DbExecutor; narrowed to what this helper uses.
+ */
+export type DbExecutor = Pick<Db, "select">
+
+/**
  * Throws `VersionImmutableError` (`VERSION_PUBLISHED_IMMUTABLE`) when the
  * version row has a non-null `published_at`. Call before mutating version
  * contents (draft overwrite, line_items, schedule_months, etc.).
  */
 export async function assertVersionMutable(
   versionId: number,
-  db: Db = getDb()
+  db: DbExecutor = getDb()
 ): Promise<void> {
   const id = Number(versionId)
   if (!Number.isFinite(id) || id <= 0) {
