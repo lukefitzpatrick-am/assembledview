@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { codexClientExists } from "@/lib/codex/clientExists"
-import { softDeleteTask, updateTask } from "@/lib/codex/repo"
+import { getTask, softDeleteTask, updateTask } from "@/lib/codex/repo"
+import { normaliseRecurringRule } from "@/lib/codex/recurringRule"
+import { isTaskCategory } from "@/lib/codex/types"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
@@ -24,7 +26,43 @@ const PATCH_ALLOWLIST = [
   "category",
   "client_visible",
   "client_id",
+  "template_id",
+  "recurring_rule",
 ] as const
+
+export async function GET(request: Request, context: RouteContext) {
+  const flag = codexFlagGuard()
+  if (flag) return flag
+
+  const auth = await requireCodexInternalAccess(request)
+  if ("error" in auth) return auth.error
+
+  try {
+    const { id: idRaw } = await context.params
+    const id = Number(idRaw)
+    if (!Number.isFinite(id) || id < 1) {
+      return NextResponse.json(
+        { error: "bad_request", message: "Task id is required." },
+        { status: 400 }
+      )
+    }
+
+    const task = await getTask(id)
+    if (!task) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 })
+    }
+    return NextResponse.json(task)
+  } catch (error) {
+    console.error("Failed to get codex task:", error)
+    return NextResponse.json(
+      {
+        error: "Failed to load task",
+        message: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 }
+    )
+  }
+}
 
 export async function PATCH(request: Request, context: RouteContext) {
   const flag = codexFlagGuard()
@@ -92,7 +130,22 @@ export async function PATCH(request: Request, context: RouteContext) {
           patch.mbaNumber = typeof v === "string" ? v : null
           break
         case "category":
-          patch.category = typeof v === "string" ? v : null
+          // No DB CHECK on tasks.category — enforce TASK_CATEGORIES in the app.
+          if (v === null) {
+            patch.category = null
+          } else if (typeof v === "string") {
+            if (!isTaskCategory(v)) {
+              return NextResponse.json(
+                {
+                  error: "bad_request",
+                  message:
+                    "category must be one of: reporting, pacing, creative, finance, admin, meeting_followup, other.",
+                },
+                { status: 400 }
+              )
+            }
+            patch.category = v
+          }
           break
         case "client_visible":
           if (typeof v === "boolean") patch.clientVisible = v
@@ -120,12 +173,61 @@ export async function PATCH(request: Request, context: RouteContext) {
           patch.clientId = clientIdNum
           break
         }
+        case "template_id": {
+          if (v === null || v === "") {
+            patch.templateId = null
+          } else {
+            const n = Number(v)
+            if (!Number.isFinite(n) || n < 1) {
+              return NextResponse.json(
+                {
+                  error: "bad_request",
+                  message: "template_id must be a positive integer.",
+                },
+                { status: 400 }
+              )
+            }
+            patch.templateId = n
+          }
+          break
+        }
+        case "recurring_rule": {
+          if (v === null || v === "") {
+            patch.recurringRule = null
+          } else if (typeof v === "string") {
+            const normalised = normaliseRecurringRule(v)
+            if (!normalised) {
+              return NextResponse.json(
+                {
+                  error: "bad_request",
+                  message:
+                    "recurring_rule must be monthly:<day>, weekly:<dow>, or monthly:lbd.",
+                },
+                { status: 400 }
+              )
+            }
+            patch.recurringRule = normalised
+          }
+          break
+        }
       }
     }
 
     const currentUser = await getCurrentUser(request)
     const actor = sessionEmail(auth.session, currentUser?.email)
-    const task = await updateTask(id, patch, actor)
+    let task
+    try {
+      task = await updateTask(id, patch, actor)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (/template_id .* does not exist/i.test(msg) || /Invalid recurring_rule/i.test(msg)) {
+        return NextResponse.json(
+          { error: "bad_request", message: msg },
+          { status: 400 }
+        )
+      }
+      throw err
+    }
     if (!task) {
       return NextResponse.json({ error: "not_found" }, { status: 404 })
     }

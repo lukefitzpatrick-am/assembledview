@@ -46,6 +46,7 @@ import {
   type TaskCategory,
   type TaskPriority,
   type TaskStatus,
+  type TaskTemplate,
   type TeamMember,
 } from "@/lib/codex/types"
 
@@ -57,6 +58,17 @@ type ClientOption = {
 }
 
 const UNASSIGNED = "__unassigned__"
+const NO_TEMPLATE = "__none__"
+const NO_RECURRING = "__none__"
+
+const RECURRING_OPTIONS = [
+  { value: NO_RECURRING, label: "Does not recur" },
+  { value: "monthly:lbd", label: "Monthly — last business day" },
+  { value: "monthly:1", label: "Monthly — day 1" },
+  { value: "monthly:15", label: "Monthly — day 15" },
+  { value: "weekly:mon", label: "Weekly — Monday" },
+  { value: "weekly:fri", label: "Weekly — Friday" },
+] as const
 
 const taskFormSchema = z.object({
   title: z.string().trim().min(1, "Title is required"),
@@ -76,6 +88,8 @@ const taskFormSchema = z.object({
   due_date: z.date().nullable().optional(),
   description: z.string().optional(),
   client_visible: z.boolean(),
+  template_id: z.number().int().positive().nullable().optional(),
+  recurring_rule: z.string().nullable().optional(),
 })
 
 type TaskFormValues = z.infer<typeof taskFormSchema>
@@ -106,6 +120,8 @@ type TaskFormDialogProps = {
   task: CodexTask | null
   clients: ClientOption[]
   teamMembers: TeamMember[]
+  /** Checklist templates for apply-on-create / series seeds. */
+  templates?: TaskTemplate[]
   onSaved: () => void
   /** When creating (task null), merge these into the empty-form defaults. */
   createPrefill?: TaskFormCreatePrefill | null
@@ -117,6 +133,7 @@ export function TaskFormDialog({
   task,
   clients,
   teamMembers,
+  templates = [],
   onSaved,
   createPrefill = null,
 }: TaskFormDialogProps) {
@@ -162,6 +179,8 @@ export function TaskFormDialog({
       due_date: null,
       description: "",
       client_visible: false,
+      template_id: null,
+      recurring_rule: null,
     },
   })
 
@@ -236,6 +255,8 @@ export function TaskFormDialog({
           due_date: dueDateToFormValue(task.due_date),
           description: task.description ?? "",
           client_visible: Boolean(task.client_visible),
+          template_id: task.template_id ?? null,
+          recurring_rule: task.recurring_rule ?? null,
         })
       } else {
         const meLower = meEmail.trim().toLowerCase()
@@ -264,6 +285,8 @@ export function TaskFormDialog({
           due_date: null,
           description: createPrefill?.description ?? "",
           client_visible: false,
+          template_id: null,
+          recurring_rule: null,
         })
       }
     }
@@ -293,6 +316,10 @@ export function TaskFormDialog({
         if (dirty.due_date) patch.due_date = dueDateToPayload(values.due_date)
         if (dirty.description) patch.description = values.description || null
         if (dirty.client_visible) patch.client_visible = values.client_visible
+        if (dirty.template_id) patch.template_id = values.template_id
+        if (dirty.recurring_rule) {
+          patch.recurring_rule = values.recurring_rule || null
+        }
 
         if (Object.keys(patch).length === 0) {
           onOpenChange(false)
@@ -329,6 +356,8 @@ export function TaskFormDialog({
           due_date: dueDateToPayload(values.due_date),
           description: values.description || null,
           client_visible: values.client_visible,
+          template_id: values.template_id || null,
+          recurring_rule: values.recurring_rule || null,
         }
         const res = await fetch("/api/codex/tasks", {
           method: "POST",
@@ -573,6 +602,84 @@ export function TaskFormDialog({
                       placeholder={<span>Pick due date</span>}
                     />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="template_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Template</FormLabel>
+                  <Select
+                    value={
+                      field.value != null && field.value > 0
+                        ? String(field.value)
+                        : NO_TEMPLATE
+                    }
+                    onValueChange={(v) => {
+                      if (v === NO_TEMPLATE) {
+                        field.onChange(null)
+                        return
+                      }
+                      field.onChange(Number(v))
+                    }}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="No template" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value={NO_TEMPLATE}>No template</SelectItem>
+                      {templates.map((t) => (
+                        <SelectItem key={t.id} value={String(t.id)}>
+                          {t.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    {isEdit
+                      ? "Links this task to a template (does not re-copy checklist)."
+                      : "Copies the template checklist onto the new task."}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="recurring_rule"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Recurring</FormLabel>
+                  <Select
+                    value={field.value?.trim() ? field.value : NO_RECURRING}
+                    onValueChange={(v) => {
+                      field.onChange(v === NO_RECURRING ? null : v)
+                    }}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Does not recur" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {RECURRING_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormDescription>
+                    Series seed — requires a template. Cron creates one task per
+                    period (Sydney).
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

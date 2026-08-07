@@ -8,6 +8,8 @@ import {
   parseStatusFilter,
   type TaskSort,
 } from "@/lib/codex/repo"
+import { normaliseRecurringRule } from "@/lib/codex/recurringRule"
+import { isTaskCategory } from "@/lib/codex/types"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
@@ -167,27 +169,97 @@ export async function POST(request: Request) {
       )
     }
 
-    const task = await createTask(
-      {
-        title,
-        clientId: clientIdNum,
-        description:
-          typeof raw.description === "string" ? raw.description : null,
-        status: typeof raw.status === "string" ? raw.status : null,
-        priority: typeof raw.priority === "string" ? raw.priority : null,
-        assigneeEmail:
-          typeof raw.assignee_email === "string" ? raw.assignee_email : null,
-        assigneeName:
-          typeof raw.assignee_name === "string" ? raw.assignee_name : null,
-        dueDate: typeof raw.due_date === "string" ? raw.due_date : null,
-        mbaNumber: typeof raw.mba_number === "string" ? raw.mba_number : null,
-        category: typeof raw.category === "string" ? raw.category : null,
-        clientVisible:
-          typeof raw.client_visible === "boolean" ? raw.client_visible : null,
-        createdByEmail,
-      },
-      createdByEmail
-    )
+    // No DB CHECK on tasks.category — enforce TASK_CATEGORIES in the app.
+    let category: string | null = null
+    if (typeof raw.category === "string" && raw.category.trim()) {
+      if (!isTaskCategory(raw.category)) {
+        return NextResponse.json(
+          {
+            error: "bad_request",
+            message:
+              "category must be one of: reporting, pacing, creative, finance, admin, meeting_followup, other.",
+          },
+          { status: 400 }
+        )
+      }
+      category = raw.category
+    }
+
+    let templateId: number | null = null
+    if (raw.template_id !== undefined && raw.template_id !== null && raw.template_id !== "") {
+      const n = Number(raw.template_id)
+      if (!Number.isFinite(n) || n < 1) {
+        return NextResponse.json(
+          {
+            error: "bad_request",
+            message: "template_id must be a positive integer.",
+          },
+          { status: 400 }
+        )
+      }
+      templateId = n
+    }
+
+    let recurringRule: string | null = null
+    if (typeof raw.recurring_rule === "string" && raw.recurring_rule.trim()) {
+      recurringRule = normaliseRecurringRule(raw.recurring_rule)
+      if (!recurringRule) {
+        return NextResponse.json(
+          {
+            error: "bad_request",
+            message:
+              "recurring_rule must be monthly:<day>, weekly:<dow>, or monthly:lbd.",
+          },
+          { status: 400 }
+        )
+      }
+    }
+
+    if (recurringRule && !templateId) {
+      return NextResponse.json(
+        {
+          error: "bad_request",
+          message: "recurring_rule requires template_id (series seed).",
+        },
+        { status: 400 }
+      )
+    }
+
+    let task
+    try {
+      task = await createTask(
+        {
+          title,
+          clientId: clientIdNum,
+          description:
+            typeof raw.description === "string" ? raw.description : null,
+          status: typeof raw.status === "string" ? raw.status : null,
+          priority: typeof raw.priority === "string" ? raw.priority : null,
+          assigneeEmail:
+            typeof raw.assignee_email === "string" ? raw.assignee_email : null,
+          assigneeName:
+            typeof raw.assignee_name === "string" ? raw.assignee_name : null,
+          dueDate: typeof raw.due_date === "string" ? raw.due_date : null,
+          mbaNumber: typeof raw.mba_number === "string" ? raw.mba_number : null,
+          category,
+          clientVisible:
+            typeof raw.client_visible === "boolean" ? raw.client_visible : null,
+          templateId,
+          recurringRule,
+          createdByEmail,
+        },
+        createdByEmail
+      )
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      if (/template_id .* does not exist/i.test(msg) || /Invalid recurring_rule/i.test(msg)) {
+        return NextResponse.json(
+          { error: "bad_request", message: msg },
+          { status: 400 }
+        )
+      }
+      throw err
+    }
 
     return NextResponse.json(task, { status: 201 })
   } catch (error) {

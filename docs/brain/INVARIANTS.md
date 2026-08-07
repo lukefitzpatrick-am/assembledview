@@ -42,11 +42,12 @@ pct === 100 → fee = 0 (division guard)
 
   | Intent | `mode` | `versionNumber` | UI |
   |---|---|---|---|
-  | Stay Draft, tip exists, `!forceIncrement` | `draft` (overwrite in place) | published tip | overwrite |
-  | Leave Draft / non-draft / `forceIncrement` | `publish` (increment) | `nextMbaVersionNumber` | increment |
-  | Tip present + lazy-empty `versionRowCount=0` | still **increment** on leave-draft | treats tip as proof of rows | never "Will create v1" |
+  | Save on unpublished tip, `!forceIncrement` | `draft` (overwrite in place) | published tip | overwrite |
+  | Save on published tip, `!forceIncrement` | `null` — write `plan_working_drafts` (Stage 2b) | tip (unchanged) | working_draft |
+  | First create / `forceIncrement` / intent `publish` | `publish` (increment) | `nextMbaVersionNumber` | increment |
+  | Tip present + lazy-empty `versionRowCount=0` | same rules; publish never "Will create v1" | tip proves row count | — |
 
-  `new_version` (stage-without-publish) is unused by the editor.
+  `new_version` (stage-without-publish) is unused by the editor (Stage 3).
 - **Campaign status vocabulary** (persisted lowercase via `mapCampaignStatusForPersist`): `draft` \| `planned` \| `approved` \| `booked` \| `completed` \| `cancelled`. Title-case UI labels map to the same set. Empty / unknown → `null`.
 - **`MISSING_CAMPAIGN_STATUS`:** publish refuses to invent status — `resolvePersistedCampaignStatus` throws when mapped status is null and mode ≠ draft. Never silent `"Approved"`. Draft mode may default stored status to `draft`.
 - **Postgres 23505 → app codes** (`classifySaveUniqueViolation`): `line_items_version_id_line_item_id_key` → `DUPLICATE_LINE_ITEM_ID`; versions `UNIQUE(master_id, version_number)` → `VERSION_ALREADY_EXISTS`; other unique → `UNIQUE_VIOLATION`. Do not collapse version collisions into line-id dupe messaging.
@@ -83,9 +84,9 @@ pct === 100 → fee = 0 (division guard)
 ## Versioning & plan identity
 
 - Published version = `media_plan_master.version_number` (the watermark). There is no `latest_version_id`. Never use `max(versions)` to find "live".
-- Version-row publication = `media_plan_versions.published_at IS NOT NULL` (`isVersionPublished` in `lib/mediaplan/versionPublication.ts`). Never treat `campaign_status` as publication. Tip watermark and publication column are separate. Stage 1: download/docs/save-mode use `published_at`; billing mutability stays `isApprovedOrBeyond` until Stage 2.
+- Version-row publication = `media_plan_versions.published_at IS NOT NULL` (`isVersionPublished` in `lib/mediaplan/versionPublication.ts`). Never treat `campaign_status` as publication. Tip watermark and publication column are separate. Stage 2a: published versions are immutable at the persistence layer via `assertVersionMutable` (`lib/mediaplan/assertVersionMutable.ts`) — draft overwrite, schedule patches refuse with `VERSION_PUBLISHED_IMMUTABLE`. Stage 2b: save on a published tip resolves `working_draft` and writes `plan_working_drafts` (never the version row; never `new_version`). Publish (`intent: publish` / `forceIncrement` / tip 0) still cuts via `mode: publish` and clears the working draft via `deleteWorkingDraft`. Billing mutability (`assertVersionBillingMutable`) stays on `isApprovedOrBeyond` until Stage 2 P3.
 - `published_at` / `published_by` are written only on `savePlanVersion` `mode==='publish'` (same txn as BOSS006 / approved_slice / master tip). `draft` and `new_version` never stamp; draft overwrite never clears an existing stamp. `published_by` is lowercased (`normalisePublishedByEmail`); missing actor → stamp `published_at`, leave `published_by` null (warn, never fail publish). Legacy Xano MBA PUT (immediate publish) and PATCH (watermark advance) best-effort stamp Postgres via `stampVersionPublicationByMbaVersion`.
-- Draft saves overwrite the version row in place; leaving draft or changing the approval set increments (stage-then-publish: `deferMasterVersionPublish` → write children → PATCH master). Cannot return to Draft.
+- Draft saves overwrite the version row in place when the tip is **unpublished**; save on a **published** tip writes a working draft (Stage 2b). Explicit publish / approval-set `forceIncrement` increments. Cannot return to Draft.
 - Staged-but-unpublished rows are invisible (`filterPublishedVersions`) and reaped on next save of the same master.
 - Clients see the last published version; doc downloads and pacing keep serving the **published tip** while a `plan_working_drafts` row exists (PC7; labelled in the editor). Working drafts never advance `master.version_number` or touch finance/pacing consumers.
 - MBA / media-plan doc APIs render from persisted `schedule_months` + `approved_slice` + fee snapshot only (`{mba_number, version_number}`); require admin; 422 unless campaign_status is approved/booked/completed. Footer `v{n} · {hash8}` from `snapshot_checksum` (sha256; written on publish).
@@ -140,6 +141,9 @@ pct === 100 → fee = 0 (division guard)
 - MI runtime never writes `lib/specs/mi-library/` (vendored) — runtime output is Blob + email only.
 - AVA Postgres reads use `AVA_DATABASE_URL` / role `ava_readonly` only — never the owner/`DATABASE_URL` connection.
 - **AVA retains SELECT on `client_notes`** via the `ava_readonly` allowlist (0003) — deliberate (Q22). When Stage 3 populates notes, they are AVA-chat-queryable. Do not revoke as Codex tidy-up. New 0013 Codex tables stay deny-by-default for AVA until explicitly allowlisted.
+- Codex `appendActivity` takes `actorKind?: CodexActorKind` (default `user`) — AVA/system writers must pass their kind; do not hardcode `"user"` again.
+- Codex `tasks.category` has no DB CHECK — enforce `TASK_CATEGORIES` in the app on create/PATCH and UI (`reporting | pacing | creative | finance | admin | meeting_followup | other`).
+- Codex `tasks.recurring_rule` is boring text (`monthly:<day>` / `weekly:<dow>` / `monthly:lbd`) — Sydney civil calendar only; no cron parser. Generation is idempotent on `(template_id, client_id, period)` via `[codex-period:…]` description marker (`lib/codex/recurringRule.ts`, `/api/cron/codex-recurring`).
 - AVA tool `fy` = Australian FY **ending** year (`lib/ava/tools/fyToRange.ts`); finance sections `fyMonthRange` stays start-year. Do not conflate.
 
 ## UI / design system

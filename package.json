@@ -74,6 +74,8 @@
     "test:write-billing-overrides": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/data/__tests__/writeBillingOverrides.test.ts",
     "test:mb13-fee-override-publish": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/data/__tests__/feeOverridePublish.mb13.test.ts",
     "test:mb15c-published-immutable": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/data/__tests__/publishedBillingImmutable.mb15c.test.ts",
+    "test:vc2a-published-immutable": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/data/__tests__/publishedVersionImmutable.stage2a.test.ts",
+    "test:vc2b-working-draft": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test --test-force-exit lib/data/__tests__/workingDraft.stage2b.test.ts",
     "test:write-media-plan-masters": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test --test-force-exit lib/data/__tests__/writeMediaPlanMasters.test.ts lib/data/__tests__/writeMediaPlanMasters.integration.test.ts lib/data/__tests__/writeMediaPlanMasters.seq.x91.test.ts",
     "verify:byte-diff-schedules": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx scripts/verify/byte-diff-schedules.ts",
     "test:xano-mirror": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/data/__tests__/mirrorToXano.test.ts lib/utils/__tests__/createSemaphore.test.ts lib/utils/__tests__/lineItemWriteConcurrency.test.ts",
@@ -81,16 +83,18 @@
     "test:plan-drafts": "tsx --test lib/mediaplan/drafts/__tests__/drafts.test.ts && vitest run hooks/__tests__/usePlanDraftSession.test.tsx",
     "test:codex-flag-auth": "node --experimental-test-module-mocks --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/codex/__tests__/routes.flagAuth.test.ts lib/codex/__tests__/routes.stage0Hardening.test.ts",
     "test:codex-stage0-guarantees": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/codex/__tests__/repo.stage0Guarantees.test.ts",
+    "test:codex-stage1-detail": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/codex/__tests__/repo.stage1Detail.test.ts lib/codex/__tests__/activityDiff.test.ts lib/codex/__tests__/quickAddParse.test.ts",
+    "test:codex-stage1-templates": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/codex/__tests__/recurringRule.test.ts lib/codex/__tests__/repo.stage1Templates.test.ts",
     "test:dashboard-vc15-tip": "tsx --test lib/api/dashboard/__tests__/vc15DashboardTipCommercial.fixture.test.ts",
-    "test:clients-fail-soft": "tsx --test lib/clients/__tests__/fetchClientsList.test.ts",
-    "test:vc2a-published-immutable": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/data/__tests__/publishedVersionImmutable.stage2a.test.ts",
-    "test:vc2b-working-draft": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test --test-force-exit lib/data/__tests__/workingDraft.stage2b.test.ts",
-    "test:codex-stage1-detail": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/codex/__tests__/repo.stage1Detail.test.ts lib/codex/__tests__/activityDiff.test.ts lib/codex/__tests__/quickAddParse.test.ts"
+    "test:clients-fail-soft": "tsx --test lib/clients/__tests__/fetchClientsList.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",
     "@auth0/nextjs-auth0": "^4.11.0",
     "@babel/runtime": "^7.27.0",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-accordion": "^1.2.2",
     "@radix-ui/react-alert-dialog": "^1.1.4",
@@ -154,10 +158,7 @@
     "tailwindcss-animate": "^1.0.7",
     "ts-node": "^10.9.2",
     "zod": "^4.3.6",
-    "zustand": "^5.0.12",
-    "@dnd-kit/core": "^6.3.1",
-    "@dnd-kit/sortable": "^10.0.0",
-    "@dnd-kit/utilities": "^3.2.2"
+    "zustand": "^5.0.12"
   },
   "overrides": {
     "@google-cloud/storage": {
