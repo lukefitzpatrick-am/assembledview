@@ -13,7 +13,8 @@ import { fileURLToPath } from "node:url"
 const root = join(dirname(fileURLToPath(import.meta.url)), "..")
 const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))
 const suites = Object.keys(pkg.scripts ?? {}).filter(
-  (k) => k.startsWith("test:") && k !== "test:all"
+  (k) =>
+    k.startsWith("test:") && k !== "test:all" && k !== "test:coverage"
 )
 
 if (suites.length === 0) {

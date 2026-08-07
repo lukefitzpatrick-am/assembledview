@@ -2,6 +2,8 @@
 
 Living inventory (P2-1). Page dirty owned by `lib/mediaplan/mediaPlanDirtyController.ts` + `useMediaPlanDirtyController` (P2-2). Clear-on-SUCCESS is a **preserved property** pinned by `lib/mediaplan/__tests__/mediaPlanDirtyController.test.ts` (P2-3). Characterisation: `hasUnsavedChanges.characterisation.test.ts`, `ExpertApplyDirtyClearOnSave.characterisation.test.tsx`. Prior diagnosis: `docs/brain/diagnostics/mba-editor-2026-07-31.md` (unsaved section). **C-38** FIXED (OOH Apply lights pending badge).
 
+**Coverage vs confidence estimates:** historic figures such as “78%” were agent self-reports (confidence judgments), not instrumented coverage. Do not treat them as measurements. For readings, run `npm run test:coverage` (Node `--experimental-test-coverage` + Vitest v8) — it reports %, it does not gate. Page create/edit wiring is source-contract tested; V8 coverage applies to the controller module and React adapters only.
+
 ## Model (two layers)
 
 Page navigation / Save affordance is **not** react-hook-form `formState.isDirty`. Create and edit share `useMediaPlanDirtyController` → `hasUnsavedChanges`.

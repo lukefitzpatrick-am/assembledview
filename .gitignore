@@ -74,3 +74,7 @@ scripts/ps1-sec-live-probe.mjs
 # C1 full-scope drift report (regenerate via npm run test:c1-fullscope-drift)
 scripts/c1-fullscope-drift-report.csv
 
+# Coverage readings (npm run test:coverage)
+/coverage/
+.coverage-out.txt
+

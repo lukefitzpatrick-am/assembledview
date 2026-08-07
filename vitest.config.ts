@@ -34,6 +34,7 @@ export default defineConfig({
       "components/pacing/__tests__/PacingStatusSummary.test.tsx",
       "hooks/__tests__/usePlanDraftSession.test.tsx",
       "components/mediaplans/__tests__/ExpertApplyDirtyClearOnSave.characterisation.test.tsx",
+      "lib/mediaplan/__tests__/useMediaPlanDirtyController.test.tsx",
     ],
     exclude: [
       "**/node_modules/**",
@@ -49,5 +50,17 @@ export default defineConfig({
       "lib/finance/__tests__/computeCampaignFinancials.smoke.test.ts",
       "lib/naming/__tests__/resolveNamingReferenceData.test.ts",
     ],
+    coverage: {
+      provider: "v8",
+      // Never threshold-gate — readings only (`npm run test:coverage`).
+      reportOnFailure: true,
+      include: [
+        "lib/mediaplan/mediaPlanDirtyController.ts",
+        "lib/mediaplan/useMediaPlanDirtyController.ts",
+        "components/mediaplans/ExpertApplyDirtyClearOnSave.tsx",
+      ],
+      reporter: ["text", "json-summary"],
+      reportsDirectory: "./coverage/dirty",
+    },
   },
 })
