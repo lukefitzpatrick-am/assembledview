@@ -21,7 +21,7 @@ This rule is enforced for AI tools via `/CLAUDE.md` (Claude) and `/.cursor/rules
 | [KNOWN-ISSUES.md](./KNOWN-ISSUES.md) | Recorded tech debt & security findings, with IDs. Check before "discovering" a bug that's already known |
 | [version-control-stage1-consumers.md](./version-control-stage1-consumers.md) | Stage 1 VC: every site that infers publication from `campaign_status` (input to `published_at` migration) |
 | [codex-write-failure-static.md](./codex-write-failure-static.md) | Codex tasks/team zero-writes: flag/role/page auth + create-path static diagnosis (pre-browser) |
-| [codex-team-create-never-reached.md](./codex-team-create-never-reached.md) | Why `team_members` seq never advanced while tasks insert works — path trace, no fix |
+| [codex-team-create-never-reached.md](./codex-team-create-never-reached.md) | Settled: `team_members` seq never advanced because Team create was never submitted — path live, no product fix |
 | [codex-client-id-fk.md](./codex-client-id-fk.md) | Codex `client_id` has no FK to `clients` (DI-12); API does not validate existence; options before Stage 1 |
 | [fail-soft-consumers.md](./fail-soft-consumers.md) | Fourteen `GET /api/clients` callers that ignore `x-warning: clients-unavailable` — severity ranked |
 | [READ-FAILURE-REGISTER.md](./READ-FAILURE-REGISTER.md) | M7: lib/data catch→[] conversions vs dying-at-T6 Xano page wrappers |

@@ -17,6 +17,7 @@ import {
   createTeamMember,
   getTask,
   listTasks,
+  listTeamMembers,
   softDeleteTask,
   updateTask,
   updateTeamMember,
@@ -213,6 +214,51 @@ describe("Codex Stage 0 — email normalisation", { skip: !hasDb }, () => {
   })
 })
 
+describe("Codex Stage 0 — createTeamMember round-trip", { skip: !hasDb }, () => {
+  it("insert → listTeamMembers → activity create (identity drawn)", async () => {
+    const database = getDb()
+    const email = `s0g-rt-${RUN}@example.com`
+
+    const member = await createTeamMember(
+      {
+        email,
+        name: "Round Trip Member",
+        roleTitle: "Account Manager",
+        active: true,
+        capacityNotes: "half-time Fri",
+        workingStyle: "async-first",
+      },
+      MIXED,
+      database
+    )
+    teamIds.push(member.id)
+
+    assert.ok(Number.isFinite(Number(member.id)) && Number(member.id) > 0)
+    assert.equal(member.email, email)
+    assert.equal(member.name, "Round Trip Member")
+    assert.equal(member.role_title, "Account Manager")
+    assert.equal(member.active, true)
+    assert.equal(member.capacity_notes, "half-time Fri")
+    assert.equal(member.working_style, "async-first")
+
+    const listed = await listTeamMembers(
+      { activeOnly: false, page: 1, perPage: 100 },
+      database
+    )
+    const found = listed.items.find((m) => Number(m.id) === Number(member.id))
+    assert.ok(found, "created member must appear in listTeamMembers")
+    assert.equal(found.email, email)
+    assert.equal(found.name, "Round Trip Member")
+
+    const rows = await activityFor("team_member", Number(member.id))
+    const createRow = rows.find((r) => r.action === "create")
+    assert.ok(createRow, "create must append codex_activity")
+    assert.equal(createRow.actorEmail, NORMALISED)
+    assert.equal(createRow.actorKind, "user")
+    assert.ok(createRow.after, "create activity must record after")
+  })
+})
+
 describe("Codex Stage 0 — mutation+activity atomicity", { skip: !hasDb }, () => {
   it("createTask rolls back when appendActivity throws — no task row left", async () => {
     const database = getDb()
@@ -271,6 +317,32 @@ describe("Codex Stage 0 — mutation+activity atomicity", { skip: !hasDb }, () =
     const after = await getTask(id, database)
     assert.ok(after)
     assert.equal(after.title, beforeTitle)
+  })
+
+  it("createTeamMember rolls back when appendActivity throws — no roster row left", async () => {
+    const database = getDb()
+    const email = `s0g-atom-tm-${RUN}@example.com`
+    const failing = dbThatFailsActivityWrite(database)
+
+    await assert.rejects(
+      () =>
+        createTeamMember(
+          { email, name: "Atomic Fail" },
+          MIXED,
+          failing
+        ),
+      /forced appendActivity failure/
+    )
+
+    const listed = await listTeamMembers(
+      { activeOnly: false, page: 1, perPage: 100 },
+      database
+    )
+    assert.equal(
+      listed.items.some((m) => m.email === email),
+      false,
+      "mutation must roll back when activity write fails"
+    )
   })
 })
 
