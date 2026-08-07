@@ -209,6 +209,14 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     // Shadow-phase: sidebar also gated by CODEX_SHADOW_ROLES in AppSidebar.
   },
   {
+    path: "/tasks/[id]",
+    label: "Task",
+    title: "Codex Task",
+    inPalette: false,
+    roles: ["admin"],
+    group: "core",
+  },
+  {
     path: "/pacing",
     label: "Pacing",
     title: "Pacing",
