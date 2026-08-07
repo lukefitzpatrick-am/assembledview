@@ -78,9 +78,33 @@ export type CodexTask = {
   created_by_email?: string | null
   category?: TaskCategory | string | null
   source?: TaskSource | string | null
+  /** Retainer series: boring text rule — see docs/brain/modules/codex.md */
+  recurring_rule?: string | null
+  /** When set, create/apply copies template checklist items onto the task. */
+  template_id?: number | null
   deleted_at?: string | null
   updated_at?: string | null
   created_at?: string | null
+  /** Present on list responses — checklist progress for board cards. */
+  checklist_done?: number
+  checklist_total?: number
+}
+
+/** Checklist blueprint — name + ordered labels. */
+export type TaskTemplate = {
+  id: number
+  name: string
+  description: string | null
+  created_at: string
+  /** Present on get/list-with-items responses. */
+  items?: TaskTemplateItem[]
+}
+
+export type TaskTemplateItem = {
+  id: number
+  template_id: number
+  label: string
+  sort: number
 }
 
 export type TeamMember = {
@@ -94,6 +118,42 @@ export type TeamMember = {
   default_client_ids: number[]
   created_at: string
   updated_at: string
+}
+
+/** Stage 1 detail panel — checklist row (snake_case API). */
+export type ChecklistItem = {
+  id: number
+  task_id: number
+  label: string
+  done: boolean
+  sort: number
+}
+
+/**
+ * Stage 1 detail panel — comment row.
+ * `author_kind` is `user` | `ava` (AVA comments arrive Stage 4; keep the column open).
+ */
+export type TaskComment = {
+  id: number
+  task_id: number
+  body: string
+  created_at: string
+  author_email: string | null
+  author_name: string | null
+  author_kind: "user" | "ava"
+}
+
+/** Append-only activity row (snake_case API). */
+export type CodexActivity = {
+  id: number
+  entity_type: string
+  entity_id: number
+  actor_email: string | null
+  actor_kind: string
+  action: string
+  before: unknown
+  after: unknown
+  created_at: string
 }
 
 export type CodexPagedResponse<T> = {

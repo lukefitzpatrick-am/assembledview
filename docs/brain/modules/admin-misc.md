@@ -28,7 +28,7 @@ Full module page: **[`modules/codex.md`](./codex.md)** (Stage 0 surface, API gat
 - Sidebar label is **Codex** (Luke); page keeps the shadow badge. Sidebar entry is hidden for roles outside `CODEX_SHADOW_ROLES` (`lib/codex/shadowRoles.ts`) so a visible link never 403s the team. Two tabs: Tasks | Team.
 - Default list (`mine=1`): `assignee_email = me OR created_by_email = me` (includes unassigned tasks I created). **All tasks** toggle clears that scope so null-assignee rows stay visible.
 - Clients load reads `x-warning: clients-unavailable` from `GET /api/clients` and surfaces ViewState error — `docs/brain/fail-soft-consumers.md`.
-- **`lib/codex/**` is the Tasks domain, not AVA.** DI-12 / C-39 / DI-13 tracked in KNOWN-ISSUES.
+- **`lib/codex/**` is the Tasks domain, not AVA.** DI-12 / DI-13 tracked in KNOWN-ISSUES; C-39 FIXED (`appendActivity.actorKind`).
 
 ## Knowledge hub (`src/**`)
 
