@@ -45,10 +45,13 @@ export function usePlanDraftSession(args: {
   /** VC Stage 1 — tip `published_at`; null = unpublished overwrite. */
   tipPublishedAt?: string | null
   forceIncrement?: boolean
+  /** VC Stage 2b — default save; pass publish for explicit version cut. */
+  intent?: "save" | "publish"
   getSnapshot: () => PlanDraftStateV1
   onRestore: (state: PlanDraftStateV1) => void
 }) {
-  const enabled = isPlanDraftsEnabled()
+  /** Autosave chrome (3s/15s + soft Save draft) — still flag-gated. */
+  const autosaveEnabled = isPlanDraftsEnabled()
   const [userId, setUserId] = useState(args.userId ?? "")
   const [pill, setPill] = useState<PlanSavePill | null>(null)
   const [lastAutosaveAt, setLastAutosaveAt] = useState<number | null>(null)
@@ -62,8 +65,9 @@ export function usePlanDraftSession(args: {
   const getSnapshotRef = useRef(args.getSnapshot)
   getSnapshotRef.current = args.getSnapshot
 
+  // Stage 2b: always resolve user for offer / working-draft save (flag may be off).
   useEffect(() => {
-    if (!enabled || userId) return
+    if (userId) return
     let cancelled = false
     ;(async () => {
       try {
@@ -79,7 +83,7 @@ export function usePlanDraftSession(args: {
     return () => {
       cancelled = true
     }
-  }, [enabled, userId])
+  }, [userId])
 
   // Primitive deps only — a fresh object every render re-fired the pill effect
   // (BUG-2 / max update depth on create+edit while NEXT_PUBLIC_PLAN_DRAFTS is off).
@@ -91,6 +95,7 @@ export function usePlanDraftSession(args: {
         publishedVersionNumber: args.publishedVersionNumber,
         versionRowCount: args.versionRowCount,
         tipPublishedAt: args.tipPublishedAt,
+        intent: args.intent,
       }),
     [
       args.campaignStatus,
@@ -98,15 +103,13 @@ export function usePlanDraftSession(args: {
       args.publishedVersionNumber,
       args.versionRowCount,
       args.tipPublishedAt,
+      args.intent,
     ]
   )
 
+  // Always drive the save pill from describePlanSavePill (primary mode + draft
+  // secondary). Autosave timers stay behind autosaveEnabled; pill text does not.
   useEffect(() => {
-    if (!enabled) {
-      // No-op when already null — disabled hook must never schedule a render.
-      setPill((prev) => (prev == null ? prev : null))
-      return
-    }
     const ago =
       lastAutosaveAt == null ? null : Math.max(0, (Date.now() - lastAutosaveAt) / 1000)
     setPill(
@@ -117,51 +120,55 @@ export function usePlanDraftSession(args: {
         editingUnpublishedDraft: args.dirty && modeResolved.uiMode === "overwrite",
       })
     )
-  }, [
-    enabled,
-    modeResolved,
-    lastAutosaveAt,
-    recovery,
-    args.dirty,
-  ])
+  }, [modeResolved, lastAutosaveAt, recovery, args.dirty])
 
-  const persistLocal = useCallback(async () => {
-    if (!enabled || !userId) return
-    const state = getSnapshotRef.current()
-    setPayloadBytes(estimateDraftPayloadBytes(state))
-    await writeLocalDraft({
-      masterId: args.masterId,
-      mbaNumber: args.mbaNumber,
-      userId,
-      state,
-    })
-    setLastAutosaveAt(Date.now())
-  }, [enabled, args.masterId, args.mbaNumber, userId])
-
-  const persistServer = useCallback(async () => {
-    if (!enabled || args.masterId == null || !userId) return
-    const state = getSnapshotRef.current()
-    setPayloadBytes(estimateDraftPayloadBytes(state))
-    await fetch("/api/plans/drafts", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+  const persistLocal = useCallback(
+    async (opts?: { force?: boolean }) => {
+      if ((!autosaveEnabled && !opts?.force) || !userId) return
+      const state = getSnapshotRef.current()
+      setPayloadBytes(estimateDraftPayloadBytes(state))
+      await writeLocalDraft({
         masterId: args.masterId,
-        baseVersionId: args.baseVersionId,
+        mbaNumber: args.mbaNumber,
+        userId,
         state,
-      }),
-    })
-    await clearLocalDraft({
-      masterId: args.masterId,
-      mbaNumber: args.mbaNumber,
-      userId,
-    })
-    setLastAutosaveAt(Date.now())
-  }, [enabled, args.masterId, args.mbaNumber, userId, args.baseVersionId])
+      })
+      setLastAutosaveAt(Date.now())
+    },
+    [autosaveEnabled, args.masterId, args.mbaNumber, userId]
+  )
+
+  const persistServer = useCallback(
+    async (opts?: { force?: boolean }) => {
+      if ((!autosaveEnabled && !opts?.force) || args.masterId == null || !userId) return
+      const state = getSnapshotRef.current()
+      setPayloadBytes(estimateDraftPayloadBytes(state))
+      const res = await fetch("/api/plans/drafts", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          masterId: args.masterId,
+          baseVersionId: args.baseVersionId,
+          state,
+        }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(body.error || `Draft save failed (${res.status})`)
+      }
+      await clearLocalDraft({
+        masterId: args.masterId,
+        mbaNumber: args.mbaNumber,
+        userId,
+      })
+      setLastAutosaveAt(Date.now())
+    },
+    [autosaveEnabled, args.masterId, args.mbaNumber, userId, args.baseVersionId]
+  )
 
   // Tier 1 ~3s after dirty
   useEffect(() => {
-    if (!enabled || !args.dirty) return
+    if (!autosaveEnabled || !args.dirty) return
     if (localTimer.current) clearTimeout(localTimer.current)
     localTimer.current = setTimeout(() => {
       void persistLocal()
@@ -169,11 +176,11 @@ export function usePlanDraftSession(args: {
     return () => {
       if (localTimer.current) clearTimeout(localTimer.current)
     }
-  }, [enabled, args.dirty, persistLocal])
+  }, [autosaveEnabled, args.dirty, persistLocal])
 
   // Tier 2 ~15s + blur
   useEffect(() => {
-    if (!enabled || !args.dirty || args.masterId == null) return
+    if (!autosaveEnabled || !args.dirty || args.masterId == null) return
     if (serverTimer.current) clearTimeout(serverTimer.current)
     serverTimer.current = setTimeout(() => {
       void persistServer()
@@ -186,11 +193,11 @@ export function usePlanDraftSession(args: {
       if (serverTimer.current) clearTimeout(serverTimer.current)
       window.removeEventListener("blur", onBlur)
     }
-  }, [enabled, args.dirty, args.masterId, persistServer])
+  }, [autosaveEnabled, args.dirty, args.masterId, persistServer])
 
-  // On mount: offer recovery + other editors
+  // On mount: OFFER recovery (never auto-apply) + other editors — Stage 2b always on.
   useEffect(() => {
-    if (!enabled || !userId) return
+    if (!userId) return
     let cancelled = false
     ;(async () => {
       const local = await readLocalDraft({
@@ -257,7 +264,7 @@ export function usePlanDraftSession(args: {
     return () => {
       cancelled = true
     }
-  }, [enabled, args.masterId, args.mbaNumber, userId])
+  }, [args.masterId, args.mbaNumber, userId])
 
   const discard = useCallback(async () => {
     if (!userId) return
@@ -280,16 +287,23 @@ export function usePlanDraftSession(args: {
   }, [recovery, args])
 
   const saveDraftNow = useCallback(async () => {
-    await persistLocal()
-    await persistServer()
-  }, [persistLocal, persistServer])
+    if (!userId) {
+      throw new Error("Not signed in — cannot save working draft")
+    }
+    if (args.masterId == null) {
+      throw new Error("Missing master id — cannot save working draft")
+    }
+    await persistLocal({ force: true })
+    await persistServer({ force: true })
+  }, [persistLocal, persistServer, userId, args.masterId])
 
   const clearAfterPublish = useCallback(async () => {
     await discard()
   }, [discard])
 
   return {
-    enabled,
+    /** Autosave / soft Save draft chrome — flag-gated. */
+    enabled: autosaveEnabled,
     pill,
     recovery,
     others,

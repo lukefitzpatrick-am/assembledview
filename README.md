@@ -130,6 +130,10 @@ Repo scripts: `npm run snowflake:migrate:pacing`, `npm run pacing:backfill:searc
 - `NEXT_PUBLIC_DEBUG_AUTH=true` — logs middleware auth decisions ([middleware.ts](middleware.ts))
 - `NEXT_PUBLIC_DEBUG_SNOWFLAKE=true` — extra Snowflake pool logging ([lib/snowflake/pool.ts](lib/snowflake/pool.ts))
 
+### Feature flags (client)
+
+- `NEXT_PUBLIC_PLAN_DRAFTS=on|off` (default **off**) — PC7 autosave chrome (3s IndexedDB / 15s server, soft Save draft, pill secondary). Turning **off** does **not** delete `plan_working_drafts`: rows stay in Postgres; Stage 2b load offer and save-on-published working draft remain reachable. Local: set in [env.local.example](env.local.example) / `.env.local` and restart `next dev`. Prod: Luke sets Vercel at merge — not from Cursor.
+
 ---
 
 ## Authorization behavior (middleware)

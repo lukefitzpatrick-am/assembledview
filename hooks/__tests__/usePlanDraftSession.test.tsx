@@ -30,6 +30,7 @@ function Probe(props: {
     campaignStatus: "Draft",
     publishedVersionNumber: 2,
     versionRowCount: 2,
+    tipPublishedAt: null,
     getSnapshot: () => EMPTY_SNAPSHOT,
     onRestore: () => {},
   })
@@ -77,27 +78,28 @@ describe("usePlanDraftSession disabled path (NEXT_PUBLIC_PLAN_DRAFTS off)", () =
     })
   }
 
-  it("keeps pill null across remounts without runaway renders when drafts are off", () => {
+  it("keeps modeResolved stable and pill from describePlanSavePill without runaway renders when drafts are off", () => {
     mount(0)
     expect(latest?.enabled).toBe(false)
-    expect(latest?.pill).toBeNull()
+    // Pill always comes from describePlanSavePill (mode primary); autosave chrome stays off.
+    expect(latest?.pill?.primary).toMatch(/Draft of v2|Working draft|Publish will create/i)
 
     const modeAfterMount = latest?.modeResolved
+    const pillAfterMount = latest?.pill
     expect(modeAfterMount).toBeTruthy()
 
     // Force many parent re-renders with identical hook inputs. Before the fix,
     // modeResolved was a fresh object every render → pill effect re-fired every
-    // time. With setPill(null) on the disabled path that could cascade into
-    // max-update-depth when combined with editor churn.
+    // time and could cascade into max-update-depth.
     for (let i = 1; i <= 25; i++) {
       mount(i)
     }
 
     expect(latest?.enabled).toBe(false)
-    expect(latest?.pill).toBeNull()
     // One result callback per committed render — not an exploding cascade.
     expect(renderPasses).toBeLessThanOrEqual(30)
     // Identity of modeResolved must be stable when inputs are unchanged.
     expect(latest?.modeResolved).toBe(modeAfterMount)
+    expect(latest?.pill?.primary).toBe(pillAfterMount?.primary)
   })
 })

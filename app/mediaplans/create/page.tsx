@@ -5357,9 +5357,7 @@ function CreateMediaPlan() {
         })
 
         setSaveModeLabel(
-          modeResolved.uiMode === "overwrite"
-            ? formatSaveModeLabel("overwrite", modeResolved.versionNumber)
-            : formatSaveModeLabel("increment", modeResolved.versionNumber)
+          formatSaveModeLabel(modeResolved.uiMode, modeResolved.versionNumber)
         )
 
         const lineItemsForSave = buildSavePlanLineItemsFromSnapshots(
@@ -5408,6 +5406,9 @@ function CreateMediaPlan() {
 
         updateSaveStatus("Save plan (transactional)", "pending")
         const budgetCents = dollarsToCampaignBudgetCents(fv.mp_campaignbudget)
+        if (modeResolved.mode == null) {
+          throw new Error("working_draft must not POST /api/plans/save")
+        }
         const saveResult = await postPlansSave(
           assemblePlansSaveRequestBody(
             {
@@ -7124,7 +7125,7 @@ const handleSaveAll = async () => {
           totals are inflated
         </div>
       ) : null}
-      {planDraft.enabled && planDraft.recovery ? (
+      {planDraft.recovery ? (
         <PlanDraftRecoveryBanner
           summary={planDraft.recovery.summary}
           reason={planDraft.recovery.reason}
@@ -7133,10 +7134,10 @@ const handleSaveAll = async () => {
           onCompare={() => planDraft.setCompareOpen(true)}
           onDiscard={() => void planDraft.discard()}
         />
-      ) : planDraft.enabled && otherEditorLabel ? (
+      ) : otherEditorLabel ? (
         <p className="mb-2 text-xs text-muted-foreground">{otherEditorLabel}</p>
       ) : null}
-      {planDraft.enabled && planDraft.pill ? (
+      {planDraft.pill ? (
         <PlanDraftPill pill={planDraft.pill} tipLabel={null} />
       ) : predictedSaveModeLabel ? (
         <p className="text-xs text-muted-foreground">{predictedSaveModeLabel}</p>
@@ -7147,7 +7148,7 @@ const handleSaveAll = async () => {
           onClose={() => planDraft.setStaleCompare(null)}
         />
       ) : null}
-      {planDraft.enabled && planDraft.compareOpen && draftTipCompare ? (
+      {planDraft.compareOpen && draftTipCompare ? (
         <PlanDraftTipCompareDialog
           added={draftTipCompare.added}
           removed={draftTipCompare.removed}
@@ -7190,7 +7191,7 @@ const handleSaveAll = async () => {
         <Button
           type="button"
           variant="action"
-          onClick={handleSaveAll}
+          onClick={() => void handleSaveAll()}
           disabled={isWizardSaving || saveBlockedByDuplicates || saveBlockedByClientsError}
           title={
             saveBlockedByClientsError
@@ -8933,7 +8934,7 @@ const handleSaveAll = async () => {
       <UnsavedChangesDialog
         open={isUnsavedPromptOpen}
         onStay={stayOnPage}
-        onSave={handleSaveAll}
+        onSave={() => void handleSaveAll()}
         onLeave={confirmNavigation}
         isSaving={isLoading || isPlanSaving || isVersionSaving}
         saveDisabled={saveBlockedByDuplicates || saveBlockedByClientsError}

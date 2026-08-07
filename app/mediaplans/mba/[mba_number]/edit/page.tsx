@@ -6643,6 +6643,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       publishedVersionNumber,
       versionRowCount: availableVersions.length,
       tipPublishedAt,
+      intent: "save",
     })
     return formatSaveModeLabel(modeResolved.uiMode, modeResolved.versionNumber)
   }, [
@@ -7090,7 +7091,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     // from publisher/client tables only
   }, [])
 
-  const handleSaveAll = async () => {
+  const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
+    const saveIntent = opts?.intent === "publish" ? "publish" : "save"
     if (saveBlockedByClientsError) {
       toast({
         title: "Save disabled",
@@ -7534,13 +7536,39 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               ? (mediaPlan as { published_at?: string | null }).published_at
               : availableVersions.find((v) => v.version_number === publishedVersionNumber)
                   ?.published_at,
+          intent: saveIntent,
         })
 
         setSaveModeLabel(
-          modeResolved.uiMode === "overwrite"
-            ? formatSaveModeLabel("overwrite", modeResolved.versionNumber)
-            : formatSaveModeLabel("increment", modeResolved.versionNumber)
+          formatSaveModeLabel(modeResolved.uiMode, modeResolved.versionNumber)
         )
+
+        // VC Stage 2b: save on a published tip writes a working draft — never
+        // touch the version row and never cut a new version.
+        if (modeResolved.uiMode === "working_draft") {
+          updateSaveStatus("Save plan (transactional)", "pending")
+          try {
+            await planDraft.saveDraftNow()
+          } catch (draftErr: any) {
+            const human = draftErr?.message || String(draftErr)
+            updateSaveStatus("Save plan (transactional)", "error", human)
+            toast({
+              variant: "destructive",
+              title: "Draft save failed",
+              description: human,
+            })
+            setIsSaving(false)
+            return
+          }
+          updateSaveStatus("Save plan (transactional)", "success")
+          setHasUnsavedChanges(false)
+          toast({
+            title: "Working draft saved",
+            description: `Draft of v${modeResolved.versionNumber} stored — publish to cut the next version.`,
+          })
+          setIsSaving(false)
+          return
+        }
 
         let lineItemsForSave
         try {
@@ -7603,6 +7631,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           throw new Error(
             "Cannot resolve media_plan_masters id (missing media_plan_master_id on loaded plan)"
           )
+        }
+        if (modeResolved.mode == null) {
+          throw new Error("working_draft must not POST /api/plans/save")
         }
         const saveResult = await postPlansSave(
           assemblePlansSaveRequestBody(
@@ -11135,7 +11166,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           totals are inflated
         </div>
       ) : null}
-      {planDraft.enabled && planDraft.recovery ? (
+      {planDraft.recovery ? (
         <PlanDraftRecoveryBanner
           summary={planDraft.recovery.summary}
           reason={planDraft.recovery.reason}
@@ -11144,10 +11175,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           onCompare={() => planDraft.setCompareOpen(true)}
           onDiscard={() => void planDraft.discard()}
         />
-      ) : planDraft.enabled && otherEditorLabel ? (
+      ) : otherEditorLabel ? (
         <p className="mb-2 text-xs text-muted-foreground">{otherEditorLabel}</p>
       ) : null}
-      {planDraft.enabled && planDraft.pill ? (
+      {planDraft.pill ? (
         <PlanDraftPill
           pill={planDraft.pill}
           tipLabel={
@@ -11165,7 +11196,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           onClose={() => planDraft.setStaleCompare(null)}
         />
       ) : null}
-      {planDraft.enabled && planDraft.compareOpen && draftTipCompare ? (
+      {planDraft.compareOpen && draftTipCompare ? (
         <PlanDraftTipCompareDialog
           added={draftTipCompare.added}
           removed={draftTipCompare.removed}
@@ -11193,7 +11224,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         <Button
           type="button"
           variant="action"
-          onClick={handleSaveAll}
+          onClick={() => void handleSaveAll()}
           disabled={
             isSaving ||
             isLoading ||
@@ -11216,9 +11247,28 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               ? "Client list unavailable"
             : saveHeldForHydration || isLoading
               ? saveHydrationHoldReason ?? "Waiting for channels…"
-              : "Save"}
+              : isPublished
+                ? "Save draft"
+                : "Save"}
         </Button>
-        {planDraft.enabled ? (
+        {isPublished ? (
+          <Button
+            type="button"
+            variant="action"
+            onClick={() => void handleSaveAll({ intent: "publish" })}
+            disabled={
+              isSaving ||
+              isLoading ||
+              saveBlockedByDuplicates ||
+              saveHeldForHydration ||
+              saveBlockedByClientsError
+            }
+            className="h-9 shrink-0 rounded-pill px-4 shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {isSaving ? "Publishing..." : "Publish"}
+          </Button>
+        ) : null}
+        {planDraft.enabled && !isPublished ? (
           <Button
             type="button"
             variant="outline"
@@ -12466,7 +12516,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       <UnsavedChangesDialog
         open={isUnsavedPromptOpen}
         onStay={stayOnPage}
-        onSave={handleSaveAll}
+        onSave={() => void handleSaveAll()}
         onLeave={confirmNavigation}
         isSaving={isLoading || isSaving}
         saveDisabled={saveBlockedByDuplicates || saveBlockedByClientsError}
