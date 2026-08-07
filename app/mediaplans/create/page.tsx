@@ -37,6 +37,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePresetBar"
 import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApplyDirtyClearOnSave"
+import { useMediaPlanDirtyController } from "@/lib/mediaplan/useMediaPlanDirtyController"
 import { BuilderIssuesBadge } from "@/components/mediaplans/BuilderIssuesBadge"
 import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
 import { pushFinanceBuilderIssues } from "@/lib/mediaplan/pushFinanceBuilderIssues"
@@ -618,17 +619,21 @@ function CreateMediaPlan() {
   const [modalTitle, setModalTitle] = useState("");
   const [modalOutcome, setModalOutcome] = useState("");
   const [modalLoading, setModalLoading] = useState(false);
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const navigationHydratedRef = useRef(false);
+  const dirty = useMediaPlanDirtyController()
+  const {
+    hasUnsavedChanges,
+    markUnsavedChanges,
+    forceDirty,
+    clearDirtyOnSaveSuccess,
+    closeGate,
+    openGate,
+    isGateOpen,
+  } = dirty
   const prefillDoneRef = useRef(false);
   /** Frozen planner create_targets for the “From planner” strip (not MEDIA lines). */
   const [plannerCreateTargets, setPlannerCreateTargets] = useState<CreateTargetRow[]>(
     []
   );
-  const markUnsavedChanges = useCallback(() => {
-    if (!navigationHydratedRef.current) return;
-    setHasUnsavedChanges(true);
-  }, []);
   // Media type display names mapping
   const mediaTypeDisplayNames: Record<string, string> = {
     mp_television: 'Television',
@@ -947,8 +952,8 @@ function CreateMediaPlan() {
   const billingTimingLocked = isApprovedOrBeyond(form.watch("mp_campaignstatus"))
 
   useEffect(() => {
-    navigationHydratedRef.current = true;
-  }, []);
+    openGate();
+  }, [openGate]);
 
   useEffect(() => {
     kpiRowsRef.current = kpiRows
@@ -3435,8 +3440,8 @@ function CreateMediaPlan() {
     }
 
     async function run() {
-      const prevHydrated = navigationHydratedRef.current
-      navigationHydratedRef.current = false
+      const prevHydrated = isGateOpen()
+      closeGate()
       try {
         if (campaignName) {
           form.setValue("mp_campaignname", campaignName, { shouldDirty: false })
@@ -3460,7 +3465,8 @@ function CreateMediaPlan() {
         }
       } finally {
         if (!cancelled) {
-          navigationHydratedRef.current = prevHydrated
+          if (prevHydrated) openGate()
+          else closeGate()
           prefillDoneRef.current = true
         }
       }
@@ -4534,7 +4540,7 @@ function CreateMediaPlan() {
     setManualBillingDraftReady(false)
     setIsMbaBillingModalOpen(false)
     setBillingError({ show: false, messages: [] })
-    setHasUnsavedChanges(true)
+    forceDirty()
     toast({
       title: "Manual billing applied",
       description:
@@ -4967,7 +4973,7 @@ function CreateMediaPlan() {
       if (ch.progAudio) setProgAudioMediaLineItems(ch.progAudio)
       if (ch.progOoh) setProgOohMediaLineItems(ch.progOoh)
       if (ch.influencers) setInfluencersMediaLineItems(ch.influencers)
-      setHasUnsavedChanges(true)
+      forceDirty()
     },
   })
 
@@ -5091,7 +5097,7 @@ function CreateMediaPlan() {
         title: "Version published",
         description: `Version ${versionNumber} is now live.`,
       })
-      setHasUnsavedChanges(false)
+      clearDirtyOnSaveSuccess()
       form.reset(form.getValues())
       router.push("/mediaplans")
     } catch (err: any) {
@@ -5105,7 +5111,7 @@ function CreateMediaPlan() {
     } finally {
       setIsRetryingPublish(false)
     }
-  }, [pendingPublishRetry, isRetryingPublish, patchPublishStatus, toast, form, router])
+  }, [pendingPublishRetry, isRetryingPublish, patchPublishStatus, toast, form, router, clearDirtyOnSaveSuccess])
 
   const handleSaveMediaPlan = async () => {
     const existingId = mediaPlanIdRef.current
@@ -6654,7 +6660,7 @@ const handleSaveAll = async () => {
       if (versionResult === 'publish_pending') {
         return
       }
-      setHasUnsavedChanges(false)
+      clearDirtyOnSaveSuccess()
       form.reset(form.getValues())
       router.push('/mediaplans')
     } catch {

@@ -29,6 +29,7 @@ import { MultiSelectCombobox, type MultiSelectOption } from "@/components/ui/mul
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePresetBar"
 import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApplyDirtyClearOnSave"
+import { useMediaPlanDirtyController } from "@/lib/mediaplan/useMediaPlanDirtyController"
 import { BuilderIssuesBadge } from "@/components/mediaplans/BuilderIssuesBadge"
 import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
 import { pushFinanceBuilderIssues } from "@/lib/mediaplan/pushFinanceBuilderIssues"
@@ -2501,8 +2502,21 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   ])
 
   const [isClientModalOpen, setIsClientModalOpen] = useState(false)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const navigationHydratedRef = useRef(false)
+  const dirty = useMediaPlanDirtyController()
+  const {
+    hasUnsavedChanges,
+    markUnsavedChanges,
+    markPassiveChannelChange,
+    forceDirty,
+    clearDirtyOnSaveSuccess,
+    clearDirtyForHydration,
+    closeGate,
+    openGate,
+    isGateOpen,
+    resetPassiveQuiet,
+    quietPassiveForMs,
+    runWithGateClosed,
+  } = dirty
 
   const form = useForm<MediaPlanFormValues>({
     resolver: zodResolver(mediaPlanSchema),
@@ -2527,14 +2541,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     },
   })
 
-  /** Ignores post-fee channel republishes that arrive after the dirty gate opens. */
-  const ignorePassiveDirtyUntilRef = useRef(0)
   const [clientBootstrapDone, setClientBootstrapDone] = useState(false)
-
-  const markUnsavedChanges = useCallback(() => {
-    if (!navigationHydratedRef.current) return
-    setHasUnsavedChanges(true)
-  }, [])
 
   /** MB-21: pending Applied billing must trip the existing unsaved affordance. */
   useEffect(() => {
@@ -2542,13 +2549,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       markUnsavedChanges()
     }
   }, [pendingBillingOverrideRows, markUnsavedChanges])
-
-  /** Totals / line-item publishes — silent during bootstrap + short post-fee settle. */
-  const markPassiveChannelChange = useCallback(() => {
-    if (!navigationHydratedRef.current) return
-    if (Date.now() < ignorePassiveDirtyUntilRef.current) return
-    setHasUnsavedChanges(true)
-  }, [])
 
   const shouldBlockNavigation = hasUnsavedChanges && !isSaving && !isLoading
   const { isOpen: isUnsavedPromptOpen, confirmNavigation, stayOnPage, requestNavigation } = useUnsavedChangesPrompt(shouldBlockNavigation)
@@ -2866,7 +2866,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     form,
   ])
 
-  // Dirty tracking stays closed until allChannelsHydrated flips navigationHydratedRef
+  // Dirty tracking stays closed until allChannelsHydrated opens the dirty gate
   // (see effect below). Do not open the gate on mount — form.reset + container
   // passive hydrate would otherwise mark the form dirty.
 
@@ -3032,8 +3032,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   // Reset client-fee / mbaidentifier bootstrap when the MBA (or version) changes.
   useEffect(() => {
     setClientBootstrapDone(false)
-    ignorePassiveDirtyUntilRef.current = 0
-  }, [mbaNumber, versionNumber])
+    resetPassiveQuiet()
+  }, [mbaNumber, versionNumber, resetPassiveQuiet])
 
   // Open dirty tracking only after every expected channel has settled AND the
   // client-lookup bootstrap (mbaidentifier + fees) has finished, plus a short
@@ -3041,17 +3041,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   // do not flip hasUnsavedChanges.
   useEffect(() => {
     if (!allChannelsHydrated || !clientBootstrapDone) {
-      navigationHydratedRef.current = false
+      closeGate()
       return
     }
-    setHasUnsavedChanges(false)
-    navigationHydratedRef.current = false
+    clearDirtyForHydration()
+    closeGate()
     const id = window.setTimeout(() => {
-      setHasUnsavedChanges(false)
-      navigationHydratedRef.current = true
+      clearDirtyForHydration()
+      openGate()
     }, 400)
     return () => window.clearTimeout(id)
-  }, [allChannelsHydrated, clientBootstrapDone])
+  }, [
+    allChannelsHydrated,
+    clientBootstrapDone,
+    clearDirtyForHydration,
+    closeGate,
+    openGate,
+  ])
 
   /**
    * P5: A channel toggled on after initial hydration never enters the
@@ -3791,8 +3797,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         // Update form with the fetched data
         form.reset(formData)
         // Keep dirty gate closed until channel containers finish hydrating.
-        navigationHydratedRef.current = false
-        setHasUnsavedChanges(false)
+        closeGate()
+        clearDirtyForHydration()
         
         console.log("[DATA LOAD] Form reset completed")
         
@@ -3888,7 +3894,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           // Set all fees from client data (ensuring they're applied to state)
           applyClientFees(client)
           // Quiet window for fee-driven container republishes after the dirty gate opens.
-          ignorePassiveDirtyUntilRef.current = Date.now() + 2500
+          quietPassiveForMs(2500)
           
           // Set client address fields
           setClientAddress(client.streetaddress || "")
@@ -3901,10 +3907,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           const nextMbaId = client.mbaidentifier || ""
           if (form.getValues("mbaidentifier") !== nextMbaId) {
             // Bootstrap write: must not trip form.watch → unsaved dialog.
-            const wasHydrated = navigationHydratedRef.current
-            navigationHydratedRef.current = false
-            form.setValue("mbaidentifier", nextMbaId, { shouldDirty: false })
-            navigationHydratedRef.current = wasHydrated
+            runWithGateClosed(() => {
+              form.setValue("mbaidentifier", nextMbaId, { shouldDirty: false })
+            })
           }
           
           console.log("[CLIENT LOOKUP] Client fees loaded:", {
@@ -6739,7 +6744,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       if (ch.progAudio) setProgAudioMediaLineItems(ch.progAudio)
       if (ch.progOoh) setProgOohMediaLineItems(ch.progOoh)
       if (ch.influencers) setInfluencersMediaLineItems(ch.influencers)
-      setHasUnsavedChanges(true)
+      forceDirty()
     },
   })
 
@@ -7561,7 +7566,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             return
           }
           updateSaveStatus("Save plan (transactional)", "success")
-          setHasUnsavedChanges(false)
+          clearDirtyOnSaveSuccess()
           toast({
             title: "Working draft saved",
             description: `Draft of v${modeResolved.versionNumber} stored — publish to cut the next version.`,
@@ -7901,7 +7906,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         setClearedBillingOverrideLineIds([])
         setPendingBillingOverrideRows([])
         pendingBillingOverrideMetaRef.current = new Map()
-        setHasUnsavedChanges(false)
+        clearDirtyOnSaveSuccess()
         router.push("/mediaplans")
         setIsSaving(false)
         return
@@ -8861,7 +8866,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
       
       // Navigate to mediaplans page after successful save
-      setHasUnsavedChanges(false)
+      clearDirtyOnSaveSuccess()
       router.push('/mediaplans')
     } catch (error: any) {
       console.error("Error saving:", error)

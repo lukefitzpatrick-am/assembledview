@@ -1,19 +1,19 @@
 # Dirty-state inventory (MBA create/edit)
 
-Living inventory (P2-1). Behaviour-change-free. Characterisation pins: `lib/mediaplan/__tests__/hasUnsavedChanges.characterisation.test.ts`, `components/mediaplans/__tests__/ExpertApplyDirtyClearOnSave.characterisation.test.tsx`. Prior diagnosis: `docs/brain/diagnostics/mba-editor-2026-07-31.md` (unsaved section). Known gap: **C-38** in `KNOWN-ISSUES.md`.
+Living inventory (P2-1). Page dirty owned by `lib/mediaplan/mediaPlanDirtyController.ts` + `useMediaPlanDirtyController` (P2-2). Clear-on-SUCCESS is a **preserved property** pinned by `lib/mediaplan/__tests__/mediaPlanDirtyController.test.ts` (P2-3). Characterisation: `hasUnsavedChanges.characterisation.test.ts`, `ExpertApplyDirtyClearOnSave.characterisation.test.tsx`. Prior diagnosis: `docs/brain/diagnostics/mba-editor-2026-07-31.md` (unsaved section). **C-38** FIXED (OOH Apply lights pending badge).
 
 ## Model (two layers)
 
-Page navigation / Save affordance is **not** react-hook-form `formState.isDirty`. Create and edit own a hand-rolled `hasUnsavedChanges` boolean.
+Page navigation / Save affordance is **not** react-hook-form `formState.isDirty`. Create and edit share `useMediaPlanDirtyController` → `hasUnsavedChanges`.
 
 Expert Mode has a second, softer flag: `expertApplyPendingPageSave` (“Applied earlier — awaiting page Save”). That badge clears only when the page dirty flag falls **true → false**, via `ExpertApplyDirtyClearOnSave` → `signalMediaPlanPageSaved` → container subscribers (`lib/mediaplan/expertApplyDirtyBridge.ts`).
 
 | Layer | State | Sets when | Clears when |
 |---|---|---|---|
-| Page | `hasUnsavedChanges` | Form watch, channel totals/lines (after gate), billing Apply, draft resume, etc. | Save **SUCCESS** paths; load/hydration reset (not save attempt) |
-| Expert soft badge | `expertApplyPendingPageSave` | Expert Apply (`setTrue`) | Page-saved window event (driven by page dirty true→false) |
+| Page | `hasUnsavedChanges` (controller) | `markUnsavedChanges` / `markPassiveChannelChange` / `forceDirty` | `clearDirtyOnSaveSuccess` (save only); `clearDirtyForHydration` (load/gate) |
+| Expert soft badge | `expertApplyPendingPageSave` | Expert Apply (`setTrue`) — all 14 bespoke + hook | Page-saved window event (driven by page dirty true→false) |
 
-**Clear timing verdict:** every `setHasUnsavedChanges(false)` on the save path is after a successful draft/version/publish step. Failed save / early return / outer catch leave dirty. No clear-on-ATTEMPT.
+**Clear timing verdict (PROPERTY):** every save-path clear is `clearDirtyOnSaveSuccess` after a successful draft/version/publish step. Failed save / early return / outer catch leave dirty. There is no clear-on-attempt API.
 
 ---
 
@@ -45,7 +45,7 @@ Fourteen `*Container.tsx` files hold local `expertApplyPendingPageSave`. The fif
 | 2 | `RadioContainer` | Bespoke | yes | yes | same |
 | 3 | `NewspaperContainer` | Bespoke | yes | yes | same |
 | 4 | `MagazinesContainer` | Bespoke | yes | yes | same |
-| 5 | `OOHContainer` | Bespoke | yes (UI wired) | **no — C-38** | subscribe only (never lit) |
+| 5 | `OOHContainer` | Bespoke | yes | yes (C-38 fixed) | same |
 | 6 | `CinemaContainer` | Bespoke | yes | yes | same |
 | 7 | `DigitalDisplayContainer` | Bespoke | yes | yes | same |
 | 8 | `DigitalAudioContainer` | Bespoke | yes | yes | same |
@@ -101,16 +101,15 @@ Same hand-rolled pattern: `markUnsavedChanges` gated by `navigationHydratedRef` 
 
 | Site | Mechanism | Sets dirty when | Clears dirty when | SUCCESS vs ATTEMPT | Notes |
 |---|---|---|---|---|---|
-| Edit `handleSaveAll` working_draft branch | `setHasUnsavedChanges(false)` after `planDraft.saveDraftNow()` | — | After draft save succeeds | **SUCCESS** | Early return on draft failure; dirty kept |
+| Edit `handleSaveAll` working_draft branch | `clearDirtyOnSaveSuccess` after `planDraft.saveDraftNow()` | — | After draft save succeeds | **SUCCESS** | Early return on draft failure; dirty kept |
 | Edit `handleSaveAll` postgres/path success | clear then `router.push` | — | After save + KPI/approval side paths that reached success toast | **SUCCESS** | |
-| Edit `handleSaveAll` legacy Xano success | clear then navigate | — | End of try, after success toast | **SUCCESS** | Outer `catch` does **not** clear (characterisation) |
+| Edit `handleSaveAll` legacy Xano success | clear then navigate | — | End of try, after success toast | **SUCCESS** | Outer `catch` does **not** clear (characterisation + P2-3) |
 | Edit `handleSaveAll` entry / early returns | none | — | — | **ATTEMPT does not clear** | Hydration hold, clients error, duplicates, billing-overrides block, user cancels overspend confirm |
-| Create `handleSaveAll` | clear after version save | — | After `handleSaveMediaPlanVersion` completes (not `publish_pending`) | **SUCCESS** | `publish_pending` returns without clear |
+| Create `handleSaveAll` | `clearDirtyOnSaveSuccess` after version save | — | After `handleSaveMediaPlanVersion` completes (not `publish_pending`) | **SUCCESS** | `publish_pending` returns without clear |
 | Create publish-retry | clear on ok | — | After `publishResponse.ok` | **SUCCESS** | `!ok` / catch: no clear |
-| Edit hydration gate effect | `setHasUnsavedChanges(false)` ×2 | — | When channels + client bootstrap ready (+400ms) | **LOAD / gate** | Not a save; can true→false-fire Expert bridge if dirty was already true |
-| Edit form `reset` on plan load | `setHasUnsavedChanges(false)` + gate closed | — | Data load | **LOAD** | |
-| Expert Apply (13 + hook) | `setExpertApplyPendingPageSave(true)` | Apply | — | n/a (sets soft badge) | Also dirties page via `form.setValue(…, { shouldDirty: true })` + watch |
-| Expert Apply OOH | missing `setTrue` | Apply still dirties page via form | — | **C-38** | Badge never lights |
+| Edit hydration gate effect | `clearDirtyForHydration` ×2 | — | When channels + client bootstrap ready (+400ms) | **LOAD / gate** | Not a save; can true→false-fire Expert bridge if dirty was already true |
+| Edit form `reset` on plan load | `clearDirtyForHydration` + gate closed | — | Data load | **LOAD** | |
+| Expert Apply (14 + hook) | `setExpertApplyPendingPageSave(true)` | Apply | — | n/a (sets soft badge) | Also dirties page via `form.setValue(…, { shouldDirty: true })` + watch |
 | Expert badge clear (all subscribers) | `subscribeMediaPlanPageSaved` → false | — | When page dirty true→false | **Coupled to page clear** | Includes accidental clear-if-any; not discard |
 | Expert modal discard | close modal | — | Does **not** clear page dirty or pending badge | **DISCARD (modal only)** | Unapplied grid edits only |
 | Unsaved dialog Leave | `confirmNavigation` | — | Does not clear flag (navigates away) | **NAVIGATION** | |
@@ -137,9 +136,9 @@ Page Save SUCCESS (or any true→false of hasUnsavedChanges)
 
 ---
 
-## C-38 — OOH gap (still open)
+## C-38 — OOH gap (FIXED)
 
-`OOHContainer` subscribes and renders the badge UI, but `handleExpertApply` omits `setExpertApplyPendingPageSave(true)`. Peers (13 bespoke + `useMediaChannelContainer`) set it. Soft badge never appears for OOH. Fix: add the missing `setTrue` on Apply; do not conflate with Save-gating work. Pinned by characterisation test “KNOWN DEVIATION / C-38”.
+`OOHContainer.handleExpertApply` sets `setExpertApplyPendingPageSave(true)` with its 13 bespoke peers + `useMediaChannelContainer`. Characterisation requires the setTrue.
 
 ---
 

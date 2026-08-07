@@ -428,6 +428,7 @@ export default function OohContainer({
     );
     setOohExpertExitConfirmOpen(false);
     collapseAllLineItems();
+    setExpertApplyPendingPageSave(true);
     setOohExpertModalOpen(false);
   }, [
     campaignStartDate,

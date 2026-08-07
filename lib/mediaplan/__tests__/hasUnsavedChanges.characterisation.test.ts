@@ -111,18 +111,21 @@ const CONTAINERS_THAT_SET_PENDING_ON_APPLY = [
   "TelevisionContainer.tsx",
 ] as const
 
-test("CHARACTERISATION: 13 bespoke containers + hook set expertApplyPendingPageSave(true) on Apply", () => {
-  for (const file of CONTAINERS_THAT_SET_PENDING_ON_APPLY) {
+test("CHARACTERISATION: 13 bespoke containers + hook + OOH set expertApplyPendingPageSave(true) on Apply", () => {
+  for (const file of [
+    ...CONTAINERS_THAT_SET_PENDING_ON_APPLY,
+    "OOHContainer.tsx",
+  ]) {
     const src = read(`components/media-containers/${file}`)
     assert.match(
       src,
       /setExpertApplyPendingPageSave\(true\)/,
-      `${file} must light the soft badge on Expert Apply (CURRENT)`
+      `${file} must light the soft badge on Expert Apply`
     )
     assert.match(
       src,
       /subscribeMediaPlanPageSaved\(\(\) => setExpertApplyPendingPageSave\(false\)\)/,
-      `${file} must clear badge on page-saved signal (CURRENT)`
+      `${file} must clear badge on page-saved signal`
     )
   }
   const hook = read("lib/mediaplan/useMediaChannelContainer.ts")
@@ -133,18 +136,13 @@ test("CHARACTERISATION: 13 bespoke containers + hook set expertApplyPendingPageS
   )
 })
 
-test("CHARACTERISATION (KNOWN DEVIATION / C-38): OOHContainer never sets expertApplyPendingPageSave(true)", () => {
+test("CHARACTERISATION (C-38 FIXED): OOHContainer sets expertApplyPendingPageSave(true) on Apply", () => {
   const ooh = read("components/media-containers/OOHContainer.tsx")
   assert.match(
     ooh,
     /subscribeMediaPlanPageSaved\(\(\) => setExpertApplyPendingPageSave\(false\)\)/
   )
-  assert.match(ooh, /expertApplyPendingPageSave/)
-  assert.doesNotMatch(
-    ooh,
-    /setExpertApplyPendingPageSave\(true\)/,
-    "documents CURRENT OOH omission — do not 'fix' without an intentional product change"
-  )
+  assert.match(ooh, /setExpertApplyPendingPageSave\(true\)/)
 })
 
 test("CHARACTERISATION: MediaChannelContainer consumes hook pending flag (does not own setTrue)", () => {
@@ -177,7 +175,8 @@ test("CHARACTERISATION: Prog*/Search thin containers have no local expertApplyPe
 test("CHARACTERISATION edit page: dirty sources and clear sites", () => {
   const edit = read("app/mediaplans/mba/[mba_number]/edit/page.tsx")
 
-  assert.match(edit, /navigationHydratedRef\.current = true/)
+  assert.match(edit, /useMediaPlanDirtyController/)
+  assert.match(edit, /openGate\(/)
   assert.match(edit, /markUnsavedChanges/)
   assert.match(edit, /markPassiveChannelChange/)
   assert.match(edit, /form\.watch\(\(\) => \{\s*markUnsavedChanges\(\)/s)
@@ -195,7 +194,7 @@ test("CHARACTERISATION edit page: dirty sources and clear sites", () => {
   )
 
   const saveBtn = edit.match(
-    /onClick=\{handleSaveAll\}[\s\S]{0,200}disabled=\{([^}]+)\}/
+    /onClick=\{\(\) => void handleSaveAll\(\)\}[\s\S]{0,280}disabled=\{([\s\S]*?)\}/
   )
   assert.ok(saveBtn, "main Save button disabled expression must exist")
   assert.doesNotMatch(
@@ -213,7 +212,7 @@ test("CHARACTERISATION edit page: dirty sources and clear sites", () => {
 test("CHARACTERISATION edit page: outer handleSaveAll catch does NOT clear dirty (failed save stays dirty)", () => {
   const edit = read("app/mediaplans/mba/[mba_number]/edit/page.tsx")
   const marker =
-    "Navigate to mediaplans page after successful save\n      setHasUnsavedChanges(false)\n      router.push('/mediaplans')\n    } catch (error: any) {"
+    "Navigate to mediaplans page after successful save\n      clearDirtyOnSaveSuccess()\n      router.push('/mediaplans')\n    } catch (error: any) {"
   const idx = edit.indexOf(marker)
   assert.ok(idx >= 0, "expected success-clear → outer catch sequence")
   const catchStart = edit.indexOf("} catch (error: any) {", idx)
@@ -223,13 +222,14 @@ test("CHARACTERISATION edit page: outer handleSaveAll catch does NOT clear dirty
   assert.match(outerCatch, /Error saving/)
   assert.doesNotMatch(
     outerCatch,
-    /setHasUnsavedChanges\(false\)/,
-    "FAILED save must leave hasUnsavedChanges dirty (CURRENT — if this fails, live bug)"
+    /clearDirtyOnSaveSuccess\(\)/,
+    "FAILED save must leave hasUnsavedChanges dirty (PROPERTY — clear only on success)"
   )
 })
 
 test("CHARACTERISATION create page: Save not gated; draft gated; ExpertApplyDirtyClearOnSave present", () => {
   const create = read("app/mediaplans/create/page.tsx")
+  assert.match(create, /useMediaPlanDirtyController/)
   assert.match(
     create,
     /<ExpertApplyDirtyClearOnSave\s+hasUnsavedChanges=\{hasUnsavedChanges\}\s*\/>/
@@ -240,7 +240,7 @@ test("CHARACTERISATION create page: Save not gated; draft gated; ExpertApplyDirt
   )
 
   const primarySave = create.match(
-    /onClick=\{handleSaveAll\}[\s\S]{0,200}disabled=\{([^}]+)\}/
+    /onClick=\{\(\) => void handleSaveAll\(\)\}[\s\S]{0,200}disabled=\{([^}]+)\}/
   )
   assert.ok(primarySave)
   assert.doesNotMatch(
@@ -263,7 +263,7 @@ test("CHARACTERISATION create page: failed publish-retry (!ok) returns without c
   const branch = create.slice(start, end)
   assert.match(branch, /Publish retry failed/)
   assert.match(branch, /return/)
-  assert.doesNotMatch(branch, /setHasUnsavedChanges\(false\)/)
+  assert.doesNotMatch(branch, /clearDirtyOnSaveSuccess\(\)/)
 })
 
 test("CHARACTERISATION create page: successful publish-retry DOES clear dirty then navigate (CURRENT)", () => {
@@ -272,7 +272,7 @@ test("CHARACTERISATION create page: successful publish-retry DOES clear dirty th
   const end = create.indexOf("} catch (err: any) {", start)
   assert.ok(start >= 0 && end > start)
   const ok = create.slice(start, end)
-  assert.match(ok, /setHasUnsavedChanges\(false\)/)
+  assert.match(ok, /clearDirtyOnSaveSuccess\(\)/)
   assert.match(ok, /router\.push\("\/mediaplans"\)/)
 })
 
