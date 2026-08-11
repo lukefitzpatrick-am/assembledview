@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import {
   BillingOverrideWriteError,
@@ -46,6 +47,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    const access = await checkClientMbaAccess(request, mbaNumber)
+    if (!access.ok) return access.response
 
     const component =
       b.component != null

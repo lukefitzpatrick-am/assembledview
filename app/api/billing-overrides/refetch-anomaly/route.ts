@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { sql } from "drizzle-orm"
+import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { getDb } from "@/db"
 import {
@@ -52,6 +53,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    const access = await checkClientMbaAccess(request, mba)
+    if (!access.ok) return access.response
 
     const payload = buildBillingOverridesRefetchAnomalyPayload({
       versionId: versionId as string | number,

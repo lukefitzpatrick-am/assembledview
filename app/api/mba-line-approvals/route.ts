@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { readMbaLineApprovals } from "@/lib/data/readApprovals"
 import { writeMbaLineApprovals } from "@/lib/data/writeApprovals"
@@ -33,6 +34,9 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    const access = await checkClientMbaAccess(request, mbaNumber)
+    if (!access.ok) return access.response
 
     const result = await readMbaLineApprovals(mbaNumber, mediaPlanVersion)
     if (!result.ok) {
@@ -77,8 +81,12 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: "lines array is required" }, { status: 400 })
     }
 
+    const mbaNumber = String(body.mba_number)
+    const access = await checkClientMbaAccess(request, mbaNumber)
+    if (!access.ok) return access.response
+
     const result = await writeMbaLineApprovals({
-      mbaNumber: String(body.mba_number),
+      mbaNumber,
       mediaPlanVersion: Number(body.media_plan_version),
       lines: body.lines,
     })
