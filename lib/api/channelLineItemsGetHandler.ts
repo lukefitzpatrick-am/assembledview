@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import {
   fetchChannelLineItemsForMbaGet,
   type ChannelGetVersionHints,
 } from "@/lib/api/fetchChannelLineItemsByMba"
+import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 
 /**
  * Shared GET handler for dedicated channel routes under app/api/media_plans/<channel>.
@@ -17,6 +18,9 @@ export function createChannelLineItemsGetHandler(endpoint: string, logTag?: stri
       if (!mbaNumber) {
         return NextResponse.json({ error: "mba_number is required" }, { status: 400 })
       }
+
+      const access = await checkClientMbaAccess(request as NextRequest, mbaNumber)
+      if (!access.ok) return access.response
 
       const hints: ChannelGetVersionHints = {
         mpPlanNumber: searchParams.get("mp_plannumber"),

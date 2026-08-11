@@ -200,6 +200,33 @@ const MEDIA_TYPE_CODES_BY_LENGTH = Object.values(MEDIA_TYPE_ID_CODES).sort(
 );
 
 /**
+ * Derive the MBA number embedded in a line_item_id server-side.
+ * Supports compact `buildLineItemId` shape (`BICAU002SM1`) including legacy `ML`,
+ * and pipe-delimited pacing ids (`mba|version|channel|…`).
+ * Returns null when the MBA cannot be derived — callers must fail closed for clients.
+ */
+export function parseMbaNumberFromLineItemId(lineItemId: string): string | null {
+  const id = String(lineItemId ?? "").trim()
+  if (!id) return null
+
+  if (id.includes("|")) {
+    const first = id.split("|")[0]?.trim()
+    return first || null
+  }
+
+  // Include legacy ML (pre-May 2026 catch-all) alongside current codes.
+  const codes = [...MEDIA_TYPE_CODES_BY_LENGTH, "ML"].sort(
+    (a, b) => b.length - a.length
+  )
+  for (const code of codes) {
+    const match = id.match(new RegExp(`^(.+?)${code}\\d+$`, "i"))
+    if (match?.[1]) return match[1]
+  }
+
+  return null
+}
+
+/**
  * Parse the numeric line-item suffix from a deterministic line_item_id
  * (e.g. `MBA2024OH68` → 68, legacy `MBA2024ML7` → 7).
  */

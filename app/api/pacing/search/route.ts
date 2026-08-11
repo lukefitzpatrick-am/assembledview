@@ -1,6 +1,8 @@
 import crypto from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
+import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
+import { parseMbaNumberFromLineItemId } from "@/lib/mediaplan/lineItemIds"
 import { getSearchPacingData } from "@/lib/snowflake/search-pacing-service"
 
 export const dynamic = "force-dynamic"
@@ -43,8 +45,24 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await readJsonBody(request)
+    const rawLineItemIds = Array.isArray(body?.lineItemIds) ? body.lineItemIds : []
+
+    // Derive MBA from each id server-side — never trust a client-supplied id→MBA map.
+    const derivedMbas = new Set<string>()
+    for (const raw of rawLineItemIds) {
+      const mba = parseMbaNumberFromLineItemId(String(raw ?? ""))
+      if (!mba) {
+        return NextResponse.json({ error: "forbidden" }, { status: 403 })
+      }
+      derivedMbas.add(mba)
+    }
+    for (const mba of derivedMbas) {
+      const access = await checkClientMbaAccess(request, mba)
+      if (!access.ok) return access.response
+    }
+
     const data = await getSearchPacingData({
-      lineItemIds: body?.lineItemIds ?? [],
+      lineItemIds: rawLineItemIds,
       startDate: body?.startDate,
       endDate: body?.endDate,
       requestId,
@@ -89,4 +107,3 @@ export async function POST(request: NextRequest) {
     clearTimeout(timer)
   }
 }
-
