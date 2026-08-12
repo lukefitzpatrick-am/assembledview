@@ -27,7 +27,8 @@ export type ResolvePostgresSaveModeInput = {
   /**
    * VC Stage 2b — `save` (default) vs explicit `publish`.
    * Save on a published tip → working draft (no version cut).
-   * Publish / forceIncrement → cut next version as today.
+   * Publish / forceIncrement on published tip → cut next version as today.
+   * forceIncrement on unpublished tip → `new_version` (NV-1; stays unpublished).
    */
   intent?: "save" | "publish"
 }
@@ -46,8 +47,16 @@ export type ResolvePostgresSaveModeResult =
     }
   | {
       /**
+       * NV-1 — approval-set forceIncrement on an unpublished tip.
+       * Cuts tip+1 without stamping / advancing `published_version_id`.
+       */
+      mode: "new_version"
+      versionNumber: number
+      uiMode: "increment_unpublished"
+    }
+  | {
+      /**
        * Never POST to `/api/plans/save` — write `plan_working_drafts` instead.
-       * `new_version` stays unused in Stage 2.
        */
       mode: null
       versionNumber: number
@@ -59,9 +68,12 @@ export type ResolvePostgresSaveModeResult =
  *
  * - Unpublished tip + save + !forceIncrement → overwrite in place (`draft`).
  * - Published tip + save + !forceIncrement → `working_draft` (version row untouched).
- * - First create (tip 0), forceIncrement, or intent `publish` → `publish` / increment.
+ * - First create (tip 0) or intent `publish` → `publish` / increment.
+ * - forceIncrement (or non-overwrite fall-through) on unpublished tip →
+ *   `new_version` / `increment_unpublished` (NV-1). Published-tip forceIncrement
+ *   and intent `publish` still return `publish`.
  *
- * `new_version` is unused by the editor (Stage 3) — this helper must never return it.
+ * `new_version` is returned only for unpublished-tip forceIncrement (NV-1).
  *
  * Edit may pass `versionRowCount: 0` while the tip exists (version history is
  * lazy-loaded). Treat published tip as proof of at least that many rows so
@@ -114,6 +126,18 @@ export function resolvePostgresSaveMode(
   }
 
   const versionNumber = nextMbaVersionNumber(rowCount, published)
+
+  // NV-1: forceIncrement (or non-overwrite fall-through) on unpublished tip
+  // cuts a new unpublished row — do not stamp / publish. Intent publish and
+  // published-tip forceIncrement keep mode: "publish". Tip 0 stays publish.
+  if (tipUnpublished && intent !== "publish") {
+    return {
+      mode: "new_version",
+      versionNumber,
+      uiMode: "increment_unpublished",
+    }
+  }
+
   return {
     mode: "publish",
     versionNumber,

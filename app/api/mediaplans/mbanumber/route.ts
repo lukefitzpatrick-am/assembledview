@@ -1,10 +1,14 @@
 import { NextResponse } from "next/server"
 import { readPlanMasters } from "@/lib/data/readMediaPlans"
+import { allocateNextMbaNumber } from "@/lib/mediaplan/allocateNextMbaNumber"
 
 /**
  * GET /api/mediaplans/mbanumber?mbaidentifier=
  * Next MBA number for a client identifier — Postgres masters (X3).
  * Response includes both `mba_number` and `mbanumber` for create/edit callers.
+ *
+ * Generation scopes with mbaNumberMatchesClientIdentifier (same as auth),
+ * parses the full trailing digit run, and lowercases the result.
  */
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
@@ -17,21 +21,10 @@ export async function GET(req: Request) {
 
   try {
     const existingPlans = await readPlanMasters()
-    const prefix = mbaidentifier.toLowerCase()
-
-    let maxNumber = 0
-    for (const plan of existingPlans) {
-      const num = plan?.mba_number
-      if (plan && typeof num === "string" && num.toLowerCase().startsWith(prefix)) {
-        const numberPart = Number.parseInt(num.slice(-3), 10)
-        if (!Number.isNaN(numberPart) && numberPart > maxNumber) {
-          maxNumber = numberPart
-        }
-      }
-    }
-
-    const newNumber = maxNumber + 1
-    const mba_number = `${mbaidentifier}${newNumber.toString().padStart(3, "0")}`
+    const existingMbaNumbers = existingPlans.map((plan) =>
+      plan && typeof plan.mba_number === "string" ? plan.mba_number : null
+    )
+    const mba_number = allocateNextMbaNumber(existingMbaNumbers, mbaidentifier)
 
     return NextResponse.json({ mba_number, mbanumber: mba_number })
   } catch (error) {

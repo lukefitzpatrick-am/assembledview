@@ -305,6 +305,22 @@ describe("5. dollarsToCampaignBudgetCents boundaries", () => {
 })
 
 describe("create + edit assembly twins (shared helpers)", () => {
+  it("both pages gate deferred phase-two publish on saveIntent via shouldRunDeferredMasterPublish", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    for (const src of [createSrc, editSrc]) {
+      assert.match(src, /shouldRunDeferredMasterPublish/)
+      assert.match(
+        src,
+        /shouldRunDeferredMasterPublish\(\{\s*deferredPublish,\s*saveIntent/
+      )
+    }
+    assert.match(
+      editSrc,
+      /shouldBlockEmptyPublish\(\{[\s\S]*?saveIntent/
+    )
+  })
+
   it("both pages wire assignStableLineItemNumbers, mapCampaignStatusForPersist, dollarsToCampaignBudgetCents, resolvePostgresSaveMode, formatSaveModeLabel, assemblePlansSaveRequestBody", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
@@ -351,5 +367,33 @@ describe("create + edit assembly twins (shared helpers)", () => {
         /const modeResolved = resolvePostgresSaveMode\([\s\S]*?formatSaveModeLabel\(/
       )
     }
+  })
+
+  it("edit Campaign Details header trail uses describeVersionHeaderTrail(planDraft.modeResolved), not tip+1", () => {
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    assert.match(editSrc, /describeVersionHeaderTrail/)
+    assert.match(
+      editSrc,
+      /describeVersionHeaderTrail\(planDraft\.modeResolved\)/
+    )
+    assert.doesNotMatch(
+      editSrc,
+      /Next: v\{nextSaveVersionNumber \?\? \(latestVersionNumber \|\| 0\) \+ 1\}/
+    )
+  })
+
+  it("edit overwrite toast is explicit (not a version-cut message) + uiMode→mode guard comment", () => {
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    assert.match(
+      editSrc,
+      /Saved over v\$\{numericSavedVersion\} — still unpublished/
+    )
+    assert.match(editSrc, /"increment"\s*→\s*mode "publish"/)
+    assert.match(
+      editSrc,
+      /"increment_unpublished"\s*→\s*mode "new_version"/
+    )
+    assert.match(editSrc, /"overwrite"\s*→\s*mode "draft"/)
+    assert.match(editSrc, /"working_draft"\s*→\s*never reaches here/)
   })
 })

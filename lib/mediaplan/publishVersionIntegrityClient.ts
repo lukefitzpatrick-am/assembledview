@@ -69,15 +69,40 @@ export function countEnabledPublishIntegrityFlags(
 }
 
 /**
+ * Phase-two master publish (PATCH version_number) after a deferred PUT.
+ * Stage-then-publish stays; only an explicit publish intent advances the tip
+ * and stamps published_at / published_by. Plain save leaves the staged row
+ * unpublished.
+ */
+export function shouldRunDeferredMasterPublish(args: {
+  deferredPublish: boolean
+  saveIntent: "save" | "publish"
+}): boolean {
+  return args.deferredPublish && args.saveIntent === "publish"
+}
+
+/**
  * True when a deferred-publish save must be blocked because channels are
  * enabled but nothing was staged for them. Mirrors the server's 409 guard on
  * the client so the So-Fail path can fire before the publish PATCH is sent.
+ * Only meaningful when phase-two publish will actually run.
  */
 export function shouldBlockEmptyPublish(args: {
   deferredPublish: boolean
   enabledMediaTypeCount: number
   totalStagedLineItems: number
+  /** When set, empty-publish only blocks if phase-two will run. */
+  saveIntent?: "save" | "publish"
 }): boolean {
+  if (
+    args.saveIntent != null &&
+    !shouldRunDeferredMasterPublish({
+      deferredPublish: args.deferredPublish,
+      saveIntent: args.saveIntent,
+    })
+  ) {
+    return false
+  }
   return (
     args.deferredPublish && args.enabledMediaTypeCount > 0 && args.totalStagedLineItems === 0
   )

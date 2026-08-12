@@ -1061,7 +1061,9 @@ export async function savePlanVersion(
         .where(eq(schema.mediaPlanVersions.id, versionId))
 
       const published = input.mode === "publish"
-      if (published) {
+      // BOSS006: empty-cut abort for publish AND new_version (NV-1 approval-change
+      // cut with 0 lines is the same defect). mode: "draft" stays exempt.
+      if (published || input.mode === "new_version") {
         const [lineCountRow] = await tx
           .select({ n: count() })
           .from(schema.lineItems)
@@ -1073,7 +1075,8 @@ export async function savePlanVersion(
             "Cannot publish version with 0 line_items (BOSS006 gate)"
           )
         }
-
+      }
+      if (published) {
         // PC2: freeze approved_slice once (never mutate after write).
         // VC Stage 2a: do NOT assertVersionMutable here — this is first-write
         // on a new publish row (published_at still null). Guarding would block

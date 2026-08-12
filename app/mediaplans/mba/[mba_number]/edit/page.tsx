@@ -177,6 +177,7 @@ import {
 import {
   countEnabledPublishIntegrityFlags,
   shouldBlockEmptyPublish,
+  shouldRunDeferredMasterPublish,
 } from "@/lib/mediaplan/publishVersionIntegrityClient"
 import { useWriteBackend } from "@/lib/data/WriteBackendContext"
 import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
@@ -196,6 +197,7 @@ import {
   PlanStaleBaseDialog,
 } from "@/components/mediaplan/PlanDraftChrome"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
+import { describeVersionHeaderTrail } from "@/lib/mediaplan/drafts/pill"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
 import {
@@ -289,7 +291,8 @@ import {
   type MbaBillingScopeLine,
 } from "@/components/billing/MbaBillingModal"
 import {
-  approvalSelectionFingerprint,
+  approvalExclusionFingerprint,
+  excludedLineItemIdsByMedia,
   fetchMbaLineApprovalsClient,
   patchMbaLineApprovalsClient,
   selectedLineItemIdsFromApprovalRows,
@@ -1811,6 +1814,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const writeBackend = useWriteBackend()
   /** DB row id of the current `media_plan_versions` record — NOT `version_number`. */
   const [mediaPlanVersionId, setMediaPlanVersionId] = useState<string | number | null>(null)
+  /** Latest identity for anomaly callbacks — avoid putting these in billing-schedule deps (would re-append). */
+  const mbaNumberRef = useRef(mbaNumber)
+  const mediaPlanVersionIdRef = useRef(mediaPlanVersionId)
+  mbaNumberRef.current = mbaNumber
+  mediaPlanVersionIdRef.current = mediaPlanVersionId
   const [rollbackModalOpen, setRollbackModalOpen] = useState(false)
   const [rollbackTargetVersion, setRollbackTargetVersion] = useState<number | null>(null)
   const [rollbackTargetCreatedAt, setRollbackTargetCreatedAt] = useState<number | string | null>(null)
@@ -1993,6 +2001,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const [autoReferenceBillingMonths, setAutoReferenceBillingMonths] = useState<BillingMonth[]>([])
   const [burstsData, setBurstsData] = useState<any[]>([])
   const [investmentPerMonthByChannel, setInvestmentPerMonthByChannel] = useState<Record<string, any[]>>({})
+  const investmentPerMonthByChannelRef = useRef(investmentPerMonthByChannel)
   const investmentPerMonth = useMemo(
     () => mergeInvestmentMonths(investmentPerMonthByChannel),
     [investmentPerMonthByChannel],
@@ -2180,7 +2189,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   )
 
   const [isPartialMBA, setIsPartialMBA] = useState(false)
-  const lastPersistedApprovalFingerprintRef = useRef<string>("")
+  const lastPersistedApprovalFingerprintRef = useRef<string | null>(null)
   const approvalsHydratedRef = useRef(false)
   const [partialMBAError, setPartialMBAError] = useState<string | null>(null)
   const [partialMBAValues, setPartialMBAValues] = useState({
@@ -3279,11 +3288,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           isManualBilling: isManualBillingRef.current,
           resyncExistingFromTemplate: true,
           onCanonicalDedupe: (collapses) => {
-            const versionId = mediaPlanVersionId ?? "unknown"
+            // Read identity via refs (not deps): this callback is anomaly telemetry only;
+            // adding mbaNumber/mediaPlanVersionId would recreate calculateBillingSchedule and re-fire billing append.
+            const versionId = mediaPlanVersionIdRef.current ?? "unknown"
             void reportWorkingBillingCanonicalDedupe(
               buildWorkingBillingCanonicalDedupePayload({
                 versionId,
-                mba: String(mbaNumber ?? ""),
+                mba: String(mbaNumberRef.current ?? ""),
                 collapses,
               })
             )
@@ -3845,10 +3856,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     return () => {
       isCancelled = true
     }
-  }, [mbaNumber, versionNumber, setContextMbaNumber])
-  // Intentionally omit `form` / `applyClientFees` / `updateLoadStatus` from deps:
-  // those identities can churn and re-trigger a full MBA bootstrap. The fetch
-  // only needs mbaNumber + versionNumber.
+    // clearDirtyForHydration/closeGate: stable via ctrlRef in useMediaPlanDirtyController.
+    // form (RHF), applyClientFees, updateLoadStatus: useCallback([]) / stable — safe to list.
+  }, [
+    mbaNumber,
+    versionNumber,
+    setContextMbaNumber,
+    form,
+    applyClientFees,
+    updateLoadStatus,
+    clearDirtyForHydration,
+    closeGate,
+  ])
 
   // Handle client selection after clients are loaded (bootstrap — must not dirty the form).
   useEffect(() => {
@@ -3940,7 +3959,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
       setClientBootstrapDone(true)
     }
-  }, [applyClientFees, clients, selectedClientId, mediaPlan, selectedClient, form])
+    // quietPassiveForMs/runWithGateClosed: stable via ctrlRef in useMediaPlanDirtyController.
+  }, [
+    applyClientFees,
+    clients,
+    selectedClientId,
+    mediaPlan,
+    selectedClient,
+    form,
+    quietPassiveForMs,
+    runWithGateClosed,
+  ])
 
   const lastLineItemsLoadKeyRef = useRef("")
   /** True after the hydration watchdog forces ready — late fetch success still applies and clears warnings. */
@@ -4407,11 +4436,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }, [])
 
   const handleInvestmentChange = useCallback((channel: string, rows: any[]) => {
-    setInvestmentPerMonthByChannel((prev) => {
-      if (JSON.stringify(prev[channel] ?? []) === JSON.stringify(rows)) return prev
-      markPassiveChannelChange()
-      return { ...prev, [channel]: rows }
-    })
+    const prev = investmentPerMonthByChannelRef.current
+    if (JSON.stringify(prev[channel] ?? []) === JSON.stringify(rows)) return
+    const next = { ...prev, [channel]: rows }
+    investmentPerMonthByChannelRef.current = next
+    setInvestmentPerMonthByChannel(next)
+    markPassiveChannelChange()
     // Billing rows are not regenerated from investment on the main page — use Edit Billing for any reset/rebuild.
   }, [markPassiveChannelChange])
 
@@ -7501,16 +7531,19 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
 
       // Approval-set change after a persisted baseline → force version cut (even on draft).
-      const selectedFromSaveInputs: Record<string, string[]> = {}
+      // SV-3: fingerprint exclusions only — adding/deleting approved lines must not cut.
+      const excludedFromSaveInputs: Record<string, string[]> = {}
       for (const line of billingSaveInputs.lineItems) {
-        if (line.approval === "excluded") continue
-        if (!selectedFromSaveInputs[line.mediaType]) selectedFromSaveInputs[line.mediaType] = []
-        selectedFromSaveInputs[line.mediaType].push(line.lineItemId)
+        if (line.approval !== "excluded") continue
+        if (!excludedFromSaveInputs[line.mediaType]) {
+          excludedFromSaveInputs[line.mediaType] = []
+        }
+        excludedFromSaveInputs[line.mediaType].push(line.lineItemId)
       }
-      const approvalFpNow = approvalSelectionFingerprint(selectedFromSaveInputs)
+      const approvalFpNow = approvalExclusionFingerprint(excludedFromSaveInputs)
       const lastApprovalFp = lastPersistedApprovalFingerprintRef.current
       const forceIncrementForApprovals =
-        Boolean(lastApprovalFp) && lastApprovalFp !== approvalFpNow
+        lastApprovalFp !== null && lastApprovalFp !== approvalFpNow
 
       const shouldEnableProduction = Boolean(
         formValues.mp_production || (productionMediaLineItemsForSave?.length ?? 0) > 0
@@ -7531,17 +7564,31 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             : typeof mediaPlan?.version_number === "number"
               ? mediaPlan.version_number
               : 0
+        const tipPublishedAt =
+          (mediaPlan as { published_at?: string | null } | null)?.published_at !== undefined
+            ? (mediaPlan as { published_at?: string | null }).published_at
+            : availableVersions.find((v) => v.version_number === publishedVersionNumber)
+                ?.published_at
         const modeResolved = resolvePostgresSaveMode({
           campaignStatus: formValues.mp_campaignstatus,
           forceIncrement: forceIncrementForApprovals,
           publishedVersionNumber,
           versionRowCount: availableVersions.length,
-          tipPublishedAt:
-            (mediaPlan as { published_at?: string | null } | null)?.published_at !== undefined
-              ? (mediaPlan as { published_at?: string | null }).published_at
-              : availableVersions.find((v) => v.version_number === publishedVersionNumber)
-                  ?.published_at,
+          tipPublishedAt,
           intent: saveIntent,
+        })
+        console.info("[save-mode]", {
+          mbaNumber,
+          saveIntent,
+          publishedVersionNumber,
+          versionRowCount: availableVersions.length,
+          tipPublishedAt,
+          forceIncrementForApprovals,
+          lastApprovalFp,
+          approvalFpNow,
+          uiMode: modeResolved.uiMode,
+          mode: modeResolved.mode,
+          versionNumber: modeResolved.versionNumber,
         })
 
         setSaveModeLabel(
@@ -7612,7 +7659,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
 
         if (
-          modeResolved.mode === "publish" &&
+          (modeResolved.mode === "publish" ||
+            modeResolved.mode === "new_version") &&
           lineItemsForSave.length === 0 &&
           countEnabledPublishIntegrityFlags(formValues) > 0
         ) {
@@ -7640,6 +7688,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         if (modeResolved.mode == null) {
           throw new Error("working_draft must not POST /api/plans/save")
         }
+        // uiMode → POST mode (shared path after working_draft early return):
+        //   "increment"             → mode "publish"
+        //   "increment_unpublished" → mode "new_version"
+        //   "overwrite"             → mode "draft" (in-place tip; versionNumber === tip)
+        //   "working_draft"         → never reaches here
         const saveResult = await postPlansSave(
           assemblePlansSaveRequestBody(
             {
@@ -7881,7 +7934,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
         if (
           mbaNumber &&
-          (isPartialMBA || forceIncrementForApprovals || Boolean(lastApprovalFp))
+          (isPartialMBA || forceIncrementForApprovals || lastApprovalFp !== null)
         ) {
           const approvalLines = billingSaveInputs.lineItems.map((line) => ({
             line_item_id: line.lineItemId,
@@ -7900,7 +7953,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
         toast({
           title: "Success",
-          description: `Saved as version ${numericSavedVersion}`,
+          description:
+            modeResolved.uiMode === "overwrite"
+              ? `Saved over v${numericSavedVersion} — still unpublished`
+              : modeResolved.uiMode === "increment_unpublished"
+                ? `Cut v${numericSavedVersion} (unpublished) — approval scope changed`
+                : `Saved as version ${numericSavedVersion}`,
         })
         // MB-25: committed — clear Reset tombstone + pending (DB now matches).
         setClearedBillingOverrideLineIds([])
@@ -8153,7 +8211,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       if (
         mbaNumber &&
         numericSavedVersion != null &&
-        (isPartialMBA || forceIncrementForApprovals || Boolean(lastApprovalFp))
+        (isPartialMBA || forceIncrementForApprovals || lastApprovalFp !== null)
       ) {
         const approvalLines = billingSaveInputs.lineItems.map((line) => ({
           line_item_id: line.lineItemId,
@@ -8712,7 +8770,20 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         influencersMediaLineItemsForSave.length +
         productionMediaLineItemsForSave.length
 
-      if (shouldBlockEmptyPublish({ deferredPublish, enabledMediaTypeCount, totalStagedLineItems })) {
+      // Phase-two publish only on explicit publish intent — plain Save stages and leaves unpublished.
+      const willDeferredPublish = shouldRunDeferredMasterPublish({
+        deferredPublish,
+        saveIntent,
+      })
+
+      if (
+        shouldBlockEmptyPublish({
+          deferredPublish,
+          enabledMediaTypeCount,
+          totalStagedLineItems,
+          saveIntent,
+        })
+      ) {
         console.error('[save integrity] empty staged line items; blocking version publish', {
           mbaNumber,
           versionId,
@@ -8736,7 +8807,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
 
       // Publish: advance master.version_number only after every child write succeeded.
-      if (deferredPublish) {
+      if (willDeferredPublish) {
         updateSaveStatus('Publish version', 'pending')
         const publishResponse = await fetch(`/api/mediaplans/mba/${mbaNumber}`, {
           method: 'PATCH',
@@ -10012,11 +10083,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       approvalsHydratedRef.current = true
       if (!result.ok || !result.available) return
       if (!result.rows.length) {
-        lastPersistedApprovalFingerprintRef.current = approvalSelectionFingerprint(
-          Object.fromEntries(
-            Object.entries(allByMedia).map(([k, ids]) => [k, [...ids]])
-          )
-        )
+        // All-in (no exclusion rows) — empty exclusion fingerprint.
+        lastPersistedApprovalFingerprintRef.current =
+          approvalExclusionFingerprint({})
         return
       }
       const selected = selectedLineItemIdsFromApprovalRows({
@@ -10033,7 +10102,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         )
       )
       if (hasExclusion) setIsPartialMBA(true)
-      lastPersistedApprovalFingerprintRef.current = approvalSelectionFingerprint(selected)
+      lastPersistedApprovalFingerprintRef.current =
+        approvalExclusionFingerprint(
+          excludedLineItemIdsByMedia({
+            allLineIdsByMedia: allByMedia,
+            selectedByMedia: selected,
+          })
+        )
       const months = getPartialMbaRawMonthsForBaseline().map((m) => m.monthYear)
       if (months.length) {
         setPartialMBAMonthYears(months)
@@ -10152,20 +10227,25 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     void (async () => {
       const versionNum = selectedVersionNumber ?? mediaPlan?.version_number
       if (!mbaNumber || versionNum == null) return
-      const fp = approvalSelectionFingerprint(partialMBASelectedLineItemIds)
+      const allByMedia: Record<string, string[]> = {}
+      for (const line of campaignFinancialsForPanels.perLine) {
+        if (!allByMedia[line.mediaType]) allByMedia[line.mediaType] = []
+        allByMedia[line.mediaType].push(line.lineItemId)
+      }
+      const fp = approvalExclusionFingerprint(
+        excludedLineItemIdsByMedia({
+          allLineIdsByMedia: allByMedia,
+          selectedByMedia: partialMBASelectedLineItemIds,
+        })
+      )
       const lastFp = lastPersistedApprovalFingerprintRef.current
-      if (lastFp && lastFp !== fp) {
+      if (lastFp !== null && lastFp !== fp) {
         toast({
           title: "New MBA version required",
           description:
             "Approval set changed. Save the campaign to cut the next version and persist line approvals.",
         })
         return
-      }
-      const allByMedia: Record<string, string[]> = {}
-      for (const line of campaignFinancialsForPanels.perLine) {
-        if (!allByMedia[line.mediaType]) allByMedia[line.mediaType] = []
-        allByMedia[line.mediaType].push(line.lineItemId)
       }
       const lines = Object.entries(allByMedia).flatMap(([media_type, ids]) => {
         const selected = new Set(partialMBASelectedLineItemIds[media_type] ?? ids)
@@ -10437,11 +10517,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           ? {
               isManualBilling: isManualBillingRef.current,
               resyncExistingFromTemplate: true,
+              // Identity via refs: anomaly telemetry only — deps would re-run this append merge.
               onCanonicalDedupe: (collapses) => {
                 void reportWorkingBillingCanonicalDedupe(
                   buildWorkingBillingCanonicalDedupePayload({
-                    versionId: mediaPlanVersionId ?? "unknown",
-                    mba: String(mbaNumber ?? ""),
+                    versionId: mediaPlanVersionIdRef.current ?? "unknown",
+                    mba: String(mbaNumberRef.current ?? ""),
                     collapses,
                   })
                 )
@@ -10451,8 +10532,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               onCanonicalDedupe: (collapses) => {
                 void reportWorkingBillingCanonicalDedupe(
                   buildWorkingBillingCanonicalDedupePayload({
-                    versionId: mediaPlanVersionId ?? "unknown",
-                    mba: String(mbaNumber ?? ""),
+                    versionId: mediaPlanVersionIdRef.current ?? "unknown",
+                    mba: String(mbaNumberRef.current ?? ""),
                     collapses,
                   })
                 )
@@ -11668,7 +11749,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 <div className="flex items-center gap-3 text-xs text-muted-foreground">
                   <span>v{selectedVersionNumber ?? mediaPlan?.version_number ?? "—"}</span>
                   <span className="text-border">•</span>
-                  <span>Next: v{nextSaveVersionNumber ?? (latestVersionNumber || 0) + 1}</span>
+                  <span>{describeVersionHeaderTrail(planDraft.modeResolved)}</span>
                   {latestVersionNumber > 1 && (
                     <Combobox
                       value={selectedVersionNumber ? String(selectedVersionNumber) : ""}

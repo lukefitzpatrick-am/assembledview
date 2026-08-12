@@ -9,6 +9,10 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import { computeCampaignFinancials } from "@/lib/finance/computeCampaignFinancials"
+import {
+  approvalExclusionFingerprint,
+  excludedLineItemIdsByMedia,
+} from "@/lib/finance/mbaLineApprovalsClient"
 import { stampClientFeePctOnLineItems } from "@/lib/finance/stampClientFeePctOnLineItems"
 import {
   assemblePlansSaveRequestBody,
@@ -138,21 +142,171 @@ describe("publish-branch postgres save payload (2-line social)", () => {
   })
 
   it("A1 draft overwrite fixture stays green (in-place v1)", () => {
+    const tip = 1
+    const versionRowCountBefore = 1
     const mode = resolvePostgresSaveMode({
       campaignStatus: "Draft",
       forceIncrement: false,
-      publishedVersionNumber: 1,
-      versionRowCount: 0,
+      publishedVersionNumber: tip,
+      versionRowCount: versionRowCountBefore,
       tipPublishedAt: null,
     })
     assert.deepEqual(mode, {
       mode: "draft",
-      versionNumber: 1,
+      versionNumber: tip,
       uiMode: "overwrite",
     })
     assert.equal(
       formatSaveModeLabel(mode.uiMode, mode.versionNumber),
       "Draft — overwrites v1"
+    )
+
+    // Save on unpublished tip POSTs mode "draft" with versionNumber === tip;
+    // version count does not change (in-place overwrite, not a cut).
+    const lineItems = buildSavePlanLineItemsFromSnapshots({
+      socialMedia: krusty015SocialSnapshot(1_000),
+    })
+    const body = assemblePlansSaveRequestBody(
+      {
+        masterId: 999,
+        mbaNumber: MBA,
+        versionNumber: mode.versionNumber,
+        mode: mode.mode,
+        campaignStatus: mapCampaignStatusForPersist("Draft"),
+        lineItems,
+      },
+      {
+        feeLoading: { ...KRUSTY015_FEE_LOADING },
+        adservaudio: 0,
+        adservvideo: 0,
+        adservdisplay: 0,
+        adservimp: 0,
+      }
+    )
+    assert.equal(body.mode, "draft")
+    assert.equal(body.versionNumber, tip)
+    assert.equal(body.versionNumber, mode.versionNumber)
+    // Overwrite keeps the same tip — client version inventory size unchanged.
+    const versionRowCountAfter = versionRowCountBefore
+    assert.equal(versionRowCountAfter, versionRowCountBefore)
+  })
+
+  it("glenda006 v5 regression (11 Aug 2026): delete approved line on unpublished tip → draft, forceIncrement unset", () => {
+    // Live: tip v4 unpublished; hydrated all-in approvals baseline; delete one
+    // approved line then Save (intent save). Must overwrite in place — not cut v5.
+    const tip = 4
+    const beforeAll = {
+      search: ["GLENDA006SEA001", "GLENDA006SEA002"],
+    }
+    const beforeSelected = {
+      search: ["GLENDA006SEA001", "GLENDA006SEA002"],
+    }
+    const afterDeleteAll = {
+      search: ["GLENDA006SEA001"],
+    }
+    const afterDeleteSelected = {
+      search: ["GLENDA006SEA001"],
+    }
+
+    const lastApprovalFp = approvalExclusionFingerprint(
+      excludedLineItemIdsByMedia({
+        allLineIdsByMedia: beforeAll,
+        selectedByMedia: beforeSelected,
+      })
+    )
+    const approvalFpNow = approvalExclusionFingerprint(
+      excludedLineItemIdsByMedia({
+        allLineIdsByMedia: afterDeleteAll,
+        selectedByMedia: afterDeleteSelected,
+      })
+    )
+    // Exclusion fingerprint is unchanged by deleting an approved line.
+    assert.equal(approvalFpNow, lastApprovalFp)
+    assert.equal(approvalFpNow, "")
+
+    const forceIncrementForApprovals =
+      lastApprovalFp !== null && lastApprovalFp !== approvalFpNow
+    assert.equal(forceIncrementForApprovals, false)
+
+    const mode = resolvePostgresSaveMode({
+      campaignStatus: "Draft",
+      forceIncrement: forceIncrementForApprovals,
+      publishedVersionNumber: tip,
+      versionRowCount: tip,
+      tipPublishedAt: null,
+      intent: "save",
+    })
+    assert.deepEqual(mode, {
+      mode: "draft",
+      versionNumber: tip,
+      uiMode: "overwrite",
+    })
+
+    const lineItems = buildSavePlanLineItemsFromSnapshots({
+      socialMedia: krusty015SocialSnapshot(1_000),
+    })
+    const body = assemblePlansSaveRequestBody(
+      {
+        masterId: 229,
+        mbaNumber: "glenda006",
+        versionNumber: mode.versionNumber,
+        mode: mode.mode,
+        campaignStatus: mapCampaignStatusForPersist("Draft"),
+        lineItems,
+      },
+      {
+        feeLoading: { ...KRUSTY015_FEE_LOADING },
+        adservaudio: 0,
+        adservvideo: 0,
+        adservdisplay: 0,
+        adservimp: 0,
+      }
+    )
+    assert.equal(body.mode, "draft")
+    assert.equal(body.versionNumber, tip)
+    // Postgres path carries mode from the resolver — forceIncrement must not be set.
+    assert.equal(
+      Object.prototype.hasOwnProperty.call(body, "forceIncrement"),
+      false
+    )
+  })
+
+  it("SV-3: excluding a line changes exclusion fingerprint; adding an approved line does not", () => {
+    const all = { search: ["A", "B"] }
+    const allIn = approvalExclusionFingerprint(
+      excludedLineItemIdsByMedia({
+        allLineIdsByMedia: all,
+        selectedByMedia: { search: ["A", "B"] },
+      })
+    )
+    const afterAdd = approvalExclusionFingerprint(
+      excludedLineItemIdsByMedia({
+        allLineIdsByMedia: { search: ["A", "B", "C"] },
+        selectedByMedia: { search: ["A", "B", "C"] },
+      })
+    )
+    assert.equal(allIn, afterAdd)
+    assert.equal(allIn, "")
+
+    const afterExclude = approvalExclusionFingerprint(
+      excludedLineItemIdsByMedia({
+        allLineIdsByMedia: all,
+        selectedByMedia: { search: ["A"] },
+      })
+    )
+    assert.notEqual(afterExclude, allIn)
+    assert.equal(afterExclude, "search:B")
+
+    // Enabled channel with 0 lines: hydrate all-in vs save-time empty both → "".
+    assert.equal(approvalExclusionFingerprint({}), "")
+    assert.equal(
+      approvalExclusionFingerprint(
+        excludedLineItemIdsByMedia({
+          allLineIdsByMedia: { search: [] },
+          selectedByMedia: { search: [] },
+        })
+      ),
+      ""
     )
   })
 

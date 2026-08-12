@@ -15,6 +15,7 @@ import { getCachedClients } from "@/lib/finance/xanoReferenceCache"
 import {
   mapPlanMasterFromPostgres,
   mapPlanVersionFromPostgres,
+  publishedVersionIfStamped,
 } from "@/lib/data/readMediaPlans"
 import {
   mapLineItemFromPostgres,
@@ -193,10 +194,14 @@ async function loadMasterAndVersions(mbaNumber: string): Promise<{
   }
 
   const pubId = masterRow.publishedVersionId
-  const published =
+  const publishedRaw =
     pubId != null && Number.isFinite(Number(pubId))
       ? versionById.get(Number(pubId)) ?? null
       : null
+  // Join requires published_at IS NOT NULL — stale pointer ≡ null pointer (NV-1).
+  const published = publishedVersionIfStamped(
+    publishedRaw as Record<string, unknown> | null
+  )
   const publishedApi = published
     ? coerceNumericStringsToNumbers(toApiRow(published))
     : null

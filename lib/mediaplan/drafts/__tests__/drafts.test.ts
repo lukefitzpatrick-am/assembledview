@@ -4,6 +4,7 @@ import { describe, it } from "node:test"
 import { resolvePostgresSaveMode } from "../../resolvePostgresSaveMode.js"
 import {
   describePlanSavePill,
+  describeVersionHeaderTrail,
   summarizeDraftOffer,
   pickNewerDraft,
   buildStaleBaseCompare,
@@ -85,6 +86,91 @@ describe("PC7 pill shares T4c resolvePostgresSaveMode", () => {
       editingUnpublishedDraft: true,
     })
     assert.match(pill.primary, /Editing v3 — unpublished draft/i)
+  })
+})
+
+describe("version header trail shares resolvePostgresSaveMode with pill", () => {
+  it("unpublished draft tip → overwrite trail, no Next version", () => {
+    const mode = resolvePostgresSaveMode({
+      campaignStatus: "Draft",
+      forceIncrement: false,
+      publishedVersionNumber: 4,
+      versionRowCount: 4,
+      tipPublishedAt: null,
+    })
+    const pill = describePlanSavePill({
+      modeResolved: mode,
+      hasWorkingDraft: false,
+      autosavedSecondsAgo: null,
+      editingUnpublishedDraft: false,
+    })
+    const trail = describeVersionHeaderTrail(mode)
+    assert.equal(mode.uiMode, "overwrite")
+    assert.match(pill.primary, /publish overwrites v4/i)
+    assert.equal(trail, "publish overwrites v4")
+    assert.doesNotMatch(trail, /Next/i)
+  })
+
+  it("published tip → Next: v{n+1}, pill says publish creates next", () => {
+    const mode = resolvePostgresSaveMode({
+      campaignStatus: "Approved",
+      forceIncrement: false,
+      publishedVersionNumber: 4,
+      versionRowCount: 4,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
+    })
+    const pill = describePlanSavePill({
+      modeResolved: mode,
+      hasWorkingDraft: true,
+      autosavedSecondsAgo: null,
+      editingUnpublishedDraft: false,
+    })
+    const trail = describeVersionHeaderTrail(mode)
+    assert.equal(mode.uiMode, "working_draft")
+    assert.match(pill.primary, /publish creates next version/i)
+    assert.equal(trail, "Next: v5")
+  })
+
+  it("publish intent on published tip → Next uses resolved increment version", () => {
+    const mode = resolvePostgresSaveMode({
+      campaignStatus: "Approved",
+      forceIncrement: false,
+      publishedVersionNumber: 4,
+      versionRowCount: 4,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
+      intent: "publish",
+    })
+    const pill = describePlanSavePill({
+      modeResolved: mode,
+      hasWorkingDraft: false,
+      autosavedSecondsAgo: null,
+      editingUnpublishedDraft: false,
+    })
+    const trail = describeVersionHeaderTrail(mode)
+    assert.equal(mode.uiMode, "increment")
+    assert.match(pill.primary, /Publish will create v5/i)
+    assert.equal(trail, "Next: v5")
+  })
+
+  it("NV-1: unpublished tip + forceIncrement → Will cut v{n} (stays unpublished)", () => {
+    const mode = resolvePostgresSaveMode({
+      campaignStatus: "Draft",
+      forceIncrement: true,
+      publishedVersionNumber: 2,
+      versionRowCount: 2,
+      tipPublishedAt: null,
+    })
+    const pill = describePlanSavePill({
+      modeResolved: mode,
+      hasWorkingDraft: false,
+      autosavedSecondsAgo: null,
+      editingUnpublishedDraft: false,
+    })
+    const trail = describeVersionHeaderTrail(mode)
+    assert.equal(mode.uiMode, "increment_unpublished")
+    assert.equal(mode.mode, "new_version")
+    assert.equal(pill.primary, "Will cut v3 (stays unpublished)")
+    assert.equal(trail, "Will cut v3 (stays unpublished)")
   })
 })
 

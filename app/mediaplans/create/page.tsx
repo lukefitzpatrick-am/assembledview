@@ -38,6 +38,7 @@ import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePresetBar"
 import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApplyDirtyClearOnSave"
 import { useMediaPlanDirtyController } from "@/lib/mediaplan/useMediaPlanDirtyController"
+import { applyChannelTotalPair } from "@/lib/mediaplan/channelTotalChange"
 import { BuilderIssuesBadge } from "@/components/mediaplans/BuilderIssuesBadge"
 import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
 import { pushFinanceBuilderIssues } from "@/lib/mediaplan/pushFinanceBuilderIssues"
@@ -254,6 +255,7 @@ import {
 } from "@/lib/mediaplan/channelHydrationGate"
 import { useWriteBackend } from "@/lib/data/WriteBackendContext"
 import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
+import { shouldRunDeferredMasterPublish } from "@/lib/mediaplan/publishVersionIntegrityClient"
 import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import {
   isApprovedOrBeyond,
@@ -284,6 +286,11 @@ import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import {
+  beginMbaNumberRequest,
+  shouldApplyMbaNumberResponse,
+  shouldSkipClientChange,
+} from "@/lib/mediaplan/mbaNumberRequestGate"
 import { assertCoreScheduleParity } from "@/lib/finance/assertCoreScheduleParity"
 import {
   humaniseBillingSaveError,
@@ -593,6 +600,8 @@ function CreateMediaPlan() {
   const [reportId, setReportId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [selectedClientId, setSelectedClientId] = useState<string>("")
+  /** Monotonic token so stale MBA-number responses never overwrite a newer client pick. */
+  const mbaNumberRequestTokenRef = useRef(0)
   const [isClientPopoverOpen, setIsClientPopoverOpen] = useState(false)
   const { setMbaNumber } = useMediaPlanContext() 
   const [burstsData, setBurstsData] = useState([])
@@ -660,40 +669,50 @@ function CreateMediaPlan() {
   // Search
   const [feesearch, setFeeSearch] = useState<number | null>(null)
   const [searchTotal, setSearchTotal] = useState(0)
+  const searchTotalRef = useRef(0)
   const [searchBursts, setSearchBursts] = useState<BillingBurst[]>([])
   const [searchItems, setSearchItems] = useState<LineItem[]>([]);
   const [searchFeeTotal, setSearchFeeTotal,] = useState(0);
+  const searchFeeTotalRef = useRef(0)
   const [searchMediaLineItems, setSearchMediaLineItems] = useState<any[]>([]);
 
   //Social Media
   const [feesocial, setFeeSocial] = useState<number | null>(null)
   const [socialmediaTotal, setSocialMediaTotal] = useState<number>(0)
+  const socialmediaTotalRef = useRef(0)
   const [socialMediaBursts, setSocialMediaBursts] = useState<BillingBurst[]>([])
   const [socialMediaItems, setSocialMediaItems] = useState<LineItem[]>([]);
   const [socialMediaFeeTotal, setSocialMediaFeeTotal] = useState(0);
+  const socialMediaFeeTotalRef = useRef(0)
   const [socialMediaLineItems, setSocialMediaLineItems] = useState<any[]>([]);
   const [socialMediaMediaLineItems, setSocialMediaMediaLineItems] = useState<any[]>([]);
 
   //Influencers
   const [feeinfluencers, setFeeInfluencers] = useState<number | null>(null)
   const [influencersTotal, setInfluencersTotal] = useState(0)
+  const influencersTotalRef = useRef(0)
   const [influencersBursts, setInfluencersBursts] = useState<BillingBurst[]>([])
   const [influencersItems, setInfluencersItems] = useState<LineItem[]>([])
   const [influencersFeeTotal, setInfluencersFeeTotal] = useState(0)
+  const influencersFeeTotalRef = useRef(0)
   const [influencersMediaLineItems, setInfluencersMediaLineItems] = useState<any[]>([])
 
   //BVOD
   const [feebvod, setFeeBVOD] = useState<number | null>(null)
   const [bvodItems, setBVODItems] = useState<LineItem[]>([]);
   const [bvodTotal, setBvodTotal] = useState(0);
+  const bvodTotalRef = useRef(0)
   const [bvodBursts, setBvodBursts] = useState<BillingBurst[]>([]);
   const [bvodFeeTotal, setBvodFeeTotal] = useState(0);
+  const bvodFeeTotalRef = useRef(0)
   const [bvodMediaLineItems, setBvodMediaLineItems] = useState<any[]>([]);
 
   //Digi Audio
   const [feedigiaudio, setFeeDigiAudio] = useState<number | null>(null)
   const [digiAudioTotal, setDigiAudioTotal] = useState(0)
+  const digiAudioTotalRef = useRef(0)
   const [digiAudioFeeTotal, setDigiAudioFeeTotal] = useState(0)
+  const digiAudioFeeTotalRef = useRef(0)
   const [digiAudioBursts, setDigiAudioBursts] = useState<BillingBurst[]>([])
   const [digiAudioItems, setDigiAudioItems] = useState<LineItem[]>([])
   const [digiAudioMediaLineItems, setDigiAudioMediaLineItems] = useState<any[]>([])
@@ -701,7 +720,9 @@ function CreateMediaPlan() {
   //Digi Display
   const [feedigidisplay, setFeeDigiDisplay] = useState<number | null>(null)
   const [digiDisplayTotal, setDigiDisplayTotal] = useState(0)
+  const digiDisplayTotalRef = useRef(0)
   const [digiDisplayFeeTotal, setDigiDisplayFeeTotal] = useState(0)
+  const digiDisplayFeeTotalRef = useRef(0)
   const [digiDisplayBursts, setDigiDisplayBursts] = useState<BillingBurst[]>([])
   const [digiDisplayItems, setDigiDisplayItems] = useState<LineItem[]>([])
   const [digiDisplayMediaLineItems, setDigiDisplayMediaLineItems] = useState<any[]>([])
@@ -709,7 +730,9 @@ function CreateMediaPlan() {
   //Digi Video
   const [feedigivideo, setFeeDigiVideo] = useState<number | null>(null)
   const [digiVideoTotal, setDigiVideoTotal] = useState(0)
+  const digiVideoTotalRef = useRef(0)
   const [digiVideoFeeTotal, setDigiVideoFeeTotal] = useState(0)
+  const digiVideoFeeTotalRef = useRef(0)
   const [digiVideoBursts, setDigiVideoBursts] = useState<BillingBurst[]>([])
   const [digiVideoItems, setDigiVideoItems] = useState<LineItem[]>([])
   const [digiVideoMediaLineItems, setDigiVideoMediaLineItems] = useState<any[]>([])
@@ -717,7 +740,9 @@ function CreateMediaPlan() {
   //Prog Display
   const [feeprogdisplay, setFeeProgDisplay] = useState<number | null>(null)
   const [progDisplayTotal, setProgDisplayTotal] = useState(0)
+  const progDisplayTotalRef = useRef(0)
   const [progDisplayFeeTotal, setProgDisplayFeeTotal] = useState(0)
+  const progDisplayFeeTotalRef = useRef(0)
   const [progDisplayBursts, setProgDisplayBursts] = useState<BillingBurst[]>([])
   const [progDisplayItems, setProgDisplayItems] = useState<LineItem[]>([]);
   const [progDisplayMediaLineItems, setProgDisplayMediaLineItems] = useState<any[]>([]);
@@ -725,7 +750,9 @@ function CreateMediaPlan() {
   //Prog Video
   const [feeprogvideo, setFeeProgVideo] = useState<number | null>(null)
   const [progVideoTotal, setProgVideoTotal] = useState(0)
+  const progVideoTotalRef = useRef(0)
   const [progVideoFeeTotal, setProgVideoFeeTotal] = useState(0)
+  const progVideoFeeTotalRef = useRef(0)
   const [progVideoBursts, setProgVideoBursts] = useState<BillingBurst[]>([])
   const [progVideoItems, setProgVideoItems] = useState<LineItem[]>([]);
   const [progVideoMediaLineItems, setProgVideoMediaLineItems] = useState<any[]>([]);
@@ -733,7 +760,9 @@ function CreateMediaPlan() {
   //Prog Bvod
   const [feeprogbvod, setFeeProgBvod] = useState<number | null>(null)
   const [progBvodTotal, setProgBvodTotal] = useState(0)
+  const progBvodTotalRef = useRef(0)
   const [progBvodFeeTotal, setProgBvodFeeTotal] = useState(0)
+  const progBvodFeeTotalRef = useRef(0)
   const [progBvodBursts, setProgBvodBursts] = useState<BillingBurst[]>([])
   const [progBvodItems, setProgBvodItems] = useState<LineItem[]>([]);
   const [progBvodMediaLineItems, setProgBvodMediaLineItems] = useState<any[]>([]);
@@ -741,7 +770,9 @@ function CreateMediaPlan() {
   //Prog Audio
   const [feeprogaudio, setFeeProgAudio] = useState<number | null>(null)
   const [progAudioTotal, setProgAudioTotal] = useState(0)
+  const progAudioTotalRef = useRef(0)
   const [progAudioFeeTotal, setProgAudioFeeTotal] = useState(0)
+  const progAudioFeeTotalRef = useRef(0)
   const [progAudioBursts, setProgAudioBursts] = useState<BillingBurst[]>([])
   const [progAudioItems, setProgAudioItems] = useState<LineItem[]>([])
   const [progAudioMediaLineItems, setProgAudioMediaLineItems] = useState<any[]>([])
@@ -749,15 +780,19 @@ function CreateMediaPlan() {
   //Prog Ooh
   const [feeprogooh, setFeeProgOoh] = useState<number | null>(null)
   const [progOohTotal, setProgOohTotal] = useState(0)
+  const progOohTotalRef = useRef(0)
   const [progOohBursts, setProgOohBursts] = useState<BillingBurst[]>([])
   const [progOohItems, setProgOohItems] = useState<LineItem[]>([]);
   const [progOohFeeTotal, setProgOohFeeTotal] = useState(0);
+  const progOohFeeTotalRef = useRef(0)
   const [progOohMediaLineItems, setProgOohMediaLineItems] = useState<any[]>([]);
 
   //Integration
   const [feeintegration, setFeeIntegration] = useState<number | null>(null)
   const [integrationTotal, setIntegrationTotal] = useState(0)
+  const integrationTotalRef = useRef(0)
   const [integrationFeeTotal, setIntegrationFeeTotal] = useState(0)
+  const integrationFeeTotalRef = useRef(0)
   const [integrationBursts, setIntegrationBursts] = useState<BillingBurst[]>([])
   const [integrationItems, setIntegrationItems] = useState<LineItem[]>([]);
   const [integrationMediaLineItems, setIntegrationMediaLineItems] = useState<any[]>([]);
@@ -770,7 +805,9 @@ function CreateMediaPlan() {
   //Cinema
   const [feecinema, setFeeCinema] = useState<number | null>(null)
   const [cinemaTotal, setCinemaTotal] = useState(0)
+  const cinemaTotalRef = useRef(0)
   const [cinemaFeeTotal, setCinemaFeeTotal] = useState(0)
+  const cinemaFeeTotalRef = useRef(0)
   const [cinemaBursts, setCinemaBursts] = useState<BillingBurst[]>([])
   const [cinemaItems, setCinemaItems] = useState<LineItem[]>([])
   const [cinemaMediaLineItems, setCinemaMediaLineItems] = useState<any[]>([])
@@ -780,7 +817,9 @@ function CreateMediaPlan() {
   const [televisionItems, setTelevisionItems] = useState<LineItem[]>([])
   const [televisionBursts, setTelevisionBursts] = useState<BillingBurst[]>([])
   const [televisionTotal, setTelevisionTotal] = useState(0)
+  const televisionTotalRef = useRef(0)
   const [televisionFeeTotal, setTelevisionFeeTotal] = useState(0)
+  const televisionFeeTotalRef = useRef(0)
   const [televisionLineItems, setTelevisionLineItems] = useState<any[]>([])
   const [televisionMediaLineItems, setTelevisionMediaLineItems] = useState<any[]>([])
 
@@ -789,7 +828,9 @@ function CreateMediaPlan() {
   const [radioItems, setRadioItems] = useState<LineItem[]>([])
   const [radioBursts, setRadioBursts] = useState<BillingBurst[]>([])
   const [radioTotal, setRadioTotal] = useState(0)
+  const radioTotalRef = useRef(0)
   const [radioFeeTotal, setRadioFeeTotal] = useState(0)
+  const radioFeeTotalRef = useRef(0)
   const [radioMediaLineItems, setRadioMediaLineItems] = useState<any[]>([])
 
   // ─ Newspapers
@@ -797,7 +838,9 @@ function CreateMediaPlan() {
   const [newspaperItems, setNewspaperItems] = useState<LineItem[]>([])
   const [newspaperBursts, setNewspaperBursts] = useState<BillingBurst[]>([])
   const [newspaperTotal, setNewspaperTotal] = useState(0)
+  const newspaperTotalRef = useRef(0)
   const [newspaperFeeTotal, setNewspaperFeeTotal] = useState(0)
+  const newspaperFeeTotalRef = useRef(0)
   const [newspaperLineItems, setNewspaperLineItems] = useState<any[]>([])
   const [newspaperMediaLineItems, setNewspaperMediaLineItems] = useState<any[]>([])
 
@@ -806,7 +849,9 @@ function CreateMediaPlan() {
   const [magazineItems, setMagazineItems] = useState<LineItem[]>([])
   const [magazineBursts, setMagazineBursts] = useState<BillingBurst[]>([])
   const [magazineTotal, setMagazineTotal] = useState(0)
+  const magazineTotalRef = useRef(0)
   const [magazineFeeTotal, setMagazineFeeTotal] = useState(0)
+  const magazineFeeTotalRef = useRef(0)
   const [magazineMediaLineItems, setMagazineMediaLineItems] = useState<any[]>([])
 
   // ─ OOH
@@ -814,14 +859,18 @@ function CreateMediaPlan() {
   const [oohItems, setOohItems] = useState<LineItem[]>([])
   const [oohBursts, setOohBursts] = useState<BillingBurst[]>([])
   const [oohTotal, setOohTotal] = useState(0)
+  const oohTotalRef = useRef(0)
   const [oohFeeTotal, setOohFeeTotal] = useState(0)
+  const oohFeeTotalRef = useRef(0)
   const [oohMediaLineItems, setOohMediaLineItems] = useState<any[]>([])
 
   // Production
   const [feeProduction, setFeeProduction] = useState<number | null>(null)
   const [productionTotal, setProductionTotal] = useState(0)
+  const productionTotalRef = useRef(0)
   const [productionBursts, setProductionBursts] = useState<BillingBurst[]>([])
   const [productionFeeTotal, setProductionFeeTotal] = useState(0)
+  const productionFeeTotalRef = useRef(0)
   const [productionItems, setProductionItems] = useState<LineItem[]>([])
   const [productionMediaLineItems, setProductionMediaLineItems] = useState<any[]>([])
 
@@ -834,6 +883,7 @@ function CreateMediaPlan() {
   //Finance 
 
   const [investmentPerMonthByChannel, setInvestmentPerMonthByChannel] = useState<Record<string, any[]>>({})
+  const investmentPerMonthByChannelRef = useRef(investmentPerMonthByChannel)
   const investmentPerMonth = useMemo(
     () => mergeInvestmentMonths(investmentPerMonthByChannel),
     [investmentPerMonthByChannel],
@@ -2284,305 +2334,256 @@ function CreateMediaPlan() {
 
 
 
-  // Digital Media
+  // Digital Media — totals live outside RHF; mark via applyChannelTotalPair (ref compare, plain setState).
   const handleSearchTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setSearchTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
-    })
-    setSearchFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
+    applyChannelTotalPair({
+      mediaRef: searchTotalRef,
+      feeRef: searchFeeTotalRef,
+      setMedia: setSearchTotal,
+      setFee: setSearchFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
   };
 
   const handleSocialMediaTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setSocialMediaTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
-    })
-    setSocialMediaFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
+    applyChannelTotalPair({
+      mediaRef: socialmediaTotalRef,
+      feeRef: socialMediaFeeTotalRef,
+      setMedia: setSocialMediaTotal,
+      setFee: setSocialMediaFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
   };
   
   const handleDigiAudioTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setDigiAudioTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
-    })
-    setDigiAudioFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
+    applyChannelTotalPair({
+      mediaRef: digiAudioTotalRef,
+      feeRef: digiAudioFeeTotalRef,
+      setMedia: setDigiAudioTotal,
+      setFee: setDigiAudioFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
   };
 
   const handleDigiDisplayTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setDigiDisplayTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
-    })
-    setDigiDisplayFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
+    applyChannelTotalPair({
+      mediaRef: digiDisplayTotalRef,
+      feeRef: digiDisplayFeeTotalRef,
+      setMedia: setDigiDisplayTotal,
+      setFee: setDigiDisplayFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
   };
 
   const handleDigiVideoTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setDigiVideoTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
-    })
-    setDigiVideoFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
+    applyChannelTotalPair({
+      mediaRef: digiVideoTotalRef,
+      feeRef: digiVideoFeeTotalRef,
+      setMedia: setDigiVideoTotal,
+      setFee: setDigiVideoFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
   };
 
   const handleBVODTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setBvodTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
-    })
-    setBvodFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
+    applyChannelTotalPair({
+      mediaRef: bvodTotalRef,
+      feeRef: bvodFeeTotalRef,
+      setMedia: setBvodTotal,
+      setFee: setBvodFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
   };
 
   const handleIntegrationTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setIntegrationTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
-    })
-    setIntegrationFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
+    applyChannelTotalPair({
+      mediaRef: integrationTotalRef,
+      feeRef: integrationFeeTotalRef,
+      setMedia: setIntegrationTotal,
+      setFee: setIntegrationFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
   };
 
   const handleProgDisplayTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setProgDisplayTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
-    })
-    setProgDisplayFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
+    applyChannelTotalPair({
+      mediaRef: progDisplayTotalRef,
+      feeRef: progDisplayFeeTotalRef,
+      setMedia: setProgDisplayTotal,
+      setFee: setProgDisplayFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
   };
 
   const handleProgVideoTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setProgVideoTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
-    })
-    setProgVideoFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
+    applyChannelTotalPair({
+      mediaRef: progVideoTotalRef,
+      feeRef: progVideoFeeTotalRef,
+      setMedia: setProgVideoTotal,
+      setFee: setProgVideoFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
   };
 
   const handleProgBvodTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setProgBvodTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
-    })
-    setProgBvodFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
+    applyChannelTotalPair({
+      mediaRef: progBvodTotalRef,
+      feeRef: progBvodFeeTotalRef,
+      setMedia: setProgBvodTotal,
+      setFee: setProgBvodFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
   };
 
   const handleProgOohTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setProgOohTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
+    applyChannelTotalPair({
+      mediaRef: progOohTotalRef,
+      feeRef: progOohFeeTotalRef,
+      setMedia: setProgOohTotal,
+      setFee: setProgOohFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
-    setProgOohFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
-    })
-    if (changed) markUnsavedChanges()
   };
 
   const handleProgAudioTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setProgAudioTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
+    applyChannelTotalPair({
+      mediaRef: progAudioTotalRef,
+      feeRef: progAudioFeeTotalRef,
+      setMedia: setProgAudioTotal,
+      setFee: setProgAudioFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
-    setProgAudioFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
-    })
-    if (changed) markUnsavedChanges()
   };
 
   // Offline Media
   
   const handleCinemaTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setCinemaTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
+    applyChannelTotalPair({
+      mediaRef: cinemaTotalRef,
+      feeRef: cinemaFeeTotalRef,
+      setMedia: setCinemaTotal,
+      setFee: setCinemaFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
-    setCinemaFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
-    })
-    if (changed) markUnsavedChanges()
   };
 
   const handleTelevisionTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setTelevisionTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
+    applyChannelTotalPair({
+      mediaRef: televisionTotalRef,
+      feeRef: televisionFeeTotalRef,
+      setMedia: setTelevisionTotal,
+      setFee: setTelevisionFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
-    setTelevisionFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
-    })
-    if (changed) markUnsavedChanges()
   };
 
   const handleRadioTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setRadioTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
+    applyChannelTotalPair({
+      mediaRef: radioTotalRef,
+      feeRef: radioFeeTotalRef,
+      setMedia: setRadioTotal,
+      setFee: setRadioFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
-    setRadioFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
-    })
-    if (changed) markUnsavedChanges()
   };
 
   const handleNewspaperTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setNewspaperTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
+    applyChannelTotalPair({
+      mediaRef: newspaperTotalRef,
+      feeRef: newspaperFeeTotalRef,
+      setMedia: setNewspaperTotal,
+      setFee: setNewspaperFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
-    setNewspaperFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
-    })
-    if (changed) markUnsavedChanges()
   };
 
   const handleMagazinesTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setMagazineTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
+    applyChannelTotalPair({
+      mediaRef: magazineTotalRef,
+      feeRef: magazineFeeTotalRef,
+      setMedia: setMagazineTotal,
+      setFee: setMagazineFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
-    setMagazineFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
-    })
-    if (changed) markUnsavedChanges()
   };
 
   const handleOohTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setOohTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
+    applyChannelTotalPair({
+      mediaRef: oohTotalRef,
+      feeRef: oohFeeTotalRef,
+      setMedia: setOohTotal,
+      setFee: setOohFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
-    setOohFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
-    })
-    if (changed) markUnsavedChanges()
   };
 
   const handleProductionTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setProductionTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
+    applyChannelTotalPair({
+      mediaRef: productionTotalRef,
+      feeRef: productionFeeTotalRef,
+      setMedia: setProductionTotal,
+      setFee: setProductionFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
-    setProductionFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
-    })
-    if (changed) markUnsavedChanges()
   };
 
   const handleInfluencersTotalChange = (totalMedia: number, totalFee: number) => {
-    let changed = false
-    setInfluencersTotal((prev) => {
-      if (prev === totalMedia) return prev
-      changed = true
-      return totalMedia
+    applyChannelTotalPair({
+      mediaRef: influencersTotalRef,
+      feeRef: influencersFeeTotalRef,
+      setMedia: setInfluencersTotal,
+      setFee: setInfluencersFeeTotal,
+      totalMedia,
+      totalFee,
+      markDirty: markUnsavedChanges,
     })
-    setInfluencersFeeTotal((prev) => {
-      if (prev === totalFee) return prev
-      changed = true
-      return totalFee
-    })
-    if (changed) markUnsavedChanges()
   };
 
   const handleInvestmentChange = useCallback((channel: string, rows: any[]) => {
-    setInvestmentPerMonthByChannel((prev) => {
-      if (JSON.stringify(prev[channel] ?? []) === JSON.stringify(rows)) return prev
-      markUnsavedChanges()
-      return { ...prev, [channel]: rows }
-    })
+    const prev = investmentPerMonthByChannelRef.current
+    if (JSON.stringify(prev[channel] ?? []) === JSON.stringify(rows)) return
+    const next = { ...prev, [channel]: rows }
+    investmentPerMonthByChannelRef.current = next
+    setInvestmentPerMonthByChannel(next)
+    markUnsavedChanges()
   }, [markUnsavedChanges])
 
   // New callback handlers for media line items
@@ -3181,8 +3182,14 @@ function CreateMediaPlan() {
       return
     }
 
+    const requestToken = beginMbaNumberRequest(mbaNumberRequestTokenRef)
+
     try {
       const response = await fetch(`/api/mediaplans/mbanumber?mbaidentifier=${encodeURIComponent(mbaidentifier)}`)
+
+      if (!shouldApplyMbaNumberResponse(requestToken, mbaNumberRequestTokenRef.current)) {
+        return
+      }
       
       if (!response.ok) {
         let errorMessage = "Failed to generate MBA number"
@@ -3198,6 +3205,9 @@ function CreateMediaPlan() {
       }
       
       const data = await response.json()
+      if (!shouldApplyMbaNumberResponse(requestToken, mbaNumberRequestTokenRef.current)) {
+        return
+      }
       if (data.mba_number) {
         if (form.getValues("mba_number") !== data.mba_number) {
           form.setValue("mba_number", data.mba_number)
@@ -3208,8 +3218,10 @@ function CreateMediaPlan() {
         throw new Error("MBA number not found in response")
       }
     } catch (error) {
+      if (!shouldApplyMbaNumberResponse(requestToken, mbaNumberRequestTokenRef.current)) {
+        return
+      }
       console.error("Error generating MBA number:", error)
-      const errorMessage = error instanceof Error ? error.message : "Error generating MBA number"
       if (form.getValues("mba_number") !== "") {
         form.setValue("mba_number", "")
       }
@@ -3219,6 +3231,9 @@ function CreateMediaPlan() {
   }
 
   const handleClientChange = (clientId: string) => {
+    if (shouldSkipClientChange(selectedClientId, clientId)) {
+      return
+    }
     const selectedClient = clients.find((client) => client.id.toString() === clientId)
     if (selectedClient) {
       const nextClientName = selectedClient.mp_client_name
@@ -5213,7 +5228,11 @@ function CreateMediaPlan() {
     // from publisher/client tables only
   }, [])
 
-  const handleSaveMediaPlanVersion = async (masterId: number) => {
+  const handleSaveMediaPlanVersion = async (
+    masterId: number,
+    opts?: { intent?: "save" | "publish" }
+  ) => {
+    const saveIntent = opts?.intent === "publish" ? "publish" : "save"
     setIsSaveModalOpen(true);
     setIsVersionSaving(true);
     
@@ -5372,7 +5391,8 @@ function CreateMediaPlan() {
         )
 
         if (
-          modeResolved.mode === "publish" &&
+          (modeResolved.mode === "publish" ||
+            modeResolved.mode === "new_version") &&
           lineItemsForSave.length === 0 &&
           [
             fv.mp_television,
@@ -5596,7 +5616,10 @@ function CreateMediaPlan() {
 
         toast({
           title: "Success",
-          description: `Saved as version ${modeResolved.versionNumber}`,
+          description:
+            modeResolved.uiMode === "increment_unpublished"
+              ? `Cut v${modeResolved.versionNumber} (unpublished) — approval scope changed`
+              : `Saved as version ${modeResolved.versionNumber}`,
         })
         return
       }
@@ -6556,7 +6579,11 @@ function CreateMediaPlan() {
         }
       }
 
-      if (deferredPublish && usedPutPath && version.version_number != null) {
+      if (
+        shouldRunDeferredMasterPublish({ deferredPublish, saveIntent }) &&
+        usedPutPath &&
+        version.version_number != null
+      ) {
         updateSaveStatus('Publish version', 'pending')
         const publishResponse = await fetch(
           `/api/mediaplans/mba/${encodeURIComponent(String(fv.mba_number))}`,
@@ -6613,7 +6640,7 @@ function CreateMediaPlan() {
 
   // in page.tsx
 
-const handleSaveAll = async () => {
+const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
     if (saveBlockedByClientsError) {
       toast({
         title: "Save disabled",
@@ -6655,7 +6682,9 @@ const handleSaveAll = async () => {
 
     // 2️⃣ Save version (Media Plan Version status will be initialized in handleSaveMediaPlanVersion)
     try {
-      const versionResult = await handleSaveMediaPlanVersion(newMediaPlanId)
+      const versionResult = await handleSaveMediaPlanVersion(newMediaPlanId, {
+        intent: opts?.intent,
+      })
       // Children saved but publish PATCH failed — keep user on page for Retry publish.
       if (versionResult === 'publish_pending') {
         return

@@ -39,7 +39,7 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  it("unpublished tip + forceIncrement → publish / next version", () => {
+  it("unpublished tip + forceIncrement → new_version / increment_unpublished (NV-1)", () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "draft",
       forceIncrement: true,
@@ -47,9 +47,27 @@ describe("resolvePostgresSaveMode", () => {
       versionRowCount: 2,
       tipPublishedAt: null,
     })
-    assert.equal(r.mode, "publish")
-    assert.equal(r.versionNumber, 3)
-    assert.equal(r.uiMode, "increment")
+    assert.deepEqual(r, {
+      mode: "new_version",
+      versionNumber: 3,
+      uiMode: "increment_unpublished",
+    })
+  })
+
+  it("unpublished tip + intent publish → publish (not new_version)", () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "draft",
+      forceIncrement: false,
+      publishedVersionNumber: 2,
+      versionRowCount: 2,
+      tipPublishedAt: null,
+      intent: "publish",
+    })
+    assert.deepEqual(r, {
+      mode: "publish",
+      versionNumber: 3,
+      uiMode: "increment",
+    })
   })
 
   it("maps first create (no versions) → publish v1", () => {
@@ -195,8 +213,21 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  it("never returns new_version", () => {
-    for (const tipPublishedAt of [null, "2026-01-01T00:00:00.000Z", undefined] as const) {
+  it("returns new_version only for unpublished-tip forceIncrement (NV-1)", () => {
+    const unpublishedForce = resolvePostgresSaveMode({
+      campaignStatus: "draft",
+      forceIncrement: true,
+      publishedVersionNumber: 1,
+      versionRowCount: 1,
+      tipPublishedAt: null,
+    })
+    assert.equal(unpublishedForce.mode, "new_version")
+    assert.equal(unpublishedForce.uiMode, "increment_unpublished")
+
+    for (const tipPublishedAt of [
+      "2026-01-01T00:00:00.000Z",
+      undefined,
+    ] as const) {
       const r = resolvePostgresSaveMode({
         campaignStatus: "draft",
         forceIncrement: false,
@@ -206,5 +237,24 @@ describe("resolvePostgresSaveMode", () => {
       })
       assert.notEqual(r.mode as string | null, "new_version")
     }
+
+    const firstCreate = resolvePostgresSaveMode({
+      campaignStatus: "Draft",
+      forceIncrement: false,
+      publishedVersionNumber: 0,
+      versionRowCount: 0,
+      tipPublishedAt: null,
+    })
+    assert.notEqual(firstCreate.mode as string | null, "new_version")
+
+    const intentPublish = resolvePostgresSaveMode({
+      campaignStatus: "draft",
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 1,
+      tipPublishedAt: null,
+      intent: "publish",
+    })
+    assert.equal(intentPublish.mode, "publish")
   })
 })

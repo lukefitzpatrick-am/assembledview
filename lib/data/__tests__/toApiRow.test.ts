@@ -149,6 +149,57 @@ describe("postgres list path — mba_number identity", () => {
       true
     )
   })
+
+  it("NV-1: pointer→unpublished row falls back to max(vn) like null pointer", () => {
+    const master = {
+      id: 10,
+      mbaNumber: "NV1TEST",
+      mpClientName: "NV",
+      campaignName: "Stale pointer",
+      campaignStatus: "draft",
+      campaignStartDate: "2026-01-01",
+      campaignEndDate: "2026-12-31",
+      campaignBudgetCents: "10000",
+      publishedVersionId: 99,
+      clientId: null,
+      createdAt: "2026-01-01T00:00:00.000Z",
+    }
+    const unpublishedPointerTarget = {
+      id: 99,
+      version_number: 1,
+      published_at: null,
+    }
+    const mapped = mapPlanMasterFromPostgres(
+      master,
+      unpublishedPointerTarget,
+      3
+    )
+    assert.equal(mapped.version_number, 3)
+
+    const stamped = mapPlanMasterFromPostgres(
+      master,
+      {
+        id: 99,
+        version_number: 1,
+        published_at: "2026-06-01T00:00:00.000Z",
+      },
+      3
+    )
+    assert.equal(stamped.version_number, 1)
+
+    // publishedCap derived from master.version_number must not hide rows above
+    // a stale (unpublished) pointer — tip resolves to max(vn)=3, so vn 1..3 pass.
+    const publishedCap = Number(mapped.version_number) || 0
+    const versions = [
+      { version_number: 1 },
+      { version_number: 2 },
+      { version_number: 3 },
+    ]
+    const meta = versions.filter(
+      (v) => v.version_number > 0 && v.version_number <= publishedCap
+    )
+    assert.equal(meta.length, 3)
+  })
 })
 
 describe("toApiRow", () => {

@@ -78,6 +78,7 @@ File: `app/mediaplans/mba/[mba_number]/edit/page.tsx`
 | Any RHF value change | `form.watch(() => markUnsavedChanges())` |
 | Pending billing overrides present | `useEffect` → `markUnsavedChanges` |
 | Channel totals change | 20× `handle*TotalChange` → `markPassiveChannelChange` |
+| Channel investment-by-month republish | `handleInvestmentChange` compares via ref, `setState(next)` with a plain value, then `markPassiveChannelChange` — never mark inside a setState updater (render-phase emit) |
 | Channel media line items re-publish after first settle | 20× `handle*MediaLineItemsChange` → `markPassiveChannelChange` |
 | Excel `LineItem[]` snapshots change | 19× `handle*ItemsChange` → `markUnsavedChanges` |
 | Manual billing Apply | `markUnsavedChanges` |
@@ -95,7 +96,7 @@ File: `app/mediaplans/mba/[mba_number]/edit/page.tsx`
 
 File: `app/mediaplans/create/page.tsx`
 
-Same hand-rolled pattern: `markUnsavedChanges` gated by `navigationHydratedRef` (opened on mount; temporarily closed during planner prefill). Dense per-channel total/line/`ItemsChange` handlers call `markUnsavedChanges` (often behind `setIfChanged`). Manual billing Apply and draft resume use `setHasUnsavedChanges(true)`. Same Expert bridge mount. Primary Save not gated on dirty; draft save is.
+Same hand-rolled pattern: `markUnsavedChanges` gated by `navigationHydratedRef` (opened on mount; temporarily closed during planner prefill). All channel totals mark via `applyChannelTotalPair` (ref compare, plain setState, then mark) — never `changed`-inside-updater with a read outside. Dense per-channel line/`ItemsChange` handlers call `markUnsavedChanges`. Manual billing Apply and draft resume use `forceDirty`. Same Expert bridge mount. Primary Save not gated on dirty; draft save is.
 
 ---
 

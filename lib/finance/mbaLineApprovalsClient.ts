@@ -158,3 +158,33 @@ export function approvalSelectionFingerprint(
     .map((k) => `${k}:${[...(selectedByMedia[k] ?? [])].sort().join(",")}`)
     .join("|")
 }
+
+/**
+ * Stable fingerprint of the exclusion set for version-spawn detection (SV-3).
+ * Omits channels with an empty excluded list so all-in and "no exclusions after
+ * deleting an approved line" share the same fingerprint (`""`).
+ */
+export function approvalExclusionFingerprint(
+  excludedByMedia: Record<string, string[]>
+): string {
+  const keys = Object.keys(excludedByMedia)
+    .filter((k) => (excludedByMedia[k] ?? []).length > 0)
+    .sort()
+  return keys
+    .map((k) => `${k}:${[...(excludedByMedia[k] ?? [])].sort().join(",")}`)
+    .join("|")
+}
+
+/** Line ids present in `all` but not in `selected` — empty channels omitted. */
+export function excludedLineItemIdsByMedia(params: {
+  allLineIdsByMedia: Record<string, string[]>
+  selectedByMedia: Record<string, string[]>
+}): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  for (const [mediaType, ids] of Object.entries(params.allLineIdsByMedia)) {
+    const selected = new Set(params.selectedByMedia[mediaType] ?? [])
+    const excluded = ids.filter((id) => !selected.has(id))
+    if (excluded.length > 0) out[mediaType] = excluded
+  }
+  return out
+}

@@ -129,8 +129,24 @@ function runPlansShadowCompare(
 // --- masters ---
 
 /**
+ * Pointer target counts as published only when `published_at` is set.
+ * Stale pointer → unpublished row is treated like a null pointer (NV-1).
+ */
+export function publishedVersionIfStamped(
+  publishedVersion: Record<string, unknown> | null | undefined
+): Record<string, unknown> | null {
+  if (publishedVersion == null) return null
+  const at =
+    publishedVersion.published_at ??
+    (publishedVersion as { publishedAt?: unknown }).publishedAt
+  if (at == null) return null
+  return publishedVersion
+}
+
+/**
  * Full master shape for plan loaders.
- * version_number: COALESCE(published, max(vn), 0) for null-pointer debris.
+ * version_number: COALESCE(published-stamped, max(vn), 0) —
+ * null pointer or pointer→unpublished (`published_at IS NULL`) both fall back to max(vn).
  */
 export function mapPlanMasterFromPostgres(
   master: Record<string, unknown>,
@@ -147,11 +163,12 @@ export function mapPlanMasterFromPostgres(
     if (Number.isFinite(n)) mpCampaignbudget = n / 100
   }
 
+  const stamped = publishedVersionIfStamped(publishedVersion)
   let versionNumber = 0
-  if (publishedVersion != null) {
+  if (stamped != null) {
     const fromPub = Number(
-      publishedVersion.version_number ??
-        (publishedVersion as { versionNumber?: unknown }).versionNumber ??
+      stamped.version_number ??
+        (stamped as { versionNumber?: unknown }).versionNumber ??
         0
     )
     versionNumber = Number.isFinite(fromPub) ? fromPub : 0
@@ -203,10 +220,12 @@ export async function fetchPlanMastersFromPostgres(): Promise<Record<string, unk
     const row = m as Record<string, unknown>
     const masterId = Number(row.id)
     const pubId = row.publishedVersionId ?? row.published_version_id
-    const published =
+    const publishedRaw =
       pubId != null && Number.isFinite(Number(pubId))
         ? versionById.get(Number(pubId)) ?? null
         : null
+    // Join requires published_at IS NOT NULL — stale pointer ≡ null pointer.
+    const published = publishedVersionIfStamped(publishedRaw)
     const publishedApi = published
       ? coerceNumericStringsToNumbers(toApiRow(published))
       : null

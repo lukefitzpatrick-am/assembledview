@@ -1709,6 +1709,120 @@ test("VC Stage 1: new_version inserts unpublished (published_at null)", async (t
   assert.equal(snap.version?.publishedBy, null)
 })
 
+test("NV-1: new_version with 0 lines rejected (BOSS006)", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  await savePlanVersion(draftInput(masterId, [baseLine(LINE_A, 1000)]))
+  await assert.rejects(
+    () =>
+      savePlanVersion({
+        ...draftInput(masterId, []),
+        mode: "new_version",
+        campaignStatus: "draft",
+      }),
+    (err: unknown) =>
+      err instanceof SavePlanError &&
+      err.code === "BOSS006_EMPTY_PUBLISH" &&
+      /0 line/i.test(err.message)
+  )
+})
+
+test("NV-1: pointer→unpublished + new_version cut → reads resolve NEW tip (pointer unchanged)", async (t) => {
+  // Route behaviour (assert only — do not change): /api/plans/save clears
+  // plan_working_drafts via deleteWorkingDraft on ALL successful modes
+  // (draft / new_version / publish) — see app/api/plans/save/route.ts.
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const v1 = await savePlanVersion(draftInput(masterId, [baseLine(LINE_A, 1000)]))
+  // Stale pointer: published_version_id → unpublished v1 (NV-0 debris).
+  const db = getDb()
+  await db
+    .update(schema.mediaPlanMasters)
+    .set({ publishedVersionId: v1.versionId })
+    .where(eq(schema.mediaPlanMasters.id, masterId))
+
+  const { mapPlanMasterFromPostgres } = await import("../readMediaPlans.js")
+  const [masterBefore] = await db
+    .select()
+    .from(schema.mediaPlanMasters)
+    .where(eq(schema.mediaPlanMasters.id, masterId))
+  const versionsBefore = await db
+    .select()
+    .from(schema.mediaPlanVersions)
+    .where(eq(schema.mediaPlanVersions.masterId, masterId))
+  const pubBefore = versionsBefore.find((v) => v.id === masterBefore!.publishedVersionId)
+  const maxBefore = Math.max(
+    ...versionsBefore.map((v) => Number(v.versionNumber) || 0)
+  )
+  const tipBefore = mapPlanMasterFromPostgres(
+    masterBefore as unknown as Record<string, unknown>,
+    pubBefore
+      ? {
+          version_number: pubBefore.versionNumber,
+          published_at: pubBefore.publishedAt,
+        }
+      : null,
+    maxBefore
+  )
+  assert.equal(
+    tipBefore.version_number,
+    maxBefore,
+    "stale pointer→unpublished must fall back to max(vn)"
+  )
+
+  const cut = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1200)]),
+    mode: "new_version",
+    campaignStatus: "draft",
+  })
+  assert.equal(cut.published, false)
+  assert.equal(cut.versionNumber, maxBefore + 1)
+
+  const [masterAfter] = await db
+    .select()
+    .from(schema.mediaPlanMasters)
+    .where(eq(schema.mediaPlanMasters.id, masterId))
+  // NV-0: new_version must NOT advance published_version_id.
+  assert.equal(masterAfter!.publishedVersionId, v1.versionId)
+
+  const versionsAfter = await db
+    .select()
+    .from(schema.mediaPlanVersions)
+    .where(eq(schema.mediaPlanVersions.masterId, masterId))
+  const pubAfter = versionsAfter.find((v) => v.id === masterAfter!.publishedVersionId)
+  const maxAfter = Math.max(
+    ...versionsAfter.map((v) => Number(v.versionNumber) || 0)
+  )
+  const tipAfter = mapPlanMasterFromPostgres(
+    masterAfter as unknown as Record<string, unknown>,
+    pubAfter
+      ? {
+          version_number: pubAfter.versionNumber,
+          published_at: pubAfter.publishedAt,
+        }
+      : null,
+    maxAfter
+  )
+  assert.equal(tipAfter.version_number, cut.versionNumber)
+  assert.equal(tipAfter.version_number, maxAfter)
+})
+
 test("VC Stage 1: publish with no email stamps published_at, published_by null", async (t) => {
   if (!hasDb) {
     t.skip("DATABASE_URL not set")

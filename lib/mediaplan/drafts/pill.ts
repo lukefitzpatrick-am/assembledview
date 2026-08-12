@@ -24,6 +24,8 @@ export function describePlanSavePill(args: {
     primary = `Draft of v${m.versionNumber} — publish overwrites v${m.versionNumber}`
   } else if (m.uiMode === "working_draft") {
     primary = `Working draft of v${m.versionNumber} — publish creates next version`
+  } else if (m.uiMode === "increment_unpublished") {
+    primary = `Will cut v${m.versionNumber} (stays unpublished)`
   } else {
     primary = `Publish will create v${m.versionNumber}`
   }
@@ -36,6 +38,27 @@ export function describePlanSavePill(args: {
   }
 
   return { primary, secondary }
+}
+
+/**
+ * Campaign Details header trail after "v{n} · …".
+ * Same `ResolvePostgresSaveModeResult` as `describePlanSavePill` — never tip+1 alone.
+ * Overwrite: no "Next" (publish replaces tip). Published tip: "Next: v{n+1}".
+ */
+export function describeVersionHeaderTrail(
+  modeResolved: ResolvePostgresSaveModeResult
+): string {
+  const n = modeResolved.versionNumber
+  if (modeResolved.uiMode === "overwrite") {
+    return `publish overwrites v${n}`
+  }
+  if (modeResolved.uiMode === "working_draft") {
+    return `Next: v${n + 1}`
+  }
+  if (modeResolved.uiMode === "increment_unpublished") {
+    return `Will cut v${n} (stays unpublished)`
+  }
+  return `Next: v${n}`
 }
 
 export function summarizeDraftOffer(args: {

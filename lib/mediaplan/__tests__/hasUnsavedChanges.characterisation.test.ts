@@ -276,6 +276,37 @@ test("CHARACTERISATION create page: successful publish-retry DOES clear dirty th
   assert.match(ok, /router\.push\("\/mediaplans"\)/)
 })
 
+test("CHARACTERISATION edit handleInvestmentChange: dirty mark is outside setState updater", () => {
+  const edit = read("app/mediaplans/mba/[mba_number]/edit/page.tsx")
+  const start = edit.indexOf("const handleInvestmentChange = useCallback")
+  assert.ok(start >= 0, "handleInvestmentChange must exist")
+  const end = edit.indexOf("const handleBurstsChange", start)
+  assert.ok(end > start)
+  const body = edit.slice(start, end)
+  // Must not call markPassiveChannelChange from inside the investment setState updater.
+  assert.doesNotMatch(
+    body,
+    /setInvestmentPerMonthByChannel\(\(prev\)\s*=>\s*\{[\s\S]*?markPassiveChannelChange\(\)/
+  )
+  assert.match(body, /investmentPerMonthByChannelRef/)
+  assert.match(body, /markPassiveChannelChange\(\)/)
+})
+
+test("CHARACTERISATION create handleInvestmentChange: dirty mark is outside setState updater", () => {
+  const create = read("app/mediaplans/create/page.tsx")
+  const start = create.indexOf("const handleInvestmentChange = useCallback")
+  assert.ok(start >= 0, "handleInvestmentChange must exist")
+  const end = create.indexOf("// New callback handlers for media line items", start)
+  assert.ok(end > start)
+  const body = create.slice(start, end)
+  assert.doesNotMatch(
+    body,
+    /setInvestmentPerMonthByChannel\(\(prev\)\s*=>\s*\{[\s\S]*?markUnsavedChanges\(\)/
+  )
+  assert.match(body, /investmentPerMonthByChannelRef/)
+  assert.match(body, /markUnsavedChanges\(\)/)
+})
+
 test("CHARACTERISATION ExpertApplyDirtyClearOnSave: only true→false edge signals save", () => {
   const src = read("components/mediaplans/ExpertApplyDirtyClearOnSave.tsx")
   assert.match(src, /prev\.current === true && hasUnsavedChanges === false/)
