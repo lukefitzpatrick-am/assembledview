@@ -28,12 +28,30 @@ test("EXPLAIN client live query uses idx_campaign_insights_live", async (t) => {
 
   const sql = postgres(url, { prepare: false, max: 1, ssl: "require" })
   try {
-    const sample = await sql<{ client_id: string }[]>`
-      SELECT client_id::text AS client_id
-      FROM campaign_insights
-      WHERE superseded_by IS NULL
-      LIMIT 1
-    `
+    let sample: { client_id: string }[]
+    try {
+      sample = await sql<{ client_id: string }[]>`
+        SELECT client_id::text AS client_id
+        FROM campaign_insights
+        WHERE superseded_by IS NULL
+        LIMIT 1
+      `
+    } catch (err) {
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code?: unknown }).code)
+          : ""
+      if (
+        code === "ENOTFOUND" ||
+        code === "ECONNREFUSED" ||
+        code === "ETIMEDOUT" ||
+        code === "ECONNRESET"
+      ) {
+        t.skip(`DB unreachable (${code}) — skipping live EXPLAIN`)
+        return
+      }
+      throw err
+    }
     const clientId = sample[0]?.client_id ? Number(sample[0].client_id) : 1
 
     const plan = await sql<Array<{ "QUERY PLAN": string }>>`
