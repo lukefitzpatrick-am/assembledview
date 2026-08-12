@@ -136,3 +136,51 @@ test("sync invokes draft upsert after inserting a client-attributed note", async
     },
   ])
 })
+
+test("re-sync creates missing drafts for an existing client-attributed note", async () => {
+  const calls: Array<{ noteId: number; note: SyncInsertNote }> = []
+  let insertCalls = 0
+  const existingNote = note({
+    firefliesMeetingId: "ff-existing-draft",
+    title: "Existing client meeting",
+  })
+
+  await runFirefliesSync({
+    getApiKey: () => "test-key",
+    loadCursor: async () => null,
+    saveRun: async () => {},
+    hasMeeting: async () => ({
+      id: 92,
+      note: existingNote,
+    }),
+    insertNote: async () => {
+      insertCalls += 1
+      return { id: 999 }
+    },
+    activeMemberEmails: ["luke@assembledmedia.com.au"],
+    upsertTimeEntryDraftsForNote: async (args) => {
+      calls.push({ noteId: args.noteId, note: args.note })
+      return 1
+    },
+    loadAttributionContext: async () => ({
+      knownMbas: new Map(),
+      domainToClient: new Map(),
+      assembledDomains: new Set(["assembledmedia.com.au"]),
+    }),
+    listTranscripts: async () => [
+      {
+        id: "ff-existing-draft",
+        title: "Existing client meeting",
+        date: new Date("2026-08-10T23:30:00.000Z").getTime(),
+        duration: 30,
+        participants: ["luke@assembledmedia.com.au"],
+        organizer_email: "luke@assembledmedia.com.au",
+        transcript_url: null,
+        summary: { overview: "hi", action_items: null },
+      },
+    ],
+  })
+
+  assert.equal(insertCalls, 0)
+  assert.deepEqual(calls, [{ noteId: 92, note: existingNote }])
+})

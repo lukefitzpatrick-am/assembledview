@@ -26,6 +26,11 @@ export type SyncInsertNote = {
   actionItemsRaw: string | null
 }
 
+export type ExistingFirefliesNote = {
+  id: number
+  note: SyncInsertNote
+}
+
 export type FirefliesSyncDeps = {
   getApiKey: () => string
   transport?: (
@@ -42,7 +47,9 @@ export type FirefliesSyncDeps = {
     status: "ok" | "error"
     error?: string | null
   }) => Promise<void>
-  hasMeeting: (firefliesMeetingId: string) => Promise<boolean>
+  hasMeeting: (
+    firefliesMeetingId: string
+  ) => Promise<boolean | ExistingFirefliesNote>
   /** Returns inserted client_notes.id */
   insertNote: (note: SyncInsertNote) => Promise<{ id: number }>
   /**
@@ -170,8 +177,21 @@ export async function runFirefliesSync(
 
   for (const t of transcripts) {
     if (!t.id) continue
-    if (await deps.hasMeeting(t.id)) {
+    const existingMeeting = await deps.hasMeeting(t.id)
+    if (existingMeeting) {
       notesSkipped += 1
+      if (
+        typeof existingMeeting !== "boolean" &&
+        deps.upsertTimeEntryDraftsForNote &&
+        !existingMeeting.note.isInternal &&
+        existingMeeting.note.clientId != null
+      ) {
+        await deps.upsertTimeEntryDraftsForNote({
+          noteId: existingMeeting.id,
+          note: existingMeeting.note,
+          activeMemberEmails: deps.activeMemberEmails ?? [],
+        })
+      }
       continue
     }
 

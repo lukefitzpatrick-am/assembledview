@@ -147,11 +147,30 @@ export async function runFirefliesSyncToPostgres(): Promise<{
     loadAttributionContext: () => loadAttributionContext(database),
     hasMeeting: async (id) => {
       const [row] = await database
-        .select({ id: schema.clientNotes.id })
+        .select()
         .from(schema.clientNotes)
         .where(eq(schema.clientNotes.firefliesMeetingId, id))
         .limit(1)
-      return row != null
+      if (!row) return false
+      return {
+        id: row.id,
+        note: {
+          firefliesMeetingId: row.firefliesMeetingId ?? id,
+          clientId: row.clientId,
+          mbaNumber: row.mbaNumber,
+          source: "fireflies",
+          title: row.title,
+          body: row.body,
+          meetingDate: row.meetingDate,
+          participants: row.participants,
+          organizerEmail: row.organizerEmail,
+          matchedBy: row.matchedBy,
+          durationSeconds: row.durationSeconds,
+          transcriptUrl: row.transcriptUrl,
+          isInternal: row.isInternal,
+          actionItemsRaw: null,
+        },
+      }
     },
     insertNote: async (note: SyncInsertNote) => {
       const [row] = await database
