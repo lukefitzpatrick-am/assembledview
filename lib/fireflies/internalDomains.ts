@@ -2,6 +2,18 @@ import { DEFAULT_ASSEMBLED_DOMAINS } from "./attribution.js"
 
 export { DEFAULT_ASSEMBLED_DOMAINS }
 
+type InternalDomainEnv = {
+  INTERNAL_EMAIL_DOMAINS?: string
+  FIREFLIES_ASSEMBLED_DOMAINS?: string
+}
+
+function processDomainEnv(): InternalDomainEnv {
+  return {
+    INTERNAL_EMAIL_DOMAINS: process.env.INTERNAL_EMAIL_DOMAINS,
+    FIREFLIES_ASSEMBLED_DOMAINS: process.env.FIREFLIES_ASSEMBLED_DOMAINS,
+  }
+}
+
 function parseCsv(raw: string): string[] {
   return raw
     .split(",")
@@ -11,7 +23,7 @@ function parseCsv(raw: string): string[] {
 
 /** Prefer INTERNAL_EMAIL_DOMAINS; legacy FIREFLIES_ASSEMBLED_DOMAINS if unset. */
 export function resolveInternalEmailDomains(
-  env: NodeJS.ProcessEnv = process.env
+  env: InternalDomainEnv = processDomainEnv()
 ): { domains: Set<string>; warned: boolean } {
   const raw =
     env.INTERNAL_EMAIL_DOMAINS !== undefined
@@ -30,7 +42,7 @@ export function resolveInternalEmailDomains(
 }
 
 export function defaultAssembledDomainSet(
-  env: NodeJS.ProcessEnv = process.env
+  env: InternalDomainEnv = processDomainEnv()
 ): Set<string> {
   const { domains, warned } = resolveInternalEmailDomains(env)
   if (warned) {

@@ -293,7 +293,7 @@ export async function acceptProposal(
           actorEmail,
           database
         )
-        return { id: task.id, title: task.title }
+        return { id: Number(task.id), title: task.title }
       },
       markAccepted: async (id, patch) => {
         await database

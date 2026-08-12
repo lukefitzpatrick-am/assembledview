@@ -136,8 +136,9 @@ function FirefliesUnattributedInner() {
         state={viewState}
         errorTitle="Couldn't load unattributed meetings"
         emptyTitle="No unattributed meetings"
-        emptyDescription="All Fireflies notes are attributed or internal."
+        emptyMessage="All Fireflies notes are attributed or internal."
       >
+        {(notes) => (
         <div className="rounded-card border border-border bg-card shadow-e1">
           <Table>
             <TableHeader>
@@ -150,7 +151,7 @@ function FirefliesUnattributedInner() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((n) => (
+              {notes.map((n) => (
                 <TableRow key={n.id} className="interactive-row">
                   <TableCell>
                     {n.transcript_url ? (
@@ -206,6 +207,7 @@ function FirefliesUnattributedInner() {
             </TableBody>
           </Table>
         </div>
+        )}
       </ViewStateBoundary>
     </div>
   )
