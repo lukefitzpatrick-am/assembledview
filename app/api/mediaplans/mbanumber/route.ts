@@ -1,16 +1,23 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { readPlanMasters } from "@/lib/data/readMediaPlans"
 import { allocateNextMbaNumber } from "@/lib/mediaplan/allocateNextMbaNumber"
+import { requireRole } from "@/lib/requireRole"
 
 /**
  * GET /api/mediaplans/mbanumber?mbaidentifier=
  * Next MBA number for a client identifier — Postgres masters (X3).
  * Response includes both `mba_number` and `mbanumber` for create/edit callers.
  *
+ * AuthZ (SEC-14): admin-only. Create/edit pages are planner surfaces that call
+ * this via same-origin fetch (session cookie included). No client-role callers.
+ *
  * Generation scopes with mbaNumberMatchesClientIdentifier (same as auth),
  * parses the full trailing digit run, and lowercases the result.
  */
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const gate = await requireRole(req, ["admin"])
+  if ("response" in gate) return gate.response
+
   const { searchParams } = new URL(req.url)
   const mbaidentifierRaw = searchParams.get("mbaidentifier")
   const mbaidentifier = mbaidentifierRaw?.trim() ?? ""

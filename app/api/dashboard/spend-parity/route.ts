@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import {
   getGlobalMonthlyPublisherSpend,
   getGlobalMonthlyPublisherSpendLegacy,
   getGlobalMonthlyClientSpend,
   getGlobalMonthlyClientSpendLegacy,
 } from "@/lib/api/dashboard/global"
+import { requireRole } from "@/lib/requireRole"
 
 export const dynamic = "force-dynamic"
 
@@ -77,7 +78,14 @@ function compareMonthBuckets(
   return { match: diffs.length === 0, diffs }
 }
 
-export async function GET() {
+/**
+ * Dev/ops book-wide spend parity probe. 404 in production, but still
+ * admin-gated — dead-in-prod is not a tenant guard.
+ */
+export async function GET(request: NextRequest) {
+  const gate = await requireRole(request, ["admin"])
+  if ("response" in gate) return gate.response
+
   if (process.env.NODE_ENV === "production") {
     return NextResponse.json({ error: "not available" }, { status: 404 })
   }

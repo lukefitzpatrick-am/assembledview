@@ -52,15 +52,6 @@ type Remaining = {
 
 function severityFor(r: HandlerRow): string {
   const p = r.apiPath
-  if (p === "/api/mediaplans/mbanumber") {
-    return "P2 — MBA mint; any authenticated session can allocate numbers for any mbaidentifier (SEC-14)."
-  }
-  if (p.includes("expected-spend-to-date")) {
-    return "P2 — no local MBA gate; cookie-forwards to MBA detail (relies on upstream AuthZ)."
-  }
-  if (p === "/api/dashboard/spend-parity") {
-    return "P2 soft — book-wide spend parity tooling; 404 in production; non-prod cross-tenant read."
-  }
   if (p === "/api/me") {
     return "session-ref — self identity only; not tenant MBA rows."
   }
@@ -99,7 +90,7 @@ function adminConsolidationCandidates(rows: HandlerRow[]): string {
     },
     {
       path: "/api/dashboard/spend-parity",
-      gate: "none today (404 in prod)",
+      gate: "requireRole(admin); 404 in production",
       links: "ops/debug bookmarks only",
     },
     {

@@ -265,3 +265,58 @@ test("POST /api/pacing/search — client own lineItemIds unaffected; admin can r
   assert.equal(admin.status, 200)
   assert.equal(getSearchPacingDataMock.mock.calls.length, 1)
 })
+
+test("POST /api/pacing/search — P3 admin proceeds past unparseable junk ids", { skip }, async () => {
+  getSearchPacingDataMock.mock.resetCalls()
+  checkClientMbaAccessMock.mock.resetCalls()
+  getSessionMock.mock.mockImplementation(async () => ({
+    user: { email: "admin@example.com", app_metadata: { role: "admin" } },
+  }))
+  checkClientMbaAccessMock.mock.mockImplementation(async () => ({
+    ok: true,
+    isClient: false,
+  }))
+
+  const { POST } = await import("../../../app/api/pacing/search/route.js")
+  const res = await POST(
+    new NextRequest("http://localhost/api/pacing/search", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        lineItemIds: ["not-a-line-id", "hema001SE1"],
+      }),
+    }),
+  )
+  assert.equal(res.status, 200)
+  assert.equal(getSearchPacingDataMock.mock.calls.length, 1)
+  const arg = getSearchPacingDataMock.mock.calls[0]!.arguments[0] as {
+    lineItemIds: string[]
+  }
+  assert.deepEqual(arg.lineItemIds, ["hema001SE1"])
+})
+
+test("POST /api/pacing/search — P3 client unparseable id → 403 naming the id", { skip }, async () => {
+  getSearchPacingDataMock.mock.resetCalls()
+  checkClientMbaAccessMock.mock.resetCalls()
+  getSessionMock.mock.mockImplementation(async () => clientSession("BICAU002"))
+
+  const { POST } = await import("../../../app/api/pacing/search/route.js")
+  const res = await POST(
+    new NextRequest("http://localhost/api/pacing/search", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ lineItemIds: ["totally-junk-id"] }),
+    }),
+  )
+  assert.equal(res.status, 403)
+  const body = (await res.json()) as {
+    error: string
+    failedLineItemId?: string
+    failedLineItemIds?: string[]
+  }
+  assert.equal(body.error, "forbidden")
+  assert.equal(body.failedLineItemId, "totally-junk-id")
+  assert.deepEqual(body.failedLineItemIds, ["totally-junk-id"])
+  assert.equal(getSearchPacingDataMock.mock.calls.length, 0)
+  assert.equal(checkClientMbaAccessMock.mock.calls.length, 0)
+})

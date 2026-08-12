@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
+import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { internalMediaPlanByMbaUrl } from "@/lib/api/internalBaseUrl"
 import { normaliseLineItemsByType } from "@/lib/mediaplan/normalizeLineItem"
 import { invalidMbaNumberResponse, parseMbaNumber } from "@/lib/mediaplan/mbaNumber"
@@ -280,13 +281,17 @@ function computeExpectedFromMonthlySpend(params: {
 }
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ mba_number: string }> }
 ) {
   try {
     const { mba_number: rawMbaNumber } = await params
     const mba_number = parseMbaNumber(rawMbaNumber)
     if (!mba_number) return invalidMbaNumberResponse()
+
+    // Local MBA gate — do not rely on cookie-forward AuthZ alone.
+    const access = await checkClientMbaAccess(request, mba_number)
+    if (!access.ok) return access.response
 
     const requestUrl = new URL(request.url)
     const campaignStartParam = requestUrl.searchParams.get("campaignStart")

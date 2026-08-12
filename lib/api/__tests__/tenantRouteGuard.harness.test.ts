@@ -45,23 +45,6 @@ export const API_ROUTE_GUARD_ALLOWLIST: {
     reason: "session-ref: publisher id uniqueness probe for admin create forms",
   },
 
-  // --- known defects / soft spots (report-only tonight; do not copy) ---
-  {
-    file: "app/api/mediaplans/mbanumber/route.ts",
-    reason:
-      "KNOWN DEFECT (SEC-14): MBA mint is session-only — pending requireRole(admin) or scoped gate",
-  },
-  {
-    file: "app/api/mediaplans/mba/[mba_number]/expected-spend-to-date/route.ts",
-    reason:
-      "KNOWN DEFECT soft: no local checkClientMbaAccess; cookie-forwards to MBA detail",
-  },
-  {
-    file: "app/api/dashboard/spend-parity/route.ts",
-    reason:
-      "KNOWN DEFECT soft: book-wide parity tooling; 404 in production — move under /api/admin or requireRole",
-  },
-
   // --- admin-only by path, session-only AuthZ (should be requireFinanceAdmin) ---
   {
     file: "app/api/finance/forecast/snapshots/route.ts",

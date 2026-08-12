@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { parseMbaNumberFromLineItemId } from "@/lib/mediaplan/lineItemIds"
+import { getUserRoles } from "@/lib/rbac"
 import { getSearchPacingData } from "@/lib/snowflake/search-pacing-service"
 
 export const dynamic = "force-dynamic"
@@ -36,9 +37,14 @@ export async function POST(request: NextRequest) {
 
   // Auth: keep aligned with app API expectations (JSON on unauthenticated requests).
   const session = await auth0.getSession(request)
-  if (!session) {
+  if (!session?.user) {
     return NextResponse.json({ error: "unauthorised" }, { status: 401 })
   }
+
+  // Resolve admin scope BEFORE parse failures (P3) — junk/legacy ids must not
+  // give admins an opaque 403 ahead of role checks.
+  const roles = getUserRoles(session.user)
+  const isAdmin = roles.includes("admin")
 
   const ac = new AbortController()
   const timer = setTimeout(() => ac.abort(), INTERNAL_TIMEOUT_MS)
@@ -49,20 +55,47 @@ export async function POST(request: NextRequest) {
 
     // Derive MBA from each id server-side — never trust a client-supplied id→MBA map.
     const derivedMbas = new Set<string>()
+    const parseableLineItemIds: string[] = []
+    const unparseableLineItemIds: string[] = []
+
     for (const raw of rawLineItemIds) {
-      const mba = parseMbaNumberFromLineItemId(String(raw ?? ""))
+      const lineItemId = String(raw ?? "")
+      const mba = parseMbaNumberFromLineItemId(lineItemId)
       if (!mba) {
-        return NextResponse.json({ error: "forbidden" }, { status: 403 })
+        unparseableLineItemIds.push(lineItemId)
+        continue
       }
       derivedMbas.add(mba)
+      parseableLineItemIds.push(lineItemId)
     }
+
+    if (unparseableLineItemIds.length > 0) {
+      if (isAdmin) {
+        console.warn("[api/pacing/search] skipping unparseable lineItemIds", {
+          requestId,
+          unparseableLineItemIds,
+        })
+      } else {
+        // Client-role: fail-closed, but name which id failed to parse.
+        return NextResponse.json(
+          {
+            error: "forbidden",
+            message: "lineItemId failed to parse",
+            failedLineItemId: unparseableLineItemIds[0],
+            failedLineItemIds: unparseableLineItemIds,
+          },
+          { status: 403 },
+        )
+      }
+    }
+
     for (const mba of derivedMbas) {
       const access = await checkClientMbaAccess(request, mba)
       if (!access.ok) return access.response
     }
 
     const data = await getSearchPacingData({
-      lineItemIds: rawLineItemIds,
+      lineItemIds: parseableLineItemIds,
       startDate: body?.startDate,
       endDate: body?.endDate,
       requestId,
@@ -87,7 +120,8 @@ export async function POST(request: NextRequest) {
         requestId,
         startDate: body?.startDate ?? null,
         endDate: body?.endDate ?? null,
-        lineItemIdsCount: Array.isArray(body?.lineItemIds) ? body.lineItemIds.length : 0,
+        lineItemIdsCount: parseableLineItemIds.length,
+        skippedUnparseable: unparseableLineItemIds.length,
         daily: Array.isArray(data?.daily) ? data.daily.length : 0,
         ms: Date.now() - t0,
       })
