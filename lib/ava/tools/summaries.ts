@@ -72,6 +72,8 @@ export const AVA_TOOL_NAMES = [
   "generate_performance_report",
   "get_client_brain",
   "save_client_brain",
+  "get_client_insights",
+  "get_campaign_insights",
   "query_campaign_lines",
   "query_schedule_months",
   "search_line_items",

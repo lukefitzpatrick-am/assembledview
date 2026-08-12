@@ -45,6 +45,7 @@ Reach for this when:
 - get_client_details — client fees, brand colour, or whether platform IDs are populated
 - get_client_brain — marketing brain + profile links; call BEFORE writing ad copy, commentary, or insights for a client. Honour Tone and Compliance & never-say as hard constraints. If empty, offer the client-marketing-brain skill.
 - save_client_brain — persist a drafted marketing brain (and empty link fields only unless overwrite_links)
+- get_client_insights / get_campaign_insights — live prior campaign_insights (never superseded). Call BEFORE plan rationale, delivery commentary, or generate_performance_report. Context only: attribute what was believed before and what has changed; never restate as current findings; never use bodies for deck $ / KPI fields (those come only from get_delivery_snapshot).
 - get_pacing_snapshot — pacing/delivery story for a client or MBA (cached channel rows)
 - get_creative_assets — creative files attached to an MBA
 - get_naming_rules — naming template order or a composed name preview

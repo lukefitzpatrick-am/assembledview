@@ -10,10 +10,13 @@ import {
   plannedToDateFromPageContext,
   type DeliverySnapshotTotals,
 } from "@/lib/reports/performanceReportHardNumbers"
+import { persistPerformanceReportInsights } from "@/lib/reports/persistPerformanceReportInsights"
 import {
   PPTX_CONTENT_TYPE,
   storePerformanceReport,
 } from "@/lib/reports/storePerformanceReport"
+import { listCampaignInsights } from "@/lib/insights/queryCampaignInsights"
+import { findUnattributedPriorRestatement } from "@/lib/insights/priorInsightGuard"
 import { getDeliverySnapshotTool } from "./getDeliverySnapshot"
 import { asRecord, asString, jsonContent, resolveScopedMba } from "./helpers"
 
@@ -156,6 +159,23 @@ function validateNarrativePayload(
   return { ok: true, clientName, reportMonth, mbaHint: mbaHint || undefined, narrative }
 }
 
+function narrativeFieldsForPriorScan(
+  narrative: Omit<
+    PerformanceReportPayload,
+    "deliverySpend" | "deliveryDeliverables" | "kpis"
+  >,
+) {
+  return {
+    execSummary: narrative.execSummary,
+    channels: [...narrative.channels],
+    keyInsight: narrative.keyInsight,
+    insights: [...narrative.insights],
+    recsInFlight: narrative.recsInFlight,
+    recsNextPeriod: narrative.recsNextPeriod,
+    steps: [...narrative.steps],
+  }
+}
+
 function parseDeliveryTotals(raw: string): DeliverySnapshotTotals | null {
   try {
     const parsed = JSON.parse(raw) as { planTotals?: DeliverySnapshotTotals }
@@ -182,7 +202,7 @@ export const generatePerformanceReportTool: AvaTool = {
   definition: {
     name: "generate_performance_report",
     description:
-      "Build the client performance report deck (.pptx) for the campaign on the page and return a download card. Call ONLY after the user has explicitly confirmed the reviewed narrative in chat. Hard numbers (spend, deliverables, KPIs) are injected server-side from reconciled delivery — pass narrative only; do not invent $ figures. All strings single-line.",
+      "Build the client performance report deck (.pptx) for the campaign on the page and return a download card. Call ONLY after the user has explicitly confirmed the reviewed narrative in chat. Call get_campaign_insights (and get_client_insights when useful) BEFORE drafting narrative. Hard numbers (spend, deliverables, KPIs) are injected server-side from reconciled delivery — pass narrative only; do not invent $ figures; do not copy prior insights as current findings without attribution. All strings single-line.",
     input_schema: {
       type: "object",
       properties: {
@@ -286,6 +306,38 @@ export const generatePerformanceReportTool: AvaTool = {
       }
     }
 
+    // Live priors only — same shape as invented_money_figure when restated without attribution.
+    // Empty library → no-op (generate exactly as today). Never feeds deck numeric fields.
+    try {
+      const priors = await listCampaignInsights({
+        mbaNumber: scopedMba.mba,
+        includeSuperseded: false,
+        limit: 30,
+      })
+      const priorHit = findUnattributedPriorRestatement(
+        narrativeFieldsForPriorScan(validated.narrative),
+        priors.map((p) => ({ id: p.id, body: p.body })),
+      )
+      if (priorHit) {
+        return {
+          content: jsonContent({
+            error: "unattributed_prior_insight",
+            field: priorHit.field,
+            match: priorHit.match,
+            insightId: priorHit.insightId,
+            message: `Do not restate a prior insight as current analysis (near-verbatim match of insight #${priorHit.insightId} in ${priorHit.field}). Retrieved insights are context — attribute what was believed before and what has changed, then regenerate.`,
+          }),
+          isError: true,
+        }
+      }
+    } catch (priorErr) {
+      console.error("[generate_performance_report] prior insight load failed", {
+        mbaNumber: scopedMba.mba,
+        error: priorErr instanceof Error ? priorErr.message : String(priorErr),
+      })
+      // Fail-open on read errors so deck delivery is not blocked by library outage.
+    }
+
     const snapshotResult = await getDeliverySnapshotTool.execute(
       { mbaNumber: scopedMba.mba },
       context,
@@ -315,10 +367,39 @@ export const generatePerformanceReportTool: AvaTool = {
       kpis: hard.kpis,
     }
 
+    const skipInsightPersist = args.preview === true || args.dryRun === true
+
     try {
       const buffer = await buildPerformanceReport(payload)
       const fileName = `${validated.clientName} ${scopedMba.mba} performance report ${validated.reportMonth}.pptx`
       const exportResult = await storePerformanceReport(scopedMba.mba, fileName, buffer)
+
+      // Issued deck only. Insights are a by-product — never fail the report on write errors.
+      // execSummary is not persisted (roll-up of the discrete insights/recs).
+      if (!skipInsightPersist) {
+        try {
+          await persistPerformanceReportInsights({
+            narrative: {
+              execSummary: validated.narrative.execSummary,
+              keyInsight: validated.narrative.keyInsight,
+              insights: validated.narrative.insights,
+              recsInFlight: validated.narrative.recsInFlight,
+              recsNextPeriod: validated.narrative.recsNextPeriod,
+            },
+            mbaNumber: scopedMba.mba,
+            reportMonth: validated.reportMonth,
+            createdByEmail: context.userEmail,
+            preview: false,
+            dryRun: false,
+          })
+        } catch (insightErr) {
+          console.error("[generate_performance_report] insight persist threw", {
+            mbaNumber: scopedMba.mba,
+            error:
+              insightErr instanceof Error ? insightErr.message : String(insightErr),
+          })
+        }
+      }
 
       const attachment = toChatFileAttachment({
         fileName: exportResult.filename,

@@ -1,0 +1,141 @@
+[
+  {
+    "publisher_name": "QMS",
+    "media_type": "ooh",
+    "active": true,
+    "detect_signature": {
+      "header_text_includes": ["LATITUDE", "QMS FORMAT", "SITE NUMBER"],
+      "legend_codes": ["p", "B", "STA", "N/A"],
+      "grouping_keys": ["format", "state"]
+    },
+    "grouping_keys": ["format", "state"],
+    "column_map": {
+      "LATITUDE": "latitude",
+      "LONGITUDE": "longitude",
+      "QMS FORMAT": "publisher_format_name",
+      "STATE": "state",
+      "SITE NUMBER / NO. OF PANELS": "site_number",
+      "ADDRESS / PACK DETAILS": "address_or_pack_details",
+      "SUBURB": "suburb",
+      "POSTCODE": "postcode",
+      "DIRECTION": "direction",
+      "GEOGRAPHY": "geography",
+      "FORMAT": "format",
+      "SIZE": "size",
+      "PORTRAIT / LANDSCAPE": "orientation",
+      "DIGITAL SPECS (WxH)": "digital_spec",
+      "SHARE OF TIME": "advertiser_share",
+      "AD DURATION (SECS)": "rotation_seconds",
+      "ILLUMINATION (HOURS)": "digital_operating_hours",
+      "ILLUMINATION": "illumination"
+    },
+    "grid_semantics": "status_matrix",
+    "legend_map": {
+      "p": "paid",
+      "B": "bonus",
+      "STA": "bonus_display",
+      "N/A": "unavailable"
+    },
+    "sheet_rules": [
+      {
+        "match": { "name_includes": "Paid" },
+        "role": "line_items",
+        "default_booking_status": "paid"
+      },
+      {
+        "match": { "name_includes": "Bonus" },
+        "role": "line_items",
+        "default_booking_status": "bonus"
+      },
+      {
+        "match": { "name_includes": "Summary" },
+        "role": "ignore"
+      }
+    ],
+    "notes": "OOH status letters in the flight grid. Paid and Bonus are separate sheets."
+  },
+  {
+    "publisher_name": "SCA",
+    "media_type": "radio",
+    "active": true,
+    "detect_signature": {
+      "header_text_includes": ["Media Description", "Daypart"],
+      "metadata_labels": ["Agency:", "Client:", "Campaign:"],
+      "grouping_keys": ["station", "media_description", "daypart"]
+    },
+    "grouping_keys": ["station", "media_description", "daypart"],
+    "column_map": {
+      "Media Description": "media_description",
+      "Length": "length",
+      "Days": "days",
+      "Daypart": "daypart"
+    },
+    "grid_semantics": "count",
+    "legend_map": {},
+    "sheet_rules": [
+      {
+        "match": { "name_includes": "R+F" },
+        "role": "ignore"
+      },
+      {
+        "match": { "name_includes": "Reach" },
+        "role": "ignore"
+      },
+      {
+        "match": { "name_includes": "Audience" },
+        "role": "ignore"
+      },
+      {
+        "match": { "name_includes": "Double Check" },
+        "role": "ignore"
+      },
+      {
+        "match": { "any_line_item_sheet": true },
+        "role": "line_items",
+        "default_booking_status": "paid"
+      }
+    ],
+    "notes": "Radio spot-count grid. Reach & Frequency / R+F is not line items."
+  },
+  {
+    "publisher_name": "JCDecaux",
+    "media_type": "ooh",
+    "active": true,
+    "detect_signature": {
+      "header_text_includes": ["Panel #", "Panel Name", "Digital Rotation Seconds"],
+      "legend_codes": ["p", "B", "STA", "C/C", "N/A"],
+      "grouping_keys": ["format", "market"]
+    },
+    "grouping_keys": ["format", "market"],
+    "column_map": {
+      "Panel #": "site_number",
+      "Panel Name": "panel_name",
+      "Village Name / Panel Weights": "village_name",
+      "Suburb / Transit Depot": "suburb",
+      "State": "state",
+      "Area": "geography",
+      "Dimensions": "size",
+      "Illumination": "illumination",
+      "Digital Operation Hours": "digital_operating_hours",
+      "Digital Rotation Seconds": "rotation_seconds",
+      "Advertiser Share-of-Time": "advertiser_share",
+      "Direction": "direction"
+    },
+    "grid_semantics": "status_matrix",
+    "legend_map": {
+      "p": "paid",
+      "B": "bonus",
+      "STA": "bonus_display",
+      "C/C": "unavailable",
+      "N/A": "unavailable"
+    },
+    "sheet_rules": [
+      {
+        "match": { "any_line_item_sheet": true },
+        "role": "line_items",
+        "default_booking_status": "paid"
+      }
+    ],
+    "notes": "OOH status matrix. Village weight shares a header with village name — weight not separately mapped."
+  }
+]

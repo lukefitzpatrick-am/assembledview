@@ -30,6 +30,8 @@ import { buildKpiPacingRows } from "@/lib/kpi/kpiPacing"
 import CampaignActions from "./CampaignActions"
 import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
 import { ErrorState, LoadingState } from "@/components/ui/states"
+import { RecentInsightsPanel } from "@/components/insights/RecentInsightsPanel"
+import { QuickAddInsightForm } from "@/components/insights/QuickAddInsightForm"
 import {
   aggregateSpendByChannelFromMonthly,
   burstOverlapsRange,
@@ -662,6 +664,31 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
           <SectionBoundary title="KPI pacing">
             <div className="campaign-section-enter" style={{ animationDelay: "150ms" }}>
               <CampaignKpiPacingStrip rows={kpiPacingRows} />
+            </div>
+          </SectionBoundary>
+        </section>
+      ) : null}
+
+      {isAdmin ? (
+        <section className="mt-6">
+          <SectionBoundary title="Recent insights">
+            <div className="campaign-section-enter space-y-3" style={{ animationDelay: "160ms" }}>
+              <QuickAddInsightForm
+                compact
+                mbaNumber={mbaNumber.trim().toLowerCase()}
+                onCreated={() => {
+                  // Panel remount via key bump would need state; soft reload of the strip:
+                  if (typeof window !== "undefined") {
+                    window.dispatchEvent(new CustomEvent("insights:changed"))
+                  }
+                }}
+              />
+              <RecentInsightsPanel
+                title="Recent insights"
+                apiQuery={`mba=${encodeURIComponent(mbaNumber.trim().toLowerCase())}&limit=5`}
+                hrefQuery={{ mba: mbaNumber.trim().toLowerCase() }}
+                emptyMessage="No insights yet for this campaign. Add one above or generate a performance report."
+              />
             </div>
           </SectionBoundary>
         </section>

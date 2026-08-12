@@ -60,6 +60,8 @@ const SKILL_META: Record<
     chains: [MARKETING_BRAIN_ID],
     pairedTools: [
       "get_client_brain",
+      "get_client_insights",
+      "get_campaign_insights",
       "get_delivery_snapshot",
       "get_pacing_snapshot",
       "get_campaign_context",
@@ -99,6 +101,8 @@ const SKILL_META: Record<
     title: "Performance review & report",
     chains: [MARKETING_BRAIN_ID],
     pairedTools: [
+      "get_campaign_insights",
+      "get_client_insights",
       "get_delivery_snapshot",
       "get_pacing_snapshot",
       "get_campaign_context",

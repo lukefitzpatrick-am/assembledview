@@ -22,6 +22,10 @@ import { loadSkillTool } from "./loadSkill";
 import { generatePerformanceReportTool } from "./generatePerformanceReport";
 import { getClientBrainTool } from "./getClientBrain";
 import { saveClientBrainTool } from "./saveClientBrain";
+import {
+  getCampaignInsightsTool,
+  getClientInsightsTool,
+} from "./getCampaignInsights";
 import { queryCampaignLinesTool } from "./queryCampaignLines";
 import { queryScheduleMonthsTool } from "./queryScheduleMonths";
 import { searchLineItemsTool } from "./searchLineItems";
@@ -50,6 +54,8 @@ const AVA_TOOLS: AvaTool[] = [
   generatePerformanceReportTool,
   getClientBrainTool,
   saveClientBrainTool,
+  getClientInsightsTool,
+  getCampaignInsightsTool,
   queryCampaignLinesTool,
   queryScheduleMonthsTool,
   searchLineItemsTool,

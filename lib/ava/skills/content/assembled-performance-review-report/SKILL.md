@@ -30,7 +30,7 @@ Also establish before Stage 1:
 
 ## Stage 1: delivery review
 
-Pull the campaign's delivery data with `get_delivery_snapshot` - it reads the same source as the on-page delivery containers (social Meta/TikTok, programmatic display and video, ad-serving/BVOD, search), returning delivered spend, impressions, clicks and views per line against the plan's budgets. Use `get_campaign_context` for plan and version detail, and `get_pacing_snapshot` only for client-level pacing questions outside a campaign page. Read every performance container on the page. Do not invent or re-derive numbers; if a needed figure is not available, name it as missing.
+Call **get_campaign_insights** first (live priors only) so commentary does not reinvent last cycle's findings. Then pull delivery with `get_delivery_snapshot` - it reads the same source as the on-page delivery containers (social Meta/TikTok, programmatic display and video, ad-serving/BVOD, search), returning delivered spend, impressions, clicks and views per line against the plan's budgets. Use `get_campaign_context` for plan and version detail, and `get_pacing_snapshot` only for client-level pacing questions outside a campaign page. Read every performance container on the page. Do not invent or re-derive numbers; if a needed figure is not available, name it as missing. Never take spend/KPI figures from insight bodies.
 
 For each of the following, record planned, delivered, variance, and an on/off pace call against *expected to date* (not end-of-flight totals):
 
@@ -74,7 +74,9 @@ Post the full narrative in the chat panel in this order: executive summary, deli
 
 Client-facing monthly/WIP report on the fixed 10-slide Assembled report template (derived from the master brand template - never build from scratch, never restyle).
 
-**In Ava (Assembled View)**: call the `generate_performance_report` tool with the confirmed **narrative only** (execSummary, channels, keyInsight, insights, recs*, steps). Do **not** pass `deliverySpend`, `deliveryDeliverables`, or `kpis` — the tool injects those DETERMINISTICALLY from reconciled `get_delivery_snapshot` figures (same Snowflake source as on-page delivery) plus page planned-to-date. Call it ONLY after the explicit yes at the gate. Narrative fields must contain **no free-text dollar amounts** (`$…` / `AUD …`); the tool refuses invented `$` figures.
+**In Ava (Assembled View)**: call the `generate_performance_report` tool with the confirmed **narrative only** (execSummary, channels, keyInsight, insights, recs*, steps). Do **not** pass `deliverySpend`, `deliveryDeliverables`, or `kpis` — the tool injects those DETERMINISTICALLY from reconciled `get_delivery_snapshot` figures (same Snowflake source as on-page delivery) plus page planned-to-date. Call it ONLY after the explicit yes at the gate. Narrative fields must contain **no free-text dollar amounts** (`$…` / `AUD …`); the tool refuses invented `$` figures (`invented_money_figure`). Near-verbatim restatement of a live prior insight without attributing what was believed before and what has changed is refused the same way (`unattributed_prior_insight`).
+
+On a successful issued report, the tool also persists discrete insights into `campaign_insights` (source `ava`): `keyInsight`, each of `insights[3]`, and each recommendation (`recsInFlight`, `recsNextPeriod`). **`execSummary` is not persisted** — it is a summary of those fields, not a separate insight. Preview / dry-run generation does not write rows. Insight write failures are fail-soft and never abort the deck.
 
 **In Cowork/Claude**: build the same structure with the **assembled-presentations** skill from the master template.
 

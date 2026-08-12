@@ -14,6 +14,7 @@ import { HeroBanner } from "@/components/dashboard/HeroBanner"
 import { HeroKPIBar } from "@/components/dashboard/HeroKPIBar"
 import { SpendingInsightsSection } from "@/components/dashboard/SpendingInsightsSection"
 import { UpcomingCampaignsSection } from "@/components/dashboard/UpcomingCampaignsSection"
+import { RecentInsightsPanel } from "@/components/insights/RecentInsightsPanel"
 import { ClientBrainSlideOver } from "@/components/dashboard/modals/ClientBrainSlideOver"
 import { ClientDetailsSlideOver } from "@/components/dashboard/modals/ClientDetailsSlideOver"
 import { ClientFinanceSlideOver } from "@/components/dashboard/modals/ClientFinanceSlideOver"
@@ -125,6 +126,13 @@ export function ClientDashboardPageContent({
   headerDescription,
 }: ClientDashboardPageContentProps) {
   const isAdmin = campaignLinkMode === "adminHub"
+  const clientIdRaw = clientData.clientRecord?.id
+  const clientIdForInsights =
+    typeof clientIdRaw === "number" && Number.isFinite(clientIdRaw) && clientIdRaw > 0
+      ? clientIdRaw
+      : typeof clientIdRaw === "string" && /^\d+$/.test(clientIdRaw.trim())
+        ? Number(clientIdRaw.trim())
+        : null
   const shouldReduceMotion = useReducedMotion()
   const [activeStatus, setActiveStatus] = useState<CampaignStatus>("live")
   const [detailsModalOpen, setDetailsModalOpen] = useState(false)
@@ -433,6 +441,17 @@ export function ClientDashboardPageContent({
             />
           </Suspense>
         </motion.section>
+
+        {isAdmin && clientIdForInsights != null ? (
+          <motion.section variants={sectionVariants} className="mt-8 w-full lg:mt-10">
+            <RecentInsightsPanel
+              title="Recent insights"
+              apiQuery={`clientId=${clientIdForInsights}&limit=5`}
+              hrefQuery={{ clientId: String(clientIdForInsights) }}
+              emptyMessage="No insights yet for this client. Generate a performance report to seed the library."
+            />
+          </motion.section>
+        ) : null}
 
         <motion.section variants={sectionVariants} className="mt-8 w-full lg:mt-10">
           <UpcomingCampaignsSection

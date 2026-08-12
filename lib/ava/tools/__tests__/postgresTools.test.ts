@@ -42,7 +42,9 @@ function adminContext(overrides: Partial<AvaToolContext> = {}): AvaToolContext {
 }
 
 test("AVA_TOOL_NAMES includes postgres tools in order", () => {
-  assert.equal(AVA_TOOL_NAMES.length, 26)
+  assert.equal(AVA_TOOL_NAMES.length, 28)
+  assert.ok(AVA_TOOL_NAMES.includes("get_client_insights"))
+  assert.ok(AVA_TOOL_NAMES.includes("get_campaign_insights"))
   assert.deepEqual(AVA_TOOL_NAMES.slice(-5), [
     "query_campaign_lines",
     "query_schedule_months",

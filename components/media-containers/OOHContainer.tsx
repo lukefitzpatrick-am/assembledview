@@ -9,6 +9,12 @@ import { ExpertIncompleteRowsSummary } from "@/components/media-containers/Exper
 import {
   writeContainerEntryMode,
 } from "@/lib/mediaplan/containerEntryMode"
+import {
+  consumeIngestOohExpertPreference,
+  countOohPanelGranularityLines,
+  OOH_PANEL_LINE_EXPERT_THRESHOLD,
+  shouldShowOohLargeFormatSummary,
+} from "@/lib/mediaplans/ingest/oohLargeFormatExpertGate"
 
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react"
 import { useStableHydration } from "@/hooks/useStableHydration"
@@ -482,6 +488,52 @@ export default function OohContainer({
     defaultValue: form.getValues("lineItems")
   });
 
+  const oohPanelLineCount = useMemo(() => {
+    const items = (watchedLineItems || []) as Array<{
+      lineItemId?: string
+      line_item_id?: string
+      channel?: string
+      attrs?: Record<string, unknown>
+      buy_granularity?: string
+    }>
+    return countOohPanelGranularityLines(
+      items.map((li) => ({
+        lineItemId: li.lineItemId || li.line_item_id || null,
+        channel: li.channel ?? "ooh",
+        attrs: {
+          ...(li.attrs ?? {}),
+          ...(li.buy_granularity
+            ? { buy_granularity: li.buy_granularity }
+            : {}),
+        },
+      })),
+    )
+  }, [watchedLineItems])
+
+  const showLargeFormatSummary = shouldShowOohLargeFormatSummary(oohPanelLineCount)
+
+  // After a large-format ingest accept (or when already over the card threshold),
+  // open expert once on mount / hydrate — never silently leave 50–300 cards mounted.
+  const didAutoOpenExpertRef = useRef(false)
+  useEffect(() => {
+    if (didAutoOpenExpertRef.current) return
+    if (oohExpertModalOpen) {
+      didAutoOpenExpertRef.current = true
+      return
+    }
+    const fromIngest = consumeIngestOohExpertPreference()
+    if (!fromIngest && !showLargeFormatSummary) return
+    if ((watchedLineItems || []).length === 0) return
+    didAutoOpenExpertRef.current = true
+    writeContainerEntryMode("schedule")
+    openOohExpertModal()
+  }, [
+    openOohExpertModal,
+    oohExpertModalOpen,
+    showLargeFormatSummary,
+    watchedLineItems,
+  ])
+
   // Data loading for edit mode
   useStableHydration(
     initialLineItems,
@@ -508,6 +560,13 @@ export default function OohContainer({
           line_item_id: lineItemId,
           line_item: lineNumber,
           lineItem: lineNumber,
+          // Preserve ingest buy_granularity so the >30 expert gate survives hydrate.
+          attrs: item.attrs ?? undefined,
+          buy_granularity:
+            item.attrs?.buy_granularity ??
+            item.buy_granularity ??
+            item.buyGranularity ??
+            undefined,
           bursts: parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
             budget: burst.budget || "",
             buyAmount: burst.buyAmount || "",
@@ -1189,7 +1248,36 @@ useEffect(() => {
                                                         })}
                   />
                 ) : null}
-                {lineItemFields.map((field, lineItemIndex) => {
+                {showLargeFormatSummary && lineItemFields.length > 0 ? (
+                  <div className="rounded-card border border-border bg-card p-6 shadow-e1">
+                    <p className="text-sm font-medium text-foreground">
+                      <span className="num">{oohPanelLineCount}</span> large-format
+                      panel line
+                      {oohPanelLineCount === 1 ? "" : "s"}
+                      {" "}
+                      <span className="font-normal text-muted-foreground">
+                        (over the {OOH_PANEL_LINE_EXPERT_THRESHOLD}-card interim
+                        limit)
+                      </span>
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Card entry is suppressed for this volume — use the schedule
+                      grid (expert view) to edit.
+                    </p>
+                    <Button
+                      type="button"
+                      className="mt-4"
+                      onClick={() => {
+                        writeContainerEntryMode("schedule")
+                        openOohExpertModal()
+                      }}
+                    >
+                      Open expert view
+                    </Button>
+                  </div>
+                ) : null}
+                {!showLargeFormatSummary
+                  ? lineItemFields.map((field, lineItemIndex) => {
                   const row = form.getValues(`lineItems.${lineItemIndex}`);
                   const lineNumber = pickLineItemNumber(row, lineItemIndex + 1);
                   const lineItemId =
@@ -1343,7 +1431,8 @@ useEffect(() => {
                       }
                     />
                   );
-                })}
+                })
+                  : null}
               </div>
             </Form>
           </div>
