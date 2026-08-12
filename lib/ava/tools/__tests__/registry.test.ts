@@ -15,30 +15,29 @@ import {
 
 test("ava tool catalog: names unique and complete", () => {
   assert.equal(new Set(AVA_TOOL_NAMES).size, AVA_TOOL_NAMES.length)
-  assert.ok(AVA_TOOL_NAMES.includes("get_client_details"))
-  assert.ok(AVA_TOOL_NAMES.includes("get_campaign_context"))
-  assert.ok(AVA_TOOL_NAMES.includes("get_saved_audiences"))
-  assert.ok(AVA_TOOL_NAMES.includes("get_best_practice"))
-  assert.ok(AVA_TOOL_NAMES.includes("get_naming_rules"))
-  assert.ok(AVA_TOOL_NAMES.includes("get_creative_assets"))
-  assert.ok(AVA_TOOL_NAMES.includes("get_methodology"))
-  assert.ok(AVA_TOOL_NAMES.includes("get_pacing_snapshot"))
-  assert.ok(AVA_TOOL_NAMES.includes("get_delivery_snapshot"))
-  assert.ok(AVA_TOOL_NAMES.includes("apply_form_patch"))
-  assert.ok(AVA_TOOL_NAMES.includes("apply_parsed_plan"))
-  assert.ok(AVA_TOOL_NAMES.includes("adjust_line_items"))
-  assert.ok(AVA_TOOL_NAMES.includes("get_media_plan_summary"))
-  assert.ok(AVA_TOOL_NAMES.includes("get_platform_specs"))
-  assert.ok(AVA_TOOL_NAMES.includes("start_mi_interview"))
-  assert.ok(AVA_TOOL_NAMES.includes("generate_mi_workbook"))
-  assert.ok(AVA_TOOL_NAMES.includes("generate_naming_workbook"))
-  assert.ok(AVA_TOOL_NAMES.includes("load_skill"))
-  assert.ok(AVA_TOOL_NAMES.includes("generate_performance_report"))
-  assert.ok(AVA_TOOL_NAMES.includes("get_client_insights"))
-  assert.ok(AVA_TOOL_NAMES.includes("get_campaign_insights"))
-
-  assert.equal(AVA_TOOL_NAMES.length, 28)
-  assert.deepEqual(AVA_TOOL_NAMES.slice(-7), [
+  // Named enumeration (not a bare count) — next silent addition fails here.
+  assert.deepEqual([...AVA_TOOL_NAMES], [
+    "get_media_plan_summary",
+    "apply_form_patch",
+    "apply_parsed_plan",
+    "adjust_line_items",
+    "get_client_details",
+    "get_campaign_context",
+    "get_saved_audiences",
+    "get_best_practice",
+    "get_naming_rules",
+    "get_creative_assets",
+    "get_methodology",
+    "get_pacing_snapshot",
+    "get_delivery_snapshot",
+    "get_platform_specs",
+    "start_mi_interview",
+    "generate_mi_workbook",
+    "generate_naming_workbook",
+    "load_skill",
+    "generate_performance_report",
+    "get_client_brain",
+    "save_client_brain",
     "get_client_insights",
     "get_campaign_insights",
     "query_campaign_lines",

@@ -30,6 +30,8 @@ export type RouteIconKey =
   | "Globe"
   | "Lightbulb"
   | "Cloud"
+  | "Clock"
+  | "MessageSquare"
 
 export type RouteManifestEntry = {
   /** App Router path, e.g. `/mediaplans/mba/[mba_number]/edit`. */
@@ -128,6 +130,8 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
       "/publishers",
       "/admin/users",
       "/admin/m365-reconciliation",
+      "/admin/myhours-mapping",
+      "/admin/fireflies-unattributed",
       "/admin/publisher-profiles",
       "/admin/schedule-ingest",
     ],
@@ -350,6 +354,28 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     inSidebar: true,
     roles: ["admin"],
     searchTerms: "microsoft sharepoint teams graph m365 reconciliation provisioning",
+    group: "admin",
+  },
+  {
+    path: "/admin/myhours-mapping",
+    label: "MyHours mapping",
+    title: "MyHours mapping",
+    icon: "Clock",
+    inPalette: true,
+    inSidebar: true,
+    roles: ["admin"],
+    searchTerms: "myhours time entries unmapped mapping hours",
+    group: "admin",
+  },
+  {
+    path: "/admin/fireflies-unattributed",
+    label: "Fireflies unattributed",
+    title: "Fireflies unattributed",
+    icon: "MessageSquare",
+    inPalette: true,
+    inSidebar: true,
+    roles: ["admin"],
+    searchTerms: "fireflies meetings transcripts unattributed assign domains",
     group: "admin",
   },
   {

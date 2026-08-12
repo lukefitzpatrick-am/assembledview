@@ -27,7 +27,12 @@ export type CodexTaskStatus =
 export type CodexTaskPriority = "low" | "normal" | "high"
 export type CodexTaskSource = "manual" | "ava" | "template" | "recurring"
 export type CodexAuthorKind = "user" | "ava"
-export type CodexNoteMatchedBy = "domain" | "keyword" | "manual"
+export type CodexNoteMatchedBy =
+  | "domain"
+  | "keyword"
+  | "manual"
+  | "title"
+  | "internal"
 export type CodexProposalStatus =
   | "proposed"
   | "accepted"
@@ -68,6 +73,11 @@ export const clientNotes = pgTable(
       .defaultNow(),
     organizerEmail: text("organizer_email"),
     matchedBy: text("matched_by"),
+    /** Fireflies duration (minutes) converted to seconds. */
+    durationSeconds: integer("duration_seconds"),
+    transcriptUrl: text("transcript_url"),
+    /** All attendee domains Assembled — kept with client_id NULL. */
+    isInternal: boolean("is_internal").notNull().default(false),
   },
   (table) => [
     index("idx_client_notes_client_id").on(table.clientId),
@@ -224,6 +234,7 @@ export const avaTaskProposals = pgTable(
       mode: "string",
     }),
     proposedAssigneeEmail: text("proposed_assignee_email"),
+    proposedMbaNumber: text("proposed_mba_number"),
     avaConfidence: numeric("ava_confidence", { precision: 4, scale: 3 }),
     avaRationale: text("ava_rationale"),
     status: text("status").notNull().default("proposed"),

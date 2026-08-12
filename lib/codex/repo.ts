@@ -97,6 +97,8 @@ export type CreateTaskInput = {
   recurringRule?: string | null
   /** C-39 — campaign seed / system writers pass `"system"`. Default `"user"`. */
   actorKind?: CodexActorKind
+  /** Fireflies / AVA proposal link back to client_notes. */
+  sourceNoteId?: number | null
   createdByEmail: string
 }
 
@@ -596,6 +598,10 @@ export async function createTask(
         source,
         templateId,
         recurringRule,
+        sourceNoteId:
+          input.sourceNoteId != null && Number.isFinite(input.sourceNoteId)
+            ? input.sourceNoteId
+            : null,
         createdByEmail: input.createdByEmail.trim().toLowerCase(),
         createdAt: now,
         updatedAt: now,
@@ -761,6 +767,9 @@ export async function listClientNotes(
     created_at: r.createdAt,
     organizer_email: r.organizerEmail,
     matched_by: r.matchedBy,
+    duration_seconds: r.durationSeconds,
+    transcript_url: r.transcriptUrl,
+    is_internal: r.isInternal,
   }))
 
   return pagedEnvelope(items, itemsTotal, page, perPage)

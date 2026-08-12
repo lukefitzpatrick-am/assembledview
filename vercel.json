@@ -21,6 +21,14 @@
       "schedule": "15 0 * * *"
     },
     {
+      "path": "/api/cron/fireflies-sync",
+      "schedule": "0 */6 * * *"
+    },
+    {
+      "path": "/api/cron/myhours-sync",
+      "schedule": "15 */6 * * *"
+    },
+    {
       "path": "/api/cron/codex-recurring",
       "schedule": "30 19 * * *"
     },

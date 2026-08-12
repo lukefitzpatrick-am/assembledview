@@ -115,6 +115,43 @@ if (supportsMockModule()) {
       reorderTemplateItems: async () => null,
     },
   })
+  await mock.module!("@/lib/myhours/timeSummary", {
+    namedExports: {
+      getMbaTimeSummary: async () => ({
+        mba_number: "test001",
+        total_hours: 0,
+        total_minutes: 0,
+        by_member: [],
+        sparkline_weeks: [0, 0, 0, 0],
+        week_starts: [],
+      }),
+      getTeamWeekTimeSummary: async () => ({
+        week_start: "2025-08-04",
+        week_end: "2025-08-10",
+        unmapped_count: 0,
+        members: [],
+      }),
+    },
+  })
+  await mock.module!("@/lib/fireflies/proposalRepo", {
+    namedExports: {
+      listProposedInbox: async () => ({ groups: [] }),
+      batchAcceptForNote: async () => ({
+        accepted: 0,
+        failed: [],
+        taskIds: [],
+      }),
+      acceptProposal: async () => ({
+        ok: true,
+        taskId: 1,
+        possibleDuplicate: false,
+      }),
+      dismissProposal: async () => ({ ok: true }),
+    },
+  })
+  await mock.module!("server-only", {
+    namedExports: {},
+  })
 }
 
 type SessionKind = "none" | "client" | "admin"
@@ -201,6 +238,19 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
   const templateItemById = await import(
     "../../../app/api/codex/templates/[id]/items/[itemId]/route.js"
   )
+  const timeSummary = await import(
+    "../../../app/api/codex/time/summary/route.js"
+  )
+  const timeTeamWeek = await import(
+    "../../../app/api/codex/time/team-week/route.js"
+  )
+  const proposals = await import("../../../app/api/codex/proposals/route.js")
+  const proposalAccept = await import(
+    "../../../app/api/codex/proposals/[id]/accept/route.js"
+  )
+  const proposalDismiss = await import(
+    "../../../app/api/codex/proposals/[id]/dismiss/route.js"
+  )
 
   const taskIdCtx = { params: Promise.resolve({ id: "1" }) }
   const checklistItemCtx = {
@@ -214,6 +264,7 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
   const templateItemCtx = {
     params: Promise.resolve({ id: "1", itemId: "1" }),
   }
+  const proposalIdCtx = { params: Promise.resolve({ id: "1" }) }
 
   return [
     {
@@ -442,6 +493,56 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
           templateItemCtx
         ),
     },
+    {
+      label: "GET /api/codex/time/summary",
+      invoke: () =>
+        timeSummary.GET(
+          new Request("http://localhost/api/codex/time/summary?mba=TEST001")
+        ),
+    },
+    {
+      label: "GET /api/codex/time/team-week",
+      invoke: () =>
+        timeTeamWeek.GET(
+          new Request("http://localhost/api/codex/time/team-week")
+        ),
+    },
+    {
+      label: "GET /api/codex/proposals",
+      invoke: () =>
+        proposals.GET(new Request("http://localhost/api/codex/proposals")),
+    },
+    {
+      label: "POST /api/codex/proposals",
+      invoke: () =>
+        proposals.POST(
+          new Request("http://localhost/api/codex/proposals", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ note_id: 1 }),
+          })
+        ),
+    },
+    {
+      label: "POST /api/codex/proposals/[id]/accept",
+      invoke: () =>
+        proposalAccept.POST(
+          new Request("http://localhost/api/codex/proposals/1/accept", {
+            method: "POST",
+          }),
+          proposalIdCtx
+        ),
+    },
+    {
+      label: "POST /api/codex/proposals/[id]/dismiss",
+      invoke: () =>
+        proposalDismiss.POST(
+          new Request("http://localhost/api/codex/proposals/1/dismiss", {
+            method: "POST",
+          }),
+          proposalIdCtx
+        ),
+    },
   ]
 }
 
@@ -457,7 +558,7 @@ test(
   { skip },
   async () => {
     const callers = await loadRouteCallers()
-    assert.equal(callers.length, 27)
+    assert.equal(callers.length, 33)
 
     for (const route of callers) {
       // Flag off: deliberately 404 (not 403). Hidden feature must not confirm it exists.

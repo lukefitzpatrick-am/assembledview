@@ -32,6 +32,7 @@ import type { MediaPlanVersionListEntry } from "@/lib/api/dashboard"
 import { ErrorState, LoadingState } from "@/components/ui/states"
 import { RecentInsightsPanel } from "@/components/insights/RecentInsightsPanel"
 import { QuickAddInsightForm } from "@/components/insights/QuickAddInsightForm"
+import { CampaignHoursWidget } from "@/components/dashboard/campaign/CampaignHoursWidget"
 import {
   aggregateSpendByChannelFromMonthly,
   burstOverlapsRange,
@@ -658,6 +659,16 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
           </Suspense>
         </SectionBoundary>
       </section>
+
+      {isAdmin ? (
+        <section className="mt-6">
+          <SectionBoundary title="Team hours">
+            <div className="campaign-section-enter" style={{ animationDelay: "140ms" }}>
+              <CampaignHoursWidget mbaNumber={mbaNumber} />
+            </div>
+          </SectionBoundary>
+        </section>
+      ) : null}
 
       {isAdmin && kpiPacingRows.length > 0 ? (
         <section className="mt-6">

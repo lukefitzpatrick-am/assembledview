@@ -4,6 +4,7 @@ import {
   Building2,
   Calculator,
   ClipboardList,
+  Clock,
   Cloud,
   Compass,
   DollarSign,
@@ -15,6 +16,7 @@ import {
   Lightbulb,
   Link2,
   ListTodo,
+  MessageSquare,
   PlusCircle,
   Shield,
   TrendingUp,
@@ -45,4 +47,6 @@ export const ROUTE_ICON_MAP: Record<RouteIconKey, LucideIcon> = {
   Globe,
   Lightbulb,
   Cloud,
+  Clock,
+  MessageSquare,
 }
