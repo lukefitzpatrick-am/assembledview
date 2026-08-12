@@ -1,6 +1,24 @@
 # `db/` — Supabase schema (migration)
 
-**Source of truth for what is live:** `db/migrations/0001_ported_tables.sql` + `0002_plan_core.sql` + `0003_ava_readonly.sql` + `0004_clients_missing_columns.sql` + `0005_finance_billing_amount_hash.sql` + `0006_xero_client_aliases.sql` + `0007_mba_line_approvals.sql` + `0008_approved_slice_adserving.sql` + `0009_snapshot_checksum.sql` + `0010_finance_periods.sql` + `0011_xero_invoice_matches.sql` + `0012_plan_working_drafts.sql` + `0013_codex_v2.sql` + `0018_version_publication.sql` + `0018a_version_publication_parity.sql` + `0019_campaign_insights.sql` + `0020_clients_m365_identity.sql` + `0021_m365_provisioning_log.sql` + `0022_campaign_insights_ava_readonly.sql` + `0023_line_item_panels.sql` + `0024_publisher_profiles.sql` + `0025_codex_tasks_source_profile.sql` + `0027_line_item_panel_flights.sql` (apply via Supabase SQL Editor; do not `db:migrate` the drizzle baseline). Codex tables live in `db/schema/codex.ts` and are excluded from ETL truncate-reload. `campaign_insights` lives in `db/schema/insights.ts`; OOH panel/pack detail in `db/schema/panels.ts` (`line_item_panels` + child `line_item_panel_flights`); ingest publisher config in `db/schema/publisherProfiles.ts` (`publisher_profiles` — mapping is jsonb rows, not code).
+**Source of truth for what is live** (apply via Supabase SQL Editor; do not `db:migrate` the drizzle baseline):
+
+- `0001_ported_tables.sql` … `0013_codex_v2.sql` + `0018_version_publication.sql` + `0018a_version_publication_parity.sql` (pre-overnight baseline)
+- `0019_campaign_insights.sql` — campaign insights library table
+- `0020_clients_m365_identity.sql` — clients slug + M365 SharePoint/Teams identity columns
+- `0021_m365_provisioning_log.sql` — Graph provisioning attempt log
+- `0022_campaign_insights_ava_readonly.sql` — GRANT SELECT on campaign_insights to ava_readonly
+- `0023_line_item_panels.sql` — OOH panel/pack detail rows
+- `0024_publisher_profiles.sql` — ingest publisher mapping config (jsonb rows, not code)
+- `0025_codex_tasks_source_profile.sql` — tasks.source allows `profile:<name>` seed keys
+- `0026_enable_rls_public_tables.sql` — enable RLS on migration_markers / campaign_insights / line_item_panels / publisher_profiles + ava_readonly SELECT policy — applied 12 Aug via Supabase MCP, do not re-apply
+- `0027_line_item_panel_flights.sql` — per-period panel presence (no money columns)
+- `0028_myhours_time.sql` — time_entries + myhours_links + myhours_sync_runs (RLS on; no ava_readonly grant)
+- `0029_fireflies_client_notes.sql` — client_notes duration_seconds + transcript_url + is_internal for Fireflies Stage 3
+- `0030_ava_proposals_mba.sql` — ava_task_proposals.proposed_mba_number + widen client_notes.matched_by for title/internal
+- `0031_myhours_unknown_user_count.sql` — myhours_sync_runs.unknown_user_count (CX2-1 Users join sentinel)
+- `0032_ava_time_entry_proposals.sql` — ava_time_entry_proposals for Fireflies → MyHours Confirm path (CX2-6; RLS on; no ava_readonly grant)
+
+Codex tables live in `db/schema/codex.ts` and are excluded from ETL truncate-reload. `campaign_insights` lives in `db/schema/insights.ts`; OOH panel/pack detail in `db/schema/panels.ts` (`line_item_panels` + child `line_item_panel_flights`); ingest publisher config in `db/schema/publisherProfiles.ts`.
 
 **Drizzle mirror:** `db/schema/*.ts` — generated from those SQL files (`node scripts/migration/_gen-drizzle-schema.mjs`), then hand-kept in sync. `migration_markers` lives in `db/schema/migrationMarkers.ts`.
 
