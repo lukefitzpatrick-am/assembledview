@@ -685,14 +685,28 @@ export function TaskDetailClient({ taskId }: Props) {
 
         <div className="space-y-1.5 sm:col-span-2">
           <Label htmlFor="task-mba">MBA number</Label>
-          <Input
-            id="task-mba"
-            value={mbaDraft}
-            onChange={(e) => setMbaDraft(e.target.value)}
-            onBlur={commitMba}
-            disabled={savingField === "mba"}
-            className="num max-w-xs"
-          />
+          <div className="flex max-w-md flex-wrap items-center gap-2">
+            <Input
+              id="task-mba"
+              value={mbaDraft}
+              onChange={(e) => setMbaDraft(e.target.value)}
+              onBlur={commitMba}
+              disabled={savingField === "mba"}
+              className="num max-w-xs"
+            />
+            {task.mba_number?.trim() ? (
+              <Link
+                href={`/mediaplans/mba/${encodeURIComponent(task.mba_number.trim())}/edit`}
+                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Open campaign
+              </Link>
+            ) : null}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            One-way link into the media plan — campaign pages do not link back
+            here.
+          </p>
         </div>
       </div>
 

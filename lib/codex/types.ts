@@ -59,7 +59,7 @@ export const TASK_CATEGORY_OPTIONS = [
 
 export const TASK_SOURCES = ["manual", "ava", "template", "recurring"] as const
 
-export type TaskSource = (typeof TASK_SOURCES)[number]
+export type TaskSource = (typeof TASK_SOURCES)[number] | `profile:${string}`
 
 export type CodexTask = {
   id: number | string

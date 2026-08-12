@@ -66,6 +66,7 @@ import {
   MY_WEEK_STATUSES,
   myWeekDueRange,
 } from "@/lib/codex/quickAddParse"
+import { parseTasksDeepLinkParams } from "@/lib/codex/queryHelpers"
 import {
   STATUSES,
   TASK_CATEGORY_OPTIONS,
@@ -159,6 +160,7 @@ export function TasksPageClient() {
   const [accessDenied, setAccessDenied] = useState(false)
 
   const [clientId, setClientId] = useState<string>("")
+  const [mbaFilter, setMbaFilter] = useState<string>("")
   const [statusFilter, setStatusFilter] = useState<string[]>([])
   const [categoryFilter, setCategoryFilter] = useState<string>("")
   const [assigneeEmail, setAssigneeEmail] = useState("")
@@ -201,12 +203,19 @@ export function TasksPageClient() {
     (typeof user?.name === "string" ? user.name : null)
 
   // Slack-friendly deep links: /tasks?task=<id> → /tasks/<id>
+  // Scope deep links: /tasks?mba=<mba> and /tasks?client=<id> (combined with other filters).
   useEffect(() => {
     const raw = searchParams.get("task")
-    if (!raw) return
-    const id = Number(raw)
-    if (!Number.isFinite(id) || id < 1) return
-    router.replace(`/tasks/${id}`)
+    if (raw) {
+      const id = Number(raw)
+      if (Number.isFinite(id) && id >= 1) {
+        router.replace(`/tasks/${id}`)
+        return
+      }
+    }
+    const deep = parseTasksDeepLinkParams(searchParams)
+    if (deep.mbaNumber) setMbaFilter(deep.mbaNumber)
+    if (deep.clientId) setClientId(deep.clientId)
   }, [searchParams, router])
 
   const clientNameById = useMemo(() => {
@@ -297,6 +306,7 @@ export function TasksPageClient() {
       params.set("per_page", String(PER_PAGE))
       params.set("sort", toApiSort(sort))
       if (clientId) params.set("client_id", clientId)
+      if (mbaFilter) params.set("mba_number", mbaFilter)
       if (statusFilter.length > 0) params.set("status", statusFilter.join(","))
       if (categoryFilter) params.set("category", categoryFilter)
       if (dueAfter) params.set("due_after", dueAfter)
@@ -349,7 +359,7 @@ export function TasksPageClient() {
     } finally {
       setIsLoading(false)
     }
-  }, [page, sort, clientId, statusFilter, categoryFilter, mine, assigneeEmail, dueAfter, dueBefore])
+  }, [page, sort, clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, dueAfter, dueBefore])
 
   useEffect(() => {
     void fetchTasks()
@@ -357,11 +367,11 @@ export function TasksPageClient() {
 
   useEffect(() => {
     setPage(1)
-  }, [clientId, statusFilter, categoryFilter, mine, assigneeEmail, sort, dueAfter, dueBefore])
+  }, [clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, sort, dueAfter, dueBefore])
 
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [page, clientId, statusFilter, categoryFilter, mine, assigneeEmail, dueAfter, dueBefore, search])
+  }, [page, clientId, mbaFilter, statusFilter, categoryFilter, mine, assigneeEmail, dueAfter, dueBefore, search])
 
   const filteredTasks = useMemo(() => {
     const q = search.trim()
@@ -371,6 +381,7 @@ export function TasksPageClient() {
 
   const clearTaskFilters = useCallback(() => {
     setClientId("")
+    setMbaFilter("")
     setStatusFilter([])
     setCategoryFilter("")
     setAssigneeEmail("")
@@ -415,6 +426,7 @@ export function TasksPageClient() {
 
   const tasksFiltersActive = Boolean(
     clientId ||
+      mbaFilter ||
       statusFilter.length > 0 ||
       categoryFilter ||
       assigneeEmail.trim() ||
@@ -1164,6 +1176,26 @@ export function TasksPageClient() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {mbaFilter ? (
+                <div className="min-w-[10rem] space-y-1.5">
+                  <Label htmlFor="tasks-mba-scope">MBA</Label>
+                  <div className="flex h-9 items-center gap-2">
+                    <Badge variant="secondary" className="num" id="tasks-mba-scope">
+                      {mbaFilter}
+                    </Badge>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2"
+                      onClick={() => setMbaFilter("")}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
 
               <div className="min-w-[10rem] flex-1 space-y-1.5">
                 <Label htmlFor="tasks-assignee">Assignee email</Label>

@@ -14,14 +14,14 @@ UI: `app/tasks/page.tsx` + `TasksPageClient.tsx` (list) and `app/tasks/[id]/page
 
 | Surface | Behaviour |
 |---|---|
-| **Tasks** | Flat **list** (TanStack) or **board** (dnd-kit columns for `backlog\|todo\|in_progress\|waiting\|done`). Shared filter state — switching view does not reset My Tasks / client / status / search / category. **Quick-add** bar (list + board): Enter creates `todo` assigned to me; inline `@assignee` `#client` `!high/!low` `due …` (Sydney) with chip preview — unmatched tokens stay in the title. **My week** saved view: assigned to me, due today..+7 Sydney, not done. Category filter. List **bulk select** → status / assignee / due. Row/card → `/tasks/[id]`. Modal create still available (optional **template** apply + **recurring_rule** seed). Soft delete via confirm. Deep link: `/tasks?task=<id>` → `/tasks/<id>`. Board drag → optimistic PATCH status (revert + toast). Cards show title, client, assignee, due (overdue critical), priority, checklist `done/total`. No swimlanes / WIP / extra statuses. Clients picker + quick-add fallback use `fetchClientsList` (empty + fail-soft → error, never "no clients"). |
+| **Tasks** | Flat **list** (TanStack) or **board** (dnd-kit columns for `backlog\|todo\|in_progress\|waiting\|done`). Shared filter state — switching view does not reset My Tasks / client / status / search / category / MBA scope. Deep-link filters: `/tasks?mba=<mba_number>` and `/tasks?client=<id>` (shareable; combine with other filters). **Quick-add** bar (list + board): Enter creates `todo` assigned to me; inline `@assignee` `#client` `!high/!low` `due …` (Sydney) with chip preview — unmatched tokens stay in the title. **My week** saved view: assigned to me, due today..+7 Sydney, not done. Category filter. List **bulk select** → status / assignee / due. Row/card → `/tasks/[id]`. Modal create still available (optional **template** apply + **recurring_rule** seed). Soft delete via confirm. Deep link: `/tasks?task=<id>` → `/tasks/<id>`. Board drag → optimistic PATCH status (revert + toast). Cards show title, client, assignee, due (overdue critical), priority, checklist `done/total`. No swimlanes / WIP / extra statuses. Clients picker + quick-add fallback use `fetchClientsList` (empty + fail-soft → error, never "no clients"). |
 | **Templates** | CRUD for `task_templates` + ordered `task_template_items` (checklist labels). Apply on task create copies labels into `task_checklist_items`. |
 | **Team** | Roster table + `TeamMemberFormDialog` create/edit. |
-| **Task detail** | `/tasks/[id]` — inline-editable title/description/status/priority/category/due/assignee/client/MBA; checklist (add/tick/reorder/delete + "N of M"); comments (newest last); activity from `codex_activity` (`entity_type=task`) with legible before→after diffs via `formatActivityDiff`. Failed inline saves restore previous value + destructive toast. |
+| **Task detail** | `/tasks/[id]` — inline-editable title/description/status/priority/category/due/assignee/client/MBA; MBA number links **one-way** to `/mediaplans/mba/[mba]/edit` (containment: nothing outside `/tasks` links back). Checklist (add/tick/reorder/delete + "N of M"); comments (newest last); activity from `codex_activity` (`entity_type=task`) with legible before→after diffs via `formatActivityDiff`. Failed inline saves restore previous value + destructive toast. |
 
 **Default scope:** `mine=1` → `assignee_email = me OR created_by_email = me` (includes unassigned tasks I created). **All tasks** toggle clears that scope so null-assignee rows stay visible. Exact `assignee_email` filter still excludes unassigned by design (`resolveListAssigneeScope`).
 
-**Filters:** client (`client_id`), status (multi), assignee (when not mine), text search on title (client-side `matchText`). Sort: `due_date` / API sorts `due_date_asc|desc`, `created_at_desc`. List responses include `checklist_done` / `checklist_total` (aggregated from `task_checklist_items`) for board cards.
+**Filters:** client (`client_id` / deep-link `?client=`), MBA (`mba_number` / deep-link `?mba=`), status (multi), assignee (when not mine), text search on title (client-side `matchText`). Sort: `due_date` / API sorts `due_date_asc|desc`, `created_at_desc`. List responses include `checklist_done` / `checklist_total` (aggregated from `task_checklist_items`) for board cards.
 
 **Pagination:** server-side `page` / `per_page` (UI uses `PER_PAGE = 100`). Soft-deleted rows excluded unless `include_deleted=1` (no Stage 0 trash UI).
 
@@ -40,6 +40,7 @@ Routes under `app/api/codex/`:
 | Method | Path | Repo |
 |---|---|---|
 | GET, POST | `/api/codex/tasks` | `listTasks`, `createTask` |
+| GET | `/api/codex/tasks/counts` | `countTasksByMba` — `?mba=A,B` open + overdue (Sydney) per MBA |
 | GET, PATCH, DELETE | `/api/codex/tasks/[id]` | `getTask`, `updateTask`, `softDeleteTask` |
 | GET, POST | `/api/codex/tasks/[id]/checklist` | `listChecklistItems`, `createChecklistItem` / `reorderChecklistItems` (`ordered_ids`) |
 | PATCH, DELETE | `/api/codex/tasks/[id]/checklist/[itemId]` | `updateChecklistItem`, `deleteChecklistItem` |
@@ -99,11 +100,15 @@ No FKs from Codex `client_id` columns to `clients` until T6 (DI-12). New 0013 ta
 
 ## Key files
 
-- `lib/codex/{repo,types,flag,shadowRoles,queryHelpers,activityDiff,quickAddParse,recurringRule,runRecurring}.ts`
+- `lib/codex/{repo,types,flag,shadowRoles,queryHelpers,activityDiff,quickAddParse,recurringRule,runRecurring,seedTasks}.ts`
 - `app/api/codex/**`, `app/api/cron/codex-recurring/route.ts`, `app/tasks/**`
 - `components/tasks/{TaskBoard,TaskBulkBar,TaskDetailClient,TaskFormDialog,TaskQuickAdd,TeamMemberFormDialog,TemplateFormDialog}.tsx`
-- `db/schema/codex.ts`, `db/migrations/0013_codex_v2.sql`
-- Tests: `test:codex-flag-auth` (26 routes), `test:codex-stage0-guarantees`, `test:codex-stage1-detail`, `test:codex-stage1-templates` (recurringRule + repo idempotency)
+- `db/schema/codex.ts`, `db/migrations/0013_codex_v2.sql`, `db/migrations/0025_codex_tasks_source_profile.sql`
+- Tests: `test:codex-flag-auth` (27 routes), `test:codex-stage0-guarantees`, `test:codex-stage1-detail`, `test:codex-stage1-scope` (deep-link parse + `countTasksByMba`), `test:codex-stage1-templates` (recurringRule + repo idempotency), `test:codex-seed-tasks` (Campaign profile expand + seed idempotency / past-due flags)
+
+## Campaign seed (`lib/codex/seedTasks.ts`)
+
+Plumbing only — **not** called from campaign create. `seedTasksForCampaign({ mbaNumber, clientId, campaignStart, campaignEnd, profile, actor })` expands a profile’s `{ label, dueOffset, ownerRole }` rows (Sydney civil dates), creates tasks with `source=profile:<name>` and `actor_kind=system` (C-39), and is idempotent on `(mba_number, source, label)`. Past-due dues are created with description flag `[codex-seed-flag:past-due]` (never skipped). Hard-coded data profile: `CAMPAIGN_PROFILE` ("Campaign"). Month-end rows expand to one task per flight month (`Monthly report — YYYY-MM`). Requires `0025_codex_tasks_source_profile.sql` (`source LIKE 'profile:%'`).
 
 ## Recurring rule format (`tasks.recurring_rule`)
 
@@ -144,3 +149,5 @@ Append dated one-liners during the fortnight. Format:
 - 2026-08-07 — Stage 1 step 3 board: `@dnd-kit` installed; list/board toggle shares filters; drag → PATCH status with revert+toast; listTasks enriches `checklist_done`/`checklist_total` for cards.
 - 2026-08-07 — Stage 1 step 4 capture: quick-add parser (`lib/codex/quickAddParse.ts`) + chip preview; category filter; My week view; list bulk status/assignee/due; clients via `fetchClientsList` only.
 - 2026-08-07 — Stage 1 step 5 templates + recurring: Templates tab; apply-on-create checklist; `recurring_rule` format in this page; idempotent `/api/cron/codex-recurring` keyed on `(template_id, client_id, period)` Sydney.
+- 2026-08-11 — Stage 1 addendum: `/tasks?mba=` + `/tasks?client=` deep-link filters; detail MBA one-way link to campaign edit; `countTasksByMba` + `GET /api/codex/tasks/counts` (open/overdue, Sydney).
+- 2026-08-11 — Campaign seed plumbing: `seedTasksForCampaign` + `CAMPAIGN_PROFILE` (no create trigger); `tasks_source_check` allows `profile:%` (0025).

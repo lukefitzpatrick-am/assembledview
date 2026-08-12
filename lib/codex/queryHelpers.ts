@@ -60,3 +60,32 @@ export function resolveListAssigneeEmail(opts: {
   const scope = resolveListAssigneeScope(opts)
   return scope.mineForEmail ?? scope.assigneeEmail
 }
+
+/**
+ * Deep-link filters for `/tasks?mba=<mba_number>` and `/tasks?client=<id>`.
+ * Combined with existing UI filters — does not imply clearing My Tasks / status.
+ */
+export function parseTasksDeepLinkParams(searchParams: {
+  get(name: string): string | null
+}): { mbaNumber: string | null; clientId: string | null } {
+  const mbaRaw = searchParams.get("mba")?.trim() ?? ""
+  const clientRaw = searchParams.get("client")?.trim() ?? ""
+  const mbaNumber = mbaRaw.length > 0 ? mbaRaw : null
+  const clientId =
+    clientRaw.length > 0 && /^\d+$/.test(clientRaw) ? clientRaw : null
+  return { mbaNumber, clientId }
+}
+
+/** CSV of MBA numbers for GET /api/codex/tasks/counts?mba=A,B */
+export function parseMbaNumbersQuery(raw: string | null): string[] {
+  if (raw == null || raw.trim() === "") return []
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const part of raw.split(",")) {
+    const m = part.trim()
+    if (!m || seen.has(m)) continue
+    seen.add(m)
+    out.push(m)
+  }
+  return out
+}

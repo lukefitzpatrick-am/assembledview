@@ -73,6 +73,7 @@ if (supportsMockModule()) {
       updateTask: async () => null,
       softDeleteTask: async () => false,
       listTaskActivity: async () => [],
+      countTasksByMba: async () => [],
       listTeamMembers: async () => emptyPage,
       createTeamMember: async () => ({
         id: 1,
@@ -184,6 +185,9 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
   const activity = await import(
     "../../../app/api/codex/tasks/[id]/activity/route.js"
   )
+  const taskCounts = await import(
+    "../../../app/api/codex/tasks/counts/route.js"
+  )
   const team = await import("../../../app/api/codex/team/route.js")
   const teamById = await import("../../../app/api/codex/team/[id]/route.js")
   const notes = await import("../../../app/api/codex/client_notes/route.js")
@@ -215,6 +219,13 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
     {
       label: "GET /api/codex/tasks",
       invoke: () => tasks.GET(new Request("http://localhost/api/codex/tasks")),
+    },
+    {
+      label: "GET /api/codex/tasks/counts",
+      invoke: () =>
+        taskCounts.GET(
+          new Request("http://localhost/api/codex/tasks/counts?mba=TEST001")
+        ),
     },
     {
       label: "POST /api/codex/tasks",
@@ -446,7 +457,7 @@ test(
   { skip },
   async () => {
     const callers = await loadRouteCallers()
-    assert.equal(callers.length, 26)
+    assert.equal(callers.length, 27)
 
     for (const route of callers) {
       // Flag off: deliberately 404 (not 403). Hidden feature must not confirm it exists.

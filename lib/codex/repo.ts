@@ -11,14 +11,17 @@ import {
   isNotNull,
   isNull,
   like,
+  lt,
   lte,
   max,
+  ne,
   or,
   type SQL,
 } from "drizzle-orm"
 import { db, schema, type Db } from "@/db"
 import type { CodexActorKind } from "@/db/schema/codex"
 import { clampPage, clampPerPage, parseStatusFilter } from "@/lib/codex/queryHelpers"
+import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import {
   descriptionHasPeriod,
   descriptionWithPeriod,
@@ -92,6 +95,8 @@ export type CreateTaskInput = {
   templateId?: number | null
   /** Seed series rule — see `lib/codex/recurringRule.ts`. */
   recurringRule?: string | null
+  /** C-39 — campaign seed / system writers pass `"system"`. Default `"user"`. */
+  actorKind?: CodexActorKind
   createdByEmail: string
 }
 
@@ -426,6 +431,84 @@ export async function listTasks(
   return pagedEnvelope(withProgress, itemsTotal, page, perPage)
 }
 
+export type MbaTaskCounts = {
+  mba_number: string
+  /** Live tasks with status ≠ done. */
+  open: number
+  /** Open tasks with due_date before Sydney civil today. */
+  overdue: number
+}
+
+/**
+ * Open + overdue counts per MBA for campaign badges.
+ * Soft-deleted rows excluded. Overdue uses Australia/Sydney civil date.
+ * Returns a row for every requested MBA (zeros when none).
+ */
+export async function countTasksByMba(
+  mbaNumbers: string[],
+  database: Db = db,
+  now: Date = new Date()
+): Promise<MbaTaskCounts[]> {
+  const unique: string[] = []
+  const seen = new Set<string>()
+  for (const raw of mbaNumbers) {
+    const m = raw.trim()
+    if (!m || seen.has(m)) continue
+    seen.add(m)
+    unique.push(m)
+  }
+  if (unique.length === 0) return []
+
+  const sydneyToday = sydneyCivilParts(now).ymd
+
+  const rows = await database
+    .select({
+      mbaNumber: tasks.mbaNumber,
+      open: count(),
+    })
+    .from(tasks)
+    .where(
+      and(
+        isNull(tasks.deletedAt),
+        inArray(tasks.mbaNumber, unique),
+        ne(tasks.status, "done")
+      )
+    )
+    .groupBy(tasks.mbaNumber)
+
+  const overdueRows = await database
+    .select({
+      mbaNumber: tasks.mbaNumber,
+      overdue: count(),
+    })
+    .from(tasks)
+    .where(
+      and(
+        isNull(tasks.deletedAt),
+        inArray(tasks.mbaNumber, unique),
+        ne(tasks.status, "done"),
+        isNotNull(tasks.dueDate),
+        lt(tasks.dueDate, sydneyToday)
+      )
+    )
+    .groupBy(tasks.mbaNumber)
+
+  const openBy = new Map<string, number>()
+  for (const r of rows) {
+    if (r.mbaNumber) openBy.set(r.mbaNumber, Number(r.open ?? 0))
+  }
+  const overdueBy = new Map<string, number>()
+  for (const r of overdueRows) {
+    if (r.mbaNumber) overdueBy.set(r.mbaNumber, Number(r.overdue ?? 0))
+  }
+
+  return unique.map((mba) => ({
+    mba_number: mba,
+    open: openBy.get(mba) ?? 0,
+    overdue: overdueBy.get(mba) ?? 0,
+  }))
+}
+
 export async function getTask(
   id: number,
   database: Db = db
@@ -527,6 +610,7 @@ export async function createTask(
       entityType: "task",
       entityId: row.id,
       actorEmail: actorEmail?.toLowerCase() ?? null,
+      actorKind: input.actorKind ?? "user",
       action: "create",
       after: taskRowToApi(row),
     })
