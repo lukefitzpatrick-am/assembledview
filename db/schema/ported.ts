@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm"
 import {
   bigint,
   boolean,
@@ -176,7 +177,28 @@ export const clients = pgTable(
   tiktokUrl: text('tiktok_url'),
   clientBrain: text('client_brain'),
   clientBrainUpdatedAt: timestamp('client_brain_updated_at', { withTimezone: true, mode: "string" }),
+  /** Persisted dashboard / Auth0 tenant slug (0020). Unique lower(trim). */
+  slug: text('slug'),
+  /** SharePoint site URL path or absolute URL (0020 / M1). */
+  sharepointSiteUrl: text('sharepoint_site_url'),
+  /** Microsoft Teams / M365 group id (0020 / M1). */
+  teamsGroupId: text('teams_group_id'),
+  /**
+   * Exactly one true per lower(trim(mbaidentifier)) group (partial unique).
+   * Group site URL derives from the anchor's mbaidentifier via siteUrlForClient.
+   */
+  m365IsAnchor: boolean('m365_is_anchor').notNull().default(false),
   },
+  (table) => [
+    uniqueIndex("uq_clients_m365_anchor_mbaidentifier")
+      .on(sql`lower(btrim(${table.mbaidentifier}))`)
+      .where(
+        sql`${table.m365IsAnchor} AND ${table.mbaidentifier} IS NOT NULL AND btrim(${table.mbaidentifier}) <> ''`,
+      ),
+    uniqueIndex("uq_clients_slug_lower")
+      .on(sql`lower(btrim(${table.slug}))`)
+      .where(sql`${table.slug} IS NOT NULL AND btrim(${table.slug}) <> ''`),
+  ],
 )
 
 export const creativeAsset = pgTable(

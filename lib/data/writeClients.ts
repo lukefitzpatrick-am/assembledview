@@ -10,6 +10,7 @@ import { getDb, schema } from "@/db"
 import { getXanoClientsCollectionUrl } from "@/lib/api/xanoClients"
 import { xanoPostHeaderRecord, getXanoTimeoutMs } from "@/lib/api/xano"
 import { invalidateClientsCache } from "@/lib/cache/clientsCache"
+import { slugifyClientNameForUrl } from "@/lib/clients/slug"
 import { invalidateCachedClients } from "@/lib/finance/xanoReferenceCache"
 import { mapClientRowFromPostgres } from "@/lib/data/readClients"
 
@@ -85,6 +86,10 @@ const WRITABLE_SNAKE_TO_CAMEL: Record<string, keyof typeof schema.clients.$infer
   tiktok_url: "tiktokUrl",
   client_brain: "clientBrain",
   client_brain_updated_at: "clientBrainUpdatedAt",
+  slug: "slug",
+  sharepoint_site_url: "sharepointSiteUrl",
+  teams_group_id: "teamsGroupId",
+  m365_is_anchor: "m365IsAnchor",
 }
 
 export type ClientMirrorFailurePayload = {
@@ -292,9 +297,28 @@ export async function createClientPostgresFirst(
   body: Record<string, unknown>
 ): Promise<ClientWriteResult> {
   const snake = normalizeClientWritePayload(body, { requireIdentity: true })
+  // Persist dashboard slug on create (unique index). Rename path preserves slug —
+  // see updateClientPostgresFirst (does not auto-refresh from mp_client_name).
+  if (!snake.slug) {
+    const derived = slugifyClientNameForUrl(snake.mp_client_name)
+    if (derived) snake.slug = derived
+  }
   // Sequence owns allocation on the hot path (X9.1). Use syncClientsIdSequence
   // after ETL / migration only — never rewind via per-insert setval(MAX).
   const db = getDb()
+  const mbaId = String(snake.mbaidentifier ?? "").trim()
+  if (snake.m365_is_anchor === undefined && mbaId) {
+    const siblings = await db
+      .select({ id: schema.clients.id })
+      .from(schema.clients)
+      .where(
+        sql`mbaidentifier IS NOT NULL
+          AND btrim(mbaidentifier) <> ''
+          AND lower(btrim(mbaidentifier)) = ${mbaId.toLowerCase()}`
+      )
+      .limit(1)
+    snake.m365_is_anchor = siblings.length === 0
+  }
   const [inserted] = await db
     .insert(schema.clients)
     .values(snakeToInsertValues(snake))
@@ -322,6 +346,9 @@ export async function updateClientPostgresFirst(
     return { notFound: true }
   }
   // Updates may be partial (same as legacy Xano PUT/PATCH).
+  // Rename writes `mp_client_name` here and does NOT refresh `slug` — preserve
+  // persisted tenant slug unless the body explicitly includes `slug`.
+  // Call sites: PUT/PATCH `app/api/clients/[id]/route.ts` → this function.
   const snake = normalizeClientWritePayload(body, { requireIdentity: false })
   if (Object.keys(snake).length === 0) {
     const [existing] = await getDb()

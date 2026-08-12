@@ -32,16 +32,21 @@ function cacheTtlMs(): number {
 
 function withClientSlug(raw: any) {
   const name = getClientDisplayName(raw)
-  const xanoSlugOriginal = typeof raw?.slug === "string" ? raw.slug.trim() : ""
+  const persistedSlug =
+    typeof raw?.slug === "string" ? raw.slug.trim() : ""
+  const derivedSlug = slugifyClientNameForUrl(name)
+  // Prefer persisted clients.slug (0020 unique) so rename can preserve tenant URLs;
+  // fall back to name-derived slug when the column is still empty.
+  const slug = persistedSlug || derivedSlug
   const stripped = omitClientBrain(
     raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {},
   )
 
   return {
     ...stripped,
-    slug: slugifyClientNameForUrl(name),
-    ...(xanoSlugOriginal
-      ? { xano_url_slug: slugifyClientNameForUrl(xanoSlugOriginal) }
+    slug,
+    ...(persistedSlug && persistedSlug !== derivedSlug
+      ? { xano_url_slug: derivedSlug }
       : {}),
   }
 }
