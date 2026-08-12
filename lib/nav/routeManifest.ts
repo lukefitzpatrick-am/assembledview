@@ -28,6 +28,8 @@ export type RouteIconKey =
   | "Link2"
   | "Layers"
   | "Globe"
+  | "Lightbulb"
+  | "Cloud"
 
 export type RouteManifestEntry = {
   /** App Router path, e.g. `/mediaplans/mba/[mba_number]/edit`. */
@@ -119,7 +121,16 @@ export const ADMIN_SIDEBAR_GROUPS: readonly AdminSidebarGroup[] = [
     id: "admin",
     label: "Admin",
     tone: "muted",
-    paths: ["/tasks", "/client", "/publishers", "/admin/users"],
+    paths: [
+      "/tasks",
+      "/insights",
+      "/client",
+      "/publishers",
+      "/admin/users",
+      "/admin/m365-reconciliation",
+      "/admin/publisher-profiles",
+      "/admin/schedule-ingest",
+    ],
   },
 ] as const
 
@@ -214,6 +225,17 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     title: "Codex Task",
     inPalette: false,
     roles: ["admin"],
+    group: "core",
+  },
+  {
+    path: "/insights",
+    label: "Insights",
+    title: "Insights",
+    icon: "Lightbulb",
+    inPalette: true,
+    inSidebar: true,
+    roles: ["admin"],
+    searchTerms: "campaign insights library ava learning",
     group: "core",
   },
   {
@@ -317,6 +339,41 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     inSidebar: false,
     roles: ["admin"],
     searchTerms: "user management invite admin enrol enrolment new user",
+    group: "admin",
+  },
+  {
+    path: "/admin/m365-reconciliation",
+    label: "M365 reconciliation",
+    title: "M365 reconciliation",
+    icon: "Cloud",
+    inPalette: true,
+    inSidebar: true,
+    roles: ["admin"],
+    searchTerms: "microsoft sharepoint teams graph m365 reconciliation provisioning",
+    group: "admin",
+  },
+  {
+    path: "/admin/publisher-profiles",
+    label: "Publisher profiles",
+    title: "Publisher profiles",
+    icon: "Layers",
+    inPalette: true,
+    inSidebar: true,
+    roles: ["admin"],
+    searchTerms:
+      "publisher profiles ingest schedule qms sca jcdecaux grid semantics legend",
+    group: "admin",
+  },
+  {
+    path: "/admin/schedule-ingest",
+    label: "Schedule ingest",
+    title: "Schedule ingest",
+    icon: "Layers",
+    inPalette: true,
+    inSidebar: true,
+    roles: ["admin"],
+    searchTerms:
+      "schedule ingest upload qms sca jcdecaux publisher review accept panels",
     group: "admin",
   },
 

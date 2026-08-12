@@ -35,6 +35,9 @@ export default defineConfig({
       "hooks/__tests__/usePlanDraftSession.test.tsx",
       "components/mediaplans/__tests__/ExpertApplyDirtyClearOnSave.characterisation.test.tsx",
       "lib/mediaplan/__tests__/useMediaPlanDirtyController.test.tsx",
+      "lib/mediaplan/__tests__/handleInvestmentChange.dirty.characterisation.test.tsx",
+      "lib/mediaplan/__tests__/channelTotalChange.dirty.characterisation.test.tsx",
+      "lib/mediaplan/__tests__/oohStandardContainer.bench.test.tsx",
     ],
     exclude: [
       "**/node_modules/**",

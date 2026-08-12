@@ -31,9 +31,10 @@ select
   'Social - TikTok' as channel,
   r.stat_time_day::date as date_day,
 
-  h.adgroup_name as line_item_name,
+  /* Normalise display + join keys — raw Fivetran landing stays immutable. */
+  lower(trim(h.adgroup_name)) as line_item_name,
 
-  /* relabellable id: suffix if present, else fallback to adgroup_id */
+  /* relabellable id: suffix if present, else fallback to adgroup_id (always lower) */
   lower(trim(
     coalesce(
       nullif(regexp_substr(h.adgroup_name, '[^-]+$'), ''),
@@ -41,7 +42,7 @@ select
     )
   )) as line_item_id,
 
-  h.adgroup_name as entity_name,
+  lower(trim(h.adgroup_name)) as entity_name,
 
   /* immutable platform key */
   lower(trim(r.adgroup_id::varchar)) as entity_id,

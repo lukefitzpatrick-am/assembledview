@@ -44,9 +44,10 @@ select
   'Social - Meta' as channel,
   b.date::date as date_day,
 
-  b.adset_name as line_item_name,
+  /* Normalise display + join keys — raw Fivetran landing stays immutable. */
+  lower(trim(b.adset_name)) as line_item_name,
 
-  /* relabellable id: your suffix if present, else fallback to adset_id */
+  /* relabellable id: suffix if present, else fallback to adset_id (always lower) */
   lower(trim(
     coalesce(
       nullif(regexp_substr(b.adset_name, '[^-]+$'), ''),
@@ -54,7 +55,7 @@ select
     )
   )) as line_item_id,
 
-  b.adset_name as entity_name,
+  lower(trim(b.adset_name)) as entity_name,
 
   /* immutable platform key */
   lower(trim(b.adset_id::varchar)) as entity_id,

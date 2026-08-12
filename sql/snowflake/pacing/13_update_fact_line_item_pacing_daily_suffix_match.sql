@@ -4,6 +4,10 @@
 -- Replaces dynamic table body. Join predicates MUST stay in sync with
 -- ASSEMBLEDVIEW.VW_PACING.V_DELIVERY_PACING (see 14_vw_pacing_v_delivery_pacing.sql).
 --
+-- suffix_id matching is exact equality on the lowercased final hyphen segment
+-- (plan code after last "-"). Codes like se1 vs se2 cannot cross-attribute
+-- because equality is on the full segment, not a prefix. Both sides use LOWER().
+--
 -- If your environment already had a different FACT_LINE_ITEM_PACING_DAILY shape
 -- (extra columns, joins to plan dims, etc.), merge these predicates into your
 -- production definition via GET_DDL rather than running this blindly.

@@ -2,18 +2,20 @@
 
 ## Navigation identity
 
-- `lib/nav/routeManifest.ts` is the single source of truth for user-facing route **labels**, document **titles**, breadcrumb copy, and command-palette destinations. `AppSidebar`, `DynamicBreadcrumbs`, and `CommandPalette` derive from it; `DocumentTitleFromManifest` + `pageMetadata()` keep `<title>` aligned. Do not invent parallel label maps. Admin sidebar IA is `ADMIN_SIDEBAR_GROUPS` (ungrouped **Home** + **Knowledge Hub**; Plan / Deliver / **Finance** / Admin-muted with Tasks / Clients / Publishers / **Users**; footer is UserMenu only). Finance (FIN-1) = Clients billing · Publishers · Forecasting · Investment. Client Dashboards expandable stays under Creative in Deliver. Create Campaign is palette-only (verb). `/management` is removed — user list is `/admin/users`, invites stay at `/admin/users/new`.
+- `lib/nav/routeManifest.ts` is the single source of truth for user-facing route **labels**, document **titles**, breadcrumb copy, and command-palette destinations. `AppSidebar`, `DynamicBreadcrumbs`, and `CommandPalette` derive from it; `DocumentTitleFromManifest` + `pageMetadata()` keep `<title>` aligned. Do not invent parallel label maps. Admin sidebar IA is `ADMIN_SIDEBAR_GROUPS` (ungrouped **Home** + **Knowledge Hub**; Plan / Deliver / **Finance** / Admin-muted with Tasks / Clients / Publishers / **Users** / **M365 reconciliation**; footer is UserMenu only). Finance (FIN-1) = Clients billing · Publishers · Forecasting · Investment. Client Dashboards expandable stays under Creative in Deliver. Create Campaign is palette-only (verb). `/management` is removed — user list is `/admin/users`, invites stay at `/admin/users/new`.
 
 ## Admin & users
 
 - `app/api/admin/users/route.ts` — `requireAdmin` → Auth0 Management API. **GET** lists users (`listAllAuth0Users`, 60s in-process TTL cache) returning denormalised `app_metadata.role` (can drift from Auth0 RBAC — not authoritative). **POST** creates user → assign role by **Role ID** `rol_…` from `AUTH0_ROLE_ADMIN_ID`/`AUTH0_ROLE_CLIENT_ID` → password ticket → invite email (rolls back on failure). **PUT** updates metadata/role. Rejects numeric `clientSlug` (historical bug guard). Creating/promoting to `admin` requires `SUPERADMIN_EMAIL_ALLOWLIST` (`lib/auth/canGrantAdminRole.ts` / `assertCanGrantAdminRole`) — fail closed when unset; not a third app role.
 - `app/admin/users/page.tsx` — admin users table (server-paginated GET, Auth0 `query` search). Wrapped in client `AdminGuard` (redirect only — real gate is `requireAdmin` on the API). Uses `ViewStateBoundary` so fetch failures render as error, not empty.
 - `app/admin/users/new` — invite form; Admin role option hidden when session email is not allowlisted (cosmetic; API enforces).
+- `app/admin/m365-reconciliation` — read-only M365 identity reconciliation skeleton (M4). `GET /api/admin/m365-reconciliation` → `requireAdmin` → pure join in `lib/m365/reconciliation.ts`. See [`modules/m365.md`](./m365.md).
 - `app/account` has no Team tab — admins reach user management via `/admin/users` (routeManifest label). Do not reintroduce a mock roster.
 - `app/admin/**` uses client-side `AdminGuard`; server enforcement lives only in the API routes.
 - Access-denied UI is one shared `components/AccessDenied.tsx` (`reason`: permission / unconfigured / unauthorized). Routes `/403`, `/forbidden`, `/unauthorized` stay as thin wrappers — middleware fail-closed redirects target them; do not delete the routes.
 - Sidebar logo and breadcrumb root link to `/dashboard` (in-app landing), not marketing `/`.
 - `app/(internal)/**` (chart gallery) is gated by `app/(internal)/layout.tsx` — `notFound()` when `NODE_ENV === "production"`.
+- `publisher_profiles` (`0024` / `db/schema/publisherProfiles.ts`) holds ingest mapping as jsonb config (column_map, legend_map, sheet_rules, grid_semantics). Admin read-only UI at `/admin/publisher-profiles`. Do not put per-publisher mapping in TypeScript.
 
 ## Scopes of work
 

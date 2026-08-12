@@ -27,17 +27,21 @@ select
 
   date_day as date_day,
 
-  line_item_name as line_item_name,
+  /* Normalise display + join keys — raw Fivetran landing stays immutable. */
+  lower(trim(line_item_name)) as line_item_name,
 
-  /* relabellable: try extract MBA token, else fallback to fivetran_id */
+  /* relabellable: extract plan token case-insensitively, else fallback to fivetran_id */
   lower(trim(
     coalesce(
-      nullif(regexp_substr(line_item_name, '[A-Z]{3}AU[0-9]{3,}[A-Z0-9]+'), ''),
+      nullif(
+        regexp_substr(upper(line_item_name), '[A-Z]{3}AU[0-9]{3,}[A-Z0-9]+'),
+        ''
+      ),
       fivetran_id::varchar
     )
   )) as line_item_id,
 
-  line_item_name as entity_name,
+  lower(trim(line_item_name)) as entity_name,
 
   /* immutable platform key */
   lower(trim(fivetran_id::varchar)) as entity_id,

@@ -52,8 +52,8 @@ using (
   relabel as (
     select
       k.*,
-      coalesce(m.line_item_id, k.line_item_id) as final_line_item_id,
-      coalesce(m.line_item_name, k.line_item_name) as final_line_item_name
+      lower(trim(coalesce(m.line_item_id, k.line_item_id))) as final_line_item_id,
+      lower(trim(coalesce(m.line_item_name, k.line_item_name))) as final_line_item_name
     from keyed k
     left join ASSEMBLEDVIEW.MART.LINE_ITEM_LABEL_MAP m
       on lower(trim(m.channel)) = lower(trim(k.channel))

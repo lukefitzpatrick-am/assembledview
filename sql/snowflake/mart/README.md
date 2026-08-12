@@ -26,6 +26,15 @@ TSK_ROOT_DAILY_REFRESH            CRON 06:30 Australia/Melbourne, SELECT 1
 
 ## Notes
 
+- **Identifier case:** MART pacing views emit `LOWER(TRIM(...))` for `LINE_ITEM_ID` /
+  `LINE_ITEM_NAME` (and DV360 plan-code extract is case-insensitive via
+  `REGEXP_SUBSTR(UPPER(name), …)` then `LOWER`). Raw Fivetran schemas stay
+  immutable. Refresh tasks also `LOWER` label-map coalesced ids/names.
+  Deploy + full-history backfill: `npx tsx scripts/snowflake/deploy-mba-case-norm.mjs`
+  (requires a role that **owns** the MART views/tables — `AV_APP_WRITE_ROLE` is
+  SELECT-only on `PACING_FACT`/`SOCIAL_PACING_FACT` and cannot `CREATE OR REPLACE`
+  views owned by `ACCOUNTADMIN`). Snapshot sync writes lowercase and collapses
+  case-alias duplicate PKs.
 - `views/vw_pacing_fact.sql` is a thin pass-through over `PACING_FACT`. No app
   references were found in the 2026-06-08 repo audit. Redundancy candidate,
   retained pending confirmation. Do not drop without checking.

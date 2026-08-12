@@ -88,7 +88,24 @@ test("Home / Clients / Users labels and Create Campaign is palette-only", () => 
   assert.ok(!(ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/mediaplans/create"))
   assert.ok((ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/tasks"))
   assert.ok((ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/users"))
+  assert.ok(
+    (ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/m365-reconciliation")
+  )
+  assert.ok(
+    (ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/publisher-profiles")
+  )
+  assert.ok(
+    (ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/schedule-ingest")
+  )
   assert.ok(!(ADMIN_SIDEBAR_PATHS as readonly string[]).includes("/admin/users/new"))
+  assert.equal(
+    getRouteByExactPath("/admin/m365-reconciliation")!.label,
+    "M365 reconciliation"
+  )
+  assert.equal(
+    getRouteByExactPath("/admin/publisher-profiles")!.label,
+    "Publisher profiles"
+  )
   assert.equal(getRouteByExactPath("/tasks")!.inSidebar, true)
   assert.equal(getRouteByExactPath("/tasks")!.label, "Codex")
 })
@@ -118,7 +135,16 @@ test("sidebar groups match Plan / Deliver / Finance / Admin IA (FIN-1)", async (
       {
         id: "admin",
         label: "Admin",
-        paths: ["/tasks", "/client", "/publishers", "/admin/users"],
+        paths: [
+          "/tasks",
+          "/insights",
+          "/client",
+          "/publishers",
+          "/admin/users",
+          "/admin/m365-reconciliation",
+          "/admin/publisher-profiles",
+          "/admin/schedule-ingest",
+        ],
       },
     ]
   )

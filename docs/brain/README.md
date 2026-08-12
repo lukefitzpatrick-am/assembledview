@@ -27,6 +27,8 @@ This rule is enforced for AI tools via `/CLAUDE.md` (Claude) and `/.cursor/rules
 | [fail-soft-consumers.md](./fail-soft-consumers.md) | Fourteen `GET /api/clients` callers that ignore `x-warning: clients-unavailable` — severity ranked |
 | [READ-FAILURE-REGISTER.md](./READ-FAILURE-REGISTER.md) | M7: lib/data catch→[] conversions vs dying-at-T6 Xano page wrappers |
 | [API-DYNAMIC-ROUTE-GATES.md](./API-DYNAMIC-ROUTE-GATES.md) | O6 / SEC-10 inventory of `app/api/**/[param]` gates vs collection siblings — input for T6 RLS (admin \| client) |
+| [tenant-isolation-audit.md](./tenant-isolation-audit.md) | Snapshot audit (pre-D1/D2 counts may drift) — prefer [api-tenant-classification.md](./api-tenant-classification.md) for living recount |
+| [api-tenant-classification.md](./api-tenant-classification.md) | Living recount of every `app/api` handler: class + mechanism + remaining exposures + admin consolidation candidates (regenerate via script) |
 | [XANO-SEVERANCE-REGISTER.md](./XANO-SEVERANCE-REGISTER.md) | X-AUDIT-1: every `app/api` + lib live Xano dependency, verdicts (DUAL-DONE/PORT/RETIRE/MIRROR/TOOLING), vault storage sizing, X1–X8 owner prompts |
 | [modules/media-plans.md](./modules/media-plans.md) | Media plan builder, MBA versioning, 20 channel tables, save/publish protocol |
 | [modules/pacing.md](./modules/pacing.md) | Pacing & delivery: Snowflake facts × Xano plans, caching, orphans |
@@ -38,6 +40,7 @@ This rule is enforced for AI tools via `/CLAUDE.md` (Claude) and `/.cursor/rules
 | [modules/dashboards-charts-exports.md](./modules/dashboards-charts-exports.md) | Client dashboards, chart system, document/export generation, email |
 | [modules/admin-misc.md](./modules/admin-misc.md) | Admin/users, knowledge hub, scripts (Codex → [modules/codex.md](./modules/codex.md)) |
 | [modules/codex.md](./modules/codex.md) | Codex Stage 0: Tasks/Team UI, API gates, 12 tables, fortnight observations log |
+| [modules/m365.md](./modules/m365.md) | Microsoft Graph provisioning (sites/Teams); Entra app permissions; flag-off default; M4 reconciliation admin |
 
 ## How to keep it alive
 

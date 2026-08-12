@@ -35,14 +35,28 @@ function dedupeByLineItemId(items: XanoLineItem[]): {
   const byId = new Map<string, XanoLineItem>()
 
   for (const item of items) {
-    const existing = byId.get(item.line_item_id)
+    const key = String(item.line_item_id ?? "").toLowerCase().trim()
+    if (!key) continue
+    const normalised: XanoLineItem = {
+      ...item,
+      line_item_id: key,
+      mba_number: String(item.mba_number ?? "").toLowerCase().trim(),
+      line_item_name:
+        item.line_item_name == null
+          ? item.line_item_name
+          : String(item.line_item_name).toLowerCase().trim(),
+    }
+    const existing = byId.get(key)
     if (!existing) {
-      byId.set(item.line_item_id, item)
+      byId.set(key, normalised)
     } else {
       const existingTime = existing.xano_created_at || 0
-      const itemTime = item.xano_created_at || 0
-      if (itemTime > existingTime || (itemTime === existingTime && item.xano_row_id > existing.xano_row_id)) {
-        byId.set(item.line_item_id, item)
+      const itemTime = normalised.xano_created_at || 0
+      if (
+        itemTime > existingTime ||
+        (itemTime === existingTime && normalised.xano_row_id > existing.xano_row_id)
+      ) {
+        byId.set(key, normalised)
       }
     }
   }
@@ -75,10 +89,11 @@ function buildBatchMergeSql(rowCount: number): string {
       FROM VALUES
         ${valuesPlaceholders}
     ) s
-    ON t.LINE_ITEM_ID = s.LINE_ITEM_ID
+    ON LOWER(TRIM(t.LINE_ITEM_ID)) = LOWER(TRIM(s.LINE_ITEM_ID))
     WHEN MATCHED THEN UPDATE SET
-      MBA_NUMBER       = s.MBA_NUMBER,
-      LINE_ITEM_NAME   = s.LINE_ITEM_NAME,
+      LINE_ITEM_ID     = LOWER(TRIM(s.LINE_ITEM_ID)),
+      MBA_NUMBER       = LOWER(TRIM(s.MBA_NUMBER)),
+      LINE_ITEM_NAME   = LOWER(TRIM(COALESCE(s.LINE_ITEM_NAME, ''))),
       PLATFORM         = s.PLATFORM,
       BUY_TYPE         = s.BUY_TYPE,
       FIXED_COST_MEDIA = s.FIXED_COST_MEDIA,
@@ -91,7 +106,9 @@ function buildBatchMergeSql(rowCount: number): string {
       LINE_ITEM_ID, MBA_NUMBER, LINE_ITEM_NAME, PLATFORM, BUY_TYPE,
       FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, XANO_ROW_ID, XANO_CREATED_AT, SYNCED_AT
     ) VALUES (
-      s.LINE_ITEM_ID, s.MBA_NUMBER, s.LINE_ITEM_NAME, s.PLATFORM, s.BUY_TYPE,
+      LOWER(TRIM(s.LINE_ITEM_ID)), LOWER(TRIM(s.MBA_NUMBER)),
+      LOWER(TRIM(COALESCE(s.LINE_ITEM_NAME, ''))),
+      s.PLATFORM, s.BUY_TYPE,
       s.FIXED_COST_MEDIA, s.BURSTS_JSON, s.SOURCE_TABLE, s.XANO_ROW_ID, s.XANO_CREATED_AT, CURRENT_TIMESTAMP()
     )
   `

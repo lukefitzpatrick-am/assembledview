@@ -22,7 +22,7 @@ Tracks actual delivery (Snowflake facts) against plan (Xano media plans) at line
 
 ## Snowflake tables
 
-`MART.SEARCH_PACING_FACT` (search + orphans), `MART.PACING_FACT` (programmatic, ad-serving), `MART.SOCIAL_PACING_FACT` (Meta/TikTok), `MART.FIXED_COST_{LINE_ITEM,BURST,REPORTED_DAILY}_FACT` (direct), `MART.XANO_LINE_ITEMS_SNAPSHOT` (cron-merged plan — X7 flip earned, PG tip SoT; prod `postgres` after X-series merge). Join key: `line_item_id` lowercased+trimmed — forget the `.toLowerCase().trim()` and you get silent `no-data` rows, not errors.
+`MART.SEARCH_PACING_FACT` (search + orphans), `MART.PACING_FACT` (programmatic, ad-serving), `MART.SOCIAL_PACING_FACT` (Meta/TikTok), `MART.FIXED_COST_{LINE_ITEM,BURST,REPORTED_DAILY}_FACT` (direct), `MART.XANO_LINE_ITEMS_SNAPSHOT` (cron-merged plan — X7 flip earned, PG tip SoT; prod `postgres` after X-series merge). Join key: `line_item_id` lowercased+trimmed — forget the `.toLowerCase().trim()` and you get silent `no-data` rows, not errors. MART views + snapshot sync now **persist** lowercase ids/names (raw Fivetran stays mixed-case); suffix_id match is `LOWER` on both sides so `se1`/`se2` cannot cross-attribute.
 
 ## Data flow (search, representative)
 

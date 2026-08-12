@@ -137,8 +137,8 @@ export function buildSnapshotPruneDeleteSql(stageTable: string): string {
   return `
     DELETE FROM ${SNAPSHOT}
     WHERE LINE_ITEM_ID IS NOT NULL
-      AND LINE_ITEM_ID NOT IN (
-        SELECT LINE_ITEM_ID
+      AND LOWER(TRIM(LINE_ITEM_ID)) NOT IN (
+        SELECT LOWER(TRIM(LINE_ITEM_ID))
         FROM ${stageTable}
       )
   `
@@ -148,10 +148,11 @@ export function buildSnapshotPruneMergeSql(stageTable: string): string {
   return `
     MERGE INTO ${SNAPSHOT} t
     USING ${stageTable} s
-    ON t.LINE_ITEM_ID = s.LINE_ITEM_ID
+    ON LOWER(TRIM(t.LINE_ITEM_ID)) = LOWER(TRIM(s.LINE_ITEM_ID))
     WHEN MATCHED THEN UPDATE SET
-      MBA_NUMBER       = s.MBA_NUMBER,
-      LINE_ITEM_NAME   = s.LINE_ITEM_NAME,
+      LINE_ITEM_ID     = LOWER(TRIM(s.LINE_ITEM_ID)),
+      MBA_NUMBER       = LOWER(TRIM(s.MBA_NUMBER)),
+      LINE_ITEM_NAME   = LOWER(TRIM(COALESCE(s.LINE_ITEM_NAME, ''))),
       PLATFORM         = s.PLATFORM,
       BUY_TYPE         = s.BUY_TYPE,
       FIXED_COST_MEDIA = s.FIXED_COST_MEDIA,
@@ -164,7 +165,9 @@ export function buildSnapshotPruneMergeSql(stageTable: string): string {
       LINE_ITEM_ID, MBA_NUMBER, LINE_ITEM_NAME, PLATFORM, BUY_TYPE,
       FIXED_COST_MEDIA, BURSTS_JSON, SOURCE_TABLE, XANO_ROW_ID, XANO_CREATED_AT, SYNCED_AT
     ) VALUES (
-      s.LINE_ITEM_ID, s.MBA_NUMBER, s.LINE_ITEM_NAME, s.PLATFORM, s.BUY_TYPE,
+      LOWER(TRIM(s.LINE_ITEM_ID)), LOWER(TRIM(s.MBA_NUMBER)),
+      LOWER(TRIM(COALESCE(s.LINE_ITEM_NAME, ''))),
+      s.PLATFORM, s.BUY_TYPE,
       s.FIXED_COST_MEDIA, s.BURSTS_JSON, s.SOURCE_TABLE, s.XANO_ROW_ID, s.XANO_CREATED_AT, CURRENT_TIMESTAMP()
     )
   `

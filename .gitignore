@@ -78,3 +78,10 @@ scripts/c1-fullscope-drift-report.csv
 /coverage/
 .coverage-out.txt
 
+# Overnight / probe scratch (do not commit)
+scripts/_tmp_*
+scripts/snowflake/_tmp_*
+scripts/snowflake/_before_spend.json
+scripts/snowflake/_after_snapshot_spend.json
+scripts/snowflake/_snapshot_fold_plan.json
+
