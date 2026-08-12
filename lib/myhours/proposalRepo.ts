@@ -258,8 +258,6 @@ export async function upsertTimeEntryDraftsForNote(
         note: sql`excluded.note`,
         clientId: sql`excluded.client_id`,
         mbaNumber: sql`excluded.mba_number`,
-        status: "proposed",
-        blockReason: null,
         updatedAt: new Date().toISOString(),
       },
       where: inArray(

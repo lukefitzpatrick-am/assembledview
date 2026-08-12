@@ -1,4 +1,4 @@
-import type { MyHoursClient } from "./client.js"
+import { MyHoursAuthError, type MyHoursClient } from "./client.js"
 import {
   campaignTaskName,
   clientProjectName,
@@ -156,6 +156,7 @@ export async function ensureClientCampaignStructure(args: {
       taskId: taskLink.myhoursId,
     }
   } catch (error) {
+    if (error instanceof MyHoursAuthError) throw error
     return { ok: false, reason: errorMessage(error) }
   }
 }

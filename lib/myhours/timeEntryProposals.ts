@@ -139,10 +139,15 @@ export async function confirmTimeEntryProposal(
 
   const structure = await deps.ensureStructure(proposal)
   if (!structure.ok || structure.taskId == null) {
+    const blockReason = !structure.ok
+      ? structure.reason
+      : proposal.mbaNumber
+        ? `no MyHours task for ${proposal.mbaNumber}`
+        : "no MyHours task for client"
     return persistBlock(
       proposal,
       "blocked_structure",
-      `no MyHours task for ${proposal.mbaNumber}`,
+      blockReason,
       deps,
       structure.ok ? structure : undefined
     )
@@ -174,10 +179,13 @@ export async function confirmTimeEntryProposal(
   const projectId = Number(structure.projectId)
   const taskId = Number(structure.taskId)
   if (!Number.isFinite(projectId) || !Number.isFinite(taskId)) {
+    const blockReason = proposal.mbaNumber
+      ? `no MyHours task for ${proposal.mbaNumber}`
+      : "no MyHours task for client"
     return persistBlock(
       proposal,
       "blocked_structure",
-      `no MyHours task for ${proposal.mbaNumber}`,
+      blockReason,
       deps,
       structure
     )

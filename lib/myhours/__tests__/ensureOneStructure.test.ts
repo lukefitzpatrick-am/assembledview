@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { MyHoursClient } from "../client.js"
+import { MyHoursAuthError, MyHoursClient } from "../client.js"
 import { ensureClientCampaignStructure } from "../ensureOneStructure.js"
 import type { StructureLink } from "../sync.js"
 
@@ -186,4 +186,21 @@ test("non-unique link persistence failures return a failed result", async () => 
   })
 
   assert.deepEqual(result, { ok: false, reason: "database unavailable" })
+})
+
+test("MyHours authentication failures are re-thrown", async () => {
+  const client = createClient(() => new Response("unauthorized", { status: 401 }))
+
+  await assert.rejects(
+    ensureClientCampaignStructure({
+      clientId: 7,
+      clientName: "Acme",
+      mbaNumber: "FOO001",
+      campaignName: "Brand push",
+      client,
+      loadLinks: async () => [],
+      saveLink: async () => {},
+    }),
+    (error) => error instanceof MyHoursAuthError
+  )
 })

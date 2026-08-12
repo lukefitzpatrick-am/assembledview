@@ -219,6 +219,42 @@ describe("confirmTimeEntryProposal", () => {
     assert.equal(writes.length, 0)
   })
 
+  it("uses the structure failure reason returned by ensure", async () => {
+    const { deps, writes } = makeDeps({
+      ensureStructure: async () => ({
+        ok: false,
+        reason: "MyHours project creation is disabled",
+      }),
+    })
+
+    const result = await confirmTimeEntryProposal(proposal.id, "actor@example.com", deps)
+
+    assert.deepEqual(result, {
+      status: "blocked_structure",
+      blockReason: "MyHours project creation is disabled",
+    })
+    assert.equal(writes.length, 0)
+  })
+
+  it("uses client-only wording when the proposal has no MBA", async () => {
+    const { deps, writes } = makeDeps({
+      loadProposal: async () => ({ ...proposal, mbaNumber: null }),
+      ensureStructure: async () => ({
+        ok: true,
+        projectId: "101",
+        taskId: null,
+      }),
+    })
+
+    const result = await confirmTimeEntryProposal(proposal.id, "actor@example.com", deps)
+
+    assert.deepEqual(result, {
+      status: "blocked_structure",
+      blockReason: "no MyHours task for client",
+    })
+    assert.equal(writes.length, 0)
+  })
+
   it("rejects proposals that already have a terminal decision", async () => {
     const { deps, writes } = makeDeps({
       loadProposal: async () => ({ ...proposal, status: "confirmed" }),

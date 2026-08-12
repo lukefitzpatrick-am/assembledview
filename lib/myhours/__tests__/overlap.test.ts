@@ -69,6 +69,27 @@ describe("intervalFromRaw", () => {
     assert.equal(interval!.endMs - interval!.startMs, 45 * 60 * 1000)
   })
 
+  it("anchors offset-less timestamps to Australia/Sydney", () => {
+    const previousTz = process.env.TZ
+    process.env.TZ = "UTC"
+    try {
+      const interval = intervalFromRaw(
+        {
+          startTime: "2026-08-13T09:00:00",
+          endTime: "2026-08-13T10:00:00",
+        },
+        "2026-08-13",
+        60
+      )
+
+      assert.ok(interval)
+      assert.equal(interval!.startMs, Date.parse("2026-08-13T09:00:00+10:00"))
+      assert.equal(interval!.endMs, Date.parse("2026-08-13T10:00:00+10:00"))
+    } finally {
+      process.env.TZ = previousTz
+    }
+  })
+
   it("returns null when raw has no parseable start", () => {
     assert.equal(intervalFromRaw({ note: "manual" }, "2026-08-13", 30), null)
     assert.equal(intervalFromRaw(null, "2026-08-13", 30), null)
