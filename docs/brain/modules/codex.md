@@ -10,13 +10,14 @@ Related: `docs/brain/codex-client-id-fk.md` (DI-12), `docs/brain/fail-soft-consu
 
 ## Stage 0 — what ships today
 
-UI: `app/tasks/page.tsx` + `TasksPageClient.tsx` (list) and `app/tasks/[id]/page.tsx` + `TaskDetailClient.tsx` (detail). Flag off → server EmptyState "Codex is not enabled" (no client fetch). Flag on → three tabs on the list:
+UI: `app/tasks/page.tsx` + `TasksPageClient.tsx` (list) and `app/tasks/[id]/page.tsx` + `TaskDetailClient.tsx` (detail). Flag off → server EmptyState "Codex is not enabled" (no client fetch). Flag on → four tabs on the list:
 
 | Surface | Behaviour |
 |---|---|
 | **Tasks** | Flat **list** (TanStack) or **board** (dnd-kit columns for `backlog\|todo\|in_progress\|waiting\|done`). Shared filter state — switching view does not reset My Tasks / client / status / search / category / MBA scope. Deep-link filters: `/tasks?mba=<mba_number>` and `/tasks?client=<id>` (shareable; combine with other filters). **Quick-add** bar (list + board): Enter creates `todo` assigned to me; inline `@assignee` `#client` `!high/!low` `due …` (Sydney) with chip preview — unmatched tokens stay in the title. **My week** saved view: assigned to me, due today..+7 Sydney, not done. Category filter. List **bulk select** → status / assignee / due. Row/card → `/tasks/[id]`. Modal create still available (optional **template** apply + **recurring_rule** seed). Soft delete via confirm. Deep link: `/tasks?task=<id>` → `/tasks/<id>`. Board drag → optimistic PATCH status (revert + toast). Cards show title, client, assignee, due (overdue critical), priority, checklist `done/total`. No swimlanes / WIP / extra statuses. Clients picker + quick-add fallback use `fetchClientsList` (empty + fail-soft → error, never "no clients"). |
+| **Inbox** | Fireflies action-item proposals (`ava_task_proposals`, status `proposed`), grouped by meeting. Accept / Edit-then-accept / Dismiss / Accept all. Accept creates a task via `createTask` (`source=ava`, `actor_kind=ava`, `source_note_id` link). Sync never creates tasks. Duplicate title+MBA vs open tasks → “possible duplicate” flag only. |
 | **Templates** | CRUD for `task_templates` + ordered `task_template_items` (checklist labels). Apply on task create copies labels into `task_checklist_items`. |
-| **Team** | Roster table + `TeamMemberFormDialog` create/edit. |
+| **Team** | Roster table + `TeamMemberFormDialog` create/edit. Columns include Sydney-week hours (from `time_entries`) + open/overdue task counts; sortable by hours. Unmapped-time banner when `unmapped_count > 0` links to `/admin/myhours-mapping`. |
 | **Task detail** | `/tasks/[id]` — inline-editable title/description/status/priority/category/due/assignee/client/MBA; MBA number links **one-way** to `/mediaplans/mba/[mba]/edit` (containment: nothing outside `/tasks` links back). Checklist (add/tick/reorder/delete + "N of M"); comments (newest last); activity from `codex_activity` (`entity_type=task`) with legible before→after diffs via `formatActivityDiff`. Failed inline saves restore previous value + destructive toast. |
 
 **Default scope:** `mine=1` → `assignee_email = me OR created_by_email = me` (includes unassigned tasks I created). **All tasks** toggle clears that scope so null-assignee rows stay visible. Exact `assignee_email` filter still excludes unassigned by design (`resolveListAssigneeScope`).
@@ -41,6 +42,11 @@ Routes under `app/api/codex/`:
 |---|---|---|
 | GET, POST | `/api/codex/tasks` | `listTasks`, `createTask` |
 | GET | `/api/codex/tasks/counts` | `countTasksByMba` — `?mba=A,B` open + overdue (Sydney) per MBA |
+| GET | `/api/codex/time/summary` | `getMbaTimeSummary` — `?mba=` hours-to-date + by-member + 4-week sparkline (admin-gated; not for client roles) |
+| GET | `/api/codex/time/team-week` | `getTeamWeekTimeSummary` — Sydney-week hours per roster member + open/overdue + `unmapped_count` |
+| GET | `/api/codex/time/proposals` | `listTimeEntryProposalsForWeek` — `?week_start=` Monday YMD (defaults to current Sydney week), with client/campaign display fields |
+| POST | `/api/codex/time/proposals/[id]/confirm` | `confirmTimeEntryProposal` — overlap/structure guards, then the sole intentional MyHours time-log write |
+| POST | `/api/codex/time/proposals/[id]/skip` | `skipTimeEntryProposal` — records the human terminal decision without a MyHours write |
 | GET, PATCH, DELETE | `/api/codex/tasks/[id]` | `getTask`, `updateTask`, `softDeleteTask` |
 | GET, POST | `/api/codex/tasks/[id]/checklist` | `listChecklistItems`, `createChecklistItem` / `reorderChecklistItems` (`ordered_ids`) |
 | PATCH, DELETE | `/api/codex/tasks/[id]/checklist/[itemId]` | `updateChecklistItem`, `deleteChecklistItem` |
@@ -54,6 +60,9 @@ Routes under `app/api/codex/`:
 | GET, PATCH, DELETE | `/api/codex/templates/[id]` | `getTemplate`, `updateTemplate`, `deleteTemplate` |
 | GET, POST | `/api/codex/templates/[id]/items` | `listTemplateItems`, `createTemplateItem` / `reorderTemplateItems` |
 | PATCH, DELETE | `/api/codex/templates/[id]/items/[itemId]` | `updateTemplateItem`, `deleteTemplateItem` |
+| GET, POST | `/api/codex/proposals` | `listProposedInbox`, `batchAcceptForNote` |
+| POST | `/api/codex/proposals/[id]/accept` | `acceptProposal` (optional edits body) |
+| POST | `/api/codex/proposals/[id]/dismiss` | `dismissProposal` → status `rejected` |
 | GET, POST | `/api/cron/codex-recurring` | `runCodexRecurring` — `CRON_SECRET` gate (not Codex flag/auth matrix) |
 
 Every handler: `codexFlagGuard()` then `requireCodexInternalAccess()` (`app/api/codex/_shared.ts`).
@@ -74,19 +83,19 @@ Middleware only authenticates; tenant/role is per-route. Writes stamp email iden
 | Table | Status | Notes |
 |---|---|---|
 | `tasks` | **Live** | Create / list / patch / soft-delete |
-| `client_notes` | **Live** (read API) | GET list only; writes arrive with Fireflies/Stage 3 |
+| `client_notes` | **Live** (read API + Fireflies writes) | GET list; Fireflies sync inserts; unattributed assign at `/admin/fireflies-unattributed` |
 | `team_members` | **Live** | Roster CRUD |
 | `codex_activity` | **Live** (writes + GET list) | Append-only from repo; `GET .../activity` reads task-scoped rows; UI formats diffs via `lib/codex/activityDiff.ts` |
-| `client_domains` | Provisioned, unwired | Domain→client matching for Stage 3 |
+| `client_domains` | **Live** (Fireflies) | Domain→client for attribution; seeded from `clients.keyemail` / `billingemail` / `website`; learned on manual assign (MR-5) |
 | `task_templates` | **Live** (API + Templates tab) | Name + description; hard delete cascades items |
 | `task_template_items` | **Live** (API + Templates tab) | Ordered checklist labels; hard delete |
 | `task_checklist_items` | **Live** (API + detail UI) | Stage 1 detail — hard delete (no `deleted_at`) |
 | `task_comments` | **Live** (API + detail UI) | Stage 1 detail — hard delete; no edit; `author_kind` user\|ava |
-| `ava_task_proposals` | Provisioned, unwired | Stage 4 confirm queue |
-| `assignment_rules` | Provisioned, unwired | Stage 5 learning |
-| `fireflies_sync_state` | Provisioned, unwired | Stage 3 poll cursor |
+| `ava_task_proposals` | **Live** (Inbox tab) | Sync inserts `proposed`; human accept/dismiss only creates tasks |
+| `assignment_rules` | Provisioned, unwired | Stage 5 learning — dismissals are the future training signal; do not wire yet |
+| `fireflies_sync_state` | **Live** (cron cursor) | Poll cursor + run log; `GET/POST /api/cron/fireflies-sync` |
 
-**Q23:** provisioned-but-dead Codex tables were created early **on purpose** and are to be **integrated during rollout** (Stages 1–5). Do not drop them as unused schema; do not treat empty as abandoned. Templates + template items are now live (Stage 1 step 5); remaining unwired: `client_domains`, `ava_task_proposals`, `assignment_rules`, `fireflies_sync_state`.
+**Q23:** provisioned-but-dead Codex tables were created early **on purpose** and are to be **integrated during rollout** (Stages 1–5). Do not drop them as unused schema; do not treat empty as abandoned. Templates + template items are live; Fireflies Stage 3–4 wires `client_notes` / `client_domains` / `fireflies_sync_state` / `ava_task_proposals`. Remaining unwired: `assignment_rules`.
 
 No FKs from Codex `client_id` columns to `clients` until T6 (DI-12). New 0013 tables: RLS on, **no** `ava_readonly` grants (fail closed). Exception: `client_notes` was already on the AVA allowlist — see standing decision below.
 
@@ -101,10 +110,12 @@ No FKs from Codex `client_id` columns to `clients` until T6 (DI-12). New 0013 ta
 ## Key files
 
 - `lib/codex/{repo,types,flag,shadowRoles,queryHelpers,activityDiff,quickAddParse,recurringRule,runRecurring,seedTasks}.ts`
-- `app/api/codex/**`, `app/api/cron/codex-recurring/route.ts`, `app/tasks/**`
+- `lib/fireflies/{client,attribution,sync,runSync,assign,seedDomains,actionItems,proposals,proposalRepo}.ts` — Fireflies GraphQL pull + attribution + proposal inbox
+- `app/api/codex/**`, `app/api/cron/codex-recurring/route.ts`, `app/api/cron/fireflies-sync/route.ts`, `app/tasks/**`
+- `app/admin/fireflies-unattributed/**`, `app/api/admin/fireflies-unattributed/route.ts`
 - `components/tasks/{TaskBoard,TaskBulkBar,TaskDetailClient,TaskFormDialog,TaskQuickAdd,TeamMemberFormDialog,TemplateFormDialog}.tsx`
-- `db/schema/codex.ts`, `db/migrations/0013_codex_v2.sql`, `db/migrations/0025_codex_tasks_source_profile.sql`
-- Tests: `test:codex-flag-auth` (27 routes), `test:codex-stage0-guarantees`, `test:codex-stage1-detail`, `test:codex-stage1-scope` (deep-link parse + `countTasksByMba`), `test:codex-stage1-templates` (recurringRule + repo idempotency), `test:codex-seed-tasks` (Campaign profile expand + seed idempotency / past-due flags)
+- `db/schema/codex.ts`, `db/migrations/0013_codex_v2.sql`, `db/migrations/0025_codex_tasks_source_profile.sql`, `db/migrations/0029_fireflies_client_notes.sql`, `db/migrations/0030_ava_proposals_mba.sql`
+- Tests: `test:codex-flag-auth`, `test:codex-stage0-guarantees`, `test:codex-stage1-detail`, `test:codex-stage1-scope`, `test:codex-stage1-templates`, `test:codex-seed-tasks`, `test:fireflies` (attribution + cursor idempotency + assign learn)
 
 ## Campaign seed (`lib/codex/seedTasks.ts`)
 
