@@ -10,7 +10,7 @@ import {
   inventoryAppApi,
   summarizeInventory,
   type HandlerRow,
-} from "../lib/api/tenantRouteInventory.ts"
+} from "../lib/api/tenantRouteInventory"
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), "..")
 const outPath = path.join(root, "docs", "brain", "api-tenant-classification.md")

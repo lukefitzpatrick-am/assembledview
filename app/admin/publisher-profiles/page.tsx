@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useState, Fragment } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useState, Fragment } from "react"
 import { AdminGuard } from "@/components/guards/AdminGuard"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -33,6 +33,10 @@ function PublisherProfilesPageInner() {
   const [reloadKey, setReloadKey] = useState(0)
   const [expanded, setExpanded] = useState<string | null>(null)
 
+  const retry = useCallback(() => {
+    setReloadKey((k) => k + 1)
+  }, [])
+
   useEffect(() => {
     let cancelled = false
     setLoading(true)
@@ -63,11 +67,19 @@ function PublisherProfilesPageInner() {
   }, [reloadKey])
 
   const profiles = data?.profiles ?? []
-  const viewState = resolveListViewState({
-    loading,
-    error,
-    itemCount: profiles.length,
-  })
+  const viewState = useMemo(
+    () =>
+      resolveListViewState({
+        loading,
+        error,
+        items: profiles,
+        visible: profiles,
+        filtersActive: false,
+        clear: () => {},
+        retry,
+      }),
+    [error, loading, profiles, retry],
+  )
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-8 p-6">
@@ -91,88 +103,88 @@ function PublisherProfilesPageInner() {
 
       <ViewStateBoundary
         state={viewState}
-        loadingFallback={<LoadingState label="Loading publisher profiles…" />}
+        loadingRows={8}
         emptyTitle="No publisher profiles"
-        emptyDescription="Apply migration 0024 or ensure the seed JSON is present."
+        emptyMessage="Apply migration 0024 or ensure the seed JSON is present."
         errorTitle="Could not load profiles"
-        errorDescription={error ?? undefined}
-        onRetry={() => setReloadKey((k) => k + 1)}
       >
-        <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Publisher</TableHead>
-                <TableHead>Media type</TableHead>
-                <TableHead>Grid semantics</TableHead>
-                <TableHead>Active</TableHead>
-                <TableHead>Columns mapped</TableHead>
-                <TableHead>Legend keys</TableHead>
-                <TableHead>Sheet rules</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {profiles.map((p) => {
-                const open = expanded === p.publisher_name
-                return (
-                  <Fragment key={p.publisher_name}>
-                    <TableRow
-                      className="interactive-row cursor-pointer"
-                      onClick={() =>
-                        setExpanded(open ? null : p.publisher_name)
-                      }
-                    >
-                      <TableCell className="font-medium">
-                        {p.publisher_name}
-                      </TableCell>
-                      <TableCell>{p.media_type}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            p.grid_semantics === "status_matrix"
-                              ? "secondary"
-                              : "outline"
-                          }
-                        >
-                          {p.grid_semantics}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{p.active ? "Yes" : "No"}</TableCell>
-                      <TableCell className="num">
-                        {Object.keys(p.column_map).length}
-                      </TableCell>
-                      <TableCell className="num">
-                        {Object.keys(p.legend_map).length}
-                      </TableCell>
-                      <TableCell className="num">
-                        {p.sheet_rules.length}
-                      </TableCell>
-                    </TableRow>
-                    {open ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="bg-muted/30">
-                          <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-input border border-border bg-background p-3 text-xs text-muted-foreground">
-                            {JSON.stringify(
-                              {
-                                detect_signature: p.detect_signature,
-                                column_map: p.column_map,
-                                legend_map: p.legend_map,
-                                sheet_rules: p.sheet_rules,
-                                notes: p.notes,
-                              },
-                              null,
-                              2,
-                            )}
-                          </pre>
+        {(rows) => (
+          <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Publisher</TableHead>
+                  <TableHead>Media type</TableHead>
+                  <TableHead>Grid semantics</TableHead>
+                  <TableHead>Active</TableHead>
+                  <TableHead>Columns mapped</TableHead>
+                  <TableHead>Legend keys</TableHead>
+                  <TableHead>Sheet rules</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {rows.map((p) => {
+                  const open = expanded === p.publisher_name
+                  return (
+                    <Fragment key={p.publisher_name}>
+                      <TableRow
+                        className="interactive-row cursor-pointer"
+                        onClick={() =>
+                          setExpanded(open ? null : p.publisher_name)
+                        }
+                      >
+                        <TableCell className="font-medium">
+                          {p.publisher_name}
+                        </TableCell>
+                        <TableCell>{p.media_type}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={
+                              p.grid_semantics === "status_matrix"
+                                ? "secondary"
+                                : "outline"
+                            }
+                          >
+                            {p.grid_semantics}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{p.active ? "Yes" : "No"}</TableCell>
+                        <TableCell className="num">
+                          {Object.keys(p.column_map).length}
+                        </TableCell>
+                        <TableCell className="num">
+                          {Object.keys(p.legend_map).length}
+                        </TableCell>
+                        <TableCell className="num">
+                          {p.sheet_rules.length}
                         </TableCell>
                       </TableRow>
-                    ) : null}
-                  </Fragment>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
+                      {open ? (
+                        <TableRow>
+                          <TableCell colSpan={7} className="bg-muted/30">
+                            <pre className="max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-input border border-border bg-background p-3 text-xs text-muted-foreground">
+                              {JSON.stringify(
+                                {
+                                  detect_signature: p.detect_signature,
+                                  column_map: p.column_map,
+                                  legend_map: p.legend_map,
+                                  sheet_rules: p.sheet_rules,
+                                  notes: p.notes,
+                                },
+                                null,
+                                2,
+                              )}
+                            </pre>
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                    </Fragment>
+                  )
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        )}
       </ViewStateBoundary>
     </div>
   )
@@ -181,7 +193,7 @@ function PublisherProfilesPageInner() {
 export default function PublisherProfilesAdminPage() {
   return (
     <AdminGuard>
-      <Suspense fallback={<LoadingState label="Loading…" />}>
+      <Suspense fallback={<LoadingState rows={6} />}>
         <PublisherProfilesPageInner />
       </Suspense>
     </AdminGuard>

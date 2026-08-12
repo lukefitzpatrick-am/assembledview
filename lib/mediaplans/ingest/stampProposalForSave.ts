@@ -60,7 +60,9 @@ function channelForMediaType(mediaType: string): LineChannel {
   return "ooh"
 }
 
-function mediaCodeForChannel(channel: LineChannel): string {
+type MediaCode = (typeof MEDIA_TYPE_ID_CODES)[keyof typeof MEDIA_TYPE_ID_CODES]
+
+function mediaCodeForChannel(channel: LineChannel): MediaCode {
   if (channel === "radio") return MEDIA_TYPE_ID_CODES.radio
   return MEDIA_TYPE_ID_CODES.ooh
 }

@@ -131,7 +131,8 @@ test("QMS propose attaches flights on each panel; stamp carries them", async () 
   )
   // Bonus flights never invent money on the stamp path either.
   for (const li of stamped.lineItems) {
-    for (const b of li.bursts) {
+    const bursts = Array.isArray(li.bursts) ? li.bursts : []
+    for (const b of bursts) {
       if (typeof (b as { budget?: number }).budget === "number") {
         assert.ok(Number.isFinite((b as { budget: number }).budget))
       }
