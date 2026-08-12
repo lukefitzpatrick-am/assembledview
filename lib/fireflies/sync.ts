@@ -52,6 +52,17 @@ export type FirefliesSyncDeps = {
     noteId: number
     note: SyncInsertNote
   }) => Promise<number>
+  /** Lowercased active Codex roster emails used for time-entry drafts. */
+  activeMemberEmails?: readonly string[]
+  /**
+   * Upsert draft time entries for eligible roster attendees.
+   * Confirmed/skipped rows must remain terminal in the persistence adapter.
+   */
+  upsertTimeEntryDraftsForNote?: (args: {
+    noteId: number
+    note: SyncInsertNote
+    activeMemberEmails: readonly string[]
+  }) => Promise<number>
   loadAttributionContext: () => Promise<AttributionContext>
   /** Optional injectable list (tests). */
   listTranscripts?: (
@@ -200,6 +211,18 @@ export async function runFirefliesSync(
 
     const { id: noteId } = await deps.insertNote(note)
     notesCreated += 1
+
+    if (
+      deps.upsertTimeEntryDraftsForNote &&
+      !note.isInternal &&
+      note.clientId != null
+    ) {
+      await deps.upsertTimeEntryDraftsForNote({
+        noteId,
+        note,
+        activeMemberEmails: deps.activeMemberEmails ?? [],
+      })
+    }
 
     if (deps.insertProposalsFromNote && note.actionItemsRaw) {
       proposalsCreated += await deps.insertProposalsFromNote({

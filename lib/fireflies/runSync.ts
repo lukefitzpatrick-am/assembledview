@@ -15,6 +15,7 @@ import {
 import { insertProposalsFromNote } from "@/lib/fireflies/proposalRepo"
 import { runFirefliesSync, type SyncInsertNote } from "@/lib/fireflies/sync"
 import type { AttributionContext, KnownMba } from "@/lib/fireflies/types"
+import { upsertTimeEntryDraftsForNote } from "@/lib/myhours/proposalRepo"
 
 async function loadCursor(database = getDb()): Promise<string | null> {
   const [row] = await database
@@ -64,6 +65,23 @@ async function loadAttributionContext(
     domainToClient,
     assembledDomains: defaultAssembledDomainSet(),
   }
+}
+
+async function loadActiveTeamMemberEmails(
+  database = getDb()
+): Promise<string[]> {
+  const rows = await database
+    .select({ email: schema.teamMembers.email })
+    .from(schema.teamMembers)
+    .where(eq(schema.teamMembers.active, true))
+
+  return [
+    ...new Set(
+      rows
+        .map((row) => row.email.trim().toLowerCase())
+        .filter(Boolean)
+    ),
+  ]
 }
 
 export async function seedClientDomainsFromClients(
@@ -116,6 +134,7 @@ export async function runFirefliesSyncToPostgres(): Promise<{
   const database = getDb()
   const { upserted: domainsSeeded } =
     await seedClientDomainsFromClients(database)
+  const activeMemberEmails = await loadActiveTeamMemberEmails(database)
 
   const apiKey = process.env.FIREFLIES_API_KEY?.trim()
   if (!apiKey) {
@@ -158,6 +177,12 @@ export async function runFirefliesSyncToPostgres(): Promise<{
     },
     insertProposalsFromNote: async ({ noteId, note }) =>
       insertProposalsFromNote({ noteId, note }, database),
+    activeMemberEmails,
+    upsertTimeEntryDraftsForNote: ({ noteId, note, activeMemberEmails }) =>
+      upsertTimeEntryDraftsForNote(
+        { noteId, note, activeMemberEmails },
+        database
+      ),
     saveRun: async (row) => {
       await database.insert(schema.firefliesSyncState).values({
         runStartedAt: new Date().toISOString(),
