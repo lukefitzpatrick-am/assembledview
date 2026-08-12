@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import {
   flexRender,
@@ -8,7 +9,7 @@ import {
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table"
-import { Columns3, LayoutList, ListTodo, PlusCircle, Trash2, Users, LayoutTemplate } from "lucide-react"
+import { Columns3, Inbox, LayoutList, ListTodo, PlusCircle, Trash2, Users, LayoutTemplate } from "lucide-react"
 import { isValid, parseISO, startOfDay } from "date-fns"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { matchText } from "@/lib/search/matchText"
@@ -19,6 +20,7 @@ import { TaskFormDialog } from "@/components/tasks/TaskFormDialog"
 import { TeamMemberFormDialog } from "@/components/tasks/TeamMemberFormDialog"
 import { TemplateFormDialog } from "@/components/tasks/TemplateFormDialog"
 import { TaskQuickAdd } from "@/components/tasks/TaskQuickAdd"
+import { TimesheetDraftsPanel } from "@/components/tasks/TimesheetDraftsPanel"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +31,13 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -79,6 +88,13 @@ import {
   type TeamMember,
   isTaskStatus,
 } from "@/lib/codex/types"
+import type { TeamWeekTimeSummary } from "@/lib/myhours/timeSummary"
+
+type TeamMemberWithWeek = TeamMember & {
+  week_hours: number
+  open_tasks: number
+  overdue_tasks: number
+}
 
 type ClientOption = {
   id: number
@@ -147,7 +163,44 @@ export function TasksPageClient() {
   const searchParams = useSearchParams()
   const { toast } = useToast()
   const { user } = useUser()
-  const [mainTab, setMainTab] = useState<"tasks" | "team" | "templates">("tasks")
+  const [mainTab, setMainTab] = useState<
+    "tasks" | "team" | "templates" | "inbox"
+  >("tasks")
+
+  type InboxProposalRow = {
+    id: number
+    proposed_title: string
+    proposed_description: string | null
+    proposed_assignee_email: string | null
+    proposed_mba_number: string | null
+    proposed_category: string | null
+    proposed_due_date: string | null
+    client_id: number | null
+    source_note_id: number | null
+    possible_duplicate: boolean
+    status: string
+    created_at: string
+  }
+  type InboxGroup = {
+    note_id: number
+    meeting_title: string | null
+    meeting_date: string | null
+    transcript_url: string | null
+    mba_number: string | null
+    client_id: number | null
+    proposals: InboxProposalRow[]
+  }
+  const [inboxGroups, setInboxGroups] = useState<InboxGroup[]>([])
+  const [inboxLoading, setInboxLoading] = useState(false)
+  const [inboxError, setInboxError] = useState<string | null>(null)
+  const [inboxBusyId, setInboxBusyId] = useState<number | null>(null)
+  const [editProposal, setEditProposal] = useState<InboxProposalRow | null>(
+    null
+  )
+  const [editTitle, setEditTitle] = useState("")
+  const [editAssignee, setEditAssignee] = useState("")
+  const [editMba, setEditMba] = useState("")
+  const [editClientId, setEditClientId] = useState("")
   /** List and board share the same filter state — switching must not reset it. */
   const [tasksLayout, setTasksLayout] = useState<"list" | "board">("list")
 
@@ -176,6 +229,8 @@ export function TasksPageClient() {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
   const [teamLoading, setTeamLoading] = useState(true)
   const [teamError, setTeamError] = useState<string | null>(null)
+  const [teamWeek, setTeamWeek] = useState<TeamWeekTimeSummary | null>(null)
+  const [teamHoursSortDesc, setTeamHoursSortDesc] = useState(true)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<CodexTask | null>(null)
@@ -237,6 +292,20 @@ export function TasksPageClient() {
     void fetchClients()
   }, [fetchClients])
 
+  const fetchTeamWeek = useCallback(async () => {
+    try {
+      const res = await fetch("/api/codex/time/team-week")
+      if (!res.ok) {
+        setTeamWeek(null)
+        return
+      }
+      const data = (await res.json()) as TeamWeekTimeSummary
+      setTeamWeek(data)
+    } catch {
+      setTeamWeek(null)
+    }
+  }, [])
+
   const fetchTeam = useCallback(async () => {
     setTeamLoading(true)
     setTeamError(null)
@@ -269,6 +338,42 @@ export function TasksPageClient() {
   useEffect(() => {
     void fetchTeam()
   }, [fetchTeam])
+
+  useEffect(() => {
+    if (mainTab !== "team") return
+    void fetchTeamWeek()
+  }, [mainTab, fetchTeamWeek])
+
+  const fetchInbox = useCallback(async () => {
+    setInboxLoading(true)
+    setInboxError(null)
+    try {
+      const res = await fetch("/api/codex/proposals")
+      if (res.status === 403) {
+        setAccessDenied(true)
+        setInboxGroups([])
+        return
+      }
+      if (!res.ok) {
+        setInboxError("Something went wrong while loading the inbox.")
+        setInboxGroups([])
+        return
+      }
+      const data = (await res.json()) as { groups?: InboxGroup[] }
+      setInboxGroups(Array.isArray(data.groups) ? data.groups : [])
+    } catch (error) {
+      console.error("Error fetching proposals inbox:", error)
+      setInboxError("Something went wrong while loading the inbox.")
+      setInboxGroups([])
+    } finally {
+      setInboxLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (mainTab !== "inbox") return
+    void fetchInbox()
+  }, [mainTab, fetchInbox])
 
   const fetchTemplates = useCallback(async () => {
     setTemplatesLoading(true)
@@ -364,6 +469,136 @@ export function TasksPageClient() {
   useEffect(() => {
     void fetchTasks()
   }, [fetchTasks])
+
+  const acceptInboxProposal = useCallback(
+    async (
+      proposalId: number,
+      edits: {
+        title?: string
+        assignee_email?: string | null
+        mba_number?: string | null
+        client_id?: number | null
+      } | null = null
+    ) => {
+      setInboxBusyId(proposalId)
+      try {
+        const res = await fetch(`/api/codex/proposals/${proposalId}/accept`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: edits ? JSON.stringify(edits) : undefined,
+        })
+        const body = await res.json().catch(() => null)
+        if (!res.ok) {
+          toast({
+            variant: "destructive",
+            title: "Accept failed",
+            description:
+              body && typeof body === "object" && "error" in body
+                ? String((body as { error: string }).error)
+                : "Could not create task from proposal.",
+          })
+          return
+        }
+        toast({
+          title: "Task created",
+          description:
+            body && typeof body === "object" && "task_id" in body
+              ? `Task #${String((body as { task_id: number }).task_id)}`
+              : undefined,
+        })
+        setEditProposal(null)
+        await fetchInbox()
+        void fetchTasks()
+      } catch (error) {
+        console.error(error)
+        toast({
+          variant: "destructive",
+          title: "Accept failed",
+          description: "Could not create task from proposal.",
+        })
+      } finally {
+        setInboxBusyId(null)
+      }
+    },
+    [fetchInbox, fetchTasks, toast]
+  )
+
+  const dismissInboxProposal = useCallback(
+    async (proposalId: number) => {
+      setInboxBusyId(proposalId)
+      try {
+        const res = await fetch(`/api/codex/proposals/${proposalId}/dismiss`, {
+          method: "POST",
+        })
+        if (!res.ok) {
+          toast({
+            variant: "destructive",
+            title: "Dismiss failed",
+            description: "Could not dismiss proposal.",
+          })
+          return
+        }
+        toast({ title: "Proposal dismissed" })
+        await fetchInbox()
+      } catch (error) {
+        console.error(error)
+        toast({
+          variant: "destructive",
+          title: "Dismiss failed",
+          description: "Could not dismiss proposal.",
+        })
+      } finally {
+        setInboxBusyId(null)
+      }
+    },
+    [fetchInbox, toast]
+  )
+
+  const batchAcceptMeeting = useCallback(
+    async (noteId: number) => {
+      setInboxBusyId(-noteId)
+      try {
+        const res = await fetch("/api/codex/proposals", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note_id: noteId }),
+        })
+        const body = await res.json().catch(() => null)
+        if (!res.ok) {
+          toast({
+            variant: "destructive",
+            title: "Batch accept failed",
+            description: "Could not accept proposals for this meeting.",
+          })
+          return
+        }
+        const accepted =
+          body && typeof body === "object" && "accepted" in body
+            ? Number((body as { accepted: number }).accepted)
+            : 0
+        const failed =
+          body && typeof body === "object" && "failed" in body
+            ? (body as { failed: unknown[] }).failed.length
+            : 0
+        toast({
+          title: "Batch accept finished",
+          description: `${accepted} accepted${failed ? `, ${failed} skipped` : ""}`,
+        })
+        await fetchInbox()
+        void fetchTasks()
+      } catch (error) {
+        console.error(error)
+        toast({
+          variant: "destructive",
+          title: "Batch accept failed",
+          description: "Could not accept proposals for this meeting.",
+        })
+      } finally {
+        setInboxBusyId(null)
+      }
+    },
+    [fetchInbox, fetchTasks, toast]
+  )
 
   useEffect(() => {
     setPage(1)
@@ -501,6 +736,23 @@ export function TasksPageClient() {
         },
       }),
     [templatesLoading, templatesError, templates, fetchTemplates]
+  )
+
+  const inboxViewState = useMemo(
+    () =>
+      resolveListViewState({
+        loading: inboxLoading,
+        error: inboxError,
+        items: inboxGroups,
+        visible: inboxGroups,
+        filtersActive: false,
+        clear: () => undefined,
+        retry: () => {
+          setInboxError(null)
+          void fetchInbox()
+        },
+      }),
+    [inboxLoading, inboxError, inboxGroups, fetchInbox]
   )
 
   const patchStatus = async (task: CodexTask, status: TaskStatus) => {
@@ -913,7 +1165,33 @@ export function TasksPageClient() {
     [clientNameById, selectedIds]
   )
 
-  const teamColumns = useMemo<ColumnDef<TeamMember>[]>(
+  const teamRows = useMemo<TeamMemberWithWeek[]>(() => {
+    const hoursBy = new Map(
+      (teamWeek?.members ?? []).map((m) => [
+        m.email.toLowerCase(),
+        m,
+      ] as const)
+    )
+    const rows: TeamMemberWithWeek[] = teamMembers.map((tm) => {
+      const w = hoursBy.get(tm.email.toLowerCase())
+      return {
+        ...tm,
+        week_hours: w?.hours ?? 0,
+        open_tasks: w?.open ?? 0,
+        overdue_tasks: w?.overdue ?? 0,
+      }
+    })
+    rows.sort((a, b) => {
+      const diff = teamHoursSortDesc
+        ? b.week_hours - a.week_hours
+        : a.week_hours - b.week_hours
+      if (diff !== 0) return diff
+      return a.name.localeCompare(b.name)
+    })
+    return rows
+  }, [teamMembers, teamWeek, teamHoursSortDesc])
+
+  const teamColumns = useMemo<ColumnDef<TeamMemberWithWeek>[]>(
     () => [
       {
         accessorKey: "name",
@@ -933,6 +1211,46 @@ export function TasksPageClient() {
         accessorKey: "role_title",
         header: "Role",
         cell: ({ row }) => row.original.role_title || "—",
+      },
+      {
+        id: "week_hours",
+        accessorKey: "week_hours",
+        header: () => (
+          <button
+            type="button"
+            className="inline-flex items-center gap-1 font-medium hover:text-foreground"
+            onClick={() => setTeamHoursSortDesc((d) => !d)}
+          >
+            Hours (week)
+            <span className="text-muted-foreground" aria-hidden>
+              {teamHoursSortDesc ? "↓" : "↑"}
+            </span>
+          </button>
+        ),
+        cell: ({ row }) => (
+          <span className="num">{row.original.week_hours}</span>
+        ),
+      },
+      {
+        id: "open_tasks",
+        header: "Open",
+        cell: ({ row }) => (
+          <span className="num">{row.original.open_tasks}</span>
+        ),
+      },
+      {
+        id: "overdue_tasks",
+        header: "Overdue",
+        cell: ({ row }) => (
+          <span
+            className={cn(
+              "num",
+              row.original.overdue_tasks > 0 && "text-status-danger"
+            )}
+          >
+            {row.original.overdue_tasks}
+          </span>
+        ),
       },
       {
         id: "active",
@@ -967,7 +1285,7 @@ export function TasksPageClient() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- toggleMemberActive closes over fetchTeam
-    []
+    [teamHoursSortDesc]
   )
 
   const table = useReactTable({
@@ -978,7 +1296,7 @@ export function TasksPageClient() {
   })
 
   const teamTable = useReactTable({
-    data: teamMembers,
+    data: teamRows,
     columns: teamColumns,
     getCoreRowModel: getCoreRowModel(),
     getRowId: (row) => String(row.id),
@@ -1086,19 +1404,26 @@ export function TasksPageClient() {
               <PlusCircle className="mr-2 h-4 w-4" />
               New template
             </Button>
-          ) : (
+          ) : mainTab === "team" ? (
             <Button type="button" onClick={openCreateMember}>
               <PlusCircle className="mr-2 h-4 w-4" />
               Add member
             </Button>
-          )
+          ) : null
         }
       />
 
       <Tabs
         value={mainTab}
         onValueChange={(v) => {
-          if (v === "tasks" || v === "team" || v === "templates") setMainTab(v)
+          if (
+            v === "tasks" ||
+            v === "team" ||
+            v === "templates" ||
+            v === "inbox"
+          ) {
+            setMainTab(v)
+          }
         }}
       >
         <TabsList className="h-auto bg-transparent p-0">
@@ -1106,6 +1431,17 @@ export function TasksPageClient() {
             <span className="inline-flex items-center gap-1.5">
               <ListTodo className="h-3.5 w-3.5" aria-hidden />
               Tasks
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="inbox">
+            <span className="inline-flex items-center gap-1.5">
+              <Inbox className="h-3.5 w-3.5" aria-hidden />
+              Inbox
+              {inboxGroups.length > 0 ? (
+                <Badge variant="secondary" size="sm" className="num">
+                  {inboxGroups.reduce((n, g) => n + g.proposals.length, 0)}
+                </Badge>
+              ) : null}
             </span>
           </TabsTrigger>
           <TabsTrigger value="templates">
@@ -1465,7 +1801,146 @@ export function TasksPageClient() {
           </ViewStateBoundary>
         </TabsContent>
 
+        <TabsContent value="inbox" className="mt-6 space-y-6">
+          <ViewStateBoundary
+            state={inboxViewState}
+            errorTitle="Couldn't load inbox"
+            emptyTitle="No meeting proposals"
+            emptyMessage="Action items from synced Fireflies meetings appear here until you accept or dismiss them. Nothing creates a task without you."
+            loadingRows={4}
+          >
+            {() => (
+              <div className="space-y-6">
+                {inboxGroups.map((group) => (
+                  <div
+                    key={group.note_id}
+                    className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/20 px-4 py-3">
+                      <div className="min-w-0 space-y-1">
+                        <p className="truncate font-medium text-foreground">
+                          {group.meeting_title?.trim() || "Untitled meeting"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {group.meeting_date
+                            ? formatDueDateSydney(group.meeting_date)
+                            : "No date"}
+                          {group.mba_number
+                            ? ` · ${group.mba_number}`
+                            : ""}
+                          {group.transcript_url ? (
+                            <>
+                              {" · "}
+                              <a
+                                href={group.transcript_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary underline-offset-4 hover:underline"
+                              >
+                                Transcript
+                              </a>
+                            </>
+                          ) : null}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={inboxBusyId != null}
+                        onClick={() => void batchAcceptMeeting(group.note_id)}
+                      >
+                        Accept all
+                      </Button>
+                    </div>
+                    <ul className="divide-y divide-border">
+                      {group.proposals.map((p) => (
+                        <li
+                          key={p.id}
+                          className="flex flex-wrap items-start justify-between gap-3 px-4 py-3"
+                        >
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <p className="font-medium text-foreground">
+                              {p.proposed_title}
+                            </p>
+                            {p.proposed_assignee_email ? (
+                              <p className="text-sm text-muted-foreground">
+                                {p.proposed_assignee_email}
+                              </p>
+                            ) : null}
+                            {p.possible_duplicate ? (
+                              <Badge variant="outline" size="sm">
+                                Possible duplicate
+                              </Badge>
+                            ) : null}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={inboxBusyId != null}
+                              onClick={() => void acceptInboxProposal(p.id)}
+                            >
+                              Accept
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={inboxBusyId != null}
+                              onClick={() => {
+                                setEditProposal(p)
+                                setEditTitle(p.proposed_title)
+                                setEditAssignee(
+                                  p.proposed_assignee_email ?? ""
+                                )
+                                setEditMba(p.proposed_mba_number ?? "")
+                                setEditClientId(
+                                  p.client_id != null ? String(p.client_id) : ""
+                                )
+                              }}
+                            >
+                              Edit & accept
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              disabled={inboxBusyId != null}
+                              onClick={() => void dismissInboxProposal(p.id)}
+                            >
+                              Dismiss
+                            </Button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
+          </ViewStateBoundary>
+        </TabsContent>
+
         <TabsContent value="team" className="mt-6 space-y-6">
+          {teamWeek && teamWeek.unmapped_count > 0 ? (
+            <div
+              className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface-panel px-4 py-3 text-sm shadow-e0"
+              role="status"
+            >
+              <p className="text-foreground">
+                <span className="num font-semibold">{teamWeek.unmapped_count}</span>{" "}
+                unmapped time{" "}
+                {teamWeek.unmapped_count === 1 ? "entry" : "entries"} this week
+                ({teamWeek.week_start} – {teamWeek.week_end}).
+              </p>
+              <Link
+                href="/admin/myhours-mapping"
+                className="font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Map in admin
+              </Link>
+            </div>
+          ) : null}
           <ViewStateBoundary
             state={teamViewState}
             errorTitle="Couldn't load team"
@@ -1525,6 +2000,11 @@ export function TasksPageClient() {
               </div>
             )}
           </ViewStateBoundary>
+          <TimesheetDraftsPanel
+            active={mainTab === "team"}
+            weekStart={teamWeek?.week_start}
+            onConfirmed={fetchTeamWeek}
+          />
         </TabsContent>
 
         <TabsContent value="templates" className="mt-6 space-y-6">
@@ -1686,6 +2166,84 @@ export function TasksPageClient() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog
+        open={editProposal != null}
+        onOpenChange={(open) => {
+          if (!open) setEditProposal(null)
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit proposal then accept</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="proposal-edit-title">Title</Label>
+              <Input
+                id="proposal-edit-title"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="proposal-edit-assignee">Assignee email</Label>
+              <Input
+                id="proposal-edit-assignee"
+                value={editAssignee}
+                onChange={(e) => setEditAssignee(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="proposal-edit-mba">MBA</Label>
+              <Input
+                id="proposal-edit-mba"
+                value={editMba}
+                onChange={(e) => setEditMba(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="proposal-edit-client">Client id</Label>
+              <Input
+                id="proposal-edit-client"
+                value={editClientId}
+                onChange={(e) => setEditClientId(e.target.value)}
+              />
+            </div>
+            {editProposal?.possible_duplicate ? (
+              <Badge variant="outline" size="sm">
+                Possible duplicate
+              </Badge>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setEditProposal(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={inboxBusyId != null || !editTitle.trim()}
+              onClick={() => {
+                if (!editProposal) return
+                void acceptInboxProposal(editProposal.id, {
+                  title: editTitle.trim(),
+                  assignee_email: editAssignee.trim() || null,
+                  mba_number: editMba.trim() || null,
+                  client_id: editClientId.trim()
+                    ? Number(editClientId)
+                    : null,
+                })
+              }}
+            >
+              Accept
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
