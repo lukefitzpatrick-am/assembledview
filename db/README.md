@@ -12,6 +12,8 @@
 - `0033_publisher_profiles_sen.sql` — seed SEN radio profile (ON CONFLICT publisher_name)
 - `0034_publisher_profiles_money_map.sql` — typed money `column_map` targets (QMS/SCA/JCDecaux; not SEN rates)
 - `0035_publisher_profiles_reference_ignore.sql` — SCA Market Rate / Market Total / Total Stations / Total Impacts / Client Rate → `reference:ignore`
+- `0036_publisher_profiles_publisher_id.sql` — nullable `publisher_id` FK to `publishers.id` + explicit four-row backfill (QMS=30, JCDecaux=35, SCA=12, SEN=19) guarded by `migration_markers`
+- `0037_ingest_runs.sql` — per-upload ingest history (Accept / Cancel / blocked); RLS on; no ava_readonly grant
 - `0025_codex_tasks_source_profile.sql` — tasks.source allows `profile:<name>` seed keys
 - `0026_enable_rls_public_tables.sql` — enable RLS on migration_markers / campaign_insights / line_item_panels / publisher_profiles + ava_readonly SELECT policy — applied 12 Aug via Supabase MCP, do not re-apply
 - `0027_line_item_panel_flights.sql` — per-period panel presence (no money columns)
@@ -20,6 +22,11 @@
 - `0030_ava_proposals_mba.sql` — ava_task_proposals.proposed_mba_number + widen client_notes.matched_by for title/internal
 - `0031_myhours_unknown_user_count.sql` — myhours_sync_runs.unknown_user_count (CX2-1 Users join sentinel)
 - `0032_ava_time_entry_proposals.sql` — ava_time_entry_proposals for Fireflies → MyHours Confirm path (CX2-6; RLS on; no ava_readonly grant)
+- `0039_fireflies_client_first.sql` — `clients.client_name_aliases` + `team_members.email_aliases` (Fireflies CLIENT-first attribution; apply via Supabase SQL Editor)
+- `0040_fireflies_auto_create.sql` — `tasks.auto_created` + `tasks.ava_auto_key` (unique-roster Fireflies auto-create; apply via Supabase SQL Editor)
+- `0041_publisher_specs.sql` — `publisher_specs` + `spec_runs` (MI specs store + explicit `publishers.id` join seed; RLS on; no ava_readonly grant). Applied (20 rows verified). civic-outdoor / tonic / ten stay `publisher_id` NULL; SCA/SEN stay ingest-only; suffix aliases join Google Ads = 3 and YouTube = 15. Do not dump `mi-library/` into `spec_json`.
+- `0042_spec_deadline_overrides.sql` — explicit manual material-deadline overrides (who / when / value). Applied. RLS on; no ava_readonly grant.
+- `0043` — reserved for CX2-9 (if/when run). Do not mint 0043 for specs/SD-2.
 
 Codex tables live in `db/schema/codex.ts` and are excluded from ETL truncate-reload. `campaign_insights` lives in `db/schema/insights.ts`; OOH panel/pack detail in `db/schema/panels.ts` (`line_item_panels` + child `line_item_panel_flights`); ingest publisher config in `db/schema/publisherProfiles.ts`.
 
@@ -56,6 +63,8 @@ Wire `AVA_DATABASE_URL` to the **transaction pooler** host with that password. R
 
 ## Scripts
 
+- `npx tsx scripts/migration/apply-0039-fireflies-client-first.ts` — idempotent apply of `0039_fireflies_client_first.sql` (SQL Editor also fine)
+- `npx tsx scripts/migration/apply-0041-publisher-specs.ts` — idempotent apply of `0041_publisher_specs.sql` (applied)
 - `npm run db:generate` — must be empty when schema matches baseline
 - `npm run db:migrate` — future only (after journal baseline)
 - `npm run db:studio`
