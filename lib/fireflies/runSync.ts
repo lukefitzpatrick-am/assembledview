@@ -19,7 +19,7 @@ import {
 } from "@/lib/fireflies/seedDomains"
 import { parseEmailAliases } from "@/lib/fireflies/rosterAliases"
 import { insertProposalsFromNote } from "@/lib/fireflies/proposalRepo"
-import { runFirefliesSync, type SyncInsertNote } from "@/lib/fireflies/sync"
+import { runFirefliesSync, type SyncInsertNote, actionItemsFromNoteBody } from "@/lib/fireflies/sync"
 import { buildTitleClientIndex } from "@/lib/fireflies/titleClients"
 import type {
   AttributionContext,
@@ -272,7 +272,7 @@ export async function runFirefliesSyncToPostgres(opts?: {
           isInternal: row.isInternal,
           attributedType: row.attributedType ?? null,
           publisherId: row.publisherId ?? null,
-          actionItemsRaw: null,
+          actionItemsRaw: actionItemsFromNoteBody(row.body),
         },
       }
     },

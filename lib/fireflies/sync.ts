@@ -56,7 +56,7 @@ export type FirefliesSyncDeps = {
   /** Returns inserted client_notes.id */
   insertNote: (note: SyncInsertNote) => Promise<{ id: number }>
   /**
-   * Create ava_task_proposals for action items — MUST NOT create tasks.
+   * Process action items: auto-create unique-roster tasks and Inbox proposals.
    */
   insertProposalsFromNote?: (args: {
     noteId: number
@@ -128,6 +128,25 @@ function actionItemsRaw(t: FirefliesTranscript): string | null {
   return s || null
 }
 
+/** Pull stored Fireflies action_items out of client_notes.body JSON. */
+export function actionItemsFromNoteBody(
+  body: string | null | undefined
+): string | null {
+  if (!body?.trim()) return null
+  try {
+    const parsed = JSON.parse(body) as unknown
+    if (parsed && typeof parsed === "object" && "action_items" in parsed) {
+      const raw = (parsed as { action_items?: unknown }).action_items
+      if (raw == null) return null
+      const s = String(raw).trim()
+      return s || null
+    }
+  } catch {
+    /* not JSON */
+  }
+  return null
+}
+
 function attendeeEmails(t: FirefliesTranscript): string[] {
   const fromParticipants = (t.participants ?? []).map(String)
   if (t.organizer_email) fromParticipants.push(String(t.organizer_email))
@@ -188,19 +207,32 @@ export async function runFirefliesSync(
     const existingMeeting = await deps.hasMeeting(t.id)
     if (existingMeeting) {
       notesSkipped += 1
-      if (
-        typeof existingMeeting !== "boolean" &&
-        deps.upsertTimeEntryDraftsForNote &&
-        !existingMeeting.note.isInternal &&
-        existingMeeting.note.clientId != null &&
-        (existingMeeting.note.attributedType == null ||
-          existingMeeting.note.attributedType === "client")
-      ) {
-        await deps.upsertTimeEntryDraftsForNote({
-          noteId: existingMeeting.id,
-          note: existingMeeting.note,
-          activeMemberEmails: deps.activeMemberEmails ?? [],
-        })
+      if (typeof existingMeeting !== "boolean") {
+        if (
+          deps.upsertTimeEntryDraftsForNote &&
+          !existingMeeting.note.isInternal &&
+          existingMeeting.note.clientId != null &&
+          (existingMeeting.note.attributedType == null ||
+            existingMeeting.note.attributedType === "client")
+        ) {
+          await deps.upsertTimeEntryDraftsForNote({
+            noteId: existingMeeting.id,
+            note: existingMeeting.note,
+            activeMemberEmails: deps.activeMemberEmails ?? [],
+          })
+        }
+        if (deps.insertProposalsFromNote) {
+          const raw =
+            actionItemsRaw(t) ??
+            existingMeeting.note.actionItemsRaw ??
+            actionItemsFromNoteBody(existingMeeting.note.body)
+          if (raw) {
+            proposalsCreated += await deps.insertProposalsFromNote({
+              noteId: existingMeeting.id,
+              note: { ...existingMeeting.note, actionItemsRaw: raw },
+            })
+          }
+        }
       }
       continue
     }

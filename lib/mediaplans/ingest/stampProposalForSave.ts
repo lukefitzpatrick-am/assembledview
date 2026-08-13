@@ -7,6 +7,7 @@ import type { LineChannel } from "@/db/schema"
 import type { SavePlanLineItem } from "@/lib/data/savePlan"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
+import { serializeBurstsJson } from "@/lib/mediaplan/serializeBurstsJson"
 import type {
   IngestProposal,
   ProposedLineItem,
@@ -72,12 +73,101 @@ function mediaTypeKeyForChannel(channel: LineChannel): "radio" | "ooh" {
   return "ooh"
 }
 
-function burstFromProposed(b: ProposedLineItem["bursts"][number]) {
+function str(v: unknown): string | null {
+  if (v == null) return null
+  const s = String(v).trim()
+  return s ? s : null
+}
+
+function firstDescriptor(
+  item: ProposedLineItem,
+  keys: string[],
+): string | null {
+  for (const k of keys) {
+    const fromGroup = str(item.grouping[k])
+    if (fromGroup) return fromGroup
+  }
+  for (const p of item.panels) {
+    for (const k of keys) {
+      const fromPanel = str(p.descriptors[k])
+      if (fromPanel) return fromPanel
+    }
+  }
+  return null
+}
+
+function oohTypeForLine(item: ProposedLineItem): string {
+  for (const p of item.panels) {
+    if (str(p.descriptors.digital_spec) || str(p.descriptors.rotation_seconds)) {
+      return "Digital"
+    }
+  }
+  return ""
+}
+
+function buyTypeForMedia(mediaType: string): string {
+  return mediaType === "radio" ? "spots" : "fixed_cost"
+}
+
+function attrsForLine(
+  item: ProposedLineItem,
+  mediaType: "radio" | "ooh",
+  buyGranularity: "panel" | "pack",
+  sheetName: string,
+  publisherName: string,
+): Record<string, unknown> {
+  const format =
+    str(item.grouping.format) ??
+    firstDescriptor(item, ["format", "publisher_format_name"])
+  const network =
+    str(item.grouping.network) ??
+    firstDescriptor(item, ["network"]) ??
+    publisherName
+  const attrs: Record<string, unknown> = {
+    format,
+    network,
+    ingest_grouping: item.grouping,
+    ingest_sheet: sheetName,
+    buy_granularity: buyGranularity,
+  }
+  if (mediaType === "radio") {
+    attrs.station = firstDescriptor(item, ["station"])
+    attrs.placement = firstDescriptor(item, ["media_description", "daypart"])
+    attrs.duration = firstDescriptor(item, ["length", "duration"])
+  } else {
+    attrs.type = oohTypeForLine(item)
+    attrs.placement = firstDescriptor(item, ["placement"])
+    attrs.size = firstDescriptor(item, ["size"])
+  }
+  return attrs
+}
+
+function burstFromProposed(
+  b: ProposedLineItem["bursts"][number],
+  buyType: string,
+) {
+  const [serialized] = serializeBurstsJson({
+    bursts: [
+      {
+        budget: b.media_amount,
+        buyAmount: String(b.quantity),
+        startDate: b.start_date ?? "",
+        endDate: b.end_date ?? "",
+      },
+    ],
+    feePct: 0,
+    budgetIncludesFees: false,
+    clientPaysForMedia: false,
+    buyType,
+  })
   return {
-    startDate: b.start_date ?? "",
-    endDate: b.end_date ?? "",
-    budget: b.media_amount,
-    buyAmount: b.quantity,
+    startDate: serialized?.startDate ?? b.start_date ?? "",
+    endDate: serialized?.endDate ?? b.end_date ?? "",
+    budget: serialized?.budget ?? String(b.media_amount ?? ""),
+    buyAmount: serialized?.buyAmount ?? String(b.quantity ?? ""),
+    calculatedValue: serialized?.calculatedValue ?? 0,
+    mediaAmount: serialized?.mediaAmount,
+    feeAmount: serialized?.feeAmount,
   }
 }
 
@@ -100,12 +190,6 @@ function marketForLine(item: ProposedLineItem): string | null {
     item.grouping.geography ||
     null
   )
-}
-
-function str(v: unknown): string | null {
-  if (v == null) return null
-  const s = String(v).trim()
-  return s ? s : null
 }
 
 function numStr(v: unknown): string | null {
@@ -178,6 +262,7 @@ export function stampProposalForSave(
   const code = mediaCodeForChannel(channel)
 
   const stubs = proposal.line_items.map((item, index) => {
+    const buyType = buyTypeForMedia(mediaType)
     const mediaSum = item.bursts.reduce((s, b) => s + (b.media_amount || 0), 0)
     const buyGranularity: "panel" | "pack" =
       item.panels.length > 1 ? "pack" : "panel"
@@ -190,8 +275,9 @@ export function stampProposalForSave(
       channel,
       mediaType,
       market: marketForLine(item),
+      buyingDemo: firstDescriptor(item, ["buying_demo", "buyingDemo"]),
       publisher: proposal.publisher_name,
-      buyType: "fixed",
+      buyType,
       rate: 0,
       enteredAmount: mediaSum,
       budgetIncludesFees: false,
@@ -201,15 +287,14 @@ export function stampProposalForSave(
       approval: "approved",
       label: labelForLine(item),
       position: index + 1,
-      bursts: item.bursts.map(burstFromProposed),
-      attrs: {
-        format: item.grouping.format ?? null,
-        network: item.grouping.network ?? null,
-        ingest_grouping: item.grouping,
-        ingest_sheet: proposal.sheet_name,
-        /** Survives hydrate so OOHContainer can gate card vs expert without reloading panels. */
-        buy_granularity: buyGranularity,
-      },
+      bursts: item.bursts.map((b) => burstFromProposed(b, buyType)),
+      attrs: attrsForLine(
+        item,
+        mediaType,
+        buyGranularity,
+        proposal.sheet_name,
+        proposal.publisher_name,
+      ),
     }
     return line
   })
@@ -239,6 +324,7 @@ export function stampProposalForSave(
       channel: s.channel,
       mediaType: s.mediaType,
       market: s.market,
+      buyingDemo: s.buyingDemo,
       publisher: s.publisher,
       buyType: s.buyType,
       rate: s.rate,
