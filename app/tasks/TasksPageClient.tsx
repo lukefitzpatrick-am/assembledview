@@ -233,6 +233,7 @@ export function TasksPageClient() {
   const [teamWeek, setTeamWeek] = useState<TeamWeekTimeSummary | null>(null)
   const [teamHoursSortDesc, setTeamHoursSortDesc] = useState(true)
   const [neverLoggedIn, setNeverLoggedIn] = useState<string[]>([])
+  const [autoBusyId, setAutoBusyId] = useState<number | string | null>(null)
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<CodexTask | null>(null)
@@ -764,6 +765,35 @@ export function TasksPageClient() {
     [inboxLoading, inboxError, inboxGroups, fetchInbox]
   )
 
+  const dismissAutoTask = async (task: CodexTask) => {
+    setAutoBusyId(task.id)
+    try {
+      const res = await fetch(
+        `/api/codex/tasks/${encodeURIComponent(String(task.id))}/dismiss-auto`,
+        { method: "POST" }
+      )
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(
+          (body && typeof body === "object" && "message" in body
+            ? String((body as { message?: string }).message)
+            : null) || "Failed to dismiss"
+        )
+      }
+      setTasks((prev) => prev.filter((t) => String(t.id) !== String(task.id)))
+      toast({ title: "Auto-created task dismissed" })
+    } catch (error) {
+      toast({
+        title: "Could not dismiss",
+        description:
+          error instanceof Error ? error.message : "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setAutoBusyId(null)
+    }
+  }
+
   const patchStatus = async (task: CodexTask, status: TaskStatus) => {
     const previousStatus = task.status
     if (previousStatus === status) return
@@ -1039,6 +1069,11 @@ export function TasksPageClient() {
                 {row.original.source}
               </Badge>
             ) : null}
+            {row.original.auto_created ? (
+              <Badge variant="secondary" size="sm">
+                Auto
+              </Badge>
+            ) : null}
           </div>
         ),
       },
@@ -1152,10 +1187,21 @@ export function TasksPageClient() {
         header: "",
         cell: ({ row }) => (
           <div
-            className="flex justify-end"
+            className="flex items-center justify-end gap-1"
             onClick={(e) => e.stopPropagation()}
             onKeyDown={(e) => e.stopPropagation()}
           >
+            {row.original.auto_created ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={autoBusyId === row.original.id}
+                onClick={() => void dismissAutoTask(row.original)}
+              >
+                Dismiss
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="ghost"
@@ -1171,7 +1217,7 @@ export function TasksPageClient() {
       },
     ],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- patchStatus closes over fetchTasks
-    [clientNameById, selectedIds]
+    [clientNameById, selectedIds, autoBusyId]
   )
 
   const teamRows = useMemo<TeamMemberWithWeek[]>(() => {

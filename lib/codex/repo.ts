@@ -72,6 +72,7 @@ export type ListTasksFilters = {
   dueAfter?: string
   category?: string
   source?: string
+  autoCreated?: boolean
   includeDeleted?: boolean
   sort?: TaskSort
   page?: number
@@ -99,6 +100,8 @@ export type CreateTaskInput = {
   actorKind?: CodexActorKind
   /** Fireflies / AVA proposal link back to client_notes. */
   sourceNoteId?: number | null
+  autoCreated?: boolean
+  avaAutoKey?: string | null
   createdByEmail: string
 }
 
@@ -221,6 +224,9 @@ function taskRowToApi(row: typeof tasks.$inferSelect): CodexTask {
     created_by_email: row.createdByEmail,
     category: row.category,
     source: row.source,
+    source_note_id: row.sourceNoteId ?? null,
+    auto_created: Boolean(row.autoCreated),
+    ava_auto_key: row.avaAutoKey ?? null,
     recurring_rule: row.recurringRule ?? null,
     template_id: row.templateId ?? null,
     deleted_at: row.deletedAt,
@@ -372,6 +378,7 @@ export async function listTasks(
   if (filters.dueAfter) conds.push(gte(tasks.dueDate, filters.dueAfter))
   if (filters.category) conds.push(eq(tasks.category, filters.category))
   if (filters.source) conds.push(eq(tasks.source, filters.source))
+  if (filters.autoCreated === true) conds.push(eq(tasks.autoCreated, true))
 
   const where = conds.length > 0 ? and(...conds) : undefined
 
@@ -602,6 +609,8 @@ export async function createTask(
           input.sourceNoteId != null && Number.isFinite(input.sourceNoteId)
             ? input.sourceNoteId
             : null,
+        autoCreated: Boolean(input.autoCreated),
+        avaAutoKey: input.avaAutoKey?.trim() || null,
         createdByEmail: input.createdByEmail.trim().toLowerCase(),
         createdAt: now,
         updatedAt: now,

@@ -159,6 +159,7 @@ if (supportsMockModule()) {
         possibleDuplicate: false,
       }),
       dismissProposal: async () => ({ ok: true }),
+      dismissAutoCreatedTask: async () => ({ ok: true }),
     },
   })
   await mock.module!("server-only", {
@@ -256,6 +257,9 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
   const timeTeamWeek = await import(
     "../../../app/api/codex/time/team-week/route.js"
   )
+  const dismissAuto = await import(
+    "../../../app/api/codex/tasks/[id]/dismiss-auto/route.js"
+  )
   const proposals = await import("../../../app/api/codex/proposals/route.js")
   const proposalAccept = await import(
     "../../../app/api/codex/proposals/[id]/accept/route.js"
@@ -321,6 +325,16 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
         taskById.DELETE(
           new Request("http://localhost/api/codex/tasks/1", {
             method: "DELETE",
+          }),
+          taskIdCtx
+        ),
+    },
+    {
+      label: "POST /api/codex/tasks/[id]/dismiss-auto",
+      invoke: () =>
+        dismissAuto.POST(
+          new Request("http://localhost/api/codex/tasks/1/dismiss-auto", {
+            method: "POST",
           }),
           taskIdCtx
         ),
@@ -570,7 +584,7 @@ test(
   { skip },
   async () => {
     const callers = await loadRouteCallers()
-    assert.equal(callers.length, 33)
+    assert.equal(callers.length, 34)
 
     for (const route of callers) {
       // Flag off: deliberately 404 (not 403). Hidden feature must not confirm it exists.

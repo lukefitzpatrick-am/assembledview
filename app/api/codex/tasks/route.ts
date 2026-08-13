@@ -76,6 +76,7 @@ export async function GET(request: Request) {
       dueAfter: url.searchParams.get("due_after") || undefined,
       category: url.searchParams.get("category") || undefined,
       source: url.searchParams.get("source") || undefined,
+      autoCreated: url.searchParams.get("auto_created") === "1" ? true : undefined,
       includeDeleted: url.searchParams.get("include_deleted") === "1",
       sort: parseSort(url.searchParams.get("sort")),
       page: Number(url.searchParams.get("page") || 1),

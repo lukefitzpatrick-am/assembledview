@@ -78,6 +78,10 @@ export type CodexTask = {
   created_by_email?: string | null
   category?: TaskCategory | string | null
   source?: TaskSource | string | null
+  source_note_id?: number | null
+  /** Fireflies unique-roster auto-create (distinct from Inbox accept, also source=ava). */
+  auto_created?: boolean
+  ava_auto_key?: string | null
   /** Retainer series: boring text rule — see docs/brain/modules/codex.md */
   recurring_rule?: string | null
   /** When set, create/apply copies template checklist items onto the task. */

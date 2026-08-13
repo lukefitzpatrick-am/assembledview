@@ -1,19 +1,25 @@
 /**
- * Postgres helpers for ava_task_proposals (Fireflies Stage 4 inbox).
- * Sync creates proposals only — never tasks.
+ * Postgres helpers for ava_task_proposals (Fireflies Inbox) and
+ * unique-roster auto-created tasks (`auto_created` + `ava_auto_key`).
  */
 import "server-only"
 
 import { and, desc, eq, isNotNull, isNull, ne, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
-import { createTask } from "@/lib/codex/repo"
+import { createTask, softDeleteTask } from "@/lib/codex/repo"
 import {
-  buildProposalDescription,
   isPossibleDuplicate,
-  parseActionItems,
   type TeamMemberMatch,
 } from "@/lib/fireflies/actionItems"
+import type { RosterPerson } from "@/lib/fireflies/actionItemBlocks"
+import {
+  dismissAutoCreatedPure,
+  persistActionItemPlan,
+  planActionItems,
+  type DismissalSignal,
+} from "@/lib/fireflies/autoCreate"
+import { parseEmailAliases } from "@/lib/fireflies/rosterAliases"
 import {
   acceptProposalPure,
   dismissProposalPure,
@@ -63,10 +69,18 @@ function parseParticipants(raw: string | null): string[] {
 export async function loadTeamRoster(
   database: Db = getDb()
 ): Promise<TeamMemberMatch[]> {
+  const people = await loadAutoCreateRoster(database)
+  return people.map((p) => ({ email: p.email, name: p.name }))
+}
+
+async function loadAutoCreateRoster(
+  database: Db
+): Promise<RosterPerson[]> {
   const rows = await database
     .select({
       email: schema.teamMembers.email,
       name: schema.teamMembers.name,
+      emailAliases: schema.teamMembers.emailAliases,
     })
     .from(schema.teamMembers)
     .where(eq(schema.teamMembers.active, true))
@@ -75,12 +89,13 @@ export async function loadTeamRoster(
     .map((r) => ({
       email: r.email!.trim().toLowerCase(),
       name: r.name!.trim(),
+      aliases: parseEmailAliases(r.emailAliases),
     }))
 }
 
 /**
- * Insert ava_task_proposals for a synced note's action items.
- * Does NOT create tasks.
+ * Plan + persist unique-roster auto-created tasks and Inbox proposals
+ * for a synced note. Idempotent on `ava_auto_key` / existing proposal titles.
  */
 export async function insertProposalsFromNote(
   args: { noteId: number; note: SyncInsertNote },
@@ -89,31 +104,172 @@ export async function insertProposalsFromNote(
   const raw = args.note.actionItemsRaw
   if (!raw?.trim()) return 0
 
-  const roster = await loadTeamRoster(database)
+  const roster = await loadAutoCreateRoster(database)
   const attendees = parseParticipants(args.note.participants)
-  const items = parseActionItems(raw, roster, attendees)
-  if (items.length === 0) return 0
 
-  const values = items.map((item) => ({
-    sourceNoteId: args.noteId,
+  const existingKeyRows = await database
+    .select({ key: schema.tasks.avaAutoKey })
+    .from(schema.tasks)
+    .where(isNotNull(schema.tasks.avaAutoKey))
+  const existingAutoKeys = new Set(
+    existingKeyRows.map((r) => r.key).filter((k): k is string => Boolean(k))
+  )
+
+  const openRows =
+    args.note.clientId != null
+      ? await database
+          .select({
+            title: schema.tasks.title,
+            clientId: schema.tasks.clientId,
+          })
+          .from(schema.tasks)
+          .where(
+            and(
+              isNull(schema.tasks.deletedAt),
+              ne(schema.tasks.status, "done"),
+              eq(schema.tasks.clientId, args.note.clientId)
+            )
+          )
+      : []
+  const openTasks = openRows
+    .filter((r) => r.clientId != null)
+    .map((r) => ({ title: r.title, clientId: Number(r.clientId) }))
+
+  const existingProposalRows = await database
+    .select({ title: schema.avaTaskProposals.proposedTitle })
+    .from(schema.avaTaskProposals)
+    .where(eq(schema.avaTaskProposals.sourceNoteId, args.noteId))
+  const existingProposalKeys = new Set(
+    existingProposalRows
+      .map((r) => r.title?.trim().toLowerCase())
+      .filter((t): t is string => Boolean(t))
+  )
+
+  let ruleAssigneeEmail: string | null = null
+  if (args.note.clientId != null) {
+    const [rule] = await database
+      .select({ assigneeEmail: schema.assignmentRules.assigneeEmail })
+      .from(schema.assignmentRules)
+      .where(
+        and(
+          eq(schema.assignmentRules.active, true),
+          eq(schema.assignmentRules.category, "meeting_followup"),
+          eq(schema.assignmentRules.clientId, args.note.clientId)
+        )
+      )
+      .limit(1)
+    ruleAssigneeEmail = rule?.assigneeEmail?.trim().toLowerCase() || null
+  }
+
+  const plan = planActionItems(raw, {
+    roster,
+    attendeeEmails: attendees,
     clientId: args.note.clientId,
-    proposedTitle: item.title,
-    proposedDescription: buildProposalDescription({
-      sourceLine: item.sourceLine,
-      meetingTitle: args.note.title,
-      meetingUrl: args.note.transcriptUrl,
-      meetingDate: args.note.meetingDate,
-    }),
-    proposedCategory: "meeting_followup",
-    proposedDueDate: null as string | null,
-    proposedAssigneeEmail: item.assigneeEmail,
-    proposedMbaNumber: args.note.mbaNumber,
-    avaRationale: item.sourceLine,
-    status: "proposed",
-  }))
+    mbaNumber: args.note.mbaNumber,
+    isInternal: Boolean(args.note.isInternal),
+    attributedType: args.note.attributedType ?? null,
+    meetingTitle: args.note.title,
+    meetingUrl: args.note.transcriptUrl,
+    meetingDate: args.note.meetingDate,
+    noteId: args.noteId,
+    existingAutoKeys,
+    openTasks,
+    existingProposalKeys,
+    ruleAssigneeEmail,
+  })
 
-  await database.insert(schema.avaTaskProposals).values(values)
-  return values.length
+  const result = await persistActionItemPlan(plan, {
+    createTask: async (input, actorEmail, actorKind) => {
+      const task = await createTask(
+        {
+          title: input.title,
+          clientId: input.clientId,
+          description: input.description,
+          mbaNumber: input.mbaNumber,
+          assigneeEmail: input.assigneeEmail,
+          assigneeName: input.assigneeName,
+          category: input.category,
+          source: "ava",
+          sourceNoteId: input.sourceNoteId,
+          autoCreated: input.autoCreated,
+          avaAutoKey: input.avaAutoKey,
+          actorKind,
+          createdByEmail: input.createdByEmail,
+        },
+        actorEmail,
+        database
+      )
+      return { id: Number(task.id), title: task.title }
+    },
+    insertProposals: async (proposals) => {
+      if (proposals.length === 0) return
+      await database.insert(schema.avaTaskProposals).values(
+        proposals.map((item) => ({
+          sourceNoteId: args.noteId,
+          clientId: args.note.clientId,
+          proposedTitle: item.title,
+          proposedDescription: item.description,
+          proposedCategory: "meeting_followup",
+          proposedDueDate: null as string | null,
+          proposedAssigneeEmail: item.assigneeEmail,
+          proposedMbaNumber: args.note.mbaNumber,
+          avaRationale: item.sourceLine,
+          status: "proposed",
+        }))
+      )
+    },
+    recordDismissal: async (row) => {
+      await recordAutoCreatedDismissal(row, database)
+    },
+  })
+
+  return result.proposalsCreated
+}
+
+async function recordAutoCreatedDismissal(
+  row: DismissalSignal,
+  database: Db
+): Promise<void> {
+  const assignee = (row.assigneeEmail ?? "").trim().toLowerCase()
+  if (!assignee) return
+  await database.insert(schema.assignmentRules).values({
+    clientId: row.clientId,
+    category: "meeting_followup",
+    assigneeEmail: assignee,
+    source: "learned",
+    active: false,
+  })
+}
+
+export async function dismissAutoCreatedTask(
+  taskId: number,
+  decidedByEmail: string,
+  database: Db = getDb()
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return dismissAutoCreatedPure(
+    { taskId, decidedByEmail },
+    {
+      getTask: async () => {
+        const [row] = await database
+          .select()
+          .from(schema.tasks)
+          .where(eq(schema.tasks.id, taskId))
+          .limit(1)
+        if (!row) return null
+        return {
+          id: row.id,
+          autoCreated: Boolean(row.autoCreated),
+          deletedAt: row.deletedAt,
+          title: row.title,
+          clientId: row.clientId,
+          assigneeEmail: row.assigneeEmail,
+          sourceNoteId: row.sourceNoteId,
+        }
+      },
+      softDelete: () => softDeleteTask(taskId, decidedByEmail, database),
+      recordDismissal: (row) => recordAutoCreatedDismissal(row, database),
+    }
+  )
 }
 
 export type InboxMeetingGroup = {

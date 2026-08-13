@@ -148,6 +148,8 @@ export const tasks = pgTable(
     source: text("source").notNull().default("manual"),
     sourceNoteId: bigint("source_note_id", { mode: "number" }),
     category: text("category"),
+    autoCreated: boolean("auto_created").notNull().default(false),
+    avaAutoKey: text("ava_auto_key"),
     deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [

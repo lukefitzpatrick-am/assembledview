@@ -15,7 +15,7 @@ UI: `app/tasks/page.tsx` + `TasksPageClient.tsx` (list) and `app/tasks/[id]/page
 | Surface | Behaviour |
 |---|---|
 | **Tasks** | Flat **list** (TanStack) or **board** (dnd-kit columns for `backlog\|todo\|in_progress\|waiting\|done`). Shared filter state — switching view does not reset My Tasks / client / status / search / category / MBA scope. Deep-link filters: `/tasks?mba=<mba_number>` and `/tasks?client=<id>` (shareable; combine with other filters). **Quick-add** bar (list + board): Enter creates `todo` assigned to me; inline `@assignee` `#client` `!high/!low` `due …` (Sydney) with chip preview — unmatched tokens stay in the title. **My week** saved view: assigned to me, due today..+7 Sydney, not done. Category filter. List **bulk select** → status / assignee / due. Row/card → `/tasks/[id]`. Modal create still available (optional **template** apply + **recurring_rule** seed). Soft delete via confirm. Deep link: `/tasks?task=<id>` → `/tasks/<id>`. Board drag → optimistic PATCH status (revert + toast). Cards show title, client, assignee, due (overdue critical), priority, checklist `done/total`. No swimlanes / WIP / extra statuses. Clients picker + quick-add fallback use `fetchClientsList` (empty + fail-soft → error, never "no clients"). |
-| **Inbox** | Fireflies action-item proposals (`ava_task_proposals`, status `proposed`), grouped by meeting. Accept / Edit-then-accept / Dismiss / Accept all. Accept creates a task via `createTask` (`source=ava`, `actor_kind=ava`, `source_note_id` link). Sync never creates tasks. Duplicate title+MBA vs open tasks → “possible duplicate” flag only. Time-entry drafts never appear here; they belong to Team. |
+| **Inbox** | Fireflies action-item proposals (`ava_task_proposals`, status `proposed`), grouped by meeting. Accept / Edit-then-accept / Dismiss / Accept all. Accept creates a task via `createTask` (`source=ava`, `actor_kind=ava`, `source_note_id` link). Unique-roster client action items auto-create tasks on sync (`auto_created` + `ava_auto_key`); Unassigned/ambiguous stay here. Duplicate title+MBA vs open tasks → “possible duplicate” flag only. Time-entry drafts never appear here; they belong to Team. |
 | **Templates** | CRUD for `task_templates` + ordered `task_template_items` (checklist labels). Apply on task create copies labels into `task_checklist_items`. |
 | **Team** | Roster table + `TeamMemberFormDialog` create/edit + **Sync roster** (`Auth0RosterSyncButton` → `POST /api/admin/auth0-roster-sync`). Columns include Sydney-week hours (from `time_entries`) + open/overdue task counts; sortable by hours. Unmapped-time banner when `unmapped_count > 0` links to `/admin/myhours-mapping`. `TimesheetDraftsPanel` lists all members' current Sydney-week meeting-derived proposals from `ava_time_entry_proposals`. Confirm is the sole MyHours `Create Time Log` path and refreshes weekly hours; Skip writes no time. Structure-blocked rows link to `/admin/myhours-mapping`. Admin Auth0 login also fail-soft upserts the roster (`beforeSessionSaved`); cron `GET/POST /api/cron/auth0-roster-sync` (`0 */6 * * *`) is a sibling of Fireflies, not piggybacked. |
 | **Task detail** | `/tasks/[id]` — inline-editable title/description/status/priority/category/due/assignee/client/MBA; MBA number links **one-way** to `/mediaplans/mba/[mba]/edit` (containment: nothing outside `/tasks` links back). Checklist (add/tick/reorder/delete + "N of M"); comments (newest last); activity from `codex_activity` (`entity_type=task`) with legible before→after diffs via `formatActivityDiff`. Failed inline saves restore previous value + destructive toast. |
@@ -41,6 +41,7 @@ Routes under `app/api/codex/`:
 | Method | Path | Repo |
 |---|---|---|
 | GET, POST | `/api/codex/tasks` | `listTasks`, `createTask` |
+| POST | `/api/codex/tasks/[id]/dismiss-auto` | `dismissAutoCreatedTask` — auto-created meeting tasks only |
 | GET | `/api/codex/tasks/counts` | `countTasksByMba` — `?mba=A,B` open + overdue (Sydney) per MBA |
 | GET | `/api/codex/time/summary` | `getMbaTimeSummary` — `?mba=` hours-to-date + by-member + 4-week sparkline (admin-gated; not for client roles) |
 | GET | `/api/codex/time/team-week` | `getTeamWeekTimeSummary` — Sydney-week hours per roster member + open/overdue + `unmapped_count` |
@@ -82,7 +83,7 @@ Middleware only authenticates; tenant/role is per-route. Writes stamp email iden
 
 | Table | Status | Notes |
 |---|---|---|
-| `tasks` | **Live** | Create / list / patch / soft-delete |
+| `tasks` | **Live** | Create / list / patch / soft-delete; `auto_created` + `ava_auto_key` (0040) |
 | `client_notes` | **Live** (read API + Fireflies writes) | GET list; Fireflies sync inserts; `attributed_type` + `publisher_id`; assign + Sync now at `/admin/fireflies-unattributed` |
 | `team_members` | **Live** | Roster CRUD; `email_aliases` jsonb; `auth0_user_id` / `roster_source` / `last_login_at` (0045) |
 | `codex_activity` | **Live** (writes + GET list) | Append-only from repo; `GET .../activity` reads task-scoped rows; UI formats diffs via `lib/codex/activityDiff.ts` |
@@ -93,8 +94,8 @@ Middleware only authenticates; tenant/role is per-route. Writes stamp email iden
 | `task_template_items` | **Live** (API + Templates tab) | Ordered checklist labels; hard delete |
 | `task_checklist_items` | **Live** (API + detail UI) | Stage 1 detail — hard delete (no `deleted_at`) |
 | `task_comments` | **Live** (API + detail UI) | Stage 1 detail — hard delete; no edit; `author_kind` user\|ava |
-| `ava_task_proposals` | **Live** (Inbox tab) | Sync inserts `proposed`; human accept/dismiss only creates tasks |
-| `assignment_rules` | Provisioned, unwired | Stage 5 learning — dismissals are the future training signal; do not wire yet |
+| `ava_task_proposals` | **Live** (Inbox tab) | Unassigned/ambiguous action items; unique-roster client items auto-create tasks instead |
+| `assignment_rules` | **Live** (training writes) | Auto-created Dismiss inserts `source=learned` `active=false`; do not auto-assign from these yet |
 | `fireflies_sync_state` | **Live** (cron cursor) | Poll cursor + run log; `GET/POST /api/cron/fireflies-sync` |
 
 **Q23:** provisioned-but-dead Codex tables were created early **on purpose** and are to be **integrated during rollout** (Stages 1–5). Do not drop them as unused schema; do not treat empty as abandoned. Templates + template items are live; Fireflies wires `client_notes` / `client_domains` / `publisher_domains` / `meeting_title_rules` / `fireflies_sync_state` / `ava_task_proposals`.
@@ -114,12 +115,12 @@ No FKs from Codex `client_id` columns to `clients` until T6 (DI-12). New 0013 ta
 ## Key files
 
 - `lib/codex/{repo,types,flag,shadowRoles,queryHelpers,activityDiff,quickAddParse,recurringRule,runRecurring,seedTasks,auth0LoginUpsert,auth0RosterSync,auth0RosterStore,rosterEmailAlias,rosterLoginCheck}.ts`
-- `lib/fireflies/{client,attribution,internalDomains,sync,runSync,assign,assignTargets,learnableDomains,titleClients,rosterAliases,lookback,seedDomains,actionItems,proposals,proposalRepo,timeEntryDrafts}.ts` — Fireflies GraphQL pull + attribution + task-proposal Inbox + time-draft generation
+- `lib/fireflies/{client,attribution,internalDomains,sync,runSync,assign,assignTargets,learnableDomains,titleClients,rosterAliases,lookback,seedDomains,actionItems,actionItemBlocks,autoCreate,proposals,proposalRepo,timeEntryDrafts}.ts` — Fireflies GraphQL pull + attribution + unique-roster auto-create + task-proposal Inbox + time-draft generation
 - `lib/myhours/{proposalRepo,timeEntryProposals,overlap,ensureOneStructure,client}.ts` — Team-week proposal reads, Confirm/Skip decisions, overlap/structure gates, and the sole MyHours write
 - `app/api/codex/**`, `app/api/cron/codex-recurring/route.ts`, `app/api/cron/fireflies-sync/route.ts`, `app/api/cron/auth0-roster-sync/route.ts`, `app/tasks/**`
 - `app/admin/fireflies-unattributed/**`, `app/api/admin/fireflies-unattributed/route.ts`, `app/api/admin/auth0-roster-sync/route.ts`, `app/api/admin/fireflies-sync/route.ts`
 - `components/tasks/{TaskBoard,TaskBulkBar,TaskDetailClient,TaskFormDialog,TaskQuickAdd,TeamMemberFormDialog,TemplateFormDialog,Auth0RosterSyncButton}.tsx`
-- `db/schema/{codex,myhours,meetingAttribution}.ts`, `db/migrations/0013_codex_v2.sql`, `db/migrations/0025_codex_tasks_source_profile.sql`, `db/migrations/0029_fireflies_client_notes.sql`, `db/migrations/0030_ava_proposals_mba.sql`, `db/migrations/0032_ava_time_entry_proposals.sql`, `db/migrations/0039_fireflies_client_first.sql`, `db/migrations/0043_meeting_attribution_targets.sql`, `db/migrations/0045_team_members_auth0.sql`
+- `db/schema/{codex,myhours,meetingAttribution}.ts`, `db/migrations/0013_codex_v2.sql`, `db/migrations/0025_codex_tasks_source_profile.sql`, `db/migrations/0029_fireflies_client_notes.sql`, `db/migrations/0030_ava_proposals_mba.sql`, `db/migrations/0032_ava_time_entry_proposals.sql`, `db/migrations/0039_fireflies_client_first.sql`, `db/migrations/0040_fireflies_auto_create.sql`, `db/migrations/0043_meeting_attribution_targets.sql`, `db/migrations/0045_team_members_auth0.sql`
 - Tests: `test:codex-flag-auth`, `test:codex-stage0-guarantees`, `test:codex-stage1-detail`, `test:codex-stage1-scope`, `test:codex-stage1-templates`, `test:codex-seed-tasks`, `test:codex-auth0-roster`, `test:fireflies`, `test:myhours`
 
 ## Campaign seed (`lib/codex/seedTasks.ts`)
