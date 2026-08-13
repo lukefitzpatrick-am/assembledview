@@ -62,6 +62,17 @@ export const auth0 = new Auth0Client({
     // Custom role/client claims must be added by an Auth0 Post-Login Action
     // with namespaced keys (https://assembledview.com/...); they appear on
     // session.user only if present on the ID token or persisted here.
+
+    // Layer 1 roster sync: fail-soft, admin only. Must never break login.
+    try {
+      if (process.env.NEXT_RUNTIME !== 'edge') {
+        const { syncAdminRosterOnLogin } = await import('@/lib/codex/auth0LoginUpsert');
+        await syncAdminRosterOnLogin(session.user);
+      }
+    } catch (err) {
+      console.warn('[auth0-roster-login] fail-soft (beforeSessionSaved):', err);
+    }
+
     return session;
   },
 });

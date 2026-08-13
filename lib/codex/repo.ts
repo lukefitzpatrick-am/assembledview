@@ -787,6 +787,10 @@ function teamRowToApi(row: typeof teamMembers.$inferSelect): TeamMember {
     default_client_ids: (row.defaultClientIds ?? []).map(Number),
     created_at: row.createdAt,
     updated_at: row.updatedAt,
+    email_aliases: Array.isArray(row.emailAliases) ? row.emailAliases : [],
+    auth0_user_id: row.auth0UserId ?? null,
+    roster_source: row.rosterSource ?? "manual",
+    last_login_at: row.lastLoginAt ?? null,
   }
 }
 
@@ -816,6 +820,22 @@ export async function listTeamMembers(
   return pagedEnvelope(rows.map(teamRowToApi), itemsTotal, page, perPage)
 }
 
+/** Report-only roster rows for Auth0 never-logged-in (Team tab). */
+export async function listRosterLoginRows(
+  database: Db = db
+): Promise<Array<{ email: string; active: boolean }>> {
+  const rows = await database
+    .select({
+      email: teamMembers.email,
+      active: teamMembers.active,
+    })
+    .from(teamMembers)
+  return rows.map((r) => ({
+    email: r.email,
+    active: r.active,
+  }))
+}
+
 export async function createTeamMember(
   input: CreateTeamMemberInput,
   actorEmail: string | null,
@@ -834,6 +854,7 @@ export async function createTeamMember(
         capacityNotes: input.capacityNotes ?? null,
         workingStyle: input.workingStyle ?? null,
         defaultClientIds: input.defaultClientIds ?? [],
+        rosterSource: "manual",
         createdAt: now,
         updatedAt: now,
       })

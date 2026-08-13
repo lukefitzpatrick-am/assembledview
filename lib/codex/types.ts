@@ -118,6 +118,10 @@ export type TeamMember = {
   default_client_ids: number[]
   created_at: string
   updated_at: string
+  email_aliases?: string[]
+  auth0_user_id?: string | null
+  roster_source?: string | null
+  last_login_at?: string | null
 }
 
 /** Stage 1 detail panel — checklist row (snake_case API). */

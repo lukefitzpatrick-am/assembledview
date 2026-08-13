@@ -13,7 +13,7 @@
 | 5 | `lib/mediaplan/expertChannelMappings.ts` (8.4k lines) | **63** | Standard↔expert row conversion, all 20 channels |
 | 6 | `lib/billing/types.ts` (`BillingMonth`) | **61** | 33+ files across finance and billing |
 | 7 | `lib/rbac.ts` | **53** | Sole authority for roles/tenant. Regression = mass lockout or mass elevation. Imported by edge middleware — must stay edge-safe |
-| 8 | `lib/auth0.ts` | **52** | **Throws at import** on missing env → takes the whole app down, not one route. `beforeSessionSaved` drops claims silently if changed |
+| 8 | `lib/auth0.ts` | **52** | **Throws at import** on missing env → takes the whole app down, not one route. `beforeSessionSaved` drops claims silently if changed. After claims persist it fail-soft upserts admin into `team_members` (`syncAdminRosterOnLogin`) — login must never throw |
 | 9 | `lib/requireRole.ts` | **35** | Gate on all admin + all finance routes; the `"response" in result` discriminant shape is relied on at every call site |
 | 10 | `lib/generateMediaPlan.ts` (2.3k lines) | **32** | A **type hub disguised as a generator** — all 20 containers import `LineItem` from it; `MediaItems` feeds KPI grouping + Excel |
 | 11 | `lib/clients/slug.ts` | **24** | Slugs ARE tenant identity (URLs, Auth0 claims, cache enrichment). Algorithm change → client users locked out. `legalsuper → legal_super` override is load-bearing |

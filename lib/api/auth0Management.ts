@@ -47,6 +47,28 @@ const REQUIRED_ENV = [
   'APP_BASE_URL',
 ];
 
+const TOKEN_EXPIRY_SKEW_MS = 60_000;
+
+type CachedManagementToken = {
+  token: string;
+  expiresAtMs: number;
+};
+
+let cachedManagementToken: CachedManagementToken | null = null;
+
+/** True when Layer 2 roster sync can call the Management API (no crash if absent). */
+export function isAuth0ManagementClientConfigured(): boolean {
+  return Boolean(
+    process.env.AUTH0_MGMT_CLIENT_ID?.trim() &&
+      process.env.AUTH0_MGMT_CLIENT_SECRET?.trim()
+  );
+}
+
+/** Test helper — drop the in-memory Management API token. */
+export function resetAuth0ManagementTokenCache(): void {
+  cachedManagementToken = null;
+}
+
 function requireEnv(key: string): string {
   const value = process.env[key];
   if (!value) {
@@ -89,6 +111,11 @@ async function parseResponseBody(response: Response): Promise<unknown> {
 async function getManagementToken(): Promise<string> {
   ensureConfig();
 
+  const now = Date.now();
+  if (cachedManagementToken && now < cachedManagementToken.expiresAtMs) {
+    return cachedManagementToken.token;
+  }
+
   const body = {
     grant_type: 'client_credentials',
     client_id: process.env.AUTH0_MGMT_CLIENT_ID,
@@ -111,6 +138,14 @@ async function getManagementToken(): Promise<string> {
   if (!json.access_token) {
     throw new Error('Auth0 management token response missing access_token');
   }
+  const expiresInSec = Number(json.expires_in);
+  const ttlMs = Number.isFinite(expiresInSec) && expiresInSec > 0
+    ? expiresInSec * 1000
+    : 3600 * 1000;
+  cachedManagementToken = {
+    token: json.access_token,
+    expiresAtMs: now + Math.max(ttlMs - TOKEN_EXPIRY_SKEW_MS, 0),
+  };
   return json.access_token;
 }
 
@@ -287,6 +322,11 @@ export async function listAllAuth0Users(params: {
   const start = page * perPage;
   const users = all.slice(start, start + perPage);
   return { users, total, page };
+}
+
+/** Full cached Auth0 user list — Team tab never-logged-in check (report-only). */
+export async function listAllAuth0UsersUnpaged(query?: string): Promise<Auth0ListedUser[]> {
+  return getCachedAllAuth0Users(query);
 }
 
 export async function listAuth0UsersByClientSlug(clientSlug: string): Promise<Auth0User[]> {

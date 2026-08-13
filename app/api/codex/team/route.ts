@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
-import { createTeamMember, listTeamMembers } from "@/lib/codex/repo"
+import {
+  isAuth0ManagementClientConfigured,
+  listAllAuth0UsersUnpaged,
+} from "@/lib/api/auth0Management"
+import { createTeamMember, listRosterLoginRows, listTeamMembers } from "@/lib/codex/repo"
+import { rosterEmailsNeverLoggedIn } from "@/lib/codex/rosterLoginCheck"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
@@ -24,7 +29,19 @@ export async function GET(request: Request) {
       page: Number(url.searchParams.get("page") || 1),
       perPage: Number(url.searchParams.get("per_page") || 100),
     })
-    return NextResponse.json(data)
+    let neverLoggedIn: string[] = []
+    try {
+      if (isAuth0ManagementClientConfigured()) {
+        const [roster, users] = await Promise.all([
+          listRosterLoginRows(),
+          listAllAuth0UsersUnpaged(),
+        ])
+        neverLoggedIn = rosterEmailsNeverLoggedIn(roster, users)
+      }
+    } catch (err) {
+      console.warn("[auth0-roster-login] never-logged-in fail-soft:", err)
+    }
+    return NextResponse.json({ ...data, never_logged_in: neverLoggedIn })
   } catch (error) {
     console.error("Failed to list team members:", error)
     return NextResponse.json(

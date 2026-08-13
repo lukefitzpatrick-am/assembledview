@@ -230,6 +230,9 @@ export const teamMembers = pgTable(
       .notNull()
       .defaultNow(),
     emailAliases: jsonb("email_aliases").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
+    auth0UserId: text("auth0_user_id").unique(),
+    rosterSource: text("roster_source").default("manual"),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true, mode: "string" }),
   },
 )
 

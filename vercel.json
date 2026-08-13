@@ -25,6 +25,10 @@
       "schedule": "0 */6 * * *"
     },
     {
+      "path": "/api/cron/auth0-roster-sync",
+      "schedule": "0 */6 * * *"
+    },
+    {
       "path": "/api/cron/myhours-sync",
       "schedule": "15 */6 * * *"
     },

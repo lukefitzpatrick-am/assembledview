@@ -21,6 +21,7 @@ import { TeamMemberFormDialog } from "@/components/tasks/TeamMemberFormDialog"
 import { TemplateFormDialog } from "@/components/tasks/TemplateFormDialog"
 import { TaskQuickAdd } from "@/components/tasks/TaskQuickAdd"
 import { TimesheetDraftsPanel } from "@/components/tasks/TimesheetDraftsPanel"
+import { Auth0RosterSyncButton } from "@/components/tasks/Auth0RosterSyncButton"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -231,6 +232,7 @@ export function TasksPageClient() {
   const [teamError, setTeamError] = useState<string | null>(null)
   const [teamWeek, setTeamWeek] = useState<TeamWeekTimeSummary | null>(null)
   const [teamHoursSortDesc, setTeamHoursSortDesc] = useState(true)
+  const [neverLoggedIn, setNeverLoggedIn] = useState<string[]>([])
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<CodexTask | null>(null)
@@ -314,6 +316,7 @@ export function TasksPageClient() {
       if (res.status === 403) {
         setAccessDenied(true)
         setTeamMembers([])
+        setNeverLoggedIn([])
         return
       }
       if (!res.ok) {
@@ -324,12 +327,18 @@ export function TasksPageClient() {
             : null) || "Failed to fetch team"
         )
       }
-      const data = (await res.json()) as CodexPagedResponse<TeamMember>
+      const data = (await res.json()) as CodexPagedResponse<TeamMember> & {
+        never_logged_in?: string[]
+      }
       setTeamMembers(Array.isArray(data.items) ? data.items : [])
+      setNeverLoggedIn(
+        Array.isArray(data.never_logged_in) ? data.never_logged_in : []
+      )
     } catch (error) {
       console.error("Error fetching team:", error)
       setTeamError("Something went wrong while loading the team.")
       setTeamMembers([])
+      setNeverLoggedIn([])
     } finally {
       setTeamLoading(false)
     }
@@ -1922,6 +1931,28 @@ export function TasksPageClient() {
         </TabsContent>
 
         <TabsContent value="team" className="mt-6 space-y-6">
+          <Auth0RosterSyncButton onComplete={() => void fetchTeam()} />
+          {neverLoggedIn.length > 0 ? (
+            <div
+              className="rounded-card border border-border bg-surface-panel px-4 py-3 text-sm shadow-e0"
+              role="status"
+            >
+              <p className="font-medium text-foreground">
+                Active roster emails that have never logged in
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                Roster emails are Auth0 admin emails. Report-only — these people
+                cannot be assigned in-app until they sign in.
+              </p>
+              <ul className="mt-2 space-y-0.5">
+                {neverLoggedIn.map((email) => (
+                  <li key={email} className="font-mono text-xs text-muted-foreground">
+                    {email}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {teamWeek && teamWeek.unmapped_count > 0 ? (
             <div
               className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border bg-surface-panel px-4 py-3 text-sm shadow-e0"

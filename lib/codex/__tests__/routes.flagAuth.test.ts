@@ -75,6 +75,7 @@ if (supportsMockModule()) {
       listTaskActivity: async () => [],
       countTasksByMba: async () => [],
       listTeamMembers: async () => emptyPage,
+      listRosterLoginRows: async () => [],
       createTeamMember: async () => ({
         id: 1,
         email: "a@example.com",
@@ -131,6 +132,17 @@ if (supportsMockModule()) {
         unmapped_count: 0,
         members: [],
       }),
+    },
+  })
+  await mock.module!("@/lib/api/auth0Management", {
+    namedExports: {
+      listAllAuth0UsersUnpaged: async () => [],
+      isAuth0ManagementClientConfigured: () => false,
+    },
+  })
+  await mock.module!("@/lib/codex/rosterLoginCheck", {
+    namedExports: {
+      rosterEmailsNeverLoggedIn: () => [],
     },
   })
   await mock.module!("@/lib/fireflies/proposalRepo", {
