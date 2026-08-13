@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles, getUserClientSlugs } from "@/lib/rbac"
 import { getClientDashboardData } from "@/lib/api/dashboard"
+import { parseIsoDateOnlyStrict } from "@/lib/dashboard/campaignDateRange"
 import { isPlannedBasisCampaignStatus } from "@/lib/dashboard/plannedSpendConsistency"
 import { getDeliveredTotalsForClient } from "@/lib/delivery/getDeliveredTotalsForClient"
 
@@ -37,7 +38,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: "forbidden" }, { status: 403 })
     }
 
-    const dashboardData = await getClientDashboardData(slug)
+    const from = parseIsoDateOnlyStrict(request.nextUrl.searchParams.get("from"))
+    const to = parseIsoDateOnlyStrict(request.nextUrl.searchParams.get("to"))
+    const range = from && to ? { startDate: from, endDate: to } : undefined
+
+    const dashboardData = await getClientDashboardData(
+      slug,
+      range ? { rangeStartISO: range.startDate, rangeEndISO: range.endDate } : undefined,
+    )
     if (!dashboardData) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 })
     }
@@ -55,6 +63,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         versionNumber: Number.isFinite(c.version_number) ? c.version_number : undefined,
         mediaTypes: c.mediaTypes,
       })),
+      range,
     )
 
     return NextResponse.json(totals)

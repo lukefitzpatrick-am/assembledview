@@ -20,6 +20,8 @@
  * meantime; the entire point of "Planned to date" is that it is NOT a delivered/actuals number.
  */
 
+import { clampMonthlyAmountsToRange } from "@/lib/dashboard/clientDateRange"
+
 /** Client-safe mirror of `isBookedApprovedCompleted` (`lib/api/dashboard/shared.ts`).
  * Commercial inclusion only (booked|approved|completed) — not tip picking.
  * Tip resolution lives in `resolveDashboardLiveVersionRow` on the server aggregation path.
@@ -32,12 +34,16 @@ export function isPlannedBasisCampaignStatus(status: string | null | undefined):
   return normalized === "booked" || normalized === "approved" || normalized === "completed"
 }
 
+export type PlannedMonthAmount = { yearMonth: string; amount: number }
+
 export type PlannedBasisCampaign = {
   /** Normalized campaign status (already lowercase/trimmed server-side via `normalizeStatus`). */
   rawStatus: string | null | undefined
   /** Per-campaign planned spend to date (expected-spend-to-date, or full budget once completed). */
   spentAmount: number | null
   totalBudget: number
+  /** Delivery-schedule months; when a range is passed, both tiles clamp to in-range months. */
+  months?: PlannedMonthAmount[]
 }
 
 export type PlannedSpendTotals = {
@@ -54,10 +60,23 @@ export type PlannedSpendTotals = {
  * so the "Planned to date" tile and the "Budget utilized" tile can never disagree — the
  * percentage is always exactly `plannedToDate / plannedBudget` for the numbers shown.
  */
-export function computePlannedSpendTotals(campaigns: PlannedBasisCampaign[]): PlannedSpendTotals {
+export function computePlannedSpendTotals(
+  campaigns: PlannedBasisCampaign[],
+  range?: { rangeStartISO: string; rangeEndISO: string },
+): PlannedSpendTotals {
   const inScope = campaigns.filter((campaign) => isPlannedBasisCampaignStatus(campaign.rawStatus))
-  const plannedToDate = inScope.reduce((sum, campaign) => sum + (campaign.spentAmount ?? 0), 0)
-  const plannedBudget = inScope.reduce((sum, campaign) => sum + campaign.totalBudget, 0)
+  const plannedToDate = inScope.reduce((sum, campaign) => {
+    if (range && campaign.months?.length) {
+      return sum + clampMonthlyAmountsToRange(campaign.months, range.rangeStartISO, range.rangeEndISO)
+    }
+    return sum + (campaign.spentAmount ?? 0)
+  }, 0)
+  const plannedBudget = inScope.reduce((sum, campaign) => {
+    if (range && campaign.months?.length) {
+      return sum + clampMonthlyAmountsToRange(campaign.months, range.rangeStartISO, range.rangeEndISO)
+    }
+    return sum + campaign.totalBudget
+  }, 0)
   const budgetUtilizedPct = plannedBudget > 0 ? (plannedToDate / plannedBudget) * 100 : 0
   return { plannedToDate, plannedBudget, budgetUtilizedPct }
 }

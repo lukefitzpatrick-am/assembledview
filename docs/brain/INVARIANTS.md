@@ -154,6 +154,8 @@ pct === 100 → fee = 0 (division guard)
 - Codex `tasks.category` has no DB CHECK — enforce `TASK_CATEGORIES` in the app on create/PATCH and UI (`reporting | pacing | creative | finance | admin | meeting_followup | other`).
 - Codex `tasks.recurring_rule` is boring text (`monthly:<day>` / `weekly:<dow>` / `monthly:lbd`) — Sydney civil calendar only; no cron parser. Generation is idempotent on `(template_id, client_id, period)` via `[codex-period:…]` description marker (`lib/codex/recurringRule.ts`, `/api/cron/codex-recurring`).
 - AVA tool `fy` = Australian FY **ending** year (`lib/ava/tools/fyToRange.ts`); finance sections `fyMonthRange` stays start-year. Do not conflate.
+- Client hub with no params = current AU FY (`lib/dashboard/clientDateRange.ts`, Jul–Jun). Not all-time. Legacy `?fy=` still translates.
+- Client-hub donuts/stack are planned delivery-schedule-month media via `normalizeDeliveryEntryMediaBreakdown`; captions are `spendInsightsCaption`, not campaign `MEDIA_MIX_DONUT_BASIS_CAPTION`.
 
 ## UI / design system
 

@@ -78,4 +78,25 @@ describe("computePlannedSpendTotals", () => {
     const totals = computePlannedSpendTotals([])
     expect(totals).toEqual({ plannedToDate: 0, plannedBudget: 0, budgetUtilizedPct: 0 })
   })
+
+  it("clamps monthly amounts so a half-inside campaign contributes only inside months", () => {
+    const campaigns: PlannedBasisCampaign[] = [
+      {
+        rawStatus: "booked",
+        spentAmount: 600,
+        totalBudget: 600,
+        months: [
+          { yearMonth: "2026-06", amount: 100 },
+          { yearMonth: "2026-07", amount: 200 },
+          { yearMonth: "2026-08", amount: 300 },
+        ],
+      },
+    ]
+    const totals = computePlannedSpendTotals(campaigns, {
+      rangeStartISO: "2026-07-01",
+      rangeEndISO: "2027-06-30",
+    })
+    expect(totals.plannedToDate).toBe(500)
+    expect(totals.plannedBudget).toBe(500)
+  })
 })

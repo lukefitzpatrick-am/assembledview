@@ -15,10 +15,17 @@ import { expectedSpendToDateFromDeliveryScheduleMonthly } from '@/lib/spend/mont
 import { normalizeDateToMelbourneISO } from '@/lib/dates/normalizeCampaignDateISO'
 import { parseDateNativeSafe } from '@/lib/dates/parseDateNativeSafe'
 import { publishedVersionFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
+import { australianFyStartYearForDate } from '@/lib/finance/months'
 import {
-  australianFyStartYearForDate,
-  referenceDateForFyStartYear,
-} from '@/lib/finance/months'
+  campaignFlightOverlapsRange,
+  currentAuFyRange,
+  exactAuFyStartYear,
+  fyMonthLabelFromDate,
+  isoRangeToLocalDates,
+  monthBucketsForRange,
+  type ClientDashboardRange,
+} from '@/lib/dashboard/clientDateRange'
+import { auFyBoundsDateOnly } from '@/lib/dates/auFinancialYear'
 import {
   apiClient,
   isDashboardDebug,
@@ -28,7 +35,6 @@ import {
   isBookedApprovedCompleted,
   hasBookedApprovedCompletedTag,
   slugifyClientName,
-  getAustralianFinancialYear,
   getLast30DaysWindow,
   getAustralianFinancialYearWindow,
   parseMoney,
@@ -406,9 +412,10 @@ function rawClientToFallbackClient(raw: any): Client | null {
 function emptyDashboardForKnownClient(
   fallbackClient: Client,
   totalCampaignsYTDFromMaster: number | null,
+  range: ClientDashboardRange,
 ): ClientDashboardData {
-  const currentFy = australianFyStartYearForDate(new Date())
-  const { months: fyMonths } = getAustralianFinancialYear(new Date())
+  const fyYear = exactAuFyStartYear(range) ?? australianFyStartYearForDate(new Date())
+  const buckets = monthBucketsForRange(range)
   return {
     clientName: fallbackClient.name,
     brandColour: fallbackClient.brandColour,
@@ -422,10 +429,10 @@ function emptyDashboardForKnownClient(
     completedCampaignsList: [],
     spendByMediaType: [],
     spendByCampaign: [],
-    monthlySpend: fyMonths.map((month) => ({ month, data: [] })),
-    monthlySpendByCampaign: fyMonths.map((month) => ({ month, data: [] })),
-    availableFinancialYears: [currentFy],
-    selectedFinancialYear: currentFy,
+    monthlySpend: buckets.map((b) => ({ month: b.label, data: [] })),
+    monthlySpendByCampaign: buckets.map((b) => ({ month: b.label, data: [] })),
+    availableFinancialYears: [fyYear],
+    selectedFinancialYear: fyYear,
   }
 }
 
@@ -439,9 +446,27 @@ export function buildClientDashboardDataFromVersions(
     /** Published watermark per MBA — staged-but-unpublished rows must not win. */
     publishedByMba?: Map<string, number>
     financialYearStartYear?: number
+    rangeStartISO?: string
+    rangeEndISO?: string
   }
 ): ClientDashboardData | null {
   const { fallbackClient, totalCampaignsYTDFromMaster, urlSlug, publishedByMba, financialYearStartYear } = ctx
+
+  const range: ClientDashboardRange =
+    ctx.rangeStartISO && ctx.rangeEndISO
+      ? { rangeStartISO: ctx.rangeStartISO, rangeEndISO: ctx.rangeEndISO }
+      : financialYearStartYear != null
+        ? {
+            rangeStartISO: auFyBoundsDateOnly(financialYearStartYear).start,
+            rangeEndISO: auFyBoundsDateOnly(financialYearStartYear).end,
+          }
+        : currentAuFyRange()
+  const rangeDates = isoRangeToLocalDates(range)
+  const fyStart = rangeDates.start
+  const fyEnd = rangeDates.end
+  const fyExactYear = exactAuFyStartYear(range)
+  const fyStartYear = fyExactYear ?? financialYearStartYear ?? australianFyStartYearForDate(new Date())
+  const monthBuckets = monthBucketsForRange(range)
 
   const clientVersions = allVersions.filter((version: any) => {
     const nameCandidates = [
@@ -456,32 +481,11 @@ export function buildClientDashboardDataFromVersions(
     return nameCandidates.some((name: string) => targetSlugs.has(slugifyClientName(name)))
   })
 
-  const fyStartYear = financialYearStartYear ?? australianFyStartYearForDate(new Date())
-  const fyReference = referenceDateForFyStartYear(fyStartYear)
-  const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(fyReference)
-
   if (clientVersions.length === 0) {
     console.warn('No media_plan_versions found for slug:', urlSlug)
 
     if (fallbackClient) {
-      return {
-        clientName: fallbackClient.name,
-        brandColour: fallbackClient.brandColour,
-        liveCampaigns: 0,
-        totalCampaignsYTD: totalCampaignsYTDFromMaster ?? 0,
-        spendPast30Days: 0,
-        totalSpend: 0,
-        allCampaigns: [],
-        liveCampaignsList: [],
-        planningCampaignsList: [],
-        completedCampaignsList: [],
-        spendByMediaType: [],
-        spendByCampaign: [],
-        monthlySpend: fyMonths.map((month) => ({ month, data: [] })),
-        monthlySpendByCampaign: fyMonths.map((month) => ({ month, data: [] })),
-        availableFinancialYears: [australianFyStartYearForDate(new Date())],
-        selectedFinancialYear: fyStartYear,
-      }
+      return emptyDashboardForKnownClient(fallbackClient, totalCampaignsYTDFromMaster, range)
     }
 
     return null
@@ -596,8 +600,16 @@ export function buildClientDashboardDataFromVersions(
     const currentDate = new Date()
     const last30dWindow = getLast30DaysWindow()
 
-    // Calculate metrics (unchanged from previous behaviour)
-    const liveCampaigns = clientCampaigns.filter(campaign => {
+    const overlappingCampaigns = clientCampaigns.filter((campaign) =>
+      campaignFlightOverlapsRange(
+        campaign.startDate,
+        campaign.endDate,
+        range.rangeStartISO,
+        range.rangeEndISO,
+      ),
+    )
+
+    const liveCampaigns = overlappingCampaigns.filter(campaign => {
       const status = normalizeStatus(campaign.status)
       return (status === 'approved' || status === 'booked') &&
         new Date(campaign.startDate) <= currentDate && 
@@ -606,21 +618,21 @@ export function buildClientDashboardDataFromVersions(
 
     const totalCampaignsYTD = totalCampaignsYTDFromMaster ?? 0
 
-    const liveCampaignsList = clientCampaigns.filter(campaign => {
+    const liveCampaignsList = overlappingCampaigns.filter(campaign => {
       const status = normalizeStatus(campaign.status)
       return (status === 'approved' || status === 'booked') &&
         new Date(campaign.startDate) <= currentDate && 
         new Date(campaign.endDate) >= currentDate
     })
 
-    const planningCampaignsList = clientCampaigns.filter((campaign) => {
+    const planningCampaignsList = overlappingCampaigns.filter((campaign) => {
       const end = new Date(campaign.endDate)
       if (!Number.isNaN(end.getTime()) && end < currentDate) return false
       const status = normalizeStatus(campaign.status)
       return status === 'planning' || status === 'draft' || new Date(campaign.startDate) > currentDate
     })
 
-    const completedCampaignsList = clientCampaigns.filter((campaign) => new Date(campaign.endDate) < currentDate)
+    const completedCampaignsList = overlappingCampaigns.filter((campaign) => new Date(campaign.endDate) < currentDate)
 
     // Filter to only booked/approved/completed campaigns for spend analytics
     const bookedApprovedCampaigns = clientCampaigns.filter(campaign =>
@@ -649,11 +661,20 @@ export function buildClientDashboardDataFromVersions(
     const deliveryCampaignSpend: Record<string, number> = {}
     const deliveryMonthlyMap: Record<string, Record<string, number>> = {}
     const deliveryMonthlyCampaignMap: Record<string, Record<string, number>> = {}
-    fyMonths.forEach(month => {
-      deliveryMonthlyMap[month] = {}
-      deliveryMonthlyCampaignMap[month] = {}
+    monthBuckets.forEach((bucket) => {
+      deliveryMonthlyMap[bucket.label] = {}
+      deliveryMonthlyCampaignMap[bucket.label] = {}
     })
-    const monthLabelFromDate = (date: Date) => fyMonths[(date.getMonth() + 12 - 6) % 12]
+    const monthLabelFromDate = (date: Date): string | null => {
+      if (fyExactYear != null) return fyMonthLabelFromDate(date)
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`
+      return monthBuckets.find((b) => b.key === key)?.label ?? null
+    }
+    const monthOverlapsRange = (monthDate: Date): boolean => {
+      const monthStart = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1)
+      const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0, 23, 59, 59, 999)
+      return monthEnd >= fyStart && monthStart <= fyEnd
+    }
 
     bookedApprovedCampaigns.forEach((campaign) => {
       const mbaKey = normalizeMbaKey(campaign.mbaNumber)
@@ -662,8 +683,9 @@ export function buildClientDashboardDataFromVersions(
 
       schedule.forEach(entry => {
         const monthDate = parseMonthYear(getMonthYearValue(entry))
-        if (!monthDate || monthDate < fyStart || monthDate > fyEnd) return
+        if (!monthDate || !monthOverlapsRange(monthDate)) return
         const monthLabel = monthLabelFromDate(monthDate)
+        if (!monthLabel) return
         const campaignKey = campaign.campaignName || campaign.mbaNumber || 'Campaign'
 
         // Handles BOTH deliverySchedule shapes: 'types' (mediaTypes[].lineItems) and
@@ -747,9 +769,9 @@ export function buildClientDashboardDataFromVersions(
         mediaType: string
         amount: number
       }>
-    }> = fyMonths.map(month => ({
-      month,
-      data: Object.entries(deliveryMonthlyMap[month] || {})
+    }> = monthBuckets.map((bucket) => ({
+      month: bucket.label,
+      data: Object.entries(deliveryMonthlyMap[bucket.label] || {})
         .map(([mediaType, amount]) => ({ mediaType, amount }))
         .filter(item => item.amount > 0)
     }))
@@ -760,9 +782,9 @@ export function buildClientDashboardDataFromVersions(
         campaignName: string
         amount: number
       }>
-    }> = fyMonths.map(month => ({
-      month,
-      data: Object.entries(deliveryMonthlyCampaignMap[month] || {})
+    }> = monthBuckets.map((bucket) => ({
+      month: bucket.label,
+      data: Object.entries(deliveryMonthlyCampaignMap[bucket.label] || {})
         .map(([campaignName, amount]) => ({ campaignName, amount }))
         .filter(item => item.amount > 0)
     }))
@@ -786,7 +808,7 @@ export function buildClientDashboardDataFromVersions(
       totalCampaignsYTD,
       spendPast30Days,
       totalSpend,
-      allCampaigns: clientCampaigns,
+      allCampaigns: overlappingCampaigns,
       liveCampaignsList,
       planningCampaignsList,
       completedCampaignsList,
@@ -827,7 +849,7 @@ function sumYtdAcrossSlugs(
 
 export async function getClientDashboardData(
   slug: string,
-  options?: { financialYearStartYear?: number },
+  options?: { financialYearStartYear?: number; rangeStartISO?: string; rangeEndISO?: string },
 ): Promise<ClientDashboardData | null> {
   console.log('[dashboard] getClientDashboardData called with slug:', slug, 'ENV check:', {
     XANO_BASE_URL: !!peekXanoEnv('XANO_BASE_URL'),
@@ -896,7 +918,18 @@ export async function getClientDashboardData(
     } catch (versionsError) {
       console.warn('Dashboard: media_plan_versions fetch failed; using partial dashboard if client is known', versionsError)
       if (fallbackClient) {
-        return emptyDashboardForKnownClient(fallbackClient, totalCampaignsYTDFromMaster)
+        return emptyDashboardForKnownClient(
+          fallbackClient,
+          totalCampaignsYTDFromMaster,
+          options?.rangeStartISO && options?.rangeEndISO
+            ? { rangeStartISO: options.rangeStartISO, rangeEndISO: options.rangeEndISO }
+            : options?.financialYearStartYear != null
+              ? {
+                  rangeStartISO: auFyBoundsDateOnly(options.financialYearStartYear).start,
+                  rangeEndISO: auFyBoundsDateOnly(options.financialYearStartYear).end,
+                }
+              : currentAuFyRange(),
+        )
       }
       return null
     }
@@ -907,6 +940,8 @@ export async function getClientDashboardData(
       urlSlug: sanitizedSlug,
       publishedByMba,
       financialYearStartYear: options?.financialYearStartYear,
+      rangeStartISO: options?.rangeStartISO,
+      rangeEndISO: options?.rangeEndISO,
     })
   } catch (error: any) {
     const msg = error?.message != null ? String(error.message) : String(error)

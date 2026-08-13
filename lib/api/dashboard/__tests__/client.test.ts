@@ -7,6 +7,8 @@ import { describe, expect, it } from "vitest"
 
 import { buildClientDashboardDataFromVersions } from "../client"
 import { slugifyClientName } from "../shared"
+import { australianFyStartYearForDate } from "@/lib/finance/months"
+import { CLIENT_ALL_TIME_END, CLIENT_ALL_TIME_START } from "@/lib/dashboard/clientDateRange"
 
 const CLIENT_NAME = "Acme Co"
 
@@ -18,6 +20,7 @@ function version(overrides: Record<string, any>): Record<string, any> {
     campaign_start_date: "2025-08-01",
     campaign_end_date: "2025-08-31",
     mp_campaignbudget: "0",
+    published_at: "2025-08-01T00:00:00.000Z",
     ...overrides,
   }
 }
@@ -104,5 +107,98 @@ describe("buildClientDashboardDataFromVersions — deliveryScheduleByMBA campaig
     // Media (2,500) must appear in the chart, not just the 300 fee.
     expect(chartTotal).toBeCloseTo(2500, 2)
     expect(dashboard!.totalSpend).toBeCloseTo(2800, 2)
+  })
+
+  it("lists only campaigns whose flight overlaps the requested range (live/planning/completed still vs today)", () => {
+    const targetSlugs = new Set([slugifyClientName(CLIENT_NAME)])
+    const overlapping = version({
+      mba_number: "MBA-OVER",
+      campaign_status: "booked",
+      campaign_name: "Overlaps FY",
+      campaign_start_date: "2026-01-01",
+      campaign_end_date: "2026-12-31",
+    })
+    const outside = version({
+      mba_number: "MBA-OUT",
+      campaign_status: "booked",
+      campaign_name: "Outside FY",
+      campaign_start_date: "2025-01-01",
+      campaign_end_date: "2025-06-30",
+    })
+
+    const dashboard = buildClientDashboardDataFromVersions(targetSlugs, [overlapping, outside], {
+      fallbackClient: null,
+      totalCampaignsYTDFromMaster: null,
+      urlSlug: "acme-co",
+      rangeStartISO: "2026-07-01",
+      rangeEndISO: "2027-06-30",
+    })
+
+    expect(dashboard).not.toBeNull()
+    const names = [
+      ...dashboard!.liveCampaignsList,
+      ...dashboard!.planningCampaignsList,
+      ...dashboard!.completedCampaignsList,
+    ].map((c) => c.campaignName)
+    expect(names).toContain("Overlaps FY")
+    expect(names).not.toContain("Outside FY")
+  })
+
+  it("omitted range pins totalSpend to current AU FY, not all-time", () => {
+    const year = australianFyStartYearForDate(new Date())
+    const targetSlugs = new Set([slugifyClientName(CLIENT_NAME)])
+    const inFy = version({
+      mba_number: "MBA-INFY",
+      campaign_status: "booked",
+      campaign_name: "In current FY",
+      campaign_start_date: `${year}-07-01`,
+      campaign_end_date: `${year}-07-31`,
+      deliverySchedule: [
+        {
+          monthYear: `July ${year}`,
+          mediaTypes: [{ mediaType: "Television", lineItems: [{ amount: "$400.00" }] }],
+        },
+      ],
+    })
+    const priorFy = version({
+      mba_number: "MBA-PRIOR",
+      campaign_status: "booked",
+      campaign_name: "Prior FY",
+      campaign_start_date: `${year - 1}-08-01`,
+      campaign_end_date: `${year - 1}-08-31`,
+      deliverySchedule: [
+        {
+          monthYear: `August ${year - 1}`,
+          mediaTypes: [{ mediaType: "Television", lineItems: [{ amount: "$1,000.00" }] }],
+        },
+      ],
+    })
+
+    const implicit = buildClientDashboardDataFromVersions(targetSlugs, [inFy, priorFy], {
+      fallbackClient: null,
+      totalCampaignsYTDFromMaster: null,
+      urlSlug: "acme-co",
+    })
+    const explicitCurrentFy = buildClientDashboardDataFromVersions(targetSlugs, [inFy, priorFy], {
+      fallbackClient: null,
+      totalCampaignsYTDFromMaster: null,
+      urlSlug: "acme-co",
+      financialYearStartYear: year,
+    })
+    const allTime = buildClientDashboardDataFromVersions(targetSlugs, [inFy, priorFy], {
+      fallbackClient: null,
+      totalCampaignsYTDFromMaster: null,
+      urlSlug: "acme-co",
+      rangeStartISO: CLIENT_ALL_TIME_START,
+      rangeEndISO: CLIENT_ALL_TIME_END,
+    })
+
+    expect(implicit).not.toBeNull()
+    expect(explicitCurrentFy).not.toBeNull()
+    expect(allTime).not.toBeNull()
+    expect(implicit!.totalSpend).toBeCloseTo(400, 2)
+    expect(implicit!.totalSpend).toBeCloseTo(explicitCurrentFy!.totalSpend, 2)
+    expect(allTime!.totalSpend).toBeCloseTo(1400, 2)
+    expect(implicit!.totalSpend).not.toBeCloseTo(allTime!.totalSpend, 2)
   })
 })

@@ -3,6 +3,7 @@ import { auth0 } from '@/lib/auth0'
 import { getPrimaryRole, getUserClientIdentifier } from '@/lib/rbac'
 import { notFound } from 'next/navigation'
 import { getClientDashboardData } from '@/lib/api/dashboard'
+import { currentAuFyRange, rangeFromDashboardSearchParams } from '@/lib/dashboard/clientDateRange'
 import { fetchXanoClientRowByUrlSlug } from '@/lib/clients/fetchClientRowByUrlSlug'
 import { ClientDashboardPageContent } from '@/components/dashboard/ClientDashboardPageContent'
 import { EmptyState, ErrorState } from '@/components/ui/states'
@@ -11,7 +12,7 @@ interface ClientDashboardProps {
   params: Promise<{
     slug: string
   }>
-  searchParams?: Promise<{ fy?: string | string[] }>
+  searchParams?: Promise<{ fy?: string | string[]; startDate?: string | string[]; endDate?: string | string[] }>
 }
 
 /** Logo from the group anchor row (same branding source as clientName / brandColour). */
@@ -27,10 +28,8 @@ function logoFromClientRecord(clientRecord: Record<string, unknown> | null | und
 export default async function ClientDashboard({ params, searchParams }: ClientDashboardProps) {
   const { slug } = await params
   const sp = searchParams ? await searchParams : undefined
-  const fyRaw = Array.isArray(sp?.fy) ? sp?.fy[0] : sp?.fy
-  const fyNum = Number(fyRaw)
-  const financialYearStartYear =
-    Number.isInteger(fyNum) && fyNum >= 2015 && fyNum <= 2100 ? fyNum : undefined
+  const range = rangeFromDashboardSearchParams(sp)
+  const defaultRange = currentAuFyRange()
   const session = await auth0.getSession()
   const user = session?.user
   const role = getPrimaryRole(user)
@@ -75,7 +74,7 @@ export default async function ClientDashboard({ params, searchParams }: ClientDa
     // fetchXanoClientRowByUrlSlug resolves via resolveClientGroup → group.anchor
     // so mbaidentifier-slugs (penfold) keep the same logo as name-slugs (penfolds).
     const [data, clientRecord] = await Promise.all([
-      getClientDashboardData(slug, { financialYearStartYear }),
+      getClientDashboardData(slug, { rangeStartISO: range.rangeStartISO, rangeEndISO: range.rangeEndISO }),
       fetchXanoClientRowByUrlSlug(slug),
     ])
     if (data) {
@@ -118,6 +117,10 @@ export default async function ClientDashboard({ params, searchParams }: ClientDa
       slug={slug}
       clientData={clientData}
       campaignLinkMode="tenant"
+      rangeStartISO={range.rangeStartISO}
+      rangeEndISO={range.rangeEndISO}
+      defaultRangeStartISO={defaultRange.rangeStartISO}
+      defaultRangeEndISO={defaultRange.rangeEndISO}
     />
   )
 }

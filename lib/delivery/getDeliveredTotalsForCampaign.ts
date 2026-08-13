@@ -4,7 +4,7 @@ import { loadDeliverySnapshot } from "@/lib/delivery/loadDeliverySnapshot"
 import { fetchDirectPacingRows } from "@/lib/pacing/direct/fetchDirectPacingRows"
 import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
 import { getAsOfDate } from "@/lib/pacing/maths"
-import { combineDeliveredTotals, hasFixedCostMediaLineItems, type DeliveredTotals } from "@/lib/delivery/deliveredTotals"
+import { combineDeliveredTotals, deliveredQueryWindow, hasFixedCostMediaLineItems, sumDirectReportedSpendInRange, asOfForDeliveredRange, type DeliveredTotals } from "@/lib/delivery/deliveredTotals"
 
 export type GetDeliveredTotalsForCampaignInput = {
   mbaNumber: string
@@ -12,6 +12,8 @@ export type GetDeliveredTotalsForCampaignInput = {
   mpSearchEnabled?: boolean
   /** `campaignData.lineItems` — used only to decide whether the fixed-cost read is needed. */
   lineItemsMap?: Record<string, unknown[] | undefined> | null
+  startDate?: string | null
+  endDate?: string | null
 }
 
 export type DeliveredTotalsForCampaign = DeliveredTotals & {
@@ -45,16 +47,19 @@ export async function getDeliveredTotalsForCampaign(
 ): Promise<DeliveredTotalsForCampaign> {
   const mbaKey = input.mbaNumber.trim().toLowerCase()
   const needsFixedCost = hasFixedCostMediaLineItems(input.lineItemsMap)
+  const window = deliveredQueryWindow(input.startDate, input.endDate)
+  const asOfDate = asOfForDeliveredRange(getAsOfDate(), window?.endDate)
 
   const [snapshot, directGroups] = await Promise.all([
     loadDeliverySnapshot({
       mbaNumber: input.mbaNumber,
       versionNumber: input.versionNumber,
       mpSearchEnabled: input.mpSearchEnabled,
+      ...(window ?? {}),
     }).catch(() => null),
     needsFixedCost
       ? fetchDirectPacingRows({
-          asOfDate: getAsOfDate(),
+          asOfDate,
           allowedClientSlugs: null,
           includeHistorical: false,
         }).catch((): DirectCampaignGroup[] => [])
@@ -67,12 +72,12 @@ export async function getDeliveredTotalsForCampaign(
     snapshot
       ? { spendToDate: snapshot.planTotals.spendToDate, impressions: snapshot.planTotals.impressions }
       : null,
-    fixedCostGroup?.totalReported ?? 0,
+    sumDirectReportedSpendInRange(fixedCostGroup, window?.startDate, window?.endDate),
   )
 
   return {
     ...totals,
-    asOf: snapshot?.asOf ?? getAsOfDate(),
+    asOf: asOfForDeliveredRange(snapshot?.asOf ?? getAsOfDate(), window?.endDate),
     clicks: snapshot?.planTotals.clicks ?? 0,
     results: snapshot?.planTotals.results ?? 0,
     video3sViews: snapshot?.planTotals.video3sViews ?? 0,

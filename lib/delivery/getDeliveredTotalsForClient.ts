@@ -6,8 +6,11 @@ import type { DirectCampaignGroup } from "@/lib/pacing/direct/types"
 import { getAsOfDate } from "@/lib/pacing/maths"
 import {
   combineDeliveredTotals,
+  deliveredQueryWindow,
   hasFixedCostMediaTypeLabel,
   sumDeliveredTotals,
+  sumDirectReportedSpendInRange,
+  asOfForDeliveredRange,
   type DeliveredTotals,
 } from "@/lib/delivery/deliveredTotals"
 import { boundedMap } from "@/lib/utils/boundedMap"
@@ -48,16 +51,23 @@ export type ClientDeliveredTotals = DeliveredTotals & {
  */
 export async function getDeliveredTotalsForClient(
   campaigns: ClientDeliveredTotalsCampaignInput[],
+  range?: { startDate?: string | null; endDate?: string | null },
 ): Promise<ClientDeliveredTotals> {
+  const window = deliveredQueryWindow(range?.startDate, range?.endDate)
   if (campaigns.length === 0) {
-    return { spendToDate: 0, impressions: 0, hasDelivery: false, asOf: getAsOfDate() }
+    return {
+      spendToDate: 0,
+      impressions: 0,
+      hasDelivery: false,
+      asOf: asOfForDeliveredRange(getAsOfDate(), window?.endDate),
+    }
   }
 
   const mbaKeys = new Set(campaigns.map((c) => c.mbaNumber.trim().toLowerCase()))
   const needsFixedCost = campaigns.some((c) => hasFixedCostMediaTypeLabel(c.mediaTypes))
+  const asOfDate = asOfForDeliveredRange(getAsOfDate(), window?.endDate)
 
   const [snapshots, directGroups] = await Promise.all([
-    // Bound campaign fan-out; wrap so one failing campaign cannot reject the whole tile.
     boundedMap(
       campaigns,
       async (c) => {
@@ -65,6 +75,7 @@ export async function getDeliveredTotalsForClient(
           return await loadDeliverySnapshot({
             mbaNumber: c.mbaNumber,
             versionNumber: c.versionNumber,
+            ...(window ?? {}),
           })
         } catch {
           return null
@@ -73,7 +84,7 @@ export async function getDeliveredTotalsForClient(
       3
     ),
     needsFixedCost
-      ? fetchDirectPacingRows({ asOfDate: getAsOfDate(), allowedClientSlugs: null, includeHistorical: false }).catch(
+      ? fetchDirectPacingRows({ asOfDate, allowedClientSlugs: null, includeHistorical: false }).catch(
           (): DirectCampaignGroup[] => [],
         )
       : Promise.resolve<DirectCampaignGroup[]>([]),
@@ -82,8 +93,12 @@ export async function getDeliveredTotalsForClient(
   const fixedCostByMba = new Map<string, number>()
   for (const group of directGroups) {
     const key = group.mbaNumber.trim().toLowerCase()
-    if (!mbaKeys.has(key)) continue // tenant safety: only campaigns this caller was scoped to
-    fixedCostByMba.set(key, (fixedCostByMba.get(key) ?? 0) + group.totalReported)
+    if (!mbaKeys.has(key)) continue
+    fixedCostByMba.set(
+      key,
+      (fixedCostByMba.get(key) ?? 0) +
+        sumDirectReportedSpendInRange(group, window?.startDate, window?.endDate),
+    )
   }
 
   const perCampaign = campaigns.map((c, i) => {
@@ -96,7 +111,10 @@ export async function getDeliveredTotalsForClient(
   })
 
   const totals = sumDeliveredTotals(perCampaign)
-  const asOf = snapshots.find((s): s is NonNullable<typeof s> => Boolean(s))?.asOf ?? getAsOfDate()
+  const asOf = asOfForDeliveredRange(
+    snapshots.find((s): s is NonNullable<typeof s> => Boolean(s))?.asOf ?? getAsOfDate(),
+    window?.endDate,
+  )
 
   return { ...totals, asOf }
 }

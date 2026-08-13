@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { getClientDashboardData } from '@/lib/api/dashboard'
+import { currentAuFyRange, rangeFromDashboardSearchParams } from '@/lib/dashboard/clientDateRange'
 import { auth0 } from '@/lib/auth0'
 import { fetchClientById } from '@/lib/clients/fetchClientById'
 import { fetchXanoClientRowByUrlSlug } from '@/lib/clients/fetchClientRowByUrlSlug'
@@ -10,7 +11,7 @@ export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{ slug: string }>
-  searchParams?: Promise<{ fy?: string | string[] }>
+  searchParams?: Promise<{ fy?: string | string[]; startDate?: string | string[]; endDate?: string | string[] }>
 }
 
 export default async function ClientHubDetailPage({ params, searchParams }: PageProps) {
@@ -20,10 +21,8 @@ export default async function ClientHubDetailPage({ params, searchParams }: Page
   }
 
   const sp = searchParams ? await searchParams : undefined
-  const fyRaw = Array.isArray(sp?.fy) ? sp?.fy[0] : sp?.fy
-  const fyNum = Number(fyRaw)
-  const financialYearStartYear =
-    Number.isInteger(fyNum) && fyNum >= 2015 && fyNum <= 2100 ? fyNum : undefined
+  const range = rangeFromDashboardSearchParams(sp)
+  const defaultRange = currentAuFyRange()
 
   const session = await auth0.getSession()
   const user = session?.user
@@ -36,7 +35,7 @@ export default async function ClientHubDetailPage({ params, searchParams }: Page
   }
 
   const [clientData, slugRow] = await Promise.all([
-    getClientDashboardData(slug, { financialYearStartYear }),
+    getClientDashboardData(slug, { rangeStartISO: range.rangeStartISO, rangeEndISO: range.rangeEndISO }),
     fetchXanoClientRowByUrlSlug(slug),
   ])
 
@@ -62,6 +61,10 @@ export default async function ClientHubDetailPage({ params, searchParams }: Page
       clientData={{ ...clientData, clientRecord, clientLogo }}
       campaignLinkMode="adminHub"
       headerDescription="Client hub — campaign dashboard"
+      rangeStartISO={range.rangeStartISO}
+      rangeEndISO={range.rangeEndISO}
+      defaultRangeStartISO={defaultRange.rangeStartISO}
+      defaultRangeEndISO={defaultRange.rangeEndISO}
     />
   )
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth0 } from '@/lib/auth0'
 import { getUserRoles, getUserClientSlugs } from '@/lib/rbac'
 import { getClientDashboardData, exportDashboardData } from '@/lib/api/dashboard'
+import { rangeFromDashboardSearchParams } from '@/lib/dashboard/clientDateRange'
 
 export async function GET(
   request: NextRequest,
@@ -29,6 +30,11 @@ export async function GET(
 
     const { searchParams } = new URL(request.url)
     const format = searchParams.get('format') as 'csv' | 'json' | null
+    const range = rangeFromDashboardSearchParams({
+      startDate: searchParams.get('startDate') ?? undefined,
+      endDate: searchParams.get('endDate') ?? undefined,
+      fy: searchParams.get('fy') ?? undefined,
+    })
 
     if (format === 'csv' || format === 'json') {
       const data = await exportDashboardData(slug, format)
@@ -41,7 +47,10 @@ export async function GET(
     }
 
     console.log('API: Fetching dashboard data for slug:', slug)
-    const dashboardData = await getClientDashboardData(slug)
+    const dashboardData = await getClientDashboardData(slug, {
+      rangeStartISO: range.rangeStartISO,
+      rangeEndISO: range.rangeEndISO,
+    })
     console.log('API: Dashboard data result:', dashboardData ? 'Found' : 'Not found')
     
     if (!dashboardData) {

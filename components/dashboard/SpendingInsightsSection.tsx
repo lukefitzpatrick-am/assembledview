@@ -1,21 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react"
-import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { Loader2 } from "lucide-react"
-
-import {
-  DonutChart,
-  StackedBarChart,
-  ToggleableLegend,
-} from "@/components/charts/system"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { DonutChart, StackedBarChart, ToggleableLegend } from "@/components/charts/system"
 import { SpendingInsightChartShell } from "@/components/dashboard/SpendingInsightChartShell"
 import { Button } from "@/components/ui/button"
 import { EmptyState } from "@/components/ui/states"
 import { buildDonutSlices } from "@/lib/charts-app/donutSlices"
 import { getDeterministicColor, getMediaLabel } from "@/lib/charts/registry"
 import { channelColorFor, fmt } from "@/lib/chart-theme"
-import { fyDisplayLabel } from "@/lib/finance/months"
+import { spendInsightsCaption } from "@/lib/dashboard/spendInsightsCaptions"
+
 export type MonthlySpendData = {
   month: string
   data: Array<{
@@ -63,8 +57,8 @@ interface SpendingInsightsSectionProps {
   campaignData: SpendByCampaignData[]
   mediaTypeData: SpendByMediaTypeData[]
   brandColour?: string
-  availableFinancialYears?: number[]
-  selectedFinancialYear?: number
+  rangeCaption?: string
+  isExactAuFy?: boolean
   slug?: string
 }
 
@@ -94,14 +88,10 @@ export function SpendingInsightsSection({
   campaignData,
   mediaTypeData,
   brandColour: _brandColour,
-  availableFinancialYears,
-  selectedFinancialYear,
-  slug,
+  rangeCaption,
+  isExactAuFy = false,
+  slug: _slug,
 }: SpendingInsightsSectionProps) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const searchParams = useSearchParams()
-  const [isPending, startTransition] = useTransition()
   const [monthlyView, setMonthlyView] = useState<MonthlyView>("mediaType")
   const [hiddenKeys, setHiddenKeys] = useState<Set<string>>(() => new Set())
   const monthlyChartRef = useRef<HTMLDivElement | null>(null)
@@ -239,6 +229,26 @@ export function SpendingInsightsSection({
     m.data.some((d) => d.amount > 0),
   )
 
+  const monthlyTotal = useMemo(
+    () =>
+      activeMonthlyStacked.reduce(
+        (sum, month) => sum + month.data.reduce((s, d) => s + (Number(d.amount) || 0), 0),
+        0,
+      ),
+    [activeMonthlyStacked],
+  )
+
+  const monthlyRangeLabel =
+    rangeCaption ?? (isExactAuFy ? "australian financial year (jul–jun)" : "selected range")
+  const monthlyCaption = spendInsightsCaption({
+    by: "month",
+    total: monthlyTotal,
+    rangeLabel: monthlyRangeLabel,
+  })
+  const campaignCaption = spendInsightsCaption({ by: "campaign", total: campaignTotal })
+  const mediaCaption = spendInsightsCaption({ by: "type", total: mediaTotal })
+
+
   const toggleLegendKey = (key: string) => {
     setHiddenKeys((prev) => {
       const next = new Set(prev)
@@ -254,42 +264,11 @@ export function SpendingInsightsSection({
         <div className="min-w-0 space-y-1">
           <h2 className="text-lg font-semibold text-foreground">Spending insights</h2>
           <p className="text-sm text-muted-foreground">
-            {selectedFinancialYear
-              ? fyDisplayLabel(selectedFinancialYear)
-              : "Current financial year"}
+            {rangeCaption ?? "Selected range"}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {availableFinancialYears && availableFinancialYears.length > 1 && slug ? (
-            <>
-              <select
-                aria-label="Financial year"
-                value={selectedFinancialYear ?? availableFinancialYears[0]}
-                disabled={isPending}
-                onChange={(e) => {
-                  const params = new URLSearchParams(searchParams?.toString() ?? "")
-                  params.set("fy", e.target.value)
-                  startTransition(() => {
-                    router.push(`${pathname}?${params.toString()}`)
-                  })
-                }}
-                className="h-8 rounded-md border border-input bg-background px-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {availableFinancialYears.map((y) => (
-                  <option key={y} value={y}>
-                    {fyDisplayLabel(y)}
-                  </option>
-                ))}
-              </select>
-              {isPending ? (
-                <Loader2
-                  className="h-4 w-4 animate-spin text-muted-foreground"
-                  aria-hidden
-                />
-              ) : null}
-            </>
-          ) : null}
           <Button
             type="button"
             variant="outline"
@@ -303,13 +282,10 @@ export function SpendingInsightsSection({
         </div>
       </header>
 
-      <div
-        className={`flex w-full flex-col gap-4 lg:gap-6${isPending ? " opacity-60 pointer-events-none" : ""}`}
-        aria-busy={isPending || undefined}
-      >
+      <div className="flex w-full flex-col gap-4 lg:gap-6">
         <SpendingInsightChartShell
           title={monthlyChartTitle}
-          description="Australian financial year (Jul–Jun)"
+          description={monthlyCaption}
           chartAreaRef={monthlyChartRef}
           chartAreaClassName="min-h-[360px] w-full"
           exportPage="dashboard"
@@ -346,7 +322,7 @@ export function SpendingInsightsSection({
         <div className="grid w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-2 lg:gap-6">
           <SpendingInsightChartShell
             title="Spend by Campaign"
-            description="Distribution of spending across campaigns"
+            description={campaignCaption}
             chartAreaRef={campaignPieRef}
             chartAreaClassName="min-h-[360px] w-full"
             exportPage="dashboard"
@@ -375,7 +351,7 @@ export function SpendingInsightsSection({
 
           <SpendingInsightChartShell
             title="Spend by Media Type"
-            description="Distribution of spending across media types"
+            description={mediaCaption}
             chartAreaRef={mediaPieRef}
             chartAreaClassName="min-h-[360px] w-full"
             exportPage="dashboard"

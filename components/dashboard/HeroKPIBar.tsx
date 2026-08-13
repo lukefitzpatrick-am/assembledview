@@ -176,7 +176,7 @@ export function HeroKPIBar({
       <article className="min-w-0 rounded-xl border border-border/60 bg-card p-4 sm:p-5">
         {typeof campaignsYtd === "number" ? (
           <>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Total campaigns YTD</p>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">Campaigns</p>
             <p className="num mt-2 text-3xl font-semibold tracking-tight text-foreground">
               {formatNumber(Math.round(animatedCampaignsYtd))}
             </p>

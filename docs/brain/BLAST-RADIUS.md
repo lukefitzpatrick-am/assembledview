@@ -60,6 +60,12 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | `slugifyPlanClientName` | Auth scoping in every pacing route; note it is a DIFFERENT slugifier from `lib/clients/slug` — both sides of the auth→plan join |
 | Orphan assign | UPDATEs `MART.SEARCH_PACING_FACT` directly (no mapping table) — reverted by any warehouse full refresh |
 
+### Dashboards
+| Touch | Also check |
+|---|---|
+| `lib/api/dashboard/client.ts` / `lib/dashboard/clientDateRange.ts` / `components/dashboard/shared/DateRangeSelector.tsx` | Client hub URL `startDate`/`endDate`; no params = current AU FY. Lists overlap the range; spend series share the window; delivered tile `from`/`to`; `spendPast30Days` stays 30-day. Tests: `test:client-dashboard-range` |
+| `lib/dashboard/spendInsightsCaptions.ts` / `components/dashboard/SpendingInsightsSection.tsx` | Captions are `spendInsightsCaption` (planned delivery-schedule-month media). Do not reuse `MEDIA_MIX_DONUT_BASIS_CAPTION`. Tests: `lib/dashboard/__tests__/spendInsightsCaptions.test.ts` + `SpendingInsightsSection.render.test.tsx` |
+
 ### Finance / billing
 | Touch | Also check |
 |---|---|

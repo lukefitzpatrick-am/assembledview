@@ -21,6 +21,12 @@ import { ClientFinanceSlideOver } from "@/components/dashboard/modals/ClientFina
 import { ClientKpiSlideOver } from "@/components/dashboard/modals/ClientKpiSlideOver"
 import { CampaignCardSkeleton, ChartSkeleton } from "@/components/dashboard/skeletons"
 import { computePlannedSpendTotals } from "@/lib/dashboard/plannedSpendConsistency"
+import {
+  campaignMonthsFromStacked,
+  exactAuFyStartYear,
+} from "@/lib/dashboard/clientDateRange"
+import { fyDisplayLabel } from "@/lib/finance/months"
+import DateRangeSelector from "@/components/dashboard/shared/DateRangeSelector"
 import { EMPTY_DELIVERED_TOTALS_WITH_AS_OF } from "@/lib/delivery/deliveredTotals"
 import { formatDateShort } from "@/lib/format/date"
 import type { Campaign as LegacyCampaign, ClientDashboardData as LegacyClientDashboardData } from "@/lib/types/dashboard"
@@ -41,6 +47,10 @@ export interface ClientDashboardPageContentProps {
   clientData: LegacyClientDashboardData
   campaignLinkMode?: CampaignLinkMode
   headerDescription?: string
+  rangeStartISO: string
+  rangeEndISO: string
+  defaultRangeStartISO: string
+  defaultRangeEndISO: string
 }
 
 /** `/api/dashboard/[slug]/delivered` response shape — see `getDeliveredTotalsForClient`. */
@@ -67,6 +77,7 @@ type DashboardCampaign = {
   /** Expected spend to date (plan) — same basis as campaign-page Expected Spend. */
   spentAmount: number | null
   totalBudget: number
+  months?: Array<{ yearMonth: string; amount: number }>
   startDate?: string
   endDate?: string
   /** Alias of startDate — used by UpcomingCampaignsSection sort/display. */
@@ -89,6 +100,7 @@ function toDashboardCampaign(
   mode: CampaignLinkMode,
   campaign: LegacyCampaign,
   bucketStatus: CampaignStatus, // "live" | "planned" | "completed" — the server list this came from
+  months?: Array<{ yearMonth: string; amount: number }>,
 ): DashboardCampaign {
   // Card progress binds to expected spend to date (plan pace), NOT Snowflake delivered —
   // same word/basis as campaign-page "Expected Spend".
@@ -110,6 +122,7 @@ function toDashboardCampaign(
     mediaTypes: campaign.mediaTypes,
     spentAmount: spentApprox,
     totalBudget: campaign.budget,
+    months,
     startDate: campaign.startDate,
     endDate: campaign.endDate,
     launchDate: campaign.startDate,
@@ -124,6 +137,10 @@ export function ClientDashboardPageContent({
   clientData,
   campaignLinkMode = "tenant",
   headerDescription,
+  rangeStartISO,
+  rangeEndISO,
+  defaultRangeStartISO,
+  defaultRangeEndISO,
 }: ClientDashboardPageContentProps) {
   const isAdmin = campaignLinkMode === "adminHub"
   const clientIdRaw = clientData.clientRecord?.id
@@ -139,14 +156,25 @@ export function ClientDashboardPageContent({
   const [financeModalOpen, setFinanceModalOpen] = useState(false)
   const [kpisModalOpen, setKpisModalOpen] = useState(false)
   const [brainModalOpen, setBrainModalOpen] = useState(false)
+  const monthsByCampaign = useMemo(
+    () =>
+      campaignMonthsFromStacked(clientData.monthlySpendByCampaign ?? [], {
+        rangeStartISO,
+        rangeEndISO,
+      }),
+    [clientData.monthlySpendByCampaign, rangeEndISO, rangeStartISO],
+  )
+
   const allCampaigns = useMemo(
     () =>
       [
         ...clientData.liveCampaignsList.map((c) => ({ c, bucket: "live" as CampaignStatus })),
         ...clientData.planningCampaignsList.map((c) => ({ c, bucket: "planned" as CampaignStatus })),
         ...clientData.completedCampaignsList.map((c) => ({ c, bucket: "completed" as CampaignStatus })),
-      ].map(({ c, bucket }) => toDashboardCampaign(slug, campaignLinkMode, c, bucket)),
-    [campaignLinkMode, clientData.completedCampaignsList, clientData.liveCampaignsList, clientData.planningCampaignsList, slug],
+      ].map(({ c, bucket }) =>
+        toDashboardCampaign(slug, campaignLinkMode, c, bucket, monthsByCampaign.get(c.campaignName)),
+      ),
+    [campaignLinkMode, clientData.completedCampaignsList, clientData.liveCampaignsList, clientData.planningCampaignsList, monthsByCampaign, slug],
   )
 
   const statusCounts = useMemo(
@@ -188,19 +216,18 @@ export function ClientDashboardPageContent({
     [allCampaigns, filteredCampaigns, clearStatusFilter]
   )
 
-  const upcomingCampaigns = useMemo(
-    () =>
-      allCampaigns
-        .filter((campaign) => campaign.status === "planned")
-        .sort((a, b) => new Date(a.launchDate || "").getTime() - new Date(b.launchDate || "").getTime()),
-    [allCampaigns]
-  )
-
-  const totalBudget = useMemo(() => allCampaigns.reduce((sum, campaign) => sum + campaign.totalBudget, 0), [allCampaigns])
-  const totalSpent = useMemo(
-    () => allCampaigns.reduce((sum, campaign) => sum + (campaign.spentAmount ?? 0), 0),
-    [allCampaigns]
-  )
+  const upcomingCampaigns = useMemo(() => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    return allCampaigns
+      .filter((campaign) => {
+        if (campaign.status !== "planned") return false
+        if (!campaign.launchDate) return false
+        const start = new Date(campaign.launchDate)
+        return !Number.isNaN(start.getTime()) && start > today
+      })
+      .sort((a, b) => new Date(a.launchDate || "").getTime() - new Date(b.launchDate || "").getTime())
+  }, [allCampaigns])
 
   /**
    * KPI-bar self-consistency (Task 2): "Planned to date" and "Plan committed" (UI label for
@@ -210,8 +237,8 @@ export function ClientDashboardPageContent({
    * unfiltered `totalBudget`/`totalSpent` above into either KPI tile.
    */
   const { plannedToDate, plannedBudget, budgetUtilizedPct } = useMemo(
-    () => computePlannedSpendTotals(allCampaigns),
-    [allCampaigns]
+    () => computePlannedSpendTotals(allCampaigns, { rangeStartISO, rangeEndISO }),
+    [allCampaigns, rangeEndISO, rangeStartISO]
   )
 
   /**
@@ -226,7 +253,7 @@ export function ClientDashboardPageContent({
   useEffect(() => {
     let cancelled = false
     setDeliveredTotals(undefined)
-    fetch(`/api/dashboard/${encodeURIComponent(slug)}/delivered`)
+    fetch(`/api/dashboard/${encodeURIComponent(slug)}/delivered?from=${encodeURIComponent(rangeStartISO)}&to=${encodeURIComponent(rangeEndISO)}`)
       .then((res) => (res.ok ? (res.json() as Promise<DeliveredTotalsResponse>) : EMPTY_DELIVERED_TOTALS_WITH_AS_OF))
       .then((data) => {
         if (!cancelled) setDeliveredTotals(data)
@@ -237,36 +264,23 @@ export function ClientDashboardPageContent({
     return () => {
       cancelled = true
     }
-  }, [slug])
+  }, [slug, rangeStartISO, rangeEndISO])
 
   const isClientHub = campaignLinkMode === "adminHub"
   const deliveryFreshness = formatDeliveryFreshness(deliveredTotals?.asOf)
-  const { campaignsYtdCount, campaignsYtdCaption } = useMemo(() => {
-    if (!isClientHub) {
-      return { campaignsYtdCount: undefined, campaignsYtdCaption: undefined }
-    }
-    const currentYear = new Date().getFullYear()
-    const dated = allCampaigns.filter((c) => {
-      if (!c.launchDate) return false
-      return !Number.isNaN(new Date(c.launchDate).getTime())
-    })
-    const inYear = dated.filter((c) => new Date(c.launchDate!).getFullYear() === currentYear)
-    if (dated.length === 0) {
-      return {
-        campaignsYtdCount: allCampaigns.length,
-        campaignsYtdCaption: "Across live, planned & completed",
-      }
-    }
-    return {
-      campaignsYtdCount: inYear.length,
-      campaignsYtdCaption: `With start date in ${currentYear}`,
-    }
-  }, [allCampaigns, isClientHub])
+  const campaignsYtdCount = allCampaigns.length
+  const campaignsYtdCaption = "Overlapping the selected range"
+
+  const fyExactYear = exactAuFyStartYear({ rangeStartISO, rangeEndISO })
+  const rangeCaption =
+    fyExactYear != null
+      ? fyDisplayLabel(fyExactYear)
+      : `${rangeStartISO} – ${rangeEndISO}`
 
   /** Fallback when API omits `finance` (`getClientDashboardData` does not populate it yet). No fabricated quarters/transactions. */
   const financeData = {
-    totalBudget,
-    ytdSpend: totalSpent,
+    totalBudget: plannedBudget,
+    ytdSpend: plannedToDate,
     budgetByQuarter: [],
     spendByMediaType: clientData.spendByMediaType.map((m) => ({
       mediaType: m.mediaType,
@@ -308,6 +322,17 @@ export function ClientDashboardPageContent({
         className="mx-auto w-full max-w-[1800px] px-4 py-6 sm:px-6 lg:px-8 lg:py-8 xl:px-12 2xl:px-16"
       >
         <motion.section variants={sectionVariants} className="w-full">
+          <div className="mb-3 flex justify-end">
+            <Suspense fallback={null}>
+              <DateRangeSelector
+                presetSet="client"
+                campaignStart={defaultRangeStartISO}
+                campaignEnd={defaultRangeEndISO}
+                variant="minimal"
+                showPresets
+              />
+            </Suspense>
+          </div>
           {/* HeroBanner: averageRoas / performanceVsBenchmark omitted (fabricated); restore with real KPI aggregation (Domain 10). */}
           {/* totalSpend/spendLabel: "Planned to date" — same basis + campaign set as HeroKPIBar below (Task 2). */}
           <HeroBanner
@@ -340,8 +365,8 @@ export function ClientDashboardPageContent({
             liveCampaigns={statusCounts.live}
             plannedCampaigns={statusCounts.planned}
             budgetUtilized={budgetUtilizedPct}
-            campaignsYtd={isClientHub ? campaignsYtdCount : undefined}
-            campaignsYtdCaption={isClientHub ? campaignsYtdCaption : undefined}
+            campaignsYtd={campaignsYtdCount}
+            campaignsYtdCaption={campaignsYtdCaption}
             deliveredLoading={deliveredTotals === undefined}
             deliveredToDate={deliveredTotals?.spendToDate}
             deliveredHasData={deliveredTotals?.hasDelivery ?? false}
@@ -435,8 +460,8 @@ export function ClientDashboardPageContent({
               campaignData={clientData.spendByCampaign}
               mediaTypeData={clientData.spendByMediaType}
               brandColour={clientData.brandColour}
-              availableFinancialYears={clientData.availableFinancialYears}
-              selectedFinancialYear={clientData.selectedFinancialYear}
+              rangeCaption={rangeCaption}
+              isExactAuFy={fyExactYear != null}
               slug={slug}
             />
           </Suspense>

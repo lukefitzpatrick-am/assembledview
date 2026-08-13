@@ -150,7 +150,7 @@ export function ClientFinanceSlideOver({
                 </p>
               </article>
               <article className="rounded-lg bg-muted/50 p-4">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">YTD Spend</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Spend</p>
                 <p className="mt-2 text-2xl font-semibold text-foreground">
                   {formatMoneyCompact(finance.ytdSpend)}
                 </p>

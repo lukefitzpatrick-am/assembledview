@@ -54,6 +54,58 @@ export function combineDeliveredTotals(
   return { spendToDate, impressions, hasDelivery }
 }
 
+/** Both ISO dates required; otherwise the delivered query stays unbounded. */
+export function deliveredQueryWindow(
+  startDate?: string | null,
+  endDate?: string | null,
+): { startDate: string; endDate: string } | null {
+  const start = typeof startDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(startDate) ? startDate : null
+  const end = typeof endDate === "string" && /^\d{4}-\d{2}-\d{2}$/.test(endDate) ? endDate : null
+  if (!start || !end) return null
+  return start <= end ? { startDate: start, endDate: end } : { startDate: end, endDate: start }
+}
+
+/**
+ * Ranged: sum `daily[].reportedSpend` whose DATE_DAY is inside the window.
+ * Empty `daily[]` while ranged → 0 (no unbounded `totalReported` fallback).
+ * Unbounded: `totalReported`.
+ */
+export function sumDirectReportedSpendInRange(
+  group:
+    | {
+        totalReported: number
+        lineItems?: Array<{ daily?: Array<{ dateDay: string; reportedSpend: number }> }>
+      }
+    | null
+    | undefined,
+  startDate?: string | null,
+  endDate?: string | null,
+): number {
+  if (!group) return 0
+  const window = deliveredQueryWindow(startDate, endDate)
+  if (!window) {
+    return Number.isFinite(group.totalReported) ? group.totalReported : 0
+  }
+  let sum = 0
+  let sawDaily = false
+  for (const line of group.lineItems ?? []) {
+    if (!Array.isArray(line.daily) || line.daily.length === 0) continue
+    sawDaily = true
+    for (const day of line.daily) {
+      if (day.dateDay < window.startDate || day.dateDay > window.endDate) continue
+      const n = Number(day.reportedSpend)
+      if (Number.isFinite(n)) sum += n
+    }
+  }
+  return sawDaily ? sum : 0
+}
+
+/** Clamp snapshot as-of to the range end when the range ends before today. */
+export function asOfForDeliveredRange(snapshotAsOf: string, rangeEnd?: string | null): string {
+  if (!rangeEnd) return snapshotAsOf
+  return rangeEnd < snapshotAsOf ? rangeEnd : snapshotAsOf
+}
+
 /**
  * Whether a delivered figure has a *real, reported* spend to show as a dollar amount —
  * independent of `hasDelivery`, which is also `true` for impressions-only delivery (digital
