@@ -20,6 +20,7 @@ export const publisherProfiles = pgTable(
   {
     id: bigint("id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
     publisherName: text("publisher_name").notNull(),
+    publisherId: bigint("publisher_id", { mode: "number" }),
     mediaType: text("media_type").notNull(),
     active: boolean("active").notNull().default(true),
     detectSignature: jsonb("detect_signature").notNull().default({}),
@@ -43,5 +44,6 @@ export const publisherProfiles = pgTable(
     ),
     index("idx_publisher_profiles_media_type").on(table.mediaType),
     index("idx_publisher_profiles_active").on(table.active),
+    index("idx_publisher_profiles_publisher_id").on(table.publisherId),
   ],
 )

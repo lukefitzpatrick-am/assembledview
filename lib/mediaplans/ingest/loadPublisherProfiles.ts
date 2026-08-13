@@ -34,6 +34,7 @@ export async function listPublisherProfiles(): Promise<{
       const profiles = rows.map((row) =>
         parsePublisherProfile({
           publisher_name: row.publisherName,
+          publisher_id: row.publisherId ?? null,
           media_type: row.mediaType,
           active: row.active,
           detect_signature: row.detectSignature,

@@ -149,7 +149,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request)
-  if ("response" in auth && auth.response) return auth.response
+  if ("response" in auth) return auth.response
 
   try {
     const body = (await request.json()) as {

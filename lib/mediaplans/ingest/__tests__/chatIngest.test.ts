@@ -158,7 +158,7 @@ test("confirm-in-chat accept hydrates the editor card (MR-12 QMS round-trip)", a
   })
   assert.ok(card.network.trim(), "Network empty after chat accept")
   assert.ok(card.format.trim(), "Format empty after chat accept")
-  assert.equal(card.buyType, "fixed")
+  assert.equal(card.buyType, "fixed_cost")
   assert.ok(card.bursts.length > 0)
   const money = card.bursts.reduce((s, b) => s + parseBurstMoney(b.budget), 0)
   assert.ok(money > 0, `money ${money}`)

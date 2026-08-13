@@ -24,6 +24,12 @@ export function getPublisherProfileSeedOverlay(): Map<
   return seedOverlay
 }
 
+export function registerPublisherProfileOverlay(
+  profile: PublisherProfileConfig,
+) {
+  seedOverlay.set(keyOf(profile.publisher_name), profile)
+}
+
 function keyOf(name: string): string {
   return name.trim().toLowerCase()
 }
@@ -75,6 +81,7 @@ export async function persistColumnRemap(args: {
     if (rows[0]) {
       const current = parsePublisherProfile({
         publisher_name: rows[0].publisherName,
+        publisher_id: rows[0].publisherId ?? null,
         media_type: rows[0].mediaType,
         active: rows[0].active,
         detect_signature: rows[0].detectSignature,

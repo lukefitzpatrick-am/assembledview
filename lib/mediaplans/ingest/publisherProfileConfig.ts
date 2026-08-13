@@ -39,6 +39,8 @@ export type SheetRule = {
 
 export type PublisherProfileConfig = {
   publisher_name: string
+  /** Catalogue `publishers.id` (0036). Null on seed until joined. */
+  publisher_id: number | null
   media_type: string
   active: boolean
   detect_signature: Record<string, unknown>
@@ -139,6 +141,13 @@ export function parsePublisherProfile(input: unknown): PublisherProfileConfig {
     input.notes == null || input.notes === ""
       ? null
       : String(input.notes)
+  const rawPublisherId = input.publisher_id
+  const publisher_id =
+    rawPublisherId == null || rawPublisherId === ""
+      ? null
+      : Number.isFinite(Number(rawPublisherId))
+        ? Number(rawPublisherId)
+        : null
 
   const detect_signature = isObject(input.detect_signature)
     ? (input.detect_signature as Record<string, unknown>)
@@ -155,6 +164,7 @@ export function parsePublisherProfile(input: unknown): PublisherProfileConfig {
 
   return {
     publisher_name,
+    publisher_id,
     media_type,
     active: Boolean(input.active ?? true),
     detect_signature,
@@ -173,6 +183,7 @@ export function serializePublisherProfile(
 ): Record<string, unknown> {
   return {
     publisher_name: profile.publisher_name,
+    publisher_id: profile.publisher_id,
     media_type: profile.media_type,
     active: profile.active,
     detect_signature: {

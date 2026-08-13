@@ -32,6 +32,18 @@ function row(
   }
 }
 
+function listItem(
+  partial: Partial<CampaignInsightRow> & Pick<CampaignInsightRow, "id" | "body">,
+  extra?: Partial<Pick<CampaignInsightListItem, "superseded" | "clientName" | "clientSlug">>,
+): CampaignInsightListItem {
+  return {
+    ...row(partial),
+    clientName: extra?.clientName ?? null,
+    clientSlug: extra?.clientSlug ?? null,
+    superseded: extra?.superseded ?? [],
+  }
+}
+
 test("superseded insight is hidden by default and visible with the toggle", () => {
   const live = row({ id: 10, body: "Live replacement insight" })
   const old = row({
@@ -42,7 +54,7 @@ test("superseded insight is hidden by default and visible with the toggle", () =
     createdAt: "2026-07-01T00:00:00Z",
   })
   const withChildren: CampaignInsightListItem[] = [
-    { ...live, superseded: [old] },
+    listItem({ id: live.id, body: live.body }, { superseded: [old] }),
   ]
 
   const hidden = collapseSupersededForDisplay(withChildren, false)
@@ -58,9 +70,9 @@ test("superseded insight is hidden by default and visible with the toggle", () =
 
 test("campaign panel filter keeps only that MBA", () => {
   const items: CampaignInsightListItem[] = [
-    { ...row({ id: 1, body: "A", mbaNumber: "bicau001" }), superseded: [] },
-    { ...row({ id: 2, body: "B", mbaNumber: "other001" }), superseded: [] },
-    { ...row({ id: 3, body: "C", mbaNumber: "bicau001" }), superseded: [] },
+    listItem({ id: 1, body: "A", mbaNumber: "bicau001" }),
+    listItem({ id: 2, body: "B", mbaNumber: "other001" }),
+    listItem({ id: 3, body: "C", mbaNumber: "bicau001" }),
   ]
   const mba = "bicau001"
   const scoped = items.filter((i) => i.mbaNumber === mba)
@@ -70,8 +82,8 @@ test("campaign panel filter keeps only that MBA", () => {
 
 test("search match is on body content", () => {
   const items: CampaignInsightListItem[] = [
-    { ...row({ id: 1, body: "Branded search CPA improved 18% MoM." }), superseded: [] },
-    { ...row({ id: 2, body: "Meta frequency above 3.5 on core audience." }), superseded: [] },
+    listItem({ id: 1, body: "Branded search CPA improved 18% MoM." }),
+    listItem({ id: 2, body: "Meta frequency above 3.5 on core audience." }),
   ]
   const q = "search"
   const hits = items.filter((i) => i.body.toLowerCase().includes(q))
