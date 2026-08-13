@@ -3,6 +3,7 @@
  */
 import { attributeMeeting } from "./attribution.js"
 import { defaultAssembledDomainSet } from "./internalDomains.js"
+import { defaultSyncFromDate, resolveSyncLookbackDays } from "./lookback.js"
 
 export { defaultAssembledDomainSet }
 import { FirefliesClient } from "./client.js"
@@ -22,6 +23,8 @@ export type SyncInsertNote = {
   durationSeconds: number | null
   transcriptUrl: string | null
   isInternal: boolean
+  attributedType?: "client" | "publisher" | "internal" | "new_business" | null
+  publisherId?: number | null
   /** Raw Fireflies action_items text for proposal extraction. */
   actionItemsRaw: string | null
 }
@@ -71,6 +74,8 @@ export type FirefliesSyncDeps = {
     activeMemberEmails: readonly string[]
   }) => Promise<number>
   loadAttributionContext: () => Promise<AttributionContext>
+  /** First-sync lookback when cursor is null (default 60). */
+  lookbackDays?: number
   /** Optional injectable list (tests). */
   listTranscripts?: (
     fromDate: string | null
@@ -134,17 +139,20 @@ export async function runFirefliesSync(
 ): Promise<FirefliesSyncResult> {
   const cursor = await deps.loadCursor()
   const ctx = await deps.loadAttributionContext()
+  const fromDate =
+    cursor ??
+    defaultSyncFromDate(new Date(), resolveSyncLookbackDays(deps.lookbackDays))
 
   let transcripts: FirefliesTranscript[]
   try {
     if (deps.listTranscripts) {
-      transcripts = await deps.listTranscripts(cursor)
+      transcripts = await deps.listTranscripts(fromDate)
     } else {
       const client = new FirefliesClient({
         apiKey: deps.getApiKey(),
         transport: deps.transport,
       })
-      transcripts = await client.listTranscriptsSince(cursor)
+      transcripts = await client.listTranscriptsSince(fromDate)
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
@@ -184,7 +192,9 @@ export async function runFirefliesSync(
         typeof existingMeeting !== "boolean" &&
         deps.upsertTimeEntryDraftsForNote &&
         !existingMeeting.note.isInternal &&
-        existingMeeting.note.clientId != null
+        existingMeeting.note.clientId != null &&
+        (existingMeeting.note.attributedType == null ||
+          existingMeeting.note.attributedType === "client")
       ) {
         await deps.upsertTimeEntryDraftsForNote({
           noteId: existingMeeting.id,
@@ -226,6 +236,8 @@ export async function runFirefliesSync(
       durationSeconds: durationToSeconds(t.duration),
       transcriptUrl: t.transcript_url ?? null,
       isInternal: attr.isInternal,
+      attributedType: attr.kind === "unattributed" ? null : attr.kind,
+      publisherId: attr.kind === "publisher" ? attr.publisherId : null,
       actionItemsRaw: actionItemsRaw(t),
     }
 
@@ -235,7 +247,8 @@ export async function runFirefliesSync(
     if (
       deps.upsertTimeEntryDraftsForNote &&
       !note.isInternal &&
-      note.clientId != null
+      note.clientId != null &&
+      (note.attributedType == null || note.attributedType === "client")
     ) {
       await deps.upsertTimeEntryDraftsForNote({
         noteId,

@@ -49,6 +49,7 @@ test("synced action items become proposals; no task is auto-created", async () =
       ]),
       domainToClient: new Map(),
       assembledDomains: new Set(["assembledmedia.com.au"]),
+      titleClients: [],
     }),
     listTranscripts: async () => transcripts,
   })

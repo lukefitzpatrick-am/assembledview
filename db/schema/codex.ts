@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Codex v2 (migration 0013) — Postgres-native Tasks module.
  * No FKs to clients (ETL truncate-reload collision until T6).
  * CHECK constraints live in SQL only; columns are text + TS unions here.
@@ -33,6 +33,8 @@ export type CodexNoteMatchedBy =
   | "manual"
   | "title"
   | "internal"
+  | "publisher_domain"
+  | "title_rule"
 export type CodexAttributedType =
   | "client"
   | "publisher"
@@ -227,6 +229,7 @@ export const teamMembers = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
       .notNull()
       .defaultNow(),
+    emailAliases: jsonb("email_aliases").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   },
 )
 

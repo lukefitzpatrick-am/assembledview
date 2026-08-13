@@ -188,6 +188,8 @@ export const clients = pgTable(
    * Group site URL derives from the anchor's mbaidentifier via siteUrlForClient.
    */
   m365IsAnchor: boolean('m365_is_anchor').notNull().default(false),
+  /** Fireflies title-match aliases (Penfold's, BOSS, GA, …). */
+  clientNameAliases: jsonb("client_name_aliases").$type<string[]>().notNull().default(sql`'[]'::jsonb`),
   },
   (table) => [
     uniqueIndex("uq_clients_m365_anchor_mbaidentifier")

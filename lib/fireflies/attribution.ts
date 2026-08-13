@@ -1,6 +1,17 @@
 /**
- * Deterministic Fireflies attribution (title MBA → domain → internal → queue).
+ * Deterministic Fireflies attribution.
+ *
+ * CLIENT BEATS PUBLISHER — if a meeting matches both a client signal
+ * (title or client_domains) and a publisher domain, it is a client meeting.
+ *
+ * Order: client title → client domain → publisher domain → meeting_title_rules
+ * → roster-only internal → queue. MBA refines client mba_number only.
  */
+import { resolveRosterEmail } from "./rosterAliases.js"
+import {
+  matchTitleClients,
+  normaliseAttributionText,
+} from "./titleClients.js"
 import type { AttributionContext, AttributionResult } from "./types.js"
 
 /** Separators aligned with Xero matchMba tokeniser. */
@@ -58,54 +69,87 @@ function matchTitleMba(
   return null
 }
 
+function refineMba(
+  title: string,
+  clientId: number,
+  ctx: AttributionContext
+): string | null {
+  const mba = matchTitleMba(title, ctx.knownMbas)
+  if (!mba) return null
+  if (mba.clientId != null && mba.clientId === clientId) return mba.mbaNumber
+  return null
+}
+
+function isInternalOnly(
+  attendeeEmails: string[],
+  ctx: AttributionContext
+): boolean {
+  if (attendeeEmails.length === 0) return false
+  const roster = ctx.roster ?? []
+  for (const email of attendeeEmails) {
+    const domain = extractEmailDomain(email)
+    if (domain && isAssembledDomain(domain, ctx.assembledDomains)) continue
+    if (roster.length > 0 && resolveRosterEmail(email, roster)) continue
+    return false
+  }
+  return true
+}
+
+function uniqueExternalDomains(
+  attendeeEmails: string[],
+  assembled: Set<string>
+): string[] {
+  const domains = new Set<string>()
+  for (const email of attendeeEmails) {
+    const d = extractEmailDomain(email)
+    if (d) domains.add(d)
+  }
+  return [...domains].filter((d) => !isAssembledDomain(d, assembled))
+}
+
 /**
- * Attribution order: (1) title MBA (2) external attendee domain (3) all-assembled → internal (4) queue.
+ * Attribution order: (1) client name in title (2) client attendee domain
+ * (3) publisher domain (4) meeting_title_rules (5) all-internal (6) queue.
+ * MBA token refines mba_number only after a client is chosen.
  */
 export function attributeMeeting(
   input: { title: string | null | undefined; attendeeEmails: string[] },
   ctx: AttributionContext
 ): AttributionResult {
   const title = input.title ?? ""
-  const titleHit = matchTitleMba(title, ctx.knownMbas)
-  if (titleHit) {
+  const titleHits = matchTitleClients(title, ctx.titleClients ?? [])
+
+  if (titleHits.length === 1) {
+    const hit = titleHits[0]!
     return {
-      kind: "campaign",
-      mbaNumber: titleHit.mbaNumber,
-      clientId: titleHit.clientId,
+      kind: "client",
+      mbaNumber: refineMba(title, hit.clientId, ctx),
+      clientId: hit.clientId,
+      publisherId: null,
       matchedBy: "title",
       isInternal: false,
     }
   }
 
-  const domains = new Set<string>()
-  for (const email of input.attendeeEmails) {
-    const d = extractEmailDomain(email)
-    if (d) domains.add(d)
-  }
-
-  if (domains.size === 0) {
+  if (titleHits.length > 1) {
     return {
       kind: "unattributed",
       mbaNumber: null,
       clientId: null,
+      publisherId: null,
       matchedBy: null,
       isInternal: false,
+      candidates: titleHits.map((h) => ({
+        clientId: h.clientId,
+        name: h.displayName,
+      })),
     }
   }
 
-  const external = [...domains].filter(
-    (d) => !isAssembledDomain(d, ctx.assembledDomains)
+  const external = uniqueExternalDomains(
+    input.attendeeEmails,
+    ctx.assembledDomains
   )
-
-  if (external.length === 0) {
-    return {
-      kind: "internal",
-      mbaNumber: null,
-      clientId: null,
-      matchedBy: "internal",
-      isInternal: true,
-    }
-  }
 
   const clientIds = new Set<number>()
   for (const d of external) {
@@ -114,12 +158,66 @@ export function attributeMeeting(
   }
 
   if (clientIds.size === 1) {
+    const clientId = [...clientIds][0]!
     return {
       kind: "client",
-      mbaNumber: null,
-      clientId: [...clientIds][0]!,
+      mbaNumber: refineMba(title, clientId, ctx),
+      clientId,
+      publisherId: null,
       matchedBy: "domain",
       isInternal: false,
+    }
+  }
+
+  const publisherIds = new Set<number>()
+  const domainToPublisher = ctx.domainToPublisher ?? new Map()
+  for (const d of external) {
+    const pid = domainToPublisher.get(d)
+    if (pid != null) publisherIds.add(pid)
+  }
+
+  if (publisherIds.size === 1) {
+    return {
+      kind: "publisher",
+      mbaNumber: null,
+      clientId: null,
+      publisherId: [...publisherIds][0]!,
+      matchedBy: "publisher_domain",
+      isInternal: false,
+    }
+  }
+
+  const normalised = normaliseAttributionText(title)
+  const titleRule = normalised ? ctx.titleRules?.get(normalised) : undefined
+  if (titleRule === "internal") {
+    return {
+      kind: "internal",
+      mbaNumber: null,
+      clientId: null,
+      publisherId: null,
+      matchedBy: "title_rule",
+      isInternal: true,
+    }
+  }
+  if (titleRule === "new_business") {
+    return {
+      kind: "new_business",
+      mbaNumber: null,
+      clientId: null,
+      publisherId: null,
+      matchedBy: "title_rule",
+      isInternal: false,
+    }
+  }
+
+  if (isInternalOnly(input.attendeeEmails, ctx)) {
+    return {
+      kind: "internal",
+      mbaNumber: null,
+      clientId: null,
+      publisherId: null,
+      matchedBy: "internal",
+      isInternal: true,
     }
   }
 
@@ -127,8 +225,10 @@ export function attributeMeeting(
     kind: "unattributed",
     mbaNumber: null,
     clientId: null,
+    publisherId: null,
     matchedBy: null,
     isInternal: false,
+    candidates: [],
   }
 }
 

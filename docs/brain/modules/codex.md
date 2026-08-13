@@ -83,10 +83,12 @@ Middleware only authenticates; tenant/role is per-route. Writes stamp email iden
 | Table | Status | Notes |
 |---|---|---|
 | `tasks` | **Live** | Create / list / patch / soft-delete |
-| `client_notes` | **Live** (read API + Fireflies writes) | GET list; Fireflies sync inserts; unattributed assign at `/admin/fireflies-unattributed` |
-| `team_members` | **Live** | Roster CRUD |
+| `client_notes` | **Live** (read API + Fireflies writes) | GET list; Fireflies sync inserts; `attributed_type` + `publisher_id`; assign + Sync now at `/admin/fireflies-unattributed` |
+| `team_members` | **Live** | Roster CRUD; `email_aliases` jsonb for short-form addresses |
 | `codex_activity` | **Live** (writes + GET list) | Append-only from repo; `GET .../activity` reads task-scoped rows; UI formats diffs via `lib/codex/activityDiff.ts` |
-| `client_domains` | **Live** (Fireflies) | Domain→client for attribution; seeded from `clients.keyemail` / `billingemail` / `website`; learned on manual assign (MR-5) |
+| `client_domains` | **Live** (Fireflies) | Domain→client for attribution (second after title); seeded from `clients.keyemail` / `billingemail` / `website` excluding vendor domains; learned on client assign (MR-5) |
+| `publisher_domains` | **Live** (Fireflies, 0043 applied) | Domain→publisher; learned on publisher assign; never seeded; skipped if free-mail, roster, or already in `client_domains` |
+| `meeting_title_rules` | **Live** (Fireflies, 0043 applied) | Normalised title → `internal` / `new_business`; upserted on those assigns; same normalisation as client title match |
 | `task_templates` | **Live** (API + Templates tab) | Name + description; hard delete cascades items |
 | `task_template_items` | **Live** (API + Templates tab) | Ordered checklist labels; hard delete |
 | `task_checklist_items` | **Live** (API + detail UI) | Stage 1 detail — hard delete (no `deleted_at`) |
@@ -95,7 +97,7 @@ Middleware only authenticates; tenant/role is per-route. Writes stamp email iden
 | `assignment_rules` | Provisioned, unwired | Stage 5 learning — dismissals are the future training signal; do not wire yet |
 | `fireflies_sync_state` | **Live** (cron cursor) | Poll cursor + run log; `GET/POST /api/cron/fireflies-sync` |
 
-**Q23:** provisioned-but-dead Codex tables were created early **on purpose** and are to be **integrated during rollout** (Stages 1–5). Do not drop them as unused schema; do not treat empty as abandoned. Templates + template items are live; Fireflies Stage 3–4 wires `client_notes` / `client_domains` / `fireflies_sync_state` / `ava_task_proposals`. Remaining unwired: `assignment_rules`.
+**Q23:** provisioned-but-dead Codex tables were created early **on purpose** and are to be **integrated during rollout** (Stages 1–5). Do not drop them as unused schema; do not treat empty as abandoned. Templates + template items are live; Fireflies wires `client_notes` / `client_domains` / `publisher_domains` / `meeting_title_rules` / `fireflies_sync_state` / `ava_task_proposals`.
 
 No FKs from Codex `client_id` columns to `clients` until T6 (DI-12). New 0013 tables: RLS on, **no** `ava_readonly` grants (fail closed). Exception: `client_notes` was already on the AVA allowlist — see standing decision below.
 
@@ -112,12 +114,12 @@ No FKs from Codex `client_id` columns to `clients` until T6 (DI-12). New 0013 ta
 ## Key files
 
 - `lib/codex/{repo,types,flag,shadowRoles,queryHelpers,activityDiff,quickAddParse,recurringRule,runRecurring,seedTasks}.ts`
-- `lib/fireflies/{client,attribution,internalDomains,sync,runSync,assign,seedDomains,actionItems,proposals,proposalRepo,timeEntryDrafts}.ts` — Fireflies GraphQL pull + attribution + task-proposal Inbox + time-draft generation
+- `lib/fireflies/{client,attribution,internalDomains,sync,runSync,assign,assignTargets,learnableDomains,titleClients,rosterAliases,lookback,seedDomains,actionItems,proposals,proposalRepo,timeEntryDrafts}.ts` — Fireflies GraphQL pull + attribution + task-proposal Inbox + time-draft generation
 - `lib/myhours/{proposalRepo,timeEntryProposals,overlap,ensureOneStructure,client}.ts` — Team-week proposal reads, Confirm/Skip decisions, overlap/structure gates, and the sole MyHours write
 - `app/api/codex/**`, `app/api/cron/codex-recurring/route.ts`, `app/api/cron/fireflies-sync/route.ts`, `app/tasks/**`
-- `app/admin/fireflies-unattributed/**`, `app/api/admin/fireflies-unattributed/route.ts`
+- `app/admin/fireflies-unattributed/**`, `app/api/admin/fireflies-unattributed/route.ts`, `app/api/admin/fireflies-sync/route.ts`
 - `components/tasks/{TaskBoard,TaskBulkBar,TaskDetailClient,TaskFormDialog,TaskQuickAdd,TeamMemberFormDialog,TemplateFormDialog}.tsx`
-- `db/schema/{codex,myhours}.ts`, `db/migrations/0013_codex_v2.sql`, `db/migrations/0025_codex_tasks_source_profile.sql`, `db/migrations/0029_fireflies_client_notes.sql`, `db/migrations/0030_ava_proposals_mba.sql`, `db/migrations/0032_ava_time_entry_proposals.sql`
+- `db/schema/{codex,myhours,meetingAttribution}.ts`, `db/migrations/0013_codex_v2.sql`, `db/migrations/0025_codex_tasks_source_profile.sql`, `db/migrations/0029_fireflies_client_notes.sql`, `db/migrations/0030_ava_proposals_mba.sql`, `db/migrations/0032_ava_time_entry_proposals.sql`, `db/migrations/0039_fireflies_client_first.sql`, `db/migrations/0043_meeting_attribution_targets.sql`
 - Tests: `test:codex-flag-auth`, `test:codex-stage0-guarantees`, `test:codex-stage1-detail`, `test:codex-stage1-scope`, `test:codex-stage1-templates`, `test:codex-seed-tasks`, `test:fireflies`, `test:myhours`
 
 ## Campaign seed (`lib/codex/seedTasks.ts`)

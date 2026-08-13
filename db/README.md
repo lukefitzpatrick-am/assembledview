@@ -26,7 +26,7 @@
 - `0040_fireflies_auto_create.sql` — `tasks.auto_created` + `tasks.ava_auto_key` (unique-roster Fireflies auto-create; apply via Supabase SQL Editor)
 - `0041_publisher_specs.sql` — `publisher_specs` + `spec_runs` (MI specs store + explicit `publishers.id` join seed; RLS on; no ava_readonly grant). Applied (20 rows verified). civic-outdoor / tonic / ten stay `publisher_id` NULL; SCA/SEN stay ingest-only; suffix aliases join Google Ads = 3 and YouTube = 15. Do not dump `mi-library/` into `spec_json`.
 - `0042_spec_deadline_overrides.sql` — explicit manual material-deadline overrides (who / when / value). Applied. RLS on; no ava_readonly grant.
-- `0043` — reserved for CX2-9 (if/when run). Do not mint 0043 for specs/SD-2.
+- `0043_meeting_attribution_targets.sql` — `client_notes.attributed_type` + `publisher_id`; `publisher_domains`; `meeting_title_rules`. Applied (backfill 51 client / 18 internal / 28 queue; RLS on). Backfill marker `0042_attributed_type_backfill`. No ava_readonly grant. Never seed publisher domains.
 - `0044_mi_resolution.sql` — `media_plan_versions.mi_resolution` jsonb (persisted MI interview answers). Applied (column live). No ava_readonly grant. Do not mint 0043 for this.
 
 Codex tables live in `db/schema/codex.ts` and are excluded from ETL truncate-reload. `campaign_insights` lives in `db/schema/insights.ts`; OOH panel/pack detail in `db/schema/panels.ts` (`line_item_panels` + child `line_item_panel_flights`); ingest publisher config in `db/schema/publisherProfiles.ts`.

@@ -63,6 +63,7 @@ test("cursor idempotency: re-run pulls nothing new (skips existing ids)", async 
       ]),
       domainToClient: new Map<string, number>(),
       assembledDomains: new Set(["assembledmedia.com.au"]),
+      titleClients: [],
     }),
     listTranscripts: async () => {
       listCalls += 1

@@ -123,8 +123,9 @@ test("sync invokes draft upsert after inserting a client-attributed note", async
       knownMbas: new Map([
         ["foo001", { mbaNumber: "FOO001", clientId: 7 }],
       ]),
-      domainToClient: new Map(),
+      domainToClient: new Map([["example.com", 7]]),
       assembledDomains: new Set(["assembledmedia.com.au"]),
+      titleClients: [],
     }),
     listTranscripts: async () => [transcript],
   })
@@ -166,6 +167,7 @@ test("re-sync creates missing drafts for an existing client-attributed note", as
       knownMbas: new Map(),
       domainToClient: new Map(),
       assembledDomains: new Set(["assembledmedia.com.au"]),
+      titleClients: [],
     }),
     listTranscripts: async () => [
       {

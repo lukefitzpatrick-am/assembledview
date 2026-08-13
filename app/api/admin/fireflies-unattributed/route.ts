@@ -2,39 +2,144 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { requireAdmin } from "@/lib/requireRole"
 import { codexClientExists } from "@/lib/codex/clientExists"
+import { attributeMeeting } from "@/lib/fireflies/attribution"
+import type { AssignTarget } from "@/lib/fireflies/assign"
 import {
   assignFirefliesNote,
-  listUnattributedFirefliesNotes,
+  listFirefliesNotes,
+  loadAssignTargets,
+  loadAttributionContext,
+  loadLatestFirefliesSync,
+  publisherExistsForAssign,
+  type FirefliesNotesFilter,
 } from "@/lib/fireflies/runSync"
 
 export const runtime = "nodejs"
 
+const FILTERS = new Set<FirefliesNotesFilter>([
+  "unattributed",
+  "publisher",
+  "internal",
+  "new_business",
+])
+
+function parseParticipants(raw: string | null): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (Array.isArray(parsed)) return parsed.map((x) => String(x))
+  } catch {
+    /* comma-separated fallback */
+  }
+  return raw
+    .split(/[,;]/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+function parseFilter(raw: string | null): FirefliesNotesFilter {
+  if (raw && FILTERS.has(raw as FirefliesNotesFilter)) {
+    return raw as FirefliesNotesFilter
+  }
+  return "unattributed"
+}
+
+function parseAssignTarget(body: {
+  target?: unknown
+  client_id?: unknown
+  publisher_id?: unknown
+  attributed_type?: unknown
+}): AssignTarget | null {
+  const t = body.target
+  if (t && typeof t === "object") {
+    const rec = t as Record<string, unknown>
+    const type = rec.type
+    if (type === "client") {
+      const clientId = Number(rec.client_id ?? rec.clientId)
+      if (!Number.isFinite(clientId)) return null
+      return { type: "client", clientId }
+    }
+    if (type === "publisher") {
+      const publisherId = Number(rec.publisher_id ?? rec.publisherId)
+      if (!Number.isFinite(publisherId)) return null
+      return { type: "publisher", publisherId }
+    }
+    if (type === "internal") return { type: "internal" }
+    if (type === "new_business") return { type: "new_business" }
+  }
+  const attributed = body.attributed_type
+  if (attributed === "internal") return { type: "internal" }
+  if (attributed === "new_business") return { type: "new_business" }
+  if (attributed === "publisher" || body.publisher_id != null) {
+    const publisherId = Number(body.publisher_id)
+    if (!Number.isFinite(publisherId)) return null
+    return { type: "publisher", publisherId }
+  }
+  const clientId = Number(body.client_id)
+  if (!Number.isFinite(clientId)) return null
+  return { type: "client", clientId }
+}
+
 /**
- * GET — unattributed Fireflies notes (client_id null, not internal).
- * POST — { note_id, client_id } assign + learn domains (MR-5).
+ * GET — Fireflies notes by attributed_type filter (default: unattributed queue).
+ * POST — assign to client / publisher / internal / new_business.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request)
-  if ("response" in auth && auth.response) return auth.response
+  if ("response" in auth) return auth.response
 
   try {
-    const rows = await listUnattributedFirefliesNotes()
+    const filter = parseFilter(request.nextUrl.searchParams.get("filter"))
+    const [rows, ctx, lastSync, targets] = await Promise.all([
+      listFirefliesNotes(filter),
+      loadAttributionContext(),
+      loadLatestFirefliesSync(),
+      loadAssignTargets(),
+    ])
     return NextResponse.json({
-      items: rows.map((r) => ({
-        id: r.id,
-        title: r.title,
-        meeting_date: r.meetingDate,
-        participants: r.participants,
-        transcript_url: r.transcriptUrl,
-        duration_seconds: r.durationSeconds,
-        body: r.body,
-      })),
+      filter,
+      last_sync: lastSync
+        ? {
+            cursor_from: lastSync.cursorFrom,
+            meetings_seen: lastSync.meetingsSeen,
+            notes_created: lastSync.notesCreated,
+            unmatched: lastSync.unmatched,
+            status: lastSync.status,
+            run_finished_at: lastSync.runFinishedAt,
+            error: lastSync.error,
+          }
+        : null,
+      targets,
+      items: rows.map((r) => {
+        const attr = attributeMeeting(
+          {
+            title: r.title,
+            attendeeEmails: parseParticipants(r.participants),
+          },
+          ctx
+        )
+        const candidates =
+          attr.kind === "unattributed" ? attr.candidates : []
+        return {
+          id: r.id,
+          title: r.title,
+          meeting_date: r.meetingDate,
+          participants: r.participants,
+          transcript_url: r.transcriptUrl,
+          duration_seconds: r.durationSeconds,
+          body: r.body,
+          attributed_type: r.attributedType,
+          publisher_id: r.publisherId,
+          client_id: r.clientId,
+          candidate_clients: candidates,
+        }
+      }),
     })
   } catch (error) {
-    console.error("Failed to list unattributed Fireflies notes:", error)
+    console.error("Failed to list Fireflies notes:", error)
     return NextResponse.json(
       {
-        error: "Failed to list unattributed notes",
+        error: "Failed to list notes",
         message: error instanceof Error ? error.message : String(error),
       },
       { status: 500 }
@@ -49,24 +154,45 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as {
       note_id?: unknown
+      target?: unknown
       client_id?: unknown
+      publisher_id?: unknown
+      attributed_type?: unknown
     }
     const noteId = Number(body.note_id)
-    const clientId = Number(body.client_id)
-    if (!Number.isFinite(noteId) || !Number.isFinite(clientId)) {
+    const target = parseAssignTarget(body)
+    if (!Number.isFinite(noteId) || !target) {
       return NextResponse.json(
-        { error: "bad_request", message: "note_id and client_id required" },
+        {
+          error: "bad_request",
+          message: "note_id and a valid assign target required",
+        },
         { status: 400 }
       )
     }
-    if (!(await codexClientExists(clientId))) {
-      return NextResponse.json(
-        { error: "bad_request", message: "client_id does not exist" },
-        { status: 400 }
-      )
+    if (target.type === "client") {
+      if (!(await codexClientExists(target.clientId))) {
+        return NextResponse.json(
+          { error: "bad_request", message: "client_id does not exist" },
+          { status: 400 }
+        )
+      }
+    }
+    if (target.type === "publisher") {
+      if (!(await publisherExistsForAssign(target.publisherId))) {
+        return NextResponse.json(
+          { error: "bad_request", message: "publisher_id does not exist" },
+          { status: 400 }
+        )
+      }
     }
 
-    const result = await assignFirefliesNote(noteId, clientId)
+    const createdBy =
+      typeof auth.session?.user?.email === "string"
+        ? auth.session.user.email.trim().toLowerCase()
+        : null
+
+    const result = await assignFirefliesNote(noteId, target, { createdBy })
     if (!result.ok) {
       const status = result.error === "not_found" ? 404 : 400
       return NextResponse.json({ error: result.error }, { status })
