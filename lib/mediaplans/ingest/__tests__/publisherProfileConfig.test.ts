@@ -7,7 +7,9 @@ import path from "node:path"
 import test from "node:test"
 import {
   interpretGridCells,
+  isReferenceIgnoreTarget,
   parsePublisherProfile,
+  REFERENCE_IGNORE_TARGET,
   resolveLegendStatus,
   serializePublisherProfile,
   sheetIsLineItems,
@@ -25,11 +27,11 @@ function loadSeeds(): PublisherProfileConfig[] {
   return raw.map((row) => parsePublisherProfile(row))
 }
 
-test("three seeded profiles round-trip through the config layer", () => {
+test("four seeded profiles round-trip through the config layer", () => {
   const seeds = loadSeeds()
-  assert.equal(seeds.length, 3)
+  assert.equal(seeds.length, 4)
   const names = seeds.map((s) => s.publisher_name).sort()
-  assert.deepEqual(names, ["JCDecaux", "QMS", "SCA"])
+  assert.deepEqual(names, ["JCDecaux", "QMS", "SCA", "SEN"])
 
   for (const profile of seeds) {
     const again = parsePublisherProfile(serializePublisherProfile(profile))
@@ -44,10 +46,13 @@ test("three seeded profiles round-trip through the config layer", () => {
   const qms = seeds.find((s) => s.publisher_name === "QMS")!
   const sca = seeds.find((s) => s.publisher_name === "SCA")!
   const jcd = seeds.find((s) => s.publisher_name === "JCDecaux")!
+  const sen = seeds.find((s) => s.publisher_name === "SEN")!
 
   assert.equal(qms.grid_semantics, "status_matrix")
   assert.equal(sca.grid_semantics, "count")
   assert.equal(jcd.grid_semantics, "status_matrix")
+  assert.equal(sen.grid_semantics, "count")
+  assert.equal(sen.media_type, "radio")
 
   assert.equal(sheetIsLineItems(qms, "QMS_2026_Paid"), true)
   assert.equal(sheetIsLineItems(qms, "QMS_2026_Bonus"), true)
@@ -56,6 +61,8 @@ test("three seeded profiles round-trip through the config layer", () => {
   assert.equal(sheetIsLineItems(sca, "Boss Engineering"), true)
   assert.equal(sheetIsLineItems(sca, "R+F"), false)
   assert.equal(sheetIsLineItems(sca, "Reach & Frequency"), false)
+
+  assert.equal(sheetIsLineItems(sen, "OPTION 2"), true)
 })
 
 test("count vs status_matrix produce different burst outputs from the same grid", () => {
@@ -143,21 +150,53 @@ test("fixture descriptor headers: report unmapped columns", () => {
     "Production Charge",
     "Installation Charge",
   ]
-  const scaHeaders = ["Media Description", "Length", "Days", "Daypart"]
+  const scaHeaders = [
+    "Media Description",
+    "Length",
+    "Days",
+    "Daypart",
+    "Client Total",
+    "Market Rate",
+    "Market Total",
+    "Total Stations",
+    "Total Impacts",
+    "Client Rate",
+  ]
+  const sen = seeds.find((s) => s.publisher_name === "SEN")!
+  const senHeaders = [
+    "MEDIA SCHEDULE (Week commencing Monday)",
+    "ENTITLEMENT",
+    "LENGTH",
+  ]
 
   const qmsUnmapped = unmappedHeaders(qms, qmsHeaders)
   const jcdUnmapped = unmappedHeaders(jcd, jcdHeaders)
   const scaUnmapped = unmappedHeaders(sca, scaHeaders)
+  const senUnmapped = unmappedHeaders(sen, senHeaders)
 
   assert.ok(qmsUnmapped.includes("PANEL EXCLUSIVITY"))
-  assert.ok(qmsUnmapped.some((h) => h.includes("WEEKLY MARKET RATE")))
-  assert.ok(qmsUnmapped.includes("PROD"))
-  assert.ok(qmsUnmapped.includes("INSTALL"))
+  assert.ok(!qmsUnmapped.some((h) => h.includes("WEEKLY MARKET RATE")))
+  assert.ok(!qmsUnmapped.includes("PROD"))
+  assert.ok(!qmsUnmapped.includes("INSTALL"))
 
   assert.ok(jcdUnmapped.includes("Default Advertiser Share-of-Time"))
-  assert.ok(jcdUnmapped.some((h) => h.includes("Market Rate")))
-  assert.ok(jcdUnmapped.includes("Production Charge"))
-  assert.ok(jcdUnmapped.includes("Installation Charge"))
+  assert.ok(!jcdUnmapped.some((h) => h.includes("Market Rate")))
+  assert.ok(!jcdUnmapped.includes("Production Charge"))
+  assert.ok(!jcdUnmapped.includes("Installation Charge"))
 
   assert.deepEqual(scaUnmapped, [])
+  assert.equal(sca.column_map["Market Rate"], REFERENCE_IGNORE_TARGET)
+  assert.equal(sca.column_map["Market Total"], REFERENCE_IGNORE_TARGET)
+  assert.ok(isReferenceIgnoreTarget(REFERENCE_IGNORE_TARGET))
+  assert.equal(isReferenceIgnoreTarget("media_amount:stated"), false)
+  assert.deepEqual(senUnmapped, [])
+
+  const senMoneyHeaders = [
+    "Casual Value (All Markets)",
+    "Total Casual Value",
+    "Total Investment",
+    "Historica/ Preferred Rate",
+    "Preferred Investment",
+  ]
+  assert.deepEqual(unmappedHeaders(sen, senMoneyHeaders), senMoneyHeaders)
 })

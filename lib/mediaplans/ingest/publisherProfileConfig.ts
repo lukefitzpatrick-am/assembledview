@@ -7,6 +7,13 @@
 export const GRID_SEMANTICS = ["status_matrix", "count", "currency"] as const
 export type GridSemantics = (typeof GRID_SEMANTICS)[number]
 
+/** Acknowledged non-imported column — not unmapped, never sent to AVA. */
+export const REFERENCE_IGNORE_TARGET = "reference:ignore"
+
+export function isReferenceIgnoreTarget(canon: string): boolean {
+  return canon === REFERENCE_IGNORE_TARGET
+}
+
 export const BOOKING_STATUSES = [
   "paid",
   "bonus",
@@ -286,10 +293,12 @@ export function unmappedHeaders(
   headers: string[],
 ): string[] {
   const mapped = new Set(
-    Object.keys(profile.column_map).map((k) => k.trim().toLowerCase()),
+    Object.keys(profile.column_map).map((k) =>
+      k.replace(/\s+/g, " ").trim().toLowerCase(),
+    ),
   )
   return headers
-    .map((h) => h.trim())
+    .map((h) => h.replace(/\s+/g, " ").trim())
     .filter((h) => h.length > 0)
     .filter((h) => !mapped.has(h.toLowerCase()))
 }

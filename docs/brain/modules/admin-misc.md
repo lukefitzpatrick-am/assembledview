@@ -17,7 +17,7 @@
 - Access-denied UI is one shared `components/AccessDenied.tsx` (`reason`: permission / unconfigured / unauthorized). Routes `/403`, `/forbidden`, `/unauthorized` stay as thin wrappers — middleware fail-closed redirects target them; do not delete the routes.
 - Sidebar logo and breadcrumb root link to `/dashboard` (in-app landing), not marketing `/`.
 - `app/(internal)/**` (chart gallery) is gated by `app/(internal)/layout.tsx` — `notFound()` when `NODE_ENV === "production"`.
-- `publisher_profiles` (`0024` / `db/schema/publisherProfiles.ts`) holds ingest mapping as jsonb config (column_map, legend_map, sheet_rules, grid_semantics). Admin read-only UI at `/admin/publisher-profiles`. Do not put per-publisher mapping in TypeScript.
+- `publisher_profiles` (`0024` + `0033` SEN seed / `0034` money map / `0035` SCA `reference:ignore` / `db/schema/publisherProfiles.ts`) holds ingest mapping as jsonb config (column_map, legend_map, sheet_rules, grid_semantics). Seeds: QMS, SCA, JCDecaux, SEN — JSON seed and migration INSERT must agree; new publishers are INSERT not deploy. Admin read-only UI at `/admin/publisher-profiles`. Do not put per-publisher mapping in TypeScript.
 
 ## Scopes of work
 

@@ -1,9 +1,11 @@
 /**
  * Anthropic (Claude) client for the AVA assistant.
  *
- * Part of the AVA Phase 1 Claude migration. This module is intended for
- * server-side use only and is consumed exclusively by `/api/chat-v2`.
+ * Server-only. Importing this from a Client Component fails the build with a
+ * one-line `server-only` error instead of a webpack node: scheme crash.
  */
+
+import "server-only"
 
 import Anthropic from "@anthropic-ai/sdk";
 

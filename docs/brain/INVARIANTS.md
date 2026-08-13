@@ -140,6 +140,8 @@ pct === 100 → fee = 0 (division guard)
 ## AVA law
 
 - `/api/chat-v2` only; admin-only (401 unauth / 403 non-admin); `AVA_ENGINE=off` kill switch; missing `ANTHROPIC_API_KEY` → 503.
+- `lib/ava/anthropic.ts` is `server-only`. Client Components must not import it (or any module that constructs the Anthropic SDK). Ingest mapping suggestions go through `POST /api/admin/ingest/ava-mapping`.
+- Ingest `column_map` target `reference:ignore` is acknowledged, not unmapped: shown as “reference — ignored”, excluded from the AVA mapping gate, never imported as money or panel descriptors. SEN money columns stay unmapped until rates are mapped for real.
 - Form changes via the `apply_form_patch` tool only — no JSON-in-prose contract.
 - Tools enforce scope internally from session roles/slugs/MBAs.
 - `attachments` and `questions` are display-only — never write them back into Anthropic message history.

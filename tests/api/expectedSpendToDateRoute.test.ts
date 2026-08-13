@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
+import { NextRequest } from "next/server"
 
 import { GET } from "@/app/api/mediaplans/mba/[mba_number]/expected-spend-to-date/route"
 
@@ -12,7 +13,7 @@ test("expected-spend-to-date rejects invalid MBA before fetch", async () => {
   }) as typeof fetch
 
   try {
-    const request = new Request(
+    const request = new NextRequest(
       "http://localhost:3000/api/mediaplans/mba/evil%40host/expected-spend-to-date"
     )
     const response = await GET(request, {

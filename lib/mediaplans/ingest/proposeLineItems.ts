@@ -5,7 +5,14 @@
 
 import type { DetectedSheetShape } from "@/lib/mediaplans/ingest/detectShape"
 import {
+  DERIVED_WARNING_PCT,
+  evaluateReconciliationGate,
+  isMoneyTarget,
+  parseMoneyCell,
+} from "@/lib/mediaplans/ingest/moneyTargets"
+import {
   interpretGridCell,
+  isReferenceIgnoreTarget,
   type BookingStatus,
   type PublisherProfileConfig,
 } from "@/lib/mediaplans/ingest/publisherProfileConfig"
@@ -43,6 +50,11 @@ export type ProposedLineItem = {
   grouping: Record<string, string>
   panels: ProposedPanel[]
   bursts: ProposedBurst[]
+  /** One-off charges seen on source rows — not imported into media. */
+  charges_detected?: {
+    production: number
+    installation: number
+  }
 }
 
 export type IngestReconciliation = {
@@ -51,6 +63,18 @@ export type IngestReconciliation = {
   burst_count: number
   total_media_amount: number
   file_stated_total: number | null
+  /** Absolute |computed − stated|; null when no stated total. */
+  delta: number | null
+  /** Relative delta; null when no stated total. */
+  delta_pct: number | null
+  /** True when Accept is allowed (file-total gate). */
+  accept_ok: boolean
+  /** Human reason when Accept is blocked. */
+  block_reason: string | null
+  /** Non-blocking warnings (derived vs stated, charges not imported, …). */
+  warnings: string[]
+  /** Σ production + installation seen; never silently dropped. */
+  charges_detected_total: number
 }
 
 export type IngestProposal = {
@@ -62,6 +86,14 @@ export type IngestProposal = {
 }
 
 type RowContext = Record<string, string>
+
+type RowMoney = {
+  stated: number | null
+  weeklyRate: number | null
+  lunarRate: number | null
+  production: number | null
+  installation: number | null
+}
 
 function headerKey(h: string): string {
   return h.replace(/\s+/g, " ").trim().toLowerCase()
@@ -86,6 +118,61 @@ function buildHeaderLookup(
     if (canon) mapped.set(d.col, canon)
   }
   return { mapped, headersByCol }
+}
+
+function readRowMoney(
+  profile: PublisherProfileConfig,
+  shape: DetectedSheetShape,
+  row: number,
+): RowMoney {
+  const { mapped } = buildHeaderLookup(profile, shape)
+  const out: RowMoney = {
+    stated: null,
+    weeklyRate: null,
+    lunarRate: null,
+    production: null,
+    installation: null,
+  }
+  for (const d of shape.descriptor_columns) {
+    const canon = mapped.get(d.col)
+    if (!canon || !isMoneyTarget(canon)) continue
+    const n = parseMoneyCell(shape.matrix[row]?.[d.col] ?? "")
+    if (n == null) continue
+    if (canon === "media_amount:stated") out.stated = n
+    else if (canon === "media_rate:weekly") out.weeklyRate = n
+    else if (canon === "media_rate:lunar") out.lunarRate = n
+    else if (canon === "charge:production") out.production = n
+    else if (canon === "charge:installation") out.installation = n
+  }
+  return out
+}
+
+function countPaidWeeks(
+  profile: PublisherProfileConfig,
+  shape: DetectedSheetShape,
+  row: number,
+): number {
+  let n = 0
+  for (const g of shape.grid_columns) {
+    const raw = shape.matrix[row]?.[g.col] ?? ""
+    const it = interpretGridCell(profile, raw)
+    if (profile.grid_semantics === "count") {
+      if (it.quantity != null && it.quantity > 0) n++
+    } else if (it.booking_status === "paid") {
+      n++
+    }
+  }
+  return n
+}
+
+function derivedMediaForRow(
+  money: RowMoney,
+  paidWeeks: number,
+): number | null {
+  if (paidWeeks <= 0) return null
+  if (money.weeklyRate != null) return money.weeklyRate * paidWeeks
+  if (money.lunarRate != null) return (money.lunarRate / 4) * paidWeeks
+  return null
 }
 
 /**
@@ -129,7 +216,6 @@ function applyGroupingRow(
     const canon = mapped.get(p.col)
     if (canon && CONTEXT_CANON.has(canon)) {
       next[canon] = p.text
-      // Also alias format ← publisher_format_name when grouping key is format
       if (canon === "publisher_format_name" && !next.format) {
         next.format = p.text
       }
@@ -144,7 +230,10 @@ function applyGroupingRow(
   )
   const fields =
     contextKeys.length > 0
-      ? contextKeys.filter((k) => CONTEXT_CANON.has(k) || !Object.values(profile.column_map).includes(k))
+      ? contextKeys.filter(
+          (k) =>
+            CONTEXT_CANON.has(k) || !Object.values(profile.column_map).includes(k),
+        )
       : stackFields
   const useFields = fields.length > 0 ? fields : stackFields
   if (useFields.length === 0) {
@@ -152,10 +241,8 @@ function applyGroupingRow(
     return next
   }
 
-  // Nesting: first unset context key gets this value; if all set, replace last.
   let idx = useFields.findIndex((f) => !next[f])
   if (idx < 0) idx = useFields.length - 1
-  // City/market resets (short single token after format was set): jump to market slot
   if (
     useFields.includes("market") &&
     next.format &&
@@ -185,13 +272,13 @@ function rowToPanel(
     if (!raw) continue
     const canon = mapped.get(d.col)
     if (canon) {
+      // Money and reference:ignore never land on panels (schema / ignore rule).
+      if (isMoneyTarget(canon) || isReferenceIgnoreTarget(canon)) continue
       descriptors[canon] = raw
     } else {
       raw_unmapped[headersByCol.get(d.col) ?? `col_${d.col}`] = raw
     }
   }
-
-  // Also capture any non-descriptor columns left of grid that had values? stick to descriptor block.
 
   const panel: ProposedPanel = {
     descriptors: { ...descriptors },
@@ -209,6 +296,7 @@ type StatusRun = {
   startColIdx: number
   endColIdx: number
   length: number
+  quantitySum: number
 }
 
 /**
@@ -234,6 +322,7 @@ function buildStatusRunsForRow(
         startColIdx: i,
         endColIdx: i,
         length: 1,
+        quantitySum: interpreted.quantity,
       })
     }
     return runs
@@ -266,37 +355,107 @@ function buildStatusRunsForRow(
       current.endColIdx = i
       current.length++
     } else {
-      current = { status, startColIdx: i, endColIdx: i, length: 1 }
+      current = {
+        status,
+        startColIdx: i,
+        endColIdx: i,
+        length: 1,
+        quantitySum: 0,
+      }
       runs.push(current)
     }
   }
   return runs
 }
 
-function buildBurstsForRow(
+function allocateMediaToBursts(
+  runs: StatusRun[],
   profile: PublisherProfileConfig,
   shape: DetectedSheetShape,
-  row: number,
+  authoritativeMedia: number,
 ): ProposedBurst[] {
-  return buildStatusRunsForRow(profile, shape, row).map((run) => {
+  const paidRuns = runs.filter((r) => r.status === "paid")
+  const weightTotal =
+    profile.grid_semantics === "count"
+      ? paidRuns.reduce((s, r) => s + r.quantitySum, 0)
+      : paidRuns.reduce((s, r) => s + r.length, 0)
+
+  let allocated = 0
+  const out: ProposedBurst[] = []
+  let paidIndex = 0
+
+  for (const run of runs) {
     const startG = shape.grid_columns[run.startColIdx]!
     const endG = shape.grid_columns[run.endColIdx]!
     const isBonus =
       run.status === "bonus" || run.status === "bonus_display"
-    return {
+    let media_amount = 0
+    if (
+      !isBonus &&
+      run.status === "paid" &&
+      authoritativeMedia > 0 &&
+      weightTotal > 0
+    ) {
+      paidIndex++
+      const weight =
+        profile.grid_semantics === "count" ? run.quantitySum : run.length
+      if (paidIndex === paidRuns.length) {
+        media_amount = Math.round((authoritativeMedia - allocated) * 100) / 100
+      } else {
+        media_amount =
+          Math.round(((authoritativeMedia * weight) / weightTotal) * 100) / 100
+        allocated += media_amount
+      }
+    }
+    out.push({
       start_date: startG.start_date,
       end_date: endG.end_date ?? endG.start_date,
       quantity:
-        profile.grid_semantics === "count"
-          ? (() => {
-              const raw = shape.matrix[row]?.[startG.col] ?? ""
-              return interpretGridCell(profile, raw).quantity ?? run.length
-            })()
-          : run.length,
-      media_amount: isBonus ? 0 : 0, // rates unmapped on purpose — paid amount filled later
+        profile.grid_semantics === "count" ? run.quantitySum : run.length,
+      media_amount,
       booking_status: run.status,
+    })
+  }
+  return out
+}
+
+function buildBurstsForRow(
+  profile: PublisherProfileConfig,
+  shape: DetectedSheetShape,
+  row: number,
+  money: RowMoney = {
+    stated: null,
+    weeklyRate: null,
+    lunarRate: null,
+    production: null,
+    installation: null,
+  },
+  warnings: string[] = [],
+): ProposedBurst[] {
+  const runs = buildStatusRunsForRow(profile, shape, row)
+  const paidWeeks = countPaidWeeks(profile, shape, row)
+  const derived = derivedMediaForRow(money, paidWeeks)
+
+  // Stated line total wins when present; otherwise derived rate×period.
+  let authoritative = 0
+  if (money.stated != null && money.stated > 0 && paidWeeks > 0) {
+    authoritative = money.stated
+    if (
+      derived != null &&
+      derived > 0 &&
+      Math.abs(derived - money.stated) / money.stated > DERIVED_WARNING_PCT
+    ) {
+      const pct =
+        (Math.abs(derived - money.stated) / money.stated) * 100
+      warnings.push(
+        `${shape.sheet_name}!r${row}: derived $${derived.toFixed(2)} diverges from stated $${money.stated.toFixed(2)} by ${pct.toFixed(1)}% (cross-check only)`,
+      )
     }
-  })
+  } else if (derived != null && derived > 0) {
+    authoritative = derived
+  }
+
+  return allocateMediaToBursts(runs, profile, shape, authoritative)
 }
 
 /** Flights require resolved period dates (MR-7); unresolved runs are skipped. */
@@ -347,11 +506,16 @@ export function proposeLineItemsFromSheet(
 
   let ctx: RowContext = {}
   const groupingSet = new Set(shape.grouping_rows)
+  const warnings: string[] = []
+  let statedPaidSum = 0
+  let charges_detected_total = 0
 
   type Acc = {
     grouping: Record<string, string>
     panels: ProposedPanel[]
     bursts: ProposedBurst[]
+    production: number
+    installation: number
   }
   const groups = new Map<string, Acc>()
 
@@ -368,6 +532,7 @@ export function proposeLineItemsFromSheet(
     }
     if (!shape.data_rows.includes(row)) continue
 
+    const money = readRowMoney(profile, shape, row)
     const { panel, descriptors } = rowToPanel(profile, shape, row, ctx)
     panel.flights = buildFlightsForRow(profile, shape, row)
     panel.grid_period_count = shape.grid_columns.length
@@ -383,20 +548,33 @@ export function proposeLineItemsFromSheet(
 
     let acc = groups.get(gk)
     if (!acc) {
-      acc = { grouping, panels: [], bursts: [] }
+      acc = {
+        grouping,
+        panels: [],
+        bursts: [],
+        production: 0,
+        installation: 0,
+      }
       groups.set(gk, acc)
     }
     acc.panels.push(panel)
 
-    // Bursts: merge per line item — union runs from each panel's grid.
-    // For OOH large-format (1 panel : 1 line often still grouped), take bursts
-    // from each panel and append (same periods may duplicate — prefer first panel's
-    // non-empty runs, then add unique). Simplest correct rule: if one panel per
-    // group typically many panels share the same flight; use MAX presence per
-    // period across panels for status, SUM for count.
-    const rowBursts = buildBurstsForRow(profile, shape, row)
+    if (money.production != null && money.production > 0) {
+      acc.production += money.production
+      charges_detected_total += money.production
+    }
+    if (money.installation != null && money.installation > 0) {
+      acc.installation += money.installation
+      charges_detected_total += money.installation
+    }
+
+    const paidWeeks = countPaidWeeks(profile, shape, row)
+    if (money.stated != null && money.stated > 0 && paidWeeks > 0) {
+      statedPaidSum += money.stated
+    }
+
+    const rowBursts = buildBurstsForRow(profile, shape, row, money, warnings)
     if (profile.grid_semantics === "count") {
-      // Sum quantities into existing period buckets
       for (const b of rowBursts) {
         const existing = acc.bursts.find(
           (x) =>
@@ -404,28 +582,59 @@ export function proposeLineItemsFromSheet(
             x.end_date === b.end_date &&
             x.booking_status === b.booking_status,
         )
-        if (existing) existing.quantity += b.quantity
-        else acc.bursts.push({ ...b })
+        if (existing) {
+          existing.quantity += b.quantity
+          existing.media_amount =
+            Math.round((existing.media_amount + b.media_amount) * 100) / 100
+        } else {
+          acc.bursts.push({ ...b })
+        }
       }
     } else {
-      // status_matrix: keep per-panel runs as separate bursts on the line
-      // (flight may differ by panel). Append all.
       for (const b of rowBursts) acc.bursts.push({ ...b })
     }
   }
 
-  const line_items: ProposedLineItem[] = [...groups.values()].map((g) => ({
-    grouping: g.grouping,
-    panels: g.panels,
-    bursts: g.bursts,
-  }))
+  const line_items: ProposedLineItem[] = [...groups.values()].map((g) => {
+    const item: ProposedLineItem = {
+      grouping: g.grouping,
+      panels: g.panels,
+      bursts: g.bursts,
+    }
+    if (g.production > 0 || g.installation > 0) {
+      item.charges_detected = {
+        production: g.production,
+        installation: g.installation,
+      }
+    }
+    return item
+  })
 
   const panel_count = line_items.reduce((n, li) => n + li.panels.length, 0)
   const burst_count = line_items.reduce((n, li) => n + li.bursts.length, 0)
-  const total_media_amount = line_items.reduce(
-    (n, li) => n + li.bursts.reduce((m, b) => m + b.media_amount, 0),
-    0,
-  )
+  const total_media_amount =
+    Math.round(
+      line_items.reduce(
+        (n, li) => n + li.bursts.reduce((m, b) => m + b.media_amount, 0),
+        0,
+      ) * 100,
+    ) / 100
+
+  // Stated line Σ is the Accept gate target when the file carries line totals
+  // (SCA Client Total, JCD MEDIA VALUE). Otherwise fall back to scrape.
+  const file_stated_total =
+    statedPaidSum > 0 ? statedPaidSum : shape.file_stated_total
+
+  if (charges_detected_total > 0) {
+    warnings.push(
+      `Charges detected, not imported: $${charges_detected_total.toFixed(2)} (production/installation)`,
+    )
+  }
+
+  const gate = evaluateReconciliationGate({
+    total_media_amount,
+    file_stated_total,
+  })
 
   const proposal: IngestProposal = {
     publisher_name: profile.publisher_name,
@@ -437,11 +646,16 @@ export function proposeLineItemsFromSheet(
       panel_count,
       burst_count,
       total_media_amount,
-      file_stated_total: shape.file_stated_total,
+      file_stated_total,
+      delta: gate.delta,
+      delta_pct: gate.delta_pct,
+      accept_ok: gate.ok,
+      block_reason: gate.reason,
+      warnings,
+      charges_detected_total,
     },
   }
 
-  // Hard guarantee: never mint / carry line_item_id
   assertNoLineItemId(proposal)
   return proposal
 }

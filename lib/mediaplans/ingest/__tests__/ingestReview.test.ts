@@ -63,6 +63,65 @@ test("SCA v2 ignored summary non-empty (R+F / related sheets)", async () => {
   assert.ok(review.ignored.spoken.length > 0)
 })
 
+test("SCA review: Market Rate / Market Total are reference-ignored, not unmapped", async () => {
+  const profiles = loadSeedPublisherProfiles()
+  const review = await buildIngestReviewFromFile(
+    path.join(FIX, "sca_boss-engineering_fy26_v2-rev.xlsx"),
+    profiles,
+    { skipAva: true },
+  )
+  const market = review.column_mapping.filter((c) =>
+    /^Market (Rate|Total)$/i.test(c.header),
+  )
+  assert.ok(market.length >= 2, `expected Market Rate/Total rows, got ${JSON.stringify(review.column_mapping)}`)
+  for (const row of market) {
+    assert.equal(row.mapped_to, "reference:ignore")
+    assert.equal(row.unmapped, false)
+  }
+  assert.ok(
+    !review.ignored.columns_unmapped.some((h) => /market (rate|total)/i.test(h)),
+  )
+  assert.ok(
+    !review.unmapped_column_samples.some((c) =>
+      /market (rate|total)/i.test(c.header),
+    ),
+  )
+})
+
+test("SEN review: detect → propose → review; descriptors mapped; stated total", async () => {
+  const profiles = loadSeedPublisherProfiles()
+  const review = await buildIngestReviewFromFile(
+    path.join(FIX, "sen_boss-engineering_fy26.xlsx"),
+    profiles,
+    { skipAva: true },
+  )
+  assert.equal(review.detected_publisher, "SEN")
+  assert.ok(review.publisher_confidence > 0)
+  assert.ok(review.proposal)
+  assert.equal(review.proposal!.reconciliation.file_stated_total, 120000)
+  assert.ok(review.proposal!.reconciliation.line_item_count >= 1)
+  assert.ok(review.proposal!.reconciliation.burst_count >= 1)
+  const mapped = review.column_mapping.filter((c) => !c.unmapped)
+  assert.ok(
+    mapped.length >= 3,
+    `expected station/entitlement/length mapped, got ${JSON.stringify(review.column_mapping)}`,
+  )
+  const sampleKeys = review.unmapped_column_samples.map((c) =>
+    c.header.replace(/\s+/g, " ").trim().toLowerCase(),
+  )
+  assert.equal(
+    sampleKeys.length,
+    new Set(sampleKeys).size,
+    `duplicate SEN unmapped samples: ${sampleKeys.join("|")}`,
+  )
+  assert.ok(
+    review.unmapped_column_samples.some((c) => /total investment/i.test(c.header)),
+    "SEN money columns stay unmapped until rates are mapped",
+  )
+  assert.equal(review.ava_call_count, 0)
+  assert.deepEqual(review.ava_mapping_proposals, [])
+})
+
 test("accepting QMS creates expected line items and panel count via save path", async () => {
   const profiles = loadSeedPublisherProfiles()
   const review = await buildIngestReviewFromFile(
@@ -202,6 +261,12 @@ test("stampProposalForSave never leaves empty lineItemId; preserves raw_unmapped
       burst_count: 1,
       total_media_amount: 0,
       file_stated_total: null,
+      delta: null,
+      delta_pct: null,
+      accept_ok: true,
+      block_reason: null,
+      warnings: [],
+      charges_detected_total: 0,
     },
   }
   const { lineItems, panels } = stampProposalForSave(proposal, "stamp001")

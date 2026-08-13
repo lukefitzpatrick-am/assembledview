@@ -50,7 +50,14 @@ const fetchChannelLineItemsForMbaGetMock = mock.fn(
     { line_item_id: `${mbaNumber}SM1`, mba_number: mbaNumber },
   ]
 )
-const getSearchPacingDataMock = mock.fn(async () => ({
+const getSearchPacingDataMock = mock.fn(
+  async (_opts?: {
+    lineItemIds: string[]
+    startDate?: string
+    endDate?: string
+    requestId?: string
+    signal?: AbortSignal
+  }) => ({
   totals: { cost: 1, clicks: 0, conversions: 0, revenue: 0, impressions: 0, topImpressionPct: null },
   daily: [],
   lineItems: [{ lineItemId: "hema001SE1", lineItemName: null, totals: { cost: 1, clicks: 0, conversions: 0, revenue: 0, impressions: 0, topImpressionPct: null }, daily: [] }],

@@ -9,9 +9,12 @@ import {
 } from "@/lib/mediaplans/ingest/detectShape"
 import { pickBestProfile } from "@/lib/mediaplans/ingest/matchProfile"
 import {
+  buildUnmappedColumnSamples,
+  dedupeUnmappedColumnSamples,
   runAvaColumnMappingProposals,
   type AvaColumnMappingProposal,
   type AvaMappingClient,
+  type UnmappedColumnSample,
 } from "@/lib/mediaplans/ingest/avaColumnMapping"
 import {
   proposeLineItemsFromSheet,
@@ -28,7 +31,12 @@ export type ColumnMappingRow = {
   mapped_to: string | null
   /** true when not in profile.column_map */
   unmapped: boolean
+  /** Sheet this header was observed on (review UI key disambiguation). */
+  sheetName?: string | null
 }
+
+/** Stable React key: sheet + header, with index as a backstop for repeats. */
+export { ingestMappingRowKey } from "@/lib/mediaplans/ingest/avaColumnMapping"
 
 export type IgnoredSummary = {
   sheets_skipped: string[]
@@ -39,7 +47,7 @@ export type IgnoredSummary = {
 }
 
 export type BuildIngestReviewOptions = {
-  /** Injectable AVA mapping client (tests). Omit → live Anthropic when gated. */
+  /** Injectable AVA mapping client (tests). Omit → no live Anthropic (API route owns that). */
   avaMappingClient?: AvaMappingClient | null
   /** When true, skip AVA entirely (deterministic-only review). */
   skipAva?: boolean
@@ -62,6 +70,8 @@ export type IngestReviewPackage = {
   ava_mapping_proposals: AvaColumnMappingProposal[]
   /** Anthropic invocations for this review (0 when confidence ≥ 90%). */
   ava_call_count: number
+  /** Unmapped headers + sample cells for POST /api/admin/ingest/ava-mapping. */
+  unmapped_column_samples: UnmappedColumnSample[]
   /** All sheet shapes for debugging / multi-sheet accept later. */
   sheets: Array<{
     sheet_name: string
@@ -88,6 +98,7 @@ function buildColumnMapping(
       header: d.header,
       mapped_to,
       unmapped: mapped_to == null,
+      sheetName: shape.sheet_name,
     }
   })
 }
@@ -116,6 +127,8 @@ export function buildIgnoredSummary(args: {
   profile: PublisherProfileConfig | null
   primary: DetectedSheetShape | null
   column_mapping: ColumnMappingRow[]
+  /** Unique unmapped headers (already deduped). Overrides column_mapping when set. */
+  columns_unmapped?: string[]
 }): IgnoredSummary {
   const { allShapes, profile, primary, column_mapping } = args
   const sheets_skipped: string[] = []
@@ -133,9 +146,13 @@ export function buildIgnoredSummary(args: {
     }
   }
 
-  const columns_unmapped = column_mapping
-    .filter((c) => c.unmapped)
-    .map((c) => c.header)
+  const columns_unmapped =
+    args.columns_unmapped ??
+    dedupeUnmappedColumnSamples(
+      column_mapping
+        .filter((c) => c.unmapped)
+        .map((c) => ({ header: c.header, sample_values: [] })),
+    ).map((c) => c.header)
 
   const rows_unparsed = primary ? countUnparsedRows(primary) : 0
 
@@ -209,25 +226,33 @@ export async function buildIngestReviewFromBuffer(
   const proposal =
     primary && profile ? proposeLineItemsFromSheet(primary, profile) : null
 
+  const lineShapes =
+    profile != null
+      ? allShapes.filter((s) => sheetIsLineItems(profile, s.sheet_name))
+      : []
+  const sampleShapes =
+    lineShapes.length > 0 ? lineShapes : primary ? [primary] : []
+
+  const rawSamples: UnmappedColumnSample[] = []
+  if (profile) {
+    for (const shape of sampleShapes) {
+      const um = unmappedHeaders(
+        profile,
+        shape.descriptor_columns.map((d) => d.header),
+      )
+      rawSamples.push(...buildUnmappedColumnSamples(shape, um))
+    }
+  }
+  const unmapped_column_samples =
+    dedupeUnmappedColumnSamples(rawSamples)
+
   const ignored = buildIgnoredSummary({
     allShapes,
     profile,
     primary,
     column_mapping,
+    columns_unmapped: unmapped_column_samples.map((c) => c.header),
   })
-
-  // Also surface unmapped via helper for consistency
-  if (primary && profile) {
-    const um = unmappedHeaders(
-      profile,
-      primary.descriptor_columns.map((d) => d.header),
-    )
-    for (const h of um) {
-      if (!ignored.columns_unmapped.includes(h)) {
-        ignored.columns_unmapped.push(h)
-      }
-    }
-  }
 
   const sheets = allShapes.map((s) => {
     const is_line_items = profile
@@ -250,9 +275,9 @@ export async function buildIngestReviewFromBuffer(
     const ava = await runAvaColumnMappingProposals({
       publisherName: profile?.publisher_name ?? null,
       publisherConfidence: publisher_confidence,
-      unmappedHeaders: ignored.columns_unmapped,
-      shape: primary,
-      client: options.avaMappingClient,
+      unmappedHeaders: unmapped_column_samples.map((c) => c.header),
+      columns: unmapped_column_samples,
+      client: options.avaMappingClient ?? null,
     })
     ava_mapping_proposals = ava.proposals
     ava_call_count = ava.ava_call_count
@@ -269,6 +294,7 @@ export async function buildIngestReviewFromBuffer(
     ignored,
     ava_mapping_proposals,
     ava_call_count,
+    unmapped_column_samples,
     sheets,
   }
 }

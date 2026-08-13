@@ -9,6 +9,9 @@
 - `0022_campaign_insights_ava_readonly.sql` — GRANT SELECT on campaign_insights to ava_readonly
 - `0023_line_item_panels.sql` — OOH panel/pack detail rows
 - `0024_publisher_profiles.sql` — ingest publisher mapping config (jsonb rows, not code)
+- `0033_publisher_profiles_sen.sql` — seed SEN radio profile (ON CONFLICT publisher_name)
+- `0034_publisher_profiles_money_map.sql` — typed money `column_map` targets (QMS/SCA/JCDecaux; not SEN rates)
+- `0035_publisher_profiles_reference_ignore.sql` — SCA Market Rate / Market Total / Total Stations / Total Impacts / Client Rate → `reference:ignore`
 - `0025_codex_tasks_source_profile.sql` — tasks.source allows `profile:<name>` seed keys
 - `0026_enable_rls_public_tables.sql` — enable RLS on migration_markers / campaign_insights / line_item_panels / publisher_profiles + ava_readonly SELECT policy — applied 12 Aug via Supabase MCP, do not re-apply
 - `0027_line_item_panel_flights.sql` — per-period panel presence (no money columns)

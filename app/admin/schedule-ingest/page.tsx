@@ -1,13 +1,63 @@
 "use client"
 
-import { Suspense, useCallback, useState } from "react"
+import { Suspense, useCallback, useState, type Dispatch, type SetStateAction } from "react"
 import { AdminGuard } from "@/components/guards/AdminGuard"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { IngestReviewScreen } from "@/components/ingest/IngestReviewScreen"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
+import {
+  shouldCallAvaForMappings,
+  type AvaColumnMappingProposal,
+} from "@/lib/mediaplans/ingest/avaColumnMapping"
 import { getRouteByExactPath } from "@/lib/nav/routeManifest"
 import { LoadingState } from "@/components/ui/states"
+
+async function loadAvaMappingSuggestions(
+  review: IngestReviewPackage,
+  setReview: Dispatch<SetStateAction<IngestReviewPackage | null>>,
+  setError: Dispatch<SetStateAction<string | null>>,
+) {
+  const columns = review.unmapped_column_samples ?? []
+  const unmappedHeaders = columns.map((c) => c.header)
+  if (
+    !shouldCallAvaForMappings({
+      publisherConfidence: review.publisher_confidence,
+      unmappedHeaders,
+    })
+  ) {
+    return
+  }
+  try {
+    const res = await fetch("/api/admin/ingest/ava-mapping", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        publisherName: review.detected_publisher,
+        publisherConfidence: review.publisher_confidence,
+        columns,
+      }),
+    })
+    const json = (await res.json()) as {
+      proposals?: AvaColumnMappingProposal[]
+      ava_call_count?: number
+      error?: string
+    }
+    if (!res.ok) {
+      throw new Error(json.error || `HTTP ${res.status}`)
+    }
+    setReview((prev) => {
+      if (!prev) return prev
+      return {
+        ...prev,
+        ava_mapping_proposals: json.proposals ?? [],
+        ava_call_count: json.ava_call_count ?? 0,
+      }
+    })
+  } catch (e) {
+    setError(e instanceof Error ? e.message : "AVA mapping failed")
+  }
+}
 
 function ScheduleIngestPageInner() {
   const pageLabel =
@@ -42,6 +92,7 @@ function ScheduleIngestPageInner() {
         throw new Error(json.error || `HTTP ${res.status}`)
       }
       setReview(json.review)
+      void loadAvaMappingSuggestions(json.review, setReview, setError)
     } catch (e) {
       setReview(null)
       setError(e instanceof Error ? e.message : "Upload failed")
@@ -78,6 +129,7 @@ function ScheduleIngestPageInner() {
                     header: c.header,
                     mapped_to: mappedTo,
                     unmapped: mappedTo == null,
+                    sheetName: c.sheetName,
                   }
                 : c,
             ),
@@ -164,16 +216,25 @@ function ScheduleIngestPageInner() {
 
   if (review) {
     return (
-      <IngestReviewScreen
-        review={review}
-        onRemap={onRemap}
-        onAcceptAvaProposal={onAcceptAvaProposal}
-        onAccept={onAccept}
-        onCancel={onCancel}
-        accepting={accepting}
-        remapping={remapping}
-        campaignHint={`Target MBA ${mbaNumber || "?"} · master ${masterId || "?"} · v${versionNumber || "1"}`}
-      />
+      <>
+        {error ? (
+          <div className="mx-auto w-full max-w-[1200px] px-6 pt-6">
+            <div className="rounded-card border border-border bg-card px-4 py-3 text-sm text-status-critical-fg shadow-e1">
+              {error}
+            </div>
+          </div>
+        ) : null}
+        <IngestReviewScreen
+          review={review}
+          onRemap={onRemap}
+          onAcceptAvaProposal={onAcceptAvaProposal}
+          onAccept={onAccept}
+          onCancel={onCancel}
+          accepting={accepting}
+          remapping={remapping}
+          campaignHint={`Target MBA ${mbaNumber || "?"} · master ${masterId || "?"} · v${versionNumber || "1"}`}
+        />
+      </>
     )
   }
 

@@ -156,6 +156,33 @@ test("JCDecaux fixture: proposal without line_item_id + reconciliation", async (
   console.log("JCD reconciliation", JSON.stringify(proposal.reconciliation))
 })
 
+test("SEN fixture: spot-count bursts; stated total present; no line_item_id", async () => {
+  const sen = loadProfile("SEN")
+  assert.equal(sen.grid_semantics, "count")
+  const shapes = await detectWorkbookShapesFromFile(
+    path.join(FIX, "sen_boss-engineering_fy26.xlsx"),
+  )
+  const sheet = shapes.find((s) => /OPTION 2/i.test(s.sheet_name))
+  assert.ok(sheet, "OPTION 2 sheet")
+  assert.ok(sheet!.grid_columns.length >= 50, "weekly flight grid")
+  assert.equal(sheet!.file_stated_total, 120000)
+
+  const proposal = proposeLineItemsFromSheet(sheet!, sen)
+  assertNoLineItemId(proposal)
+  assert.equal(proposal.publisher_name, "SEN")
+  assert.equal(proposal.media_type, "radio")
+  assert.ok(proposal.reconciliation.line_item_count >= 1)
+  assert.ok(proposal.reconciliation.burst_count >= 1)
+  assert.equal(proposal.reconciliation.file_stated_total, 120000)
+  for (const li of proposal.line_items) {
+    for (const b of li.bursts) {
+      assert.equal(b.booking_status, "paid")
+      assert.ok(b.quantity > 0)
+    }
+  }
+  console.log("SEN reconciliation", JSON.stringify(proposal.reconciliation))
+})
+
 test("SCA R+F sheet scores low as line-item sheet", async () => {
   const shapes = await detectWorkbookShapesFromFile(
     path.join(FIX, "sca_boss-engineering_fy26_v2-rev.xlsx"),

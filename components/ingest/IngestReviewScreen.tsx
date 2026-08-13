@@ -13,11 +13,18 @@ import type {
   IgnoredSummary,
   IngestReviewPackage,
 } from "@/lib/mediaplans/ingest/buildIngestReview"
-import type { AvaColumnMappingProposal } from "@/lib/mediaplans/ingest/avaColumnMapping"
-import { AVA_MAPPING_TARGET_DESCRIPTORS } from "@/lib/mediaplans/ingest/avaColumnMapping"
+import {
+  AVA_MAPPING_TARGET_DESCRIPTORS,
+  ingestMappingRowKey,
+  type AvaColumnMappingProposal,
+} from "@/lib/mediaplans/ingest/avaColumnMapping"
+import { REFERENCE_IGNORE_TARGET } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import { summarizePanelFlights } from "@/lib/mediaplans/ingest/panelFlightSummary"
 
-const CANONICAL_FIELDS = AVA_MAPPING_TARGET_DESCRIPTORS
+const CANONICAL_FIELDS = [
+  ...AVA_MAPPING_TARGET_DESCRIPTORS,
+  REFERENCE_IGNORE_TARGET,
+]
 
 type Props = {
   review: IngestReviewPackage
@@ -187,13 +194,13 @@ function MappingTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => {
+          {rows.map((row, index) => {
             const ava = avaByHeader.get(
               row.header.replace(/\s+/g, " ").trim().toLowerCase(),
             )
             return (
               <tr
-                key={row.header}
+                key={ingestMappingRowKey(row, index)}
                 className="interactive-row border-t border-border align-top"
               >
                 <td className="px-3 py-2 text-foreground">{row.header}</td>
@@ -210,13 +217,17 @@ function MappingTable({
                     <option value="">— UNMAPPED —</option>
                     {CANONICAL_FIELDS.map((f) => (
                       <option key={f} value={f}>
-                        {f}
+                        {f === REFERENCE_IGNORE_TARGET
+                          ? "reference — ignored"
+                          : f}
                       </option>
                     ))}
                   </select>
                 </td>
                 <td className="px-3 py-2">
-                  {row.unmapped ? (
+                  {row.mapped_to === REFERENCE_IGNORE_TARGET ? (
+                    <Badge variant="outline">reference — ignored</Badge>
+                  ) : row.unmapped ? (
                     <Badge variant="destructive">UNMAPPED</Badge>
                   ) : (
                     <Badge variant="secondary">mapped</Badge>
@@ -287,26 +298,48 @@ function IgnoredBlock({ ignored }: { ignored: IgnoredSummary }) {
 
 function ReconciliationBlock({ proposal }: { proposal: IngestProposal }) {
   const r = proposal.reconciliation
+  const deltaPct =
+    r.delta_pct != null ? `${(r.delta_pct * 100).toFixed(2)}%` : "—"
   return (
-    <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-      {(
-        [
-          ["Line items", r.line_item_count],
-          ["Panels", r.panel_count],
-          ["Bursts", r.burst_count],
-          ["Total media $", r.total_media_amount],
-          ["File stated $", r.file_stated_total ?? "—"],
-        ] as const
-      ).map(([label, value]) => (
-        <div
-          key={label}
-          className="rounded-card border border-border bg-card px-3 py-2 shadow-e0"
-        >
-          <dt className="text-xs text-muted-foreground">{label}</dt>
-          <dd className="num text-lg font-semibold text-foreground">{value}</dd>
-        </div>
-      ))}
-    </dl>
+    <div className="space-y-3">
+      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        {(
+          [
+            ["Line items", r.line_item_count],
+            ["Panels", r.panel_count],
+            ["Bursts", r.burst_count],
+            ["Total media $", r.total_media_amount],
+            ["File stated $", r.file_stated_total ?? "—"],
+            ["Delta", deltaPct],
+          ] as const
+        ).map(([label, value]) => (
+          <div
+            key={label}
+            className="rounded-card border border-border bg-card px-3 py-2 shadow-e0"
+          >
+            <dt className="text-xs text-muted-foreground">{label}</dt>
+            <dd className="num text-lg font-semibold text-foreground">{value}</dd>
+          </div>
+        ))}
+      </dl>
+          {!r.accept_ok && r.block_reason ? (
+        <p className="rounded-input border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          Accept blocked: {r.block_reason}
+        </p>
+      ) : null}
+      {r.warnings.length > 0 ? (
+        <ul className="space-y-1 text-sm text-muted-foreground">
+          {r.warnings.slice(0, 8).map((w) => (
+            <li key={w} className="rounded-input bg-surface-panel px-3 py-1.5">
+              {w}
+            </li>
+          ))}
+          {r.warnings.length > 8 ? (
+            <li className="text-xs">+{r.warnings.length - 8} more warnings</li>
+          ) : null}
+        </ul>
+      ) : null}
+    </div>
   )
 }
 
@@ -442,7 +475,11 @@ export function IngestReviewScreen({
         <Button
           type="button"
           onClick={() => void onAccept()}
-          disabled={accepting || !review.proposal}
+          disabled={
+            accepting ||
+            !review.proposal ||
+            review.proposal.reconciliation.accept_ok === false
+          }
         >
           {accepting ? "Accepting…" : "Accept into campaign"}
         </Button>

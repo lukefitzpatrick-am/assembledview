@@ -213,6 +213,83 @@ function scoreHeaderRow(matrix: string[][], row: number): number {
   return bestRun * 10 + populatedFollowers
 }
 
+/** Explicit calendar year found in-sheet — never invent a default year. */
+function findSheetYearAnchor(
+  matrix: string[][],
+  headerRow: number,
+): number | null {
+  const scanRow = (row: number): number | null => {
+    for (let c = 1; c < (matrix[row]?.length ?? 0); c++) {
+      const parsed = parseExplicitDate(matrix[row]?.[c] ?? "")
+      if (parsed) return Number(parsed.start.slice(0, 4))
+    }
+    return null
+  }
+  const fromHeader = scanRow(headerRow)
+  if (fromHeader != null) return fromHeader
+  for (let r = 1; r < Math.min(matrix.length, 40); r++) {
+    if (r === headerRow) continue
+    const y = scanRow(r)
+    if (y != null) return y
+  }
+  return null
+}
+
+/** True when the header row already carries explicit DMY/ISO dates (date row wins). */
+function headerRowHasExplicitDates(
+  matrix: string[][],
+  headerRow: number,
+): boolean {
+  for (let c = 1; c < (matrix[headerRow]?.length ?? 0); c++) {
+    const h = matrix[headerRow]?.[c] ?? ""
+    if (parseExplicitDate(h)) return true
+  }
+  return false
+}
+
+/** ISO week → Mon–Sun range (UTC). Week 1 contains 4 Jan. */
+function dateRangeFromIsoWeek(
+  year: number,
+  week: number,
+): { start: string; end: string } | null {
+  if (week < 1 || week > 53) return null
+  const jan4 = new Date(Date.UTC(year, 0, 4))
+  const jan4Day = jan4.getUTCDay() || 7
+  const week1Monday = new Date(jan4)
+  week1Monday.setUTCDate(jan4.getUTCDate() - jan4Day + 1)
+  const start = new Date(week1Monday)
+  start.setUTCDate(week1Monday.getUTCDate() + (week - 1) * 7)
+  const end = new Date(start)
+  end.setUTCDate(start.getUTCDate() + 6)
+  return {
+    start: start.toISOString().slice(0, 10),
+    end: end.toISOString().slice(0, 10),
+  }
+}
+
+function unresolvedGridColumn(
+  col: number,
+  header: string,
+  confidence: number,
+): DetectedGridColumn {
+  return {
+    col,
+    header,
+    start_date: null,
+    end_date: null,
+    confidence,
+  }
+}
+
+/** @internal test seam for MR-7 date resolution. */
+export function resolveGridColumnForTest(
+  matrix: string[][],
+  headerRow: number,
+  col: number,
+): DetectedGridColumn {
+  return resolveGridColumn(matrix, headerRow, col)
+}
+
 function resolveGridColumn(
   matrix: string[][],
   headerRow: number,
@@ -230,21 +307,15 @@ function resolveGridColumn(
     }
   }
 
-  // Week-commencing under month: header row may be month-start ISO; next row day number
+  const yearAnchor = findSheetYearAnchor(matrix, headerRow)
+  const dateRowPresent = headerRowHasExplicitDates(matrix, headerRow)
+
+  // Week-commencing under month: header may be month-start ISO; next row day number
   const below = matrix[headerRow + 1]?.[col] ?? ""
   const monthFromHeader = isMonthToken(header)
   const day = /^\d{1,2}$/.test(below) ? Number(below) : null
   if (monthFromHeader != null && day != null && day >= 1 && day <= 31) {
-    // year from nearby ISO or default from any ISO in header row
-    let year = 2026
-    for (let c = 1; c < (matrix[headerRow]?.length ?? 0); c++) {
-      const iso = parseExplicitDate(matrix[headerRow]?.[c] ?? "")
-      if (iso) {
-        year = Number(iso.start.slice(0, 4))
-        break
-      }
-    }
-    // If header itself is ISO month start (SCA), use that year/month and day from below
+    // ISO month-start header (SCA): year/month from header itself — no silent year guess
     const isoHeader = parseExplicitDate(header)
     if (isoHeader) {
       const y = Number(isoHeader.start.slice(0, 4))
@@ -261,68 +332,97 @@ function resolveGridColumn(
         }
       }
     }
+    // Month token + day only resolves with an explicit year/date anchor in-sheet
+    if (yearAnchor != null) {
+      const start = isoUTC(yearAnchor, monthFromHeader, day)
+      if (start) {
+        const endDt = new Date(Date.UTC(yearAnchor, monthFromHeader - 1, day + 6))
+        return {
+          col,
+          header: `${header} / ${below}`,
+          start_date: start,
+          end_date: endDt.toISOString().slice(0, 10),
+          confidence: 0.75,
+        }
+      }
+    }
+    return unresolvedGridColumn(col, header, 0.25)
   }
 
-  // ISO week number with lunar/month rows above
+  // Week numbers: only when no explicit date row on this header; need year anchor.
+  // Campaign-week labels (JCD) must not be treated as ISO weeks when dates exist.
   if (isWeekNumber(header)) {
-    const week = Number(header)
-    const above1 = matrix[headerRow - 1]?.[col] ?? ""
-    const above2 = matrix[headerRow - 2]?.[col] ?? ""
-    // Prefer explicit date if sibling columns have ranges on same row as a date header elsewhere
-    return {
-      col,
-      header,
-      start_date: null,
-      end_date: null,
-      confidence:
-        above1 || above2 || week >= 1 ? 0.55 : 0.35,
+    if (dateRowPresent) {
+      return unresolvedGridColumn(col, header, 0.2)
     }
+    if (yearAnchor != null) {
+      const range = dateRangeFromIsoWeek(yearAnchor, Number(header))
+      if (range) {
+        return {
+          col,
+          header,
+          start_date: range.start,
+          end_date: range.end,
+          confidence: 0.7,
+        }
+      }
+    }
+    return unresolvedGridColumn(col, header, 0.2)
   }
 
   if (isMonthToken(header) != null || /^lunar/i.test(header)) {
-    return {
-      col,
-      header,
-      start_date: null,
-      end_date: null,
-      confidence: 0.5,
-    }
+    return unresolvedGridColumn(col, header, 0.2)
   }
 
-  return {
-    col,
-    header,
-    start_date: null,
-    end_date: null,
-    confidence: 0.2,
-  }
+  return unresolvedGridColumn(col, header, 0.2)
+}
+
+function scrapeLabelScore(label: string): number {
+  const t = label.replace(/\s+/g, " ").trim()
+  // Section subtotals (JCD paid-block "MEDIA VALUE") — never authoritative
+  if (/^media value$/i.test(t)) return 0
+  if (/client total|large format media value|campaign total/i.test(t)) return 100
+  if (/^total investment$/i.test(t) || /total investment/i.test(t)) return 90
+  if (/total media value/i.test(t)) return 50
+  if (/media value/i.test(t)) return 40
+  // Weekly investment strips are not campaign totals
+  if (/media investment/i.test(t)) return 10
+  if (/nett|net media/i.test(t)) return 70
+  return 30
 }
 
 function scrapeFileStatedTotal(matrix: string[][]): number | null {
   const labelRe =
-    /media investment|media value|total investment|campaign total|nett|net media/i
+    /media investment|media value|total investment|campaign total|nett|net media|client total/i
+  let bestN: number | null = null
+  let bestScore = 0
   for (let r = 1; r < matrix.length; r++) {
     for (let c = 1; c < (matrix[r]?.length ?? 0); c++) {
       const label = matrix[r]?.[c] ?? ""
       if (!labelRe.test(label)) continue
-      for (let k = c + 1; k <= Math.min(c + 8, (matrix[r]?.length ?? 0) - 1); k++) {
-        const raw = (matrix[r]?.[k] ?? "").replace(/[$,\s]/g, "")
-        if (/^\d+(\.\d+)?$/.test(raw)) {
-          const n = Number(raw)
-          if (n > 100) return n
+      const score = scrapeLabelScore(label)
+      if (score <= 0) continue
+      const consider = (raw: string) => {
+        const cleaned = raw.replace(/[$,\s]/g, "")
+        if (!/^\d+(\.\d+)?$/.test(cleaned)) return
+        const n = Number(cleaned)
+        if (!(n > 100)) return
+        if (score > bestScore || (score === bestScore && (bestN == null || n > bestN))) {
+          bestScore = score
+          bestN = n
         }
       }
-      // sometimes value is below
+      for (let k = c + 1; k <= Math.min(c + 8, (matrix[r]?.length ?? 0) - 1); k++) {
+        consider(matrix[r]?.[k] ?? "")
+      }
       for (let rr = r + 1; rr <= Math.min(r + 2, matrix.length - 1); rr++) {
-        const raw = (matrix[rr]?.[c] ?? "").replace(/[$,\s]/g, "")
-        if (/^\d+(\.\d+)?$/.test(raw)) {
-          const n = Number(raw)
-          if (n > 100) return n
-        }
+        consider(matrix[rr]?.[c] ?? "")
       }
     }
   }
-  return null
+  // Require a campaign-scale label — weak MEDIA INVESTMENT hits are not totals
+  if (bestN == null || bestScore < 70) return null
+  return bestN
 }
 
 /**
@@ -444,6 +544,21 @@ export function detectSheetShape(ws: ExcelJS.Worksheet): DetectedSheetShape {
         if (header) descriptor_columns.push({ col: c, header })
       }
     }
+  }
+
+  // Trailing non-temporal headers after / between grid bands (Client Total, MEDIA VALUE)
+  const gridColSet = new Set(grid_columns.map((g) => g.col))
+  const descColSet = new Set(descriptor_columns.map((d) => d.col))
+  for (let c = 1; c <= maxC; c++) {
+    if (gridColSet.has(c) || descColSet.has(c)) continue
+    const header = headerCells[c] ?? ""
+    if (!header) continue
+    if (parseExplicitDate(header) || isWeekNumber(header) || isMonthToken(header) != null) {
+      continue
+    }
+    if (/^lunar/i.test(header)) continue
+    descriptor_columns.push({ col: c, header })
+    descColSet.add(c)
   }
 
   const descCols = descriptor_columns.map((d) => d.col)

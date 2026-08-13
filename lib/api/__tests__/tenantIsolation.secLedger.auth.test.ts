@@ -10,12 +10,23 @@ import { mockModuleSkip, supportsMockModule } from "../../test/mockModuleHarness
 
 const skip = mockModuleSkip()
 
-const requireRoleMock = mock.fn(async (_req: unknown, _roles?: string[]) => ({
-  session: { user: { email: "admin@example.com" } },
-  roles: ["admin"] as string[],
-  clientSlug: null,
-  grantedByAllowlist: false,
-}))
+type RequireRoleMockResult =
+  | {
+      session: { user: { email: string } }
+      roles: string[]
+      clientSlug: null
+      grantedByAllowlist: boolean
+    }
+  | { response: NextResponse }
+
+const requireRoleMock = mock.fn(
+  async (_req: unknown, _roles?: string[]): Promise<RequireRoleMockResult> => ({
+    session: { user: { email: "admin@example.com" } },
+    roles: ["admin"] as string[],
+    clientSlug: null,
+    grantedByAllowlist: false,
+  }),
+)
 
 const checkClientMbaAccessMock = mock.fn(
   async (_req: unknown, _mba: string) =>
@@ -108,7 +119,7 @@ test("GET expected-spend-to-date — foreign MBA blocked before media-plan fetch
   )
   const res = await GET(
     new NextRequest("http://localhost/api/mediaplans/mba/hema001/expected-spend-to-date"),
-    { params: { mba_number: "hema001" } },
+    { params: Promise.resolve({ mba_number: "hema001" }) },
   )
   assert.equal(res.status, 403)
   assert.equal(checkClientMbaAccessMock.mock.calls.length, 1)
@@ -145,7 +156,7 @@ test("GET expected-spend-to-date — own MBA passes local gate", { skip }, async
     )
     const res = await GET(
       new NextRequest("http://localhost/api/mediaplans/mba/bicau002/expected-spend-to-date"),
-      { params: { mba_number: "bicau002" } },
+      { params: Promise.resolve({ mba_number: "bicau002" }) },
     )
     assert.equal(checkClientMbaAccessMock.mock.calls.length, 1)
     assert.equal(fetchCalled, true)
@@ -180,13 +191,14 @@ test("GET /api/dashboard/spend-parity — admin reaches handler (prod still 404)
   }))
 
   const prev = process.env.NODE_ENV
-  process.env.NODE_ENV = "production"
+  const env = process.env as { NODE_ENV?: string }
+  env.NODE_ENV = "production"
   try {
     const { GET } = await import("../../../app/api/dashboard/spend-parity/route.js")
     const res = await GET(new NextRequest("http://localhost/api/dashboard/spend-parity"))
     assert.equal(res.status, 404)
     assert.equal(requireRoleMock.mock.calls.length, 1)
   } finally {
-    process.env.NODE_ENV = prev
+    env.NODE_ENV = prev
   }
 })

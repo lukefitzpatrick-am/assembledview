@@ -10,6 +10,7 @@ import {
   type PublisherProfileConfig,
 } from "../publisherProfileConfig"
 import {
+  buildBurstsFromCellsForTest,
   buildFlightsFromCellsForTest,
   proposeLineItemsFromSheet,
 } from "../proposeLineItems"
@@ -137,5 +138,28 @@ test("QMS propose attaches flights on each panel; stamp carries them", async () 
         assert.ok(Number.isFinite((b as { budget: number }).budget))
       }
     }
+  }
+})
+
+test("flights and bursts agree on the same fixture letter runs", () => {
+  const qms = loadProfile("QMS")
+  const cells = ["p", "p", "N/A", "B", "B", "p"]
+  const flights = buildFlightsFromCellsForTest(qms, cells, PERIODS)
+  const bursts = buildBurstsFromCellsForTest(qms, cells, PERIODS)
+
+  // Same run collapse: paid×2, skip N/A, bonus×2, paid×1 → 3 of each
+  assert.equal(flights.length, bursts.length)
+  assert.equal(flights.length, 3)
+
+  for (let i = 0; i < flights.length; i++) {
+    const f = flights[i]!
+    const b = bursts[i]!
+    assert.equal(f.period_start, b.start_date)
+    assert.equal(f.period_end, b.end_date)
+    const bonus =
+      b.booking_status === "bonus" || b.booking_status === "bonus_display"
+    assert.equal(f.is_bonus, bonus)
+    assert.equal(f.is_live, true)
+    if (bonus) assert.equal(b.media_amount, 0)
   }
 })

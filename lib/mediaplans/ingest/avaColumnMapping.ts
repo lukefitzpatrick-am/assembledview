@@ -1,11 +1,10 @@
 /**
- * AVA column-mapping proposals for ingest (MR-5).
- * Mapping only — never parses values, computes bursts, or picks grid_semantics.
- * Never auto-applies; human Accept/Override writes via persistColumnRemap.
+ * AVA column-mapping proposals for ingest (MR-5) — client-safe.
+ * Types, gate, and pure shaping/validation only.
+ * The Anthropic call lives in avaColumnMapping.server.ts and is reached via
+ * POST /api/admin/ingest/ava-mapping. Never auto-applies.
  */
 
-import type Anthropic from "@anthropic-ai/sdk"
-import { AVA_MODEL, getAnthropicClient } from "@/lib/ava/anthropic"
 import type { DetectedSheetShape } from "@/lib/mediaplans/ingest/detectShape"
 
 /** Publisher match confidence at/above this → deterministic mapping wins; no AVA. */
@@ -56,6 +55,14 @@ export type UnmappedColumnSample = {
   sample_values: string[]
 }
 
+/** Stable React key: sheet + header, with index as a backstop for repeats. */
+export function ingestMappingRowKey(
+  row: { header: string; sheetName?: string | null },
+  index: number,
+): string {
+  return `${row.sheetName ?? ""}\u0000${row.header}\u0000${index}`
+}
+
 export type AvaMappingClient = {
   proposeMappings: (args: {
     publisherName: string | null
@@ -63,6 +70,16 @@ export type AvaMappingClient = {
     columns: UnmappedColumnSample[]
   }) => Promise<AvaColumnMappingProposal[]>
 }
+
+export type AvaMappingRequestBody = {
+  publisherName: string | null
+  publisherConfidence: number
+  columns: UnmappedColumnSample[]
+}
+
+export type ParsedAvaMappingRequest =
+  | { ok: true; publisherName: string | null; publisherConfidence: number; columns: UnmappedColumnSample[] }
+  | { ok: false; error: string }
 
 export function shouldCallAvaForMappings(args: {
   publisherConfidence: number
@@ -107,46 +124,44 @@ export function buildUnmappedColumnSamples(
   }))
 }
 
-const EMIT_TOOL_NAME = "emit_column_mapping_proposals"
-
-const EMIT_TOOL: Anthropic.Tool = {
-  name: EMIT_TOOL_NAME,
-  description:
-    "Propose canonical descriptor mappings for unmapped publisher columns. Mapping only.",
-  input_schema: {
-    type: "object",
-    properties: {
-      proposals: {
-        type: "array",
-        items: {
-          type: "object",
-          properties: {
-            header: { type: "string" },
-            proposed_mapped_to: {
-              type: ["string", "null"],
-              description:
-                "One of the target descriptors, or null to leave unmapped",
-            },
-            reasoning: { type: "string" },
-          },
-          required: ["header", "proposed_mapped_to", "reasoning"],
-        },
-      },
-    },
-    required: ["proposals"],
-  },
+function headerKey(header: string): string {
+  return header.replace(/\s+/g, " ").trim().toLowerCase()
 }
 
-function buildSystemPrompt(targets: readonly string[]): string {
-  return [
-    "You propose column mappings for publisher media schedules.",
-    "You ONLY map header → canonical descriptor. You do NOT parse cell values into numbers,",
-    "compute bursts, invent dates, or decide grid_semantics.",
-    "If a column is clearly a rate/money/charge field, propose proposed_mapped_to=null",
-    "and explain that it stays unmapped (spend stays on bursts/line items).",
-    `Allowed targets: ${targets.join(", ")}.`,
-    "Return proposals via the emit_column_mapping_proposals tool only.",
-  ].join(" ")
+/**
+ * One row per header across sheets of the same upload.
+ * Merges sample values (first spelling wins). Empty headers dropped.
+ */
+export function dedupeUnmappedColumnSamples(
+  samples: UnmappedColumnSample[],
+): UnmappedColumnSample[] {
+  const byKey = new Map<string, UnmappedColumnSample>()
+  for (const sample of samples) {
+    const key = headerKey(sample.header)
+    if (!key) continue
+    const existing = byKey.get(key)
+    if (!existing) {
+      const seen = new Set<string>()
+      const sample_values: string[] = []
+      for (const v of sample.sample_values) {
+        if (!v || seen.has(v)) continue
+        seen.add(v)
+        sample_values.push(v)
+      }
+      byKey.set(key, {
+        header: sample.header.replace(/\s+/g, " ").trim(),
+        sample_values,
+      })
+      continue
+    }
+    const seen = new Set(existing.sample_values)
+    for (const v of sample.sample_values) {
+      if (!v || seen.has(v)) continue
+      seen.add(v)
+      existing.sample_values.push(v)
+    }
+  }
+  return [...byKey.values()]
 }
 
 function parseToolProposals(
@@ -211,71 +226,92 @@ function parseToolProposals(
   return out
 }
 
-/** Live Anthropic client — mapping proposals only. */
-export function createAnthropicAvaMappingClient(): AvaMappingClient {
+function parseUnmappedColumnSample(raw: unknown): UnmappedColumnSample | null {
+  if (!raw || typeof raw !== "object") return null
+  const o = raw as Record<string, unknown>
+  if (typeof o.header !== "string" || !o.header.trim()) return null
+  const samples = Array.isArray(o.sample_values)
+    ? o.sample_values.filter((v): v is string => typeof v === "string")
+    : []
+  return { header: o.header.trim(), sample_values: samples }
+}
+
+/** Validate the POST /api/admin/ingest/ava-mapping body. */
+export function parseAvaMappingRequestBody(raw: unknown): ParsedAvaMappingRequest {
+  if (!raw || typeof raw !== "object") {
+    return { ok: false, error: "JSON body required" }
+  }
+  const o = raw as Record<string, unknown>
+  if (typeof o.publisherConfidence !== "number" || !Number.isFinite(o.publisherConfidence)) {
+    return { ok: false, error: "publisherConfidence must be a number" }
+  }
+  if (!Array.isArray(o.columns)) {
+    return { ok: false, error: "columns array required" }
+  }
+  const columns: UnmappedColumnSample[] = []
+  for (const item of o.columns) {
+    const col = parseUnmappedColumnSample(item)
+    if (!col) {
+      return { ok: false, error: "each column needs a header string" }
+    }
+    columns.push(col)
+  }
+  const deduped = dedupeUnmappedColumnSamples(columns)
+  const publisherName =
+    o.publisherName == null
+      ? null
+      : typeof o.publisherName === "string"
+        ? o.publisherName.trim() || null
+        : null
   return {
-    async proposeMappings({ publisherName, targets, columns }) {
-      if (columns.length === 0) return []
-      const client = getAnthropicClient()
-      const userPayload = {
-        publisher: publisherName,
-        target_descriptors: targets,
-        unmapped_columns: columns,
-        instruction:
-          "Propose mapped_to for each unmapped column. Mapping only — no value parsing.",
-      }
-      const response = await client.messages.create({
-        model: AVA_MODEL,
-        max_tokens: 2048,
-        system: buildSystemPrompt(targets),
-        tools: [EMIT_TOOL],
-        tool_choice: { type: "tool", name: EMIT_TOOL_NAME },
-        messages: [
-          {
-            role: "user",
-            content: JSON.stringify(userPayload),
-          },
-        ],
-      })
-      const toolBlock = response.content.find(
-        (b) => b.type === "tool_use" && b.name === EMIT_TOOL_NAME,
-      )
-      const input =
-        toolBlock && toolBlock.type === "tool_use" ? toolBlock.input : null
-      return parseToolProposals(input, columns)
-    },
+    ok: true,
+    publisherName,
+    publisherConfidence: o.publisherConfidence,
+    columns: deduped,
   }
 }
 
 /**
  * Run AVA mapping proposals when the gate opens.
- * Returns call_count 0 when skipped (high confidence or nothing unmapped).
+ * Live Anthropic is never constructed here — inject a client (tests) or call
+ * the server module from the API route.
+ * Returns call_count 0 when skipped (high confidence, nothing unmapped, or no client).
  */
 export async function runAvaColumnMappingProposals(args: {
   publisherName: string | null
   publisherConfidence: number
-  unmappedHeaders: string[]
-  shape: DetectedSheetShape | null
+  unmappedHeaders?: string[]
+  shape?: DetectedSheetShape | null
+  columns?: UnmappedColumnSample[]
   client?: AvaMappingClient | null
 }): Promise<{
   proposals: AvaColumnMappingProposal[]
   ava_call_count: number
 }> {
   const empty = { proposals: [] as AvaColumnMappingProposal[], ava_call_count: 0 }
+  const columns = dedupeUnmappedColumnSamples(
+    args.columns ??
+      (args.shape && args.unmappedHeaders
+        ? buildUnmappedColumnSamples(args.shape, args.unmappedHeaders)
+        : []),
+  )
+  const unmappedHeaders = dedupeUnmappedColumnSamples(
+    (args.unmappedHeaders ?? columns.map((c) => c.header)).map((header) => ({
+      header,
+      sample_values: [],
+    })),
+  ).map((c) => c.header)
   if (
     !shouldCallAvaForMappings({
       publisherConfidence: args.publisherConfidence,
-      unmappedHeaders: args.unmappedHeaders,
+      unmappedHeaders,
     })
   ) {
     return empty
   }
-  if (!args.shape || args.unmappedHeaders.length === 0) return empty
-
-  const columns = buildUnmappedColumnSamples(args.shape, args.unmappedHeaders)
-  const client = args.client !== undefined ? args.client : createAnthropicAvaMappingClient()
-  if (!client) return empty
-  const proposals = await client.proposeMappings({
+  if (columns.length === 0) return empty
+  if (!args.client) return empty
+  const proposals = await args.client.proposeMappings({
     publisherName: args.publisherName,
     targets: AVA_MAPPING_TARGET_DESCRIPTORS,
     columns,
@@ -290,3 +326,5 @@ export function parseAvaMappingToolInputForTest(
 ): AvaColumnMappingProposal[] {
   return parseToolProposals(raw, columns)
 }
+
+export { parseToolProposals }

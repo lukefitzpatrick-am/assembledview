@@ -20,7 +20,9 @@ export async function POST(request: NextRequest) {
     }
     const buf = Buffer.from(await file.arrayBuffer())
     const { profiles } = await listPublisherProfiles()
-    const review = await buildIngestReviewFromBuffer(buf, profiles)
+    const review = await buildIngestReviewFromBuffer(buf, profiles, {
+      skipAva: true,
+    })
     return NextResponse.json({ review })
   } catch (e) {
     console.error("[admin/ingest/review]", e)

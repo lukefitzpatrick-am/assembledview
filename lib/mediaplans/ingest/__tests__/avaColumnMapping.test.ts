@@ -2,10 +2,15 @@
  * AVA column-mapping proposals (MR-5) — propose only; human confirms.
  */
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
 import path from "node:path"
 import test from "node:test"
 import {
   AVA_MAPPING_CONFIDENCE_FLOOR,
+  dedupeUnmappedColumnSamples,
+  ingestMappingRowKey,
+  parseAvaMappingRequestBody,
+  runAvaColumnMappingProposals,
   shouldCallAvaForMappings,
   type AvaMappingClient,
 } from "../avaColumnMapping"
@@ -22,6 +27,101 @@ const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")
 
 test.beforeEach(() => {
   clearPublisherProfileSeedOverlayForTests()
+})
+
+test("avaColumnMapping.ts is client-safe: no Anthropic / SDK imports", () => {
+  const src = readFileSync(
+    path.join(process.cwd(), "lib/mediaplans/ingest/avaColumnMapping.ts"),
+    "utf8",
+  )
+  assert.equal(
+    src.includes("@anthropic-ai/sdk"),
+    false,
+    "client-safe mapping module must not import the Anthropic SDK",
+  )
+  assert.equal(
+    src.includes("lib/ava/anthropic"),
+    false,
+    "client-safe mapping module must not import lib/ava/anthropic",
+  )
+  assert.equal(src.includes('import "server-only"'), false)
+})
+
+test("avaColumnMapping.server.ts and anthropic.ts are marked server-only", () => {
+  const serverSrc = readFileSync(
+    path.join(process.cwd(), "lib/mediaplans/ingest/avaColumnMapping.server.ts"),
+    "utf8",
+  )
+  const anthropicSrc = readFileSync(
+    path.join(process.cwd(), "lib/ava/anthropic.ts"),
+    "utf8",
+  )
+  assert.match(serverSrc, /^import ["']server-only["']/m)
+  assert.match(anthropicSrc, /^import ["']server-only["']/m)
+  assert.ok(
+    serverSrc.includes("@anthropic-ai/sdk") ||
+      serverSrc.includes("lib/ava/anthropic"),
+  )
+})
+
+test("parseAvaMappingRequestBody accepts the unmapped-columns context", () => {
+  const parsed = parseAvaMappingRequestBody({
+    publisherName: "QMS",
+    publisherConfidence: 0.81,
+    columns: [{ header: "SITE #", sample_values: ["123"] }],
+  })
+  assert.equal(parsed.ok, true)
+  if (!parsed.ok) return
+  assert.equal(parsed.publisherName, "QMS")
+  assert.equal(parsed.publisherConfidence, 0.81)
+  assert.equal(parsed.columns[0]?.header, "SITE #")
+})
+
+test("parseAvaMappingRequestBody rejects missing columns / non-numeric confidence", () => {
+  const missing = parseAvaMappingRequestBody({
+    publisherName: "QMS",
+    publisherConfidence: 0.5,
+  })
+  assert.equal(missing.ok, false)
+  const badConf = parseAvaMappingRequestBody({
+    publisherName: "QMS",
+    publisherConfidence: "high",
+    columns: [],
+  })
+  assert.equal(badConf.ok, false)
+})
+
+test("runAvaColumnMappingProposals with columns-only context honors the gate (no shape)", async () => {
+  let calls = 0
+  const mock: AvaMappingClient = {
+    async proposeMappings({ columns }) {
+      calls++
+      return columns.map((c) => ({
+        header: c.header,
+        sample_values: c.sample_values,
+        proposed_mapped_to: null,
+        reasoning: "leave unmapped",
+      }))
+    },
+  }
+  const skipped = await runAvaColumnMappingProposals({
+    publisherName: "QMS",
+    publisherConfidence: 0.95,
+    columns: [{ header: "PROD", sample_values: ["1"] }],
+    client: mock,
+  })
+  assert.equal(skipped.ava_call_count, 0)
+  assert.equal(calls, 0)
+
+  const opened = await runAvaColumnMappingProposals({
+    publisherName: "QMS",
+    publisherConfidence: 0.8,
+    columns: [{ header: "PROD", sample_values: ["1"] }],
+    client: mock,
+  })
+  assert.equal(opened.ava_call_count, 1)
+  assert.equal(calls, 1)
+  assert.equal(opened.proposals.length, 1)
 })
 
 test("gate: high confidence never calls AVA even with unmapped columns", () => {
@@ -191,4 +291,106 @@ test("accepted AVA proposal persists to the profile exactly like a human remap",
   const overlaid = profilesWithRemapOverlay(loadSeedPublisherProfiles())
   const qms = overlaid.find((p) => p.publisher_name === "QMS")
   assert.equal(qms!.column_map["PANEL EXCLUSIVITY"], "panel_name")
+})
+
+test("dedupeUnmappedColumnSamples merges the same header across sheets", () => {
+  const deduped = dedupeUnmappedColumnSamples([
+    { header: "INSTALL", sample_values: ["100", "200"] },
+    { header: "install", sample_values: ["200", "300"] },
+    { header: "DIGITAL SPECS (WxH)", sample_values: ["1920x1080"] },
+  ])
+  assert.equal(deduped.length, 2)
+  const install = deduped.find((c) => /install/i.test(c.header))
+  assert.ok(install)
+  assert.deepEqual(install!.sample_values, ["100", "200", "300"])
+})
+
+test("QMS review: unmapped samples unique by header; mapping keys unique", async () => {
+  const profiles = loadSeedPublisherProfiles()
+  const review = await buildIngestReviewFromFile(
+    path.join(FIX, "qms_strength-meals_esb-ooh.xlsx"),
+    profiles,
+    { skipAva: true },
+  )
+  const sampleKeys = review.unmapped_column_samples.map((c) =>
+    c.header.replace(/\s+/g, " ").trim().toLowerCase(),
+  )
+  assert.equal(
+    sampleKeys.length,
+    new Set(sampleKeys).size,
+    `duplicate unmapped samples: ${sampleKeys.join("|")}`,
+  )
+  const keys = review.column_mapping.map((row, i) =>
+    ingestMappingRowKey(row, i),
+  )
+  assert.equal(
+    keys.length,
+    new Set(keys).size,
+    `duplicate mapping keys: ${keys.join("|")}`,
+  )
+  assert.ok(
+    review.column_mapping.filter((c) => c.header === "INSTALL").length >= 2,
+    "Paid sheet repeats INSTALL — composite key must still be unique",
+  )
+})
+
+test("MR-5 fixture call counts: QMS 1, JCDecaux 1, SCA 0, SEN 1 (gate = confidence < 90% + unmapped)", async () => {
+  const profiles = loadSeedPublisherProfiles()
+  const cases: Array<{ file: string; publisher: string; expectedCalls: number }> =
+    [
+      {
+        file: "qms_strength-meals_esb-ooh.xlsx",
+        publisher: "QMS",
+        expectedCalls: 1,
+      },
+      {
+        file: "jcd_strength-meals_ooh.xlsx",
+        publisher: "JCDecaux",
+        expectedCalls: 1,
+      },
+      {
+        file: "sca_boss-engineering_fy26_v2-rev.xlsx",
+        publisher: "SCA",
+        expectedCalls: 0,
+      },
+      {
+        file: "sen_boss-engineering_fy26.xlsx",
+        publisher: "SEN",
+        expectedCalls: 1,
+      },
+    ]
+
+  for (const c of cases) {
+    let calls = 0
+    const mock: AvaMappingClient = {
+      async proposeMappings({ columns }) {
+        calls++
+        return columns.map((col) => ({
+          header: col.header,
+          sample_values: col.sample_values,
+          proposed_mapped_to: null,
+          reasoning: "fixture mock",
+        }))
+      },
+    }
+    const review = await buildIngestReviewFromFile(
+      path.join(FIX, c.file),
+      profiles,
+      { avaMappingClient: mock },
+    )
+    assert.equal(
+      review.detected_publisher,
+      c.publisher,
+      `${c.file} publisher`,
+    )
+    assert.equal(
+      review.ava_call_count,
+      c.expectedCalls,
+      `${c.publisher} ava_call_count`,
+    )
+    assert.equal(calls, c.expectedCalls, `${c.publisher} mock invocations`)
+    if (c.expectedCalls === 0) {
+      assert.equal(review.ava_mapping_proposals.length, 0)
+    }
+  }
 })

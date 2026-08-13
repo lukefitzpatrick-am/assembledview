@@ -27,7 +27,10 @@
       "SHARE OF TIME": "advertiser_share",
       "AD DURATION (SECS)": "rotation_seconds",
       "ILLUMINATION (HOURS)": "digital_operating_hours",
-      "ILLUMINATION": "illumination"
+      "ILLUMINATION": "illumination",
+      "*WEEKLY MARKET RATE (STATIC LF - 4 WEEKS)": "media_rate:weekly",
+      "PROD": "charge:production",
+      "INSTALL": "charge:installation"
     },
     "grid_semantics": "status_matrix",
     "legend_map": {
@@ -68,7 +71,13 @@
       "Media Description": "media_description",
       "Length": "length",
       "Days": "days",
-      "Daypart": "daypart"
+      "Daypart": "daypart",
+      "Client Total": "media_amount:stated",
+      "Market Rate": "reference:ignore",
+      "Market Total": "reference:ignore",
+      "Total Stations": "reference:ignore",
+      "Total Impacts": "reference:ignore",
+      "Client Rate": "reference:ignore"
     },
     "grid_semantics": "count",
     "legend_map": {},
@@ -119,7 +128,11 @@
       "Digital Operation Hours": "digital_operating_hours",
       "Digital Rotation Seconds": "rotation_seconds",
       "Advertiser Share-of-Time": "advertiser_share",
-      "Direction": "direction"
+      "Direction": "direction",
+      "Lunar (4 week) Market Rate": "media_rate:lunar",
+      "Production Charge": "charge:production",
+      "Installation Charge": "charge:installation",
+      "MEDIA VALUE (inc. STA)": "media_amount:stated"
     },
     "grid_semantics": "status_matrix",
     "legend_map": {
@@ -136,6 +149,36 @@
         "default_booking_status": "paid"
       }
     ],
-    "notes": "OOH status matrix. Village weight shares a header with village name — weight not separately mapped."
+    "notes": "OOH status matrix. Stated MEDIA VALUE (inc. STA) is authoritative per line; lunar/4×weeks is a cross-check warning only. Village weight shares a header with village name — weight not separately mapped."
+  },
+  {
+    "publisher_name": "SEN",
+    "media_type": "radio",
+    "active": true,
+    "detect_signature": {
+      "header_text_includes": [
+        "MEDIA SCHEDULE",
+        "ENTITLEMENT",
+        "LENGTH"
+      ],
+      "metadata_labels": ["BOOKING CONFIRMATION", "ABN:"],
+      "grouping_keys": ["station", "media_description", "length"]
+    },
+    "grouping_keys": ["station", "media_description", "length"],
+    "column_map": {
+      "MEDIA SCHEDULE (Week commencing Monday)": "station",
+      "ENTITLEMENT": "media_description",
+      "LENGTH": "length"
+    },
+    "grid_semantics": "count",
+    "legend_map": {},
+    "sheet_rules": [
+      {
+        "match": { "any_line_item_sheet": true },
+        "role": "line_items",
+        "default_booking_status": "paid"
+      }
+    ],
+    "notes": "Radio spot-count grid (OPTION 2). State grouping rows stack into market. CS–DP 1900-date junk band is not part of the detected flight grid."
   }
 ]

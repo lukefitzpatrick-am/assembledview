@@ -43,6 +43,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const recon = body.proposal.reconciliation
+    if (recon && recon.accept_ok === false) {
+      return NextResponse.json(
+        {
+          error: recon.block_reason ?? "Reconciliation delta blocks Accept",
+          reconciliation: recon,
+        },
+        { status: 409 },
+      )
+    }
+
     const result = await acceptIngestProposal(
       {
         proposal: body.proposal,
