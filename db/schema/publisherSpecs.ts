@@ -3,6 +3,7 @@
  * Join is explicit publishers.id — never fuzzy on display name.
  * RLS on; no ava_readonly grant. Owner path only.
  * spec_json stays empty until a later import cycle; do not write mi-library/.
+ * Deadline columns: readers prefer min/max/business; NULL falls back to prose parse.
  */
 import {
   bigint,
