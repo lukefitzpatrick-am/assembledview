@@ -7,6 +7,7 @@ import { BarChart3, FileText } from "lucide-react"
 import { PAGE_HERO_PADDING, PageHeroShell, PageHeroTitleBlock } from "@/components/dashboard/PageHeroShell"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { PublisherMeetingsSection } from "./PublisherMeetingsSection"
 import { PublisherDetailCharts } from "./PublisherDetailCharts"
 import { PublisherDetailsSlideOver } from "./PublisherDetailsSlideOver"
 import { PublisherKpiSlideOver } from "./PublisherKpiSlideOver"
@@ -151,6 +152,8 @@ export function PublisherDetailClient({ initialPublisher, analytics }: Publisher
         publisherId={publisher.id}
         publisherName={publisher.publisher_name}
       />
+
+      <PublisherMeetingsSection publisher={publisher} />
 
       <PublisherDetailsSlideOver
         open={detailsOpen}

@@ -28,6 +28,7 @@ Helpers in play: `requireRole` / `requireAdmin` / `requireFinanceAdmin` / `check
 | `mediaplans/[id]/mbanumber` | POST | — | `requireRole(admin)` | 410 `MBANUMBER_BY_ID_GONE` | **RETIRED (X3)** |
 | `publishers/[publisherId]` | GET | `publishers` GET | session (middleware) | session (middleware) | OK |
 | `publishers/[publisherId]` | PUT | `publishers` POST | `requireRole(admin)` | `requireRole(admin)` | **GATED (SEC-G)** |
+| `publishers/[publisherId]/meetings` | GET | Hub ingest peer | `requireAdmin` | `requireAdmin` | OK |
 | `media-container-best-practice/[id]` | PUT | collection POST | `requireRole(admin)` + audit stamp | `requireRole(admin)` + audit stamp | **GATED (SEC-G)** |
 | `media_plans/television/[id]` | PUT/DELETE | — | — | — | **RETIRED (X2)** — route deleted |
 | `media_plans/<channel>` dedicated POSTs | POST | — | — | — | **RETIRED (X2)** — GET-only dual handlers remain |

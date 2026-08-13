@@ -10,16 +10,7 @@ import {
   parseMoney,
   resolveDashboardCommercialLiveVersionRow,
 } from './shared'
-
-function lineItemMatchesPublisher(li: any, publisherName: string, publisherId: string): boolean {
-  const h1 = String(li?.header1 ?? li?.publisher ?? "").trim()
-  if (!h1) return false
-  const n = h1.toLowerCase()
-  if (n === publisherName.trim().toLowerCase()) return true
-  const id = String(publisherId ?? "").trim()
-  if (id && n === id.toLowerCase()) return true
-  return false
-}
+import { lineItemMatchesPublisher } from './lineItemMatchesPublisher'
 
 function lineItemIsFixedCostMedia(li: any): boolean {
   const v = li?.fixed_cost_media ?? li?.fixedCostMedia
@@ -45,7 +36,8 @@ function lineItemTargetingFragments(li: any): string[] {
 
 /**
  * FY-scoped analytics for a publisher: delivery/billing schedules on booked/approved/completed
- * media_plan_versions, filtered by pub_* → schedule media labels and line item header1 match.
+ * media_plan_versions, filtered by pub_* → schedule media labels and lineItemMatchesPublisher
+ * (empty header1 falls through to publisher / publisherid / publisher_profiles.publisher_id).
  */
 export async function getPublisherDashboardData(publisher: Publisher): Promise<PublisherDashboardData> {
   const { start: fyStart, end: fyEnd, months: fyMonths } = getAustralianFinancialYear(new Date())
@@ -121,7 +113,7 @@ export async function getPublisherDashboardData(publisher: Publisher): Promise<P
 
         const lineItems = Array.isArray(mt?.lineItems) ? mt.lineItems : []
         for (const li of lineItems) {
-          if (!lineItemMatchesPublisher(li, name, pid)) continue
+          if (!lineItemMatchesPublisher(li, { id: publisher.id, publisher_name: name, publisherid: pid })) continue
           const amount = parseMoney(li?.amount)
           if (amount <= 0) continue
           campaignPublisherSpend += amount

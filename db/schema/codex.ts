@@ -33,6 +33,11 @@ export type CodexNoteMatchedBy =
   | "manual"
   | "title"
   | "internal"
+export type CodexAttributedType =
+  | "client"
+  | "publisher"
+  | "internal"
+  | "new_business"
 export type CodexProposalStatus =
   | "proposed"
   | "accepted"
@@ -78,10 +83,15 @@ export const clientNotes = pgTable(
     transcriptUrl: text("transcript_url"),
     /** All attendee domains Assembled — kept with client_id NULL. */
     isInternal: boolean("is_internal").notNull().default(false),
+    /** NULL is the unattributed queue. */
+    attributedType: text("attributed_type").$type<CodexAttributedType | null>(),
+    publisherId: bigint("publisher_id", { mode: "number" }),
   },
   (table) => [
     index("idx_client_notes_client_id").on(table.clientId),
     uniqueIndex("idx_client_notes_fireflies_meeting_id").on(table.firefliesMeetingId),
+    index("idx_client_notes_attributed_type").on(table.attributedType),
+    index("idx_client_notes_publisher_id").on(table.publisherId),
   ],
 )
 
