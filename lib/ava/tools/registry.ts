@@ -3,6 +3,8 @@ import type AvaTool from "./types";
 import { AVA_TOOL_NAMES } from "./summaries";
 import { applyFormPatchTool } from "./applyFormPatch";
 import { applyParsedPlanTool } from "./applyParsedPlan";
+import { getPendingIngestReviewTool } from "./getPendingIngestReview";
+import { acceptIngestProposalTool } from "./acceptIngestProposal";
 import { adjustLineItemsTool } from "./adjustLineItems";
 import { getMediaPlanSummaryTool } from "./getMediaPlanSummary";
 import { getClientDetailsTool } from "./getClientDetails";
@@ -36,6 +38,8 @@ const AVA_TOOLS: AvaTool[] = [
   getMediaPlanSummaryTool,
   applyFormPatchTool,
   applyParsedPlanTool,
+  getPendingIngestReviewTool,
+  acceptIngestProposalTool,
   adjustLineItemsTool,
   getClientDetailsTool,
   getCampaignContextTool,

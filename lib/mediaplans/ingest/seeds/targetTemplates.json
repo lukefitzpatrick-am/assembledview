@@ -1,0 +1,300 @@
+{
+  "ooh": {
+    "media_type": "ooh",
+    "card_field_ids": [
+      "publisher",
+      "format",
+      "buyType",
+      "type",
+      "size",
+      "market",
+      "buying_demo",
+      "placement",
+      "media_money",
+      "burst_dates"
+    ],
+    "detail_table": {
+      "id": "panel_detail",
+      "label": "Panel detail",
+      "field_ids": [
+        "site_number",
+        "panel_name",
+        "latitude",
+        "longitude",
+        "panel_size",
+        "illumination",
+        "rotation_seconds",
+        "village_name"
+      ]
+    },
+    "money_detail_ids": ["charges", "lunar_rate"],
+    "required": [
+      {
+        "id": "publisher",
+        "label": "Network",
+        "dest": "line_items.publisher",
+        "kind": "profile"
+      },
+      {
+        "id": "format",
+        "label": "Format",
+        "dest": "attrs.format",
+        "kind": "column",
+        "canonicals": ["format", "publisher_format_name"]
+      },
+      {
+        "id": "market",
+        "label": "Market",
+        "dest": "line_items.market",
+        "kind": "column",
+        "canonicals": ["market", "state", "geography"]
+      },
+      {
+        "id": "buy_granularity",
+        "label": "Buy granularity",
+        "dest": "attrs.buy_granularity",
+        "kind": "derived"
+      },
+      {
+        "id": "media_money",
+        "label": "Media money",
+        "dest": "bursts.budget",
+        "kind": "money",
+        "canonicals": [
+          "media_rate:weekly",
+          "media_rate:lunar",
+          "media_rate:per_spot",
+          "media_amount:stated"
+        ]
+      },
+      {
+        "id": "burst_dates",
+        "label": "Burst dates",
+        "dest": "bursts.startDate",
+        "kind": "grid"
+      }
+    ],
+    "enrich": [
+      {
+        "id": "site_number",
+        "label": "Site number",
+        "dest": "line_item_panels.site_number",
+        "kind": "column",
+        "canonicals": ["site_number"]
+      },
+      {
+        "id": "panel_name",
+        "label": "Panel name",
+        "dest": "line_item_panels.panel_name",
+        "kind": "column",
+        "canonicals": ["panel_name"]
+      },
+      {
+        "id": "latitude",
+        "label": "Latitude",
+        "dest": "line_item_panels.latitude",
+        "kind": "column",
+        "canonicals": ["latitude"]
+      },
+      {
+        "id": "longitude",
+        "label": "Longitude",
+        "dest": "line_item_panels.longitude",
+        "kind": "column",
+        "canonicals": ["longitude"]
+      },
+      {
+        "id": "size",
+        "label": "Size",
+        "dest": "attrs.size",
+        "kind": "column",
+        "canonicals": ["size"]
+      },
+      {
+        "id": "panel_size",
+        "label": "Panel size",
+        "dest": "line_item_panels.size",
+        "kind": "column",
+        "canonicals": ["size"]
+      },
+      {
+        "id": "buyType",
+        "label": "Buy Type",
+        "dest": "line_items.buyType",
+        "kind": "column",
+        "canonicals": ["buy_type", "buyType"]
+      },
+      {
+        "id": "type",
+        "label": "Type",
+        "dest": "attrs.type",
+        "kind": "column",
+        "canonicals": ["type", "digital_spec"]
+      },
+      {
+        "id": "buying_demo",
+        "label": "Buying Demo",
+        "dest": "line_items.buyingDemo",
+        "kind": "column",
+        "canonicals": ["buying_demo", "buyingDemo"]
+      },
+      {
+        "id": "placement",
+        "label": "Placement",
+        "dest": "attrs.placement",
+        "kind": "column",
+        "canonicals": ["placement"]
+      },
+      {
+        "id": "village_name",
+        "label": "Village",
+        "dest": "line_item_panels.village_name",
+        "kind": "column",
+        "canonicals": ["village_name"]
+      },
+      {
+        "id": "illumination",
+        "label": "Illumination",
+        "dest": "line_item_panels.illumination",
+        "kind": "column",
+        "canonicals": ["illumination"]
+      },
+      {
+        "id": "rotation_seconds",
+        "label": "Rotation seconds",
+        "dest": "line_item_panels.rotation_seconds",
+        "kind": "column",
+        "canonicals": ["rotation_seconds"]
+      },
+      {
+        "id": "charges",
+        "label": "Charges",
+        "dest": "reconciliation.charges",
+        "kind": "money",
+        "canonicals": ["charge:production", "charge:installation"]
+      },
+      {
+        "id": "lunar_rate",
+        "label": "Lunar rate (cross-check)",
+        "dest": "warnings",
+        "kind": "column",
+        "canonicals": ["media_rate:lunar"]
+      }
+    ],
+    "system_waivers": [
+      {
+        "id": "type",
+        "default": "",
+        "reason": "editor-card field; save path does not validate"
+      },
+      {
+        "id": "buyType",
+        "default": "fixed_cost",
+        "reason": "canonical OOH vocab"
+      }
+    ]
+  },
+  "radio": {
+    "media_type": "radio",
+    "card_field_ids": [
+      "publisher",
+      "station",
+      "placement",
+      "duration",
+      "spot_counts",
+      "media_money",
+      "burst_dates"
+    ],
+    "required": [
+      {
+        "id": "publisher",
+        "label": "Network",
+        "dest": "line_items.publisher",
+        "kind": "profile",
+        "canonicals": ["network"]
+      },
+      {
+        "id": "station",
+        "label": "Station",
+        "dest": "attrs.station",
+        "kind": "column",
+        "canonicals": ["station"]
+      },
+      {
+        "id": "placement",
+        "label": "Placement / Daypart",
+        "dest": "attrs.placement",
+        "kind": "column",
+        "canonicals": ["media_description", "daypart"]
+      },
+      {
+        "id": "duration",
+        "label": "Duration",
+        "dest": "attrs.duration",
+        "kind": "column",
+        "canonicals": ["length", "duration"]
+      },
+      {
+        "id": "spot_counts",
+        "label": "Spots",
+        "dest": "bursts.buyAmount",
+        "kind": "grid_count"
+      },
+      {
+        "id": "media_money",
+        "label": "Media money",
+        "dest": "bursts.budget",
+        "kind": "money",
+        "canonicals": [
+          "media_rate:weekly",
+          "media_rate:lunar",
+          "media_rate:per_spot",
+          "media_amount:stated"
+        ]
+      },
+      {
+        "id": "burst_dates",
+        "label": "Burst dates",
+        "dest": "bursts.startDate",
+        "kind": "grid"
+      }
+    ],
+    "enrich": [
+      {
+        "id": "market",
+        "label": "Market",
+        "dest": "line_items.market",
+        "kind": "column",
+        "canonicals": ["market", "state", "geography"]
+      },
+      {
+        "id": "format",
+        "label": "Format",
+        "dest": "attrs.format",
+        "kind": "column",
+        "canonicals": ["format"]
+      },
+      {
+        "id": "buying_demo",
+        "label": "Buying demo",
+        "dest": "line_items.buyingDemo",
+        "kind": "column",
+        "canonicals": ["buying_demo", "buyingDemo"]
+      },
+      {
+        "id": "media_rate_per_spot",
+        "label": "Rate per spot",
+        "dest": "bursts.rate",
+        "kind": "money",
+        "canonicals": ["media_rate:per_spot"]
+      }
+    ],
+    "system_waivers": [
+      {
+        "id": "buyType",
+        "default": "spots",
+        "reason": "canonical radio vocab"
+      }
+    ]
+  }
+}

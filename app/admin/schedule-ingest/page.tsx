@@ -1,6 +1,7 @@
 "use client"
 
-import { Suspense, useCallback, useState, type Dispatch, type SetStateAction } from "react"
+import { Suspense, useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react"
+import { useSearchParams } from "next/navigation"
 import { AdminGuard } from "@/components/guards/AdminGuard"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +11,7 @@ import {
   shouldCallAvaForMappings,
   type AvaColumnMappingProposal,
 } from "@/lib/mediaplans/ingest/avaColumnMapping"
+import { readIngestStageFromSession } from "@/lib/mediaplans/ingest/ingestStageClient"
 import { getRouteByExactPath } from "@/lib/nav/routeManifest"
 import { LoadingState } from "@/components/ui/states"
 
@@ -62,6 +64,8 @@ async function loadAvaMappingSuggestions(
 function ScheduleIngestPageInner() {
   const pageLabel =
     getRouteByExactPath("/admin/schedule-ingest")?.label ?? "Schedule ingest"
+  const searchParams = useSearchParams()
+  const stageId = searchParams.get("stage")?.trim() || ""
 
   const [review, setReview] = useState<IngestReviewPackage | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -72,6 +76,43 @@ function ScheduleIngestPageInner() {
   const [mbaNumber, setMbaNumber] = useState("")
   const [versionNumber, setVersionNumber] = useState("1")
   const [acceptMsg, setAcceptMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!stageId) return
+    let cancelled = false
+    const fromSession = readIngestStageFromSession(stageId)
+    if (fromSession?.review) {
+      setReview(fromSession.review)
+      void loadAvaMappingSuggestions(fromSession.review, setReview, setError)
+      return
+    }
+    setUploading(true)
+    void fetch(`/api/admin/ingest/stage/${encodeURIComponent(stageId)}`)
+      .then(async (res) => {
+        const json = (await res.json()) as {
+          review?: IngestReviewPackage
+          error?: string
+        }
+        if (!res.ok || !json.review) {
+          throw new Error(json.error || `HTTP ${res.status}`)
+        }
+        if (!cancelled) {
+          setReview(json.review)
+          void loadAvaMappingSuggestions(json.review, setReview, setError)
+        }
+      })
+      .catch((e) => {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Staged ingest not found")
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setUploading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [stageId])
 
   const onUpload = useCallback(async (file: File) => {
     setUploading(true)

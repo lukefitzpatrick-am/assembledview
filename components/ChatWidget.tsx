@@ -13,6 +13,7 @@ import {
 import type { ChatFileAttachment, FormPatch, ModelChatReply, PageContext } from "@/lib/ava/types"
 import type { CapturedLineItemsLoad } from "@/lib/ava/autopopulate/types"
 import type { PendingParsedPlan } from "@/lib/ava/tools/types"
+import { writeIngestStageToSession } from "@/lib/mediaplans/ingest/ingestStageClient"
 import type { ChatMode } from "@/src/ava/modes"
 import { ChatQuestionCard, type ChatQuestionCardState } from "@/components/ChatQuestionCard"
 import {
@@ -25,6 +26,28 @@ import {
   Paperclip,
   X,
 } from "lucide-react"
+
+type PendingIngestClient = {
+  stageId: string
+  fileName?: string
+  summary?: {
+    detected_publisher: string | null
+    publisher_confidence: number
+    media_type: string | null
+    line_item_count: number
+    panel_count: number
+    burst_count: number
+    required_coverage: number
+    money_delta: number | null
+    money_delta_pct: number | null
+    accept_ok: boolean
+    ignored: string[]
+    columns_unmapped: string[]
+    unknown_publisher: boolean
+    no_profile_message: string | null
+    full_review_path: string
+  }
+}
 
 const SIZE_PRESETS = {
   compact: { w: 384, h: 480 },
@@ -232,7 +255,8 @@ export function ChatWidget({
   const [error, setError] = useState<string | null>(null)
   const [pendingParsedPlan, setPendingParsedPlan] = useState<PendingParsedPlan | null>(null)
   const pendingParsedPlanRef = useRef<PendingParsedPlan | null>(null)
-  const [importChannel, setImportChannel] = useState<"radio" | "ooh">("radio")
+  const [pendingIngest, setPendingIngest] = useState<PendingIngestClient | null>(null)
+  const pendingIngestRef = useRef<PendingIngestClient | null>(null)
   const [isParsingPlan, setIsParsingPlan] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [position, setPosition] = useState({ x: 0, y: 0 })
@@ -395,6 +419,14 @@ export function ChatWidget({
               },
             }
           : {}),
+        ...(pendingIngestRef.current
+          ? {
+              pendingIngest: {
+                stageId: pendingIngestRef.current.stageId,
+                fileName: pendingIngestRef.current.fileName,
+              },
+            }
+          : {}),
         ...(currentLineItems ? { currentLineItems } : {}),
       }
 
@@ -481,7 +513,7 @@ export function ChatWidget({
     if (!file || isSending || isParsingPlan) return
     const lower = file.name.toLowerCase()
     if (!lower.endsWith(".xlsx") && !lower.endsWith(".xls")) {
-      setError("Media-plan import accepts .xlsx / .xls only (P1).")
+      setError("Publisher schedule ingest accepts .xlsx / .xls only.")
       return
     }
     setIsParsingPlan(true)
@@ -491,41 +523,66 @@ export function ChatWidget({
     try {
       const formData = new FormData()
       formData.append("file", file)
-      formData.append("channel", importChannel)
-      const response = await fetch("/api/processPlan", {
+      const response = await fetch("/api/admin/ingest/review", {
         method: "POST",
         body: formData,
       })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
         throw new Error(
-          typeof data?.error === "string" ? data.error : "Plan parse failed",
+          typeof data?.error === "string" ? data.error : "Ingest review failed",
         )
       }
-      if (!data?.mapped || (data.channel !== "radio" && data.channel !== "ooh")) {
-        throw new Error("Plan parse returned an unexpected payload")
+      const stageId = typeof data?.stageId === "string" ? data.stageId.trim() : ""
+      if (!stageId || !data?.review) {
+        throw new Error("Ingest review returned an unexpected payload")
       }
-      const pending: PendingParsedPlan = {
-        channel: data.channel,
-        mapped: data.mapped,
+      writeIngestStageToSession(stageId, {
+        review: data.review,
         fileName: file.name,
+      })
+      const pending: PendingIngestClient = {
+        stageId,
+        fileName: file.name,
+        summary: data.summary,
       }
-      pendingParsedPlanRef.current = pending
-      setPendingParsedPlan(pending)
-      const summary =
-        typeof data.summary === "string" && data.summary.trim()
-          ? data.summary.trim()
-          : `Parsed ${file.name} for ${data.channel}.`
+      pendingIngestRef.current = pending
+      setPendingIngest(pending)
+      const summary = data.summary
+      const coveragePct =
+        typeof summary?.required_coverage === "number"
+          ? `${Math.round(summary.required_coverage * 100)}%`
+          : "—"
+      const deltaPct =
+        typeof summary?.money_delta_pct === "number"
+          ? `${(summary.money_delta_pct * 100).toFixed(2)}%`
+          : "—"
+      const ignored = Array.isArray(summary?.ignored)
+        ? summary.ignored.join("; ")
+        : ""
+      const unmapped = Array.isArray(summary?.columns_unmapped)
+        ? summary.columns_unmapped.join(", ")
+        : ""
       const prompt = [
-        `I uploaded media-owner plan "${file.name}" for ${data.channel}.`,
-        summary,
-        "Load skill assembled-media-plan-autopopulate, summarise the parse, and ask me to confirm before applying lines to the form via apply_parsed_plan.",
+        `I uploaded publisher schedule "${file.name}" for Hub ingest (stage ${stageId}).`,
+        summary?.unknown_publisher
+          ? (summary.no_profile_message ?? "No publisher profile.")
+          : [
+              `Publisher: ${summary?.detected_publisher ?? "unknown"} (confidence ${typeof summary?.publisher_confidence === "number" ? Math.round(summary.publisher_confidence * 100) : "—"}%).`,
+              `Media type: ${summary?.media_type ?? "—"}.`,
+              `Lines ${summary?.line_item_count ?? 0} · panels ${summary?.panel_count ?? 0} · bursts ${summary?.burst_count ?? 0}.`,
+              `Required coverage ${coveragePct}. Money delta vs file total ${deltaPct}.`,
+              ignored ? `Ignored: ${ignored}.` : "Nothing ignored.",
+              unmapped ? `Unmapped columns: ${unmapped}.` : "No unmapped columns.",
+              `Open full review (same staged upload): ${summary?.full_review_path ?? `/admin/schedule-ingest?stage=${stageId}`}`,
+            ].join(" "),
+        "Call get_pending_ingest_review and speak those numbers — do not invent figures. If MBA is not in page context, ask which MBA/campaign — never guess. Wait for my confirm before accept_ingest_proposal. A money-blocked accept must explain the delta and must not write.",
       ].join("\n\n")
       await sendMessage(prompt)
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to parse plan"
+      const message = err instanceof Error ? err.message : "Failed to review schedule"
       setError(message)
-      appendAssistantNote(`Plan import failed: ${message}`)
+      appendAssistantNote(`Schedule ingest failed: ${message}`)
     } finally {
       setIsParsingPlan(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
@@ -565,6 +622,15 @@ export function ChatWidget({
               ? undefined
               : { width: panelSize.w, height: panelSize.h }
           }
+          onDragOver={(e) => {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = "copy"
+          }}
+          onDrop={(e) => {
+            e.preventDefault()
+            const dropped = e.dataTransfer.files?.[0] ?? null
+            void handlePlanFileSelected(dropped)
+          }}
         >
           {!isCollapsed && (
             <button
@@ -710,22 +776,6 @@ export function ChatWidget({
 
           <div className="flex shrink-0 flex-col gap-2 border-t px-3 py-3">
             <div className="flex items-center gap-2">
-              <label className="sr-only" htmlFor="ava-import-channel">
-                Import channel
-              </label>
-              <select
-                id="ava-import-channel"
-                className="h-9 rounded-input border border-border bg-background px-2 text-xs text-foreground"
-                value={importChannel}
-                disabled={isSending || isParsingPlan}
-                onChange={(e) =>
-                  setImportChannel(e.target.value === "ooh" ? "ooh" : "radio")
-                }
-                aria-label="Import channel"
-              >
-                <option value="radio">Radio</option>
-                <option value="ooh">OOH</option>
-              </select>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -740,17 +790,19 @@ export function ChatWidget({
                 variant="outline"
                 size="icon"
                 disabled={isSending || isParsingPlan}
-                aria-label="Attach media-owner plan"
-                title="Attach media-owner plan (.xlsx)"
+                aria-label="Attach publisher schedule"
+                title="Attach publisher schedule (.xlsx)"
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Paperclip className="h-4 w-4" />
               </Button>
               <Input
                 placeholder={
-                  pendingParsedPlan
-                    ? "Confirm to load lines into the form…"
-                    : "Ask a question"
+                  pendingIngest
+                    ? "Confirm in chat to accept the ingest…"
+                    : pendingParsedPlan
+                      ? "Confirm to load lines into the form…"
+                      : "Ask a question or drop an xlsx"
                 }
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -765,9 +817,28 @@ export function ChatWidget({
                 onClick={() => void sendMessage()}
                 disabled={isSending || isParsingPlan}
               >
-                {isParsingPlan ? "Parsing…" : "Send"}
+                {isParsingPlan ? "Reviewing…" : "Send"}
               </Button>
             </div>
+            {pendingIngest ? (
+              <p className="text-xs text-muted-foreground">
+                Pending ingest
+                {pendingIngest.fileName ? ` · ${pendingIngest.fileName}` : ""}
+                {pendingIngest.summary?.full_review_path ? (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <a
+                      className="underline underline-offset-2"
+                      href={pendingIngest.summary.full_review_path}
+                    >
+                      Open full review
+                    </a>
+                  </>
+                ) : null}
+                . Confirm in chat to accept.
+              </p>
+            ) : null}
             {pendingParsedPlan ? (
               <p className="text-xs text-muted-foreground">
                 Pending {pendingParsedPlan.channel} parse

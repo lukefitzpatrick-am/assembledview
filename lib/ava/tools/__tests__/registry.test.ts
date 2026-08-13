@@ -20,6 +20,8 @@ test("ava tool catalog: names unique and complete", () => {
     "get_media_plan_summary",
     "apply_form_patch",
     "apply_parsed_plan",
+    "get_pending_ingest_review",
+    "accept_ingest_proposal",
     "adjust_line_items",
     "get_client_details",
     "get_campaign_context",

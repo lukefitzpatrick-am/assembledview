@@ -20,6 +20,11 @@ export type PendingParsedPlan = {
   fileName?: string;
 };
 
+export type PendingIngest = {
+  stageId: string;
+  fileName?: string;
+};
+
 export type AvaToolContext = {
   pageContext: PageContext | undefined;
   clientSlug: string | undefined;
@@ -49,6 +54,8 @@ export type AvaToolContext = {
   capturedQuestions: ChatInterviewQuestion[] | null;
   /** Pending Stage-2 mapper result from AVA xlsx attach (client-supplied, same turn). */
   pendingParsedPlan: PendingParsedPlan | null;
+  /** Staged Hub ingest review from AVA xlsx attach (stage store id — not a re-upload). */
+  pendingIngest?: PendingIngest | null;
   /** Side-channel: bulk line-items load for bridge setLineItems. */
   capturedLineItemsLoad: CapturedLineItemsLoad | null;
   /**

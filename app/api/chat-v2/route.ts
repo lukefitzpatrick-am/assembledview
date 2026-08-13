@@ -20,7 +20,7 @@ import {
   AVA_SKILL_TOOL_HINTS,
 } from "@/lib/ava/skills/skillGuidance"
 import { runAvaAgent } from "@/lib/ava/agentLoop"
-import type { AvaToolContext, PendingParsedPlan } from "@/lib/ava/tools/types"
+import type { AvaToolContext, PendingIngest, PendingParsedPlan } from "@/lib/ava/tools/types"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -56,6 +56,8 @@ ${AVA_MI_TOOL_HINTS}
 ${AVA_SKILL_TOOL_HINTS}
 - apply_form_patch — only when the user explicitly asks to change editable field values
 - apply_parsed_plan — only after the user confirms loading a pending media-owner plan parse into the form (never invent numbers; never skip confirm)
+- get_pending_ingest_review — after the user attaches a publisher schedule xlsx; speak the returned numbers (publisher, confidence, media type, counts, coverage, money delta, ignored/unmapped). Never invent ingest figures. If unknown_publisher, say there is no profile — do not guess a publisher.
+- accept_ingest_proposal — only after the user confirms the staged ingest in chat. Same Hub accept path (409 money gate). If MBA is not in page context, ask which MBA/campaign — never guess. A blocked accept explains the delta and does not write. Offer the full_review_path link for the Hub review UI (same staged upload).
 - adjust_line_items — Use adjust_line_items to bulk-align descriptor fields on already-loaded plan lines from a plain-English instruction. Emit structured ops only; never set or compute burst money/dates/quantities; always show the diff and confirm before applying; scope precisely (all / where a field equals a value / bonus lines / specific rows).
 
 Page snapshot surfaces (state.surface) — use on-page state first; pair tools only when you need more than the snapshot:
@@ -70,7 +72,7 @@ ${AVA_SKILL_GUIDANCE}
 
 Client marketing brain — when writing ad copy, commentary, or insights for a client, call get_client_brain first and honour its Tone and Compliance & never-say sections as hard constraints. If empty, say so and offer to run the client-marketing-brain skill. Use web_search when researching for that skill (official site/socials, category, competitors) — not for routine chat.
 
-Never return JSON reply contracts in prose. Before a write (apply_form_patch, apply_parsed_plan, adjust_line_items, save_client_brain), say in one short sentence what you're about to change; make the change; then confirm what changed in plain English. For apply_parsed_plan / adjust_line_items / save_client_brain(confirm) the explicit user confirm still comes first — never skip it.
+Never return JSON reply contracts in prose. Before a write (apply_form_patch, apply_parsed_plan, accept_ingest_proposal, adjust_line_items, save_client_brain), say in one short sentence what you're about to change; make the change; then confirm what changed in plain English. For apply_parsed_plan / accept_ingest_proposal / adjust_line_items / save_client_brain(confirm) the explicit user confirm still comes first — never skip it.
 `.trim()
 
 type ChatRequestBody = {
@@ -81,6 +83,11 @@ type ChatRequestBody = {
   pendingParsedPlan?: {
     channel?: string
     mapped?: unknown
+    fileName?: string
+  }
+  /** Staged Hub ingest from AVA xlsx attach (same-turn confirm → accept_ingest_proposal). */
+  pendingIngest?: {
+    stageId?: string
     fileName?: string
   }
   /** Current grid line items from bridge getLineItems (adjust_line_items). */
@@ -139,6 +146,7 @@ export async function POST(req: NextRequest) {
       pageContext,
       mode,
       pendingParsedPlan,
+      pendingIngest,
       currentLineItems,
     } = body
     const resolvedMode = resolveMode(mode)
@@ -166,6 +174,7 @@ export async function POST(req: NextRequest) {
       capturedAttachments: null,
       capturedQuestions: null,
       pendingParsedPlan: coercePendingParsedPlan(pendingParsedPlan),
+      pendingIngest: coercePendingIngest(pendingIngest),
       capturedLineItemsLoad: null,
       currentLineItems: coerceCurrentLineItems(currentLineItems),
     }
@@ -319,6 +328,19 @@ function resolveMode(mode?: ChatMode | string): ChatMode {
     return mode
   }
   return "general"
+}
+
+function coercePendingIngest(
+  raw: ChatRequestBody["pendingIngest"],
+): PendingIngest | null {
+  if (!raw || typeof raw !== "object") return null
+  const stageId = typeof raw.stageId === "string" ? raw.stageId.trim() : ""
+  if (!stageId) return null
+  const pending: PendingIngest = { stageId }
+  if (typeof raw.fileName === "string" && raw.fileName.trim()) {
+    pending.fileName = raw.fileName.trim()
+  }
+  return pending
 }
 
 function coercePendingParsedPlan(

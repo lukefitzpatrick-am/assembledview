@@ -104,6 +104,7 @@ Existing `/api/admin/*` handlers in this recount: **19** methods across **15** f
 | POST | `/api/admin/ingest/accept` | admin-only | requireRole | `app/api/admin/ingest/accept/route.ts` |
 | POST | `/api/admin/ingest/remap` | admin-only | requireRole | `app/api/admin/ingest/remap/route.ts` |
 | POST | `/api/admin/ingest/review` | admin-only | requireRole | `app/api/admin/ingest/review/route.ts` |
+| GET | `/api/admin/ingest/stage/[stageId]` | admin-only | requireRole | `app/api/admin/ingest/stage/[stageId]/route.ts` |
 | GET | `/api/admin/m365-reconciliation` | admin-only | requireRole | `app/api/admin/m365-reconciliation/route.ts` |
 | GET | `/api/admin/migration-diffs` | admin-only | requireRole | `app/api/admin/migration-diffs/route.ts` |
 | GET | `/api/admin/myhours-mapping` | admin-only | requireRole | `app/api/admin/myhours-mapping/route.ts` |

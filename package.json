@@ -35,7 +35,7 @@
     "test:kpi-writes": "tsx --test lib/kpi/__tests__/kpiWriteHandlers.matrix.test.ts lib/kpi/__tests__/metrics.test.ts",
     "scan:kpi-percent-units": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx scripts/scan-kpi-percent-units.ts",
     "test:pacing-maths": "tsx --test lib/pacing/maths/__tests__/*.test.ts",
-    "test:ava-tools": "tsx --test lib/ava/tools/__tests__/registry.test.ts lib/ava/tools/__tests__/postgresTools.test.ts lib/ava/tools/__tests__/fyToRange.test.ts",
+    "test:ava-tools": "tsx --test lib/ava/tools/__tests__/registry.test.ts lib/ava/tools/__tests__/postgresTools.test.ts lib/ava/tools/__tests__/fyToRange.test.ts lib/ava/tools/__tests__/acceptIngestProposal.test.ts",
     "test:ava-autopopulate": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/ava/autopopulate/__tests__/*.test.ts",
     "test:ava-detect-goldens": "tsx --test lib/ava/autopopulate/__tests__/detectPlanStructure.fixtures.test.ts",
     "xano:export": "tsx scripts/migration/export-xano.ts",
@@ -103,7 +103,7 @@
     "test:line-item-panel-flights": "tsx --test lib/mediaplan/__tests__/lineItemPanelFlights.migration.test.ts lib/mediaplans/ingest/__tests__/panelFlights.test.ts",
     "test:publisher-profiles": "tsx --test lib/mediaplans/ingest/__tests__/publisherProfileConfig.test.ts lib/mediaplans/ingest/__tests__/senXlsm.test.ts",
     "test:ingest-propose": "tsx --test lib/mediaplans/ingest/__tests__/proposeLineItems.test.ts lib/mediaplans/ingest/__tests__/moneyAndDates.test.ts",
-    "test:ingest-review": "tsx --test lib/mediaplans/ingest/__tests__/ingestReview.test.ts lib/mediaplans/ingest/__tests__/avaColumnMapping.test.ts lib/mediaplans/ingest/__tests__/hubAttributionGap.test.ts",
+    "test:ingest-review": "tsx --test lib/mediaplans/ingest/__tests__/ingestReview.test.ts lib/mediaplans/ingest/__tests__/avaColumnMapping.test.ts lib/mediaplans/ingest/__tests__/hubAttributionGap.test.ts lib/mediaplans/ingest/__tests__/chatIngest.test.ts",
     "test:ooh-expert-gate": "tsx --test lib/mediaplans/ingest/__tests__/oohLargeFormatExpertGate.test.ts",
     "test:ooh-standard-bench": "vitest run lib/mediaplan/__tests__/oohStandardContainer.bench.test.tsx",
     "test:specs": "tsx --test lib/specs/__tests__/library.test.ts lib/specs/__tests__/resolve.test.ts lib/specs/__tests__/buildMiWorkbook.test.ts lib/specs/__tests__/parseMiExportPath.test.ts lib/specs/__tests__/miAutoAnswers.test.ts lib/specs/__tests__/searchMiAutoAnswers.test.ts lib/specs/__tests__/publisherSpecsJoinSeed.test.ts lib/specs/__tests__/publisherSpecsDeadlineSeed.test.ts lib/specs/__tests__/parseSupplyDeadline.test.ts lib/specs/__tests__/sydneyBusinessDays.test.ts lib/specs/__tests__/deriveMaterialDeadlines.test.ts lib/specs/__tests__/structuredDeadlineFromSpecColumns.test.ts lib/specs/__tests__/miHttpVersionScope.test.ts lib/specs/__tests__/miResolution.test.ts lib/specs/__tests__/miResolutionMigration.test.ts lib/specs/__tests__/parsePdfText.test.ts && node --test lib/specs/__tests__/pdfParse.cjs.test.cjs"

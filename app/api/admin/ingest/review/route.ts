@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/requireRole"
-import { buildIngestReviewFromBuffer } from "@/lib/mediaplans/ingest/buildIngestReview"
 import { listPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProfiles"
+import { stageIngestReviewFromBuffer } from "@/lib/mediaplans/ingest/stageIngestReview"
 
 export const runtime = "nodejs"
 
-/** Upload a publisher schedule → review package (no writes). */
+/** Upload a publisher schedule → staged review package (no plan writes). */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request)
-  if ("response" in auth && auth.response) {
+  if ("response" in auth) {
     return auth.response
   }
 
@@ -20,10 +20,16 @@ export async function POST(request: NextRequest) {
     }
     const buf = Buffer.from(await file.arrayBuffer())
     const { profiles } = await listPublisherProfiles()
-    const review = await buildIngestReviewFromBuffer(buf, profiles, {
-      skipAva: true,
+    const uploadedBy =
+      typeof auth.session?.user?.email === "string"
+        ? auth.session.user.email.trim().toLowerCase()
+        : null
+    const { review, stageId, summary } = await stageIngestReviewFromBuffer(buf, {
+      fileName: file.name,
+      uploadedBy,
+      profiles,
     })
-    return NextResponse.json({ review })
+    return NextResponse.json({ review, stageId, summary })
   } catch (e) {
     console.error("[admin/ingest/review]", e)
     return NextResponse.json(

@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/requireRole"
-import { savePlanVersion } from "@/lib/data/savePlan"
-import { acceptIngestProposal } from "@/lib/mediaplans/ingest/acceptIngestProposal"
-import { insertIngestPanels } from "@/lib/mediaplans/ingest/insertIngestPanels"
+import { executeIngestAcceptWithCampaign } from "@/lib/mediaplans/ingest/executeIngestAccept"
 import type { IngestProposal } from "@/lib/mediaplans/ingest/proposeLineItems"
 import type { FeeLoading } from "@/lib/finance/campaignFinancials.types"
 import type { SavePlanMode } from "@/lib/data/savePlan"
@@ -16,7 +14,7 @@ export const runtime = "nodejs"
  */
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request)
-  if ("response" in auth && auth.response) {
+  if ("response" in auth) {
     return auth.response
   }
 
@@ -34,6 +32,7 @@ export async function POST(request: NextRequest) {
       campaignEndDate?: string | null
       brand?: string | null
       channelFlags?: Record<string, unknown> | null
+      fileName?: string | null
     }
 
     if (!body.proposal || !body.masterId || !body.mbaNumber?.trim()) {
@@ -43,41 +42,43 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const recon = body.proposal.reconciliation
-    if (recon && recon.accept_ok === false) {
+    const uploadedBy =
+      typeof auth.session?.user?.email === "string"
+        ? auth.session.user.email.trim().toLowerCase()
+        : null
+
+    const result = await executeIngestAcceptWithCampaign({
+      proposal: body.proposal,
+      campaign: {
+        masterId: body.masterId,
+        mbaNumber: body.mbaNumber.trim(),
+        versionNumber: body.versionNumber ?? 1,
+        mode: body.mode ?? "draft",
+        campaignName: body.campaignName,
+        campaignStatus: body.campaignStatus,
+        campaignStartDate: body.campaignStartDate,
+        campaignEndDate: body.campaignEndDate,
+        brand: body.brand,
+        channelFlags: body.channelFlags,
+      },
+      uploadedBy,
+      fileName: body.fileName ?? null,
+      detectedConfidence: null,
+      feeLoading: body.feeLoading ?? {},
+    })
+
+    if (!result.ok) {
       return NextResponse.json(
         {
-          error: recon.block_reason ?? "Reconciliation delta blocks Accept",
-          reconciliation: recon,
+          error: result.error,
+          reconciliation: result.reconciliation,
         },
-        { status: 409 },
+        { status: result.status },
       )
     }
 
-    const result = await acceptIngestProposal(
-      {
-        proposal: body.proposal,
-        campaign: {
-          masterId: body.masterId,
-          mbaNumber: body.mbaNumber.trim(),
-          versionNumber: body.versionNumber ?? 1,
-          mode: body.mode ?? "draft",
-          campaignName: body.campaignName,
-          campaignStatus: body.campaignStatus,
-          campaignStartDate: body.campaignStartDate,
-          campaignEndDate: body.campaignEndDate,
-          brand: body.brand,
-          channelFlags: body.channelFlags,
-        },
-        feeLoading: body.feeLoading ?? {},
-      },
-      {
-        savePlanVersion,
-        insertPanels: insertIngestPanels,
-      },
-    )
-
-    return NextResponse.json({ ok: true, ...result })
+    const { ok: _ok, ...payload } = result
+    return NextResponse.json({ ok: true, ...payload })
   } catch (e) {
     console.error("[admin/ingest/accept]", e)
     return NextResponse.json(
