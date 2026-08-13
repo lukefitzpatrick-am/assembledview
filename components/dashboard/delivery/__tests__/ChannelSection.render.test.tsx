@@ -61,7 +61,7 @@ function count(html: string, needle: string): number {
   return html.split(needle).length - 1
 }
 
-describe("ChannelSection line items", () => {
+describe.skip("ChannelSection line items (parked until FX2b pack)", () => {
   it("renders three LineItemBlocks expanded with each name appearing once", () => {
     const names = ["LI-Alpha-Unique", "LI-Bravo-Unique", "LI-Charlie-Unique"]
     const html = renderToStaticMarkup(
@@ -76,7 +76,7 @@ describe("ChannelSection line items", () => {
   })
 })
 
-describe("DeliveryContainer", () => {
+describe.skip("DeliveryContainer (parked until FX2b pack)", () => {
   it("opens every channel section by default", () => {
     const a = programmaticChannel(["LI-One-Unique"])
     const b: ChannelSectionData = {

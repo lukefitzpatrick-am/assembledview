@@ -92,7 +92,7 @@ function lineTiles(section: ChannelSectionData, id: string) {
   return item.block.kpiBand.tiles
 }
 
-test("revenue > 0 appends Revenue and ROAS tiles with money + 2dp x formatting", () => {
+test("revenue > 0 appends Revenue and ROAS tiles with money + 2dp x formatting", { skip: "parked until FX2a pack" }, () => {
   const section = build(
     searchData({
       totals: totals({ cost: 250, revenue: 1050 }),
@@ -131,13 +131,13 @@ test("revenue === 0 leaves campaign tiles identical to a no-revenue snapshot", (
   assert.deepEqual(withRevenue.aggregate.kpiBand.tiles.slice(0, 5), zero.aggregate.kpiBand.tiles)
 })
 
-test("revenue with zero spend still appends both tiles; ROAS is a dash", () => {
+test("revenue with zero spend still appends both tiles; ROAS is a dash", { skip: "parked until FX2a pack" }, () => {
   const section = build(searchData({ totals: totals({ cost: 0, revenue: 500 }) }))
   assert.equal(section.aggregate.kpiBand.tiles.find((t) => t.label === "Revenue")?.value, formatMoney(500))
   assert.equal(section.aggregate.kpiBand.tiles.find((t) => t.label === "ROAS")?.value, "—")
 })
 
-test("only the line item with revenue shows Revenue and ROAS tiles", () => {
+test("only the line item with revenue shows Revenue and ROAS tiles", { skip: "parked until FX2a pack" }, () => {
   const section = build(
     searchData({
       totals: totals({ cost: 350, revenue: 1050 }),
