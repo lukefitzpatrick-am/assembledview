@@ -5328,27 +5328,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     setManualBillingMonths(copy)
   }
 
-  const generateMBANumber = async (mbaidentifier: string) => {
-    try {
-      const response = await fetch(`/api/mediaplans/mbanumber?mbaidentifier=${mbaidentifier}`)
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to generate MBA number")
-      }
-      const data = await response.json()
-      if (data.mbanumber) {
-        form.setValue("mbanumber", data.mbanumber)
-        setContextMbaNumber(data.mbanumber)
-      } else {
-        throw new Error("MBA number not found in response")
-      }
-    } catch (error) {
-      console.error("Error generating MBA number:", error)
-      form.setValue("mbanumber", "Error generating MBA number")
-      setContextMbaNumber("")
-    }
-  }
-
   // Helper function to get media type headers for line items display
   const getMediaTypeHeaders = useCallback((mediaType: string): { header1: string; header2: string } => {
     switch (mediaType) {
