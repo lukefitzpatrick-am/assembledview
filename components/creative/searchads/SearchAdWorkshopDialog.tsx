@@ -37,6 +37,7 @@ type SearchAdWorkshopDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   mbaNumber: string
+  versionNumber?: number
   clientName?: string
   campaignName?: string
   brandName: string
@@ -59,6 +60,7 @@ export function SearchAdWorkshopDialog({
   open,
   onOpenChange,
   mbaNumber,
+  versionNumber,
   clientName,
   campaignName,
   brandName,
@@ -205,6 +207,7 @@ export function SearchAdWorkshopDialog({
     return (
       <SearchCopyChatPanel
         mbaNumber={mbaNumber}
+        versionNumber={versionNumber}
         format={format}
         copy={copy}
         onChange={setCopy}

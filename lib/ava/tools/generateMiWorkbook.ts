@@ -15,6 +15,7 @@ import {
   type MiResolveResult,
 } from "@/lib/specs/resolve"
 import { storeMiWorkbookBuffer } from "@/lib/specs/storeMiExport"
+import { mergeAnswersForVersion } from "@/lib/specs/miResolutionStore"
 import {
   buildMiInterviewPayload,
   buildMiInterviewQuestionCards,
@@ -106,7 +107,7 @@ export const generateMiWorkbookTool: AvaTool = {
   definition: {
     name: "generate_mi_workbook",
     description:
-      "Export a material-instructions XLSX workbook for an MBA to private Blob storage. Refuses when unanswered interview questions remain (openCount > 0) unless exportWithGaps is true (user explicitly chose stop / export with gaps). Prefer calling only after openCount is 0. Export-only: answers are not saved back to the media plan. The chat UI shows a download card — confirm briefly (e.g. Workbook ready) and note gaps; do not paste a download URL.",
+      "Export a material-instructions XLSX workbook for an MBA to private Blob storage. Refuses when unanswered interview questions remain (openCount > 0) unless exportWithGaps is true (user explicitly chose stop / export with gaps). Prefer calling only after openCount is 0. Version-scoped answers persist on media_plan_versions.mi_resolution. The chat UI shows a download card — confirm briefly (e.g. Workbook ready) and note gaps; do not paste a download URL.",
     input_schema: {
       type: "object",
       properties: {
@@ -197,8 +198,14 @@ export const generateMiWorkbookTool: AvaTool = {
       const planAnswers = answers.filter(
         (answer) => answer.questionId !== MI_SCOPE_VERSION_QUESTION_ID,
       )
+      const resolvedAnswers = await mergeAnswersForVersion({
+        mbaNumber: scopedMba.mba,
+        versionNumber,
+        incoming: planAnswers,
+        updatedBy: context.userEmail || context.userSub || "ava",
+      })
       const plan = { lineItems }
-      const gate = gateMiWorkbookExport(plan, planAnswers, {
+      const gate = gateMiWorkbookExport(plan, resolvedAnswers, {
         exportWithGaps: args.exportWithGaps === true,
       })
       if (!gate.allow) {
@@ -213,7 +220,7 @@ export const generateMiWorkbookTool: AvaTool = {
       const campaign = campaignFromLineItems(scopedMba.mba, lineItems)
       const { workbook, gapCount } = await buildMiWorkbook({
         ...miPayloadFromResolve(campaign, result),
-        answers: planAnswers,
+        answers: resolvedAnswers,
       })
       const buffer = await workbook.xlsx.writeBuffer()
       const filename = miWorkbookFilename(campaign.client, campaign.name)
@@ -235,7 +242,7 @@ export const generateMiWorkbookTool: AvaTool = {
           resolvedCount: result.summary.resolved,
           openCount: result.summary.open,
           note:
-            "Export only — answers not saved to the plan. A download card is shown in the chat UI — reply briefly (e.g. Workbook ready) and note any remaining gaps; do not paste a download URL or markdown link.",
+            "A download card is shown in the chat UI — reply briefly (e.g. Workbook ready) and note any remaining gaps; do not paste a download URL or markdown link.",
         }),
         attachments: [attachment],
         isError: false,

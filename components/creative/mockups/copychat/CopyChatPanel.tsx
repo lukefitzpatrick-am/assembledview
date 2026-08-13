@@ -73,6 +73,7 @@ type CopyChatPanelProps = {
   clientName?: string
   campaignName?: string
   mbaNumber?: string
+  versionNumber?: number
   socialLineItems: LineItemOption[]
   /** When true, Ad details are rendered beside this panel — skip the accordion. */
   hideDetailsAccordion?: boolean
@@ -200,6 +201,7 @@ export function CopyChatPanel({
   clientName,
   campaignName,
   mbaNumber,
+  versionNumber,
   socialLineItems,
   hideDetailsAccordion = false,
   className,
@@ -392,7 +394,7 @@ export function CopyChatPanel({
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dry_run: true, answers }),
+      body: JSON.stringify({ dry_run: true, answers, versionNumber }),
     })
     if (!response.ok) {
       const data = (await response.json().catch(() => null)) as { error?: string } | null
@@ -412,7 +414,7 @@ export function CopyChatPanel({
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answers, client_prefill }),
+      body: JSON.stringify({ answers, client_prefill, versionNumber }),
     })
     if (!response.ok) {
       const data = (await response.json().catch(() => null)) as { error?: string } | null
@@ -711,7 +713,7 @@ export function CopyChatPanel({
             <Button
               type="button"
               className="w-full"
-              disabled={buildingMi || !lineItemId || !mbaNumber}
+              disabled={buildingMi || !lineItemId || !mbaNumber || !versionNumber}
               onClick={() => void buildMi()}
             >
               {buildingMi ? (

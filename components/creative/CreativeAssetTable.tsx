@@ -63,6 +63,7 @@ type CreativeAssetTableProps = {
   clientName?: string
   campaignName?: string
   mbaNumber?: string
+  versionNumber?: number
   metaPageId?: string
   allowDelete?: boolean
   allowMockup?: boolean
@@ -171,6 +172,7 @@ export function CreativeAssetTable({
   clientName,
   campaignName,
   mbaNumber,
+  versionNumber,
   metaPageId,
   allowDelete = true,
   allowMockup = true,
@@ -418,6 +420,7 @@ export function CreativeAssetTable({
           clientName={clientName ?? defaultBrandName}
           campaignName={campaignName}
           mbaNumber={mbaNumber}
+          versionNumber={versionNumber}
           socialLineItems={socialLineItems}
           metaPageId={metaPageId}
         />

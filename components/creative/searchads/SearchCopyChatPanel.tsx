@@ -44,6 +44,7 @@ type ChatMessage = {
 
 type SearchCopyChatPanelProps = {
   mbaNumber: string
+  versionNumber?: number
   format: SearchAdFormat
   copy: SearchAdCopy
   onChange: (next: SearchAdCopy) => void
@@ -175,6 +176,7 @@ function buildSearchClientPrefill(
 
 export function SearchCopyChatPanel({
   mbaNumber,
+  versionNumber,
   format,
   copy,
   onChange,
@@ -201,7 +203,7 @@ export function SearchCopyChatPanel({
 
   const hasHeadline = copy.headlines.some((asset) => asset.text.trim())
   const canBuildMi =
-    hasHeadline && Boolean(mbaNumber.trim()) && Boolean(lineItemId) && searchLineItems.length > 0
+    hasHeadline && Boolean(mbaNumber.trim()) && Boolean(versionNumber) && Boolean(lineItemId) && searchLineItems.length > 0
 
   const defaultLineItemId = useMemo(
     () => searchLineItems[0]?.line_item_id ?? "",
@@ -351,7 +353,7 @@ export function SearchCopyChatPanel({
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ dry_run: true, answers }),
+      body: JSON.stringify({ dry_run: true, answers, versionNumber }),
     })
     if (!response.ok) {
       const data = (await response.json().catch(() => null)) as { error?: string } | null
@@ -371,7 +373,7 @@ export function SearchCopyChatPanel({
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answers, client_prefill }),
+      body: JSON.stringify({ answers, client_prefill, versionNumber }),
     })
     if (!response.ok) {
       const data = (await response.json().catch(() => null)) as { error?: string } | null

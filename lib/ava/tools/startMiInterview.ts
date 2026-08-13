@@ -4,6 +4,7 @@ import {
   toChatInterviewQuestion,
 } from "@/lib/ava/chatInterviewQuestion"
 import { fetchAllMediaContainerLineItems } from "@/lib/api/media-containers"
+import { mergeAnswersForVersion } from "@/lib/specs/miResolutionStore"
 import { resolveMiPlan, type MiAnswer, type MiPlanInput } from "@/lib/specs/resolve"
 import { asRecord, asString, jsonContent, MI_SCOPE_VERSION_QUESTION_ID, resolveMediaContainerScope, resolveMiVersionScope, resolveScopedMba } from "./helpers"
 
@@ -234,9 +235,15 @@ export const startMiInterviewTool: AvaTool = {
       const planAnswers = priorAnswers.filter(
         (answer) => answer.questionId !== MI_SCOPE_VERSION_QUESTION_ID,
       )
+      const answers = await mergeAnswersForVersion({
+        mbaNumber: scopedMba.mba,
+        versionNumber,
+        incoming: planAnswers,
+        updatedBy: context.userEmail || context.userSub || "ava",
+      })
       // Model payload: counts + current question only. Next question arrives after answers round-trip.
-      const payload = buildMiInterviewPayload({ lineItems }, planAnswers)
-      const questions = buildMiInterviewQuestionCards({ lineItems }, planAnswers)
+      const payload = buildMiInterviewPayload({ lineItems }, answers)
+      const questions = buildMiInterviewQuestionCards({ lineItems }, answers)
 
       return {
         content: jsonContent(payload),

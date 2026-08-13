@@ -4,7 +4,8 @@
     "app/**/{page,layout,loading,error,not-found,route,template,default,global-error}.{ts,tsx}",
     "middleware.{ts,tsx}",
     "next.config.{js,mjs,ts}",
-    "scripts/**/*.{ts,tsx,js,cjs,mjs}"
+    "scripts/**/*.{ts,tsx,js,cjs,mjs}",
+    "lib/specs/pdfParse.cjs"
   ],
   "project": ["**/*.{ts,tsx}"],
   "ignore": [
@@ -16,7 +17,8 @@
     ".agents/**",
     ".worktrees/**",
     ".parked-untracked/**",
-    ".digiaudio-expert-origin.tsx"
+    ".digiaudio-expert-origin.tsx",
+    "lib/specs/recordSpecPdfRun.ts"
   ],
   "ignoreDependencies": [
     "autoprefixer",
@@ -24,7 +26,6 @@
     "@babel/runtime",
     "core-js",
     "eslint-config-next",
-    "mammoth",
-    "pdf-parse"
+    "mammoth"
   ]
 }

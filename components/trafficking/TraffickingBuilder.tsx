@@ -189,6 +189,7 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [campaignName, setCampaignName] = useState("")
+  const [versionNumber, setVersionNumber] = useState<number | undefined>(undefined)
   const [globals, setGlobals] = useState<PlanGlobals | null>(null)
   const [lineItems, setLineItems] = useState<Record<string, unknown[]>>({})
   const [tabs, setTabs] = useState<PlatformTab[]>([])
@@ -241,6 +242,12 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
       setLineItems(items)
       setTabs(nextTabs)
       setPlatformState(nextState)
+      const publishedVersion = Number(plan.version_number ?? plan.versionNumber)
+      setVersionNumber(
+        Number.isInteger(publishedVersion) && publishedVersion > 0
+          ? publishedVersion
+          : undefined,
+      )
       setCampaignName(
         String(plan.mp_campaignname || plan.campaign_name || "").trim() || mbaNumber,
       )
@@ -530,6 +537,7 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
         mbaNumber,
         campaignName: campaignName || undefined,
         clientName: globals?.client || globals?.brand || undefined,
+        versionNumber,
       },
       pageText: {
         title: "Trafficking builder",
@@ -553,6 +561,7 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
     globals?.brand,
     globals?.client,
     mbaNumber,
+    versionNumber,
     mergeRowForCompose,
     pathname,
     platformState,
@@ -645,15 +654,27 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
   }
 
   const downloadMaterialInstructions = async () => {
+    if (!versionNumber) {
+      toast({
+        title: "Version required",
+        description: "Material instructions need the published plan version.",
+        variant: "destructive",
+      })
+      return
+    }
     setExportingMaterialInstructions(true)
     try {
       const response = await fetch(
         `/api/mediaplans/mba/${encodeURIComponent(mbaNumber)}/material-instructions`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ versionNumber }),
+        },
       )
       if (!response.ok) {
         const message = await response.json()
-          .then((body: { error?: string }) => body.error)
+          .then((body: { error?: string; message?: string }) => body.message || body.error)
           .catch(() => undefined)
         throw new Error(message || "Failed to build material instructions")
       }
@@ -743,7 +764,7 @@ export function TraffickingBuilder({ mbaNumber }: TraffickingBuilderProps) {
               size="sm"
               type="button"
               className="text-xs"
-              disabled={exportingMaterialInstructions}
+              disabled={exportingMaterialInstructions || !versionNumber}
               onClick={() => void downloadMaterialInstructions()}
             >
               {exportingMaterialInstructions ? (

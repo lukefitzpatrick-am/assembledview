@@ -35,6 +35,7 @@ type MockupDialogProps = {
   clientName?: string
   campaignName?: string
   mbaNumber?: string
+  versionNumber?: number
   socialLineItems?: LineItemOption[]
   /** Client Meta page id (`idmeta`) for FB/IG avatars. */
   metaPageId?: string
@@ -60,6 +61,7 @@ export function MockupDialog({
   clientName,
   campaignName,
   mbaNumber,
+  versionNumber,
   socialLineItems = [],
   metaPageId,
 }: MockupDialogProps) {
@@ -157,6 +159,7 @@ export function MockupDialog({
                     clientName={clientName}
                     campaignName={campaignName}
                     mbaNumber={mbaNumber}
+                    versionNumber={versionNumber}
                     socialLineItems={socialLineItems}
                     hideDetailsAccordion
                     className="max-h-[80vh]"
@@ -191,6 +194,7 @@ export function MockupDialog({
                   clientName={clientName}
                   campaignName={campaignName}
                   mbaNumber={mbaNumber}
+                  versionNumber={versionNumber}
                   socialLineItems={socialLineItems}
                 />
               </aside>

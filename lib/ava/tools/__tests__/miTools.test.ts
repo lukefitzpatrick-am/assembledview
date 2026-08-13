@@ -375,6 +375,7 @@ test("missing versionNumber warns and asks which version (MBA-wide offered)", as
     versionNumber: undefined,
     enabledMediaTypes: undefined,
     mbaNumber: "MBA123",
+    roles: ["admin"],
   }))
 
   assert.equal(result.isError, false)

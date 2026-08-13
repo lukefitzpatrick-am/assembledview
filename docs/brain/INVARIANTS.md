@@ -145,7 +145,7 @@ pct === 100 → fee = 0 (division guard)
 - Form changes via the `apply_form_patch` tool only — no JSON-in-prose contract.
 - Tools enforce scope internally from session roles/slugs/MBAs.
 - `attachments` and `questions` are display-only — never write them back into Anthropic message history.
-- MI runtime never writes `lib/specs/mi-library/` (vendored) — runtime output is Blob + email only.
+- MI runtime never writes `lib/specs/mi-library/` (vendored) — runtime output is Blob + email only. HTTP `GET/POST …/material-instructions` refuses silent MBA-wide — requires `versionNumber` or explicit `mbaWide`. Persist interview answers on `media_plan_versions.mi_resolution` (`0044`, applied; answers only, never a full `MiResolveResult`). SD-2 is **0044**, not 0043. Deadline reads stay the vendored parse until C-53 follow-up.
 - AVA Postgres reads use `AVA_DATABASE_URL` / role `ava_readonly` only — never the owner/`DATABASE_URL` connection.
 - **AVA retains SELECT on `client_notes`** via the `ava_readonly` allowlist (0003) — deliberate (Q22). When Stage 3 populates notes, they are AVA-chat-queryable. Do not revoke as Codex tidy-up. New 0013 Codex tables stay deny-by-default for AVA until explicitly allowlisted.
 - Codex `appendActivity` takes `actorKind?: CodexActorKind` (default `user`) — AVA/system writers must pass their kind; do not hardcode `"user"` again.

@@ -13,6 +13,8 @@ import {
   miWorkbookFilename,
   type MiWorkbookCampaign,
 } from "@/lib/specs/buildMiWorkbook"
+import { resolveMiHttpVersionScope } from "@/lib/specs/miHttpVersionScope"
+import { mergeAnswersForVersion } from "@/lib/specs/miResolutionStore"
 import {
   applyAnswers,
   resolveMiPlan,
@@ -32,6 +34,9 @@ type ExportBody = {
   client_prefill?: MiClientPrefill[]
   /** When true, return open_questions JSON instead of building the workbook. */
   dry_run?: boolean
+  versionNumber?: unknown
+  /** Explicit MBA-wide only — silent omission is refused. */
+  mbaWide?: unknown
 }
 
 function text(value: unknown): string {
@@ -70,6 +75,17 @@ function resolvePlan(
   return result
 }
 
+function versionScopeFromRequest(request: NextRequest, body: ExportBody) {
+  const url = new URL(request.url)
+  return resolveMiHttpVersionScope({
+    versionNumber:
+      body.versionNumber ??
+      url.searchParams.get("versionNumber") ??
+      url.searchParams.get("version"),
+    mbaWide: body.mbaWide ?? url.searchParams.get("mbaWide"),
+  })
+}
+
 async function exportWorkbook(
   request: NextRequest,
   mbaNumber: string,
@@ -84,8 +100,26 @@ async function exportWorkbook(
     return NextResponse.json({ error: "forbidden" }, { status: 403 })
   }
 
-  const lineItems = await fetchAllMediaContainerLineItems(mbaNumber)
-  const answers = Array.isArray(body.answers) ? body.answers : []
+  const versionScope = versionScopeFromRequest(request, body)
+  if (!versionScope.ok) {
+    return NextResponse.json(
+      { error: versionScope.error, message: versionScope.message },
+      { status: 400 },
+    )
+  }
+
+  const lineItems = await fetchAllMediaContainerLineItems(
+    mbaNumber,
+    versionScope.versionNumber,
+  )
+  const incoming = Array.isArray(body.answers) ? body.answers : []
+  const updatedBy = session.user.email || session.user.sub || "unknown"
+  const answers = await mergeAnswersForVersion({
+    mbaNumber,
+    versionNumber: versionScope.versionNumber,
+    incoming,
+    updatedBy,
+  })
   const result = resolvePlan(lineItems, answers, body.client_prefill)
 
   if (body.dry_run) {

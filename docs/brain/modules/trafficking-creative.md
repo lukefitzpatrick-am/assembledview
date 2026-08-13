@@ -4,7 +4,7 @@
 
 ## Trafficking / naming
 
-- `components/trafficking/TraffickingBuilder.tsx` (~850 lines) — the builder; publishes AVA `PageContext` (surface `trafficking`).
+- `components/trafficking/TraffickingBuilder.tsx` (~850 lines) — the builder; publishes AVA `PageContext` (surface `trafficking`) including published `versionNumber` from MBA GET. MI download POSTs that version (never silent MBA-wide).
 - `lib/naming/templates.ts` — **THE LAW** for element orders (not any doc). DV360 templates cover all programmatic; CM360 covers other digital. Open defaults greppable as `DEFAULT(Qn)`.
 - `lib/naming/{compose,parse,validate,formula}.ts` — round-trip rule engine. `_` in values, `-` separator, charset `[a-z0-9_+x]`, `line_item_id` always LAST at pacing grain.
 - `lib/naming/exportTraffickingWorkbook.ts` / `exportNamingWorkbook.ts` — exceljs outputs; `INVALID_NAME_CELL = "INVALID: fix in AV"`.
@@ -18,7 +18,7 @@
 - `lib/creative/xanoCreativeAssets.ts` — Postgres CRUD via Drizzle (`schema.creativeAsset`); keeps legacy export names / `XanoCreativeAssetError`. API snake_case shape; `uploaded_by_name` is `""` on read (no PG column). Incl. `createIdempotent`.
 - `lib/creative/{adCopy,searchCopy}/**` — Claude copy generation (shares `lib/ava/anthropic`); client-brain fetch; web research; in-memory rate limits.
 - `lib/creative/liveMockup/**` — ScreenshotOne (HMAC-signed), creative injection into live ad slots, **SSRF guards** (`validateTargetUrl` + `privateIp`) — changes there are security changes; `block_ads=false`/`ignore_host_errors=true` are deliberate.
-- `lib/creative/getPrivateBlob.ts` — **cross-domain**: shared by creative, MI-spec, and performance-report download routes. MI specs store is `0041_publisher_specs` (applied, 20-row join verified); runtime still reads vendored `mi-library/` until JSON import. Deadline reads stay the vendored parse until C-53.
+- `lib/creative/getPrivateBlob.ts` — **cross-domain**: shared by creative, MI-spec, and performance-report download routes. MI specs store is `0041_publisher_specs` (applied, 20-row join verified); runtime still reads vendored `mi-library/` until JSON import. Deadline reads stay the vendored parse until C-53 follow-up. HTTP material-instructions requires `versionNumber` (published watermark) or explicit `mbaWide`. Answers persist on `media_plan_versions.mi_resolution` (`0044`, applied). pdf-parse reuse is `lib/specs/parsePdfText.ts` → `spec_runs.extracted`.
 - `lib/creative/types.ts` — `CREATIVE_ASSET_CREATE_BODY_KEYS`/`WRITABLE_KEYS` lists must both be edited when adding a column or POSTs silently drop the field.
 
 ## Access model

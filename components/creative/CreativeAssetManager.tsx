@@ -53,6 +53,8 @@ type MediaPlanPayload = {
   campaign_name?: string
   mp_client_name?: string
   client_name?: string
+  version_number?: number
+  versionNumber?: number
   lineItems?: Record<string, unknown[]>
 }
 
@@ -88,6 +90,7 @@ export function CreativeAssetManager({
   const [lineItemOptions, setLineItemOptions] = useState<LineItemOption[]>([])
   const [mediaPlanMasterId, setMediaPlanMasterId] = useState<number | null>(null)
   const [campaignName, setCampaignName] = useState<string>("")
+  const [versionNumber, setVersionNumber] = useState<number | undefined>(undefined)
   const [clientName, setClientName] = useState<string>("")
   const [resolvedMetaPageId, setResolvedMetaPageId] = useState(() => metaPageIdProp?.trim() ?? "")
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active")
@@ -138,6 +141,12 @@ export function CreativeAssetManager({
       setMediaPlanMasterId(masterId)
       setCampaignName(
         String(plan.mp_campaignname || plan.campaign_name || "").trim() || mbaNumber,
+      )
+      const publishedVersion = Number(plan.version_number ?? plan.versionNumber)
+      setVersionNumber(
+        Number.isInteger(publishedVersion) && publishedVersion > 0
+          ? publishedVersion
+          : undefined,
       )
       setClientName(
         String(plan.mp_client_name || plan.client_name || "").trim() || "Brand",
@@ -262,6 +271,7 @@ export function CreativeAssetManager({
         mbaNumber,
         clientName: clientName || undefined,
         campaignName: campaignName || undefined,
+        versionNumber,
       },
       pageText: {
         title: "Creative assets",
@@ -285,6 +295,7 @@ export function CreativeAssetManager({
     nameFilter,
     pathname,
     statusFilter,
+    versionNumber,
   ])
 
   useEffect(() => {
@@ -508,6 +519,7 @@ export function CreativeAssetManager({
             clientName={clientName}
             campaignName={campaignName}
             mbaNumber={mbaNumber}
+            versionNumber={versionNumber}
             metaPageId={resolvedMetaPageId}
             allowDelete={!clientMode}
             allowMockup={!clientMode}
@@ -525,6 +537,7 @@ export function CreativeAssetManager({
         open={searchOpen}
         onOpenChange={setSearchOpen}
         mbaNumber={mbaNumber}
+        versionNumber={versionNumber}
         clientName={clientName || undefined}
         campaignName={campaignName || undefined}
         brandName={clientName || "Brand"}

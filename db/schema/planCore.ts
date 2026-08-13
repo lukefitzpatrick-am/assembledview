@@ -69,6 +69,8 @@ export const mediaPlanVersions = pgTable(
   /** VC Stage 1: wall-clock publication; null = unpublished. Never infer from campaign_status. */
   publishedAt: timestamp('published_at', { withTimezone: true, mode: "string" }),
   publishedBy: text('published_by'),
+  /** SD-2: persisted MI interview answers ({ answers, updatedAt, updatedBy }). Never a full MiResolveResult. */
+  miResolution: jsonb("mi_resolution").notNull().default({}),
   mediaPlanFile: jsonb('media_plan_file'),
   mbaPdfFile: jsonb('mba_pdf_file'),
   aaMediaPlanFile: jsonb('aa_media_plan_file'),
