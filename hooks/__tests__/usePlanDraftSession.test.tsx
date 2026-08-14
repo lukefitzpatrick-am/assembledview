@@ -149,6 +149,28 @@ function ResumeProbe(props: {
   return null
 }
 
+function CreateProbe(props: {
+  onResult: (result: HookResult) => void
+  onRestore: (state: PlanDraftStateV1) => void
+}) {
+  const result = usePlanDraftSession({
+    masterId: null,
+    mbaNumber: "TEST001",
+    userId: "luke.fitzpatrick@assembledmedia.com.au",
+    dirty: false,
+    baseVersionId: null,
+    campaignStatus: "Draft",
+    publishedVersionNumber: 0,
+    versionRowCount: 0,
+    tipPublishedAt: null,
+    hydrationSettled: true,
+    getSnapshot: () => EMPTY_SNAPSHOT,
+    onRestore: props.onRestore,
+  })
+  props.onResult(result)
+  return null
+}
+
 describe("usePlanDraftSession auto-load + stale guard", () => {
   let container: HTMLDivElement
   let root: Root
@@ -218,6 +240,21 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
           }}
           onRevertToBase={(state) => {
             reverted.push(state)
+          }}
+        />
+      )
+    })
+  }
+
+  async function renderCreateProbe() {
+    await act(async () => {
+      root.render(
+        <CreateProbe
+          onResult={(result) => {
+            latest = result
+          }}
+          onRestore={(state) => {
+            restored.push(state)
           }}
         />
       )
@@ -307,6 +344,75 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
     await renderProbe(true)
     await waitUntil(() => restored.length > 0)
     expect(restored[0]?.channels.search).toEqual([])
+  })
+
+  it("create page: empty local draft is deleted silently with no banner", async () => {
+    vi.spyOn(localStore, "readLocalDraft").mockResolvedValue({
+      key: "mba: ::luke",
+      updatedAt: "2026-08-13T00:00:00.000Z",
+      state: EMPTY_SNAPSHOT,
+    })
+    const clearSpy = vi.spyOn(localStore, "clearLocalDraft").mockResolvedValue(undefined)
+    await renderCreateProbe()
+    await waitUntil(() => clearSpy.mock.calls.length > 0)
+    expect(restored).toEqual([])
+    expect(latest?.recovery).toBeNull()
+    expect(latest?.activeDraft).toBeNull()
+    expect(latest?.loadKind).toBe("none")
+    expect(clearSpy).toHaveBeenCalled()
+  })
+
+  it("create page: meaningful local draft auto-applies with descriptive label", async () => {
+    const meaningful: PlanDraftStateV1 = {
+      ...EMPTY_SNAPSHOT,
+      formValues: { mp_client_name: "Penfold", mp_campaignname: "Summer brand" },
+      channels: { search: [{ line_item_id: "pen-se1" }] },
+      meta: { lineCount: 1, budgetCents: 500_000 },
+    }
+    vi.spyOn(localStore, "readLocalDraft").mockResolvedValue({
+      key: "mba: ::luke",
+      updatedAt: "2026-08-13T00:00:00.000Z",
+      state: meaningful,
+    })
+    await renderCreateProbe()
+    await waitUntil(() => restored.length > 0)
+    expect(restored).toHaveLength(1)
+    expect(restored[0]?.formValues.mp_client_name).toBe("Penfold")
+    expect(latest?.activeDraft).toBeTruthy()
+    expect(latest?.activeDraft?.headline).toBe(
+      "Unsaved campaign: Penfold — Summer brand, 1 line, $5000"
+    )
+    expect(latest?.loadKind).toBe("auto")
+  })
+
+  it("create page: 15-day-old meaningful draft is dropped silently", async () => {
+    const meaningful: PlanDraftStateV1 = {
+      ...EMPTY_SNAPSHOT,
+      formValues: { mp_client_name: "Penfold" },
+    }
+    vi.spyOn(localStore, "readLocalDraft").mockResolvedValue({
+      key: "mba: ::luke",
+      updatedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
+      state: meaningful,
+    })
+    const clearSpy = vi.spyOn(localStore, "clearLocalDraft").mockResolvedValue(undefined)
+    await renderCreateProbe()
+    await waitUntil(() => clearSpy.mock.calls.length > 0)
+    expect(restored).toEqual([])
+    expect(latest?.activeDraft).toBeNull()
+    expect(latest?.loadKind).toBe("none")
+  })
+
+  it("create page: clearAfterPublish deletes the local create draft", async () => {
+    const clearSpy = vi.spyOn(localStore, "clearLocalDraft").mockResolvedValue(undefined)
+    await renderCreateProbe()
+    await waitUntil(() => latest != null)
+    await act(async () => {
+      await latest?.clearAfterPublish()
+    })
+    expect(clearSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ masterId: null, mbaNumber: "TEST001" })
+    )
   })
 
   it("a fresh editor with no draft has no banner and no activeDraft", async () => {

@@ -30,6 +30,11 @@ import {
   type DraftDiffSummary,
   type DraftLoadKind,
 } from "@/lib/mediaplan/drafts/fieldDiff"
+import {
+  shouldOfferCreateLocalDraft,
+  isMeaningfulCreateDraft,
+  summarizeCreateDraftOffer,
+} from "@/lib/mediaplan/drafts/createLocalDraft"
 
 type OtherDraft = {
   userId: string
@@ -41,6 +46,7 @@ type RecoveryOffer = {
   source: "local" | "server"
   reason: string
   summary: string
+  headline?: string
   state: PlanDraftStateV1
   updatedAt: string
   draftBaseVersionId: number | null
@@ -49,6 +55,7 @@ type RecoveryOffer = {
 export type ActiveDraftSession = {
   updatedAt: string
   baseSnapshot: PlanDraftStateV1
+  headline?: string
 }
 
 export function usePlanDraftSession(args: {
@@ -157,6 +164,7 @@ export function usePlanDraftSession(args: {
     async (opts?: { force?: boolean }) => {
       if ((!autosaveEnabled && !opts?.force) || !userId) return
       const state = getSnapshotRef.current()
+      if (args.masterId == null && !isMeaningfulCreateDraft(state)) return
       setPayloadBytes(estimateDraftPayloadBytes(state))
       await writeLocalDraft({
         masterId: args.masterId,
@@ -226,13 +234,16 @@ export function usePlanDraftSession(args: {
     }
   }, [autosaveEnabled, args.dirty, args.masterId, persistServer])
 
-  const commitApply = useCallback((state: PlanDraftStateV1, updatedAt: string) => {
-    const base = cloneDraftState(getSnapshotRef.current())
-    pendingUpdatedAtRef.current = null
-    setActiveDraft({ updatedAt, baseSnapshot: base })
-    setRecovery(null)
-    onRestoreRef.current(state)
-  }, [])
+  const commitApply = useCallback(
+    (state: PlanDraftStateV1, updatedAt: string, headline?: string) => {
+      const base = cloneDraftState(getSnapshotRef.current())
+      pendingUpdatedAtRef.current = null
+      setActiveDraft({ updatedAt, baseSnapshot: base, headline })
+      setRecovery(null)
+      onRestoreRef.current(state)
+    },
+    []
+  )
 
   // On mount: load offer. Auto-apply matching-base drafts after hydration;
   // stale-base drafts keep a click (Load anyway). Never silently overlay a newer tip.
@@ -282,6 +293,20 @@ export function usePlanDraftSession(args: {
       }
       const state = pick.winner === "local" ? local!.state : server!.state
       const updatedAt = pick.winner === "local" ? local!.updatedAt : server!.updatedAt
+      if (
+        args.masterId == null &&
+        pick.winner === "local" &&
+        !shouldOfferCreateLocalDraft({ state, updatedAt })
+      ) {
+        await clearLocalDraft({
+          masterId: args.masterId,
+          mbaNumber: args.mbaNumber,
+          userId,
+        })
+        if (cancelled) return
+        setOffer(null)
+        return
+      }
       const draftBaseVersionId =
         pick.winner === "server"
           ? (server!.baseVersionId ?? state.baseVersionId ?? null)
@@ -303,14 +328,19 @@ export function usePlanDraftSession(args: {
         tipBudgetCents: state.meta.tipBudgetCents ?? 0,
         draftBudgetCents: state.meta.budgetCents,
       })
+      const headline =
+        args.masterId == null ? summarizeCreateDraftOffer(state) : undefined
       setOffer({
         source: pick.winner,
         reason: pick.reason,
-        summary: summarizeDraftOffer({
-          updatedAt,
-          linesChanged: cmp.linesChanged || Math.max(0, state.meta.lineCount),
-          budgetDeltaDollars: cmp.budgetDeltaCents / 100,
-        }),
+        summary: headline
+          ? headline
+          : summarizeDraftOffer({
+              updatedAt,
+              linesChanged: cmp.linesChanged || Math.max(0, state.meta.lineCount),
+              budgetDeltaDollars: cmp.budgetDeltaCents / 100,
+            }),
+        headline,
         state,
         updatedAt,
         draftBaseVersionId,
@@ -344,7 +374,7 @@ export function usePlanDraftSession(args: {
       hydrationSettled,
     )
     restoreGateRef.current = result.gate
-    if (result.apply) commitApply(result.apply, offer.updatedAt)
+    if (result.apply) commitApply(result.apply, offer.updatedAt, offer.headline)
   }, [offer, args.baseVersionId, hydrationSettled, activeDraft, commitApply])
 
   const discard = useCallback(async () => {
@@ -378,7 +408,7 @@ export function usePlanDraftSession(args: {
     restoreGateRef.current = result.gate
     pendingUpdatedAtRef.current = stale.updatedAt
     setRecovery(null)
-    if (result.apply) commitApply(result.apply, stale.updatedAt)
+    if (result.apply) commitApply(result.apply, stale.updatedAt, stale.headline)
   }, [recovery, hydrationSettled, commitApply])
 
   useEffect(() => {
@@ -388,7 +418,11 @@ export function usePlanDraftSession(args: {
     )
     restoreGateRef.current = result.gate
     if (result.apply) {
-      commitApply(result.apply, pendingUpdatedAtRef.current ?? offer?.updatedAt ?? "")
+      commitApply(
+        result.apply,
+        pendingUpdatedAtRef.current ?? offer?.updatedAt ?? "",
+        offer?.headline
+      )
     }
   }, [hydrationSettled, commitApply, offer?.updatedAt])
 

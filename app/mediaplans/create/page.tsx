@@ -7204,6 +7204,7 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
       {planDraft.activeDraft ? (
         <PlanDraftActiveBanner
           updatedAt={planDraft.activeDraft.updatedAt}
+          headline={planDraft.activeDraft.headline}
           summary={
             planDraft.diffLive() ?? {
               fieldChanges: [],

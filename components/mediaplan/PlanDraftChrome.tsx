@@ -71,6 +71,8 @@ export function PlanDraftActiveBanner(props: {
   updatedAt: string
   summary: DraftDiffSummary
   onDiscard: () => void
+  /** Create-page meaningful draft: names client, campaign, lines, budget. */
+  headline?: string
 }) {
   const cycleRef = useRef(0)
   const n = props.summary.changeCount
@@ -92,32 +94,38 @@ export function PlanDraftActiveBanner(props: {
       className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-status-warning/40 bg-surface-panel px-3 py-2 shadow-e0"
     >
       <p className="text-sm text-foreground">
-        Unsaved draft from {formatDraftRelativeTime(props.updatedAt)} loaded —{" "}
-        <Popover>
-          <PopoverTrigger asChild>
-            <button type="button" className="underline-offset-2 hover:underline">
-              {changeLabel}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent align="start" className="w-80 text-sm">
-            <p className="font-medium text-foreground">{changeLabel}</p>
-            <ul className="mt-2 space-y-1 text-muted-foreground">
-              {props.summary.removedLines.map((line) => (
-                <li key={line.lineItemId}>{removedLineCaption(line)}</li>
-              ))}
-              {props.summary.addedLineIds.map((id) => (
-                <li key={id}>Added: {id}</li>
-              ))}
-              {props.summary.fieldChanges.length > 0 ? (
-                <li>
-                  {props.summary.fieldChanges.length} field
-                  {props.summary.fieldChanges.length === 1 ? "" : "s"} edited
-                </li>
-              ) : null}
-              {n === 0 ? <li>No remaining differences</li> : null}
-            </ul>
-          </PopoverContent>
-        </Popover>
+        {props.headline ? (
+          props.headline
+        ) : (
+          <>
+            Unsaved draft from {formatDraftRelativeTime(props.updatedAt)} loaded —{" "}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button type="button" className="underline-offset-2 hover:underline">
+                  {changeLabel}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-80 text-sm">
+                <p className="font-medium text-foreground">{changeLabel}</p>
+                <ul className="mt-2 space-y-1 text-muted-foreground">
+                  {props.summary.removedLines.map((line) => (
+                    <li key={line.lineItemId}>{removedLineCaption(line)}</li>
+                  ))}
+                  {props.summary.addedLineIds.map((id) => (
+                    <li key={id}>Added: {id}</li>
+                  ))}
+                  {props.summary.fieldChanges.length > 0 ? (
+                    <li>
+                      {props.summary.fieldChanges.length} field
+                      {props.summary.fieldChanges.length === 1 ? "" : "s"} edited
+                    </li>
+                  ) : null}
+                  {n === 0 ? <li>No remaining differences</li> : null}
+                </ul>
+              </PopoverContent>
+            </Popover>
+          </>
+        )}
       </p>
       <div className="flex flex-wrap gap-2">
         <Button type="button" size="sm" variant="outline" onClick={viewChanges}>
