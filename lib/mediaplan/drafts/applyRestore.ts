@@ -15,9 +15,17 @@ export function initialPlanDraftRestoreGate(): PlanDraftRestoreGate {
 }
 
 function cloneRows(rows: unknown[]): unknown[] {
+  return cloneValue(rows)
+}
+
+function cloneValue<T>(value: T): T {
   return typeof structuredClone === "function"
-    ? structuredClone(rows)
-    : (JSON.parse(JSON.stringify(rows)) as unknown[])
+    ? structuredClone(value)
+    : (JSON.parse(JSON.stringify(value)) as T)
+}
+
+export function cloneDraftState(state: PlanDraftStateV1): PlanDraftStateV1 {
+  return cloneValue(state)
 }
 
 /**

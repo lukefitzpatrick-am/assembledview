@@ -1,7 +1,19 @@
 "use client"
 
+import { useRef } from "react"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import type { DraftDiffSummary } from "@/lib/mediaplan/drafts/fieldDiff"
+import {
+  formatDraftRelativeTime,
+  removedLineCaption,
+} from "@/lib/mediaplan/drafts/fieldDiff"
 import type { PlanSavePill } from "@/lib/mediaplan/drafts/pill"
 
 export function PlanDraftPill(props: {
@@ -47,6 +59,104 @@ export function PlanDraftRecoveryBanner(props: {
         <Button type="button" size="sm" variant="outline" onClick={props.onCompare}>
           Compare
         </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={props.onDiscard}>
+          Discard
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+export function PlanDraftActiveBanner(props: {
+  updatedAt: string
+  summary: DraftDiffSummary
+  onDiscard: () => void
+}) {
+  const cycleRef = useRef(0)
+  const n = props.summary.changeCount
+  const changeLabel = n === 1 ? "1 change" : `${n} changes`
+
+  function viewChanges() {
+    const nodes = document.querySelectorAll<HTMLElement>(
+      "[data-draft-changed='true'], [data-draft-new-line='true']",
+    )
+    if (!nodes.length) return
+    const i = cycleRef.current % nodes.length
+    nodes[i].scrollIntoView({ behavior: "smooth", block: "center" })
+    cycleRef.current = i + 1
+  }
+
+  return (
+    <div
+      role="status"
+      className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-status-warning/40 bg-surface-panel px-3 py-2 shadow-e0"
+    >
+      <p className="text-sm text-foreground">
+        Unsaved draft from {formatDraftRelativeTime(props.updatedAt)} loaded —{" "}
+        <Popover>
+          <PopoverTrigger asChild>
+            <button type="button" className="underline-offset-2 hover:underline">
+              {changeLabel}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-80 text-sm">
+            <p className="font-medium text-foreground">{changeLabel}</p>
+            <ul className="mt-2 space-y-1 text-muted-foreground">
+              {props.summary.removedLines.map((line) => (
+                <li key={line.lineItemId}>{removedLineCaption(line)}</li>
+              ))}
+              {props.summary.addedLineIds.map((id) => (
+                <li key={id}>Added: {id}</li>
+              ))}
+              {props.summary.fieldChanges.length > 0 ? (
+                <li>
+                  {props.summary.fieldChanges.length} field
+                  {props.summary.fieldChanges.length === 1 ? "" : "s"} edited
+                </li>
+              ) : null}
+              {n === 0 ? <li>No remaining differences</li> : null}
+            </ul>
+          </PopoverContent>
+        </Popover>
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" variant="outline" onClick={viewChanges}>
+          View changes
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={props.onDiscard}>
+          Discard draft
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+export function PlanDraftStaleBanner(props: {
+  updatedAt: string
+  baseVersionNumber: number | string
+  tipVersionNumber: number | string
+  onLoadAnyway: () => void
+  onDiscard: () => void
+  onCompare?: () => void
+}) {
+  return (
+    <div
+      role="status"
+      className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-status-warning/40 bg-surface-panel px-3 py-2 shadow-e0"
+    >
+      <p className="text-sm text-foreground">
+        Draft from {formatDraftRelativeTime(props.updatedAt)} is based on v
+        {props.baseVersionNumber}; the plan is now on v{props.tipVersionNumber}.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" onClick={props.onLoadAnyway}>
+          Load anyway
+        </Button>
+        {props.onCompare ? (
+          <Button type="button" size="sm" variant="outline" onClick={props.onCompare}>
+            Compare
+          </Button>
+        ) : null}
         <Button type="button" size="sm" variant="ghost" onClick={props.onDiscard}>
           Discard
         </Button>

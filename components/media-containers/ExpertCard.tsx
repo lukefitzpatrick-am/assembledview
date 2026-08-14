@@ -19,6 +19,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { SingleDatePicker } from "@/components/ui/single-date-picker"
 import { AutoGrowField } from "@/components/media-containers/AutoGrowField"
+import { DraftHighlightedField } from "@/components/mediaplan/DraftHighlightedField"
+import { useDraftLineMeta } from "@/hooks/useDraftFieldDiff"
+import { Badge } from "@/components/ui/badge"
 import {
   CpcFamilyBurstCalculatedField,
   getCpcFamilyBurstCalculatedColumnLabel,
@@ -210,6 +213,7 @@ function ExpertCardFieldControl<T extends FieldValues>({
   form,
   itemsKey,
   lineItemIndex,
+  lineItemId,
   publishers,
   stationOptions,
   dynamicOptionsByKey,
@@ -225,6 +229,7 @@ function ExpertCardFieldControl<T extends FieldValues>({
   form: UseFormReturn<T>
   itemsKey: string
   lineItemIndex: number
+  lineItemId: string
   publishers: ExpertCardPublisher[]
   stationOptions: ComboboxOption[]
   dynamicOptionsByKey: Record<string, ComboboxOption[]>
@@ -283,6 +288,21 @@ function ExpertCardFieldControl<T extends FieldValues>({
     return withInjectedComboboxValue(options, current)
   }
 
+  const highlight = (
+    value: unknown,
+    node: React.ReactNode,
+    kind?: "money" | "date" | "text",
+  ) => (
+    <DraftHighlightedField
+      lineItemId={lineItemId}
+      fieldPath={d.key}
+      value={value}
+      kind={kind}
+    >
+      {node}
+    </DraftHighlightedField>
+  )
+
   if (
     d.kind === "combobox-publishers" ||
     d.kind === "combobox-static" ||
@@ -327,11 +347,11 @@ function ExpertCardFieldControl<T extends FieldValues>({
               <FormLabel className={EXPERT_CARD_LABEL}>{d.label}</FormLabel>
               {fieldAdornment ? (
                 <div className="flex flex-1 items-center space-x-1">
-                  <FormControl>{combobox}</FormControl>
+                  <FormControl>{highlight(field.value, combobox)}</FormControl>
                   {fieldAdornment}
                 </div>
               ) : (
-                <FormControl>{combobox}</FormControl>
+                <FormControl>{highlight(field.value, combobox)}</FormControl>
               )}
               <FormMessage />
             </FormItem>
@@ -350,16 +370,20 @@ function ExpertCardFieldControl<T extends FieldValues>({
           <FormItem className="flex flex-col space-y-1">
             <FormLabel className={EXPERT_CARD_LABEL}>{d.label}</FormLabel>
             <FormControl>
-              <SingleDatePicker
-                ref={field.ref}
-                name={field.name}
-                onBlur={field.onBlur}
-                value={field.value}
-                onChange={field.onChange}
-                className="h-8 w-full pl-2 text-left text-sm font-normal"
-                campaignStartDate={campaignStartDate}
-                campaignEndDate={campaignEndDate}
-              />
+              {highlight(
+                field.value,
+                <SingleDatePicker
+                  ref={field.ref}
+                  name={field.name}
+                  onBlur={field.onBlur}
+                  value={field.value}
+                  onChange={field.onChange}
+                  className="h-8 w-full pl-2 text-left text-sm font-normal"
+                  campaignStartDate={campaignStartDate}
+                  campaignEndDate={campaignEndDate}
+                />,
+                "date",
+              )}
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -377,17 +401,21 @@ function ExpertCardFieldControl<T extends FieldValues>({
           <FormItem className="flex flex-col space-y-1">
             <FormLabel className={EXPERT_CARD_LABEL}>{d.label}</FormLabel>
             <FormControl>
-              <Input
-                {...field}
-                type="number"
-                placeholder={d.placeholder}
-                className="h-8 w-full text-sm"
-                value={field.value ?? ""}
-                onChange={(e) => {
-                  field.onChange(e)
-                  onFieldValueChange?.(d.key, lineItemIndex, e.target.value)
-                }}
-              />
+              {highlight(
+                field.value,
+                <Input
+                  {...field}
+                  type="number"
+                  placeholder={d.placeholder}
+                  className="h-8 w-full text-sm"
+                  value={field.value ?? ""}
+                  onChange={(e) => {
+                    field.onChange(e)
+                    onFieldValueChange?.(d.key, lineItemIndex, e.target.value)
+                  }}
+                />,
+                "money",
+              )}
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -430,19 +458,22 @@ function ExpertCardFieldControl<T extends FieldValues>({
           >
             <FormLabel className={EXPERT_CARD_LABEL}>{d.label}</FormLabel>
             <FormControl>
-              <AutoGrowField
-                ref={field.ref}
-                name={field.name}
-                value={(field.value as string | undefined) ?? ""}
-                onBlur={field.onBlur}
-                placeholder={d.placeholder}
-                singleLine={isCompact}
-                className={cn(isPrimary && "h-full min-h-[7rem]")}
-                onChange={(e) => {
-                  field.onChange(e)
-                  onFieldValueChange?.(d.key, lineItemIndex, e.target.value)
-                }}
-              />
+              {highlight(
+                field.value,
+                <AutoGrowField
+                  ref={field.ref}
+                  name={field.name}
+                  value={(field.value as string | undefined) ?? ""}
+                  onBlur={field.onBlur}
+                  placeholder={d.placeholder}
+                  singleLine={isCompact}
+                  className={cn(isPrimary && "h-full min-h-[7rem]")}
+                  onChange={(e) => {
+                    field.onChange(e)
+                    onFieldValueChange?.(d.key, lineItemIndex, e.target.value)
+                  }}
+                />,
+              )}
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -458,6 +489,7 @@ function ExpertCardBursts<T extends FieldValues>({
   form,
   itemsKey,
   lineItemIndex,
+  lineItemId,
   feePct,
   calculatedVariant,
   campaignStartDate,
@@ -470,6 +502,7 @@ function ExpertCardBursts<T extends FieldValues>({
   form: UseFormReturn<T>
   itemsKey: string
   lineItemIndex: number
+  lineItemId: string
   feePct: number
   calculatedVariant: CpcFamilyVariant
   campaignStartDate: Date
@@ -566,26 +599,33 @@ function ExpertCardBursts<T extends FieldValues>({
                     render={({ field }) => (
                       <FormItem className="flex flex-col justify-end space-y-0">
                         <FormControl>
-                          <Input
-                            {...field}
-                            type="text"
-                            className="h-10 w-full min-w-[9rem] text-sm"
+                          <DraftHighlightedField
+                            lineItemId={lineItemId}
+                            fieldPath={`bursts.${burstIndex}.budget`}
                             value={bonusLocked ? "0" : field.value}
-                            disabled={bonusLocked}
-                            onChange={(e) => {
-                              const value = e.target.value.replace(/[^0-9.]/g, "")
-                              field.onChange(value)
-                              onBurstValueChange(lineItemIndex, burstIndex)
-                            }}
-                            onBlur={(e) => {
-                              const formattedValue = formatMoney(
-                                parseMoneyInput(e.target.value) ?? 0,
-                                { locale: "en-AU", currency: "AUD" }
-                              )
-                              field.onChange(formattedValue)
-                              onBurstValueChange(lineItemIndex, burstIndex)
-                            }}
-                          />
+                            kind="money"
+                          >
+                            <Input
+                              {...field}
+                              type="text"
+                              className="h-10 w-full min-w-[9rem] text-sm"
+                              value={bonusLocked ? "0" : field.value}
+                              disabled={bonusLocked}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/[^0-9.]/g, "")
+                                field.onChange(value)
+                                onBurstValueChange(lineItemIndex, burstIndex)
+                              }}
+                              onBlur={(e) => {
+                                const formattedValue = formatMoney(
+                                  parseMoneyInput(e.target.value) ?? 0,
+                                  { locale: "en-AU", currency: "AUD" }
+                                )
+                                field.onChange(formattedValue)
+                                onBurstValueChange(lineItemIndex, burstIndex)
+                              }}
+                            />
+                          </DraftHighlightedField>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -603,26 +643,33 @@ function ExpertCardBursts<T extends FieldValues>({
                     render={({ field }) => (
                       <FormItem className="flex flex-col justify-end space-y-0">
                         <FormControl>
-                          <Input
-                            {...field}
-                            type="text"
-                            className="h-10 w-full min-w-[9rem] text-sm"
+                          <DraftHighlightedField
+                            lineItemId={lineItemId}
+                            fieldPath={`bursts.${burstIndex}.buyAmount`}
                             value={bonusLocked ? "0" : field.value}
-                            disabled={bonusLocked}
-                            onChange={(e) => {
-                              const value = e.target.value.replace(/[^0-9.]/g, "")
-                              field.onChange(value)
-                              onBurstValueChange(lineItemIndex, burstIndex)
-                            }}
-                            onBlur={(e) => {
-                              const formattedValue = formatMoney(
-                                parseMoneyInput(e.target.value) ?? 0,
-                                { locale: "en-AU", currency: "AUD" }
-                              )
-                              field.onChange(formattedValue)
-                              onBurstValueChange(lineItemIndex, burstIndex)
-                            }}
-                          />
+                            kind="money"
+                          >
+                            <Input
+                              {...field}
+                              type="text"
+                              className="h-10 w-full min-w-[9rem] text-sm"
+                              value={bonusLocked ? "0" : field.value}
+                              disabled={bonusLocked}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/[^0-9.]/g, "")
+                                field.onChange(value)
+                                onBurstValueChange(lineItemIndex, burstIndex)
+                              }}
+                              onBlur={(e) => {
+                                const formattedValue = formatMoney(
+                                  parseMoneyInput(e.target.value) ?? 0,
+                                  { locale: "en-AU", currency: "AUD" }
+                                )
+                                field.onChange(formattedValue)
+                                onBurstValueChange(lineItemIndex, burstIndex)
+                              }}
+                            />
+                          </DraftHighlightedField>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -640,19 +687,26 @@ function ExpertCardBursts<T extends FieldValues>({
                     render={({ field }) => (
                       <FormItem className="flex flex-col justify-end space-y-0">
                         <FormControl>
-                          <SingleDatePicker
-                            ref={field.ref}
-                            name={field.name}
-                            onBlur={field.onBlur}
+                          <DraftHighlightedField
+                            lineItemId={lineItemId}
+                            fieldPath={`bursts.${burstIndex}.startDate`}
                             value={field.value}
-                            onChange={field.onChange}
-                            className="h-10 w-full pl-2 text-left text-sm font-normal"
-                            calendarContext="media-burst"
-                            mediaBurstRole="start"
-                            campaignStartDate={campaignStartDate}
-                            campaignEndDate={campaignEndDate}
-                            isDateDisabled={(date) => date > new Date("2100-01-01")}
-                          />
+                            kind="date"
+                          >
+                            <SingleDatePicker
+                              ref={field.ref}
+                              name={field.name}
+                              onBlur={field.onBlur}
+                              value={field.value}
+                              onChange={field.onChange}
+                              className="h-10 w-full pl-2 text-left text-sm font-normal"
+                              calendarContext="media-burst"
+                              mediaBurstRole="start"
+                              campaignStartDate={campaignStartDate}
+                              campaignEndDate={campaignEndDate}
+                              isDateDisabled={(date) => date > new Date("2100-01-01")}
+                            />
+                          </DraftHighlightedField>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -665,19 +719,26 @@ function ExpertCardBursts<T extends FieldValues>({
                     render={({ field }) => (
                       <FormItem className="flex flex-col justify-end space-y-0">
                         <FormControl>
-                          <SingleDatePicker
-                            ref={field.ref}
-                            name={field.name}
-                            onBlur={field.onBlur}
+                          <DraftHighlightedField
+                            lineItemId={lineItemId}
+                            fieldPath={`bursts.${burstIndex}.endDate`}
                             value={field.value}
-                            onChange={field.onChange}
-                            className="h-10 w-full pl-2 text-left text-sm font-normal"
-                            calendarContext="media-burst"
-                            mediaBurstRole="end"
-                            campaignStartDate={campaignStartDate}
-                            campaignEndDate={campaignEndDate}
-                            isDateDisabled={(date) => date > new Date("2100-01-01")}
-                          />
+                            kind="date"
+                          >
+                            <SingleDatePicker
+                              ref={field.ref}
+                              name={field.name}
+                              onBlur={field.onBlur}
+                              value={field.value}
+                              onChange={field.onChange}
+                              className="h-10 w-full pl-2 text-left text-sm font-normal"
+                              calendarContext="media-burst"
+                              mediaBurstRole="end"
+                              campaignStartDate={campaignStartDate}
+                              campaignEndDate={campaignEndDate}
+                              isDateDisabled={(date) => date > new Date("2100-01-01")}
+                            />
+                          </DraftHighlightedField>
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -804,6 +865,7 @@ export function ExpertCard<T extends FieldValues>({
   footer,
   className,
 }: ExpertCardProps<T>) {
+  const { isNew } = useDraftLineMeta(lineItemId)
   const cardFields = getExpertCardSurfaceFields(config)
   const optionFlags = getExpertOptionFlags(config)
   const dropdownFields = cardFields.filter((d) =>
@@ -827,6 +889,7 @@ export function ExpertCard<T extends FieldValues>({
       form={form}
       itemsKey={itemsKey}
       lineItemIndex={lineItemIndex}
+      lineItemId={lineItemId}
       publishers={publishers}
       stationOptions={stationOptions}
       dynamicOptionsByKey={dynamicOptionsByKey}
@@ -844,8 +907,11 @@ export function ExpertCard<T extends FieldValues>({
     <Card
       className={cn(
         "space-y-3 overflow-hidden border border-border/50 shadow-sm transition-shadow duration-200 hover:shadow-md",
+        isNew && "ring-2 ring-status-warning/70 ring-offset-1 ring-offset-background",
         className
       )}
+      data-draft-new-line={isNew ? "true" : undefined}
+      data-line-item-id={lineItemId}
     >
       <CardHeader className="bg-muted/30 py-2.5">
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
@@ -854,9 +920,16 @@ export function ExpertCard<T extends FieldValues>({
               {lineItemIndex + 1}
             </div>
             <div className="min-w-0">
-              <CardTitle className="text-sm font-semibold tracking-tight">
-                {config.channelLabel} Line Item
-              </CardTitle>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-sm font-semibold tracking-tight">
+                  {config.channelLabel} Line Item
+                </CardTitle>
+                {isNew ? (
+                  <Badge variant="attention" size="sm" className="rounded-pill">
+                    new
+                  </Badge>
+                ) : null}
+              </div>
               <span className="font-mono text-[11px] text-muted-foreground">
                 {lineItemId}
               </span>
@@ -977,6 +1050,7 @@ export function ExpertCard<T extends FieldValues>({
               form={form}
               itemsKey={itemsKey}
               lineItemIndex={lineItemIndex}
+              lineItemId={lineItemId}
               feePct={feePct}
               calculatedVariant={calculatedVariant}
               campaignStartDate={campaignStartDate}

@@ -191,11 +191,13 @@ import {
 } from "@/lib/mediaplan/buildPostgresSavePayload"
 import { usePlanDraftSession } from "@/hooks/usePlanDraftSession"
 import {
+  PlanDraftActiveBanner,
   PlanDraftPill,
-  PlanDraftRecoveryBanner,
+  PlanDraftStaleBanner,
   PlanDraftTipCompareDialog,
   PlanStaleBaseDialog,
 } from "@/components/mediaplan/PlanDraftChrome"
+import { DraftDiffProvider } from "@/hooks/useDraftFieldDiff"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
 import { buildDraftChannelApply } from "@/lib/mediaplan/drafts/applyRestore"
 import { describeVersionHeaderTrail } from "@/lib/mediaplan/drafts/pill"
@@ -6795,6 +6797,62 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       }
       forceDirty()
     },
+    onRevertToBase: (state: PlanDraftStateV1) => {
+      skipTipLineItemWritesRef.current = false
+      if (state.formValues) form.reset(state.formValues as never)
+      const { hydration, media } = buildDraftChannelApply(state.channels ?? {})
+      const hydrateSetters: Record<string, Dispatch<SetStateAction<any[]>>> = {
+        television: setTelevisionLineItems,
+        radio: setRadioLineItems,
+        newspaper: setNewspaperLineItems,
+        magazines: setMagazinesLineItems,
+        ooh: setOohLineItems,
+        cinema: setCinemaLineItems,
+        digiDisplay: setDigitalDisplayLineItems,
+        digiAudio: setDigitalAudioLineItems,
+        digiVideo: setDigitalVideoLineItems,
+        bvod: setBvodLineItems,
+        integration: setIntegrationLineItems,
+        production: setProductionLineItems,
+        search: setSearchLineItems,
+        socialMedia: setSocialMediaLineItems,
+        progDisplay: setProgDisplayLineItems,
+        progVideo: setProgVideoLineItems,
+        progBvod: setProgBvodLineItems,
+        progAudio: setProgAudioLineItems,
+        progOoh: setProgOohLineItems,
+        influencers: setInfluencersLineItems,
+      }
+      const mediaSetters: Record<string, Dispatch<SetStateAction<any[]>>> = {
+        television: setTelevisionMediaLineItems,
+        radio: setRadioMediaLineItems,
+        newspaper: setNewspaperMediaLineItems,
+        magazines: setMagazinesMediaLineItems,
+        ooh: setOohMediaLineItems,
+        cinema: setCinemaMediaLineItems,
+        digiDisplay: setDigitalDisplayMediaLineItems,
+        digiAudio: setDigitalAudioMediaLineItems,
+        digiVideo: setDigitalVideoMediaLineItems,
+        bvod: setBvodMediaLineItems,
+        integration: setIntegrationMediaLineItems,
+        production: setProductionMediaLineItems,
+        search: setSearchMediaLineItems,
+        socialMedia: setSocialMediaMediaLineItems,
+        progDisplay: setProgDisplayMediaLineItems,
+        progVideo: setProgVideoMediaLineItems,
+        progBvod: setProgBvodMediaLineItems,
+        progAudio: setProgAudioMediaLineItems,
+        progOoh: setProgOohMediaLineItems,
+        influencers: setInfluencersMediaLineItems,
+      }
+      for (const [key, rows] of Object.entries(hydration)) {
+        hydrateSetters[key]?.(rows)
+      }
+      for (const [key, rows] of Object.entries(media)) {
+        mediaSetters[key]?.(rows)
+      }
+      clearDirtyForHydration()
+    },
   })
 
   const otherEditorLabel =
@@ -11271,14 +11329,33 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           totals are inflated
         </div>
       ) : null}
-      {planDraft.recovery ? (
-        <PlanDraftRecoveryBanner
-          summary={planDraft.recovery.summary}
-          reason={planDraft.recovery.reason}
-          otherEditor={otherEditorLabel}
-          onResume={() => planDraft.resume()}
-          onCompare={() => planDraft.setCompareOpen(true)}
+      {planDraft.activeDraft ? (
+        <PlanDraftActiveBanner
+          updatedAt={planDraft.activeDraft.updatedAt}
+          summary={
+            planDraft.diffLive() ?? {
+              fieldChanges: [],
+              addedLineIds: [],
+              removedLines: [],
+              changeCount: 0,
+            }
+          }
           onDiscard={() => void planDraft.discard()}
+        />
+      ) : planDraft.recovery ? (
+        <PlanDraftStaleBanner
+          updatedAt={planDraft.recovery.updatedAt}
+          baseVersionNumber={
+            availableVersions.find((v) => v.id === planDraft.recovery?.draftBaseVersionId)
+              ?.version_number ?? "?"
+          }
+          tipVersionNumber={
+            selectedVersionNumber ??
+            (typeof latestVersionNumber === "number" ? latestVersionNumber : "?")
+          }
+          onLoadAnyway={() => planDraft.resume()}
+          onDiscard={() => void planDraft.discard()}
+          onCompare={() => planDraft.setCompareOpen(true)}
         />
       ) : otherEditorLabel ? (
         <p className="mb-2 text-xs text-muted-foreground">{otherEditorLabel}</p>
@@ -11700,6 +11777,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   return (
+    <DraftDiffProvider base={planDraft.activeDraft?.baseSnapshot ?? null}>
     <>
       <ExpertApplyDirtyClearOnSave hasUnsavedChanges={hasUnsavedChanges} />
       <Dialog open={rollbackModalOpen} onOpenChange={setRollbackModalOpen}>
@@ -13620,6 +13698,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
       />
     </>
+    </DraftDiffProvider>
   )
 }
 

@@ -125,15 +125,17 @@ const GLENDA_DRAFT: PlanDraftStateV1 = {
 
 function ResumeProbe(props: {
   hydrationSettled: boolean
+  baseVersionId?: number | null
   onResult: (result: HookResult) => void
   onRestore: (state: PlanDraftStateV1) => void
+  onRevertToBase?: (state: PlanDraftStateV1) => void
 }) {
   const result = usePlanDraftSession({
     masterId: 1,
     mbaNumber: "glenda006",
     userId: "luke.fitzpatrick@assembledmedia.com.au",
     dirty: true,
-    baseVersionId: 4347,
+    baseVersionId: props.baseVersionId === undefined ? 4347 : props.baseVersionId,
     campaignStatus: "Approved",
     publishedVersionNumber: 2,
     versionRowCount: 2,
@@ -141,47 +143,53 @@ function ResumeProbe(props: {
     hydrationSettled: props.hydrationSettled,
     getSnapshot: () => EMPTY_SNAPSHOT,
     onRestore: props.onRestore,
+    onRevertToBase: props.onRevertToBase,
   })
   props.onResult(result)
   return null
 }
 
-describe("usePlanDraftSession resume restores full channel state", () => {
+describe("usePlanDraftSession auto-load + stale guard", () => {
   let container: HTMLDivElement
   let root: Root
   let latest: HookResult | null
   let restored: PlanDraftStateV1[]
+  let reverted: PlanDraftStateV1[]
+  let fetchMock: ReturnType<typeof vi.fn>
 
   beforeEach(() => {
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT =
       true
     latest = null
     restored = []
+    reverted = []
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
 
     vi.spyOn(localStore, "readLocalDraft").mockResolvedValue(null)
     vi.spyOn(localStore, "clearLocalDraft").mockResolvedValue(undefined)
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo) => {
-        const url = String(input)
-        if (url.includes("/api/plans/drafts")) {
-          return new Response(
-            JSON.stringify({
-              draft: {
-                updatedAt: "2026-08-14T00:00:00.000Z",
-                draftStateJson: GLENDA_DRAFT,
-              },
-              others: [],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
-        }
-        return new Response("not found", { status: 404 })
-      })
-    )
+    fetchMock = vi.fn(async (input: RequestInfo, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes("/api/plans/drafts") && (!init?.method || init.method === "GET")) {
+        return new Response(
+          JSON.stringify({
+            draft: {
+              updatedAt: "2026-08-14T00:00:00.000Z",
+              draftStateJson: GLENDA_DRAFT,
+              baseVersionId: 4347,
+            },
+            others: [],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      }
+      if (url.includes("/api/plans/drafts") && init?.method === "DELETE") {
+        return new Response(JSON.stringify({ ok: true }), { status: 200 })
+      }
+      return new Response("not found", { status: 404 })
+    })
+    vi.stubGlobal("fetch", fetchMock)
   })
 
   afterEach(() => {
@@ -193,88 +201,135 @@ describe("usePlanDraftSession resume restores full channel state", () => {
     vi.unstubAllGlobals()
   })
 
-  async function renderProbe(hydrationSettled: boolean) {
+  async function renderProbe(
+    hydrationSettled: boolean,
+    baseVersionId?: number | null,
+  ) {
     await act(async () => {
       root.render(
         <ResumeProbe
           hydrationSettled={hydrationSettled}
+          baseVersionId={baseVersionId}
           onResult={(result) => {
             latest = result
           }}
           onRestore={(state) => {
             restored.push(state)
           }}
+          onRevertToBase={(state) => {
+            reverted.push(state)
+          }}
         />
       )
     })
   }
 
-  async function waitForRecovery() {
-    for (let i = 0; i < 30 && latest?.recovery == null; i++) {
+  async function waitUntil(pred: () => boolean) {
+    for (let i = 0; i < 40 && !pred(); i++) {
       await act(async () => {
         await Promise.resolve()
       })
     }
   }
 
-  it("round-trip: Resume after hydration settle applies the edited burst", async () => {
+  it("auto-applies when base === tip after hydration, without a Resume click", async () => {
     await renderProbe(false)
-    await waitForRecovery()
-    expect(latest?.recovery).toBeTruthy()
-
-    await act(async () => {
-      latest?.resume()
-    })
+    await waitUntil(() => latest != null)
     expect(restored).toEqual([])
     expect(latest?.recovery).toBeNull()
 
     await renderProbe(true)
+    await waitUntil(() => restored.length > 0)
     expect(restored).toHaveLength(1)
     expect(
       (restored[0].channels.search[0] as { bursts: { budget: string }[] }).bursts[0]
         .budget
     ).toBe("$20,000.00")
+    expect(latest?.recovery).toBeNull()
+    expect(latest?.activeDraft).toBeTruthy()
   })
 
-  it("deleted line: empty search array is in the restored state", async () => {
+  it("does not auto-apply a stale draft; Load anyway applies", async () => {
+    await renderProbe(true, 4401)
+    await waitUntil(() => latest?.recovery != null)
+    expect(restored).toEqual([])
+    expect(latest?.recovery).toBeTruthy()
+    expect(latest?.loadKind).toBe("stale")
+
+    await act(async () => {
+      latest?.resume()
+    })
+    expect(restored).toHaveLength(1)
+    expect(latest?.recovery).toBeNull()
+    expect(latest?.activeDraft).toBeTruthy()
+  })
+
+  it("Discard after auto-apply reverts to the captured tip and deletes the server row", async () => {
+    await renderProbe(true)
+    await waitUntil(() => restored.length > 0)
+    expect(latest?.activeDraft).toBeTruthy()
+
+    await act(async () => {
+      await latest?.discard()
+    })
+    expect(latest?.activeDraft).toBeNull()
+    expect(latest?.recovery).toBeNull()
+    expect(reverted).toHaveLength(1)
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/api/plans/drafts?masterId=1"),
+      expect.objectContaining({ method: "DELETE" })
+    )
+  })
+
+  it("deleted line: empty search array is in the auto-applied state", async () => {
     const deleted: PlanDraftStateV1 = {
       ...GLENDA_DRAFT,
       channels: { search: [], television: [] },
       meta: { ...GLENDA_DRAFT.meta, lineCount: 0, budgetCents: 0 },
     }
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async (input: RequestInfo) => {
-        const url = String(input)
-        if (url.includes("/api/plans/drafts")) {
-          return new Response(
-            JSON.stringify({
-              draft: { updatedAt: "2026-08-14T00:00:00.000Z", draftStateJson: deleted },
-              others: [],
-            }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
-          )
-        }
-        return new Response("not found", { status: 404 })
-      })
-    )
-    await renderProbe(true)
-    await waitForRecovery()
-    await act(async () => {
-      latest?.resume()
+    fetchMock.mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes("/api/plans/drafts") && (!init?.method || init.method === "GET")) {
+        return new Response(
+          JSON.stringify({
+            draft: {
+              updatedAt: "2026-08-14T00:00:00.000Z",
+              draftStateJson: deleted,
+              baseVersionId: 4347,
+            },
+            others: [],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      }
+      return new Response("not found", { status: 404 })
     })
+    await renderProbe(true)
+    await waitUntil(() => restored.length > 0)
     expect(restored[0]?.channels.search).toEqual([])
   })
 
-  it("Discard clears the recovery offer without applying the draft", async () => {
+  it("a fresh editor with no draft has no banner and no activeDraft", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo) => {
+      const url = String(input)
+      if (url.includes("/api/plans/drafts")) {
+        return new Response(JSON.stringify({ draft: null, others: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      return new Response("not found", { status: 404 })
+    })
     await renderProbe(true)
-    await waitForRecovery()
-    expect(latest?.recovery).toBeTruthy()
+    await waitUntil(() => fetchMock.mock.calls.length > 0)
     await act(async () => {
-      await latest?.discard()
+      await Promise.resolve()
     })
     expect(latest?.recovery).toBeNull()
+    expect(latest?.activeDraft).toBeNull()
+    expect(latest?.loadKind).toBe("none")
     expect(restored).toEqual([])
   })
 })
+
 

@@ -279,11 +279,13 @@ import {
 } from "@/lib/mediaplan/buildPostgresSavePayload"
 import { usePlanDraftSession } from "@/hooks/usePlanDraftSession"
 import {
+  PlanDraftActiveBanner,
   PlanDraftPill,
-  PlanDraftRecoveryBanner,
+  PlanDraftStaleBanner,
   PlanDraftTipCompareDialog,
   PlanStaleBaseDialog,
 } from "@/components/mediaplan/PlanDraftChrome"
+import { DraftDiffProvider } from "@/hooks/useDraftFieldDiff"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
 import { buildDraftChannelApply } from "@/lib/mediaplan/drafts/applyRestore"
@@ -637,6 +639,7 @@ function CreateMediaPlan() {
     markUnsavedChanges,
     forceDirty,
     clearDirtyOnSaveSuccess,
+    clearDirtyForHydration,
     closeGate,
     openGate,
     isGateOpen,
@@ -4998,6 +5001,36 @@ function CreateMediaPlan() {
       }
       forceDirty()
     },
+    onRevertToBase: (state: PlanDraftStateV1) => {
+      if (state.formValues) form.reset(state.formValues as never)
+      const { media } = buildDraftChannelApply(state.channels ?? {})
+      const mediaSetters: Record<string, Dispatch<SetStateAction<any[]>>> = {
+        television: setTelevisionMediaLineItems,
+        radio: setRadioMediaLineItems,
+        newspaper: setNewspaperMediaLineItems,
+        magazines: setMagazineMediaLineItems,
+        ooh: setOohMediaLineItems,
+        cinema: setCinemaMediaLineItems,
+        digiDisplay: setDigiDisplayMediaLineItems,
+        digiAudio: setDigiAudioMediaLineItems,
+        digiVideo: setDigiVideoMediaLineItems,
+        bvod: setBvodMediaLineItems,
+        integration: setIntegrationMediaLineItems,
+        production: setProductionMediaLineItems,
+        search: setSearchMediaLineItems,
+        socialMedia: setSocialMediaMediaLineItems,
+        progDisplay: setProgDisplayMediaLineItems,
+        progVideo: setProgVideoMediaLineItems,
+        progBvod: setProgBvodMediaLineItems,
+        progAudio: setProgAudioMediaLineItems,
+        progOoh: setProgOohMediaLineItems,
+        influencers: setInfluencersMediaLineItems,
+      }
+      for (const [key, rows] of Object.entries(media)) {
+        mediaSetters[key]?.(rows)
+      }
+      clearDirtyForHydration()
+    },
   })
 
   const otherEditorLabel =
@@ -7168,14 +7201,27 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
           totals are inflated
         </div>
       ) : null}
-      {planDraft.recovery ? (
-        <PlanDraftRecoveryBanner
-          summary={planDraft.recovery.summary}
-          reason={planDraft.recovery.reason}
-          otherEditor={otherEditorLabel}
-          onResume={() => planDraft.resume()}
-          onCompare={() => planDraft.setCompareOpen(true)}
+      {planDraft.activeDraft ? (
+        <PlanDraftActiveBanner
+          updatedAt={planDraft.activeDraft.updatedAt}
+          summary={
+            planDraft.diffLive() ?? {
+              fieldChanges: [],
+              addedLineIds: [],
+              removedLines: [],
+              changeCount: 0,
+            }
+          }
           onDiscard={() => void planDraft.discard()}
+        />
+      ) : planDraft.recovery ? (
+        <PlanDraftStaleBanner
+          updatedAt={planDraft.recovery.updatedAt}
+          baseVersionNumber={planDraft.recovery.draftBaseVersionId ?? "?"}
+          tipVersionNumber={draftBaseVersionId ?? "?"}
+          onLoadAnyway={() => planDraft.resume()}
+          onDiscard={() => void planDraft.discard()}
+          onCompare={() => planDraft.setCompareOpen(true)}
         />
       ) : otherEditorLabel ? (
         <p className="mb-2 text-xs text-muted-foreground">{otherEditorLabel}</p>
@@ -7326,6 +7372,7 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
   )
   
   return (
+    <DraftDiffProvider base={planDraft.activeDraft?.baseSnapshot ?? null}>
     <>
       <ExpertApplyDirtyClearOnSave hasUnsavedChanges={hasUnsavedChanges} />
       <PlanWizardShell
@@ -8988,6 +9035,7 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
         }
       />
     </>
+    </DraftDiffProvider>
   )
 }
 

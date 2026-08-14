@@ -20,9 +20,16 @@ import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import {
   clickResume,
+  cloneDraftState,
   flushWhenHydrationSettled,
   initialPlanDraftRestoreGate,
 } from "@/lib/mediaplan/drafts/applyRestore"
+import {
+  classifyDraftLoad,
+  diffDraftAgainstBase,
+  type DraftDiffSummary,
+  type DraftLoadKind,
+} from "@/lib/mediaplan/drafts/fieldDiff"
 
 type OtherDraft = {
   userId: string
@@ -36,6 +43,12 @@ type RecoveryOffer = {
   summary: string
   state: PlanDraftStateV1
   updatedAt: string
+  draftBaseVersionId: number | null
+}
+
+export type ActiveDraftSession = {
+  updatedAt: string
+  baseSnapshot: PlanDraftStateV1
 }
 
 export function usePlanDraftSession(args: {
@@ -54,6 +67,8 @@ export function usePlanDraftSession(args: {
   intent?: "save" | "publish"
   getSnapshot: () => PlanDraftStateV1
   onRestore: (state: PlanDraftStateV1) => void
+  /** Discard of an applied draft — rehydrate the captured tip snapshot. */
+  onRevertToBase?: (state: PlanDraftStateV1) => void
   /** Edit page: false until every enabled channel has settled from the tip. */
   hydrationSettled?: boolean
 }) {
@@ -63,6 +78,8 @@ export function usePlanDraftSession(args: {
   const [pill, setPill] = useState<PlanSavePill | null>(null)
   const [lastAutosaveAt, setLastAutosaveAt] = useState<number | null>(null)
   const [recovery, setRecovery] = useState<RecoveryOffer | null>(null)
+  const [activeDraft, setActiveDraft] = useState<ActiveDraftSession | null>(null)
+  const [offer, setOffer] = useState<RecoveryOffer | null>(null)
   const [others, setOthers] = useState<OtherDraft[]>([])
   const [compareOpen, setCompareOpen] = useState(false)
   const [payloadBytes, setPayloadBytes] = useState<number | null>(null)
@@ -73,7 +90,10 @@ export function usePlanDraftSession(args: {
   getSnapshotRef.current = args.getSnapshot
   const onRestoreRef = useRef(args.onRestore)
   onRestoreRef.current = args.onRestore
+  const onRevertToBaseRef = useRef(args.onRevertToBase)
+  onRevertToBaseRef.current = args.onRevertToBase
   const restoreGateRef = useRef(initialPlanDraftRestoreGate())
+  const pendingUpdatedAtRef = useRef<string | null>(null)
   const hydrationSettled = args.hydrationSettled !== false
 
   // Stage 2b: always resolve user for offer / working-draft save (flag may be off).
@@ -126,12 +146,12 @@ export function usePlanDraftSession(args: {
     setPill(
       describePlanSavePill({
         modeResolved,
-        hasWorkingDraft: Boolean(recovery) || lastAutosaveAt != null || args.dirty,
+        hasWorkingDraft: Boolean(recovery) || Boolean(activeDraft) || lastAutosaveAt != null || args.dirty,
         autosavedSecondsAgo: ago,
         editingUnpublishedDraft: args.dirty && modeResolved.uiMode === "overwrite",
       })
     )
-  }, [modeResolved, lastAutosaveAt, recovery, args.dirty])
+  }, [modeResolved, lastAutosaveAt, recovery, activeDraft, args.dirty])
 
   const persistLocal = useCallback(
     async (opts?: { force?: boolean }) => {
@@ -206,7 +226,16 @@ export function usePlanDraftSession(args: {
     }
   }, [autosaveEnabled, args.dirty, args.masterId, persistServer])
 
-  // On mount: OFFER recovery (never auto-apply) + other editors — Stage 2b always on.
+  const commitApply = useCallback((state: PlanDraftStateV1, updatedAt: string) => {
+    const base = cloneDraftState(getSnapshotRef.current())
+    pendingUpdatedAtRef.current = null
+    setActiveDraft({ updatedAt, baseSnapshot: base })
+    setRecovery(null)
+    onRestoreRef.current(state)
+  }, [])
+
+  // On mount: load offer. Auto-apply matching-base drafts after hydration;
+  // stale-base drafts keep a click (Load anyway). Never silently overlay a newer tip.
   useEffect(() => {
     if (!userId) return
     let cancelled = false
@@ -216,19 +245,26 @@ export function usePlanDraftSession(args: {
         mbaNumber: args.mbaNumber,
         userId,
       })
-      let server: { updatedAt: string; state: PlanDraftStateV1 } | null = null
+      let server: { updatedAt: string; state: PlanDraftStateV1; baseVersionId: number | null } | null =
+        null
       let otherList: OtherDraft[] = []
       if (args.masterId != null) {
         const res = await fetch(`/api/plans/drafts?masterId=${args.masterId}`)
         if (res.ok) {
           const json = (await res.json()) as {
-            draft?: { updatedAt: string; draftStateJson: PlanDraftStateV1 } | null
+            draft?: {
+              updatedAt: string
+              draftStateJson: PlanDraftStateV1
+              baseVersionId?: number | null
+            } | null
             others?: OtherDraft[]
           }
           if (json.draft) {
             server = {
               updatedAt: json.draft.updatedAt,
               state: json.draft.draftStateJson,
+              baseVersionId:
+                json.draft.baseVersionId ?? json.draft.draftStateJson.baseVersionId ?? null,
             }
           }
           otherList = json.others ?? []
@@ -240,9 +276,16 @@ export function usePlanDraftSession(args: {
         localUpdatedAt: local?.updatedAt ?? null,
         serverUpdatedAt: server?.updatedAt ?? null,
       })
-      if (pick.winner === "none") return
+      if (pick.winner === "none") {
+        setOffer(null)
+        return
+      }
       const state = pick.winner === "local" ? local!.state : server!.state
       const updatedAt = pick.winner === "local" ? local!.updatedAt : server!.updatedAt
+      const draftBaseVersionId =
+        pick.winner === "server"
+          ? (server!.baseVersionId ?? state.baseVersionId ?? null)
+          : (state.baseVersionId ?? null)
       const tipIds = state.meta.tipLineIds ?? []
       const draftIds = Object.values(state.channels)
         .flat()
@@ -260,7 +303,7 @@ export function usePlanDraftSession(args: {
         tipBudgetCents: state.meta.tipBudgetCents ?? 0,
         draftBudgetCents: state.meta.budgetCents,
       })
-      setRecovery({
+      setOffer({
         source: pick.winner,
         reason: pick.reason,
         summary: summarizeDraftOffer({
@@ -270,6 +313,7 @@ export function usePlanDraftSession(args: {
         }),
         state,
         updatedAt,
+        draftBaseVersionId,
       })
     })().catch((err) => console.warn("[PC7] recovery probe failed", err))
     return () => {
@@ -277,8 +321,40 @@ export function usePlanDraftSession(args: {
     }
   }, [args.masterId, args.mbaNumber, userId])
 
+  useEffect(() => {
+    if (!offer || activeDraft || restoreGateRef.current.applied) return
+    const kind = classifyDraftLoad({
+      hasDraft: true,
+      draftBaseVersionId: offer.draftBaseVersionId,
+      tipVersionId: args.baseVersionId,
+    })
+    if (kind === "pending") {
+      setRecovery(null)
+      return
+    }
+    if (kind === "stale") {
+      setRecovery(offer)
+      return
+    }
+    setRecovery(null)
+    pendingUpdatedAtRef.current = offer.updatedAt
+    const result = clickResume(
+      restoreGateRef.current,
+      offer.state,
+      hydrationSettled,
+    )
+    restoreGateRef.current = result.gate
+    if (result.apply) commitApply(result.apply, offer.updatedAt)
+  }, [offer, args.baseVersionId, hydrationSettled, activeDraft, commitApply])
+
   const discard = useCallback(async () => {
+    const base = activeDraft?.baseSnapshot ?? null
     restoreGateRef.current = initialPlanDraftRestoreGate()
+    pendingUpdatedAtRef.current = null
+    setOffer(null)
+    setRecovery(null)
+    setActiveDraft(null)
+    if (base) onRevertToBaseRef.current?.(base)
     if (!userId) return
     await clearLocalDraft({
       masterId: args.masterId,
@@ -288,21 +364,22 @@ export function usePlanDraftSession(args: {
     if (args.masterId != null) {
       await fetch(`/api/plans/drafts?masterId=${args.masterId}`, { method: "DELETE" })
     }
-    setRecovery(null)
     setLastAutosaveAt(null)
-  }, [args.masterId, args.mbaNumber, userId])
+  }, [args.masterId, args.mbaNumber, userId, activeDraft])
 
   const resume = useCallback(() => {
-    if (!recovery) return
+    const stale = recovery
+    if (!stale) return
     const result = clickResume(
       restoreGateRef.current,
-      recovery.state,
+      stale.state,
       hydrationSettled,
     )
     restoreGateRef.current = result.gate
+    pendingUpdatedAtRef.current = stale.updatedAt
     setRecovery(null)
-    if (result.apply) onRestoreRef.current(result.apply)
-  }, [recovery, hydrationSettled])
+    if (result.apply) commitApply(result.apply, stale.updatedAt)
+  }, [recovery, hydrationSettled, commitApply])
 
   useEffect(() => {
     const result = flushWhenHydrationSettled(
@@ -310,8 +387,10 @@ export function usePlanDraftSession(args: {
       hydrationSettled,
     )
     restoreGateRef.current = result.gate
-    if (result.apply) onRestoreRef.current(result.apply)
-  }, [hydrationSettled])
+    if (result.apply) {
+      commitApply(result.apply, pendingUpdatedAtRef.current ?? offer?.updatedAt ?? "")
+    }
+  }, [hydrationSettled, commitApply, offer?.updatedAt])
 
   const saveDraftNow = useCallback(async () => {
     if (!userId) {
@@ -325,14 +404,48 @@ export function usePlanDraftSession(args: {
   }, [persistLocal, persistServer, userId, args.masterId])
 
   const clearAfterPublish = useCallback(async () => {
-    await discard()
-  }, [discard])
+    restoreGateRef.current = initialPlanDraftRestoreGate()
+    pendingUpdatedAtRef.current = null
+    setOffer(null)
+    setRecovery(null)
+    setActiveDraft(null)
+    if (!userId) return
+    await clearLocalDraft({
+      masterId: args.masterId,
+      mbaNumber: args.mbaNumber,
+      userId,
+    })
+    if (args.masterId != null) {
+      await fetch(`/api/plans/drafts?masterId=${args.masterId}`, { method: "DELETE" })
+    }
+    setLastAutosaveAt(null)
+  }, [args.masterId, args.mbaNumber, userId])
+
+  const loadKind: DraftLoadKind = activeDraft
+    ? "auto"
+    : recovery
+      ? "stale"
+      : offer
+        ? classifyDraftLoad({
+            hasDraft: true,
+            draftBaseVersionId: offer.draftBaseVersionId,
+            tipVersionId: args.baseVersionId,
+          })
+        : "none"
+
+  const diffLive = useCallback((): DraftDiffSummary | null => {
+    if (!activeDraft) return null
+    return diffDraftAgainstBase(activeDraft.baseSnapshot, getSnapshotRef.current())
+  }, [activeDraft])
 
   return {
     /** Autosave / soft Save draft chrome — flag-gated. */
     enabled: autosaveEnabled,
     pill,
     recovery,
+    activeDraft,
+    loadKind,
+    diffLive,
     others,
     compareOpen,
     setCompareOpen,
