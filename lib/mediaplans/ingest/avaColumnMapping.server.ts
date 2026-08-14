@@ -96,13 +96,15 @@ export function createAnthropicAvaMappingClient(): AvaMappingClient {
 
 /**
  * Live path for POST /api/admin/ingest/ava-mapping.
- * Constructs Anthropic only after the MR-5 gate opens (confidence < 90% and
- * unmapped columns). Suggestion-only — never auto-applies.
+ * Constructs Anthropic only after the template-first gate opens (required
+ * field unmatched and leftover headers exist). Suggestion-only — never auto-applies.
  */
 export async function runLiveAvaColumnMappingProposals(args: {
   publisherName: string | null
   publisherConfidence: number
   columns: UnmappedColumnSample[]
+  unmatchedRequired?: Array<{ id?: string; label?: string }>
+  leftoverHeaders?: string[]
   client?: AvaMappingClient | null
 }): Promise<{
   proposals: AvaColumnMappingProposal[]
@@ -114,6 +116,8 @@ export async function runLiveAvaColumnMappingProposals(args: {
     publisherName: args.publisherName,
     publisherConfidence: args.publisherConfidence,
     columns: args.columns,
+    unmatchedRequired: args.unmatchedRequired,
+    leftoverHeaders: args.leftoverHeaders,
     client,
   })
 }

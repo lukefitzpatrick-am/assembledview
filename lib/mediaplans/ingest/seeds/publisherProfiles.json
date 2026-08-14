@@ -70,7 +70,6 @@
     "column_map": {
       "Media Description": "media_description",
       "Length": "length",
-      "Days": "days",
       "Daypart": "daypart",
       "Client Total": "media_amount:stated",
       "Market Rate": "reference:ignore",

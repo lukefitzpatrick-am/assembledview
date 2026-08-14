@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/requireRole"
-import { persistColumnRemap } from "@/lib/mediaplans/ingest/persistColumnRemap"
+import { remapIngestColumn } from "@/lib/mediaplans/ingest/remapIngestColumn"
 
 export const runtime = "nodejs"
 
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
         { status: 400 },
       )
     }
-    const result = await persistColumnRemap({
+    const result = await remapIngestColumn({
       publisherName: body.publisherName.trim(),
       header: body.header.trim(),
       mappedTo: body.mappedTo ?? null,

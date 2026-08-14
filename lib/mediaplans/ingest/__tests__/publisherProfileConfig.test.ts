@@ -184,7 +184,7 @@ test("fixture descriptor headers: report unmapped columns", () => {
   assert.ok(!jcdUnmapped.includes("Production Charge"))
   assert.ok(!jcdUnmapped.includes("Installation Charge"))
 
-  assert.deepEqual(scaUnmapped, [])
+  assert.deepEqual(scaUnmapped, ["Days"])
   assert.equal(sca.column_map["Market Rate"], REFERENCE_IGNORE_TARGET)
   assert.equal(sca.column_map["Market Total"], REFERENCE_IGNORE_TARGET)
   assert.ok(isReferenceIgnoreTarget(REFERENCE_IGNORE_TARGET))

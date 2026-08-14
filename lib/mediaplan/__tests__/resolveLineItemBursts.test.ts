@@ -28,6 +28,17 @@ test("resolveLineItemBursts accepts native bursts_json array", () => {
   assert.equal(result[0].budget, "300")
 })
 
+test("empty bursts[] falls through to bursts_json", () => {
+  const result = resolveLineItemBursts({
+    bursts: [],
+    bursts_json: JSON.stringify([
+      { budget: "500", startDate: "2026-05-01", endDate: "2026-05-07" },
+    ]),
+  })
+  assert.equal(result.length, 1)
+  assert.equal(result[0].budget, "500")
+})
+
 test("resolveLineItemBursts falls back to bursts string", () => {
   const result = resolveLineItemBursts({
     bursts: JSON.stringify([{ budget: "400", startDate: "2026-04-01", endDate: "2026-04-07" }]),

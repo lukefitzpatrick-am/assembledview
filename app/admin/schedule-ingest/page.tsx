@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react"
+import { Suspense, useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react"
 import { useSearchParams } from "next/navigation"
 import { AdminGuard } from "@/components/guards/AdminGuard"
 import { Button } from "@/components/ui/button"
@@ -14,18 +14,25 @@ import {
 import { readIngestStageFromSession } from "@/lib/mediaplans/ingest/ingestStageClient"
 import { getRouteByExactPath } from "@/lib/nav/routeManifest"
 import { LoadingState } from "@/components/ui/states"
+import type { Publisher } from "@/lib/types/publisher"
 
 async function loadAvaMappingSuggestions(
   review: IngestReviewPackage,
   setReview: Dispatch<SetStateAction<IngestReviewPackage | null>>,
   setError: Dispatch<SetStateAction<string | null>>,
 ) {
+  if (review.needs_catalogue_choice) return
   const columns = review.unmapped_column_samples ?? []
-  const unmappedHeaders = columns.map((c) => c.header)
+  const leftoverHeaders = (review.template_coverage?.not_used ?? []).map(
+    (n) => n.header,
+  )
+  const unmatchedRequired =
+    review.template_coverage?.required.filter((f) => !f.matched) ?? []
   if (
     !shouldCallAvaForMappings({
-      publisherConfidence: review.publisher_confidence,
-      unmappedHeaders,
+      unmatchedRequired,
+      leftoverHeaders:
+        leftoverHeaders.length > 0 ? leftoverHeaders : columns.map((c) => c.header),
     })
   ) {
     return
@@ -37,6 +44,11 @@ async function loadAvaMappingSuggestions(
       body: JSON.stringify({
         publisherName: review.detected_publisher,
         publisherConfidence: review.publisher_confidence,
+        unmatchedRequired,
+        leftoverHeaders:
+          leftoverHeaders.length > 0
+            ? leftoverHeaders
+            : columns.map((c) => c.header),
         columns,
       }),
     })
@@ -76,6 +88,28 @@ function ScheduleIngestPageInner() {
   const [mbaNumber, setMbaNumber] = useState("")
   const [versionNumber, setVersionNumber] = useState("1")
   const [acceptMsg, setAcceptMsg] = useState<string | null>(null)
+  const [catalogue, setCatalogue] = useState<Publisher[]>([])
+  const [pickedPublisherId, setPickedPublisherId] = useState("")
+  const [linking, setLinking] = useState(false)
+  const fileRef = useRef<File | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch("/api/publishers?full=1")
+        if (!res.ok) return
+        const json = (await res.json()) as Publisher[] | { data?: Publisher[] }
+        const rows = Array.isArray(json) ? json : (json.data ?? [])
+        if (!cancelled) setCatalogue(rows)
+      } catch {
+        // picker stays empty; user can retry by reloading
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   useEffect(() => {
     if (!stageId) return
@@ -115,6 +149,7 @@ function ScheduleIngestPageInner() {
   }, [stageId])
 
   const onUpload = useCallback(async (file: File) => {
+    fileRef.current = file
     setUploading(true)
     setError(null)
     setAcceptMsg(null)
@@ -162,6 +197,22 @@ function ScheduleIngestPageInner() {
 
         setReview((prev) => {
           if (!prev) return prev
+          const mark = (f: NonNullable<typeof prev.template_coverage>["required"][number]) => {
+            if (f.matched || mappedTo == null) return f
+            if (
+              f.canonicals?.includes(mappedTo) ||
+              f.dest === mappedTo
+            ) {
+              return {
+                ...f,
+                matched: true,
+                source: { kind: "header" as const, header },
+              }
+            }
+            return f
+          }
+          const required = prev.template_coverage?.required.map(mark)
+          const enrich = prev.template_coverage?.enrich.map(mark)
           return {
             ...prev,
             column_mapping: prev.column_mapping.map((c) =>
@@ -179,6 +230,21 @@ function ScheduleIngestPageInner() {
                 p.header.replace(/\s+/g, " ").trim().toLowerCase() !==
                 header.replace(/\s+/g, " ").trim().toLowerCase(),
             ),
+            template_coverage: prev.template_coverage
+              ? {
+                  ...prev.template_coverage,
+                  required: required ?? prev.template_coverage.required,
+                  enrich: enrich ?? prev.template_coverage.enrich,
+                  required_matched: (required ?? prev.template_coverage.required).filter(
+                    (f) => f.matched,
+                  ).length,
+                  not_used: prev.template_coverage.not_used.filter(
+                    (n) =>
+                      n.header.replace(/\s+/g, " ").trim().toLowerCase() !==
+                      header.replace(/\s+/g, " ").trim().toLowerCase(),
+                  ),
+                }
+              : prev.template_coverage,
           }
         })
       } catch (e) {
@@ -219,6 +285,8 @@ function ScheduleIngestPageInner() {
           mbaNumber: mbaNumber.trim(),
           versionNumber: Number(versionNumber) || 1,
           mode: "draft",
+          fileName: review.source_file_name,
+          detectedConfidence: review.publisher_confidence,
         }),
       })
       const json = (await res.json()) as {
@@ -249,11 +317,155 @@ function ScheduleIngestPageInner() {
     }
   }, [review, masterId, mbaNumber, versionNumber])
 
-  const onCancel = useCallback(() => {
+  const onCancel = useCallback(async () => {
+    if (review) {
+      try {
+        await fetch("/api/admin/ingest/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            publisherName: review.detected_publisher,
+            fileName: review.source_file_name,
+            detectedConfidence: review.publisher_confidence,
+            requiredCoverage: review.template_coverage?.completeness ?? null,
+            lineItemCount: review.proposal?.reconciliation.line_item_count ?? 0,
+            panelCount: review.proposal?.reconciliation.panel_count ?? 0,
+            burstCount: review.proposal?.reconciliation.burst_count ?? 0,
+            moneyDelta:
+              review.proposal?.reconciliation.delta_pct ??
+              review.proposal?.reconciliation.delta ??
+              null,
+          }),
+        })
+      } catch {
+        // history write is best-effort; still close the review
+      }
+    }
     setReview(null)
-    setAcceptMsg("Cancelled — nothing written.")
+    setAcceptMsg("Cancelled — ingest run recorded, plan not saved.")
     setError(null)
-  }, [])
+  }, [review])
+
+  const onLinkPublisher = useCallback(async () => {
+    const picked = catalogue.find((p) => String(p.id) === pickedPublisherId)
+    const file = fileRef.current
+    if (!picked || !file) {
+      setError("Pick a catalogue publisher, then continue.")
+      return
+    }
+    setLinking(true)
+    setError(null)
+    try {
+      const linkRes = await fetch("/api/admin/ingest/link-publisher", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: picked.id,
+          publisher_name: picked.publisher_name,
+          publisherid: picked.publisherid,
+          pub_ooh: picked.pub_ooh,
+          pub_radio: picked.pub_radio,
+        }),
+      })
+      const linkJson = (await linkRes.json()) as {
+        profile?: { publisher_name: string }
+        error?: string
+      }
+      if (!linkRes.ok || !linkJson.profile) {
+        throw new Error(linkJson.error || `HTTP ${linkRes.status}`)
+      }
+      const fd = new FormData()
+      fd.set("file", file)
+      fd.set("publisherName", linkJson.profile.publisher_name)
+      const res = await fetch("/api/admin/ingest/review", {
+        method: "POST",
+        body: fd,
+      })
+      const json = (await res.json()) as {
+        review?: IngestReviewPackage
+        error?: string
+      }
+      if (!res.ok || !json.review) {
+        throw new Error(json.error || `HTTP ${res.status}`)
+      }
+      setReview(json.review)
+      void loadAvaMappingSuggestions(json.review, setReview, setError)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Link failed")
+    } finally {
+      setLinking(false)
+    }
+  }, [catalogue, pickedPublisherId])
+
+  if (review?.needs_catalogue_choice) {
+    return (
+      <div className="mx-auto flex w-full max-w-[720px] flex-col gap-6 p-6">
+        <header className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+            Unknown publisher
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            This file did not match an ingest profile. Pick the catalogue
+            publisher to link — we never guess.
+            {review.source_file_name ? (
+              <>
+                {" "}
+                File:{" "}
+                <span className="font-medium text-foreground">
+                  {review.source_file_name}
+                </span>
+              </>
+            ) : null}
+          </p>
+        </header>
+        {error ? (
+          <div className="rounded-card border border-border bg-card px-4 py-3 text-sm text-status-critical-fg shadow-e1">
+            {error}
+          </div>
+        ) : null}
+        <section className="space-y-3 rounded-card border border-border bg-card p-4 shadow-e1">
+          <label className="space-y-1 text-sm">
+            <span className="text-muted-foreground">Catalogue publisher</span>
+            <select
+              className="h-10 w-full rounded-input border border-border bg-background px-3 text-sm"
+              value={pickedPublisherId}
+              onChange={(e) => setPickedPublisherId(e.target.value)}
+            >
+              <option value="">Select…</option>
+              {catalogue
+                .slice()
+                .sort((a, b) =>
+                  a.publisher_name.localeCompare(b.publisher_name),
+                )
+                .map((p) => (
+                  <option key={p.id} value={String(p.id)}>
+                    {p.publisher_name}
+                    {p.publisherid ? ` (${p.publisherid})` : ""}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              onClick={() => void onLinkPublisher()}
+              disabled={linking || !pickedPublisherId}
+            >
+              Link and continue
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void onCancel()}
+              disabled={linking}
+            >
+              Cancel
+            </Button>
+          </div>
+        </section>
+      </div>
+    )
+  }
 
   if (review) {
     return (

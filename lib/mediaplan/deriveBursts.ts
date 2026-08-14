@@ -58,10 +58,14 @@ export function parseBurstArray(value: unknown): any[] {
  * Matches {@link extractAndFormatBursts} input precedence (bursts array first).
  */
 export function resolveLineItemBursts(lineItem: any): any[] {
-  if (Array.isArray(lineItem?.bursts)) {
+  if (Array.isArray(lineItem?.bursts) && lineItem.bursts.length > 0) {
     return lineItem.bursts
   }
-  if (lineItem?.bursts && typeof lineItem.bursts === "object") {
+  if (
+    lineItem?.bursts &&
+    typeof lineItem.bursts === "object" &&
+    !Array.isArray(lineItem.bursts)
+  ) {
     return [lineItem.bursts]
   }
   if (typeof lineItem?.bursts === "string") {

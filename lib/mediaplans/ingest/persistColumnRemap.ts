@@ -30,6 +30,18 @@ export function registerPublisherProfileOverlay(
   seedOverlay.set(keyOf(profile.publisher_name), profile)
 }
 
+/** Profiles created in-process that are not in the seed/DB list. */
+export function extraOverlayProfiles(
+  existingNames: Iterable<string>,
+): PublisherProfileConfig[] {
+  const have = new Set([...existingNames].map((n) => keyOf(n)))
+  const extras: PublisherProfileConfig[] = []
+  for (const p of seedOverlay.values()) {
+    if (!have.has(keyOf(p.publisher_name))) extras.push(p)
+  }
+  return extras
+}
+
 function keyOf(name: string): string {
   return name.trim().toLowerCase()
 }
@@ -126,5 +138,11 @@ export async function persistColumnRemap(args: {
 export function profilesWithRemapOverlay(
   profiles: PublisherProfileConfig[],
 ): PublisherProfileConfig[] {
-  return profiles.map((p) => seedOverlay.get(keyOf(p.publisher_name)) ?? p)
+  const mapped = profiles.map(
+    (p) => seedOverlay.get(keyOf(p.publisher_name)) ?? p,
+  )
+  return [
+    ...mapped,
+    ...extraOverlayProfiles(mapped.map((p) => p.publisher_name)),
+  ]
 }

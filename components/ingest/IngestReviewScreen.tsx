@@ -20,6 +20,16 @@ import {
 } from "@/lib/mediaplans/ingest/avaColumnMapping"
 import { REFERENCE_IGNORE_TARGET } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import { summarizePanelFlights } from "@/lib/mediaplans/ingest/panelFlightSummary"
+import { isStatedMoneySynonym } from "@/lib/mediaplans/ingest/moneySynonyms"
+import {
+  evaluateRequiredFieldGate,
+  type TemplateFieldCoverage,
+} from "@/lib/mediaplans/ingest/templateCoverage"
+import {
+  buildReviewCardSurface,
+  type ReviewCardDetailRow,
+  type ReviewCardRow,
+} from "@/lib/mediaplans/ingest/reviewCardSurface"
 
 const CANONICAL_FIELDS = [
   ...AVA_MAPPING_TARGET_DESCRIPTORS,
@@ -41,6 +51,59 @@ type Props = {
 
 function pct(n: number): string {
   return `${Math.round(n * 100)}%`
+}
+
+function remapTargetForField(
+  field: TemplateFieldCoverage,
+  header: string,
+): string | null {
+  const canonicals = field.canonicals ?? []
+  if (canonicals.length === 0) return null
+  if (field.id === "media_money" && isStatedMoneySynonym(header)) {
+    return "media_amount:stated"
+  }
+  return canonicals[0] ?? null
+}
+
+function sourceLabel(field: TemplateFieldCoverage): string {
+  switch (field.source.kind) {
+    case "header":
+      return field.source.header ?? "—"
+    case "grouping_rows":
+      return "grouping rows"
+    case "profile":
+      return field.source.header ?? "profile"
+    case "derived":
+      return field.source.header ?? "derived"
+    case "grid":
+      return "date grid"
+    case "waiver":
+      return "waiver"
+    default:
+      return "—"
+  }
+}
+
+function mediaTypeHeaderLabel(review: IngestReviewPackage): string {
+  const type =
+    review.detected_media_type === "ooh"
+      ? "OOH"
+      : review.detected_media_type === "radio"
+        ? "Radio"
+        : review.detected_media_type
+          ? review.detected_media_type
+          : "unknown"
+  const status =
+    review.media_type_status === "detected"
+      ? "detected"
+      : review.media_type_status === "ambiguous"
+        ? "ambiguous"
+        : "unknown"
+  return `Media type: ${type} — ${status}`
+}
+
+function isPanelAnonymousWarning(w: string): boolean {
+  return /panel lines will be anonymous/i.test(w)
 }
 
 function LineItemCard({
@@ -165,6 +228,238 @@ function LineItemCard({
           ) : null}
         </div>
       ) : null}
+    </div>
+  )
+}
+
+function FieldStatusBadge({ field }: { field: TemplateFieldCoverage }) {
+  if (field.matched) return <Badge variant="secondary">matched</Badge>
+  if (field.role === "required") return <Badge variant="destructive">missing</Badge>
+  return <Badge variant="outline">optional</Badge>
+}
+
+function FieldRowCells({
+  field,
+  leftoverHeaders,
+  onRemap,
+  remapping,
+  avaByHeader,
+  onAcceptAvaProposal,
+}: {
+  field: TemplateFieldCoverage
+  leftoverHeaders: string[]
+  onRemap: (header: string, mappedTo: string | null) => Promise<void>
+  remapping?: boolean
+  avaByHeader: Map<string, AvaColumnMappingProposal>
+  onAcceptAvaProposal?: (proposal: AvaColumnMappingProposal) => Promise<void>
+}) {
+  const ava = leftoverHeaders
+    .map((h) =>
+      avaByHeader.get(h.replace(/\s+/g, " ").trim().toLowerCase()),
+    )
+    .find(
+      (p) =>
+        p?.proposed_mapped_to &&
+        field.canonicals?.includes(p.proposed_mapped_to),
+    )
+  return (
+    <>
+      <td className="px-3 py-2 text-foreground">
+        {field.matched ? (
+          sourceLabel(field)
+        ) : leftoverHeaders.length > 0 &&
+          (field.canonicals?.length ?? 0) > 0 ? (
+          <select
+            className="w-full rounded-input border border-border bg-background px-2 py-1 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            disabled={remapping}
+            defaultValue=""
+            onChange={(e) => {
+              const v = e.target.value
+              const mappedTo = v ? remapTargetForField(field, v) : null
+              if (v && mappedTo) void onRemap(v, mappedTo)
+            }}
+          >
+            <option value="">— pick a source column —</option>
+            {leftoverHeaders.map((h) => (
+              <option key={h} value={h}>
+                {h}
+              </option>
+            ))}
+          </select>
+        ) : (
+          "—"
+        )}
+      </td>
+      <td className="px-3 py-2 text-muted-foreground">
+        {field.source.sample ?? "—"}
+      </td>
+      <td className="px-3 py-2">
+        <FieldStatusBadge field={field} />
+        {ava && !field.matched ? (
+          <div className="mt-2 max-w-xs space-y-1">
+            <p className="text-xs text-muted-foreground">
+              AVA proposes {ava.header} → {ava.proposed_mapped_to}
+            </p>
+            <Button
+              type="button"
+              size="sm"
+              disabled={remapping || !onAcceptAvaProposal}
+              onClick={() => void onAcceptAvaProposal?.(ava)}
+            >
+              Accept AVA
+            </Button>
+          </div>
+        ) : null}
+      </td>
+    </>
+  )
+}
+
+function PanelDetailRow({
+  row,
+  leftoverHeaders,
+  onRemap,
+  remapping,
+  avaByHeader,
+  onAcceptAvaProposal,
+}: {
+  row: ReviewCardDetailRow
+  leftoverHeaders: string[]
+  onRemap: (header: string, mappedTo: string | null) => Promise<void>
+  remapping?: boolean
+  avaByHeader: Map<string, AvaColumnMappingProposal>
+  onAcceptAvaProposal?: (proposal: AvaColumnMappingProposal) => Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <tr className="interactive-row border-t border-border">
+        <td className="px-3 py-2" colSpan={4}>
+          <button
+            type="button"
+            className="interactive flex w-full items-center gap-2 text-left"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+          >
+            {open ? (
+              <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            )}
+            <span className="font-medium text-foreground">{row.summary}</span>
+            <Badge variant="outline">
+              <span className="num">{row.matched}</span> /{" "}
+              <span className="num">{row.total}</span>
+            </Badge>
+          </button>
+          {row.warning ? (
+            <p className="mt-1 pl-6 text-sm text-status-behind-fg">
+              {row.warning}
+            </p>
+          ) : null}
+        </td>
+      </tr>
+      {open
+        ? row.fields.map((field) => (
+            <tr
+              key={field.id}
+              className="interactive-row border-t border-border bg-surface-panel align-top"
+            >
+              <td className="px-3 py-2 text-foreground">
+                <span className="font-medium">{field.label}</span>
+              </td>
+              <FieldRowCells
+                field={field}
+                leftoverHeaders={leftoverHeaders}
+                onRemap={onRemap}
+                remapping={remapping}
+                avaByHeader={avaByHeader}
+                onAcceptAvaProposal={onAcceptAvaProposal}
+              />
+            </tr>
+          ))
+        : null}
+    </>
+  )
+}
+
+function PlanFieldsTable({
+  rows,
+  leftoverHeaders,
+  onRemap,
+  remapping,
+  avaByHeader,
+  onAcceptAvaProposal,
+}: {
+  rows: ReviewCardRow[]
+  leftoverHeaders: string[]
+  onRemap: (header: string, mappedTo: string | null) => Promise<void>
+  remapping?: boolean
+  avaByHeader: Map<string, AvaColumnMappingProposal>
+  onAcceptAvaProposal?: (proposal: AvaColumnMappingProposal) => Promise<void>
+}) {
+  return (
+    <div className="overflow-x-auto rounded-card border border-border">
+      <table className="w-full text-sm">
+        <thead className="bg-surface-panel text-left text-muted-foreground">
+          <tr>
+            <th className="px-3 py-2 font-medium">Plan field</th>
+            <th className="px-3 py-2 font-medium">Source</th>
+            <th className="px-3 py-2 font-medium">Sample</th>
+            <th className="px-3 py-2 font-medium">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            if (row.kind === "detail_table") {
+              return (
+                <PanelDetailRow
+                  key={row.id}
+                  row={row}
+                  leftoverHeaders={leftoverHeaders}
+                  onRemap={onRemap}
+                  remapping={remapping}
+                  avaByHeader={avaByHeader}
+                  onAcceptAvaProposal={onAcceptAvaProposal}
+                />
+              )
+            }
+            const { field } = row
+            return (
+              <tr
+                key={row.id}
+                className="interactive-row border-t border-border align-top"
+              >
+                <td className="px-3 py-2 text-foreground">
+                  <span className="font-medium">{row.label}</span>
+                  {field.role === "enrich" && !field.matched ? (
+                    <span className="ml-2 text-xs text-muted-foreground">
+                      optional
+                    </span>
+                  ) : null}
+                  {row.details.length > 0 ? (
+                    <ul className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                      {row.details.map((d) => (
+                        <li key={d.id}>
+                          {d.label}: {d.matched ? sourceLabel(d) : "—"}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </td>
+                <FieldRowCells
+                  field={field}
+                  leftoverHeaders={leftoverHeaders}
+                  onRemap={onRemap}
+                  remapping={remapping}
+                  avaByHeader={avaByHeader}
+                  onAcceptAvaProposal={onAcceptAvaProposal}
+                />
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -353,7 +648,18 @@ export function IngestReviewScreen({
   remapping,
   campaignHint,
 }: Props) {
-  const lowConfidence = review.publisher_confidence < 0.9
+  const coverage = review.template_coverage
+  const requiredGate = evaluateRequiredFieldGate(coverage ?? { required: [], waivers: [] })
+  const leftoverHeaders = (coverage?.not_used ?? []).map((n) => n.header)
+  const leftoverRows: ColumnMappingRow[] = leftoverHeaders.map((header) => ({
+    header,
+    mapped_to: null,
+    unmapped: true,
+  }))
+  const cardSurface = coverage ? buildReviewCardSurface(coverage) : null
+  const headerWarnings = (coverage?.warnings ?? []).filter(
+    (w) => !isPanelAnonymousWarning(w),
+  )
   const avaByHeader = new Map(
     (review.ava_mapping_proposals ?? []).map((p) => [
       p.header.replace(/\s+/g, " ").trim().toLowerCase(),
@@ -368,9 +674,9 @@ export function IngestReviewScreen({
           Review schedule import
         </h1>
         <p className="text-sm text-muted-foreground">
-          Nothing enters a plan until you accept. Corrections here improve the
-          next file. AVA may propose mappings when confidence is below 90% —
-          you still confirm.
+          Completeness is the plan template, not leftover file columns. AVA
+          asks only when a required field has no source. Nothing enters a plan
+          until you accept.
         </p>
       </header>
 
@@ -382,8 +688,21 @@ export function IngestReviewScreen({
           <span className="text-xl font-semibold text-foreground">
             {review.detected_publisher ?? "Unknown"}
           </span>
-          <Badge variant={lowConfidence ? "destructive" : "secondary"}>
-            Confidence <span className="num">{pct(review.publisher_confidence)}</span>
+          <Badge
+            variant={
+              review.media_type_status === "detected" ? "secondary" : "outline"
+            }
+          >
+            {mediaTypeHeaderLabel(review)}
+          </Badge>
+          <Badge variant={requiredGate.ok ? "secondary" : "destructive"}>
+            {coverage
+              ? `${coverage.required_matched} of ${coverage.required_count} required`
+              : `Confidence ${pct(review.publisher_confidence)}`}
+          </Badge>
+          <Badge variant="outline">
+            Confidence{" "}
+            <span className="num">{pct(review.publisher_confidence)}</span>
           </Badge>
           <Badge variant="outline">
             AVA calls <span className="num">{review.ava_call_count ?? 0}</span>
@@ -399,36 +718,65 @@ export function IngestReviewScreen({
             {review.match_reasons.join(" · ")}
           </p>
         ) : null}
-        {lowConfidence ? (
-          <p className="text-sm text-status-critical-fg">
-            Confidence below 90% — AVA may propose column mappings. Never
-            auto-accepted.
+        {headerWarnings.map((w) => (
+          <p key={w} className="text-sm text-status-behind-fg">
+            {w}
           </p>
+        ))}
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+          A · Your plan
+        </h2>
+        {cardSurface && cardSurface.rows.length > 0 ? (
+          <PlanFieldsTable
+            rows={cardSurface.rows}
+            leftoverHeaders={leftoverHeaders}
+            onRemap={onRemap}
+            remapping={remapping}
+            avaByHeader={avaByHeader}
+            onAcceptAvaProposal={onAcceptAvaProposal}
+          />
+        ) : review.column_mapping.length > 0 ? (
+          <MappingTable
+            rows={review.column_mapping}
+            onRemap={onRemap}
+            remapping={remapping}
+            avaByHeader={avaByHeader}
+            onAcceptAvaProposal={onAcceptAvaProposal}
+          />
         ) : (
           <p className="text-sm text-muted-foreground">
-            Confidence ≥ 90% — deterministic mapping wins; AVA was not called.
+            Detect a publisher to see the plan template.
           </p>
         )}
       </section>
+
+      {leftoverRows.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            C · Not used
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Leftover publisher columns are ignored by default. Map one only if
+            a required field above is missing.
+          </p>
+          <MappingTable
+            rows={leftoverRows}
+            onRemap={onRemap}
+            remapping={remapping}
+            avaByHeader={avaByHeader}
+            onAcceptAvaProposal={onAcceptAvaProposal}
+          />
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           Ignored
         </h2>
         <IgnoredBlock ignored={review.ignored} />
-      </section>
-
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          Column mapping
-        </h2>
-        <MappingTable
-          rows={review.column_mapping}
-          onRemap={onRemap}
-          remapping={remapping}
-          avaByHeader={avaByHeader}
-          onAcceptAvaProposal={onAcceptAvaProposal}
-        />
       </section>
 
       {review.proposal ? (
@@ -478,7 +826,8 @@ export function IngestReviewScreen({
           disabled={
             accepting ||
             !review.proposal ||
-            review.proposal.reconciliation.accept_ok === false
+            review.proposal.reconciliation.accept_ok === false ||
+            !requiredGate.ok
           }
         >
           {accepting ? "Accepting…" : "Accept into campaign"}

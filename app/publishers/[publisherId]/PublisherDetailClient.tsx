@@ -8,6 +8,7 @@ import { PAGE_HERO_PADDING, PageHeroShell, PageHeroTitleBlock } from "@/componen
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { PublisherMeetingsSection } from "./PublisherMeetingsSection"
+import { PublisherIngestSection } from "./PublisherIngestSection"
 import { PublisherDetailCharts } from "./PublisherDetailCharts"
 import { PublisherDetailsSlideOver } from "./PublisherDetailsSlideOver"
 import { PublisherKpiSlideOver } from "./PublisherKpiSlideOver"
@@ -154,6 +155,8 @@ export function PublisherDetailClient({ initialPublisher, analytics }: Publisher
       />
 
       <PublisherMeetingsSection publisher={publisher} />
+
+      <PublisherIngestSection publisher={publisher} />
 
       <PublisherDetailsSlideOver
         open={detailsOpen}

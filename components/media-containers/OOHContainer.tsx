@@ -36,6 +36,7 @@ import {
   mapHydrationToForm,
   mapFormToApi,
 } from "@/lib/mediaplan/containerChannelConfig"
+import { hydrateOohEditorLine } from "@/lib/mediaplans/ingest/hydrateEditorCard"
 import { ComboboxModalProvider } from "@/components/ui/combobox"
 import { Form } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -43,7 +44,6 @@ import { useToast } from "@/components/ui/use-toast"
 import { getPublishersForOoh, getClientInfo } from "@/lib/api"
 import { computeBurstAmounts } from "@/lib/mediaplan/burstAmounts"
 import { appendBurst, duplicateBurst, removeBurst, newBurstReactKey, stampBurstReactKeys } from "@/lib/mediaplan/burstOperations"
-import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { format } from "date-fns"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { cn } from "@/lib/utils"
@@ -548,52 +548,34 @@ export default function OohContainer({
           item.lineItemId ||
           createLineItemId(lineNumber);
 
-        const parsedBursts = resolveLineItemBursts(item);
-
+        const hydrated = hydrateOohEditorLine(item, {
+          campaignStartDate,
+          campaignEndDate,
+          feePct: feeooh ?? 0,
+        })
 
         return {
           ...mapHydrationToForm(OOH_CONTAINER_CONFIG.fieldMap, item),
-          network: item.network || item.environment || "",
-          type: item.type || item.environment || "",
-          placement: item.placement || item.location || "",
+          network: hydrated.network,
+          format: hydrated.format,
+          buyType: hydrated.buyType,
+          type: hydrated.type,
+          size: hydrated.size,
+          market: hydrated.market,
+          buyingDemo: hydrated.buyingDemo,
+          placement: hydrated.placement,
           lineItemId,
           line_item_id: lineItemId,
           line_item: lineNumber,
           lineItem: lineNumber,
           // Preserve ingest buy_granularity so the >30 expert gate survives hydrate.
-          attrs: item.attrs ?? undefined,
+          attrs: hydrated.attrs ?? item.attrs ?? undefined,
           buy_granularity:
             item.attrs?.buy_granularity ??
             item.buy_granularity ??
             item.buyGranularity ??
             undefined,
-          bursts: parsedBursts.length > 0 ? parsedBursts.map((burst: any) => ({
-            budget: burst.budget || "",
-            buyAmount: burst.buyAmount || "",
-            startDate: coerceBurstDateLocal(burst.startDate) ?? new Date(),
-            endDate: coerceBurstDateLocal(burst.endDate) ?? new Date(),
-            calculatedValue: computeLoadedDeliverables(
-              item.buy_type || item.buyType,
-              burst,
-              Boolean(item.budget_includes_fees || item.budgetIncludesFees),
-              feeooh ?? 0,
-              { bonusFallbackFields: ["calculatedValue", "deliverables"] }
-            ),
-            fee: burst.fee ?? 0,
-          })) : [{
-            budget: "",
-            buyAmount: "",
-            startDate: defaultMediaBurstStartDate(campaignStartDate, campaignEndDate),
-            endDate: defaultMediaBurstEndDate(campaignStartDate, campaignEndDate),
-            calculatedValue: computeLoadedDeliverables(
-              item.buy_type || item.buyType,
-              {},
-              Boolean(item.budget_includes_fees || item.budgetIncludesFees),
-              feeooh ?? 0,
-              { bonusFallbackFields: ["calculatedValue", "deliverables"] }
-            ),
-            fee: 0,
-          }],
+          bursts: hydrated.bursts,
         };
       });
 

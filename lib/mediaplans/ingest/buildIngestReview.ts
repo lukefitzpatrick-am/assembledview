@@ -8,6 +8,7 @@ import {
   type DetectedSheetShape,
 } from "@/lib/mediaplans/ingest/detectShape"
 import { pickBestProfile } from "@/lib/mediaplans/ingest/matchProfile"
+import { isUnknownPublisherMatch } from "@/lib/mediaplans/ingest/unknownPublisher"
 import {
   buildUnmappedColumnSamples,
   dedupeUnmappedColumnSamples,
@@ -25,6 +26,11 @@ import {
   unmappedHeaders,
   type PublisherProfileConfig,
 } from "@/lib/mediaplans/ingest/publisherProfileConfig"
+import { overlayMoneySynonyms } from "@/lib/mediaplans/ingest/moneySynonyms"
+import {
+  evaluateTemplateCoverage,
+  type TemplateCoverage,
+} from "@/lib/mediaplans/ingest/templateCoverage"
 
 export type ColumnMappingRow = {
   header: string
@@ -46,11 +52,16 @@ export type IgnoredSummary = {
   spoken: string[]
 }
 
+export type MediaTypeStatus = "detected" | "ambiguous" | "unknown"
+
 export type BuildIngestReviewOptions = {
   /** Injectable AVA mapping client (tests). Omit → no live Anthropic (API route owns that). */
   avaMappingClient?: AvaMappingClient | null
   /** When true, skip AVA entirely (deterministic-only review). */
   skipAva?: boolean
+  sourceFileName?: string | null
+  /** After a human catalogue pick — use this profile, never re-guess. */
+  pinnedPublisherName?: string | null
 }
 
 export type IngestReviewPackage = {
@@ -64,14 +75,24 @@ export type IngestReviewPackage = {
   proposal: IngestProposal | null
   ignored: IgnoredSummary
   /**
-   * AVA mapping proposals (unmapped + publisher confidence < 90% only).
+   * AVA mapping proposals (required field unmatched + leftover headers only).
    * Never auto-applied — human Accept/Override writes via remap.
    */
   ava_mapping_proposals: AvaColumnMappingProposal[]
-  /** Anthropic invocations for this review (0 when confidence ≥ 90%). */
+  /** Anthropic invocations for this review (0 when required coverage is complete). */
   ava_call_count: number
-  /** Unmapped headers + sample cells for POST /api/admin/ingest/ava-mapping. */
+  /** Leftover headers + sample cells for POST /api/admin/ingest/ava-mapping. */
   unmapped_column_samples: UnmappedColumnSample[]
+  /** Template-first field coverage (Section A / completeness). */
+  template_coverage: TemplateCoverage | null
+  detected_media_type: string | null
+  media_type_status: MediaTypeStatus
+  /**
+   * True when detect confidence is below UNKNOWN_PUBLISHER_CONFIDENCE (or no
+   * profile). UI must ask which catalogue publisher — never guess.
+   */
+  needs_catalogue_choice: boolean
+  source_file_name: string | null
   /** All sheet shapes for debugging / multi-sheet accept later. */
   sheets: Array<{
     sheet_name: string
@@ -79,6 +100,20 @@ export type IngestReviewPackage = {
     is_line_items: boolean
     proposal: IngestProposal | null
   }>
+}
+
+function mediaTypeStatusFor(profile: PublisherProfileConfig | null): {
+  detected_media_type: string | null
+  media_type_status: MediaTypeStatus
+} {
+  const raw = profile?.media_type?.trim().toLowerCase() ?? ""
+  if (!profile || !raw) {
+    return { detected_media_type: null, media_type_status: "unknown" }
+  }
+  if (raw === "ooh" || raw === "radio") {
+    return { detected_media_type: raw, media_type_status: "detected" }
+  }
+  return { detected_media_type: raw, media_type_status: "ambiguous" }
 }
 
 function buildColumnMapping(
@@ -217,14 +252,70 @@ export async function buildIngestReviewFromBuffer(
     if (top) best = { shape: top, match: best.match }
   }
 
-  const profile = best?.match?.profile ?? null
-  const primary = best?.shape ?? null
-  const publisher_confidence = best?.match?.confidence ?? 0
+  const pinnedName = options.pinnedPublisherName?.trim()
+  if (pinnedName) {
+    const pinned = profiles.find(
+      (p) =>
+        p.publisher_name.replace(/\s+/g, " ").trim().toLowerCase() ===
+        pinnedName.replace(/\s+/g, " ").trim().toLowerCase(),
+    )
+    if (pinned) {
+      let top: DetectedSheetShape | null = best?.shape ?? null
+      let topScore = -1
+      for (const s of allShapes) {
+        const m = pickBestProfile([pinned], s)
+        const score =
+          (m?.confidence ?? 0) * 0.7 + s.line_item_sheet_confidence * 0.3
+        if (score > topScore) {
+          topScore = score
+          top = s
+        }
+      }
+      best = {
+        shape: top ?? allShapes[0]!,
+        match: {
+          profile: pinned,
+          confidence: 1,
+          reasons: ["human catalogue pick"],
+        },
+      }
+    }
+  }
+
+  const unknown =
+    !pinnedName && isUnknownPublisherMatch(best?.match ?? null)
+
+  const profileMatch = unknown ? null : (best?.match?.profile ?? null)
+  const primary = unknown ? null : (best?.shape ?? null)
+  const profile =
+    profileMatch && primary
+      ? overlayMoneySynonyms(profileMatch, primary)
+      : profileMatch
+  let publisher_confidence = best?.match?.confidence ?? 0
   const column_mapping =
     primary && profile ? buildColumnMapping(primary, profile) : []
 
   const proposal =
     primary && profile ? proposeLineItemsFromSheet(primary, profile) : null
+
+  const media = mediaTypeStatusFor(unknown ? null : profile)
+  let template_coverage: TemplateCoverage | null = null
+  if (!unknown && profile && media.detected_media_type) {
+    try {
+      template_coverage = evaluateTemplateCoverage({
+        mediaType: media.detected_media_type,
+        profile,
+        shape: primary,
+        proposal,
+      })
+      publisher_confidence = Math.max(
+        publisher_confidence,
+        template_coverage.completeness,
+      )
+    } catch {
+      template_coverage = null
+    }
+  }
 
   const lineShapes =
     profile != null
@@ -233,8 +324,16 @@ export async function buildIngestReviewFromBuffer(
   const sampleShapes =
     lineShapes.length > 0 ? lineShapes : primary ? [primary] : []
 
+  const leftoverHeaders =
+    template_coverage?.not_used.map((n) => n.header) ?? []
   const rawSamples: UnmappedColumnSample[] = []
-  if (profile) {
+  if (profile && leftoverHeaders.length > 0) {
+    for (const shape of sampleShapes) {
+      rawSamples.push(
+        ...buildUnmappedColumnSamples(shape, leftoverHeaders),
+      )
+    }
+  } else if (profile && !template_coverage) {
     for (const shape of sampleShapes) {
       const um = unmappedHeaders(
         profile,
@@ -243,15 +342,17 @@ export async function buildIngestReviewFromBuffer(
       rawSamples.push(...buildUnmappedColumnSamples(shape, um))
     }
   }
-  const unmapped_column_samples =
-    dedupeUnmappedColumnSamples(rawSamples)
+  const unmapped_column_samples = dedupeUnmappedColumnSamples(rawSamples)
 
   const ignored = buildIgnoredSummary({
     allShapes,
     profile,
     primary,
     column_mapping,
-    columns_unmapped: unmapped_column_samples.map((c) => c.header),
+    columns_unmapped:
+      leftoverHeaders.length > 0
+        ? leftoverHeaders
+        : unmapped_column_samples.map((c) => c.header),
   })
 
   const sheets = allShapes.map((s) => {
@@ -272,9 +373,16 @@ export async function buildIngestReviewFromBuffer(
   let ava_mapping_proposals: AvaColumnMappingProposal[] = []
   let ava_call_count = 0
   if (!options.skipAva) {
+    const unmatchedRequired =
+      template_coverage?.required.filter((f) => !f.matched) ?? []
     const ava = await runAvaColumnMappingProposals({
       publisherName: profile?.publisher_name ?? null,
       publisherConfidence: publisher_confidence,
+      unmatchedRequired,
+      leftoverHeaders:
+        leftoverHeaders.length > 0
+          ? leftoverHeaders
+          : unmapped_column_samples.map((c) => c.header),
       unmappedHeaders: unmapped_column_samples.map((c) => c.header),
       columns: unmapped_column_samples,
       client: options.avaMappingClient ?? null,
@@ -284,17 +392,22 @@ export async function buildIngestReviewFromBuffer(
   }
 
   return {
-    detected_publisher: profile?.publisher_name ?? null,
+    detected_publisher: unknown ? null : (profile?.publisher_name ?? null),
     publisher_confidence,
     match_reasons: best?.match?.reasons ?? [],
-    profile,
+    profile: unknown ? null : profile,
     sheet_name: primary?.sheet_name ?? null,
     column_mapping,
-    proposal,
+    proposal: unknown ? null : proposal,
     ignored,
     ava_mapping_proposals,
     ava_call_count,
     unmapped_column_samples,
+    template_coverage: unknown ? null : template_coverage,
+    detected_media_type: media.detected_media_type,
+    media_type_status: unknown ? "unknown" : media.media_type_status,
+    needs_catalogue_choice: unknown,
+    source_file_name: options.sourceFileName ?? null,
     sheets,
   }
 }

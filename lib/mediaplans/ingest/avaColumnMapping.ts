@@ -38,6 +38,8 @@ export const AVA_MAPPING_TARGET_DESCRIPTORS = [
   "media_description",
   "daypart",
   "market",
+  "length",
+  "duration",
 ] as const
 
 export type AvaMappingTarget = (typeof AVA_MAPPING_TARGET_DESCRIPTORS)[number]
@@ -78,17 +80,30 @@ export type AvaMappingRequestBody = {
 }
 
 export type ParsedAvaMappingRequest =
-  | { ok: true; publisherName: string | null; publisherConfidence: number; columns: UnmappedColumnSample[] }
+  | {
+      ok: true
+      publisherName: string | null
+      publisherConfidence: number
+      columns: UnmappedColumnSample[]
+      unmatchedRequired?: Array<{ id?: string; label?: string }>
+      leftoverHeaders?: string[]
+    }
   | { ok: false; error: string }
 
 export function shouldCallAvaForMappings(args: {
-  publisherConfidence: number
-  unmappedHeaders: string[]
+  unmatchedRequired?: Array<{ id?: string; label?: string }>
+  leftoverHeaders?: string[]
+  publisherConfidence?: number
+  unmappedHeaders?: string[]
 }): boolean {
-  if (args.publisherConfidence >= AVA_MAPPING_CONFIDENCE_FLOOR) {
+  const leftover = args.leftoverHeaders ?? args.unmappedHeaders ?? []
+  if (args.unmatchedRequired !== undefined) {
+    return args.unmatchedRequired.length > 0 && leftover.length > 0
+  }
+  if ((args.publisherConfidence ?? 0) >= AVA_MAPPING_CONFIDENCE_FLOOR) {
     return false
   }
-  return args.unmappedHeaders.length > 0
+  return leftover.length > 0
 }
 
 export function sampleValuesForHeader(
@@ -263,11 +278,30 @@ export function parseAvaMappingRequestBody(raw: unknown): ParsedAvaMappingReques
       : typeof o.publisherName === "string"
         ? o.publisherName.trim() || null
         : null
+  const leftoverHeaders = Array.isArray(o.leftoverHeaders)
+    ? o.leftoverHeaders.filter(
+        (h): h is string => typeof h === "string" && h.trim().length > 0,
+      )
+    : undefined
+  const unmatchedRequired = Array.isArray(o.unmatchedRequired)
+    ? o.unmatchedRequired.flatMap((item) => {
+        if (!item || typeof item !== "object") return []
+        const rec = item as Record<string, unknown>
+        return [
+          {
+            id: typeof rec.id === "string" ? rec.id : undefined,
+            label: typeof rec.label === "string" ? rec.label : undefined,
+          },
+        ]
+      })
+    : undefined
   return {
     ok: true,
     publisherName,
     publisherConfidence: o.publisherConfidence,
     columns: deduped,
+    unmatchedRequired,
+    leftoverHeaders,
   }
 }
 
@@ -281,6 +315,8 @@ export async function runAvaColumnMappingProposals(args: {
   publisherName: string | null
   publisherConfidence: number
   unmappedHeaders?: string[]
+  unmatchedRequired?: Array<{ id?: string; label?: string }>
+  leftoverHeaders?: string[]
   shape?: DetectedSheetShape | null
   columns?: UnmappedColumnSample[]
   client?: AvaMappingClient | null
@@ -305,6 +341,8 @@ export async function runAvaColumnMappingProposals(args: {
     !shouldCallAvaForMappings({
       publisherConfidence: args.publisherConfidence,
       unmappedHeaders,
+      unmatchedRequired: args.unmatchedRequired,
+      leftoverHeaders: args.leftoverHeaders ?? unmappedHeaders,
     })
   ) {
     return empty

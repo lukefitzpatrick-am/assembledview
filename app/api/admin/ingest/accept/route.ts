@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
       brand?: string | null
       channelFlags?: Record<string, unknown> | null
       fileName?: string | null
+      detectedConfidence?: number | null
     }
 
     if (!body.proposal || !body.masterId || !body.mbaNumber?.trim()) {
@@ -63,7 +64,7 @@ export async function POST(request: NextRequest) {
       },
       uploadedBy,
       fileName: body.fileName ?? null,
-      detectedConfidence: null,
+      detectedConfidence: body.detectedConfidence ?? null,
       feeLoading: body.feeLoading ?? {},
     })
 

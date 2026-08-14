@@ -6,7 +6,6 @@ import { readFileSync } from "node:fs"
 import path from "node:path"
 import test from "node:test"
 import {
-  AVA_MAPPING_CONFIDENCE_FLOOR,
   dedupeUnmappedColumnSamples,
   ingestMappingRowKey,
   parseAvaMappingRequestBody,
@@ -107,6 +106,8 @@ test("runAvaColumnMappingProposals with columns-only context honors the gate (no
   const skipped = await runAvaColumnMappingProposals({
     publisherName: "QMS",
     publisherConfidence: 0.95,
+    unmatchedRequired: [],
+    leftoverHeaders: ["PROD"],
     columns: [{ header: "PROD", sample_values: ["1"] }],
     client: mock,
   })
@@ -116,6 +117,8 @@ test("runAvaColumnMappingProposals with columns-only context honors the gate (no
   const opened = await runAvaColumnMappingProposals({
     publisherName: "QMS",
     publisherConfidence: 0.8,
+    unmatchedRequired: [{ id: "media_money", label: "Media money" }],
+    leftoverHeaders: ["PROD"],
     columns: [{ header: "PROD", sample_values: ["1"] }],
     client: mock,
   })
@@ -124,45 +127,35 @@ test("runAvaColumnMappingProposals with columns-only context honors the gate (no
   assert.equal(opened.proposals.length, 1)
 })
 
-test("gate: high confidence never calls AVA even with unmapped columns", () => {
+test("gate: leftover columns never fire AVA when required is complete", () => {
   assert.equal(
     shouldCallAvaForMappings({
-      publisherConfidence: AVA_MAPPING_CONFIDENCE_FLOOR,
-      unmappedHeaders: ["PROD"],
+      unmatchedRequired: [],
+      leftoverHeaders: ["PROD", "INSTALL", "PANEL EXCLUSIVITY"],
     }),
     false,
   )
   assert.equal(
     shouldCallAvaForMappings({
-      publisherConfidence: 0.95,
-      unmappedHeaders: ["SITE #"],
-    }),
-    false,
-  )
-})
-
-test("gate: low confidence + unmapped → AVA; low + fully mapped → no", () => {
-  assert.equal(
-    shouldCallAvaForMappings({
-      publisherConfidence: 0.8,
-      unmappedHeaders: ["SITE #"],
+      unmatchedRequired: [{ id: "media_money", label: "Media money" }],
+      leftoverHeaders: ["Total Investment"],
     }),
     true,
   )
   assert.equal(
     shouldCallAvaForMappings({
-      publisherConfidence: 0.5,
-      unmappedHeaders: [],
+      unmatchedRequired: [{ id: "media_money", label: "Media money" }],
+      leftoverHeaders: [],
     }),
     false,
   )
 })
 
-test("deliberately renamed column triggers an AVA proposal", async () => {
+test("deliberately renamed enrich column does not fire AVA when required is complete", async () => {
   const profiles = loadSeedPublisherProfiles().map((p) => {
     if (p.publisher_name !== "QMS") return p
     const map = { ...p.column_map }
-    // Rename: remove the known header so SITE NUMBER… becomes unmapped under a new alias.
+    // Rename: remove the known header so SITE NUMBER… becomes leftover enrich.
     delete map["SITE NUMBER / NO. OF PANELS"]
     return parsePublisherProfile({ ...p, column_map: map })
   })
@@ -171,10 +164,6 @@ test("deliberately renamed column triggers an AVA proposal", async () => {
   const mock: AvaMappingClient = {
     async proposeMappings({ columns }) {
       calls++
-      assert.ok(
-        columns.some((c) => /SITE NUMBER/i.test(c.header)),
-        `expected SITE NUMBER among AVA inputs, got ${columns.map((c) => c.header).join("|")}`,
-      )
       return columns.map((c) => ({
         header: c.header,
         sample_values: c.sample_values,
@@ -194,18 +183,16 @@ test("deliberately renamed column triggers an AVA proposal", async () => {
     { avaMappingClient: mock },
   )
 
-  assert.ok(review.publisher_confidence < AVA_MAPPING_CONFIDENCE_FLOOR)
-  assert.equal(review.ava_call_count, 1)
-  assert.equal(calls, 1)
-  const site = review.ava_mapping_proposals.find((p) =>
-    /SITE NUMBER/i.test(p.header),
+  assert.ok(review.template_coverage)
+  assert.equal(
+    review.template_coverage!.required.filter((f) => !f.matched).length,
+    0,
   )
-  assert.ok(site)
-  assert.equal(site!.proposed_mapped_to, "site_number")
-  assert.ok(site!.reasoning.length > 0)
+  assert.equal(review.ava_call_count, 0)
+  assert.equal(calls, 0)
 })
 
-test("clean fixture (confidence ≥ 90%) triggers no AVA call", async () => {
+test("fully mapped required fields skip AVA even with leftover enrich columns", async () => {
   // Force high confidence by wrapping the match path: use a stub client that
   // must never be invoked, and a profile that still has unmapped money cols.
   // Gate is confidence — inject via run through mock that asserts 0 calls when
@@ -260,13 +247,17 @@ test("clean fixture (confidence ≥ 90%) triggers no AVA call", async () => {
       : p,
   )
 
-  // Still low publisher confidence (~81%) but no unmapped → gate false → 0 calls
+  // Still may have leftover enrich columns; required complete → gate false → 0 calls
   const clean = await buildIngestReviewFromFile(
     path.join(FIX, "qms_strength-meals_esb-ooh.xlsx"),
     cleanProfiles,
     { avaMappingClient: mock },
   )
-  assert.equal(clean.ignored.columns_unmapped.length, 0)
+  assert.ok(clean.template_coverage)
+  assert.equal(
+    clean.template_coverage!.required.filter((f) => !f.matched).length,
+    0,
+  )
   assert.equal(clean.ava_call_count, 0)
   assert.equal(calls, 0)
   assert.equal(clean.ava_mapping_proposals.length, 0)
@@ -334,19 +325,19 @@ test("QMS review: unmapped samples unique by header; mapping keys unique", async
   )
 })
 
-test("MR-5 fixture call counts: QMS 1, JCDecaux 1, SCA 0, SEN 1 (gate = confidence < 90% + unmapped)", async () => {
+test("MR-11 fixture call counts: QMS 0, JCDecaux 0, SCA 0, SEN 1 (gate = unmatched required + leftovers)", async () => {
   const profiles = loadSeedPublisherProfiles()
   const cases: Array<{ file: string; publisher: string; expectedCalls: number }> =
     [
       {
         file: "qms_strength-meals_esb-ooh.xlsx",
         publisher: "QMS",
-        expectedCalls: 1,
+        expectedCalls: 0,
       },
       {
         file: "jcd_strength-meals_ooh.xlsx",
         publisher: "JCDecaux",
-        expectedCalls: 1,
+        expectedCalls: 0,
       },
       {
         file: "sca_boss-engineering_fy26_v2-rev.xlsx",

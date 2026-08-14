@@ -19,6 +19,7 @@ export async function stageIngestReviewFromBuffer(
     fileName: string | null
     uploadedBy: string | null
     profiles: PublisherProfileConfig[]
+    pinnedPublisherName?: string | null
   },
 ): Promise<{
   review: IngestReviewPackage
@@ -27,6 +28,8 @@ export async function stageIngestReviewFromBuffer(
 }> {
   const review = await buildIngestReviewFromBuffer(buffer, args.profiles, {
     skipAva: true,
+    sourceFileName: args.fileName,
+    pinnedPublisherName: args.pinnedPublisherName,
   })
   const stageId = putIngestStage({
     review,

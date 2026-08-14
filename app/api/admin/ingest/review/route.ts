@@ -20,6 +20,8 @@ export async function POST(request: NextRequest) {
     }
     const buf = Buffer.from(await file.arrayBuffer())
     const { profiles } = await listPublisherProfiles()
+    const pinnedPublisherName =
+      String(form.get("publisherName") ?? "").trim() || null
     const uploadedBy =
       typeof auth.session?.user?.email === "string"
         ? auth.session.user.email.trim().toLowerCase()
@@ -28,6 +30,7 @@ export async function POST(request: NextRequest) {
       fileName: file.name,
       uploadedBy,
       profiles,
+      pinnedPublisherName,
     })
     return NextResponse.json({ review, stageId, summary })
   } catch (e) {
