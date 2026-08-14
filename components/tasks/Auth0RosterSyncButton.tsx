@@ -13,6 +13,7 @@ export type Auth0RosterSyncResult = {
   skipped: number
   missingInAuth0: number
   noResolvableRole: number
+  treatedAsAdminByDomainRule?: number
   message?: string
 }
 
@@ -86,6 +87,11 @@ export function Auth0RosterSyncButton({
               {" · "}
               users with no resolvable role:{" "}
               <span className="num">{result.noResolvableRole}</span>
+              {" · "}
+              treated as admin by domain rule:{" "}
+              <span className="num">
+                {result.treatedAsAdminByDomainRule ?? 0}
+              </span>
             </>
           ) : (
             <>Last run failed: {result.message ?? "error"}</>

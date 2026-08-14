@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
         skipped: 0,
         missingInAuth0: 0,
         noResolvableRole: 0,
+        treatedAsAdminByDomainRule: 0,
         message: err instanceof Error ? err.message : String(err),
       },
       { status: 500 },

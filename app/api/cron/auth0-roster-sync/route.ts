@@ -38,6 +38,7 @@ export async function GET(request: Request) {
         skipped: 0,
         missingInAuth0: 0,
         noResolvableRole: 0,
+        treatedAsAdminByDomainRule: 0,
         message: err instanceof Error ? err.message : String(err),
       },
       { status: 500 },

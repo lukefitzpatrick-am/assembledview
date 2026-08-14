@@ -1,16 +1,17 @@
-import type { User } from "@auth0/nextjs-auth0/types"
-
 import {
   isAuth0ManagementClientConfigured,
   listAllAuth0UsersUnpaged,
   type Auth0ListedUser,
 } from "@/lib/api/auth0Management"
-import { getUserRoles } from "@/lib/rbac"
 
 import {
   aliasesForNewRosterEmail,
   type StoredRosterRow,
 } from "./auth0LoginUpsert"
+import {
+  listedUserRoles,
+  rosterEligibilityForManagementUser,
+} from "./rosterEligibility"
 
 export type Auth0RosterSyncStatus = "ok" | "not_configured" | "error"
 
@@ -22,6 +23,7 @@ export type Auth0RosterSyncResult = {
   skipped: number
   missingInAuth0: number
   noResolvableRole: number
+  treatedAsAdminByDomainRule: number
   message?: string
 }
 
@@ -48,11 +50,8 @@ const EMPTY_COUNTS = {
   skipped: 0,
   missingInAuth0: 0,
   noResolvableRole: 0,
+  treatedAsAdminByDomainRule: 0,
 } as const
-
-function listedUserRoles(user: Auth0ListedUser) {
-  return getUserRoles({ app_metadata: user.app_metadata } as unknown as User)
-}
 
 async function defaultDeps(): Promise<Auth0RosterSyncDeps> {
   const { postgresRosterStore } = await import("./auth0RosterStore")
@@ -130,17 +129,31 @@ export async function runAuth0RosterSync(
   let updated = 0
   let skipped = 0
   let noResolvableRole = 0
+  let treatedAsAdminByDomainRule = 0
   const presentAdminEmails = new Set<string>()
 
   for (const user of users) {
-    const roles = listedUserRoles(user)
+    const roles = listedUserRoles(user.app_metadata)
     if (roles.length === 0) noResolvableRole += 1
     const email =
       typeof user.email === "string" ? user.email.trim().toLowerCase() : ""
-    const isAdmin = roles.includes("admin")
-    if (!isAdmin || user.blocked || !email) {
+    const eligibility = rosterEligibilityForManagementUser({
+      email,
+      app_metadata: user.app_metadata,
+    })
+    if (!eligibility.eligible) {
+      skipped += 1
+      console.warn(
+        `[auth0-roster-sync] skipped ${email || "(no email)"}: ${eligibility.reason}`,
+      )
+      continue
+    }
+    if (user.blocked || !email) {
       skipped += 1
       continue
+    }
+    if (eligibility.via === "domain_rule") {
+      treatedAsAdminByDomainRule += 1
     }
     presentAdminEmails.add(email)
     try {
@@ -170,5 +183,6 @@ export async function runAuth0RosterSync(
     skipped,
     missingInAuth0,
     noResolvableRole,
+    treatedAsAdminByDomainRule,
   }
 }

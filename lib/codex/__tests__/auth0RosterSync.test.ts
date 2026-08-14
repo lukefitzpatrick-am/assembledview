@@ -113,6 +113,7 @@ describe("runAuth0RosterSync", () => {
     assert.equal(result.created, 1)
     assert.equal(result.updated, 0)
     assert.equal(result.skipped, 1)
+    assert.equal(result.treatedAsAdminByDomainRule, 0)
     assert.equal(store.rows.size, 1)
     assert.equal(store.deletes, 0)
     assert.equal(store.deactivates, 0)
@@ -189,23 +190,84 @@ describe("runAuth0RosterSync", () => {
     assert.equal(store.deactivates, 0)
   })
 
-  it("counts Auth0 users with no resolvable app_metadata role", async () => {
+  it("creates staff with empty app_metadata via the domain rule", async () => {
     const store = memorySyncStore()
     const result = await runAuth0RosterSync(
       deps({
         store,
         listUsers: async () => [
           {
-            user_id: "auth0|claim-only",
-            email: "claim.only@assembledmedia.com.au",
-            name: "Claim Only",
+            user_id: "auth0|luke",
+            email: "luke.fitzpatrick@assembledmedia.com.au",
+            name: "Luke Fitzpatrick",
           },
         ],
       }),
     )
     assert.equal(result.status, "ok")
     assert.equal(result.noResolvableRole, 1)
+    assert.equal(result.created, 1)
+    assert.equal(result.treatedAsAdminByDomainRule, 1)
+    assert.equal(store.rows.size, 1)
+    assert.equal(
+      store.rows.get("luke.fitzpatrick@assembledmedia.com.au")!.rosterSource,
+      "auth0_sync",
+    )
+  })
+
+  it("skips hinatanveer-style gmail admin app_metadata and logs the reason", async () => {
+    const store = memorySyncStore()
+    const warnings: string[] = []
+    const orig = console.warn
+    console.warn = (...args: unknown[]) => {
+      warnings.push(args.map(String).join(" "))
+    }
+    let result
+    try {
+      result = await runAuth0RosterSync(
+        deps({
+          store,
+          listUsers: async () => [
+            {
+              user_id: "auth0|hina",
+              email: "hinatanveer992.0@gmail.com",
+              name: "Assembled View",
+              app_metadata: { role: "admin" },
+            },
+          ],
+        }),
+      )
+    } finally {
+      console.warn = orig
+    }
+    assert.equal(result.status, "ok")
     assert.equal(result.created, 0)
+    assert.equal(result.skipped, 1)
+    assert.equal(result.treatedAsAdminByDomainRule, 0)
+    assert.equal(store.rows.size, 0)
+    assert.match(warnings.join("\n"), /hinatanveer992\.0@gmail\.com/)
+    assert.match(warnings.join("\n"), /free-mail/)
+  })
+
+  it("skips digital@assembledmedia.com.au when app_metadata role is client", async () => {
+    const store = memorySyncStore()
+    const result = await runAuth0RosterSync(
+      deps({
+        store,
+        listUsers: async () => [
+          {
+            user_id: "auth0|digital",
+            email: "digital@assembledmedia.com.au",
+            name: "Digital",
+            app_metadata: { role: "client" },
+          },
+        ],
+      }),
+    )
+    assert.equal(result.status, "ok")
+    assert.equal(result.created, 0)
+    assert.equal(result.skipped, 1)
+    assert.equal(result.treatedAsAdminByDomainRule, 0)
     assert.equal(store.rows.size, 0)
   })
 })
