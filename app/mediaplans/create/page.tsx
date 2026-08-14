@@ -9,7 +9,9 @@ import {
   useMemo,
   useRef,
   type ComponentType,
+  type Dispatch,
   type LazyExoticComponent,
+  type SetStateAction,
 } from "react"
 import { Controller, useForm, useWatch, type Control } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -284,6 +286,7 @@ import {
 } from "@/components/mediaplan/PlanDraftChrome"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
+import { buildDraftChannelApply } from "@/lib/mediaplan/drafts/applyRestore"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
 import {
@@ -4967,27 +4970,32 @@ function CreateMediaPlan() {
       }),
     onRestore: (state: PlanDraftStateV1) => {
       if (state.formValues) form.reset(state.formValues as never)
-      const ch = state.channels ?? {}
-      if (ch.television) setTelevisionMediaLineItems(ch.television)
-      if (ch.radio) setRadioMediaLineItems(ch.radio)
-      if (ch.newspaper) setNewspaperMediaLineItems(ch.newspaper)
-      if (ch.magazines) setMagazineMediaLineItems(ch.magazines)
-      if (ch.ooh) setOohMediaLineItems(ch.ooh)
-      if (ch.cinema) setCinemaMediaLineItems(ch.cinema)
-      if (ch.digiDisplay) setDigiDisplayMediaLineItems(ch.digiDisplay)
-      if (ch.digiAudio) setDigiAudioMediaLineItems(ch.digiAudio)
-      if (ch.digiVideo) setDigiVideoMediaLineItems(ch.digiVideo)
-      if (ch.bvod) setBvodMediaLineItems(ch.bvod)
-      if (ch.integration) setIntegrationMediaLineItems(ch.integration)
-      if (ch.production) setProductionMediaLineItems(ch.production)
-      if (ch.search) setSearchMediaLineItems(ch.search)
-      if (ch.socialMedia) setSocialMediaMediaLineItems(ch.socialMedia)
-      if (ch.progDisplay) setProgDisplayMediaLineItems(ch.progDisplay)
-      if (ch.progVideo) setProgVideoMediaLineItems(ch.progVideo)
-      if (ch.progBvod) setProgBvodMediaLineItems(ch.progBvod)
-      if (ch.progAudio) setProgAudioMediaLineItems(ch.progAudio)
-      if (ch.progOoh) setProgOohMediaLineItems(ch.progOoh)
-      if (ch.influencers) setInfluencersMediaLineItems(ch.influencers)
+      const { media } = buildDraftChannelApply(state.channels ?? {})
+      const mediaSetters: Record<string, Dispatch<SetStateAction<any[]>>> = {
+        television: setTelevisionMediaLineItems,
+        radio: setRadioMediaLineItems,
+        newspaper: setNewspaperMediaLineItems,
+        magazines: setMagazineMediaLineItems,
+        ooh: setOohMediaLineItems,
+        cinema: setCinemaMediaLineItems,
+        digiDisplay: setDigiDisplayMediaLineItems,
+        digiAudio: setDigiAudioMediaLineItems,
+        digiVideo: setDigiVideoMediaLineItems,
+        bvod: setBvodMediaLineItems,
+        integration: setIntegrationMediaLineItems,
+        production: setProductionMediaLineItems,
+        search: setSearchMediaLineItems,
+        socialMedia: setSocialMediaMediaLineItems,
+        progDisplay: setProgDisplayMediaLineItems,
+        progVideo: setProgVideoMediaLineItems,
+        progBvod: setProgBvodMediaLineItems,
+        progAudio: setProgAudioMediaLineItems,
+        progOoh: setProgOohMediaLineItems,
+        influencers: setInfluencersMediaLineItems,
+      }
+      for (const [key, rows] of Object.entries(media)) {
+        mediaSetters[key]?.(rows)
+      }
       forceDirty()
     },
   })

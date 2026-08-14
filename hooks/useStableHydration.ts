@@ -18,7 +18,10 @@ export function useStableHydration<T>(
   hydrateRef.current = hydrate
   useEffect(() => {
     if (modalOpenRef?.current) return
-    if (!initialLineItems || initialLineItems.length === 0) return
+    if (initialLineItems == null) return
+    // First paint is often [] while the tip fetch is in flight — skip that.
+    // After a real hydrate, a new empty array is a deleted-line resume.
+    if (initialLineItems.length === 0 && lastHydratedRef.current == null) return
     if (lastHydratedRef.current === initialLineItems) return
     lastHydratedRef.current = initialLineItems
     hydrateRef.current(initialLineItems)

@@ -38,6 +38,7 @@ export default defineConfig({
       "components/dashboard/__tests__/SpendingInsightsSection.render.test.tsx",
       "components/dashboard/delivery/__tests__/ChannelSection.render.test.tsx",
       "hooks/__tests__/usePlanDraftSession.test.tsx",
+      "hooks/__tests__/useStableHydration.test.tsx",
       "components/mediaplans/__tests__/ExpertApplyDirtyClearOnSave.characterisation.test.tsx",
       "lib/mediaplan/__tests__/useMediaPlanDirtyController.test.tsx",
       "lib/mediaplan/__tests__/handleInvestmentChange.dirty.characterisation.test.tsx",

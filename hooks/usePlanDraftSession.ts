@@ -18,6 +18,11 @@ import {
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
 import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
+import {
+  clickResume,
+  flushWhenHydrationSettled,
+  initialPlanDraftRestoreGate,
+} from "@/lib/mediaplan/drafts/applyRestore"
 
 type OtherDraft = {
   userId: string
@@ -49,6 +54,8 @@ export function usePlanDraftSession(args: {
   intent?: "save" | "publish"
   getSnapshot: () => PlanDraftStateV1
   onRestore: (state: PlanDraftStateV1) => void
+  /** Edit page: false until every enabled channel has settled from the tip. */
+  hydrationSettled?: boolean
 }) {
   /** Autosave chrome (3s/15s + soft Save draft) — still flag-gated. */
   const autosaveEnabled = isPlanDraftsEnabled()
@@ -64,6 +71,10 @@ export function usePlanDraftSession(args: {
   const serverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const getSnapshotRef = useRef(args.getSnapshot)
   getSnapshotRef.current = args.getSnapshot
+  const onRestoreRef = useRef(args.onRestore)
+  onRestoreRef.current = args.onRestore
+  const restoreGateRef = useRef(initialPlanDraftRestoreGate())
+  const hydrationSettled = args.hydrationSettled !== false
 
   // Stage 2b: always resolve user for offer / working-draft save (flag may be off).
   useEffect(() => {
@@ -267,6 +278,7 @@ export function usePlanDraftSession(args: {
   }, [args.masterId, args.mbaNumber, userId])
 
   const discard = useCallback(async () => {
+    restoreGateRef.current = initialPlanDraftRestoreGate()
     if (!userId) return
     await clearLocalDraft({
       masterId: args.masterId,
@@ -282,9 +294,24 @@ export function usePlanDraftSession(args: {
 
   const resume = useCallback(() => {
     if (!recovery) return
-    args.onRestore(recovery.state)
+    const result = clickResume(
+      restoreGateRef.current,
+      recovery.state,
+      hydrationSettled,
+    )
+    restoreGateRef.current = result.gate
     setRecovery(null)
-  }, [recovery, args])
+    if (result.apply) onRestoreRef.current(result.apply)
+  }, [recovery, hydrationSettled])
+
+  useEffect(() => {
+    const result = flushWhenHydrationSettled(
+      restoreGateRef.current,
+      hydrationSettled,
+    )
+    restoreGateRef.current = result.gate
+    if (result.apply) onRestoreRef.current(result.apply)
+  }, [hydrationSettled])
 
   const saveDraftNow = useCallback(async () => {
     if (!userId) {

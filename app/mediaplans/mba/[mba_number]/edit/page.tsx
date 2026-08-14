@@ -197,6 +197,7 @@ import {
   PlanStaleBaseDialog,
 } from "@/components/mediaplan/PlanDraftChrome"
 import { buildPlanDraftSnapshot } from "@/lib/mediaplan/drafts/buildSnapshot"
+import { buildDraftChannelApply } from "@/lib/mediaplan/drafts/applyRestore"
 import { describeVersionHeaderTrail } from "@/lib/mediaplan/drafts/pill"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
@@ -2272,6 +2273,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     Partial<Record<MediaTypeKey, boolean>>
   >({})
   const channelHydrationSettledRef = useRef<Partial<Record<MediaTypeKey, boolean>>>({})
+  /** After Resume applies the working draft, late tip fetches must not clobber it. */
+  const skipTipLineItemWritesRef = useRef(false)
   const markChannelHydrationSettled = useCallback((flag: MediaTypeKey) => {
     setChannelHydrationSettled((prev) => {
       if (prev[flag]) return prev
@@ -4031,7 +4034,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         ...item,
         bursts_json: item.bursts_json || item.bursts || null,
       }))
-      setter(processedItems)
+      if (!skipTipLineItemWritesRef.current) {
+        setter(processedItems)
+      }
       if (flag === "mp_production" && processedItems.length > 0 && !form.getValues("mp_production")) {
         form.setValue("mp_production", true, { shouldDirty: false })
       }
@@ -4189,8 +4194,11 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 ...item,
                 bursts_json: item.bursts_json || item.bursts || null,
               }))
-              // Late success after watchdog: still apply data and clear the stale warning.
-              setter(processedItems)
+              // Late success after watchdog: still apply data and clear the stale warning
+              // unless Resume already restored the working draft (SMK-1).
+              if (!skipTipLineItemWritesRef.current) {
+                setter(processedItems)
+              }
               if (
                 flag === "mp_production" &&
                 processedItems.length > 0 &&
@@ -6690,7 +6698,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         ? latestVersionNumber
         : Number(mediaPlan?.version_number) || 0,
     versionRowCount: availableVersions.length,
-    tipPublishedAt:
+        tipPublishedAt:
       (mediaPlan as { published_at?: string | null } | null)?.published_at !== undefined
         ? (mediaPlan as { published_at?: string | null }).published_at
         : availableVersions.find(
@@ -6700,6 +6708,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 ? latestVersionNumber
                 : Number(mediaPlan?.version_number) || 0)
           )?.published_at,
+    hydrationSettled: allChannelsHydrated,
     getSnapshot: () =>
       buildPlanDraftSnapshot({
         mbaNumber: String(mbaNumber ?? ""),
@@ -6731,28 +6740,59 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         tipBudgetCents: Math.round(Number(mediaPlan?.campaign_budget ?? mediaPlan?.mp_campaignbudget ?? 0) * 100) || 0,
       }),
     onRestore: (state: PlanDraftStateV1) => {
+      skipTipLineItemWritesRef.current = true
       if (state.formValues) form.reset(state.formValues as never)
-      const ch = state.channels ?? {}
-      if (ch.television) setTelevisionMediaLineItems(ch.television)
-      if (ch.radio) setRadioMediaLineItems(ch.radio)
-      if (ch.newspaper) setNewspaperMediaLineItems(ch.newspaper)
-      if (ch.magazines) setMagazinesMediaLineItems(ch.magazines)
-      if (ch.ooh) setOohMediaLineItems(ch.ooh)
-      if (ch.cinema) setCinemaMediaLineItems(ch.cinema)
-      if (ch.digiDisplay) setDigitalDisplayMediaLineItems(ch.digiDisplay)
-      if (ch.digiAudio) setDigitalAudioMediaLineItems(ch.digiAudio)
-      if (ch.digiVideo) setDigitalVideoMediaLineItems(ch.digiVideo)
-      if (ch.bvod) setBvodMediaLineItems(ch.bvod)
-      if (ch.integration) setIntegrationMediaLineItems(ch.integration)
-      if (ch.production) setProductionMediaLineItems(ch.production)
-      if (ch.search) setSearchMediaLineItems(ch.search)
-      if (ch.socialMedia) setSocialMediaMediaLineItems(ch.socialMedia)
-      if (ch.progDisplay) setProgDisplayMediaLineItems(ch.progDisplay)
-      if (ch.progVideo) setProgVideoMediaLineItems(ch.progVideo)
-      if (ch.progBvod) setProgBvodMediaLineItems(ch.progBvod)
-      if (ch.progAudio) setProgAudioMediaLineItems(ch.progAudio)
-      if (ch.progOoh) setProgOohMediaLineItems(ch.progOoh)
-      if (ch.influencers) setInfluencersMediaLineItems(ch.influencers)
+      const { hydration, media } = buildDraftChannelApply(state.channels ?? {})
+      const hydrateSetters: Record<string, Dispatch<SetStateAction<any[]>>> = {
+        television: setTelevisionLineItems,
+        radio: setRadioLineItems,
+        newspaper: setNewspaperLineItems,
+        magazines: setMagazinesLineItems,
+        ooh: setOohLineItems,
+        cinema: setCinemaLineItems,
+        digiDisplay: setDigitalDisplayLineItems,
+        digiAudio: setDigitalAudioLineItems,
+        digiVideo: setDigitalVideoLineItems,
+        bvod: setBvodLineItems,
+        integration: setIntegrationLineItems,
+        production: setProductionLineItems,
+        search: setSearchLineItems,
+        socialMedia: setSocialMediaLineItems,
+        progDisplay: setProgDisplayLineItems,
+        progVideo: setProgVideoLineItems,
+        progBvod: setProgBvodLineItems,
+        progAudio: setProgAudioLineItems,
+        progOoh: setProgOohLineItems,
+        influencers: setInfluencersLineItems,
+      }
+      const mediaSetters: Record<string, Dispatch<SetStateAction<any[]>>> = {
+        television: setTelevisionMediaLineItems,
+        radio: setRadioMediaLineItems,
+        newspaper: setNewspaperMediaLineItems,
+        magazines: setMagazinesMediaLineItems,
+        ooh: setOohMediaLineItems,
+        cinema: setCinemaMediaLineItems,
+        digiDisplay: setDigitalDisplayMediaLineItems,
+        digiAudio: setDigitalAudioMediaLineItems,
+        digiVideo: setDigitalVideoMediaLineItems,
+        bvod: setBvodMediaLineItems,
+        integration: setIntegrationMediaLineItems,
+        production: setProductionMediaLineItems,
+        search: setSearchMediaLineItems,
+        socialMedia: setSocialMediaMediaLineItems,
+        progDisplay: setProgDisplayMediaLineItems,
+        progVideo: setProgVideoMediaLineItems,
+        progBvod: setProgBvodMediaLineItems,
+        progAudio: setProgAudioMediaLineItems,
+        progOoh: setProgOohMediaLineItems,
+        influencers: setInfluencersMediaLineItems,
+      }
+      for (const [key, rows] of Object.entries(hydration)) {
+        hydrateSetters[key]?.(rows)
+      }
+      for (const [key, rows] of Object.entries(media)) {
+        mediaSetters[key]?.(rows)
+      }
       forceDirty()
     },
   })
