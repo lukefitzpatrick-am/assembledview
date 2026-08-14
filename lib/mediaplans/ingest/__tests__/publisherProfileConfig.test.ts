@@ -53,6 +53,13 @@ test("four seeded profiles round-trip through the config layer", () => {
   assert.equal(jcd.grid_semantics, "status_matrix")
   assert.equal(sen.grid_semantics, "count")
   assert.equal(sen.media_type, "radio")
+  for (const profile of seeds) {
+    assert.equal(
+      profile.line_granularity,
+      "per_row",
+      `${profile.publisher_name} must seed per_row (grouped is config-only, unused)`,
+    )
+  }
 
   assert.equal(sheetIsLineItems(qms, "QMS_2026_Paid"), true)
   assert.equal(sheetIsLineItems(qms, "QMS_2026_Bonus"), true)
@@ -199,4 +206,48 @@ test("fixture descriptor headers: report unmapped columns", () => {
     "Preferred Investment",
   ]
   assert.deepEqual(unmappedHeaders(sen, senMoneyHeaders), senMoneyHeaders)
+})
+
+test("0049 line_granularity SQL is AUTHOR ONLY and idempotent", () => {
+  const sql = readFileSync(
+    path.join(
+      process.cwd(),
+      "db/migrations/0049_publisher_profiles_line_granularity.sql",
+    ),
+    "utf8",
+  )
+  assert.match(sql, /AUTHOR ONLY/i)
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS line_granularity/i)
+  assert.match(sql, /per_row/)
+  assert.match(sql, /grouped/)
+  assert.match(sql, /SET line_granularity = 'per_row'/i)
+  assert.doesNotMatch(sql, /CREATE POLICY|ENABLE ROW LEVEL SECURITY/i)
+})
+
+test("line_granularity defaults to per_row; grouped is valid; invalid throws", () => {
+  const base = loadSeeds()[0]!
+  const omitted = parsePublisherProfile({
+    ...serializePublisherProfile(base),
+    line_granularity: undefined,
+  })
+  assert.equal(omitted.line_granularity, "per_row")
+
+  const grouped = parsePublisherProfile({
+    ...serializePublisherProfile(base),
+    line_granularity: "grouped",
+  })
+  assert.equal(grouped.line_granularity, "grouped")
+  assert.equal(
+    parsePublisherProfile(serializePublisherProfile(grouped)).line_granularity,
+    "grouped",
+  )
+
+  assert.throws(
+    () =>
+      parsePublisherProfile({
+        ...serializePublisherProfile(base),
+        line_granularity: "per_panel",
+      }),
+    /line_granularity/,
+  )
 })

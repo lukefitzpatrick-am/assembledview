@@ -9,6 +9,7 @@
       "grouping_keys": ["format", "state"]
     },
     "grouping_keys": ["format", "state"],
+    "line_granularity": "per_row",
     "column_map": {
       "LATITUDE": "latitude",
       "LONGITUDE": "longitude",
@@ -67,6 +68,7 @@
       "grouping_keys": ["station", "media_description", "daypart"]
     },
     "grouping_keys": ["station", "media_description", "daypart"],
+    "line_granularity": "per_row",
     "column_map": {
       "Media Description": "media_description",
       "Length": "length",
@@ -115,6 +117,7 @@
       "grouping_keys": ["format", "market"]
     },
     "grouping_keys": ["format", "market"],
+    "line_granularity": "per_row",
     "column_map": {
       "Panel #": "site_number",
       "Panel Name": "panel_name",
@@ -164,6 +167,7 @@
       "grouping_keys": ["station", "media_description", "length"]
     },
     "grouping_keys": ["station", "media_description", "length"],
+    "line_granularity": "per_row",
     "column_map": {
       "MEDIA SCHEDULE (Week commencing Monday)": "station",
       "ENTITLEMENT": "media_description",

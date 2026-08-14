@@ -100,6 +100,7 @@ export async function persistColumnRemap(args: {
         grouping_keys: (
           rows[0].detectSignature as { grouping_keys?: string[] }
         )?.grouping_keys,
+        line_granularity: rows[0].lineGranularity,
         column_map: rows[0].columnMap,
         grid_semantics: rows[0].gridSemantics,
         legend_map: rows[0].legendMap,

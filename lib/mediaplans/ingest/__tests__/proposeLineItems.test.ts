@@ -78,40 +78,38 @@ test("bonus run → quantity > 0 and media_amount == 0; N/A run → no burst", (
   assert.ok(mixed.every((b) => b.booking_status === "paid"))
 })
 
-test("QMS fixture: grouped by format+state with panels beneath, not 1:1 line items", async () => {
+test("QMS fixture: one line per Paid data row (supersedes grouped 3-of-41 model)", async () => {
   const qms = loadProfile("QMS")
+  assert.equal(qms.line_granularity, "per_row")
   const shapes = await detectWorkbookShapesFromFile(
     path.join(FIX, "qms_strength-meals_esb-ooh.xlsx"),
   )
   const paid = shapes.find((s) => /paid/i.test(s.sheet_name))
   assert.ok(paid, "QMS Paid sheet")
   assert.ok(paid!.grid_columns.length >= 3, "grid detected")
-  assert.ok(paid!.data_rows.length > 5)
+  // Former grouped proposal collapsed 41 site-numbered buy rows into ~3
+  // format+state lines. Totals / "NO INSTALL CHARGE" notes are unparsed.
+  assert.equal(paid!.data_rows.length, 41)
 
   const proposal = proposeLineItemsFromSheet(paid!, qms)
   assertNoLineItemId(proposal)
 
-  assert.ok(
-    proposal.reconciliation.panel_count > proposal.reconciliation.line_item_count,
-    `expected panels(${proposal.reconciliation.panel_count}) > line items(${proposal.reconciliation.line_item_count})`,
-  )
-  assert.ok(proposal.reconciliation.line_item_count >= 1)
-  assert.ok(proposal.reconciliation.panel_count >= 2)
+  assert.equal(proposal.reconciliation.line_item_count, 41)
+  assert.equal(proposal.reconciliation.line_item_count, paid!.data_rows.length)
+  assert.equal(proposal.reconciliation.panel_count, 41)
+  assert.equal(proposal.reconciliation.accept_ok, true)
 
   for (const li of proposal.line_items) {
-    assert.ok(li.panels.length >= 1)
+    assert.equal(li.panels.length, 1, "per_row: each line IS its source row")
+    assert.equal(li.panels[0]!.source_publisher, "QMS")
+    assert.ok(li.panels[0]!.source_row_ref.includes("!r"))
     assert.ok(
-      li.grouping.format || li.grouping.state,
-      `grouping missing format/state: ${JSON.stringify(li.grouping)}`,
+      li.grouping.format ||
+        li.grouping.state ||
+        li.grouping.site_number ||
+        li.panels[0]!.descriptors.site_number,
+      `row descriptors missing identity: ${JSON.stringify(li.grouping)}`,
     )
-    for (const p of li.panels) {
-      assert.equal(p.source_publisher, "QMS")
-      assert.ok(p.source_row_ref.includes("!r"))
-      assert.equal(
-        Object.prototype.hasOwnProperty.call(p, "line_item_id"),
-        false,
-      )
-    }
   }
 
   console.log(
@@ -120,8 +118,9 @@ test("QMS fixture: grouped by format+state with panels beneath, not 1:1 line ite
   )
 })
 
-test("SCA fixture: spot-count bursts, not status bursts; no line_item_id", async () => {
+test("SCA fixture: one line per station row; week-columns become that line's bursts", async () => {
   const sca = loadProfile("SCA")
+  assert.equal(sca.line_granularity, "per_row")
   const shapes = await detectWorkbookShapesFromFile(
     path.join(FIX, "sca_boss-engineering_fy26_v1.xlsx"),
   )
@@ -131,28 +130,48 @@ test("SCA fixture: spot-count bursts, not status bursts; no line_item_id", async
   assertNoLineItemId(proposal)
 
   assert.equal(sca.grid_semantics, "count")
-  const bursts = proposal.line_items.flatMap((li) => li.bursts)
-  assert.ok(bursts.length > 0, "expected spot-count bursts")
-  for (const b of bursts) {
-    assert.ok(b.quantity > 0)
-    assert.equal(b.booking_status, "paid")
-    // status letters must not appear as booking_status bonus from counts
-    assert.notEqual(b.booking_status, "bonus")
+  assert.equal(
+    proposal.reconciliation.line_item_count,
+    sheet!.data_rows.length,
+    "SCA per_row: station rows must not collapse by grouping_keys",
+  )
+  const withBursts = proposal.line_items.filter((li) => li.bursts.length > 0)
+  assert.ok(withBursts.length > 0, "week-column bursts attach to station rows")
+  for (const li of proposal.line_items) {
+    assert.equal(li.panels.length, 1)
+    for (const b of li.bursts) {
+      assert.ok(b.quantity > 0)
+      assert.equal(b.booking_status, "paid")
+    }
   }
+  assert.equal(proposal.reconciliation.accept_ok, true)
 
   console.log("SCA reconciliation", JSON.stringify(proposal.reconciliation))
 })
 
-test("JCDecaux fixture: proposal without line_item_id + reconciliation", async () => {
+test("JCDecaux fixture: one line per buy row with flight occupancy (106; 118 was data_rows including MEDIA VALUE/SUMMARY leftovers)", async () => {
   const jcd = loadProfile("JCDecaux")
+  assert.equal(jcd.line_granularity, "per_row")
   const shapes = await detectWorkbookShapesFromFile(
     path.join(FIX, "jcd_strength-meals_ooh.xlsx"),
   )
   const sheet = shapes[0]
   assert.ok(sheet)
+  // 118 was detectShape's old count (buy rows + MEDIA VALUE / DISCOUNT /
+  // CAMPAIGN SUMMARY). Non-buy rows are never lines.
+  assert.equal(sheet!.data_rows.length, 106)
+
   const proposal = proposeLineItemsFromSheet(sheet!, jcd)
   assertNoLineItemId(proposal)
-  assert.ok(proposal.reconciliation.panel_count >= 1)
+  assert.equal(proposal.reconciliation.line_item_count, 106)
+  assert.equal(proposal.reconciliation.panel_count, 106)
+  assert.equal(proposal.reconciliation.accept_ok, true)
+  assert.ok(
+    Math.abs((proposal.reconciliation.file_stated_total ?? 0) - 311707.88) < 1,
+  )
+  for (const li of proposal.line_items) {
+    assert.equal(li.panels.length, 1)
+  }
   console.log("JCD reconciliation", JSON.stringify(proposal.reconciliation))
 })
 
@@ -210,4 +229,25 @@ test("sheet with no grid returns empty gridColumns rather than throwing", async 
   const proposal = proposeLineItemsFromSheet(shape, sca)
   assert.equal(proposal.reconciliation.burst_count, 0)
   assertNoLineItemId(proposal)
+})
+
+test("grouped config arm still collapses by grouping_keys (not used by any seed)", async () => {
+  const qms = loadProfile("QMS")
+  const grouped: PublisherProfileConfig = {
+    ...qms,
+    line_granularity: "grouped",
+  }
+  const shapes = await detectWorkbookShapesFromFile(
+    path.join(FIX, "qms_strength-meals_esb-ooh.xlsx"),
+  )
+  const paid = shapes.find((s) => /paid/i.test(s.sheet_name))
+  assert.ok(paid)
+  const proposal = proposeLineItemsFromSheet(paid!, grouped)
+  assert.ok(
+    proposal.reconciliation.line_item_count < paid!.data_rows.length,
+    `grouped arm should collapse 41 rows; got ${proposal.reconciliation.line_item_count} lines`,
+  )
+  assert.ok(
+    proposal.reconciliation.panel_count > proposal.reconciliation.line_item_count,
+  )
 })

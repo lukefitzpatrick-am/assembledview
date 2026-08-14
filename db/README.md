@@ -14,6 +14,7 @@
 - `0035_publisher_profiles_reference_ignore.sql` — SCA Market Rate / Market Total / Total Stations / Total Impacts / Client Rate → `reference:ignore`
 - `0036_publisher_profiles_publisher_id.sql` — nullable `publisher_id` FK to `publishers.id` + explicit four-row backfill (QMS=30, JCDecaux=35, SCA=12, SEN=19) guarded by `migration_markers`
 - `0037_ingest_runs.sql` — per-upload ingest history (Accept / Cancel / blocked); RLS on; no ava_readonly grant
+- `0049_publisher_profiles_line_granularity.sql` — `line_granularity` (`per_row` default; `grouped` unused by seeds). AUTHOR ONLY; do not drizzle-kit. JSON seed must agree.
 - `0025_codex_tasks_source_profile.sql` — tasks.source allows `profile:<name>` seed keys
 - `0026_enable_rls_public_tables.sql` — enable RLS on migration_markers / campaign_insights / line_item_panels / publisher_profiles + ava_readonly SELECT policy — applied 12 Aug via Supabase MCP, do not re-apply
 - `0027_line_item_panel_flights.sql` — per-period panel presence (no money columns)

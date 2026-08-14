@@ -38,11 +38,9 @@ test("QMS review: publisher + mapping + reconciliation; confidence reported", as
     "QMS has intentional unmapped rate columns",
   )
   assert.ok(review.ignored.spoken.length > 0, "ignored spoken non-empty")
-  assert.ok(review.proposal!.reconciliation.line_item_count >= 1)
-  assert.ok(
-    review.proposal!.reconciliation.panel_count >
-      review.proposal!.reconciliation.line_item_count,
-  )
+  // Supersedes grouped 3-of-41: review line count is the Paid buy-row count.
+  assert.equal(review.proposal!.reconciliation.line_item_count, 41)
+  assert.equal(review.proposal!.reconciliation.panel_count, 41)
 })
 
 test("SCA v2 ignored summary non-empty (R+F / related sheets)", async () => {
@@ -180,8 +178,9 @@ test("accepting QMS creates expected line items and panel count via save path", 
   assert.equal(result.lineCount, expectedLines)
   assert.equal(result.panelCount, expectedPanels)
   assert.equal(result.lineItemIds.length, expectedLines)
-  assert.equal(typeof result.preferOohExpertView, "boolean")
-  assert.equal(typeof result.oohPanelLineCount, "number")
+  // 41 panel lines > OOH_PANEL_LINE_EXPERT_THRESHOLD (30) → expert view (MR-0).
+  assert.equal(result.preferOohExpertView, true)
+  assert.equal(result.oohPanelLineCount, 41)
 })
 
 test("corrected mapping persists to the profile", async () => {

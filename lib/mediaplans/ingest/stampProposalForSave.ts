@@ -173,10 +173,12 @@ function burstFromProposed(
 
 function labelForLine(item: ProposedLineItem): string {
   const parts = [
+    item.grouping.site_number,
+    item.grouping.panel_name,
+    item.grouping.station,
     item.grouping.format,
     item.grouping.state,
     item.grouping.market,
-    item.grouping.station,
     item.grouping.media_description,
     item.grouping.daypart,
   ].filter(Boolean)

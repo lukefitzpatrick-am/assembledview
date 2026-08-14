@@ -22,7 +22,7 @@ const OOH_CARD_IDS = [
   "placement",
   "media_money",
   "burst_dates",
-  "panel_detail",
+  "line_detail",
 ] as const
 
 const RADIO_CARD_IDS = [
@@ -61,7 +61,8 @@ test("OOH template card_field_ids match the editor card + money + dates", () => 
     "media_money",
     "burst_dates",
   ])
-  assert.equal(ooh.detail_table?.id, "panel_detail")
+  assert.equal(ooh.detail_table?.id, "line_detail")
+  assert.equal(ooh.detail_table?.label, "Line detail")
   assert.ok((ooh.detail_table?.field_ids.length ?? 0) > 0)
   assert.ok(ooh.money_detail_ids?.includes("charges"))
   assert.ok(ooh.money_detail_ids?.includes("lunar_rate"))
@@ -81,7 +82,7 @@ test("radio template card_field_ids match the radio card; no detail table", () =
   assert.equal(radio.detail_table, undefined)
 })
 
-test("OOH review Section A is the card set + one panel-detail row; panel descriptors are not standalone", async () => {
+test("OOH review Section A is the card set + one line-detail row (each line IS its row; supersedes Panel detail)", async () => {
   const profiles = loadSeedPublisherProfiles()
   const review = await buildIngestReviewFromFile(
     path.join(FIX, "jcd_strength-meals_ooh.xlsx"),
@@ -101,12 +102,12 @@ test("OOH review Section A is the card set + one panel-detail row; panel descrip
       `${id} must not be a standalone Section A row`,
     )
   }
-  const panel = surface.rows.find((r) => r.id === "panel_detail")
-  assert.ok(panel)
-  assert.equal(panel!.kind, "detail_table")
-  if (panel!.kind === "detail_table") {
-    assert.match(panel!.summary, /Panel detail — \d+ of \d+ matched/)
-    assert.ok(panel!.fields.length > 0)
+  const detail = surface.rows.find((r) => r.id === "line_detail")
+  assert.ok(detail)
+  assert.equal(detail!.kind, "detail_table")
+  if (detail!.kind === "detail_table") {
+    assert.match(detail!.summary, /Line detail — \d+ of \d+ matched/)
+    assert.ok(detail!.fields.length > 0)
   }
   const money = surface.rows.find((r) => r.id === "media_money")
   assert.equal(money?.kind, "field")
@@ -172,5 +173,5 @@ test("a media type with no detail_table renders no detail row", () => {
   }
   const surface = buildReviewCardSurface(coverage)
   assert.ok(!surface.rows.some((r) => r.kind === "detail_table"))
-  assert.ok(!surface.rows.some((r) => r.id === "panel_detail"))
+  assert.ok(!surface.rows.some((r) => r.id === "line_detail"))
 })

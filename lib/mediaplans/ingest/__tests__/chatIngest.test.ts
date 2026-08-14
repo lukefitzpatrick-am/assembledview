@@ -58,6 +58,7 @@ test("chat review summary matches Hub review numbers for the same QMS fixture", 
   assert.equal(chat.publisher_confidence, hub.publisher_confidence)
   assert.equal(chat.media_type, hub.proposal!.media_type)
   assert.equal(chat.line_item_count, recon.line_item_count)
+  assert.equal(chat.line_item_count, 41) // supersedes grouped 3-of-41
   assert.equal(chat.panel_count, recon.panel_count)
   assert.equal(chat.burst_count, recon.burst_count)
   assert.equal(chat.money_delta, recon.delta)

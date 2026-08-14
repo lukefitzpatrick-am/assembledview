@@ -491,9 +491,75 @@ function groupingKeyValue(
   return keys.map((k) => descriptors[k] ?? "").join("||")
 }
 
+type Acc = {
+  grouping: Record<string, string>
+  panels: ProposedPanel[]
+  bursts: ProposedBurst[]
+  production: number
+  installation: number
+}
+
+function groupingFromDescriptors(
+  keys: string[],
+  descriptors: Record<string, string>,
+): Record<string, string> {
+  const grouping: Record<string, string> = {}
+  for (const k of keys) {
+    if (descriptors[k]) grouping[k] = descriptors[k]!
+  }
+  return grouping
+}
+
+function rowIdentityGrouping(
+  descriptors: Record<string, string>,
+): Record<string, string> {
+  const grouping: Record<string, string> = {}
+  for (const [k, v] of Object.entries(descriptors)) {
+    if (v) grouping[k] = v
+  }
+  return grouping
+}
+
+function mergeCountBursts(acc: Acc, rowBursts: ProposedBurst[]): void {
+  for (const b of rowBursts) {
+    const existing = acc.bursts.find(
+      (x) =>
+        x.start_date === b.start_date &&
+        x.end_date === b.end_date &&
+        x.booking_status === b.booking_status,
+    )
+    if (existing) {
+      existing.quantity += b.quantity
+      existing.media_amount =
+        Math.round((existing.media_amount + b.media_amount) * 100) / 100
+    } else {
+      acc.bursts.push({ ...b })
+    }
+  }
+}
+
+function accToLineItem(g: Acc): ProposedLineItem {
+  const item: ProposedLineItem = {
+    grouping: g.grouping,
+    panels: g.panels,
+    bursts: g.bursts,
+  }
+  if (g.production > 0 || g.installation > 0) {
+    item.charges_detected = {
+      production: g.production,
+      installation: g.installation,
+    }
+  }
+  return item
+}
+
 /**
  * Build an ingest proposal. Does not write to any plan table.
  * Guarantees no `line_item_id` on the returned object.
+ *
+ * Default `per_row`: each classified buy row is one line. `grouped` retains
+ * the grouping_keys collapse for a future publisher whose file is not
+ * row-per-buy.
  */
 export function proposeLineItemsFromSheet(
   shape: DetectedSheetShape,
@@ -509,15 +575,9 @@ export function proposeLineItemsFromSheet(
   const warnings: string[] = []
   let statedPaidSum = 0
   let charges_detected_total = 0
-
-  type Acc = {
-    grouping: Record<string, string>
-    panels: ProposedPanel[]
-    bursts: ProposedBurst[]
-    production: number
-    installation: number
-  }
+  const grouped = profile.line_granularity === "grouped"
   const groups = new Map<string, Acc>()
+  const perRow: Acc[] = []
 
   const rowOrder = [
     ...new Set(
@@ -540,12 +600,41 @@ export function proposeLineItemsFromSheet(
       profile.grouping_keys.length > 0
         ? profile.grouping_keys
         : Object.keys(descriptors).slice(0, 2)
-    const gk = groupingKeyValue(keys, descriptors)
-    const grouping: Record<string, string> = {}
-    for (const k of keys) {
-      if (descriptors[k]) grouping[k] = descriptors[k]!
+    const grouping = grouped
+      ? groupingFromDescriptors(keys, descriptors)
+      : rowIdentityGrouping(descriptors)
+
+    const rowAcc: Acc = {
+      grouping,
+      panels: [panel],
+      bursts: [],
+      production: 0,
+      installation: 0,
     }
 
+    if (money.production != null && money.production > 0) {
+      rowAcc.production += money.production
+      charges_detected_total += money.production
+    }
+    if (money.installation != null && money.installation > 0) {
+      rowAcc.installation += money.installation
+      charges_detected_total += money.installation
+    }
+
+    const paidWeeks = countPaidWeeks(profile, shape, row)
+    if (money.stated != null && money.stated > 0 && paidWeeks > 0) {
+      statedPaidSum += money.stated
+    }
+
+    const rowBursts = buildBurstsForRow(profile, shape, row, money, warnings)
+    rowAcc.bursts = rowBursts.map((b) => ({ ...b }))
+
+    if (!grouped) {
+      perRow.push(rowAcc)
+      continue
+    }
+
+    const gk = groupingKeyValue(keys, descriptors)
     let acc = groups.get(gk)
     if (!acc) {
       acc = {
@@ -558,57 +647,18 @@ export function proposeLineItemsFromSheet(
       groups.set(gk, acc)
     }
     acc.panels.push(panel)
-
-    if (money.production != null && money.production > 0) {
-      acc.production += money.production
-      charges_detected_total += money.production
-    }
-    if (money.installation != null && money.installation > 0) {
-      acc.installation += money.installation
-      charges_detected_total += money.installation
-    }
-
-    const paidWeeks = countPaidWeeks(profile, shape, row)
-    if (money.stated != null && money.stated > 0 && paidWeeks > 0) {
-      statedPaidSum += money.stated
-    }
-
-    const rowBursts = buildBurstsForRow(profile, shape, row, money, warnings)
+    acc.production += rowAcc.production
+    acc.installation += rowAcc.installation
     if (profile.grid_semantics === "count") {
-      for (const b of rowBursts) {
-        const existing = acc.bursts.find(
-          (x) =>
-            x.start_date === b.start_date &&
-            x.end_date === b.end_date &&
-            x.booking_status === b.booking_status,
-        )
-        if (existing) {
-          existing.quantity += b.quantity
-          existing.media_amount =
-            Math.round((existing.media_amount + b.media_amount) * 100) / 100
-        } else {
-          acc.bursts.push({ ...b })
-        }
-      }
+      mergeCountBursts(acc, rowBursts)
     } else {
       for (const b of rowBursts) acc.bursts.push({ ...b })
     }
   }
 
-  const line_items: ProposedLineItem[] = [...groups.values()].map((g) => {
-    const item: ProposedLineItem = {
-      grouping: g.grouping,
-      panels: g.panels,
-      bursts: g.bursts,
-    }
-    if (g.production > 0 || g.installation > 0) {
-      item.charges_detected = {
-        production: g.production,
-        installation: g.installation,
-      }
-    }
-    return item
-  })
+  const line_items: ProposedLineItem[] = grouped
+    ? [...groups.values()].map(accToLineItem)
+    : perRow.map(accToLineItem)
 
   const panel_count = line_items.reduce((n, li) => n + li.panels.length, 0)
   const burst_count = line_items.reduce((n, li) => n + li.bursts.length, 0)

@@ -14,8 +14,8 @@
       "burst_dates"
     ],
     "detail_table": {
-      "id": "panel_detail",
-      "label": "Panel detail",
+      "id": "line_detail",
+      "label": "Line detail",
       "field_ids": [
         "site_number",
         "panel_name",

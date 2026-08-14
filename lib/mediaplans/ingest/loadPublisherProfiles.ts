@@ -40,6 +40,7 @@ export async function listPublisherProfiles(): Promise<{
           detect_signature: row.detectSignature,
           grouping_keys: (row.detectSignature as { grouping_keys?: string[] })
             ?.grouping_keys,
+          line_granularity: row.lineGranularity,
           column_map: row.columnMap,
           grid_semantics: row.gridSemantics,
           legend_map: row.legendMap,

@@ -7,6 +7,10 @@
 export const GRID_SEMANTICS = ["status_matrix", "count", "currency"] as const
 export type GridSemantics = (typeof GRID_SEMANTICS)[number]
 
+/** How buy rows become line items. Seeded publishers are all `per_row`. */
+export const LINE_GRANULARITIES = ["per_row", "grouped"] as const
+export type LineGranularity = (typeof LINE_GRANULARITIES)[number]
+
 /** Acknowledged non-imported column — not unmapped, never sent to AVA. */
 export const REFERENCE_IGNORE_TARGET = "reference:ignore"
 
@@ -44,7 +48,13 @@ export type PublisherProfileConfig = {
   media_type: string
   active: boolean
   detect_signature: Record<string, unknown>
-  /** Canonical field names used to group panels into line items (config, not code). */
+  /**
+   * `per_row` (default): each classified buy row is one line.
+   * `grouped`: collapse by grouping_keys (retained for a future publisher
+   * whose file is not row-per-buy — no seeded profile uses it).
+   */
+  line_granularity: LineGranularity
+  /** Canonical field names used to group panels into line items when grouped. */
   grouping_keys: string[]
   column_map: Record<string, string>
   grid_semantics: GridSemantics
@@ -162,12 +172,23 @@ export function parsePublisherProfile(input: unknown): PublisherProfileConfig {
     )
   }
 
+  const rawGranularity =
+    input.line_granularity == null || input.line_granularity === ""
+      ? "per_row"
+      : String(input.line_granularity).trim()
+  if (!(LINE_GRANULARITIES as readonly string[]).includes(rawGranularity)) {
+    throw new Error(
+      `line_granularity must be one of ${LINE_GRANULARITIES.join(",")}`,
+    )
+  }
+
   return {
     publisher_name,
     publisher_id,
     media_type,
     active: Boolean(input.active ?? true),
     detect_signature,
+    line_granularity: rawGranularity as LineGranularity,
     grouping_keys,
     column_map: asStringRecord(input.column_map ?? {}, "column_map"),
     grid_semantics: grid_semantics as GridSemantics,
@@ -190,6 +211,7 @@ export function serializePublisherProfile(
       ...profile.detect_signature,
       grouping_keys: profile.grouping_keys,
     },
+    line_granularity: profile.line_granularity,
     grouping_keys: profile.grouping_keys,
     column_map: profile.column_map,
     grid_semantics: profile.grid_semantics,

@@ -26,6 +26,7 @@ export const publisherProfiles = pgTable(
     detectSignature: jsonb("detect_signature").notNull().default({}),
     columnMap: jsonb("column_map").notNull().default({}),
     gridSemantics: text("grid_semantics").notNull(),
+    lineGranularity: text("line_granularity").notNull().default("per_row"),
     legendMap: jsonb("legend_map").notNull().default({}),
     sheetRules: jsonb("sheet_rules").notNull().default([]),
     notes: text("notes"),
@@ -41,6 +42,10 @@ export const publisherProfiles = pgTable(
     check(
       "publisher_profiles_grid_semantics_check",
       sql`${table.gridSemantics} = ANY (ARRAY['status_matrix'::text, 'count'::text, 'currency'::text])`,
+    ),
+    check(
+      "publisher_profiles_line_granularity_check",
+      sql`${table.lineGranularity} = ANY (ARRAY['per_row'::text, 'grouped'::text])`,
     ),
     index("idx_publisher_profiles_media_type").on(table.mediaType),
     index("idx_publisher_profiles_active").on(table.active),

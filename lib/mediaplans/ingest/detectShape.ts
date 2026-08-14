@@ -588,7 +588,12 @@ export function detectSheetShape(ws: ExcelJS.Worksheet): DetectedSheetShape {
       grouping_rows.push(r)
       continue
     }
-    if (descPop >= 2 || gridPop > 0) {
+    // When a flight grid exists, a buy row occupies it. Descriptor-only
+    // leftovers (subtotals, MEDIA VALUE, legend, campaign summary) stay
+    // unparsed — never lines.
+    if (gridCols.length > 0) {
+      if (gridPop > 0) data_rows.push(r)
+    } else if (descPop >= 2) {
       data_rows.push(r)
     }
   }

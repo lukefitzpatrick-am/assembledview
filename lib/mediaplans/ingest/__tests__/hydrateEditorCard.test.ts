@@ -92,18 +92,74 @@ function assertPopulatedOohCard(
   )
 }
 
-test("JCD accept→editor: card fields, real burst dates, non-zero money", async () => {
-  const { stamped } = await stampFixture(
+test("JCD accept→editor: 106 buy-row lines (not the old 118 data_rows incl. totals), each card from its own row, money sums to file total", async () => {
+  const { review, stamped } = await stampFixture(
     "jcd_strength-meals_ooh.xlsx",
     "glenda0090h1",
   )
-  assertPopulatedOohCard(stamped.lineItems[0]!, "glenda0090h1", "JCD")
+  assert.equal(stamped.lineItems.length, 106)
+  assert.equal(stamped.panels.length, 106)
+  const stated = review.proposal!.reconciliation.file_stated_total ?? 0
+  assert.ok(Math.abs(stated - 311707.88) < 1)
+
+  let moneySum = 0
+  const sourceRows = new Set<string>()
+  const lineIds = new Set<string>()
+  let paidCards = 0
+  for (let i = 0; i < stamped.lineItems.length; i++) {
+    const line = stamped.lineItems[i]!
+    const panel = stamped.panels[i]!
+    assert.equal(panel.lineItemId, line.lineItemId)
+    assert.equal(line.attrs?.buy_granularity, "panel")
+    assert.ok(panel.sourceRowRef, `JCD[${i}]: missing sourceRowRef`)
+    sourceRows.add(panel.sourceRowRef!)
+    lineIds.add(line.lineItemId)
+    const assembled = assembleStamped(line, "glenda0090h1")
+    const card = hydrateOohEditorLine(assembled, {
+      campaignStartDate: CAMPAIGN_START,
+      campaignEndDate: CAMPAIGN_END,
+      feePct: 0,
+    })
+    assert.ok(card.network.trim(), `JCD[${i}]: Network empty`)
+    assert.ok(card.format.trim(), `JCD[${i}]: Format empty`)
+    assert.equal(card.buyType, "fixed_cost")
+    assert.ok(card.market.trim(), `JCD[${i}]: Market empty`)
+    assert.ok(card.bursts.length > 0, `JCD[${i}]: no bursts`)
+    const money = card.bursts.reduce((s, b) => s + parseBurstMoney(b.budget), 0)
+    moneySum += money
+    if (money > 0) paidCards++
+  }
+  assert.ok(paidCards > 0, "expected paid rows with money")
+  assert.ok(
+    Math.abs(moneySum - stated) / stated <= 0.005,
+    `hydrated money ${moneySum} vs file ${stated}`,
+  )
+  // Per-row identity is sourceRowRef, not site+format+market. JCD repeats
+  // the same site on separate buy rows (different flights); collapsing those
+  // would be the old grouped model. Duplicate descriptors are expected.
+  assert.equal(sourceRows.size, 106)
+  assert.equal(lineIds.size, 106)
 })
 
-test("QMS accept→editor: card fields, real burst dates, non-zero money", async () => {
-  const { stamped } = await stampFixture(
+test("QMS accept→editor: 41 lines (supersedes grouped 3-of-41), each card from its own row", async () => {
+  const { review, stamped } = await stampFixture(
     "qms_strength-meals_esb-ooh.xlsx",
     "qmsround01",
   )
-  assertPopulatedOohCard(stamped.lineItems[0]!, "qmsround01", "QMS")
+  assert.equal(stamped.lineItems.length, 41)
+  assert.equal(stamped.panels.length, 41)
+  assert.equal(review.proposal!.reconciliation.line_item_count, 41)
+  assertPopulatedOohCard(stamped.lineItems[0]!, "qmsround01", "QMS[0]")
+  for (const line of stamped.lineItems) {
+    const assembled = assembleStamped(line, "qmsround01")
+    const card = hydrateOohEditorLine(assembled, {
+      campaignStartDate: CAMPAIGN_START,
+      campaignEndDate: CAMPAIGN_END,
+      feePct: 0,
+    })
+    assert.ok(card.network.trim(), "Network empty")
+    assert.ok(card.format.trim(), "Format empty")
+    assert.ok(card.market.trim(), "Market empty")
+    assert.ok(card.bursts.length > 0)
+  }
 })
