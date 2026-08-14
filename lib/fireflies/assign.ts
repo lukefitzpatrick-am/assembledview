@@ -1,7 +1,8 @@
 /**
- * Manual assign for unattributed Fireflies notes.
+ * Manual assign for Fireflies notes. One click updates that note only.
  * Client → client_domains (MR-5). Publisher → publisher_domains.
  * Internal / new_business → meeting_title_rules. No domain learning on those.
+ * Matching other unattributed notes are counted (reattributed) but not written.
  */
 import {
   attributeMeeting,
@@ -10,6 +11,8 @@ import {
 import { isLearnableExternalDomain } from "./learnableDomains.js"
 import { normaliseAttributionText } from "./titleClients.js"
 import type { TitleRuleTarget } from "./types.js"
+
+export { assignSubmitForRow } from "./assignSubmit.js"
 
 export type AssignNoteRow = {
   id: number
@@ -195,13 +198,6 @@ export async function applyManualAssignment(
     if (target.type === "new_business" && result.kind !== "new_business") {
       continue
     }
-    await deps.updateNote(row.id, {
-      clientId: result.clientId,
-      publisherId: result.publisherId,
-      attributedType: result.kind,
-      matchedBy: result.matchedBy ?? "manual",
-      isInternal: result.isInternal,
-    })
     reattributed += 1
   }
 

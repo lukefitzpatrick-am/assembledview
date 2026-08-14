@@ -369,13 +369,13 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
   },
   {
     path: "/admin/fireflies-unattributed",
-    label: "Fireflies unattributed",
-    title: "Fireflies unattributed",
+    label: "Fireflies meetings",
+    title: "Fireflies meetings",
     icon: "MessageSquare",
     inPalette: true,
     inSidebar: true,
     roles: ["admin"],
-    searchTerms: "fireflies meetings transcripts unattributed assign domains",
+    searchTerms: "fireflies meetings transcripts unattributed assign domains clients publishers",
     group: "admin",
   },
   {

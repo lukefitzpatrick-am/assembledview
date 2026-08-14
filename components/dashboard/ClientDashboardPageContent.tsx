@@ -15,6 +15,7 @@ import { HeroKPIBar } from "@/components/dashboard/HeroKPIBar"
 import { SpendingInsightsSection } from "@/components/dashboard/SpendingInsightsSection"
 import { UpcomingCampaignsSection } from "@/components/dashboard/UpcomingCampaignsSection"
 import { RecentInsightsPanel } from "@/components/insights/RecentInsightsPanel"
+import { ClientMeetingsSection } from "@/components/dashboard/ClientMeetingsSection"
 import { ClientBrainSlideOver } from "@/components/dashboard/modals/ClientBrainSlideOver"
 import { ClientDetailsSlideOver } from "@/components/dashboard/modals/ClientDetailsSlideOver"
 import { ClientFinanceSlideOver } from "@/components/dashboard/modals/ClientFinanceSlideOver"
@@ -475,6 +476,12 @@ export function ClientDashboardPageContent({
               hrefQuery={{ clientId: String(clientIdForInsights) }}
               emptyMessage="No insights yet for this client. Generate a performance report to seed the library."
             />
+          </motion.section>
+        ) : null}
+
+        {isClientHub && isAdmin && clientIdForInsights != null ? (
+          <motion.section variants={sectionVariants} className="mt-8 w-full lg:mt-10">
+            <ClientMeetingsSection clientId={clientIdForInsights} />
           </motion.section>
         ) : null}
 

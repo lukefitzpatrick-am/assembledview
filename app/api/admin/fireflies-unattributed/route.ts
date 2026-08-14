@@ -4,6 +4,8 @@ import { requireAdmin } from "@/lib/requireRole"
 import { codexClientExists } from "@/lib/codex/clientExists"
 import { attributeMeeting } from "@/lib/fireflies/attribution"
 import type { AssignTarget } from "@/lib/fireflies/assign"
+import { summaryFromNoteBody } from "@/lib/fireflies/noteBody"
+import { parseFirefliesNotesFilter } from "@/lib/fireflies/notesFilter"
 import {
   assignFirefliesNote,
   listFirefliesNotes,
@@ -11,17 +13,9 @@ import {
   loadAttributionContext,
   loadLatestFirefliesSync,
   publisherExistsForAssign,
-  type FirefliesNotesFilter,
 } from "@/lib/fireflies/runSync"
 
 export const runtime = "nodejs"
-
-const FILTERS = new Set<FirefliesNotesFilter>([
-  "unattributed",
-  "publisher",
-  "internal",
-  "new_business",
-])
 
 function parseParticipants(raw: string | null): string[] {
   if (!raw) return []
@@ -35,13 +29,6 @@ function parseParticipants(raw: string | null): string[] {
     .split(/[,;]/)
     .map((s) => s.trim())
     .filter(Boolean)
-}
-
-function parseFilter(raw: string | null): FirefliesNotesFilter {
-  if (raw && FILTERS.has(raw as FirefliesNotesFilter)) {
-    return raw as FirefliesNotesFilter
-  }
-  return "unattributed"
 }
 
 function parseAssignTarget(body: {
@@ -82,14 +69,14 @@ function parseAssignTarget(body: {
 
 /**
  * GET — Fireflies notes by attributed_type filter (default: unattributed queue).
- * POST — assign to client / publisher / internal / new_business.
+ * POST — assign one note to client / publisher / internal / new_business.
  */
 export async function GET(request: NextRequest) {
   const auth = await requireAdmin(request)
   if ("response" in auth) return auth.response
 
   try {
-    const filter = parseFilter(request.nextUrl.searchParams.get("filter"))
+    const filter = parseFirefliesNotesFilter(request.nextUrl.searchParams.get("filter"))
     const [rows, ctx, lastSync, targets] = await Promise.all([
       listFirefliesNotes(filter),
       loadAttributionContext(),
@@ -128,9 +115,11 @@ export async function GET(request: NextRequest) {
           transcript_url: r.transcriptUrl,
           duration_seconds: r.durationSeconds,
           body: r.body,
+          summary: summaryFromNoteBody(r.body),
           attributed_type: r.attributedType,
           publisher_id: r.publisherId,
           client_id: r.clientId,
+          client_name: r.clientName,
           candidate_clients: candidates,
         }
       }),
@@ -200,6 +189,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ok: true,
       reattributed: result.reattributed,
+      would_reattribute: result.reattributed,
     })
   } catch (error) {
     console.error("Failed to assign Fireflies note:", error)

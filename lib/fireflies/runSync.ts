@@ -12,6 +12,7 @@ import {
   publisherEligibleForAssign,
 } from "@/lib/fireflies/assignTargets"
 import type { AssignTarget } from "@/lib/fireflies/assign"
+import type { FirefliesNotesFilter } from "@/lib/fireflies/notesFilter"
 import { defaultAssembledDomainSet } from "@/lib/fireflies/internalDomains"
 import {
   collectSeedDomainPairs,
@@ -326,24 +327,40 @@ export async function runFirefliesSyncToPostgres(opts?: {
   return { ...result, domainsSeeded }
 }
 
-export type FirefliesNotesFilter =
-  | "unattributed"
-  | "publisher"
-  | "internal"
-  | "new_business"
+export type { FirefliesNotesFilter }
 
 export async function listFirefliesNotes(
   filter: FirefliesNotesFilter = "unattributed",
   database = getDb()
 ) {
-  const typeFilter =
-    filter === "unattributed"
-      ? isNull(schema.clientNotes.attributedType)
-      : eq(schema.clientNotes.attributedType, filter)
+  const conditions = [eq(schema.clientNotes.source, "fireflies")]
+  if (filter === "unattributed") {
+    conditions.push(isNull(schema.clientNotes.attributedType))
+  } else if (filter !== "all") {
+    conditions.push(eq(schema.clientNotes.attributedType, filter))
+  }
   return database
-    .select()
+    .select({
+      id: schema.clientNotes.id,
+      title: schema.clientNotes.title,
+      meetingDate: schema.clientNotes.meetingDate,
+      participants: schema.clientNotes.participants,
+      transcriptUrl: schema.clientNotes.transcriptUrl,
+      durationSeconds: schema.clientNotes.durationSeconds,
+      body: schema.clientNotes.body,
+      attributedType: schema.clientNotes.attributedType,
+      publisherId: schema.clientNotes.publisherId,
+      clientId: schema.clientNotes.clientId,
+      matchedBy: schema.clientNotes.matchedBy,
+      isInternal: schema.clientNotes.isInternal,
+      clientName: schema.clients.mpClientName,
+    })
     .from(schema.clientNotes)
-    .where(and(eq(schema.clientNotes.source, "fireflies"), typeFilter))
+    .leftJoin(
+      schema.clients,
+      eq(schema.clientNotes.clientId, schema.clients.id),
+    )
+    .where(and(...conditions))
     .orderBy(desc(schema.clientNotes.meetingDate), desc(schema.clientNotes.id))
 }
 

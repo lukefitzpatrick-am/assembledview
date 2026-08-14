@@ -1,7 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { applyManualAssignment } from "../assign.js"
+import { applyManualAssignment, assignSubmitForRow } from "../assign.js"
 import { attributeMeeting } from "../attribution.js"
 import { runFirefliesSync } from "../sync.js"
 import { normaliseAttributionText } from "../titleClients.js"
@@ -118,9 +118,81 @@ test("client assign sets client columns and learns the external domain", async (
   assert.equal(notes.get(1)!.publisherId, null)
   assert.equal(notes.get(1)!.isInternal, false)
   assert.equal(clientDomains.get("acme.com"), 77)
-  assert.equal(notes.get(2)!.clientId, 77)
-  assert.equal(notes.get(2)!.attributedType, "client")
-  assert.equal(notes.get(2)!.matchedBy, "domain")
+  assert.equal(notes.get(2)!.clientId, null)
+  assert.equal(notes.get(2)!.attributedType, null)
+  if (result.ok) assert.equal(result.reattributed, 1)
+})
+
+test("two rows selected, one Assign updates exactly that note", async () => {
+  const notes = new Map([
+    [
+      10,
+      noteRow(10, {
+        participants: JSON.stringify(["jane@acme.com"]),
+      }),
+    ],
+    [
+      20,
+      noteRow(20, {
+        participants: JSON.stringify(["other@acme.com"]),
+      }),
+    ],
+  ])
+  const { deps } = makeAssignDeps(notes)
+  const selected = { 10: "client:77", 20: "client:88" }
+  const submit = assignSubmitForRow(10, selected)
+  assert.equal(submit?.noteId, 10)
+  assert.equal(submit?.rawTarget, "client:77")
+  assert.equal(submit?.rawTarget === selected[20], false)
+
+  const result = await applyManualAssignment(
+    { noteId: submit!.noteId, target: { type: "client", clientId: 77 } },
+    deps
+  )
+  assert.equal(result.ok, true)
+  assert.equal(notes.get(10)!.clientId, 77)
+  assert.equal(notes.get(20)!.clientId, null)
+  assert.equal(notes.get(20)!.attributedType, null)
+  if (result.ok) assert.equal(result.reattributed, 1)
+})
+
+test("reassign learns the new target and does not unlearn the previous domain", async () => {
+  const notes = new Map([
+    [
+      1,
+      noteRow(1, {
+        clientId: 77,
+        attributedType: "client",
+        matchedBy: "manual",
+        participants: JSON.stringify([
+          "jane@acme.com",
+          "ops@nine.com.au",
+        ]),
+      }),
+    ],
+    [
+      2,
+      noteRow(2, {
+        participants: JSON.stringify(["other@nine.com.au"]),
+      }),
+    ],
+  ])
+  const { clientDomains, publisherDomains, deps } = makeAssignDeps(notes)
+  clientDomains.set("acme.com", 77)
+
+  const result = await applyManualAssignment(
+    { noteId: 1, target: { type: "publisher", publisherId: 11 } },
+    deps
+  )
+
+  assert.equal(result.ok, true)
+  assert.equal(notes.get(1)!.attributedType, "publisher")
+  assert.equal(notes.get(1)!.publisherId, 11)
+  assert.equal(notes.get(1)!.clientId, null)
+  assert.equal(clientDomains.get("acme.com"), 77)
+  assert.equal(publisherDomains.get("nine.com.au"), 11)
+  assert.equal(notes.get(2)!.attributedType, null)
+  assert.equal(notes.get(2)!.publisherId, null)
 })
 
 test("publisher assign sets publisher columns and learns the domain", async () => {

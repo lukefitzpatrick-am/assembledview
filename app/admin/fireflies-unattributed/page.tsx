@@ -17,20 +17,27 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary"
 import { useToast } from "@/components/ui/use-toast"
+import { assignSubmitForRow } from "@/lib/fireflies/assignSubmit"
 import type { AssignTargetOption } from "@/lib/fireflies/assignTargets"
+import {
+  parseFirefliesNotesFilter,
+  type FirefliesNotesFilter,
+} from "@/lib/fireflies/notesFilter"
 import { getRouteByExactPath } from "@/lib/nav/routeManifest"
 import { resolveListViewState } from "@/lib/ui/viewState"
 
-type NotesFilter = "unattributed" | "publisher" | "internal" | "new_business"
-
-type UnattributedNote = {
+type MeetingNote = {
   id: number
   title: string | null
   meeting_date: string | null
   participants: string | null
   transcript_url: string | null
   duration_seconds: number | null
+  summary?: string | null
   attributed_type?: string | null
+  client_id?: number | null
+  client_name?: string | null
+  publisher_id?: number | null
   candidate_clients?: Array<{ clientId: number; name: string }>
 }
 
@@ -58,13 +65,25 @@ function parseTargetValue(value: string): Record<string, unknown> | null {
   return null
 }
 
-function FirefliesUnattributedInner() {
+function inferredTargetValue(n: MeetingNote): string {
+  if (n.attributed_type === "client" && n.client_id != null) {
+    return `client:${n.client_id}`
+  }
+  if (n.attributed_type === "publisher" && n.publisher_id != null) {
+    return `publisher:${n.publisher_id}`
+  }
+  if (n.attributed_type === "internal") return "internal"
+  if (n.attributed_type === "new_business") return "new_business"
+  return ""
+}
+
+function FirefliesMeetingsInner() {
   const pageLabel =
     getRouteByExactPath("/admin/fireflies-unattributed")?.label ??
-    "Fireflies unattributed"
+    "Fireflies meetings"
   const { toast } = useToast()
-  const [filter, setFilter] = useState<NotesFilter>("unattributed")
-  const [items, setItems] = useState<UnattributedNote[]>([])
+  const [filter, setFilter] = useState<FirefliesNotesFilter>("unattributed")
+  const [items, setItems] = useState<MeetingNote[]>([])
   const [targets, setTargets] = useState<AssignTargetOption[]>([])
   const [lastSync, setLastSync] = useState<LastSync>(null)
   const [loading, setLoading] = useState(true)
@@ -72,8 +91,10 @@ function FirefliesUnattributedInner() {
   const [reloadKey, setReloadKey] = useState(0)
   const [targetById, setTargetById] = useState<Record<number, string>>({})
   const [savingId, setSavingId] = useState<number | null>(null)
+  const [expandedId, setExpandedId] = useState<number | null>(null)
 
   const retry = useCallback(() => setReloadKey((k) => k + 1), [])
+  const showClientName = filter === "client" || filter === "all"
 
   useEffect(() => {
     let cancelled = false
@@ -91,7 +112,7 @@ function FirefliesUnattributedInner() {
           throw new Error(body?.error || `HTTP ${res.status}`)
         }
         const data = (await res.json()) as {
-          items: UnattributedNote[]
+          items: MeetingNote[]
           last_sync?: LastSync
           targets?: AssignTargetOption[]
         }
@@ -128,10 +149,14 @@ function FirefliesUnattributedInner() {
     [error, filter, items, loading, retry]
   )
 
-  const assign = async (note: UnattributedNote) => {
-    const raw = (targetById[note.id] ?? "").trim()
-    const target = parseTargetValue(raw)
-    if (!target) {
+  const assign = async (note: MeetingNote) => {
+    const submit = assignSubmitForRow(
+      note.id,
+      targetById,
+      inferredTargetValue(note),
+    )
+    const target = submit ? parseTargetValue(submit.rawTarget) : null
+    if (!submit || !target) {
       toast({
         title: "Pick a target",
         description: "Choose a client, publisher, Internal, or New Business.",
@@ -144,13 +169,22 @@ function FirefliesUnattributedInner() {
       const res = await fetch("/api/admin/fireflies-unattributed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note_id: note.id, target }),
+        body: JSON.stringify({ note_id: submit.noteId, target }),
       })
       if (!res.ok) throw new Error("Assign failed")
-      const body = (await res.json()) as { reattributed?: number }
+      const body = (await res.json()) as { would_reattribute?: number; reattributed?: number }
+      const would = body.would_reattribute ?? body.reattributed ?? 0
       toast({
         title: "Assigned",
-        description: `Saved; re-attributed ${body.reattributed ?? 0} other note(s).`,
+        description:
+          would > 0
+            ? `Saved this meeting. ${would} other unattributed note(s) match the learned rule (not changed).`
+            : "Saved this meeting.",
+      })
+      setTargetById((prev) => {
+        const next = { ...prev }
+        delete next[note.id]
+        return next
       })
       setReloadKey((k) => k + 1)
     } catch (e) {
@@ -169,7 +203,9 @@ function FirefliesUnattributedInner() {
       ? lastSync
         ? "No unattributed meetings"
         : "No meetings synced yet"
-      : `No ${filter.replace("_", " ")} meetings`
+      : filter === "all"
+        ? "No meetings"
+        : `No ${filter.replace("_", " ")} meetings`
 
   return (
     <div className="space-y-6 p-6">
@@ -179,9 +215,8 @@ function FirefliesUnattributedInner() {
             {pageLabel}
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Assign a client, publisher, Internal, or New Business. Client
-            mappings always win over publisher. Ambiguous title matches keep
-            their hint — pick from the dropdown to resolve.
+            Assign or reassign a client, publisher, Internal, or New Business.
+            Learning still runs; other rows are never updated from this click.
           </p>
         </div>
         <FirefliesSyncNowButton onComplete={retry} />
@@ -189,13 +224,15 @@ function FirefliesUnattributedInner() {
 
       <Tabs
         value={filter}
-        onValueChange={(v) => setFilter(v as NotesFilter)}
+        onValueChange={(v) => setFilter(parseFirefliesNotesFilter(v))}
       >
         <TabsList>
-          <TabsTrigger value="unattributed">Unattributed</TabsTrigger>
-          <TabsTrigger value="publisher">Publisher</TabsTrigger>
+          <TabsTrigger value="all">All</TabsTrigger>
+          <TabsTrigger value="client">Clients</TabsTrigger>
+          <TabsTrigger value="publisher">Publishers</TabsTrigger>
           <TabsTrigger value="internal">Internal</TabsTrigger>
           <TabsTrigger value="new_business">New Business</TabsTrigger>
+          <TabsTrigger value="unattributed">Unattributed</TabsTrigger>
         </TabsList>
       </Tabs>
 
@@ -224,30 +261,42 @@ function FirefliesUnattributedInner() {
                 <TableHead>Title</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Attendees</TableHead>
-                {filter === "unattributed" ? (
-                  <>
-                    <TableHead>Assign to</TableHead>
-                    <TableHead className="w-[120px]" />
-                  </>
-                ) : null}
+                {showClientName ? <TableHead>Client</TableHead> : null}
+                <TableHead>Assign to</TableHead>
+                <TableHead className="w-[120px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {notes.map((n) => (
+              {notes.map((n) => {
+                const expanded = expandedId === n.id
+                return (
                 <TableRow key={n.id} className="interactive-row">
                   <TableCell>
+                    <button
+                      type="button"
+                      aria-expanded={expanded}
+                      className="text-left text-primary underline-offset-2 hover:underline"
+                      onClick={() =>
+                        setExpandedId((cur) => (cur === n.id ? null : n.id))
+                      }
+                    >
+                      {n.title || "(untitled)"}
+                    </button>
                     {n.transcript_url ? (
                       <a
                         href={n.transcript_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-primary underline-offset-2 hover:underline"
+                        className="ml-2 text-xs text-muted-foreground underline-offset-2 hover:underline"
                       >
-                        {n.title || "(untitled)"}
+                        Transcript
                       </a>
-                    ) : (
-                      n.title || "(untitled)"
-                    )}
+                    ) : null}
+                    {expanded ? (
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                        {n.summary?.trim() || "No summary stored for this meeting."}
+                      </p>
+                    ) : null}
                     {n.candidate_clients && n.candidate_clients.length > 0 ? (
                       <p className="mt-1 text-xs text-muted-foreground">
                         Ambiguous:{" "}
@@ -263,38 +312,40 @@ function FirefliesUnattributedInner() {
                   <TableCell className="max-w-[240px] truncate text-sm text-muted-foreground">
                     {n.participants ?? "—"}
                   </TableCell>
-                  {filter === "unattributed" ? (
-                    <>
-                      <TableCell>
-                        <Label className="sr-only" htmlFor={`target-${n.id}`}>
-                          Assign to
-                        </Label>
-                        <FirefliesAssignTargetCombobox
-                          id={`target-${n.id}`}
-                          options={targets}
-                          value={targetById[n.id] ?? ""}
-                          onValueChange={(value) =>
-                            setTargetById((prev) => ({
-                              ...prev,
-                              [n.id]: value,
-                            }))
-                          }
-                          disabled={savingId === n.id}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          disabled={savingId === n.id}
-                          onClick={() => void assign(n)}
-                        >
-                          Assign
-                        </Button>
-                      </TableCell>
-                    </>
+                  {showClientName ? (
+                    <TableCell className="text-sm">
+                      {n.client_name?.trim() || "—"}
+                    </TableCell>
                   ) : null}
+                  <TableCell>
+                    <Label className="sr-only" htmlFor={`target-${n.id}`}>
+                      Assign to
+                    </Label>
+                    <FirefliesAssignTargetCombobox
+                      id={`target-${n.id}`}
+                      options={targets}
+                      value={targetById[n.id] ?? inferredTargetValue(n)}
+                      onValueChange={(value) =>
+                        setTargetById((prev) => ({
+                          ...prev,
+                          [n.id]: value,
+                        }))
+                      }
+                      disabled={savingId === n.id}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      disabled={savingId === n.id}
+                      onClick={() => void assign(n)}
+                    >
+                      Assign
+                    </Button>
+                  </TableCell>
                 </TableRow>
-              ))}
+                )
+              })}
             </TableBody>
           </Table>
         </div>
@@ -307,7 +358,7 @@ function FirefliesUnattributedInner() {
 export default function FirefliesUnattributedPage() {
   return (
     <AdminGuard>
-      <FirefliesUnattributedInner />
+      <FirefliesMeetingsInner />
     </AdminGuard>
   )
 }

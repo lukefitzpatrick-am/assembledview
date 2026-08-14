@@ -18,18 +18,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import { formatDateShort } from "@/lib/format/date"
-import type { Publisher } from "@/lib/types/publisher"
-
-type MeetingRow = {
-  id: number
-  title: string | null
-  meeting_date: string | null
-  duration_seconds: number | null
-  transcript_url: string | null
-}
+import type { ClientMeeting } from "@/lib/clients/selectClientMeetings"
 
 function formatDuration(seconds: number | null): string {
   if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return "—"
@@ -37,17 +30,18 @@ function formatDuration(seconds: number | null): string {
   return `${minutes} min`
 }
 
-export function PublisherMeetingsSection({ publisher }: { publisher: Publisher }) {
-  const [items, setItems] = useState<MeetingRow[] | null>(null)
+export function ClientMeetingsSection({ clientId }: { clientId: number }) {
+  const [items, setItems] = useState<ClientMeeting[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [expandedId, setExpandedId] = useState<number | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const res = await fetch(
-        `/api/publishers/${encodeURIComponent(String(publisher.publisherid).trim())}/meetings`,
+        `/api/clients/${encodeURIComponent(String(clientId))}/meetings`,
       )
       if (res.status === 403) {
         setItems(null)
@@ -55,7 +49,7 @@ export function PublisherMeetingsSection({ publisher }: { publisher: Publisher }
         setLoading(false)
         return
       }
-      const json = (await res.json()) as { items?: MeetingRow[]; error?: string }
+      const json = (await res.json()) as { items?: ClientMeeting[]; error?: string }
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
       setItems(Array.isArray(json.items) ? json.items : [])
     } catch (e) {
@@ -64,7 +58,7 @@ export function PublisherMeetingsSection({ publisher }: { publisher: Publisher }
     } finally {
       setLoading(false)
     }
-  }, [publisher.publisherid])
+  }, [clientId])
 
   useEffect(() => {
     void load()
@@ -92,7 +86,7 @@ export function PublisherMeetingsSection({ publisher }: { publisher: Publisher }
         <div>
           <PanelTitle>Meetings</PanelTitle>
           <PanelDescription>
-            Fireflies transcripts attributed to this publisher.
+            Fireflies transcripts for this client.
           </PanelDescription>
         </div>
       </PanelHeader>
@@ -101,7 +95,7 @@ export function PublisherMeetingsSection({ publisher }: { publisher: Publisher }
           <EmptyState
             icon={<CalendarDays className="h-5 w-5" aria-hidden />}
             title="No meetings yet"
-            message="No meetings attributed to this publisher yet — assign them from Fireflies meetings."
+            message="No meetings attributed to this client yet — assign them from Fireflies meetings."
             action={
               <Button type="button" variant="outline" asChild>
                 <Link href="/admin/fireflies-unattributed">Fireflies meetings</Link>
@@ -115,24 +109,40 @@ export function PublisherMeetingsSection({ publisher }: { publisher: Publisher }
                 <TableHead>Title</TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Duration</TableHead>
+                <TableHead>Tasks</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {items.map((m) => (
+              {items.map((m) => {
+                const expanded = expandedId === m.id
+                return (
                 <TableRow key={m.id} className="interactive-row">
                   <TableCell>
+                    <button
+                      type="button"
+                      aria-expanded={expanded}
+                      className="text-left text-primary underline-offset-2 hover:underline"
+                      onClick={() =>
+                        setExpandedId((cur) => (cur === m.id ? null : m.id))
+                      }
+                    >
+                      {m.title || "(untitled)"}
+                    </button>
                     {m.transcript_url ? (
                       <a
                         href={m.transcript_url}
                         target="_blank"
                         rel="noreferrer"
-                        className="text-primary underline-offset-2 hover:underline"
+                        className="ml-2 text-xs text-muted-foreground underline-offset-2 hover:underline"
                       >
-                        {m.title || "(untitled)"}
+                        Transcript
                       </a>
-                    ) : (
-                      m.title || "(untitled)"
-                    )}
+                    ) : null}
+                    {expanded ? (
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-muted-foreground">
+                        {m.summary?.trim() || "No summary stored for this meeting."}
+                      </p>
+                    ) : null}
                   </TableCell>
                   <TableCell className="num text-muted-foreground">
                     {formatDateShort(m.meeting_date)}
@@ -140,8 +150,18 @@ export function PublisherMeetingsSection({ publisher }: { publisher: Publisher }
                   <TableCell className="num text-muted-foreground">
                     {formatDuration(m.duration_seconds)}
                   </TableCell>
+                  <TableCell>
+                    {m.auto_created_tasks ? (
+                      <Badge variant="info" size="sm">
+                        Auto-created tasks
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </TableCell>
                 </TableRow>
-              ))}
+                )
+              })}
             </TableBody>
           </Table>
         )}

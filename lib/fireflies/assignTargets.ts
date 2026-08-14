@@ -1,5 +1,5 @@
 /**
- * Grouped Assign dropdown options for /admin/fireflies-unattributed.
+ * Grouped Assign dropdown options for /admin/fireflies-unattributed (Fireflies meetings).
  * publishers.id 61 is a trailing-space duplicate of Nine (id 11).
  */
 

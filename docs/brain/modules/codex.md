@@ -84,7 +84,7 @@ Middleware only authenticates; tenant/role is per-route. Writes stamp email iden
 | Table | Status | Notes |
 |---|---|---|
 | `tasks` | **Live** | Create / list / patch / soft-delete; `auto_created` + `ava_auto_key` (0040) |
-| `client_notes` | **Live** (read API + Fireflies writes) | GET list; Fireflies sync inserts; `attributed_type` + `publisher_id`; assign + Sync now at `/admin/fireflies-unattributed` |
+| `client_notes` | **Live** (read API + Fireflies writes) | GET list; Fireflies sync inserts; `attributed_type` + `publisher_id`; assign + Sync now at `/admin/fireflies-unattributed` (Fireflies meetings) |
 | `team_members` | **Live** | Roster CRUD; `email_aliases` jsonb; `auth0_user_id` / `roster_source` / `last_login_at` (0045) |
 | `codex_activity` | **Live** (writes + GET list) | Append-only from repo; `GET .../activity` reads task-scoped rows; UI formats diffs via `lib/codex/activityDiff.ts` |
 | `client_domains` | **Live** (Fireflies) | Domain→client for attribution (second after title); seeded from `clients.keyemail` / `billingemail` / `website` excluding vendor domains; learned on client assign (MR-5) |
