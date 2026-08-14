@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { mbasForClientFromPlans } from "@/lib/codex/clientMbas"
+import { campaignsForClientFromPlans } from "@/lib/codex/clientMbas"
 import { readPlanMasters } from "@/lib/data/readMediaPlans"
 import {
   codexFlagGuard,
@@ -27,8 +27,10 @@ export async function GET(request: Request) {
 
   try {
     const masters = await readPlanMasters()
+    const campaigns = campaignsForClientFromPlans(masters, clientId)
     return NextResponse.json({
-      mba_numbers: mbasForClientFromPlans(masters, clientId),
+      mba_numbers: campaigns.map((c) => c.mba_number),
+      campaigns,
     })
   } catch (error) {
     console.error("Failed to list client MBAs:", error)

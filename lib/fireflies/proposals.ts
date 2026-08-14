@@ -150,20 +150,19 @@ export async function acceptProposalPure(
   return { ok: true, taskId: task.id, possibleDuplicate }
 }
 
+export type DismissPatch = {
+  status: "rejected"
+  decidedByEmail: string
+  decidedAt: string
+  decisionDiff: unknown
+}
+
 export async function dismissProposalPure(
   input: { proposalId: number; decidedByEmail: string },
   deps: {
     getProposal: (id: number) => Promise<ProposalRow | null>
     createTask: CreateTaskFn
-    markDismissed: (
-      id: number,
-      patch: {
-        status: "rejected"
-        decidedByEmail: string
-        decidedAt: string
-        decisionDiff: unknown
-      }
-    ) => Promise<void>
+    markDismissed: (id: number, patch: DismissPatch) => Promise<void>
   }
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const proposal = await deps.getProposal(input.proposalId)
@@ -181,6 +180,31 @@ export async function dismissProposalPure(
     decisionDiff: { action: "dismiss", at: now },
   })
   return { ok: true }
+}
+
+/**
+ * Dismiss every `proposed` row for a meeting in one bulk write.
+ * Operates on the full note set — never the currently loaded Inbox page.
+ */
+export async function dismissAllProposedForNotePure(
+  input: { noteId: number; decidedByEmail: string },
+  deps: {
+    markDismissedBulk: (noteId: number, patch: DismissPatch) => Promise<number>
+  }
+): Promise<{ ok: true; dismissed: number } | { ok: false; error: string }> {
+  if (!Number.isFinite(input.noteId) || input.noteId <= 0) {
+    return { ok: false, error: "note_id_required" }
+  }
+  const decidedBy = input.decidedByEmail.trim().toLowerCase()
+  if (!decidedBy) return { ok: false, error: "email_required" }
+  const now = new Date().toISOString()
+  const dismissed = await deps.markDismissedBulk(input.noteId, {
+    status: "rejected",
+    decidedByEmail: decidedBy,
+    decidedAt: now,
+    decisionDiff: { action: "dismiss", at: now },
+  })
+  return { ok: true, dismissed }
 }
 
 export type InboxProposal = ProposalRow & {

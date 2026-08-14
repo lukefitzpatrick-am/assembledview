@@ -164,6 +164,7 @@ if (supportsMockModule()) {
         possibleDuplicate: false,
       }),
       dismissProposal: async () => ({ ok: true }),
+      dismissAllProposedForNote: async () => ({ ok: true, dismissed: 0 }),
       dismissAutoCreatedTask: async () => ({ ok: true }),
     },
   })
@@ -274,6 +275,9 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
   )
   const proposalDismiss = await import(
     "../../../app/api/codex/proposals/[id]/dismiss/route.js"
+  )
+  const proposalDismissAll = await import(
+    "../../../app/api/codex/proposals/dismiss-all/route.js"
   )
 
   const taskIdCtx = { params: Promise.resolve({ id: "1" }) }
@@ -584,6 +588,17 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
           proposalIdCtx
         ),
     },
+    {
+      label: "POST /api/codex/proposals/dismiss-all",
+      invoke: () =>
+        proposalDismissAll.POST(
+          new Request("http://localhost/api/codex/proposals/dismiss-all", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ note_id: 1 }),
+          })
+        ),
+    },
   ]
 }
 
@@ -599,7 +614,7 @@ test(
   { skip },
   async () => {
     const callers = await loadRouteCallers()
-    assert.equal(callers.length, 35)
+    assert.equal(callers.length, 36)
 
     for (const route of callers) {
       // Flag off: deliberately 404 (not 403). Hidden feature must not confirm it exists.

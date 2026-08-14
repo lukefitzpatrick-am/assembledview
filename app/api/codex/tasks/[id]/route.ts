@@ -22,6 +22,7 @@ const PATCH_ALLOWLIST = [
   "assignee_email",
   "assignee_name",
   "due_date",
+  "estimated_minutes",
   "mba_number",
   "category",
   "client_visible",
@@ -125,6 +126,25 @@ export async function PATCH(request: Request, context: RouteContext) {
           break
         case "due_date":
           patch.dueDate = typeof v === "string" ? v : null
+          break
+        case "estimated_minutes":
+          if (v === null || v === "") {
+            patch.estimatedMinutes = null
+          } else if (typeof v === "number" && Number.isFinite(v)) {
+            patch.estimatedMinutes = Math.round(v)
+          } else if (typeof v === "string" && v.trim() !== "") {
+            const n = Number(v)
+            if (!Number.isFinite(n)) {
+              return NextResponse.json(
+                {
+                  error: "bad_request",
+                  message: "estimated_minutes must be a number or null.",
+                },
+                { status: 400 }
+              )
+            }
+            patch.estimatedMinutes = Math.round(n)
+          }
           break
         case "mba_number":
           patch.mbaNumber = typeof v === "string" ? v : null

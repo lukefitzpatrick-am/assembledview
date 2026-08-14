@@ -143,3 +143,36 @@ test("@name fuzzy unique match", () => {
   assert.equal(r.assigneeEmail, "sam@assembledmedia.com.au")
   assert.equal(r.title, "Ask")
 })
+
+test("~2h / ~45m tokens become estimatedMinutes and leave the title", () => {
+  const hours = parseQuickAdd({
+    text: "Write report ~2h #woolworths",
+    team,
+    clients,
+    now: WED,
+  })
+  assert.equal(hours.estimatedMinutes, 120)
+  assert.equal(hours.title, "Write report")
+  assert.ok(hours.chips.some((c) => c.kind === "estimate" && c.ok))
+
+  const mins = parseQuickAdd({
+    text: "Quick ping ~45m #woolworths",
+    team,
+    clients,
+    now: WED,
+  })
+  assert.equal(mins.estimatedMinutes, 45)
+  assert.equal(mins.title, "Quick ping")
+})
+
+test("unmatched ~token stays in the title", () => {
+  const r = parseQuickAdd({
+    text: "Chase ~foo #woolworths",
+    team,
+    clients,
+    now: WED,
+  })
+  assert.match(r.title, /~foo/)
+  assert.equal(r.estimatedMinutes, null)
+  assert.ok(r.chips.some((c) => !c.ok && /~foo/.test(c.label)))
+})

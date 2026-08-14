@@ -5,6 +5,7 @@ import { and, eq, gte, isNotNull, isNull, lt, lte, ne, sql, sum } from "drizzle-
 
 import { getDb, schema, type Db } from "@/db"
 import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
+import { sumOpenEstimatedMinutesByAssignee } from "@/lib/codex/estimatedMinutesColumn"
 import { minutesToHours } from "@/lib/myhours/hoursMath"
 import {
   sydneyLastNWeekStarts,
@@ -35,6 +36,9 @@ export type TeamWeekMemberRow = {
   active: boolean
   hours: number
   duration_minutes: number
+  /** Sum of estimated_minutes on open (not done) assigned tasks, as hours. */
+  estimated_open_hours: number
+  estimated_open_minutes: number
   open: number
   overdue: number
 }
@@ -212,6 +216,8 @@ export async function getTeamWeekTimeSummary(
     if (r.email) overdueBy.set(r.email.toLowerCase(), Number(r.overdue ?? 0))
   }
 
+  const estimateBy = await sumOpenEstimatedMinutesByAssignee(database)
+
   const [unmappedRow] = await database
     .select({
       n: sql<number>`count(*)::int`,
@@ -234,6 +240,8 @@ export async function getTeamWeekTimeSummary(
       active: m.active,
       duration_minutes,
       hours: minutesToHours(duration_minutes),
+      estimated_open_minutes: estimateBy.get(email) ?? 0,
+      estimated_open_hours: minutesToHours(estimateBy.get(email) ?? 0),
       open: openBy.get(email) ?? 0,
       overdue: overdueBy.get(email) ?? 0,
     }

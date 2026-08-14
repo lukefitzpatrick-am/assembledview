@@ -1,17 +1,11 @@
 "use client"
 
+import { Combobox } from "@/components/ui/combobox"
 import { Label } from "@/components/ui/label"
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import {
   MBA_NONE_VALUE,
-  mbaSelectOptions,
-  mbasForClientFromPlans,
+  campaignsForClientFromPlans,
+  mbaSelectCampaigns,
   type MbaPlanRow,
 } from "@/lib/codex/clientMbas"
 
@@ -29,17 +23,27 @@ export function TaskMbaSelect({
   disabled?: boolean
 }) {
   const clientChosen = clientId != null && clientId > 0
-  const options = mbaSelectOptions(
-    mbasForClientFromPlans(plans, clientId),
+  const campaigns = mbaSelectCampaigns(
+    campaignsForClientFromPlans(plans, clientId),
     value,
   )
   const selectValue = value.trim() || MBA_NONE_VALUE
   const locked = disabled || !clientChosen
+  const options = [
+    { value: MBA_NONE_VALUE, label: "None" },
+    ...campaigns.map((c) => ({
+      value: c.mba_number,
+      label: c.label,
+      keywords: `${c.mba_number} ${c.campaign_name}`,
+    })),
+  ]
 
   return (
     <div className="space-y-1.5">
       <Label htmlFor="task-mba">MBA number</Label>
-      <Select
+      <Combobox
+        id="task-mba"
+        options={options}
         value={locked ? MBA_NONE_VALUE : selectValue}
         onValueChange={(next) => {
           if (next === MBA_NONE_VALUE) {
@@ -48,34 +52,27 @@ export function TaskMbaSelect({
           }
           onChange(next)
         }}
+        placeholder={
+          clientChosen ? "Select a campaign" : "Select a client first"
+        }
+        searchPlaceholder="Search MBA or campaign…"
         disabled={locked}
-      >
-        <SelectTrigger id="task-mba" className="num max-w-md">
-          <SelectValue
-            placeholder={
-              clientChosen ? "Select a campaign" : "Select a client first"
-            }
-          />
-        </SelectTrigger>
-        {clientChosen ? (
-          <SelectContent>
-            <SelectItem value={MBA_NONE_VALUE}>None</SelectItem>
-            {options.map((mba) => (
-              <SelectItem key={mba} value={mba} className="num">
-                {mba}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        ) : null}
-      </Select>
+        preserveOrder
+        buttonClassName="num max-w-md"
+      />
       {clientChosen ? (
-        <p className="sr-only" data-mba-order={options.join(", ")}>
-          Campaign MBA numbers, newest first: {options.join(", ") || "none"}
+        <p
+          className="sr-only"
+          data-mba-order={campaigns.map((c) => c.mba_number).join(", ")}
+          data-mba-labels={campaigns.map((c) => c.label).join(", ")}
+        >
+          Campaign MBA numbers, newest first:{" "}
+          {campaigns.map((c) => c.label).join(", ") || "none"}
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">Select a client first</p>
       )}
-      {clientChosen && options.length === 0 ? (
+      {clientChosen && campaigns.length === 0 ? (
         <p className="text-xs text-muted-foreground">
           No campaigns for this client
         </p>

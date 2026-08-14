@@ -70,6 +70,8 @@ export type CodexTask = {
   assignee_email?: string | null
   assignee_name?: string | null
   due_date?: string | null
+  /** Planner estimate in minutes. Null until set. */
+  estimated_minutes?: number | null
   mba_number?: string | null
   description?: string | null
   client_visible?: boolean | null

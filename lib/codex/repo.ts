@@ -20,6 +20,10 @@ import {
 } from "drizzle-orm"
 import { db, schema, type Db } from "@/db"
 import type { CodexActorKind } from "@/db/schema/codex"
+import {
+  applyEstimatedMinutes,
+  writeTaskEstimatedMinutes,
+} from "@/lib/codex/estimatedMinutesColumn"
 import { clampPage, clampPerPage, parseStatusFilter } from "@/lib/codex/queryHelpers"
 import { sydneyCivilParts } from "@/lib/codex/quickAddParse"
 import {
@@ -88,6 +92,7 @@ export type CreateTaskInput = {
   assigneeEmail?: string | null
   assigneeName?: string | null
   dueDate?: string | null
+  estimatedMinutes?: number | null
   mbaNumber?: string | null
   category?: string | null
   clientVisible?: boolean | null
@@ -113,6 +118,7 @@ export type UpdateTaskInput = {
   assigneeEmail?: string | null
   assigneeName?: string | null
   dueDate?: string | null
+  estimatedMinutes?: number | null
   mbaNumber?: string | null
   category?: string | null
   clientVisible?: boolean | null
@@ -217,6 +223,7 @@ function taskRowToApi(row: typeof tasks.$inferSelect): CodexTask {
     assignee_email: row.assigneeEmail,
     assignee_name: row.assigneeName,
     due_date: row.dueDate,
+    estimated_minutes: null,
     mba_number: row.mbaNumber,
     description: row.description,
     client_visible: row.clientVisible,
@@ -437,7 +444,8 @@ export async function listTasks(
     }
   })
 
-  return pagedEnvelope(withProgress, itemsTotal, page, perPage)
+  const withEstimates = await applyEstimatedMinutes(database, withProgress)
+  return pagedEnvelope(withEstimates, itemsTotal, page, perPage)
 }
 
 export type MbaTaskCounts = {
@@ -524,7 +532,8 @@ export async function getTask(
 ): Promise<CodexTask | null> {
   const [row] = await database.select().from(tasks).where(eq(tasks.id, id)).limit(1)
   if (!row || row.deletedAt) return null
-  return taskRowToApi(row)
+  const [api] = await applyEstimatedMinutes(database, [taskRowToApi(row)])
+  return api ?? null
 }
 
 /**
@@ -621,15 +630,25 @@ export async function createTask(
       await copyTemplateItemsToTask(tx, row.id, templateId, actorEmail)
     }
 
+    const api = taskRowToApi(row)
+    if (
+      input.estimatedMinutes != null &&
+      Number.isFinite(input.estimatedMinutes)
+    ) {
+      const minutes = Math.round(input.estimatedMinutes)
+      const wrote = await writeTaskEstimatedMinutes(tx, row.id, minutes)
+      if (wrote) api.estimated_minutes = minutes
+    }
+
     await appendActivity(tx, {
       entityType: "task",
       entityId: row.id,
       actorEmail: actorEmail?.toLowerCase() ?? null,
       actorKind: input.actorKind ?? "user",
       action: "create",
-      after: taskRowToApi(row),
+      after: api,
     })
-    return taskRowToApi(row)
+    return api
   })
 }
 
@@ -689,15 +708,29 @@ export async function updateTask(
       .returning()
     if (!row) return null
 
+    const after = taskRowToApi(row)
+    if (patch.estimatedMinutes !== undefined) {
+      const minutes =
+        patch.estimatedMinutes == null || !Number.isFinite(patch.estimatedMinutes)
+          ? null
+          : Math.round(patch.estimatedMinutes)
+      const wrote = await writeTaskEstimatedMinutes(tx, id, minutes)
+      if (wrote) after.estimated_minutes = minutes
+    } else {
+      const [withEst] = await applyEstimatedMinutes(tx, [after])
+      if (withEst) after.estimated_minutes = withEst.estimated_minutes ?? null
+    }
+    const [beforeWithEst] = await applyEstimatedMinutes(tx, [taskRowToApi(before)])
+
     await appendActivity(tx, {
       entityType: "task",
       entityId: id,
       actorEmail: actorEmail?.toLowerCase() ?? null,
       action: "update",
-      before: taskRowToApi(before),
-      after: taskRowToApi(row),
+      before: beforeWithEst ?? taskRowToApi(before),
+      after,
     })
-    return taskRowToApi(row)
+    return after
   })
 }
 

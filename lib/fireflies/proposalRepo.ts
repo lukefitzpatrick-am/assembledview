@@ -4,10 +4,12 @@
  */
 import "server-only"
 
-import { and, desc, eq, isNotNull, isNull, ne, sql } from "drizzle-orm"
+import { and, desc, eq, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 import { createTask, softDeleteTask } from "@/lib/codex/repo"
+import { clampPage, clampPerPage } from "@/lib/codex/queryHelpers"
+import { inboxPageEnvelope } from "@/lib/fireflies/inboxPage"
 import {
   isPossibleDuplicate,
   type TeamMemberMatch,
@@ -22,6 +24,7 @@ import {
 import { parseEmailAliases } from "@/lib/fireflies/rosterAliases"
 import {
   acceptProposalPure,
+  dismissAllProposedForNotePure,
   dismissProposalPure,
   type AcceptEdits,
   type InboxProposal,
@@ -296,8 +299,74 @@ export type InboxMeetingGroup = {
 }
 
 export async function listProposedInbox(
-  database: Db = getDb()
-): Promise<{ groups: InboxMeetingGroup[] }> {
+  database: Db = getDb(),
+  opts: { page?: number; perPage?: number } = {}
+) {
+  const page = clampPage(opts.page)
+  const perPage = clampPerPage(opts.perPage)
+  const offset = (page - 1) * perPage
+
+  const [pendingRow] = await database
+    .select({
+      n: sql<number>`count(*)::int`,
+    })
+    .from(schema.avaTaskProposals)
+    .where(eq(schema.avaTaskProposals.status, "proposed"))
+
+  const [groupCountRow] = await database
+    .select({
+      n: sql<number>`count(distinct coalesce(${schema.avaTaskProposals.sourceNoteId}, 0))::int`,
+    })
+    .from(schema.avaTaskProposals)
+    .where(eq(schema.avaTaskProposals.status, "proposed"))
+
+  const pendingCount = Number(pendingRow?.n ?? 0)
+  const itemsTotal = Number(groupCountRow?.n ?? 0)
+
+  const notePage = await database
+    .select({
+      noteId: sql<number>`coalesce(${schema.avaTaskProposals.sourceNoteId}, 0)`,
+    })
+    .from(schema.avaTaskProposals)
+    .leftJoin(
+      schema.clientNotes,
+      eq(schema.avaTaskProposals.sourceNoteId, schema.clientNotes.id)
+    )
+    .where(eq(schema.avaTaskProposals.status, "proposed"))
+    .groupBy(
+      sql`coalesce(${schema.avaTaskProposals.sourceNoteId}, 0)`,
+      schema.clientNotes.meetingDate
+    )
+    .orderBy(
+      sql`${schema.clientNotes.meetingDate} DESC NULLS LAST`,
+      sql`coalesce(${schema.avaTaskProposals.sourceNoteId}, 0) DESC`
+    )
+    .limit(perPage)
+    .offset(offset)
+
+  const noteIds = notePage.map((r) => Number(r.noteId))
+  if (noteIds.length === 0) {
+    return inboxPageEnvelope({
+      groups: [] as InboxMeetingGroup[],
+      pendingCount,
+      itemsTotal,
+      page,
+      perPage,
+    })
+  }
+
+  const realIds = noteIds.filter((id) => id > 0)
+  const includeNull = noteIds.includes(0)
+  const idFilter =
+    realIds.length > 0 && includeNull
+      ? or(
+          inArray(schema.avaTaskProposals.sourceNoteId, realIds),
+          isNull(schema.avaTaskProposals.sourceNoteId)
+        )
+      : includeNull
+        ? isNull(schema.avaTaskProposals.sourceNoteId)
+        : inArray(schema.avaTaskProposals.sourceNoteId, realIds)
+
   const rows = await database
     .select({
       proposal: schema.avaTaskProposals,
@@ -310,7 +379,9 @@ export async function listProposedInbox(
       schema.clientNotes,
       eq(schema.avaTaskProposals.sourceNoteId, schema.clientNotes.id)
     )
-    .where(eq(schema.avaTaskProposals.status, "proposed"))
+    .where(
+      and(eq(schema.avaTaskProposals.status, "proposed"), idFilter)
+    )
     .orderBy(
       desc(schema.clientNotes.meetingDate),
       desc(schema.avaTaskProposals.id)
@@ -389,7 +460,18 @@ export async function listProposedInbox(
     })
   }
 
-  return { groups: [...groupMap.values()] }
+  const groups = noteIds.flatMap((id) => {
+    const g = groupMap.get(id)
+    return g ? [g] : []
+  })
+
+  return inboxPageEnvelope({
+    groups,
+    pendingCount,
+    itemsTotal,
+    page,
+    perPage,
+  })
 }
 
 async function getProposal(
@@ -490,6 +572,36 @@ export async function dismissProposal(
             decisionDiff: patch.decisionDiff,
           })
           .where(eq(schema.avaTaskProposals.id, id))
+      },
+    }
+  )
+}
+
+export async function dismissAllProposedForNote(
+  noteId: number,
+  decidedByEmail: string,
+  database: Db = getDb()
+) {
+  return dismissAllProposedForNotePure(
+    { noteId, decidedByEmail },
+    {
+      markDismissedBulk: async (id, patch) => {
+        const rows = await database
+          .update(schema.avaTaskProposals)
+          .set({
+            status: patch.status,
+            decidedByEmail: patch.decidedByEmail,
+            decidedAt: patch.decidedAt,
+            decisionDiff: patch.decisionDiff,
+          })
+          .where(
+            and(
+              eq(schema.avaTaskProposals.sourceNoteId, id),
+              eq(schema.avaTaskProposals.status, "proposed")
+            )
+          )
+          .returning({ id: schema.avaTaskProposals.id })
+        return rows.length
       },
     }
   )

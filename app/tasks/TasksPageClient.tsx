@@ -1,15 +1,15 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter, usePathname, useSearchParams } from "next/navigation"
 import {
   flexRender,
   getCoreRowModel,
   useReactTable,
   type ColumnDef,
 } from "@tanstack/react-table"
-import { Columns3, Inbox, LayoutList, ListTodo, PlusCircle, Trash2, Users, LayoutTemplate } from "lucide-react"
+import { Inbox, ListTodo, PlusCircle, Trash2, Users, LayoutTemplate } from "lucide-react"
 import { isValid, parseISO, startOfDay } from "date-fns"
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { matchText } from "@/lib/search/matchText"
@@ -17,7 +17,9 @@ import { useUser } from "@/components/AuthWrapper"
 import { TaskBoard } from "@/components/tasks/TaskBoard"
 import { TaskBulkBar } from "@/components/tasks/TaskBulkBar"
 import { TaskDetailSlideOver } from "@/components/tasks/TaskDetailSlideOver"
+import { TaskEstimateChip } from "@/components/tasks/TaskEstimateChip"
 import { TaskFormDialog } from "@/components/tasks/TaskFormDialog"
+import { TasksFilterBar } from "@/components/tasks/TasksFilterBar"
 import { TeamMemberFormDialog } from "@/components/tasks/TeamMemberFormDialog"
 import { TemplateFormDialog } from "@/components/tasks/TemplateFormDialog"
 import { TaskQuickAdd } from "@/components/tasks/TaskQuickAdd"
@@ -61,7 +63,6 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Label } from "@/components/ui/label"
 import { EmptyState } from "@/components/ui/states"
 import { ViewStateBoundary } from "@/components/ui/ViewStateBoundary"
@@ -77,10 +78,12 @@ import {
   MY_WEEK_STATUSES,
   myWeekDueRange,
 } from "@/lib/codex/quickAddParse"
-import { parseTasksDeepLinkParams } from "@/lib/codex/queryHelpers"
+import {
+  parseTasksFilterParams,
+  serializeTasksFilterParams,
+} from "@/lib/codex/queryHelpers"
 import {
   STATUSES,
-  TASK_CATEGORY_OPTIONS,
   categoryLabel,
   statusMeta,
   type CodexPagedResponse,
@@ -94,6 +97,7 @@ import type { TeamWeekTimeSummary } from "@/lib/myhours/timeSummary"
 
 type TeamMemberWithWeek = TeamMember & {
   week_hours: number
+  estimated_open_hours: number
   open_tasks: number
   overdue_tasks: number
 }
@@ -107,6 +111,7 @@ type ClientOption = {
 
 const SYDNEY_TZ = "Australia/Sydney"
 const PER_PAGE = 100
+const INBOX_PER_PAGE = 20
 const NOTES_TRUNCATE = 60
 
 function formatDueDateSydney(value: string | null | undefined): string {
@@ -166,9 +171,11 @@ export function TasksPageClient({
   overlayTaskId?: number | null
 }) {
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const { toast } = useToast()
   const { user } = useUser()
+  const urlFilters = parseTasksFilterParams(searchParams)
   const [mainTab, setMainTab] = useState<
     "tasks" | "team" | "templates" | "inbox"
   >("tasks")
@@ -197,9 +204,18 @@ export function TasksPageClient({
     proposals: InboxProposalRow[]
   }
   const [inboxGroups, setInboxGroups] = useState<InboxGroup[]>([])
+  const [inboxPendingCount, setInboxPendingCount] = useState(0)
+  const [inboxPage, setInboxPage] = useState(1)
+  const [inboxPageTotal, setInboxPageTotal] = useState(1)
+  const [inboxNextPage, setInboxNextPage] = useState<number | null>(null)
   const [inboxLoading, setInboxLoading] = useState(false)
   const [inboxError, setInboxError] = useState<string | null>(null)
   const [inboxBusyId, setInboxBusyId] = useState<number | null>(null)
+  const [dismissAllTarget, setDismissAllTarget] = useState<{
+    noteId: number
+    label: string
+    count: number
+  } | null>(null)
   const [editProposal, setEditProposal] = useState<InboxProposalRow | null>(
     null
   )
@@ -208,7 +224,9 @@ export function TasksPageClient({
   const [editMba, setEditMba] = useState("")
   const [editClientId, setEditClientId] = useState("")
   /** List and board share the same filter state — switching must not reset it. */
-  const [tasksLayout, setTasksLayout] = useState<"list" | "board">("list")
+  const [tasksLayout, setTasksLayout] = useState<"list" | "board">(
+    urlFilters.view
+  )
 
   const [tasks, setTasks] = useState<CodexTask[]>([])
   const [itemsTotal, setItemsTotal] = useState(0)
@@ -218,16 +236,23 @@ export function TasksPageClient({
   const [loadError, setLoadError] = useState<string | null>(null)
   const [accessDenied, setAccessDenied] = useState(false)
 
-  const [clientId, setClientId] = useState<string>("")
-  const [mbaFilter, setMbaFilter] = useState<string>("")
-  const [statusFilter, setStatusFilter] = useState<string[]>([])
-  const [categoryFilter, setCategoryFilter] = useState<string>("")
-  const [assigneeEmail, setAssigneeEmail] = useState("")
-  const [mine, setMine] = useState(true)
-  const [myWeek, setMyWeek] = useState(false)
-  const [dueAfter, setDueAfter] = useState<string>("")
-  const [dueBefore, setDueBefore] = useState<string>("")
-  const [search, setSearch] = useState("")
+  const [clientId, setClientId] = useState<string>(urlFilters.clientId ?? "")
+  const [mbaFilter, setMbaFilter] = useState<string>(urlFilters.mbaNumber ?? "")
+  const [statusFilter, setStatusFilter] = useState<string[]>(() =>
+    urlFilters.myWeek ? [...MY_WEEK_STATUSES] : urlFilters.statuses ?? []
+  )
+  const [categoryFilter, setCategoryFilter] = useState<string>(
+    urlFilters.category ?? ""
+  )
+  const [assigneeEmail, setAssigneeEmail] = useState(
+    urlFilters.myWeek ? "" : urlFilters.assigneeEmail ?? ""
+  )
+  const [mine, setMine] = useState(urlFilters.myWeek ? false : urlFilters.mine)
+  const [myWeek, setMyWeek] = useState(urlFilters.myWeek)
+  const weekRange0 = urlFilters.myWeek ? myWeekDueRange() : null
+  const [dueAfter, setDueAfter] = useState<string>(weekRange0?.dueAfter ?? "")
+  const [dueBefore, setDueBefore] = useState<string>(weekRange0?.dueBefore ?? "")
+  const [search, setSearch] = useState(urlFilters.search ?? "")
   const [sort, setSort] = useState("due_date")
 
   const [clients, setClients] = useState<ClientOption[]>([])
@@ -265,6 +290,12 @@ export function TasksPageClient({
     teamMembers.find((m) => m.email.toLowerCase() === meEmail)?.name ??
     (typeof user?.name === "string" ? user.name : null)
 
+  useEffect(() => {
+    if (myWeek && meEmail && assigneeEmail !== meEmail) {
+      setAssigneeEmail(meEmail)
+    }
+  }, [myWeek, meEmail, assigneeEmail])
+
   // Slack-friendly deep links: /tasks?task=<id> → /tasks/<id>
   // Scope deep links: /tasks?mba=<mba> and /tasks?client=<id> (combined with other filters).
   useEffect(() => {
@@ -273,13 +304,43 @@ export function TasksPageClient({
       const id = Number(raw)
       if (Number.isFinite(id) && id >= 1) {
         router.replace(`/tasks/${id}`)
-        return
       }
     }
-    const deep = parseTasksDeepLinkParams(searchParams)
-    if (deep.mbaNumber) setMbaFilter(deep.mbaNumber)
-    if (deep.clientId) setClientId(deep.clientId)
   }, [searchParams, router])
+
+  const skipFilterWrite = useRef(true)
+  useEffect(() => {
+    if (skipFilterWrite.current) {
+      skipFilterWrite.current = false
+      return
+    }
+    const qs = serializeTasksFilterParams({
+      mbaNumber: mbaFilter || null,
+      clientId: clientId || null,
+      search,
+      assigneeEmail,
+      category: categoryFilter || null,
+      statuses: statusFilter,
+      mine,
+      myWeek,
+      view: tasksLayout,
+    })
+    const path = pathname || "/tasks"
+    const next = qs ? `${path}?${qs}` : path
+    router.replace(next, { scroll: false })
+  }, [
+    mbaFilter,
+    clientId,
+    search,
+    assigneeEmail,
+    categoryFilter,
+    statusFilter,
+    mine,
+    myWeek,
+    tasksLayout,
+    pathname,
+    router,
+  ])
 
   const clientNameById = useMemo(() => {
     const map = new Map<number, string>()
@@ -359,31 +420,53 @@ export function TasksPageClient({
     void fetchTeamWeek()
   }, [mainTab, fetchTeamWeek])
 
-  const fetchInbox = useCallback(async () => {
+  const fetchInbox = useCallback(async (pageNum = inboxPage) => {
     setInboxLoading(true)
     setInboxError(null)
     try {
-      const res = await fetch("/api/codex/proposals")
+      const params = new URLSearchParams()
+      params.set("page", String(pageNum))
+      params.set("per_page", String(INBOX_PER_PAGE))
+      const res = await fetch(`/api/codex/proposals?${params.toString()}`)
       if (res.status === 403) {
         setAccessDenied(true)
         setInboxGroups([])
+        setInboxPendingCount(0)
         return
       }
       if (!res.ok) {
         setInboxError("Something went wrong while loading the inbox.")
         setInboxGroups([])
+        setInboxPendingCount(0)
         return
       }
-      const data = (await res.json()) as { groups?: InboxGroup[] }
+      const data = (await res.json()) as {
+        groups?: InboxGroup[]
+        pendingCount?: number
+        pageTotal?: number
+        nextPage?: number | null
+        curPage?: number
+      }
       setInboxGroups(Array.isArray(data.groups) ? data.groups : [])
+      setInboxPendingCount(
+        typeof data.pendingCount === "number" ? data.pendingCount : 0
+      )
+      setInboxPageTotal(
+        typeof data.pageTotal === "number" ? data.pageTotal : 1
+      )
+      setInboxNextPage(
+        typeof data.nextPage === "number" ? data.nextPage : data.nextPage ?? null
+      )
+      if (typeof data.curPage === "number") setInboxPage(data.curPage)
     } catch (error) {
       console.error("Error fetching proposals inbox:", error)
       setInboxError("Something went wrong while loading the inbox.")
       setInboxGroups([])
+      setInboxPendingCount(0)
     } finally {
       setInboxLoading(false)
     }
-  }, [])
+  }, [inboxPage])
 
   useEffect(() => {
     if (mainTab !== "inbox") return
@@ -564,6 +647,46 @@ export function TasksPageClient({
         })
       } finally {
         setInboxBusyId(null)
+      }
+    },
+    [fetchInbox, toast]
+  )
+
+  const dismissAllForMeeting = useCallback(
+    async (noteId: number, label: string, count: number) => {
+      setInboxBusyId(-noteId)
+      try {
+        const res = await fetch("/api/codex/proposals/dismiss-all", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ note_id: noteId }),
+        })
+        if (!res.ok) {
+          toast({
+            variant: "destructive",
+            title: "Dismiss all failed",
+            description: "Could not dismiss proposals.",
+          })
+          return
+        }
+        const body = (await res.json().catch(() => null)) as {
+          dismissed?: number
+        } | null
+        const n =
+          body && typeof body.dismissed === "number" ? body.dismissed : count
+        toast({ title: `Dismissed ${n} in ${label}` })
+        setInboxPendingCount((c) => Math.max(0, c - n))
+        await fetchInbox()
+      } catch (error) {
+        console.error(error)
+        toast({
+          variant: "destructive",
+          title: "Dismiss all failed",
+          description: "Could not dismiss proposals.",
+        })
+      } finally {
+        setInboxBusyId(null)
+        setDismissAllTarget(null)
       }
     },
     [fetchInbox, toast]
@@ -864,6 +987,7 @@ export function TasksPageClient({
     assignee_email: string | null
     assignee_name: string | null
     due_date: string | null
+    estimated_minutes: number | null
   }) => {
     const res = await fetch("/api/codex/tasks", {
       method: "POST",
@@ -1172,6 +1296,13 @@ export function TasksPageClient({
         ),
       },
       {
+        id: "estimate",
+        header: "Estimate",
+        cell: ({ row }) => (
+          <TaskEstimateChip minutes={row.original.estimated_minutes} />
+        ),
+      },
+      {
         accessorKey: "mba_number",
         header: "MBA",
         cell: ({ row }) => (
@@ -1237,6 +1368,7 @@ export function TasksPageClient({
       return {
         ...tm,
         week_hours: w?.hours ?? 0,
+        estimated_open_hours: w?.estimated_open_hours ?? 0,
         open_tasks: w?.open ?? 0,
         overdue_tasks: w?.overdue ?? 0,
       }
@@ -1289,6 +1421,13 @@ export function TasksPageClient({
         ),
         cell: ({ row }) => (
           <span className="num">{row.original.week_hours}</span>
+        ),
+      },
+      {
+        id: "estimated_open_hours",
+        header: "Est. open (h)",
+        cell: ({ row }) => (
+          <span className="num">{row.original.estimated_open_hours}</span>
         ),
       },
       {
@@ -1504,9 +1643,9 @@ export function TasksPageClient({
             <span className="inline-flex items-center gap-1.5">
               <Inbox className="h-3.5 w-3.5" aria-hidden />
               Inbox
-              {inboxGroups.length > 0 ? (
+              {inboxPendingCount > 0 ? (
                 <Badge variant="secondary" size="sm" className="num">
-                  {inboxGroups.reduce((n, g) => n + g.proposals.length, 0)}
+                  {inboxPendingCount}
                 </Badge>
               ) : null}
             </span>
@@ -1526,6 +1665,7 @@ export function TasksPageClient({
         </TabsList>
 
         <TabsContent value="tasks" className="mt-6 space-y-6">
+          <div className="mx-auto max-w-6xl space-y-6">
           <TaskQuickAdd
             team={teamMembers.map((m) => ({ email: m.email, name: m.name }))}
             clients={clients.map((c) => ({
@@ -1545,198 +1685,58 @@ export function TasksPageClient({
             onCreate={quickCreateTask}
           />
 
-          <div className="flex flex-col gap-3 rounded-card border border-border bg-card p-4 shadow-e1">
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="min-w-[12rem] space-y-1.5">
-                <Label htmlFor="tasks-client">Client</Label>
-                <Select
-                  value={clientId || "__all__"}
-                  onValueChange={(v) => {
-                    setMyWeek(false)
-                    setClientId(v === "__all__" ? "" : v)
-                  }}
-                >
-                  <SelectTrigger id="tasks-client" className="h-9">
-                    <SelectValue placeholder="All clients" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All clients</SelectItem>
-                    {clients
-                      .map((c) => ({
-                        id: c.id,
-                        label: getClientDisplayName(c) || String(c.id),
-                      }))
-                      .sort((a, b) =>
-                        a.label.localeCompare(b.label, undefined, {
-                          sensitivity: "base",
-                        })
-                      )
-                      .map(({ id, label }) => (
-                        <SelectItem key={id} value={String(id)}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {mbaFilter ? (
-                <div className="min-w-[10rem] space-y-1.5">
-                  <Label htmlFor="tasks-mba-scope">MBA</Label>
-                  <div className="flex h-9 items-center gap-2">
-                    <Badge variant="secondary" className="num" id="tasks-mba-scope">
-                      {mbaFilter}
-                    </Badge>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 px-2"
-                      onClick={() => setMbaFilter("")}
-                    >
-                      Clear
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-
-              <div className="min-w-[10rem] flex-1 space-y-1.5">
-                <Label htmlFor="tasks-assignee">Assignee email</Label>
-                <Input
-                  id="tasks-assignee"
-                  className="h-9"
-                  placeholder="name@assembledmedia.com.au"
-                  value={assigneeEmail}
-                  disabled={mine || myWeek}
-                  onChange={(e) => {
-                    setMyWeek(false)
-                    setDueAfter("")
-                    setDueBefore("")
-                    setAssigneeEmail(e.target.value)
-                  }}
-                />
-              </div>
-
-              <div className="min-w-[10rem] flex-1 space-y-1.5">
-                <Label htmlFor="tasks-search">Search title</Label>
-                <Input
-                  id="tasks-search"
-                  className="h-9"
-                  placeholder="Contains…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-              </div>
-
-              <div className="flex items-center gap-2 pb-1">
-                <Switch
-                  id="tasks-all"
-                  checked={!mine && !myWeek}
-                  onCheckedChange={(checked) => {
-                    setMyWeek(false)
-                    setDueAfter("")
-                    setDueBefore("")
-                    setMine(!checked)
-                    if (checked) setAssigneeEmail("")
-                  }}
-                  aria-label="All tasks"
-                />
-                <Label htmlFor="tasks-all" className="cursor-pointer">
-                  All tasks
-                </Label>
-                <span className="text-[11px] text-muted-foreground">
-                  {myWeek
-                    ? "My week: assigned to me, due in 7 days, not done"
-                    : mine
-                      ? "Showing assigned to me or created by me"
-                      : "Showing every task (including unassigned)"}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2 pb-1">
-                <Button
-                  type="button"
-                  size="sm"
-                  variant={myWeek ? "default" : "outline"}
-                  onClick={() => applyMyWeek(!myWeek)}
-                >
-                  My week
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-end gap-3">
-              <div className="min-w-[12rem] space-y-1.5">
-                <Label htmlFor="tasks-category">Category</Label>
-                <Select
-                  value={categoryFilter || "__all__"}
-                  onValueChange={(v) =>
-                    setCategoryFilter(v === "__all__" ? "" : v)
-                  }
-                >
-                  <SelectTrigger id="tasks-category" className="h-9">
-                    <SelectValue placeholder="All categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">All categories</SelectItem>
-                    {TASK_CATEGORY_OPTIONS.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>
-                        {c.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="space-y-1.5">
-                <Label>Status</Label>
-                <ToggleGroup
-                  type="multiple"
-                  variant="outline"
-                  size="sm"
-                  className="flex flex-wrap justify-start"
-                  value={statusFilter}
-                  onValueChange={(v) => {
-                    setMyWeek(false)
-                    setStatusFilter(v)
-                  }}
-                >
-                  {STATUSES.map((s) => (
-                    <ToggleGroupItem
-                      key={s.value}
-                      value={s.value}
-                      aria-label={s.label}
-                    >
-                      {s.label}
-                    </ToggleGroupItem>
-                  ))}
-                </ToggleGroup>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">View</span>
-                <ToggleGroup
-                  type="single"
-                  variant="outline"
-                  size="sm"
-                  value={tasksLayout}
-                  onValueChange={(v) => {
-                    if (v === "list" || v === "board") setTasksLayout(v)
-                  }}
-                  aria-label="Choose list or board view"
-                >
-                  <ToggleGroupItem value="list" aria-label="List view">
-                    <LayoutList className="h-4 w-4" />
-                  </ToggleGroupItem>
-                  <ToggleGroupItem value="board" aria-label="Board view">
-                    <Columns3 className="h-4 w-4" />
-                  </ToggleGroupItem>
-                </ToggleGroup>
-              </div>
-            </div>
-          </div>
+          <TasksFilterBar
+            search={search}
+            clientId={clientId}
+            mbaFilter={mbaFilter}
+            assigneeEmail={assigneeEmail}
+            categoryFilter={categoryFilter}
+            statusFilter={statusFilter}
+            mine={mine}
+            myWeek={myWeek}
+            tasksLayout={tasksLayout}
+            clients={clients
+              .map((c) => ({
+                id: c.id,
+                label: getClientDisplayName(c) || String(c.id),
+              }))
+              .sort((a, b) =>
+                a.label.localeCompare(b.label, undefined, {
+                  sensitivity: "base",
+                })
+              )}
+            members={teamMembers
+              .filter((m) => m.active)
+              .map((m) => ({ email: m.email, name: m.name }))}
+            onSearch={setSearch}
+            onClient={(v) => {
+              setMyWeek(false)
+              setClientId(v)
+            }}
+            onClearMba={() => setMbaFilter("")}
+            onAssignee={(v) => {
+              setMyWeek(false)
+              setDueAfter("")
+              setDueBefore("")
+              setMine(false)
+              setAssigneeEmail(v)
+            }}
+            onCategory={setCategoryFilter}
+            onStatus={(v) => {
+              setMyWeek(false)
+              setStatusFilter(v)
+            }}
+            onMineToggle={(allTasks) => {
+              setMyWeek(false)
+              setDueAfter("")
+              setDueBefore("")
+              setMine(!allTasks)
+              if (allTasks) setAssigneeEmail("")
+            }}
+            onMyWeek={(on) => applyMyWeek(on)}
+            onLayout={setTasksLayout}
+            onClearAll={clearTaskFilters}
+          />
 
           {selectedIds.size > 0 && tasksLayout === "list" ? (
             <TaskBulkBar
@@ -1758,6 +1758,7 @@ export function TasksPageClient({
               }}
             />
           ) : null}
+          </div>
 
           <ViewStateBoundary
             state={tasksViewState}
@@ -1787,7 +1788,7 @@ export function TasksPageClient({
                   }}
                 />
               ) : (
-              <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
+              <div className="mx-auto max-w-6xl overflow-hidden rounded-card border border-border bg-card shadow-e1">
                 <div className="overflow-x-auto">
                   <Table>
                     <TableHeader className="bg-muted/20">
@@ -1910,14 +1911,32 @@ export function TasksPageClient({
                           ) : null}
                         </p>
                       </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        disabled={inboxBusyId != null}
-                        onClick={() => void batchAcceptMeeting(group.note_id)}
-                      >
-                        Accept all
-                      </Button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={inboxBusyId != null}
+                          onClick={() =>
+                            setDismissAllTarget({
+                              noteId: group.note_id,
+                              label:
+                                group.meeting_title?.trim() || "Untitled meeting",
+                              count: group.proposals.length,
+                            })
+                          }
+                        >
+                          Dismiss all ({group.proposals.length})
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={inboxBusyId != null}
+                          onClick={() => void batchAcceptMeeting(group.note_id)}
+                        >
+                          Accept all
+                        </Button>
+                      </div>
                     </div>
                     <ul className="divide-y divide-border">
                       {group.proposals.map((p) => (
@@ -1983,6 +2002,33 @@ export function TasksPageClient({
                     </ul>
                   </div>
                 ))}
+                {inboxPageTotal > 1 ? (
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={inboxPage <= 1 || inboxLoading}
+                      onClick={() => setInboxPage((p) => Math.max(1, p - 1))}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm text-muted-foreground num">
+                      {inboxPage} / {inboxPageTotal}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={inboxNextPage == null || inboxLoading}
+                      onClick={() => {
+                        if (inboxNextPage) setInboxPage(inboxNextPage)
+                      }}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                ) : null}
               </div>
             )}
           </ViewStateBoundary>
@@ -2193,6 +2239,43 @@ export function TasksPageClient({
           void fetchTemplates()
         }}
       />
+
+      <AlertDialog
+        open={dismissAllTarget != null}
+        onOpenChange={(open) => {
+          if (!open && inboxBusyId == null) setDismissAllTarget(null)
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Dismiss all proposals?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {dismissAllTarget
+                ? `Dismiss ${dismissAllTarget.count} proposals in ${dismissAllTarget.label}?`
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={inboxBusyId != null}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={inboxBusyId != null}
+              onClick={(e) => {
+                e.preventDefault()
+                if (!dismissAllTarget) return
+                void dismissAllForMeeting(
+                  dismissAllTarget.noteId,
+                  dismissAllTarget.label,
+                  dismissAllTarget.count
+                )
+              }}
+            >
+              Dismiss all
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={deleteTarget != null}

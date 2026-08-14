@@ -1,6 +1,6 @@
 "use client"
 
-import type { ReactNode } from "react"
+import type { CSSProperties, ReactNode } from "react"
 
 import {
   Sheet,
@@ -23,6 +23,7 @@ export interface SlideOverProps {
   overlayClassName?: string
   /** Hide the visible title row. `title` stays as the accessible name. */
   hideHeader?: boolean
+  contentStyle?: CSSProperties
 }
 
 export function SlideOver({
@@ -34,6 +35,7 @@ export function SlideOver({
   contentClassName,
   overlayClassName,
   hideHeader,
+  contentStyle,
 }: SlideOverProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -44,6 +46,7 @@ export function SlideOver({
           "flex h-full w-full min-h-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl",
           contentClassName
         )}
+        style={contentStyle}
       >
         <SheetHeader
           className={

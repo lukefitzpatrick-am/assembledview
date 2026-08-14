@@ -61,6 +61,52 @@ export function resolveListAssigneeEmail(opts: {
   return scope.mineForEmail ?? scope.assigneeEmail
 }
 
+export type TasksFilterView = "list" | "board"
+
+export type TasksFilterParams = {
+  mbaNumber: string | null
+  clientId: string | null
+  search: string | null
+  assigneeEmail: string | null
+  category: string | null
+  statuses: string[] | null
+  /** Default true (My tasks). false when `all=1` or `mine=0`. */
+  mine: boolean
+  myWeek: boolean
+  view: TasksFilterView
+}
+
+/**
+ * Compact toolbar + deep-link filters for `/tasks`.
+ * Existing `?mba=` / `?client=` behaviour is preserved.
+ */
+export function parseTasksFilterParams(searchParams: {
+  get(name: string): string | null
+}): TasksFilterParams {
+  const mbaRaw = searchParams.get("mba")?.trim() ?? ""
+  const clientRaw = searchParams.get("client")?.trim() ?? ""
+  const search = searchParams.get("q")?.trim() || null
+  const assigneeEmail = searchParams.get("assignee")?.trim().toLowerCase() || null
+  const category = searchParams.get("category")?.trim() || null
+  const statuses = parseStatusFilter(searchParams.get("status")) ?? null
+  const all = searchParams.get("all") === "1" || searchParams.get("mine") === "0"
+  const myWeek = searchParams.get("week") === "1"
+  const viewRaw = searchParams.get("view")?.trim().toLowerCase()
+  const view: TasksFilterView = viewRaw === "board" ? "board" : "list"
+  return {
+    mbaNumber: mbaRaw.length > 0 ? mbaRaw : null,
+    clientId:
+      clientRaw.length > 0 && /^\d+$/.test(clientRaw) ? clientRaw : null,
+    search,
+    assigneeEmail,
+    category,
+    statuses,
+    mine: myWeek ? false : !all,
+    myWeek,
+    view,
+  }
+}
+
 /**
  * Deep-link filters for `/tasks?mba=<mba_number>` and `/tasks?client=<id>`.
  * Combined with existing UI filters — does not imply clearing My Tasks / status.
@@ -68,12 +114,39 @@ export function resolveListAssigneeEmail(opts: {
 export function parseTasksDeepLinkParams(searchParams: {
   get(name: string): string | null
 }): { mbaNumber: string | null; clientId: string | null } {
-  const mbaRaw = searchParams.get("mba")?.trim() ?? ""
-  const clientRaw = searchParams.get("client")?.trim() ?? ""
-  const mbaNumber = mbaRaw.length > 0 ? mbaRaw : null
-  const clientId =
-    clientRaw.length > 0 && /^\d+$/.test(clientRaw) ? clientRaw : null
-  return { mbaNumber, clientId }
+  const parsed = parseTasksFilterParams(searchParams)
+  return { mbaNumber: parsed.mbaNumber, clientId: parsed.clientId }
+}
+
+/** Serialize toolbar state to a query string (no leading `?`). Defaults omitted. */
+export function serializeTasksFilterParams(filters: {
+  mbaNumber?: string | null
+  clientId?: string | null
+  search?: string | null
+  assigneeEmail?: string | null
+  category?: string | null
+  statuses?: string[] | null
+  mine?: boolean
+  myWeek?: boolean
+  view?: TasksFilterView | null
+}): string {
+  const params = new URLSearchParams()
+  const mba = filters.mbaNumber?.trim()
+  if (mba) params.set("mba", mba)
+  const client = filters.clientId?.trim()
+  if (client && /^\d+$/.test(client)) params.set("client", client)
+  const q = filters.search?.trim()
+  if (q) params.set("q", q)
+  const assignee = filters.assigneeEmail?.trim().toLowerCase()
+  if (assignee && !filters.myWeek) params.set("assignee", assignee)
+  const category = filters.category?.trim()
+  if (category) params.set("category", category)
+  const statuses = (filters.statuses ?? []).map((s) => s.trim()).filter(Boolean)
+  if (statuses.length > 0 && !filters.myWeek) params.set("status", statuses.join(","))
+  if (filters.myWeek) params.set("week", "1")
+  else if (filters.mine === false) params.set("all", "1")
+  if (filters.view === "board") params.set("view", "board")
+  return params.toString()
 }
 
 /** CSV of MBA numbers for GET /api/codex/tasks/counts?mba=A,B */

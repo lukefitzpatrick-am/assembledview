@@ -29,6 +29,7 @@ type Props = {
     assignee_email: string | null
     assignee_name: string | null
     due_date: string | null
+    estimated_minutes: number | null
   }) => Promise<void>
 }
 
@@ -85,6 +86,7 @@ export function TaskQuickAdd({
         assignee_email: parsed.assigneeEmail,
         assignee_name: parsed.assigneeName,
         due_date: parsed.dueDate,
+        estimated_minutes: parsed.estimatedMinutes,
       })
       setText("")
     } finally {
@@ -154,7 +156,7 @@ export function TaskQuickAdd({
       ) : (
         <p className="text-xs text-muted-foreground">
           Enter creates a todo assigned to you. Use @assignee #client !high/!low
-          due tomorrow — unmatched tokens stay in the title.
+          due tomorrow or ~2h — unmatched tokens stay in the title.
         </p>
       )}
     </div>

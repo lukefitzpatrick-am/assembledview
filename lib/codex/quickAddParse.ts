@@ -6,7 +6,13 @@
  * silently dropped.
  *
  * Calendar phrases (`due …`) are resolved in Australia/Sydney civil time.
+ * Estimate tokens (`~2h`, `~45m`) parse via `estimateParse`.
  */
+
+import {
+  formatMinutesAsEstimate,
+  parseEstimateToMinutes,
+} from "./estimateParse.js"
 
 export type QuickAddTeamMember = {
   email: string
@@ -20,7 +26,7 @@ export type QuickAddClient = {
 }
 
 export type QuickAddChip = {
-  kind: "assignee" | "client" | "priority" | "due" | "warning"
+  kind: "assignee" | "client" | "priority" | "due" | "estimate" | "warning"
   label: string
   ok: boolean
 }
@@ -37,6 +43,7 @@ export type QuickAddParsed = {
   priority: "low" | "normal" | "high"
   /** YYYY-MM-DD Sydney civil date, or null. */
   dueDate: string | null
+  estimatedMinutes: number | null
   chips: QuickAddChip[]
 }
 
@@ -318,6 +325,41 @@ export function parseQuickAdd(input: ParseQuickAddInput): QuickAddParsed {
   const chips: QuickAddChip[] = []
   const now = input.now ?? new Date()
 
+  let estimatedMinutes: number | null = null
+  const tildeRe = /(?:^|\s)(~[^\s]+)/g
+  let tildeMatch: RegExpExecArray | null
+  const tildeTokens: string[] = []
+  while ((tildeMatch = tildeRe.exec(working)) !== null) {
+    tildeTokens.push(tildeMatch[1]!)
+  }
+  let consumedTilde: string | null = null
+  for (const tok of tildeTokens) {
+    const minutes = parseEstimateToMinutes(tok)
+    if (minutes != null) {
+      estimatedMinutes = minutes
+      consumedTilde = tok
+      working = working.replace(
+        new RegExp(`(?:^|\\s)${escapeReg(tok)}(?=\\s|$)`),
+        " "
+      )
+      const human = formatMinutesAsEstimate(minutes) ?? tok
+      chips.push({
+        kind: "estimate",
+        label: `Estimate ${human}`,
+        ok: true,
+      })
+      break
+    }
+  }
+  for (const tok of tildeTokens) {
+    if (tok === consumedTilde) continue
+    chips.push({
+      kind: "warning",
+      label: `Kept in title: “${tok}”`,
+      ok: false,
+    })
+  }
+
   let dueDate: string | null = null
   const dueHit = parseDuePhrase(working, now)
   if (dueHit) {
@@ -494,6 +536,7 @@ export function parseQuickAdd(input: ParseQuickAddInput): QuickAddParsed {
     clientLabel,
     priority,
     dueDate,
+    estimatedMinutes,
     chips,
   }
 }

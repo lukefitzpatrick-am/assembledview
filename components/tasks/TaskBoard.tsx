@@ -23,6 +23,7 @@ import { CSS } from "@dnd-kit/utilities"
 import { CheckSquare } from "lucide-react"
 import { isValid, parseISO, startOfDay } from "date-fns"
 import { Badge } from "@/components/ui/badge"
+import { TaskEstimateChip } from "@/components/tasks/TaskEstimateChip"
 import {
   STATUSES,
   TASK_PRIORITIES,
@@ -128,6 +129,9 @@ function TaskBoardCardFace({
             {done}/{total}
           </span>
         ) : null}
+        {task.estimated_minutes != null && task.estimated_minutes > 0 ? (
+          <TaskEstimateChip minutes={task.estimated_minutes} />
+        ) : null}
       </div>
     </>
   )
@@ -195,7 +199,7 @@ function BoardColumn({
   return (
     <div
       className={cn(
-        "flex min-h-[12rem] w-[16.5rem] shrink-0 flex-col rounded-card border border-border bg-surface-panel/60",
+        "flex min-h-[12rem] min-w-[16.5rem] flex-1 flex-col rounded-card border border-border bg-surface-panel/60",
         isOver && "ring-2 ring-ring"
       )}
     >
@@ -333,7 +337,7 @@ export function TaskBoard({
       onDragCancel={handleDragCancel}
     >
       <div
-        className="flex gap-3 overflow-x-auto pb-2"
+        className="flex w-full min-w-0 gap-3 overflow-x-auto pb-2"
         role="region"
         aria-label="Task board"
       >

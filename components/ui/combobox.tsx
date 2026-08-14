@@ -45,6 +45,8 @@ export interface ComboboxProps {
   onOpenChange?: (open: boolean) => void
   /** Fires when the trigger button receives focus (e.g. Tab); use with expert grids for paste anchoring. */
   onTriggerFocus?: () => void
+  /** Keep caller order (e.g. MBA numbers descending). Default sorts by label. */
+  preserveOrder?: boolean
 }
 
 export function Combobox({
@@ -62,6 +64,7 @@ export function Combobox({
   id,
   onOpenChange,
   onTriggerFocus,
+  preserveOrder = false,
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const modal = React.useContext(ComboboxModalContext)
@@ -84,8 +87,10 @@ export function Combobox({
       uniqueOptions.push(option)
     }
 
-    return sortByLabel(uniqueOptions, (o) => o.label)
-  }, [options])
+    return preserveOrder
+      ? uniqueOptions
+      : sortByLabel(uniqueOptions, (o) => o.label)
+  }, [options, preserveOrder])
 
   const selected = React.useMemo(
     () => sortedOptions.find((o) => o.value === value),

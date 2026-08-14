@@ -241,6 +241,11 @@ export async function POST(request: Request) {
           assigneeName:
             typeof raw.assignee_name === "string" ? raw.assignee_name : null,
           dueDate: typeof raw.due_date === "string" ? raw.due_date : null,
+          estimatedMinutes:
+            typeof raw.estimated_minutes === "number" &&
+            Number.isFinite(raw.estimated_minutes)
+              ? Math.round(raw.estimated_minutes)
+              : null,
           mbaNumber: typeof raw.mba_number === "string" ? raw.mba_number : null,
           category,
           clientVisible:

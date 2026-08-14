@@ -3,6 +3,7 @@ import {
   batchAcceptForNote,
   listProposedInbox,
 } from "@/lib/fireflies/proposalRepo"
+import { clampPage, clampPerPage } from "@/lib/codex/queryHelpers"
 import {
   codexFlagGuard,
   jsonError,
@@ -13,7 +14,7 @@ import {
 export const runtime = "nodejs"
 
 /**
- * GET /api/codex/proposals — Inbox of proposed meeting action items.
+ * GET /api/codex/proposals — Inbox of proposed meeting action items (paginated by meeting).
  * POST /api/codex/proposals — batch accept: { note_id } or { action: "batch_accept", note_id }
  */
 export async function GET(request: Request) {
@@ -23,8 +24,12 @@ export async function GET(request: Request) {
   const auth = await requireCodexInternalAccess(request)
   if ("error" in auth) return auth.error
 
+  const url = new URL(request.url)
+  const page = clampPage(Number(url.searchParams.get("page")))
+  const perPage = clampPerPage(Number(url.searchParams.get("per_page") ?? 20))
+
   try {
-    const inbox = await listProposedInbox()
+    const inbox = await listProposedInbox(undefined, { page, perPage })
     return NextResponse.json(inbox)
   } catch (error) {
     console.error("Failed to list proposals:", error)

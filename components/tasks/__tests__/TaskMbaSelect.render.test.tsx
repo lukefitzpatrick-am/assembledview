@@ -5,11 +5,11 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { TaskMbaSelect } from "../TaskMbaSelect"
 
 const PLANS = [
-  { mba_number: "PENFOLD002", client_id: 12 },
-  { mba_number: "PENFOLD012", client_id: 12 },
-  { mba_number: "PENFOLD001", client_id: 12 },
-  { mba_number: "OTHER099", client_id: 99 },
-  { mba_number: "PENFOLD2", client_id: 12 },
+  { mba_number: "PENFOLD002", client_id: 12, campaign_name: "Winter flight" },
+  { mba_number: "PENFOLD012", client_id: 12, campaign_name: "Summer brand" },
+  { mba_number: "PENFOLD001", client_id: 12, campaign_name: "Always on" },
+  { mba_number: "OTHER099", client_id: 99, campaign_name: "Other" },
+  { mba_number: "PENFOLD2", client_id: 12, campaign_name: "Short code" },
 ]
 
 describe("TaskMbaSelect MBA dropdown ordering", () => {
@@ -29,10 +29,13 @@ describe("TaskMbaSelect MBA dropdown ordering", () => {
     expect(orderMatch?.[1]).toBe(
       "PENFOLD012, PENFOLD002, PENFOLD2, PENFOLD001",
     )
+    const labelsMatch = html.match(/data-mba-labels="([^"]+)"/)
+    expect(labelsMatch?.[1]).toBe(
+      "PENFOLD012 — Summer brand, PENFOLD002 — Winter flight, PENFOLD2 — Short code, PENFOLD001 — Always on",
+    )
     expect(html).not.toContain("OTHER099")
-    expect(html.indexOf("PENFOLD012")).toBeLessThan(html.indexOf("PENFOLD002"))
-    expect(html.indexOf("PENFOLD002")).toBeLessThan(html.indexOf("PENFOLD2"))
-    expect(html.indexOf("PENFOLD2")).toBeLessThan(html.indexOf("PENFOLD001"))
+    expect(html).toContain("PENFOLD012 — Summer brand")
+    expect(html).toContain("PENFOLD002 — Winter flight")
   })
 
   it("stays empty and explains why until a client is chosen", () => {

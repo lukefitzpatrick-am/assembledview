@@ -44,6 +44,10 @@ import {
   persistChecklistToggle,
 } from "@/lib/codex/checklistToggle"
 import type { MbaPlanRow } from "@/lib/codex/clientMbas"
+import {
+  formatMinutesAsEstimate,
+  parseEstimateToMinutes,
+} from "@/lib/codex/estimateParse"
 import { TaskChecklist } from "@/components/tasks/TaskChecklist"
 import { TaskMbaSelect } from "@/components/tasks/TaskMbaSelect"
 
@@ -104,6 +108,7 @@ export function TaskDetailClient({ taskId }: Props) {
 
   const [titleDraft, setTitleDraft] = useState("")
   const [descriptionDraft, setDescriptionDraft] = useState("")
+  const [estimateDraft, setEstimateDraft] = useState("")
   const [mbaPlans, setMbaPlans] = useState<MbaPlanRow[]>([])
   const [newCheckLabel, setNewCheckLabel] = useState("")
   const [newComment, setNewComment] = useState("")
@@ -143,6 +148,7 @@ export function TaskDetailClient({ taskId }: Props) {
       setTask(taskJson)
       setTitleDraft(taskJson.title ?? "")
       setDescriptionDraft(taskJson.description ?? "")
+      setEstimateDraft(formatMinutesAsEstimate(taskJson.estimated_minutes) ?? "")
 
       if (checkRes.ok) {
         const j = (await checkRes.json()) as { items?: ChecklistItem[] }
@@ -190,18 +196,39 @@ export function TaskDetailClient({ taskId }: Props) {
           { cache: "no-store" },
         )
         if (!res.ok || cancelled) return
-        const body = (await res.json()) as { mba_numbers?: unknown }
+        const body = (await res.json()) as {
+          mba_numbers?: unknown
+          campaigns?: Array<{
+            mba_number?: unknown
+            campaign_name?: unknown
+          }>
+        }
+        if (cancelled) return
+        if (Array.isArray(body.campaigns) && body.campaigns.length > 0) {
+          setMbaPlans(
+            body.campaigns.flatMap((c) => {
+              if (typeof c.mba_number !== "string") return []
+              return [
+                {
+                  mba_number: c.mba_number,
+                  campaign_name:
+                    typeof c.campaign_name === "string" ? c.campaign_name : "",
+                  client_id: Number(clientId),
+                },
+              ]
+            }),
+          )
+          return
+        }
         const numbers = Array.isArray(body.mba_numbers)
           ? body.mba_numbers.filter((n): n is string => typeof n === "string")
           : []
-        if (!cancelled) {
-          setMbaPlans(
-            numbers.map((mba_number) => ({
-              mba_number,
-              client_id: Number(clientId),
-            })),
-          )
-        }
+        setMbaPlans(
+          numbers.map((mba_number) => ({
+            mba_number,
+            client_id: Number(clientId),
+          })),
+        )
       } catch {
         if (!cancelled) setMbaPlans([])
       }
@@ -248,6 +275,9 @@ export function TaskDetailClient({ taskId }: Props) {
         ...(patch.due_date !== undefined
           ? { due_date: patch.due_date as string | null }
           : null),
+        ...(patch.estimated_minutes !== undefined
+          ? { estimated_minutes: patch.estimated_minutes as number | null }
+          : null),
         ...(patch.assignee_email !== undefined
           ? { assignee_email: patch.assignee_email as string | null }
           : null),
@@ -277,11 +307,13 @@ export function TaskDetailClient({ taskId }: Props) {
         setTask(next)
         setTitleDraft(next.title ?? "")
         setDescriptionDraft(next.description ?? "")
+        setEstimateDraft(formatMinutesAsEstimate(next.estimated_minutes) ?? "")
         void refreshActivity()
       } catch (error) {
         setTask(previous)
         setTitleDraft(previous.title ?? "")
         setDescriptionDraft(previous.description ?? "")
+        setEstimateDraft(formatMinutesAsEstimate(previous.estimated_minutes) ?? "")
         toast({
           title: "Could not save",
           description:
@@ -619,6 +651,44 @@ export function TaskDetailClient({ taskId }: Props) {
               )
             }
             disabled={savingField === "due_date"}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="task-estimate">Estimate</Label>
+          <Input
+            id="task-estimate"
+            className="num"
+            placeholder="1h 30m"
+            value={estimateDraft}
+            onChange={(e) => setEstimateDraft(e.target.value)}
+            onBlur={() => {
+              const raw = estimateDraft.trim()
+              if (!raw) {
+                if (task.estimated_minutes != null) {
+                  void patchTask({ estimated_minutes: null }, "estimate")
+                }
+                return
+              }
+              const minutes = parseEstimateToMinutes(raw)
+              if (minutes == null) {
+                setEstimateDraft(
+                  formatMinutesAsEstimate(task.estimated_minutes) ?? ""
+                )
+                toast({
+                  title: "Could not parse estimate",
+                  description: 'Use “2h”, “45m”, or “1h 30m”.',
+                  variant: "destructive",
+                })
+                return
+              }
+              if (minutes === task.estimated_minutes) {
+                setEstimateDraft(formatMinutesAsEstimate(minutes) ?? "")
+                return
+              }
+              void patchTask({ estimated_minutes: minutes }, "estimate")
+            }}
+            disabled={savingField === "estimate"}
           />
         </div>
 
