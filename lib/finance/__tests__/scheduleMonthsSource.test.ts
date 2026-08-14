@@ -14,6 +14,7 @@ import {
   centsToDollars,
   compareScheduleMonthAmounts,
   getFinanceScheduleBackend,
+  mediaTypeFromScheduleLineId,
   resolveVersionSchedules,
   type ScheduleMonthRowInput,
 } from "../scheduleMonthsSource.js"
@@ -244,4 +245,38 @@ test("golden: rows path serves rebuilt schedules when rows exist", () => {
   const resolved = resolveVersionSchedules(version, rows)
   assert.equal(resolved.fallbackUsed, false)
   assert.ok(resolved.billing.some((m) => m.monthYear === "May 2026"))
+})
+
+test("mediaTypeFromScheduleLineId: decorated, service, bare, legacy ETL, unknown", () => {
+  const cases: Array<[string, string | null]> = [
+    ["billing-search::X1", "search"],
+    ["billing-progDisplay::X1", "progDisplay"],
+    ["billing-bogus::X1", "search"],
+    ["__service__adserving", null],
+    ["__service__fees", null],
+    ["hartm001SE1", "search"],
+    ["hartm001PD3", "progDisplay"],
+    ["hartm001PV2", "progVideo"],
+    ["hartm001SM1", "socialMedia"],
+    ["golf025OH12", "ooh"],
+    ["BOSS010RA4", "radio"],
+    ["BICAU002DD2", "digiDisplay"],
+    ["TheY001NP1", "newspaper"],
+    ["PGAAUS015BV1", "bvod"],
+    ["PENFOLD016PO3", "progOoh"],
+    ["BOSS011TV2", "television"],
+    ["curatif004DV1", "digiVideo"],
+    ["hartm013PROD1", "production"],
+    ["glenda006PB1", "progBvod"],
+    ["CHALLEN005IN1", "influencers"],
+    ["search-Google Ads - AM-maximize_conversions-0", "search"],
+    ["socialMedia-Meta-Medical and Beauty Professionals-0", "socialMedia"],
+    ["radio-Southern Cross Austereo-Triple M Melbourne 105.1-4", "radio"],
+    ["digiDisplay-Realestate.com.au-realestate.com.au-7", "digiDisplay"],
+    ["progVideo-YouTube - DV360-Details-1", "progVideo"],
+    ["totally-unknown-shape", "search"],
+  ]
+  for (const [id, expected] of cases) {
+    assert.equal(mediaTypeFromScheduleLineId(id), expected, id)
+  }
 })

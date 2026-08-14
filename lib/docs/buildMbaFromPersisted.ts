@@ -7,8 +7,10 @@ import { format, parseISO } from "date-fns"
 import { and, eq, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
+import { readMbaLineApprovals } from "@/lib/data/readApprovals"
 import { addGst } from "@/lib/finance/gst"
 import { isoMonthToScheduleMonthYear } from "@/lib/finance/computeCampaignFinancials"
+import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 import {
   centsToDollars,
   loadScheduleMonthRowsForVersions,
@@ -97,6 +99,80 @@ function rowInApprovedSlice(
   if (r.lineItemId.startsWith("__service__")) return true
   if (approvedIds.size > 0 && !approvedIds.has(r.lineItemId)) return false
   return true
+}
+
+export type MbaMediaBreakdownArgs = {
+  scheduleRows: ScheduleMonthRowInput[]
+  approvedIds: Set<string>
+  approvedMonths: Set<string> | null
+  unapprovedLineIds: Set<string>
+}
+
+export type MbaMediaBreakdown = {
+  grossMediaByType: Map<string, number>
+  billedMediaCents: number
+  clientPaidCents: number
+}
+
+/**
+ * MBA media table = billed approved-slice media + delivery-only (client-paid)
+ * lines. Billing schedule stays billed-only; this is approval-to-spend.
+ */
+export function computeMbaMediaBreakdown(
+  args: MbaMediaBreakdownArgs
+): MbaMediaBreakdown {
+  const { scheduleRows, approvedIds, approvedMonths, unapprovedLineIds } = args
+  const unapprovedCanon = new Set<string>()
+  for (const raw of unapprovedLineIds) {
+    const canon = toBillingOverrideLineItemId(raw)
+    if (canon) unapprovedCanon.add(canon)
+  }
+
+  const billedByType = new Map<string, number>()
+  let billedMediaCents = 0
+  for (const r of scheduleRows) {
+    if (r.basis !== "billing" || r.component !== "media") continue
+    if (!rowInApprovedSlice(r, approvedIds, approvedMonths)) continue
+    if (r.lineItemId.startsWith("__service__")) continue
+    const key = mediaTypeFromScheduleLineId(r.lineItemId) ?? "search"
+    if (key === "production") continue
+    const amt = Number(r.amountCents) || 0
+    billedByType.set(key, (billedByType.get(key) ?? 0) + amt)
+    billedMediaCents += amt
+  }
+
+  const hasBillingMedia = new Set<string>()
+  for (const r of scheduleRows) {
+    if (r.basis !== "billing" || r.component !== "media") continue
+    if (r.lineItemId.startsWith("__service__")) continue
+    const canon = toBillingOverrideLineItemId(r.lineItemId)
+    if (canon) hasBillingMedia.add(canon)
+  }
+
+  const clientPaidByType = new Map<string, number>()
+  let clientPaidCents = 0
+  for (const r of scheduleRows) {
+    if (r.basis !== "delivery" || r.component !== "media") continue
+    if (r.lineItemId.startsWith("__service__")) continue
+    const canon = toBillingOverrideLineItemId(r.lineItemId)
+    if (!canon) continue
+    if (hasBillingMedia.has(canon)) continue
+    if (unapprovedCanon.has(canon)) continue
+    const mk = monthKey(r.month)
+    if (approvedMonths && !approvedMonths.has(mk)) continue
+    const key = mediaTypeFromScheduleLineId(r.lineItemId) ?? "search"
+    if (key === "production") continue
+    const amt = Number(r.amountCents) || 0
+    clientPaidByType.set(key, (clientPaidByType.get(key) ?? 0) + amt)
+    clientPaidCents += amt
+  }
+
+  const grossMediaByType = new Map(billedByType)
+  for (const [key, amt] of clientPaidByType) {
+    grossMediaByType.set(key, (grossMediaByType.get(key) ?? 0) + amt)
+  }
+
+  return { grossMediaByType, billedMediaCents, clientPaidCents }
 }
 
 export type PersistedMbaRender = {
@@ -217,17 +293,28 @@ export async function buildMbaFromPersisted(args: {
   const approvedIds = sliceLineSet(approvedSlice)
   const approvedMonths = sliceMonthSet(approvedSlice)
 
-  const mediaByType = new Map<string, number>()
-  for (const r of scheduleRows) {
-    if (r.basis !== "billing" || r.component !== "media") continue
-    if (!rowInApprovedSlice(r, approvedIds, approvedMonths)) continue
-    if (r.lineItemId.startsWith("__service__")) continue
-    const key = mediaTypeFromScheduleLineId(r.lineItemId) ?? "search"
-    if (key === "production") continue
-    mediaByType.set(key, (mediaByType.get(key) ?? 0) + (Number(r.amountCents) || 0))
+  const approvals = await readMbaLineApprovals(
+    String(version.mbaNumber),
+    Number(version.versionNumber)
+  )
+  const unapprovedLineIds = new Set<string>()
+  if (approvals.ok) {
+    for (const line of approvals.lines) {
+      if (line.approved === false) {
+        const canon = toBillingOverrideLineItemId(line.line_item_id)
+        if (canon) unapprovedLineIds.add(canon)
+      }
+    }
   }
 
-  const gross_media = [...mediaByType.entries()]
+  const breakdown = computeMbaMediaBreakdown({
+    scheduleRows,
+    approvedIds,
+    approvedMonths,
+    unapprovedLineIds,
+  })
+
+  const gross_media = [...breakdown.grossMediaByType.entries()]
     .filter(([, cents]) => cents !== 0)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([key, cents]) => ({
@@ -248,7 +335,9 @@ export async function buildMbaFromPersisted(args: {
   const exGstCents =
     Number(approvedSlice.totalCents) ||
     mediaCents + feeCents + adservingCents + productionCents
-  const exGst = centsToDollars(exGstCents)
+  const billedExGst = centsToDollars(exGstCents)
+  const approvalExGst = centsToDollars(exGstCents + breakdown.clientPaidCents)
+  const clientPaidDollars = centsToDollars(breakdown.clientPaidCents)
 
   const monthTotals = new Map<string, number>()
   for (const r of scheduleRows) {
@@ -303,12 +392,19 @@ export async function buildMbaFromPersisted(args: {
     },
     gross_media,
     totals: {
-      gross_media: centsToDollars(mediaCents),
+      gross_media: centsToDollars(
+        breakdown.billedMediaCents + breakdown.clientPaidCents
+      ),
       service_fee: centsToDollars(feeCents),
       production: centsToDollars(productionCents),
       adserving: centsToDollars(adservingCents),
-      totals_ex_gst: exGst,
-      total_inc_gst: addGst(exGst),
+      totals_ex_gst: approvalExGst,
+      total_inc_gst: addGst(approvalExGst),
+      billing_ex_gst: billedExGst,
+      billing_inc_gst: addGst(billedExGst),
+      ...(breakdown.clientPaidCents > 0
+        ? { client_paid_media: clientPaidDollars }
+        : {}),
     },
     billingSchedule: finalBilling,
     checksumFooter: footer,
