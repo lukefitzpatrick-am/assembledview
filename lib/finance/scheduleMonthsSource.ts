@@ -191,7 +191,8 @@ function ensureLine(month: MonthAccum, lineItemId: string, mediaType: MediaCostK
   let line = month.lines.get(canonId)
   if (!line) {
     line = {
-      id: canonId,
+      // Canonical Map key for grouping; decorated input id for emitted identity.
+      id: lineItemId,
       mediaType,
       monthlyAmounts: {},
       feeMonthlyAmounts: {},
