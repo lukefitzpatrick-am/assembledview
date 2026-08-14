@@ -2,18 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import {
-  ArrowDown,
-  ArrowLeft,
-  ArrowUp,
-  CheckSquare,
-  ListTodo,
-  MessageSquare,
-  Plus,
-  Trash2,
-} from "lucide-react"
+import { CheckSquare, MessageSquare, Plus } from "lucide-react"
 import { formatDistanceToNow, isValid, parseISO } from "date-fns"
-import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -49,7 +39,13 @@ import {
   fetchClientsList,
 } from "@/lib/clients/fetchClientsList"
 import { getClientDisplayName } from "@/lib/clients/slug"
-import { cn } from "@/lib/utils"
+import {
+  applyChecklistToggle,
+  persistChecklistToggle,
+} from "@/lib/codex/checklistToggle"
+import type { MbaPlanRow } from "@/lib/codex/clientMbas"
+import { TaskChecklist } from "@/components/tasks/TaskChecklist"
+import { TaskMbaSelect } from "@/components/tasks/TaskMbaSelect"
 
 type ClientOption = {
   id: number
@@ -108,7 +104,7 @@ export function TaskDetailClient({ taskId }: Props) {
 
   const [titleDraft, setTitleDraft] = useState("")
   const [descriptionDraft, setDescriptionDraft] = useState("")
-  const [mbaDraft, setMbaDraft] = useState("")
+  const [mbaPlans, setMbaPlans] = useState<MbaPlanRow[]>([])
   const [newCheckLabel, setNewCheckLabel] = useState("")
   const [newComment, setNewComment] = useState("")
   const [savingField, setSavingField] = useState<string | null>(null)
@@ -147,7 +143,6 @@ export function TaskDetailClient({ taskId }: Props) {
       setTask(taskJson)
       setTitleDraft(taskJson.title ?? "")
       setDescriptionDraft(taskJson.description ?? "")
-      setMbaDraft(taskJson.mba_number ?? "")
 
       if (checkRes.ok) {
         const j = (await checkRes.json()) as { items?: ChecklistItem[] }
@@ -180,6 +175,41 @@ export function TaskDetailClient({ taskId }: Props) {
   useEffect(() => {
     void loadAll()
   }, [loadAll])
+
+  useEffect(() => {
+    const clientId = task?.client_id
+    if (clientId == null || !Number.isFinite(Number(clientId)) || Number(clientId) < 1) {
+      setMbaPlans([])
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/codex/client-mbas?client_id=${encodeURIComponent(String(clientId))}`,
+          { cache: "no-store" },
+        )
+        if (!res.ok || cancelled) return
+        const body = (await res.json()) as { mba_numbers?: unknown }
+        const numbers = Array.isArray(body.mba_numbers)
+          ? body.mba_numbers.filter((n): n is string => typeof n === "string")
+          : []
+        if (!cancelled) {
+          setMbaPlans(
+            numbers.map((mba_number) => ({
+              mba_number,
+              client_id: Number(clientId),
+            })),
+          )
+        }
+      } catch {
+        if (!cancelled) setMbaPlans([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [task?.client_id])
 
   const refreshActivity = useCallback(async () => {
     try {
@@ -247,13 +277,11 @@ export function TaskDetailClient({ taskId }: Props) {
         setTask(next)
         setTitleDraft(next.title ?? "")
         setDescriptionDraft(next.description ?? "")
-        setMbaDraft(next.mba_number ?? "")
         void refreshActivity()
       } catch (error) {
         setTask(previous)
         setTitleDraft(previous.title ?? "")
         setDescriptionDraft(previous.description ?? "")
-        setMbaDraft(previous.mba_number ?? "")
         toast({
           title: "Could not save",
           description:
@@ -294,13 +322,6 @@ export function TaskDetailClient({ taskId }: Props) {
     void patchTask({ description: next || null }, "description")
   }
 
-  const commitMba = () => {
-    if (!task) return
-    const next = mbaDraft.trim()
-    if ((task.mba_number ?? "") === next) return
-    void patchTask({ mba_number: next || null }, "mba")
-  }
-
   const addChecklistItem = async () => {
     const label = newCheckLabel.trim()
     if (!label) return
@@ -333,26 +354,17 @@ export function TaskDetailClient({ taskId }: Props) {
 
   const toggleCheck = async (item: ChecklistItem) => {
     const previous = checklist
-    const nextDone = !item.done
-    setChecklist((prev) =>
-      prev.map((c) => (c.id === item.id ? { ...c, done: nextDone } : c))
-    )
+    const applied = applyChecklistToggle(checklist, item.id)
+    if (!applied) return
+    setChecklist(applied.items)
     try {
-      const res = await fetch(
-        `/api/codex/tasks/${taskId}/checklist/${item.id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ done: nextDone }),
-        }
-      )
-      if (!res.ok) {
-        const body = await res.json().catch(() => null)
-        throw new Error(errorMessage(body, "Could not update item"))
-      }
-      const updated = (await res.json()) as ChecklistItem
+      const updated = await persistChecklistToggle({
+        taskId,
+        itemId: item.id,
+        done: applied.nextDone,
+      })
       setChecklist((prev) =>
-        prev.map((c) => (c.id === updated.id ? updated : c))
+        prev.map((c) => (c.id === updated.id ? updated : c)),
       )
       void refreshActivity()
     } catch (error) {
@@ -468,7 +480,7 @@ export function TaskDetailClient({ taskId }: Props) {
 
   if (loading) {
     return (
-      <div className="w-full max-w-3xl space-y-6 px-4 pb-12 pt-6 md:px-6">
+      <div className="space-y-6 px-6 py-6">
         <LoadingState rows={6} />
       </div>
     )
@@ -476,13 +488,7 @@ export function TaskDetailClient({ taskId }: Props) {
 
   if (loadError || !task) {
     return (
-      <div className="w-full max-w-3xl space-y-6 px-4 pb-12 pt-6 md:px-6">
-        <Button type="button" variant="ghost" asChild>
-          <Link href="/tasks">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Codex
-          </Link>
-        </Button>
+      <div className="space-y-6 px-6 py-6">
         <ErrorState
           title="Couldn't load task"
           message={loadError ?? "Not found"}
@@ -495,49 +501,41 @@ export function TaskDetailClient({ taskId }: Props) {
   const status = isTaskStatus(task.status) ? task.status : "todo"
   const priority = (task.priority as TaskPriority) || "normal"
   const category = isTaskCategory(task.category) ? task.category : "other"
+  const isComplete = status === "done"
 
   return (
-    <div className="w-full max-w-3xl space-y-8 px-4 pb-16 pt-0 md:px-6">
-      <MediaPlanEditorHero
-        className="mb-2 pt-6 md:pt-8"
-        title={
-          <span className="inline-flex flex-wrap items-center gap-2">
-            Codex
-            <Badge variant="secondary" size="sm">
-              shadow
-            </Badge>
-          </span>
-        }
-        Icon={ListTodo}
-        detail={<p>Task #{task.id}</p>}
-        actions={
-          <Button type="button" variant="outline" asChild>
-            <Link href="/tasks">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              All tasks
-            </Link>
-          </Button>
-        }
-      />
-
-      {/* Title */}
-      <div className="space-y-2">
-        <Label htmlFor="task-title" className="sr-only">
-          Title
-        </Label>
-        <Input
-          id="task-title"
-          value={titleDraft}
-          onChange={(e) => setTitleDraft(e.target.value)}
-          onBlur={commitTitle}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.currentTarget.blur()
-            }
-          }}
-          disabled={savingField === "title"}
-          className="h-auto border-0 bg-transparent px-0 text-2xl font-extrabold tracking-tight shadow-none focus-visible:ring-0"
-        />
+    <div className="flex min-h-0 flex-1 flex-col space-y-6 overflow-y-auto px-6 pb-10 pt-5">
+      <div className="mb-5 flex items-start gap-3 pr-8">
+        <div className="min-w-0 flex-1 space-y-1">
+          <Label htmlFor="task-title" className="sr-only">
+            Title
+          </Label>
+          <Input
+            id="task-title"
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onBlur={commitTitle}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.currentTarget.blur()
+              }
+            }}
+            disabled={savingField === "title"}
+            className="h-auto border-0 bg-transparent px-0 text-xl font-extrabold tracking-tight shadow-none focus-visible:ring-0"
+          />
+          <p className="text-xs text-muted-foreground">Task #{task.id}</p>
+        </div>
+        <Button
+          type="button"
+          variant={isComplete ? "outline" : "default"}
+          size="sm"
+          className="mt-1 shrink-0"
+          disabled={isComplete || savingField === "status"}
+          onClick={() => void patchTask({ status: "done" }, "status")}
+        >
+          <CheckSquare className="mr-1.5 h-4 w-4" aria-hidden />
+          {isComplete ? "Completed" : "Mark complete"}
+        </Button>
       </div>
 
       {/* Meta fields */}
@@ -666,7 +664,10 @@ export function TaskDetailClient({ taskId }: Props) {
           <Select
             value={String(task.client_id || "")}
             onValueChange={(v) =>
-              void patchTask({ client_id: Number(v) }, "client")
+              void patchTask(
+                { client_id: Number(v), mba_number: null },
+                "client",
+              )
             }
             disabled={savingField === "client"}
           >
@@ -683,27 +684,25 @@ export function TaskDetailClient({ taskId }: Props) {
           </Select>
         </div>
 
-        <div className="space-y-1.5 sm:col-span-2">
-          <Label htmlFor="task-mba">MBA number</Label>
-          <div className="flex max-w-md flex-wrap items-center gap-2">
-            <Input
-              id="task-mba"
-              value={mbaDraft}
-              onChange={(e) => setMbaDraft(e.target.value)}
-              onBlur={commitMba}
-              disabled={savingField === "mba"}
-              className="num max-w-xs"
-            />
-            {task.mba_number?.trim() ? (
-              <Link
-                href={`/mediaplans/mba/${encodeURIComponent(task.mba_number.trim())}/edit`}
-                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-              >
-                Open campaign
-              </Link>
-            ) : null}
-          </div>
-          <p className="text-xs text-muted-foreground">
+        <div className="sm:col-span-2">
+          <TaskMbaSelect
+            clientId={task.client_id > 0 ? task.client_id : null}
+            value={task.mba_number ?? ""}
+            plans={mbaPlans}
+            disabled={savingField === "mba" || savingField === "client"}
+            onChange={(mbaNumber) =>
+              void patchTask({ mba_number: mbaNumber }, "mba")
+            }
+          />
+          {task.mba_number?.trim() ? (
+            <Link
+              href={`/mediaplans/mba/${encodeURIComponent(task.mba_number.trim())}/edit`}
+              className="mt-1.5 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline"
+            >
+              Open campaign
+            </Link>
+          ) : null}
+          <p className="mt-1 text-xs text-muted-foreground">
             One-way link into the media plan — campaign pages do not link back
             here.
           </p>
@@ -736,64 +735,12 @@ export function TaskDetailClient({ taskId }: Props) {
             {checklistProgress.done} of {checklistProgress.total}
           </span>
         </div>
-        <ul className="space-y-2">
-          {checklist.map((item, index) => (
-            <li
-              key={item.id}
-              className="flex items-start gap-2 rounded-input border border-border/60 px-2 py-1.5"
-            >
-              <input
-                type="checkbox"
-                checked={item.done}
-                onChange={() => void toggleCheck(item)}
-                className="mt-1 h-4 w-4 accent-primary"
-                aria-label={item.label}
-              />
-              <span
-                className={cn(
-                  "min-w-0 flex-1 text-sm",
-                  item.done && "text-muted-foreground line-through"
-                )}
-              >
-                {item.label}
-              </span>
-              <div className="flex shrink-0 gap-0.5">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  disabled={index === 0}
-                  onClick={() => void moveCheck(item.id, -1)}
-                  aria-label="Move up"
-                >
-                  <ArrowUp className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  disabled={index === checklist.length - 1}
-                  onClick={() => void moveCheck(item.id, 1)}
-                  aria-label="Move down"
-                >
-                  <ArrowDown className="h-3.5 w-3.5" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 text-destructive"
-                  onClick={() => void deleteCheck(item)}
-                  aria-label="Delete"
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </li>
-          ))}
-        </ul>
+        <TaskChecklist
+          items={checklist}
+          onToggle={(item) => void toggleCheck(item)}
+          onDelete={(item) => void deleteCheck(item)}
+          onMove={(itemId, direction) => void moveCheck(itemId, direction)}
+        />
         <div className="flex gap-2">
           <Input
             value={newCheckLabel}

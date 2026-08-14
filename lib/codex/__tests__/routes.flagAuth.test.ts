@@ -116,6 +116,11 @@ if (supportsMockModule()) {
       reorderTemplateItems: async () => null,
     },
   })
+  await mock.module!("@/lib/data/readMediaPlans", {
+    namedExports: {
+      readPlanMasters: async () => [],
+    },
+  })
   await mock.module!("@/lib/myhours/timeSummary", {
     namedExports: {
       getMbaTimeSummary: async () => ({
@@ -238,6 +243,9 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
   const taskCounts = await import(
     "../../../app/api/codex/tasks/counts/route.js"
   )
+  const clientMbas = await import(
+    "../../../app/api/codex/client-mbas/route.js"
+  )
   const team = await import("../../../app/api/codex/team/route.js")
   const teamById = await import("../../../app/api/codex/team/[id]/route.js")
   const notes = await import("../../../app/api/codex/client_notes/route.js")
@@ -292,6 +300,13 @@ async function loadRouteCallers(): Promise<RouteCaller[]> {
       invoke: () =>
         taskCounts.GET(
           new Request("http://localhost/api/codex/tasks/counts?mba=TEST001")
+        ),
+    },
+    {
+      label: "GET /api/codex/client-mbas",
+      invoke: () =>
+        clientMbas.GET(
+          new Request("http://localhost/api/codex/client-mbas?client_id=1")
         ),
     },
     {
@@ -584,7 +599,7 @@ test(
   { skip },
   async () => {
     const callers = await loadRouteCallers()
-    assert.equal(callers.length, 34)
+    assert.equal(callers.length, 35)
 
     for (const route of callers) {
       // Flag off: deliberately 404 (not 403). Hidden feature must not confirm it exists.

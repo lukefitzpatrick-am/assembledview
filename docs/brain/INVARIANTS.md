@@ -155,6 +155,7 @@ pct === 100 → fee = 0 (division guard)
 - Codex `appendActivity` takes `actorKind?: CodexActorKind` (default `user`) — AVA/system writers must pass their kind; do not hardcode `"user"` again.
 - Codex `tasks.category` has no DB CHECK — enforce `TASK_CATEGORIES` in the app on create/PATCH and UI (`reporting | pacing | creative | finance | admin | meeting_followup | other`).
 - Codex `tasks.recurring_rule` is boring text (`monthly:<day>` / `weekly:<dow>` / `monthly:lbd`) — Sydney civil calendar only; no cron parser. Generation is idempotent on `(template_id, client_id, period)` via `[codex-period:…]` description marker (`lib/codex/recurringRule.ts`, `/api/cron/codex-recurring`).
+- Codex task detail is a right slide-over over the task list; `/tasks/[id]` renders the list with the panel open (pasteable URL). Esc / overlay click closes to `/tasks`. MBA on a task is a dropdown of that client's MBA numbers (descending string identity); one-way link into `/mediaplans/mba/[mba]/edit` — campaign pages never link back to Codex.
 - AVA tool `fy` = Australian FY **ending** year (`lib/ava/tools/fyToRange.ts`); finance sections `fyMonthRange` stays start-year. Do not conflate.
 - Client hub with no params = current AU FY (`lib/dashboard/clientDateRange.ts`, Jul–Jun). Not all-time. Legacy `?fy=` still translates.
 - Client-hub donuts/stack are planned delivery-schedule-month media via `normalizeDeliveryEntryMediaBreakdown`; captions are `spendInsightsCaption`, not campaign `MEDIA_MIX_DONUT_BASIS_CAPTION`.

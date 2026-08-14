@@ -16,6 +16,7 @@ import { matchText } from "@/lib/search/matchText"
 import { useUser } from "@/components/AuthWrapper"
 import { TaskBoard } from "@/components/tasks/TaskBoard"
 import { TaskBulkBar } from "@/components/tasks/TaskBulkBar"
+import { TaskDetailSlideOver } from "@/components/tasks/TaskDetailSlideOver"
 import { TaskFormDialog } from "@/components/tasks/TaskFormDialog"
 import { TeamMemberFormDialog } from "@/components/tasks/TeamMemberFormDialog"
 import { TemplateFormDialog } from "@/components/tasks/TemplateFormDialog"
@@ -159,7 +160,11 @@ function toApiSort(sort: string): string {
   return "due_date_asc"
 }
 
-export function TasksPageClient() {
+export function TasksPageClient({
+  overlayTaskId = null,
+}: {
+  overlayTaskId?: number | null
+}) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
@@ -1365,6 +1370,13 @@ export function TasksPageClient() {
     router.push(`/tasks/${encodeURIComponent(String(task.id))}`)
   }
 
+  const closeTaskPanel = () => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("task")
+    const q = params.toString()
+    router.push(q ? `/tasks?${q}` : "/tasks")
+  }
+
   const openCreateMember = () => {
     setEditingMember(null)
     setTeamDialogOpen(true)
@@ -2321,6 +2333,11 @@ export function TasksPageClient() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <TaskDetailSlideOver
+        open={overlayTaskId != null}
+        taskId={overlayTaskId}
+        onClose={closeTaskPanel}
+      />
     </div>
   )
 }

@@ -35,6 +35,8 @@ export default defineConfig({
       "lib/api/dashboard/__tests__/client.test.ts",
       "lib/pacing/__tests__/statusUi.test.ts",
       "components/pacing/__tests__/PacingStatusSummary.test.tsx",
+      "components/tasks/__tests__/TaskMbaSelect.render.test.tsx",
+      "components/tasks/__tests__/TaskChecklist.render.test.tsx",
       "components/dashboard/__tests__/SpendingInsightsSection.render.test.tsx",
       "components/dashboard/delivery/__tests__/ChannelSection.render.test.tsx",
       "hooks/__tests__/usePlanDraftSession.test.tsx",

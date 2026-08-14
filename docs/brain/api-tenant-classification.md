@@ -154,6 +154,7 @@ Existing `/api/admin/*` handlers in this recount: **25** methods across **21** f
 | DELETE | `/api/codex/tasks/[id]/comments/[commentId]` | admin-only | requireRole | `app/api/codex/tasks/[id]/comments/[commentId]/route.ts` |
 | POST | `/api/codex/tasks/[id]/dismiss-auto` | admin-only | requireRole | `app/api/codex/tasks/[id]/dismiss-auto/route.ts` |
 | GET | `/api/codex/tasks/counts` | admin-only | requireRole | `app/api/codex/tasks/counts/route.ts` |
+| GET | `/api/codex/client-mbas` | admin-only | requireRole | `app/api/codex/client-mbas/route.ts` |
 | GET | `/api/codex/team` | admin-only | requireRole | `app/api/codex/team/route.ts` |
 | POST | `/api/codex/team` | admin-only | requireRole | `app/api/codex/team/route.ts` |
 | PATCH | `/api/codex/team/[id]` | admin-only | requireRole | `app/api/codex/team/[id]/route.ts` |

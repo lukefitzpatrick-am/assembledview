@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { TaskDetailClient } from "@/components/tasks/TaskDetailClient"
+import { TasksPageClient } from "../TasksPageClient"
 import { EmptyState } from "@/components/ui/states"
 import { Badge } from "@/components/ui/badge"
 import { isCodexV2Enabled } from "@/lib/codex/flag"
@@ -34,13 +34,8 @@ export default async function TaskDetailPage({ params }: PageProps) {
 
   const { id: idRaw } = await params
   const taskId = Number(idRaw)
-  if (!Number.isFinite(taskId) || taskId < 1) {
-    return (
-      <div className="w-full max-w-3xl space-y-6 px-4 pb-12 pt-6 md:px-6">
-        <EmptyState title="Invalid task" message="Task id must be a positive number." />
-      </div>
-    )
-  }
+  const overlayTaskId =
+    Number.isFinite(taskId) && taskId >= 1 ? taskId : null
 
   return (
     <Suspense
@@ -50,11 +45,11 @@ export default async function TaskDetailPage({ params }: PageProps) {
             <div className="absolute inset-0 rounded-full border-2 border-muted" />
             <div className="absolute inset-0 rounded-full border-2 border-t-primary animate-spin" />
           </div>
-          <span className="text-sm text-muted-foreground">Loading task…</span>
+          <span className="text-sm text-muted-foreground">Loading Codex…</span>
         </div>
       }
     >
-      <TaskDetailClient taskId={taskId} />
+      <TasksPageClient overlayTaskId={overlayTaskId} />
     </Suspense>
   )
 }

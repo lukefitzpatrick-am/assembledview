@@ -19,6 +19,10 @@ export interface SlideOverProps {
   children: ReactNode
   /** Applied to the sheet panel (e.g. max width). */
   contentClassName?: string
+  /** Applied to the dim overlay so the page behind can stay readable. */
+  overlayClassName?: string
+  /** Hide the visible title row. `title` stays as the accessible name. */
+  hideHeader?: boolean
 }
 
 export function SlideOver({
@@ -28,17 +32,26 @@ export function SlideOver({
   description,
   children,
   contentClassName,
+  overlayClassName,
+  hideHeader,
 }: SlideOverProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
+        overlayClassName={overlayClassName}
         className={cn(
           "flex h-full w-full min-h-0 flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl",
           contentClassName
         )}
       >
-        <SheetHeader className="shrink-0 border-b border-border/70 px-6 py-5 text-left">
+        <SheetHeader
+          className={
+            hideHeader
+              ? "sr-only"
+              : "shrink-0 border-b border-border/70 px-6 py-5 text-left"
+          }
+        >
           <SheetTitle>{title}</SheetTitle>
           {description ? <SheetDescription>{description}</SheetDescription> : null}
         </SheetHeader>
