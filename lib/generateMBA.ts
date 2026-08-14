@@ -33,6 +33,9 @@ export interface MBAData {
     adserving: number;
     totals_ex_gst: number;
     total_inc_gst: number;
+    client_paid_media?: number;
+    billing_ex_gst?: number;
+    billing_inc_gst?: number;
   };
   billingSchedule: { monthYear: string; totalAmount: string }[];
   /** PC3 checksum footer: `v{n} · {hash8}` — drawn on every page. */
@@ -190,6 +193,14 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
   doc.setFont("helvetica", "normal");
   doc.text(formatAUD(mbaData.totals.gross_media), valueX, y, { align: 'right' });
   y += lineHeight;
+
+  if (mbaData.totals.client_paid_media != null) {
+    doc.setFont("helvetica", "bold");
+    doc.text('Client Paid Media:', totalsX, y, { align: 'right' });
+    doc.setFont("helvetica", "normal");
+    doc.text(formatAUD(mbaData.totals.client_paid_media), valueX, y, { align: 'right' });
+    y += lineHeight;
+  }
   
   doc.setFont("helvetica", "bold");
   doc.text('Service Fee:', totalsX, y, { align: 'right' });
@@ -278,13 +289,23 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
   doc.setFont("helvetica", "bold");
   doc.text('Total (ex. GST):', billingTotalsX, y, { align: 'right' });
   doc.setFont("helvetica", "normal");
-  doc.text(formatAUD(mbaData.totals.totals_ex_gst), billingValueX, y, { align: 'right' });
+  doc.text(
+    formatAUD(mbaData.totals.billing_ex_gst ?? mbaData.totals.totals_ex_gst),
+    billingValueX,
+    y,
+    { align: 'right' }
+  );
   y += lineHeight;
 
   doc.setFont("helvetica", "bold");
   doc.text('Total (inc. GST):', billingTotalsX, y, { align: 'right' });
   doc.setFont("helvetica", "normal");
-  doc.text(formatAUD(mbaData.totals.total_inc_gst), billingValueX, y, { align: 'right' });
+  doc.text(
+    formatAUD(mbaData.totals.billing_inc_gst ?? mbaData.totals.total_inc_gst),
+    billingValueX,
+    y,
+    { align: 'right' }
+  );
 
   // PC3: checksum footer on every page.
   const pageCount = doc.getNumberOfPages();

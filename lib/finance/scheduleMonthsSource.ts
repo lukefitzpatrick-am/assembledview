@@ -26,6 +26,7 @@ import {
 import { getBillingSchedule, getDeliverySchedule } from "@/lib/finance/normalizeFields"
 import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
 import { roundMoney2 } from "@/lib/format/money"
+import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import type { ScheduleBasis, ScheduleComponent } from "@/scripts/migration/_scheduleTransform"
 
 export type FinanceScheduleBackend = "blob" | "shadow" | "rows"
@@ -134,16 +135,46 @@ function monthDateToKey(month: string): string | null {
 }
 
 /**
- * Infer schedule media-type bucket from line_item_id (`billing-{type}::…`).
- * Unknown token → search as schedule placement only (fee resolution is C-9 elsewhere).
+ * Infer schedule media-type bucket from line_item_id.
+ * Handles decorated `billing-{type}::…`, legacy `{mediaCostKey}-…` ETL ids,
+ * and bare `{mba}{CODE}{n}` deterministic ids. Unknown token → search as
+ * schedule placement only (fee resolution is C-9 elsewhere).
  */
+const ID_CODE_KEY_TO_COST_KEY: Record<string, string> = {
+  digitalDisplay: "digiDisplay",
+  digitalAudio: "digiAudio",
+  digitalVideo: "digiVideo",
+  progBVOD: "progBvod",
+  progOOH: "progOoh",
+}
+
 export function mediaTypeFromScheduleLineId(lineItemId: string): MediaCostKey | null {
   const id = String(lineItemId ?? "").trim()
   if (!id || id.startsWith("__service__")) return null
+  // 1) decorated billing-{type}::… (existing behaviour, unchanged)
   const m = /^billing-([A-Za-z0-9_]+)::/.exec(id)
-  if (!m) return "search"
-  const key = m[1]!
-  if ((MEDIA_COST_KEYS as readonly string[]).includes(key)) return key as MediaCostKey
+  if (m) {
+    const key = m[1]!
+    if ((MEDIA_COST_KEYS as readonly string[]).includes(key)) return key as MediaCostKey
+    return "search"
+  }
+  // 2) legacy ETL shape: {mediaCostKey}-… prefix
+  const dash = id.indexOf("-")
+  if (dash > 0) {
+    const prefix = id.slice(0, dash).toLowerCase()
+    const hit = MEDIA_COST_KEYS.find((k) => k.toLowerCase() === prefix)
+    if (hit) return hit
+  }
+  // 3) bare deterministic id: {mba}{CODE}{n} — decode via MEDIA_TYPE_ID_CODES,
+  //    longest code first (PROD before PO/PA/PB; PO before OH-style tails)
+  for (const [codeKey, code] of (Object.entries(MEDIA_TYPE_ID_CODES) as Array<[string, string]>)
+    .sort((a, b) => b[1].length - a[1].length)) {
+    if (new RegExp(`${code}\\d+$`, "i").test(id)) {
+      const mapped = ID_CODE_KEY_TO_COST_KEY[codeKey] ?? codeKey
+      if ((MEDIA_COST_KEYS as readonly string[]).includes(mapped)) return mapped as MediaCostKey
+    }
+  }
+  // 4) unknown → search (unchanged default)
   return "search"
 }
 
@@ -191,7 +222,8 @@ function ensureLine(month: MonthAccum, lineItemId: string, mediaType: MediaCostK
   let line = month.lines.get(canonId)
   if (!line) {
     line = {
-      id: canonId,
+      // Canonical Map key for grouping; decorated input id for emitted identity.
+      id: lineItemId,
       mediaType,
       monthlyAmounts: {},
       feeMonthlyAmounts: {},
