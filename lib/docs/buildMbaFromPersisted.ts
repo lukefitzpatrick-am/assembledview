@@ -428,7 +428,7 @@ export async function buildMbaFromPersisted(args: {
     filename,
     versionId: version.id,
     versionNumber,
-    campaignStatus: gateStatus,
+    campaignStatus: String(version.campaignStatus ?? ""),
     sliceSource,
   }
 }
