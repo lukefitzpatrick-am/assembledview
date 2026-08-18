@@ -12,7 +12,10 @@ const CHANNEL_KEYS: ChannelKey[] = [
   "search",
   "programmatic-display",
   "programmatic-video",
-  "ad-serving",
+  "digital-display",
+  "digital-video",
+  "digital-audio",
+  "bvod",
 ]
 
 describe("channelMediaTypeColour", () => {
@@ -45,7 +48,10 @@ describe("channelMediaTypeColour", () => {
       social: channelMediaTypeColour("social-meta"),
       progDisplay: channelMediaTypeColour("programmatic-display"),
       progVideo: channelMediaTypeColour("programmatic-video"),
-      adServing: channelMediaTypeColour("ad-serving"),
+      digitalDisplay: channelMediaTypeColour("digital-display"),
+      digitalVideo: channelMediaTypeColour("digital-video"),
+      digitalAudio: channelMediaTypeColour("digital-audio"),
+      bvod: channelMediaTypeColour("bvod"),
     }
 
     // Meta + TikTok share social_media by design (same media type)
@@ -54,11 +60,16 @@ describe("channelMediaTypeColour", () => {
     const distinct = new Set(Object.values(colours))
     assert.equal(
       distinct.size,
-      5,
-      `expected 5 distinct media-type hexes, got ${JSON.stringify(colours)}`,
+      8,
+      `expected 8 distinct media-type hexes, got ${JSON.stringify(colours)}`,
     )
 
     assert.notEqual(colours.progDisplay, colours.progVideo)
+    assert.notEqual(colours.digitalDisplay, colours.progDisplay)
+    assert.equal(colours.digitalDisplay, getMediaColor("digital_display"))
+    assert.equal(colours.digitalVideo, getMediaColor("digital_video"))
+    assert.equal(colours.digitalAudio, getMediaColor("digital_audio"))
+    assert.equal(colours.bvod, getMediaColor("bvod"))
     // Regression: bare "programmatic" must not be what display/video resolve to
     const badProgrammatic = getMediaColor("programmatic")
     assert.notEqual(colours.progDisplay, badProgrammatic)

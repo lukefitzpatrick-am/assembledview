@@ -16,7 +16,10 @@ const CHANNEL_KEYS: ChannelKey[] = [
   "search",
   "programmatic-display",
   "programmatic-video",
-  "ad-serving",
+  "digital-display",
+  "digital-video",
+  "digital-audio",
+  "bvod",
 ]
 
 function norm(hex: string): string {

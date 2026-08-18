@@ -111,7 +111,7 @@ pct === 100 → fee = 0 (division guard)
 
 ## Pacing law
 
-- **ZERO-$ LAW (ad-serving / CM360):** delivery counts only. Never run `computePacing`/`computeStatus`, never surface spend/budget/variance, never treat spend=0 as `no_delivery`, exclude from $ rollups. Status vocabulary is only `serving | no-data`.
+- **ZERO-$ LAW (ad-serving / CM360):** delivery counts only. Never run `computePacing`/`computeStatus`, never surface spend/budget/variance, never treat spend=0 as `no_delivery`, exclude from $ rollups. Status vocabulary is only `serving | no-data`. Delivery `ChannelKey` for this family is Direct Booked Digital: `digital-display` | `digital-video` | `digital-audio` | `bvod` (not `ad-serving`).
 - **Publisher Hub spend** (`getPublisherDashboardData` → `lineItemMatchesPublisher`): empty/whitespace `header1` is absent (`header1 || publisher || publisherid`), never `header1 ?? publisher`. Prefer the line's numeric `publisher_id` / ingest `publisher_profiles.publisher_id` (0036) over catalogue display name. Short stamps (QMS / JCDecaux / SCA / SEN) join via `resolveCatalogueIdForProfileName`.
 - The `PacingStatus` ladder order mirrors Snowflake `V_LINE_ITEM_PACING` — do not reorder. Bands: ±5% on track, ±15%.
 - Direct pacing: `REPORTED_SPEND` (finance-smoothed) and `ACTUAL_PLATFORM_SPEND` are different ledgers — never mix into one KPI. Direct's status vocab doesn't map 1:1 to ahead/behind pills.

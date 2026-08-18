@@ -10,6 +10,10 @@ export const ROLLUP_SAFE_CHANNEL_KEYS: Set<ChannelKey> = new Set([
   "social-meta",
   "social-tiktok",
 ])
+// Direct Booked Digital keys stay out of this set. Within one media type the
+// buy types can still differ (CPM and CPC in the same container), so a
+// container roll-up would sum impressions and clicks into one number —
+// finding C-37. Revisiting that is a separate decision.
 
 /**
  * Whether ChannelSection should render the channel aggregate block
