@@ -59,6 +59,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | `fetchDirectPacingRows` / `direct/types` | `/pacing/direct`, Overview, ops digest, AND the client dashboard's "delivered" money (`lib/delivery/deliveredTotals`) |
 | `slugifyPlanClientName` | Auth scoping in every pacing route; note it is a DIFFERENT slugifier from `lib/clients/slug` — both sides of the auth→plan join |
 | Orphan assign | UPDATEs `MART.SEARCH_PACING_FACT` directly (no mapping table) — reverted by any warehouse full refresh |
+| Splitting/renaming a delivery `ChannelKey` | `types.ts`, `getChannelIcon`, `channelMediaTypeColour`, `shouldShowChannelAggregate`, the adapter, `CampaignDeliverySection`, `CampaignPageAssembly`, `page.tsx`, `DeliveryDataProvider`, `loadDeliverySnapshot` group strings, and the two group-string consumers (`assembleCampaignReportData` `CHANNEL_LABELS`, `getPacingSnapshot`). This is **not** the "Adding a channel" row — media-plan registry maps are untouched. |
 
 ### Dashboards
 | Touch | Also check |
