@@ -32,6 +32,7 @@ export function isExpectedDocGateSkipError(message: unknown): boolean {
   return (
     /approved-or-beyond/i.test(m) ||
     /past Draft/i.test(m) ||
+    /approved_slice missing/i.test(m) ||
     /Document render requires/i.test(m) ||
     /Document download requires/i.test(m)
   )

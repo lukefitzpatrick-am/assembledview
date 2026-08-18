@@ -47,7 +47,10 @@ export async function GET(
       return NextResponse.json({ error: "Version not found" }, { status: 404 })
     }
     const liveCampaignStatus = new URL(request.url).searchParams.get("campaign_status")
-    const gateStatus = liveCampaignStatus ?? version.campaignStatus
+    const gateStatus =
+      liveCampaignStatus != null && liveCampaignStatus.trim() !== ""
+        ? liveCampaignStatus
+        : String(version.campaignStatus ?? "")
     if (!isDownloadableCampaignStatus(gateStatus)) {
       return NextResponse.json(
         {

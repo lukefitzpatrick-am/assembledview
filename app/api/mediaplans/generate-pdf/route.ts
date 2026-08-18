@@ -77,7 +77,10 @@ export async function POST(request: NextRequest) {
     }
     const liveCampaignStatus =
       raw.campaign_status == null ? null : String(raw.campaign_status)
-    const gateStatus = liveCampaignStatus ?? version.campaignStatus
+    const gateStatus =
+      liveCampaignStatus != null && liveCampaignStatus.trim() !== ""
+        ? liveCampaignStatus
+        : String(version.campaignStatus ?? "")
     if (!isDownloadableCampaignStatus(gateStatus)) {
       return NextResponse.json(
         {

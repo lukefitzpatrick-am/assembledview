@@ -432,7 +432,8 @@ async function assertVersionOwnedByMba(
 
 /**
  * MB-15c — published versions are immutable to billing writers.
- * Same approved-or-beyond predicate as MBA generate (`isApprovedOrBeyond`).
+ * Billing-mutability predicate (`isApprovedOrBeyond`). Document generate/download
+ * uses `isDownloadableCampaignStatus` — do not merge the two.
  */
 async function assertVersionBillingMutable(
   versionId: number,
