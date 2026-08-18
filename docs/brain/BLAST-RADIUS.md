@@ -60,6 +60,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | `slugifyPlanClientName` | Auth scoping in every pacing route; note it is a DIFFERENT slugifier from `lib/clients/slug` — both sides of the auth→plan join |
 | Orphan assign | UPDATEs `MART.SEARCH_PACING_FACT` directly (no mapping table) — reverted by any warehouse full refresh |
 | Splitting/renaming a delivery `ChannelKey` | `types.ts`, `getChannelIcon`, `channelMediaTypeColour`, `shouldShowChannelAggregate`, the adapter, `CampaignDeliverySection`, `CampaignPageAssembly`, `page.tsx`, `DeliveryDataProvider`, `loadDeliverySnapshot` group strings, and the two group-string consumers (`assembleCampaignReportData` `CHANNEL_LABELS`, `getPacingSnapshot`). This is **not** the "Adding a channel" row — media-plan registry maps are untouched. |
+| `DeliveryDailyChart` / `DeliveryDailyChartSeries.format` | Optional per-series ComboChart format. Bars default `dollars`, lines default `number` — every existing caller relies on those defaults. Direct Booked Digital passes `number` / `percent`. Changing a default silently reformats every dual-axis delivery chart that omits `format`. |
 
 ### Dashboards
 | Touch | Also check |
