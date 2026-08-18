@@ -12,7 +12,9 @@ export const maxDuration = 60
 
 /**
  * PC3 — MBA PDF from persisted schedule_months + approved_slice + fee snapshot.
- * Body: { mba_number, version_number } ONLY. Admin/manager. Published version (`published_at`).
+ * Missing approved_slice is derived at read time (never written). Body:
+ * { mba_number, version_number } ONLY (campaign_status may be posted and is ignored).
+ * Admin/manager. Published version (`published_at`).
  */
 export async function POST(req: NextRequest) {
   const gate = await requireRole(req, ["admin"])
@@ -31,7 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     const raw = body as Record<string, unknown>
-    const allowed = new Set(["mba_number", "version_number", "mbanumber"])
+    const allowed = new Set(["mba_number", "version_number", "mbanumber", "campaign_status"])
     const extra = Object.keys(raw).filter((k) => !allowed.has(k))
     if (extra.length > 0) {
       return NextResponse.json(
@@ -63,6 +65,7 @@ export async function POST(req: NextRequest) {
         "Content-Disposition": `attachment; filename="${rendered.filename}"`,
         "X-Snapshot-Checksum": rendered.checksumHex,
         "X-Snapshot-Footer": rendered.footer,
+        "X-Slice-Source": rendered.sliceSource,
       },
     })
   } catch (error) {
