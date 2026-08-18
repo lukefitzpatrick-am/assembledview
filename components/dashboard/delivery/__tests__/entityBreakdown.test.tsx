@@ -104,6 +104,12 @@ describe("EntityBreakdownTable columns", () => {
     assert.match(html, />Clicks</)
     assert.match(html, />CTR</)
     assert.match(html, />Video completions</)
+    assert.match(html, />Completion rate</)
+    assert.match(html, /8\.00%/)
+    assert.match(
+      html,
+      /Impressions, clicks, CTR, video completions and completion rate only/,
+    )
     assert.equal(html.includes(">Spend<"), false)
     assert.equal(html.includes(">CPC<"), false)
     assert.equal(html.includes("$"), false)
@@ -134,6 +140,7 @@ describe("EntityBreakdownTable columns", () => {
       /Ad group delivery actuals for this search line item\. Spend, clicks, impressions, CPC and CTR only/,
     )
     assert.equal(html.includes(">Video completions<"), false)
+    assert.equal(html.includes(">Completion rate<"), false)
     assert.equal(html.includes(">Placement<"), false)
   })
 })
