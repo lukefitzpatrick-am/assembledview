@@ -31,6 +31,7 @@ import { getPacingWindow } from "@/lib/pacing/pacingWindow"
 import type { ProgressCardProps } from "../shared/ProgressCard"
 import type { KpiTileProps } from "../shared/KpiTile"
 import type { LineItemBlockProps } from "../shared/LineItemBlock"
+import type { EntityBreakdownRow } from "../shared/EntityBreakdownTable"
 import type { ChannelKey, ChannelSectionData } from "./types"
 import type { DeliveryStatus } from "../shared/statusColours"
 import { aggregateDailyRows } from "./aggregateDaily"
@@ -77,6 +78,82 @@ function ratioTargetPercentPoints(raw: number | null | undefined): number | unde
 
 function burstsForLineItem(lineItem: SocialLineItem): unknown {
   return lineItem.bursts_json ?? lineItem.bursts ?? null
+}
+
+function cleanLineId(v: unknown): string | null {
+  const s = String(v ?? "").trim().toLowerCase()
+  if (!s || s === "undefined" || s === "null") return null
+  return s
+}
+
+export function socialBreakdownNoun(platform: "meta" | "tiktok"): {
+  singular: string
+  plural: string
+} {
+  return platform === "meta"
+    ? { singular: "ad set", plural: "ad sets" }
+    : { singular: "ad group", plural: "ad groups" }
+}
+
+type AdSetFactRow = {
+  entityId?: string | null
+  entityName?: string | null
+  amountSpent?: number
+  impressions?: number
+  clicks?: number
+}
+
+/** Group social fact rows by ad-set/ad-group entityId. Blank ids are dropped, not "unknown". */
+export function groupPacingRowsByAdSet(rows: AdSetFactRow[]): EntityBreakdownRow[] {
+  type Acc = {
+    id: string
+    name: string
+    spend: number
+    impressions: number
+    clicks: number
+  }
+  const byId = new Map<string, Acc>()
+  for (const row of rows) {
+    const rawId = String(row.entityId ?? "").trim()
+    const id = rawId.toLowerCase()
+    if (!id) continue
+    const nextName = String(row.entityName ?? "").trim()
+    const existing = byId.get(id)
+    const spend = Number(row.amountSpent ?? 0) || 0
+    const impressions = Number(row.impressions ?? 0) || 0
+    const clicks = Number(row.clicks ?? 0) || 0
+    if (!existing) {
+      byId.set(id, { id, name: nextName, spend, impressions, clicks })
+    } else {
+      existing.spend += spend
+      existing.impressions += impressions
+      existing.clicks += clicks
+      if (!existing.name && nextName) existing.name = nextName
+    }
+  }
+  return [...byId.values()].map((acc) => ({
+    id: acc.id,
+    name: acc.name || acc.id,
+    spend: acc.spend,
+    impressions: acc.impressions,
+    clicks: acc.clicks,
+  }))
+}
+
+/** Undefined when every matched row lacks entityId — caller must not pass an empty table. */
+export function socialEntityBreakdownProps(
+  platform: "meta" | "tiktok",
+  matchedRows: AdSetFactRow[],
+  knownPlanLineIds: string[],
+): LineItemBlockProps["entityBreakdown"] | undefined {
+  const rows = groupPacingRowsByAdSet(matchedRows)
+  if (rows.length === 0) return undefined
+  return {
+    rows,
+    knownPlanLineIds,
+    entityNoun: socialBreakdownNoun(platform),
+    columns: "spend",
+  }
 }
 
 function buildKpiTiles(input: {
@@ -337,6 +414,10 @@ export function buildSocialChannelSectionForPlatform(input: {
     activeItems,
   })
 
+  const knownPlanLineIds = activeItems
+    .map((item) => String(item.line_item_id ?? "").trim())
+    .filter(Boolean)
+
   const accordionItems = metrics.map((m) => {
     const liKpis = summarizeActuals(m.actualsDaily)
     const videoLi = /\bvideo\b/i.test(String(m.lineItem.buy_type ?? ""))
@@ -346,6 +427,12 @@ export function buildSocialChannelSectionForPlatform(input: {
       m.booked.deliverables > 0 && m.pacing.deliverable
         ? Math.max(0, Math.min(1, m.pacing.deliverable.actualToDate / m.booked.deliverables))
         : 0
+
+    const lineId = cleanLineId(m.lineItem.line_item_id)
+    const matchedFacts = lineId
+      ? platformSnowflake.filter((r) => cleanLineId(r.lineItemId) === lineId)
+      : []
+    const entityBreakdown = socialEntityBreakdownProps(platform, matchedFacts, knownPlanLineIds)
 
     const block: LineItemBlockProps = {
       name: formatLineItemHeader(m.lineItem),
@@ -399,6 +486,7 @@ export function buildSocialChannelSectionForPlatform(input: {
         asAtDate: m.pacing.asAtDate,
         brandColour,
       },
+      ...(entityBreakdown ? { entityBreakdown } : {}),
     }
 
     return {
