@@ -2924,6 +2924,7 @@ function CreateMediaPlan() {
       body: JSON.stringify({
         mba_number: fv.mba_number,
         version_number: Number(resolvedPlanVersion),
+        campaign_status: fv.mp_campaignstatus ?? null,
       }),
     });
 
