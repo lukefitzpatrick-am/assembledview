@@ -7919,15 +7919,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         if (saveResult.data.mirror === "failed") {
           updateSaveStatus(
             "Mirror to Xano",
-            "error",
+            "skipped",
             saveResult.data.mirrorError || "Xano mirror failed (Postgres commit kept)"
           )
           toast({
-            variant: "destructive",
-            title: "Saved to Postgres — Xano mirror failed",
+            title: "Saved — Xano mirror is out of date",
             description:
-              saveResult.data.mirrorError ||
-              "Retry via admin xano-mirror. Postgres is authoritative.",
+              "Postgres saved successfully. The Xano copy will be retried by an admin.",
           })
         } else {
           updateSaveStatus("Mirror to Xano", "success")
