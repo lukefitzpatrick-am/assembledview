@@ -14,9 +14,14 @@ export function channelMediaRegistryKey(key: ChannelKey): string {
       return "prog_display"
     case "programmatic-video":
       return "prog_video"
-    case "ad-serving":
-      // Ad serving is not a media type; borrows digital_display until a dedicated token exists.
+    case "digital-display":
       return "digital_display"
+    case "digital-video":
+      return "digital_video"
+    case "digital-audio":
+      return "digital_audio"
+    case "bvod":
+      return "bvod"
   }
 }
 

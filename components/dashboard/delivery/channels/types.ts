@@ -4,6 +4,8 @@ import type { LineItemBlockProps } from "../shared/LineItemBlock"
 
 /**
  * Identity for a channel section. The icon is rendered by ChannelSection.
+ * `digital-display` | `digital-video` | `digital-audio` | `bvod` are Direct
+ * Booked Digital (CM360-verified, zero-spend).
  */
 export type ChannelKey =
   | "social-meta"
@@ -11,7 +13,10 @@ export type ChannelKey =
   | "search"
   | "programmatic-display"
   | "programmatic-video"
-  | "ad-serving"
+  | "digital-display"
+  | "digital-video"
+  | "digital-audio"
+  | "bvod"
 
 /**
  * Connection pill rendered in the channel header. Indicates which platform
