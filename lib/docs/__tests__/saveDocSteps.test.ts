@@ -143,6 +143,13 @@ describe("classifyDocStepFailure", () => {
     assert.equal(c.error, DOC_SKIP_REASON)
   })
 
+  it("reclassifies approved_slice missing as skipped", () => {
+    const c = classifyDocStepFailure(
+      "approved_slice missing — republish version before generating documents"
+    )
+    assert.equal(c.status, "skipped")
+  })
+
   it("keeps real failures as errors", () => {
     const c = classifyDocStepFailure("Failed to generate PDF")
     assert.equal(c.status, "error")
