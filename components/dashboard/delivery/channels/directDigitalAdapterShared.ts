@@ -151,6 +151,12 @@ function safeDiv(num: number, den: number): number {
   return num / den
 }
 
+/** Video completion rate in 0-100 percentage points. ComboChart's
+ *  "percent" format divides by 100 when the value exceeds 1. */
+function completionRatePct(videoCompletes: number, impressions: number): number {
+  return safeDiv(videoCompletes, impressions) * 100
+}
+
 function pacingPctToStatus(pct: number | undefined): DeliveryStatus {
   if (pct === undefined || Number.isNaN(pct)) return "no-data"
   if (pct >= 102) return "ahead"
@@ -310,6 +316,14 @@ export function buildDirectDigitalChannelSection(input: {
     },
   )
 
+  const hasVideoCompletes = rollup.videoCompletes > 0
+  const dailyChartSeries = [
+    { key: "impressions", label: "Impressions", yAxis: "left" as const, format: "number" as const },
+    hasVideoCompletes
+      ? { key: "completionRate", label: "Completion rate", yAxis: "right" as const, format: "percent" as const }
+      : { key: "clicks", label: "Clicks", yAxis: "right" as const, format: "number" as const },
+  ]
+
   const ctr = safeDiv(rollup.clicks, rollup.impressions) * 100
 
   const ctrTargetRaw = (() => {
@@ -362,9 +376,10 @@ export function buildDirectDigitalChannelSection(input: {
         date: d.date,
         impressions: d.impressions,
         clicks: d.clicks,
+        videoCompletes: d.videoCompletes,
       })),
     ),
-    ["impressions", "clicks"],
+    ["impressions", "clicks", "videoCompletes"],
   )
 
   const impressionsSpark = aggDaily.map((d) => Number(d.impressions ?? 0))
@@ -390,7 +405,10 @@ export function buildDirectDigitalChannelSection(input: {
 
     const dailyRows = m.daily.map((d) => ({
       date: d.date,
-      impressions: d.impressions,
+      impressions: Number(d.impressions ?? 0),
+      ...(hasVideoCompletes
+        ? { completionRate: completionRatePct(Number(d.videoCompletes ?? 0), Number(d.impressions ?? 0)) }
+        : { clicks: Number(d.clicks ?? 0) }),
     }))
 
     const displayName = deliveryLineItemDisplayName(m.item as Record<string, unknown>)
@@ -453,7 +471,7 @@ export function buildDirectDigitalChannelSection(input: {
       chart: {
         kind: "daily-delivery",
         daily: dailyRows,
-        series: [{ key: "impressions", label: "Impressions", yAxis: "left" }],
+        series: dailyChartSeries,
         asAtDate: asAtISO,
         brandColour: input.brandColour,
       },
@@ -498,8 +516,14 @@ export function buildDirectDigitalChannelSection(input: {
         tiles: aggregateKpiTiles,
       },
       chart: {
-        daily: aggDaily.map((d) => ({ date: d.date, impressions: Number(d.impressions ?? 0) })),
-        series: [{ key: "impressions", label: "Impressions", yAxis: "left" }],
+        daily: aggDaily.map((d) => ({
+          date: d.date,
+          impressions: Number(d.impressions ?? 0),
+          ...(hasVideoCompletes
+            ? { completionRate: completionRatePct(Number(d.videoCompletes ?? 0), Number(d.impressions ?? 0)) }
+            : { clicks: Number(d.clicks ?? 0) }),
+        })),
+        series: dailyChartSeries,
         asAtDate: asAtISO,
         brandColour: input.brandColour,
       },
