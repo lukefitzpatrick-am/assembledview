@@ -363,6 +363,15 @@ export function buildDirectDigitalChannelSection(input: {
       value: formatWholeNumber(rollup.videoCompletes),
       accentColour,
     },
+    ...(hasVideoCompletes
+      ? [
+          {
+            label: "Completion rate",
+            value: fmtPct(completionRatePct(rollup.videoCompletes, rollup.impressions)),
+            accentColour,
+          },
+        ]
+      : []),
     {
       label: "Results",
       value: formatWholeNumber(rollup.results),
@@ -461,6 +470,15 @@ export function buildDirectDigitalChannelSection(input: {
             value: formatWholeNumber(m.totals.videoCompletes),
             accentColour,
           },
+          ...(hasVideoCompletes
+            ? [
+                {
+                  label: "Completion rate",
+                  value: fmtPct(completionRatePct(m.totals.videoCompletes, m.totals.impressions)),
+                  accentColour,
+                },
+              ]
+            : []),
           {
             label: "Results",
             value: formatWholeNumber(m.totals.results),
@@ -508,6 +526,14 @@ export function buildDirectDigitalChannelSection(input: {
         { label: "Clicks", value: formatWholeNumber(rollup.clicks) },
         { label: "CTR", value: fmtPct(ctr) },
         { label: "Video completes", value: formatWholeNumber(rollup.videoCompletes) },
+        ...(hasVideoCompletes
+          ? [
+              {
+                label: "Completion rate",
+                value: fmtPct(completionRatePct(rollup.videoCompletes, rollup.impressions)),
+              },
+            ]
+          : []),
       ],
       progressCards: [impressionsCard, clicksCard],
       kpiBand: {

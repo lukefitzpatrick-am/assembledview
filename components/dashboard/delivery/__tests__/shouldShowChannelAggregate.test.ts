@@ -25,12 +25,15 @@ describe("shouldShowChannelAggregate", () => {
     assert.equal(shouldShowChannelAggregate("programmatic-display", 5), false)
   })
 
-  it("programmatic-video + 4 → false; Direct Booked Digital keys + 2 → false", () => {
+  it("programmatic-video + 4 → false", () => {
     assert.equal(shouldShowChannelAggregate("programmatic-video", 4), false)
-    assert.equal(shouldShowChannelAggregate("digital-display", 2), false)
-    assert.equal(shouldShowChannelAggregate("digital-video", 2), false)
-    assert.equal(shouldShowChannelAggregate("digital-audio", 2), false)
-    assert.equal(shouldShowChannelAggregate("bvod", 2), false)
+  })
+
+  it("Direct Booked Digital + 1 → false; + 2 → true", () => {
+    for (const key of ["digital-display", "digital-video", "digital-audio", "bvod"] as const) {
+      assert.equal(shouldShowChannelAggregate(key, 1), false, `${key} + 1`)
+      assert.equal(shouldShowChannelAggregate(key, 2), true, `${key} + 2`)
+    }
   })
 
   it("any key + 0 lines → true (empty-container guard)", () => {
