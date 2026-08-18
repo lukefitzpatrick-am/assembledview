@@ -140,7 +140,7 @@ export async function fetchDigitalLineItemsForMba(args: {
   return best;
 }
 
-/** Plan deliverable totals by buy type — mirrors adServingAdapter.bookedDeliverables. */
+/** Plan deliverable totals by buy type — mirrors directDigitalAdapterShared.bookedDeliverables. */
 export function bookedDeliverablesFromRow(row: Record<string, unknown>): {
   impressions: number;
   clicks: number;
