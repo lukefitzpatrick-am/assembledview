@@ -33,6 +33,9 @@ export default defineConfig({
       "lib/pacing/__tests__/statusUi.test.ts",
       "components/pacing/__tests__/PacingStatusSummary.test.tsx",
       "hooks/__tests__/usePlanDraftSession.test.tsx",
+      "components/dashboard/delivery/__tests__/shouldShowChannelAggregate.test.ts",
+      "components/dashboard/delivery/__tests__/entityBreakdown.test.tsx",
+      "components/dashboard/delivery/channels/__tests__/directDigitalChart.test.ts",
     ],
     exclude: [
       "**/node_modules/**",

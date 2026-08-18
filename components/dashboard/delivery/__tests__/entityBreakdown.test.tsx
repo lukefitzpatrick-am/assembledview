@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { describe, it } from "node:test"
+import { describe, it } from "vitest"
 import React, { createElement } from "react"
 import { renderToStaticMarkup } from "react-dom/server"
 
@@ -114,6 +114,49 @@ describe("EntityBreakdownTable columns", () => {
     assert.equal(html.includes(">CPC<"), false)
     assert.equal(html.includes("$"), false)
     assert.match(html, /Show 1 placements|Hide 1 placements/)
+  })
+
+  it("delivery variant renders — when impressions is 0", () => {
+    const html = renderToStaticMarkup(
+      createElement(EntityBreakdownTable, {
+        rows: [
+          {
+            name: "Zero impressions placement",
+            impressions: 0,
+            clicks: 4,
+            videoCompletes: 9,
+          },
+        ],
+        knownPlanLineIds: ["mba001dd1"],
+        entityNoun: { singular: "placement", plural: "placements" },
+        columns: "delivery",
+        defaultOpen: true,
+      }),
+    )
+
+    assert.match(html, />Completion rate</)
+    const cells = [...html.matchAll(/<td[^>]*>([^<]*)<\/td>/g)].map((m) => m[1])
+    // Placement · Impressions · Clicks · CTR · Video completions · Completion rate
+    assert.equal(cells[3], "—")
+    assert.equal(cells[5], "—")
+  })
+
+  it("spend variant still renders exactly its six columns in order", () => {
+    const html = renderToStaticMarkup(
+      createElement(EntityBreakdownTable, {
+        rows: [{ name: "Brand - exact", spend: 12.5, clicks: 4, impressions: 200 }],
+        knownPlanLineIds: ["mba001se1"],
+        entityNoun: { singular: "ad group", plural: "ad groups" },
+        columns: "spend",
+        defaultOpen: true,
+      }),
+    )
+
+    const headerBlock = html.match(/<thead[\s\S]*?<\/thead>/)?.[0] ?? ""
+    const headers = [...headerBlock.matchAll(/>([^<]+)<\/th>/g)].map((m) => m[1])
+    assert.deepEqual(headers, ["Ad group", "Spend", "Clicks", "Impressions", "CPC", "CTR"])
+    assert.equal(html.includes(">Video completions<"), false)
+    assert.equal(html.includes(">Completion rate<"), false)
   })
 
   it("search still renders its 6 columns unchanged (regression)", () => {
