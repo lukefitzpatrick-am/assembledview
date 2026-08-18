@@ -2,7 +2,7 @@ import { DeliveryPacingChart } from "@/components/dashboard/delivery/common/Deli
 import type { TargetCurvePoint } from "@/lib/kpi/deliveryTargetCurve"
 import { ProgressCard, type ProgressCardProps } from "./ProgressCard"
 import { KpiBand, type KpiBandProps } from "./KpiBand"
-import { DeliveryDailyChart } from "@/components/dashboard/delivery/common/DeliveryDailyChart"
+import { DeliveryDailyChart, type DeliveryDailyChartSeries } from "@/components/dashboard/delivery/common/DeliveryDailyChart"
 import {
   EntityBreakdownTable,
   type EntityBreakdownNoun,
@@ -23,7 +23,7 @@ type DailyChart = {
   /** Daily rows. Each row has `date` plus one numeric field per series key. */
   daily: Array<Record<string, string | number>>
   /** Series to plot, in legend order. */
-  series: Array<{ key: string; label: string; yAxis?: "left" | "right" }>
+  series: DeliveryDailyChartSeries[]
   asAtDate: string | null
   brandColour?: string
 }

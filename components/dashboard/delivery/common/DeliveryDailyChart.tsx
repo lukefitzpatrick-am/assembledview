@@ -11,9 +11,18 @@ import { withDateLabels } from "./deliveryChartReshape"
 
 export { DELIVERY_DAILY_METRIC_LINE_COLOR, DELIVERY_DAILY_METRIC_LINE_THEME_HEXES } from "./deliveryDailyChartColors"
 
+export type DeliveryDailyChartSeries = {
+  key: string
+  label: string
+  yAxis?: "left" | "right"
+  /** ComboChart value format. Bars default to "dollars", lines to
+   *  "number", preserving pre-BV1 behaviour for callers that omit it. */
+  format?: "dollars" | "number" | "compact" | "percent"
+}
+
 export interface DeliveryDailyChartProps {
   daily: Array<Record<string, string | number>>
-  series: Array<{ key: string; label: string; yAxis?: "left" | "right" }>
+  series: DeliveryDailyChartSeries[]
   asAtDate: string | null
   /** Channel media-type colour — wins for the spend/bar series when set. */
   mediaTypeColour?: string
@@ -86,13 +95,13 @@ export function DeliveryDailyChart({
               key: leftSeries.key,
               label: leftSeries.label,
               color: spendColor,
-              format: "dollars",
+              format: leftSeries.format ?? "dollars",
             }}
             line={{
               key: rightSeries.key,
               label: rightSeries.label,
               color: metricColor,
-              format: "number",
+              format: rightSeries.format ?? "number",
             }}
             className="h-full w-full"
           />
