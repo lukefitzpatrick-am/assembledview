@@ -38,7 +38,7 @@ export type EntityBreakdownTableProps = {
   /** Campaign plan line ids — used to strip safe suffixes for display. */
   knownPlanLineIds: string[]
   entityNoun: EntityBreakdownNoun
-  /** spend = search's 6 cols; delivery = CM360 5 cols (ZERO-$ LAW: no Spend/CPC). */
+  /** spend = search's 6 cols; delivery = CM360 6 cols (ZERO-$ LAW: no Spend/CPC). */
   columns: "spend" | "delivery"
   className?: string
   /** Tests expand the table; production stays collapsed. */
@@ -72,6 +72,11 @@ function formatCpc(spend: number, clicks: number): string {
 function formatCtr(clicks: number, impressions: number): string {
   if (!(impressions > 0) || !Number.isFinite(clicks)) return "—"
   return formatPercentAuto(clicks / impressions)
+}
+
+function formatCompletionRate(videoCompletes: number, impressions: number): string {
+  if (!(impressions > 0) || !Number.isFinite(videoCompletes)) return "—"
+  return formatPercentAuto(videoCompletes / impressions)
 }
 
 function titleCaseFirst(singular: string): string {
@@ -110,7 +115,7 @@ export function EntityBreakdownTable({
   const triggerLabel = open ? `Hide ${n} ${entityNoun.plural}` : `Show ${n} ${entityNoun.plural}`
   const caption = showSpend
     ? "Ad group delivery actuals for this search line item. Spend, clicks, impressions, CPC and CTR only — planned amounts are on the parent line item."
-    : `${nameHeader} delivery actuals for this line item. Impressions, clicks, CTR and video completions only — planned amounts are on the parent line item.`
+    : `${nameHeader} delivery actuals for this line item. Impressions, clicks, CTR, video completions and completion rate only — planned amounts are on the parent line item.`
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className={cn("w-full", className)}>
@@ -148,6 +153,7 @@ export function EntityBreakdownTable({
                     <TableHead className="text-right">Clicks</TableHead>
                     <TableHead className="text-right">CTR</TableHead>
                     <TableHead className="text-right">Video completions</TableHead>
+                    <TableHead className="text-right">Completion rate</TableHead>
                   </>
                 )}
               </TableRow>
@@ -197,6 +203,9 @@ export function EntityBreakdownTable({
                         </TableCell>
                         <TableCell className="text-right tabular-nums num">
                           {formatWholeNumber(row.videoCompletes)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums num">
+                          {formatCompletionRate(Number(row.videoCompletes ?? 0), impressions)}
                         </TableCell>
                       </>
                     )}
