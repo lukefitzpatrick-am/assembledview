@@ -79,6 +79,12 @@ describe("isExpectedDocGateSkipError", () => {
       ),
       true
     )
+    assert.equal(
+      isExpectedDocGateSkipError(
+        'Document render requires a campaign status past Draft (got "draft")'
+      ),
+      true
+    )
   })
 
   it("does not treat unrelated failures as skips", () => {

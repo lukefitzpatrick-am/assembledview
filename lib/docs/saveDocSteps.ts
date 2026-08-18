@@ -41,6 +41,7 @@ export function isExpectedDocGateSkipError(message: unknown): boolean {
   if (!m) return false
   return (
     /approved-or-beyond/i.test(m) ||
+    /past Draft/i.test(m) ||
     /Document render requires/i.test(m) ||
     /Document download requires/i.test(m) ||
     /unpublished/i.test(m) ||

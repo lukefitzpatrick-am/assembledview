@@ -12,7 +12,7 @@ export const maxDuration = 60
 
 /**
  * PC3 — MBA PDF from persisted schedule_months + approved_slice + fee snapshot.
- * Body: { mba_number, version_number } ONLY. Admin/manager. Approved-or-beyond.
+ * Body: { mba_number, version_number } ONLY. Admin/manager. Published version (`published_at`).
  */
 export async function POST(req: NextRequest) {
   const gate = await requireRole(req, ["admin"])

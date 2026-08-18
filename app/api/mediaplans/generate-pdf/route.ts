@@ -18,7 +18,7 @@ function normaliseMba(mba: string): string {
  * PC3 — media plan Excel generation locked to admin/manager + persisted keys only.
  * Full line-item Excel rebuild from PG is not wired here (editor uses client-side
  * generateMediaPlan). This route rejects client totals and serves the stored
- * media_plan_file URL metadata when the version is approved-or-beyond.
+ * media_plan_file URL metadata when the version is published (`published_at`).
  */
 export async function POST(request: NextRequest) {
   const gate = await requireRole(request, ["admin"])
