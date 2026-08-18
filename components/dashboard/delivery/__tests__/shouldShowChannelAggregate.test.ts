@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import { describe, it } from "node:test"
+import { describe, it } from "vitest"
 
 import type { ChannelKey } from "../channels/types"
 import { shouldShowChannelAggregate } from "../shouldShowChannelAggregate"
@@ -29,11 +29,26 @@ describe("shouldShowChannelAggregate", () => {
     assert.equal(shouldShowChannelAggregate("programmatic-video", 4), false)
   })
 
-  it("Direct Booked Digital + 1 → false; + 2 → true", () => {
-    for (const key of ["digital-display", "digital-video", "digital-audio", "bvod"] as const) {
-      assert.equal(shouldShowChannelAggregate(key, 1), false, `${key} + 1`)
-      assert.equal(shouldShowChannelAggregate(key, 2), true, `${key} + 2`)
-    }
+  it("bvod + 2 → true", () => {
+    assert.equal(shouldShowChannelAggregate("bvod", 2), true)
+  })
+
+  it("bvod + 1 → false (flat render preserved)", () => {
+    assert.equal(shouldShowChannelAggregate("bvod", 1), false)
+  })
+
+  it("digital-display / digital-video / digital-audio + 2 → true", () => {
+    assert.equal(shouldShowChannelAggregate("digital-display", 2), true)
+    assert.equal(shouldShowChannelAggregate("digital-video", 2), true)
+    assert.equal(shouldShowChannelAggregate("digital-audio", 2), true)
+  })
+
+  it("existing key behaviour is unchanged (search roll-up; programmatic never)", () => {
+    assert.equal(shouldShowChannelAggregate("search", 1), false)
+    assert.equal(shouldShowChannelAggregate("search", 3), true)
+    assert.equal(shouldShowChannelAggregate("social-meta", 2), true)
+    assert.equal(shouldShowChannelAggregate("programmatic-display", 5), false)
+    assert.equal(shouldShowChannelAggregate("programmatic-video", 4), false)
   })
 
   it("any key + 0 lines → true (empty-container guard)", () => {
