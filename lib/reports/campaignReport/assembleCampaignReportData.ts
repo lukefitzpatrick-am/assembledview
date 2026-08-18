@@ -30,7 +30,10 @@ const CHANNEL_LABELS: Record<string, string> = {
   social_tiktok: "Social (TikTok)",
   programmatic_display: "Programmatic display",
   programmatic_video: "Programmatic video",
-  ad_serving: "Ad serving / BVOD",
+  digital_display: "Digital Display",
+  digital_video: "Digital Video",
+  digital_audio: "Digital Audio",
+  bvod: "BVOD",
   search: "Search",
 }
 

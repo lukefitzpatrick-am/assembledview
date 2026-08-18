@@ -239,15 +239,20 @@ function collectChannelPlans(
     ensure("programmatic_video").set(meta.id, meta)
   }
 
-  const adServingKeys = ["digitalDisplay", "digitalVideo", "digitalAudio", "bvod"] as const
-  for (const key of adServingKeys) {
-    for (const item of byChannel[key] ?? []) {
-      const meta = toPlanLineMeta(item)
-      if (!meta) continue
-      allMetas.push(meta)
-      ensure("ad_serving").set(meta.id, meta)
+  const ingestDirectDigital = (keys: readonly string[], group: string) => {
+    for (const key of keys) {
+      for (const item of byChannel[key] ?? []) {
+        const meta = toPlanLineMeta(item)
+        if (!meta) continue
+        allMetas.push(meta)
+        ensure(group).set(meta.id, meta)
+      }
     }
   }
+  ingestDirectDigital(["digitalDisplay", "digiDisplay"], "digital_display")
+  ingestDirectDigital(["digitalVideo", "digiVideo"], "digital_video")
+  ingestDirectDigital(["digitalAudio", "digiAudio"], "digital_audio")
+  ingestDirectDigital(["bvod", "digiBvod", "digi_bvod"], "bvod")
 
   for (const item of byChannel.search ?? []) {
     const meta = toPlanLineMeta(item)
@@ -336,7 +341,10 @@ export async function loadDeliverySnapshot(
     "social_tiktok",
     "programmatic_display",
     "programmatic_video",
-    "ad_serving",
+    "digital_display",
+    "digital_video",
+    "digital_audio",
+    "bvod",
     "search",
   ]
 

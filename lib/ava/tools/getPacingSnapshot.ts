@@ -53,7 +53,7 @@ export const getPacingSnapshotTool: AvaTool = {
   definition: {
     name: "get_pacing_snapshot",
     description:
-      "Pacing story for a client or MBA: plan summary from Xano plus compact cached pacing rows across search/social/programmatic/ad-serving/direct. Prefer when the user asks how delivery or pacing looks.",
+      "Pacing story for a client or MBA: plan summary from Xano plus compact cached pacing rows across search/social/programmatic/direct-booked-digital/direct. Prefer when the user asks how delivery or pacing looks.",
     input_schema: {
       type: "object",
       properties: {
@@ -118,9 +118,24 @@ export const getPacingSnapshotTool: AvaTool = {
         ...(programmatic ?? []).map((r) =>
           pickRowFields("programmatic", r as unknown as Record<string, unknown>),
         ),
-        ...(adServing ?? []).map((r) =>
-          pickRowFields("ad_serving", r as unknown as Record<string, unknown>),
-        ),
+        ...(adServing ?? [])
+          .filter((r) => r.channelFamily === "digitalDisplay")
+          .map((r) =>
+            pickRowFields("digital_display", r as unknown as Record<string, unknown>),
+          ),
+        ...(adServing ?? [])
+          .filter((r) => r.channelFamily === "digitalVideo")
+          .map((r) =>
+            pickRowFields("digital_video", r as unknown as Record<string, unknown>),
+          ),
+        ...(adServing ?? [])
+          .filter((r) => r.channelFamily === "digitalAudio")
+          .map((r) =>
+            pickRowFields("digital_audio", r as unknown as Record<string, unknown>),
+          ),
+        ...(adServing ?? [])
+          .filter((r) => r.channelFamily === "bvod")
+          .map((r) => pickRowFields("bvod", r as unknown as Record<string, unknown>)),
         ...(direct ?? []).map((r) => pickRowFields("direct", r as unknown as Record<string, unknown>)),
       ]
 

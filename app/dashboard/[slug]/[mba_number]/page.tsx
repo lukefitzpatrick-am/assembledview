@@ -504,23 +504,22 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const searchKeys = ["search", "paidSearch", "paid_search", "search_line_items", "searchLineItems"]
   const progDisplayKeys = ["progDisplay", "programmaticDisplay", "dv360Display", "programmatic_display"]
   const progVideoKeys = ["progVideo", "programmaticVideo", "dv360Video", "programmatic_video"]
-  // CM360-scope digital channels (naming global rules) — feed Ad Serving verification block
-  const adServingKeys = [
-    "digitalDisplay",
-    "digiDisplay",
-    "digitalVideo",
-    "digiVideo",
-    "digitalAudio",
-    "digiAudio",
-    "bvod",
-  ]
+  // Direct Booked Digital (CM360 verification) — one array per media-type container.
+  // Keep every alias: dropping one silently empties that container.
+  const digitalDisplayKeys = ["digitalDisplay", "digiDisplay"]
+  const digitalVideoKeys = ["digitalVideo", "digiVideo"]
+  const digitalAudioKeys = ["digitalAudio", "digiAudio"]
+  const bvodKeys = ["bvod", "digiBvod", "digi_bvod"]
 
   const socialItems = getLineItems(lineItemsMap, socialKeys)
   const searchItems = getLineItems(lineItemsMap, searchKeys)
   const searchItemsAllKeys = getAllLineItemsFromKeys(lineItemsMap, searchKeys)
   const progDisplayItems = getLineItems(lineItemsMap, progDisplayKeys)
   const progVideoItems = getLineItems(lineItemsMap, progVideoKeys)
-  const adServingItems = getAllLineItemsFromKeys(lineItemsMap, adServingKeys)
+  const digitalDisplayItems = getAllLineItemsFromKeys(lineItemsMap, digitalDisplayKeys)
+  const digitalVideoItems = getAllLineItemsFromKeys(lineItemsMap, digitalVideoKeys)
+  const digitalAudioItems = getAllLineItemsFromKeys(lineItemsMap, digitalAudioKeys)
+  const bvodItems = getAllLineItemsFromKeys(lineItemsMap, bvodKeys)
   
   // Track which keys were actually used (for debug logging)
   let socialKeyUsed: string | null = null
@@ -578,7 +577,10 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
   const searchItemsActive = searchItemsAllKeys.length > 0 ? searchItemsAllKeys : searchItems
   const progDisplayItemsActive = progDisplayItems
   const progVideoItemsActive = progVideoItems
-  const adServingItemsActive = adServingItems
+  const digitalDisplayItemsActive = digitalDisplayItems
+  const digitalVideoItemsActive = digitalVideoItems
+  const digitalAudioItemsActive = digitalAudioItems
+  const bvodItemsActive = bvodItems
 
   // Build deliveryLineItemIds from active arrays (not running-only arrays)
   // Accept multiple id field variations
@@ -602,7 +604,10 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
         ...socialItemsActive,
         ...progDisplayItemsActive,
         ...progVideoItemsActive,
-        ...adServingItemsActive,
+        ...digitalDisplayItemsActive,
+        ...digitalVideoItemsActive,
+        ...digitalAudioItemsActive,
+        ...bvodItemsActive,
       ]
         .map(extractLineItemId)
         .filter((id): id is string => Boolean(id))
@@ -773,7 +778,10 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
     (mpSearchEnabled && searchLineItemIds.length > 0 && hasPacingCampaignDates) ||
     progDisplayItemsActive.length > 0 ||
     progVideoItemsActive.length > 0 ||
-    adServingItemsActive.length > 0
+    digitalDisplayItemsActive.length > 0 ||
+    digitalVideoItemsActive.length > 0 ||
+    digitalAudioItemsActive.length > 0 ||
+    bvodItemsActive.length > 0
 
   return (
     <CampaignPageAssembly
@@ -810,7 +818,10 @@ export default async function CampaignDetailPage({ params, searchParams }: Campa
       mpSearchEnabled={mpSearchEnabled}
       progDisplayItemsActive={progDisplayItemsActive}
       progVideoItemsActive={progVideoItemsActive}
-      adServingItemsActive={adServingItemsActive}
+      digitalDisplayItemsActive={digitalDisplayItemsActive}
+      digitalVideoItemsActive={digitalVideoItemsActive}
+      digitalAudioItemsActive={digitalAudioItemsActive}
+      bvodItemsActive={bvodItemsActive}
       deliveryLineItemIds={deliveryLineItemIds}
       availableVersions={availableVersions}
       currentVersion={resolvedVersionNumber ?? versionNumberFromQuery ?? 1}
