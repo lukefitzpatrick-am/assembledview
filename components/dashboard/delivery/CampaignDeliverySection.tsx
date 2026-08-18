@@ -13,7 +13,10 @@ import DeliveryDataProvider from "./DeliveryDataProvider"
 import { DeliveryContainer } from "./DeliveryContainer"
 import { buildProgrammaticDisplaySection } from "./channels/programmaticDisplayAdapter"
 import { buildProgrammaticVideoSection } from "./channels/programmaticVideoAdapter"
-import { buildAdServingSection } from "./channels/adServingAdapter"
+import { buildDigitalDisplaySection } from "./channels/digitalDisplayAdapter"
+import { buildDigitalVideoSection } from "./channels/digitalVideoAdapter"
+import { buildDigitalAudioSection } from "./channels/digitalAudioAdapter"
+import { buildBvodSection } from "./channels/bvodAdapter"
 import { buildSearchSection } from "./channels/searchAdapter"
 import { buildSocialMetaSection } from "./channels/socialMetaAdapter"
 import { buildSocialTiktokSection } from "./channels/socialTiktokAdapter"
@@ -64,7 +67,10 @@ export type CampaignDeliverySectionProps = {
   mpSearchEnabled: boolean
   progDisplayLineItems: unknown[]
   progVideoLineItems: unknown[]
-  adServingLineItems: unknown[]
+  digitalDisplayLineItems: unknown[]
+  digitalVideoLineItems: unknown[]
+  digitalAudioLineItems: unknown[]
+  bvodLineItems: unknown[]
 }
 
 type DeliveryBodyProps = {
@@ -87,7 +93,10 @@ type DeliveryBodyProps = {
   includeSearch: boolean
   progDisplayLineItems: unknown[]
   progVideoLineItems: unknown[]
-  adServingLineItems: unknown[]
+  digitalDisplayLineItems: unknown[]
+  digitalVideoLineItems: unknown[]
+  digitalAudioLineItems: unknown[]
+  bvodLineItems: unknown[]
 }
 
 function CampaignDeliveryBody({
@@ -110,7 +119,10 @@ function CampaignDeliveryBody({
   includeSearch,
   progDisplayLineItems,
   progVideoLineItems,
-  adServingLineItems,
+  digitalDisplayLineItems,
+  digitalVideoLineItems,
+  digitalAudioLineItems,
+  bvodLineItems,
 }: DeliveryBodyProps) {
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
 
@@ -211,9 +223,57 @@ function CampaignDeliveryBody({
       if (s) out.push(s)
     }
 
-    if (adServingLineItems.length > 0) {
-      const s = buildAdServingSection({
-        adServingLineItems,
+    if (digitalDisplayLineItems.length > 0) {
+      const s = buildDigitalDisplaySection({
+        lineItems: digitalDisplayLineItems,
+        combinedRows: rows,
+        campaignStart,
+        campaignEnd,
+        mbaNumber,
+        filterRange,
+        kpiVersionNumber,
+        lineItemTargets,
+        brandColour,
+        lastSyncedAt,
+      })
+      if (s) out.push(s)
+    }
+
+    if (digitalVideoLineItems.length > 0) {
+      const s = buildDigitalVideoSection({
+        lineItems: digitalVideoLineItems,
+        combinedRows: rows,
+        campaignStart,
+        campaignEnd,
+        mbaNumber,
+        filterRange,
+        kpiVersionNumber,
+        lineItemTargets,
+        brandColour,
+        lastSyncedAt,
+      })
+      if (s) out.push(s)
+    }
+
+    if (digitalAudioLineItems.length > 0) {
+      const s = buildDigitalAudioSection({
+        lineItems: digitalAudioLineItems,
+        combinedRows: rows,
+        campaignStart,
+        campaignEnd,
+        mbaNumber,
+        filterRange,
+        kpiVersionNumber,
+        lineItemTargets,
+        brandColour,
+        lastSyncedAt,
+      })
+      if (s) out.push(s)
+    }
+
+    if (bvodLineItems.length > 0) {
+      const s = buildBvodSection({
+        lineItems: bvodLineItems,
         combinedRows: rows,
         campaignStart,
         campaignEnd,
@@ -236,7 +296,10 @@ function CampaignDeliveryBody({
     includeSearch,
     progDisplayLineItems,
     progVideoLineItems,
-    adServingLineItems,
+    digitalDisplayLineItems,
+    digitalVideoLineItems,
+    digitalAudioLineItems,
+    bvodLineItems,
     campaignStart,
     campaignEnd,
     filterRange,
@@ -280,7 +343,10 @@ export function CampaignDeliverySection({
   mpSearchEnabled,
   progDisplayLineItems,
   progVideoLineItems,
-  adServingLineItems,
+  digitalDisplayLineItems,
+  digitalVideoLineItems,
+  digitalAudioLineItems,
+  bvodLineItems,
 }: CampaignDeliverySectionProps) {
   const pacingWindow = useMemo(() => getPacingWindow(campaignStart, campaignEnd), [campaignStart, campaignEnd])
 
@@ -334,11 +400,22 @@ export function CampaignDeliverySection({
   }, [progVideoLineItems, filterByPacingSet])
 
   const adServingLineItemIds = useMemo(() => {
-    const ids = (adServingLineItems ?? [])
+    const ids = [
+      ...(digitalDisplayLineItems ?? []),
+      ...(digitalVideoLineItems ?? []),
+      ...(digitalAudioLineItems ?? []),
+      ...(bvodLineItems ?? []),
+    ]
       .map(extractPacingLineItemIdFromItem)
       .filter(filterByPacingSet) as string[]
     return Array.from(new Set(ids)).sort()
-  }, [adServingLineItems, filterByPacingSet])
+  }, [
+    digitalDisplayLineItems,
+    digitalVideoLineItems,
+    digitalAudioLineItems,
+    bvodLineItems,
+    filterByPacingSet,
+  ])
 
   const normalizedSearchLineItemIds = useMemo(() => {
     const ids = (searchLineItemIds ?? [])
@@ -385,7 +462,10 @@ export function CampaignDeliverySection({
           includeSearch={includeSearch}
           progDisplayLineItems={progDisplayLineItems}
           progVideoLineItems={progVideoLineItems}
-          adServingLineItems={adServingLineItems}
+          digitalDisplayLineItems={digitalDisplayLineItems}
+          digitalVideoLineItems={digitalVideoLineItems}
+          digitalAudioLineItems={digitalAudioLineItems}
+          bvodLineItems={bvodLineItems}
         />
       )}
     </DeliveryDataProvider>

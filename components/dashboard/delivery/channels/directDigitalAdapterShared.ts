@@ -9,7 +9,7 @@ import type { ProgressCardProps } from "../shared/ProgressCard"
 import type { KpiTileProps } from "../shared/KpiTile"
 import type { LineItemBlockProps } from "../shared/LineItemBlock"
 import type { DeliveryStatus } from "../shared/statusColours"
-import type { ChannelSectionData } from "./types"
+import type { ChannelKey, ChannelSectionData } from "./types"
 import { aggregateDailyRows } from "./aggregateDaily"
 import { deliveryLineItemDisplayName } from "@/lib/delivery/lineItemDisplayName"
 
@@ -143,11 +143,13 @@ function normalizeAdServingLineItems(items: unknown[] | undefined): AdServingLin
 }
 
 /**
- * Zero-spend CM360 verification block. Never surfaces spend pacing, CPM/CPC/CPA,
- * or computeStatus (spend=0 → fake no_delivery).
+ * Direct Booked Digital (CM360 verification). ZERO-$ LAW: never surfaces spend
+ * pacing, CPM/CPC/CPA, or computeStatus (spend=0 → fake no_delivery).
  */
-export function buildAdServingSection(input: {
-  adServingLineItems: unknown[] | undefined
+export function buildDirectDigitalChannelSection(input: {
+  key: ChannelKey
+  title: string
+  lineItems: unknown[] | undefined
   combinedRows: CombinedPacingRow[]
   campaignStart: string
   campaignEnd: string
@@ -159,7 +161,9 @@ export function buildAdServingSection(input: {
   lastSyncedAt: Date | null
 }): ChannelSectionData | null {
   const {
-    adServingLineItems,
+    key,
+    title,
+    lineItems,
     combinedRows,
     campaignStart,
     campaignEnd,
@@ -172,10 +176,12 @@ export function buildAdServingSection(input: {
   // filterRange reserved for future date-window clipping (parity with other adapters)
   void input.filterRange
 
-  const normalized = normalizeAdServingLineItems(adServingLineItems)
+  const normalized = normalizeAdServingLineItems(lineItems)
   if (!normalized.length) return null
 
   const idSet = new Set(normalized.map((i) => i.line_item_id!).filter(Boolean))
+  // Snowflake PACING_FACT channel is still "ad-serving" (Ad Serving - CM360) for
+  // every Direct Booked Digital media type — not the container ChannelKey.
   const adRows = combinedRows.filter(
     (r) => r.channel === "ad-serving" && r.lineItemId && idSet.has(String(r.lineItemId).toLowerCase()),
   )
@@ -184,8 +190,7 @@ export function buildAdServingSection(input: {
 
   const asAtISO = getMelbourneTodayISO()
   // Channel chrome uses media-type colour; brandColour stays on chart props only (AVU5-4).
-  // Ad serving borrows digital_display — collides with a real Digital Display channel (see AVU5-3 report).
-  const mediaTypeColour = channelMediaTypeColour("ad-serving")
+  const mediaTypeColour = channelMediaTypeColour(key)
   const accentColour = mediaTypeColour
 
   const metrics = normalized.map((item) => {
@@ -399,8 +404,8 @@ export function buildAdServingSection(input: {
   })
 
   return {
-    key: "ad-serving",
-    title: "Ad Serving",
+    key,
+    title,
     dateRange: { startISO: input.campaignStart, endISO: input.campaignEnd },
     lastSyncedAt: input.lastSyncedAt,
     connections: [
