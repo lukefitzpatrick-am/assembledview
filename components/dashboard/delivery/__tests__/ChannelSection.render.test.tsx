@@ -81,8 +81,8 @@ describe.skip("DeliveryContainer (parked until FX2b pack)", () => {
     const a = programmaticChannel(["LI-One-Unique"])
     const b: ChannelSectionData = {
       ...programmaticChannel(["LI-Two-Unique"]),
-      key: "ad-serving",
-      title: "Ad Serving",
+      key: "digital-display",
+      title: "Digital Display",
     }
     const html = renderToStaticMarkup(<DeliveryContainer channels={[a, b]} />)
     expect(html).toMatch(/<h4[^>]*>LI-One-Unique<\/h4>/)
