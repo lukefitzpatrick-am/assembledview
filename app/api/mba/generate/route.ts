@@ -12,7 +12,8 @@ export const maxDuration = 60
 
 /**
  * PC3 — MBA PDF from persisted schedule_months + approved_slice + fee snapshot.
- * Body: { mba_number, version_number } ONLY. Admin/manager. Approved-or-beyond.
+ * Body: { mba_number, version_number, campaign_status? }. Admin/manager.
+ * Gate is campaign status past Draft, not approved-or-beyond.
  */
 export async function POST(req: NextRequest) {
   const gate = await requireRole(req, ["admin"])
@@ -31,7 +32,7 @@ export async function POST(req: NextRequest) {
     }
 
     const raw = body as Record<string, unknown>
-    const allowed = new Set(["mba_number", "version_number", "mbanumber"])
+    const allowed = new Set(["mba_number", "version_number", "mbanumber", "campaign_status"])
     const extra = Object.keys(raw).filter((k) => !allowed.has(k))
     if (extra.length > 0) {
       return NextResponse.json(
@@ -53,7 +54,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const rendered = await buildMbaFromPersisted({ mbaNumber, versionNumber })
+    const liveCampaignStatus =
+      raw.campaign_status == null ? null : String(raw.campaign_status)
+    const rendered = await buildMbaFromPersisted({
+      mbaNumber,
+      versionNumber,
+      liveCampaignStatus,
+    })
     const pdfBuffer = await generateMBA(rendered.mbaData)
 
     return new NextResponse(pdfBuffer, {

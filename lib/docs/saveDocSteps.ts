@@ -1,12 +1,12 @@
 /**
  * Save-dialog document steps (MBA PDF / Media Plan file).
- * PC3 correctly refuses docs below approved — the dialog must show that as a
+ * Document generate refuses Draft — the dialog must show that as a
  * neutral SKIP, not a red failure ("my save failed").
  */
 
-import { isApprovedOrBeyond } from "@/lib/docs/isApprovedOrBeyond"
+import { isDownloadableCampaignStatus } from "@/lib/docs/isApprovedOrBeyond"
 
-export const DOC_SKIP_REASON = "Documents generate from approved versions"
+export const DOC_SKIP_REASON = "Documents generate once the campaign is past Draft"
 
 export const DOC_STEP_MBA = "MBA PDF Upload"
 export const DOC_STEP_MEDIA_PLAN = "Media Plan Upload"
@@ -20,9 +20,9 @@ export type SaveDocStepItem = {
   error?: string
 }
 
-/** True when campaign status is below approved — doc generation is an expected skip. */
+/** True when campaign status is Draft (or empty) — doc generation is an expected skip. */
 export function shouldSkipDocsForCampaignStatus(status: unknown): boolean {
-  return !isApprovedOrBeyond(status)
+  return !isDownloadableCampaignStatus(status)
 }
 
 /** PC3 / persisted-render gate messages that must never look like save failures. */
@@ -31,6 +31,7 @@ export function isExpectedDocGateSkipError(message: unknown): boolean {
   if (!m) return false
   return (
     /approved-or-beyond/i.test(m) ||
+    /past Draft/i.test(m) ||
     /Document render requires/i.test(m) ||
     /Document download requires/i.test(m)
   )

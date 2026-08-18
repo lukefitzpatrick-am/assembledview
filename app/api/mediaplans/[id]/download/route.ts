@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 import { requireRole } from "@/lib/requireRole"
-import { isApprovedOrBeyond } from "@/lib/docs/isApprovedOrBeyond"
+import { isDownloadableCampaignStatus } from "@/lib/docs/isApprovedOrBeyond"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -46,10 +46,12 @@ export async function GET(
     if (!version) {
       return NextResponse.json({ error: "Version not found" }, { status: 404 })
     }
-    if (!isApprovedOrBeyond(version.campaignStatus)) {
+    const liveCampaignStatus = new URL(request.url).searchParams.get("campaign_status")
+    const gateStatus = liveCampaignStatus ?? version.campaignStatus
+    if (!isDownloadableCampaignStatus(gateStatus)) {
       return NextResponse.json(
         {
-          error: `Document download requires approved-or-beyond status (got "${version.campaignStatus || "empty"}")`,
+          error: `Document download requires a campaign status past Draft (got "${gateStatus || "empty"}")`,
           code: "NOT_APPROVED",
         },
         { status: 422 }

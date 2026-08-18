@@ -27,7 +27,7 @@ import {
   snapshotChecksumFooter,
   type ChecksumScheduleRow,
 } from "@/lib/docs/snapshotChecksum"
-import { isApprovedOrBeyond } from "@/lib/docs/isApprovedOrBeyond"
+import { isDownloadableCampaignStatus } from "@/lib/docs/isApprovedOrBeyond"
 
 export class PersistedDocError extends Error {
   constructor(
@@ -192,6 +192,7 @@ export type PersistedMbaRender = {
 export async function buildMbaFromPersisted(args: {
   mbaNumber: string
   versionNumber: number
+  liveCampaignStatus?: string | null
 }): Promise<PersistedMbaRender> {
   const mbaNumber = String(args.mbaNumber ?? "").trim()
   const versionNumber = Number(args.versionNumber)
@@ -221,11 +222,14 @@ export async function buildMbaFromPersisted(args: {
     )
   }
 
-  const status = String(version.campaignStatus ?? "")
-  if (!isApprovedOrBeyond(status)) {
+  const gateStatus =
+    args.liveCampaignStatus != null && String(args.liveCampaignStatus).trim() !== ""
+      ? String(args.liveCampaignStatus)
+      : String(version.campaignStatus ?? "")
+  if (!isDownloadableCampaignStatus(gateStatus)) {
     throw new PersistedDocError(
       "NOT_APPROVED",
-      `Document render requires approved-or-beyond status (got "${status || "empty"}")`
+      `Document render requires a campaign status past Draft (got "${gateStatus || "empty"}")`
     )
   }
 

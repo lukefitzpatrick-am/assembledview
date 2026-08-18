@@ -14,18 +14,19 @@ import {
 } from "../saveDocSteps"
 
 describe("shouldSkipDocsForCampaignStatus", () => {
-  it("skips draft / planned / empty", () => {
+  it("skips draft / empty", () => {
     assert.equal(shouldSkipDocsForCampaignStatus("draft"), true)
     assert.equal(shouldSkipDocsForCampaignStatus("Draft"), true)
-    assert.equal(shouldSkipDocsForCampaignStatus("planned"), true)
     assert.equal(shouldSkipDocsForCampaignStatus(""), true)
     assert.equal(shouldSkipDocsForCampaignStatus(null), true)
   })
 
-  it("does not skip approved / booked / completed", () => {
+  it("does not skip planned / approved / booked / completed / cancelled", () => {
+    assert.equal(shouldSkipDocsForCampaignStatus("planned"), false)
     assert.equal(shouldSkipDocsForCampaignStatus("approved"), false)
     assert.equal(shouldSkipDocsForCampaignStatus("booked"), false)
     assert.equal(shouldSkipDocsForCampaignStatus("completed"), false)
+    assert.equal(shouldSkipDocsForCampaignStatus("cancelled"), false)
   })
 })
 
@@ -40,6 +41,12 @@ describe("isExpectedDocGateSkipError", () => {
     assert.equal(
       isExpectedDocGateSkipError(
         'Document download requires approved-or-beyond status (got "planned")'
+      ),
+      true
+    )
+    assert.equal(
+      isExpectedDocGateSkipError(
+        'Document render requires a campaign status past Draft (got "draft")'
       ),
       true
     )

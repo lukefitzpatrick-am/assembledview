@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 import { requireRole } from "@/lib/requireRole"
-import { isApprovedOrBeyond } from "@/lib/docs/isApprovedOrBeyond"
+import { isDownloadableCampaignStatus } from "@/lib/docs/isApprovedOrBeyond"
 import type { ApprovedSlice } from "@/lib/finance/approvedSlice"
 
 export const dynamic = "force-dynamic"
@@ -18,7 +18,7 @@ function normaliseMba(mba: string): string {
  * PC3 — media plan Excel generation locked to admin/manager + persisted keys only.
  * Full line-item Excel rebuild from PG is not wired here (editor uses client-side
  * generateMediaPlan). This route rejects client totals and serves the stored
- * media_plan_file URL metadata when the version is approved-or-beyond.
+ * media_plan_file URL metadata when the campaign status is past Draft.
  */
 export async function POST(request: NextRequest) {
   const gate = await requireRole(request, ["admin"])
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
     }
     const raw = body as Record<string, unknown>
-    const allowed = new Set(["mba_number", "version_number", "mbanumber"])
+    const allowed = new Set(["mba_number", "version_number", "mbanumber", "campaign_status"])
     const extra = Object.keys(raw).filter((k) => !allowed.has(k))
     if (extra.length > 0) {
       return NextResponse.json(
@@ -75,10 +75,13 @@ export async function POST(request: NextRequest) {
     if (!version) {
       return NextResponse.json({ error: "Version not found", code: "NOT_FOUND" }, { status: 404 })
     }
-    if (!isApprovedOrBeyond(version.campaignStatus)) {
+    const liveCampaignStatus =
+      raw.campaign_status == null ? null : String(raw.campaign_status)
+    const gateStatus = liveCampaignStatus ?? version.campaignStatus
+    if (!isDownloadableCampaignStatus(gateStatus)) {
       return NextResponse.json(
         {
-          error: `Document render requires approved-or-beyond status (got "${version.campaignStatus || "empty"}")`,
+          error: `Document render requires a campaign status past Draft (got "${gateStatus || "empty"}")`,
           code: "NOT_APPROVED",
         },
         { status: 422 }
