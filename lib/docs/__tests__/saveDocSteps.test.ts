@@ -115,6 +115,13 @@ describe("classifyDocStepFailure", () => {
     assert.equal(c.status, "skipped")
   })
 
+  it("reclassifies missing billing schedule as skipped", () => {
+    const c = classifyDocStepFailure(
+      "No billing schedule persisted for this version — open the plan and save it once, then download"
+    )
+    assert.equal(c.status, "skipped")
+  })
+
   it("keeps real failures as errors", () => {
     const c = classifyDocStepFailure("Failed to generate PDF")
     assert.equal(c.status, "error")

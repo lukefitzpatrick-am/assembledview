@@ -12,7 +12,8 @@ export const maxDuration = 60
 
 /**
  * PC3 — MBA PDF from persisted schedule_months + approved_slice + fee snapshot.
- * Body: { mba_number, version_number, campaign_status? }. Admin/manager.
+ * Missing approved_slice is derived at read time (never written). Body:
+ * { mba_number, version_number, campaign_status? }. Admin/manager.
  * Gate is campaign status past Draft, not approved-or-beyond.
  */
 export async function POST(req: NextRequest) {
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
         "Content-Disposition": `attachment; filename="${rendered.filename}"`,
         "X-Snapshot-Checksum": rendered.checksumHex,
         "X-Snapshot-Footer": rendered.footer,
+        "X-Slice-Source": rendered.sliceSource,
       },
     })
   } catch (error) {

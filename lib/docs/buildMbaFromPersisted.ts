@@ -19,6 +19,7 @@ import {
   type ScheduleMonthRowInput,
 } from "@/lib/finance/scheduleMonthsSource"
 import type { ApprovedSlice } from "@/lib/finance/approvedSlice"
+import { deriveApprovedSliceFromScheduleRows } from "@/lib/docs/deriveApprovedSliceFromSchedule"
 import { MEDIA_TYPE_LABELS } from "@/lib/media/mediaTypes"
 import { roundMoney2 } from "@/lib/format/money"
 import type { MBAData } from "@/lib/generateMBA"
@@ -183,6 +184,7 @@ export type PersistedMbaRender = {
   versionId: number
   versionNumber: number
   campaignStatus: string
+  sliceSource: "persisted" | "derived"
 }
 
 /**
@@ -230,14 +232,6 @@ export async function buildMbaFromPersisted(args: {
     throw new PersistedDocError(
       "NOT_APPROVED",
       `Document render requires a campaign status past Draft (got "${gateStatus || "empty"}")`
-    )
-  }
-
-  const approvedSlice = version.approvedSlice as ApprovedSlice | null
-  if (!approvedSlice || typeof approvedSlice !== "object" || !Array.isArray(approvedSlice.lines)) {
-    throw new PersistedDocError(
-      "MISSING_SLICE",
-      "approved_slice missing — republish version before generating documents"
     )
   }
 
@@ -295,9 +289,6 @@ export async function buildMbaFromPersisted(args: {
   }
   const resolved = resolveVersionSchedules(versionAsRecord, scheduleRows)
 
-  const approvedIds = sliceLineSet(approvedSlice)
-  const approvedMonths = sliceMonthSet(approvedSlice)
-
   const approvals = await readMbaLineApprovals(
     String(version.mbaNumber),
     Number(version.versionNumber)
@@ -311,6 +302,22 @@ export async function buildMbaFromPersisted(args: {
       }
     }
   }
+
+  let approvedSlice = version.approvedSlice as ApprovedSlice | null
+  let sliceSource: "persisted" | "derived" = "persisted"
+  if (!approvedSlice || typeof approvedSlice !== "object" || !Array.isArray(approvedSlice.lines)) {
+    approvedSlice = deriveApprovedSliceFromScheduleRows(scheduleRows, { unapprovedLineIds })
+    sliceSource = "derived"
+  }
+  if (!approvedSlice) {
+    throw new PersistedDocError(
+      "MISSING_SLICE",
+      "No billing schedule persisted for this version — open the plan and save it once, then download"
+    )
+  }
+
+  const approvedIds = sliceLineSet(approvedSlice)
+  const approvedMonths = sliceMonthSet(approvedSlice)
 
   const breakdown = computeMbaMediaBreakdown({
     scheduleRows,
@@ -426,7 +433,8 @@ export async function buildMbaFromPersisted(args: {
     filename,
     versionId: version.id,
     versionNumber,
-    campaignStatus: status,
+    campaignStatus: gateStatus,
+    sliceSource,
   }
 }
 
