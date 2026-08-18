@@ -212,7 +212,10 @@ type CampaignPageAssemblyProps = {
   mpSearchEnabled: boolean
   progDisplayItemsActive: any[]
   progVideoItemsActive: any[]
-  adServingItemsActive: any[]
+  digitalDisplayItemsActive: any[]
+  digitalVideoItemsActive: any[]
+  digitalAudioItemsActive: any[]
+  bvodItemsActive: any[]
   deliveryLineItemIds: string[]
   availableVersions: MediaPlanVersionListEntry[]
   currentVersion: number
@@ -222,6 +225,19 @@ type CampaignPageAssemblyProps = {
 
 function formatLocalYmd(d: Date): string {
   return format(d, "yyyy-MM-dd")
+}
+
+function filterLineItemsByBurstWindow(
+  items: any[],
+  isUnfiltered: boolean,
+  filterRange: DateRange,
+): any[] {
+  if (isUnfiltered) return items
+  return items.filter((item) => {
+    const bursts = Array.isArray(item?.bursts) ? item.bursts : []
+    if (bursts.length === 0) return true
+    return bursts.some((b: unknown) => burstOverlapsRange(b, filterRange))
+  })
 }
 
 export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
@@ -263,7 +279,10 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     mpSearchEnabled,
     progDisplayItemsActive,
     progVideoItemsActive,
-    adServingItemsActive,
+    digitalDisplayItemsActive,
+    digitalVideoItemsActive,
+    digitalAudioItemsActive,
+    bvodItemsActive,
     deliveryLineItemIds,
     availableVersions,
     currentVersion,
@@ -365,14 +384,22 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
     })
   }, [filterRange, isUnfiltered, progVideoItemsActive])
 
-  const filteredAdServing = useMemo(() => {
-    if (isUnfiltered) return adServingItemsActive
-    return adServingItemsActive.filter((item) => {
-      const bursts = Array.isArray(item?.bursts) ? item.bursts : []
-      if (bursts.length === 0) return true
-      return bursts.some((b: unknown) => burstOverlapsRange(b, filterRange))
-    })
-  }, [filterRange, isUnfiltered, adServingItemsActive])
+  const filteredDigitalDisplay = useMemo(
+    () => filterLineItemsByBurstWindow(digitalDisplayItemsActive, isUnfiltered, filterRange),
+    [filterRange, isUnfiltered, digitalDisplayItemsActive],
+  )
+  const filteredDigitalVideo = useMemo(
+    () => filterLineItemsByBurstWindow(digitalVideoItemsActive, isUnfiltered, filterRange),
+    [filterRange, isUnfiltered, digitalVideoItemsActive],
+  )
+  const filteredDigitalAudio = useMemo(
+    () => filterLineItemsByBurstWindow(digitalAudioItemsActive, isUnfiltered, filterRange),
+    [filterRange, isUnfiltered, digitalAudioItemsActive],
+  )
+  const filteredBvod = useMemo(
+    () => filterLineItemsByBurstWindow(bvodItemsActive, isUnfiltered, filterRange),
+    [filterRange, isUnfiltered, bvodItemsActive],
+  )
 
   // --- KPI targets for delivery containers (Stage 3b) ---
   const [savedCampaignKPIs, setSavedCampaignKPIs] = useState<CampaignKPI[]>([])
@@ -722,7 +749,10 @@ export default function CampaignPageAssembly(props: CampaignPageAssemblyProps) {
                 mpSearchEnabled={mpSearchEnabled}
                 progDisplayLineItems={filteredProgDisplay}
                 progVideoLineItems={filteredProgVideo}
-                adServingLineItems={filteredAdServing}
+                digitalDisplayLineItems={filteredDigitalDisplay}
+                digitalVideoLineItems={filteredDigitalVideo}
+                digitalAudioLineItems={filteredDigitalAudio}
+                bvodLineItems={filteredBvod}
               />
               </div>
             </Suspense>

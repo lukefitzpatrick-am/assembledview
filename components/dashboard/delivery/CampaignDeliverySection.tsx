@@ -399,7 +399,7 @@ export function CampaignDeliverySection({
     return Array.from(new Set(ids)).sort()
   }, [progVideoLineItems, filterByPacingSet])
 
-  const adServingLineItemIds = useMemo(() => {
+  const directDigitalLineItemIds = useMemo(() => {
     const ids = [
       ...(digitalDisplayLineItems ?? []),
       ...(digitalVideoLineItems ?? []),
@@ -435,7 +435,7 @@ export function CampaignDeliverySection({
       tiktokLineItemIds={tiktokLineItemIds}
       progDisplayLineItemIds={progDisplayLineItemIds}
       progVideoLineItemIds={progVideoLineItemIds}
-      adServingLineItemIds={adServingLineItemIds}
+      directDigitalLineItemIds={directDigitalLineItemIds}
       campaignStart={campaignStart}
       campaignEnd={campaignEnd}
       searchEnabled={includeSearch}
