@@ -608,9 +608,11 @@ function buildSearchLineItemBlocks(input: {
         },
         ...(lineAdGroups.length > 0
           ? {
-              adGroupBreakdown: {
+              entityBreakdown: {
                 rows: lineAdGroups,
                 knownPlanLineIds,
+                entityNoun: { singular: "ad group", plural: "ad groups" },
+                columns: "spend" as const,
               },
             }
           : {}),

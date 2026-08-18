@@ -8,6 +8,7 @@ import type { PacingRow as CombinedPacingRow } from "@/lib/snowflake/pacing-serv
 import type { ProgressCardProps } from "../shared/ProgressCard"
 import type { KpiTileProps } from "../shared/KpiTile"
 import type { LineItemBlockProps } from "../shared/LineItemBlock"
+import type { EntityBreakdownRow } from "../shared/EntityBreakdownTable"
 import type { DeliveryStatus } from "../shared/statusColours"
 import type { ChannelKey, ChannelSectionData } from "./types"
 import { aggregateDailyRows } from "./aggregateDaily"
@@ -43,6 +44,62 @@ function cleanId(v: unknown): string | null {
 
 function extractLineItemId(item: AdServingLineItem): string | null {
   return cleanId(item.line_item_id ?? item.lineItemId ?? item.LINE_ITEM_ID)
+}
+
+type PlacementFactRow = {
+  entityId?: string | null
+  entityName?: string | null
+  impressions?: number
+  clicks?: number
+  results?: number
+  video3sViews?: number
+}
+
+/** Group CM360 fact rows by placement entityId. Blank ids are dropped, not "unknown". */
+export function groupPacingRowsByPlacement(rows: PlacementFactRow[]): EntityBreakdownRow[] {
+  type Acc = {
+    id: string
+    name: string
+    impressions: number
+    clicks: number
+    results: number
+    videoCompletes: number
+  }
+  const byId = new Map<string, Acc>()
+  for (const row of rows) {
+    const rawId = String(row.entityId ?? "").trim()
+    const id = rawId.toLowerCase()
+    if (!id) continue
+    const nextName = String(row.entityName ?? "").trim()
+    const existing = byId.get(id)
+    const impressions = Number(row.impressions ?? 0) || 0
+    const clicks = Number(row.clicks ?? 0) || 0
+    const results = Number(row.results ?? 0) || 0
+    const videoCompletes = Number(row.video3sViews ?? 0) || 0
+    if (!existing) {
+      byId.set(id, {
+        id,
+        name: nextName,
+        impressions,
+        clicks,
+        results,
+        videoCompletes,
+      })
+    } else {
+      existing.impressions += impressions
+      existing.clicks += clicks
+      existing.results += results
+      existing.videoCompletes += videoCompletes
+      if (!existing.name && nextName) existing.name = nextName
+    }
+  }
+  return [...byId.values()].map((acc) => ({
+    id: acc.id,
+    name: acc.name || acc.id,
+    impressions: acc.impressions,
+    clicks: acc.clicks,
+    videoCompletes: acc.videoCompletes,
+  }))
 }
 
 function parseBursts(raw: unknown): Array<Record<string, unknown>> {
@@ -180,6 +237,7 @@ export function buildDirectDigitalChannelSection(input: {
   if (!normalized.length) return null
 
   const idSet = new Set(normalized.map((i) => i.line_item_id!).filter(Boolean))
+  const knownPlanLineIds = Array.from(idSet)
   // Snowflake PACING_FACT channel is still "ad-serving" (Ad Serving - CM360) for
   // every Direct Booked Digital media type — not the container ChannelKey.
   const adRows = combinedRows.filter(
@@ -226,7 +284,7 @@ export function buildDirectDigitalChannelSection(input: {
       { impressions: 0, clicks: 0, results: 0, videoCompletes: 0 },
     )
     const booked = bookedDeliverables(item)
-    return { item, id, daily, totals, booked }
+    return { item, id, daily, totals, booked, matched }
   })
 
   // Drop plan-only orphans with zero matched rows from the accordion; keep aggregate from matched.
@@ -336,6 +394,7 @@ export function buildDirectDigitalChannelSection(input: {
     }))
 
     const displayName = deliveryLineItemDisplayName(m.item as Record<string, unknown>)
+    const placementRows = groupPacingRowsByPlacement(m.matched)
     const block: LineItemBlockProps = {
       name: displayName.label,
       fullName: displayName.full,
@@ -398,6 +457,16 @@ export function buildDirectDigitalChannelSection(input: {
         asAtDate: asAtISO,
         brandColour: input.brandColour,
       },
+      ...(placementRows.length > 0
+        ? {
+            entityBreakdown: {
+              rows: placementRows,
+              knownPlanLineIds,
+              entityNoun: { singular: "placement", plural: "placements" },
+              columns: "delivery" as const,
+            },
+          }
+        : {}),
     }
 
     return { id: m.id, block }

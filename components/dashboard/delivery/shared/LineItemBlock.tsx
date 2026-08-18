@@ -4,9 +4,10 @@ import { ProgressCard, type ProgressCardProps } from "./ProgressCard"
 import { KpiBand, type KpiBandProps } from "./KpiBand"
 import { DeliveryDailyChart } from "@/components/dashboard/delivery/common/DeliveryDailyChart"
 import {
-  AdGroupBreakdownTable,
-  type AdGroupBreakdownRow,
-} from "./AdGroupBreakdownTable"
+  EntityBreakdownTable,
+  type EntityBreakdownNoun,
+  type EntityBreakdownRow,
+} from "./EntityBreakdownTable"
 
 type CumulativeChart = {
   kind: "cumulative-vs-target"
@@ -40,10 +41,12 @@ export interface LineItemBlockProps {
   progressCards: [ProgressCardProps, ProgressCardProps]
   kpiBand: KpiBandProps
   chart: LineItemChart
-  /** Search only: delivered ad-group actuals (no planned). */
-  adGroupBreakdown?: {
-    rows: AdGroupBreakdownRow[]
+  /** Delivered entity actuals (search ad groups / CM360 placements). No planned. */
+  entityBreakdown?: {
+    rows: EntityBreakdownRow[]
     knownPlanLineIds: string[]
+    entityNoun: EntityBreakdownNoun
+    columns: "spend" | "delivery"
   }
 }
 
@@ -54,7 +57,7 @@ export function LineItemBlock({
   progressCards,
   kpiBand,
   chart,
-  adGroupBreakdown,
+  entityBreakdown,
 }: LineItemBlockProps) {
   return (
     <div className="rounded-xl border border-border/40 bg-muted/10 p-4 space-y-4">
@@ -91,10 +94,12 @@ export function LineItemBlock({
           subtitle={chart.series.map((s) => s.label).join(" + ")}
         />
       )}
-      {adGroupBreakdown && adGroupBreakdown.rows.length > 0 ? (
-        <AdGroupBreakdownTable
-          rows={adGroupBreakdown.rows}
-          knownPlanLineIds={adGroupBreakdown.knownPlanLineIds}
+      {entityBreakdown && entityBreakdown.rows.length > 0 ? (
+        <EntityBreakdownTable
+          rows={entityBreakdown.rows}
+          knownPlanLineIds={entityBreakdown.knownPlanLineIds}
+          entityNoun={entityBreakdown.entityNoun}
+          columns={entityBreakdown.columns}
         />
       ) : null}
     </div>
