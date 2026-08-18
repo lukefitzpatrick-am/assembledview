@@ -173,6 +173,7 @@ pct === 100 → fee = 0 (division guard)
 
 - `Panel`/`PanelRow`/`PanelRowCell` mandatory for new dashboard work; `Card` only for chart wrappers and non-dashboard composables. `bg-dashboard-surface` only for the dashboard backdrop.
 - No new hard-coded hex in `app/**` route components (chart palette constants and tenant brand colours excepted). No chart hard-codes a hex — use `lib/chart-theme.ts` / `lib/charts/registry.ts`.
+- Delivery daily-chart series (`key` / `label` / `yAxis` / optional `format`) is `DeliveryDailyChartSeries` only — `ChannelAggregate.chart.series` and `LineItemBlock` `DailyChart.series` import it. ComboChart bars default `dollars`, lines default `number`.
 - Interactive charts: tooltip + legend + keyboard alternative; non-interactive: `cursor="default"`. Touch targets ≥24×24 CSS px, ≥44×44 for primary actions.
 - (Full normative doc: `docs/design-refresh/SYSTEM_RULES.md`.)
 

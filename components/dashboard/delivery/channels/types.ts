@@ -1,3 +1,4 @@
+import type { DeliveryDailyChartSeries } from "../common/DeliveryDailyChart"
 import type { ProgressCardProps } from "../shared/ProgressCard"
 import type { KpiBandProps } from "../shared/KpiBand"
 import type { LineItemBlockProps } from "../shared/LineItemBlock"
@@ -41,7 +42,7 @@ export interface ChannelAggregate {
   /** Aggregate daily delivery chart inputs. */
   chart: {
     daily: Array<Record<string, string | number>>
-    series: Array<{ key: string; label: string; yAxis?: "left" | "right" }>
+    series: DeliveryDailyChartSeries[]
     asAtDate: string | null
     brandColour?: string
   }
