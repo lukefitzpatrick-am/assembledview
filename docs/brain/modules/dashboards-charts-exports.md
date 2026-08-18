@@ -40,7 +40,7 @@ Three stacks — know which one you're in:
 
 Checksum: `lib/docs/snapshotChecksum.ts` — sha256 over canonical `(schedule_months + approved_slice + fee snapshot)`; written on publish to `media_plan_versions.snapshot_checksum`; weekly tripwire `GET /api/cron/snapshot-checksum` (CRON_SECRET, report-only).
 
-While an unpublished draft exists, document downloads keep serving the **published tip** (edit page `isPublished` gate + toast “Publish this plan to download and send to client”).
+Document downloads follow `isDownloadableCampaignStatus` (everything except draft; live campaign-status dropdown is authority). Edit/create POST `/api/mba/generate` with `{mba_number,version_number,campaign_status?}`. Draft still blocked with `DOWNLOAD_BLOCKED_MESSAGE` (“Set the campaign status past Draft to download and send to client”).
 
 Template/skill files resolve via `process.cwd()` — serverless bundle tracing must include them.
 

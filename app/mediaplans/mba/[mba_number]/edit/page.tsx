@@ -362,7 +362,9 @@ import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
 import { normaliseStatus, mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import {
+  DOWNLOAD_BLOCKED_MESSAGE,
   isApprovedOrBeyond,
+  isDownloadableCampaignStatus,
   publishedBillingTimingLockedMessage,
 } from "@/lib/docs/isApprovedOrBeyond"
 import {
@@ -2880,11 +2882,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const campaignBudget = useWatch({ control: form.control, name: 'mp_campaignbudget' })
   const watchedCampaignName = useWatch({ control: form.control, name: 'mp_campaignname' })
   const watchedCampaignStatus = useWatch({ control: form.control, name: 'mp_campaignstatus' })
-  const isPublished =
-    normaliseStatus(
-      watchedCampaignStatus ?? mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
-    ) !== "draft"
-  const publishToDownloadMessage = "Publish this plan to download and send to client"
+  const canDownloadDocuments = isDownloadableCampaignStatus(
+    watchedCampaignStatus ?? mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus
+  )
   const watchedClientName = useWatch({ control: form.control, name: 'mp_clientname' })
   // totalInvestment is wired from mbaScopeTotals.nettExGst (total investment, ex GST).
   const budgetRemaining = useMemo(
@@ -8802,6 +8802,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       body: JSON.stringify({
         mba_number: mbaNum,
         version_number: Number(resolvedPlanVersion),
+        campaign_status: fv.mp_campaignstatus ?? null,
       }),
     })
 
@@ -8973,8 +8974,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   const handleGenerateMBA = async () => {
-    if (!isPublished) {
-      toast({ title: publishToDownloadMessage })
+    if (!canDownloadDocuments) {
+      toast({ title: DOWNLOAD_BLOCKED_MESSAGE })
       return
     }
     setIsLoading(true)
@@ -9014,8 +9015,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   const handleDownloadMediaPlan = async () => {
-    if (!isPublished) {
-      toast({ title: publishToDownloadMessage })
+    if (!canDownloadDocuments) {
+      toast({ title: DOWNLOAD_BLOCKED_MESSAGE })
       return
     }
     setIsDownloading(true)
@@ -9037,8 +9038,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }
 
   const handleDownloadAdvertisingAssociatesMediaPlan = async () => {
-    if (!isPublished) {
-      toast({ title: publishToDownloadMessage })
+    if (!canDownloadDocuments) {
+      toast({ title: DOWNLOAD_BLOCKED_MESSAGE })
       return
     }
     if (!hasAdvertisingAssociatesBilling) return
@@ -9132,8 +9133,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   };
 
   const handleSaveAndDownloadAll = async () => {
-    if (!isPublished) {
-      toast({ title: publishToDownloadMessage })
+    if (!canDownloadDocuments) {
+      toast({ title: DOWNLOAD_BLOCKED_MESSAGE })
       await handleSaveAll()
       return
     }
@@ -11080,7 +11081,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         <PlanDraftPill
           pill={planDraft.pill}
           tipLabel={
-            isPublished
+            canDownloadDocuments
               ? `published tip v${selectedVersionNumber ?? mediaPlan?.version_number ?? "?"}`
               : null
           }
@@ -11152,8 +11153,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           type="button"
           variant="outline"
           onClick={handleGenerateMBA}
-          disabled={isLoading || !isPublished}
-          title={!isPublished ? publishToDownloadMessage : undefined}
+          disabled={isLoading || !canDownloadDocuments}
+          title={!canDownloadDocuments ? DOWNLOAD_BLOCKED_MESSAGE : undefined}
           className="h-9 shrink-0 rounded-pill border-border px-4 focus-visible:ring-2 focus-visible:ring-ring"
         >
           {isLoading ? "Generating..." : "Generate MBA"}
@@ -11175,21 +11176,21 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <DropdownMenuItem
                 onClick={handleDownloadMediaPlan}
                 disabled={
-                  !isPublished ||
+                  !canDownloadDocuments ||
                   isDownloading ||
                   isDownloadingAa ||
                   isNamingDownloading ||
                   isLoading ||
                   isSaving
                 }
-                title={!isPublished ? publishToDownloadMessage : undefined}
+                title={!canDownloadDocuments ? DOWNLOAD_BLOCKED_MESSAGE : undefined}
               >
                 Media Plan
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={handleDownloadAdvertisingAssociatesMediaPlan}
                 disabled={
-                  !isPublished ||
+                  !canDownloadDocuments ||
                   !hasAdvertisingAssociatesBilling ||
                   isDownloading ||
                   isDownloadingAa ||
@@ -11197,10 +11198,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   isLoading ||
                   isSaving
                 }
-                title={!isPublished ? publishToDownloadMessage : undefined}
+                title={!canDownloadDocuments ? DOWNLOAD_BLOCKED_MESSAGE : undefined}
                 className={cn(
                   "text-brand-dark focus:bg-highlight/25 focus:text-brand-dark",
-                  (!hasAdvertisingAssociatesBilling || !isPublished) && "opacity-50",
+                  (!hasAdvertisingAssociatesBilling || !canDownloadDocuments) && "opacity-50",
                 )}
               >
                 Media Plan (AA)
@@ -11214,7 +11215,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               <DropdownMenuItem
                 onClick={handleSaveAndDownloadAll}
                 disabled={isLoading || isDownloading || isDownloadingAa || isSaving}
-                title={!isPublished ? publishToDownloadMessage : undefined}
+                title={!canDownloadDocuments ? DOWNLOAD_BLOCKED_MESSAGE : undefined}
               >
                 Save &amp; Download All
               </DropdownMenuItem>
@@ -11225,14 +11226,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           type="button"
           onClick={handleDownloadMediaPlan}
           disabled={
-            !isPublished ||
+            !canDownloadDocuments ||
             isDownloading ||
             isDownloadingAa ||
             isNamingDownloading ||
             isLoading ||
             isSaving
           }
-          title={!isPublished ? publishToDownloadMessage : undefined}
+          title={!canDownloadDocuments ? DOWNLOAD_BLOCKED_MESSAGE : undefined}
           className="hidden h-9 shrink-0 rounded-pill bg-accent px-4 py-2 text-foreground hover:bg-accent/90 md:inline-flex focus-visible:ring-2 focus-visible:ring-ring"
         >
           {isDownloading ? (
@@ -11246,7 +11247,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           type="button"
           onClick={handleDownloadAdvertisingAssociatesMediaPlan}
           disabled={
-            !isPublished ||
+            !canDownloadDocuments ||
             !hasAdvertisingAssociatesBilling ||
             isDownloading ||
             isDownloadingAa ||
@@ -11254,10 +11255,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             isLoading ||
             isSaving
           }
-          title={!isPublished ? publishToDownloadMessage : undefined}
+          title={!canDownloadDocuments ? DOWNLOAD_BLOCKED_MESSAGE : undefined}
           className={cn(
             "hidden h-9 shrink-0 rounded-pill bg-brand-dark px-4 py-2 text-primary-foreground hover:bg-brand-dark/90 md:inline-flex focus-visible:ring-2 focus-visible:ring-ring",
-            (!hasAdvertisingAssociatesBilling || !isPublished) && "opacity-50 grayscale",
+            (!hasAdvertisingAssociatesBilling || !canDownloadDocuments) && "opacity-50 grayscale",
           )}
         >
           {isDownloadingAa ? (
@@ -11291,7 +11292,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           variant="action"
           onClick={handleSaveAndDownloadAll}
           disabled={isLoading || isDownloading || isDownloadingAa || isSaving}
-          title={!isPublished ? publishToDownloadMessage : undefined}
+          title={!canDownloadDocuments ? DOWNLOAD_BLOCKED_MESSAGE : undefined}
           className="hidden h-9 shrink-0 rounded-pill px-4 py-2 md:inline-flex focus-visible:ring-2 focus-visible:ring-ring"
         >
           {isLoading ? (
