@@ -55,7 +55,13 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const rendered = await buildMbaFromPersisted({ mbaNumber, versionNumber })
+    const liveCampaignStatus =
+      raw.campaign_status == null ? null : String(raw.campaign_status)
+    const rendered = await buildMbaFromPersisted({
+      mbaNumber,
+      versionNumber,
+      liveCampaignStatus,
+    })
     const pdfBuffer = await generateMBA(rendered.mbaData)
 
     return new NextResponse(pdfBuffer, {

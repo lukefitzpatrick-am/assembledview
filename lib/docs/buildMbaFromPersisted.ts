@@ -194,6 +194,7 @@ export type PersistedMbaRender = {
 export async function buildMbaFromPersisted(args: {
   mbaNumber: string
   versionNumber: number
+  liveCampaignStatus?: string | null
 }): Promise<PersistedMbaRender> {
   const mbaNumber = String(args.mbaNumber ?? "").trim()
   const versionNumber = Number(args.versionNumber)
