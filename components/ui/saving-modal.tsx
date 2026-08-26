@@ -10,6 +10,7 @@ import {
   savingDialogAllComplete,
   savingDialogHasErrors,
 } from "@/lib/docs/saveDocSteps"
+import { savingModalChromeForItems } from "@/lib/auth/writeSessionExpiry"
 
 export interface SaveStatusItem {
   name: string;
@@ -59,13 +60,16 @@ export function SavingModal({
   const hasItems = items.length > 0;
   const allComplete = savingDialogAllComplete(items);
   const hasErrors = savingDialogHasErrors(items);
+  const sessionChrome = savingModalChromeForItems(items);
+  const resolvedTitleWithErrors = sessionChrome.titleWithErrors ?? titleWithErrors;
+  const resolvedDescriptionError = sessionChrome.descriptionError ?? descriptionError;
   const showRetryPublish =
     Boolean(publishRetryPending && onRetryPublish) && hasErrors && !isSaving;
   const canClose = !isSaving && !isRetryingPublish;
   const dialogTitle = showRetryPublish
     ? titleRetryPublish
     : hasErrors
-      ? titleWithErrors
+      ? resolvedTitleWithErrors
       : allComplete
         ? titleComplete
         : title;
@@ -93,7 +97,7 @@ export function SavingModal({
             {showRetryPublish
               ? descriptionRetryPublish
               : hasErrors
-                ? descriptionError
+                ? resolvedDescriptionError
                 : isSaving
                   ? descriptionSaving
                   : descriptionComplete}

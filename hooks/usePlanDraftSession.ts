@@ -35,6 +35,10 @@ import {
   isMeaningfulCreateDraft,
   summarizeCreateDraftOffer,
 } from "@/lib/mediaplan/drafts/createLocalDraft"
+import {
+  noteAuthenticatedWriteOk,
+  throwIfWriteUnauthorized,
+} from "@/lib/auth/writeSessionExpiry"
 
 type OtherDraft = {
   userId: string
@@ -192,9 +196,11 @@ export function usePlanDraftSession(args: {
         }),
       })
       if (!res.ok) {
+        throwIfWriteUnauthorized(res.status)
         const body = (await res.json().catch(() => ({}))) as { error?: string }
         throw new Error(body.error || `Draft save failed (${res.status})`)
       }
+      noteAuthenticatedWriteOk()
       await clearLocalDraft({
         masterId: args.masterId,
         mbaNumber: args.mbaNumber,

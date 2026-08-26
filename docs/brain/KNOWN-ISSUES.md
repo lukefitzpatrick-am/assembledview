@@ -26,6 +26,12 @@ C-numbers are allocated on `localhost` only, and are never reassigned once writt
 | SEC-17 | `GET …/expected-spend-to-date` had no local MBA gate (cookie-forward only) | FIXED — `checkClientMbaAccess` on mba param before upstream fetch |
 | SEC-18 | `GET /api/dashboard/spend-parity` classified tenant-scoped+none (404 in prod is not a guard) | FIXED — `requireRole(["admin"])` then existing prod 404 |
 
+## Session / save UI (SE-*)
+
+| ID | Issue | Status |
+|---|---|---|
+| SE-1 | `POST /api/plans/save` 401 from edge middleware left SavingModal pending-spinners (looked hung) and create treated postgres `!ok` as success (`clearDirtyOnSaveSuccess` + `router.push`) while reads still looked logged-in | FIXED — session-expired copy + skip remaining steps + app banner until the next successful write; create throws `WriteSessionExpiredError` so `handleSaveAll` stays on the page |
+
 ## Data integrity (DI-*)
 
 | ID | Issue | Status |

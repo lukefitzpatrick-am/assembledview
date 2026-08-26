@@ -1,4 +1,5 @@
 import { toMelbourneDateString } from "@/lib/timezone"
+import { throwIfWriteUnauthorized } from "@/lib/auth/writeSessionExpiry"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getXanoBaseUrl, xanoAuthHeaderRecord, xanoPostHeaderRecord } from "@/lib/api/xano"
 import { coalescedGetJson, invalidateCoalescedGetJson } from "@/lib/api/coalescedGetJson"
@@ -818,6 +819,7 @@ export async function createMediaPlan(data: {
       }),
     });
     if (!response.ok) {
+      throwIfWriteUnauthorized(response.status)
       const errorData = await response.json();
       throw new Error(errorData.error || errorData.message || "Failed to create media plan");
     }

@@ -277,6 +277,16 @@ import {
   dollarsToCampaignBudgetCents,
   postPlansSave,
 } from "@/lib/mediaplan/buildPostgresSavePayload"
+import {
+  SESSION_EXPIRED_PUBLISH_MESSAGE,
+  SESSION_EXPIRED_SAVE_MESSAGE,
+  SESSION_EXPIRED_TITLE,
+  WriteSessionExpiredError,
+  applySessionExpiredToSaveItems,
+  isUnauthorizedStatus,
+  isWriteSessionExpiredError,
+  noteWriteUnauthorized,
+} from "@/lib/auth/writeSessionExpiry"
 import { usePlanDraftSession } from "@/hooks/usePlanDraftSession"
 import {
   PlanDraftActiveBanner,
@@ -5133,6 +5143,16 @@ function CreateMediaPlan() {
         }
       )
       if (!publishResponse.ok) {
+        if (isUnauthorizedStatus(publishResponse.status)) {
+          noteWriteUnauthorized()
+          patchPublishStatus("error", SESSION_EXPIRED_PUBLISH_MESSAGE)
+          toast({
+            variant: "destructive",
+            title: SESSION_EXPIRED_TITLE,
+            description: SESSION_EXPIRED_PUBLISH_MESSAGE,
+          })
+          return
+        }
         let publishError = "Failed to publish version number"
         try {
           const body = await publishResponse.json()
@@ -5236,13 +5256,18 @@ function CreateMediaPlan() {
       toast({ title: 'Plan created', description: `ID ${mediaPlan.id}` })
       return mediaPlan.id
     } catch (err: any) {
-      // Update status to error
+      const expired = isWriteSessionExpiredError(err)
+      const message = expired ? SESSION_EXPIRED_SAVE_MESSAGE : err.message
       setSaveStatus(prev => prev.map(item => 
         item.name === 'Media Plan Master' 
-          ? { ...item, status: 'error' as const, error: err.message }
+          ? { ...item, status: 'error' as const, error: message }
           : item
       ))
-      toast({ title: 'Save error', description: err.message, variant: 'destructive' })
+      toast({
+        title: expired ? SESSION_EXPIRED_TITLE : 'Save error',
+        description: message,
+        variant: 'destructive',
+      })
       throw err;
     } finally {
       setIsPlanSaving(false)
@@ -5563,6 +5588,17 @@ function CreateMediaPlan() {
         )
 
         if (!saveResult.ok) {
+          if (isUnauthorizedStatus(saveResult.status)) {
+            setSaveStatus((prev) =>
+              applySessionExpiredToSaveItems(prev, "Save plan (transactional)")
+            )
+            toast({
+              variant: "destructive",
+              title: SESSION_EXPIRED_TITLE,
+              description: SESSION_EXPIRED_SAVE_MESSAGE,
+            })
+            throw new WriteSessionExpiredError()
+          }
           if (saveResult.data.code === "STALE_BASE_VERSION" && saveResult.data.compare) {
             planDraft.setStaleCompare(saveResult.data.compare)
             updateSaveStatus(
@@ -5726,6 +5762,17 @@ function CreateMediaPlan() {
         )
 
         if (!versionResponse.ok) {
+          if (isUnauthorizedStatus(versionResponse.status)) {
+            setSaveStatus((prev) =>
+              applySessionExpiredToSaveItems(prev, "Media Plan Version")
+            )
+            toast({
+              variant: "destructive",
+              title: SESSION_EXPIRED_TITLE,
+              description: SESSION_EXPIRED_SAVE_MESSAGE,
+            })
+            throw new WriteSessionExpiredError()
+          }
           const errorBody = await versionResponse.json().catch(
             () => ({} as { error?: string; code?: string })
           )
@@ -6634,6 +6681,29 @@ function CreateMediaPlan() {
           }
         )
         if (!publishResponse.ok) {
+          if (isUnauthorizedStatus(publishResponse.status)) {
+            noteWriteUnauthorized()
+            const stagedVn =
+              typeof version.version_number === 'string'
+                ? parseInt(version.version_number, 10)
+                : Number(version.version_number)
+            setPendingPublishRetry({
+              mbaNumber: String(fv.mba_number),
+              versionNumber: Number.isFinite(stagedVn) ? stagedVn : 0,
+              versionId: version.id ?? null,
+              publishedBefore:
+                typeof publishedVersionBeforeSave === 'number'
+                  ? publishedVersionBeforeSave
+                  : Number(publishedVersionBeforeSave) || 0,
+            })
+            updateSaveStatus('Publish version', 'error', SESSION_EXPIRED_PUBLISH_MESSAGE)
+            toast({
+              title: SESSION_EXPIRED_TITLE,
+              description: SESSION_EXPIRED_PUBLISH_MESSAGE,
+              variant: 'destructive',
+            })
+            return 'publish_pending' as const
+          }
           const body = await publishResponse.json().catch(() => ({} as { error?: string }))
           const publishError = body.error || 'Failed to publish version after channel saves'
           const stagedVn =
@@ -6669,6 +6739,9 @@ function CreateMediaPlan() {
       toast({ title: 'Version saved', description: `Version ID ${version.id}` });
       return 'ok' as const
     } catch (err: any) {
+      if (isWriteSessionExpiredError(err)) {
+        throw err
+      }
       // Update Media Plan Version status to error
       updateSaveStatus('Media Plan Version', 'error', err.message || 'Failed to save version');
       toast({ title: 'Error saving version', description: err.message, variant: 'destructive' });

@@ -8,6 +8,7 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { MediaPlanProvider } from "@/contexts/MediaPlanContext"
 import { Toaster } from "@/components/ui/toaster"
 import { ChatWidget } from "@/components/ChatWidget"
+import { SessionExpiredBanner } from "@/components/auth/SessionExpiredBanner"
 import { usePathname } from "next/navigation"
 import { AuthWrapper } from "@/components/AuthWrapper"
 import { AuthContextProvider, useAuthContext } from "@/contexts/AuthContext"
@@ -96,6 +97,9 @@ export function ClientLayout({ children }: { children: React.ReactNode }) {
                       </div>
                     </div>
                   </header>
+                )}
+                {isShellVisible && (
+                  <SessionExpiredBanner pathname={p} />
                 )}
                 <main
                   id="main"

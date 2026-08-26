@@ -19,6 +19,15 @@ function localKey(masterId: number | null, mbaNumber: string, userId: string): s
   return `${m}::${userId}`
 }
 
+/** Same key persistLocal / persistServer use — re-login with the same userId recovers this record. */
+export function localDraftStorageKey(args: {
+  masterId: number | null
+  mbaNumber: string
+  userId: string
+}): string {
+  return localKey(args.masterId, args.mbaNumber, args.userId)
+}
+
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION)

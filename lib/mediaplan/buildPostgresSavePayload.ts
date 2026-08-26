@@ -9,6 +9,11 @@ import type {
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { mapUiMediaTypeToLineChannel } from "@/lib/mediaplan/mapUiMediaTypeToLineChannel"
 import { parseMoneyInput } from "@/lib/format/money"
+import {
+  isUnauthorizedStatus,
+  noteAuthenticatedWriteOk,
+  noteWriteUnauthorized,
+} from "@/lib/auth/writeSessionExpiry"
 
 const ATTR_SKIP = new Set([
   "id",
@@ -330,8 +335,10 @@ export async function postPlansSave(
   })
   const data = (await res.json().catch(() => ({}))) as PlansSaveResponse
   if (!res.ok) {
+    if (isUnauthorizedStatus(res.status)) noteWriteUnauthorized()
     return { ok: false, status: res.status, data }
   }
+  noteAuthenticatedWriteOk()
   return { ok: true, data }
 }
 
