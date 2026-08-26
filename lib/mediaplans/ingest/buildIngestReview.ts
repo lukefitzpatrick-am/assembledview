@@ -47,6 +47,8 @@ export { ingestMappingRowKey } from "@/lib/mediaplans/ingest/avaColumnMapping"
 export type IgnoredSummary = {
   sheets_skipped: string[]
   rows_unparsed: number
+  /** Identifying labels from unparsed leftover rows (never a silent count). */
+  rows_unparsed_labels: string[]
   columns_unmapped: string[]
   /** Human-readable counts — must be non-empty when anything was ignored. */
   spoken: string[]
@@ -93,6 +95,15 @@ export type IngestReviewPackage = {
    */
   needs_catalogue_choice: boolean
   source_file_name: string | null
+  /**
+   * Chat-side session for confirm-then-ask (MBA pick + answered cards).
+   * Lives on the staged package so it survives overlay persist without a migration.
+   */
+  ava_chat?: {
+    selectedMbaNumber?: string | null
+    answers?: Record<string, string>
+    emittedQuestionIds?: string[]
+  }
   /** All sheet shapes for debugging / multi-sheet accept later. */
   sheets: Array<{
     sheet_name: string
@@ -138,23 +149,52 @@ function buildColumnMapping(
   })
 }
 
-function countUnparsedRows(shape: DetectedSheetShape): number {
-  // Rows after header that are neither grouping nor data (blank / junk).
-  let n = 0
+/** First letter-bearing cell on an unparsed leftover row — extracted, never invented. */
+export function labelUnparsedRows(shape: DetectedSheetShape): {
+  rowCount: number
+  labels: string[]
+} {
   const grouped = new Set(shape.grouping_rows)
   const data = new Set(shape.data_rows)
+  const descCols = shape.descriptor_columns.map((d) => d.col)
+  const labels: string[] = []
+  const seen = new Set<string>()
+  let rowCount = 0
   for (let r = shape.header_row + 1; r < shape.matrix.length; r++) {
     if (grouped.has(r) || data.has(r)) continue
+    const row = shape.matrix[r]
+    if (!row) continue
     let any = false
-    for (let c = 1; c < (shape.matrix[r]?.length ?? 0); c++) {
-      if (shape.matrix[r]?.[c]) {
+    for (let c = 1; c < row.length; c++) {
+      if (row[c]) {
         any = true
         break
       }
     }
-    if (any) n++
+    if (!any) continue
+    rowCount++
+    const label = firstLetterCell(row, descCols)
+    if (!label) continue
+    const key = label.replace(/\s+/g, " ").trim().toUpperCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    labels.push(label.replace(/\s+/g, " ").trim())
   }
-  return n
+  return { rowCount, labels }
+}
+
+function firstLetterCell(row: string[], preferredCols: number[]): string | null {
+  const order = [
+    ...preferredCols,
+    ...row.map((_, c) => c).filter((c) => c > 0 && !preferredCols.includes(c)),
+  ]
+  for (const c of order) {
+    const value = row[c]
+    if (typeof value !== "string" && typeof value !== "number") continue
+    const raw = String(value).replace(/\s+/g, " ").trim()
+    if (raw && /[A-Za-z]/.test(raw) && raw !== "[object Object]") return raw
+  }
+  return null
 }
 
 export function buildIgnoredSummary(args: {
@@ -189,7 +229,11 @@ export function buildIgnoredSummary(args: {
         .map((c) => ({ header: c.header, sample_values: [] })),
     ).map((c) => c.header)
 
-  const rows_unparsed = primary ? countUnparsedRows(primary) : 0
+  const labelled = primary
+    ? labelUnparsedRows(primary)
+    : { rowCount: 0, labels: [] as string[] }
+  const rows_unparsed = labelled.rowCount
+  const rows_unparsed_labels = labelled.labels
 
   const spoken: string[] = []
   if (sheets_skipped.length > 0) {
@@ -198,7 +242,13 @@ export function buildIgnoredSummary(args: {
     )
   }
   if (rows_unparsed > 0) {
-    spoken.push(`${rows_unparsed} row${rows_unparsed === 1 ? "" : "s"} unparsed`)
+    const named =
+      rows_unparsed_labels.length > 0
+        ? `: ${rows_unparsed_labels.join(" / ")}`
+        : ""
+    spoken.push(
+      `${rows_unparsed} row${rows_unparsed === 1 ? "" : "s"} unparsed${named}`,
+    )
   }
   if (columns_unmapped.length > 0) {
     spoken.push(
@@ -206,7 +256,13 @@ export function buildIgnoredSummary(args: {
     )
   }
 
-  return { sheets_skipped, rows_unparsed, columns_unmapped, spoken }
+  return {
+    sheets_skipped,
+    rows_unparsed,
+    rows_unparsed_labels,
+    columns_unmapped,
+    spoken,
+  }
 }
 
 export async function buildIngestReviewFromBuffer(

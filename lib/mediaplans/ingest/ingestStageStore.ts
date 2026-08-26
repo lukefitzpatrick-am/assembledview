@@ -140,6 +140,29 @@ export async function putIngestStage(args: {
   return stageId
 }
 
+/** Update the staged package in place (TTL / identity unchanged). */
+export async function patchIngestStageReview(
+  stageId: string,
+  review: IngestReviewPackage,
+): Promise<void> {
+  const existing = readLocal(stageId)
+  if (existing) {
+    writeLocal({ ...existing, review: cloneReview(review) })
+  }
+  if (!UUID_RE.test(stageId)) return
+  try {
+    const { db } = await import("@/db")
+    const { ingestStages } = await import("@/db/schema/ingestStages")
+    const { eq } = await import("drizzle-orm")
+    await db
+      .update(ingestStages)
+      .set({ reviewPackage: cloneReview(review) })
+      .where(eq(ingestStages.stageId, stageId))
+  } catch {
+    // overlay
+  }
+}
+
 function rowFromDb(saved: {
   stageId: string
   reviewPackage: unknown

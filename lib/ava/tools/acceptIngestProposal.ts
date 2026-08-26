@@ -1,5 +1,6 @@
 import type AvaTool from "./types"
 import { executeIngestAccept } from "@/lib/mediaplans/ingest/executeIngestAccept"
+import { getIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
 
 export const acceptIngestProposalTool: AvaTool = {
   definition: {
@@ -33,8 +34,11 @@ export const acceptIngestProposalTool: AvaTool = {
     const body = input as Record<string, unknown>
     const mbaFromInput =
       typeof body.mbaNumber === "string" ? body.mbaNumber.trim() : ""
-    const mba = mbaFromInput || context.mbaNumber?.trim() || ""
     const stageId = context.pendingIngest?.stageId?.trim()
+    const stagedMba = stageId
+      ? (await getIngestStage(stageId))?.review.ava_chat?.selectedMbaNumber?.trim()
+      : ""
+    const mba = mbaFromInput || context.mbaNumber?.trim() || stagedMba || ""
     const uploadedBy = context.userEmail?.trim().toLowerCase() || null
 
     const result = await executeIngestAccept({

@@ -27,6 +27,8 @@ export type IngestChatSummary = {
   accept_ok: boolean
   block_reason: string | null
   ignored: string[]
+  /** Named leftover rows (JCD: MEDIA VALUE / DISCOUNT / CAMPAIGN SUMMARY). */
+  ignored_rows: string[]
   columns_unmapped: string[]
   unknown_publisher: boolean
   no_profile_message: string | null
@@ -84,9 +86,42 @@ export function summariseIngestReview(
       ? NO_PUBLISHER_PROFILE_MESSAGE
       : (recon?.block_reason ?? null),
     ignored: review.ignored.spoken,
+    ignored_rows: review.ignored.rows_unparsed_labels ?? [],
     columns_unmapped: review.ignored.columns_unmapped,
     unknown_publisher: unknown,
     no_profile_message: unknown ? NO_PUBLISHER_PROFILE_MESSAGE : null,
     full_review_path: ingestFullReviewPath(args.stageId),
   }
+}
+
+function formatMoneyDelta(summary: IngestChatSummary): string {
+  if (summary.money_delta == null) return "—"
+  const abs = Math.abs(summary.money_delta)
+  const pct =
+    summary.money_delta_pct != null
+      ? ` (${(summary.money_delta_pct * 100).toFixed(2)}%)`
+      : ""
+  return `$${abs.toFixed(2)}${pct}`
+}
+
+/** Compact confirmed block — numbers come only from summariseIngestReview. */
+export function formatIngestConfirmedBlock(summary: IngestChatSummary): string {
+  const pub = summary.detected_publisher ?? "Unknown publisher"
+  const conf = `${Math.round(summary.publisher_confidence * 100)}%`
+  const coverage = `${Math.round(summary.required_coverage * 100)}%`
+  const lines = [
+    `Here's what this ${pub} schedule already resolved.`,
+    "",
+    "| Field | Value |",
+    "| --- | --- |",
+    `| Publisher | ${pub} (${conf}) |`,
+    `| Media type | ${summary.media_type ?? "—"} |`,
+    `| Lines / panels / bursts | ${summary.line_item_count} / ${summary.panel_count} / ${summary.burst_count} |`,
+    `| Required coverage | ${coverage} |`,
+    `| Money delta vs file total | ${formatMoneyDelta(summary)} |`,
+  ]
+  if (summary.ignored_rows.length > 0) {
+    lines.push("", `Excluded rows: ${summary.ignored_rows.join(" / ")}`)
+  }
+  return lines.join("\n")
 }

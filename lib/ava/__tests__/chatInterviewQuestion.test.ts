@@ -6,6 +6,7 @@ import {
   formatQuestionAnswerMessage,
   formatQuestionAnswerText,
   isChatInterviewQuestion,
+  lockChatQuestionAnswer,
   parseMiAnswerMessage,
   toChatInterviewQuestion,
 } from "../chatInterviewQuestion.js"
@@ -86,4 +87,28 @@ test("formatQuestionAnswerMessage round-trips questionId for the next start_mi_i
     answer: "Responsive Search Ads (RSA), Performance Max",
   })
   assert.equal(parseMiAnswerMessage("plain answer without tag"), undefined)
+})
+
+test("lockChatQuestionAnswer confirms one card and leaves siblings live", () => {
+  const a = toChatInterviewQuestion({
+    id: "ingest:map:A",
+    text: "Map column A",
+    type: "choice",
+    options: ["format (AVA suggestion)", "Leave unmapped"],
+    index: 1,
+    total: 2,
+  })
+  const b = toChatInterviewQuestion({
+    id: "ingest:map:B",
+    text: "Map column B",
+    type: "choice",
+    options: ["size (AVA suggestion)", "Leave unmapped"],
+    index: 2,
+    total: 2,
+  })
+  const next = lockChatQuestionAnswer([a, b], "ingest:map:A", "[mi:ingest:map:A] format")
+  assert.equal(next[0]?.confirmedAnswer, "[mi:ingest:map:A] format")
+  assert.equal(next[1]?.confirmedAnswer, undefined)
+  assert.equal(next[1]?.id, "ingest:map:B")
+  assert.deepEqual(next[1]?.options, b.options)
 })

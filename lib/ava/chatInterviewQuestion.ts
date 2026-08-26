@@ -98,3 +98,16 @@ export function parseMiAnswerMessage(
 export function displayMiAnswerText(content: string): string {
   return content.trim().replace(MI_ANSWER_TAG, "").trim() || content.trim()
 }
+
+/** Confirm one card; siblings stay live (no confirmedAnswer). */
+export function lockChatQuestionAnswer<T extends { id: string }>(
+  questions: T[],
+  questionId: string,
+  confirmedAnswer: string,
+): (T & { confirmedAnswer?: string })[] {
+  return questions.map((question) =>
+    question.id === questionId
+      ? { ...question, confirmedAnswer }
+      : question,
+  )
+}

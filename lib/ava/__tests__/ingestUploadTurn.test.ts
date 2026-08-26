@@ -17,7 +17,7 @@ import {
 import type { IngestChatSummary } from "@/lib/mediaplans/ingest/summariseIngestReview"
 
 const DIRECTIVE_NEEDLE =
-  "call get_pending_ingest_review and speak those numbers"
+  "call get_pending_ingest_review; echo the confirmed block"
 const OPERATOR_FRAGMENTS = [
   "Call get_pending_ingest_review",
   "do not invent figures",
@@ -50,6 +50,7 @@ function sampleSummary(stageId: string): IngestChatSummary {
     accept_ok: true,
     block_reason: null,
     ignored: [],
+    ignored_rows: [],
     columns_unmapped: [],
     unknown_publisher: false,
     no_profile_message: null,

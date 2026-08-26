@@ -22,6 +22,33 @@ test.beforeEach(() => {
   clearPublisherProfileSeedOverlayForTests()
 })
 
+test("JCD ignored summary names unparsed descriptor rows, not a bare count", async () => {
+  const profiles = loadSeedPublisherProfiles()
+  const review = await buildIngestReviewFromFile(
+    path.join(FIX, "jcd_strength-meals_ooh.xlsx"),
+    profiles,
+    { skipAva: true },
+  )
+  assert.ok(review.ignored.rows_unparsed > 0, "JCD has unparsed leftover rows")
+  const labels = review.ignored.rows_unparsed_labels ?? []
+  assert.ok(
+    labels.length > 0,
+    "unparsed rows must be named — a bare count is a silent drop",
+  )
+  const hay = labels.join(" | ").toUpperCase()
+  for (const name of ["MEDIA VALUE", "DISCOUNT", "CAMPAIGN SUMMARY"]) {
+    assert.ok(
+      hay.includes(name),
+      `expected ignored-row label ${name}, got ${labels.join(", ")}`,
+    )
+  }
+  const spoken = review.ignored.spoken.join(" | ")
+  assert.match(spoken, /unparsed/i)
+  assert.match(spoken, /MEDIA VALUE/i)
+  assert.match(spoken, /DISCOUNT/i)
+  assert.match(spoken, /CAMPAIGN SUMMARY/i)
+})
+
 test("QMS review: publisher + mapping + reconciliation; confidence reported", async () => {
   const profiles = loadSeedPublisherProfiles()
   const review = await buildIngestReviewFromFile(

@@ -9,6 +9,7 @@ import { coerceChatFileAttachments } from "@/lib/ava/chatFileAttachment"
 import {
   coerceChatInterviewQuestions,
   displayMiAnswerText,
+  lockChatQuestionAnswer,
 } from "@/lib/ava/chatInterviewQuestion"
 import type { ChatFileAttachment, FormPatch, ModelChatReply, PageContext } from "@/lib/ava/types"
 import type { CapturedLineItemsLoad } from "@/lib/ava/autopopulate/types"
@@ -492,11 +493,7 @@ export function ChatWidget({
       if (idx !== messageIdx || !msg.questions?.length) return msg
       return {
         ...msg,
-        questions: msg.questions.map((question) =>
-          question.id === questionId
-            ? { ...question, confirmedAnswer: trimmed }
-            : question,
-        ),
+        questions: lockChatQuestionAnswer(msg.questions, questionId, trimmed),
       }
     })
     setMessages(lockedMessages)

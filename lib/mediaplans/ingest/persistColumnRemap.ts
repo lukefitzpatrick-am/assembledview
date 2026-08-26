@@ -9,6 +9,7 @@ import {
   type PublisherProfileConfig,
 } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import { loadSeedPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProfiles"
+import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
 
 /** Process-local overlay so remaps stick across requests when DB is unavailable. */
 const seedOverlay = new Map<string, PublisherProfileConfig>()
@@ -69,6 +70,67 @@ export function applyColumnRemap(
     ...profile,
     column_map: nextMap,
   })
+}
+
+function headerKeyOf(header: string): string {
+  return header.replace(/\s+/g, " ").trim().toLowerCase()
+}
+
+/** In-memory Hub remap patch — chat uses the same function, never a fork. */
+export function applyReviewColumnRemap(
+  review: IngestReviewPackage,
+  header: string,
+  mappedTo: string | null,
+): IngestReviewPackage {
+  const want = headerKeyOf(header)
+  const mark = (
+    f: NonNullable<typeof review.template_coverage>["required"][number],
+  ) => {
+    if (f.matched || mappedTo == null) return f
+    if (f.canonicals?.includes(mappedTo) || f.dest === mappedTo) {
+      return {
+        ...f,
+        matched: true,
+        source: { kind: "header" as const, header },
+      }
+    }
+    return f
+  }
+  const required = review.template_coverage?.required.map(mark)
+  const enrich = review.template_coverage?.enrich.map(mark)
+  const profile = review.profile
+    ? applyColumnRemap(review.profile, header, mappedTo)
+    : review.profile
+  return {
+    ...review,
+    profile,
+    column_mapping: review.column_mapping.map((c) =>
+      headerKeyOf(c.header) === want
+        ? {
+            header: c.header,
+            mapped_to: mappedTo,
+            unmapped: mappedTo == null,
+            sheetName: c.sheetName,
+          }
+        : c,
+    ),
+    ava_mapping_proposals: (review.ava_mapping_proposals ?? []).filter(
+      (p) => headerKeyOf(p.header) !== want,
+    ),
+    template_coverage: review.template_coverage
+      ? {
+          ...review.template_coverage,
+          required: required ?? review.template_coverage.required,
+          enrich: enrich ?? review.template_coverage.enrich,
+          required_matched: (required ?? review.template_coverage.required).filter(
+            (f) => f.matched,
+          ).length,
+          not_used: review.template_coverage.not_used.filter(
+            (n) => headerKeyOf(n.header) !== want,
+          ),
+        }
+      : review.template_coverage,
+  }
 }
 
 export async function persistColumnRemap(args: {
