@@ -27,8 +27,9 @@ export const getPendingIngestReviewTool: AvaTool = {
     if (!staged) {
       return {
         content:
-          "Staged ingest review expired. Ask the user to re-attach the xlsx (same file — not a new mapping).",
+          `The staged review for ${stageId} is no longer on the server. This is a known server-side limitation, not something the user did. Tell the user plainly that the upload needs re-attaching and say why.`,
         isError: true,
+        ingestStageMissing: true,
       }
     }
     const summary = summariseIngestReview(staged.review, {

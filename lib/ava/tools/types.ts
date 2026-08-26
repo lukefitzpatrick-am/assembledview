@@ -13,6 +13,7 @@ import type {
   MapperResult,
 } from "@/lib/ava/autopopulate/types";
 import type { UserRole } from "@/lib/rbac";
+import type { IngestChatSummary } from "@/lib/mediaplans/ingest/summariseIngestReview";
 
 export type PendingParsedPlan = {
   channel: AutopopulateChannel;
@@ -23,6 +24,8 @@ export type PendingParsedPlan = {
 export type PendingIngest = {
   stageId: string;
   fileName?: string;
+  /** Same shape as summariseIngestReview — structured turn context, never user-turn prose. */
+  summary?: IngestChatSummary;
 };
 
 export type AvaToolContext = {
@@ -56,6 +59,8 @@ export type AvaToolContext = {
   pendingParsedPlan: PendingParsedPlan | null;
   /** Staged Hub ingest review from AVA xlsx attach (stage store id — not a re-upload). */
   pendingIngest?: PendingIngest | null;
+  /** Set when get_pending_ingest_review finds a stageId that is not in the in-memory store. */
+  ingestStageMissing?: boolean;
   /** Side-channel: bulk line-items load for bridge setLineItems. */
   capturedLineItemsLoad: CapturedLineItemsLoad | null;
   /**
@@ -75,6 +80,8 @@ export type AvaToolResult = {
   attachments?: ChatFileAttachment[];
   /** Optional interview question cards for the chat UI; stripped from model-facing content. */
   questions?: ChatInterviewQuestion[];
+  /** Stage id was present but ingestStageStore has no package (not expiry). */
+  ingestStageMissing?: boolean;
 };
 
 export default interface AvaTool {

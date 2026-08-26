@@ -14,6 +14,13 @@ import type { ChatFileAttachment, FormPatch, ModelChatReply, PageContext } from 
 import type { CapturedLineItemsLoad } from "@/lib/ava/autopopulate/types"
 import type { PendingParsedPlan } from "@/lib/ava/tools/types"
 import { writeIngestStageToSession } from "@/lib/mediaplans/ingest/ingestStageClient"
+import {
+  applyIngestStageMissingMeta,
+  buildIngestUploadUserMessage,
+  buildPendingIngestPayload,
+  pendingIngestChipCopy,
+  type PendingIngestPayload,
+} from "@/lib/ava/ingestUploadTurn"
 import type { ChatMode } from "@/src/ava/modes"
 import { ChatQuestionCard, type ChatQuestionCardState } from "@/components/ChatQuestionCard"
 import {
@@ -27,27 +34,7 @@ import {
   X,
 } from "lucide-react"
 
-type PendingIngestClient = {
-  stageId: string
-  fileName?: string
-  summary?: {
-    detected_publisher: string | null
-    publisher_confidence: number
-    media_type: string | null
-    line_item_count: number
-    panel_count: number
-    burst_count: number
-    required_coverage: number
-    money_delta: number | null
-    money_delta_pct: number | null
-    accept_ok: boolean
-    ignored: string[]
-    columns_unmapped: string[]
-    unknown_publisher: boolean
-    no_profile_message: string | null
-    full_review_path: string
-  }
-}
+type PendingIngestClient = PendingIngestPayload
 
 const SIZE_PRESETS = {
   compact: { w: 384, h: 480 },
@@ -421,10 +408,11 @@ export function ChatWidget({
           : {}),
         ...(pendingIngestRef.current
           ? {
-              pendingIngest: {
+              pendingIngest: buildPendingIngestPayload({
                 stageId: pendingIngestRef.current.stageId,
                 fileName: pendingIngestRef.current.fileName,
-              },
+                summary: pendingIngestRef.current.summary,
+              }),
             }
           : {}),
         ...(currentLineItems ? { currentLineItems } : {}),
@@ -450,6 +438,14 @@ export function ChatWidget({
       }
 
       const parsedReply = coerceModelChatReply(data)
+      const nextPending = applyIngestStageMissingMeta(
+        pendingIngestRef.current,
+        data?.meta,
+      )
+      if (nextPending !== pendingIngestRef.current) {
+        pendingIngestRef.current = nextPending
+        setPendingIngest(nextPending)
+      }
       // Append a new assistant message (never mutate an earlier card in-session).
       const assistantMessage: ChatUiMessage = {
         role: "assistant",
@@ -541,44 +537,14 @@ export function ChatWidget({
         review: data.review,
         fileName: file.name,
       })
-      const pending: PendingIngestClient = {
+      const pending = buildPendingIngestPayload({
         stageId,
         fileName: file.name,
-        summary: data.summary,
-      }
+        summary: data.summary ?? undefined,
+      })
       pendingIngestRef.current = pending
       setPendingIngest(pending)
-      const summary = data.summary
-      const coveragePct =
-        typeof summary?.required_coverage === "number"
-          ? `${Math.round(summary.required_coverage * 100)}%`
-          : "—"
-      const deltaPct =
-        typeof summary?.money_delta_pct === "number"
-          ? `${(summary.money_delta_pct * 100).toFixed(2)}%`
-          : "—"
-      const ignored = Array.isArray(summary?.ignored)
-        ? summary.ignored.join("; ")
-        : ""
-      const unmapped = Array.isArray(summary?.columns_unmapped)
-        ? summary.columns_unmapped.join(", ")
-        : ""
-      const prompt = [
-        `I uploaded publisher schedule "${file.name}" for Hub ingest (stage ${stageId}).`,
-        summary?.unknown_publisher
-          ? (summary.no_profile_message ?? "No publisher profile.")
-          : [
-              `Publisher: ${summary?.detected_publisher ?? "unknown"} (confidence ${typeof summary?.publisher_confidence === "number" ? Math.round(summary.publisher_confidence * 100) : "—"}%).`,
-              `Media type: ${summary?.media_type ?? "—"}.`,
-              `Lines ${summary?.line_item_count ?? 0} · panels ${summary?.panel_count ?? 0} · bursts ${summary?.burst_count ?? 0}.`,
-              `Required coverage ${coveragePct}. Money delta vs file total ${deltaPct}.`,
-              ignored ? `Ignored: ${ignored}.` : "Nothing ignored.",
-              unmapped ? `Unmapped columns: ${unmapped}.` : "No unmapped columns.",
-              `Open full review (same staged upload): ${summary?.full_review_path ?? `/admin/schedule-ingest?stage=${stageId}`}`,
-            ].join(" "),
-        "Call get_pending_ingest_review and speak those numbers — do not invent figures. If MBA is not in page context, ask which MBA/campaign — never guess. Wait for my confirm before accept_ingest_proposal. A money-blocked accept must explain the delta and must not write.",
-      ].join("\n\n")
-      await sendMessage(prompt)
+      await sendMessage(buildIngestUploadUserMessage(file.name))
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to review schedule"
       setError(message)
@@ -798,7 +764,9 @@ export function ChatWidget({
               </Button>
               <Input
                 placeholder={
-                  pendingIngest
+                  pendingIngest?.missing
+                    ? "Re-attach the xlsx to continue…"
+                    : pendingIngest
                     ? "Confirm in chat to accept the ingest…"
                     : pendingParsedPlan
                       ? "Confirm to load lines into the form…"
@@ -821,23 +789,33 @@ export function ChatWidget({
               </Button>
             </div>
             {pendingIngest ? (
-              <p className="text-xs text-muted-foreground">
-                Pending ingest
-                {pendingIngest.fileName ? ` · ${pendingIngest.fileName}` : ""}
-                {pendingIngest.summary?.full_review_path ? (
-                  <>
-                    {" "}
-                    ·{" "}
-                    <a
-                      className="underline underline-offset-2"
-                      href={pendingIngest.summary.full_review_path}
-                    >
-                      Open full review
-                    </a>
-                  </>
-                ) : null}
-                . Confirm in chat to accept.
-              </p>
+              pendingIngest.missing ? (
+                <button
+                  type="button"
+                  className="text-left text-xs text-muted-foreground underline underline-offset-2"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {pendingIngestChipCopy(pendingIngest).text}
+                </button>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Pending ingest
+                  {pendingIngest.fileName ? ` · ${pendingIngest.fileName}` : ""}
+                  {pendingIngest.summary?.full_review_path ? (
+                    <>
+                      {" "}
+                      ·{" "}
+                      <a
+                        className="underline underline-offset-2"
+                        href={pendingIngest.summary.full_review_path}
+                      >
+                        Open full review
+                      </a>
+                    </>
+                  ) : null}
+                  . Confirm in chat to accept.
+                </p>
+              )
             ) : null}
             {pendingParsedPlan ? (
               <p className="text-xs text-muted-foreground">

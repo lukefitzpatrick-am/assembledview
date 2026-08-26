@@ -30,6 +30,8 @@ export type AvaAgentResult = {
   /** Display-only; never written into Anthropic message history. */
   questions: ChatInterviewQuestion[] | null;
   toolCalls: Array<{ name: string; input: unknown; resultPreview: string }>;
+  /** Staged ingest id was sent but ingestStageStore has no package (not expiry). */
+  ingestStageMissing?: boolean;
   usage: {
     inputTokens: number;
     outputTokens: number;
@@ -157,6 +159,7 @@ function finishTurn(
       ? context.capturedQuestions
       : null,
     toolCalls,
+    ingestStageMissing: context.ingestStageMissing === true,
     usage,
   };
 }
@@ -287,6 +290,9 @@ export async function runAvaAgent(
               const executed = await tool.execute(toolInput, input.context);
               resultContent = executed.content;
               resultIsError = executed.isError ?? false;
+              if (executed.ingestStageMissing) {
+                input.context.ingestStageMissing = true;
+              }
               if (!resultIsError) {
                 captureAttachments(input.context, executed.attachments);
                 captureQuestions(input.context, executed.questions);

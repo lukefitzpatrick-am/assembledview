@@ -177,3 +177,26 @@ test("accept_ingest_proposal money-blocked explains the delta in chat", async ()
   assert.equal(blocked.isError, true)
   assert.match(blocked.content, /8\.00%|diverges|delta/i)
 })
+
+test("get_pending_ingest_review with no stageId is unchanged", async () => {
+  const out = await getPendingIngestReviewTool.execute({}, ctx())
+  assert.equal(out.isError, true)
+  assert.match(out.content, /No pending ingest review in this turn/i)
+  assert.doesNotMatch(out.content, /expired/i)
+  assert.equal(out.ingestStageMissing, undefined)
+})
+
+test("get_pending_ingest_review missing stage is not expiry", async () => {
+  const stageId = "stage-gone-123"
+  const out = await getPendingIngestReviewTool.execute(
+    {},
+    ctx({ pendingIngest: { stageId, fileName: QMS } }),
+  )
+  assert.equal(out.isError, true)
+  assert.equal(out.ingestStageMissing, true)
+  assert.doesNotMatch(out.content, /expired/i)
+  assert.match(out.content, new RegExp(stageId))
+  assert.match(out.content, /no longer on the server/i)
+  assert.match(out.content, /known server-side limitation/i)
+  assert.match(out.content, /re-attach/i)
+})

@@ -89,6 +89,7 @@ type ChatRequestBody = {
   pendingIngest?: {
     stageId?: string
     fileName?: string
+    summary?: PendingIngest["summary"]
   }
   /** Current grid line items from bridge getLineItems (adjust_line_items). */
   currentLineItems?: {
@@ -197,6 +198,7 @@ export async function POST(req: NextRequest) {
         model: process.env.ANTHROPIC_MODEL ?? "claude-sonnet-4-5",
         toolCalls: result.toolCalls.map((tc) => ({ name: tc.name })),
         usage: result.usage,
+        ...(result.ingestStageMissing ? { ingestStageMissing: true } : {}),
       },
     })
   } catch (error) {
@@ -339,6 +341,9 @@ function coercePendingIngest(
   const pending: PendingIngest = { stageId }
   if (typeof raw.fileName === "string" && raw.fileName.trim()) {
     pending.fileName = raw.fileName.trim()
+  }
+  if (raw.summary && typeof raw.summary === "object" && !Array.isArray(raw.summary)) {
+    pending.summary = raw.summary
   }
   return pending
 }
