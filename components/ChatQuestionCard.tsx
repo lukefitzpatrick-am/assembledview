@@ -67,13 +67,13 @@ export function ChatQuestionCard({
   }
 
   return (
-    <div className="mr-auto flex w-full max-w-[90%] flex-col gap-3 rounded-lg border border-border bg-background px-3 py-3 shadow-sm">
+    <div className="mr-auto flex w-full min-w-0 max-w-full flex-col gap-3 rounded-lg border border-border bg-card px-3 py-3 shadow-e1">
       <div className="flex flex-col gap-1">
         <p className="text-xs font-medium text-muted-foreground">
           Question {question.index} of {question.total}
           {locked ? " · answered" : question.selected?.length ? " · defaults pre-selected" : null}
         </p>
-        <p className="text-sm font-medium text-foreground">{question.text}</p>
+        <p className="text-sm font-medium break-words text-foreground">{question.text}</p>
       </div>
 
       {question.type === "text" ? (
@@ -101,7 +101,7 @@ export function ChatQuestionCard({
                 disabled={locked || disabled}
                 onClick={() => selectChoice(option)}
                 className={cn(
-                  "interactive-tint rounded-input border px-3 py-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60",
+                  "interactive-tint rounded-input border px-3 py-2 text-left text-sm break-words transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60",
                   isOn
                     ? "border-primary bg-primary/10 text-foreground"
                     : "border-border bg-background text-foreground hover:bg-table-row-hover",
@@ -137,7 +137,7 @@ export function ChatQuestionCard({
                   onCheckedChange={(value) => toggleMulti(option, value === true)}
                   className="mt-0.5"
                 />
-                <span>{option}</span>
+                <span className="min-w-0 break-words">{option}</span>
               </label>
             )
           })}

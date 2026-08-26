@@ -23,6 +23,9 @@ import {
   type PendingIngestPayload,
 } from "@/lib/ava/ingestUploadTurn"
 import type { ChatMode } from "@/src/ava/modes"
+import { ChatAssistantTurn } from "@/components/ava/ChatAssistantTurn"
+import { ChatThinkingIndicator } from "@/components/ava/ChatThinkingIndicator"
+import { ChatUserMessage } from "@/components/ava/ChatUserMessage"
 import { ChatQuestionCard, type ChatQuestionCardState } from "@/components/ChatQuestionCard"
 import {
   ChevronDown,
@@ -102,10 +105,29 @@ function persistPanelSize(size: PanelSize) {
 type ChatUiMessage = {
   role: "user" | "assistant"
   content: string
+  createdAt?: number
   /** Display-only; never sent back to /api/chat-v2. */
   attachments?: ChatFileAttachment[]
   /** Display-only interview cards; never sent back to /api/chat-v2. */
   questions?: ChatQuestionCardState[]
+}
+
+const TURN_SEPARATOR_GAP_MS = 10 * 60 * 1000
+
+function formatTurnStamp(ts: number): string {
+  return new Date(ts).toLocaleString("en-AU", {
+    hour: "numeric",
+    minute: "2-digit",
+  })
+}
+
+function shouldShowTurnSeparator(messages: ChatUiMessage[], idx: number): boolean {
+  if (messages.length < 4) return false
+  const current = messages[idx]?.createdAt
+  if (idx === 0) return true
+  const prev = messages[idx - 1]?.createdAt
+  if (!current || !prev) return false
+  return current - prev >= TURN_SEPARATOR_GAP_MS
 }
 
 /** Minimal chat message shape previously imported from openai (type-only). */
@@ -203,8 +225,8 @@ function ChatFileCard({ attachment }: { attachment: ChatFileAttachment }) {
   }
 
   return (
-    <div className="mr-auto flex w-full max-w-[90%] flex-col gap-1">
-      <div className="flex items-center gap-3 rounded-lg border border-border bg-background px-3 py-2 shadow-sm">
+    <div className="mr-auto flex w-full min-w-0 max-w-full flex-col gap-1">
+      <div className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card px-3 py-2 shadow-e1">
         <FileSpreadsheet className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-medium text-foreground">{attachment.fileName}</p>
@@ -260,7 +282,8 @@ export function ChatWidget({
   } | null>(null)
 
   const appendAssistantNote = useCallback(
-    (content: string) => setMessages((prev) => [...prev, { role: "assistant", content }]),
+    (content: string) =>
+      setMessages((prev) => [...prev, { role: "assistant", content, createdAt: Date.now() }]),
     []
   )
 
@@ -384,7 +407,10 @@ export function ChatWidget({
     setIsSending(true)
     setError(null)
     const starting = baseMessages ?? messages
-    const updatedMessages: ChatUiMessage[] = [...starting, { role: "user", content: text }]
+    const updatedMessages: ChatUiMessage[] = [
+      ...starting,
+      { role: "user", content: text, createdAt: Date.now() },
+    ]
     setMessages(updatedMessages)
     setInput("")
 
@@ -451,6 +477,7 @@ export function ChatWidget({
       const assistantMessage: ChatUiMessage = {
         role: "assistant",
         content: parsedReply.replyText,
+        createdAt: Date.now(),
         ...(parsedReply.attachments?.length ? { attachments: parsedReply.attachments } : {}),
         ...(parsedReply.questions?.length ? { questions: parsedReply.questions } : {}),
       }
@@ -480,7 +507,14 @@ export function ChatWidget({
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to send message"
       setError(message)
-      setMessages((prev) => [...prev, { role: "assistant", content: `Sorry, something went wrong: ${message}` }])
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Sorry, something went wrong: ${message}`,
+          createdAt: Date.now(),
+        },
+      ])
     } finally {
       setIsSending(false)
     }
@@ -577,7 +611,7 @@ export function ChatWidget({
       {isOpen && (
         <div
           className={cn(
-            "relative mt-3 flex flex-col rounded-xl border border-border bg-card shadow-2xl",
+            "relative mt-3 flex min-w-0 flex-col rounded-xl border border-border bg-card shadow-2xl",
             isCollapsed ? "w-80" : undefined,
           )}
           style={
@@ -681,7 +715,13 @@ export function ChatWidget({
           </div>
 
           {!isCollapsed && (
-            <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-muted/50 px-3 py-3">
+            <div
+              className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto bg-muted/50 px-3 py-3"
+              role="log"
+              aria-live="polite"
+              aria-relevant="additions"
+              aria-label="Ava conversation"
+            >
               {messages.length === 0 && (
                 <div className="flex flex-col gap-3">
                   <p className="text-sm text-muted-foreground">{"G'day — what are we working on?"}</p>
@@ -702,37 +742,47 @@ export function ChatWidget({
               )}
 
               {messages.map((msg, idx) => (
-                <div key={idx} className="flex flex-col gap-1">
-                  <p
-                    className={cn(
-                      "max-w-[90%] whitespace-pre-line rounded-lg px-3 py-2 text-sm shadow-sm",
-                      msg.role === "user"
-                        ? "ml-auto bg-primary text-primary-foreground"
-                        : "mr-auto border border-border bg-background text-foreground"
-                    )}
-                  >
-                    {msg.role === "user" ? displayMiAnswerText(msg.content) : msg.content}
-                  </p>
-                  {msg.role === "assistant" &&
-                    msg.attachments?.map((attachment, attachmentIdx) => (
-                      <ChatFileCard
-                        key={`${idx}-${attachment.fileName}-${attachmentIdx}`}
-                        attachment={attachment}
-                      />
-                    ))}
-                  {msg.role === "assistant" &&
-                    msg.questions?.map((question) => (
-                      <ChatQuestionCard
-                        key={`${idx}-${question.id}`}
-                        question={question}
-                        disabled={isSending}
-                        onConfirm={(answerText) => confirmQuestion(idx, question.id, answerText)}
-                      />
-                    ))}
+                <div key={idx} className="flex min-w-0 flex-col gap-1">
+                  {shouldShowTurnSeparator(messages, idx) ? (
+                    <p className="py-1 text-center text-[11px] text-muted-foreground">
+                      {msg.createdAt ? formatTurnStamp(msg.createdAt) : "Earlier"}
+                    </p>
+                  ) : null}
+                  {msg.role === "user" ? (
+                    <ChatUserMessage content={displayMiAnswerText(msg.content)} />
+                  ) : (
+                    <ChatAssistantTurn
+                      markdown={msg.content}
+                      questionsSlot={
+                        msg.questions?.length
+                          ? msg.questions.map((question) => (
+                              <ChatQuestionCard
+                                key={`${idx}-${question.id}`}
+                                question={question}
+                                disabled={isSending}
+                                onConfirm={(answerText) =>
+                                  confirmQuestion(idx, question.id, answerText)
+                                }
+                              />
+                            ))
+                          : undefined
+                      }
+                      filesSlot={
+                        msg.attachments?.length
+                          ? msg.attachments.map((attachment, attachmentIdx) => (
+                              <ChatFileCard
+                                key={`${idx}-${attachment.fileName}-${attachmentIdx}`}
+                                attachment={attachment}
+                              />
+                            ))
+                          : undefined
+                      }
+                    />
+                  )}
                 </div>
               ))}
 
-              {isSending && <p className="text-xs text-muted-foreground">Thinking...</p>}
+              {isSending && <ChatThinkingIndicator />}
               {error && <p className="text-xs text-destructive">{error}</p>}
             </div>
           )}

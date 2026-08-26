@@ -96,6 +96,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 |---|---|
 | `lib/ava/types.ts` (`PageContext`, `FormPatch`) | 13+ files outside AVA: trafficking, creative, dashboard, finance, planning, both mega-pages |
 | `lib/assistantBridge.ts` | 12 provider call sites; `__AV_ASSISTANT__` is a window global — breakage is silent, no compile error |
+| `components/ChatWidget.tsx` / `components/ava/ChatAssistantMarkdown.tsx` | Presentation only: assistant markdown + GFM tables; user plaintext. Check ChatQuestionCard keyboard, ingest confirmed block, `ClientBrainPanel` / `InsightListRow` (share `react-markdown`). Do not add a second markdown library. |
 | Adding an AVA tool | `tools/registry.ts` **throws at module load** if order/names diverge from `AVA_TOOL_NAMES` in `summaries.ts` (same index) → 500s the whole chat route |
 | AVA `fy` / `fyToRange.ts` | Ending-year AU FY for all five Postgres tools; responses echo `range`. Finance hub `fyMonthRange` remains start-year — do not unify blindly |
 | `lib/ava/anthropic.ts` (`AVA_MODEL`) | NOT AVA-only: ad-copy + search-copy routes, `researchClient`, and ingest `avaColumnMapping.server.ts` share it. **`import "server-only"`** — must not be imported from Client Components. |

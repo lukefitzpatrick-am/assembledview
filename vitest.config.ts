@@ -39,6 +39,7 @@ export default defineConfig({
       "components/tasks/__tests__/TaskChecklist.render.test.tsx",
       "components/dashboard/__tests__/SpendingInsightsSection.render.test.tsx",
       "components/dashboard/delivery/__tests__/ChannelSection.render.test.tsx",
+      "components/ava/__tests__/ChatMarkdown.render.test.tsx",
       "hooks/__tests__/usePlanDraftSession.test.tsx",
       "hooks/__tests__/useDraftFieldDiff.test.tsx",
       "hooks/__tests__/useStableHydration.test.tsx",
