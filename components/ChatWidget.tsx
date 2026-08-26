@@ -540,7 +540,7 @@ export function ChatWidget({
     if (!file || isSending || isParsingPlan) return
     const lower = file.name.toLowerCase()
     if (!lower.endsWith(".xlsx") && !lower.endsWith(".xls")) {
-      setError("Publisher schedule ingest accepts .xlsx / .xls only.")
+      setError("That file isn't .xlsx or .xls. Attach an Excel workbook.")
       return
     }
     setIsParsingPlan(true)
@@ -557,12 +557,12 @@ export function ChatWidget({
       const data = await response.json().catch(() => ({}))
       if (!response.ok) {
         throw new Error(
-          typeof data?.error === "string" ? data.error : "Ingest review failed",
+          typeof data?.error === "string" ? data.error : "The schedule review didn't complete.",
         )
       }
       const stageId = typeof data?.stageId === "string" ? data.stageId.trim() : ""
       if (!stageId || !data?.review) {
-        throw new Error("Ingest review returned an unexpected payload")
+        throw new Error("The schedule didn't come back in a usable form. Attach it again.")
       }
       writeIngestStageToSession(stageId, {
         review: data.review,
@@ -577,9 +577,10 @@ export function ChatWidget({
       setPendingIngest(pending)
       await sendMessage(buildIngestUploadUserMessage(file.name))
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to review schedule"
+      const message =
+        err instanceof Error ? err.message : "The review didn't complete. Attach the file again."
       setError(message)
-      appendAssistantNote(`Schedule ingest failed: ${message}`)
+      appendAssistantNote(message)
     } finally {
       setIsParsingPlan(false)
       if (fileInputRef.current) fileInputRef.current.value = ""
@@ -812,9 +813,9 @@ export function ChatWidget({
               <Input
                 placeholder={
                   pendingIngest?.missing
-                    ? "Re-attach the xlsx to continue…"
+                    ? "Attach the file again…"
                     : pendingIngest
-                    ? "Confirm in chat to accept the ingest…"
+                    ? "Confirm in chat to accept…"
                     : pendingParsedPlan
                       ? "Confirm to load lines into the form…"
                       : "Ask a question or drop an xlsx"
@@ -846,7 +847,7 @@ export function ChatWidget({
                 </button>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  Pending ingest
+                  Schedule ready
                   {pendingIngest.fileName ? ` · ${pendingIngest.fileName}` : ""}
                   {pendingIngest.summary?.full_review_path ? (
                     <>

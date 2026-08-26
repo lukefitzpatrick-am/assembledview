@@ -113,7 +113,7 @@ function buildSuggestionCard(
   const suggested = proposal.proposed_mapped_to
   return toChatInterviewQuestion({
     id: mapQuestionId(proposal.header),
-    text: `Column "${proposal.header}" is unmapped. AVA proposes ${suggested ?? "leave unmapped"} — pick a plan field.`,
+    text: `"${proposal.header}" isn't mapped. I suggest ${suggested ?? "leave unmapped"}. Pick a plan field.`,
     type: "choice",
     options: planFieldOptions(suggested),
     selected: suggested ? [suggestionLabel(suggested)] : [LEAVE_UNMAPPED_OPTION],
@@ -146,7 +146,7 @@ function buildRequiredCard(
   push(LEAVE_UNMAPPED_OPTION)
   return toChatInterviewQuestion({
     id: requiredQuestionId(field.id),
-    text: `Required: ${field.label} has no source. Which publisher column maps to it?`,
+    text: `${field.label} has no source column. Which publisher column maps to it?`,
     type: "choice",
     options: opts,
     selected: hit ? [`${hit.header}${AVA_SUGGESTION_SUFFIX}`] : undefined,
@@ -163,7 +163,7 @@ function buildMoneyCard(
 ): ChatInterviewQuestion {
   return toChatInterviewQuestion({
     id: moneyQuestionId(header),
-    text: `Money column "${header}" is mapped to ${mappedTo ?? "nothing"}. Changing it re-runs the 0.5% reconciliation.`,
+    text: `"${header}" is mapped to ${mappedTo ?? "nothing"}. Changing it re-checks the money total against the 0.5% gate.`,
     type: "choice",
     options: moneyFieldOptions(mappedTo),
     selected: mappedTo && isMoneyTarget(mappedTo)
@@ -322,7 +322,7 @@ async function applyOneAnswer(
     return {
       review: applyReviewColumnRemap(review, header, mapped),
       changed: mapped
-        ? `Mapped ${header} → ${mapped}.`
+        ? `Mapped ${header} to ${mapped}.`
         : `Left ${header} unmapped.`,
     }
   }
@@ -334,8 +334,8 @@ async function applyOneAnswer(
     return {
       review: applyReviewColumnRemap(review, header, mapped),
       changed: mapped
-        ? `Remapped money column ${header} → ${mapped} (0.5% reconciliation re-runs).`
-        : `Left money column ${header} unmapped (0.5% reconciliation re-runs).`,
+        ? `Remapped ${header} to ${mapped}. The 0.5% money check will run again.`
+        : `Left ${header} unmapped. The 0.5% money check will run again.`,
     }
   }
   if (questionId.startsWith("ingest:required:")) {
@@ -354,12 +354,12 @@ async function applyOneAnswer(
       })
       return {
         review: applyReviewColumnRemap(review, header, dest),
-        changed: `Mapped ${header} → ${dest} for required ${field?.label ?? fieldId}.`,
+        changed: `Mapped ${header} to ${dest} (${field?.label ?? fieldId}).`,
       }
     }
     return {
       review,
-      changed: `Left required ${field?.label ?? fieldId} unmatched.`,
+      changed: `Left ${field?.label ?? fieldId} unmatched.`,
     }
   }
   return { review, changed: "" }

@@ -12,7 +12,7 @@ export async function resolveIngestCampaignFromDb(
 ): Promise<AcceptCampaignTarget | { error: string }> {
   const mba = mbaNumber.trim()
   if (!mba) {
-    return { error: "Which MBA / campaign should this schedule attach to? AVA will not guess." }
+    return { error: "Which campaign should this schedule attach to? I won't guess." }
   }
   const { db } = await import("@/db")
   const { mediaPlanMasters } = await import("@/db/schema/planCore")
@@ -22,7 +22,7 @@ export async function resolveIngestCampaignFromDb(
     .where(eq(mediaPlanMasters.mbaNumber, mba))
     .limit(1)
   if (!master) {
-    return { error: `No media plan master for MBA "${mba}".` }
+    return { error: `There's no campaign matching MBA "${mba}".` }
   }
   return {
     masterId: master.id,

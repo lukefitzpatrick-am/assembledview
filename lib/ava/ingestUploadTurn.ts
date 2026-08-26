@@ -37,12 +37,12 @@ export function pendingIngestChipCopy(state: {
   if (state.missing) {
     return {
       kind: "reattach",
-      text: `Re-attach to continue${fileBit}`,
+      text: `Attach the file again${fileBit}`,
     }
   }
   return {
     kind: "pending",
-    text: `Pending ingest${fileBit}. Confirm in chat to accept.`,
+    text: `Schedule ready${fileBit}. Confirm in chat to accept.`,
   }
 }
 

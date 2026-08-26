@@ -58,7 +58,7 @@ export const getPendingIngestReviewTool: AvaTool = {
     if (!stageId) {
       return {
         content:
-          "No pending ingest review in this turn. Ask the user to attach an xlsx publisher schedule in AVA.",
+          "There's no schedule attached in this chat. Drop the xlsx here and I'll review it.",
         isError: true,
       }
     }
@@ -67,14 +67,14 @@ export const getPendingIngestReviewTool: AvaTool = {
       if (looked.reason === "expired") {
         return {
           content:
-            "Staged ingest review expired. Ask the user to re-attach the xlsx.",
+            "That schedule review isn't available — it was only held for 24 hours. That's not something you did. Attach the file again and I'll pick it up.",
           isError: true,
           ingestStageMissing: true,
         }
       }
       return {
         content:
-          `The staged review for ${stageId} is no longer on the server. This is a known server-side limitation, not something the user did. Tell the user plainly that the upload needs re-attaching and say why.`,
+          "That schedule review isn't available. That's not something you did. Attach the file again and I'll pick it up.",
         isError: true,
         ingestStageMissing: true,
       }
@@ -123,9 +123,13 @@ export const getPendingIngestReviewTool: AvaTool = {
       if (changed.length > 0) lines.push(changed.join(" "))
       const still = outstandingIngestLabels(open)
       if (still.length > 0) {
-        lines.push(`Still open: ${still.length} decision${still.length === 1 ? "" : "s"}.`)
+        lines.push(
+          still.length === 1
+            ? "One thing still open."
+            : `${still.length} things still open.`,
+        )
       } else {
-        lines.push("Nothing else is outstanding. Wait for confirm then accept_ingest_proposal.")
+        lines.push("Nothing else is outstanding. Confirm in chat and I'll write it in.")
       }
       content = lines.join("\n")
     }

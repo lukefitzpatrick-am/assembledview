@@ -18,6 +18,7 @@ This rule is enforced for AI tools via `/CLAUDE.md` (Claude) and `/.cursor/rules
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | What is the system? Stack, domains, data flow, route map |
 | [BLAST-RADIUS.md](./BLAST-RADIUS.md) | **"If I touch X, what else breaks?"** Choke points ranked by import count + per-file impact tables |
 | [INVARIANTS.md](./INVARIANTS.md) | Locked decisions and laws every change must respect (fee formulas, versioning rules, ZERO-$ LAW, naming law…) |
+| [AVA-VOICE.md](./AVA-VOICE.md) | User-facing AVA copy: lead with the answer, no apology, numbers unhedged, no internals in chat |
 | [KNOWN-ISSUES.md](./KNOWN-ISSUES.md) | Recorded tech debt & security findings, with IDs. Check before "discovering" a bug that's already known |
 | [dirty-state-inventory.md](./dirty-state-inventory.md) | MBA create/edit hand-rolled dirty flag: 15 Expert sites, clear-on-SUCCESS vs ATTEMPT |
 | [version-control-stage1-consumers.md](./version-control-stage1-consumers.md) | Stage 1 VC: every site that infers publication from `campaign_status` (input to `published_at` migration) |

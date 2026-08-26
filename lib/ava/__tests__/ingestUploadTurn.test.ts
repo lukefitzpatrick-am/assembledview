@@ -111,13 +111,13 @@ test("ingest operator directives are stated once in skillGuidance, not in ChatWi
   assert.equal(widget.includes("I uploaded publisher schedule"), false)
 })
 
-test("footer chip switches to Re-attach to continue when the stage is missing", () => {
+test("footer chip switches to Attach the file again when the stage is missing", () => {
   const pending = pendingIngestChipCopy({
     fileName: "qms.xlsx",
     fullReviewPath: "/admin/schedule-ingest?stage=stg-1",
   })
   assert.equal(pending.kind, "pending")
-  assert.match(pending.text, /Pending ingest/)
+  assert.match(pending.text, /Schedule ready/)
   assert.match(pending.text, /Confirm in chat to accept/)
 
   const missing = pendingIngestChipCopy({
@@ -126,8 +126,8 @@ test("footer chip switches to Re-attach to continue when the stage is missing", 
     missing: true,
   })
   assert.equal(missing.kind, "reattach")
-  assert.match(missing.text, /Re-attach to continue/)
-  assert.doesNotMatch(missing.text, /Pending ingest/)
+  assert.match(missing.text, /Attach the file again/)
+  assert.doesNotMatch(missing.text, /Schedule ready/)
   assert.doesNotMatch(missing.text, /Confirm in chat to accept/)
 
   const tagged = applyIngestStageMissingMeta(

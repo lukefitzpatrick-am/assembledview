@@ -27,7 +27,7 @@ export const acceptIngestProposalTool: AvaTool = {
   async execute(input, context) {
     if (input === null || typeof input !== "object" || Array.isArray(input)) {
       return {
-        content: "accept_ingest_proposal requires confirm: true.",
+        content: "I need a confirm in chat before I write this schedule in.",
         isError: true,
       }
     }
@@ -54,7 +54,7 @@ export const acceptIngestProposalTool: AvaTool = {
     }
 
     return {
-      content: `Accepted ingest: ${result.lineCount} line item(s), ${result.panelCount} panel(s) into MBA ${mba} v${result.versionNumber}.`,
+      content: `It's in. ${result.lineCount} line item(s), ${result.panelCount} panel(s) on MBA ${mba} v${result.versionNumber}.`,
       isError: false,
     }
   },

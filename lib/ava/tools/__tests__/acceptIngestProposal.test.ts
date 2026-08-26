@@ -322,7 +322,8 @@ test("accept_ingest_proposal asks for MBA when not inferable — never guesses",
   })
   const denied = await acceptIngestProposalTool.execute({ confirm: true }, c)
   assert.equal(denied.isError, true)
-  assert.match(denied.content, /MBA/i)
+  assert.match(denied.content, /campaign/i)
+  assert.match(denied.content, /won'?t guess/i)
 })
 
 test("accept_ingest_proposal confirm with page MBA accepts via shared engine", async () => {
@@ -357,7 +358,7 @@ test("accept_ingest_proposal confirm with page MBA accepts via shared engine", a
   const ok = await acceptIngestProposalTool.execute({ confirm: true }, c)
   assert.equal(ok.isError, false)
   assert.ok(saved > 0)
-  assert.match(ok.content, /accepted/i)
+  assert.match(ok.content, /it's in/i)
 })
 
 test("accept_ingest_proposal money-blocked explains the delta in chat", async () => {
@@ -399,11 +400,12 @@ test("accept_ingest_proposal money-blocked explains the delta in chat", async ()
   assert.match(blocked.content, /8\.00%|diverges|delta/i)
 })
 
-test("get_pending_ingest_review with no stageId is unchanged", async () => {
+test("get_pending_ingest_review with no stageId asks to attach a file", async () => {
   const out = await getPendingIngestReviewTool.execute({}, ctx())
   assert.equal(out.isError, true)
-  assert.match(out.content, /No pending ingest review in this turn/i)
+  assert.match(out.content, /no schedule attached/i)
   assert.doesNotMatch(out.content, /expired/i)
+  assert.doesNotMatch(out.content, /get_pending_ingest_review|stageId|ingest_stages/i)
   assert.equal(out.ingestStageMissing, undefined)
 })
 
@@ -416,13 +418,15 @@ test("get_pending_ingest_review missing stage is not expiry", async () => {
   assert.equal(out.isError, true)
   assert.equal(out.ingestStageMissing, true)
   assert.doesNotMatch(out.content, /expired/i)
-  assert.match(out.content, new RegExp(stageId))
-  assert.match(out.content, /no longer on the server/i)
-  assert.match(out.content, /known server-side limitation/i)
-  assert.match(out.content, /re-attach/i)
+  assert.doesNotMatch(out.content, /24 hours/i)
+  assert.doesNotMatch(out.content, new RegExp(stageId))
+  assert.doesNotMatch(out.content, /known server-side limitation/i)
+  assert.match(out.content, /isn't available/i)
+  assert.match(out.content, /not something you did/i)
+  assert.match(out.content, /Attach the file again/i)
 })
 
-test("get_pending_ingest_review expired stage says expired", async () => {
+test("get_pending_ingest_review expired stage names the 24 hour hold, not expiry jargon", async () => {
   const hub = await buildIngestReviewFromFile(
     path.join(FIX, QMS),
     loadSeedPublisherProfiles(),
@@ -442,6 +446,11 @@ test("get_pending_ingest_review expired stage says expired", async () => {
     ctx({ pendingIngest: { stageId, fileName: QMS } }),
   )
   assert.equal(out.isError, true)
-  assert.match(out.content, /expired/i)
+  assert.equal(out.ingestStageMissing, true)
+  assert.match(out.content, /24 hours/i)
+  assert.doesNotMatch(out.content, /expired/i)
+  assert.doesNotMatch(out.content, new RegExp(stageId))
   assert.doesNotMatch(out.content, /known server-side limitation/i)
+  assert.match(out.content, /not something you did/i)
+  assert.match(out.content, /Attach the file again/i)
 })

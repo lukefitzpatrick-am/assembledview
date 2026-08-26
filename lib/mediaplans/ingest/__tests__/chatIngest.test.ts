@@ -281,7 +281,8 @@ test("MBA missing: executeIngestAccept asks, never guesses, never saves", async 
   assert.equal(result.ok, false)
   if (result.ok) return
   assert.equal(result.ask_mba, true)
-  assert.match(result.error, /MBA/i)
+  assert.match(result.error, /campaign/i)
+  assert.match(result.error, /won'?t guess/i)
   assert.equal(resolveCalls, 0)
   assert.equal(saves, 0)
 })

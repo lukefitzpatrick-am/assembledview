@@ -8,7 +8,7 @@ import { evaluateTemplateCoverage } from "@/lib/mediaplans/ingest/templateCovera
 import { isUnknownPublisherMatch } from "@/lib/mediaplans/ingest/unknownPublisher"
 
 export const NO_PUBLISHER_PROFILE_MESSAGE =
-  "No publisher profile for this file. Link a catalogue publisher on the Hub ingest screen — AVA will not guess."
+  "There's no publisher profile for this file. Pick the publisher on the Hub review — I won't guess."
 
 export type IngestChatSummary = {
   stageId: string

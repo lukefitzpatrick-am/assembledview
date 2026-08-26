@@ -102,7 +102,7 @@ export async function executeIngestAccept(
       ok: false,
       status: 400,
       error:
-        "accept_ingest_proposal refused: confirm must be true. Summarise the review and wait for the user to say confirm.",
+        "I need a confirm in chat before I write this schedule in.",
     }
   }
 
@@ -112,7 +112,7 @@ export async function executeIngestAccept(
       ok: false,
       status: 400,
       error:
-        "Which MBA / campaign should this schedule attach to? AVA will not guess.",
+        "Which campaign should this schedule attach to? I won't guess.",
       ask_mba: true,
     }
   }
@@ -124,7 +124,7 @@ export async function executeIngestAccept(
     return {
       ok: false,
       status: 400,
-      error: "No staged ingest review. Re-upload the xlsx in AVA or the Hub.",
+      error: "There's no schedule review attached. Drop the xlsx again.",
     }
   }
 
@@ -178,13 +178,13 @@ export async function executeIngestAccept(
     await recordRun({
       ...baseRun,
       outcome: "blocked",
-      outcomeReason: recon.block_reason ?? "Reconciliation delta blocks Accept",
+      outcomeReason: recon.block_reason ?? "Money total is outside the 0.5% gate. Nothing was written.",
       acceptedVersionId: null,
     })
     return {
       ok: false,
       status: 409,
-      error: recon.block_reason ?? "Reconciliation delta blocks Accept",
+      error: recon.block_reason ?? "Money total is outside the 0.5% gate. Nothing was written.",
       reconciliation: recon,
     }
   }
@@ -209,7 +209,7 @@ export async function executeIngestAccept(
     return {
       ok: false,
       status: 400,
-      error: e instanceof Error ? e.message : "Could not resolve MBA",
+      error: e instanceof Error ? e.message : "Couldn't find that campaign.",
     }
   }
 
