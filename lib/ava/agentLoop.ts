@@ -30,7 +30,7 @@ export type AvaAgentResult = {
   /** Display-only; never written into Anthropic message history. */
   questions: ChatInterviewQuestion[] | null;
   toolCalls: Array<{ name: string; input: unknown; resultPreview: string }>;
-  /** Staged ingest id was sent but ingestStageStore has no package (not expiry). */
+  /** Staged ingest id was sent but the package is missing or past expires_at. */
   ingestStageMissing?: boolean;
   usage: {
     inputTokens: number;

@@ -194,32 +194,40 @@ export async function lookupIngestStage(
   if (!id) return { ok: false, reason: "missing" }
 
   const local = readLocal(id)
-  if (local) {
-    const classified = classify(local)
-    if (classified.ok && !processCache.has(id)) {
+  if (local && !isExpired(local)) {
+    if (!processCache.has(id)) {
       processCache.set(id, cloneStaged(local))
     }
-    return classified
+    return { ok: true, staged: local }
   }
 
-  if (!UUID_RE.test(id)) return { ok: false, reason: "missing" }
-
-  try {
-    const { db } = await import("@/db")
-    const { ingestStages } = await import("@/db/schema/ingestStages")
-    const { eq } = await import("drizzle-orm")
-    const [saved] = await db
-      .select()
-      .from(ingestStages)
-      .where(eq(ingestStages.stageId, id))
-      .limit(1)
-    if (!saved) return { ok: false, reason: "missing" }
-    const row = rowFromDb(saved)
-    writeLocal(row)
-    return classify(row)
-  } catch {
-    return { ok: false, reason: "missing" }
+  // Local miss or expired — Postgres is authoritative (retain on another
+  // instance must win; overlay is the stand-in when 0050 is unapplied).
+  if (UUID_RE.test(id)) {
+    try {
+      const { db } = await import("@/db")
+      const { ingestStages } = await import("@/db/schema/ingestStages")
+      const { eq } = await import("drizzle-orm")
+      const [saved] = await db
+        .select()
+        .from(ingestStages)
+        .where(eq(ingestStages.stageId, id))
+        .limit(1)
+      if (saved) {
+        const row = rowFromDb(saved)
+        writeLocal(row)
+        return classify(row)
+      }
+      if (local) return classify(local)
+      return { ok: false, reason: "missing" }
+    } catch {
+      if (local) return classify(local)
+      return { ok: false, reason: "missing" }
+    }
   }
+
+  if (local) return classify(local)
+  return { ok: false, reason: "missing" }
 }
 
 export async function getIngestStage(

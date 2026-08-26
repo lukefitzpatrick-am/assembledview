@@ -128,6 +128,9 @@ test("JCD IngestReviewPackage serialises under 500KB (design A — whole package
   )
   const bytes = Buffer.byteLength(JSON.stringify(review), "utf8")
   const kb = bytes / 1024
+  console.log(
+    `[measure] JCD IngestReviewPackage ${kb.toFixed(2)} KB (${bytes} bytes) line_item_count=${review.proposal?.reconciliation.line_item_count}`,
+  )
   assert.equal(review.proposal?.reconciliation.line_item_count, 106)
   assert.ok(kb < 500, `JCD package was ${kb.toFixed(2)} KB`)
 })
@@ -208,6 +211,30 @@ test("accepted stage is retained with master and version linkage", async () => {
   assert.ok(got.retainedAt)
   assert.equal(got.masterId, 42)
   assert.equal(got.acceptedVersionId, 99)
+})
+
+test("cancelled stage keeps TTL and still expires", async () => {
+  // POST /api/admin/ingest/cancel writes ingest_runs only — never retainIngestStage.
+  const stageId = await putIngestStage({
+    review: stubReview(),
+    fileName: "cancelled.xlsx",
+    uploadedBy: "ava@assembledmedia.com.au",
+  })
+  const live = await getIngestStage(stageId)
+  assert.ok(live)
+  assert.ok(live.expiresAt, "cancelled stage must keep a TTL")
+  assert.equal(live.retainedAt, null)
+  assert.equal(live.masterId, null)
+  assert.equal(live.acceptedVersionId, null)
+  setIngestStageExpiresAtForTests(
+    stageId,
+    new Date(Date.now() - 1000).toISOString(),
+  )
+  assert.equal(await getIngestStage(stageId), null)
+  const looked = await lookupIngestStage(stageId)
+  assert.equal(looked.ok, false)
+  if (looked.ok) return
+  assert.equal(looked.reason, "expired")
 })
 
 test("blocked stage keeps TTL and still expires", async () => {
@@ -332,6 +359,11 @@ test("Hub deep-link and chat resolve the same package after reload", async () =>
     chat.content,
     new RegExp(String(hub.proposal!.reconciliation.line_item_count)),
   )
+  assert.equal(
+    JSON.stringify(staged.review.proposal?.reconciliation),
+    JSON.stringify(hub.proposal!.reconciliation),
+  )
+  assert.ok(hubSummary.full_review_path.includes(`/admin/schedule-ingest?stage=${stageId}`))
   assert.ok(hubSummary.full_review_path.includes(stageId))
 })
 

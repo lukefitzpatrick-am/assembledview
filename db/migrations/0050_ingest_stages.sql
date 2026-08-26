@@ -8,11 +8,11 @@
 --
 -- Column type: review_package jsonb NOT NULL.
 -- Why jsonb (not json, not exploded scalars): the 106-line JCD fixture
--- serialises at ~306 KB (under the ~500 KB design-A threshold), so the whole
--- package is stored. ingest_runs (0037) already records the ingest EVENT as
--- numeric/integer scalars; this table records CONTENT. jsonb matches
--- publisher_profiles mapping blobs (queryable, compressed). JSON numbers
--- inside the package stay JSON numbers.
+-- serialises at 306.08 KB / 313423 bytes (under the ~500 KB design-A
+-- threshold), so the whole package is stored. ingest_runs (0037) already
+-- records the ingest EVENT as numeric/integer scalars; this table records
+-- CONTENT. jsonb matches publisher_profiles mapping blobs (queryable,
+-- compressed). JSON numbers inside the package stay JSON numbers.
 --
 -- expires_at timestamptz NULL — NULL means retained, not expired.
 -- retained_at / master_id / accepted_version_id stay NULL until Accept.
