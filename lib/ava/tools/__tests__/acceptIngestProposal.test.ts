@@ -9,6 +9,7 @@ import { loadSeedPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisher
 import {
   clearIngestStageForTests,
   putIngestStage,
+  setIngestStageExpiresAtForTests,
 } from "@/lib/mediaplans/ingest/ingestStageStore"
 import { clearIngestRunOverlayForTests } from "@/lib/mediaplans/ingest/ingestRuns"
 import { setExecuteIngestAcceptDepsForTests } from "@/lib/mediaplans/ingest/executeIngestAccept"
@@ -55,7 +56,7 @@ test("get_pending_ingest_review returns Hub-matching summary for staged QMS", as
     loadSeedPublisherProfiles(),
     { skipAva: true },
   )
-  const stageId = putIngestStage({
+  const stageId = await putIngestStage({
     review: hub,
     fileName: QMS,
     uploadedBy: "ava@assembledmedia.com.au",
@@ -90,7 +91,7 @@ test("accept_ingest_proposal asks for MBA when not inferable — never guesses",
     loadSeedPublisherProfiles(),
     { skipAva: true },
   )
-  const stageId = putIngestStage({
+  const stageId = await putIngestStage({
     review: hub,
     fileName: QMS,
     uploadedBy: "ava@assembledmedia.com.au",
@@ -110,7 +111,7 @@ test("accept_ingest_proposal confirm with page MBA accepts via shared engine", a
     loadSeedPublisherProfiles(),
     { skipAva: true },
   )
-  const stageId = putIngestStage({
+  const stageId = await putIngestStage({
     review: hub,
     fileName: QMS,
     uploadedBy: "ava@assembledmedia.com.au",
@@ -152,7 +153,7 @@ test("accept_ingest_proposal money-blocked explains the delta in chat", async ()
     delta_pct: 0.08,
     block_reason: "Computed media $1.00 diverges from file stated $2.00 by 8.00% (limit 0.5%)",
   }
-  const stageId = putIngestStage({
+  const stageId = await putIngestStage({
     review: hub,
     fileName: QMS,
     uploadedBy: "ava@assembledmedia.com.au",
@@ -199,4 +200,28 @@ test("get_pending_ingest_review missing stage is not expiry", async () => {
   assert.match(out.content, /no longer on the server/i)
   assert.match(out.content, /known server-side limitation/i)
   assert.match(out.content, /re-attach/i)
+})
+
+test("get_pending_ingest_review expired stage says expired", async () => {
+  const hub = await buildIngestReviewFromFile(
+    path.join(FIX, QMS),
+    loadSeedPublisherProfiles(),
+    { skipAva: true },
+  )
+  const stageId = await putIngestStage({
+    review: hub,
+    fileName: QMS,
+    uploadedBy: "ava@assembledmedia.com.au",
+  })
+  setIngestStageExpiresAtForTests(
+    stageId,
+    new Date(Date.now() - 1000).toISOString(),
+  )
+  const out = await getPendingIngestReviewTool.execute(
+    {},
+    ctx({ pendingIngest: { stageId, fileName: QMS } }),
+  )
+  assert.equal(out.isError, true)
+  assert.match(out.content, /expired/i)
+  assert.doesNotMatch(out.content, /known server-side limitation/i)
 })

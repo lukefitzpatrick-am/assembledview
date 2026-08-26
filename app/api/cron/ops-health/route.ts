@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 
 import { assertCronSecret } from "@/lib/auth/assertCronSecret"
 import { getOpsEmailRecipients, sendHtmlEmail } from "@/lib/email/sendHtmlEmail"
+import { sweepExpiredIngestStages } from "@/lib/mediaplans/ingest/ingestStageStore"
 import { runOpsHealthChecks } from "@/lib/ops/health/checks"
 import {
   buildOpsHealthEmailHtml,
@@ -23,6 +24,13 @@ export async function GET(request: Request) {
   }
 
   const startedAt = new Date()
+  let ingestStagesSwept = 0
+  try {
+    ingestStagesSwept = await sweepExpiredIngestStages(startedAt)
+  } catch (err) {
+    console.error("[ops-health] ingest stage sweep failed", err)
+  }
+
   try {
     const raw = await runOpsHealthChecks(startedAt)
     const report = buildOpsHealthReport(raw.asOfDate, raw.checkedAt, raw.results)
@@ -35,6 +43,7 @@ export async function GET(request: Request) {
     const logLine = {
       event: "ops_health",
       asOfDate: report.asOfDate,
+      ingest_stages_swept: ingestStagesSwept,
       red: report.redCount,
       amber: report.amberCount,
       green: report.greenCount,
@@ -51,6 +60,7 @@ export async function GET(request: Request) {
       status: "ok",
       subject,
       recipients: to,
+      ingest_stages_swept: ingestStagesSwept,
       report,
     })
   } catch (err) {

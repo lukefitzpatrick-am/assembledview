@@ -287,6 +287,7 @@ function ScheduleIngestPageInner() {
           mode: "draft",
           fileName: review.source_file_name,
           detectedConfidence: review.publisher_confidence,
+          stageId: stageId || undefined,
         }),
       })
       const json = (await res.json()) as {

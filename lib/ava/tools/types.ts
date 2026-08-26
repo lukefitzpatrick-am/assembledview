@@ -59,7 +59,7 @@ export type AvaToolContext = {
   pendingParsedPlan: PendingParsedPlan | null;
   /** Staged Hub ingest review from AVA xlsx attach (stage store id — not a re-upload). */
   pendingIngest?: PendingIngest | null;
-  /** Set when get_pending_ingest_review finds a stageId that is not in the in-memory store. */
+  /** Set when get_pending_ingest_review finds a missing or expired stage. */
   ingestStageMissing?: boolean;
   /** Side-channel: bulk line-items load for bridge setLineItems. */
   capturedLineItemsLoad: CapturedLineItemsLoad | null;

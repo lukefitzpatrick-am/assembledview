@@ -31,7 +31,7 @@ export async function stageIngestReviewFromBuffer(
     sourceFileName: args.fileName,
     pinnedPublisherName: args.pinnedPublisherName,
   })
-  const stageId = putIngestStage({
+  const stageId = await putIngestStage({
     review,
     fileName: args.fileName,
     uploadedBy: args.uploadedBy,

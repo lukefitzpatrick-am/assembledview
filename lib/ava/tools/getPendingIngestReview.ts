@@ -1,6 +1,6 @@
 import type AvaTool from "./types"
 import { jsonContent } from "./helpers"
-import { getIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
+import { lookupIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
 import { summariseIngestReview } from "@/lib/mediaplans/ingest/summariseIngestReview"
 
 export const getPendingIngestReviewTool: AvaTool = {
@@ -23,8 +23,16 @@ export const getPendingIngestReviewTool: AvaTool = {
         isError: true,
       }
     }
-    const staged = getIngestStage(stageId)
-    if (!staged) {
+    const looked = await lookupIngestStage(stageId)
+    if (!looked.ok) {
+      if (looked.reason === "expired") {
+        return {
+          content:
+            "Staged ingest review expired. Ask the user to re-attach the xlsx.",
+          isError: true,
+          ingestStageMissing: true,
+        }
+      }
       return {
         content:
           `The staged review for ${stageId} is no longer on the server. This is a known server-side limitation, not something the user did. Tell the user plainly that the upload needs re-attaching and say why.`,
@@ -32,9 +40,9 @@ export const getPendingIngestReviewTool: AvaTool = {
         ingestStageMissing: true,
       }
     }
-    const summary = summariseIngestReview(staged.review, {
+    const summary = summariseIngestReview(looked.staged.review, {
       stageId,
-      fileName: context.pendingIngest?.fileName ?? staged.fileName,
+      fileName: context.pendingIngest?.fileName ?? looked.staged.fileName,
     })
     return { content: jsonContent(summary), isError: false }
   },

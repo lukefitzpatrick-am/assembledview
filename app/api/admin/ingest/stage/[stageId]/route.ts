@@ -16,7 +16,7 @@ export async function GET(
   }
 
   const { stageId } = await context.params
-  const staged = getIngestStage(stageId)
+  const staged = await getIngestStage(stageId)
   if (!staged) {
     return NextResponse.json({ error: "Staged ingest not found" }, { status: 404 })
   }

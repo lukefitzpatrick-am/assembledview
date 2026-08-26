@@ -1,4 +1,4 @@
-/** Client-safe sessionStorage copy of a staged ingest so Hub `?stage=` survives a different server instance. */
+/** Same-tab sessionStorage cache of a staged ingest. Server `ingest_stages` is the source of truth. */
 
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
 

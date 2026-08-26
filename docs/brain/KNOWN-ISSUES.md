@@ -166,7 +166,7 @@ C-numbers are allocated on `localhost` only, and are never reassigned once writt
 | P-8 | Every pacing tab refetches on mount (no SWR/react-query); stale-silently caches send `x-warning` headers most consumers ignore. **S8:** campaigns list server TTL warm ≈0ms; client remount still re-fetches `/api/mediaplans` (not measured in soak script) | Open |
 | P-9 | Four in-memory rate limiters (ava autopopulate, ad copy, search copy, live mockup) are per-instance Maps — ineffective on serverless | Known |
 | P-10 | exceljs imported client-side in mega-pages and finance dialogs — large bundle cost | Open |
-| P-11 | **`ingestStageStore` is an in-memory Map with no TTL** — staged AVA/Hub packages vanish on cold start or another instance. AVA-UX-1 reports this honestly (`ingestStageMissing`, never "expired"); AVA-UX-2 owns persistence. Do not add a TTL as a side-effect of the honest-failure copy. | Open |
+| P-11 | **`ingestStageStore` is an in-memory Map with no TTL** — staged AVA/Hub packages vanish on cold start or another instance. AVA-UX-1 reports this honestly (`ingestStageMissing`, never "expired"); AVA-UX-2 owns persistence. Do not add a TTL as a side-effect of the honest-failure copy. | FIXED — persist to `ingest_stages` (0050 AUTHOR ONLY); 24h TTL; missing ≠ expired; retain on accept |
 
 ## Dead / misleading code (D-*)
 

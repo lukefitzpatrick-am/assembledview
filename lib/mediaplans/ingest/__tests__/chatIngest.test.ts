@@ -70,7 +70,10 @@ test("chat review summary matches Hub review numbers for the same QMS fixture", 
   assert.ok(chat.required_coverage >= 0 && chat.required_coverage <= 1)
   assert.equal(chat.unknown_publisher, false)
   assert.ok(chat.full_review_path.includes(staged.stageId))
-  assert.equal(getIngestStage(staged.stageId)?.review.detected_publisher, "QMS")
+  assert.equal(
+    (await getIngestStage(staged.stageId))?.review.detected_publisher,
+    "QMS",
+  )
 })
 
 test("stage store round-trips the same package Hub would show", async () => {
@@ -78,12 +81,12 @@ test("stage store round-trips the same package Hub would show", async () => {
   const hub = await buildIngestReviewFromFile(path.join(FIX, QMS), profiles, {
     skipAva: true,
   })
-  const id = putIngestStage({
+  const id = await putIngestStage({
     review: hub,
     fileName: QMS,
     uploadedBy: "luke@assembledmedia.com.au",
   })
-  const got = getIngestStage(id)
+  const got = await getIngestStage(id)
   assert.ok(got)
   assert.equal(got.fileName, QMS)
   assert.equal(got.review.detected_publisher, hub.detected_publisher)
@@ -98,7 +101,7 @@ test("confirm-in-chat accept hydrates the editor card (MR-12 QMS round-trip)", a
   const hub = await buildIngestReviewFromFile(path.join(FIX, QMS), profiles, {
     skipAva: true,
   })
-  const stageId = putIngestStage({
+  const stageId = await putIngestStage({
     review: hub,
     fileName: QMS,
     uploadedBy: "ava@assembledmedia.com.au",
@@ -181,7 +184,7 @@ test("money-blocked file refuses in chat with the delta and does not accept", as
     block_reason:
       "Computed media $100.00 diverges from file stated $200.00 by 2.00% (limit 0.5%)",
   }
-  const stageId = putIngestStage({
+  const stageId = await putIngestStage({
     review: hub,
     fileName: QMS,
     uploadedBy: "ava@assembledmedia.com.au",
@@ -252,7 +255,7 @@ test("MBA missing: executeIngestAccept asks, never guesses, never saves", async 
   const hub = await buildIngestReviewFromFile(path.join(FIX, QMS), profiles, {
     skipAva: true,
   })
-  const stageId = putIngestStage({
+  const stageId = await putIngestStage({
     review: hub,
     fileName: QMS,
     uploadedBy: "ava@assembledmedia.com.au",

@@ -10,7 +10,10 @@ import type {
   AcceptIngestResult,
 } from "@/lib/mediaplans/ingest/acceptIngestProposal"
 import { recordIngestRun } from "@/lib/mediaplans/ingest/ingestRuns"
-import { getIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
+import {
+  getIngestStage,
+  retainIngestStage,
+} from "@/lib/mediaplans/ingest/ingestStageStore"
 import { resolveCatalogueIdForProfileName } from "@/lib/mediaplans/ingest/publisherCatalogueJoin"
 import { resolveIngestCampaignFromDb } from "@/lib/mediaplans/ingest/resolveIngestCampaign"
 import { evaluateTemplateCoverage } from "@/lib/mediaplans/ingest/templateCoverage"
@@ -114,7 +117,7 @@ export async function executeIngestAccept(
     }
   }
 
-  const staged = args.stageId ? getIngestStage(args.stageId) : null
+  const staged = args.stageId ? await getIngestStage(args.stageId) : null
   const review = staged?.review ?? null
   const proposal = args.proposal ?? review?.proposal ?? null
   if (!proposal) {
@@ -236,6 +239,14 @@ export async function executeIngestAccept(
     acceptedVersionId: result.versionId,
   })
 
+  if (args.stageId) {
+    await retainIngestStage({
+      stageId: args.stageId,
+      masterId: campaign.masterId,
+      acceptedVersionId: result.versionId,
+    })
+  }
+
   return { ok: true, ...result }
 }
 export async function executeIngestAcceptWithCampaign(
@@ -246,11 +257,13 @@ export async function executeIngestAcceptWithCampaign(
     fileName?: string | null
     detectedConfidence?: number | null
     feeLoading?: FeeLoading
+    stageId?: string | null
   },
   deps: ExecuteIngestAcceptOverrides = {},
 ): Promise<ExecuteIngestAcceptResult> {
   return executeIngestAccept(
     {
+      stageId: args.stageId,
       proposal: args.proposal,
       mbaNumber: args.campaign.mbaNumber,
       versionNumber: args.campaign.versionNumber,
