@@ -32,7 +32,7 @@
 
 Codex tables live in `db/schema/codex.ts` and are excluded from ETL truncate-reload. `campaign_insights` lives in `db/schema/insights.ts`; OOH panel/pack detail in `db/schema/panels.ts` (`line_item_panels` + child `line_item_panel_flights`); ingest publisher config in `db/schema/publisherProfiles.ts`.
 
-**Drizzle mirror:** `db/schema/*.ts` — generated from those SQL files (`node scripts/migration/_gen-drizzle-schema.mjs`), then hand-kept in sync. `migration_markers` lives in `db/schema/migrationMarkers.ts`.
+**Drizzle mirror:** `db/schema/*.ts` — generated from those SQL files (`node scripts/migration/_gen-drizzle-schema.mjs`), then hand-kept in sync. `migration_markers` lives in `db/schema/migrationMarkers.ts`. Tables from 0010 / 0011 / 0012 (`finance_periods`, `finance_run_items`, `app_notifications`, `xero_invoice_matches`, `xero_contact_links`, `xero_match_month_metrics`, `plan_working_drafts`) are now mirrored (`financePeriods.ts`, `xeroMatching.ts`, `planWorkingDrafts.ts`). SQL remains source of truth; existing callers still use raw `sql` templates and were not migrated to the query builder.
 
 **Drizzle kit output:** `db/drizzle/` — baseline snapshot only. The `0000_*.sql` file mirrors the live schema for `drizzle-kit generate` bookkeeping. **Do not `db:migrate` it against Supabase** — tables already exist. Seed `drizzle.__drizzle_migrations` (or use `drizzle-kit pull --init`) before relying on migrate for *future* changes.
 
