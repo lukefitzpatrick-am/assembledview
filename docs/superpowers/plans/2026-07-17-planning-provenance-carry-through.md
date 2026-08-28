@@ -52,7 +52,7 @@
 | `lib/planning/export/buildPlannerDeck.ts` (+ export button path) | Same provenance wording / version stamp |
 | `app/mediaplans/create/page.tsx` | Audience hydrate + toggles + budget |
 | `components/mediaplans/PlannerCreateTargetsStrip.tsx` | **Create** — “From planner” strip (mapped + unmapped) |
-| `PLANNING_TOOL_BLUEPRINT.md` | Note P7-8 per-pillar `*_SOURCE` columns (doc-only follow-up) |
+| `docs/archive/PLANNING_TOOL_BLUEPRINT.md` | Note P7-8 per-pillar `*_SOURCE` columns (doc-only follow-up) |
 
 ---
 
@@ -414,7 +414,7 @@ Implementation: map allocated → `channels`; call `mapEngineSplitToCreateTarget
 - [ ] Surface per-pillar source in Stage E UI where scores are shown (minimum: mix table footnote / pillar chips — match existing badge patterns, tokens only).
 - [ ] Deck: same wording; include `PLANNING_CHANNEL_BENCH_VERSION` in provenance footer if a footer exists; never attribute attn/B/D/cpm to Roy Morgan.
 - [ ] Optional probe (non-blocking): try selecting warehouse source columns only if you already have a Snowflake env in this branch — **do not** wire a single `b.SOURCE` into four pillars. Prefer a one-line comment in `queries.ts` pointing at P7-8 `ATTN_SOURCE` / ….
-- [ ] Doc note in `PLANNING_TOOL_BLUEPRINT.md` under PLANNING_CHANNEL_BENCH: replace single `source` with per-pillar `*_SOURCE` for P7-8.
+- [ ] Doc note in `docs/archive/PLANNING_TOOL_BLUEPRINT.md` under PLANNING_CHANNEL_BENCH: replace single `source` with per-pillar `*_SOURCE` for P7-8.
 - [ ] Commit `feat(planning): per-pillar RM vs benchmark provenance in UI and deck`
 
 ---

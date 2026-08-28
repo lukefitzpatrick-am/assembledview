@@ -41,7 +41,7 @@ AVA (`getPacingSnapshot`, `getDeliverySnapshot`), ops digest email (`buildPacing
 - Direct re-implements the warehouse proc's 3-day rolling lock window in TS (`isOutsideRollingWindow`) — drift risk.
 - Duplication: `lineItemStatusFromPacing` ×3 thin wrappers over `pacingStatus()`; KPI-target block ×3; `resolveLive*LineItems` ×3; page clients ×5; `count*OverviewStatus` ×5. Aggregators social vs programmatic have drifted (prog computes cpm, social doesn't; social passes 0 conversions/revenue → ROAS/CPA structurally absent).
 - Sticky-column freeze patterns diverge sharply across the five channel tables (search densest; ad-serving/direct thinnest) — unify in a later commit; height maths already shared via `pacingTableScroll.ts`.
-- `PERF-DISCOVERY-*` docs are stale on caching — trust `pacingRowsCache.ts`, not them.
+- `docs/archive/PERF-DISCOVERY-*` docs are stale on caching — trust `pacingRowsCache.ts`, not them.
 - Genuine differences — don't unify blindly: direct's grouped shape + `includeHistorical`; ad-serving's ZERO-$ LAW; social's absent revenue.
 - Direct channel tab (`DirectCampaignsClient`) maps load/filter outcomes through `ViewState` / `ViewStateBoundary` (error ≠ empty; filter-zero → Clear filters via `resetToDefaults`).
 - Client filter fail-closed: when `client_ids` are selected but `clientIdToName` is empty, `applyPacingRowFilters` / `filterDirectCampaignGroups` return zero rows and channel clients show `PacingClientFilterUnavailable` (never silently widen). Client-name Set membership uses `normalizeSearchText` only (exact after normalise); free-text `search` uses `matchText` — scope semantics unchanged.

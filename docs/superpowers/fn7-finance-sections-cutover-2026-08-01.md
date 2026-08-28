@@ -80,7 +80,7 @@ Enforced by `next.config.mjs` permanent redirects + middleware (admin) for bare 
 | Register | Change |
 |----------|--------|
 | `KNOWN-ISSUES.md` | **UX-1** Load-gate, **UX-2** $0 landing, **UX-3** hub treemaps → fixed pending live verification (not FIXED until live smoke); **C-29** Costs payables recon banner |
-| `FINANCE-UX-REDESIGN.md` | F5.3 / F10.* / CF1 → fixed pending live verification |
+| `docs/archive/FINANCE-UX-REDESIGN.md` | F5.3 / F10.* / CF1 → fixed pending live verification |
 | `finance-billing.md` + `BLAST-RADIUS.md` + `INVARIANTS.md` | sections always on / hub deleted |
 
 ## Verification

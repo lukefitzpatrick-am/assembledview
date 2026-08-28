@@ -187,9 +187,9 @@ C-numbers are allocated on `localhost` only, and are never reassigned once writt
 | D-5 | `lib/delivery/programmatic/_prog_extract.txt` — 780 lines of live-looking TS checked in as .txt | FIXED (S8) — deleted |
 | D-6 | `lib/auth/mbaNumberMatchesClientIdentifier.ts` — FIXED (SEC-B): wired into `checkClientMbaAccess` / `resolveClientMbaScope` (was test-only; see SEC-9) | FIXED (SEC-B) — wired into `checkClientMbaAccess` / `resolveClientMbaScope` |
 | D-7 | Several channel routes import axios unused; cinema route POSTs to `cinema_line_items` while GET reads `media_plan_cinema` | PARTIAL (S8) — unused axios stripped from television/social/newspaper/influencers/integration/prog-display/prog-ooh; **cinema table mismatch left open** (verify separately) |
-| D-8 | `app/management/page.tsx` is a stub (inert date-range picker removed — read-only placeholder only); `docs/design-refresh/BASELINE.md` is an unfilled template | FIXED (management route + stub removed; User Management stays at `/admin/users/new`) — BASELINE.md template still unfilled |
+| D-8 | `app/management/page.tsx` is a stub (inert date-range picker removed — read-only placeholder only); `docs/archive/design-refresh/BASELINE.md` is an unfilled template | FIXED (management route + stub removed; User Management stays at `/admin/users/new`) — BASELINE.md template still unfilled |
 | D-9 | `lib/codex/**` is the Tasks domain, not AVA — naming is misleading |
-| D-10 | Stale docs that contradict code: `PERF-DISCOVERY-2-CACHE-DESIGN.md` ("zero unstable_cache usages" — now false), `FINANCE-HUB-STAGES-DISCOVERY.md` (references deleted `components/finance/tabs/`), `README.md` Xano config section (references nonexistent `lib/xano/config.ts`) |
+| D-10 | Stale docs that contradict code: `docs/archive/PERF-DISCOVERY-2-CACHE-DESIGN.md` ("zero unstable_cache usages" — now false), `docs/archive/FINANCE-HUB-STAGES-DISCOVERY.md` (references deleted `components/finance/tabs/`), `README.md` Xano config section (references nonexistent `lib/xano/config.ts`) |
 
 ## Features / integrations (F-*)
 
@@ -204,5 +204,5 @@ C-numbers are allocated on `localhost` only, and are never reassigned once writt
 - Rounding unification across the 9 `computeLoadedDeliverables` copies (C-5)
 - Excel Column N label vs value (C-1)
 - The 3 genuine per-channel deliverable variants for package/package_inclusions/bonus (OOH/newspaper/BVOD return 1 or bonusDeliverables; canonical returns NaN). **Package OOH/Cinema container hotfixes RESOLVED (unified on canonical derived, 2026-08-04, Luke)** — removed OOH `handleValueChange` HOTFIX early-return and Cinema `cinemaBurstDeliverables` preserve branch for `package`; bonus/package_inclusions stay manual via `computeDeliverableFromMedia` → NaN. Residual: newspaper/BVOD/`computeLoadedDeliverables` still special-case package on load.
-- `AUDIT.md` §7's ~30 unanswered Stage 1–6 questions (fold the still-relevant ones here over time)
+- `docs/archive/AUDIT.md` §7's ~30 unanswered Stage 1–6 questions (fold the still-relevant ones here over time)
 - **Percent-unit contract (AV-25 v2 / C-20):** code landed (`lib/kpi/percentUnits.ts`); dual-store data migration pending — classify via scan CSV; never auto-decide ambiguous `1.0` rows; fix Xano before next `db:etl` truncate-reload

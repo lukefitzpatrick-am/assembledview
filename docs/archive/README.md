@@ -1,0 +1,1 @@
+These files are superseded session artefacts kept for git history. They are not a current description of the product, the schema, or how to change the code. The live reference is `docs/brain/`. Do not treat anything in this folder as current.
