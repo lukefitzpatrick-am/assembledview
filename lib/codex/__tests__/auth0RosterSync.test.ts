@@ -249,6 +249,37 @@ describe("runAuth0RosterSync", () => {
     assert.match(warnings.join("\n"), /free-mail/)
   })
 
+  it("does not save a generated first-name alias that another active row already holds", async () => {
+    const store = memorySyncStore([
+      {
+        email: "samantha.keah@assembledmedia.com.au",
+        name: "Samantha Keah",
+        auth0UserId: "auth0|keah",
+        emailAliases: ["samantha@assembledmedia.com.au"],
+        roleTitle: null,
+        lastLoginAt: null,
+        rosterSource: "auth0_sync",
+      },
+    ])
+    const result = await runAuth0RosterSync(
+      deps({
+        store,
+        listUsers: async () => [
+          {
+            user_id: "auth0|murphy",
+            email: "samantha.murphy@assembledmedia.com.au",
+            name: "Samantha Murphy",
+            app_metadata: { role: "admin" },
+          },
+        ],
+      }),
+    )
+    assert.equal(result.status, "ok")
+    assert.equal(result.created, 1)
+    const created = store.rows.get("samantha.murphy@assembledmedia.com.au")!
+    assert.deepEqual(created.emailAliases, [])
+  })
+
   it("skips digital@assembledmedia.com.au when app_metadata role is client", async () => {
     const store = memorySyncStore()
     const result = await runAuth0RosterSync(

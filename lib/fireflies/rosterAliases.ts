@@ -33,19 +33,33 @@ export function memberEmailSet(member: TeamMemberIdentity): Set<string> {
   return set
 }
 
+export type RosterEmailResolution =
+  | { kind: "unique"; member: TeamMemberIdentity }
+  | { kind: "ambiguous"; members: TeamMemberIdentity[] }
+  | { kind: "none" }
+
+export function resolveRosterEmailResult(
+  email: string,
+  roster: readonly TeamMemberIdentity[]
+): RosterEmailResolution {
+  const needle = email.trim().toLowerCase()
+  if (!needle) return { kind: "none" }
+  const hits = roster.filter((member) => memberEmailSet(member).has(needle))
+  if (hits.length === 0) return { kind: "none" }
+  if (hits.length === 1) return { kind: "unique", member: hits[0]! }
+  return { kind: "ambiguous", members: hits }
+}
+
+/** Unique match only. Multi-match returns null — never first-row wins. */
 export function resolveRosterEmail(
   email: string,
   roster: readonly TeamMemberIdentity[]
 ): TeamMemberIdentity | null {
-  const needle = email.trim().toLowerCase()
-  if (!needle) return null
-  for (const member of roster) {
-    if (memberEmailSet(member).has(needle)) return member
-  }
-  return null
+  const result = resolveRosterEmailResult(email, roster)
+  return result.kind === "unique" ? result.member : null
 }
 
-/** Roster attendees only — one identity per person. */
+/** Roster attendees only — one identity per person. Ambiguous emails are omitted. */
 export function uniquePeopleFromEmails(
   emails: readonly string[],
   roster: readonly TeamMemberIdentity[]

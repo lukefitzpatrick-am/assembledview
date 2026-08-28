@@ -5,6 +5,7 @@ import {
   buildTimeEntryDraftRows,
   isRefreshableTimeEntryProposalStatus,
 } from "../timeEntryDrafts.js"
+import type { TeamMemberIdentity } from "../rosterAliases.js"
 import { runFirefliesSync, type SyncInsertNote } from "../sync.js"
 import type { FirefliesTranscript } from "../types.js"
 
@@ -80,6 +81,46 @@ test("confirmed and skipped proposals are terminal", () => {
   assert.equal(isRefreshableTimeEntryProposalStatus("proposed"), true)
   assert.equal(isRefreshableTimeEntryProposalStatus("blocked_overlap"), true)
   assert.equal(isRefreshableTimeEntryProposalStatus("blocked_structure"), true)
+})
+
+const SAMANTHA_KEAH: TeamMemberIdentity = {
+  canonicalEmail: "samantha.keah@assembledmedia.com.au",
+  name: "Samantha Keah",
+  aliases: ["samantha@assembledmedia.com.au"],
+}
+
+const SAMANTHA_MURPHY: TeamMemberIdentity = {
+  canonicalEmail: "samantha.murphy@assembledmedia.com.au",
+  name: "Samantha Murphy",
+  aliases: ["samantha@assembledmedia.com.au"],
+}
+
+test("unique alias attendee drafts against the canonical roster email", () => {
+  const rows = buildTimeEntryDraftRows({
+    noteId: 41,
+    note: note({
+      participants: JSON.stringify(["samantha@assembledmedia.com.au"]),
+    }),
+    activeMemberEmails: [SAMANTHA_KEAH.canonicalEmail],
+    roster: [SAMANTHA_KEAH],
+  })
+  assert.equal(rows.length, 1)
+  assert.equal(rows[0]!.memberEmail, SAMANTHA_KEAH.canonicalEmail)
+})
+
+test("colliding alias attendee creates no time-entry draft", () => {
+  const rows = buildTimeEntryDraftRows({
+    noteId: 41,
+    note: note({
+      participants: JSON.stringify(["samantha@assembledmedia.com.au"]),
+    }),
+    activeMemberEmails: [
+      SAMANTHA_KEAH.canonicalEmail,
+      SAMANTHA_MURPHY.canonicalEmail,
+    ],
+    roster: [SAMANTHA_KEAH, SAMANTHA_MURPHY],
+  })
+  assert.deepEqual(rows, [])
 })
 
 test("meeting UTC instant uses the Sydney civil date", () => {

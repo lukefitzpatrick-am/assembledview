@@ -2,6 +2,10 @@ import { sydneyYmdFromUtcInstant } from "@/lib/myhours/sydneyWeek"
 
 import type { TimeEntryProposalStatus } from "@/db/schema/myhours"
 import type { SyncInsertNote } from "@/lib/fireflies/sync"
+import {
+  resolveRosterEmailResult,
+  type TeamMemberIdentity,
+} from "@/lib/fireflies/rosterAliases"
 
 const REFRESHABLE_STATUSES = new Set<TimeEntryProposalStatus>([
   "proposed",
@@ -23,6 +27,7 @@ export type TimeEntryDraftArgs = {
   noteId: number
   note: SyncInsertNote
   activeMemberEmails: readonly string[]
+  roster?: readonly TeamMemberIdentity[]
 }
 
 function normaliseEmail(value: unknown): string {
@@ -45,30 +50,55 @@ function participantEmails(raw: string | null): string[] {
     .filter((email) => email.includes("@"))
 }
 
+function identitiesFromArgs(args: TimeEntryDraftArgs): TeamMemberIdentity[] {
+  if (args.roster && args.roster.length > 0) {
+    return [...args.roster]
+  }
+  const seen = new Set<string>()
+  const out: TeamMemberIdentity[] = []
+  for (const raw of args.activeMemberEmails) {
+    const email = normaliseEmail(raw)
+    if (!email || seen.has(email)) continue
+    seen.add(email)
+    out.push({ canonicalEmail: email, name: email })
+  }
+  return out
+}
+
 export function isRefreshableTimeEntryProposalStatus(
   status: string
 ): boolean {
   return REFRESHABLE_STATUSES.has(status as TimeEntryProposalStatus)
 }
 
-export function buildTimeEntryDraftRows(
-  args: TimeEntryDraftArgs
-): TimeEntryDraftRow[] {
+export function buildTimeEntryDrafts(args: TimeEntryDraftArgs): {
+  rows: TimeEntryDraftRow[]
+  declined: Array<{ attendeeEmail: string; holders: TeamMemberIdentity[] }>
+} {
   const { note } = args
-  if (note.isInternal || note.clientId == null || !note.meetingDate) return []
+  if (note.isInternal || note.clientId == null || !note.meetingDate) {
+    return { rows: [], declined: [] }
+  }
 
-  const activeRoster = new Set(
-    args.activeMemberEmails.map(normaliseEmail).filter(Boolean)
-  )
-  if (activeRoster.size === 0) return []
+  const identities = identitiesFromArgs(args)
+  if (identities.length === 0) return { rows: [], declined: [] }
 
-  const matchedEmails = new Set(
-    participantEmails(note.participants).filter((email) =>
-      activeRoster.has(email)
-    )
-  )
+  const matchedCanonical = new Set<string>()
+  const declined: Array<{
+    attendeeEmail: string
+    holders: TeamMemberIdentity[]
+  }> = []
+  for (const email of participantEmails(note.participants)) {
+    const resolved = resolveRosterEmailResult(email, identities)
+    if (resolved.kind === "ambiguous") {
+      declined.push({ attendeeEmail: email, holders: resolved.members })
+      continue
+    }
+    if (resolved.kind !== "unique") continue
+    matchedCanonical.add(resolved.member.canonicalEmail)
+  }
 
-  return [...matchedEmails].map((memberEmail) => ({
+  const rows = [...matchedCanonical].map((memberEmail) => ({
     sourceNoteId: args.noteId,
     memberEmail,
     entryDate: sydneyYmdFromUtcInstant(note.meetingDate!),
@@ -77,6 +107,13 @@ export function buildTimeEntryDraftRows(
     clientId: note.clientId!,
     mbaNumber: note.mbaNumber?.trim().toLowerCase() || null,
   }))
+  return { rows, declined }
+}
+
+export function buildTimeEntryDraftRows(
+  args: TimeEntryDraftArgs
+): TimeEntryDraftRow[] {
+  return buildTimeEntryDrafts(args).rows
 }
 
 export const REFRESHABLE_TIME_ENTRY_PROPOSAL_STATUSES = [

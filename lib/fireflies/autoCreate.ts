@@ -169,6 +169,15 @@ export function planActionItems(
         timestamp: item.timestamp,
         sourceLine: title,
       })
+      const descriptionWithAmbiguity =
+        resolution.kind === "ambiguous"
+          ? `${description}\n\nAVA did not assign this. It matches more than one roster person: ${resolution.members
+              .map(
+                (m) =>
+                  `${m.name} (${m.email.trim().toLowerCase()})`
+              )
+              .join("; ")}.`
+          : description
 
       if (classified.action === "auto_create" && resolution.kind === "unique") {
         if (deps.clientId == null) continue
@@ -218,7 +227,7 @@ export function planActionItems(
         sourceLine: title,
         assigneeEmail: suggested,
         blockName: block.name,
-        description,
+        description: descriptionWithAmbiguity,
       })
     }
   }

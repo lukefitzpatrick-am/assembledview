@@ -4,7 +4,8 @@ import {
   isAuth0ManagementClientConfigured,
   listAllAuth0UsersUnpaged,
 } from "@/lib/api/auth0Management"
-import { createTeamMember, listRosterLoginRows, listTeamMembers } from "@/lib/codex/repo"
+import { createTeamMember, listRosterLoginRows, listTeamMembers, listEmailAliasCollisions } from "@/lib/codex/repo"
+import { AliasCollisionError } from "@/lib/codex/rosterAliasGuard"
 import { rosterEmailsNeverLoggedIn } from "@/lib/codex/rosterLoginCheck"
 import {
   codexFlagGuard,
@@ -30,6 +31,7 @@ export async function GET(request: Request) {
       perPage: Number(url.searchParams.get("per_page") || 100),
     })
     let neverLoggedIn: string[] = []
+    let aliasCollisions: Awaited<ReturnType<typeof listEmailAliasCollisions>> = []
     try {
       if (isAuth0ManagementClientConfigured()) {
         const [roster, users] = await Promise.all([
@@ -41,7 +43,16 @@ export async function GET(request: Request) {
     } catch (err) {
       console.warn("[auth0-roster-login] never-logged-in fail-soft:", err)
     }
-    return NextResponse.json({ ...data, never_logged_in: neverLoggedIn })
+    try {
+      aliasCollisions = await listEmailAliasCollisions()
+    } catch (err) {
+      console.warn("[roster-alias] collision report fail-soft:", err)
+    }
+    return NextResponse.json({
+      ...data,
+      never_logged_in: neverLoggedIn,
+      alias_collisions: aliasCollisions,
+    })
   } catch (error) {
     console.error("Failed to list team members:", error)
     return NextResponse.json(
@@ -102,11 +113,24 @@ export async function POST(request: Request) {
         defaultClientIds: Array.isArray(raw.default_client_ids)
           ? raw.default_client_ids.map(Number).filter(Number.isFinite)
           : undefined,
+        ...(Array.isArray(raw.email_aliases)
+          ? {
+              emailAliases: raw.email_aliases.filter(
+                (x): x is string => typeof x === "string"
+              ),
+            }
+          : {}),
       },
       actor
     )
     return NextResponse.json(member, { status: 201 })
   } catch (error) {
+    if (error instanceof AliasCollisionError) {
+      return NextResponse.json(
+        { error: "alias_collision", message: error.message },
+        { status: 409 }
+      )
+    }
     console.error("Failed to create team member:", error)
     return NextResponse.json(
       {

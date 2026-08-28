@@ -2,7 +2,7 @@
  * Fireflies action_items arrive as per-person blocks headed **Full Name**.
  */
 import {
-  resolveRosterEmail,
+  resolveRosterEmailResult,
   type TeamMemberIdentity,
 } from "./rosterAliases.js"
 
@@ -131,24 +131,31 @@ export function resolveBlockAssignee(
   const identities = roster.map(toIdentity)
   const needle = name.toLowerCase()
   for (const email of attendeeEmails) {
-    const member = resolveRosterEmail(email, identities)
-    if (!member) continue
-    const person = roster.find(
-      (r) => r.email.trim().toLowerCase() === member.canonicalEmail
-    )
-    if (!person) continue
-    const derivedNames = [
-      displayNameFromEmailLocal(person.email),
-      ...(person.aliases ?? []).map(displayNameFromEmailLocal),
-      displayNameFromEmailLocal(email),
-    ]
-    const matchesDerived = derivedNames.some(
-      (d) => d.trim().toLowerCase() === needle
-    )
-    if (!matchesDerived) continue
-    if (seen.has(person.email.trim().toLowerCase())) continue
-    seen.add(person.email.trim().toLowerCase())
-    derivedHits.push(person)
+    const resolved = resolveRosterEmailResult(email, identities)
+    const candidates =
+      resolved.kind === "unique"
+        ? [resolved.member]
+        : resolved.kind === "ambiguous"
+          ? resolved.members
+          : []
+    for (const member of candidates) {
+      const person = roster.find(
+        (r) => r.email.trim().toLowerCase() === member.canonicalEmail
+      )
+      if (!person) continue
+      const derivedNames = [
+        displayNameFromEmailLocal(person.email),
+        ...(person.aliases ?? []).map(displayNameFromEmailLocal),
+        displayNameFromEmailLocal(email),
+      ]
+      const matchesDerived = derivedNames.some(
+        (d) => d.trim().toLowerCase() === needle
+      )
+      if (!matchesDerived) continue
+      if (seen.has(person.email.trim().toLowerCase())) continue
+      seen.add(person.email.trim().toLowerCase())
+      derivedHits.push(person)
+    }
   }
   if (derivedHits.length === 1) {
     return { kind: "unique", member: derivedHits[0]! }

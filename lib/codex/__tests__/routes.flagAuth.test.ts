@@ -76,6 +76,7 @@ if (supportsMockModule()) {
       countTasksByMba: async () => [],
       listTeamMembers: async () => emptyPage,
       listRosterLoginRows: async () => [],
+      listEmailAliasCollisions: async () => [],
       createTeamMember: async () => ({
         id: 1,
         email: "a@example.com",

@@ -263,6 +263,9 @@ export function TasksPageClient({
   const [teamWeek, setTeamWeek] = useState<TeamWeekTimeSummary | null>(null)
   const [teamHoursSortDesc, setTeamHoursSortDesc] = useState(true)
   const [neverLoggedIn, setNeverLoggedIn] = useState<string[]>([])
+  const [aliasCollisions, setAliasCollisions] = useState<
+    Array<{ alias: string; holders: Array<{ email: string; name: string }> }>
+  >([])
   const [autoBusyId, setAutoBusyId] = useState<number | string | null>(null)
 
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -384,6 +387,7 @@ export function TasksPageClient({
         setAccessDenied(true)
         setTeamMembers([])
         setNeverLoggedIn([])
+        setAliasCollisions([])
         return
       }
       if (!res.ok) {
@@ -396,16 +400,24 @@ export function TasksPageClient({
       }
       const data = (await res.json()) as CodexPagedResponse<TeamMember> & {
         never_logged_in?: string[]
+        alias_collisions?: Array<{
+          alias: string
+          holders: Array<{ email: string; name: string }>
+        }>
       }
       setTeamMembers(Array.isArray(data.items) ? data.items : [])
       setNeverLoggedIn(
         Array.isArray(data.never_logged_in) ? data.never_logged_in : []
+      )
+      setAliasCollisions(
+        Array.isArray(data.alias_collisions) ? data.alias_collisions : []
       )
     } catch (error) {
       console.error("Error fetching team:", error)
       setTeamError("Something went wrong while loading the team.")
       setTeamMembers([])
       setNeverLoggedIn([])
+      setAliasCollisions([])
     } finally {
       setTeamLoading(false)
     }
@@ -2052,6 +2064,34 @@ export function TasksPageClient({
                 {neverLoggedIn.map((email) => (
                   <li key={email} className="font-mono text-xs text-muted-foreground">
                     {email}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          {aliasCollisions.length > 0 ? (
+            <div
+              className="rounded-card border border-border bg-surface-panel px-4 py-3 text-sm shadow-e0"
+              role="status"
+            >
+              <p className="font-medium text-foreground">Shared email aliases</p>
+              <p className="mt-1 text-muted-foreground">
+                AVA will not guess who a shared alias belongs to. Meeting tasks
+                and time drafts skip that address until you pick who keeps it.
+                Existing roster rows are unchanged.
+              </p>
+              <ul className="mt-2 space-y-1">
+                {aliasCollisions.map((collision) => (
+                  <li key={collision.alias} className="text-muted-foreground">
+                    <span className="font-mono text-xs text-foreground">
+                      {collision.alias}
+                    </span>
+                    {" "}
+                    is on{" "}
+                    {collision.holders
+                      .map((h) => `${h.name} (${h.email})`)
+                      .join(" and ")}
+                    .
                   </li>
                 ))}
               </ul>

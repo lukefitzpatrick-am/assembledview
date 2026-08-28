@@ -178,6 +178,34 @@ describe("planActionItems — BOSS fixture", () => {
       "luke.fitzpatrick@assembledmedia.com.au"
     )
   })
+
+  it("does not auto-create when the attendee alias maps to two roster people", () => {
+    const plan = planActionItems(
+      `**Samantha**
+Send the deck (03:00)`,
+      planDeps({
+        roster: [
+          {
+            email: "samantha.keah@assembledmedia.com.au",
+            name: "Samantha Keah",
+            aliases: ["samantha@assembledmedia.com.au"],
+          },
+          {
+            email: "samantha.murphy@assembledmedia.com.au",
+            name: "Samantha Murphy",
+            aliases: ["samantha@assembledmedia.com.au"],
+          },
+        ],
+        attendeeEmails: ["samantha@assembledmedia.com.au"],
+        ruleAssigneeEmail: null,
+      })
+    )
+    assert.equal(plan.autoCreates.length, 0)
+    assert.equal(plan.proposals.length, 1)
+    assert.equal(plan.proposals[0]!.assigneeEmail, null)
+    assert.match(plan.proposals[0]!.description, /samantha\.keah@assembledmedia\.com\.au/i)
+    assert.match(plan.proposals[0]!.description, /samantha\.murphy@assembledmedia\.com\.au/i)
+  })
 })
 
 describe("avaAutoKey / description / duplicate", () => {

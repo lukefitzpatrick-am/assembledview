@@ -42,6 +42,12 @@ import type {
   TaskTemplateItem,
   TeamMember,
 } from "@/lib/codex/types"
+import {
+  assertNewAliasesAvailable,
+  listAliasCollisions,
+  type AliasCollision,
+  type AliasRosterRow,
+} from "@/lib/codex/rosterAliasGuard"
 
 export { clampPerPage, parseStatusFilter } from "@/lib/codex/queryHelpers"
 
@@ -166,6 +172,7 @@ export type CreateTeamMemberInput = {
   capacityNotes?: string | null
   workingStyle?: string | null
   defaultClientIds?: number[]
+  emailAliases?: string[]
 }
 
 export type UpdateTeamMemberInput = {
@@ -176,6 +183,7 @@ export type UpdateTeamMemberInput = {
   workingStyle?: string | null
   defaultClientIds?: number[]
   email?: string
+  emailAliases?: string[]
 }
 
 export type CreateChecklistItemInput = {
@@ -836,6 +844,46 @@ function teamRowToApi(row: typeof teamMembers.$inferSelect): TeamMember {
   }
 }
 
+function aliasesFromJson(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === "string")
+}
+
+function toAliasRosterRow(row: {
+  email: string
+  name: string
+  emailAliases: unknown
+  active: boolean
+}): AliasRosterRow {
+  return {
+    email: row.email,
+    name: row.name,
+    aliases: aliasesFromJson(row.emailAliases),
+    active: row.active,
+  }
+}
+
+async function loadAliasRoster(
+  database: Pick<Db, "select">
+): Promise<AliasRosterRow[]> {
+  const rows = await database
+    .select({
+      email: teamMembers.email,
+      name: teamMembers.name,
+      emailAliases: teamMembers.emailAliases,
+      active: teamMembers.active,
+    })
+    .from(teamMembers)
+  return rows.map(toAliasRosterRow)
+}
+
+export async function listEmailAliasCollisions(
+  database: Db = db
+): Promise<AliasCollision[]> {
+  const roster = await loadAliasRoster(database)
+  return listAliasCollisions(roster)
+}
+
 export async function listTeamMembers(
   opts: { activeOnly?: boolean; page?: number; perPage?: number } = {},
   database: Db = db
@@ -886,6 +934,13 @@ export async function createTeamMember(
   return database.transaction(async (tx) => {
     const now = new Date().toISOString()
     const email = input.email.trim().toLowerCase()
+    const aliases = (input.emailAliases ?? [])
+      .map((a) => a.trim().toLowerCase())
+      .filter(Boolean)
+    if (aliases.length > 0) {
+      const roster = await loadAliasRoster(tx as unknown as Db)
+      assertNewAliasesAvailable(aliases, roster, email)
+    }
     const [row] = await tx
       .insert(teamMembers)
       .values({
@@ -896,6 +951,7 @@ export async function createTeamMember(
         capacityNotes: input.capacityNotes ?? null,
         workingStyle: input.workingStyle ?? null,
         defaultClientIds: input.defaultClientIds ?? [],
+        emailAliases: aliases,
         rosterSource: "manual",
         createdAt: now,
         updatedAt: now,
@@ -938,6 +994,19 @@ export async function updateTeamMember(
     if (patch.workingStyle !== undefined) values.workingStyle = patch.workingStyle
     if (patch.defaultClientIds !== undefined) {
       values.defaultClientIds = patch.defaultClientIds
+    }
+    if (patch.emailAliases !== undefined) {
+      const aliases = patch.emailAliases
+        .map((a) => a.trim().toLowerCase())
+        .filter(Boolean)
+      const ownerEmail = (
+        patch.email !== undefined ? patch.email : before.email
+      )
+        .trim()
+        .toLowerCase()
+      const roster = await loadAliasRoster(tx as unknown as Db)
+      assertNewAliasesAvailable(aliases, roster, ownerEmail)
+      values.emailAliases = aliases
     }
 
     const [row] = await tx

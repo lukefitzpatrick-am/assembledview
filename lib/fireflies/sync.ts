@@ -8,6 +8,7 @@ import { defaultSyncFromDate, resolveSyncLookbackDays } from "./lookback.js"
 export { defaultAssembledDomainSet }
 import { FirefliesClient } from "./client.js"
 import type { AttributionContext, FirefliesTranscript } from "./types.js"
+import type { TeamMemberIdentity } from "./rosterAliases.js"
 
 export type SyncInsertNote = {
   firefliesMeetingId: string
@@ -72,6 +73,7 @@ export type FirefliesSyncDeps = {
     noteId: number
     note: SyncInsertNote
     activeMemberEmails: readonly string[]
+    roster?: readonly TeamMemberIdentity[]
   }) => Promise<number>
   loadAttributionContext: () => Promise<AttributionContext>
   /** First-sync lookback when cursor is null (default 60). */
@@ -219,6 +221,7 @@ export async function runFirefliesSync(
             noteId: existingMeeting.id,
             note: existingMeeting.note,
             activeMemberEmails: deps.activeMemberEmails ?? [],
+            roster: ctx.roster,
           })
         }
         if (deps.insertProposalsFromNote) {
@@ -286,6 +289,7 @@ export async function runFirefliesSync(
         noteId,
         note,
         activeMemberEmails: deps.activeMemberEmails ?? [],
+        roster: ctx.roster,
       })
     }
 

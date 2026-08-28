@@ -8,6 +8,7 @@ import {
   aliasesForNewRosterEmail,
   type StoredRosterRow,
 } from "./auth0LoginUpsert"
+import { dropCollidingNewAliases } from "./rosterAliasGuard"
 import {
   listedUserRoles,
   rosterEligibilityForManagementUser,
@@ -80,11 +81,28 @@ async function upsertAdminFromAuth0(
 
   const existing = await store.findByEmail(email)
   if (!existing) {
+    const roster = await store.listRoster()
+    const generated = aliasesForNewRosterEmail(email)
+    const { accepted, refused } = dropCollidingNewAliases(
+      generated,
+      roster.map((row) => ({
+        email: row.email,
+        name: row.name,
+        aliases: row.emailAliases,
+        active: true,
+      })),
+      email,
+    )
+    for (const item of refused) {
+      console.warn(
+        `[auth0-roster-sync] skipped alias ${item.alias}: already belongs to ${item.holder.name} (${item.holder.email})`,
+      )
+    }
     await store.insert({
       email,
       name,
       auth0UserId,
-      emailAliases: aliasesForNewRosterEmail(email),
+      emailAliases: accepted,
       roleTitle: null,
       lastLoginAt,
       rosterSource: "auth0_sync",

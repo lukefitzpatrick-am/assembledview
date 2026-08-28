@@ -107,4 +107,27 @@ describe("resolveBlockAssignee", () => {
       assert.equal(r.members.length, 2)
     }
   })
+
+  it("ambiguous when a **Name** block is derived from a colliding attendee alias", () => {
+    const r = resolveBlockAssignee(
+      "Samantha",
+      [
+        {
+          email: "samantha.keah@assembledmedia.com.au",
+          name: "Samantha Keah",
+          aliases: ["samantha@assembledmedia.com.au"],
+        },
+        {
+          email: "samantha.murphy@assembledmedia.com.au",
+          name: "Samantha Murphy",
+          aliases: ["samantha@assembledmedia.com.au"],
+        },
+      ],
+      ["samantha@assembledmedia.com.au"]
+    )
+    assert.equal(r.kind, "ambiguous")
+    if (r.kind === "ambiguous") {
+      assert.equal(r.members.length, 2)
+    }
+  })
 })

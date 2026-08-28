@@ -3,6 +3,7 @@ import type { User } from "@auth0/nextjs-auth0/types"
 import { getUserRoles } from "@/lib/rbac"
 
 import { shortFormEmailAlias } from "./rosterEmailAlias"
+import { dropCollidingNewAliases } from "./rosterAliasGuard"
 
 export const LOGIN_SYNC_DEBOUNCE_MS = 60 * 60 * 1000
 
@@ -20,6 +21,7 @@ export type StoredRosterRow = {
 
 export type RosterLoginStore = {
   findByEmail(email: string): Promise<StoredRosterRow | null>
+  listRoster(): Promise<StoredRosterRow[]>
   insert(row: StoredRosterRow): Promise<void>
   updateOnLogin(
     email: string,
@@ -84,11 +86,28 @@ export async function upsertTeamMemberOnAdminLogin(
 
   const existing = await store.findByEmail(email)
   if (!existing) {
+    const roster = await store.listRoster()
+    const generated = aliasesForNewRosterEmail(email)
+    const { accepted, refused } = dropCollidingNewAliases(
+      generated,
+      roster.map((row) => ({
+        email: row.email,
+        name: row.name,
+        aliases: row.emailAliases,
+        active: true,
+      })),
+      email,
+    )
+    for (const item of refused) {
+      console.warn(
+        `[auth0-roster-login] skipped alias ${item.alias}: already belongs to ${item.holder.name} (${item.holder.email})`,
+      )
+    }
     await store.insert({
       email,
       name,
       auth0UserId,
-      emailAliases: aliasesForNewRosterEmail(email),
+      emailAliases: accepted,
       roleTitle: null,
       lastLoginAt,
       rosterSource: "auth0_login",

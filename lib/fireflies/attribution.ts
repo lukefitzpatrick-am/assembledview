@@ -7,7 +7,7 @@
  * Order: client title → client domain → publisher domain → meeting_title_rules
  * → roster-only internal → queue. MBA refines client mba_number only.
  */
-import { resolveRosterEmail } from "./rosterAliases.js"
+import { resolveRosterEmailResult } from "./rosterAliases.js"
 import {
   matchTitleClients,
   normaliseAttributionText,
@@ -89,7 +89,10 @@ function isInternalOnly(
   for (const email of attendeeEmails) {
     const domain = extractEmailDomain(email)
     if (domain && isAssembledDomain(domain, ctx.assembledDomains)) continue
-    if (roster.length > 0 && resolveRosterEmail(email, roster)) continue
+    if (roster.length > 0) {
+      const resolved = resolveRosterEmailResult(email, roster)
+      if (resolved.kind !== "none") continue
+    }
     return false
   }
   return true

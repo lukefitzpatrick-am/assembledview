@@ -5,7 +5,7 @@ import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { addSydneyDays } from "@/lib/codex/quickAddParse"
 import {
-  buildTimeEntryDraftRows,
+  buildTimeEntryDrafts,
   REFRESHABLE_TIME_ENTRY_PROPOSAL_STATUSES,
   type TimeEntryDraftArgs,
 } from "@/lib/fireflies/timeEntryDrafts"
@@ -235,7 +235,15 @@ export async function upsertTimeEntryDraftsForNote(
   args: TimeEntryDraftArgs,
   database: Db = getDb()
 ): Promise<number> {
-  const rows = buildTimeEntryDraftRows(args)
+  const { rows, declined } = buildTimeEntryDrafts(args)
+  for (const item of declined) {
+    const holders = item.holders
+      .map((h) => `${h.name} (${h.canonicalEmail})`)
+      .join("; ")
+    console.warn(
+      `[fireflies-time-draft] declined ${item.attendeeEmail}: matches more than one roster person: ${holders}`
+    )
+  }
   if (rows.length === 0) return 0
 
   await database

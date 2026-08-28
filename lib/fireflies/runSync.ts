@@ -304,9 +304,9 @@ export async function runFirefliesSyncToPostgres(opts?: {
     insertProposalsFromNote: async ({ noteId, note }) =>
       insertProposalsFromNote({ noteId, note }, database),
     activeMemberEmails,
-    upsertTimeEntryDraftsForNote: ({ noteId, note, activeMemberEmails }) =>
+    upsertTimeEntryDraftsForNote: ({ noteId, note, activeMemberEmails, roster }) =>
       upsertTimeEntryDraftsForNote(
-        { noteId, note, activeMemberEmails },
+        { noteId, note, activeMemberEmails, roster },
         database
       ),
     saveRun: async (row) => {

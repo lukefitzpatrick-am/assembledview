@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 import { updateTeamMember } from "@/lib/codex/repo"
+import { AliasCollisionError } from "@/lib/codex/rosterAliasGuard"
 import {
   codexFlagGuard,
   requireCodexInternalAccess,
@@ -74,6 +75,13 @@ export async function PATCH(request: Request, context: RouteContext) {
         defaultClientIds: Array.isArray(raw.default_client_ids)
           ? raw.default_client_ids.map(Number).filter(Number.isFinite)
           : undefined,
+        ...(Array.isArray(raw.email_aliases)
+          ? {
+              emailAliases: raw.email_aliases.filter(
+                (x): x is string => typeof x === "string"
+              ),
+            }
+          : {}),
       },
       actor
     )
@@ -82,6 +90,12 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
     return NextResponse.json(member)
   } catch (error) {
+    if (error instanceof AliasCollisionError) {
+      return NextResponse.json(
+        { error: "alias_collision", message: error.message },
+        { status: 409 }
+      )
+    }
     console.error("Failed to update team member:", error)
     return NextResponse.json(
       {

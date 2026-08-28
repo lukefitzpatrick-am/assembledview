@@ -100,7 +100,7 @@
     "test:codex-task-detail-ui": "vitest run components/tasks/__tests__/TaskMbaSelect.render.test.tsx components/tasks/__tests__/TaskChecklist.render.test.tsx",
     "test:codex-stage1-scope": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/codex/__tests__/queryHelpers.deepLink.test.ts lib/codex/__tests__/clientMbas.test.ts lib/codex/__tests__/repo.stage1Scope.test.ts",
     "test:codex-stage1-templates": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/codex/__tests__/recurringRule.test.ts lib/codex/__tests__/repo.stage1Templates.test.ts",
-    "test:codex-auth0-roster": "tsx --test lib/codex/__tests__/auth0LoginUpsert.test.ts lib/codex/__tests__/auth0RosterSync.test.ts lib/codex/__tests__/rosterEligibility.test.ts lib/codex/__tests__/rosterEmailAlias.test.ts lib/codex/__tests__/rosterLoginCheck.test.ts",
+    "test:codex-auth0-roster": "tsx --test lib/codex/__tests__/auth0LoginUpsert.test.ts lib/codex/__tests__/auth0RosterSync.test.ts lib/codex/__tests__/rosterEligibility.test.ts lib/codex/__tests__/rosterEmailAlias.test.ts lib/codex/__tests__/rosterLoginCheck.test.ts lib/codex/__tests__/rosterAliasGuard.test.ts",
     "test:dashboard-vc15-tip": "tsx --test lib/api/dashboard/__tests__/vc15DashboardTipCommercial.fixture.test.ts lib/api/dashboard/__tests__/lineItemMatchesPublisher.test.ts",
     "test:clients-fail-soft": "tsx --test lib/clients/__tests__/fetchClientsList.test.ts",
     "test:m365-site-url": "tsx --test lib/m365/__tests__/siteUrlForClient.test.ts",

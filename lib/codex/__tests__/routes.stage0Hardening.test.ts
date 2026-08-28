@@ -96,6 +96,7 @@ if (supportsMockModule()) {
         prevPage: null,
       }),
       listRosterLoginRows: async () => [],
+      listEmailAliasCollisions: async () => [],
       updateTeamMember: async () => null,
     },
   })
