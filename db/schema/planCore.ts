@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm"
 import {
   bigint,
   boolean,
@@ -77,6 +78,12 @@ export const mediaPlanVersions = pgTable(
   },
   (table) => [
     unique().on(table.masterId, table.versionNumber),
+    index("idx_mpv_published_at")
+      .on(table.publishedAt)
+      .where(sql`${table.publishedAt} IS NOT NULL`),
+    index("idx_mpv_master_published")
+      .on(table.masterId, table.publishedAt.desc())
+      .where(sql`${table.publishedAt} IS NOT NULL`),
   ],
 )
 

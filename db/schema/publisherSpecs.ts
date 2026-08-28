@@ -70,6 +70,6 @@ export const specRuns = pgTable(
   },
   (table) => [
     index("idx_spec_runs_publisher_specs_id").on(table.publisherSpecsId),
-    index("idx_spec_runs_created_at").on(table.createdAt),
+    index("idx_spec_runs_created_at").on(table.createdAt.desc()),
   ],
 )

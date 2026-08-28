@@ -34,7 +34,16 @@ Codex tables live in `db/schema/codex.ts` and are excluded from ETL truncate-rel
 
 **Drizzle mirror:** `db/schema/*.ts` — generated from those SQL files (`node scripts/migration/_gen-drizzle-schema.mjs`), then hand-kept in sync. `migration_markers` lives in `db/schema/migrationMarkers.ts`. Tables from 0010 / 0011 / 0012 (`finance_periods`, `finance_run_items`, `app_notifications`, `xero_invoice_matches`, `xero_contact_links`, `xero_match_month_metrics`, `plan_working_drafts`) are now mirrored (`financePeriods.ts`, `xeroMatching.ts`, `planWorkingDrafts.ts`). SQL remains source of truth; existing callers still use raw `sql` templates and were not migrated to the query builder.
 
-**Drizzle kit output:** `db/drizzle/` — frozen generate snapshot, regenerated from current `db/schema/*.ts` as of this commit so `npm run db:generate` is empty when the TypeScript mirrors have not changed. **`db:generate` empty-diff is the gate again.** The `0000_baseline.sql` file is bookkeeping only. **Do not `db:migrate` it against Supabase** — tables already exist. Do not `drizzle-kit pull --init`: kit 0.31 does not list `--init`, and upstream docs say that flag writes `drizzle.__drizzle_migrations` (the live database must not be touched). RLS policies, check constraints, and index opclasses live in SQL migrations and are omitted from the TS mirrors on purpose — they will not appear in a generate diff.
+**Drizzle kit output:** `db/drizzle/` — frozen generate snapshot, regenerated from current `db/schema/*.ts` as of this commit so `npm run db:generate` is empty when the TypeScript mirrors have not changed. **`db:generate` empty-diff is the gate again.** The `0000_baseline.sql` file is bookkeeping only. **Do not `db:migrate` it against Supabase** — tables already exist. Do not `drizzle-kit pull --init`: kit 0.31 does not list `--init`, and upstream docs say that flag writes `drizzle.__drizzle_migrations` (the live database must not be touched).
+
+**Two complementary checks — neither is the whole story:**
+
+| Command | Proves | Does not cover |
+|---|---|---|
+| `npm run db:generate` | The `db/drizzle/` snapshot matches `db/schema/*.ts` (kit emit is empty) | Never consults live Postgres. Silent if the mirrors themselves drifted from the database. |
+| `npm run db:drift` | The TypeScript mirrors match live public schema (columns, FKs, indexes/uniques by canonical identity) | Not type / nullability / default; not constraint names; not RLS, policies, CHECKs, or opclass. Does not write to Postgres. |
+
+Exclusions on `db:drift` may only cover how an object is **written** (naming, unique-index vs unique-constraint, opclass, parens, casts, RLS, policies, CHECKs). Column order, column direction, and partial predicates are semantics and are always drift. RLS policies, check constraints, and index opclasses live in SQL migrations and are omitted from the TS mirrors on purpose — they will not appear in a generate diff.
 
 **Re-baseline** (schema-side only; never apply SQL):
 
@@ -76,7 +85,8 @@ Wire `AVA_DATABASE_URL` to the **transaction pooler** host with that password. R
 
 - `npx tsx scripts/migration/apply-0039-fireflies-client-first.ts` — idempotent apply of `0039_fireflies_client_first.sql` (SQL Editor also fine)
 - `npx tsx scripts/migration/apply-0041-publisher-specs.ts` — idempotent apply of `0041_publisher_specs.sql` (applied)
-- `npm run db:generate` — must be empty when schema matches baseline
+- `npm run db:generate` — must be empty when schema matches the snapshot (does not consult the database)
+- `npm run db:drift` — live Postgres vs `db/schema/*.ts`; must be clean (exit 0). Read-only; never writes
 - `npm run db:migrate` — future only (after journal baseline)
 - `npm run db:studio`
 - `npm run db:etl` / `npm run db:recon` — use server-only test-shims (same as `test:save-plan`); `mba_line_approvals` is postgres-authoritative and skipped by ETL truncate-reload

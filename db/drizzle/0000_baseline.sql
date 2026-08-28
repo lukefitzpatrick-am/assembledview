@@ -93,6 +93,7 @@ CREATE TABLE "clients" (
 	"billingphone" bigint,
 	"billingemail" text,
 	"monthlyretainer" numeric,
+	"retainer_end_month" date,
 	"organicsocial" numeric,
 	"television_checkbox" boolean,
 	"radio_checkbox" boolean,
@@ -877,6 +878,7 @@ CREATE TABLE "tasks" (
 	"category" text,
 	"auto_created" boolean DEFAULT false NOT NULL,
 	"ava_auto_key" text,
+	"estimated_minutes" integer,
 	"deleted_at" timestamp with time zone
 );
 --> statement-breakpoint
@@ -1264,6 +1266,7 @@ ALTER TABLE "media_plan_versions" ADD CONSTRAINT "media_plan_versions_master_id_
 ALTER TABLE "schedule_months" ADD CONSTRAINT "schedule_months_version_id_media_plan_versions_id_fk" FOREIGN KEY ("version_id") REFERENCES "public"."media_plan_versions"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ava_task_proposals" ADD CONSTRAINT "ava_task_proposals_source_note_id_fkey" FOREIGN KEY ("source_note_id") REFERENCES "public"."client_notes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ava_task_proposals" ADD CONSTRAINT "ava_task_proposals_created_task_id_fkey" FOREIGN KEY ("created_task_id") REFERENCES "public"."tasks"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "client_notes" ADD CONSTRAINT "client_notes_publisher_id_publishers_id_fk" FOREIGN KEY ("publisher_id") REFERENCES "public"."publishers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "task_checklist_items" ADD CONSTRAINT "fk_task_checklist_items_task" FOREIGN KEY ("task_id") REFERENCES "public"."tasks"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "task_comments" ADD CONSTRAINT "fk_task_comments_task" FOREIGN KEY ("task_id") REFERENCES "public"."tasks"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "task_template_items" ADD CONSTRAINT "fk_task_template_items_template" FOREIGN KEY ("template_id") REFERENCES "public"."task_templates"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -1271,6 +1274,7 @@ ALTER TABLE "tasks" ADD CONSTRAINT "fk_tasks_template" FOREIGN KEY ("template_id
 ALTER TABLE "tasks" ADD CONSTRAINT "tasks_source_note_id_fkey" FOREIGN KEY ("source_note_id") REFERENCES "public"."client_notes"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "campaign_insights" ADD CONSTRAINT "campaign_insights_superseded_by_fkey" FOREIGN KEY ("superseded_by") REFERENCES "public"."campaign_insights"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "line_item_panel_flights" ADD CONSTRAINT "line_item_panel_flights_panel_id_line_item_panels_id_fk" FOREIGN KEY ("panel_id") REFERENCES "public"."line_item_panels"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "publisher_profiles" ADD CONSTRAINT "publisher_profiles_publisher_id_publishers_id_fk" FOREIGN KEY ("publisher_id") REFERENCES "public"."publishers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "ava_time_entry_proposals" ADD CONSTRAINT "ava_time_entry_proposals_source_note_id_fkey" FOREIGN KEY ("source_note_id") REFERENCES "public"."client_notes"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "publisher_specs" ADD CONSTRAINT "publisher_specs_publisher_id_publishers_id_fk" FOREIGN KEY ("publisher_id") REFERENCES "public"."publishers"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "spec_runs" ADD CONSTRAINT "spec_runs_publisher_specs_id_publisher_specs_id_fk" FOREIGN KEY ("publisher_specs_id") REFERENCES "public"."publisher_specs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
@@ -1303,7 +1307,7 @@ CREATE INDEX "idx_finance_edits_created_at" ON "finance_edits" USING btree ("cre
 CREATE INDEX "idx_ffsl_snapshot_client_line_month" ON "finance_forecast_snapshot_lines" USING btree ("snapshot_id","client_id","line_key","month_key");--> statement-breakpoint
 CREATE INDEX "idx_ffsl_snapshot_group_line_month" ON "finance_forecast_snapshot_lines" USING btree ("snapshot_id","group_key","line_key","month_key");--> statement-breakpoint
 CREATE INDEX "idx_ffsl_snapshot_month" ON "finance_forecast_snapshot_lines" USING btree ("snapshot_id","month_key");--> statement-breakpoint
-CREATE INDEX "idx_finance_forecast_snapshots_fy_scenario_taken" ON "finance_forecast_snapshots" USING btree ("financial_year","scenario","taken_at");--> statement-breakpoint
+CREATE INDEX "idx_finance_forecast_snapshots_fy_scenario_taken" ON "finance_forecast_snapshots" USING btree ("financial_year","scenario","taken_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "idx_finance_saved_views_created_at" ON "finance_saved_views" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "idx_magazines_created_at" ON "magazines" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "idx_magazines_adsizes_created_at" ON "magazines_adsizes" USING btree ("created_at");--> statement-breakpoint
@@ -1330,11 +1334,14 @@ CREATE INDEX "idx_line_items_channel" ON "line_items" USING btree ("channel");--
 CREATE INDEX "idx_line_items_line_item_id" ON "line_items" USING btree ("line_item_id");--> statement-breakpoint
 CREATE INDEX "idx_mba_line_approvals_mba_version" ON "mba_line_approvals" USING btree ("mba_number","media_plan_version");--> statement-breakpoint
 CREATE INDEX "idx_mba_line_approvals_line_item_id" ON "mba_line_approvals" USING btree ("line_item_id");--> statement-breakpoint
+CREATE INDEX "idx_mpv_published_at" ON "media_plan_versions" USING btree ("published_at") WHERE "media_plan_versions"."published_at" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "idx_mpv_master_published" ON "media_plan_versions" USING btree ("master_id","published_at" DESC NULLS LAST) WHERE "media_plan_versions"."published_at" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "idx_schedule_months_version" ON "schedule_months" USING btree ("version_id");--> statement-breakpoint
 CREATE INDEX "idx_schedule_months_month" ON "schedule_months" USING btree ("month");--> statement-breakpoint
 CREATE UNIQUE INDEX "uq_assignment_rules_scope" ON "assignment_rules" USING btree (COALESCE("client_id", 0),"category") WHERE "assignment_rules"."active";--> statement-breakpoint
 CREATE INDEX "idx_ava_task_proposals_status_created" ON "ava_task_proposals" USING btree ("status","created_at");--> statement-breakpoint
 CREATE INDEX "idx_ava_task_proposals_client" ON "ava_task_proposals" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "idx_ava_task_proposals_mba" ON "ava_task_proposals" USING btree ("proposed_mba_number") WHERE "ava_task_proposals"."proposed_mba_number" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "idx_client_domains_client_id" ON "client_domains" USING btree ("client_id");--> statement-breakpoint
 CREATE INDEX "idx_client_domains_email_domain" ON "client_domains" USING btree ("email_domain");--> statement-breakpoint
 CREATE INDEX "idx_client_notes_client_id" ON "client_notes" USING btree ("client_id");--> statement-breakpoint
@@ -1348,6 +1355,7 @@ CREATE INDEX "idx_task_template_items_template_id" ON "task_template_items" USIN
 CREATE INDEX "idx_tasks_client_id_status" ON "tasks" USING btree ("client_id","status");--> statement-breakpoint
 CREATE INDEX "idx_tasks_assignee_email_due_date" ON "tasks" USING btree ("assignee_email","due_date");--> statement-breakpoint
 CREATE INDEX "idx_tasks_source_note_id" ON "tasks" USING btree ("source_note_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_tasks_ava_auto_key" ON "tasks" USING btree ("ava_auto_key") WHERE "tasks"."ava_auto_key" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "idx_campaign_insights_client_created" ON "campaign_insights" USING btree ("client_id","created_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "idx_campaign_insights_mba" ON "campaign_insights" USING btree ("mba_number");--> statement-breakpoint
 CREATE INDEX "idx_campaign_insights_live" ON "campaign_insights" USING btree ("client_id","created_at" DESC NULLS LAST) WHERE "campaign_insights"."superseded_by" IS NULL;--> statement-breakpoint
@@ -1360,25 +1368,27 @@ CREATE INDEX "idx_line_item_panel_flights_period_start" ON "line_item_panel_flig
 CREATE INDEX "idx_line_item_panels_mba" ON "line_item_panels" USING btree ("mba_number");--> statement-breakpoint
 CREATE INDEX "idx_line_item_panels_line_item_id" ON "line_item_panels" USING btree ("line_item_id");--> statement-breakpoint
 CREATE INDEX "idx_publisher_profiles_media_type" ON "publisher_profiles" USING btree ("media_type");--> statement-breakpoint
-CREATE INDEX "idx_publisher_profiles_active" ON "publisher_profiles" USING btree ("active");--> statement-breakpoint
+CREATE INDEX "idx_publisher_profiles_active" ON "publisher_profiles" USING btree ("active") WHERE "publisher_profiles"."active" = true;--> statement-breakpoint
 CREATE INDEX "idx_publisher_profiles_publisher_id" ON "publisher_profiles" USING btree ("publisher_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "ava_time_entry_proposals_note_member_unique" ON "ava_time_entry_proposals" USING btree ("source_note_id","member_email");--> statement-breakpoint
 CREATE UNIQUE INDEX "ava_time_entry_proposals_log_id_unique" ON "ava_time_entry_proposals" USING btree ("myhours_log_id");--> statement-breakpoint
 CREATE INDEX "idx_ava_time_entry_proposals_week" ON "ava_time_entry_proposals" USING btree ("entry_date","status");--> statement-breakpoint
 CREATE INDEX "idx_ava_time_entry_proposals_member" ON "ava_time_entry_proposals" USING btree ("member_email","entry_date");--> statement-breakpoint
 CREATE UNIQUE INDEX "myhours_links_kind_myhours_id_unique" ON "myhours_links" USING btree ("kind","myhours_id");--> statement-breakpoint
+CREATE UNIQUE INDEX "idx_myhours_links_kind_mba_unique" ON "myhours_links" USING btree ("kind","mba_number") WHERE "myhours_links"."mba_number" IS NOT NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "time_entries_myhours_log_id_unique" ON "time_entries" USING btree ("myhours_log_id");--> statement-breakpoint
 CREATE INDEX "idx_time_entries_member_email_entry_date" ON "time_entries" USING btree ("member_email","entry_date");--> statement-breakpoint
 CREATE INDEX "idx_time_entries_mba_number" ON "time_entries" USING btree ("mba_number");--> statement-breakpoint
 CREATE INDEX "idx_time_entries_client_id" ON "time_entries" USING btree ("client_id");--> statement-breakpoint
+CREATE INDEX "idx_spec_deadline_overrides_mba" ON "spec_deadline_overrides" USING btree ("mba_number");--> statement-breakpoint
 CREATE INDEX "idx_publisher_specs_publisher_id" ON "publisher_specs" USING btree ("publisher_id");--> statement-breakpoint
 CREATE INDEX "idx_spec_runs_publisher_specs_id" ON "spec_runs" USING btree ("publisher_specs_id");--> statement-breakpoint
-CREATE INDEX "idx_spec_runs_created_at" ON "spec_runs" USING btree ("created_at");--> statement-breakpoint
+CREATE INDEX "idx_spec_runs_created_at" ON "spec_runs" USING btree ("created_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "idx_ingest_runs_publisher_id" ON "ingest_runs" USING btree ("publisher_id");--> statement-breakpoint
-CREATE INDEX "idx_ingest_runs_created_at" ON "ingest_runs" USING btree ("created_at");--> statement-breakpoint
-CREATE INDEX "idx_ingest_stages_expires_at" ON "ingest_stages" USING btree ("expires_at");--> statement-breakpoint
-CREATE INDEX "idx_ingest_stages_master_id" ON "ingest_stages" USING btree ("master_id");--> statement-breakpoint
-CREATE INDEX "idx_ingest_stages_accepted_version_id" ON "ingest_stages" USING btree ("accepted_version_id");--> statement-breakpoint
+CREATE INDEX "idx_ingest_runs_created_at" ON "ingest_runs" USING btree ("created_at" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "idx_ingest_stages_expires_at" ON "ingest_stages" USING btree ("expires_at") WHERE "ingest_stages"."retained_at" IS NULL AND "ingest_stages"."expires_at" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "idx_ingest_stages_master_id" ON "ingest_stages" USING btree ("master_id") WHERE "ingest_stages"."master_id" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "idx_ingest_stages_accepted_version_id" ON "ingest_stages" USING btree ("accepted_version_id") WHERE "ingest_stages"."accepted_version_id" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "idx_publisher_domains_publisher_id" ON "publisher_domains" USING btree ("publisher_id");--> statement-breakpoint
 CREATE INDEX "idx_app_notifications_audience_created" ON "app_notifications" USING btree ("audience","created_at" DESC NULLS LAST);--> statement-breakpoint
 CREATE INDEX "idx_app_notifications_unread" ON "app_notifications" USING btree ("audience") WHERE "app_notifications"."read_at" IS NULL;--> statement-breakpoint

@@ -45,6 +45,7 @@
     "test:ava-detect-goldens": "tsx --test lib/ava/autopopulate/__tests__/detectPlanStructure.fixtures.test.ts",
     "xano:export": "tsx scripts/migration/export-xano.ts",
     "db:generate": "drizzle-kit generate",
+    "db:drift": "tsx scripts/db/drift.ts",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:etl": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx scripts/migration/etl-xano-to-supabase.ts",

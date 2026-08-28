@@ -2,6 +2,7 @@
  * MyHours mirrored time + structure links (migration 0028+).
  * Mirror remains pull-SoR; Confirm path is the sole intentional MyHours entry write.
  */
+import { sql } from "drizzle-orm"
 import {
   bigint,
   date,
@@ -74,6 +75,9 @@ export const myhoursLinks = pgTable(
       table.kind,
       table.myhoursId
     ),
+    uniqueIndex("idx_myhours_links_kind_mba_unique")
+      .on(table.kind, table.mbaNumber)
+      .where(sql`${table.mbaNumber} IS NOT NULL`),
   ]
 )
 

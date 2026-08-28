@@ -14,13 +14,16 @@ import {
   timestamp,
   unique,
 } from "drizzle-orm/pg-core"
+import { publishers } from "./ported"
 
 export const publisherProfiles = pgTable(
   "publisher_profiles",
   {
     id: bigint("id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
     publisherName: text("publisher_name").notNull(),
-    publisherId: bigint("publisher_id", { mode: "number" }),
+    publisherId: bigint("publisher_id", { mode: "number" }).references(
+      () => publishers.id,
+    ),
     mediaType: text("media_type").notNull(),
     active: boolean("active").notNull().default(true),
     detectSignature: jsonb("detect_signature").notNull().default({}),
@@ -48,7 +51,9 @@ export const publisherProfiles = pgTable(
       sql`${table.lineGranularity} = ANY (ARRAY['per_row'::text, 'grouped'::text])`,
     ),
     index("idx_publisher_profiles_media_type").on(table.mediaType),
-    index("idx_publisher_profiles_active").on(table.active),
+    index("idx_publisher_profiles_active")
+      .on(table.active)
+      .where(sql`${table.active} = true`),
     index("idx_publisher_profiles_publisher_id").on(table.publisherId),
   ],
 )

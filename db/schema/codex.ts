@@ -17,6 +17,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core"
+import { publishers } from "./ported"
 
 export type CodexTaskStatus =
   | "backlog"
@@ -87,7 +88,9 @@ export const clientNotes = pgTable(
     isInternal: boolean("is_internal").notNull().default(false),
     /** NULL is the unattributed queue. */
     attributedType: text("attributed_type").$type<CodexAttributedType | null>(),
-    publisherId: bigint("publisher_id", { mode: "number" }),
+    publisherId: bigint("publisher_id", { mode: "number" }).references(
+      () => publishers.id,
+    ),
   },
   (table) => [
     index("idx_client_notes_client_id").on(table.clientId),
@@ -150,12 +153,16 @@ export const tasks = pgTable(
     category: text("category"),
     autoCreated: boolean("auto_created").notNull().default(false),
     avaAutoKey: text("ava_auto_key"),
+    estimatedMinutes: integer("estimated_minutes"),
     deletedAt: timestamp("deleted_at", { withTimezone: true, mode: "string" }),
   },
   (table) => [
     index("idx_tasks_client_id_status").on(table.clientId, table.status),
     index("idx_tasks_assignee_email_due_date").on(table.assigneeEmail, table.dueDate),
     index("idx_tasks_source_note_id").on(table.sourceNoteId),
+    uniqueIndex("uq_tasks_ava_auto_key")
+      .on(table.avaAutoKey)
+      .where(sql`${table.avaAutoKey} IS NOT NULL`),
     foreignKey({
       columns: [table.templateId],
       foreignColumns: [taskTemplates.id],
@@ -267,6 +274,9 @@ export const avaTaskProposals = pgTable(
   (table) => [
     index("idx_ava_task_proposals_status_created").on(table.status, table.createdAt),
     index("idx_ava_task_proposals_client").on(table.clientId),
+    index("idx_ava_task_proposals_mba")
+      .on(table.proposedMbaNumber)
+      .where(sql`${table.proposedMbaNumber} IS NOT NULL`),
     foreignKey({
       columns: [table.sourceNoteId],
       foreignColumns: [clientNotes.id],

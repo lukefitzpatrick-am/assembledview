@@ -128,6 +128,8 @@ export const clients = pgTable(
   billingphone: bigint('billingphone', { mode: "number" }),
   billingemail: text('billingemail'),
   monthlyretainer: numeric('monthlyretainer'),
+  /** YYYY-MM-01; $0 monthlyretainer stops (migration 0010). */
+  retainerEndMonth: date('retainer_end_month'),
   organicsocial: numeric('organicsocial'),
   televisionCheckbox: boolean('television_checkbox'),
   radioCheckbox: boolean('radio_checkbox'),
@@ -612,7 +614,7 @@ export const financeForecastSnapshots = pgTable(
     index("idx_finance_forecast_snapshots_fy_scenario_taken").on(
       table.financialYear,
       table.scenario,
-      table.takenAt
+      table.takenAt.desc(),
     ),
   ],
 )

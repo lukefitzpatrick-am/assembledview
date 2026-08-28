@@ -38,6 +38,6 @@ export const ingestRuns = pgTable(
   },
   (table) => [
     index("idx_ingest_runs_publisher_id").on(table.publisherId),
-    index("idx_ingest_runs_created_at").on(table.createdAt),
+    index("idx_ingest_runs_created_at").on(table.createdAt.desc()),
   ],
 )

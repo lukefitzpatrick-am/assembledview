@@ -3,7 +3,7 @@
  * Migration 0042. Same recorded-override rule as billing: who / when / value;
  * never inferred from drift. RLS on; no ava_readonly grant. Owner path only.
  */
-import { bigint, date, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core"
+import { bigint, date, index, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core"
 
 export const specDeadlineOverrides = pgTable(
   "spec_deadline_overrides",
@@ -23,5 +23,6 @@ export const specDeadlineOverrides = pgTable(
       table.mbaNumber,
       table.publisherKey,
     ),
+    index("idx_spec_deadline_overrides_mba").on(table.mbaNumber),
   ],
 )
