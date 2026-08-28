@@ -34,7 +34,14 @@ Codex tables live in `db/schema/codex.ts` and are excluded from ETL truncate-rel
 
 **Drizzle mirror:** `db/schema/*.ts` — generated from those SQL files (`node scripts/migration/_gen-drizzle-schema.mjs`), then hand-kept in sync. `migration_markers` lives in `db/schema/migrationMarkers.ts`. Tables from 0010 / 0011 / 0012 (`finance_periods`, `finance_run_items`, `app_notifications`, `xero_invoice_matches`, `xero_contact_links`, `xero_match_month_metrics`, `plan_working_drafts`) are now mirrored (`financePeriods.ts`, `xeroMatching.ts`, `planWorkingDrafts.ts`). SQL remains source of truth; existing callers still use raw `sql` templates and were not migrated to the query builder.
 
-**Drizzle kit output:** `db/drizzle/` — baseline snapshot only. The `0000_*.sql` file mirrors the live schema for `drizzle-kit generate` bookkeeping. **Do not `db:migrate` it against Supabase** — tables already exist. Seed `drizzle.__drizzle_migrations` (or use `drizzle-kit pull --init`) before relying on migrate for *future* changes.
+**Drizzle kit output:** `db/drizzle/` — frozen generate snapshot, regenerated from current `db/schema/*.ts` as of this commit so `npm run db:generate` is empty when the TypeScript mirrors have not changed. **`db:generate` empty-diff is the gate again.** The `0000_baseline.sql` file is bookkeeping only. **Do not `db:migrate` it against Supabase** — tables already exist. Do not `drizzle-kit pull --init`: kit 0.31 does not list `--init`, and upstream docs say that flag writes `drizzle.__drizzle_migrations` (the live database must not be touched). RLS policies, check constraints, and index opclasses live in SQL migrations and are omitted from the TS mirrors on purpose — they will not appear in a generate diff.
+
+**Re-baseline** (schema-side only; never apply SQL):
+
+1. Delete `db/drizzle/` contents.
+2. `npx drizzle-kit generate --name baseline --prefix index` (uses `drizzle.config.ts` → `out: ./db/drizzle`).
+3. If kit emits a random `0000_*.sql` name, rename it to `0000_baseline.sql` and set `_journal.json` `tag` to `0000_baseline`.
+4. Confirm `npm run db:generate` twice is empty.
 
 **App usage:** reference + publishers + clients + kpi reads (`lib/data/read*.ts`) when `DATA_BACKEND` / `DATA_BACKEND_<DOMAIN>` is `shadow` or `postgres`. Expand per Phase 2 domain.
 
