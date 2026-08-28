@@ -7962,6 +7962,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             description:
               "Postgres saved successfully. The Xano copy will be retried by an admin.",
           })
+        } else if (saveResult.data.mirror === "disabled") {
+          setSaveStatus((prev) =>
+            prev.filter((item) => item.name !== "Mirror to Xano")
+          )
         } else {
           updateSaveStatus("Mirror to Xano", "success")
         }
