@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import { LINE_CHANNELS } from "@/db/schema"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
-import { getWriteBackend } from "@/lib/data/backend"
+import { getWriteBackend, isXanoMirrorEnabled } from "@/lib/data/backend"
 import {
   mirrorInputFromSave,
   mirrorPlanToXano,
@@ -353,30 +353,39 @@ export async function POST(request: NextRequest) {
     const result = await savePlanVersion(saveInput)
 
     // T4b — best-effort Xano mirror AFTER Postgres commit. Never throws.
-    let clientName = body.mbaNumber
-    try {
-      const db = getDb()
-      const [master] = await db
-        .select({ mpClientName: schema.mediaPlanMasters.mpClientName })
-        .from(schema.mediaPlanMasters)
-        .where(eq(schema.mediaPlanMasters.id, body.masterId))
-        .limit(1)
-      if (master?.mpClientName?.trim()) clientName = master.mpClientName.trim()
-    } catch {
-      // fall through with mba as client name
-    }
+    // Gated by XANO_MIRROR_ENABLED (default off).
+    let mirror: "ok" | "failed" | "disabled" = "disabled"
+    let mirrorDurationMs = 0
+    let mirrorError: string | undefined
+    if (isXanoMirrorEnabled()) {
+      let clientName = body.mbaNumber
+      try {
+        const db = getDb()
+        const [master] = await db
+          .select({ mpClientName: schema.mediaPlanMasters.mpClientName })
+          .from(schema.mediaPlanMasters)
+          .where(eq(schema.mediaPlanMasters.id, body.masterId))
+          .limit(1)
+        if (master?.mpClientName?.trim()) clientName = master.mpClientName.trim()
+      } catch {
+        // fall through with mba as client name
+      }
 
-    const mirror = await mirrorPlanToXano(
-      mirrorInputFromSave(
-        saveInput,
-        {
-          versionId: result.versionId,
-          versionNumber: result.versionNumber,
-          legacySchedules: result.legacySchedules,
-        },
-        clientName
+      const mirrored = await mirrorPlanToXano(
+        mirrorInputFromSave(
+          saveInput,
+          {
+            versionId: result.versionId,
+            versionNumber: result.versionNumber,
+            legacySchedules: result.legacySchedules,
+          },
+          clientName
+        )
       )
-    )
+      mirror = mirrored.mirror
+      mirrorDurationMs = mirrored.durationMs
+      if (mirrored.mirror === "failed") mirrorError = mirrored.error
+    }
 
     // PC7 / Stage 2b: clear server working draft once tier 3 (save/publish) lands.
     // Always run — working drafts are load-bearing even when NEXT_PUBLIC_PLAN_DRAFTS is off.
@@ -394,8 +403,8 @@ export async function POST(request: NextRequest) {
       lineCount: result.lineCount,
       scheduleRowCount: result.scheduleRowCount,
       published: result.published,
-      mirror: mirror.mirror,
-      mirrorDurationMs: mirror.durationMs,
+      mirror,
+      mirrorDurationMs,
       ...(result.billingCorrection
         ? { billingCorrection: result.billingCorrection }
         : {}),
@@ -403,7 +412,7 @@ export async function POST(request: NextRequest) {
       result.droppedBillingOverrides.length > 0
         ? { droppedBillingOverrides: result.droppedBillingOverrides }
         : {}),
-      ...(mirror.mirror === "failed" ? { mirrorError: mirror.error } : {}),
+      ...(mirror === "failed" ? { mirrorError } : {}),
     })
   } catch (err) {
     if (err instanceof SavePlanError) {

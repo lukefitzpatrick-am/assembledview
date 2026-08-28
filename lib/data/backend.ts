@@ -9,6 +9,11 @@
  * keeps the editor on the legacy fan-out; `postgres` enables
  * `POST /api/plans/save` → `savePlanVersion`. Create/edit layouts inject the
  * value via `WriteBackendProvider` (T4c).
+ *
+ * Plan-save Xano mirror (T4b): `XANO_MIRROR_ENABLED`. Default off — only
+ * exactly `true` (trimmed, lowercased) enables `mirrorPlanToXano` after
+ * Postgres commit. Independent of DATA_BACKEND / WRITE_BACKEND. Post-cutover
+ * MBAs have no Xano master row, so the mirror cannot serve as a rollback target.
  */
 export type DataBackend = "xano" | "shadow" | "postgres"
 
@@ -60,6 +65,14 @@ export function getDataBackendFor(domain: DataBackendDomain | string): DataBacke
 export function getWriteBackend(): WriteBackend {
   const v = (process.env.WRITE_BACKEND ?? "xano").trim().toLowerCase()
   return v === "postgres" ? "postgres" : "xano"
+}
+
+/**
+ * Plan-save Xano write-back after Postgres commit. Default off.
+ * Returns true only when `XANO_MIRROR_ENABLED` trims/lowercases to exactly `true`.
+ */
+export function isXanoMirrorEnabled(): boolean {
+  return (process.env.XANO_MIRROR_ENABLED ?? "").trim().toLowerCase() === "true"
 }
 
 /**

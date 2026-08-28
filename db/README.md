@@ -51,6 +51,7 @@ A migration that backfills existing rows **must** be guarded by a `migration_mar
 | `AVA_DATABASE_URL` | AVA-only pooler (port **6543**) as role `ava_readonly` — **never** postgres/owner |
 | `DATA_BACKEND` | `xano` (default) \| `shadow` \| `postgres` — see `lib/data/backend.ts` |
 | `DATA_BACKEND_REFERENCE` / `DATA_BACKEND_PUBLISHERS` / `DATA_BACKEND_CLIENTS` / `DATA_BACKEND_KPI` / `DATA_BACKEND_FINANCE` / `DATA_BACKEND_PACING` / `DATA_BACKEND_PLANS` / `DATA_BACKEND_APPROVALS` | Optional per-domain override of `DATA_BACKEND` |
+| `XANO_MIRROR_ENABLED` | `true` enables T4b plan-save Xano write-back after Postgres commit; default **off** (unset / any other value). Post-cutover MBAs have no Xano master row, so the mirror cannot serve as a rollback target. Independent of `DATA_BACKEND` / `WRITE_BACKEND`. See `isXanoMirrorEnabled` in `lib/data/backend.ts`. |
 | `NEXT_PUBLIC_PLAN_DRAFTS` | `on` \| `off` (default **off**). Autosave chrome (3s/15s + soft Save draft). **Off does not delete** `plan_working_drafts` — rows are retained; Stage 2b load offer + save-on-published working draft stay reachable. Local only until Luke sets Vercel at merge. |
 
 ## `ava_readonly` role (0003)

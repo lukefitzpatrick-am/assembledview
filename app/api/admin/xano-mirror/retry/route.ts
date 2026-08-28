@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
+import { isXanoMirrorEnabled } from "@/lib/data/backend"
 import { retryMirrorFromPostgres } from "@/lib/data/mirrorToXano"
 import { requireAdmin } from "@/lib/requireRole"
 
@@ -20,6 +21,10 @@ const bodySchema = z.object({
 export async function POST(request: NextRequest) {
   const auth = await requireAdmin(request)
   if ("response" in auth) return auth.response
+
+  if (!isXanoMirrorEnabled()) {
+    return NextResponse.json({ error: "XANO_MIRROR_DISABLED" }, { status: 409 })
+  }
 
   let raw: unknown
   try {

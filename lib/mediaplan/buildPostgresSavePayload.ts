@@ -295,7 +295,7 @@ export type PlansSaveResponse = {
   lineCount: number
   scheduleRowCount: number
   published: boolean
-  mirror?: "ok" | "failed"
+  mirror?: "ok" | "failed" | "disabled"
   mirrorDurationMs?: number
   mirrorError?: string
   error?: string

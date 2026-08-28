@@ -20,6 +20,7 @@ The server-side data-access + identity layer everything sits on: Xano URL/auth c
 - Alias pairs both live: `XANO_MEDIA_PLANS_BASE_URL` / `XANO_MEDIAPLANS_BASE_URL`. Fallback chain order matters.
 - `XANO_BASE_URL` triples as generic fallback AND the assistant endpoint — setting it wrong silently mis-routes clients/media-plans calls.
 - `DATA_BACKEND` (`xano` \| `shadow` \| `postgres`, default `xano`) — unknown values fall back to `xano`. Per-domain `DATA_BACKEND_<DOMAIN>` overrides when set. `postgres`/`shadow` need `DATABASE_URL`. Shadow diffs are in-memory per process (not durable across cold starts).
+- `XANO_MIRROR_ENABLED` — plan-save T4b write-back after Postgres commit. Default **off**; only exactly `true` (trimmed, lowercased) enables `mirrorPlanToXano`. Independent of `DATA_BACKEND` / `WRITE_BACKEND`. Post-cutover MBAs have no Xano master row, so the mirror 404s on master PATCH and cannot serve as a rollback target. Admin retry `POST /api/admin/xano-mirror/retry` returns 409 `XANO_MIRROR_DISABLED` when off.
 - `DATA_BACKEND_PLAN_DETAIL` (`xano` \| `postgres`, default `postgres`) — MBA combined-detail GET only; does not inherit global `DATA_BACKEND`. Postgres is the only implemented branch; `xano` → 410 (`PLAN_DETAIL_XANO_GONE`).
 - Missing `XANO_API_KEY` → **no auth header, no error** (only `requireXanoAuthHeaderRecord` throws). `getRequiredEnv` returns `""` in the browser.
 - Module-scope throws (boot failures, not 500s): `lib/auth0.ts`, `lib/api/auth0Management.ts`, `lib/api.ts:17-18`, admin users route.

@@ -218,7 +218,7 @@ SQL used (Postgres):
 | `lib/data/writeReferenceMediaDetail.ts` | media-details POST_* / site creates mirror | PG write + mirror | media-details route | MIRROR (write) |
 | `lib/data/writeMediaContainerBestPractice.ts` | media_container_best_practice mirror | PG write + mirror | best-practice API | MIRROR (write) |
 | `lib/data/writeApprovals.ts` | PATCH mba_line_approvals | WRITE_BACKEND | approvals API | DUAL-DONE |
-| `lib/data/mirrorToXano.ts` | channel replace + version/master mirror | post-PG always-on | plans/save, xano-mirror/retry | MIRROR |
+| `lib/data/mirrorToXano.ts` | channel replace + version/master mirror | post-PG, gated by `XANO_MIRROR_ENABLED` (default off) | plans/save, xano-mirror/retry | MIRROR |
 | `lib/api/fetchChannelLineItemsByMba.ts` | channel `media_plan_*` pages | DATA_BACKEND_PLANS | MBA GET, integrity, proxy | DUAL-DONE |
 | `lib/api/replaceChannelLineItems.ts` | list/DELETE/POST channel endpoints | WRITE_BACKEND at caller | lib/api.ts, mirror | PORT |
 | `lib/api.ts` | isomorphic: server→Xano direct; browser→`/api/*` | partial DATA_BACKEND_PLANS on GETs | create/edit, containers | PORT |

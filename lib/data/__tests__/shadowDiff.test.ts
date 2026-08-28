@@ -5,6 +5,7 @@ import {
   getDataBackendFor,
   getPlanDetailBackend,
   getWriteBackend,
+  isXanoMirrorEnabled,
 } from "../backend"
 import {
   __resetShadowDiffStoreForTests,
@@ -43,6 +44,42 @@ describe("getWriteBackend", () => {
   it("falls back to xano on unknown values", () => {
     process.env.WRITE_BACKEND = "mysql"
     assert.equal(getWriteBackend(), "xano")
+  })
+})
+
+describe("isXanoMirrorEnabled", () => {
+  let prev: string | undefined
+
+  beforeEach(() => {
+    prev = process.env.XANO_MIRROR_ENABLED
+  })
+
+  afterEach(() => {
+    if (prev === undefined) delete process.env.XANO_MIRROR_ENABLED
+    else process.env.XANO_MIRROR_ENABLED = prev
+  })
+
+  it("defaults to false when unset", () => {
+    delete process.env.XANO_MIRROR_ENABLED
+    assert.equal(isXanoMirrorEnabled(), false)
+  })
+
+  it("is true only for trimmed lowercased exactly true", () => {
+    process.env.XANO_MIRROR_ENABLED = " TRUE "
+    assert.equal(isXanoMirrorEnabled(), true)
+    process.env.XANO_MIRROR_ENABLED = "true"
+    assert.equal(isXanoMirrorEnabled(), true)
+  })
+
+  it("is false for 1 / yes / empty / other values", () => {
+    process.env.XANO_MIRROR_ENABLED = "1"
+    assert.equal(isXanoMirrorEnabled(), false)
+    process.env.XANO_MIRROR_ENABLED = "yes"
+    assert.equal(isXanoMirrorEnabled(), false)
+    process.env.XANO_MIRROR_ENABLED = ""
+    assert.equal(isXanoMirrorEnabled(), false)
+    process.env.XANO_MIRROR_ENABLED = "false"
+    assert.equal(isXanoMirrorEnabled(), false)
   })
 })
 
