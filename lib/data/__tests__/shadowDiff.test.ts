@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it, beforeEach, afterEach } from "node:test"
 import {
+  __resetXanoBackendWarnForTests,
   getDataBackend,
   getDataBackendFor,
   getPlanDetailBackend,
@@ -19,21 +20,25 @@ import {
 } from "../shadowDiff"
 
 describe("getWriteBackend", () => {
-  let prev: string | undefined
+  let prevWrite: string | undefined
+  let prevData: string | undefined
 
   beforeEach(() => {
-    prev = process.env.WRITE_BACKEND
+    prevWrite = process.env.WRITE_BACKEND
+    prevData = process.env.DATA_BACKEND
   })
 
   afterEach(() => {
-    if (prev === undefined) delete process.env.WRITE_BACKEND
-    else process.env.WRITE_BACKEND = prev
+    if (prevWrite === undefined) delete process.env.WRITE_BACKEND
+    else process.env.WRITE_BACKEND = prevWrite
+    if (prevData === undefined) delete process.env.DATA_BACKEND
+    else process.env.DATA_BACKEND = prevData
   })
 
-  it("defaults to xano and is independent of DATA_BACKEND", () => {
+  it("defaults to postgres and is independent of DATA_BACKEND", () => {
     delete process.env.WRITE_BACKEND
-    process.env.DATA_BACKEND = "postgres"
-    assert.equal(getWriteBackend(), "xano")
+    process.env.DATA_BACKEND = "xano"
+    assert.equal(getWriteBackend(), "postgres")
   })
 
   it("accepts postgres", () => {
@@ -41,9 +46,14 @@ describe("getWriteBackend", () => {
     assert.equal(getWriteBackend(), "postgres")
   })
 
-  it("falls back to xano on unknown values", () => {
-    process.env.WRITE_BACKEND = "mysql"
+  it("accepts explicit xano", () => {
+    process.env.WRITE_BACKEND = "XANO"
     assert.equal(getWriteBackend(), "xano")
+  })
+
+  it("falls back to postgres on unknown values", () => {
+    process.env.WRITE_BACKEND = "mysql"
+    assert.equal(getWriteBackend(), "postgres")
   })
 })
 
@@ -95,21 +105,23 @@ describe("getDataBackend", () => {
     else process.env.DATA_BACKEND = prev
   })
 
-  it("defaults to xano", () => {
+  it("defaults to postgres", () => {
     delete process.env.DATA_BACKEND
-    assert.equal(getDataBackend(), "xano")
+    assert.equal(getDataBackend(), "postgres")
   })
 
-  it("accepts shadow and postgres", () => {
+  it("accepts shadow, postgres, and explicit xano", () => {
     process.env.DATA_BACKEND = "shadow"
     assert.equal(getDataBackend(), "shadow")
     process.env.DATA_BACKEND = "POSTGRES"
     assert.equal(getDataBackend(), "postgres")
+    process.env.DATA_BACKEND = "xano"
+    assert.equal(getDataBackend(), "xano")
   })
 
-  it("falls back to xano on unknown values", () => {
+  it("falls back to postgres on unknown values", () => {
     process.env.DATA_BACKEND = "mysql"
-    assert.equal(getDataBackend(), "xano")
+    assert.equal(getDataBackend(), "postgres")
   })
 })
 
@@ -165,6 +177,73 @@ describe("getDataBackendFor", () => {
     process.env.DATA_BACKEND = "postgres"
     process.env.DATA_BACKEND_REFERENCE = "   "
     assert.equal(getDataBackendFor("reference"), "postgres")
+  })
+
+  it("falls back to postgres when global and domain env are unset", () => {
+    delete process.env.DATA_BACKEND
+    delete process.env.DATA_BACKEND_PUBLISHERS
+    assert.equal(getDataBackendFor("publishers"), "postgres")
+  })
+})
+
+describe("explicit Xano warn-once", () => {
+  const keys = ["DATA_BACKEND", "DATA_BACKEND_PLANS", "WRITE_BACKEND"] as const
+  const prev: Record<string, string | undefined> = {}
+  let origWarn: typeof console.warn
+
+  beforeEach(() => {
+    for (const k of keys) prev[k] = process.env[k]
+    __resetXanoBackendWarnForTests()
+    origWarn = console.warn
+  })
+
+  afterEach(() => {
+    console.warn = origWarn
+    for (const k of keys) {
+      if (prev[k] === undefined) delete process.env[k]
+      else process.env[k] = prev[k]
+    }
+    __resetXanoBackendWarnForTests()
+  })
+
+  it("warns once per domain+env key and names both", () => {
+    const warns: string[] = []
+    console.warn = (...args: unknown[]) => {
+      warns.push(String(args[0]))
+    }
+    process.env.DATA_BACKEND = "xano"
+    getDataBackend()
+    getDataBackend()
+    assert.equal(warns.length, 1)
+    assert.match(warns[0]!, /domain=global/)
+    assert.match(warns[0]!, /env=DATA_BACKEND/)
+
+    process.env.DATA_BACKEND_PLANS = "xano"
+    getDataBackendFor("plans")
+    getDataBackendFor("plans")
+    assert.equal(warns.length, 2)
+    assert.match(warns[1]!, /domain=plans/)
+    assert.match(warns[1]!, /env=DATA_BACKEND_PLANS/)
+
+    process.env.WRITE_BACKEND = "xano"
+    getWriteBackend()
+    getWriteBackend()
+    assert.equal(warns.length, 3)
+    assert.match(warns[2]!, /domain=write/)
+    assert.match(warns[2]!, /env=WRITE_BACKEND/)
+  })
+
+  it("does not warn for postgres", () => {
+    const warns: string[] = []
+    console.warn = (...args: unknown[]) => {
+      warns.push(String(args[0]))
+    }
+    delete process.env.DATA_BACKEND
+    delete process.env.WRITE_BACKEND
+    getDataBackend()
+    getWriteBackend()
+    getDataBackendFor("plans")
+    assert.equal(warns.length, 0)
   })
 })
 

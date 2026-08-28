@@ -143,7 +143,7 @@ async function patchMbaLineApprovalsOnXano(params: {
 
 /**
  * Write path follows WRITE_BACKEND (independent of DATA_BACKEND_APPROVALS).
- * Default `xano` preserves live behaviour; `postgres` uses local upsert/delete.
+ * Default `postgres` uses local upsert/delete; explicit `xano` keeps the Xano patch.
  */
 export async function writeMbaLineApprovals(params: {
   mbaNumber: string
