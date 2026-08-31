@@ -148,6 +148,43 @@ describe("X9 createMediaPlanMasterPostgresFirst", () => {
     }
   })
 
+  it("CS-B2: Approved local-hold on first create stores campaign_status approved", async (t) => {
+    if (!hasDb) {
+      t.skip("DATABASE_URL unset")
+      return
+    }
+    const mba = `csb2${Date.now().toString(36).slice(-6)}`
+    const { mapCampaignStatusForPersist } = await import(
+      "@/lib/mediaplan/campaignStatusGuard"
+    )
+    const status = mapCampaignStatusForPersist("approved")
+    assert.equal(status, "approved")
+    const { master } = await createMediaPlanMasterPostgresFirst({
+      mbaNumber: mba,
+      mpClientName: "CS-B2 Create Client",
+      campaignName: "CS-B2 Unsaved Approved",
+      campaignStatus: status,
+      campaignStartDate: "2026-03-10",
+      campaignEndDate: "2026-03-20",
+      campaignBudget: 1,
+    })
+    const masterId = Number(master.id)
+    assert.equal(master.campaign_status, "approved")
+    const db = getDb()
+    const [row] = await db
+      .select({
+        id: schema.mediaPlanMasters.id,
+        status: schema.mediaPlanMasters.campaignStatus,
+      })
+      .from(schema.mediaPlanMasters)
+      .where(eq(schema.mediaPlanMasters.id, masterId))
+      .limit(1)
+    assert.equal(row?.status, "approved")
+    await db
+      .delete(schema.mediaPlanMasters)
+      .where(eq(schema.mediaPlanMasters.id, masterId))
+  })
+
   it("close db pool", async () => {
     if (hasDb) await closeDb()
   })

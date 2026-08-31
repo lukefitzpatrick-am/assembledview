@@ -12007,6 +12007,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                     <FormControl>
                       <CampaignStatusControl
                         mbaNumber={mbaNumber}
+                        persisted={true}
                         status={String(field.value ?? "")}
                         startDate={campaignStartDate}
                         endDate={campaignEndDate}

@@ -37,6 +37,7 @@ C-numbers are allocated on `localhost` only, and are never reassigned once writt
 | ID | Issue | Status |
 |---|---|---|
 | CS-1 | `lib/finance/computeAccrual.ts` `RECEIVABLE_STATUSES` mixes campaign commercial status (`booked`, `approved`) with billing lifecycle (`invoiced`, `paid`). Those last two are not `campaign_status` values. Different axis from `resolveCampaignPhase` — do not fold into phase. Accrual amounts stay on this mixed set. `lib/finance/financeTabFilterScope.ts` `RECEIVABLE_STATUSES` is a separate Overview KPI filter list. | Open — leave accrual membership unchanged |
+| CS-B2 | CS-B `CampaignStatusControl.persist()` gated PATCH on a truthy MBA number. Create mints `mba_number` before any `media_plan_masters` row exists, so the Combobox PATCHed a missing master, `onStatusCommitted` never ran, and status could not be set on a new campaign. Guard is now `persisted` (master row exists). Derived phase must not disable the selector. | FIXED — `persisted={mediaPlanId != null}` on create; `persisted={true}` on edit |
 
 ## Data integrity (DI-*)
 

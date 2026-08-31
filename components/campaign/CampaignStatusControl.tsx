@@ -55,8 +55,73 @@ function formatDayMonth(ymd: string): string {
   }
 }
 
+export async function persistCampaignStatus(input: {
+  next: string
+  persisted: boolean
+  mbaNumber?: string | null
+  onStatusCommitted: (status: string) => void
+  setPending?: (pending: boolean) => void
+}): Promise<void> {
+  const {
+    next,
+    persisted,
+    mbaNumber,
+    onStatusCommitted,
+    setPending,
+  } = input
+  if (!isSelectableCampaignStatus(next)) return
+  const mba = String(mbaNumber ?? "").trim()
+  if (!persisted || !mba) {
+    onStatusCommitted(next)
+    return
+  }
+  setPending?.(true)
+  try {
+    const res = await fetch(
+      `/api/mediaplans/mba/${encodeURIComponent(mba)}/status`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      }
+    )
+    if (isUnauthorizedStatus(res.status)) {
+      noteWriteUnauthorized()
+      toast({
+        variant: "destructive",
+        title: "Session expired",
+        description: "Sign in again, then retry the status change.",
+      })
+      return
+    }
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string }
+      toast({
+        variant: "destructive",
+        title: "Status not saved",
+        description: body.error || "Could not update campaign status.",
+      })
+      return
+    }
+    onStatusCommitted(next)
+    toast({
+      title: "Status updated",
+      description: `Campaign is now ${campaignStatusDisplayLabel(next)}.`,
+    })
+  } catch {
+    toast({
+      variant: "destructive",
+      title: "Status not saved",
+      description: "Could not update campaign status.",
+    })
+  } finally {
+    setPending?.(false)
+  }
+}
+
 export function CampaignStatusControl({
   mbaNumber,
+  persisted,
   status,
   startDate,
   endDate,
@@ -64,6 +129,7 @@ export function CampaignStatusControl({
   disabled,
 }: {
   mbaNumber?: string | null
+  persisted: boolean
   status: string
   startDate?: unknown
   endDate?: unknown
@@ -87,54 +153,13 @@ export function CampaignStatusControl({
       : null
 
   async function persist(next: string) {
-    if (!isSelectableCampaignStatus(next)) return
-    const mba = String(mbaNumber ?? "").trim()
-    if (!mba) {
-      onStatusCommitted(next)
-      return
-    }
-    setPending(true)
-    try {
-      const res = await fetch(
-        `/api/mediaplans/mba/${encodeURIComponent(mba)}/status`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: next }),
-        }
-      )
-      if (isUnauthorizedStatus(res.status)) {
-        noteWriteUnauthorized()
-        toast({
-          variant: "destructive",
-          title: "Session expired",
-          description: "Sign in again, then retry the status change.",
-        })
-        return
-      }
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        toast({
-          variant: "destructive",
-          title: "Status not saved",
-          description: body.error || "Could not update campaign status.",
-        })
-        return
-      }
-      onStatusCommitted(next)
-      toast({
-        title: "Status updated",
-        description: `Campaign is now ${campaignStatusDisplayLabel(next)}.`,
-      })
-    } catch {
-      toast({
-        variant: "destructive",
-        title: "Status not saved",
-        description: "Could not update campaign status.",
-      })
-    } finally {
-      setPending(false)
-    }
+    await persistCampaignStatus({
+      next,
+      persisted,
+      mbaNumber,
+      onStatusCommitted,
+      setPending,
+    })
   }
 
   return (

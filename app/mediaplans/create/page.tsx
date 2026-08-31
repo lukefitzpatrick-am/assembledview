@@ -7614,6 +7614,7 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
                     <FormControl>
                       <CampaignStatusControl
                         mbaNumber={mbaNumber}
+                        persisted={mediaPlanId != null}
                         status={String(field.value ?? "")}
                         startDate={campaignStart}
                         endDate={campaignEnd}

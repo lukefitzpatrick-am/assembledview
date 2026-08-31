@@ -339,6 +339,45 @@ describe("create + edit assembly twins (shared helpers)", () => {
     assert.match(editSrc, /SELECTABLE_CAMPAIGN_STATUSES/)
   })
 
+  it("CS-B2: create persists only after a master id exists; edit always has a master", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    const controlSrc = readFileSync(
+      join(process.cwd(), "components/campaign/CampaignStatusControl.tsx"),
+      "utf8"
+    )
+    assert.match(controlSrc, /persisted:\s*boolean/)
+    assert.match(
+      controlSrc,
+      /if\s*\(\s*!persisted\s*\|\|\s*!mba\s*\)/
+    )
+    // mediaPlanId is set only after POST /api/mediaplans returns master.id.
+    assert.match(
+      createSrc,
+      /<CampaignStatusControl[\s\S]*?persisted=\{mediaPlanId\s*!=\s*null\}/
+    )
+    assert.match(
+      editSrc,
+      /<CampaignStatusControl[\s\S]*?persisted=\{true\}/
+    )
+  })
+
+  it("CS-B2: create local-hold Approved reaches first save via mp_campaignstatus and ensureMaster", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    assert.match(
+      createSrc,
+      /onStatusCommitted=\{\(next\) => \{[\s\S]*?form\.setValue\("mp_campaignstatus", next/
+    )
+    assert.match(
+      createSrc,
+      /mp_campaignstatus,[\s\S]*?const payload = \{[\s\S]*?mp_campaignstatus,/
+    )
+    assert.match(
+      createSrc,
+      /ensureMaster:[\s\S]*campaignStatus:\s*mapCampaignStatusForPersist\(fv\.mp_campaignstatus\)/
+    )
+  })
+
   it("CS-B: create keep mapCampaignStatusForPersist on ensureMaster only; neither page sends version campaignStatus", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
