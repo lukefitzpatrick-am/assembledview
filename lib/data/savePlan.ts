@@ -73,7 +73,6 @@ import {
   evaluatePostgresAutoDivergence,
   type AutoBillingCorrectionSummary,
 } from "@/lib/billing/postgresAutoBillingCorrection"
-import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import {
   assertVersionMutable,
   VersionImmutableError,
@@ -209,7 +208,6 @@ export type SavePlanErrorCode =
   | "MISSING_LINE_ITEM_ID"
   | "DUPLICATE_LINE_ITEM_ID"
   | "VERSION_ALREADY_EXISTS"
-  | "MISSING_CAMPAIGN_STATUS"
   | "BOSS006_EMPTY_PUBLISH"
   | "SCHEDULE_EXPLODE_FAILED"
   | "MASTER_NOT_FOUND"
@@ -361,18 +359,6 @@ function isUniqueViolation(err: unknown): boolean {
     e.code === "23505" ||
     e.cause?.code === "23505" ||
     /unique|duplicate key/i.test(String(e.message ?? ""))
-  )
-}
-
-function resolvePersistedCampaignStatus(
-  input: Pick<SavePlanVersionInput, "campaignStatus" | "mode">
-): string {
-  const mapped = mapCampaignStatusForPersist(input.campaignStatus)
-  if (mapped) return mapped
-  if (input.mode === "draft") return "draft"
-  throw new SavePlanError(
-    "MISSING_CAMPAIGN_STATUS",
-    "campaignStatus is required on publish — carry the status dropdown value (e.g. booked); refusing silent Approved default"
   )
 }
 
@@ -639,13 +625,11 @@ async function upsertVersionRow(
   legacySchedules: unknown,
   versionNumber: number
 ): Promise<number> {
-  const campaignStatus = resolvePersistedCampaignStatus(input)
   const baseValues = {
     masterId: input.masterId,
     versionNumber,
     mbaNumber: input.mbaNumber,
     campaignName: input.campaignName ?? null,
-    campaignStatus,
     campaignStartDate: input.campaignStartDate ?? null,
     campaignEndDate: input.campaignEndDate ?? null,
     brand: input.brand ?? null,
@@ -688,7 +672,6 @@ async function upsertVersionRow(
         .update(schema.mediaPlanVersions)
         .set({
           campaignName: baseValues.campaignName,
-          campaignStatus: baseValues.campaignStatus,
           campaignStartDate: baseValues.campaignStartDate,
           campaignEndDate: baseValues.campaignEndDate,
           brand: baseValues.brand,
@@ -711,9 +694,19 @@ async function upsertVersionRow(
   // VC Stage 1 asymmetry (intentional — do not "tidy"): only mode==='publish'
   // stamps published_at below. mode==='new_version' inserts without advancing the
   // publish tip, so the row stays unpublished (published_at null) by definition.
+  const [masterStatus] = await tx
+    .select({ campaignStatus: schema.mediaPlanMasters.campaignStatus })
+    .from(schema.mediaPlanMasters)
+    .where(eq(schema.mediaPlanMasters.id, input.masterId))
+    .limit(1)
+
   const [inserted] = await tx
     .insert(schema.mediaPlanVersions)
-    .values(baseValues)
+    .values({
+      ...baseValues,
+      // Historical snapshot of the master at cut time — not from the save payload.
+      campaignStatus: masterStatus?.campaignStatus ?? null,
+    })
     .returning({ id: schema.mediaPlanVersions.id })
   if (!inserted) {
     throw new Error("Failed to insert media_plan_versions row")
@@ -865,6 +858,7 @@ export async function savePlanVersion(
         {
           getRateForMediaType: input.getRateForMediaType,
           adservaudio: input.adservaudio,
+          selectedMonthYears: input.selectedMonthYears,
         }
       )
       const financials = computeCampaignFinancials(
@@ -873,6 +867,7 @@ export async function savePlanVersion(
         {
           getRateForMediaType: input.getRateForMediaType,
           adservaudio: input.adservaudio,
+          selectedMonthYears: input.selectedMonthYears,
         }
       )
 
@@ -1126,14 +1121,14 @@ export async function savePlanVersion(
           }
         }
 
-        const status = resolvePersistedCampaignStatus(input)
         // VC Stage 1: stamp publication in the SAME txn as the rest of publish.
         // A published-but-unstamped row is the failure mode Stage 1 removes.
         // draft / new_version never reach this block.
+        // CS-B: commercial status is a master fact (PATCH /status). Do not
+        // write campaign_status onto the version or master from this payload.
         await tx
           .update(schema.mediaPlanVersions)
           .set({
-            campaignStatus: status,
             publishedAt: sql`now()`,
             publishedBy: normalisePublishedByEmail(input.publishedByEmail),
           })
@@ -1143,7 +1138,6 @@ export async function savePlanVersion(
           .update(schema.mediaPlanMasters)
           .set({
             publishedVersionId: versionId,
-            campaignStatus: status,
             campaignName: input.campaignName ?? undefined,
             campaignStartDate: input.campaignStartDate ?? undefined,
             campaignEndDate: input.campaignEndDate ?? undefined,

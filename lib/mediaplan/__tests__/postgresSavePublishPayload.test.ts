@@ -378,7 +378,7 @@ describe("O4.5 publish/status-change carries feeLoading (shared assembler)", () 
     assert.equal(body.adservvideo, 1.1)
     assert.equal(body.adservimp, 0.5)
     assert.equal(body.mode, "publish")
-    assert.equal(body.campaignStatus, "booked")
+    assert.equal(body.campaignStatus, undefined)
   })
 
   it("stamped feePct survives buildSavePlanLineItemsFromSnapshots (not dropped at meta?.feePct)", () => {

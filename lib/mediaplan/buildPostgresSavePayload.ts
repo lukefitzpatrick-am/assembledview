@@ -232,8 +232,11 @@ export function assemblePlansSaveRequestBody(
   const adservvideo = pickRate(fees.adservvideo)
   const adservdisplay = pickRate(fees.adservdisplay)
   const adservimp = pickRate(fees.adservimp)
+  // CS-B: commercial status is a master fact. Do not send it on the version save.
+  const { campaignStatus: _omitCampaignStatus, ...identity } = base
+  void _omitCampaignStatus
   return {
-    ...base,
+    ...identity,
     feeLoading,
     feeSnapshot: feeLoading as Record<string, unknown>,
     ...(adservaudio !== undefined ? { adservaudio } : {}),

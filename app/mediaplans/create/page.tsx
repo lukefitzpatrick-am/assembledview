@@ -27,6 +27,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { CampaignStatusControl } from "@/components/campaign/CampaignStatusControl"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -258,7 +259,11 @@ import {
 import { useWriteBackend } from "@/lib/data/WriteBackendContext"
 import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
 import { shouldRunDeferredMasterPublish } from "@/lib/mediaplan/publishVersionIntegrityClient"
-import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
+import {
+  campaignStatusDisplayLabel,
+  mapCampaignStatusForPersist,
+  SELECTABLE_CAMPAIGN_STATUSES,
+} from "@/lib/mediaplan/campaignStatusGuard"
 import {
   isApprovedOrBeyond,
   publishedBillingTimingLockedMessage,
@@ -5511,7 +5516,6 @@ function CreateMediaPlan() {
               mode: modeResolved.mode,
               baseVersionId: draftBaseVersionId,
               campaignName: fv.mp_campaignname ?? null,
-              campaignStatus: mapCampaignStatusForPersist(fv.mp_campaignstatus),
               campaignStartDate: toDateOnlyString(fv.mp_campaigndates_start),
               campaignEndDate: toDateOnlyString(fv.mp_campaigndates_end),
               brand: fv.mp_brand ?? null,
@@ -7083,14 +7087,10 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
         semanticType: "status",
         group: "campaign",
         source: "ui",
-        options: [
-          { label: "Draft", value: "draft" },
-          { label: "Planned", value: "planned" },
-          { label: "Approved", value: "approved" },
-          { label: "Booked", value: "booked" },
-          { label: "Completed", value: "completed" },
-          { label: "Cancelled", value: "cancelled" },
-        ],
+        options: SELECTABLE_CAMPAIGN_STATUSES.map((value) => ({
+          label: campaignStatusDisplayLabel(value),
+          value,
+        })),
         validation: { required: true },
       },
       {
@@ -7631,19 +7631,17 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
                   <FormItem>
                     <FormLabel className="text-sm font-medium text-text-secondary">Campaign Status</FormLabel>
                     <FormControl>
-                      <Combobox
-                        value={String(field.value ?? "")}
-                        onValueChange={field.onChange}
-                        placeholder="Select campaign status"
-                        searchPlaceholder="Search statuses..."
-                        options={[
-                          { value: "draft", label: "Draft" },
-                          { value: "planned", label: "Planned" },
-                          { value: "approved", label: "Approved" },
-                          { value: "booked", label: "Booked" },
-                          { value: "completed", label: "Completed" },
-                          { value: "cancelled", label: "Cancelled" },
-                        ]}
+                      <CampaignStatusControl
+                        mbaNumber={mbaNumber}
+                        status={String(field.value ?? "")}
+                        startDate={campaignStart}
+                        endDate={campaignEnd}
+                        onStatusCommitted={(next) => {
+                          form.setValue("mp_campaignstatus", next, {
+                            shouldDirty: false,
+                            shouldValidate: true,
+                          })
+                        }}
                       />
                     </FormControl>
                     <FormMessage />

@@ -5,8 +5,8 @@
  * 1. masterId = masters.id (krusty014 283/1108), never version row id
  * 2. Lazy versions[] (versionRowCount=0, tip published>0) → leave-draft increments;
  *    footer label from the SAME helpers (resolvePostgresSaveMode + formatSaveModeLabel)
- * 3. Status carry: every UI label → stored lowercase; publish missing/unknown →
- *    MISSING_CAMPAIGN_STATUS (never silent Approved)
+ * 3. Status carry: every UI label → stored lowercase. CS-B: savePlan no longer
+ *    writes campaign_status onto the version from the save payload.
  * 4. Stable ids on save; reorder does not restamp; 23505 disambiguation
  * 5. dollarsToCampaignBudgetCents boundaries (0, null, decimals)
  */
@@ -199,18 +199,14 @@ describe("3. status carry — UI label → stored value; publish never silent-de
     assert.equal(mapCampaignStatusForPersist("In Progress"), null)
   })
 
-  it("savePlan publish path throws MISSING_CAMPAIGN_STATUS — never silent default", () => {
+  it("CS-B: savePlan no longer writes campaign_status from the save payload onto the version", () => {
     const src = readFileSync(SAVE_PLAN, "utf8")
-    assert.match(src, /MISSING_CAMPAIGN_STATUS/)
-    assert.match(
+    assert.doesNotMatch(src, /MISSING_CAMPAIGN_STATUS/)
+    assert.doesNotMatch(src, /function resolvePersistedCampaignStatus/)
+    assert.doesNotMatch(
       src,
-      /function resolvePersistedCampaignStatus[\s\S]*?throw new SavePlanError\(\s*"MISSING_CAMPAIGN_STATUS"/
+      /\.set\(\{[\s\S]*?campaignStatus:\s*(status|baseValues\.campaignStatus)/
     )
-    assert.match(
-      src,
-      /refusing silent Approved default/
-    )
-    // Draft may default to "draft"; publish must not invent Approved.
     assert.doesNotMatch(
       src,
       /mode === "publish"[\s\S]{0,120}return ["']Approved["']/
@@ -321,12 +317,11 @@ describe("create + edit assembly twins (shared helpers)", () => {
     )
   })
 
-  it("both pages wire assignStableLineItemNumbers, mapCampaignStatusForPersist, dollarsToCampaignBudgetCents, resolvePostgresSaveMode, formatSaveModeLabel, assemblePlansSaveRequestBody", () => {
+  it("both pages wire assignStableLineItemNumbers, dollarsToCampaignBudgetCents, resolvePostgresSaveMode, formatSaveModeLabel, assemblePlansSaveRequestBody", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
     for (const src of [createSrc, editSrc]) {
       assert.match(src, /assignStableLineItemNumbers/)
-      assert.match(src, /mapCampaignStatusForPersist/)
       assert.match(src, /dollarsToCampaignBudgetCents/)
       assert.match(src, /resolvePostgresSaveMode/)
       assert.match(src, /formatSaveModeLabel/)
@@ -337,7 +332,39 @@ describe("create + edit assembly twins (shared helpers)", () => {
         src,
         /postPlansSave\(\s*assemblePlansSaveRequestBody\(/
       )
+      assert.match(src, /SELECTABLE_CAMPAIGN_STATUSES/)
+      assert.match(src, /CampaignStatusControl/)
     }
+  })
+
+  it("CS-B: create keep mapCampaignStatusForPersist on ensureMaster only; neither page sends version campaignStatus", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    assert.match(createSrc, /mapCampaignStatusForPersist/)
+    assert.match(
+      createSrc,
+      /ensureMaster:[\s\S]*campaignStatus:\s*mapCampaignStatusForPersist/
+    )
+    const createVersionSends = createSrc.match(
+      /campaignStatus:\s*mapCampaignStatusForPersist/g
+    )
+    assert.equal(createVersionSends?.length, 1)
+    assert.doesNotMatch(
+      editSrc,
+      /campaignStatus:\s*mapCampaignStatusForPersist/
+    )
+  })
+
+  it("CS-B: assemblePlansSaveRequestBody omits campaignStatus even if a caller passes it", () => {
+    const src = readFileSync(
+      join(process.cwd(), "lib/mediaplan/buildPostgresSavePayload.ts"),
+      "utf8"
+    )
+    assert.match(src, /campaignStatus:\s*_omitCampaignStatus/)
+    assert.match(
+      src,
+      /Do not send it on the version save/
+    )
   })
 
   it("edit resolves masterId via resolveMasterIdFromCombinedPlan (krusty014 contract)", () => {

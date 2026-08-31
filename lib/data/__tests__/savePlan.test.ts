@@ -1846,6 +1846,88 @@ test("VC Stage 1: publish with no email stamps published_at, published_by null",
   assert.equal(snap.version?.publishedBy, null)
 })
 
+test("CS-B: draft overwrite with booked payload does not write version campaign_status", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  const first = await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1000)])
+  )
+  const before = await snapshot(first.versionId)
+  const beforeStatus = before.version?.campaignStatus
+
+  await savePlanVersion(
+    draftInput(masterId, [baseLine(LINE_A, 1000)], {
+      campaignStatus: "booked",
+    })
+  )
+  const after = await snapshot(first.versionId)
+  assert.equal(after.version?.campaignStatus, beforeStatus)
+  assert.notEqual(after.version?.campaignStatus, "booked")
+})
+
+test("CS-B REQUIREMENT LOCK: status-only change at v5 does not cut a version and leaves line_items.created_at unchanged", async (t) => {
+  if (!hasDb) {
+    t.skip("DATABASE_URL not set")
+    return
+  }
+  await wipeMba()
+  const masterId = await seedMaster()
+  t.after(async () => {
+    await wipeMba()
+  })
+
+  await savePlanVersion(draftInput(masterId, [baseLine(LINE_A, 1000)]))
+  let last = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1000)]),
+    mode: "new_version",
+  })
+  last = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1000)]),
+    mode: "new_version",
+  })
+  last = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1000)]),
+    mode: "new_version",
+  })
+  last = await savePlanVersion({
+    ...draftInput(masterId, [baseLine(LINE_A, 1000)]),
+    mode: "new_version",
+  })
+  assert.equal(last.versionNumber, 5)
+
+  const db = getDb()
+  const [lineBefore] = await db
+    .select({ createdAt: schema.lineItems.createdAt })
+    .from(schema.lineItems)
+    .where(eq(schema.lineItems.versionId, last.versionId))
+    .limit(1)
+  assert.ok(lineBefore?.createdAt)
+
+  const { writeCampaignStatus } = await import("../writeCampaignStatus.js")
+  await writeCampaignStatus(MBA, "cancelled")
+
+  const versions = await db
+    .select({ id: schema.mediaPlanVersions.id })
+    .from(schema.mediaPlanVersions)
+    .where(eq(schema.mediaPlanVersions.masterId, masterId))
+  assert.equal(versions.length, 5)
+
+  const [lineAfter] = await db
+    .select({ createdAt: schema.lineItems.createdAt })
+    .from(schema.lineItems)
+    .where(eq(schema.lineItems.versionId, last.versionId))
+    .limit(1)
+  assert.equal(lineAfter?.createdAt, lineBefore.createdAt)
+})
+
 test("savePlan: close db pool", async () => {
   if (hasDb) await closeDb()
 })

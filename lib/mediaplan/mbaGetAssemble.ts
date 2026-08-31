@@ -765,6 +765,15 @@ export function assembleMbaGetCombinedData(
     versionNumber: actualVersionNumber,
     versionData,
     version_number: actualVersionNumber,
+    // CS-B: commercial status is a master fact. Version.campaign_status is
+    // historical and must not overlay the selector after a PATCH.
+    campaign_status:
+      masterData.campaign_status ?? versionData.campaign_status ?? null,
+    mp_campaignstatus:
+      masterData.campaign_status ??
+      versionData.mp_campaignstatus ??
+      versionData.campaign_status ??
+      null,
     billingSchedule: filteredBillingSchedule,
     deliverySchedule: deliveryScheduleMetrics.raw,
     lineItems: lineItemsData,

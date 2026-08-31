@@ -427,7 +427,6 @@ export async function POST(request: NextRequest) {
             : err.code === "DUPLICATE_LINE_ITEM_ID" ||
                 err.code === "VERSION_ALREADY_EXISTS" ||
                 err.code === "MISSING_LINE_ITEM_ID" ||
-                err.code === "MISSING_CAMPAIGN_STATUS" ||
                 err.code === "UNIQUE_VIOLATION"
               ? 400
               : 500

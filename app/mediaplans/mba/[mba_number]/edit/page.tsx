@@ -17,6 +17,7 @@ import { Controller, useForm, useWatch } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { format } from "date-fns"
+import { CampaignStatusControl } from "@/components/campaign/CampaignStatusControl"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -384,7 +385,11 @@ import { saveAs } from 'file-saver'
 import { filterLineItemsByPlanNumber } from '@/lib/api/mediaPlanVersionHelper'
 import { toDateOnlyString, parseDateOnlyString } from "@/lib/timezone"
 import { checkLineItemDatesOutsideCampaign } from "@/lib/utils/mediaPlanValidation"
-import { normaliseStatus, mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
+import {
+  campaignStatusDisplayLabel,
+  normaliseStatus,
+  SELECTABLE_CAMPAIGN_STATUSES,
+} from "@/lib/mediaplan/campaignStatusGuard"
 import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 import {
   isApprovedOrBeyond,
@@ -400,15 +405,6 @@ import {
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
-
-const CAMPAIGN_STATUS_OPTIONS = [
-  { value: "approved", label: "Approved" },
-  { value: "booked", label: "Booked" },
-  { value: "cancelled", label: "Cancelled" },
-  { value: "completed", label: "Completed" },
-  { value: "draft", label: "Draft" },
-  { value: "planned", label: "Planned" },
-] as const
 
 /** Stable id for billing rows so merge/save validation align with persisted `lineItemId` / `line_item_id`. */
 function billingStableLineItemId(mediaType: string, lineItem: any, index: number): string {
@@ -2275,10 +2271,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   )
   const [error, setError] = useState<string | null>(null)
   const [mediaPlan, setMediaPlan] = useState<any>(null)
-  const canReturnToDraft = normaliseStatus(mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus) === "draft"
   const campaignStatusOptions = useMemo(
-    () => CAMPAIGN_STATUS_OPTIONS.filter((option) => canReturnToDraft || option.value !== "draft"),
-    [canReturnToDraft]
+    () =>
+      SELECTABLE_CAMPAIGN_STATUSES.map((value) => ({
+        value,
+        label: campaignStatusDisplayLabel(value),
+      })),
+    []
   )
   const [loadPhase, setLoadPhase] = useState<LoadPhase>("bootstrapping")
   const [lineItemLoadItems, setLineItemLoadItems] = useState<SaveStatusItem[]>([])
@@ -7788,7 +7787,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               mode: modeResolved.mode,
               baseVersionId: draftBaseVersionId,
               campaignName: formValues.mp_campaignname ?? null,
-              campaignStatus: mapCampaignStatusForPersist(formValues.mp_campaignstatus),
               campaignStartDate: toDateOnlyString(formValues.mp_campaigndates_start),
               campaignEndDate: toDateOnlyString(formValues.mp_campaigndates_end),
               brand: formValues.mp_brand ?? null,
@@ -11084,7 +11082,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         semanticType: "status",
         group: "campaign",
         source: "ui",
-        options: campaignStatusOptions.map(({ label, value }) => ({ label, value })),
+        options: SELECTABLE_CAMPAIGN_STATUSES.map((value) => ({
+          label: campaignStatusDisplayLabel(value),
+          value,
+        })),
         validation: { required: true },
       },
       {
@@ -11355,6 +11356,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       channels: enabledSections.length,
       status:
         campaignStatusOptions.find((option) => option.value === watchedCampaignStatus)?.label ??
+        campaignStatusDisplayLabel(watchedCampaignStatus) ??
         String(watchedCampaignStatus ?? "—"),
       budgetRemaining: formatMoney(budgetRemaining),
       budgetRemainingOverspend,
@@ -12018,12 +12020,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   <FormItem>
                     <FormLabel className="text-sm font-medium text-muted-foreground">Campaign Status</FormLabel>
                     <FormControl>
-                      <Combobox
-                        value={field.value}
-                        onValueChange={field.onChange}
-                        placeholder="Select campaign status"
-                        searchPlaceholder="Search statuses..."
-                        options={campaignStatusOptions}
+                      <CampaignStatusControl
+                        mbaNumber={mbaNumber}
+                        status={String(field.value ?? "")}
+                        startDate={campaignStartDate}
+                        endDate={campaignEndDate}
+                        onStatusCommitted={(next) => {
+                          form.setValue("mp_campaignstatus", next, {
+                            shouldDirty: false,
+                            shouldValidate: true,
+                          })
+                        }}
                       />
                     </FormControl>
                     <FormMessage />

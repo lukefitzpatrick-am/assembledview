@@ -13,6 +13,7 @@ import {
   replaceBillingOverrideLine,
   resetBillingOverrideLine,
 } from "../writeBillingOverrides.js"
+import { writeCampaignStatus } from "../writeCampaignStatus.js"
 import {
   savePlanVersion,
   type SavePlanLineItem,
@@ -180,10 +181,12 @@ test("MB-15c (i): replace_line against published version → VERSION_PUBLISHED_I
   })
 
   const line = baseLine(LINE_A, 1000)
+  // CS-B: stamp master so publish INSERT snapshots approved onto the version.
+  // Gates still read version.campaign_status until CS-C.
+  await writeCampaignStatus(MBA, "approved")
   const published = await savePlanVersion({
     ...draftInput(masterId, [line]),
     mode: "publish",
-    campaignStatus: "approved",
     feeSnapshot: { feesearch: 10 },
   })
   assert.equal(published.published, true)
@@ -367,10 +370,10 @@ test("VC1-3: published + status 'approved' -> downloads allowed, docs generate, 
   })
 
   const line = baseLine(LINE_A, 1000)
+  await writeCampaignStatus(MBA, "approved")
   const published = await savePlanVersion({
     ...draftInput(masterId, [line]),
     mode: "publish",
-    campaignStatus: "approved",
     feeSnapshot: { feesearch: 10 },
   })
   assert.equal(published.published, true)
@@ -475,10 +478,10 @@ test("MB-15c (iii): publish then attempt — refused; published version byte-ide
   })
   await savePlanVersion(draftInput(masterId, [lineWithOverride]))
 
+  await writeCampaignStatus(MBA, "booked")
   const published = await savePlanVersion({
     ...draftInput(masterId, [lineWithOverride]),
     mode: "publish",
-    campaignStatus: "booked",
     feeSnapshot: { feesearch: 10 },
   })
   assert.equal(published.published, true)

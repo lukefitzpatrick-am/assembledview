@@ -20,6 +20,7 @@ import {
   replaceBillingOverrideLine,
   resetBillingOverrideLine,
 } from "../writeBillingOverrides.js"
+import { writeCampaignStatus } from "../writeCampaignStatus.js"
 import {
   savePlanVersion,
   type SavePlanLineItem,
@@ -307,10 +308,11 @@ test("MB-13.2 / MB-15c: fee override after first publish is refused; published b
   const calculatedFee = baseline.mbaScopeTotals.fee
 
   // First publish with NO fee override — freeze calculated fee into approved_slice.
+  // CS-B: stamp master booked so the version INSERT snapshots it (MB-15c gate).
+  await writeCampaignStatus(MBA, "booked")
   const published = await savePlanVersion({
     ...draftInput(masterId, [line]),
     mode: "publish",
-    campaignStatus: "booked",
     feeSnapshot: { feesearch: FEE_PCT },
   })
   assert.equal(published.published, true)
