@@ -21,7 +21,8 @@ import {
 import { format } from "date-fns"
 import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
 import { formatMoney } from "@/lib/format/money"
-import { isLiveOrCompletedPhase } from "@/lib/mediaplan/campaignPhase"
+import { isPlannedBasisCampaignStatus } from "@/lib/dashboard/plannedSpendConsistency"
+import { CampaignStatusBadge } from "@/components/campaign/CampaignStatusBadge"
 import { usePathname, useRouter } from "next/navigation"
 import { AuthPageLoading } from "@/components/AuthLoadingState"
 import { cn } from "@/lib/utils"
@@ -159,8 +160,6 @@ type DashboardMetricCard = {
   panelId: string
 }
 
-const normalizeStatus = (status?: string | null) => (status || "").toString().toLowerCase().trim()
-
 const slugifyClientName = (name?: string | null) => {
   if (!name || typeof name !== "string") return ""
   return name
@@ -268,8 +267,15 @@ const getLatestPlanVersions = (plans: MediaPlan[]): MediaPlan[] => {
 }
 
 /**
- * Per MBA, use the highest-version plan whose derived phase is live or completed.
- * A newer draft/planned must not hide an in-flight or finished commercial version.
+ * Per MBA, use the highest-version plan that counts commercially
+ * (booked | approved | completed). Inclusion is commercial status, not phase.
+ *
+ * Three questions (never the same call):
+ *   - which version is live      → publication (`published_at`)
+ *   - does this campaign count   → commercial status (this picker)
+ *   - where is it in time        → resolveCampaignPhase (CampaignStatusBadge)
+ *
+ * A newer draft must not hide an approved/booked/completed version used for live metrics.
  */
 function getHighestBookedApprovedCompletedVersionPerMba(plans: MediaPlan[]): MediaPlan[] {
   const byMba = new Map<string, MediaPlan[]>()
@@ -283,13 +289,7 @@ function getHighestBookedApprovedCompletedVersionPerMba(plans: MediaPlan[]): Med
   }
   const out: MediaPlan[] = []
   for (const [, group] of byMba) {
-    const eligible = group.filter((p) =>
-      isLiveOrCompletedPhase({
-        status: p.mp_campaignstatus,
-        startDate: p.mp_campaigndates_start || null,
-        endDate: p.mp_campaigndates_end || null,
-      })
-    )
+    const eligible = group.filter((p) => isPlannedBasisCampaignStatus(p.mp_campaignstatus))
     if (eligible.length === 0) continue
     const best = eligible.reduce((a, b) => {
       const va = Number(a.mp_version) || 0
@@ -299,6 +299,16 @@ function getHighestBookedApprovedCompletedVersionPerMba(plans: MediaPlan[]): Med
     out.push(best)
   }
   return out
+}
+
+function OverviewCampaignPhaseBadge({ plan }: { plan: MediaPlan }) {
+  return (
+    <CampaignStatusBadge
+      status={plan.mp_campaignstatus}
+      startDate={plan.mp_campaigndates_start || null}
+      endDate={plan.mp_campaigndates_end || null}
+    />
+  )
 }
 
 const formatCurrency = (amount: number) => formatMoney(amount)
@@ -2091,6 +2101,7 @@ export default function DashboardOverview({
                           <SortableTableHeader label="End Date" direction={liveCampaignSort.column === "endDate" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("endDate", liveCampaignSort, setLiveCampaignSort)} />
                           <SortableTableHeader label="Budget" direction={liveCampaignSort.column === "budget" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("budget", liveCampaignSort, setLiveCampaignSort)} />
                           <SortableTableHeader label="Version" direction={liveCampaignSort.column === "version" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("version", liveCampaignSort, setLiveCampaignSort)} />
+                          <SortableTableHeader label="Status" direction={liveCampaignSort.column === "status" ? liveCampaignSort.direction : null} onToggle={() => toggleSort("status", liveCampaignSort, setLiveCampaignSort)} />
                           <TableHead>Media Types</TableHead>
                           <TableHead className="w-24">Actions</TableHead>
                         </TableRow>
@@ -2105,6 +2116,9 @@ export default function DashboardOverview({
                             <TableCell>{formatDate(plan.mp_campaigndates_end)}</TableCell>
                             <TableCell>{formatCurrency(plan.mp_campaignbudget)}</TableCell>
                             <TableCell>{plan.mp_version}</TableCell>
+                            <TableCell>
+                              <OverviewCampaignPhaseBadge plan={plan} />
+                            </TableCell>
                             <TableCell>
                               <div className="flex flex-wrap gap-1">
                                 {getMediaTypeTags(plan)}
@@ -2151,7 +2165,7 @@ export default function DashboardOverview({
                         formatDate={formatDate}
                         formatCurrency={formatCurrency}
                         mediaTypeTags={getMediaTypeTags(plan)}
-                        showStatus={false}
+                        showStatus
                         statusBadgeClassName={getStatusBadgeColor(plan.mp_campaignstatus)}
                         onEdit={() => router.push(`/mediaplans/mba/${plan.mp_mba_number}/edit?version=${plan.mp_version}`)}
                         onView={() => {
@@ -2304,7 +2318,7 @@ export default function DashboardOverview({
                             <TableCell>{formatDate(plan.mp_campaigndates_end)}</TableCell>
                             <TableCell>{formatCurrency(plan.mp_campaignbudget)}</TableCell>
                             <TableCell>
-                              <Badge className={getStatusBadgeColor(plan.mp_campaignstatus)}>{plan.mp_campaignstatus}</Badge>
+                              <OverviewCampaignPhaseBadge plan={plan} />
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-wrap gap-1">
@@ -2418,7 +2432,7 @@ export default function DashboardOverview({
                             <TableCell>{formatDate(plan.mp_campaigndates_end)}</TableCell>
                             <TableCell>{formatCurrency(plan.mp_campaignbudget)}</TableCell>
                             <TableCell>
-                              <Badge className={getStatusBadgeColor(plan.mp_campaignstatus)}>{plan.mp_campaignstatus}</Badge>
+                              <OverviewCampaignPhaseBadge plan={plan} />
                             </TableCell>
                             <TableCell>
                               <div className="flex flex-wrap gap-1">

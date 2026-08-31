@@ -161,6 +161,18 @@ describe("c. isLiveCampaignStatus — phase === live", () => {
   })
 })
 
+describe("CS-C1. Home overview inclusion is commercial; display is phase", () => {
+  it("DashboardOverview picker uses isPlannedBasisCampaignStatus, not isLiveOrCompletedPhase", () => {
+    const src = readFileSync(
+      join(ROOT, "components/dashboard/DashboardOverview.tsx"),
+      "utf8"
+    )
+    assert.match(src, /isPlannedBasisCampaignStatus/)
+    assert.equal(src.includes("isLiveOrCompletedPhase"), false)
+    assert.match(src, /CampaignStatusBadge/)
+  })
+})
+
 describe("d. dashboard live-or-completed — phase in (live, completed)", () => {
   it("includes in-range approved/booked and after-end / stored completed", () => {
     assert.equal(

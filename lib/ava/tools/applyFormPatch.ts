@@ -3,6 +3,15 @@ import type { FormPatch, PageField } from "@/lib/ava/types";
 
 type PageFields = NonNullable<import("@/lib/ava/types").PageContext["fields"]>;
 
+/** Named refusal — status is an immediate action (CS-B), never a form patch. */
+export const CAMPAIGN_STATUS_PATCH_REFUSAL =
+  "Campaign status is not AVA-patchable; it is an immediate action outside the form.";
+
+function isCampaignStatusFieldId(fieldId: string): boolean {
+  const normalized = fieldId.trim().toLowerCase().replace(/_/g, "");
+  return normalized === "mpcampaignstatus" || normalized === "campaignstatus";
+}
+
 function buildEditableFieldIdMap(fields: PageFields): Map<string, true> {
   const map = new Map<string, true>();
   for (const field of fields) {
@@ -153,6 +162,12 @@ export const applyFormPatchTool: AvaTool = {
       if (typeof fieldId !== "string") {
         return {
           content: `Update at index ${i} is missing fieldId.`,
+          isError: true,
+        };
+      }
+      if (isCampaignStatusFieldId(fieldId)) {
+        return {
+          content: CAMPAIGN_STATUS_PATCH_REFUSAL,
           isError: true,
         };
       }

@@ -39,7 +39,7 @@
     "test:kpi-writes": "tsx --test lib/kpi/__tests__/kpiWriteHandlers.matrix.test.ts lib/kpi/__tests__/metrics.test.ts",
     "scan:kpi-percent-units": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx scripts/scan-kpi-percent-units.ts",
     "test:pacing-maths": "tsx --test lib/pacing/maths/__tests__/*.test.ts",
-    "test:ava-tools": "tsx --test lib/ava/tools/__tests__/registry.test.ts lib/ava/tools/__tests__/postgresTools.test.ts lib/ava/tools/__tests__/fyToRange.test.ts lib/ava/tools/__tests__/acceptIngestProposal.test.ts lib/ava/__tests__/ingestUploadTurn.test.ts lib/ava/__tests__/chatInterviewQuestion.test.ts lib/ava/__tests__/chatTurnBlocks.test.ts",
+    "test:ava-tools": "tsx --test lib/ava/tools/__tests__/registry.test.ts lib/ava/tools/__tests__/postgresTools.test.ts lib/ava/tools/__tests__/fyToRange.test.ts lib/ava/tools/__tests__/acceptIngestProposal.test.ts lib/ava/tools/__tests__/applyFormPatch.test.ts lib/ava/__tests__/ingestUploadTurn.test.ts lib/ava/__tests__/chatInterviewQuestion.test.ts lib/ava/__tests__/chatTurnBlocks.test.ts",
     "test:ava-chat-ui": "vitest run components/ava/__tests__/ChatMarkdown.render.test.tsx",
     "test:ava-autopopulate": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/ava/autopopulate/__tests__/*.test.ts",
     "test:ava-detect-goldens": "tsx --test lib/ava/autopopulate/__tests__/detectPlanStructure.fixtures.test.ts",

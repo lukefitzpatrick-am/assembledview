@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { CampaignStatusBadge } from "@/components/campaign/CampaignStatusBadge"
 import { mediaChannelTagRowClassName } from "@/components/dashboard/MediaChannelTag"
 import { cn } from "@/lib/utils"
 
@@ -44,7 +45,7 @@ export function DashboardCampaignPlanCard({
   formatCurrency,
   mediaTypeTags,
   showStatus,
-  statusBadgeClassName,
+  statusBadgeClassName: _statusBadgeClassName,
   onEdit,
   onView,
   viewDisabled,
@@ -78,7 +79,11 @@ export function DashboardCampaignPlanCard({
         </div>
         {showStatus ? (
           <Field label="Status">
-            <Badge className={statusBadgeClassName}>{plan.mp_campaignstatus}</Badge>
+            <CampaignStatusBadge
+              status={plan.mp_campaignstatus}
+              startDate={plan.mp_campaigndates_start || null}
+              endDate={plan.mp_campaigndates_end || null}
+            />
           </Field>
         ) : null}
         <Field label="Media types">

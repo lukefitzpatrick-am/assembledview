@@ -36,7 +36,7 @@ export type CampaignPhaseInput = {
   today?: Date
 }
 
-/** True when derived phase is live or completed (dashboard commercial inclusion). */
+/** True when derived phase is live or completed (time, not commercial inclusion). */
 export function isLiveOrCompletedPhase(input: CampaignPhaseInput): boolean {
   const phase = resolveCampaignPhase(input).phase
   return phase === "live" || phase === "completed"

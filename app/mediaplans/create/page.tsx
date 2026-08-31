@@ -259,11 +259,7 @@ import {
 import { useWriteBackend } from "@/lib/data/WriteBackendContext"
 import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
 import { shouldRunDeferredMasterPublish } from "@/lib/mediaplan/publishVersionIntegrityClient"
-import {
-  campaignStatusDisplayLabel,
-  mapCampaignStatusForPersist,
-  SELECTABLE_CAMPAIGN_STATUSES,
-} from "@/lib/mediaplan/campaignStatusGuard"
+import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import {
   isApprovedOrBeyond,
   publishedBillingTimingLockedMessage,
@@ -7075,21 +7071,6 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
         options: clients.map((client) => ({
           label: client.mp_client_name,
           value: client.mp_client_name,
-        })),
-        validation: { required: true },
-      },
-      {
-        id: "mp_campaignstatus",
-        label: "Campaign Status",
-        type: "enum",
-        value: values.mp_campaignstatus,
-        editable: true,
-        semanticType: "status",
-        group: "campaign",
-        source: "ui",
-        options: SELECTABLE_CAMPAIGN_STATUSES.map((value) => ({
-          label: campaignStatusDisplayLabel(value),
-          value,
         })),
         validation: { required: true },
       },

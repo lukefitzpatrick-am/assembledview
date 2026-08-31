@@ -332,9 +332,11 @@ describe("create + edit assembly twins (shared helpers)", () => {
         src,
         /postPlansSave\(\s*assemblePlansSaveRequestBody\(/
       )
-      assert.match(src, /SELECTABLE_CAMPAIGN_STATUSES/)
       assert.match(src, /CampaignStatusControl/)
     }
+    // CS-C1: create AVA PageFields omit campaign status; selectable vocab stays on edit (control options).
+    assert.equal(createSrc.includes("SELECTABLE_CAMPAIGN_STATUSES"), false)
+    assert.match(editSrc, /SELECTABLE_CAMPAIGN_STATUSES/)
   })
 
   it("CS-B: create keep mapCampaignStatusForPersist on ensureMaster only; neither page sends version campaignStatus", () => {

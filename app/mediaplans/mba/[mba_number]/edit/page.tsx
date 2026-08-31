@@ -11074,21 +11074,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     const baseFields: PageField[] = [
       {
-        id: "mp_campaignstatus",
-        label: "Campaign Status",
-        type: "enum",
-        value: values.mp_campaignstatus,
-        editable: true,
-        semanticType: "status",
-        group: "campaign",
-        source: "ui",
-        options: SELECTABLE_CAMPAIGN_STATUSES.map((value) => ({
-          label: campaignStatusDisplayLabel(value),
-          value,
-        })),
-        validation: { required: true },
-      },
-      {
         id: "mp_campaignname",
         label: "Campaign Name",
         type: "string",

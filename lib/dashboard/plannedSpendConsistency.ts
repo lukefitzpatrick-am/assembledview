@@ -24,6 +24,12 @@ import { clampMonthlyAmountsToRange } from "@/lib/dashboard/clientDateRange"
 
 /** Client-safe mirror of `isBookedApprovedCompleted` (`lib/api/dashboard/shared.ts`).
  * Commercial inclusion only (booked|approved|completed) — not tip picking.
+ *
+ * Three questions (never the same call):
+ *   - which version is live      → publication (`published_at` / resolveDashboardLiveVersionRow)
+ *   - does this campaign count   → commercial status (this predicate)
+ *   - where is it in time        → resolveCampaignPhase
+ *
  * Tip resolution lives in `resolveDashboardLiveVersionRow` on the server aggregation path.
  * Duplicated rather than imported: `shared.ts` pulls in the server-only Xano axios client
  * (reads the Xano API key from env), so importing it from a "use client" component risks

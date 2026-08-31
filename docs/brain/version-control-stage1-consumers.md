@@ -74,6 +74,7 @@ Dashboard aggregators used to answer **which version is live** and **does it cou
 |---|---|---|
 | Which version is live? | `resolveDashboardLiveVersionRow` in `lib/api/dashboard/shared.ts` | Caller `publishedVersionNumber` (master tip) → else highest version with `published_at` non-null. **Never** `campaign_status`. `pickHighestVersionRow` delegates here. |
 | Does it count commercially? | `isBookedApprovedCompleted` (name + set unchanged) | `booked \| approved \| completed` only — Bucket B |
+| Where is it in time? | `resolveCampaignPhase` / `CampaignStatusBadge` | Display only. Home `DashboardOverview` inclusion is `isPlannedBasisCampaignStatus` (BAC mirror), never phase. |
 
 | site | tip | commercial |
 |---|---|---|

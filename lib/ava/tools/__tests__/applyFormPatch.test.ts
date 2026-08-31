@@ -1,8 +1,43 @@
 import assert from "node:assert/strict"
+import { readFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import test from "node:test"
 import { applyFormPatchTool } from "../applyFormPatch.js"
 import type { AvaToolContext } from "../types.js"
 import type { PageField } from "@/lib/ava/types"
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "../../../..")
+
+/** Create-page AVA fields as CS-B left them: campaign status still listed with options. */
+function createPageFieldsWithStatusStillListed(): PageField[] {
+  return [
+    {
+      id: "mp_client_name",
+      editable: true,
+      type: "enum",
+      options: [{ label: "Acme", value: "Acme" }],
+    },
+    {
+      id: "mp_campaignstatus",
+      label: "Campaign Status",
+      type: "enum",
+      editable: true,
+      semanticType: "status",
+      options: [
+        { label: "Planned", value: "planned" },
+        { label: "Approved", value: "approved" },
+        { label: "Booked", value: "booked" },
+        { label: "Cancelled", value: "cancelled" },
+      ],
+    },
+    {
+      id: "mp_campaignname",
+      editable: true,
+      type: "string",
+    },
+  ]
+}
 
 function ctx(fields: PageField[]): AvaToolContext {
   return {
@@ -96,4 +131,24 @@ test("apply_form_patch accepts valid option and number values", async () => {
   assert.equal(c.capturedPatch?.updates.length, 2)
   assert.equal(c.capturedPatch?.updates[0].value, "Live")
   assert.equal(c.capturedPatch?.updates[1].value, "15000")
+})
+
+test("apply_form_patch refuses a campaign-status patch on create page fields", async () => {
+  const c = ctx(createPageFieldsWithStatusStillListed())
+
+  const result = await applyFormPatchTool.execute(
+    { updates: [{ fieldId: "mp_campaignstatus", value: "approved" }] },
+    c,
+  )
+
+  assert.equal(result.isError, true)
+  assert.match(result.content, /not AVA-patchable/i)
+  assert.match(result.content, /immediate action/i)
+  assert.equal(c.capturedPatch, null)
+})
+
+test("create page AVA PageFields do not register campaign status as patchable", () => {
+  const src = readFileSync(join(ROOT, "app/mediaplans/create/page.tsx"), "utf8")
+  assert.equal(src.includes('id: "mp_campaignstatus"'), false)
+  assert.equal(src.includes("options: SELECTABLE_CAMPAIGN_STATUSES"), false)
 })

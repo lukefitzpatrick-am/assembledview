@@ -90,7 +90,14 @@ export function normalizeTags(value: any): string[] {
   return []
 }
 
-/** Commercial inclusion only — booked | approved | completed. Not tip picking. */
+/**
+ * Commercial inclusion only — booked | approved | completed. Not tip picking.
+ *
+ * Three questions (never the same call):
+ *   - which version is live      → publication (`published_at` / resolveDashboardLiveVersionRow)
+ *   - does this campaign count   → commercial status (this predicate)
+ *   - where is it in time        → resolveCampaignPhase
+ */
 export const isBookedApprovedCompleted = (status: any) => {
   const normalized = normalizeStatus(status)
   return normalized === 'booked' || normalized === 'approved' || normalized === 'completed'
@@ -102,7 +109,10 @@ export const isBookedApprovedCompleted = (status: any) => {
  * Order: caller `publishedVersionNumber` (master tip) → else highest version with
  * `published_at` non-null. Never reads `campaign_status`.
  *
- * Commercial inclusion is a separate predicate (`isBookedApprovedCompleted`).
+ * Three questions (never the same call):
+ *   - which version is live      → publication (this function / published_at)
+ *   - does this campaign count   → commercial status (`isBookedApprovedCompleted`)
+ *   - where is it in time        → resolveCampaignPhase
  */
 export function resolveDashboardLiveVersionRow(
   versions: any[],
