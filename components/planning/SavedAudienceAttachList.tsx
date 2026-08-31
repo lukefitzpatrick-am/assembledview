@@ -14,9 +14,9 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
+import { campaignPickerPriorityRank } from "@/lib/mediaplan/campaignPhase"
 import { formatAudienceWc } from "./robustness"
 
-const PRIORITY_STATUSES = new Set(["live", "booked", "approved"])
 const DETACH_VALUE = "__detach__"
 
 type MediaPlanRow = {
@@ -26,6 +26,7 @@ type MediaPlanRow = {
   campaign_name?: string
   campaign_status?: string
   campaign_start_date?: string
+  campaign_end_date?: string
 }
 
 function normalizeName(value: string | undefined | null): string {
@@ -33,13 +34,18 @@ function normalizeName(value: string | undefined | null): string {
 }
 
 function sortCampaigns(a: MediaPlanRow, b: MediaPlanRow): number {
-  const aPriority = PRIORITY_STATUSES.has(String(a.campaign_status ?? "").toLowerCase())
-    ? 0
-    : 1
-  const bPriority = PRIORITY_STATUSES.has(String(b.campaign_status ?? "").toLowerCase())
-    ? 0
-    : 1
-  if (aPriority !== bPriority) return aPriority - bPriority
+  const rank =
+    campaignPickerPriorityRank({
+      status: a.campaign_status,
+      startDate: a.campaign_start_date,
+      endDate: a.campaign_end_date,
+    }) -
+    campaignPickerPriorityRank({
+      status: b.campaign_status,
+      startDate: b.campaign_start_date,
+      endDate: b.campaign_end_date,
+    })
+  if (rank !== 0) return rank
   const aMs = a.campaign_start_date ? new Date(a.campaign_start_date).getTime() : 0
   const bMs = b.campaign_start_date ? new Date(b.campaign_start_date).getTime() : 0
   return (Number.isNaN(bMs) ? 0 : bMs) - (Number.isNaN(aMs) ? 0 : aMs)

@@ -205,7 +205,7 @@ export async function resolveLiveProgrammaticLineItemInputs(
 ): Promise<LiveProgrammaticLineItemInput[]> {
   const masters = await fetchAllMasters();
   const liveMasters = masters.filter((m) => {
-    if (!isLiveCampaignStatus(m.campaign_status)) return false;
+    if (!isLiveCampaignStatus(m.campaign_status, m.campaign_start_date, m.campaign_end_date, args.asOfDate)) return false;
     if (!m.campaign_start_date || !m.campaign_end_date) return false;
     if (args.asOfDate < m.campaign_start_date || args.asOfDate > m.campaign_end_date) {
       return false;

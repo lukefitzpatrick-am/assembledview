@@ -28,7 +28,10 @@ import {
   snapshotChecksumFooter,
   type ChecksumScheduleRow,
 } from "@/lib/docs/snapshotChecksum"
-import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
+import {
+  isVersionPublished,
+  unpublishedDocumentError,
+} from "@/lib/mediaplan/versionPublication"
 
 export class PersistedDocError extends Error {
   constructor(
@@ -227,7 +230,7 @@ export async function buildMbaFromPersisted(args: {
   if (!isVersionPublished(version)) {
     throw new PersistedDocError(
       "NOT_APPROVED",
-      `Document render requires a published version (published_at set; campaign_status="${String(version.campaignStatus ?? "") || "empty"}")`
+      unpublishedDocumentError("render")
     )
   }
 

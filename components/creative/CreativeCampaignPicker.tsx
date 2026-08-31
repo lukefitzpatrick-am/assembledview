@@ -14,6 +14,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { setAssistantContext, clearAssistantContext } from "@/lib/assistantBridge"
 import type { PageContext } from "@/lib/ava/types"
 import { getClientDisplayName } from "@/lib/clients/slug"
+import { campaignPickerPriorityRank } from "@/lib/mediaplan/campaignPhase"
 import { cn } from "@/lib/utils"
 
 type ClientRow = {
@@ -32,6 +33,7 @@ type MediaPlanRow = {
   campaign_name?: string
   campaign_status?: string
   campaign_start_date?: string
+  campaign_end_date?: string
 }
 
 type CreativeCampaignPickerProps = {
@@ -42,7 +44,21 @@ type CreativeCampaignPickerProps = {
   lockedClientName?: string
 }
 
-const PRIORITY_STATUSES = new Set(["live", "booked", "approved"])
+function sortCampaigns(a: MediaPlanRow, b: MediaPlanRow): number {
+  const rank =
+    campaignPickerPriorityRank({
+      status: a.campaign_status,
+      startDate: a.campaign_start_date,
+      endDate: a.campaign_end_date,
+    }) -
+    campaignPickerPriorityRank({
+      status: b.campaign_status,
+      startDate: b.campaign_start_date,
+      endDate: b.campaign_end_date,
+    })
+  if (rank !== 0) return rank
+  return startDateMs(b.campaign_start_date) - startDateMs(a.campaign_start_date)
+}
 
 function normalizeClientName(value: string | undefined | null): string {
   return String(value ?? "").trim().toLowerCase()
@@ -74,13 +90,6 @@ function startDateMs(value: string | undefined): number {
   if (!value) return 0
   const ms = new Date(value).getTime()
   return Number.isNaN(ms) ? 0 : ms
-}
-
-function sortCampaigns(a: MediaPlanRow, b: MediaPlanRow): number {
-  const aPriority = PRIORITY_STATUSES.has(String(a.campaign_status ?? "").toLowerCase()) ? 0 : 1
-  const bPriority = PRIORITY_STATUSES.has(String(b.campaign_status ?? "").toLowerCase()) ? 0 : 1
-  if (aPriority !== bPriority) return aPriority - bPriority
-  return startDateMs(b.campaign_start_date) - startDateMs(a.campaign_start_date)
 }
 
 export function CreativeCampaignPicker({ lockedClientName }: CreativeCampaignPickerProps) {

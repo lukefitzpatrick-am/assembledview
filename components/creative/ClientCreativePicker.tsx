@@ -9,14 +9,16 @@ import { Button } from "@/components/ui/button"
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { campaignPickerPriorityRank } from "@/lib/mediaplan/campaignPhase"
 import { cn } from "@/lib/utils"
 
 export type ClientCampaignOption = {
   mbaNumber: string
   campaignName: string
   status?: string
-  /** Used for sort only — most recent first within priority status group. */
+  /** Used for sort only — most recent first within priority rank. */
   startDate?: string
+  endDate?: string
 }
 
 type ClientCreativePickerProps = {
@@ -25,7 +27,21 @@ type ClientCreativePickerProps = {
   metaPageId?: string
 }
 
-const PRIORITY_STATUSES = new Set(["live", "booked", "approved"])
+function sortCampaigns(a: ClientCampaignOption, b: ClientCampaignOption): number {
+  const rank =
+    campaignPickerPriorityRank({
+      status: a.status,
+      startDate: a.startDate,
+      endDate: a.endDate,
+    }) -
+    campaignPickerPriorityRank({
+      status: b.status,
+      startDate: b.startDate,
+      endDate: b.endDate,
+    })
+  if (rank !== 0) return rank
+  return startDateMs(b.startDate) - startDateMs(a.startDate)
+}
 
 function statusBadgeClassName(status: string): string {
   switch (status.toLowerCase()) {
@@ -49,13 +65,6 @@ function startDateMs(value: string | undefined): number {
   if (!value) return 0
   const ms = new Date(value).getTime()
   return Number.isNaN(ms) ? 0 : ms
-}
-
-function sortCampaigns(a: ClientCampaignOption, b: ClientCampaignOption): number {
-  const aPriority = PRIORITY_STATUSES.has(String(a.status ?? "").toLowerCase()) ? 0 : 1
-  const bPriority = PRIORITY_STATUSES.has(String(b.status ?? "").toLowerCase()) ? 0 : 1
-  if (aPriority !== bPriority) return aPriority - bPriority
-  return startDateMs(b.startDate) - startDateMs(a.startDate)
 }
 
 function campaignOptionLabel(campaign: ClientCampaignOption): string {

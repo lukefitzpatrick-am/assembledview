@@ -22,15 +22,47 @@ function calendarYmd(value: string | null | undefined): string | null {
 }
 
 /**
- * Derived delivery phase from persisted commercial status + campaign dates.
- * Never persist the result — `live` is not a stored status.
+ * UTC instant that maps to `ymd` as an Australia/Sydney civil day.
+ * 02:00Z is always that YMD in Sydney (AEST/AEDT).
  */
-export function resolveCampaignPhase(input: {
+export function sydneyCivilDayFromYmd(ymd: string): Date {
+  return new Date(`${ymd}T02:00:00.000Z`)
+}
+
+export type CampaignPhaseInput = {
   status: unknown
   startDate?: string | null
   endDate?: string | null
   today?: Date
-}): { phase: CampaignPhase; derived: boolean; reason: string } {
+}
+
+/** True when derived phase is live or completed (dashboard commercial inclusion). */
+export function isLiveOrCompletedPhase(input: CampaignPhaseInput): boolean {
+  const phase = resolveCampaignPhase(input).phase
+  return phase === "live" || phase === "completed"
+}
+
+/**
+ * Picker sort rank: derived live first, then stored booked, then stored approved.
+ * Never matches a persisted status string of `"live"` — that value is not stored.
+ */
+export function campaignPickerPriorityRank(input: CampaignPhaseInput): number {
+  const phase = resolveCampaignPhase(input).phase
+  if (phase === "live") return 0
+  if (phase === "booked") return 1
+  if (phase === "approved") return 2
+  return 3
+}
+
+/**
+ * Derived delivery phase from persisted commercial status + campaign dates.
+ * Never persist the result — `live` is not a stored status.
+ */
+export function resolveCampaignPhase(input: CampaignPhaseInput): {
+  phase: CampaignPhase
+  derived: boolean
+  reason: string
+} {
   const status = normaliseStatus(input.status)
   const todayYmd = formatBurstDateLocal(input.today ?? new Date())
   const start = calendarYmd(input.startDate)

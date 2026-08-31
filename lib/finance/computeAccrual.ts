@@ -21,7 +21,14 @@ export type AccrualRow = {
 }
 
 const RECEIVABLE_TYPES: BillingType[] = ["media", "sow", "retainer"]
-/** Receivable amounts in accrual: match Overview KPIs (`booked` + downstream billing states). */
+/**
+ * Mixed axis — do not fold into campaign phase.
+ * Membership is campaign commercial status (`booked`, `approved`) PLUS billing
+ * lifecycle (`invoiced`, `paid`). Those last two are not campaign_status values.
+ * Accrual amounts stay on this set. See KNOWN-ISSUES CS-1.
+ * `lib/finance/financeTabFilterScope.ts` RECEIVABLE_STATUSES is a separate
+ * Overview KPI filter list — also leave that alone.
+ */
 const RECEIVABLE_STATUSES = new Set(["booked", "approved", "invoiced", "paid"])
 
 function roundMoney(n: number): number {

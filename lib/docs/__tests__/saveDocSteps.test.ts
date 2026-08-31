@@ -85,6 +85,18 @@ describe("isExpectedDocGateSkipError", () => {
       ),
       true
     )
+    assert.equal(
+      isExpectedDocGateSkipError(
+        "Document download requires a published version (published_at set)"
+      ),
+      true
+    )
+    assert.equal(
+      isExpectedDocGateSkipError(
+        "Publish this plan to download and send to client"
+      ),
+      true
+    )
   })
 
   it("does not treat unrelated failures as skips", () => {
@@ -137,7 +149,7 @@ describe("saving dialog state with skipped doc steps", () => {
 describe("classifyDocStepFailure", () => {
   it("reclassifies PC3 gate as skipped with stable copy", () => {
     const c = classifyDocStepFailure(
-      'Document render requires a published version (published_at set; campaign_status="draft")'
+      "Document render requires a published version (published_at set)"
     )
     assert.equal(c.status, "skipped")
     assert.equal(c.error, DOC_SKIP_REASON)

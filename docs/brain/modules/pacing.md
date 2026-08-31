@@ -26,7 +26,7 @@ Tracks actual delivery (Snowflake facts) against plan (Xano media plans) at line
 
 ## Data flow (search, representative)
 
-Masters (full crawl via `readPacingMasters`) → live filter (status + date window + allowed slugs) → versions (full crawl via `readPacingVersions`) → per-MBA channel line items (**still Xano** until T2e; concurrency 8, 5 param-shape attempts) → parse bursts → current burst by asOfDate → campaign KPIs (`readKpi` / T2b) → Snowflake facts bucketed by line_item_id → `computePacing` on current burst → `pacingStatus()` → 5-band Status pill (on-track / ahead / behind / over-pacing / no-data) + orthogonal KPI Pending tile.
+Masters (full crawl via `readPacingMasters`) → live filter (`isLiveCampaignStatus` = phase `live`, plus date window + allowed slugs) → versions (full crawl via `readPacingVersions`) → per-MBA channel line items (**still Xano** until T2e; concurrency 8, 5 param-shape attempts) → parse bursts → current burst by asOfDate → campaign KPIs (`readKpi` / T2b) → Snowflake facts bucketed by line_item_id → `computePacing` on current burst → `pacingStatus()` → 5-band Status pill (on-track / ahead / behind / over-pacing / no-data) + orthogonal KPI Pending tile.
 
 ## Consumed by
 

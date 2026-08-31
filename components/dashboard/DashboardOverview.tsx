@@ -21,6 +21,7 @@ import {
 import { format } from "date-fns"
 import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
 import { formatMoney } from "@/lib/format/money"
+import { isLiveOrCompletedPhase } from "@/lib/mediaplan/campaignPhase"
 import { usePathname, useRouter } from "next/navigation"
 import { AuthPageLoading } from "@/components/AuthLoadingState"
 import { cn } from "@/lib/utils"
@@ -158,8 +159,6 @@ type DashboardMetricCard = {
   panelId: string
 }
 
-const LIVE_STATUSES = ["booked", "approved", "completed"]
-
 const normalizeStatus = (status?: string | null) => (status || "").toString().toLowerCase().trim()
 
 const slugifyClientName = (name?: string | null) => {
@@ -269,8 +268,8 @@ const getLatestPlanVersions = (plans: MediaPlan[]): MediaPlan[] => {
 }
 
 /**
- * Per MBA, use the highest-version plan that is booked, approved, or completed.
- * A newer draft must not hide an approved/booked/completed version used for live metrics.
+ * Per MBA, use the highest-version plan whose derived phase is live or completed.
+ * A newer draft/planned must not hide an in-flight or finished commercial version.
  */
 function getHighestBookedApprovedCompletedVersionPerMba(plans: MediaPlan[]): MediaPlan[] {
   const byMba = new Map<string, MediaPlan[]>()
@@ -284,10 +283,13 @@ function getHighestBookedApprovedCompletedVersionPerMba(plans: MediaPlan[]): Med
   }
   const out: MediaPlan[] = []
   for (const [, group] of byMba) {
-    const eligible = group.filter((p) => {
-      const status = normalizeStatus(p.mp_campaignstatus)
-      return status !== "" && LIVE_STATUSES.includes(status)
-    })
+    const eligible = group.filter((p) =>
+      isLiveOrCompletedPhase({
+        status: p.mp_campaignstatus,
+        startDate: p.mp_campaigndates_start || null,
+        endDate: p.mp_campaigndates_end || null,
+      })
+    )
     if (eligible.length === 0) continue
     const best = eligible.reduce((a, b) => {
       const va = Number(a.mp_version) || 0

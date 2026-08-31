@@ -20,7 +20,7 @@
 |---|---|---|---|
 | `isVersionPublished` | `published_at != null` (`lib/mediaplan/versionPublication.ts`) | n/a | **Canonical publication** — Stage 1 target; no status fallback |
 | `isPublished` (edit+create) | `isVersionPublished(selected version)` | n/a | Download / send-to-client UX only |
-| `isApprovedOrBeyond` | `approved \| booked \| completed` | **no** | **Billing mutability** (MB-15c) + commercial helpers — not a publication gate |
+| `isApprovedOrBeyond` | `approved \| booked`, or `resolveCampaignPhase` `completed` | **no** | **Billing mutability** (MB-15c) + commercial helpers — not a publication gate |
 | `resolvePostgresSaveMode` overwrite | tip unpublished (`published_at` null) && tip > 0 && !forceIncrement && intent≠publish | n/a | May overwrite tip in place |
 | `resolvePostgresSaveMode` working_draft | tip published && !forceIncrement && intent=save | n/a | Write `plan_working_drafts`; tip byte-identical |
 | `isFinanceIncludedCampaignStatus` | same set as approved-or-beyond | no | Finance totals — **B**, not publication |

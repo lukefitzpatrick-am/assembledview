@@ -6,6 +6,11 @@
  *
  * If Xano grows columns over time, extend this interface; do not narrow it.
  */
+import {
+  resolveCampaignPhase,
+  sydneyCivilDayFromYmd,
+} from "@/lib/mediaplan/campaignPhase";
+
 export interface MediaPlanMaster {
   id: number;
   mba_number: string;
@@ -19,11 +24,29 @@ export interface MediaPlanMaster {
   created_at?: number;
 }
 
-/** Statuses that count as "live" for the pacing/campaigns page. */
-const LIVE_CAMPAIGN_STATUSES = ["booked", "approved"] as const;
-export type LiveCampaignStatus = (typeof LIVE_CAMPAIGN_STATUSES)[number];
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export function isLiveCampaignStatus(status: string | undefined | null): status is LiveCampaignStatus {
-  if (!status) return false;
-  return (LIVE_CAMPAIGN_STATUSES as readonly string[]).includes(status.trim().toLowerCase());
+/**
+ * Pacing "live" gate. Name kept so call sites do not churn.
+ * Body is `resolveCampaignPhase(...).phase === "live"` — `live` is not a stored status.
+ * Pass campaign dates and optional as-of YMD (pacing `asOfDate`); omit asOf to use now.
+ */
+export function isLiveCampaignStatus(
+  status: string | undefined | null,
+  startDate?: string | null,
+  endDate?: string | null,
+  asOfYmd?: string | null,
+): boolean {
+  const today =
+    asOfYmd && DATE_ONLY_RE.test(asOfYmd)
+      ? sydneyCivilDayFromYmd(asOfYmd)
+      : undefined;
+  return (
+    resolveCampaignPhase({
+      status,
+      startDate,
+      endDate,
+      today,
+    }).phase === "live"
+  );
 }

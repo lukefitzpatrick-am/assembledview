@@ -3,7 +3,10 @@ import { sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 import { requireRole } from "@/lib/requireRole"
-import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
+import {
+  isVersionPublished,
+  unpublishedDocumentError,
+} from "@/lib/mediaplan/versionPublication"
 import type { ApprovedSlice } from "@/lib/finance/approvedSlice"
 
 export const dynamic = "force-dynamic"
@@ -61,7 +64,6 @@ export async function POST(request: NextRequest) {
     const [version] = await db
       .select({
         id: schema.mediaPlanVersions.id,
-        campaignStatus: schema.mediaPlanVersions.campaignStatus,
         publishedAt: schema.mediaPlanVersions.publishedAt,
         approvedSlice: schema.mediaPlanVersions.approvedSlice,
         mediaPlanFile: schema.mediaPlanVersions.mediaPlanFile,
@@ -79,7 +81,7 @@ export async function POST(request: NextRequest) {
     if (!isVersionPublished(version)) {
       return NextResponse.json(
         {
-          error: `Document render requires a published version (published_at set; campaign_status="${version.campaignStatus || "empty"}")`,
+          error: unpublishedDocumentError("render"),
           code: "NOT_APPROVED",
         },
         { status: 422 }

@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
   isVersionPublished,
+  unpublishedDocumentError,
   normalisePublishedByEmail,
   warnIfPublishMissingPublishedBy,
 } from "../versionPublication"
@@ -22,6 +23,20 @@ describe("isVersionPublished", () => {
       isVersionPublished({ publishedAt: "2025-01-01T00:00:00.000Z" }),
       true
     )
+  })
+})
+
+describe("unpublishedDocumentError", () => {
+  it("names published_at and never campaign_status", () => {
+    assert.equal(
+      unpublishedDocumentError("download"),
+      "Document download requires a published version (published_at set)"
+    )
+    assert.equal(
+      unpublishedDocumentError("render"),
+      "Document render requires a published version (published_at set)"
+    )
+    assert.equal(unpublishedDocumentError("download").includes("campaign_status"), false)
   })
 })
 

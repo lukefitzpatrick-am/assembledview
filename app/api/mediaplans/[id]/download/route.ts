@@ -3,7 +3,10 @@ import { eq } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 import { requireRole } from "@/lib/requireRole"
-import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
+import {
+  isVersionPublished,
+  unpublishedDocumentError,
+} from "@/lib/mediaplan/versionPublication"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -34,7 +37,6 @@ export async function GET(
         id: schema.mediaPlanVersions.id,
         mbaNumber: schema.mediaPlanVersions.mbaNumber,
         versionNumber: schema.mediaPlanVersions.versionNumber,
-        campaignStatus: schema.mediaPlanVersions.campaignStatus,
         publishedAt: schema.mediaPlanVersions.publishedAt,
         mediaPlanFile: schema.mediaPlanVersions.mediaPlanFile,
         mbaPdfFile: schema.mediaPlanVersions.mbaPdfFile,
@@ -50,7 +52,7 @@ export async function GET(
     if (!isVersionPublished(version)) {
       return NextResponse.json(
         {
-          error: `Document download requires a published version (published_at set; campaign_status="${version.campaignStatus || "empty"}")`,
+          error: unpublishedDocumentError("download"),
           code: "NOT_APPROVED",
         },
         { status: 422 }

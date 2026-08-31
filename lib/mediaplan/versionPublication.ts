@@ -19,6 +19,12 @@ export function isVersionPublished(v: {
   return (v.publishedAt ?? v.published_at) != null
 }
 
+/** 422 copy when generate/download refuses an unpublished version. Never interpolates campaign_status. */
+export function unpublishedDocumentError(kind: "download" | "render"): string {
+  const verb = kind === "download" ? "download" : "render"
+  return `Document ${verb} requires a published version (published_at set)`
+}
+
 /**
  * Normalise actor email for `media_plan_versions.published_by`.
  * Migration 0018 CHECK requires lowercase (or NULL). Empty → null.

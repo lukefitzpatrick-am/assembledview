@@ -1,7 +1,7 @@
 /**
  * Backfill zero/null campaign_kpi metrics from publisher_kpi benchmarks.
  *
- * Scope: active/live media plans only (`isLiveCampaignStatus` on media_plan_master).
+ * Scope: live media plans only (`isLiveCampaignStatus` → phase live).
  * Overwrites only when campaign metric is 0/null and benchmark is non-zero. Idempotent.
  * Excludes cpv (derived-by-design on non-CPV buys).
  *
@@ -225,14 +225,14 @@ async function fetchAllMasters(): Promise<MediaPlanMaster[]> {
 }
 
 /**
- * Active/live scope: media_plan_master rows where campaign_status is booked or approved.
- * @see lib/types/mediaPlanMaster.ts:22-28 (isLiveCampaignStatus)
- * @see lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts:42-43 (pacing uses same gate)
+ * Active/live scope: masters whose derived phase is live (approved/booked in date range).
+ * @see lib/types/mediaPlanMaster.ts (isLiveCampaignStatus)
+ * @see lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts (pacing uses same gate)
  */
 function buildInScopePlans(masters: MediaPlanMaster[]): InScopePlan[] {
   const out: InScopePlan[] = []
   for (const m of masters) {
-    if (!isLiveCampaignStatus(m.campaign_status)) continue
+    if (!isLiveCampaignStatus(m.campaign_status, m.campaign_start_date, m.campaign_end_date)) continue
     out.push({
       mba_number: m.mba_number,
       version_number: m.version_number,
@@ -354,7 +354,7 @@ async function main(): Promise<void> {
     `[backfill] mode=${dryRun ? "dry-run" : "apply"} only=${onlyMba ?? "(all)"} client=${client ?? "(all)"} ids=${ids?.join(",") ?? "(all)"}`,
   )
   console.info(
-    "[backfill] live scope: isLiveCampaignStatus(campaign_status) on media_plan_master — lib/types/mediaPlanMaster.ts:22-28",
+    "[backfill] live scope: isLiveCampaignStatus (phase live) on media_plan_master",
   )
   console.info(
     "[backfill] pacing reference: lib/pacing/campaigns/fetchSearchPacingCampaignRows.ts:42-43",
@@ -546,7 +546,7 @@ async function main(): Promise<void> {
   const report: BackfillReport = {
     mode: dryRun ? "dry-run" : "apply",
     scopeSource:
-      "media_plan_master.campaign_status via isLiveCampaignStatus (booked|approved) — lib/types/mediaPlanMaster.ts:22-28",
+      "media_plan_master via isLiveCampaignStatus (phase live) — lib/types/mediaPlanMaster.ts",
     generatedAt: new Date().toISOString(),
     filters: { onlyMba, client, ids },
     inScopePlans: inScopePlans.map((p) => ({

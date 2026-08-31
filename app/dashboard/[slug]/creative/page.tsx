@@ -56,6 +56,7 @@ export default async function ClientCreativePage({ params }: ClientCreativePageP
         campaignName: campaign.campaignName,
         status: campaign.status,
         startDate: campaign.startDate,
+        endDate: campaign.endDate,
       })
     }
     return options

@@ -32,6 +32,12 @@ C-numbers are allocated on `localhost` only, and are never reassigned once writt
 |---|---|---|
 | SE-1 | `POST /api/plans/save` 401 from edge middleware left SavingModal pending-spinners (looked hung) and create treated postgres `!ok` as success (`clearDirtyOnSaveSuccess` + `router.push`) while reads still looked logged-in | FIXED — session-expired copy + skip remaining steps + app banner until the next successful write; create throws `WriteSessionExpiredError` so `handleSaveAll` stays on the page |
 
+## Campaign status / phase (CS-*)
+
+| ID | Issue | Status |
+|---|---|---|
+| CS-1 | `lib/finance/computeAccrual.ts` `RECEIVABLE_STATUSES` mixes campaign commercial status (`booked`, `approved`) with billing lifecycle (`invoiced`, `paid`). Those last two are not `campaign_status` values. Different axis from `resolveCampaignPhase` — do not fold into phase. Accrual amounts stay on this mixed set. `lib/finance/financeTabFilterScope.ts` `RECEIVABLE_STATUSES` is a separate Overview KPI filter list. | Open — leave accrual membership unchanged |
+
 ## Data integrity (DI-*)
 
 | ID | Issue | Status |

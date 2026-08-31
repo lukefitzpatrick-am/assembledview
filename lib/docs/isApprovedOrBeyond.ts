@@ -1,30 +1,47 @@
 /**
- * PC3 / commercial — approved-or-beyond gate (Bucket B).
- * approved / booked / completed (case-insensitive). Draft/planned/cancelled → false.
+ * Billing immutability only (Bucket B / MB-15c). Not publication.
  *
- * VC Stage 1: do NOT use this for publication. Publication is
- * `isVersionPublished` (`published_at != null`) in
- * `lib/mediaplan/versionPublication.ts`. This helper remains for genuine
- * commercial-status consumers.
- * Billing immutability only. MBA document generate/download on localhost
- * uses `isVersionPublished`; `isDownloadableCampaignStatus` is the hotfix
- * predicate (everything except draft) — do not merge the two predicates.
- * Uses mediaplan status normalisation (not a second status vocabulary).
+ * Commercial set is `approved` | `booked`. `completed` is a derived phase —
+ * treat `resolveCampaignPhase(...).phase === "completed"` as beyond (legacy
+ * stored `completed` and approved/booked after end). Dates optional: billing
+ * writers often have status only; stored `completed` still resolves as phase
+ * completed with no dates.
+ *
+ * Publication is `isVersionPublished` (`published_at != null`) in
+ * `lib/mediaplan/versionPublication.ts`. Do NOT use this for download.
+ * `isDownloadableCampaignStatus` is a leftover hotfix (everything except draft)
+ * — unused by generate/download; do not merge the two predicates.
  */
 
+import { resolveCampaignPhase } from "@/lib/mediaplan/campaignPhase"
 import { normaliseStatus } from "@/lib/mediaplan/campaignStatusGuard"
 
-const APPROVED_OR_BEYOND = new Set(["approved", "booked", "completed"])
+const APPROVED_OR_BOOKED = new Set(["approved", "booked"])
 
-export function isApprovedOrBeyond(status: unknown): boolean {
-  return APPROVED_OR_BEYOND.has(normaliseStatus(status))
+export function isApprovedOrBeyond(
+  status: unknown,
+  dates?: {
+    startDate?: string | null
+    endDate?: string | null
+    today?: Date
+  }
+): boolean {
+  const stored = normaliseStatus(status)
+  if (APPROVED_OR_BOOKED.has(stored)) return true
+  return (
+    resolveCampaignPhase({
+      status,
+      startDate: dates?.startDate,
+      endDate: dates?.endDate,
+      today: dates?.today,
+    }).phase === "completed"
+  )
 }
 
 /**
- * Download / document gate (18 Aug 2026 hotfix). "May the client have this document?"
- * Everything except draft. Empty / unknown status refuses.
- * NOT the same question as isApprovedOrBeyond ("may this still be edited") — do not merge
- * these two predicates. planned is downloadable AND still editable.
+ * Leftover hotfix. "May the client have this document?" was everything except draft.
+ * Generate/download call sites use `isVersionPublished` instead. Keep exported so the
+ * two questions stay separate — do not merge with isApprovedOrBeyond.
  */
 const NOT_DOWNLOADABLE = new Set(["draft"])
 export function isDownloadableCampaignStatus(status: unknown): boolean {
@@ -33,7 +50,7 @@ export function isDownloadableCampaignStatus(status: unknown): boolean {
 }
 
 export const DOWNLOAD_BLOCKED_MESSAGE =
-  "Set the campaign status past Draft to download and send to client"
+  "Publish this plan to download and send to client"
 
 /** UI copy when billing timing is locked on a published version (MB-15c). */
 export function publishedBillingTimingLockedMessage(args?: {

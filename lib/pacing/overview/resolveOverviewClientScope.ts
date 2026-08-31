@@ -60,7 +60,7 @@ export async function resolveOverviewClientScope(
   const slugSet = new Set<string>();
 
   for (const m of masters) {
-    if (!isLiveCampaignStatus(m.campaign_status)) continue;
+    if (!isLiveCampaignStatus(m.campaign_status, m.campaign_start_date, m.campaign_end_date, args.asOfDate)) continue;
     if (!m.campaign_start_date || !m.campaign_end_date) continue;
     if (args.asOfDate < m.campaign_start_date || args.asOfDate > m.campaign_end_date) {
       continue;

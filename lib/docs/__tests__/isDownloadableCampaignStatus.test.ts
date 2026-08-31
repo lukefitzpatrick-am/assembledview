@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 import {
+  DOWNLOAD_BLOCKED_MESSAGE,
   isApprovedOrBeyond,
   isDownloadableCampaignStatus,
 } from "../isApprovedOrBeyond"
@@ -42,5 +43,10 @@ describe("isDownloadableCampaignStatus", () => {
   it("isApprovedOrBeyond(planned) is still false", () => {
     assert.equal(isApprovedOrBeyond("planned"), false)
     assert.equal(isApprovedOrBeyond("Planned"), false)
+  })
+
+  it("DOWNLOAD_BLOCKED_MESSAGE references publishing, not Draft", () => {
+    assert.match(DOWNLOAD_BLOCKED_MESSAGE, /Publish this plan/)
+    assert.equal(/draft/i.test(DOWNLOAD_BLOCKED_MESSAGE), false)
   })
 })
