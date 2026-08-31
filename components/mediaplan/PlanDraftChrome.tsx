@@ -15,20 +15,40 @@ import {
   removedLineCaption,
 } from "@/lib/mediaplan/drafts/fieldDiff"
 import type { PlanSavePill } from "@/lib/mediaplan/drafts/pill"
+import { cn } from "@/lib/utils"
 
 export function PlanDraftPill(props: {
   pill: PlanSavePill | null
   tipLabel?: string | null
+  /** Rail: one truncated line each, no wrap into the save bar. */
+  compact?: boolean
 }) {
   if (!props.pill) return null
   return (
-    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-      <Badge variant="secondary" size="sm" className="rounded-pill font-normal">
+    <div
+      className={cn(
+        "min-w-0 text-xs text-muted-foreground",
+        props.compact
+          ? "flex flex-col items-start gap-0.5"
+          : "flex flex-wrap items-center gap-2"
+      )}
+    >
+      <Badge
+        variant="secondary"
+        size="sm"
+        className={cn("rounded-pill font-normal", props.compact && "max-w-full truncate")}
+      >
         {props.pill.primary}
       </Badge>
-      {props.pill.secondary ? <span>{props.pill.secondary}</span> : null}
+      {props.pill.secondary ? (
+        <span className={cn(props.compact && "max-w-full truncate")}>
+          {props.pill.secondary}
+        </span>
+      ) : null}
       {props.tipLabel ? (
-        <span className="text-muted-foreground">Docs/pacing serve {props.tipLabel}</span>
+        <span className={cn("text-muted-foreground", props.compact && "max-w-full truncate")}>
+          Docs/pacing serve {props.tipLabel}
+        </span>
       ) : null}
     </div>
   )
@@ -73,6 +93,8 @@ export function PlanDraftActiveBanner(props: {
   onDiscard: () => void
   /** Create-page meaningful draft: names client, campaign, lines, budget. */
   headline?: string
+  /** Rail: single-line text + actions stacked, no save-bar band. */
+  compact?: boolean
 }) {
   const cycleRef = useRef(0)
   const n = props.summary.changeCount
@@ -91,9 +113,20 @@ export function PlanDraftActiveBanner(props: {
   return (
     <div
       role="status"
-      className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-status-warning/40 bg-surface-panel px-3 py-2 shadow-e0"
+      className={cn(
+        "rounded-card border border-status-warning/40 bg-surface-panel shadow-e0",
+        props.compact
+          ? "flex flex-col items-stretch gap-1.5 px-2 py-1.5"
+          : "mb-3 flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+      )}
     >
-      <p className="text-sm text-foreground">
+      <p
+        className={cn(
+          "text-foreground",
+          props.compact ? "truncate text-xs leading-snug" : "text-sm"
+        )}
+        title={props.headline || undefined}
+      >
         {props.headline ? (
           props.headline
         ) : (
@@ -127,7 +160,7 @@ export function PlanDraftActiveBanner(props: {
           </>
         )}
       </p>
-      <div className="flex flex-wrap gap-2">
+      <div className={cn("flex gap-2", props.compact ? "flex-col" : "flex-wrap")}>
         <Button type="button" size="sm" variant="outline" onClick={viewChanges}>
           View changes
         </Button>
@@ -146,17 +179,28 @@ export function PlanDraftStaleBanner(props: {
   onLoadAnyway: () => void
   onDiscard: () => void
   onCompare?: () => void
+  compact?: boolean
 }) {
   return (
     <div
       role="status"
-      className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-status-warning/40 bg-surface-panel px-3 py-2 shadow-e0"
+      className={cn(
+        "rounded-card border border-status-warning/40 bg-surface-panel shadow-e0",
+        props.compact
+          ? "flex flex-col items-stretch gap-1.5 px-2 py-1.5"
+          : "mb-3 flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+      )}
     >
-      <p className="text-sm text-foreground">
+      <p
+        className={cn(
+          "text-foreground",
+          props.compact ? "text-xs leading-snug" : "text-sm"
+        )}
+      >
         Draft from {formatDraftRelativeTime(props.updatedAt)} is based on v
         {props.baseVersionNumber}; the plan is now on v{props.tipVersionNumber}.
       </p>
-      <div className="flex flex-wrap gap-2">
+      <div className={cn("flex gap-2", props.compact ? "flex-col" : "flex-wrap")}>
         <Button type="button" size="sm" onClick={props.onLoadAnyway}>
           Load anyway
         </Button>

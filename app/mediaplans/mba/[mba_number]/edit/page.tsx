@@ -47,6 +47,7 @@ import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSe
 import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero"
 import { MediaPlanEditorHeroActions } from "@/components/mediaplans/MediaPlanEditorHeroActions"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
+import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11359,63 +11360,87 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     ]
   )
 
-  const wizardBottomBar = (
-    <>
-      <BuilderIssuesBadge issues={builderIssues} />
-
-      {duplicatesDetected ? (
-        <div
-          role="alert"
-          className="w-full rounded-card border border-pacing-critical bg-pacing-critical-bg px-3 py-2 text-sm font-medium text-status-critical-fg"
-        >
-          Duplicate line-item rows detected ({channelDuplicateSummary.inflatedRows}{" "}
-          rows / {channelDuplicateSummary.inflatedDistinctIds} ids) — do not save;
-          totals are inflated
-        </div>
-      ) : null}
-      {planDraft.activeDraft ? (
-        <PlanDraftActiveBanner
-          updatedAt={planDraft.activeDraft.updatedAt}
-          summary={
-            planDraft.diffLive() ?? {
-              fieldChanges: [],
-              addedLineIds: [],
-              removedLines: [],
-              changeCount: 0,
+  const wizardStatusPanel = (
+    <PlanWizardSaveMessages
+      draftBanner={
+        planDraft.activeDraft ? (
+          <PlanDraftActiveBanner
+            compact
+            updatedAt={planDraft.activeDraft.updatedAt}
+            summary={
+              planDraft.diffLive() ?? {
+                fieldChanges: [],
+                addedLineIds: [],
+                removedLines: [],
+                changeCount: 0,
+              }
             }
-          }
-          onDiscard={() => void planDraft.discard()}
-        />
-      ) : planDraft.recovery ? (
-        <PlanDraftStaleBanner
-          updatedAt={planDraft.recovery.updatedAt}
-          baseVersionNumber={
-            availableVersions.find((v) => v.id === planDraft.recovery?.draftBaseVersionId)
-              ?.version_number ?? "?"
-          }
-          tipVersionNumber={
-            selectedVersionNumber ??
-            (typeof latestVersionNumber === "number" ? latestVersionNumber : "?")
-          }
-          onLoadAnyway={() => planDraft.resume()}
-          onDiscard={() => void planDraft.discard()}
-          onCompare={() => planDraft.setCompareOpen(true)}
-        />
-      ) : otherEditorLabel ? (
-        <p className="mb-2 text-xs text-muted-foreground">{otherEditorLabel}</p>
-      ) : null}
-      {planDraft.pill ? (
-        <PlanDraftPill
-          pill={planDraft.pill}
-          tipLabel={
-            isPublished
-              ? `published tip v${selectedVersionNumber ?? mediaPlan?.version_number ?? "?"}`
-              : null
-          }
-        />
-      ) : predictedSaveModeLabel ? (
-        <p className="text-xs text-muted-foreground">{predictedSaveModeLabel}</p>
-      ) : null}
+            onDiscard={() => void planDraft.discard()}
+          />
+        ) : planDraft.recovery ? (
+          <PlanDraftStaleBanner
+            compact
+            updatedAt={planDraft.recovery.updatedAt}
+            baseVersionNumber={
+              availableVersions.find((v) => v.id === planDraft.recovery?.draftBaseVersionId)
+                ?.version_number ?? "?"
+            }
+            tipVersionNumber={
+              selectedVersionNumber ??
+              (typeof latestVersionNumber === "number" ? latestVersionNumber : "?")
+            }
+            onLoadAnyway={() => planDraft.resume()}
+            onDiscard={() => void planDraft.discard()}
+            onCompare={() => planDraft.setCompareOpen(true)}
+          />
+        ) : otherEditorLabel ? (
+          <p className="text-xs text-muted-foreground">{otherEditorLabel}</p>
+        ) : null
+      }
+      saveMode={
+        planDraft.pill ? (
+          <PlanDraftPill
+            compact
+            pill={planDraft.pill}
+            tipLabel={
+              isPublished
+                ? `published tip v${selectedVersionNumber ?? mediaPlan?.version_number ?? "?"}`
+                : null
+            }
+          />
+        ) : predictedSaveModeLabel ? (
+          <p className="truncate text-xs text-muted-foreground">{predictedSaveModeLabel}</p>
+        ) : null
+      }
+      alerts={
+        builderIssues.length > 0 || duplicatesDetected || dateWarning.hasViolation ? (
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <BuilderIssuesBadge issues={builderIssues} className="w-full max-w-none" />
+            {duplicatesDetected ? (
+              <div
+                role="alert"
+                className="w-full rounded-card border border-pacing-critical bg-pacing-critical-bg px-2 py-1.5 text-xs font-medium text-status-critical-fg"
+              >
+                Duplicate line-item rows detected ({channelDuplicateSummary.inflatedRows}{" "}
+                rows / {channelDuplicateSummary.inflatedDistinctIds} ids) — do not save;
+                totals are inflated
+              </div>
+            ) : null}
+            {dateWarning.hasViolation ? (
+              <div className="rounded-card border border-pacing-critical bg-pacing-critical-bg px-2 py-1.5 text-xs font-medium text-status-critical-fg">
+                {dateWarning.offendingCount === 1
+                  ? "1 line item has flight dates outside the campaign window"
+                  : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`}
+              </div>
+            ) : null}
+          </div>
+        ) : null
+      }
+    />
+  )
+
+  const wizardDraftDialogs = (
+    <>
       {planDraft.enabled && planDraft.staleCompare ? (
         <PlanStaleBaseDialog
           compare={planDraft.staleCompare as { sections: { base: string; yours: string; current: string } }}
@@ -11431,21 +11456,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           onClose={() => planDraft.setCompareOpen(false)}
         />
       ) : null}
-      {dateWarning.hasViolation ? (
-        <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-destructive" />
-          {dateWarning.offendingCount === 1
-            ? "1 line item has flight dates outside the campaign window"
-            : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`}
-        </div>
-      ) : null}
+    </>
+  )
+
+  const wizardBottomBar = (
+    <>
       <CampaignExportsSection
         variant="embedded"
         mbaNumber={mbaNumber}
         lineItemCount={editLineItemCount}
         isBusy={isDownloading || isDownloadingAa || isNamingDownloading || isLoading || isSaving}
         ariaStatus=""
-        className="max-w-full flex-wrap justify-center"
+        className="max-w-full justify-center"
       >
         <Button
           type="button"
@@ -11824,6 +11846,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     <DraftDiffProvider base={planDraft.activeDraft?.baseSnapshot ?? null}>
     <>
       <ExpertApplyDirtyClearOnSave hasUnsavedChanges={hasUnsavedChanges} />
+      {wizardDraftDialogs}
       <Dialog open={rollbackModalOpen} onOpenChange={setRollbackModalOpen}>
         <DialogContent className="overflow-hidden p-0 sm:max-w-lg">
           <div className="h-1 bg-gradient-to-r from-primary via-primary/70 to-primary/40" />
@@ -11875,6 +11898,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             ? clientsError ?? "Client list unavailable — try again"
             : saveHydrationHoldReason
         }
+        statusPanel={wizardStatusPanel}
         bottomBar={wizardBottomBar}
       >
           <Form {...form}>

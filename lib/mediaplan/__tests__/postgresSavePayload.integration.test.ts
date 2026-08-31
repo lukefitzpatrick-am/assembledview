@@ -465,3 +465,50 @@ describe("create + edit assembly twins (shared helpers)", () => {
     assert.match(editSrc, /"working_draft"\s*→\s*never reaches here/)
   })
 })
+
+function sliceConst(src: string, name: string, untilName: string) {
+  const start = src.indexOf(`const ${name} =`)
+  const end = src.indexOf(`const ${untilName} =`, start + 1)
+  assert.ok(start >= 0, `missing const ${name}`)
+  assert.ok(end > start, `missing const ${untilName} after ${name}`)
+  return src.slice(start, end)
+}
+
+function sliceBottomBar(src: string) {
+  const start = src.indexOf("const wizardBottomBar =")
+  assert.ok(start >= 0, "missing wizardBottomBar")
+  const ret = src.indexOf("\n  return (", start)
+  const boot = src.indexOf("if (loadPhase === \"bootstrapping\")", start)
+  const end = [ret, boot].filter((n) => n > start).sort((a, b) => a - b)[0]
+  assert.ok(end > start, "could not bound wizardBottomBar")
+  return src.slice(start, end)
+}
+
+describe("UI-1 twin: save messages live in the sidebar panel, bar is actions only", () => {
+  it("both pages host banners/pill/alerts in PlanWizardSaveMessages and keep buttons in bottomBar", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    for (const src of [createSrc, editSrc]) {
+      assert.match(src, /statusPanel=\{wizardStatusPanel\}/)
+      assert.match(src, /bottomBar=\{wizardBottomBar\}/)
+      assert.match(src, /<PlanWizardSaveMessages/)
+
+      const panel = sliceConst(src, "wizardStatusPanel", "wizardDraftDialogs")
+      assert.match(panel, /PlanDraftActiveBanner/)
+      assert.match(panel, /PlanDraftPill/)
+      assert.match(panel, /BuilderIssuesBadge/)
+      assert.match(panel, /compact/)
+      assert.doesNotMatch(panel, /CampaignExportsSection/)
+      assert.doesNotMatch(panel, /handleSaveAll/)
+
+      const bar = sliceBottomBar(src)
+      assert.match(bar, /CampaignExportsSection/)
+      assert.match(bar, /handleSaveAll/)
+      assert.doesNotMatch(bar, /PlanDraftActiveBanner/)
+      assert.doesNotMatch(bar, /PlanDraftPill/)
+      assert.doesNotMatch(bar, /BuilderIssuesBadge/)
+      assert.doesNotMatch(bar, /PlanDraftStaleBanner/)
+      assert.doesNotMatch(bar, /dateWarning\.hasViolation/)
+    }
+  })
+})

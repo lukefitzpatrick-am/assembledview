@@ -201,6 +201,12 @@ C-numbers are allocated on `localhost` only, and are never reassigned once writt
 | D-9 | `lib/codex/**` is the Tasks domain, not AVA — naming is misleading |
 | D-10 | Stale docs that contradict code: `docs/archive/PERF-DISCOVERY-2-CACHE-DESIGN.md` ("zero unstable_cache usages" — now false), `docs/archive/FINANCE-HUB-STAGES-DISCOVERY.md` (references deleted `components/finance/tabs/`), `README.md` Xano config section (references nonexistent `lib/xano/config.ts`) |
 
+## UI chrome (UI-*)
+
+| ID | Issue | Status |
+|---|---|---|
+| UI-1 | Create/edit floating save bar stacked the unsaved-draft banner, save-mode line, and validation alerts under the action buttons, overlapping Step 02 | FIXED — same `PlanWizardSaveMessages` card below Draft Summary on both mega-pages (banner, then save-mode, then alerts; empty = not rendered). Floating bar is action buttons only. SavingModal + toasts unchanged |
+
 ## Features / integrations (F-*)
 
 | ID | Issue | Status |

@@ -58,6 +58,7 @@ import { formatMoney } from "@/lib/format/money"
 import { MoneyInput } from "@/components/ui/MoneyInput"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
+import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
 import { MediaPlanEditorHeroActions } from "@/components/mediaplans/MediaPlanEditorHeroActions"
 import { sortByLabel } from "@/lib/utils/sort"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
@@ -7244,51 +7245,74 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
 
   const isWizardSaving = isLoading || isPlanSaving || isVersionSaving
 
-  const wizardBottomBar = (
-    <>
-      <BuilderIssuesBadge issues={builderIssues} />
-
-      {duplicatesDetected ? (
-        <div
-          role="alert"
-          className="w-full rounded-card border border-pacing-critical bg-pacing-critical-bg px-3 py-2 text-sm font-medium text-status-critical-fg"
-        >
-          Duplicate line-item rows detected ({channelDuplicateSummary.inflatedRows}{" "}
-          rows / {channelDuplicateSummary.inflatedDistinctIds} ids) — do not save;
-          totals are inflated
-        </div>
-      ) : null}
-      {planDraft.activeDraft ? (
-        <PlanDraftActiveBanner
-          updatedAt={planDraft.activeDraft.updatedAt}
-          headline={planDraft.activeDraft.headline}
-          summary={
-            planDraft.diffLive() ?? {
-              fieldChanges: [],
-              addedLineIds: [],
-              removedLines: [],
-              changeCount: 0,
+  const wizardStatusPanel = (
+    <PlanWizardSaveMessages
+      draftBanner={
+        planDraft.activeDraft ? (
+          <PlanDraftActiveBanner
+            compact
+            updatedAt={planDraft.activeDraft.updatedAt}
+            headline={planDraft.activeDraft.headline}
+            summary={
+              planDraft.diffLive() ?? {
+                fieldChanges: [],
+                addedLineIds: [],
+                removedLines: [],
+                changeCount: 0,
+              }
             }
-          }
-          onDiscard={() => void planDraft.discard()}
-        />
-      ) : planDraft.recovery ? (
-        <PlanDraftStaleBanner
-          updatedAt={planDraft.recovery.updatedAt}
-          baseVersionNumber={planDraft.recovery.draftBaseVersionId ?? "?"}
-          tipVersionNumber={draftBaseVersionId ?? "?"}
-          onLoadAnyway={() => planDraft.resume()}
-          onDiscard={() => void planDraft.discard()}
-          onCompare={() => planDraft.setCompareOpen(true)}
-        />
-      ) : otherEditorLabel ? (
-        <p className="mb-2 text-xs text-muted-foreground">{otherEditorLabel}</p>
-      ) : null}
-      {planDraft.pill ? (
-        <PlanDraftPill pill={planDraft.pill} tipLabel={null} />
-      ) : predictedSaveModeLabel ? (
-        <p className="text-xs text-muted-foreground">{predictedSaveModeLabel}</p>
-      ) : null}
+            onDiscard={() => void planDraft.discard()}
+          />
+        ) : planDraft.recovery ? (
+          <PlanDraftStaleBanner
+            compact
+            updatedAt={planDraft.recovery.updatedAt}
+            baseVersionNumber={planDraft.recovery.draftBaseVersionId ?? "?"}
+            tipVersionNumber={draftBaseVersionId ?? "?"}
+            onLoadAnyway={() => planDraft.resume()}
+            onDiscard={() => void planDraft.discard()}
+            onCompare={() => planDraft.setCompareOpen(true)}
+          />
+        ) : otherEditorLabel ? (
+          <p className="text-xs text-muted-foreground">{otherEditorLabel}</p>
+        ) : null
+      }
+      saveMode={
+        planDraft.pill ? (
+          <PlanDraftPill compact pill={planDraft.pill} tipLabel={null} />
+        ) : predictedSaveModeLabel ? (
+          <p className="truncate text-xs text-muted-foreground">{predictedSaveModeLabel}</p>
+        ) : null
+      }
+      alerts={
+        builderIssues.length > 0 || duplicatesDetected || dateWarning.hasViolation ? (
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <BuilderIssuesBadge issues={builderIssues} className="w-full max-w-none" />
+            {duplicatesDetected ? (
+              <div
+                role="alert"
+                className="w-full rounded-card border border-pacing-critical bg-pacing-critical-bg px-2 py-1.5 text-xs font-medium text-status-critical-fg"
+              >
+                Duplicate line-item rows detected ({channelDuplicateSummary.inflatedRows}{" "}
+                rows / {channelDuplicateSummary.inflatedDistinctIds} ids) — do not save;
+                totals are inflated
+              </div>
+            ) : null}
+            {dateWarning.hasViolation ? (
+              <div className="rounded-card border border-pacing-critical bg-pacing-critical-bg px-2 py-1.5 text-xs font-medium text-status-critical-fg">
+                {dateWarning.offendingCount === 1
+                  ? "1 line item has flight dates outside the campaign window"
+                  : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`}
+              </div>
+            ) : null}
+          </div>
+        ) : null
+      }
+    />
+  )
+
+  const wizardDraftDialogs = (
+    <>
       {planDraft.enabled && planDraft.staleCompare ? (
         <PlanStaleBaseDialog
           compare={planDraft.staleCompare as { sections: { base: string; yours: string; current: string } }}
@@ -7304,13 +7328,11 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
           onClose={() => planDraft.setCompareOpen(false)}
         />
       ) : null}
-      {dateWarning.hasViolation ? (
-        <div className="rounded-card border border-pacing-critical bg-pacing-critical-bg px-3 py-2 text-xs font-medium text-status-critical-fg">
-          {dateWarning.offendingCount === 1
-            ? "1 line item has flight dates outside the campaign window"
-            : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`}
-        </div>
-      ) : null}
+    </>
+  )
+
+  const wizardBottomBar = (
+    <>
       <CampaignExportsSection
         variant="embedded"
         mbaNumber={mbaNumber?.trim() ? String(mbaNumber) : "—"}
@@ -7324,7 +7346,7 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
           isVersionSaving
         }
         ariaStatus=""
-        className="max-w-full flex-wrap justify-center"
+        className="max-w-full justify-center"
       >
         <Button
           type="button"
@@ -7433,6 +7455,7 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
     <DraftDiffProvider base={planDraft.activeDraft?.baseSnapshot ?? null}>
     <>
       <ExpertApplyDirtyClearOnSave hasUnsavedChanges={hasUnsavedChanges} />
+      {wizardDraftDialogs}
       <PlanWizardShell
         title="Create a Campaign"
         breadcrumbCurrent="Create Campaign"
@@ -7453,6 +7476,7 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
         onExit={handleExit}
         exitLabel="Exit to Campaigns"
         isSaving={isWizardSaving}
+        statusPanel={wizardStatusPanel}
         bottomBar={wizardBottomBar}
       >
           <Form {...form}>

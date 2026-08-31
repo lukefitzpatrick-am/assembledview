@@ -45,6 +45,7 @@ export default defineConfig({
       "hooks/__tests__/useDraftFieldDiff.test.tsx",
       "hooks/__tests__/useStableHydration.test.tsx",
       "components/mediaplans/__tests__/ExpertApplyDirtyClearOnSave.characterisation.test.tsx",
+      "components/mediaplans/__tests__/PlanWizardSaveMessages.test.tsx",
       "lib/mediaplan/__tests__/useMediaPlanDirtyController.test.tsx",
       "lib/mediaplan/__tests__/handleInvestmentChange.dirty.characterisation.test.tsx",
       "lib/mediaplan/__tests__/channelTotalChange.dirty.characterisation.test.tsx",
