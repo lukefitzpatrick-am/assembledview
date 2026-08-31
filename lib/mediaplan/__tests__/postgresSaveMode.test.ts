@@ -2,7 +2,11 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import { mapUiMediaTypeToLineChannel } from "../mapUiMediaTypeToLineChannel"
-import { resolvePostgresSaveMode } from "../resolvePostgresSaveMode"
+import {
+  buildSaveModeInput,
+  resolvePostgresSaveMode,
+  type ResolvePostgresSaveModeInput,
+} from "../resolvePostgresSaveMode"
 
 describe("mapUiMediaTypeToLineChannel", () => {
   it("maps editor keys and aliases onto LINE_CHANNELS", () => {
@@ -256,5 +260,275 @@ describe("resolvePostgresSaveMode", () => {
       intent: "publish",
     })
     assert.equal(intentPublish.mode, "publish")
+  })
+
+  it("editing older + save → new_version / increment_unpublished at newest+1", () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "draft",
+      forceIncrement: false,
+      publishedVersionNumber: 5,
+      editingVersionNumber: 3,
+      versionRowCount: 5,
+      tipPublishedAt: null,
+      intent: "save",
+    })
+    assert.deepEqual(r, {
+      mode: "new_version",
+      versionNumber: 6,
+      uiMode: "increment_unpublished",
+    })
+  })
+
+  it("editing older + save on a published newest still cuts next unpublished (not working_draft)", () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "approved",
+      forceIncrement: false,
+      publishedVersionNumber: 5,
+      editingVersionNumber: 3,
+      versionRowCount: 5,
+      tipPublishedAt: "2026-08-01T00:00:00.000Z",
+      intent: "save",
+    })
+    assert.deepEqual(r, {
+      mode: "new_version",
+      versionNumber: 6,
+      uiMode: "increment_unpublished",
+    })
+  })
+
+  it("editing older + publish → unchanged from today", () => {
+    const unpublishedNewest = resolvePostgresSaveMode({
+      campaignStatus: "draft",
+      forceIncrement: false,
+      publishedVersionNumber: 5,
+      editingVersionNumber: 3,
+      versionRowCount: 5,
+      tipPublishedAt: null,
+      intent: "publish",
+    })
+    const unpublishedNewestToday = resolvePostgresSaveMode({
+      campaignStatus: "draft",
+      forceIncrement: false,
+      publishedVersionNumber: 5,
+      versionRowCount: 5,
+      tipPublishedAt: null,
+      intent: "publish",
+    })
+    assert.deepEqual(unpublishedNewest, unpublishedNewestToday)
+    assert.deepEqual(unpublishedNewest, {
+      mode: "publish",
+      versionNumber: 6,
+      uiMode: "increment",
+    })
+
+    const publishedNewest = resolvePostgresSaveMode({
+      campaignStatus: "approved",
+      forceIncrement: false,
+      publishedVersionNumber: 5,
+      editingVersionNumber: 3,
+      versionRowCount: 5,
+      tipPublishedAt: "2026-08-01T00:00:00.000Z",
+      intent: "publish",
+    })
+    const publishedNewestToday = resolvePostgresSaveMode({
+      campaignStatus: "approved",
+      forceIncrement: false,
+      publishedVersionNumber: 5,
+      versionRowCount: 5,
+      tipPublishedAt: "2026-08-01T00:00:00.000Z",
+      intent: "publish",
+    })
+    assert.deepEqual(publishedNewest, publishedNewestToday)
+    assert.deepEqual(publishedNewest, {
+      mode: "publish",
+      versionNumber: 6,
+      uiMode: "increment",
+    })
+  })
+
+  it("S2 regression: editing newest + save, unpublished → overwrite", () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "draft",
+      forceIncrement: false,
+      publishedVersionNumber: 5,
+      editingVersionNumber: 5,
+      versionRowCount: 5,
+      tipPublishedAt: null,
+      intent: "save",
+    })
+    assert.deepEqual(r, {
+      mode: "draft",
+      versionNumber: 5,
+      uiMode: "overwrite",
+    })
+  })
+
+  it("S3 regression: editing newest + save, published → working_draft", () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "approved",
+      forceIncrement: false,
+      publishedVersionNumber: 5,
+      editingVersionNumber: 5,
+      versionRowCount: 5,
+      tipPublishedAt: "2026-08-01T00:00:00.000Z",
+      intent: "save",
+    })
+    assert.deepEqual(r, {
+      mode: null,
+      versionNumber: 5,
+      uiMode: "working_draft",
+    })
+  })
+
+  it("editingVersionNumber omitted → identical result to today, every branch", () => {
+    const branches: ResolvePostgresSaveModeInput[] = [
+      {
+        campaignStatus: "Draft",
+        forceIncrement: false,
+        publishedVersionNumber: 1,
+        versionRowCount: 1,
+        tipPublishedAt: null,
+      },
+      {
+        campaignStatus: "draft",
+        forceIncrement: true,
+        publishedVersionNumber: 2,
+        versionRowCount: 2,
+        tipPublishedAt: null,
+      },
+      {
+        campaignStatus: "draft",
+        forceIncrement: false,
+        publishedVersionNumber: 2,
+        versionRowCount: 2,
+        tipPublishedAt: null,
+        intent: "publish",
+      },
+      {
+        campaignStatus: "Draft",
+        forceIncrement: false,
+        publishedVersionNumber: 0,
+        versionRowCount: 0,
+        tipPublishedAt: null,
+      },
+      {
+        campaignStatus: "Approved",
+        forceIncrement: false,
+        publishedVersionNumber: 1,
+        versionRowCount: 1,
+        tipPublishedAt: "2026-01-15T00:00:00.000Z",
+      },
+      {
+        campaignStatus: "Approved",
+        forceIncrement: false,
+        publishedVersionNumber: 1,
+        versionRowCount: 1,
+        tipPublishedAt: "2026-01-15T00:00:00.000Z",
+        intent: "publish",
+      },
+      {
+        campaignStatus: "Booked",
+        forceIncrement: true,
+        publishedVersionNumber: 1,
+        versionRowCount: 0,
+        tipPublishedAt: "2026-01-15T00:00:00.000Z",
+      },
+      {
+        campaignStatus: "Draft",
+        forceIncrement: false,
+        publishedVersionNumber: 1,
+        versionRowCount: 0,
+        tipPublishedAt: null,
+      },
+    ]
+    for (const branch of branches) {
+      const omitted = resolvePostgresSaveMode(branch)
+      const explicitUndefined = resolvePostgresSaveMode({
+        ...branch,
+        editingVersionNumber: undefined,
+      })
+      const equalToNewest = resolvePostgresSaveMode({
+        ...branch,
+        editingVersionNumber: branch.publishedVersionNumber,
+      })
+      assert.deepEqual(omitted, explicitUndefined)
+      assert.deepEqual(omitted, equalToNewest)
+    }
+  })
+
+  it("editingVersionNumber > published (impossible) → treated as newest, not older", () => {
+    const unpublished = resolvePostgresSaveMode({
+      campaignStatus: "draft",
+      forceIncrement: false,
+      publishedVersionNumber: 3,
+      editingVersionNumber: 5,
+      versionRowCount: 5,
+      tipPublishedAt: null,
+      intent: "save",
+    })
+    assert.deepEqual(unpublished, {
+      mode: "draft",
+      versionNumber: 3,
+      uiMode: "overwrite",
+    })
+
+    const published = resolvePostgresSaveMode({
+      campaignStatus: "approved",
+      forceIncrement: false,
+      publishedVersionNumber: 3,
+      editingVersionNumber: 5,
+      versionRowCount: 5,
+      tipPublishedAt: "2026-08-01T00:00:00.000Z",
+      intent: "save",
+    })
+    assert.deepEqual(published, {
+      mode: null,
+      versionNumber: 3,
+      uiMode: "working_draft",
+    })
+  })
+})
+
+describe("buildSaveModeInput", () => {
+  it("label helper and submit helper return the SAME input object for the same state", () => {
+    const sharedState = {
+      latestVersionNumber: 5,
+      mediaPlan: {
+        version_number: 3,
+        published_at: "2026-07-01T00:00:00.000Z" as string | null,
+      },
+      availableVersions: [
+        { version_number: 1, published_at: "2026-01-01T00:00:00.000Z" },
+        { version_number: 3, published_at: "2026-07-01T00:00:00.000Z" },
+        { version_number: 5, published_at: null },
+      ],
+      selectedVersionNumber: 3,
+      forceIncrement: false,
+      intent: "save" as const,
+      campaignStatus: "draft",
+    }
+    const labelInput = buildSaveModeInput(sharedState)
+    const submitInput = buildSaveModeInput(sharedState)
+    assert.deepEqual(labelInput, submitInput)
+    assert.equal(labelInput.publishedVersionNumber, 5)
+    assert.equal(labelInput.editingVersionNumber, 3)
+    assert.equal(labelInput.tipPublishedAt, "2026-07-01T00:00:00.000Z")
+  })
+
+  it("unifies the former label/submit fallbacks onto newest, not selected", () => {
+    const input = buildSaveModeInput({
+      latestVersionNumber: undefined,
+      mediaPlan: { version_number: undefined, published_at: undefined },
+      availableVersions: [
+        { version_number: 2, published_at: null },
+        { version_number: 5, published_at: null },
+      ],
+      selectedVersionNumber: 2,
+      forceIncrement: false,
+      intent: "save",
+      campaignStatus: "draft",
+    })
+    assert.equal(input.publishedVersionNumber, 5)
+    assert.equal(input.editingVersionNumber, 2)
   })
 })

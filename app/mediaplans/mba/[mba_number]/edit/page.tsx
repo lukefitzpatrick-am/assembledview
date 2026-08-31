@@ -180,7 +180,10 @@ import {
   shouldRunDeferredMasterPublish,
 } from "@/lib/mediaplan/publishVersionIntegrityClient"
 import { useWriteBackend } from "@/lib/data/WriteBackendContext"
-import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
+import {
+  buildSaveModeInput,
+  resolvePostgresSaveMode,
+} from "@/lib/mediaplan/resolvePostgresSaveMode"
 import {
   POSTGRES_SAVE_MODAL_STEPS,
   assemblePlansSaveRequestBody,
@@ -6669,26 +6672,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
   const predictedSaveModeLabel = useMemo(() => {
     if (saveModeLabel) return saveModeLabel
-    const publishedVersionNumber =
-      typeof latestVersionNumber === "number"
-        ? latestVersionNumber
-        : typeof mediaPlan?.version_number === "number"
-          ? mediaPlan.version_number
-          : Number(selectedVersionNumber) || 0
-    const tipPublishedAt =
-      (mediaPlan as { published_at?: string | null } | null)?.published_at !== undefined
-        ? (mediaPlan as { published_at?: string | null }).published_at
-        : availableVersions.find((v) => v.version_number === publishedVersionNumber)
-            ?.published_at
-    const modeResolved = resolvePostgresSaveMode({
+    const saveModeInput = buildSaveModeInput({
+      latestVersionNumber,
+      mediaPlan,
+      availableVersions,
+      selectedVersionNumber,
+      forceIncrement: false,
+      intent: "save",
       campaignStatus:
         watchedCampaignStatus ?? mediaPlan?.campaign_status ?? mediaPlan?.mp_campaignstatus,
-      forceIncrement: false,
-      publishedVersionNumber,
-      versionRowCount: availableVersions.length,
-      tipPublishedAt,
-      intent: "save",
     })
+    const modeResolved = resolvePostgresSaveMode(saveModeInput)
     return formatSaveModeLabel(modeResolved.uiMode, modeResolved.versionNumber)
   }, [
     saveModeLabel,
@@ -7655,31 +7649,23 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           }))
         )
 
-        const publishedVersionNumber =
-          typeof latestVersionNumber === "number"
-            ? latestVersionNumber
-            : typeof mediaPlan?.version_number === "number"
-              ? mediaPlan.version_number
-              : 0
-        const tipPublishedAt =
-          (mediaPlan as { published_at?: string | null } | null)?.published_at !== undefined
-            ? (mediaPlan as { published_at?: string | null }).published_at
-            : availableVersions.find((v) => v.version_number === publishedVersionNumber)
-                ?.published_at
-        const modeResolved = resolvePostgresSaveMode({
-          campaignStatus: formValues.mp_campaignstatus,
+        const saveModeInput = buildSaveModeInput({
+          latestVersionNumber,
+          mediaPlan,
+          availableVersions,
+          selectedVersionNumber,
           forceIncrement: forceIncrementForApprovals,
-          publishedVersionNumber,
-          versionRowCount: availableVersions.length,
-          tipPublishedAt,
           intent: saveIntent,
+          campaignStatus: formValues.mp_campaignstatus,
         })
+        const modeResolved = resolvePostgresSaveMode(saveModeInput)
         console.info("[save-mode]", {
           mbaNumber,
           saveIntent,
-          publishedVersionNumber,
+          publishedVersionNumber: saveModeInput.publishedVersionNumber,
+          editingVersionNumber: saveModeInput.editingVersionNumber,
           versionRowCount: availableVersions.length,
-          tipPublishedAt,
+          tipPublishedAt: saveModeInput.tipPublishedAt,
           forceIncrementForApprovals,
           lastApprovalFp,
           approvalFpNow,
