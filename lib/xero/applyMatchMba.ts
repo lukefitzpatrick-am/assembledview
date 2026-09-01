@@ -17,6 +17,7 @@ import {
   matchMbaAgainstMasters,
   type MatchMbaResult,
   type MbaMaster,
+  type ScopeOfWorkRef,
 } from "./matchMba"
 
 export type MatchMbaInput = {
@@ -37,6 +38,19 @@ export async function loadMbaMasters(): Promise<MbaMaster[]> {
   return rows.map((r) => ({
     id: Number(r.id),
     mba_number: String(r.mba_number),
+  }))
+}
+
+export async function loadScopeOfWorkRefs(): Promise<ScopeOfWorkRef[]> {
+  const rows = rowsOf<{ id: number; scope_id: string }>(
+    await db.execute(sql`
+      SELECT id, scope_id FROM scope_of_work
+      WHERE scope_id IS NOT NULL AND btrim(scope_id) <> ''
+    `),
+  )
+  return rows.map((r) => ({
+    id: Number(r.id),
+    scope_id: String(r.scope_id),
   }))
 }
 
@@ -100,10 +114,11 @@ async function resolveOpenExceptions(
 export async function applyMatchMba(
   input: MatchMbaInput,
   masters: MbaMaster[],
+  scopes: ScopeOfWorkRef[] = [],
 ): Promise<MatchMbaResult> {
-  const result = matchMbaAgainstMasters(input.referenceRaw, masters)
+  const result = matchMbaAgainstMasters(input.referenceRaw, masters, scopes)
 
-  if (result.matched) {
+  if (result.matched && result.kind === "mba") {
     await db
       .update(xeroArInvoices)
       .set({
@@ -112,6 +127,12 @@ export async function applyMatchMba(
       })
       .where(eq(xeroArInvoices.id, input.arInvoiceId))
     await resolveOpenExceptions(input.xeroInvoiceId, input.referenceRaw)
+    return result
+  }
+
+  if (result.matched && result.kind === "sow") {
+    // Scope invoices are resolved, not unmatched. Do not write mba_number
+    // (SOW is not an MBA). Do not touch existing xero_sync_exceptions rows.
     return result
   }
 
@@ -129,6 +150,7 @@ export async function applyMatchMba(
           ? {
               reference_raw: input.referenceRaw,
               matches: result.matches,
+              matchKind: result.matchKind,
             }
           : {
               reference_raw: input.referenceRaw,

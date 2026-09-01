@@ -6,7 +6,11 @@ import { sql } from "drizzle-orm"
 
 import { db } from "@/db"
 
-import { applyMatchMba, loadMbaMasters } from "../applyMatchMba"
+import {
+  applyMatchMba,
+  loadMbaMasters,
+  loadScopeOfWorkRefs,
+} from "../applyMatchMba"
 import { getXeroAccessToken, xeroApiRequest } from "../client"
 import { rowsOf } from "../dbRows"
 import { coerceDollars } from "../money"
@@ -92,7 +96,10 @@ export async function stageIngestInvoices(opts?: {
         : null,
     )
 
-    const masters = await loadMbaMasters()
+    const [masters, scopes] = await Promise.all([
+      loadMbaMasters(),
+      loadScopeOfWorkRefs(),
+    ])
 
     let currentPage = nextPage
     let pagesFetched = 0
@@ -203,6 +210,7 @@ export async function stageIngestInvoices(opts?: {
                   issueDate,
                 },
                 masters,
+                scopes,
               )
               if (result.matched) matched++
               else unmatched++

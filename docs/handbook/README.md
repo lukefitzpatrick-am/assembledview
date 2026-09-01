@@ -13,5 +13,6 @@ Same facts, different job.
 | [03 — The data model](./03-data-model.md) | Anyone who needs to know where a figure lives |
 | [04 — The sections, one by one](./04-modules.md) | Developers picking up an area |
 | [05 — Ways of working](./05-ways-of-working.md) | Anyone contributing, human or AI |
+| [Xero reference convention](./xero-reference-convention.md) | Finance. How to put the MBA or scope id in a Xero Reference so invoices match |
 
 Current as at 2026-08-27, branch `localhost` @ `39ed2590`, verified against the live Supabase database.

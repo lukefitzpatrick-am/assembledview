@@ -43,7 +43,7 @@ describe("tokenizeReference / matchMbaAgainstMasters", () => {
       { id: 20, mba_number: "BOSS006" },
     ])
     assert.equal(r.matched, true)
-    if (r.matched) {
+    if (r.matched && r.kind === "mba") {
       assert.equal(r.id, 10)
       assert.equal(r.mba_number, "HEMA001")
     }
