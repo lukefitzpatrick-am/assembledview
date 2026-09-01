@@ -6,6 +6,8 @@ import {
 } from "@/lib/mediaplans/ingest/summariseIngestReview"
 import {
   applyIngestReviewAnswers,
+  formatFilteredUnusedMappingLine,
+  listFilteredUnusedMappingProposals,
   listOpenIngestReviewQuestions,
   outstandingIngestLabels,
   questionsToEmit,
@@ -117,7 +119,10 @@ export const getPendingIngestReviewTool: AvaTool = {
 
     const followUp = incoming.length > 0
     const confirmed = formatIngestConfirmedBlock(summary)
-    let content = confirmed
+    const unusedLine = formatFilteredUnusedMappingLine(
+      listFilteredUnusedMappingProposals(review),
+    )
+    let content = unusedLine ? `${confirmed}\n\n${unusedLine}` : confirmed
     if (followUp) {
       const lines: string[] = []
       if (changed.length > 0) lines.push(changed.join(" "))

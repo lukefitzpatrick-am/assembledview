@@ -17,6 +17,7 @@ import { setExecuteIngestAcceptDepsForTests } from "@/lib/mediaplans/ingest/exec
 import { clearPublisherProfileSeedOverlayForTests } from "@/lib/mediaplans/ingest/persistColumnRemap"
 import { summariseIngestReview } from "@/lib/mediaplans/ingest/summariseIngestReview"
 import type { AvaColumnMappingProposal } from "@/lib/mediaplans/ingest/avaColumnMapping"
+import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
 
 const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")
 const QMS = "qms_strength-meals_esb-ooh.xlsx"
@@ -59,6 +60,26 @@ test.afterEach(() => {
 
 function suggestionLabel(canon: string): string {
   return `${canon} (AVA suggestion)`
+}
+
+/** Test-only: keep injected AVA proposals on the wanted-field path. */
+function unmatchCoverageFields(
+  review: IngestReviewPackage,
+  ids: string[],
+): IngestReviewPackage {
+  const coverage = review.template_coverage
+  if (!coverage) return review
+  const want = new Set(ids)
+  const patch = (fields: typeof coverage.required) =>
+    fields.map((f) => (want.has(f.id) ? { ...f, matched: false } : f))
+  return {
+    ...review,
+    template_coverage: {
+      ...coverage,
+      required: patch(coverage.required),
+      enrich: patch(coverage.enrich),
+    },
+  }
 }
 
 test("get_pending_ingest_review confirmed block is markdown from the staged package, never invented", async () => {
@@ -139,6 +160,7 @@ test("suggestion card offers AVA's proposal first plus Leave unmapped", async ()
     reasoning: "format-like leftovers",
   }
   hub.ava_mapping_proposals = [proposal]
+  Object.assign(hub, unmatchCoverageFields(hub, ["format"]))
   const stageId = await putIngestStage({
     review: hub,
     fileName: QMS,
@@ -179,6 +201,7 @@ test("two open ingest cards: confirming one leaves the other outstanding", async
       reasoning: "b",
     },
   ]
+  Object.assign(hub, unmatchCoverageFields(hub, ["format", "size"]))
   const stageId = await putIngestStage({
     review: hub,
     fileName: QMS,
@@ -219,6 +242,51 @@ test("two open ingest cards: confirming one leaves the other outstanding", async
         (p) => p.header === "PANEL EXCLUSIVITY",
       ),
     "unconfirmed PANEL EXCLUSIVITY card must remain outstanding",
+  )
+})
+
+test("get_pending_ingest_review unused leftover proposals are a count line, not a card", async () => {
+  const hub = await buildIngestReviewFromFile(
+    path.join(FIX, QMS),
+    loadSeedPublisherProfiles(),
+    { skipAva: true },
+  )
+  const leftover = "ORIENTATION COL"
+  hub.ignored = {
+    ...hub.ignored,
+    columns_unmapped: [...hub.ignored.columns_unmapped, leftover],
+  }
+  if (hub.template_coverage) {
+    hub.template_coverage = {
+      ...hub.template_coverage,
+      not_used: [...hub.template_coverage.not_used, { header: leftover }],
+    }
+  }
+  hub.ava_mapping_proposals = [
+    {
+      header: leftover,
+      sample_values: [],
+      proposed_mapped_to: "orientation",
+      reasoning: "unused",
+    },
+  ]
+  const stageId = await putIngestStage({
+    review: hub,
+    fileName: QMS,
+    uploadedBy: "ava@assembledmedia.com.au",
+  })
+  const out = await getPendingIngestReviewTool.execute(
+    {},
+    ctx({ pendingIngest: { stageId, fileName: QMS }, mbaNumber: "qmsround01" }),
+  )
+  assert.equal(out.isError, false)
+  assert.match(
+    out.content,
+    /1 other column isn't used by AssembledView — listed in the ignored rows/,
+  )
+  assert.equal(
+    (out.questions ?? []).some((q) => q.id === `ingest:map:${leftover}`),
+    false,
   )
 })
 

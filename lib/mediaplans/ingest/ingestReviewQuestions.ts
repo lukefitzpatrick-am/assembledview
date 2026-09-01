@@ -3,7 +3,7 @@
  * Suggestion source is review.ava_mapping_proposals (same as Hub Accept AVA).
  */
 
-import { toChatInterviewQuestion } from "@/lib/ava/chatInterviewQuestion"
+import { isSkipAnswer, toChatInterviewQuestion } from "@/lib/ava/chatInterviewQuestion"
 import type { ChatInterviewQuestion } from "@/lib/ava/types"
 import {
   AVA_MAPPING_TARGET_DESCRIPTORS,
@@ -38,6 +38,7 @@ function suggestionLabel(canon: string): string {
 }
 
 export function parseMappedOption(answer: string): string | null {
+  if (isSkipAnswer(answer)) return null
   const raw = answer.replace(AVA_SUGGESTION_SUFFIX, "").trim()
   if (!raw || raw === LEAVE_UNMAPPED_OPTION) return null
   return raw
@@ -103,6 +104,87 @@ function leftoverHeaders(review: IngestReviewPackage): string[] {
   const fromCoverage = (review.template_coverage?.not_used ?? []).map((n) => n.header)
   if (fromCoverage.length > 0) return fromCoverage
   return review.ignored.columns_unmapped
+}
+
+function unmatchedWantedCanonicals(review: IngestReviewPackage): Set<string> {
+  const wanted = new Set<string>()
+  const consider = (
+    fields: NonNullable<IngestReviewPackage["template_coverage"]>["required"] | undefined,
+  ) => {
+    for (const field of fields ?? []) {
+      if (field.matched) continue
+      for (const canon of field.canonicals ?? []) {
+        if (canon) wanted.add(canon)
+      }
+      // dest is the plan path; include it so a required hit cannot be filtered.
+      if (field.dest) wanted.add(field.dest)
+    }
+  }
+  consider(review.template_coverage?.required)
+  consider(review.template_coverage?.enrich)
+  return wanted
+}
+
+function proposalServesUnmatchedWantedField(
+  review: IngestReviewPackage,
+  proposal: AvaColumnMappingProposal,
+): boolean {
+  const mapped = proposal.proposed_mapped_to?.trim() ?? ""
+  if (!mapped) return false
+  return unmatchedWantedCanonicals(review).has(mapped)
+}
+
+function unusedAccountedHeaderKeys(review: IngestReviewPackage): Set<string> {
+  const keys = new Set<string>()
+  for (const header of review.ignored.columns_unmapped) {
+    keys.add(headerKey(header))
+  }
+  for (const col of review.template_coverage?.not_used ?? []) {
+    keys.add(headerKey(col.header))
+  }
+  return keys
+}
+
+function assertProposalAccountedAsUnused(
+  review: IngestReviewPackage,
+  proposal: AvaColumnMappingProposal,
+): void {
+  if (unusedAccountedHeaderKeys(review).has(headerKey(proposal.header))) return
+  throw new Error(
+    `Ingest mapping proposal "${proposal.header}" is not wanted by AssembledView but is missing from ignored.columns_unmapped and template_coverage.not_used`,
+  )
+}
+
+export type FilteredUnusedMappingProposals = {
+  count: number
+  headers: string[]
+}
+
+/** AVA proposals dropped because AssembledView does not need that column. */
+export function listFilteredUnusedMappingProposals(
+  review: IngestReviewPackage,
+): FilteredUnusedMappingProposals {
+  const moneyHeaders = new Set(
+    moneyColumns(review).map((col) => headerKey(col.header)),
+  )
+  const headers: string[] = []
+  for (const proposal of review.ava_mapping_proposals ?? []) {
+    if (moneyHeaders.has(headerKey(proposal.header))) continue
+    if (proposalServesUnmatchedWantedField(review, proposal)) continue
+    assertProposalAccountedAsUnused(review, proposal)
+    headers.push(proposal.header)
+  }
+  return { count: headers.length, headers }
+}
+
+export function formatFilteredUnusedMappingLine(
+  filtered: FilteredUnusedMappingProposals,
+): string | null {
+  if (filtered.count <= 0) return null
+  if (filtered.count === 1) {
+    return "1 other column isn't used by AssembledView — listed in the ignored rows."
+  }
+  return `${filtered.count} other columns aren't used by AssembledView — listed in the ignored rows.`
 }
 
 function buildSuggestionCard(
@@ -230,6 +312,10 @@ export function listOpenIngestReviewQuestions(
     if (moneyHeaders.has(headerKey(proposal.header))) continue
     const id = mapQuestionId(proposal.header)
     if (answered.has(id)) continue
+    if (!proposalServesUnmatchedWantedField(review, proposal)) {
+      assertProposalAccountedAsUnused(review, proposal)
+      continue
+    }
     draft.push(buildSuggestionCard(proposal, 1, 1))
   }
 
@@ -301,7 +387,11 @@ async function applyOneAnswer(
 ): Promise<{ review: IngestReviewPackage; changed: string }> {
   const mapped = parseMappedOption(answer)
   const publisher = review.detected_publisher
+  const skipRemap = isSkipAnswer(answer)
   if (questionId === MBA_QUESTION_ID) {
+    if (skipRemap) {
+      return { review, changed: "Left campaign unselected." }
+    }
     const mba = parseMappedOption(answer) ?? answer.trim()
     return {
       review: {
@@ -316,7 +406,7 @@ async function applyOneAnswer(
   }
   if (questionId.startsWith("ingest:map:")) {
     const header = questionId.slice("ingest:map:".length)
-    if (publisher) {
+    if (publisher && !skipRemap) {
       await remapIngestColumn({ publisherName: publisher, header, mappedTo: mapped })
     }
     return {
@@ -328,7 +418,7 @@ async function applyOneAnswer(
   }
   if (questionId.startsWith("ingest:money:")) {
     const header = questionId.slice("ingest:money:".length)
-    if (publisher) {
+    if (publisher && !skipRemap) {
       await remapIngestColumn({ publisherName: publisher, header, mappedTo: mapped })
     }
     return {
@@ -346,7 +436,7 @@ async function applyOneAnswer(
     ].find((f) => f.id === fieldId)
     const dest = field?.canonicals?.[0] ?? field?.dest ?? null
     const header = mapped
-    if (header && dest && publisher) {
+    if (header && dest && publisher && !skipRemap) {
       await remapIngestColumn({
         publisherName: publisher,
         header,
