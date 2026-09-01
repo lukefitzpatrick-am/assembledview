@@ -641,6 +641,15 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     searchTerms: "billing receivables invoicing clients billing finance",
   },
   {
+    path: "/finance/owed",
+    label: "Owed",
+    title: "Finance · Owed",
+    inPalette: true,
+    roles: ["admin"],
+    group: "finance",
+    searchTerms: "owed debtors ageing overdue receivables xero ar clients billing",
+  },
+  {
     path: "/finance/periods",
     label: "Periods",
     title: "Finance · Periods",

@@ -72,7 +72,7 @@ Adding or altering a channel touches, at minimum:
 
 ## 2. Finance & billing
 
-**Routes** `/finance` with section children: `home` `investment` `invoicing` `periods` `costs` (`accruals`, `client-pays`, `invoices`) `forecasting` `xero` (`matches`) · `/finance/forecast/snapshots/variance` · `/finance/receivables`
+**Routes** `/finance` with section children: `home` `investment` `invoicing` `owed` `periods` `costs` (`accruals`, `client-pays`, `invoices`) `forecasting` `xero` (`matches`) · `/finance/forecast/snapshots/variance` · `/finance/receivables`
 
 **Two data access styles live here.** Most of the app uses the Drizzle query builder. Finance periods, run items, notifications and Xero matching are reached with `sql` tagged templates instead — `finance_periods`, `finance_run_items`, `app_notifications`, `xero_contact_links`, `xero_invoice_matches`, `xero_match_month_metrics` (and `plan_working_drafts` in media plans). See `lib/finance/periods/postgresStore.ts`. All of them **are** mirrored in `db/schema/`, so the types are there if you want them; migrating the callers to the query builder is a separate decision, not a gap.
 
