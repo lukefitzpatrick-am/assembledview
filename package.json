@@ -61,6 +61,7 @@
     "db:xero-sync": "tsx scripts/migration/run-xero-sync.ts",
     "test:xero": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/xero/__tests__/matchMba.test.ts lib/xero/__tests__/xeroHelpers.test.ts lib/xero/__tests__/runSync.persist.test.ts lib/xero/__tests__/xeroSyncFreshness.test.ts lib/xero/__tests__/projectBillingAmounts.test.ts lib/xero/__tests__/syncPdfs.test.ts lib/xero/matcher/__tests__/threeTier.test.ts lib/xero/matcher/__tests__/creditNoteReconcile.test.ts",
     "test:finance-periods-flag": "node --experimental-test-module-mocks --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/finance/periods/__tests__/adminRoutes.flag.test.ts",
+    "test:inline-schedule-amount": "vitest run components/finance/receivables/__tests__/InlineScheduleAmountCell.test.tsx",
     "replay:pc6-matcher": "tsx scripts/pc6-matcher-replay.ts",
     "test:line-item-attrs": "tsx --test db/schema/__tests__/lineItemAttrs.test.ts",
     "test:shadow-diff": "tsx --test lib/data/__tests__/shadowDiff.test.ts",

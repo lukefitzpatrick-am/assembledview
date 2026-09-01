@@ -17,13 +17,25 @@ type InlineScheduleAmountCellProps = {
   line: BillingLineItem
   ctx: InlineScheduleEditContext | null
   onCommitted?: (next: { amount: number; billing_mode?: "auto" | "manual" | null }) => void
+  /** Parent invoice is already billed; edits will move billed_drift vs the invoiced snapshot. */
+  invoiceBilled?: boolean
   className?: string
 }
+
+const BILLED_EDIT_TOAST = {
+  title: "Already billed",
+  description:
+    "Saving a new amount will show billed drift against the invoiced snapshot until that snapshot is updated.",
+} as const
+
+const BILLED_CONFIRM =
+  "This month is already billed. Saving a new amount will show billed drift against the invoiced snapshot. Continue?"
 
 export function InlineScheduleAmountCell({
   line,
   ctx,
   onCommitted,
+  invoiceBilled = false,
   className,
 }: InlineScheduleAmountCellProps) {
   const { toast } = useToast()
@@ -58,6 +70,11 @@ export function InlineScheduleAmountCell({
       setEditing(false)
       return
     }
+    if (invoiceBilled && !window.confirm(BILLED_CONFIRM)) {
+      setDraft(line.amount)
+      setEditing(false)
+      return
+    }
     setBusy(true)
     try {
       const result = await commitInlineScheduleAmountEdit({ ctx, line, amount })
@@ -65,7 +82,12 @@ export function InlineScheduleAmountCell({
         amount: result.amount,
         billing_mode: result.stampedManual ? "manual" : line.billing_mode,
       })
-      toast({ title: "Billing updated", description: "Line amount saved for this version." })
+      toast({
+        title: "Billing updated",
+        description: invoiceBilled
+          ? BILLED_EDIT_TOAST.description
+          : "Line amount saved for this version.",
+      })
       if (result.showedDivergenceToast) {
         toast({
           title: "Manual billing differences",
@@ -102,6 +124,9 @@ export function InlineScheduleAmountCell({
         onClick={() => {
           cancelledRef.current = false
           setDraft(line.amount)
+          if (invoiceBilled) {
+            toast(BILLED_EDIT_TOAST)
+          }
           setEditing(true)
         }}
         className={cn(
@@ -112,6 +137,11 @@ export function InlineScheduleAmountCell({
         )}
       >
         {formatAUD(line.amount)}
+        {invoiceBilled ? (
+          <span className="ml-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+            Already billed
+          </span>
+        ) : null}
         {busy ? <Loader2 className="ml-1 inline h-3 w-3 animate-spin" /> : null}
       </button>
     )
@@ -121,7 +151,10 @@ export function InlineScheduleAmountCell({
     <MoneyInput
       autoFocus
       value={draft}
-      onChange={(v) => setDraft(v)}
+      onChange={(v) => {
+        setDraft(v)
+        void commit(v)
+      }}
       disabled={busy}
       onKeyDown={(e) => {
         if (e.key === "Escape") {
@@ -132,11 +165,8 @@ export function InlineScheduleAmountCell({
         }
         if (e.key === "Enter") {
           e.preventDefault()
-          void commit(draft)
+          e.currentTarget.blur()
         }
-      }}
-      onBlur={() => {
-        void commit(draft)
       }}
       className={cn(
         "num h-7 w-[7.5rem] shrink-0 rounded-input border border-input bg-background px-2 text-right text-xs",
