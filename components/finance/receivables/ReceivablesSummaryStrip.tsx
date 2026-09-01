@@ -1,39 +1,60 @@
-import { formatAUD } from "@/lib/format/money"
+"use client"
+
+import React from "react"
+import { StatTile, type StatTileMoneyState } from "@/components/finance/sections/StatTile"
 import { cn } from "@/lib/utils"
 
-type ReceivablesSummaryStripProps = {
-  totalToBill: number
-  billed: number
-  outstanding: number
-  loading?: boolean
+export type ReceivablesSummaryStripView = "loading" | "error" | "empty" | "ready"
+
+export type ReceivablesSummaryStripProps = {
+  view: ReceivablesSummaryStripView
+  errorMessage?: string
+  totalToBillCents?: number
+  approvedAndBeyondCents?: number
+  notYetApprovedCents?: number
   className?: string
 }
 
-function KpiCard({ label, value, loading }: { label: string; value: number; loading?: boolean }) {
-  return (
-    <div className="rounded-card border border-border bg-card p-4 shadow-e1">
-      <p className="text-xs uppercase tracking-wide text-muted-foreground">{label}</p>
-      {loading ? (
-        <div className="mt-2 h-8 w-28 animate-pulse rounded-input bg-surface-panel" />
-      ) : (
-        <p className="num mt-2 text-2xl font-bold text-foreground">{formatAUD(value)}</p>
-      )}
-    </div>
-  )
+const TOTAL_TO_BILL_CAPTION = "Composed receivables in the current scope"
+const APPROVED_AND_BEYOND_CAPTION = "Any derived state past ready"
+const NOT_YET_APPROVED_CAPTION = "Derived state still ready"
+
+function tileState(
+  view: ReceivablesSummaryStripView,
+  cents: number,
+  errorMessage?: string
+): StatTileMoneyState {
+  if (view === "loading") return { status: "loading" }
+  if (view === "error") return { status: "error", message: errorMessage }
+  if (view === "empty") return { status: "empty" }
+  return { status: "ready", cents }
 }
 
 export function ReceivablesSummaryStrip({
-  totalToBill,
-  billed,
-  outstanding,
-  loading,
+  view,
+  errorMessage,
+  totalToBillCents = 0,
+  approvedAndBeyondCents = 0,
+  notYetApprovedCents = 0,
   className,
 }: ReceivablesSummaryStripProps) {
   return (
     <div className={cn("grid gap-3 sm:grid-cols-3", className)}>
-      <KpiCard label="Total to bill" value={totalToBill} loading={loading} />
-      <KpiCard label="Billed" value={billed} loading={loading} />
-      <KpiCard label="Outstanding" value={outstanding} loading={loading} />
+      <StatTile
+        label="Total to bill"
+        basisCaption={TOTAL_TO_BILL_CAPTION}
+        state={tileState(view, totalToBillCents, errorMessage)}
+      />
+      <StatTile
+        label="Approved & beyond"
+        basisCaption={APPROVED_AND_BEYOND_CAPTION}
+        state={tileState(view, approvedAndBeyondCents, errorMessage)}
+      />
+      <StatTile
+        label="Not yet approved"
+        basisCaption={NOT_YET_APPROVED_CAPTION}
+        state={tileState(view, notYetApprovedCents, errorMessage)}
+      />
     </div>
   )
 }

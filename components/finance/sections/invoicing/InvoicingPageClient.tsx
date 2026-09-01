@@ -394,6 +394,24 @@ export function InvoicingPageClient() {
           </div>
         ) : null}
 
+        {coldLoading || loadError || showNoReceivables || visibleMonthGroups.length > 0 ? (
+          <ReceivablesSummaryStrip
+            view={
+              coldLoading
+                ? "loading"
+                : loadError
+                  ? "error"
+                  : showNoReceivables
+                    ? "empty"
+                    : "ready"
+            }
+            errorMessage={loadError ?? undefined}
+            totalToBillCents={Math.round(kpi.totalToBill * 100)}
+            approvedAndBeyondCents={Math.round(kpi.billed * 100)}
+            notYetApprovedCents={Math.round(kpi.outstanding * 100)}
+          />
+        ) : null}
+
         {coldLoading ? <LoadingState rows={5} /> : null}
 
         {loadError && !coldLoading ? (
@@ -401,17 +419,10 @@ export function InvoicingPageClient() {
         ) : null}
 
         {showNoReceivables ? (
-          <>
-            <ReceivablesSummaryStrip
-              totalToBill={0}
-              billed={0}
-              outstanding={0}
-            />
-            <EmptyState
-              title="No receivables"
-              message="No receivables for the current scope and filters."
-            />
-          </>
+          <EmptyState
+            title="No receivables"
+            message="No receivables for the current scope and filters."
+          />
         ) : null}
 
         {!coldLoading && visibleMonthGroups.length > 0 ? (
@@ -419,12 +430,6 @@ export function InvoicingPageClient() {
             className={cn(isUpdating && "pointer-events-none opacity-60")}
             aria-busy={isUpdating || undefined}
           >
-            <ReceivablesSummaryStrip
-              totalToBill={kpi.totalToBill}
-              billed={kpi.billed}
-              outstanding={kpi.outstanding}
-            />
-
             <div className="relative mt-4 space-y-6 pt-1">
               {unbilledInvoiceCount === 0 && billedInvoiceCount > 0 ? (
                 <p className="text-sm text-muted-foreground">

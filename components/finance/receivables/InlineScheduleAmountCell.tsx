@@ -31,8 +31,8 @@ type InlineScheduleAmountCellProps = {
   invoiceBilled?: boolean
   /**
    * Write-gate confirm. Defaults to `invoiceBilled`. Pass
-   * `.some(r => hasBillingEvidence(r.state))` so a sibling with evidence still
-   * warns even when records[0] is still ready.
+   * `.some(r => needsInlineAmountConfirm(r))` so a sibling with evidence
+   * or a legacy billed=true row still warns even when records[0] is still ready.
    */
   confirmIfAnyBilled?: boolean
   className?: string

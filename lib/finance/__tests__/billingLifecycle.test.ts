@@ -1,7 +1,12 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { resolveBillingState, type BillingState } from "../billingLifecycle.js"
+import {
+  hasBillingEvidence,
+  needsInlineAmountConfirm,
+  resolveBillingState,
+  type BillingState,
+} from "../billingLifecycle.js"
 
 /** 1 Sep 2026, 09:00 Australia/Sydney. */
 const TODAY = new Date("2026-09-01T09:00:00+10:00")
@@ -180,4 +185,18 @@ test("DELETED falls through to export", () => {
     },
   })
   assert.equal(result.state, "sent_to_finance")
+})
+
+test("write gate fires for billed=true even when state is still ready", () => {
+  assert.equal(hasBillingEvidence("ready"), false)
+  assert.equal(needsInlineAmountConfirm({ state: "ready", billed: true }), true)
+})
+
+test("write gate stays off for a ready row with billed unset", () => {
+  assert.equal(needsInlineAmountConfirm({ state: "ready" }), false)
+  assert.equal(needsInlineAmountConfirm({ state: "ready", billed: false }), false)
+})
+
+test("write gate still fires on derived evidence without the billed flag", () => {
+  assert.equal(needsInlineAmountConfirm({ state: "approved", billed: false }), true)
 })

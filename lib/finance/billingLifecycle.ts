@@ -62,10 +62,23 @@ function liveXero(xero: BillingXeroEvidence | null): BillingXeroEvidence | null 
 
 /**
  * True when any evidence exists past "nothing has happened".
- * Used by invoicing grouping, KPI outstanding, and the inline amount confirm.
+ * Used by invoicing grouping and KPI outstanding.
+ * The inline-amount write gate uses `needsInlineAmountConfirm` (this OR billed === true).
  */
 export function hasBillingEvidence(state: BillingState | null | undefined): boolean {
   return state != null && state !== "ready"
+}
+
+/**
+ * Write-gate for inline schedule-amount edits. Legacy `billed=true` rows can
+ * still be `state=ready` after 0053; they must confirm even without evidence.
+ * The display chip stays on `hasBillingEvidence` alone.
+ */
+export function needsInlineAmountConfirm(record: {
+  state?: BillingState | null
+  billed?: boolean | null
+}): boolean {
+  return hasBillingEvidence(record.state) || record.billed === true
 }
 
 export function resolveBillingState(input: ResolveBillingStateInput): {

@@ -20,7 +20,7 @@ import { ReceivableApproveButton } from "@/components/finance/receivables/Receiv
 import { ReceivableNotesButton } from "@/components/finance/receivables/ReceivableNotesButton"
 import { ReceivablesLineGroupRow } from "@/components/finance/receivables/ReceivablesLineGroupRow"
 import { formatInvoicedVsBookedForRecords } from "@/components/finance/sections/invoicing/invoicedVsBooked"
-import { hasBillingEvidence } from "@/lib/finance/billingLifecycle"
+import { hasBillingEvidence, needsInlineAmountConfirm } from "@/lib/finance/billingLifecycle"
 
 type MediaTypeRollup = {
   mediaType: string
@@ -207,7 +207,7 @@ export function InvoicingMediaPlanSection({
               rollup={rollup}
               editCtx={editCtx}
               invoiceBilled={hasBillingEvidence(mp.records[0]?.state)}
-              confirmIfAnyBilled={mp.records.some((r) => hasBillingEvidence(r.state))}
+              confirmIfAnyBilled={mp.records.some((r) => needsInlineAmountConfirm(r))}
               onLineAmountCommitted={onLineAmountCommitted}
             />
           ))}

@@ -77,13 +77,16 @@ describe("InlineScheduleAmountCell", () => {
     vi.restoreAllMocks()
   })
 
-  function renderCell(invoiceBilled?: boolean) {
+  function renderCell(opts?: { invoiceBilled?: boolean; confirmIfAnyBilled?: boolean }) {
     act(() => {
       root.render(
         <InlineScheduleAmountCell
           line={LINE}
           ctx={CTX}
-          {...(invoiceBilled != null ? { invoiceBilled } : {})}
+          {...(opts?.invoiceBilled != null ? { invoiceBilled: opts.invoiceBilled } : {})}
+          {...(opts?.confirmIfAnyBilled != null
+            ? { confirmIfAnyBilled: opts.confirmIfAnyBilled }
+            : {})}
         />
       )
     })
@@ -200,7 +203,7 @@ describe("InlineScheduleAmountCell", () => {
   })
 
   it("marks billed invoices and confirms before committing", async () => {
-    renderCell(true)
+    renderCell({ invoiceBilled: true })
     expect(container.textContent).toMatch(/Already billed/)
     const input = openEditor()
     expect(toastMock).toHaveBeenCalledWith(
@@ -225,7 +228,7 @@ describe("InlineScheduleAmountCell", () => {
   })
 
   it("does not commit a billed edit when confirm is declined", async () => {
-    renderCell(true)
+    renderCell({ invoiceBilled: true })
     const input = openEditor()
     await typeAmount(input, "4321.50")
     await act(async () => {
@@ -245,5 +248,23 @@ describe("InlineScheduleAmountCell", () => {
         title: "Amount not saved",
       })
     )
+  })
+
+  it("write gate fires when confirmIfAnyBilled even if the display chip is off", async () => {
+    renderCell({ invoiceBilled: false, confirmIfAnyBilled: true })
+    expect(container.textContent).not.toMatch(/Already billed/)
+    const input = openEditor()
+    await typeAmount(input, "4321.50")
+    await act(async () => {
+      input.blur()
+      input.dispatchEvent(new FocusEvent("blur", { bubbles: true }))
+    })
+    await flushMicrotasks()
+    expect(commitMock).not.toHaveBeenCalled()
+    await act(async () => {
+      confirmDialogButton("Continue").click()
+    })
+    await flushMicrotasks()
+    expect(commitMock).toHaveBeenCalledTimes(1)
   })
 })

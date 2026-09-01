@@ -80,19 +80,6 @@ export type HubReceivablesHubState = {
   loadedSignature: string | null
   loadError: string | null
   bumpReceivablesFetch: () => void
-  updateBilledByInvoiceKey: (
-    invoiceKey: string,
-    fields: {
-      billed: boolean
-      billed_at: number | null
-      billed_by: number | null
-      persisted_record_id?: number | null
-      billed_amount?: number | null
-      billed_lines_hash?: string | null
-      billed_drift?: boolean
-      billed_drift_delta?: number | null
-    }
-  ) => void
   updateNotesByInvoiceKey: (
     invoiceKey: string,
     fields: {
@@ -146,37 +133,6 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
   const bumpReceivablesFetch = useCallback(() => {
     setFetchKey((k) => k + 1)
   }, [])
-
-  const updateBilledByInvoiceKey = useCallback<HubReceivablesHubState["updateBilledByInvoiceKey"]>(
-    (invoiceKey, fields) => {
-      if (!invoiceKey) return
-      setRecords((prev) =>
-        prev.map((r) =>
-          r.invoice_key === invoiceKey
-            ? {
-                ...r,
-                billed: fields.billed,
-                billed_at: fields.billed_at,
-                billed_by: fields.billed_by,
-                billed_amount: fields.billed
-                  ? (fields.billed_amount ?? r.billed_amount ?? null)
-                  : null,
-                billed_lines_hash: fields.billed
-                  ? (fields.billed_lines_hash ?? r.billed_lines_hash ?? null)
-                  : null,
-                billed_drift: fields.billed ? (fields.billed_drift ?? false) : false,
-                billed_drift_delta: fields.billed
-                  ? (fields.billed_drift_delta ?? 0)
-                  : null,
-                persisted_record_id:
-                  fields.persisted_record_id ?? r.persisted_record_id ?? null,
-              }
-            : r
-        )
-      )
-    },
-    []
-  )
 
   const updateNotesByInvoiceKey = useCallback<HubReceivablesHubState["updateNotesByInvoiceKey"]>(
     (invoiceKey, fields) => {
@@ -433,7 +389,6 @@ export function useReceivablesData(activeTab: FinanceHubTab): HubReceivablesHubS
     loadedSignature,
     loadError,
     bumpReceivablesFetch,
-    updateBilledByInvoiceKey,
     updateNotesByInvoiceKey,
     updateReceivableLineAmount,
   }
