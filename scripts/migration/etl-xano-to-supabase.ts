@@ -32,8 +32,9 @@ import {
   type VersionRef,
 } from "./_lineItemTransform"
 import { explodeScheduleToMonthRows } from "./_scheduleTransform"
+import { POSTGRES_AUTHORITATIVE_TABLES } from "./_etlTables"
 
-const DRY = process.argv.includes("--dry-run")
+const DRY = process.argv.includes("--dry-run") || process.argv.includes("--dry")
 const BATCH = 250
 
 type Pg = ReturnType<typeof getClient>
@@ -46,29 +47,6 @@ const DROPPED_XANO_TABLES = new Set([
   ...CHANNEL_TABLES.map((c) => c.table),
   "media_plan_master",
   "media_plan_versions",
-])
-
-/**
- * Postgres-authoritative tables: never truncate-reload from Xano.
- * Writes follow WRITE_BACKEND=postgres with no Xano mirror; a reload would
- * destroy live exclusions (PC0 / X1 design gap).
- */
-const POSTGRES_AUTHORITATIVE_TABLES = new Set([
-  "mba_line_approvals",
-  /** Forecast target store cutover — app writes PG; ETL must not wipe. */
-  "revenue_forecast_lines",
-  "revenue_line_catalog",
-  // Codex v2 (migration 0013): Postgres-native module, no Xano twin.
-  // NEVER truncate-reload these — reloading would destroy live Codex data:
-  // tasks, task_checklist_items, task_comments, task_templates, task_template_items,
-  // client_notes, client_domains
-  "tasks",
-  "task_checklist_items",
-  "task_comments",
-  "task_templates",
-  "task_template_items",
-  "client_notes",
-  "client_domains",
 ])
 
 /** Xano JSONL key → SQL column renames (per table). */
@@ -809,17 +787,29 @@ async function main(): Promise<void> {
       ["tasks", schema.tasks],
       ["task_checklist_items", schema.taskChecklistItems],
       ["task_comments", schema.taskComments],
+      // T0-9 Xero ingest excluded via POSTGRES_AUTHORITATIVE_TABLES — listed for skip log only:
       ["xero_contacts", schema.xeroContacts],
       ["xero_ar_invoices", schema.xeroArInvoices],
       ["xero_ap_bills", schema.xeroApBills],
       ["xero_sync_exceptions", schema.xeroSyncExceptions],
       ["xero_sync_log", schema.xeroSyncLog],
+      // T0-9 matcher / alias tables excluded via POSTGRES_AUTHORITATIVE_TABLES — listed for skip log only:
+      ["xero_invoice_matches", schema.xeroInvoiceMatches],
+      ["xero_match_month_metrics", schema.xeroMatchMonthMetrics],
+      ["xero_contact_links", schema.xeroContactLinks],
+      ["xero_client_aliases", schema.xeroClientAliases],
       ["mba_line_approvals", schema.mbaLineApprovals],
     ]
     const reloadable = tables.filter(
       ([name]) => !POSTGRES_AUTHORITATIVE_TABLES.has(name)
     )
-    if (!DRY) await truncateTables(tx, reloadable.map(([n]) => n))
+    if (DRY) {
+      console.log(
+        `  [dry-run] would truncate: ${reloadable.map(([n]) => n).join(", ")}`
+      )
+    } else {
+      await truncateTables(tx, reloadable.map(([n]) => n))
+    }
     for (const [name, table] of tables) {
       if (DROPPED_XANO_TABLES.has(name)) continue
       if (POSTGRES_AUTHORITATIVE_TABLES.has(name)) {

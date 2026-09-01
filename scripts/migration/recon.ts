@@ -28,6 +28,10 @@ import {
   explodeScheduleToMonthRows,
   sumScheduleCents,
 } from "./_scheduleTransform"
+import {
+  POSTGRES_AUTHORITATIVE_RECON_TABLES,
+  reconCountMismatchFails,
+} from "./_etlTables"
 
 const MONEY_EPS_CENTS = 1 // $0.01
 
@@ -61,11 +65,7 @@ const ONE_TO_ONE: Array<{ xano: string; supabase: string; table: keyof typeof sc
   { xano: "creative_asset", supabase: "creative_asset", table: "creativeAsset" },
   { xano: "pacing_orphan_fixes", supabase: "pacing_orphan_fixes", table: "pacingOrphanFixes" },
   // Codex v2 (0013): tasks* / client_notes / client_domains dropped from 1:1 recon
-  { xano: "xero_contacts", supabase: "xero_contacts", table: "xeroContacts" },
-  { xano: "xero_ar_invoices", supabase: "xero_ar_invoices", table: "xeroArInvoices" },
-  { xano: "xero_ap_bills", supabase: "xero_ap_bills", table: "xeroApBills" },
-  { xano: "xero_sync_exceptions", supabase: "xero_sync_exceptions", table: "xeroSyncExceptions" },
-  { xano: "xero_sync_log", supabase: "xero_sync_log", table: "xeroSyncLog" },
+  // T0-9 xero_*: postgres-authoritative (excluded from ETL + hard 1:1 gate)
   // mba_line_approvals: postgres-authoritative (excluded from ETL + hard 1:1 gate)
 ]
 
@@ -100,8 +100,9 @@ async function main(): Promise<void> {
   for (const entry of ONE_TO_ONE) {
     const xano = xanoCounts.get(entry.xano) ?? -1
     const sb = await countTable(db, entry.supabase)
-    const ok = xano === sb
-    if (!ok) countFailures++
+    const fails = reconCountMismatchFails(entry.supabase, xano, sb)
+    const ok = !fails
+    if (fails) countFailures++
     countRows.push({
       scope: "table",
       key: entry.supabase,
@@ -114,11 +115,7 @@ async function main(): Promise<void> {
   }
 
   // Postgres-authoritative — report counts, never fail recon on mismatch.
-  for (const key of [
-    "mba_line_approvals",
-    "revenue_forecast_lines",
-    "revenue_line_catalog",
-  ] as const) {
+  for (const key of POSTGRES_AUTHORITATIVE_RECON_TABLES) {
     const xano = xanoCounts.get(key) ?? -1
     const sb = await countTable(db, key)
     countRows.push({
