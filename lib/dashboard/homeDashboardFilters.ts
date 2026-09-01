@@ -137,6 +137,45 @@ export function computeHomeLiveKpiCounts(
   }
 }
 
+export type HomeMediaSpendFetchStatus = "loading" | "ready" | "error"
+
+export type HomeMediaSpendTile = {
+  /** False on fetch error — omit the tile rather than show a wrong number. */
+  show: boolean
+  /** Null while loading so the UI never paints a money zero as a placeholder. */
+  amount: number | null
+}
+
+/**
+ * Sum planned-to-date dollars for the filtered live-campaign set.
+ * Missing map keys contribute 0. No clamp, filter, or pro-rata — the endpoint
+ * already clamped to the FY and the array is already filtered.
+ */
+export function sumPlannedToDateForCampaigns(
+  campaigns: Array<{ mp_mba_number?: string | null }>,
+  byMba: Record<string, number>,
+): number {
+  let total = 0
+  for (const campaign of campaigns) {
+    const key = String(campaign.mp_mba_number ?? "").trim()
+    if (!key) continue
+    const amount = byMba[key]
+    total += typeof amount === "number" && Number.isFinite(amount) ? amount : 0
+  }
+  return total
+}
+
+/** Home "Media Spend to Date" tile: loading shows a skeleton, error omits the tile. */
+export function homeMediaSpendTile(
+  status: HomeMediaSpendFetchStatus,
+  campaigns: Array<{ mp_mba_number?: string | null }>,
+  byMba: Record<string, number> | null,
+): HomeMediaSpendTile {
+  if (status === "loading") return { show: true, amount: null }
+  if (status === "error" || !byMba) return { show: false, amount: null }
+  return { show: true, amount: sumPlannedToDateForCampaigns(campaigns, byMba) }
+}
+
 /** Scope line under "Key metrics": All clients vs active filter summary. */
 export function describeHomeMetricsFilterScope(filters: DashboardViewFilters): string {
   const search = filters.campaignSearch.trim()

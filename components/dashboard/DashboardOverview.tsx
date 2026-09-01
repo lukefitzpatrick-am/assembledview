@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { MetricCard } from "@/components/ui/MetricCard"
 import { EmptyState, ErrorState } from "@/components/ui/states"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { BarChart3, ChevronDown, TrendingUp, Users, type LucideIcon } from "lucide-react"
+import { BarChart3, ChevronDown, DollarSign, TrendingUp, Users, type LucideIcon } from "lucide-react"
 import { useListGridLayoutPreference } from "@/lib/hooks/useListGridLayoutPreference"
 import { ListGridToggle } from "@/components/ui/list-grid-toggle"
 import {
@@ -20,7 +20,7 @@ import {
 } from "@/components/dashboard/DashboardEntityCards"
 import { format } from "date-fns"
 import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
-import { formatMoney } from "@/lib/format/money"
+import { formatMoney, formatMoneyCompact } from "@/lib/format/money"
 import { isPlannedBasisCampaignStatus } from "@/lib/dashboard/plannedSpendConsistency"
 import { CampaignStatusBadge } from "@/components/campaign/CampaignStatusBadge"
 import { usePathname, useRouter } from "next/navigation"
@@ -59,9 +59,11 @@ import {
   computeHomeLiveKpiCounts,
   defaultDashboardViewFilters,
   describeHomeMetricsFilterScope,
+  homeMediaSpendTile,
   isLiveScopeStatus,
   normalizeClientFilterValue,
   type DashboardViewFilters,
+  type HomeMediaSpendFetchStatus,
 } from "@/lib/dashboard/homeDashboardFilters"
 import {
   cloneDashboardViewFilters,
@@ -611,6 +613,8 @@ export default function DashboardOverview({
   const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
   const [fetchError, setFetchError] = useState<DashboardErrorCopy | null>(null)
+  const [plannedToDateByMba, setPlannedToDateByMba] = useState<Record<string, number> | null>(null)
+  const [plannedToDateStatus, setPlannedToDateStatus] = useState<HomeMediaSpendFetchStatus>("loading")
   const [dataLastRefreshedAt, setDataLastRefreshedAt] = useState<Date | null>(null)
   const [liveCampaignSort, setLiveCampaignSort] = useState<SortState>({ column: "", direction: null })
   const [liveScopesSort, setLiveScopesSort] = useState<SortState>({ column: "", direction: null })
@@ -698,9 +702,14 @@ export default function DashboardOverview({
     [dashboardFilters],
   )
 
+  const mediaSpendTile = useMemo(
+    () => homeMediaSpendTile(plannedToDateStatus, filteredLiveCampaigns, plannedToDateByMba),
+    [plannedToDateStatus, filteredLiveCampaigns, plannedToDateByMba],
+  )
+
   const dashboardMetrics = useMemo((): DashboardMetricCard[] => {
     const counts = computeHomeLiveKpiCounts(filteredLiveCampaigns, filteredLiveScopes)
-    return [
+    const metrics: DashboardMetricCard[] = [
       {
         title: "Total Live Campaigns",
         value: String(counts.liveCampaigns),
@@ -732,7 +741,21 @@ export default function DashboardOverview({
         panelId: "dashboard-section-campaigns-scope",
       },
     ]
-  }, [filteredLiveCampaigns, filteredLiveScopes])
+    if (mediaSpendTile.show && mediaSpendTile.amount !== null) {
+      metrics.push({
+        title: "Media Spend to Date",
+        value: formatMoneyCompact(mediaSpendTile.amount),
+        icon: DollarSign,
+        tooltip:
+          "Planned spend to date from delivery schedules for the selected FY (respects active filters). Not delivered actuals.",
+        accent: "bg-channel-search",
+        iconBg: "bg-surface-panel",
+        iconText: "text-channel-search",
+        panelId: "dashboard-panel-live-campaigns",
+      })
+    }
+    return metrics
+  }, [filteredLiveCampaigns, filteredLiveScopes, mediaSpendTile])
 
   const scrollToDashboardPanel = useCallback((panelId: string, ensureOpen?: () => void) => {
     ensureOpen?.()
@@ -1221,6 +1244,51 @@ export default function DashboardOverview({
     }
   }, [mounted, user, isClient, fetchData])
 
+  useEffect(() => {
+    if (!mounted || !user || isClient || !showMetrics) return
+
+    let cancelled = false
+    setPlannedToDateStatus("loading")
+    setPlannedToDateByMba(null)
+
+    fetch(`/api/dashboard/planned-to-date?fy=${encodeURIComponent(String(fyFilter))}`)
+      .then(async (response) => {
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error("Dashboard: Planned to date API error:", response.status, errorText)
+          return null
+        }
+        const raw = await response.json()
+        const byMba =
+          raw && typeof raw.byMba === "object" && raw.byMba !== null && !Array.isArray(raw.byMba)
+            ? (raw.byMba as Record<string, number>)
+            : null
+        if (!byMba) {
+          console.error("Dashboard: Planned to date API error: missing byMba")
+          return null
+        }
+        return byMba
+      })
+      .catch((err) => {
+        console.error("Dashboard: Error fetching planned to date:", err)
+        return null
+      })
+      .then((byMba) => {
+        if (cancelled) return
+        if (!byMba) {
+          setPlannedToDateStatus("error")
+          setPlannedToDateByMba(null)
+          return
+        }
+        setPlannedToDateByMba(byMba)
+        setPlannedToDateStatus("ready")
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [mounted, user, isClient, showMetrics, fyFilter])
+
   const getEnabledMediaTypes = useCallback((plan: MediaPlan): string[] => {
     const entries: Array<[string, boolean]> = [
       ["television", Boolean(plan.mp_television)],
@@ -1516,6 +1584,9 @@ export default function DashboardOverview({
             { title: "Total Live Campaigns", value: String(kpiCounts.liveCampaigns) },
             { title: "Total Live Scopes of Work", value: String(kpiCounts.liveScopes) },
             { title: "Total Live Clients", value: String(kpiCounts.liveClients) },
+            ...(mediaSpendTile.show && mediaSpendTile.amount !== null
+              ? [{ title: "Media Spend to Date", value: formatMoneyCompact(mediaSpendTile.amount) }]
+              : []),
           ],
           liveCampaigns: liveCampaigns.length,
           liveScopes: liveScopes.length,
@@ -1542,6 +1613,7 @@ export default function DashboardOverview({
     liveScopesSort,
     loading,
     mediaPlans,
+    mediaSpendTile,
     pathname,
     baselineTemplateId,
     savedViews,
@@ -2050,6 +2122,11 @@ export default function DashboardOverview({
                 </Tooltip>
               </PanelRowCell>
             ))}
+            {mediaSpendTile.show && mediaSpendTile.amount === null ? (
+              <PanelRowCell key="kpi-skeleton-media-spend" span="quarter">
+                <KPICardSkeleton />
+              </PanelRowCell>
+            ) : null}
           </TooltipProvider>
           )}
         </PanelRow>

@@ -6,7 +6,9 @@ import {
   computeHomeLiveKpiCounts,
   defaultDashboardViewFilters,
   describeHomeMetricsFilterScope,
+  homeMediaSpendTile,
   isLiveScopeStatus,
+  sumPlannedToDateForCampaigns,
 } from "@/lib/dashboard/homeDashboardFilters"
 
 const plans = [
@@ -103,5 +105,41 @@ describe("homeDashboardFilters", () => {
     expect(isLiveScopeStatus(" in-progress ")).toBe(true)
     expect(isLiveScopeStatus("Draft")).toBe(false)
     expect(isLiveScopeStatus("Completed")).toBe(false)
+  })
+})
+
+describe("home media spend to date", () => {
+  const byMba = {
+    jayco003: 10_000,
+    jayco001: 2_500,
+    extra999: 99_999,
+  }
+
+  it("sums byMba over a filtered set with a partial map", () => {
+    const filtered = applyDashboardTableFiltersToPlans(plans, {
+      ...defaultDashboardViewFilters(),
+      campaignSearch: "Jayco",
+    })
+    expect(sumPlannedToDateForCampaigns(filtered, byMba)).toBe(12_500)
+  })
+
+  it("treats a missing map key as 0", () => {
+    expect(sumPlannedToDateForCampaigns(plans, { jayco003: 10_000 })).toBe(10_000)
+  })
+
+  it("loading state renders no number", () => {
+    const tile = homeMediaSpendTile("loading", plans, byMba)
+    expect(tile.show).toBe(true)
+    expect(tile.amount).toBeNull()
+  })
+
+  it("error state omits the tile", () => {
+    const tile = homeMediaSpendTile("error", plans, byMba)
+    expect(tile.show).toBe(false)
+    expect(tile.amount).toBeNull()
+  })
+
+  it("ready state may be a true zero after a successful fetch", () => {
+    expect(homeMediaSpendTile("ready", plans, {})).toEqual({ show: true, amount: 0 })
   })
 })
