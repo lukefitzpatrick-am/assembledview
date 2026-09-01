@@ -56,6 +56,8 @@ export interface OohExpertScheduleRow {
   /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
   dailyValues?: ExpertDailyValues
   mergedWeekSpans?: OohExpertMergedWeekSpan[]
+  /** Ingest identity — not a grid column. Human-added rows omit it. */
+  ingestSourceRowRefs?: string[]
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for radio expert weekly merges. */
@@ -90,6 +92,8 @@ export interface RadioExpertScheduleRow {
   /** Opportunistic day-level detail. A week is day-detailed iff any of its day keys appear here. */
   dailyValues?: ExpertDailyValues
   mergedWeekSpans?: RadioExpertMergedWeekSpan[]
+  /** Ingest identity — not a grid column. Human-added rows omit it. */
+  ingestSourceRowRefs?: string[]
 }
 
 /** Same shape as {@link OohExpertMergedWeekSpan}; used for cinema expert weekly merges. */

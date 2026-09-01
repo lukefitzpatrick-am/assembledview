@@ -6,6 +6,7 @@
 import type { AutopopulateChannel } from "@/lib/ava/autopopulate/types"
 import type { SavePlanLineItem } from "@/lib/data/savePlan"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
+import { uniqueTrimmedRefs } from "@/lib/mediaplans/ingest/ingestSourceRowRefs"
 import {
   stampProposalForSave,
   type IngestPanelRow,
@@ -126,6 +127,13 @@ function saveLineToFormItem(
   const buyType = asText(line.buyType)
   const market = asText(line.market)
   const buyingDemo = asText(line.buyingDemo)
+  const ingest_source_row_refs = uniqueTrimmedRefs(
+    panels.map((panel) => panel.sourceRowRef),
+  )
+  const stampedAttrs =
+    ingest_source_row_refs.length > 0
+      ? { ...attrs, ingest_source_row_refs }
+      : attrs
 
   const common = {
     network,
@@ -143,8 +151,8 @@ function saveLineToFormItem(
     line_item: index + 1,
     bursts,
     bursts_json: bursts,
-    attrs,
-    buy_granularity: attrs.buy_granularity,
+    attrs: stampedAttrs,
+    buy_granularity: stampedAttrs.buy_granularity,
     panels: formPanels(panels),
   }
 

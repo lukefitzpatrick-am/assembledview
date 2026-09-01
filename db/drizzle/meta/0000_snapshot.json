@@ -8003,6 +8003,28 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "uq_line_item_panels_line_source": {
+          "name": "uq_line_item_panels_line_source",
+          "columns": [
+            {
+              "expression": "line_item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_row_ref",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"line_item_panels\".\"source_row_ref\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {},

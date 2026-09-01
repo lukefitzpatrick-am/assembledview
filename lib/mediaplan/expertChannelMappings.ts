@@ -24,6 +24,7 @@ import {
 } from "@/lib/format/money"
 import { weekKeysInSpanInclusive } from "./expertGridShared"
 import { projectLumpSumCardBudgetsOntoExpertRows } from "./cardExpertBudgetSync"
+import { ingestSourceRowRefsFromFormSnapshot } from "@/lib/mediaplans/ingest/ingestSourceRowRefs"
 import {
   burstDatesForExpertSpan,
   burstWindowForWeekColumn,
@@ -105,6 +106,7 @@ export interface StandardOohFormLineItem {
   line_item?: number | string
   lineItem?: number | string
   bursts: StandardMediaBurst[]
+  attrs?: Record<string, unknown>
 }
 
 /** Radio `radiolineItems` entry shape used by {@link RadioContainer}. */
@@ -130,6 +132,7 @@ export interface StandardRadioFormLineItem {
   line_item?: number | string
   lineItem?: number | string
   bursts: StandardMediaBurst[]
+  attrs?: Record<string, unknown>
 }
 
 export type StandardOohLineItemInput = Partial<StandardOohFormLineItem> & {
@@ -1003,6 +1006,13 @@ function normalizeRadioBursts(item: StandardRadioLineItemInput): StandardMediaBu
   return normalizeOohBursts(item)
 }
 
+function ingestAttrsFromExpertRefs(
+  refs: readonly string[] | undefined,
+): { attrs: Record<string, unknown> } | Record<string, never> {
+  if (!refs?.length) return {}
+  return { attrs: { ingest_source_row_refs: [...refs] } }
+}
+
 function emptyOohLineItem(
   row: OohExpertScheduleRow,
   campaignStartDate: Date,
@@ -1038,6 +1048,7 @@ function emptyOohLineItem(
         calculatedValue: 0,
       },
     ],
+    ...ingestAttrsFromExpertRefs(row.ingestSourceRowRefs),
   }
 }
 
@@ -1079,6 +1090,7 @@ function emptyRadioLineItem(
         calculatedValue: 0,
       },
     ],
+    ...ingestAttrsFromExpertRefs(row.ingestSourceRowRefs),
   }
 }
 
@@ -1258,6 +1270,7 @@ export function mapOohExpertRowsToStandardLineItems(
       line_item: lineNo,
       lineItem: lineNo,
       bursts,
+      ...ingestAttrsFromExpertRefs(row.ingestSourceRowRefs),
     }
   })
 }
@@ -1409,6 +1422,7 @@ export function mapRadioExpertRowsToStandardLineItems(
       line_item: lineNo,
       lineItem: lineNo,
       bursts,
+      ...ingestAttrsFromExpertRefs(row.ingestSourceRowRefs),
     }
   })
 }
@@ -1613,6 +1627,8 @@ export function mapStandardOohLineItemsToExpertRows(
         ? crypto.randomUUID()
         : `ooh-expert-import-${Date.now()}-${index}`
 
+    const ingestSourceRowRefs = ingestSourceRowRefsFromFormSnapshot(item)
+
     return {
       id: _reactKey,
       // Preserve original standard line_item_id for the apply-time merge / round trip.
@@ -1637,6 +1653,7 @@ export function mapStandardOohLineItemsToExpertRows(
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
+      ...(ingestSourceRowRefs.length > 0 ? { ingestSourceRowRefs } : {}),
     }
   })
   return projectLumpSumCardBudgetsOntoExpertRows(
@@ -1739,6 +1756,8 @@ export function mapStandardRadioLineItemsToExpertRows(
         ? crypto.randomUUID()
         : `radio-expert-import-${Date.now()}-${index}`
 
+    const ingestSourceRowRefs = ingestSourceRowRefsFromFormSnapshot(item)
+
     return {
       id: _reactKey,
       sourceLineItemId: id,
@@ -1770,6 +1789,7 @@ export function mapStandardRadioLineItemsToExpertRows(
       ...(Object.keys(dailyValues).length > 0 ? { dailyValues } : {}),
       mergedWeekSpans:
         mergedWeekSpans.length > 0 ? mergedWeekSpans : undefined,
+      ...(ingestSourceRowRefs.length > 0 ? { ingestSourceRowRefs } : {}),
     }
   })
   return projectLumpSumCardBudgetsOntoExpertRows(

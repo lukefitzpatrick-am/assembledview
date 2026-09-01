@@ -22,6 +22,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core"
 
 export type LineItemPanelBuyGranularity = "panel" | "pack"
@@ -77,6 +78,10 @@ export const lineItemPanels = pgTable(
     ),
     index("idx_line_item_panels_mba").on(table.mbaNumber),
     index("idx_line_item_panels_line_item_id").on(table.lineItemId),
+    /** 0055 applied — ASC, ASC, partial WHERE source_row_ref IS NOT NULL. */
+    uniqueIndex("uq_line_item_panels_line_source")
+      .on(table.lineItemId, table.sourceRowRef)
+      .where(sql`${table.sourceRowRef} IS NOT NULL`),
   ],
 )
 

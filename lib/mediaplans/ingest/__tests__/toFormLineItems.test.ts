@@ -272,6 +272,10 @@ test("postcodes stay strings with leading zeros", () => {
   assert.equal(typeof panels[0]!.postcode, "string")
   assert.equal(panels[0]!.postcode, "0800")
   assert.equal(stamped.panels[0]!.postcode, "0800")
+  const attrs = item.attrs as { ingest_source_row_refs?: string[] }
+  assert.deepEqual(attrs.ingest_source_row_refs, ["Paid!r4"])
+  assert.equal(item.line_item_id, undefined)
+  assert.equal(item.lineItemId, undefined)
   assert.equal(burstMoney(item), stampedLineMoney(stamped.lineItems[0]!))
 })
 

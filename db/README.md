@@ -15,12 +15,11 @@
 - `0036_publisher_profiles_publisher_id.sql` — nullable `publisher_id` FK to `publishers.id` + explicit four-row backfill (QMS=30, JCDecaux=35, SCA=12, SEN=19) guarded by `migration_markers`
 - `0037_ingest_runs.sql` — per-upload ingest history (Accept / Cancel / blocked); RLS on; no ava_readonly grant
 - `0049_publisher_profiles_line_granularity.sql` — `line_granularity` (`per_row` default; `grouped` unused by seeds). AUTHOR ONLY; do not drizzle-kit. JSON seed must agree.
-- `0051_finance_billing_records_backfill.sql` — insert app-written Xano `finance_billing_records` missing from Postgres, matched on `invoice_key`, `migration_markers` `0051_finance_billing_records_backfill`. Applied (0 inserted; 1 media: already present). Pre-flight `RAISE EXCEPTION` if any staging key is `xero:`.
-- `0052_xero_billing_amounts_ex_gst.sql` — rewrite `xero:` `finance_billing_records.total` / `billed_amount_cents` from `xero_ar_invoices.sub_total`. Applied (479 rows, movement -$853,418.25).
-- `0053_client_billing_lifecycle.sql` — add approval + Xero-match stamps on `finance_billing_records` (`approved_at` / `approved_by` / `approved_by_name` / `approved_amount_cents` / `approved_lines_hash` / `matched_xero_invoice_id` / `matched_at` / `matched_by`). Partial index on `approved_at IS NULL` (To bill working set) + index on `matched_xero_invoice_id`. Marker `0053_client_billing_lifecycle`. Applied (8 approval/match columns live). Does not drop `billed_*`. Does not touch `clients` or `xero_*`.
-- `0054_seed_xero_contact_links.sql` — insert `xero_contact_links` for every `xero_contacts` row whose `normalizeContactKey` name matches exactly one `clients.mp_client_name`. Key = `xero_contact_id`. Marker `0054_seed_xero_contact_links`. Applied (14 links; 0 ambiguous). Pre-flight RAISE EXCEPTION if any contact would map to two clients.
-- `0056_xero_sync_log_source.sql` — nullable `xero_sync_log.source` so cron resume can skip pull rows without casting `notes` (text). AUTHOR ONLY; do not apply until writers set it. Do not backfill `notes`. Live 22P02 fix is the CASE guard in `lib/xero/syncLogNotes.ts`.
-- `0057_matched_xero_invoice_unique.sql` — UNIQUE `(matched_xero_invoice_id) WHERE matched_xero_invoice_id IS NOT NULL` on `finance_billing_records`; drops the `0053` non-unique index. One Xero invoice settles one app billing record. AUTHOR ONLY; pre-flight RAISE EXCEPTION on duplicates. Marker `0057_matched_xero_invoice_unique`.
+- `0051_finance_billing_records_backfill.sql` — insert app-written Xano `finance_billing_records` missing from Postgres, matched on `invoice_key`, `migration_markers` `0051_finance_billing_records_backfill`. AUTHOR ONLY. Live 1 Sep 2026: 0 missing (the one `media:` row is already in PG). Pre-flight `RAISE EXCEPTION` if any staging key is `xero:`. Do not apply until Luke runs it.
+- `0052_xero_billing_amounts_ex_gst.sql` — rewrite `xero:` `finance_billing_records.total` / `billed_amount_cents` from `xero_ar_invoices.sub_total`. AUTHOR ONLY. Live probe 1 Sep 2026: 479 rows, movement -$853,418.25. Do not apply until Luke runs it.
+- `0053_client_billing_lifecycle.sql` — add approval + Xero-match stamps on `finance_billing_records` (`approved_at` / `approved_by` / `approved_by_name` / `approved_amount_cents` / `approved_lines_hash` / `matched_xero_invoice_id` / `matched_at` / `matched_by`). Partial index on `approved_at IS NULL` (To bill working set) + index on `matched_xero_invoice_id`. Marker `0053_client_billing_lifecycle`. Pre-flight RAISE NOTICE of row counts by `invoice_key` prefix. AUTHOR ONLY. Does not drop `billed_*`. Does not touch `clients` or `xero_*`. Do not apply until Luke runs it.
+- `0054_seed_xero_contact_links.sql` — insert `xero_contact_links` for every `xero_contacts` row whose `normalizeContactKey` name matches exactly one `clients.mp_client_name`. Key = `xero_contact_id`. Marker `0054_seed_xero_contact_links`. Pre-flight RAISE NOTICE of insert count; RAISE EXCEPTION if any contact would map to two clients. AUTHOR ONLY. Do not apply until Luke runs it.
+- `0055_line_item_panels_unique.sql` — partial unique index `uq_line_item_panels_line_source` on `(line_item_id, source_row_ref) WHERE source_row_ref IS NOT NULL`. Applied (0 rows at apply). AUTHOR ONLY; do not drizzle-kit.
 - `0025_codex_tasks_source_profile.sql` — tasks.source allows `profile:<name>` seed keys
 - `0026_enable_rls_public_tables.sql` — enable RLS on migration_markers / campaign_insights / line_item_panels / publisher_profiles + ava_readonly SELECT policy — applied 12 Aug via Supabase MCP, do not re-apply
 - `0027_line_item_panel_flights.sql` — per-period panel presence (no money columns)
@@ -47,12 +46,9 @@ Codex tables live in `db/schema/codex.ts` and are excluded from ETL truncate-rel
 | Command | Proves | Does not cover |
 |---|---|---|
 | `npm run db:generate` | The `db/drizzle/` snapshot matches `db/schema/*.ts` (kit emit is empty) | Never consults live Postgres. Silent if the mirrors themselves drifted from the database. |
-| `npm run db:drift` | The TypeScript mirrors match live public schema (columns, FKs, indexes/uniques by canonical identity). Mirror-ahead columns print a FATAL banner and fail the check. | Not type / nullability / default; not constraint names; not RLS, policies, CHECKs, or opclass. Does not write to Postgres. |
-| `npm run test:db-drift` | Fixture: the comparison fails when the mirror names a missing column, and passes on a matching schema | Does not connect to Postgres. CI runs this; live `db:drift` is the pre-merge gate. |
+| `npm run db:drift` | The TypeScript mirrors match live public schema (columns, FKs, indexes/uniques by canonical identity) | Not type / nullability / default; not constraint names; not RLS, policies, CHECKs, or opclass. Does not write to Postgres. |
 
 Exclusions on `db:drift` may only cover how an object is **written** (naming, unique-index vs unique-constraint, opclass, parens, casts, RLS, policies, CHECKs). Column order, column direction, and partial predicates are semantics and are always drift. RLS policies, check constraints, and index opclasses live in SQL migrations and are omitted from the TS mirrors on purpose — they will not appear in a generate diff.
-
-**Author-only migrations are not a safe half-step.** AI authors SQL into `db/migrations/` and never applies it. The Drizzle schema mirror is live code: a column added to `db/schema/*.ts` is selected by every `db.select()` on that table. If the SQL is still unapplied, every read path on that table 500s. Apply the migration **before** the mirror edit deploys. `npm run db:drift` against the applied database is the gate; `db:generate` empty-diff is not.
 
 **Re-baseline** (schema-side only; never apply SQL):
 
@@ -94,9 +90,9 @@ Wire `AVA_DATABASE_URL` to the **transaction pooler** host with that password. R
 
 - `npx tsx scripts/migration/apply-0039-fireflies-client-first.ts` — idempotent apply of `0039_fireflies_client_first.sql` (SQL Editor also fine)
 - `npx tsx scripts/migration/apply-0041-publisher-specs.ts` — idempotent apply of `0041_publisher_specs.sql` (applied)
+- `npx tsx scripts/migration/apply-0055-line-item-panels-unique.ts` — idempotent apply of `0055_line_item_panels_unique.sql` (applied; SQL Editor also fine)
 - `npm run db:generate` — must be empty when schema matches the snapshot (does not consult the database)
-- `npm run db:drift` — live Postgres vs `db/schema/*.ts`; must be clean (exit 0) before any handover that edits the mirror. Read-only; never writes. Mirror-ahead columns are a deploy blocker.
-- `npm run test:db-drift` — fixture tests for the mirror-ahead comparison (no database)
+- `npm run db:drift` — live Postgres vs `db/schema/*.ts`; must be clean (exit 0). Read-only; never writes
 - `npm run db:migrate` — future only (after journal baseline)
 - `npm run db:studio`
 - `npm run db:etl` / `npm run db:recon` — use server-only test-shims (same as `test:save-plan`); `mba_line_approvals` is postgres-authoritative and skipped by ETL truncate-reload

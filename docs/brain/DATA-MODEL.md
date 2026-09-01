@@ -14,11 +14,11 @@ Xano is no longer in the runtime read or write path. `lib/api/xano.ts` is the on
 | `db/avaClient.ts` → `AVA_DATABASE_URL` as role `ava_readonly` | AVA only | Fail-closed; explicit per-table `GRANT SELECT` + `CREATE POLICY ava_read`. New tables are excluded by default |
 | `DIRECT_URL` (port 5432) | `drizzle-kit` only | Never at runtime |
 
-**Migrations are applied by hand** through the Supabase SQL editor from `db/migrations/00NN_*.sql` (50 applied, `0001`…`0050`; there is no `0047` — the number was minted and abandoned). `0051_finance_billing_records_backfill.sql`, `0052_xero_billing_amounts_ex_gst.sql`, `0053_client_billing_lifecycle.sql`, `0054_seed_xero_contact_links.sql`, and `0055_line_item_panels_unique.sql` are applied. `0056_xero_sync_log_source.sql` and `0057_matched_xero_invoice_unique.sql` are authored, not applied. `db/schema/*.ts` is a hand-kept Drizzle mirror covering all 78 tables. Do not `db:migrate` the drizzle baseline — the tables already exist.
+**Migrations are applied by hand** through the Supabase SQL editor from `db/migrations/00NN_*.sql` (50 applied, `0001`…`0050`; there is no `0047` — the number was minted and abandoned). `0055_line_item_panels_unique.sql` is applied. `0051_finance_billing_records_backfill.sql`, `0052_xero_billing_amounts_ex_gst.sql`, and `0053_client_billing_lifecycle.sql` are authored, not applied. `db/schema/*.ts` is a hand-kept Drizzle mirror covering all 78 tables. Do not `db:migrate` the drizzle baseline — the tables already exist.
 
 **`db:generate` does not prove the mirror matches the database.** The baseline was regenerated from the TypeScript mirrors, so an empty diff proves only that nobody edited `db/schema/*.ts` without regenerating the snapshot. It compares code to its own snapshot, not code to Postgres. Two columns were missing from the mirror while `db:generate` was clean.
 
-**The real gate is `npm run db:drift`** — a comparison against `information_schema`. Run it against the applied database before any handover that edits `db/schema/*.ts`, and before cherry-picking a mirror change to `main`. Mirror-ahead columns (named in the TypeScript, absent from Postgres) print a FATAL banner and fail — that class 500s every `db.select()` on the table if the code deploys first. Never apply the file `generate` produces. Fixture tests (`npm run test:db-drift`) run in CI without a database; they do not replace the live check.
+**The real gate is `npm run db:drift`** — a comparison against `information_schema`. Run it before any handover that touches the schema. Never apply the file `generate` produces.
 
 **Backfill rule.** Any migration that backfills existing rows must be guarded by a `migration_markers` key. `WHERE col IS NULL` alone is not a re-run guard: once the feature is live, NULL means a genuine unfilled state and a re-run corrupts it.
 
@@ -105,7 +105,7 @@ Metrics on all three: `ctr`, `cpv`, `conversion_rate`, `vtr`, `frequency`. `clie
 |---|---|---|
 | `finance_periods` | 0 | Month status via `finance_period_status`, `amended_after_lock`, sheet blob pointer. Unique on `period_month` |
 | `finance_run_items` | 0 | The billing run. Five FKs: `period_id`→periods (cascade), `client_id`→clients, `version_id`→versions, plus self-references `linked_variance_from_item_id` and `rolled_from_item_id`. `sow_id` has **no** FK. Unique on (period_id, source, natural_key) |
-| `finance_billing_records` | 480 | `invoice_key` UNIQUE, `billed_amount_cents`, `billed_lines_hash`. Lifecycle stamps: `approved_at` / `approved_by` / `approved_by_name` + amount/hash snapshot, `exported_at` / `exported_by` (written only by `POST /api/finance/billing/mark-exported` from "Mark as sent to finance"; Excel download does not write; `POST /api/finance/billing/unmark-exported` clears those two columns only), `matched_xero_invoice_id` / `matched_at` / `matched_by` (`auto`\|`manual`). State is derived (`resolveBillingState`) — no `state` column. App no longer writes `billed` / `billed_at` / `billed_by`. `matched_xero_invoice_id` is `xero_ar_invoices.xero_invoice_id` text, no FK. One Xero invoice settles one app row (`0057` unique partial index, authored not applied; live is still the `0053` non-unique index). App writes via `writeFinance.ts` (never `xero:`); Xero ingest owns `xero:` keys and stores `sub_total` (ex-GST), not Xero Total. `0053` applied |
+| `finance_billing_records` | 480 | `invoice_key` UNIQUE, `billed_amount_cents`, `billed_lines_hash`. Lifecycle stamps: `approved_at` / `approved_by` / `approved_by_name` + amount/hash snapshot, `exported_at` / `exported_by` (written by `POST /api/finance/billing/mark-exported` after the approved Excel export), `matched_xero_invoice_id` / `matched_at` / `matched_by` (`auto`\|`manual`). State is derived (`resolveBillingState`) — no `state` column. App no longer writes `billed` / `billed_at` / `billed_by`. `matched_xero_invoice_id` is `xero_ar_invoices.xero_invoice_id` text, no FK. App writes via `writeFinance.ts` (never `xero:`); Xero ingest owns `xero:` keys and stores `sub_total` (ex-GST), not Xero Total. `0053` AUTHOR ONLY |
 | `finance_billing_line_items` | 1 | child of records; `line_status`, `received_amount` |
 | `finance_edits` | 677 | before/after audit of billing edits |
 | `finance_forecast_snapshots` / `_lines` | 0 / 0 | Immutable snapshots, hash-deduped, cascade delete |
@@ -118,7 +118,7 @@ Metrics on all three: `ctr`, `cpv`, `conversion_rate`, `vtr`, `frequency`. `clie
 
 ## Xero
 
-`xero_ar_invoices` (1,433) · `xero_ap_bills` (2,180) · `xero_contacts` (223) · `xero_sync_exceptions` (1,381) · `xero_sync_log` (12; `notes` is text — prose or JSON; cron resume reads `source` via CASE-guarded `notes::jsonb` in `lib/xero/syncLogNotes.ts`; `0056_xero_sync_log_source.sql` AUTHOR ONLY) · `xero_client_aliases` (0, manual normalised-name → `clients.id`) · `xero_contact_links` (14, unique-name seed via `0054`; AR identity keys on `xero_contacts.xero_contact_id`; PC6 reassign still writes normalised-name keys) · `xero_invoice_matches` (0, → `finance_run_items`) · `xero_match_month_metrics` (0)
+`xero_ar_invoices` (1,433) · `xero_ap_bills` (2,180) · `xero_contacts` (223) · `xero_sync_exceptions` (1,381) · `xero_sync_log` (12) · `xero_client_aliases` (0, manual normalised-name → `clients.id`) · `xero_contact_links` (0 until `0054_seed_xero_contact_links` is applied; AR identity keys on `xero_contacts.xero_contact_id`; PC6 reassign still writes normalised-name keys) · `xero_invoice_matches` (0, → `finance_run_items`) · `xero_match_month_metrics` (0)
 
 All nine are **postgres-authoritative**: `db:etl` must not truncate-reload them (`POSTGRES_AUTHORITATIVE_TABLES` in `scripts/migration/_etlTables.ts`). Recon reports Xano vs Supabase counts but never fails on mismatch. The five ingest tables (`xero_ar_invoices`, `xero_ap_bills`, `xero_contacts`, `xero_sync_exceptions`, `xero_sync_log`) still have a 10 Jul Xano snapshot twin — that snapshot is stale; live state is written by `lib/xero/**`. The matcher/alias four (`xero_invoice_matches`, `xero_match_month_metrics`, `xero_contact_links`, `xero_client_aliases`) have no Xano twin.
 
@@ -162,7 +162,7 @@ erDiagram
 | `campaign_insights` | 0 | Append and supersede (`superseded_by` self-FK, paired with `superseded_at` by CHECK). **Never delete.** GIN full-text index on `body`. `mba_number` lowercase by CHECK |
 | `pacing_orphan_fixes` | 1 | admin reassignment audit for unmatched platform line items |
 | `m365_provisioning_log` | 0 | every Graph provisioning attempt: success / failure / skipped |
-| `migration_markers` | 9 | backfill guards |
+| `migration_markers` | 5 | backfill guards |
 
 ## Warehouse (Snowflake, read-only)
 
