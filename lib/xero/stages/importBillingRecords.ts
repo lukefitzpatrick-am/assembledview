@@ -18,6 +18,7 @@ import {
   resolveClientFromContact,
   type AliasRow,
   type ClientRow,
+  type ContactLinkRow,
 } from "../normalizeContact"
 
 export type ImportBillingResult = {
@@ -76,6 +77,21 @@ export async function stageImportBillingRecords(): Promise<ImportBillingResult> 
       aliases = []
     }
 
+    let links: ContactLinkRow[] = []
+    try {
+      links = rowsOf<{
+        xero_contact_key: string
+        client_id: number
+      }>(
+        await db.execute(sql`SELECT xero_contact_key, client_id FROM xero_contact_links`),
+      ).map((l) => ({
+        xeroContactKey: String(l.xero_contact_key),
+        clientId: Number(l.client_id),
+      }))
+    } catch {
+      links = []
+    }
+
     const contactById = new Map<string, string>()
     for (const c of rowsOf<{
       xero_contact_id: string
@@ -116,7 +132,10 @@ export async function stageImportBillingRecords(): Promise<ImportBillingResult> 
 
       const contactName =
         (row.xero_contact_id && contactById.get(row.xero_contact_id)) || ""
-      const resolved = resolveClientFromContact(contactName, clients, aliases)
+      const resolved = resolveClientFromContact(contactName, clients, aliases, {
+        xeroContactId: row.xero_contact_id,
+        links,
+      })
 
       const ref = row.reference_raw ?? ""
       let firstDesc = ""

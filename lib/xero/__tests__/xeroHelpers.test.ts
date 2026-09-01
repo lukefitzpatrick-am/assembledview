@@ -11,6 +11,7 @@ import {
   isAppInvoiceKey,
   mapXeroStatusToBillingStatus,
   parsePoNumber,
+  parseXeroInvoiceIdFromKey,
   xeroInvoiceKey,
 } from "../billingStatus"
 import { dollarsToCents } from "../money"
@@ -143,6 +144,29 @@ describe("normalizeContact + alias resolution", () => {
     assert.equal(r.resolved, false)
     assert.equal(r.clientsId, 0)
   })
+
+  it("an ambiguous contact resolves to null, not to the first match", () => {
+    const r = resolveClientFromContact(
+      "Acme Pty Ltd",
+      [
+        ...clients,
+        { id: 4, mp_client_name: "Acme", payment_days: 14, payment_terms: "" },
+      ],
+      [],
+    )
+    assert.equal(r.resolved, false)
+    assert.equal(r.clientsId, 0)
+  })
+
+  it("prefers a contact link over a name match when both exist", () => {
+    const r = resolveClientFromContact("Acme Pty Ltd", clients, aliases, {
+      xeroContactId: "xero-contact-candela",
+      links: [{ xeroContactKey: "xero-contact-candela", clientId: 2 }],
+    })
+    assert.equal(r.resolved, true)
+    assert.equal(r.clientsId, 2)
+    assert.equal(r.clientName, "Candela")
+  })
 })
 
 describe("billing status / invoice_key / PO / type", () => {
@@ -162,6 +186,8 @@ describe("billing status / invoice_key / PO / type", () => {
     assert.equal(isAppInvoiceKey("sow:1:2025-07"), true)
     assert.equal(isAppInvoiceKey("retainer:1:2025-07"), true)
     assert.equal(isAppInvoiceKey("xero:abc"), false)
+    assert.equal(parseXeroInvoiceIdFromKey("xero:abc-123"), "abc-123")
+    assert.equal(parseXeroInvoiceIdFromKey("media:MBA:2025-07"), null)
   })
 
   it("infers billing_type and PO", () => {

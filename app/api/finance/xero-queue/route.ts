@@ -14,6 +14,10 @@ import {
   enrichPendingFromXero,
   loadMbaOptionsForQueue,
 } from "@/lib/finance/sections/xero/enrichPendingFromXero"
+import {
+  assignClientAndLearnLink,
+  countFy26ArClientCoverage,
+} from "@/lib/xero/contactLinks"
 
 export const maxDuration = 60
 
@@ -46,7 +50,7 @@ export async function GET(request: NextRequest) {
     const gate = await adminGate(request)
     if ("error" in gate && gate.error) return gate.error
 
-    const [billingRows, exceptionsRaw] = await Promise.all([
+    const [billingRows, exceptionsRaw, fy26Coverage] = await Promise.all([
       readFinanceBillingRecords(),
       axios
         .get(xanoUrl("xero_sync_exceptions", "XANO_CLIENTS_BASE_URL"), { timeout: 15_000 })
@@ -55,6 +59,11 @@ export async function GET(request: NextRequest) {
           console.error("[finance-xero-queue] xero_sync_exceptions fetch failed", err?.message)
           return []
         }),
+      countFy26ArClientCoverage().catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err)
+        console.error("[finance-xero-queue] fy26 coverage failed", message)
+        return null
+      }),
     ])
 
     const pendingRaw = capRows(
@@ -90,6 +99,7 @@ export async function GET(request: NextRequest) {
         exceptions_count: exceptions.length,
         page_size_cap: PAGE_SIZE_CAP,
         issue_date_min: EXCEPTIONS_ISSUE_DATE_MIN,
+        fy26_client_coverage: fy26Coverage,
       },
     })
   } catch (error: unknown) {
@@ -169,6 +179,13 @@ export async function POST(request: NextRequest) {
         )
       }
       const client_name = raw.client_name.trim()
+      // Call site: POST /api/finance/xero-queue action assign_client.
+      // Same PG transaction stamps the billing row and upserts xero_contact_links.
+      await assignClientAndLearnLink({
+        billingRecordId: id,
+        clientsId: clients_id,
+        clientName: client_name,
+      })
       await xanoFinancePatch(`${FINANCE_BILLING_RECORDS_PATH}/${id}`, {
         clients_id,
         client_name,

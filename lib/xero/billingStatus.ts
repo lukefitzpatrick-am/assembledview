@@ -59,6 +59,15 @@ export function xeroInvoiceKey(xeroInvoiceId: string): string {
   return `xero:${xeroInvoiceId}`
 }
 
+export function parseXeroInvoiceIdFromKey(
+  invoiceKey: string | null | undefined,
+): string | null {
+  const key = String(invoiceKey ?? "").trim()
+  if (!key.startsWith("xero:")) return null
+  const id = key.slice("xero:".length).trim()
+  return id || null
+}
+
 /** True when invoice_key belongs to the app-written schemes — never touch these. */
 export function isAppInvoiceKey(invoiceKey: string): boolean {
   return (
