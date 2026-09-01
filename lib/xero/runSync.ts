@@ -38,13 +38,68 @@ export type XeroSyncRunResult = {
   sync_log_id?: number
 }
 
+export type XeroSyncLogPayload = {
+  run_started_at: string
+  run_finished_at: string
+  status: "success" | "partial_error"
+  watermark_used: string
+  new_watermark: string
+  invoices_upserted: number
+  contacts_upserted: number
+  notes: Record<string, unknown>
+}
+
+export type XeroSyncStageFns = {
+  ingestInvoices: typeof stageIngestInvoices
+  importBillingRecords: typeof stageImportBillingRecords
+  syncPdfs: typeof stageSyncPdfs
+  contactsRefresh: typeof stageContactsRefresh
+  matchRunItems: typeof stageMatchRunItems
+}
+
+async function insertXeroSyncLog(
+  payload: XeroSyncLogPayload,
+): Promise<number | undefined> {
+  const id = Number(
+    rowsOf<{ id: number }>(
+      await db.execute(sql`
+    INSERT INTO xero_sync_log (
+      run_started_at, run_finished_at, status,
+      watermark_used, new_watermark,
+      invoices_upserted, contacts_upserted, notes
+    ) VALUES (
+      ${payload.run_started_at}::timestamptz,
+      ${payload.run_finished_at}::timestamptz,
+      ${payload.status},
+      ${payload.watermark_used}::timestamptz,
+      ${payload.new_watermark}::timestamptz,
+      ${payload.invoices_upserted},
+      ${payload.contacts_upserted},
+      ${JSON.stringify(payload.notes)}
+    )
+    RETURNING id
+  `),
+    )[0]?.id ?? 0,
+  )
+  return id || undefined
+}
+
 export async function runXeroSync(opts?: {
   fetchImpl?: typeof fetch
+  persistSyncLog?: (payload: XeroSyncLogPayload) => Promise<number | undefined>
+  stages?: Partial<XeroSyncStageFns>
 }): Promise<XeroSyncRunResult> {
   const runStartedAt = new Date()
   const fetchImpl = opts?.fetchImpl
+  const persistSyncLog = opts?.persistSyncLog ?? insertXeroSyncLog
+  const ingestInvoices = opts?.stages?.ingestInvoices ?? stageIngestInvoices
+  const importBillingRecords =
+    opts?.stages?.importBillingRecords ?? stageImportBillingRecords
+  const syncPdfs = opts?.stages?.syncPdfs ?? stageSyncPdfs
+  const contactsRefresh = opts?.stages?.contactsRefresh ?? stageContactsRefresh
+  const matchRunItems = opts?.stages?.matchRunItems ?? stageMatchRunItems
 
-  const ingest = await stageIngestInvoices({
+  const ingest = await ingestInvoices({
     fetchImpl,
     runStartedAt,
   })
@@ -52,17 +107,17 @@ export async function runXeroSync(opts?: {
     console.error("[xero-sync] ingest_invoices failed", ingest.error, ingest.errors)
   }
 
-  const billing = await stageImportBillingRecords()
+  const billing = await importBillingRecords()
   if (!billing.ok) {
     console.error("[xero-sync] import_billing_records failed", billing.error)
   }
 
-  const pdfs = await stageSyncPdfs({ fetchImpl })
+  const pdfs = await syncPdfs({ fetchImpl })
   if (!pdfs.ok) {
     console.error("[xero-sync] sync_pdfs failed", pdfs.error)
   }
 
-  const contacts = await stageContactsRefresh({
+  const contacts = await contactsRefresh({
     fetchImpl,
     runStartedAt,
   })
@@ -71,7 +126,7 @@ export async function runXeroSync(opts?: {
   }
 
   // PC6: append matcher after ingest substrate is warm (contacts + AR rows).
-  const match = await stageMatchRunItems()
+  const match = await matchRunItems()
   if (!match.ok) {
     console.error("[xero-sync] match_run_items failed", match.error)
   }
@@ -130,27 +185,23 @@ export async function runXeroSync(opts?: {
   }
 
   const invoicesUpserted = ingest.ar_upserted + ingest.ap_upserted
-  const syncLogId = Number(
-    rowsOf<{ id: number }>(
-      await db.execute(sql`
-    INSERT INTO xero_sync_log (
-      run_started_at, run_finished_at, status,
-      watermark_used, new_watermark,
-      invoices_upserted, contacts_upserted, notes
-    ) VALUES (
-      ${runStartedAt.toISOString()}::timestamptz,
-      ${runFinishedAt.toISOString()}::timestamptz,
-      ${status},
-      ${ingest.watermark_used}::timestamptz,
-      ${ingest.new_watermark}::timestamptz,
-      ${invoicesUpserted},
-      ${contacts.contacts_upserted},
-      ${JSON.stringify(notes)}
-    )
-    RETURNING id
-  `),
-    )[0]?.id ?? 0,
-  )
+  const logPayload: XeroSyncLogPayload = {
+    run_started_at: runStartedAt.toISOString(),
+    run_finished_at: runFinishedAt.toISOString(),
+    status,
+    watermark_used: ingest.watermark_used,
+    new_watermark: ingest.new_watermark,
+    invoices_upserted: invoicesUpserted,
+    contacts_upserted: contacts.contacts_upserted,
+    notes,
+  }
+
+  let syncLogId: number | undefined
+  try {
+    syncLogId = await persistSyncLog(logPayload)
+  } catch (err) {
+    console.error("[xero-sync] failed to write xero_sync_log", err, logPayload)
+  }
 
   return {
     status,
@@ -163,7 +214,7 @@ export async function runXeroSync(opts?: {
       contacts_refresh: contacts,
       match_run_items: match,
     },
-    sync_log_id: syncLogId || undefined,
+    sync_log_id: syncLogId,
   }
 }
 

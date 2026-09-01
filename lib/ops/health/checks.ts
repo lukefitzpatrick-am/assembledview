@@ -1,5 +1,8 @@
 import "server-only"
 
+import { sql } from "drizzle-orm"
+
+import { db } from "@/db"
 import { querySnowflake } from "@/lib/snowflake/query"
 import { SOCIAL_PACING_TABLE } from "@/lib/pacing/social-channels"
 import { getAsOfDate, getMelbourneYesterdayISO } from "@/lib/pacing/maths"
@@ -217,21 +220,82 @@ export async function checkPlanningMethodology(): Promise<OpsCheckResult> {
   }
 }
 
+const XERO_SYNC_GREEN_HOURS = 36
+const XERO_SYNC_AMBER_HOURS = 7 * 24
+
+export type XeroSyncLogNewest = {
+  run_started_at: string | Date | null
+  status: string | null
+}
+
+export function xeroSyncFreshnessFromNewest(
+  newest: XeroSyncLogNewest | null,
+  now: Date = new Date(),
+): OpsCheckResult {
+  const name = "Xero sync freshness"
+  if (!newest?.run_started_at) {
+    return { name, status: "red", detail: "empty table" }
+  }
+  const startedAt = new Date(newest.run_started_at)
+  if (Number.isNaN(startedAt.getTime())) {
+    return { name, status: "red", detail: "empty table" }
+  }
+  const ageHours = (now.getTime() - startedAt.getTime()) / 3_600_000
+  const statusLabel = newest.status ?? "unknown"
+  const detail = `status=${statusLabel}; age=${Math.round(ageHours)}h`
+  if (ageHours <= XERO_SYNC_GREEN_HOURS) {
+    return { name, status: "green", detail }
+  }
+  if (ageHours <= XERO_SYNC_AMBER_HOURS) {
+    return { name, status: "amber", detail }
+  }
+  return { name, status: "red", detail }
+}
+
+export async function checkXeroSyncFreshness(
+  now: Date = new Date(),
+): Promise<OpsCheckResult> {
+  try {
+    const result = await db.execute(sql`
+      SELECT run_started_at, status
+      FROM xero_sync_log
+      ORDER BY run_started_at DESC NULLS LAST
+      LIMIT 1
+    `)
+    const rows = (
+      Array.isArray(result)
+        ? result
+        : ((result as { rows?: XeroSyncLogNewest[] }).rows ?? [])
+    ) as XeroSyncLogNewest[]
+    return xeroSyncFreshnessFromNewest(rows[0] ?? null, now)
+  } catch (err) {
+    return {
+      name: "Xero sync freshness",
+      status: "red",
+      detail: err instanceof Error ? err.message : String(err),
+    }
+  }
+}
+
 export async function runOpsHealthChecks(now: Date = new Date()) {
   const asOfDate = getAsOfDate(now)
 
-  const [platformChecks, xano, methodology] = await Promise.all([
+  const [platformChecks, xano, methodology, xeroSync] = await Promise.all([
     checkWarehouseAndVolume(asOfDate),
     checkXanoProxyLiveness(),
     checkPlanningMethodology(),
+    checkXeroSyncFreshness(now),
   ])
-
-  // Struck: Xero daily sync (xero_sync_log) — no app client / Xano endpoint exists.
-  // Finance only reads xero_sync_exceptions today.
 
   return {
     asOfDate,
     checkedAt: now.toISOString(),
-    results: [platformChecks.freshness, platformChecks.volume, xano, methodology],
+    results: [
+      platformChecks.freshness,
+      platformChecks.volume,
+      xano,
+      methodology,
+      xeroSync,
+    ],
   }
 }
