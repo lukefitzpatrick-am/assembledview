@@ -15,6 +15,7 @@ type ReceivablesLineGroupRowProps = {
   group: GroupedLineItem
   editCtx?: InlineScheduleEditContext | null
   invoiceBilled?: boolean
+  confirmIfAnyBilled?: boolean
   onLineAmountCommitted?: (
     line: BillingLineItem,
     next: { amount: number; billing_mode?: "auto" | "manual" | null }
@@ -25,11 +26,13 @@ function LineAmountCell({
   line,
   editCtx,
   invoiceBilled,
+  confirmIfAnyBilled,
   onLineAmountCommitted,
 }: {
   line: BillingLineItem
   editCtx?: InlineScheduleEditContext | null
   invoiceBilled?: boolean
+  confirmIfAnyBilled?: boolean
   onLineAmountCommitted?: ReceivablesLineGroupRowProps["onLineAmountCommitted"]
 }) {
   return (
@@ -37,6 +40,7 @@ function LineAmountCell({
       line={line}
       ctx={editCtx ?? null}
       invoiceBilled={invoiceBilled}
+      confirmIfAnyBilled={confirmIfAnyBilled}
       onCommitted={(next) => onLineAmountCommitted?.(line, next)}
     />
   )
@@ -46,6 +50,7 @@ export function ReceivablesLineGroupRow({
   group,
   editCtx,
   invoiceBilled,
+  confirmIfAnyBilled,
   onLineAmountCommitted,
 }: ReceivablesLineGroupRowProps) {
   const [open, setOpen] = useState(false)
@@ -65,6 +70,7 @@ export function ReceivablesLineGroupRow({
           line={li}
           editCtx={editCtx}
           invoiceBilled={invoiceBilled}
+          confirmIfAnyBilled={confirmIfAnyBilled}
           onLineAmountCommitted={onLineAmountCommitted}
         />
       </div>
@@ -104,6 +110,7 @@ export function ReceivablesLineGroupRow({
                   line={li}
                   editCtx={editCtx}
                   invoiceBilled={invoiceBilled}
+                  confirmIfAnyBilled={confirmIfAnyBilled}
                   onLineAmountCommitted={onLineAmountCommitted}
                 />
               </div>

@@ -8,6 +8,7 @@ import { hashBilledLineSet, toBilledLineSnapshots } from "@/lib/finance/billedDr
 import { ensureFinanceBillingRecord } from "@/lib/finance/materialiseFinanceBillingRecord"
 import { composeInvoiceKey } from "@/lib/finance/overlayFinanceStatus"
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
+import { billedSnapshotAmountEchoOk } from "@/lib/finance/billedSnapshotEcho"
 import { dollarsToCents } from "@/lib/xero/money"
 
 export const maxDuration = 60
@@ -156,9 +157,9 @@ export async function POST(request: NextRequest) {
 
     const now = Date.now()
 
-    // When marking billed, both snapshot fields must be written. Xano's dynamic
-    // PATCH mapping can drop null/undefined silently — refuse the request rather
-    // than persist a half-snapshot that breaks detectBilledDrift on reload.
+    // When marking billed, both snapshot fields must be written. Postgres stores
+    // billed_amount_cents + billed_lines_hash; refuse rather than persist a
+    // half-snapshot that breaks detectBilledDrift on reload.
     if (billed) {
       if (typeof total !== "number" || !Number.isFinite(total)) {
         return NextResponse.json(
@@ -240,10 +241,10 @@ export async function POST(request: NextRequest) {
         )
       }
 
-      const echoAmount = Number(echoed.billed_amount)
       const echoHash =
         typeof echoed.billed_lines_hash === "string" ? echoed.billed_lines_hash : ""
-      const amountOk = Number.isFinite(echoAmount) && echoAmount === billed_amount
+      const amountOk =
+        billed_amount != null && billedSnapshotAmountEchoOk(echoed.billed_amount, billed_amount)
       const hashOk = echoHash.length > 0 && echoHash === billed_lines_hash
 
       if (!amountOk || !hashOk) {

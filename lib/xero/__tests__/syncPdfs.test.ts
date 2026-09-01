@@ -3,8 +3,12 @@ import { describe, it } from "node:test"
 
 import {
   PDF_429_MAX_ATTEMPTS,
+  PDF_429_MAX_DELAY_MS,
   PDF_PENDING_WHERE,
+  PDF_STAGE_BUDGET_MS,
   XANO_EMPTY_PDF_STUB,
+  delayMsFor429,
+  parseRetryAfterMs,
   pdfFileNeedsSync,
   stageSyncPdfs,
   type PendingPdfRow,
@@ -97,6 +101,24 @@ describe("429 backoff", () => {
     assert.match(reasons[0]!, /pdf status 429/)
     assert.match(reasons[0]!, new RegExp(String(PDF_429_MAX_ATTEMPTS)))
   })
+
+  it("parses Retry-After HTTP-date relative to nowMs", () => {
+    const nowMs = Date.parse("Wed, 21 Oct 2015 07:28:00 GMT")
+    const headers = new Headers({
+      "Retry-After": "Wed, 21 Oct 2015 07:28:10 GMT",
+    })
+    assert.equal(parseRetryAfterMs(headers, nowMs), 10_000)
+  })
+
+  it("caps Retry-After at PDF_429_MAX_DELAY_MS", () => {
+    const headers = new Headers({ "Retry-After": "60" })
+    assert.equal(delayMsFor429(headers, 1), PDF_429_MAX_DELAY_MS)
+    const nowMs = Date.parse("Wed, 21 Oct 2015 07:28:00 GMT")
+    const dateHeaders = new Headers({
+      "Retry-After": "Wed, 21 Oct 2015 07:29:00 GMT",
+    })
+    assert.equal(delayMsFor429(dateHeaders, 1, Math.random, nowMs), PDF_429_MAX_DELAY_MS)
+  })
 })
 
 describe("per-row PDF failure", () => {
@@ -131,5 +153,40 @@ describe("per-row PDF failure", () => {
     assert.equal(result.processed, 1)
     assert.deepEqual(persisted, ["inv-ok"])
     assert.deepEqual(exceptions, ["inv-stub"])
+  })
+})
+
+describe("PDF stage elapsed-time budget", () => {
+  it("breaks the row loop and returns ok when the budget is spent", async () => {
+    let t = 0
+    const persisted: string[] = []
+    const extra: PendingPdfRow = {
+      xero_invoice_id: "inv-extra",
+      invoice_number: "INV-EXTRA",
+      reference_raw: "BOSS007",
+      issue_date: "2025-09-02",
+    }
+
+    const result = await stageSyncPdfs({
+      batchSize: 10,
+      now: () => t,
+      getAccessToken: async () => "tok",
+      sleep: async () => {
+        throw new Error("should not sleep")
+      },
+      listPending: async (kind) => (kind === "AR" ? [OK_ROW, extra] : []),
+      putPdfBlob: async () => BLOB_PDF,
+      persistPdfFile: async (_table, xeroInvoiceId) => {
+        persisted.push(xeroInvoiceId)
+        t = PDF_STAGE_BUDGET_MS
+      },
+      fetchImpl: (async () => pdfOkResponse()) as typeof fetch,
+    })
+
+    assert.equal(result.ok, true)
+    assert.equal(result.attempts, 1)
+    assert.equal(result.processed, 1)
+    assert.deepEqual(persisted, ["inv-ok"])
+    assert.equal(result.ar_pending_seen, 2)
   })
 })

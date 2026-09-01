@@ -393,7 +393,6 @@ export async function fetchFinanceCostsSummary(
       to_char(date_trunc('month', COALESCE(b.activity_month, b.issue_date))::date, 'YYYY-MM') AS activity_month,
       b.due_date,
       b.sub_total,
-      b.total,
       b.amount_due,
       b.pdf_file,
       c.name AS contact_name

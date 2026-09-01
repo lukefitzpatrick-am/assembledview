@@ -46,7 +46,9 @@ export async function executeFinanceRun(args: {
   updated: number
   itemCount: number
 }> {
-  // force is for tests and authored scripts only, never for a route.
+  // force is never for a user-triggered route; cron routes gate on the flag
+  // first and pass force only after that gate. Tests and authored scripts may
+  // pass it.
   if (!isFinancePeriodsEnabled() && !args.force) {
     return {
       ok: false,
@@ -154,7 +156,9 @@ export async function executeFinanceLock(args: {
   rolled: number
   sheetPathname: string | null
 }> {
-  // force is for tests and authored scripts only, never for a route.
+  // force is never for a user-triggered route; cron routes gate on the flag
+  // first and pass force only after that gate. Tests and authored scripts may
+  // pass it.
   if (!isFinancePeriodsEnabled() && !args.force) {
     return {
       ok: false,
@@ -254,6 +258,9 @@ export async function executePreRunSweep(args: {
   now?: Date
   force?: boolean
 }): Promise<{ ok: boolean; skipped?: string; card: ReturnType<typeof buildPreRunSweepCard> | null }> {
+  // force is never for a user-triggered route; cron routes gate on the flag
+  // first and pass force only after that gate. Tests and authored scripts may
+  // pass it.
   if (!isFinancePeriodsEnabled() && !args.force) {
     return { ok: false, skipped: "FINANCE_PERIODS off", card: null }
   }

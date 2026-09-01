@@ -63,7 +63,7 @@ describe("InlineScheduleAmountCell", () => {
       stampedManual: true,
       showedDivergenceToast: false,
     })
-    vi.spyOn(window, "confirm").mockReturnValue(true)
+    vi.spyOn(window, "confirm")
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -111,6 +111,14 @@ describe("InlineScheduleAmountCell", () => {
     act(() => {
       setNativeValue(input, value)
     })
+  }
+
+  function confirmDialogButton(label: string): HTMLButtonElement {
+    const btn = [...document.body.querySelectorAll("button")].find(
+      (el) => el.textContent?.trim() === label
+    )
+    expect(btn).toBeTruthy()
+    return btn as HTMLButtonElement
   }
 
   async function flushMicrotasks() {
@@ -206,12 +214,17 @@ describe("InlineScheduleAmountCell", () => {
       input.dispatchEvent(new FocusEvent("blur", { bubbles: true }))
     })
     await flushMicrotasks()
-    expect(window.confirm).toHaveBeenCalled()
+    expect(window.confirm).not.toHaveBeenCalled()
+    expect(commitMock).not.toHaveBeenCalled()
+    await act(async () => {
+      confirmDialogButton("Continue").click()
+    })
+    await flushMicrotasks()
     expect(commitMock).toHaveBeenCalledTimes(1)
+    expect(commitMock.mock.calls[0][0].amount).toBe(4321.5)
   })
 
   it("does not commit a billed edit when confirm is declined", async () => {
-    vi.mocked(window.confirm).mockReturnValue(false)
     renderCell(true)
     const input = openEditor()
     await typeAmount(input, "4321.50")
@@ -220,7 +233,17 @@ describe("InlineScheduleAmountCell", () => {
       input.dispatchEvent(new FocusEvent("blur", { bubbles: true }))
     })
     await flushMicrotasks()
+    expect(window.confirm).not.toHaveBeenCalled()
+    await act(async () => {
+      confirmDialogButton("Cancel").click()
+    })
+    await flushMicrotasks()
     expect(commitMock).not.toHaveBeenCalled()
     expect(container.querySelector("button")?.textContent).toContain("1,000.00")
+    expect(toastMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Amount not saved",
+      })
+    )
   })
 })

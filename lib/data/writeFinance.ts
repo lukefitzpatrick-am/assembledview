@@ -138,7 +138,8 @@ async function loadInvoiceKeyByLineItemId(id: number): Promise<string | null> {
 
 /**
  * Insert-or-return by invoice_key. Conflict does not overwrite billed/notes
- * (ensure semantics). The WHERE guard refuses to mutate xero: rows.
+ * (ensure semantics). xero: keys are refused by assertAppInvoiceKey before
+ * the INSERT — the no-op DO UPDATE exists so RETURNING still yields the row.
  */
 export async function upsertFinanceBillingRecordByInvoiceKey(
   invoiceKey: string,
@@ -184,7 +185,6 @@ export async function upsertFinanceBillingRecordByInvoiceKey(
       )
       ON CONFLICT (invoice_key) DO UPDATE SET
         updated_at = finance_billing_records.updated_at
-      WHERE finance_billing_records.invoice_key NOT LIKE 'xero:%'
       RETURNING *
     `)
   )
@@ -280,9 +280,6 @@ export async function patchFinanceBillingRecordById(
     throw new FinanceBillingWriteError("NOT_FOUND", `finance_billing_records id=${id} not found`)
   }
   assertAppInvoiceKey(existingKey)
-  if (typeof body.invoice_key === "string") {
-    assertAppInvoiceKey(body.invoice_key)
-  }
 
   const cents = patchCentsFromBody(body)
   const billedAt =

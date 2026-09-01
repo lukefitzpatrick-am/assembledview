@@ -65,10 +65,9 @@ export function composeInvoiceKey(
 /**
  * Fetches all finance_billing_records rows for the given month.
  *
- * Stage 2.2a uses a simple GET-all-then-filter pattern matching the existing
- * `parseList` approach in `xanoFinanceApi.ts`. If volume becomes an issue we
- * can move to a server-side filter param later — three rows today, so this
- * is fine.
+ * Stage 2.2a uses a simple GET-all-then-filter pattern matching
+ * `readFinanceBillingRecords`. If volume becomes an issue we can move to a
+ * server-side filter param later.
  */
 export async function fetchPersistedFinanceStatusForMonth(
   billingMonth: string
@@ -90,7 +89,7 @@ export async function fetchPersistedFinanceStatusForMonth(
 export async function fetchAllPersistedFinanceStatusRows(
   _logContextMonth?: string
 ): Promise<PersistedFinanceStatusRow[]> {
-  // DATA_BACKEND_FINANCE / DATA_BACKEND — writes stay on Xano.
+  // DATA_BACKEND_FINANCE / DATA_BACKEND — reads Postgres; writes go through writeFinance.ts.
   const rows = await readFinanceBillingRecords()
   return rows as unknown as PersistedFinanceStatusRow[]
 }

@@ -46,4 +46,13 @@ describe("Xero sync freshness", () => {
     assert.equal(r.status, "red")
     assert.match(r.detail, /empty/i)
   })
+
+  it("returns red with a distinct detail when the timestamp is unparseable", () => {
+    const r = xeroSyncFreshnessFromNewest(
+      { run_started_at: "not-a-date", status: "success" },
+      NOW,
+    )
+    assert.equal(r.status, "red")
+    assert.equal(r.detail, "unparseable timestamp")
+  })
 })

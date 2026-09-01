@@ -70,11 +70,13 @@ function MediaTypeRollupRow({
   rollup,
   editCtx,
   invoiceBilled,
+  confirmIfAnyBilled,
   onLineAmountCommitted,
 }: {
   rollup: MediaTypeRollup
   editCtx: InlineScheduleEditContext | null
   invoiceBilled?: boolean
+  confirmIfAnyBilled?: boolean
   onLineAmountCommitted?: InvoicingMediaPlanSectionProps["onLineAmountCommitted"]
 }) {
   const [open, setOpen] = useState(false)
@@ -111,6 +113,7 @@ function MediaTypeRollupRow({
               group={g}
               editCtx={editCtx}
               invoiceBilled={invoiceBilled}
+              confirmIfAnyBilled={confirmIfAnyBilled}
               onLineAmountCommitted={(line, next) => {
                 if (!editCtx) return
                 onLineAmountCommitted?.(line, next, editCtx)
@@ -205,6 +208,7 @@ export function InvoicingMediaPlanSection({
               rollup={rollup}
               editCtx={editCtx}
               invoiceBilled={mp.records[0]?.billed === true}
+              confirmIfAnyBilled={mp.records.some((r) => r.billed === true)}
               onLineAmountCommitted={onLineAmountCommitted}
             />
           ))}

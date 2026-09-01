@@ -24,6 +24,10 @@ export const PDF_BATCH_SIZE_ENV = "XERO_PDF_BATCH_SIZE"
 /** Cap HTTP 429 retries per invoice (initial fetch + this many-1 waits). */
 export const PDF_429_MAX_ATTEMPTS = 5
 export const PDF_429_BASE_DELAY_MS = 1000
+/** Ceiling on each 429 sleep (Retry-After or exponential). Four sleeps ≤ 60s. */
+export const PDF_429_MAX_DELAY_MS = 15_000
+/** Break the row loop and return cleanly before the cron's 300s maxDuration. */
+export const PDF_STAGE_BUDGET_MS = 90_000
 
 /**
  * Xano ETL left pdf_file as a non-null empty stub:
@@ -124,10 +128,12 @@ export function delayMsFor429(
   nowMs: number = Date.now(),
 ): number {
   const retryAfter = parseRetryAfterMs(headers, nowMs)
-  if (retryAfter != null) return retryAfter
-  const exp = PDF_429_BASE_DELAY_MS * 2 ** Math.max(0, attempt - 1)
-  const jitter = Math.floor(random() * PDF_429_BASE_DELAY_MS)
-  return exp + jitter
+  const uncapped =
+    retryAfter != null
+      ? retryAfter
+      : PDF_429_BASE_DELAY_MS * 2 ** Math.max(0, attempt - 1) +
+        Math.floor(random() * PDF_429_BASE_DELAY_MS)
+  return Math.min(uncapped, PDF_429_MAX_DELAY_MS)
 }
 
 function sleepMs(ms: number): Promise<void> {
@@ -294,6 +300,7 @@ export async function stageSyncPdfs(opts?: {
   batchSize?: number
   sleep?: (ms: number) => Promise<void>
   random?: () => number
+  now?: () => number
   getAccessToken?: (fetchImpl: typeof fetch) => Promise<string>
   listPending?: (kind: "AR" | "AP") => Promise<PendingPdfRow[]>
   putPdfBlob?: (
@@ -312,6 +319,8 @@ export async function stageSyncPdfs(opts?: {
   const fetchImpl = opts?.fetchImpl ?? fetch
   const sleep = opts?.sleep ?? sleepMs
   const random = opts?.random ?? Math.random
+  const now = opts?.now ?? Date.now
+  const startedAt = now()
   const getToken = opts?.getAccessToken ?? getXeroAccessToken
   const listPending =
     opts?.listPending ??
@@ -354,12 +363,14 @@ export async function stageSyncPdfs(opts?: {
     }
 
     for (const row of arPending) {
+      if (now() - startedAt >= PDF_STAGE_BUDGET_MS) break
       if (attempts >= batchSize) break
       attempts++
       if (await attach(row, "AR", "xero_ar_invoices")) done++
     }
 
     for (const row of apPending) {
+      if (now() - startedAt >= PDF_STAGE_BUDGET_MS) break
       if (attempts >= batchSize) break
       attempts++
       if (await attach(row, "AP", "xero_ap_bills")) done++

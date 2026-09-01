@@ -35,6 +35,7 @@ export type MatchMbaResult =
       kind: "mba"
       mba_number: string
       id: number
+      /** Dual-hit diagnostic; applyMatchMba does not persist this. */
       alsoScope?: { scope_id: string; id: number }
     }
   | { matched: true; kind: "sow"; scope_id: string; id: number }

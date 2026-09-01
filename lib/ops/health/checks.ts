@@ -238,7 +238,7 @@ export function xeroSyncFreshnessFromNewest(
   }
   const startedAt = new Date(newest.run_started_at)
   if (Number.isNaN(startedAt.getTime())) {
-    return { name, status: "red", detail: "empty table" }
+    return { name, status: "red", detail: "unparseable timestamp" }
   }
   const ageHours = (now.getTime() - startedAt.getTime()) / 3_600_000
   const statusLabel = newest.status ?? "unknown"

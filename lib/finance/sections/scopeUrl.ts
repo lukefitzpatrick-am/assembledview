@@ -55,12 +55,15 @@ export function parseScopeFromParams(
   return { fy, monthRange, clients, basisDefault }
 }
 
+export const FINANCE_SCOPE_QUERY_KEYS = ["fy", "from", "to", "clients", "basis"] as const
+
 export function scopeToSearchParams(applied: FinanceScopeValues): URLSearchParams {
   const p = new URLSearchParams()
-  p.set("fy", String(applied.fy))
-  p.set("from", applied.monthRange.from)
-  p.set("to", applied.monthRange.to)
-  if (applied.clients.length) p.set("clients", applied.clients.join(","))
-  if (applied.basisDefault !== "booked") p.set("basis", applied.basisDefault)
+  const [fy, from, to, clients, basis] = FINANCE_SCOPE_QUERY_KEYS
+  p.set(fy, String(applied.fy))
+  p.set(from, applied.monthRange.from)
+  p.set(to, applied.monthRange.to)
+  if (applied.clients.length) p.set(clients, applied.clients.join(","))
+  if (applied.basisDefault !== "booked") p.set(basis, applied.basisDefault)
   return p
 }

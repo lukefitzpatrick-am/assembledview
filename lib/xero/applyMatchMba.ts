@@ -119,6 +119,7 @@ export async function applyMatchMba(
   const result = matchMbaAgainstMasters(input.referenceRaw, masters, scopes)
 
   if (result.matched && result.kind === "mba") {
+    // alsoScope is diagnostic only (INVARIANTS dual-hit); not written to AR.
     await db
       .update(xeroArInvoices)
       .set({
