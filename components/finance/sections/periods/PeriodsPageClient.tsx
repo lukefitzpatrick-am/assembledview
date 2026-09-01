@@ -18,6 +18,7 @@ import {
 } from "@/lib/finance/months"
 import { getSydneyWallClock } from "@/lib/finance/periods/sydneyClock"
 import { useFinanceScopeApplied } from "@/lib/finance/sections/useFinanceScope"
+import { FinanceScopeFyNotice } from "@/components/finance/sections/FinanceScopeFyNotice"
 import type { FinanceRunItem } from "@/lib/finance/periods/types"
 
 export function PeriodsPageClient() {
@@ -137,6 +138,8 @@ export function PeriodsPageClient() {
             admin-amend are not exposed here.
           </p>
         )}
+
+        <FinanceScopeFyNotice />
 
         {loading && !data ? <LoadingState rows={6} /> : null}
 

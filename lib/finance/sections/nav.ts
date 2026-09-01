@@ -106,7 +106,9 @@ export type FinanceSidebarSnapshot = {
   items: ReadonlyArray<{ path: string; label: string }>
 }
 
-/** Sidebar is always the expandable sections model (flag kill-switch does not flatten). */
+/** Sidebar is always the expandable sections model (flag kill-switch does not flatten).
+ * Paths here are static. Scope query strings are attached at render in AppSidebar
+ * via `financeHref` — this snapshot cannot read the Zustand store. */
 export function getFinanceSidebarSnapshot(_sectionsEnabled?: boolean): FinanceSidebarSnapshot {
   return {
     mode: "expandable",

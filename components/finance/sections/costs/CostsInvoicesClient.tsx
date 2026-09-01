@@ -18,6 +18,7 @@ import type { FinanceCostsSummaryPayload } from "@/lib/finance/sections/costsQue
 import { exportCostsInvoicesExcel } from "@/lib/finance/sections/exportCostsInvoices"
 import { fyDisplayLabel } from "@/lib/finance/months"
 import { formatMoney } from "@/lib/format/money"
+import { financeHref } from "@/lib/finance/sections/financeHref"
 import {
   useFinanceScopeApplied,
   useFinanceScopeStore,
@@ -144,7 +145,7 @@ export function CostsInvoicesClient() {
               {exporting ? "Exporting…" : "Export Excel"}
             </Button>
             <Link
-              href="/finance/costs"
+              href={financeHref("/finance/costs", applied)}
               className="text-sm text-muted-foreground underline-offset-2 hover:underline"
             >
               ← Publishers overview

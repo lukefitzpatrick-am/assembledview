@@ -90,6 +90,9 @@ export function SectionScopeBar({
     const fmode = current.get("fmode")
     if (fmode === "target" || fmode === "variance") next.set("fmode", fmode)
     const qs = next.toString()
+    // Deliberate replace, not push: scope is a view filter, not a place in history.
+    // Back should leave the section, not undo Apply. A history entry per Apply would
+    // stack filters and fight the Apply-gate (draft commits only on Apply).
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false })
   }
 
@@ -182,7 +185,7 @@ export function SectionScopeBar({
         ) : null}
 
         <div className="flex items-center gap-2 pb-0.5">
-          <Button type="button" size="sm" onClick={commitApply} disabled={!dirty}>
+          <Button type="button" size="sm" onClick={commitApply}>
             Apply
           </Button>
           <Button type="button" size="sm" variant="outline" onClick={commitReset}>

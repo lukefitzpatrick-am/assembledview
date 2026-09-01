@@ -86,15 +86,12 @@ export const useFinanceScopeStore = create<FinanceScopeState>((set, get) => ({
   },
 
   apply: () => {
-    const { draft, applied } = get()
+    const { draft } = get()
     const next = cloneScope({
       ...draft,
       monthRange: clampMonthRangeToFy(draft.fy, draft.monthRange),
     })
-    if (scopesEqual(next, applied)) {
-      set({ draft: cloneScope(next) })
-      return
-    }
+    // Always bump scopeVersion — Apply on a clean bar is a refetch, not a no-op.
     set((state) => ({
       applied: next,
       draft: cloneScope(next),

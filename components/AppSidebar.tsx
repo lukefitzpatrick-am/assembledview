@@ -33,6 +33,9 @@ import {
 } from "@/lib/nav/routeManifest"
 import { userHasCodexShadowAccess } from "@/lib/codex/shadowRoles"
 import { isClientsBillingPath } from "@/lib/finance/sections/nav"
+import { financeHref } from "@/lib/finance/sections/financeHref"
+import { useFinanceScopeApplied } from "@/lib/finance/sections/useFinanceScope"
+import type { FinanceScopeValues } from "@/lib/finance/sections/defaultScope"
 import { ROUTE_ICON_MAP } from "@/lib/nav/routeIcons"
 
 interface Client {
@@ -48,16 +51,23 @@ function pathMatchesHref(pathname: string, href: string, exact?: boolean): boole
   return p === h || p.startsWith(`${h}/`)
 }
 
+function financeAwareHref(path: string, applied: FinanceScopeValues): string {
+  if (path === "/finance" || path.startsWith("/finance/")) return financeHref(path, applied)
+  return path
+}
+
 function NavRow({
   item,
   pathname,
   isActive,
   muted,
+  applied,
 }: {
   item: NavLink
   pathname: string
   isActive?: boolean
   muted?: boolean
+  applied: FinanceScopeValues
 }) {
   const Icon = item.icon ? ROUTE_ICON_MAP[item.icon] : LayoutDashboard
   const active =
@@ -67,7 +77,7 @@ function NavRow({
     <SidebarMenuItem>
       <SidebarMenuButton asChild isActive={active}>
         <Link
-          href={item.path}
+          href={financeAwareHref(item.path, applied)}
           className={cn(
             "flex min-w-0 items-center whitespace-nowrap",
             muted && !active && "text-sidebar-foreground/70"
@@ -89,6 +99,7 @@ function NavRow({
 
 export function AppSidebar() {
   const pathname = usePathname() ?? ""
+  const applied = useFinanceScopeApplied()
   const { userClient, userRoles, isAdmin, isLoading } = useAuthContext()
   const [isClientsExpanded, setIsClientsExpanded] = useState(false)
   const [clients, setClients] = useState<Client[]>([])
@@ -265,6 +276,7 @@ export function AppSidebar() {
                               pathname={pathname}
                               isActive={activeForItem(item)}
                               muted={muted}
+                              applied={applied}
                             />
                             {group.id === "deliver" && item.path === "/creative" ? (
                               <SidebarMenuItem>
@@ -373,7 +385,7 @@ export function AppSidebar() {
                 return (
                   <li key={item.path} className="min-w-0">
                     <Link
-                      href={item.path}
+                      href={financeAwareHref(item.path, applied)}
                       aria-current={active ? "page" : undefined}
                       className={cn(
                         "flex min-h-11 min-w-11 flex-col items-center justify-center gap-1 rounded-input px-1 text-[10px] font-medium leading-none outline-none transition-colors focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",

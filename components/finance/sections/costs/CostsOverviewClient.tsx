@@ -22,6 +22,7 @@ import {
 } from "@/lib/finance/sections/serviceLineBucket"
 import { fyDisplayLabel } from "@/lib/finance/months"
 import { formatMoney } from "@/lib/format/money"
+import { financeHref } from "@/lib/finance/sections/financeHref"
 import {
   useFinanceScopeApplied,
   useFinanceScopeStore,
@@ -134,7 +135,7 @@ export function CostsOverviewClient() {
             state={blockToTileState(view, (d) => d.kpis.unbilledAccrualCents)}
           />
           <Link
-            href="/finance/costs/client-pays"
+            href={financeHref("/finance/costs/client-pays", applied)}
             className="interactive block rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <StatTile

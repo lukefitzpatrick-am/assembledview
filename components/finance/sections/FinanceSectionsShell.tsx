@@ -6,6 +6,8 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from "@/components/layou
 import { useFinancePeriodsFlag } from "@/components/finance/sections/FinancePeriodsFlagContext"
 import { cn } from "@/lib/utils"
 import { financeSectionPillsForPath } from "@/lib/finance/sections/nav"
+import { financeHref } from "@/lib/finance/sections/financeHref"
+import { useFinanceScopeApplied } from "@/lib/finance/sections/useFinanceScope"
 
 function normalizePath(pathname: string): string {
   if (pathname.length > 1 && pathname.endsWith("/")) return pathname.slice(0, -1)
@@ -35,6 +37,7 @@ export function FinanceSectionsShell({
 }) {
   const pathname = usePathname() ?? ""
   const periodsEnabled = useFinancePeriodsFlag()
+  const applied = useFinanceScopeApplied()
   const pills = financeSectionPillsForPath(pathname, { periodsEnabled })
 
   return (
@@ -50,7 +53,7 @@ export function FinanceSectionsShell({
               return (
                 <Link
                   key={item.path}
-                  href={item.path}
+                  href={financeHref(item.path, applied)}
                   className={cn(
                     "interactive-tint rounded-pill border px-3 py-1 text-xs font-medium transition-colors",
                     active
