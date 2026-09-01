@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { requireRole } from "@/lib/requireRole"
+import { isFinancePeriodsEnabled } from "@/lib/finance/periods/flag"
 import { executeFinanceLock } from "@/lib/finance/periods/orchestrate"
 import { resolveInjectedNow } from "@/lib/finance/periods/sydneyClock"
 
@@ -11,6 +12,17 @@ export const maxDuration = 300
 export async function POST(request: NextRequest) {
   const gate = await requireRole(request, ["admin"])
   if ("response" in gate) return gate.response
+
+  if (!isFinancePeriodsEnabled()) {
+    return NextResponse.json(
+      {
+        code: "FINANCE_PERIODS_OFF",
+        error:
+          "FINANCE_PERIODS is off. Run and lock stay disabled until the flag is shadow or on.",
+      },
+      { status: 409 }
+    )
+  }
 
   const body = (await request.json().catch(() => ({}))) as {
     periodMonth?: string
@@ -23,7 +35,6 @@ export async function POST(request: NextRequest) {
       periodMonth: body.periodMonth,
       lockedBy: String(lockedBy),
       now,
-      force: true,
     })
     return NextResponse.json(result)
   } catch (err) {

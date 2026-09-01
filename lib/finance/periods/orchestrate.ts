@@ -46,6 +46,7 @@ export async function executeFinanceRun(args: {
   updated: number
   itemCount: number
 }> {
+  // force is for tests and authored scripts only, never for a route.
   if (!isFinancePeriodsEnabled() && !args.force) {
     return {
       ok: false,
@@ -153,6 +154,7 @@ export async function executeFinanceLock(args: {
   rolled: number
   sheetPathname: string | null
 }> {
+  // force is for tests and authored scripts only, never for a route.
   if (!isFinancePeriodsEnabled() && !args.force) {
     return {
       ok: false,

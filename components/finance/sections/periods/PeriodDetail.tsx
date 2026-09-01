@@ -1,5 +1,7 @@
 "use client"
 
+import type { ComponentProps } from "react"
+
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -13,6 +15,7 @@ import type { FinancePeriod, FinanceRunItem } from "@/lib/finance/periods/types"
 import { effectiveAmountCents } from "@/lib/finance/periods/reviewItem"
 import { formatAUD } from "@/lib/format/money"
 import { EmptyState } from "@/components/finance/sections/EmptyState"
+import { useFinancePeriodsFlag } from "@/components/finance/sections/FinancePeriodsFlagContext"
 import {
   PeriodStatusChip,
   RunItemStatusChip,
@@ -22,6 +25,12 @@ import {
   formatPeriodTs,
 } from "@/components/finance/sections/periods/periodLabels"
 import { Badge } from "@/components/ui/badge"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 function clientLabel(item: FinanceRunItem): string {
   const snap = item.clientSnapshotJson
@@ -38,6 +47,31 @@ function lineageLabel(item: FinanceRunItem): string {
     parts.push(`variance from #${item.linkedVarianceFromItemId}`)
   }
   return parts.length ? parts.join(" · ") : "—"
+}
+
+const FLAG_OFF_TOOLTIP =
+  "FINANCE_PERIODS is off. Run and lock stay disabled until the flag is shadow or on."
+
+function FlagGatedActionButton({
+  flagOff,
+  disabled,
+  children,
+  ...props
+}: ComponentProps<typeof Button> & { flagOff: boolean }) {
+  const button = (
+    <Button type="button" size="sm" disabled={disabled || flagOff} {...props}>
+      {children}
+    </Button>
+  )
+  if (!flagOff) return button
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex">{button}</span>
+      </TooltipTrigger>
+      <TooltipContent>{FLAG_OFF_TOOLTIP}</TooltipContent>
+    </Tooltip>
+  )
 }
 
 type Props = {
@@ -63,6 +97,8 @@ export function PeriodDetail({
   onAdjust,
   onHold,
 }: Props) {
+  const periodsEnabled = useFinancePeriodsFlag()
+  const flagOff = !periodsEnabled
   const monthLabel = formatPeriodMonthLong(periodMonth)
   const locked =
     period?.status === "locked" ||
@@ -78,9 +114,11 @@ export function PeriodDetail({
         title={`No run has been created for ${monthName}`}
         message={`There is no finance_periods row for ${periodMonth}. Use Run to create the period and collect run items from published tip schedules.`}
         action={
-          <Button type="button" size="sm" disabled={busy} onClick={onRun}>
-            Run period
-          </Button>
+          <TooltipProvider delayDuration={200}>
+            <FlagGatedActionButton flagOff={flagOff} disabled={busy} onClick={onRun}>
+              Run period
+            </FlagGatedActionButton>
+          </TooltipProvider>
         }
       />
     )
@@ -109,12 +147,23 @@ export function PeriodDetail({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" size="sm" variant="outline" disabled={busy || locked} onClick={onRun}>
-            Run
-          </Button>
-          <Button type="button" size="sm" disabled={busy || locked} onClick={onLock}>
-            Lock
-          </Button>
+          <TooltipProvider delayDuration={200}>
+            <FlagGatedActionButton
+              flagOff={flagOff}
+              variant="outline"
+              disabled={busy || locked}
+              onClick={onRun}
+            >
+              Run
+            </FlagGatedActionButton>
+            <FlagGatedActionButton
+              flagOff={flagOff}
+              disabled={busy || locked}
+              onClick={onLock}
+            >
+              Lock
+            </FlagGatedActionButton>
+          </TooltipProvider>
         </div>
       </div>
 
