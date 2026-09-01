@@ -17,6 +17,7 @@ import type { PendingParsedPlan } from "@/lib/ava/tools/types"
 import { writeIngestStageToSession } from "@/lib/mediaplans/ingest/ingestStageClient"
 import {
   applyIngestStageMissingMeta,
+  buildIngestProposalPrompt,
   buildIngestUploadUserMessage,
   buildPendingIngestPayload,
   pendingIngestChipCopy,
@@ -39,6 +40,13 @@ import {
 } from "lucide-react"
 
 type PendingIngestClient = PendingIngestPayload
+
+type IngestUploadProposal = {
+  fileName: string
+  text: string
+  confirmLabel: string
+  dismissLabel: string
+}
 
 const SIZE_PRESETS = {
   compact: { w: 384, h: 480 },
@@ -267,11 +275,13 @@ export function ChatWidget({
   const pendingParsedPlanRef = useRef<PendingParsedPlan | null>(null)
   const [pendingIngest, setPendingIngest] = useState<PendingIngestClient | null>(null)
   const pendingIngestRef = useRef<PendingIngestClient | null>(null)
+  const [ingestUploadProposal, setIngestUploadProposal] = useState<IngestUploadProposal | null>(null)
   const [isParsingPlan, setIsParsingPlan] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [position, setPosition] = useState({ x: 0, y: 0 })
   const [dragState, setDragState] = useState<{ offsetX: number; offsetY: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isFileDragOver, setIsFileDragOver] = useState(false)
   const dragMovedRef = useRef(false)
   const [panelSize, setPanelSize] = useState<PanelSize>(() => readStoredPanelSize())
   const [resizeState, setResizeState] = useState<{
@@ -404,6 +414,7 @@ export function ChatWidget({
   async function sendMessage(overrideText?: string, baseMessages?: ChatUiMessage[]) {
     const text = (overrideText ?? input).trim()
     if (!text) return
+    if (ingestUploadProposal) setIngestUploadProposal(null)
     setIsSending(true)
     setError(null)
     const starting = baseMessages ?? messages
@@ -575,7 +586,11 @@ export function ChatWidget({
       })
       pendingIngestRef.current = pending
       setPendingIngest(pending)
-      await sendMessage(buildIngestUploadUserMessage(file.name))
+      const prompt = buildIngestProposalPrompt({
+        fileName: file.name,
+        summary: pending.summary,
+      })
+      setIngestUploadProposal({ fileName: file.name, ...prompt })
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "The review didn't complete. Attach the file again."
@@ -621,11 +636,19 @@ export function ChatWidget({
               : { width: panelSize.w, height: panelSize.h }
           }
           onDragOver={(e) => {
+            if (!e.dataTransfer.types.includes("Files")) return
             e.preventDefault()
             e.dataTransfer.dropEffect = "copy"
+            setIsFileDragOver(true)
+          }}
+          onDragLeave={(e) => {
+            const next = e.relatedTarget
+            if (next instanceof Node && e.currentTarget.contains(next)) return
+            setIsFileDragOver(false)
           }}
           onDrop={(e) => {
             e.preventDefault()
+            setIsFileDragOver(false)
             const dropped = e.dataTransfer.files?.[0] ?? null
             void handlePlanFileSelected(dropped)
           }}
@@ -784,6 +807,34 @@ export function ChatWidget({
               ))}
 
               {isSending && <ChatThinkingIndicator />}
+              {ingestUploadProposal ? (
+                <div className="mr-auto flex w-full min-w-0 max-w-full flex-col gap-3 rounded-lg border border-border bg-card px-3 py-3 shadow-e1">
+                  <p className="text-sm text-foreground">{ingestUploadProposal.text}</p>
+                  <div className="flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={isSending || isParsingPlan}
+                      onClick={() => setIngestUploadProposal(null)}
+                    >
+                      {ingestUploadProposal.dismissLabel}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={isSending || isParsingPlan}
+                      onClick={() => {
+                        const fileName = ingestUploadProposal.fileName
+                        setIngestUploadProposal(null)
+                        void sendMessage(buildIngestUploadUserMessage(fileName))
+                      }}
+                    >
+                      {ingestUploadProposal.confirmLabel}
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
               {error && <p className="text-xs text-destructive">{error}</p>}
             </div>
           )}
@@ -810,7 +861,11 @@ export function ChatWidget({
               >
                 <Paperclip className="h-4 w-4" />
               </Button>
+              <span className="shrink-0 whitespace-nowrap text-[11px] text-foreground/70">
+                or drop a file here
+              </span>
               <Input
+                className="min-w-0 flex-1"
                 placeholder={
                   pendingIngest?.missing
                     ? "Attach the file again…"
@@ -821,7 +876,10 @@ export function ChatWidget({
                       : "Ask a question or drop an xlsx"
                 }
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  if (ingestUploadProposal) setIngestUploadProposal(null)
+                  setInput(e.target.value)
+                }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault()
@@ -876,6 +934,16 @@ export function ChatWidget({
             ) : null}
             {error ? <p className="text-xs text-destructive">{error}</p> : null}
           </div>
+          {isFileDragOver ? (
+            <div
+              className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-primary/10"
+              aria-hidden
+            >
+              <p className="px-4 text-center text-sm font-medium text-foreground">
+                Drop an .xlsx schedule to review.
+              </p>
+            </div>
+          ) : null}
         </div>
       )}
     </div>

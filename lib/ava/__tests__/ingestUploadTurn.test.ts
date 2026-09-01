@@ -10,6 +10,7 @@ import test from "node:test"
 import { AVA_SKILL_GUIDANCE } from "../skills/skillGuidance.js"
 import {
   applyIngestStageMissingMeta,
+  buildIngestProposalPrompt,
   buildIngestUploadUserMessage,
   buildPendingIngestPayload,
   pendingIngestChipCopy,
@@ -69,6 +70,35 @@ test("upload user message is a short sentence with no operator directives or num
   }
   assert.doesNotMatch(msg, /\b41\b/)
   assert.doesNotMatch(msg, /0\.94/)
+})
+
+test("ingest proposal prompt uses media type and publisher, never money totals", () => {
+  const summary = sampleSummary("stg-1")
+  summary.detected_publisher = "JCDecaux"
+  summary.media_type = "ooh"
+  summary.line_item_count = 106
+  const rich = buildIngestProposalPrompt({ fileName: "jcd.xlsx", summary })
+  assert.equal(
+    rich.text,
+    "This looks like an OOH schedule from JCDecaux, 106 lines. Review it into a campaign?",
+  )
+  assert.equal(rich.confirmLabel, "Review it")
+  assert.equal(rich.dismissLabel, "Not now")
+  assert.doesNotMatch(rich.text, /1000/)
+  assert.doesNotMatch(rich.text, /money/i)
+  assert.equal(rich.text.includes(String(summary.file_stated_total)), false)
+  assert.equal(rich.text.includes(String(summary.total_media_amount)), false)
+
+  const plain = buildIngestProposalPrompt({ fileName: "mystery.xlsx" })
+  assert.equal(plain.text, 'Review "mystery.xlsx"?')
+  assert.equal(plain.confirmLabel, "Review it")
+  assert.equal(plain.dismissLabel, "Not now")
+
+  const noPublisher = buildIngestProposalPrompt({
+    fileName: "qms.xlsx",
+    summary: { ...summary, detected_publisher: null },
+  })
+  assert.equal(noPublisher.text, 'Review "qms.xlsx"?')
 })
 
 test("structured ingest summary travels on pendingIngest, not in the user turn", () => {
