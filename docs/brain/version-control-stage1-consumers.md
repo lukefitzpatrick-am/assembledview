@@ -50,7 +50,7 @@ Live invariant already proves status ≠ publication: a publish-mode save can le
 | `app/mediaplans/mba/[mba_number]/edit/page.tsx:9018` | A | Block media-plan download toast | version `published_at` | Same |
 | `app/mediaplans/mba/[mba_number]/edit/page.tsx:9041` | A | Block AA media-plan download toast | version `published_at` | Same |
 | `app/mediaplans/mba/[mba_number]/edit/page.tsx:9136` | A | Block billing-schedule download toast | version `published_at` | Same |
-| `app/mediaplans/mba/[mba_number]/edit/page.tsx:11084` | A | Draft pill tip label “published tip vN” only if not draft | tip / version `published_at` | Mislabels published-draft tip as unpublished |
+| `app/mediaplans/mba/[mba_number]/edit/page.tsx` (`saveTip` on `PlanWizardSaveMessages`) | A | Bare `vN` only if published (`isPublished`) | tip / version `published_at` | Mislabels published-draft tip as unpublished |
 | `app/mediaplans/mba/[mba_number]/edit/page.tsx:11156-11157` | A | Disable download control + title | version `published_at` | UX gate wrong |
 | `app/mediaplans/mba/[mba_number]/edit/page.tsx:11179,11186` | A | Disable MBA download path | version `published_at` | UX gate wrong |
 | `app/mediaplans/mba/[mba_number]/edit/page.tsx:11193,11201,11204,11218` | A | Disable AA / billing download path | version `published_at` | UX gate wrong |
@@ -83,6 +83,7 @@ Dashboard aggregators used to answer **which version is live** and **does it cou
 | `finance.ts` | master tip arg into commercial-live helper | BAC on tip |
 | `publisher.ts` | via commercial-live helper | BAC on tip |
 | `client.ts` | `resolveDashboardLiveVersionRow` (+ master tip) | `isBookedApprovedCompleted` on campaigns/schedules |
+| `plannedToDate.ts` | `resolveDashboardLiveVersionRow` (+ master tip when fetched) | BAC on tip; master `campaign_status` overlay when present |
 | `plannedSpendConsistency.ts` | **none** — commercial-only client mirror | `isPlannedBasisCampaignStatus` ≡ BAC |
 
 Fixture proof: `lib/api/dashboard/__tests__/vc15DashboardTipCommercial.fixture.test.ts` — client media totals identical to the cent before/after when tips are BAC.
