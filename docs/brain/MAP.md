@@ -62,7 +62,7 @@ Adding or altering a channel touches, at minimum:
 
 `BLAST-RADIUS.md` carries the full ~12-map list. Complete all of them or the channel half-works.
 
-**Save path** `POST /api/plans/save` → `lib/data/savePlan.ts` → one transaction writing `media_plan_versions` + `line_items` + `schedule_months` + `mba_fee_snapshots`. `WRITE_BACKEND=postgres`. Working drafts live in `plan_working_drafts` behind `NEXT_PUBLIC_PLAN_DRAFTS`.
+**Save path** `POST /api/plans/save` → `lib/data/savePlan.ts` → one transaction writing `media_plan_versions` + `line_items` + `schedule_months` + `mba_fee_snapshots`. After that commit, when `ingestStageId` is present, `completeStagedIngestAfterSave` writes panels / `ingest_runs` / retain — never inside `savePlanVersion`. `WRITE_BACKEND=postgres`. Working drafts live in `plan_working_drafts` behind `NEXT_PUBLIC_PLAN_DRAFTS`.
 
 **Read path** `GET /api/mediaplans/mba/[mba_number]` (1,588 lines) → `lib/data/readMbaPlanDetail.ts`. One query set, no fallback: a failure is a 500 `PLAN_DETAIL_POSTGRES_FAILED`, deliberately.
 
@@ -72,7 +72,7 @@ Adding or altering a channel touches, at minimum:
 
 ## 2. Finance & billing
 
-**Routes** `/finance` with section children: `home` `investment` `invoicing` `owed` `periods` `costs` (`accruals`, `client-pays`, `invoices`) `forecasting` `xero` (`matches`) · `/finance/forecast/snapshots/variance` · `/finance/receivables`
+**Routes** `/finance` with section children: `home` `investment` `invoicing` `owed` `in-xero` `periods` `costs` (`accruals`, `client-pays`, `invoices`) `forecasting` `xero` (`matches`) · `/finance/forecast/snapshots/variance` · `/finance/receivables`
 
 **Two data access styles live here.** Most of the app uses the Drizzle query builder. Finance periods, run items, notifications and Xero matching are reached with `sql` tagged templates instead — `finance_periods`, `finance_run_items`, `app_notifications`, `xero_contact_links`, `xero_invoice_matches`, `xero_match_month_metrics` (and `plan_working_drafts` in media plans). See `lib/finance/periods/postgresStore.ts`. All of them **are** mirrored in `db/schema/`, so the types are there if you want them; migrating the callers to the query builder is a separate decision, not a gap.
 
@@ -200,4 +200,4 @@ Touch these and you are touching everything. Check `BLAST-RADIUS.md` first, ever
 
 ## Scale reference
 
-70 pages · 196 API route handlers · ~450 component files · ~1,440 lib files · 78 live Supabase tables · 50 applied migrations · 13 crons · 20 media channels.
+71 pages · 196 API route handlers · ~450 component files · ~1,440 lib files · 78 live Supabase tables · 50 applied migrations · 13 crons · 20 media channels.

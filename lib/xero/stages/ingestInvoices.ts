@@ -15,7 +15,7 @@ import { getXeroAccessToken, xeroApiRequest } from "../client"
 import { rowsOf } from "../dbRows"
 import { coerceDollars } from "../money"
 import { parseXeroDateString, parseXeroDotNetDate } from "../parseXeroDate"
-import { resumeInvoiceWatermark } from "../watermark"
+import { invoiceIngestWindow } from "../watermark"
 
 export const INVOICE_PAGES_CAP = 20
 
@@ -63,6 +63,8 @@ export async function stageIngestInvoices(opts?: {
   fetchImpl?: typeof fetch
   pagesCap?: number
   runStartedAt?: Date
+  /** Narrow If-Modified-Since (finance pull). Cron omits this and uses the watermark. */
+  ifModifiedSince?: string
 }): Promise<IngestInvoicesResult> {
   const pagesCap = opts?.pagesCap ?? INVOICE_PAGES_CAP
   const runStartedAt = opts?.runStartedAt ?? new Date()
@@ -81,12 +83,13 @@ export async function stageIngestInvoices(opts?: {
         await db.execute(sql`
           SELECT notes, watermark_used, new_watermark
           FROM xero_sync_log
+          WHERE COALESCE(notes::jsonb->>'source', '') IS DISTINCT FROM 'pull-xero'
           ORDER BY id DESC
           LIMIT 1
         `),
       )[0] ?? null
 
-    const { watermarkStr, nextPage } = resumeInvoiceWatermark(
+    const { watermarkStr, nextPage } = invoiceIngestWindow(
       lastLogRow
         ? {
             notes: lastLogRow.notes,
@@ -94,6 +97,7 @@ export async function stageIngestInvoices(opts?: {
             newWatermark: lastLogRow.new_watermark,
           }
         : null,
+      opts?.ifModifiedSince,
     )
 
     const [masters, scopes] = await Promise.all([

@@ -2,6 +2,7 @@
  * finance_billing_records / finance_billing_line_items mutate path (T0-1).
  * Postgres only. Natural key is invoice_key. Never writes xero: rows —
  * those belong to lib/xero/stages/importBillingRecords.ts.
+ * Xero match stamps (`setFinanceBillingRecordXeroMatch`) never touch approved_*.
  */
 
 import "server-only"
@@ -74,6 +75,12 @@ export type SetFinanceBillingRecordApprovedInput = {
 export type SetFinanceBillingRecordExportedInput = {
   invoiceKey: string
   exportedBy: number
+}
+
+export type SetFinanceBillingRecordXeroMatchInput = {
+  invoiceKey: string
+  xeroInvoiceId: string
+  matchedBy: "auto" | "manual"
 }
 
 function rowsOf<T>(result: unknown): T[] {
@@ -398,6 +405,52 @@ export async function setFinanceBillingRecordExported(
         updated_at = now()
       WHERE invoice_key = ${input.invoiceKey}
         AND invoice_key NOT LIKE 'xero:%'
+      RETURNING *
+    `)
+  )
+  const row = rows[0]
+  if (!row) {
+    throw new FinanceBillingWriteError(
+      "NOT_FOUND",
+      `finance_billing_records invoice_key=${input.invoiceKey} not found`
+    )
+  }
+  return asApiRecord(row)
+}
+
+/**
+ * Stamp `matched_xero_invoice_id` on an app billing record.
+ * Never writes `xero:` keys. Never touches the approval snapshot.
+ */
+export async function setFinanceBillingRecordXeroMatch(
+  input: SetFinanceBillingRecordXeroMatchInput,
+  executor?: FinanceExecutor
+): Promise<Record<string, unknown>> {
+  assertAppInvoiceKey(input.invoiceKey)
+  const xeroInvoiceId = input.xeroInvoiceId.trim()
+  if (!xeroInvoiceId) {
+    throw new FinanceBillingWriteError("BAD_REQUEST", "xero_invoice_id is required.")
+  }
+  if (input.matchedBy !== "auto" && input.matchedBy !== "manual") {
+    throw new FinanceBillingWriteError("BAD_REQUEST", "matched_by must be auto or manual.")
+  }
+  const db = financeDb(executor)
+  const skipManual = input.matchedBy === "auto"
+  const rows = rowsOf<Record<string, unknown>>(
+    await db.execute(sql`
+      UPDATE finance_billing_records SET
+        matched_xero_invoice_id = ${xeroInvoiceId},
+        matched_at = now(),
+        matched_by = ${input.matchedBy},
+        updated_at = now()
+      WHERE invoice_key = ${input.invoiceKey}
+        AND invoice_key NOT LIKE 'xero:%'
+        AND (
+          ${skipManual} = false
+          OR matched_by IS NULL
+          OR btrim(matched_by) = ''
+          OR matched_by = 'auto'
+        )
       RETURNING *
     `)
   )

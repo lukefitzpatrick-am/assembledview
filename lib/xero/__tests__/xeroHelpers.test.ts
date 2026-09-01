@@ -21,6 +21,8 @@ import {
   resolveClientFromContact,
 } from "../normalizeContact"
 import {
+  invoiceIngestWindow,
+  pullXeroIfModifiedSince,
   resumeContactsWatermark,
   resumeInvoiceWatermark,
 } from "../watermark"
@@ -235,6 +237,39 @@ describe("watermark resume", () => {
     })
     assert.equal(r.nextPage, 1)
     assert.equal(r.watermarkStr, "2025-06-02T12:00:00")
+  })
+
+  it("invoiceIngestWindow uses a caller If-Modified-Since and starts page 1", () => {
+    const r = invoiceIngestWindow(
+      {
+        notes: JSON.stringify({ next_page: 7 }),
+        watermarkUsed: "2025-06-01T12:00:00.000Z",
+        newWatermark: "2025-06-02T12:00:00.000Z",
+      },
+      "2026-08-31T04:00:00.000Z",
+    )
+    assert.equal(r.nextPage, 1)
+    assert.equal(r.watermarkStr, "2026-08-31T04:00:00")
+    assert.equal(r.usedOverride, true)
+  })
+
+  it("invoiceIngestWindow without override keeps the cron resume page", () => {
+    const r = invoiceIngestWindow(
+      {
+        notes: JSON.stringify({ next_page: 7 }),
+        watermarkUsed: "2025-06-01T12:00:00.000Z",
+        newWatermark: "2025-06-02T12:00:00.000Z",
+      },
+      undefined,
+    )
+    assert.equal(r.nextPage, 7)
+    assert.equal(r.watermarkStr, "2025-06-01T12:00:00")
+    assert.equal(r.usedOverride, false)
+  })
+
+  it("pullXeroIfModifiedSince is a 24h lookback, not the 2024 fallback crawl", () => {
+    const now = new Date("2026-09-01T10:00:00.000Z")
+    assert.equal(pullXeroIfModifiedSince(now), "2026-08-31T10:00:00")
   })
 
   it("contacts use own keys", () => {

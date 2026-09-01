@@ -16,7 +16,7 @@ export const FINANCE_SECTION_SIDEBAR_ITEMS: readonly FinanceSectionNavItem[] = [
     path: "/finance/invoicing",
     label: "Clients billing",
     legacyTab: "billing",
-    description: "Client billing, owed, periods, and Xero",
+    description: "Client billing, owed, In Xero, periods, and Xero",
   },
   {
     path: "/finance/costs",
@@ -39,7 +39,7 @@ export const FINANCE_SECTION_SIDEBAR_ITEMS: readonly FinanceSectionNavItem[] = [
 ] as const
 
 /**
- * In-page tabs for the Clients billing sidebar item (Invoicing | Owed | Periods | Xero).
+ * In-page tabs for the Clients billing sidebar item (Invoicing | Owed | In Xero | Periods | Xero).
  * Forecasting and Investment have no cross-section tab bar (FIN-1).
  */
 export const CLIENTS_BILLING_TAB_ITEMS: readonly FinanceSectionNavItem[] = [
@@ -54,6 +54,12 @@ export const CLIENTS_BILLING_TAB_ITEMS: readonly FinanceSectionNavItem[] = [
     label: "Owed",
     legacyTab: "billing",
     description: "Debtors ledger — live Xero AR ageing",
+  },
+  {
+    path: "/finance/in-xero",
+    label: "In Xero",
+    legacyTab: "billing",
+    description: "Match Xero drafts to approved invoices before authorise",
   },
   {
     path: "/finance/periods",
@@ -79,6 +85,7 @@ export const FINANCE_SECTION_PAGE_PATHS = [
   "/finance/home",
   "/finance/invoicing",
   "/finance/owed",
+  "/finance/in-xero",
   "/finance/periods",
   "/finance/xero",
   "/finance/xero/matches",
@@ -135,7 +142,7 @@ function normalizeFinancePath(pathname: string): string {
   return pathname || "/"
 }
 
-/** True when pathname belongs to the Clients billing sidebar item (incl. Owed / Periods / Xero). */
+/** True when pathname belongs to the Clients billing sidebar item (incl. Owed / In Xero / Periods / Xero). */
 export function isClientsBillingPath(pathname: string): boolean {
   const p = normalizeFinancePath(pathname)
   return (
@@ -143,6 +150,8 @@ export function isClientsBillingPath(pathname: string): boolean {
     p.startsWith("/finance/invoicing/") ||
     p === "/finance/owed" ||
     p.startsWith("/finance/owed/") ||
+    p === "/finance/in-xero" ||
+    p.startsWith("/finance/in-xero/") ||
     p === "/finance/periods" ||
     p.startsWith("/finance/periods/") ||
     p === "/finance/xero" ||
@@ -158,7 +167,7 @@ export function isPublishersFinancePath(pathname: string): boolean {
 
 /**
  * In-shell tab pills for the current path.
- * Clients billing → Invoicing | Owed | Periods | Xero.
+ * Clients billing → Invoicing | Owed | In Xero | Periods | Xero.
  * Periods is omitted when `periodsEnabled` is false (`FINANCE_PERIODS` off — FIN-8).
  * Publishers keeps CostsSubNav only (no shell pills).
  * Forecasting / Investment → none (dedicated sidebar items).
