@@ -1,6 +1,13 @@
 import type AvaTool from "./types"
-import { ingestReviewToFormLineItems } from "@/lib/mediaplans/ingest/toFormLineItems"
+import { recordIngestRun } from "@/lib/mediaplans/ingest/ingestRuns"
 import { lookupIngestStage } from "@/lib/mediaplans/ingest/ingestStageStore"
+import { ingestReviewToFormLineItems } from "@/lib/mediaplans/ingest/toFormLineItems"
+import { evaluateRequiredFieldGate } from "@/lib/mediaplans/ingest/templateCoverage"
+import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
+import type { IngestProposal } from "@/lib/mediaplans/ingest/proposeLineItems"
+
+const MONEY_BLOCK_FALLBACK =
+  "Money total is outside the 0.5% gate. Nothing was written."
 
 function asFormItems(items: unknown[]): Record<string, unknown>[] {
   return items.flatMap((row) =>
@@ -10,11 +17,44 @@ function asFormItems(items: unknown[]): Record<string, unknown>[] {
   )
 }
 
+function requiredCoverageFrom(
+  coverage: IngestReviewPackage["template_coverage"],
+): number | null {
+  if (!coverage) return null
+  return coverage.required_count > 0
+    ? coverage.required_matched / coverage.required_count
+    : coverage.completeness
+}
+
+async function recordMoneyBlockedRun(args: {
+  review: IngestReviewPackage
+  fileName: string | null
+  uploadedBy: string | null
+  recon: IngestProposal["reconciliation"]
+  reason: string
+}): Promise<void> {
+  await recordIngestRun({
+    publisherId: null,
+    publisherName: args.review.detected_publisher,
+    fileName: args.fileName,
+    uploadedBy: args.uploadedBy,
+    detectedConfidence: args.review.publisher_confidence,
+    requiredCoverage: requiredCoverageFrom(args.review.template_coverage),
+    lineItemCount: args.recon.line_item_count ?? 0,
+    panelCount: args.recon.panel_count ?? 0,
+    burstCount: args.recon.burst_count ?? 0,
+    moneyDelta: args.recon.delta ?? null,
+    outcome: "blocked",
+    outcomeReason: args.reason,
+    acceptedVersionId: null,
+  })
+}
+
 export const loadIngestIntoFormTool: AvaTool = {
   definition: {
     name: "load_ingest_into_form",
     description:
-      "Loads the staged publisher schedule into the create/edit form for human review. Writes nothing. Requires an explicit user confirm first — do not call until the user confirms.",
+      "Loads the staged publisher schedule into the create/edit form for human review. Writes nothing. Requires an explicit user confirm first — do not call until the user confirms. Refuses when the money total is outside the 0.5% gate or a required template field has no source column.",
     input_schema: {
       type: "object",
       properties: {
@@ -72,7 +112,37 @@ export const loadIngestIntoFormTool: AvaTool = {
       }
     }
 
-    const converted = ingestReviewToFormLineItems(looked.staged.review)
+    const review = looked.staged.review
+    const recon = review.proposal?.reconciliation
+    if (recon && recon.accept_ok === false) {
+      const reason = recon.block_reason ?? MONEY_BLOCK_FALLBACK
+      await recordMoneyBlockedRun({
+        review,
+        fileName: looked.staged.fileName,
+        uploadedBy: context.userEmail?.trim().toLowerCase() || null,
+        recon,
+        reason,
+      })
+      return {
+        content: reason,
+        isError: true,
+        block_reason: reason,
+        delta: recon.delta ?? null,
+      }
+    }
+
+    const gate = evaluateRequiredFieldGate(
+      review.template_coverage ?? { required: [], waivers: [] },
+    )
+    if (!gate.ok) {
+      const named = gate.missing.join(", ")
+      return {
+        content: `These fields have no source column, so the schedule wasn't loaded: ${named}. Answer the mapping cards and I'll load it.`,
+        isError: true,
+      }
+    }
+
+    const converted = ingestReviewToFormLineItems(review)
     const items = asFormItems(converted.items)
     if (items.length === 0) {
       return {
@@ -87,6 +157,7 @@ export const loadIngestIntoFormTool: AvaTool = {
       channel: converted.channel,
       items,
       replace,
+      ingestStageId: looked.staged.stageId,
     }
 
     const skipped =

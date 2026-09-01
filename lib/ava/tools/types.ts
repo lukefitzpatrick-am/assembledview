@@ -82,6 +82,10 @@ export type AvaToolResult = {
   questions?: ChatInterviewQuestion[];
   /** Stage id was present but ingestStageStore has no package (not expiry). */
   ingestStageMissing?: boolean;
+  /** Money-gate refuse — same `block_reason` the Hub 409 body returns. */
+  block_reason?: string | null;
+  /** Money-gate refuse — same `reconciliation.delta` the Hub 409 body returns. */
+  delta?: number | null;
 };
 
 export default interface AvaTool {

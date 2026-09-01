@@ -1,5 +1,5 @@
 import assert from "node:assert/strict"
-import test from "node:test"
+import { mock, test } from "node:test"
 
 import { SKIP_ANSWER } from "@/lib/ava/chatInterviewQuestion"
 import type { AvaColumnMappingProposal } from "../avaColumnMapping"
@@ -226,24 +226,41 @@ test("proposal for an already-matched required field is filtered", () => {
   assert.ok(review.ignored.columns_unmapped.includes("FORMAT COL"))
 })
 
-test("filtering a proposal missing from ignored and not_used throws", () => {
-  const review = stubReview({
-    ignored: {
-      sheets_skipped: [],
-      rows_unparsed: 0,
-      rows_unparsed_labels: [],
-      columns_unmapped: [],
-      spoken: [],
-    },
-    ava_mapping_proposals: [mappingProposal("ORPHAN COL", "orientation")],
-    template_coverage: stubCoverage({
-      required: [],
-      enrich: [],
-      not_used: [],
-    }),
-  })
-  assert.throws(
-    () => listOpenIngestReviewQuestions(review, { mbaNumber: "mba1", mbaNumbers: ["mba1"] }),
-    /ORPHAN COL/,
-  )
+test("filtering a proposal missing from ignored and not_used keeps the card and warns", () => {
+  const warn = mock.method(console, "warn", () => {})
+  try {
+    const review = stubReview({
+      ignored: {
+        sheets_skipped: [],
+        rows_unparsed: 0,
+        rows_unparsed_labels: [],
+        columns_unmapped: [],
+        spoken: [],
+      },
+      ava_mapping_proposals: [mappingProposal("ORPHAN COL", "orientation")],
+      template_coverage: stubCoverage({
+        required: [],
+        enrich: [],
+        not_used: [],
+      }),
+    })
+    const questions = listOpenIngestReviewQuestions(review, {
+      mbaNumber: "mba1",
+      mbaNumbers: ["mba1"],
+    })
+    const mapCards = questions.filter((q) => q.id.startsWith("ingest:map:"))
+    assert.equal(mapCards.length, 1)
+    assert.equal(mapCards[0]?.id, "ingest:map:ORPHAN COL")
+    const filtered = listFilteredUnusedMappingProposals(review)
+    assert.deepEqual(filtered.orphans, ["ORPHAN COL"])
+    assert.ok(
+      warn.mock.calls.some((call) => {
+        const msg = String(call.arguments[0] ?? "")
+        return msg.includes("ORPHAN COL") && msg.includes("QMS")
+      }),
+      "expected console.warn naming the header and publisher",
+    )
+  } finally {
+    warn.mock.restore()
+  }
 })

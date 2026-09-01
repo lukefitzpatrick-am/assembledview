@@ -145,19 +145,37 @@ function unusedAccountedHeaderKeys(review: IngestReviewPackage): Set<string> {
   return keys
 }
 
-function assertProposalAccountedAsUnused(
+function isProposalAccountedAsUnused(
+  review: IngestReviewPackage,
+  proposal: AvaColumnMappingProposal,
+): boolean {
+  return unusedAccountedHeaderKeys(review).has(headerKey(proposal.header))
+}
+
+const warnedOrphanHeaders = new WeakMap<IngestReviewPackage, Set<string>>()
+
+function warnOrphanMappingProposal(
   review: IngestReviewPackage,
   proposal: AvaColumnMappingProposal,
 ): void {
-  if (unusedAccountedHeaderKeys(review).has(headerKey(proposal.header))) return
-  throw new Error(
-    `Ingest mapping proposal "${proposal.header}" is not wanted by AssembledView but is missing from ignored.columns_unmapped and template_coverage.not_used`,
+  const key = headerKey(proposal.header)
+  let seen = warnedOrphanHeaders.get(review)
+  if (!seen) {
+    seen = new Set()
+    warnedOrphanHeaders.set(review, seen)
+  }
+  if (seen.has(key)) return
+  seen.add(key)
+  const publisher = review.detected_publisher ?? "(unknown publisher)"
+  console.warn(
+    `Ingest mapping proposal "${proposal.header}" is not wanted by AssembledView but is missing from ignored.columns_unmapped and template_coverage.not_used (publisher: ${publisher})`,
   )
 }
 
 export type FilteredUnusedMappingProposals = {
   count: number
   headers: string[]
+  orphans: string[]
 }
 
 /** AVA proposals dropped because AssembledView does not need that column. */
@@ -168,13 +186,18 @@ export function listFilteredUnusedMappingProposals(
     moneyColumns(review).map((col) => headerKey(col.header)),
   )
   const headers: string[] = []
+  const orphans: string[] = []
   for (const proposal of review.ava_mapping_proposals ?? []) {
     if (moneyHeaders.has(headerKey(proposal.header))) continue
     if (proposalServesUnmatchedWantedField(review, proposal)) continue
-    assertProposalAccountedAsUnused(review, proposal)
+    if (!isProposalAccountedAsUnused(review, proposal)) {
+      warnOrphanMappingProposal(review, proposal)
+      orphans.push(proposal.header)
+      continue
+    }
     headers.push(proposal.header)
   }
-  return { count: headers.length, headers }
+  return { count: headers.length, headers, orphans }
 }
 
 export function formatFilteredUnusedMappingLine(
@@ -313,8 +336,8 @@ export function listOpenIngestReviewQuestions(
     const id = mapQuestionId(proposal.header)
     if (answered.has(id)) continue
     if (!proposalServesUnmatchedWantedField(review, proposal)) {
-      assertProposalAccountedAsUnused(review, proposal)
-      continue
+      if (isProposalAccountedAsUnused(review, proposal)) continue
+      warnOrphanMappingProposal(review, proposal)
     }
     draft.push(buildSuggestionCard(proposal, 1, 1))
   }
