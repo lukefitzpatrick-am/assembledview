@@ -1,5 +1,18 @@
 import type { ChatInterviewQuestion } from "@/lib/ava/types"
 
+/** Tagged skip answer so Confirm/Skip share the same `[mi:id] …` wire format. */
+export const SKIP_ANSWER = "__ava_skip__"
+
+/** Choice/multichoice free-text escape label. Not stored as the answer. */
+export const OTHER_OPTION = "Other"
+
+const MI_ANSWER_TAG = /^\[mi:([^\]]+)\]\s*/i
+
+export function isSkipAnswer(answer: string): boolean {
+  const stripped = answer.trim().replace(MI_ANSWER_TAG, "").trim()
+  return stripped === SKIP_ANSWER
+}
+
 /** Build a chat question card payload (display/input sugar for the MI interview). */
 export function toChatInterviewQuestion(input: {
   id: string
@@ -61,11 +74,19 @@ export function formatQuestionAnswerText(
   values: string[],
   freeText: string,
 ): string {
+  if (isSkipAnswer(freeText) || values.some((value) => isSkipAnswer(value))) {
+    return SKIP_ANSWER
+  }
   if (type === "text") return freeText.trim()
-  return values.map((v) => v.trim()).filter(Boolean).join(", ")
+  return values
+    .map((value) => {
+      const trimmed = value.trim()
+      if (trimmed === OTHER_OPTION) return freeText.trim()
+      return trimmed
+    })
+    .filter(Boolean)
+    .join(", ")
 }
-
-const MI_ANSWER_TAG = /^\[mi:([^\]]+)\]\s*/i
 
 /**
  * User message sent on Confirm — embeds questionId so the next turn can call
@@ -96,7 +117,9 @@ export function parseMiAnswerMessage(
 
 /** Strip the [mi:id] prefix for chat bubbles / locked card labels. */
 export function displayMiAnswerText(content: string): string {
-  return content.trim().replace(MI_ANSWER_TAG, "").trim() || content.trim()
+  const stripped = content.trim().replace(MI_ANSWER_TAG, "").trim() || content.trim()
+  if (isSkipAnswer(stripped)) return "Skipped"
+  return stripped
 }
 
 /** Confirm one card; siblings stay live (no confirmedAnswer). */

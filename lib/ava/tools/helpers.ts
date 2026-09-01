@@ -1,6 +1,6 @@
 import type { AvaToolContext } from "./types"
 import type { ChatInterviewQuestion } from "@/lib/ava/types"
-import { toChatInterviewQuestion } from "@/lib/ava/chatInterviewQuestion"
+import { isSkipAnswer, toChatInterviewQuestion } from "@/lib/ava/chatInterviewQuestion"
 import { slugifyClientNameForUrl } from "@/lib/clients/slug"
 import { MEDIA_CONTAINER_ENDPOINTS } from "@/lib/api/media-containers"
 
@@ -148,7 +148,9 @@ export function resolveMiVersionScope(
   const scopeAnswer = priorAnswers.find(
     (answer) => answer.questionId === MI_SCOPE_VERSION_QUESTION_ID,
   )
-  const rawAnswer = scopeAnswer?.answer?.trim() ?? ""
+  const rawAnswer = isSkipAnswer(scopeAnswer?.answer?.trim() ?? "")
+    ? ""
+    : (scopeAnswer?.answer?.trim() ?? "")
   const scopeArg = asString(args.scope)?.toLowerCase()
   const mbaWide = args.mbaWide === true
     || scopeArg === "mba-wide"

@@ -3,11 +3,14 @@ import test from "node:test"
 
 import {
   coerceChatInterviewQuestions,
+  displayMiAnswerText,
   formatQuestionAnswerMessage,
   formatQuestionAnswerText,
   isChatInterviewQuestion,
+  isSkipAnswer,
   lockChatQuestionAnswer,
   parseMiAnswerMessage,
+  SKIP_ANSWER,
   toChatInterviewQuestion,
 } from "../chatInterviewQuestion.js"
 
@@ -111,4 +114,31 @@ test("lockChatQuestionAnswer confirms one card and leaves siblings live", () => 
   assert.equal(next[1]?.confirmedAnswer, undefined)
   assert.equal(next[1]?.id, "ingest:map:B")
   assert.deepEqual(next[1]?.options, b.options)
+})
+
+test("Other free text is the answer, not the literal Other", () => {
+  assert.equal(formatQuestionAnswerText("choice", ["Other"], "  300x250  "), "300x250")
+  assert.equal(
+    formatQuestionAnswerMessage("format:1", "choice", ["Other"], "300x250"),
+    "[mi:format:1] 300x250",
+  )
+  assert.deepEqual(parseMiAnswerMessage("[mi:format:1] 300x250"), {
+    questionId: "format:1",
+    answer: "300x250",
+  })
+})
+
+test("skip token round-trips and displays as Skipped", () => {
+  assert.equal(isSkipAnswer(SKIP_ANSWER), true)
+  assert.equal(isSkipAnswer(` ${SKIP_ANSWER} `), true)
+  assert.equal(isSkipAnswer(`[mi:format:1] ${SKIP_ANSWER}`), true)
+  assert.equal(isSkipAnswer("skip"), false)
+  const message = formatQuestionAnswerMessage("ingest:map:A", "choice", [SKIP_ANSWER], "")
+  assert.equal(message, `[mi:ingest:map:A] ${SKIP_ANSWER}`)
+  assert.deepEqual(parseMiAnswerMessage(message), {
+    questionId: "ingest:map:A",
+    answer: SKIP_ANSWER,
+  })
+  assert.equal(displayMiAnswerText(message), "Skipped")
+  assert.equal(displayMiAnswerText(SKIP_ANSWER), "Skipped")
 })

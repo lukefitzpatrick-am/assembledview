@@ -6,6 +6,7 @@ import {
   isChatFileAttachment,
   toChatFileAttachment,
 } from "../../chatFileAttachment.js"
+import { SKIP_ANSWER } from "../../chatInterviewQuestion.js"
 import {
   getPlatformSpecsPayload,
 } from "../getPlatformSpecs.js"
@@ -97,6 +98,25 @@ test("start_mi_interview returns only the current question plus counts", () => {
     ).openCount,
     0,
   )
+})
+
+test("skipped MI answers close the current question without re-asking", () => {
+  const plan = {
+    lineItems: {
+      socialMedia: [
+        {
+          line_item_id: "social-1",
+          publisher: "Meta",
+          placement: "Facebook",
+        },
+      ],
+    },
+  }
+  const skipped = buildMiInterviewPayload(plan, [
+    { questionId: "creative_type:social-1", answer: SKIP_ANSWER },
+  ])
+  assert.equal(skipped.openCount, 0)
+  assert.equal(skipped.currentQuestion, null)
 })
 
 test("mid-interview hides derived details and never surfaces bid_strategy as a question", () => {
@@ -410,6 +430,13 @@ test("resolveMiVersionScope accepts explicit MBA-wide and numeric answers", () =
     assert.equal(mbaWide.mbaWide, true)
     assert.equal(mbaWide.versionNumber, undefined)
   }
+
+  const skipped = resolveMiVersionScope(
+    baseContext({ versionNumber: undefined }),
+    {},
+    [{ questionId: MI_SCOPE_VERSION_QUESTION_ID, answer: SKIP_ANSWER }],
+  )
+  assert.equal(skipped.ok, false, "skip must not choose a version or MBA-wide")
 
   const fromAnswer = resolveMiVersionScope(
     baseContext({ versionNumber: undefined }),

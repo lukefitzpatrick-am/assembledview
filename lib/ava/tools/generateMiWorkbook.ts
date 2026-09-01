@@ -1,6 +1,7 @@
 import type AvaTool from "./types"
 import type { ChatInterviewQuestion } from "@/lib/ava/types"
 import { toChatFileAttachment } from "@/lib/ava/chatFileAttachment"
+import { parseMiAnswerMessage } from "@/lib/ava/chatInterviewQuestion"
 import { fetchAllMediaContainerLineItems } from "@/lib/api/media-containers"
 import {
   buildMiWorkbook,
@@ -50,7 +51,10 @@ function answersFrom(input: Record<string, unknown>): MiAnswer[] {
     const answer = asRecord(value)
     const questionId = asString(answer.questionId)
     const response = asString(answer.answer)
-    return questionId && response ? [{ questionId, answer: response }] : []
+    if (!questionId || !response) return []
+    const tagged = parseMiAnswerMessage(response)
+    if (tagged) return [{ questionId: tagged.questionId, answer: tagged.answer }]
+    return [{ questionId, answer: response }]
   })
 }
 
