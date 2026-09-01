@@ -1,10 +1,13 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import type { PageContext } from "@/lib/ava/types";
 import type AvaTool from "./types";
 import { AVA_TOOL_NAMES } from "./summaries";
+import { avaToolDefinitionsForPage as filterToolsForPage } from "./pageToolOffer";
 import { applyFormPatchTool } from "./applyFormPatch";
 import { applyParsedPlanTool } from "./applyParsedPlan";
 import { getPendingIngestReviewTool } from "./getPendingIngestReview";
 import { acceptIngestProposalTool } from "./acceptIngestProposal";
+import { loadIngestIntoFormTool } from "./loadIngestIntoForm";
 import { adjustLineItemsTool } from "./adjustLineItems";
 import { getMediaPlanSummaryTool } from "./getMediaPlanSummary";
 import { getClientDetailsTool } from "./getClientDetails";
@@ -40,6 +43,7 @@ const AVA_TOOLS: AvaTool[] = [
   applyParsedPlanTool,
   getPendingIngestReviewTool,
   acceptIngestProposalTool,
+  loadIngestIntoFormTool,
   adjustLineItemsTool,
   getClientDetailsTool,
   getCampaignContextTool,
@@ -80,6 +84,12 @@ if (
 export const AVA_TOOL_DEFINITIONS: Anthropic.Tool[] = AVA_TOOLS.map(
   (t) => t.definition,
 );
+
+export function avaToolDefinitionsForPage(
+  pageContext?: PageContext,
+): Anthropic.Tool[] {
+  return filterToolsForPage(AVA_TOOL_DEFINITIONS, pageContext);
+}
 
 const toolsByName = new Map<string, AvaTool>(
   AVA_TOOLS.map((t) => [t.definition.name, t]),

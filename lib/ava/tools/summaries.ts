@@ -56,6 +56,7 @@ export const AVA_TOOL_NAMES = [
   "apply_parsed_plan",
   "get_pending_ingest_review",
   "accept_ingest_proposal",
+  "load_ingest_into_form",
   "adjust_line_items",
   "get_client_details",
   "get_campaign_context",

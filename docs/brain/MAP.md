@@ -162,7 +162,7 @@ Client-accessible learning centre. Content is file-driven from `src/data/learnin
 **Entry** `POST /api/chat-v2`. Widget mounted for admins only via `AdminAssistantGate`; the API 403s non-admins.
 
 - `lib/ava/agentLoop.ts` — the tool loop
-- `lib/ava/tools/registry.ts` — the tool surface (~30 tools: `getCampaignContext`, `queryCampaignLines`, `queryScheduleMonths`, `queryFinanceSummary`, `getPacingSnapshot`, `applyFormPatch`, `adjustLineItems`, `acceptIngestProposal`, `saveClientBrain`, `generatePerformanceReport`, …)
+- `lib/ava/tools/registry.ts` — the tool surface (~31 tools: `getCampaignContext`, `queryCampaignLines`, `queryScheduleMonths`, `queryFinanceSummary`, `getPacingSnapshot`, `applyFormPatch`, `adjustLineItems`, `loadIngestIntoForm`, `acceptIngestProposal`, `saveClientBrain`, `generatePerformanceReport`, …). Offer of `accept_ingest_proposal` is surface-aware (`avaToolDefinitionsForPage`).
 - `lib/ava/skills/registry.ts` — skill guidance loaded on demand
 - `src/ava/systemPrompt.ts` + `voiceSpec.ts` + `docs/brain/AVA-VOICE.md` — voice
 - `db/avaClient.ts` + `AVA_DATABASE_URL` — a **separate connection as role `ava_readonly`**, fail-closed with an explicit per-table `GRANT SELECT` allowlist. Adding a table to AVA is a migration, not a code change.

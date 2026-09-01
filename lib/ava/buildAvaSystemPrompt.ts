@@ -2,6 +2,7 @@ import { avaBoundaries, avaIdentity } from "@/src/ava/systemPrompt"
 import { avaVoiceSpec } from "@/src/ava/voiceSpec"
 import { getModeInstructions, type ChatMode } from "@/src/ava/modes"
 import type { PageContext } from "@/lib/ava/types"
+import { isMediaPlanCreateOrEditRoute } from "@/lib/ava/tools/pageToolOffer"
 
 /**
  * Engagement, grounding, and brevity contract for Claude turns.
@@ -39,7 +40,25 @@ export function buildAvaSystemPrompt(
     parts.push(appendix.trim())
   }
 
+  const ingestFormGuidance = createEditIngestFormGuidance(pageContext)
+  if (ingestFormGuidance) {
+    parts.push(ingestFormGuidance)
+  }
+
   return parts.join("\n\n")
+}
+
+/**
+ * Last so it wins over the global chat-v2 appendix, which still documents Hub accept.
+ * Create/edit: load into the form; the human saves. Do not describe writing into a plan.
+ */
+function createEditIngestFormGuidance(pageContext?: PageContext): string | undefined {
+  if (!isMediaPlanCreateOrEditRoute(pageContext)) return undefined
+  return [
+    "On this media-plan create/edit page: after the user confirms, call load_ingest_into_form.",
+    "That loads the staged schedule into the form for human review and writes nothing.",
+    "The human saves. Do not write the schedule into a media plan from chat.",
+  ].join(" ")
 }
 
 function summarisePageContext(pageContext?: PageContext): string | undefined {

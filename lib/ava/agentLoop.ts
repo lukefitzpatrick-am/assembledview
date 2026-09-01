@@ -5,8 +5,9 @@ import {
   AVA_MAX_TOKENS,
   AVA_MAX_TOOL_ITERATIONS,
 } from "./anthropic";
-import { AVA_TOOL_DEFINITIONS, getToolByName } from "./tools/registry";
+import { avaToolDefinitionsForPage, getToolByName } from "./tools/registry";
 import type { AvaToolContext } from "./tools/types";
+import type { PageContext } from "@/lib/ava/types";
 import type { ChatFileAttachment, ChatInterviewQuestion, FormPatch } from "@/lib/ava/types";
 import type { CapturedLineItemsLoad } from "@/lib/ava/autopopulate/types";
 
@@ -53,9 +54,11 @@ const WEB_SEARCH_TOOL: Anthropic.WebSearchTool20250305 = {
 
 function buildTools(
   enableWebSearch: boolean,
+  pageContext?: PageContext,
 ): Anthropic.ToolUnion[] {
-  if (!enableWebSearch) return AVA_TOOL_DEFINITIONS;
-  return [...AVA_TOOL_DEFINITIONS, WEB_SEARCH_TOOL];
+  const definitions = avaToolDefinitionsForPage(pageContext);
+  if (!enableWebSearch) return definitions;
+  return [...definitions, WEB_SEARCH_TOOL];
 }
 
 function isClientToolUse(
@@ -188,7 +191,10 @@ export async function runAvaAgent(
     };
 
     const toolCalls: AvaAgentResult["toolCalls"] = [];
-    const tools = buildTools(input.enableWebSearch === true);
+    const tools = buildTools(
+      input.enableWebSearch === true,
+      input.context.pageContext,
+    );
 
     for (let iter = 0; iter < AVA_MAX_TOOL_ITERATIONS; iter++) {
       const response = await client.messages.create({
