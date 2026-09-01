@@ -1,4 +1,9 @@
 import { detectBilledDrift, toBilledLineSnapshots } from "@/lib/finance/billedDrift"
+import {
+  resolveBillingState,
+  type BillingXeroEvidence,
+} from "@/lib/finance/billingLifecycle"
+import { fetchXeroBillingEvidenceByInvoiceIds } from "@/lib/finance/xeroInvoiceEvidence"
 import { readFinanceBillingRecords } from "@/lib/data/readFinance"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 
@@ -6,7 +11,8 @@ import type { BillingRecord } from "@/lib/types/financeBilling"
  * Domain 5 Stage 2.2a — read-only overlay of persisted finance_billing_records
  * onto derived BillingRecord rows.
  *
- * Default state when no row exists: billed=false, all timestamps/ids null.
+ * Default overlay when no row exists: billed=false, stamps null, derived `state` = ready.
+ * Lifecycle is derived via `resolveBillingState` (never a stored state column).
  * No write happens here; this is a pure read overlay. Materialisation
  * (lazy row creation) is Stage 2.2b.
  */
@@ -25,9 +31,13 @@ export type PersistedFinanceStatusRow = {
   billed_amount?: number | null
   billed_lines_hash?: string | null
   notes: string | null
-  exported_at: number | null
+  exported_at: number | string | null
   exported_by: number | null
   invoice_key: string | null
+  approved_at?: string | number | null
+  matched_xero_invoice_id?: string | null
+  /** Joined from xero_ar_invoices at overlay time; not stored on the billing row. */
+  xero?: BillingXeroEvidence | null
 }
 
 /**
@@ -90,8 +100,51 @@ export async function fetchAllPersistedFinanceStatusRows(
   _logContextMonth?: string
 ): Promise<PersistedFinanceStatusRow[]> {
   // DATA_BACKEND_FINANCE / DATA_BACKEND — reads Postgres; writes go through writeFinance.ts.
-  const rows = await readFinanceBillingRecords()
-  return rows as unknown as PersistedFinanceStatusRow[]
+  const rows = (await readFinanceBillingRecords()) as unknown as PersistedFinanceStatusRow[]
+  const ids = rows.flatMap((r) => {
+    const id =
+      typeof r.matched_xero_invoice_id === "string" ? r.matched_xero_invoice_id.trim() : ""
+    return id ? [id] : []
+  })
+  const xeroById = await fetchXeroBillingEvidenceByInvoiceIds(ids)
+  return rows.map((r) => {
+    const id =
+      typeof r.matched_xero_invoice_id === "string" ? r.matched_xero_invoice_id.trim() : ""
+    return { ...r, xero: id ? (xeroById.get(id) ?? null) : null }
+  })
+}
+
+function overlayStampIso(value: unknown): string | null {
+  if (value == null) return null
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value === 0) return null
+    const ms = value < 1e12 ? value * 1000 : value
+    const d = new Date(ms)
+    return Number.isNaN(d.getTime()) ? null : d.toISOString()
+  }
+  const s = String(value).trim()
+  return s.length > 0 ? s : null
+}
+
+function withDerivedLifecycle(
+  record: BillingRecord,
+  evidence: {
+    approvedAt: unknown
+    exportedAt: unknown
+    xero: BillingXeroEvidence | null
+  }
+): BillingRecord {
+  const resolved = resolveBillingState({
+    approvedAt: overlayStampIso(evidence.approvedAt),
+    exportedAt: overlayStampIso(evidence.exportedAt),
+    xero: evidence.xero,
+  })
+  return {
+    ...record,
+    approved_at: overlayStampIso(evidence.approvedAt),
+    state: resolved.state,
+    state_reason: resolved.reason,
+  }
 }
 
 /** Month scoping shared by the single-month and multi-month overlay paths. */
@@ -135,39 +188,45 @@ export function applyStatusOverlay(
     record.billing_month
   )
   if (!key) {
-    return {
-      ...record,
-      persisted_record_id: null,
-      billed: false,
-      billed_at: null,
-      billed_by: null,
-      billed_amount: null,
-      billed_lines_hash: null,
-      billed_drift: false,
-      billed_drift_delta: null,
-      notes: null,
-      exported_at: null,
-      exported_by: null,
-      invoice_key: null,
-    }
+    return withDerivedLifecycle(
+      {
+        ...record,
+        persisted_record_id: null,
+        billed: false,
+        billed_at: null,
+        billed_by: null,
+        billed_amount: null,
+        billed_lines_hash: null,
+        billed_drift: false,
+        billed_drift_delta: null,
+        notes: null,
+        exported_at: null,
+        exported_by: null,
+        invoice_key: null,
+      },
+      { approvedAt: null, exportedAt: null, xero: null }
+    )
   }
   const persisted = overlayMap.get(key)
   if (!persisted) {
-    return {
-      ...record,
-      persisted_record_id: null,
-      billed: false,
-      billed_at: null,
-      billed_by: null,
-      billed_amount: null,
-      billed_lines_hash: null,
-      billed_drift: false,
-      billed_drift_delta: null,
-      notes: null,
-      exported_at: null,
-      exported_by: null,
-      invoice_key: key,
-    }
+    return withDerivedLifecycle(
+      {
+        ...record,
+        persisted_record_id: null,
+        billed: false,
+        billed_at: null,
+        billed_by: null,
+        billed_amount: null,
+        billed_lines_hash: null,
+        billed_drift: false,
+        billed_drift_delta: null,
+        notes: null,
+        exported_at: null,
+        exported_by: null,
+        invoice_key: key,
+      },
+      { approvedAt: null, exportedAt: null, xero: null }
+    )
   }
   const billed = persisted.billed === true
   const billed_amount =
@@ -186,19 +245,26 @@ export function applyStatusOverlay(
     currentTotal: record.total,
     currentLines: toBilledLineSnapshots(record.line_items ?? []),
   })
-  return {
-    ...record,
-    persisted_record_id: persisted.id,
-    billed,
-    billed_at: persisted.billed_at ?? null,
-    billed_by: persisted.billed_by ?? null,
-    billed_amount,
-    billed_lines_hash,
-    billed_drift: drift.drift,
-    billed_drift_delta: drift.delta,
-    notes: persisted.notes ?? null,
-    exported_at: persisted.exported_at ?? null,
-    exported_by: persisted.exported_by ?? null,
-    invoice_key: persisted.invoice_key ?? key,
-  }
+  return withDerivedLifecycle(
+    {
+      ...record,
+      persisted_record_id: persisted.id,
+      billed,
+      billed_at: persisted.billed_at ?? null,
+      billed_by: persisted.billed_by ?? null,
+      billed_amount,
+      billed_lines_hash,
+      billed_drift: drift.drift,
+      billed_drift_delta: drift.delta,
+      notes: persisted.notes ?? null,
+      exported_at: persisted.exported_at ?? null,
+      exported_by: persisted.exported_by ?? null,
+      invoice_key: persisted.invoice_key ?? key,
+    },
+    {
+      approvedAt: persisted.approved_at,
+      exportedAt: persisted.exported_at,
+      xero: persisted.xero ?? null,
+    }
+  )
 }

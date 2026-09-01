@@ -15,8 +15,8 @@ import { EmptyState } from "@/components/finance/sections/EmptyState"
 import { ErrorState } from "@/components/finance/sections/ErrorState"
 import { LoadingState } from "@/components/finance/sections/LoadingState"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { markBilled } from "@/lib/finance/api"
 import { exportBillingRecordsCsv } from "@/lib/finance/export"
+import { hasBillingEvidence } from "@/lib/finance/billingLifecycle"
 import { exportReceivablesWorkbook } from "@/lib/finance/exportFinanceHub"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 import { formatAUD } from "@/lib/format/money"
@@ -97,13 +97,11 @@ function sumMonthGroupsTotal(groups: MonthGroup[]): number {
 function InvoicingMonthSections({
   groups,
   refetch,
-  onToggleBilled,
   onNotesSaved,
   onLineAmountCommitted,
 }: {
   groups: MonthGroup[]
   refetch: () => void
-  onToggleBilled: (rec: BillingRecord, nextBilled: boolean) => Promise<void>
   onNotesSaved?: (result: {
     invoice_key: string
     notes: string
@@ -131,7 +129,6 @@ function InvoicingMonthSections({
                 client={client}
                 monthLabel={mg.monthLabel}
                 refetch={refetch}
-                onToggleBilled={onToggleBilled}
                 onNotesSaved={onNotesSaved}
                 onLineAmountCommitted={onLineAmountCommitted}
               />
@@ -154,59 +151,11 @@ export function InvoicingPageClient() {
     visibleMonthGroups,
     loadError,
     bumpFetch,
-    updateBilledByInvoiceKey,
     updateNotesByInvoiceKey,
     updateReceivableLineAmount,
   } = useInvoicingReceivablesData(localFilters)
 
   const { toast } = useToast()
-
-  const handleToggleBilled = useCallback(
-    async (rec: BillingRecord, nextBilled: boolean) => {
-      if (!rec.invoice_key) {
-        toast({
-          variant: "destructive",
-          title: "Cannot mark billed",
-          description: "This invoice has no billing key (missing MBA or month).",
-        })
-        return
-      }
-      try {
-        const res = await markBilled({
-          billing_type: rec.billing_type,
-          clients_id: rec.clients_id,
-          client_name: rec.client_name,
-          mba_number: rec.mba_number,
-          campaign_name: rec.campaign_name,
-          billing_month: rec.billing_month,
-          billed: nextBilled,
-          total: rec.total,
-          line_items: (rec.line_items ?? []).map((li) => ({
-            item_code: li.item_code,
-            amount: li.amount,
-            schedule_line_item_id: li.schedule_line_item_id ?? null,
-          })),
-        })
-        updateBilledByInvoiceKey(res.invoice_key, {
-          billed: res.billed,
-          billed_at: res.billed_at,
-          billed_by: res.billed_by,
-          persisted_record_id: res.persisted_record_id,
-          billed_amount: res.billed_amount,
-          billed_lines_hash: res.billed_lines_hash,
-          billed_drift: res.billed_drift,
-          billed_drift_delta: res.billed_drift_delta,
-        })
-      } catch (e) {
-        toast({
-          variant: "destructive",
-          title: nextBilled ? "Mark billed failed" : "Un-mark failed",
-          description: e instanceof Error ? e.message : "Unknown error",
-        })
-      }
-    },
-    [toast, updateBilledByInvoiceKey]
-  )
 
   const handleNotesSaved = useCallback(
     (result: { invoice_key: string; notes: string; persisted_record_id: number }) => {
@@ -245,7 +194,9 @@ export function InvoicingPageClient() {
 
   const kpi = useMemo(() => {
     const totalToBill = allRecords.reduce((s, r) => s + r.total, 0)
-    const billed = allRecords.filter((r) => r.billed === true).reduce((s, r) => s + r.total, 0)
+    const billed = allRecords
+      .filter((r) => hasBillingEvidence(r.state))
+      .reduce((s, r) => s + r.total, 0)
     return {
       totalToBill: Math.round(totalToBill * 100) / 100,
       billed: Math.round(billed * 100) / 100,
@@ -254,11 +205,11 @@ export function InvoicingPageClient() {
   }, [allRecords])
 
   const unbilledGroups = useMemo(
-    () => filterReceivablesMonthGroups(visibleMonthGroups, (r) => r.billed !== true),
+    () => filterReceivablesMonthGroups(visibleMonthGroups, (r) => !hasBillingEvidence(r.state)),
     [visibleMonthGroups]
   )
   const billedGroups = useMemo(
-    () => filterReceivablesMonthGroups(visibleMonthGroups, (r) => r.billed === true),
+    () => filterReceivablesMonthGroups(visibleMonthGroups, (r) => hasBillingEvidence(r.state)),
     [visibleMonthGroups]
   )
 
@@ -372,13 +323,14 @@ export function InvoicingPageClient() {
 
             <div className="relative mt-4 space-y-6 pt-1">
               {unbilledInvoiceCount === 0 && billedInvoiceCount > 0 ? (
-                <p className="text-sm text-muted-foreground">All invoices billed for this period.</p>
+                <p className="text-sm text-muted-foreground">
+                  All invoices have moved past ready for this period.
+                </p>
               ) : null}
 
               <InvoicingMonthSections
                 groups={unbilledGroups}
                 refetch={bumpFetch}
-                onToggleBilled={handleToggleBilled}
                 onNotesSaved={handleNotesSaved}
                 onLineAmountCommitted={handleLineAmountCommitted}
               />
@@ -388,7 +340,7 @@ export function InvoicingPageClient() {
                   <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-card border border-border bg-surface-panel px-4 py-3 text-left hover:bg-table-row-hover">
                     <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]/billed:rotate-180" />
                     <span className="text-sm font-medium">
-                      Billed this month · {billedInvoiceCount}{" "}
+                      Approved & beyond · {billedInvoiceCount}{" "}
                       {billedInvoiceCount === 1 ? "invoice" : "invoices"} · {formatAUD(billedTotal)}
                     </span>
                   </CollapsibleTrigger>
@@ -396,7 +348,6 @@ export function InvoicingPageClient() {
                     <InvoicingMonthSections
                       groups={billedGroups}
                       refetch={bumpFetch}
-                      onToggleBilled={handleToggleBilled}
                       onNotesSaved={handleNotesSaved}
                       onLineAmountCommitted={handleLineAmountCommitted}
                     />
@@ -407,12 +358,12 @@ export function InvoicingPageClient() {
                   <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-card border border-border bg-surface-panel px-4 py-3 text-left hover:bg-table-row-hover">
                     <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]/billed:-rotate-90" />
                     <span className="text-sm font-medium text-muted-foreground">
-                      Billed this month · 0 invoices · {formatAUD(0)}
+                      Approved & beyond · 0 invoices · {formatAUD(0)}
                     </span>
                   </CollapsibleTrigger>
                   <CollapsibleContent className="mt-4">
                     <p className="text-sm text-muted-foreground">
-                      No billed invoices for this period.
+                      No approved, sent, or issued invoices for this period.
                     </p>
                   </CollapsibleContent>
                 </Collapsible>

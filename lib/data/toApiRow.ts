@@ -25,6 +25,7 @@ export const IDENTIFIER_TEXT_FIELDS: ReadonlySet<string> = new Set([
   "postcode",
   "invoice_number",
   "invoice_key",
+  "matched_xero_invoice_id",
   "client_contact",
   "mbaidentifier",
   "line_item_id",

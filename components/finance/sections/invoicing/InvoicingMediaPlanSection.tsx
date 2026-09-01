@@ -15,10 +15,11 @@ import { groupIdenticalLineItems } from "@/lib/finance/groupIdenticalLineItems"
 import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { MediaPlanActionBar } from "@/components/finance/MediaPlanActionBar"
-import { BilledStatusPill } from "@/components/finance/receivables/BilledStatusPill"
+import { BillingStateBadge } from "@/components/finance/BillingStateBadge"
 import { ReceivableNotesButton } from "@/components/finance/receivables/ReceivableNotesButton"
 import { ReceivablesLineGroupRow } from "@/components/finance/receivables/ReceivablesLineGroupRow"
 import { formatInvoicedVsBookedForRecords } from "@/components/finance/sections/invoicing/invoicedVsBooked"
+import { hasBillingEvidence } from "@/lib/finance/billingLifecycle"
 
 type MediaTypeRollup = {
   mediaType: string
@@ -53,7 +54,6 @@ type InvoicingMediaPlanSectionProps = {
   kind: "media" | "sow"
   sectionLabel?: string
   refetch: () => void
-  onToggleBilled: (rec: BillingRecord, nextBilled: boolean) => Promise<void>
   onNotesSaved?: (result: {
     invoice_key: string
     notes: string
@@ -131,7 +131,6 @@ export function InvoicingMediaPlanSection({
   kind,
   sectionLabel,
   refetch,
-  onToggleBilled,
   onNotesSaved,
   onLineAmountCommitted,
 }: InvoicingMediaPlanSectionProps) {
@@ -187,12 +186,9 @@ export function InvoicingMediaPlanSection({
 
       {mp.records.length > 0 ? (
         <div className="flex flex-wrap items-center gap-1.5">
-          <BilledStatusPill
-            billed={mp.records[0]?.billed}
-            drift={mp.records[0]?.billed_drift}
-            driftDelta={mp.records[0]?.billed_drift_delta}
-            onToggle={(next) => onToggleBilled(mp.records[0], next)}
-            disabled={!mp.records[0]?.invoice_key}
+          <BillingStateBadge
+            state={mp.records[0]?.state ?? "ready"}
+            reason={mp.records[0]?.state_reason}
           />
           <ReceivableNotesButton record={mp.records[0]} onSaved={onNotesSaved} />
         </div>
@@ -207,8 +203,8 @@ export function InvoicingMediaPlanSection({
               key={rollup.mediaType}
               rollup={rollup}
               editCtx={editCtx}
-              invoiceBilled={mp.records[0]?.billed === true}
-              confirmIfAnyBilled={mp.records.some((r) => r.billed === true)}
+              invoiceBilled={hasBillingEvidence(mp.records[0]?.state)}
+              confirmIfAnyBilled={mp.records.some((r) => hasBillingEvidence(r.state))}
               onLineAmountCommitted={onLineAmountCommitted}
             />
           ))}

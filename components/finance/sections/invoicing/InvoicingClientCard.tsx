@@ -8,12 +8,12 @@
 import { ChevronDown } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
+import type { BillingLineItem } from "@/lib/types/financeBilling"
 import type { ClientGroup } from "@/lib/finance/useReceivablesData"
 import type { InlineScheduleEditContext } from "@/lib/finance/commitInlineScheduleAmountEdit"
 import { clientInitials } from "@/lib/finance/cardHelpers"
 import { formatAUD } from "@/lib/format/money"
-import { BilledStatusPill } from "@/components/finance/receivables/BilledStatusPill"
+import { BillingStateBadge } from "@/components/finance/BillingStateBadge"
 import { ReceivableNotesButton } from "@/components/finance/receivables/ReceivableNotesButton"
 import { InvoicingMediaPlanSection } from "@/components/finance/sections/invoicing/InvoicingMediaPlanSection"
 import { formatInvoicedVsBooked } from "@/components/finance/sections/invoicing/invoicedVsBooked"
@@ -22,7 +22,6 @@ type InvoicingClientCardProps = {
   client: ClientGroup
   monthLabel: string
   refetch: () => void
-  onToggleBilled: (rec: BillingRecord, nextBilled: boolean) => Promise<void>
   onNotesSaved?: (result: {
     invoice_key: string
     notes: string
@@ -39,7 +38,6 @@ export function InvoicingClientCard({
   client,
   monthLabel,
   refetch,
-  onToggleBilled,
   onNotesSaved,
   onLineAmountCommitted,
 }: InvoicingClientCardProps) {
@@ -84,7 +82,6 @@ export function InvoicingClientCard({
                 kind="media"
                 sectionLabel={mpIdx === 0 && client.mediaPlans.length ? "Media plans" : undefined}
                 refetch={refetch}
-                onToggleBilled={onToggleBilled}
                 onNotesSaved={onNotesSaved}
                 onLineAmountCommitted={onLineAmountCommitted}
               />
@@ -96,7 +93,6 @@ export function InvoicingClientCard({
                 kind="sow"
                 sectionLabel="Fees"
                 refetch={refetch}
-                onToggleBilled={onToggleBilled}
                 onNotesSaved={onNotesSaved}
                 onLineAmountCommitted={onLineAmountCommitted}
               />
@@ -121,13 +117,7 @@ export function InvoicingClientCard({
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <BilledStatusPill
-                        billed={rec.billed}
-                        drift={rec.billed_drift}
-                        driftDelta={rec.billed_drift_delta}
-                        onToggle={(next) => onToggleBilled(rec, next)}
-                        disabled={!rec.invoice_key}
-                      />
+                      <BillingStateBadge state={rec.state ?? "ready"} reason={rec.state_reason} />
                       <ReceivableNotesButton record={rec} onSaved={onNotesSaved} />
                       <p className="num text-sm font-semibold">{formatAUD(rec.total)}</p>
                     </div>

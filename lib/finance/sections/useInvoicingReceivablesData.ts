@@ -75,19 +75,6 @@ export type InvoicingReceivablesState = {
   filterSig: string
   loadedSignature: string | null
   bumpFetch: () => void
-  updateBilledByInvoiceKey: (
-    invoiceKey: string,
-    fields: {
-      billed: boolean
-      billed_at: number | null
-      billed_by: number | null
-      persisted_record_id?: number | null
-      billed_amount?: number | null
-      billed_lines_hash?: string | null
-      billed_drift?: boolean
-      billed_drift_delta?: number | null
-    }
-  ) => void
   updateNotesByInvoiceKey: (
     invoiceKey: string,
     fields: { notes: string | null; persisted_record_id?: number | null }
@@ -127,33 +114,6 @@ export function useInvoicingReceivablesData(
   const isStale = loadedSignature !== null && filterSig !== loadedSignature
   /** Prior rows stay on screen while a new signature loads (July P0-3 A+B). */
   const isUpdating = (loading && records.length > 0) || isStale
-
-  const updateBilledByInvoiceKey = useCallback<
-    InvoicingReceivablesState["updateBilledByInvoiceKey"]
-  >((invoiceKey, fields) => {
-    if (!invoiceKey) return
-    setRecords((prev) =>
-      prev.map((r) =>
-        r.invoice_key === invoiceKey
-          ? {
-              ...r,
-              billed: fields.billed,
-              billed_at: fields.billed_at,
-              billed_by: fields.billed_by,
-              billed_amount: fields.billed
-                ? (fields.billed_amount ?? r.billed_amount ?? null)
-                : null,
-              billed_lines_hash: fields.billed
-                ? (fields.billed_lines_hash ?? r.billed_lines_hash ?? null)
-                : null,
-              billed_drift: fields.billed ? (fields.billed_drift ?? false) : false,
-              billed_drift_delta: fields.billed ? (fields.billed_drift_delta ?? 0) : null,
-              persisted_record_id: fields.persisted_record_id ?? r.persisted_record_id ?? null,
-            }
-          : r
-      )
-    )
-  }, [])
 
   const updateNotesByInvoiceKey = useCallback<
     InvoicingReceivablesState["updateNotesByInvoiceKey"]
@@ -354,7 +314,6 @@ export function useInvoicingReceivablesData(
     filterSig,
     loadedSignature,
     bumpFetch,
-    updateBilledByInvoiceKey,
     updateNotesByInvoiceKey,
     updateReceivableLineAmount,
   }

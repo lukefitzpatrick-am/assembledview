@@ -1,3 +1,4 @@
+import type { BillingState } from "@/lib/finance/billingLifecycle"
 import type { ReportLine } from "@/lib/finance/extractReportLinesFromBillingSchedule"
 import type { ReportDimension } from "@/lib/finance/report/types"
 import type { ReportMetricKey } from "@/lib/finance/report/metrics"
@@ -102,9 +103,18 @@ export interface BillingRecord {
   /** currentTotal - billed_amount when drift is computable; else null. */
   billed_drift_delta?: number | null
   notes?: string | null
-  exported_at?: number | null
+  exported_at?: number | string | null
   exported_by?: number | null
   invoice_key?: string | null
+  /** Approval stamp ISO; evidence for derived `state`. Not a stored lifecycle column. */
+  approved_at?: string | null
+  /**
+   * Derived invoicing lifecycle (`resolveBillingState`). Never persisted.
+   * Set on the overlay read path.
+   */
+  state?: BillingState
+  /** Why `state` resolved as it did — badge title / debug. */
+  state_reason?: string
 }
 
 export interface BillingEdit {
