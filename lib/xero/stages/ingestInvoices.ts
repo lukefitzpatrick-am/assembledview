@@ -15,6 +15,7 @@ import { getXeroAccessToken, xeroApiRequest } from "../client"
 import { rowsOf } from "../dbRows"
 import { coerceDollars } from "../money"
 import { parseXeroDateString, parseXeroDotNetDate } from "../parseXeroDate"
+import { sqlCronWatermarkLogWhere } from "../syncLogNotes"
 import { invoiceIngestWindow } from "../watermark"
 
 export const INVOICE_PAGES_CAP = 20
@@ -83,7 +84,7 @@ export async function stageIngestInvoices(opts?: {
         await db.execute(sql`
           SELECT notes, watermark_used, new_watermark
           FROM xero_sync_log
-          WHERE COALESCE(notes::jsonb->>'source', '') IS DISTINCT FROM 'pull-xero'
+          WHERE ${sqlCronWatermarkLogWhere}
           ORDER BY id DESC
           LIMIT 1
         `),

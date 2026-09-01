@@ -19,6 +19,7 @@ import { loadMbaOptionsForQueue } from "@/lib/finance/sections/xero/enrichPendin
 import { setFinanceBillingRecordXeroMatch } from "@/lib/data/writeFinance"
 import { coerceDollars, dollarsToCents } from "@/lib/xero/money"
 import { rowsOf } from "@/lib/xero/dbRows"
+import { sqlPullXeroLogWhere } from "@/lib/xero/syncLogNotes"
 import { loadMbaMasters, loadScopeOfWorkRefs } from "@/lib/xero/applyMatchMba"
 import { loadContactLinks } from "@/lib/xero/contactLinks"
 import {
@@ -83,7 +84,7 @@ async function loadLastPulledAt(): Promise<string | null> {
     await db.execute(sql`
       SELECT run_finished_at::text AS run_finished_at
       FROM xero_sync_log
-      WHERE notes::jsonb->>'source' = 'pull-xero'
+      WHERE ${sqlPullXeroLogWhere}
       ORDER BY id DESC
       LIMIT 1
     `)
