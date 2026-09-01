@@ -114,16 +114,17 @@ export function PlanDraftActiveBanner(props: {
     <div
       role="status"
       className={cn(
-        "rounded-card border border-status-warning/40 bg-surface-panel shadow-e0",
         props.compact
-          ? "flex flex-col items-stretch gap-1.5 px-2 py-1.5"
-          : "mb-3 flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+          ? "flex flex-col items-stretch gap-1.5"
+          : "mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-status-warning/40 bg-surface-panel px-3 py-2 shadow-e0"
       )}
     >
       <p
         className={cn(
           "text-foreground",
-          props.compact ? "truncate text-xs leading-snug" : "text-sm"
+          props.compact
+            ? "whitespace-normal break-words text-xs leading-snug"
+            : "text-sm"
         )}
         title={props.headline || undefined}
       >
@@ -161,10 +162,22 @@ export function PlanDraftActiveBanner(props: {
         )}
       </p>
       <div className={cn("flex gap-2", props.compact ? "flex-col" : "flex-wrap")}>
-        <Button type="button" size="sm" variant="outline" onClick={viewChanges}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className={props.compact ? "h-8 w-full" : undefined}
+          onClick={viewChanges}
+        >
           View changes
         </Button>
-        <Button type="button" size="sm" variant="ghost" onClick={props.onDiscard}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className={props.compact ? "h-8 w-full" : undefined}
+          onClick={props.onDiscard}
+        >
           Discard draft
         </Button>
       </div>
@@ -185,10 +198,9 @@ export function PlanDraftStaleBanner(props: {
     <div
       role="status"
       className={cn(
-        "rounded-card border border-status-warning/40 bg-surface-panel shadow-e0",
         props.compact
-          ? "flex flex-col items-stretch gap-1.5 px-2 py-1.5"
-          : "mb-3 flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+          ? "flex flex-col items-stretch gap-1.5"
+          : "mb-3 flex flex-wrap items-center justify-between gap-2 rounded-card border border-status-warning/40 bg-surface-panel px-3 py-2 shadow-e0"
       )}
     >
       <p
@@ -201,15 +213,32 @@ export function PlanDraftStaleBanner(props: {
         {props.baseVersionNumber}; the plan is now on v{props.tipVersionNumber}.
       </p>
       <div className={cn("flex gap-2", props.compact ? "flex-col" : "flex-wrap")}>
-        <Button type="button" size="sm" onClick={props.onLoadAnyway}>
+        <Button
+          type="button"
+          size="sm"
+          className={props.compact ? "h-8 w-full" : undefined}
+          onClick={props.onLoadAnyway}
+        >
           Load anyway
         </Button>
         {props.onCompare ? (
-          <Button type="button" size="sm" variant="outline" onClick={props.onCompare}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className={props.compact ? "h-8 w-full" : undefined}
+            onClick={props.onCompare}
+          >
             Compare
           </Button>
         ) : null}
-        <Button type="button" size="sm" variant="ghost" onClick={props.onDiscard}>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className={props.compact ? "h-8 w-full" : undefined}
+          onClick={props.onDiscard}
+        >
           Discard
         </Button>
       </div>

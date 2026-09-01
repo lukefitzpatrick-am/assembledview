@@ -59,6 +59,7 @@ export type PlanWizardShellProps = {
   onExit: () => void
   /** Destination label for Exit (e.g. "Exit to Campaigns"). */
   exitLabel?: string
+  /** Still accepted from create/edit; Saving… renders in `PlanWizardSaveMessages`. */
   isSaving?: boolean
   /** Extra hold (e.g. channel hydration) — disables Save in the floating bar. */
   saveDisabled?: boolean
@@ -81,7 +82,6 @@ export function PlanWizardShell({
   summary,
   onExit,
   exitLabel = "Exit to Campaigns",
-  isSaving = false,
   saveDisabled = false,
   saveDisabledReason = null,
   statusPanel = null,
@@ -237,7 +237,7 @@ export function PlanWizardShell({
         />
 
         <div className="grid w-full grid-cols-1 items-start gap-5 overflow-visible xl:grid-cols-[220px_minmax(0,1fr)] xl:gap-6">
-          <aside className="scrollbar-thin flex flex-col gap-4 xl:sticky xl:top-4 xl:z-10 xl:max-h-[calc(100dvh-5rem)] xl:self-start xl:overflow-y-auto xl:overscroll-contain">
+          <aside className="flex flex-col gap-4 xl:sticky xl:top-4 xl:z-10 xl:self-start">
             <nav
               className="rounded-frame border border-border bg-card p-2.5 shadow-e1"
               aria-label="Campaign wizard progress"
@@ -360,10 +360,6 @@ export function PlanWizardShell({
                   role="status"
                 >
                   {holdReason}
-                </p>
-              ) : isSaving ? (
-                <p className="mt-3 text-[10px] leading-snug text-[hsl(var(--sidebar-foreground)/0.72)]" role="status">
-                  Saving…
                 </p>
               ) : null}
               <div className="mt-4 flex flex-col gap-2">

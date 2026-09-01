@@ -42,7 +42,6 @@ import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePrese
 import { ExpertApplyDirtyClearOnSave } from "@/components/mediaplans/ExpertApplyDirtyClearOnSave"
 import { useMediaPlanDirtyController } from "@/lib/mediaplan/useMediaPlanDirtyController"
 import { applyChannelTotalPair } from "@/lib/mediaplan/channelTotalChange"
-import { BuilderIssuesBadge } from "@/components/mediaplans/BuilderIssuesBadge"
 import type { BuilderIssue } from "@/lib/mediaplan/builderIssues"
 import { pushFinanceBuilderIssues } from "@/lib/mediaplan/pushFinanceBuilderIssues"
 import {
@@ -292,7 +291,6 @@ import {
 import { usePlanDraftSession } from "@/hooks/usePlanDraftSession"
 import {
   PlanDraftActiveBanner,
-  PlanDraftPill,
   PlanDraftStaleBanner,
   PlanDraftTipCompareDialog,
   PlanStaleBaseDialog,
@@ -7245,8 +7243,24 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
 
   const isWizardSaving = isLoading || isPlanSaving || isVersionSaving
 
+  const extraProblemTexts: string[] = []
+  if (duplicatesDetected) {
+    extraProblemTexts.push(
+      `Duplicate line-item rows detected (${channelDuplicateSummary.inflatedRows} rows / ${channelDuplicateSummary.inflatedDistinctIds} ids) — do not save; totals are inflated`
+    )
+  }
+  if (dateWarning.hasViolation) {
+    extraProblemTexts.push(
+      dateWarning.offendingCount === 1
+        ? "1 line item has flight dates outside the campaign window"
+        : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`
+    )
+  }
+
   const wizardStatusPanel = (
     <PlanWizardSaveMessages
+      issues={builderIssues}
+      extraProblemTexts={extraProblemTexts}
       draftBanner={
         planDraft.activeDraft ? (
           <PlanDraftActiveBanner
@@ -7277,37 +7291,10 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
           <p className="text-xs text-muted-foreground">{otherEditorLabel}</p>
         ) : null
       }
-      saveMode={
-        planDraft.pill ? (
-          <PlanDraftPill compact pill={planDraft.pill} tipLabel={null} />
-        ) : predictedSaveModeLabel ? (
-          <p className="truncate text-xs text-muted-foreground">{predictedSaveModeLabel}</p>
-        ) : null
-      }
-      alerts={
-        builderIssues.length > 0 || duplicatesDetected || dateWarning.hasViolation ? (
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <BuilderIssuesBadge issues={builderIssues} className="w-full max-w-none" />
-            {duplicatesDetected ? (
-              <div
-                role="alert"
-                className="w-full rounded-card border border-pacing-critical bg-pacing-critical-bg px-2 py-1.5 text-xs font-medium text-status-critical-fg"
-              >
-                Duplicate line-item rows detected ({channelDuplicateSummary.inflatedRows}{" "}
-                rows / {channelDuplicateSummary.inflatedDistinctIds} ids) — do not save;
-                totals are inflated
-              </div>
-            ) : null}
-            {dateWarning.hasViolation ? (
-              <div className="rounded-card border border-pacing-critical bg-pacing-critical-bg px-2 py-1.5 text-xs font-medium text-status-critical-fg">
-                {dateWarning.offendingCount === 1
-                  ? "1 line item has flight dates outside the campaign window"
-                  : `${dateWarning.offendingCount} line items have flight dates outside the campaign window`}
-              </div>
-            ) : null}
-          </div>
-        ) : null
-      }
+      savePrimary={planDraft.pill?.primary ?? predictedSaveModeLabel ?? null}
+      saveSecondary={planDraft.pill?.secondary ?? null}
+      saveTip={null}
+      isSaving={isWizardSaving}
     />
   )
 

@@ -16,35 +16,86 @@ describe("PlanWizardSaveMessages", () => {
     expect(renderToStaticMarkup(<PlanWizardSaveMessages />)).toBe("")
     expect(
       renderToStaticMarkup(
-        <PlanWizardSaveMessages draftBanner={null} saveMode={null} alerts={null} />
+        <PlanWizardSaveMessages
+          draftBanner={null}
+          issues={[]}
+          extraProblemTexts={[]}
+          savePrimary={null}
+          saveSecondary={null}
+          saveTip={null}
+          isSaving={false}
+        />
       )
     ).toBe("")
   })
 
-  it("renders banner, then save-mode, then alerts, in that order", () => {
+  it("renders problems before draft before save state", () => {
     const html = renderToStaticMarkup(
       <PlanWizardSaveMessages
+        extraProblemTexts={["ALERTS"]}
         draftBanner={<span>DRAFT-BANNER</span>}
-        saveMode={<span>SAVE-MODE</span>}
-        alerts={<span>ALERTS</span>}
+        savePrimary="SAVE-MODE"
       />
     )
     expect(html).toContain("Save status")
+    const alertsAt = html.indexOf("ALERTS")
     const bannerAt = html.indexOf("DRAFT-BANNER")
     const modeAt = html.indexOf("SAVE-MODE")
-    const alertsAt = html.indexOf("ALERTS")
-    expect(bannerAt).toBeGreaterThan(-1)
+    expect(alertsAt).toBeGreaterThan(-1)
+    expect(bannerAt).toBeGreaterThan(alertsAt)
     expect(modeAt).toBeGreaterThan(bannerAt)
-    expect(alertsAt).toBeGreaterThan(modeAt)
   })
 
-  it("renders a save-mode-only idle card (no empty-card path)", () => {
+  it("renders a save-state-only card", () => {
     const html = renderToStaticMarkup(
-      <PlanWizardSaveMessages saveMode={<span>Publish will create v1</span>} />
+      <PlanWizardSaveMessages savePrimary="Publish will create v1" />
     )
     expect(html).toContain("Publish will create v1")
     expect(html).toContain("Save status")
+    expect(html).toContain("On save")
+    expect(html.includes("Unsaved draft")).toBe(false)
     expect(html.includes("DRAFT-BANNER") || html.includes("ALERTS")).toBe(false)
+  })
+
+  it("renders Saving… when isSaving", () => {
+    const idleEmpty = renderToStaticMarkup(<PlanWizardSaveMessages />)
+    const savingOnly = renderToStaticMarkup(<PlanWizardSaveMessages isSaving />)
+    expect(idleEmpty).toBe("")
+    expect(savingOnly).toContain("Save status")
+    expect(savingOnly).toContain("Saving…")
+    expect(savingOnly).toContain("On save")
+
+    const replacingPill = renderToStaticMarkup(
+      <PlanWizardSaveMessages
+        isSaving
+        savePrimary="Publish will create v1"
+        saveSecondary="Draft — working copy (not published)"
+        saveTip="v4"
+      />
+    )
+    expect(replacingPill).toContain("Saving…")
+    expect(replacingPill.includes("Publish will create v1")).toBe(false)
+    expect(replacingPill).toContain("Draft — working copy (not published)")
+    expect(replacingPill).toContain("Docs/pacing serve v4")
+  })
+
+  it("renders extraProblemTexts after issues", () => {
+    const html = renderToStaticMarkup(
+      <PlanWizardSaveMessages
+        issues={[
+          {
+            id: "missing-client",
+            severity: "warning",
+            title: "ISSUE-TITLE",
+          },
+        ]}
+        extraProblemTexts={["EXTRA-TEXT"]}
+      />
+    )
+    const issueAt = html.indexOf("ISSUE-TITLE")
+    const extraAt = html.indexOf("EXTRA-TEXT")
+    expect(issueAt).toBeGreaterThan(-1)
+    expect(extraAt).toBeGreaterThan(issueAt)
   })
 })
 
