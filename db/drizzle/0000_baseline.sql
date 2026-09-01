@@ -226,7 +226,15 @@ CREATE TABLE "finance_billing_records" (
 	"notes" text,
 	"exported_at" timestamp with time zone,
 	"exported_by" bigint,
-	"invoice_key" text
+	"invoice_key" text,
+	"approved_at" timestamp with time zone,
+	"approved_by" bigint,
+	"approved_by_name" text,
+	"approved_amount_cents" bigint,
+	"approved_lines_hash" text,
+	"matched_xero_invoice_id" text,
+	"matched_at" timestamp with time zone,
+	"matched_by" text
 );
 --> statement-breakpoint
 CREATE TABLE "finance_edits" (
@@ -1303,6 +1311,8 @@ CREATE INDEX "idx_finance_billing_line_items_created_at" ON "finance_billing_lin
 CREATE INDEX "idx_finance_billing_line_items_finance_billing_records_id_line_item_id" ON "finance_billing_line_items" USING btree ("finance_billing_records_id","line_item_id");--> statement-breakpoint
 CREATE INDEX "idx_finance_billing_records_created_at" ON "finance_billing_records" USING btree ("created_at");--> statement-breakpoint
 CREATE UNIQUE INDEX "idx_finance_billing_records_invoice_key" ON "finance_billing_records" USING btree ("invoice_key");--> statement-breakpoint
+CREATE INDEX "idx_finance_billing_records_approved_at_null" ON "finance_billing_records" USING btree ("approved_at") WHERE "finance_billing_records"."approved_at" IS NULL;--> statement-breakpoint
+CREATE INDEX "idx_finance_billing_records_matched_xero_invoice_id" ON "finance_billing_records" USING btree ("matched_xero_invoice_id");--> statement-breakpoint
 CREATE INDEX "idx_finance_edits_created_at" ON "finance_edits" USING btree ("created_at");--> statement-breakpoint
 CREATE INDEX "idx_ffsl_snapshot_client_line_month" ON "finance_forecast_snapshot_lines" USING btree ("snapshot_id","client_id","line_key","month_key");--> statement-breakpoint
 CREATE INDEX "idx_ffsl_snapshot_group_line_month" ON "finance_forecast_snapshot_lines" USING btree ("snapshot_id","group_key","line_key","month_key");--> statement-breakpoint

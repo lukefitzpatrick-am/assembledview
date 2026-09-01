@@ -305,10 +305,26 @@ export const financeBillingRecords = pgTable(
   exportedAt: timestamp('exported_at', { withTimezone: true, mode: "string" }),
   exportedBy: bigint('exported_by', { mode: "number" }),
   invoiceKey: text('invoice_key'),
+  /** Approval stamp. NULL = not yet approved. Lifecycle state is derived. */
+  approvedAt: timestamp('approved_at', { withTimezone: true, mode: "string" }),
+  approvedBy: bigint('approved_by', { mode: "number" }),
+  approvedByName: text('approved_by_name'),
+  /** Integer cents snapshotted at approval. */
+  approvedAmountCents: bigint('approved_amount_cents', { mode: "number" }),
+  approvedLinesHash: text('approved_lines_hash'),
+  /** xero_ar_invoices.xero_invoice_id of the settling invoice. Text, no FK. */
+  matchedXeroInvoiceId: text('matched_xero_invoice_id'),
+  matchedAt: timestamp('matched_at', { withTimezone: true, mode: "string" }),
+  /** How the Xero match was made: 'auto' | 'manual'. */
+  matchedBy: text('matched_by'),
   },
   (table) => [
     index("idx_finance_billing_records_created_at").on(table.createdAt),
     uniqueIndex("idx_finance_billing_records_invoice_key").on(table.invoiceKey),
+    index("idx_finance_billing_records_approved_at_null")
+      .on(table.approvedAt)
+      .where(sql`${table.approvedAt} IS NULL`),
+    index("idx_finance_billing_records_matched_xero_invoice_id").on(table.matchedXeroInvoiceId),
   ],
 )
 
