@@ -7448,10 +7448,7 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
         breadcrumbCurrent="Create Campaign"
         subtitle={<p>Set up campaign details, select media types, and configure line items.</p>}
         heroActions={
-          <MediaPlanEditorHeroActions
-            variant="create"
-            onCopyContext={handleCopyPageContext}
-          />
+          <MediaPlanEditorHeroActions />
         }
         steps={createCampaignSteps.map((step) => ({
           id: step.id,

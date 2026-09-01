@@ -11859,11 +11859,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         breadcrumbCurrent="Edit Campaign"
         subtitle={<p>Update campaign settings, media types, and line item details.</p>}
         heroActions={
-          <MediaPlanEditorHeroActions
-            variant="edit"
-            mbaNumber={mbaNumber}
-            onCopyContext={handleCopyPageContext}
-          />
+          <MediaPlanEditorHeroActions mbaNumber={mbaNumber} />
         }
         steps={createCampaignSteps.map((step) => ({
           id: step.id,

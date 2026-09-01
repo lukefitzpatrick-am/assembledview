@@ -25,7 +25,7 @@ export interface MediaPlanEditorHeroProps {
   title: ReactNode
   /** Primary helper text and any extra lines (e.g. MBA reference) */
   detail?: ReactNode
-  /** Right-aligned controls (e.g. Copy Context) */
+  /** Right-aligned controls (e.g. Creative / Trafficking links) */
   actions?: ReactNode
   /**
    * Actions content floor. `toolbar` fits Layout + fixed search + Create on one
