@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 
-import { CampaignStatusBadge } from "@/components/campaign/CampaignStatusBadge"
 import { Combobox } from "@/components/ui/combobox"
 import { toast } from "@/components/ui/use-toast"
 import {
@@ -182,13 +181,6 @@ export function CampaignStatusControl({
           preserveOrder
           disabled={disabled || pending}
         />
-        {normalised ? (
-          <CampaignStatusBadge
-            status={normalised}
-            startDate={start}
-            endDate={end}
-          />
-        ) : null}
       </div>
       {liveCaption ? (
         <p className="text-sm text-muted-foreground">{liveCaption}</p>
