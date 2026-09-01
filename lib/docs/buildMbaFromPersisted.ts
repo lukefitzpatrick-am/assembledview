@@ -10,7 +10,10 @@ import { getDb, schema } from "@/db"
 import { readMbaLineApprovals } from "@/lib/data/readApprovals"
 import { addGst } from "@/lib/finance/gst"
 import { isoMonthToScheduleMonthYear } from "@/lib/finance/computeCampaignFinancials"
-import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
+import {
+  buildCanonicalBillingLineIdSet,
+  toBillingOverrideLineItemId,
+} from "@/lib/finance/manualBillingOverridesUi"
 import {
   centsToDollars,
   loadScheduleMonthRowsForVersions,
@@ -20,6 +23,13 @@ import {
 } from "@/lib/finance/scheduleMonthsSource"
 import type { ApprovedSlice } from "@/lib/finance/approvedSlice"
 import { deriveApprovedSliceFromScheduleRows } from "@/lib/docs/deriveApprovedSliceFromSchedule"
+import {
+  renderMonthKey,
+  resolveMbaRenderFilters,
+  rowInApprovedSlice,
+  sumBillingComponentsFromRows,
+  type LiveMbaSelection,
+} from "@/lib/docs/mbaRenderFilters"
 import { MEDIA_TYPE_LABELS } from "@/lib/media/mediaTypes"
 import { roundMoney2 } from "@/lib/format/money"
 import type { MBAData } from "@/lib/generateMBA"
@@ -64,24 +74,6 @@ function formatDateDdMmYyyy(raw: unknown): string {
   return s
 }
 
-function monthKey(month: string): string {
-  const raw = String(month ?? "").trim()
-  if (/^\d{4}-\d{2}/.test(raw)) return raw.slice(0, 7)
-  return raw
-}
-
-function sliceMonthSet(slice: ApprovedSlice): Set<string> | null {
-  const months = new Set<string>()
-  for (const line of slice.lines ?? []) {
-    for (const m of line.months ?? []) months.add(monthKey(m))
-  }
-  return months.size > 0 ? months : null
-}
-
-function sliceLineSet(slice: ApprovedSlice): Set<string> {
-  return new Set((slice.lines ?? []).map((l) => String(l.lineItemId)))
-}
-
 function toChecksumRows(rows: ScheduleMonthRowInput[]): ChecksumScheduleRow[] {
   return rows.map((r) => ({
     lineItemId: r.lineItemId,
@@ -93,23 +85,13 @@ function toChecksumRows(rows: ScheduleMonthRowInput[]): ChecksumScheduleRow[] {
   }))
 }
 
-function rowInApprovedSlice(
-  r: ScheduleMonthRowInput,
-  approvedIds: Set<string>,
-  approvedMonths: Set<string> | null
-): boolean {
-  const mk = monthKey(r.month)
-  if (approvedMonths && !approvedMonths.has(mk)) return false
-  if (r.lineItemId.startsWith("__service__")) return true
-  if (approvedIds.size > 0 && !approvedIds.has(r.lineItemId)) return false
-  return true
-}
-
 export type MbaMediaBreakdownArgs = {
   scheduleRows: ScheduleMonthRowInput[]
   approvedIds: Set<string>
   approvedMonths: Set<string> | null
   unapprovedLineIds: Set<string>
+  /** Live empty approved ids = nothing billed (unlike frozen empty = no id filter). */
+  restrictLineIds?: boolean
 }
 
 export type MbaMediaBreakdown = {
@@ -125,7 +107,13 @@ export type MbaMediaBreakdown = {
 export function computeMbaMediaBreakdown(
   args: MbaMediaBreakdownArgs
 ): MbaMediaBreakdown {
-  const { scheduleRows, approvedIds, approvedMonths, unapprovedLineIds } = args
+  const {
+    scheduleRows,
+    approvedMonths,
+    unapprovedLineIds,
+    restrictLineIds = false,
+  } = args
+  const approvedIds = buildCanonicalBillingLineIdSet(args.approvedIds)
   const unapprovedCanon = new Set<string>()
   for (const raw of unapprovedLineIds) {
     const canon = toBillingOverrideLineItemId(raw)
@@ -136,7 +124,9 @@ export function computeMbaMediaBreakdown(
   let billedMediaCents = 0
   for (const r of scheduleRows) {
     if (r.basis !== "billing" || r.component !== "media") continue
-    if (!rowInApprovedSlice(r, approvedIds, approvedMonths)) continue
+    if (!rowInApprovedSlice(r, approvedIds, approvedMonths, restrictLineIds)) {
+      continue
+    }
     if (r.lineItemId.startsWith("__service__")) continue
     const key = mediaTypeFromScheduleLineId(r.lineItemId) ?? "search"
     if (key === "production") continue
@@ -162,7 +152,8 @@ export function computeMbaMediaBreakdown(
     if (!canon) continue
     if (hasBillingMedia.has(canon)) continue
     if (unapprovedCanon.has(canon)) continue
-    const mk = monthKey(r.month)
+    if (restrictLineIds && !approvedIds.has(canon)) continue
+    const mk = renderMonthKey(r.month)
     if (approvedMonths && !approvedMonths.has(mk)) continue
     const key = mediaTypeFromScheduleLineId(r.lineItemId) ?? "search"
     if (key === "production") continue
@@ -187,7 +178,7 @@ export type PersistedMbaRender = {
   versionId: number
   versionNumber: number
   campaignStatus: string
-  sliceSource: "persisted" | "derived"
+  sliceSource: "persisted" | "derived" | "live"
 }
 
 /**
@@ -198,6 +189,7 @@ export async function buildMbaFromPersisted(args: {
   mbaNumber: string
   versionNumber: number
   liveCampaignStatus?: string | null
+  liveSelection?: LiveMbaSelection | null
 }): Promise<PersistedMbaRender> {
   const mbaNumber = String(args.mbaNumber ?? "").trim()
   const versionNumber = Number(args.versionNumber)
@@ -303,10 +295,10 @@ export async function buildMbaFromPersisted(args: {
   }
 
   let approvedSlice = version.approvedSlice as ApprovedSlice | null
-  let sliceSource: "persisted" | "derived" = "persisted"
+  let frozenSliceSource: "persisted" | "derived" = "persisted"
   if (!approvedSlice || typeof approvedSlice !== "object" || !Array.isArray(approvedSlice.lines)) {
     approvedSlice = deriveApprovedSliceFromScheduleRows(scheduleRows, { unapprovedLineIds })
-    sliceSource = "derived"
+    frozenSliceSource = "derived"
   }
   if (!approvedSlice) {
     throw new PersistedDocError(
@@ -315,14 +307,21 @@ export async function buildMbaFromPersisted(args: {
     )
   }
 
-  const approvedIds = sliceLineSet(approvedSlice)
-  const approvedMonths = sliceMonthSet(approvedSlice)
+  const filters = resolveMbaRenderFilters({
+    frozenSlice: approvedSlice,
+    liveSelection: args.liveSelection,
+  })
+  const { approvedIds, approvedMonths, restrictLineIds, liveOverlay } = filters
+  const sliceSource: PersistedMbaRender["sliceSource"] = liveOverlay
+    ? "live"
+    : frozenSliceSource
 
   const breakdown = computeMbaMediaBreakdown({
     scheduleRows,
     approvedIds,
     approvedMonths,
     unapprovedLineIds,
+    restrictLineIds,
   })
 
   const gross_media = [...breakdown.grossMediaByType.entries()]
@@ -337,15 +336,24 @@ export async function buildMbaFromPersisted(args: {
   let feeCents = 0
   let adservingCents = 0
   let productionCents = 0
-  for (const line of approvedSlice.lines) {
-    mediaCents += Number(line.mediaCents) || 0
-    feeCents += Number(line.feeCents) || 0
-    adservingCents += Number(line.adservingCents) || 0
-    productionCents += Number(line.productionCents) || 0
+  if (liveOverlay) {
+    const sums = sumBillingComponentsFromRows(scheduleRows, filters)
+    mediaCents = sums.mediaCents
+    feeCents = sums.feeCents
+    adservingCents = sums.adservingCents
+    productionCents = sums.productionCents
+  } else {
+    for (const line of approvedSlice.lines) {
+      mediaCents += Number(line.mediaCents) || 0
+      feeCents += Number(line.feeCents) || 0
+      adservingCents += Number(line.adservingCents) || 0
+      productionCents += Number(line.productionCents) || 0
+    }
   }
-  const exGstCents =
-    Number(approvedSlice.totalCents) ||
-    mediaCents + feeCents + adservingCents + productionCents
+  const exGstCents = liveOverlay
+    ? mediaCents + feeCents + adservingCents + productionCents
+    : Number(approvedSlice.totalCents) ||
+      mediaCents + feeCents + adservingCents + productionCents
   const billedExGst = centsToDollars(exGstCents)
   const approvalExGst = centsToDollars(exGstCents + breakdown.clientPaidCents)
   const clientPaidDollars = centsToDollars(breakdown.clientPaidCents)
@@ -353,8 +361,10 @@ export async function buildMbaFromPersisted(args: {
   const monthTotals = new Map<string, number>()
   for (const r of scheduleRows) {
     if (r.basis !== "billing") continue
-    if (!rowInApprovedSlice(r, approvedIds, approvedMonths)) continue
-    const mk = monthKey(r.month)
+    if (!rowInApprovedSlice(r, approvedIds, approvedMonths, restrictLineIds)) {
+      continue
+    }
+    const mk = renderMonthKey(r.month)
     monthTotals.set(mk, (monthTotals.get(mk) ?? 0) + (Number(r.amountCents) || 0))
   }
 
@@ -371,10 +381,12 @@ export async function buildMbaFromPersisted(args: {
   const finalBilling =
     billingFromRows.length > 0
       ? billingFromRows
-      : resolved.billing.map((b) => ({
-          monthYear: b.monthYear,
-          totalAmount: String(b.totalAmount ?? "0"),
-        }))
+      : liveOverlay
+        ? []
+        : resolved.billing.map((b) => ({
+            monthYear: b.monthYear,
+            totalAmount: String(b.totalAmount ?? "0"),
+          }))
 
   const checksumHex = computeSnapshotChecksum({
     scheduleMonths: toChecksumRows(scheduleRows),

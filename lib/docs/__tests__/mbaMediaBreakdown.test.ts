@@ -184,6 +184,55 @@ test("approvedMonths excludes out-of-scope client-paid months", () => {
   assert.equal(result.grossMediaByType.get("progDisplay"), 3_000_00)
 })
 
+test("canonical match: prefixed approvedIds include bare schedule rows", () => {
+  const scheduleRows = [
+    row({
+      lineItemId: "SE1",
+      component: "media",
+      basis: "billing",
+      month: "2026-05-01",
+      amountCents: 10_000_00,
+    }),
+    row({
+      lineItemId: "PD1",
+      component: "media",
+      basis: "billing",
+      month: "2026-05-01",
+      amountCents: 5_000_00,
+    }),
+  ]
+  const result = computeMbaMediaBreakdown({
+    scheduleRows,
+    approvedIds: new Set(["billing-search::SE1"]),
+    approvedMonths: new Set(["2026-05"]),
+    unapprovedLineIds: new Set(),
+  })
+  assert.equal(result.billedMediaCents, 10_000_00)
+  assert.equal(result.grossMediaByType.get("search"), 10_000_00)
+  assert.equal(result.grossMediaByType.has("progDisplay"), false)
+})
+
+test("restrictLineIds empty approvedIds yields zero billed media", () => {
+  const scheduleRows = [
+    row({
+      lineItemId: "billing-search::SE1",
+      component: "media",
+      basis: "billing",
+      month: "2026-05-01",
+      amountCents: 10_000_00,
+    }),
+  ]
+  const result = computeMbaMediaBreakdown({
+    scheduleRows,
+    approvedIds: new Set(),
+    approvedMonths: new Set(["2026-05"]),
+    unapprovedLineIds: new Set(),
+    restrictLineIds: true,
+  })
+  assert.equal(result.billedMediaCents, 0)
+  assert.equal(result.grossMediaByType.size, 0)
+})
+
 test("production and __service__ delivery rows are never client-paid", () => {
   const scheduleRows = [
     row({
