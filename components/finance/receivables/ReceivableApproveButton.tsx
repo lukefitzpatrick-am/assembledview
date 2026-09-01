@@ -29,7 +29,7 @@ export function ReceivableApproveButton({ record, onDone }: Props) {
       if (state === "ready") {
         await approveBillingRecords({
           invoice_keys: [grain.invoice_key],
-          grains: [grain],
+          billing_month: grain.billing_month,
         })
         toast({ title: "Approved" })
       } else {

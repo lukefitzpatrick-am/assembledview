@@ -78,7 +78,7 @@ Adding or altering a channel touches, at minimum:
 
 **Money law** — integer cents everywhere in the plan core (`*_cents`). `numeric` in ported finance tables. Fee is a slice of gross, never `net × fee%`, and only `lib/mediaplan/burstAmounts.ts` computes it.
 
-**Billing-record writes** go through `lib/data/writeFinance.ts` (Postgres, `invoice_key`, never `xero:`). Approve / unapprove / mark-exported are the invoicing human+export writers. Xero ingest is the only writer of `xero:` keys. `finance_edits` POST still Xano (T1). Internal finance money is **ex-GST**; Xero Total stays on `xero_ar_*` / `xero_ap_*` only.
+**Billing-record writes** go through `lib/data/writeFinance.ts` (Postgres, `invoice_key`, never `xero:`). Approve / unapprove / mark-exported are the invoicing human+export writers. Approve POST is keys + month; the snapshot is composed server-side (same GET path). Mark-exported requires `approved_at`. Xero ingest is the only writer of `xero:` keys. `finance_edits` POST still Xano (T1). Internal finance money is **ex-GST**; Xero Total stays on `xero_ar_*` / `xero_ap_*` only.
 
 **Crons** `finance-pre-run`, `finance-run` (19:00 and 20:00 UTC), `finance-lock` (12:59/13:59 UTC), `xero-sync` (00:15 UTC), `snapshot-checksum` (Mon 03:00 UTC).
 

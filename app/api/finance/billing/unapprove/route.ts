@@ -2,27 +2,15 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles } from "@/lib/rbac"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import { getDb } from "@/db"
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
+import { parseInvoiceKeys } from "@/lib/finance/resolveApproveGrains"
 import {
   FinanceBillingWriteError,
   clearFinanceBillingRecordApproval,
 } from "@/lib/data/writeFinance"
 
 export const maxDuration = 60
-
-function parseInvoiceKeys(raw: unknown): string[] | null {
-  if (!Array.isArray(raw)) return null
-  const seen = new Set<string>()
-  const keys: string[] = []
-  for (const item of raw) {
-    if (typeof item !== "string") continue
-    const key = item.trim()
-    if (!key || seen.has(key)) continue
-    seen.add(key)
-    keys.push(key)
-  }
-  return keys.length > 0 ? keys : null
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,46 +56,65 @@ export async function POST(request: NextRequest) {
     }
 
     const editedByName = currentUser.name ?? currentUser.email ?? String(currentUser.id)
+    let cleared: Array<{ invoice_key: string; record: Record<string, unknown>; priorApprovedAt: string | null }>
+    try {
+      const db = getDb()
+      cleared = await db.transaction(async (tx) => {
+        const rows: Array<{
+          invoice_key: string
+          record: Record<string, unknown>
+          priorApprovedAt: string | null
+        }> = []
+        for (const invoice_key of invoice_keys) {
+          const result = await clearFinanceBillingRecordApproval(invoice_key, tx)
+          rows.push({
+            invoice_key,
+            record: result.record,
+            priorApprovedAt: result.priorApprovedAt,
+          })
+        }
+        return rows
+      })
+    } catch (error: unknown) {
+      if (error instanceof FinanceBillingWriteError && error.code === "ALREADY_EXPORTED") {
+        return NextResponse.json(
+          {
+            error: "already_exported",
+            message:
+              "This invoice has been exported. Amend the schedule and re-approve instead of unapproving.",
+          },
+          { status: 409 }
+        )
+      }
+      if (error instanceof FinanceBillingWriteError && error.code === "XERO_KEY_REFUSED") {
+        return NextResponse.json(
+          { error: "xero_key_refused", message: error.message },
+          { status: 400 }
+        )
+      }
+      if (error instanceof FinanceBillingWriteError && error.code === "NOT_FOUND") {
+        return NextResponse.json(
+          { error: "not_found", message: error.message },
+          { status: 404 }
+        )
+      }
+      throw error
+    }
+
     const results: Array<{ invoice_key: string; persisted_record_id: number }> = []
 
-    for (const invoice_key of invoice_keys) {
-      let row: Record<string, unknown>
-      try {
-        row = await clearFinanceBillingRecordApproval(invoice_key)
-      } catch (error: unknown) {
-        if (error instanceof FinanceBillingWriteError && error.code === "ALREADY_EXPORTED") {
-          return NextResponse.json(
-            {
-              error: "already_exported",
-              message:
-                "This invoice has been exported. Amend the schedule and re-approve instead of unapproving.",
-              invoice_key,
-            },
-            { status: 409 }
-          )
-        }
-        if (error instanceof FinanceBillingWriteError && error.code === "XERO_KEY_REFUSED") {
-          return NextResponse.json(
-            { error: "xero_key_refused", message: error.message, invoice_key },
-            { status: 400 }
-          )
-        }
-        if (error instanceof FinanceBillingWriteError && error.code === "NOT_FOUND") {
-          return NextResponse.json(
-            { error: "not_found", message: error.message, invoice_key },
-            { status: 404 }
-          )
-        }
-        throw error
-      }
-      const persisted_record_id = Number(row.id)
+    for (const item of cleared) {
+      const persisted_record_id = Number(item.record.id)
       await writeStatusChangeEdit(
         {
           finance_billing_records_id: Number.isFinite(persisted_record_id)
             ? persisted_record_id
             : null,
           field_name: "approved_at",
-          old_value: String(row.approved_at ?? "cleared"),
+          old_value:
+            item.priorApprovedAt != null && String(item.priorApprovedAt).length > 0
+              ? String(item.priorApprovedAt)
+              : "cleared",
           new_value: null,
         },
         {
@@ -116,7 +123,7 @@ export async function POST(request: NextRequest) {
           recordType: "status_change",
         }
       )
-      results.push({ invoice_key, persisted_record_id })
+      results.push({ invoice_key: item.invoice_key, persisted_record_id })
     }
 
     return NextResponse.json({ ok: true, records: results })

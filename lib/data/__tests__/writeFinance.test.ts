@@ -16,6 +16,7 @@ import {
 import {
   FinanceBillingWriteError,
   clearFinanceBillingRecordApproval,
+  materialiseAndApproveFinanceBillingRecord,
   setFinanceBillingRecordApproved,
   setFinanceBillingRecordBilled,
   setFinanceBillingRecordExported,
@@ -263,13 +264,79 @@ describe("writeFinance postgres path", { skip: skipPg }, () => {
     assert.equal(reapproved.approved_by_name, "Other")
   })
 
+  it("unapprove audit captures the pre-update approved_at", async () => {
+    await wipe()
+    await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+      initial_total: 100.5,
+    })
+    const approved = await setFinanceBillingRecordApproved({
+      invoiceKey: INVOICE_KEY,
+      approvedBy: 7,
+      approvedByName: "Ada Admin",
+      approvedAmountCents: 10050,
+      approvedLinesHash: HASH,
+    })
+    assert.ok(approved.approved_at, "approved_at must be stamped before unapprove")
+    const cleared = await clearFinanceBillingRecordApproval(INVOICE_KEY)
+    assert.ok(cleared.priorApprovedAt)
+    assert.notEqual(String(cleared.priorApprovedAt), "cleared")
+    assert.equal(
+      new Date(String(cleared.priorApprovedAt)).getTime(),
+      new Date(String(approved.approved_at)).getTime()
+    )
+    assert.ok(cleared.record.approved_at == null || cleared.record.approved_at === "")
+  })
+
   it("unapprove refuses once exported", async () => {
+    await wipe()
+    await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+      initial_total: 100.5,
+    })
+    await setFinanceBillingRecordApproved({
+      invoiceKey: INVOICE_KEY,
+      approvedBy: 7,
+      approvedByName: "Ada Admin",
+      approvedAmountCents: 10050,
+      approvedLinesHash: HASH,
+    })
     await setFinanceBillingRecordExported({ invoiceKey: INVOICE_KEY, exportedBy: 7 })
     await assert.rejects(
       () => clearFinanceBillingRecordApproval(INVOICE_KEY),
       (err: unknown) => {
         assert.ok(err instanceof FinanceBillingWriteError)
         assert.equal(err.code, "ALREADY_EXPORTED")
+        return true
+      }
+    )
+  })
+
+  it("mark-exported refuses an unapproved key", async () => {
+    await wipe()
+    await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+    })
+    await assert.rejects(
+      () => setFinanceBillingRecordExported({ invoiceKey: INVOICE_KEY, exportedBy: 11 }),
+      (err: unknown) => {
+        assert.ok(err instanceof FinanceBillingWriteError)
+        assert.equal(err.code, "NOT_APPROVED")
         return true
       }
     )
@@ -286,6 +353,13 @@ describe("writeFinance postgres path", { skip: skipPg }, () => {
         mba_number: MBA,
         campaign_name: "T0-1",
         billing_month: month,
+      })
+      await setFinanceBillingRecordApproved({
+        invoiceKey: key,
+        approvedBy: 7,
+        approvedByName: "Ada Admin",
+        approvedAmountCents: 10050,
+        approvedLinesHash: HASH,
       })
     }
     const stamped = await Promise.all(
@@ -305,6 +379,57 @@ describe("writeFinance postgres path", { skip: skipPg }, () => {
       assert.ok(row.exported_at)
       assert.equal(Number(row.exported_by), 11)
     }
+  })
+
+  it("a mid-batch approve write failure rolls the whole batch back", async () => {
+    await wipe()
+    const seed = {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+      initial_total: 100.5,
+    }
+    await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, seed)
+    const db = getDb()
+    await assert.rejects(
+      () =>
+        db.transaction(async (tx) => {
+          await materialiseAndApproveFinanceBillingRecord(
+            {
+              invoiceKey: INVOICE_KEY,
+              seed,
+              approvedBy: 7,
+              approvedByName: "Ada",
+              approvedAmountCents: 10050,
+              approvedLinesHash: HASH,
+            },
+            tx
+          )
+          await materialiseAndApproveFinanceBillingRecord(
+            {
+              invoiceKey: INVOICE_KEY,
+              seed,
+              approvedBy: 8,
+              approvedByName: "Other",
+              approvedAmountCents: 50,
+              approvedLinesHash: HASH,
+            },
+            tx
+          )
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof FinanceBillingWriteError)
+        assert.equal(err.code, "ALREADY_APPROVED")
+        return true
+      }
+    )
+    const listed = await fetchFinanceBillingRecordsFromPostgres()
+    const row = listed.find((r) => r.invoice_key === INVOICE_KEY)
+    assert.ok(row)
+    assert.ok(row.approved_at == null || row.approved_at === "")
   })
 
   it("round-trips notes through Postgres", async () => {

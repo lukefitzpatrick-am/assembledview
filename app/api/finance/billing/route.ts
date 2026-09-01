@@ -10,18 +10,18 @@ import {
   composeBillingRecordsForMonth,
   type HubQueryFilterParams,
 } from "@/lib/finance/composeFinanceHubRecords"
-import { type ScopeOfWorkRow } from "@/lib/finance/deriveScopeSowReceivables"
 import {
   fetchAllPersistedFinanceStatusRows,
-  fetchPersistedFinanceStatusForMonth,
 } from "@/lib/finance/overlayFinanceStatus"
 import {
-  fetchRelevantPlanVersionsForFinanceMonth,
   fetchRelevantPlanVersionsForFinanceMonths,
 } from "@/lib/finance/relevantPlanVersions"
 import { getCachedClients, getCachedPublishers } from "@/lib/finance/xanoReferenceCache"
 import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMonthsSource"
-import { readScopeOfWork } from "@/lib/data/readFinance"
+import {
+  fetchScopesOrNull,
+  loadComposedBillingRecordsForMonth,
+} from "@/lib/finance/loadComposedBillingMonth"
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
@@ -83,18 +83,6 @@ function versionsFetchErrorResponse(e: unknown): NextResponse {
   return NextResponse.json({ ...base, field: "billing_month" }, { status })
 }
 
-async function fetchScopesOrNull(): Promise<ScopeOfWorkRow[] | null> {
-  try {
-    const scopes = await readScopeOfWork()
-    return scopes as unknown as ScopeOfWorkRow[]
-  } catch (e: unknown) {
-    console.error("[finance-api] billing scope fetch failed", {
-      message: e instanceof Error ? e.message : String(e),
-    })
-    return null
-  }
-}
-
 function hubFilterParams(incoming: URLSearchParams, types: BillingType[]): HubQueryFilterParams {
   return {
     types,
@@ -138,42 +126,19 @@ export async function GET(request: NextRequest) {
     const monthStr = monthParsed.month
 
     const includeNonBooked = incoming.get("include_drafts") !== "0"
-    const wantSow = parsedTypes.types.length === 0 || parsedTypes.types.includes("sow")
-
-    let relevantVersions: Record<string, unknown>[] = []
-    try {
-      const versionsResult = await fetchRelevantPlanVersionsForFinanceMonth(monthStr)
-      if ("error" in versionsResult) {
-        return NextResponse.json(
-          { error: versionsResult.error, field: "billing_month" },
-          { status: versionsResult.status }
-        )
-      }
-      // Channel line-item hydration removed (FUNCTION_INVOCATION_TIMEOUT). PC1:
-      // schedule_months source hydrate is a single Postgres batch, not a Xano fan-out.
-      relevantVersions = versionsResult.relevantVersions as Record<string, unknown>[]
-      await hydrateVersionsFinanceScheduleSource(relevantVersions)
-    } catch (e: unknown) {
-      return versionsFetchErrorResponse(e)
+    const loaded = await loadComposedBillingRecordsForMonth({
+      monthStr,
+      includeNonBooked,
+      filters: hubFilterParams(incoming, parsedTypes.types),
+    })
+    if (!loaded.ok) {
+      return NextResponse.json(
+        { error: loaded.error, ...(loaded.field ? { field: loaded.field } : {}) },
+        { status: loaded.status }
+      )
     }
 
-    const [clients, publishers] = await Promise.all([getCachedClients(), getCachedPublishers()])
-    const scopes = wantSow ? await fetchScopesOrNull() : null
-    // Domain 5 Stage 2.2a — overlay persisted status onto derived rows.
-    const persistedStatusRows = await fetchPersistedFinanceStatusForMonth(monthStr)
-
-    const merged = composeBillingRecordsForMonth({
-      monthStr,
-      relevantVersions,
-      clients: clients as Record<string, unknown>[],
-      publishers: publishers as Record<string, unknown>[],
-      scopes,
-      persistedStatusRows,
-      includeNonBooked,
-      ...hubFilterParams(incoming, parsedTypes.types),
-    })
-
-    return NextResponse.json({ records: merged })
+    return NextResponse.json({ records: loaded.records })
   } catch (error: unknown) {
     console.error("[finance-api] billing GET exception", {
       requestUrl,

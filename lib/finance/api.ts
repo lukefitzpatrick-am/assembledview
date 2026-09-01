@@ -433,22 +433,8 @@ export async function saveBillingNotes(params: {
 
 export async function approveBillingRecords(params: {
   invoice_keys: string[]
+  billing_month: string
   reapprove?: boolean
-  grains: Array<{
-    invoice_key: string
-    billing_type: BillingType
-    clients_id: number
-    client_name: string
-    mba_number: string | null
-    campaign_name: string | null
-    billing_month: string
-    total: number
-    line_items: Array<{
-      item_code: string
-      amount: number
-      schedule_line_item_id?: string | null
-    }>
-  }>
 }): Promise<{
   ok: true
   records: Array<{
@@ -460,6 +446,7 @@ export async function approveBillingRecords(params: {
     approved_amount: number | null
     approved_lines_hash: string | null
   }>
+  errors: Array<{ invoice_key: string; error: "not_found"; status: 404 }>
 }> {
   const path = "/api/finance/billing/approve"
   const response = await fetch(path, {

@@ -91,6 +91,12 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         )
       }
+      if (error instanceof FinanceBillingWriteError && error.code === "NOT_APPROVED") {
+        return NextResponse.json(
+          { error: "not_approved", message: error.message },
+          { status: 409 }
+        )
+      }
       if (error instanceof FinanceBillingWriteError && error.code === "NOT_FOUND") {
         return NextResponse.json(
           { error: "not_found", message: error.message },

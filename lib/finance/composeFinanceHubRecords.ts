@@ -21,7 +21,8 @@ import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 
 /**
  * Per-month record composition shared by the single-month and multi-month
- * finance hub API paths (`GET /api/finance/billing`, `GET /api/finance/payables`).
+ * finance hub API paths (`GET /api/finance/billing`, `GET /api/finance/payables`)
+ * and by `POST /api/finance/billing/approve` (via `loadComposedBillingRecordsForMonth`).
  *
  * This is a pure I/O-free extraction of the routes' original inline pipelines:
  * derive → merge-key dedupe → month filter → status overlay → hub query filters.

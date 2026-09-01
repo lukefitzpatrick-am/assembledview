@@ -301,11 +301,28 @@ export function InvoicingPageClient() {
     if (readyGrains.length === 0 || approveBusy) return
     setApproveBusy(true)
     try {
-      await approveBillingRecords({
-        invoice_keys: readyGrains.map((g) => g.invoice_key),
-        grains: readyGrains,
+      const keysByMonth = new Map<string, string[]>()
+      for (const g of readyGrains) {
+        const list = keysByMonth.get(g.billing_month) ?? []
+        list.push(g.invoice_key)
+        keysByMonth.set(g.billing_month, list)
+      }
+      let approvedCount = 0
+      const notFoundKeys: string[] = []
+      for (const [billing_month, invoice_keys] of keysByMonth) {
+        const res = await approveBillingRecords({ invoice_keys, billing_month })
+        approvedCount += res.records.length
+        for (const err of res.errors ?? []) {
+          if (err.error === "not_found") notFoundKeys.push(err.invoice_key)
+        }
+      }
+      toast({
+        title: `Approved ${approvedCount} invoice${approvedCount === 1 ? "" : "s"}`,
+        description:
+          notFoundKeys.length > 0
+            ? `${notFoundKeys.length} could not be derived on the server.`
+            : undefined,
       })
-      toast({ title: `Approved ${readyGrains.length} invoice${readyGrains.length === 1 ? "" : "s"}` })
       bumpFetch()
     } catch (e) {
       toast({
