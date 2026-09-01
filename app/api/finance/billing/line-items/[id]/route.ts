@@ -10,7 +10,7 @@ export const maxDuration = 60
 
 function writeErrorStatus(error: FinanceBillingWriteError): number {
   if (error.code === "NOT_FOUND") return 404
-  if (error.code === "XERO_KEY_REFUSED") return 409
+  if (error.code === "XERO_KEY_REFUSED" || error.code === "APPROVED_FROZEN") return 409
   return 400
 }
 
@@ -29,7 +29,7 @@ export async function PATCH(
   } catch (error: unknown) {
     if (error instanceof FinanceBillingWriteError) {
       return NextResponse.json(
-        { error: error.code, details: error.message },
+        { error: error.code, details: error.message, field: error.field ?? null },
         { status: writeErrorStatus(error) }
       )
     }
@@ -57,7 +57,7 @@ export async function DELETE(
   } catch (error: unknown) {
     if (error instanceof FinanceBillingWriteError) {
       return NextResponse.json(
-        { error: error.code, details: error.message },
+        { error: error.code, details: error.message, field: error.field ?? null },
         { status: writeErrorStatus(error) }
       )
     }

@@ -17,7 +17,10 @@ import {
   FinanceBillingWriteError,
   clearFinanceBillingRecordApproval,
   clearFinanceBillingRecordExported,
+  createFinanceBillingLineItem,
   materialiseAndApproveFinanceBillingRecord,
+  patchFinanceBillingLineItemById,
+  patchFinanceBillingRecordById,
   setFinanceBillingRecordApproved,
   setFinanceBillingRecordBilled,
   setFinanceBillingRecordExported,
@@ -562,5 +565,109 @@ describe("writeFinance postgres path", { skip: skipPg }, () => {
     const matches = listed.filter((r) => r.invoice_key === INVOICE_KEY)
     assert.equal(matches.length, 1)
     assert.equal(Number(matches[0]?.billed_amount), 200)
+  })
+
+  it("PATCH rejects total with a typed error naming the field", async () => {
+    await wipe()
+    const created = await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+      initial_total: 100.5,
+    })
+    await assert.rejects(
+      () => patchFinanceBillingRecordById(Number(created.id), { total: 999.99 }),
+      (err: unknown) => {
+        assert.ok(err instanceof FinanceBillingWriteError)
+        assert.equal(err.code, "FIELD_NOT_ALLOWED")
+        assert.equal(err.field, "total")
+        assert.match(err.message, /total/)
+        return true
+      }
+    )
+    const echoed = await fetchFinanceBillingRecordByIdFromPostgres(Number(created.id))
+    assert.equal(Number(echoed?.total), 100.5)
+  })
+
+  it("PATCH rejects billed_amount_cents with a typed error naming the field", async () => {
+    await wipe()
+    const created = await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+      initial_total: 100.5,
+    })
+    await assert.rejects(
+      () =>
+        patchFinanceBillingRecordById(Number(created.id), { billed_amount_cents: 1 }),
+      (err: unknown) => {
+        assert.ok(err instanceof FinanceBillingWriteError)
+        assert.equal(err.code, "FIELD_NOT_ALLOWED")
+        assert.equal(err.field, "billed_amount_cents")
+        assert.match(err.message, /billed_amount_cents/)
+        return true
+      }
+    )
+  })
+
+  it("PATCH still writes notes and po_number", async () => {
+    await wipe()
+    const created = await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+    })
+    const patched = await patchFinanceBillingRecordById(Number(created.id), {
+      notes: "bookkeeper note via patch",
+      po_number: "PO-77",
+    })
+    assert.equal(patched.notes, "bookkeeper note via patch")
+    assert.equal(patched.po_number, "PO-77")
+    const echoed = await fetchFinanceBillingRecordByIdFromPostgres(Number(created.id))
+    assert.equal(echoed?.notes, "bookkeeper note via patch")
+    assert.equal(echoed?.po_number, "PO-77")
+  })
+
+  it("refuses a line-item amount edit once the parent is approved", async () => {
+    await wipe()
+    const created = await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+      initial_total: 100.5,
+    })
+    const line = await createFinanceBillingLineItem({
+      finance_billing_records_id: Number(created.id),
+      item_code: "FEE",
+      amount: 100.5,
+    })
+    await setFinanceBillingRecordApproved({
+      invoiceKey: INVOICE_KEY,
+      approvedBy: 7,
+      approvedByName: "Ada Admin",
+      approvedAmountCents: 10050,
+      approvedLinesHash: HASH,
+    })
+    await assert.rejects(
+      () => patchFinanceBillingLineItemById(Number(line.id), { amount: 1 }),
+      (err: unknown) => {
+        assert.ok(err instanceof FinanceBillingWriteError)
+        assert.equal(err.code, "APPROVED_FROZEN")
+        assert.equal(err.field, "amount")
+        return true
+      }
+    )
   })
 })

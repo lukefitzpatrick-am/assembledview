@@ -18,8 +18,15 @@ export async function POST(request: NextRequest) {
   } catch (error: unknown) {
     if (error instanceof FinanceBillingWriteError) {
       const status =
-        error.code === "NOT_FOUND" ? 404 : error.code === "XERO_KEY_REFUSED" ? 409 : 400
-      return NextResponse.json({ error: error.code, details: error.message }, { status })
+        error.code === "NOT_FOUND"
+          ? 404
+          : error.code === "XERO_KEY_REFUSED" || error.code === "APPROVED_FROZEN"
+            ? 409
+            : 400
+      return NextResponse.json(
+        { error: error.code, details: error.message, field: error.field ?? null },
+        { status }
+      )
     }
     return NextResponse.json(
       {

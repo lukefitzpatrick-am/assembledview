@@ -5,6 +5,9 @@
  * Xero match stamps (`setFinanceBillingRecordXeroMatch`) never touch approved_*.
  * An unchanged `matched_xero_invoice_id` does not rewrite `matched_at`.
  * Unmark-exported (`clearFinanceBillingRecordExported`) never touches approved_*.
+ * PATCH-by-id is field-allowlisted (notes, po_number, payment_days, payment_terms,
+ * status, invoice_date, campaign_name). Money and lifecycle stamps are refused.
+ * Line-item amount / received_amount freeze once the parent is approved.
  */
 
 import "server-only"
@@ -26,8 +29,11 @@ export class FinanceBillingWriteError extends Error {
       | "ALREADY_APPROVED"
       | "ALREADY_EXPORTED"
       | "NOT_APPROVED"
-      | "NOT_EXPORTED",
-    message: string
+      | "NOT_EXPORTED"
+      | "FIELD_NOT_ALLOWED"
+      | "APPROVED_FROZEN",
+    message: string,
+    public readonly field?: string
   ) {
     super(message)
     this.name = "FinanceBillingWriteError"
@@ -145,33 +151,41 @@ function numOrNull(value: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-function dollarsToCentsMaybe(value: unknown): number | null {
-  const dollars = numOrNull(value)
-  if (dollars == null) return null
-  const scaled = dollars * 100
-  const floored = Math.floor(scaled)
-  const diff = scaled - floored
-  if (diff > 0.5) return floored + 1
-  if (diff < 0.5) return floored
-  return floored % 2 === 0 ? floored : floored + 1
+type ParentStamp = {
+  invoice_key: string
+  approved_at: string | null
 }
 
 async function loadInvoiceKeyByRecordId(id: number): Promise<string | null> {
+  const parent = await loadParentStampByRecordId(id)
+  return parent?.invoice_key ?? null
+}
+
+async function loadParentStampByRecordId(id: number): Promise<ParentStamp | null> {
   const db = getDb()
-  const rows = rowsOf<{ invoice_key: string | null }>(
+  const rows = rowsOf<{ invoice_key: string | null; approved_at: string | null }>(
     await db.execute(sql`
-      SELECT invoice_key FROM finance_billing_records WHERE id = ${id} LIMIT 1
+      SELECT invoice_key, approved_at
+      FROM finance_billing_records
+      WHERE id = ${id}
+      LIMIT 1
     `)
   )
   const key = rows[0]?.invoice_key
-  return typeof key === "string" ? key : null
+  if (typeof key !== "string") return null
+  return { invoice_key: key, approved_at: rows[0]?.approved_at ?? null }
 }
 
 async function loadInvoiceKeyByLineItemId(id: number): Promise<string | null> {
+  const parent = await loadParentStampByLineItemId(id)
+  return parent?.invoice_key ?? null
+}
+
+async function loadParentStampByLineItemId(id: number): Promise<ParentStamp | null> {
   const db = getDb()
-  const rows = rowsOf<{ invoice_key: string | null }>(
+  const rows = rowsOf<{ invoice_key: string | null; approved_at: string | null }>(
     await db.execute(sql`
-      SELECT r.invoice_key
+      SELECT r.invoice_key, r.approved_at
       FROM finance_billing_line_items li
       JOIN finance_billing_records r ON r.id = li.finance_billing_records_id
       WHERE li.id = ${id}
@@ -179,7 +193,37 @@ async function loadInvoiceKeyByLineItemId(id: number): Promise<string | null> {
     `)
   )
   const key = rows[0]?.invoice_key
-  return typeof key === "string" ? key : null
+  if (typeof key !== "string") return null
+  return { invoice_key: key, approved_at: rows[0]?.approved_at ?? null }
+}
+
+const PATCH_RECORD_ALLOWED_FIELDS = new Set([
+  "notes",
+  "po_number",
+  "payment_days",
+  "payment_terms",
+  "status",
+  "invoice_date",
+  "campaign_name",
+])
+
+function assertPatchRecordAllowlist(body: Record<string, unknown>): void {
+  const rejected = Object.keys(body).find((key) => !PATCH_RECORD_ALLOWED_FIELDS.has(key))
+  if (rejected) {
+    throw new FinanceBillingWriteError(
+      "FIELD_NOT_ALLOWED",
+      `PATCH does not accept field '${rejected}'`,
+      rejected
+    )
+  }
+}
+
+function throwApprovedMoneyFrozen(field: string): never {
+  throw new FinanceBillingWriteError(
+    "APPROVED_FROZEN",
+    `Cannot write '${field}' after the parent invoice is approved. Unapprove to amend.`,
+    field
+  )
 }
 
 /**
@@ -616,18 +660,6 @@ export async function materialiseAndApproveFinanceBillingRecord(
   return getDb().transaction(async (tx) => run(tx))
 }
 
-function patchCentsFromBody(body: Record<string, unknown>): number | undefined {
-  if ("billed_amount_cents" in body) {
-    const n = numOrNull(body.billed_amount_cents)
-    return n == null ? undefined : n
-  }
-  if ("billed_amount" in body) {
-    const n = dollarsToCentsMaybe(body.billed_amount)
-    return n == null ? undefined : n
-  }
-  return undefined
-}
-
 export async function patchFinanceBillingRecordById(
   id: number,
   body: Record<string, unknown>
@@ -635,36 +667,23 @@ export async function patchFinanceBillingRecordById(
   if (!Number.isFinite(id) || id <= 0) {
     throw new FinanceBillingWriteError("BAD_REQUEST", "id must be a positive number")
   }
+  assertPatchRecordAllowlist(body)
   const existingKey = await loadInvoiceKeyByRecordId(id)
   if (existingKey == null) {
     throw new FinanceBillingWriteError("NOT_FOUND", `finance_billing_records id=${id} not found`)
   }
   assertAppInvoiceKey(existingKey)
 
-  const cents = patchCentsFromBody(body)
-  const billedAt =
-    "billed_at" in body ? toTimestamptz(body.billed_at as string | number | null) : undefined
-
   const db = getDb()
   const rows = rowsOf<Record<string, unknown>>(
     await db.execute(sql`
       UPDATE finance_billing_records SET
-        client_name = COALESCE(${"client_name" in body ? String(body.client_name ?? "") : null}, client_name),
-        mba_number = COALESCE(${"mba_number" in body ? String(body.mba_number ?? "") : null}, mba_number),
         campaign_name = COALESCE(${"campaign_name" in body ? String(body.campaign_name ?? "") : null}, campaign_name),
         po_number = COALESCE(${"po_number" in body ? String(body.po_number ?? "") : null}, po_number),
-        billing_month = COALESCE(${"billing_month" in body ? String(body.billing_month ?? "") : null}, billing_month),
         invoice_date = COALESCE(${"invoice_date" in body ? (body.invoice_date as string | null) : null}::date, invoice_date),
         payment_days = COALESCE(${"payment_days" in body ? numOrNull(body.payment_days) : null}::bigint, payment_days),
         payment_terms = COALESCE(${"payment_terms" in body ? String(body.payment_terms ?? "") : null}, payment_terms),
         status = COALESCE(${"status" in body ? String(body.status ?? "") : null}, status),
-        total = COALESCE(${"total" in body ? numOrNull(body.total) : null}, total),
-        has_pending_edits = COALESCE(${"has_pending_edits" in body ? Boolean(body.has_pending_edits) : null}::boolean, has_pending_edits),
-        billed = COALESCE(${"billed" in body ? Boolean(body.billed) : null}::boolean, billed),
-        billed_at = COALESCE(${billedAt !== undefined ? billedAt : null}::timestamptz, billed_at),
-        billed_by = COALESCE(${"billed_by" in body ? numOrNull(body.billed_by) : null}::bigint, billed_by),
-        billed_amount_cents = COALESCE(${cents ?? null}::bigint, billed_amount_cents),
-        billed_lines_hash = COALESCE(${"billed_lines_hash" in body ? (body.billed_lines_hash as string | null) : null}, billed_lines_hash),
         notes = COALESCE(${"notes" in body ? String(body.notes ?? "") : null}, notes),
         updated_at = now()
       WHERE id = ${id}
@@ -692,14 +711,17 @@ export async function createFinanceBillingLineItem(
       "finance_billing_records_id is required"
     )
   }
-  const parentKey = await loadInvoiceKeyByRecordId(parentId)
-  if (parentKey == null) {
+  const parent = await loadParentStampByRecordId(parentId)
+  if (parent == null) {
     throw new FinanceBillingWriteError(
       "NOT_FOUND",
       `finance_billing_records id=${parentId} not found`
     )
   }
-  assertAppInvoiceKey(parentKey)
+  assertAppInvoiceKey(parent.invoice_key)
+  if (parent.approved_at) {
+    throwApprovedMoneyFrozen("amount" in body ? "amount" : "received_amount")
+  }
 
   const db = getDb()
   const rows = rowsOf<Record<string, unknown>>(
@@ -709,7 +731,8 @@ export async function createFinanceBillingLineItem(
         description, publisher_name, amount, client_pays_media, sort_order,
         updated_at, line_item_id, line_status, received_at, received_amount,
         note, orphaned, media_plan_version_number
-      ) VALUES (
+      )
+      SELECT
         ${parentId},
         ${String(body.item_code ?? "")},
         ${String(body.line_type ?? "media")},
@@ -727,12 +750,17 @@ export async function createFinanceBillingLineItem(
         ${body.note == null ? null : String(body.note)},
         ${body.orphaned == null ? null : Boolean(body.orphaned)},
         ${numOrNull(body.media_plan_version_number)}
-      )
+      FROM finance_billing_records
+      WHERE id = ${parentId}
+        AND invoice_key NOT LIKE 'xero:%'
+        AND approved_at IS NULL
       RETURNING *
     `)
   )
   const row = rows[0]
   if (!row) {
+    const retry = await loadParentStampByRecordId(parentId)
+    if (retry?.approved_at) throwApprovedMoneyFrozen("amount")
     throw new FinanceBillingWriteError("BAD_REQUEST", "line item insert returned no row")
   }
   return asApiLineItem(row)
@@ -745,38 +773,50 @@ export async function patchFinanceBillingLineItemById(
   if (!Number.isFinite(id) || id <= 0) {
     throw new FinanceBillingWriteError("BAD_REQUEST", "id must be a positive number")
   }
-  const parentKey = await loadInvoiceKeyByLineItemId(id)
-  if (parentKey == null) {
+  const parent = await loadParentStampByLineItemId(id)
+  if (parent == null) {
     throw new FinanceBillingWriteError("NOT_FOUND", `finance_billing_line_items id=${id} not found`)
   }
-  assertAppInvoiceKey(parentKey)
+  assertAppInvoiceKey(parent.invoice_key)
+  const moneyField =
+    "amount" in body ? "amount" : "received_amount" in body ? "received_amount" : null
+  if (moneyField && parent.approved_at) {
+    throwApprovedMoneyFrozen(moneyField)
+  }
 
   const db = getDb()
+  const freezeMoney = moneyField != null
   const rows = rowsOf<Record<string, unknown>>(
     await db.execute(sql`
-      UPDATE finance_billing_line_items SET
-        item_code = COALESCE(${"item_code" in body ? String(body.item_code ?? "") : null}, item_code),
-        line_type = COALESCE(${"line_type" in body ? String(body.line_type ?? "") : null}, line_type),
-        media_type = COALESCE(${"media_type" in body ? (body.media_type as string | null) : null}, media_type),
-        description = COALESCE(${"description" in body ? (body.description as string | null) : null}, description),
-        publisher_name = COALESCE(${"publisher_name" in body ? (body.publisher_name as string | null) : null}, publisher_name),
-        amount = COALESCE(${"amount" in body ? numOrNull(body.amount) : null}, amount),
-        client_pays_media = COALESCE(${"client_pays_media" in body ? Boolean(body.client_pays_media) : null}::boolean, client_pays_media),
-        sort_order = COALESCE(${"sort_order" in body ? numOrNull(body.sort_order) : null}::bigint, sort_order),
-        line_item_id = COALESCE(${"line_item_id" in body ? (body.line_item_id as string | null) : null}, line_item_id),
-        line_status = COALESCE(${"line_status" in body ? (body.line_status as string | null) : null}, line_status),
-        received_at = COALESCE(${"received_at" in body ? toTimestamptz(body.received_at as string | number | null) : null}::timestamptz, received_at),
-        received_amount = COALESCE(${"received_amount" in body ? numOrNull(body.received_amount) : null}, received_amount),
-        note = COALESCE(${"note" in body ? (body.note as string | null) : null}, note),
-        orphaned = COALESCE(${"orphaned" in body ? Boolean(body.orphaned) : null}::boolean, orphaned),
-        media_plan_version_number = COALESCE(${"media_plan_version_number" in body ? numOrNull(body.media_plan_version_number) : null}::bigint, media_plan_version_number),
+      UPDATE finance_billing_line_items AS li SET
+        item_code = COALESCE(${"item_code" in body ? String(body.item_code ?? "") : null}, li.item_code),
+        line_type = COALESCE(${"line_type" in body ? String(body.line_type ?? "") : null}, li.line_type),
+        media_type = COALESCE(${"media_type" in body ? (body.media_type as string | null) : null}, li.media_type),
+        description = COALESCE(${"description" in body ? (body.description as string | null) : null}, li.description),
+        publisher_name = COALESCE(${"publisher_name" in body ? (body.publisher_name as string | null) : null}, li.publisher_name),
+        amount = COALESCE(${"amount" in body ? numOrNull(body.amount) : null}, li.amount),
+        client_pays_media = COALESCE(${"client_pays_media" in body ? Boolean(body.client_pays_media) : null}::boolean, li.client_pays_media),
+        sort_order = COALESCE(${"sort_order" in body ? numOrNull(body.sort_order) : null}::bigint, li.sort_order),
+        line_item_id = COALESCE(${"line_item_id" in body ? (body.line_item_id as string | null) : null}, li.line_item_id),
+        line_status = COALESCE(${"line_status" in body ? (body.line_status as string | null) : null}, li.line_status),
+        received_at = COALESCE(${"received_at" in body ? toTimestamptz(body.received_at as string | number | null) : null}::timestamptz, li.received_at),
+        received_amount = COALESCE(${"received_amount" in body ? numOrNull(body.received_amount) : null}, li.received_amount),
+        note = COALESCE(${"note" in body ? (body.note as string | null) : null}, li.note),
+        orphaned = COALESCE(${"orphaned" in body ? Boolean(body.orphaned) : null}::boolean, li.orphaned),
+        media_plan_version_number = COALESCE(${"media_plan_version_number" in body ? numOrNull(body.media_plan_version_number) : null}::bigint, li.media_plan_version_number),
         updated_at = now()
-      WHERE id = ${id}
-      RETURNING *
+      FROM finance_billing_records AS r
+      WHERE li.id = ${id}
+        AND r.id = li.finance_billing_records_id
+        AND r.invoice_key NOT LIKE 'xero:%'
+        AND (${freezeMoney} = false OR r.approved_at IS NULL)
+      RETURNING li.*
     `)
   )
   const row = rows[0]
   if (!row) {
+    const retry = await loadParentStampByLineItemId(id)
+    if (retry?.approved_at && moneyField) throwApprovedMoneyFrozen(moneyField)
     throw new FinanceBillingWriteError("NOT_FOUND", `finance_billing_line_items id=${id} not found`)
   }
   return asApiLineItem(row)
