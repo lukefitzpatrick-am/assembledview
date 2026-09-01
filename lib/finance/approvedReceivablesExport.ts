@@ -13,6 +13,19 @@ export function filterApprovedReceivablesForExport(records: BillingRecord[]): Bi
   return records.filter(hasApprovedStamp)
 }
 
+/** Keys the "Mark as sent to finance" action stamps — approved only, never unapproved. */
+export function invoiceKeysReadyToMarkSent(records: BillingRecord[]): string[] {
+  const keys: string[] = []
+  const seen = new Set<string>()
+  for (const r of filterApprovedReceivablesForExport(records)) {
+    const k = r.invoice_key?.trim()
+    if (!k || seen.has(k)) continue
+    seen.add(k)
+    keys.push(k)
+  }
+  return keys
+}
+
 function exportedAtMs(value: unknown): number | null {
   if (value == null || value === "") return null
   if (typeof value === "number" && Number.isFinite(value)) {

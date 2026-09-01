@@ -6,7 +6,7 @@
  * Filters here apply on change (FN-series auto-load — do not regress).
  */
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
 import { MultiSelectCombobox } from "@/components/ui/multi-select-combobox"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -45,6 +45,7 @@ type Props = {
   onApproveReady?: () => void
   approveReadyCount?: number
   approveBusy?: boolean
+  markSentButton?: ReactNode
   /** When false, render field row only (parent owns the card — FIN-2 toolbar). */
   framed?: boolean
 }
@@ -60,6 +61,7 @@ export function InvoicingLocalFiltersBar({
   onApproveReady,
   approveReadyCount = 0,
   approveBusy,
+  markSentButton,
   framed = true,
 }: Props) {
   const [publisherOptions, setPublisherOptions] = useState<
@@ -220,6 +222,7 @@ export function InvoicingLocalFiltersBar({
           >
             Excel
           </Button>
+          {markSentButton}
         </div>
       </div>
     </div>

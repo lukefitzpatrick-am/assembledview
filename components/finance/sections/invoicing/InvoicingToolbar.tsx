@@ -5,6 +5,7 @@
  * Scope (FY / months / clients) commits on Apply; local filters apply on change.
  */
 
+import { MarkSentToFinanceButton } from "@/components/finance/sections/invoicing/MarkSentToFinanceButton"
 import { SectionScopeBar } from "@/components/finance/sections/SectionScopeBar"
 import { InvoicingLocalFiltersBar } from "@/components/finance/sections/invoicing/InvoicingLocalFilters"
 import type { InvoicingLocalFilters } from "@/lib/finance/sections/useInvoicingReceivablesData"
@@ -22,6 +23,9 @@ type Props = {
   onApproveReady?: () => void
   approveReadyCount?: number
   approveBusy?: boolean
+  onMarkSentToFinance?: () => void
+  markSentDisabled?: boolean
+  markSentBusy?: boolean
 }
 
 export function InvoicingToolbar({
@@ -37,6 +41,9 @@ export function InvoicingToolbar({
   onApproveReady,
   approveReadyCount = 0,
   approveBusy,
+  onMarkSentToFinance,
+  markSentDisabled,
+  markSentBusy,
 }: Props) {
   return (
     <div className="rounded-card border border-border bg-card px-3 py-3 shadow-e1">
@@ -58,6 +65,15 @@ export function InvoicingToolbar({
             onApproveReady={onApproveReady}
             approveReadyCount={approveReadyCount}
             approveBusy={approveBusy}
+            markSentButton={
+              onMarkSentToFinance ? (
+                <MarkSentToFinanceButton
+                  disabled={markSentDisabled}
+                  busy={markSentBusy}
+                  onConfirm={onMarkSentToFinance}
+                />
+              ) : null
+            }
           />
         </div>
       </div>

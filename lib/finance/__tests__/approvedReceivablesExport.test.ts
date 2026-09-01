@@ -3,6 +3,7 @@ import test from "node:test"
 
 import {
   filterApprovedReceivablesForExport,
+  invoiceKeysReadyToMarkSent,
   summariseLastExport,
 } from "../approvedReceivablesExport.js"
 import type { BillingRecord } from "@/lib/types/financeBilling.js"
@@ -73,4 +74,14 @@ test("last export summary uses max(exported_at) in the current scope", () => {
 
 test("last export summary is null when nothing in scope has been exported", () => {
   assert.equal(summariseLastExport([rec({ exported_at: null })]), null)
+})
+
+test("mark-as-sent keys include every approved invoice and skip unapproved ones", () => {
+  const keys = invoiceKeysReadyToMarkSent([
+    rec({ id: 1, invoice_key: "media:X001:2026-07", approved_at: "2026-08-01T00:00:00.000Z" }),
+    rec({ id: 2, invoice_key: "media:X002:2026-07", approved_at: null }),
+    rec({ id: 3, invoice_key: "media:X003:2026-07" }),
+    rec({ id: 4, invoice_key: "  ", approved_at: "2026-08-01T00:00:00.000Z" }),
+  ])
+  assert.deepEqual(keys, ["media:X001:2026-07"])
 })

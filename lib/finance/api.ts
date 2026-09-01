@@ -490,6 +490,19 @@ export async function markBillingRecordsExported(params: { invoice_keys: string[
   return jsonOrThrow(response, path)
 }
 
+export async function unmarkBillingRecordsExported(params: { invoice_keys: string[] }): Promise<{
+  ok: true
+  records: Array<{ invoice_key: string; persisted_record_id: number }>
+}> {
+  const path = "/api/finance/billing/unmark-exported"
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  })
+  return jsonOrThrow(response, path)
+}
+
 export async function updateLineItem(
   id: number,
   data: Partial<BillingLineItem>

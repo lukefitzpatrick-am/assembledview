@@ -19,6 +19,7 @@ import { exportBillingRecordsCsv } from "@/lib/finance/export"
 import { hasBillingEvidence } from "@/lib/finance/billingLifecycle"
 import {
   filterApprovedReceivablesForExport,
+  invoiceKeysReadyToMarkSent,
   summariseLastExport,
 } from "@/lib/finance/approvedReceivablesExport"
 import { grainFromBillingRecord } from "@/lib/finance/billingApproveGrain"
@@ -165,6 +166,7 @@ export function InvoicingPageClient() {
   const { toast } = useToast()
   const [lastExportName, setLastExportName] = useState<string | null>(null)
   const [approveBusy, setApproveBusy] = useState(false)
+  const [markSentBusy, setMarkSentBusy] = useState(false)
 
   const handleNotesSaved = useCallback(
     (result: { invoice_key: string; notes: string; persisted_record_id: number }) => {
@@ -213,6 +215,7 @@ export function InvoicingPageClient() {
       }),
     [allRecords]
   )
+  const markSentKeys = useMemo(() => invoiceKeysReadyToMarkSent(allRecords), [allRecords])
   const lastExport = useMemo(() => summariseLastExport(allRecords), [allRecords])
   const lastExportLine = useMemo(() => {
     if (!lastExport) return null
@@ -267,14 +270,6 @@ export function InvoicingPageClient() {
         monthLabel,
         "Finance_invoicing"
       )
-      const keys = approvedRecords
-        .map((r) => r.invoice_key)
-        .filter((k): k is string => typeof k === "string" && k.trim().length > 0)
-      if (keys.length > 0) {
-        const exported = await markBillingRecordsExported({ invoice_keys: keys })
-        setLastExportName(exported.exported_by_name)
-        bumpFetch()
-      }
       if (missingLegalBusinessNames.length > 0) {
         const names = missingLegalBusinessNames.map((c) => c.displayName).join(", ")
         console.warn(
@@ -295,7 +290,7 @@ export function InvoicingPageClient() {
         description: e instanceof Error ? e.message : "Unknown error",
       })
     }
-  }, [approvedRecords, monthLabel, toast, bumpFetch])
+  }, [approvedRecords, monthLabel, toast])
 
   const approveReady = useCallback(async () => {
     if (readyGrains.length === 0 || approveBusy) return
@@ -335,6 +330,27 @@ export function InvoicingPageClient() {
     }
   }, [readyGrains, approveBusy, toast, bumpFetch])
 
+  const markSentToFinance = useCallback(async () => {
+    if (markSentKeys.length === 0 || markSentBusy) return
+    setMarkSentBusy(true)
+    try {
+      const exported = await markBillingRecordsExported({ invoice_keys: markSentKeys })
+      setLastExportName(exported.exported_by_name)
+      toast({
+        title: `Marked ${exported.records.length} invoice${exported.records.length === 1 ? "" : "s"} as sent to finance`,
+      })
+      bumpFetch()
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Could not mark as sent",
+        description: e instanceof Error ? e.message : "Unknown error",
+      })
+    } finally {
+      setMarkSentBusy(false)
+    }
+  }, [markSentKeys, markSentBusy, toast, bumpFetch])
+
   const coldLoading = loading && visibleMonthGroups.length === 0 && !loadError
   const showNoReceivables =
     !loading && !isUpdating && !loadError && visibleMonthGroups.length === 0
@@ -359,6 +375,9 @@ export function InvoicingPageClient() {
           onApproveReady={() => void approveReady()}
           approveReadyCount={readyGrains.length}
           approveBusy={approveBusy || isUpdating}
+          onMarkSentToFinance={() => void markSentToFinance()}
+          markSentDisabled={markSentKeys.length === 0 || isUpdating}
+          markSentBusy={markSentBusy || isUpdating}
         />
       }
     >

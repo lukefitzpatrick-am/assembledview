@@ -16,11 +16,13 @@ import {
 import {
   FinanceBillingWriteError,
   clearFinanceBillingRecordApproval,
+  clearFinanceBillingRecordExported,
   materialiseAndApproveFinanceBillingRecord,
   setFinanceBillingRecordApproved,
   setFinanceBillingRecordBilled,
   setFinanceBillingRecordExported,
   setFinanceBillingRecordNotes,
+  stampExportedKeysSkippingUnapproved,
   upsertFinanceBillingRecordByInvoiceKey,
 } from "@/lib/data/writeFinance"
 import { billedSnapshotAmountEchoOk } from "@/lib/finance/billedSnapshotEcho"
@@ -148,6 +150,14 @@ describe("writeFinance xero: guard", () => {
     )
     await assert.rejects(
       () => setFinanceBillingRecordExported({ invoiceKey: "xero:INV-1", exportedBy: 1 }),
+      (err: unknown) => {
+        assert.ok(err instanceof FinanceBillingWriteError)
+        assert.equal(err.code, "XERO_KEY_REFUSED")
+        return true
+      }
+    )
+    await assert.rejects(
+      () => clearFinanceBillingRecordExported("xero:INV-1"),
       (err: unknown) => {
         assert.ok(err instanceof FinanceBillingWriteError)
         assert.equal(err.code, "XERO_KEY_REFUSED")
@@ -447,6 +457,96 @@ describe("writeFinance postgres path", { skip: skipPg }, () => {
     })
     const echoed = await fetchFinanceBillingRecordByIdFromPostgres(Number(saved.id))
     assert.equal(echoed?.notes, "bookkeeper note")
+  })
+
+  it("mark-as-sent stamps every approved key and skips unapproved ones", async () => {
+    await wipe()
+    await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+    })
+    await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY_B, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-10",
+    })
+    await materialiseAndApproveFinanceBillingRecord({
+      invoiceKey: INVOICE_KEY,
+      seed: {
+        billing_type: "media",
+        clients_id: 1,
+        client_name: "T0-1 writeFinance",
+        mba_number: MBA,
+        campaign_name: "T0-1",
+        billing_month: "2026-09",
+        initial_total: 100.5,
+      },
+      approvedBy: 7,
+      approvedByName: "Ada Admin",
+      approvedAmountCents: 10050,
+      approvedLinesHash: HASH,
+    })
+    const stamped = await stampExportedKeysSkippingUnapproved(
+      [INVOICE_KEY, INVOICE_KEY_B],
+      11
+    )
+    assert.equal(stamped.length, 1)
+    assert.equal(stamped[0]?.invoiceKey, INVOICE_KEY)
+    assert.ok(stamped[0]?.record.exported_at)
+    const listed = await fetchFinanceBillingRecordsFromPostgres()
+    const approved = listed.find((r) => r.invoice_key === INVOICE_KEY)
+    const unapproved = listed.find((r) => r.invoice_key === INVOICE_KEY_B)
+    assert.ok(approved?.exported_at)
+    assert.equal(Number(approved?.exported_by), 11)
+    assert.ok(unapproved)
+    assert.ok(unapproved.exported_at == null || unapproved.exported_at === "")
+  })
+
+  it("unmark-exported clears the stamp, leaves approved_at, and makes unapprove possible", async () => {
+    await wipe()
+    await materialiseAndApproveFinanceBillingRecord({
+      invoiceKey: INVOICE_KEY,
+      seed: {
+        billing_type: "media",
+        clients_id: 1,
+        client_name: "T0-1 writeFinance",
+        mba_number: MBA,
+        campaign_name: "T0-1",
+        billing_month: "2026-09",
+        initial_total: 100.5,
+      },
+      approvedBy: 7,
+      approvedByName: "Ada Admin",
+      approvedAmountCents: 10050,
+      approvedLinesHash: HASH,
+    })
+    await setFinanceBillingRecordExported({ invoiceKey: INVOICE_KEY, exportedBy: 11 })
+    await assert.rejects(
+      () => clearFinanceBillingRecordApproval(INVOICE_KEY),
+      (err: unknown) => {
+        assert.ok(err instanceof FinanceBillingWriteError)
+        assert.equal(err.code, "ALREADY_EXPORTED")
+        return true
+      }
+    )
+    const unmarked = await clearFinanceBillingRecordExported(INVOICE_KEY)
+    assert.ok(unmarked.record.approved_at, "unmark must not clear approved_at")
+    assert.equal(unmarked.record.approved_by_name, "Ada Admin")
+    assert.ok(unmarked.record.exported_at == null || unmarked.record.exported_at === "")
+    assert.ok(unmarked.record.exported_by == null || unmarked.record.exported_by === "")
+    const listed = await fetchFinanceBillingRecordsFromPostgres()
+    const row = listed.find((r) => r.invoice_key === INVOICE_KEY)
+    assert.ok(row?.approved_at)
+    assert.ok(row.exported_at == null || row.exported_at === "")
+    const cleared = await clearFinanceBillingRecordApproval(INVOICE_KEY)
+    assert.ok(cleared.record.approved_at == null || cleared.record.approved_at === "")
   })
 
   it("a second mark-billed on the same invoice_key updates rather than duplicating", async () => {

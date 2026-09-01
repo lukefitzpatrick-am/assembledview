@@ -135,7 +135,8 @@ SQL used (Postgres):
 | `/api/finance/billing/mark-billed` | POST | 410 gone | — | `lib/finance/api.ts` | RETIRED (lifecycle derived) |
 | `/api/finance/billing/approve` | POST | `writeFinance.materialiseAndApproveFinanceBillingRecord` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
 | `/api/finance/billing/unapprove` | POST | `writeFinance.clearFinanceBillingRecordApproval` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
-| `/api/finance/billing/mark-exported` | POST | `writeFinance.setFinanceBillingRecordExported` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
+| `/api/finance/billing/mark-exported` | POST | `writeFinance.stampExportedKeysSkippingUnapproved` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
+| `/api/finance/billing/unmark-exported` | POST | `writeFinance.clearFinanceBillingRecordExported` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
 | `/api/finance/billing/notes` | POST | `writeFinance.setFinanceBillingRecordNotes` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
 | `/api/finance/data` | GET | `relevantPlanVersions` + `readClients`/`readPublishers` | DATA_BACKEND_PLANS/CLIENTS/PUBLISHERS | Excel export dialog, UpcomingBilling | DUAL-DONE (X3 ported) |
 | `/api/finance/edits` | GET | `readFinance*` | DATA_BACKEND_FINANCE | `lib/finance/api.ts` | DUAL-DONE |

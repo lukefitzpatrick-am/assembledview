@@ -3,6 +3,7 @@
  * Postgres only. Natural key is invoice_key. Never writes xero: rows —
  * those belong to lib/xero/stages/importBillingRecords.ts.
  * Xero match stamps (`setFinanceBillingRecordXeroMatch`) never touch approved_*.
+ * Unmark-exported (`clearFinanceBillingRecordExported`) never touches approved_*.
  */
 
 import "server-only"
@@ -23,7 +24,8 @@ export class FinanceBillingWriteError extends Error {
       | "BAD_REQUEST"
       | "ALREADY_APPROVED"
       | "ALREADY_EXPORTED"
-      | "NOT_APPROVED",
+      | "NOT_APPROVED"
+      | "NOT_EXPORTED",
     message: string
   ) {
     super(message)
@@ -36,6 +38,11 @@ export type FinanceExecutor = { execute: ReturnType<typeof getDb>["execute"] }
 export type ClearFinanceBillingApprovalResult = {
   record: Record<string, unknown>
   priorApprovedAt: string | null
+}
+
+export type ClearFinanceBillingExportedResult = {
+  record: Record<string, unknown>
+  priorExportedAt: string | null
 }
 
 function financeDb(executor?: FinanceExecutor): FinanceExecutor {
@@ -439,6 +446,74 @@ export async function setFinanceBillingRecordExported(
     )
   }
   return asApiRecord(row)
+}
+
+/**
+ * Stamp exported_at on approved keys only. Unapproved keys are skipped, not
+ * a batch failure — mark-as-sent is scoped to whatever is already approved.
+ */
+export async function stampExportedKeysSkippingUnapproved(
+  invoiceKeys: string[],
+  exportedBy: number,
+  executor?: FinanceExecutor
+): Promise<Array<{ invoiceKey: string; record: Record<string, unknown> }>> {
+  const stamped: Array<{ invoiceKey: string; record: Record<string, unknown> }> = []
+  for (const invoiceKey of invoiceKeys) {
+    try {
+      const record = await setFinanceBillingRecordExported(
+        { invoiceKey, exportedBy },
+        executor
+      )
+      stamped.push({ invoiceKey, record })
+    } catch (error: unknown) {
+      if (error instanceof FinanceBillingWriteError && error.code === "NOT_APPROVED") {
+        continue
+      }
+      throw error
+    }
+  }
+  return stamped
+}
+
+/**
+ * Clear exported_at / exported_by only. Never touches approved_*.
+ */
+export async function clearFinanceBillingRecordExported(
+  invoiceKey: string,
+  executor?: FinanceExecutor
+): Promise<ClearFinanceBillingExportedResult> {
+  assertAppInvoiceKey(invoiceKey)
+  const prior = await loadApprovalExportStamps(invoiceKey, executor)
+  const db = financeDb(executor)
+  const rows = rowsOf<Record<string, unknown>>(
+    await db.execute(sql`
+      UPDATE finance_billing_records SET
+        exported_at = NULL,
+        exported_by = NULL,
+        updated_at = now()
+      WHERE invoice_key = ${invoiceKey}
+        AND invoice_key NOT LIKE 'xero:%'
+        AND exported_at IS NOT NULL
+      RETURNING *
+    `)
+  )
+  const row = rows[0]
+  if (!row) {
+    if (!prior) {
+      throw new FinanceBillingWriteError(
+        "NOT_FOUND",
+        `finance_billing_records invoice_key=${invoiceKey} not found`
+      )
+    }
+    throw new FinanceBillingWriteError(
+      "NOT_EXPORTED",
+      `finance_billing_records invoice_key=${invoiceKey} is not marked sent to finance`
+    )
+  }
+  return {
+    record: asApiRecord(row),
+    priorExportedAt: prior?.exported_at != null ? String(prior.exported_at) : null,
+  }
 }
 
 /**

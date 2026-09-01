@@ -7,7 +7,7 @@ import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
 import { parseInvoiceKeys } from "@/lib/finance/resolveApproveGrains"
 import {
   FinanceBillingWriteError,
-  stampExportedKeysSkippingUnapproved,
+  clearFinanceBillingRecordExported,
 } from "@/lib/data/writeFinance"
 
 export const maxDuration = 60
@@ -56,17 +56,40 @@ export async function POST(request: NextRequest) {
     }
 
     const editedByName = currentUser.name ?? currentUser.email ?? String(currentUser.id)
-    let stamped: Array<{ invoiceKey: string; record: Record<string, unknown> }>
+    let cleared: Array<{
+      invoice_key: string
+      record: Record<string, unknown>
+      priorExportedAt: string | null
+    }>
     try {
       const db = getDb()
-      stamped = await db.transaction(async (tx) =>
-        stampExportedKeysSkippingUnapproved(invoice_keys, currentUser.id, tx)
-      )
+      cleared = await db.transaction(async (tx) => {
+        const rows: Array<{
+          invoice_key: string
+          record: Record<string, unknown>
+          priorExportedAt: string | null
+        }> = []
+        for (const invoice_key of invoice_keys) {
+          const result = await clearFinanceBillingRecordExported(invoice_key, tx)
+          rows.push({
+            invoice_key,
+            record: result.record,
+            priorExportedAt: result.priorExportedAt,
+          })
+        }
+        return rows
+      })
     } catch (error: unknown) {
       if (error instanceof FinanceBillingWriteError && error.code === "XERO_KEY_REFUSED") {
         return NextResponse.json(
           { error: "xero_key_refused", message: error.message },
           { status: 400 }
+        )
+      }
+      if (error instanceof FinanceBillingWriteError && error.code === "NOT_EXPORTED") {
+        return NextResponse.json(
+          { error: "not_exported", message: error.message },
+          { status: 409 }
         )
       }
       if (error instanceof FinanceBillingWriteError && error.code === "NOT_FOUND") {
@@ -78,15 +101,9 @@ export async function POST(request: NextRequest) {
       throw error
     }
 
-    const results: Array<{
-      invoice_key: string
-      persisted_record_id: number
-      exported_at: unknown
-      exported_by: unknown
-      exported_by_name: string
-    }> = []
+    const results: Array<{ invoice_key: string; persisted_record_id: number }> = []
 
-    for (const item of stamped) {
+    for (const item of cleared) {
       const persisted_record_id = Number(item.record.id)
       await writeStatusChangeEdit(
         {
@@ -94,8 +111,11 @@ export async function POST(request: NextRequest) {
             ? persisted_record_id
             : null,
           field_name: "exported_at",
-          old_value: null,
-          new_value: editedByName,
+          old_value:
+            item.priorExportedAt != null && String(item.priorExportedAt).length > 0
+              ? String(item.priorExportedAt)
+              : "cleared",
+          new_value: null,
         },
         {
           editedBy: currentUser.id,
@@ -103,18 +123,12 @@ export async function POST(request: NextRequest) {
           recordType: "status_change",
         }
       )
-      results.push({
-        invoice_key: item.invoiceKey,
-        persisted_record_id,
-        exported_at: item.record.exported_at,
-        exported_by: item.record.exported_by,
-        exported_by_name: editedByName,
-      })
+      results.push({ invoice_key: item.invoice_key, persisted_record_id })
     }
 
-    return NextResponse.json({ ok: true, exported_by_name: editedByName, records: results })
+    return NextResponse.json({ ok: true, records: results })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
-    return NextResponse.json({ error: "mark_exported_failed", details: message }, { status: 500 })
+    return NextResponse.json({ error: "unmark_exported_failed", details: message }, { status: 500 })
   }
 }
