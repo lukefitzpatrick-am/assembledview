@@ -18,7 +18,7 @@ Xano is no longer in the runtime read or write path. `lib/api/xano.ts` is the on
 
 **`db:generate` does not prove the mirror matches the database.** The baseline was regenerated from the TypeScript mirrors, so an empty diff proves only that nobody edited `db/schema/*.ts` without regenerating the snapshot. It compares code to its own snapshot, not code to Postgres. Two columns were missing from the mirror while `db:generate` was clean.
 
-**The real gate is `npm run db:drift`** — a comparison against `information_schema`. Run it before any handover that touches the schema. Never apply the file `generate` produces.
+**The real gate is `npm run db:drift`** — a comparison against `information_schema`. Run it against the applied database before any handover that edits `db/schema/*.ts`, and before cherry-picking a mirror change to `main`. Mirror-ahead columns (named in the TypeScript, absent from Postgres) print a FATAL banner and fail — that class 500s every `db.select()` on the table if the code deploys first. Never apply the file `generate` produces. Fixture tests (`npm run test:db-drift`) run in CI without a database; they do not replace the live check.
 
 **Backfill rule.** Any migration that backfills existing rows must be guarded by a `migration_markers` key. `WHERE col IS NULL` alone is not a re-run guard: once the feature is live, NULL means a genuine unfilled state and a re-run corrupts it.
 

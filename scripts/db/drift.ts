@@ -1,12 +1,15 @@
 /**
- * db:drift — live Postgres (DIRECT_URL, read-only) vs Drizzle TS mirrors.
+ * db:drift — live Postgres (DIRECT_URL or DATABASE_URL, read-only) vs Drizzle TS mirrors.
  *
  * db:generate compares db/schema/*.ts to db/drizzle/meta snapshots. It never
  * consults the database. This script is the other half: information_schema /
  * pg_catalog vs getTableConfig() of the TypeScript mirrors.
  *
  * Compared
- *   - columns (presence by table.column; not type / nullability / default)
+ *   - columns (presence by table.column; not type / nullability / default).
+ *     Mirror-ahead columns (named in db/schema/*.ts, absent from the database)
+ *     are a deploy blocker: they print a FATAL banner and fail the check.
+ *     That class 500s every db.select() on the table if the mirror ships first.
  *   - foreign keys (by local columns + target table/columns; not constraint name)
  *   - indexes and unique constraints (by table + ordered column list +
  *     per-column ASC/DESC + uniqueness + canonicalised predicate; not name)
@@ -45,6 +48,10 @@ import { is } from "drizzle-orm"
 import { getTableConfig, PgTable } from "drizzle-orm/pg-core"
 import * as schema from "../../db/schema"
 import { canonicalise } from "./canonicalise"
+import {
+  findMirrorColumnsMissingFromLive,
+  formatMirrorAheadMessage,
+} from "./mirrorColumnDrift"
 
 type ColRef = { expr: string; desc: boolean }
 
@@ -506,6 +513,15 @@ type Finding = {
 }
 
 function mainOutput(findings: Finding[]): void {
+  const missingCols = findings
+    .filter((f) => f.kind === "column" && f.side === "mirror" && !f.detail.startsWith("("))
+    .map((f) => ({ table: f.table, column: f.detail }))
+  const banner = formatMirrorAheadMessage(missingCols)
+  if (banner) {
+    console.error(banner)
+    console.error("")
+  }
+
   if (findings.length === 0) {
     console.log("db:drift — clean. Live public schema matches the Drizzle mirrors.")
     return
@@ -550,9 +566,11 @@ function mainOutput(findings: Finding[]): void {
 async function main(): Promise<number> {
   loadEnvFile(".env.local")
   loadEnvFile(".env")
-  const url = process.env.DIRECT_URL
+  const url = process.env.DIRECT_URL || process.env.DATABASE_URL
   if (!url) {
-    console.error("DIRECT_URL is not set — db:drift needs the direct Postgres URL.")
+    console.error(
+      "DIRECT_URL or DATABASE_URL is not set — db:drift needs a Postgres URL.",
+    )
     return 2
   }
 
@@ -597,15 +615,17 @@ async function main(): Promise<number> {
         })
       }
     }
-    for (const [id, col] of mirror.columns) {
-      if (!live.columns.has(id)) {
-        findings.push({
-          table: col.table,
-          kind: "column",
-          side: "mirror",
-          detail: col.column,
-        })
-      }
+    const missingCols = findMirrorColumnsMissingFromLive(
+      mirror.columns.values(),
+      live.columns.values(),
+    )
+    for (const col of missingCols) {
+      findings.push({
+        table: col.table,
+        kind: "column",
+        side: "mirror",
+        detail: col.column,
+      })
     }
 
     const fkDiff = diffMaps(live.fks, mirror.fks)

@@ -43,7 +43,7 @@ Files large enough to require targeted reading rather than full reads:
 | Change the schedule | `lib/data/savePlan.ts` and `schedule_months`. Not the legacy blobs |
 | Change publication behaviour | `media_plan_masters.published_version_id` and `media_plan_versions.published_at`. Never `max(version_number)`, never `campaign_status` |
 | Add an API route | Copy the auth + tenant-check shape from a sibling in the same folder. Middleware authenticates only |
-| Add a table or column | Write `db/migrations/00NN_*.sql`, hand it to Luke to apply, then hand-sync `db/schema/*.ts` and confirm `db:generate` is an empty diff. Backfills need a `migration_markers` guard |
+| Add a table or column | Write `db/migrations/00NN_*.sql` and hand it to Luke to apply. Do not deploy a `db/schema/*.ts` edit until the SQL is applied and `npm run db:drift` is clean against that database — the mirror is live code (Drizzle selects every named column). Then hand-sync the mirror and confirm `db:generate` is an empty diff. Backfills need a `migration_markers` guard. Authoring the SQL is not a safe half-step. |
 | Give AVA a new capability | `lib/ava/tools/registry.ts` + a tool file. Reading a **new table** also needs a migration granting `ava_readonly` |
 | Fix a pacing number | `lib/pacing/maths` and the Snowflake fact. Do not reorder the `PacingStatus` ladder |
 | Anything on `/dashboard/[slug]/**` | Assume a client-role user is looking at it. Tenant scope is mandatory |

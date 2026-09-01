@@ -60,10 +60,15 @@ export async function getXeroAccessToken(
   return json.access_token
 }
 
+/**
+ * Xero Accounting API request. GET only — there is no body parameter and
+ * this helper never sends one. The app is structurally incapable of writing
+ * to Xero through this client (token refresh at getXeroAccessToken is a
+ * different endpoint). Keep it that way.
+ */
 export type XeroApiOptions = {
   accessToken: string
   path: string
-  method?: "GET" | "POST"
   ifModifiedSince?: string
   accept?: string
   fetchImpl?: typeof fetch
@@ -82,7 +87,7 @@ export async function xeroApiRequest(
   }
 
   const res = await fetchImpl(`https://api.xero.com/api.xro/2.0${opts.path}`, {
-    method: opts.method ?? "GET",
+    method: "GET",
     headers,
   })
 

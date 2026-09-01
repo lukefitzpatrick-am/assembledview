@@ -34,6 +34,9 @@ jobs:
       - name: Ban strict billing line id equality (MB-4)
         run: npm run check:billing-line-id-equality
 
+      - name: Schema mirror-ahead fixtures (no database)
+        run: npm run test:db-drift
+
   knip:
     name: knip (report-only)
     runs-on: ubuntu-latest
