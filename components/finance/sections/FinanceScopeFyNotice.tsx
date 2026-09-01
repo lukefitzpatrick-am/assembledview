@@ -6,8 +6,9 @@ import { financeHref } from "@/lib/finance/sections/financeHref"
 import { useFinanceScopeApplied } from "@/lib/finance/sections/useFinanceScope"
 
 /**
- * Periods and Xero have no scope bar but still consume applied.fy from the store.
- * Read-only disclosure until those pages get their own bar (follow-up).
+ * Periods has no scope bar but still consumes applied.fy from the store.
+ * Read-only disclosure until that page gets its own bar (UX-4).
+ * Periods hydrates from the URL on mount so this line matches `?fy=`.
  */
 export function FinanceScopeFyNotice() {
   const applied = useFinanceScopeApplied()

@@ -4,14 +4,12 @@ import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSecti
 import { XeroSubNav } from "@/components/finance/sections/xero/XeroSubNav"
 import { XeroExceptionsPanel } from "@/components/finance/sections/xero/XeroExceptionsPanel"
 import { XeroMatchesPanel } from "@/components/finance/sections/xero/XeroMatchesPanel"
-import { FinanceScopeFyNotice } from "@/components/finance/sections/FinanceScopeFyNotice"
 
 export function XeroPageClient({ section }: { section: "exceptions" | "matches" }) {
   return (
     <FinanceSectionsShell title="Xero">
       <div className="space-y-4">
         <XeroSubNav />
-        <FinanceScopeFyNotice />
         <p className="text-xs text-muted-foreground">
           {section === "exceptions"
             ? "Exceptions · pending finance_billing_records + xero_sync_exceptions (parity with hub queue)."

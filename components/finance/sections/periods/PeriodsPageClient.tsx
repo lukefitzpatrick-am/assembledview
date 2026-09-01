@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSectionsShell"
 import { ErrorState } from "@/components/finance/sections/ErrorState"
@@ -17,16 +17,22 @@ import {
   referenceDateForFyStartYear,
 } from "@/lib/finance/months"
 import { getSydneyWallClock } from "@/lib/finance/periods/sydneyClock"
-import { useFinanceScopeApplied } from "@/lib/finance/sections/useFinanceScope"
+import { useFinanceScopeApplied, useFinanceScopeStore } from "@/lib/finance/sections/useFinanceScope"
 import { FinanceScopeFyNotice } from "@/components/finance/sections/FinanceScopeFyNotice"
 import type { FinanceRunItem } from "@/lib/finance/periods/types"
 
 export function PeriodsPageClient() {
   const applied = useFinanceScopeApplied()
+  const hydrateFromUrl = useFinanceScopeStore((s) => s.hydrateFromUrl)
   const searchParams = useSearchParams()
   const router = useRouter()
   const sydneyMonth = getSydneyWallClock().periodMonth
   const selectedMonth = searchParams?.get("month") || sydneyMonth
+
+  useEffect(() => {
+    hydrateFromUrl(new URLSearchParams(searchParams?.toString() ?? ""))
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hydrate once per mount / URL entry
+  }, [])
 
   const { data, loading, error, busy, reload, postReview, runPeriod, lockPeriod } =
     usePeriodsData(selectedMonth)
