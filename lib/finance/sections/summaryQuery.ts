@@ -22,6 +22,7 @@ import {
   referenceDateForFyStartYear,
 } from "@/lib/finance/months"
 import { clampMonthRangeToFy } from "@/lib/finance/sections/defaultScope"
+import { INVOICED_TO_DATE_BASIS } from "@/lib/finance/sections/invoicedToDate"
 import {
   FINANCE_STATUS_EXCLUDED_SQL,
   FINANCE_STATUS_INCLUDED_SQL,
@@ -394,6 +395,7 @@ export async function fetchFinanceSectionsSummary(
     FROM finance_billing_records fbr
     WHERE fbr.billed IS TRUE
       AND fbr.billed_amount_cents IS NOT NULL
+      AND fbr.invoice_key LIKE 'xero:%'
       AND fbr.billing_month >= ${q.from}
       AND fbr.billing_month <= ${q.to}
       AND (
@@ -595,7 +597,7 @@ export async function fetchFinanceSectionsSummary(
     },
     invoicedToDate: {
       cents: invoicedCents,
-      basis: "finance_billing_records · billed_amount_cents where billed",
+      basis: INVOICED_TO_DATE_BASIS,
       scope: scopeLabel,
     },
     monthlySeries,

@@ -110,7 +110,7 @@ export function CostsOverviewClient() {
       <div className="space-y-6">
         <CostsSubNav />
         <p className="text-sm text-muted-foreground">
-          Booked publisher cost (delivery media) vs Xero AP bills.
+          Booked publisher cost (delivery media) vs Xero AP bills, both ex-GST.
         </p>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -125,12 +125,12 @@ export function CostsOverviewClient() {
           />
           <StatTile
             label="AP billed FYTD"
-            basisCaption="xero_ap_bills.total · activity_month in scope"
+            basisCaption="Xero AP, ex-GST · activity_month in scope"
             state={blockToTileState(view, (d) => d.kpis.apBilledFytdCents)}
           />
           <StatTile
             label="Unbilled accrual"
-            basisCaption="booked cost − AP billed (headline, not period-locked)"
+            basisCaption="booked cost − AP billed, both ex-GST (headline, not period-locked)"
             state={blockToTileState(view, (d) => d.kpis.unbilledAccrualCents)}
           />
           <Link
@@ -280,7 +280,7 @@ export function CostsOverviewClient() {
 
             <BaseChartCard
               title="Booked vs AP billed by month"
-              subtitle={`FY${fyDisplayLabel(view.data.scope.fy)} · delivery booked vs xero_ap_bills`}
+              subtitle={`FY${fyDisplayLabel(view.data.scope.fy)} · delivery booked vs Xero AP, both ex-GST`}
               className="overflow-hidden rounded-card border border-border bg-card shadow-e1"
               exportPage="finance"
               exportSeries={{

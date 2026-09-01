@@ -125,7 +125,7 @@ export function FinanceSectionsOverview() {
             basisCaption={
               view.status === "ready"
                 ? view.data.invoicedToDate.basis
-                : "finance_billing_records · billed"
+                : "Invoiced = Xero AR, ex-GST"
             }
             state={blockToTileState(view, (d) => d.invoicedToDate)}
           />

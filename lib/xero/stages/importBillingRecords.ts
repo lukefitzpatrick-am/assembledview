@@ -13,7 +13,7 @@ import {
   xeroInvoiceKey,
 } from "../billingStatus"
 import { rowsOf } from "../dbRows"
-import { coerceDollars, dollarsToCents } from "../money"
+import { projectXeroArToBillingAmounts } from "../projectBillingAmounts"
 import {
   resolveClientFromContact,
   type AliasRow,
@@ -38,7 +38,7 @@ type ArRow = {
   mba_match_id: number | null
   issue_date: string | null
   status: string | null
-  total: string | number | null
+  sub_total: string | number | null
   line_items_json: unknown
   invoice_number: string | null
 }
@@ -98,7 +98,7 @@ export async function stageImportBillingRecords(): Promise<ImportBillingResult> 
       await db.execute(sql`
       SELECT
         xero_invoice_id, xero_contact_id, reference_raw, mba_number, mba_match_id,
-        issue_date::text AS issue_date, status, total, line_items_json, invoice_number
+        issue_date::text AS issue_date, status, sub_total, line_items_json, invoice_number
       FROM xero_ar_invoices
       WHERE issue_date >= '2025-07-01'
     `),
@@ -136,8 +136,10 @@ export async function stageImportBillingRecords(): Promise<ImportBillingResult> 
       const issueDate = row.issue_date ? String(row.issue_date).slice(0, 10) : null
       const billingMonth = issueDate ? issueDate.slice(0, 7) : null
       const status = mapXeroStatusToBillingStatus(row.status)
-      const totalDollars = coerceDollars(row.total)
-      const billedAmountCents = dollarsToCents(totalDollars)
+      // Decision (Luke, 1 Sep 2026): store ex-GST. Xero Total is inc-GST.
+      const { totalDollars, billedAmountCents } = projectXeroArToBillingAmounts(
+        row.sub_total
+      )
       const hasPendingEdits =
         !resolved.resolved || (billingType === "media" && mbaNumber === "")
 

@@ -74,7 +74,7 @@ ar_mba_month AS (
         to_char(CAST(date_trunc('month', fp.period_month) AS date), 'YYYY-MM'),
         to_char(CAST(date_trunc('month', ar.issue_date) AS date), 'YYYY-MM')
       ) AS activity_month,
-      CAST(ROUND(CAST(COALESCE(ar.total, 0) AS numeric) * 100) AS bigint) AS invoiced_cents,
+      CAST(ROUND(CAST(COALESCE(ar.sub_total, 0) AS numeric) * 100) AS bigint) AS invoiced_cents,
       CAST(ROUND(CAST(COALESCE(ar.amount_paid, 0) AS numeric) * 100) AS bigint) AS paid_cents
     FROM xero_ar_invoices ar
     LEFT JOIN xero_invoice_matches xm

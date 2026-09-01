@@ -34,6 +34,7 @@ import {
   LINE_DETAIL_COVERAGE_NOTE,
   lineDimOrCampaignLevelSql,
 } from "@/lib/finance/sections/serviceLineBucket"
+import { costsDeltaCents, xeroApExGstCents } from "@/lib/finance/sections/costsApAmount"
 import { normalizeContactKey } from "@/lib/xero/normalizeContact"
 
 export type FinanceCostsQuery = {
@@ -391,6 +392,7 @@ export async function fetchFinanceCostsSummary(
       b.status,
       to_char(date_trunc('month', COALESCE(b.activity_month, b.issue_date))::date, 'YYYY-MM') AS activity_month,
       b.due_date,
+      b.sub_total,
       b.total,
       b.amount_due,
       b.pdf_file,
@@ -433,7 +435,7 @@ export async function fetchFinanceCostsSummary(
       status: row.status == null ? null : String(row.status),
       activityMonth: String(row.activity_month ?? monthKeyFromDate(row.due_date)),
       dueDate: row.due_date == null ? null : String(row.due_date).slice(0, 10),
-      totalCents: asDollarsToCents(row.total),
+      totalCents: xeroApExGstCents(row.sub_total),
       amountDueCents: asDollarsToCents(row.amount_due),
       contactName,
       pdfUrl: pdfUrlFromJson(row.pdf_file),
@@ -557,7 +559,7 @@ export async function fetchFinanceCostsSummary(
   }
 
   for (const cell of bookedByPubMonth.values()) {
-    cell.deltaCents = cell.bookedCents - cell.apBilledCents
+    cell.deltaCents = costsDeltaCents(cell.bookedCents, cell.apBilledCents)
     cell.bills.sort((a, b) => (a.invoiceNumber ?? "").localeCompare(b.invoiceNumber ?? ""))
   }
 

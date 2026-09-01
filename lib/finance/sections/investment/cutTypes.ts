@@ -123,7 +123,7 @@ export type InvestmentCutArCoverage = {
 }
 
 export const AR_COVERAGE_NOTE =
-  "AR link = xero_invoice_matches→finance_run_items when present, else xero_ar_invoices.mba_number (T5 reference parse). Grain is MBA×month — never prorated to publisher/channel."
+  "AR link = xero_invoice_matches→finance_run_items when present, else xero_ar_invoices.mba_number (T5 reference parse). Grain is MBA×month — never prorated to publisher/channel. Invoiced = Xero AR, ex-GST."
 
 export type InvestmentCutAgencyCoverage = {
   caption: string

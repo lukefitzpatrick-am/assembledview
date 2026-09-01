@@ -122,6 +122,9 @@ export function CostsInvoicesClient() {
     >
       <div className="space-y-4">
         <CostsSubNav />
+        <p className="text-sm text-muted-foreground">
+          Booked, AP billed and Delta are ex-GST. AP billed = Xero AP, ex-GST.
+        </p>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <CostsLocalFilters
             channel={channel}
@@ -174,9 +177,9 @@ export function CostsInvoicesClient() {
                   <th className="w-8 px-2 py-2" />
                   <th className="px-2 py-2 font-medium">Publisher</th>
                   <th className="px-2 py-2 font-medium">Month</th>
-                  <th className="px-2 py-2 text-right font-medium">Booked</th>
-                  <th className="px-2 py-2 text-right font-medium">AP billed</th>
-                  <th className="px-2 py-2 text-right font-medium">Delta</th>
+                  <th className="px-2 py-2 text-right font-medium">Booked (ex-GST)</th>
+                  <th className="px-2 py-2 text-right font-medium">AP billed (ex-GST)</th>
+                  <th className="px-2 py-2 text-right font-medium">Delta (ex-GST)</th>
                 </tr>
               </thead>
               <tbody>
@@ -271,7 +274,7 @@ export function CostsInvoicesClient() {
                 <tr className="border-t border-border font-medium">
                   <td className="px-2 py-2" />
                   <td className="px-2 py-2" colSpan={2}>
-                    Totals
+                    Totals (ex-GST)
                   </td>
                   <td className="num px-2 py-2 text-right">{formatMoney(totals.booked / 100)}</td>
                   <td className="num px-2 py-2 text-right">{formatMoney(totals.ap / 100)}</td>

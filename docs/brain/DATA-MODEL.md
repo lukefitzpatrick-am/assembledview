@@ -14,7 +14,7 @@ Xano is no longer in the runtime read or write path. `lib/api/xano.ts` is the on
 | `db/avaClient.ts` → `AVA_DATABASE_URL` as role `ava_readonly` | AVA only | Fail-closed; explicit per-table `GRANT SELECT` + `CREATE POLICY ava_read`. New tables are excluded by default |
 | `DIRECT_URL` (port 5432) | `drizzle-kit` only | Never at runtime |
 
-**Migrations are applied by hand** through the Supabase SQL editor from `db/migrations/00NN_*.sql` (50 applied, `0001`…`0050`; there is no `0047` — the number was minted and abandoned). `0051_finance_billing_records_backfill.sql` is authored, not applied (live probe: 0 missing app-written rows). `db/schema/*.ts` is a hand-kept Drizzle mirror covering all 78 tables. Do not `db:migrate` the drizzle baseline — the tables already exist.
+**Migrations are applied by hand** through the Supabase SQL editor from `db/migrations/00NN_*.sql` (50 applied, `0001`…`0050`; there is no `0047` — the number was minted and abandoned). `0051_finance_billing_records_backfill.sql` and `0052_xero_billing_amounts_ex_gst.sql` are authored, not applied. `db/schema/*.ts` is a hand-kept Drizzle mirror covering all 78 tables. Do not `db:migrate` the drizzle baseline — the tables already exist.
 
 **`db:generate` does not prove the mirror matches the database.** The baseline was regenerated from the TypeScript mirrors, so an empty diff proves only that nobody edited `db/schema/*.ts` without regenerating the snapshot. It compares code to its own snapshot, not code to Postgres. Two columns were missing from the mirror while `db:generate` was clean.
 
@@ -105,7 +105,7 @@ Metrics on all three: `ctr`, `cpv`, `conversion_rate`, `vtr`, `frequency`. `clie
 |---|---|---|
 | `finance_periods` | 0 | Month status via `finance_period_status`, `amended_after_lock`, sheet blob pointer. Unique on `period_month` |
 | `finance_run_items` | 0 | The billing run. Five FKs: `period_id`→periods (cascade), `client_id`→clients, `version_id`→versions, plus self-references `linked_variance_from_item_id` and `rolled_from_item_id`. `sow_id` has **no** FK. Unique on (period_id, source, natural_key) |
-| `finance_billing_records` | 480 | `invoice_key` UNIQUE, `billed_amount_cents`, `billed_lines_hash`. App writes via `writeFinance.ts` (never `xero:`); Xero ingest owns `xero:` keys |
+| `finance_billing_records` | 480 | `invoice_key` UNIQUE, `billed_amount_cents`, `billed_lines_hash`. App writes via `writeFinance.ts` (never `xero:`); Xero ingest owns `xero:` keys and stores `sub_total` (ex-GST), not Xero Total |
 | `finance_billing_line_items` | 1 | child of records; `line_status`, `received_amount` |
 | `finance_edits` | 677 | before/after audit of billing edits |
 | `finance_forecast_snapshots` / `_lines` | 0 / 0 | Immutable snapshots, hash-deduped, cascade delete |

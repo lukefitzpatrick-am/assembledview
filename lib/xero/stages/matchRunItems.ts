@@ -148,7 +148,7 @@ export async function stageMatchRunItems(opts?: {
       reference_raw: string | null
       xero_contact_id: string | null
       issue_date: string | null
-      total: string | number | null
+      sub_total: string | number | null
       status: string | null
     }>(
       await db.execute(sql`
@@ -158,7 +158,7 @@ export async function stageMatchRunItems(opts?: {
           reference_raw,
           xero_contact_id,
           issue_date::text AS issue_date,
-          total,
+          sub_total,
           status
         FROM xero_ar_invoices
         WHERE coalesce(status, '') NOT IN ('DELETED', 'VOIDED')
@@ -172,7 +172,7 @@ export async function stageMatchRunItems(opts?: {
         contactKey: name ? normalizeContactKey(name) : null,
         xeroContactId: r.xero_contact_id,
         issueDate: r.issue_date,
-        amountCents: dollarsToCents(coerceDollars(r.total)),
+        amountCents: dollarsToCents(coerceDollars(r.sub_total)), // ex-GST; Xero Total is inc-GST
         status: r.status,
       }
     })
@@ -485,7 +485,7 @@ export async function reconcileDisputedWithArrivedCreditNotes(args?: {
         reference_raw: string | null
         xero_contact_id: string | null
         issue_date: string | null
-        total: string | number | null
+        sub_total: string | number | null
         status: string | null
       }>(
         await db.execute(sql`
@@ -495,7 +495,7 @@ export async function reconcileDisputedWithArrivedCreditNotes(args?: {
             reference_raw,
             xero_contact_id,
             issue_date::text AS issue_date,
-            total,
+            sub_total,
             status
           FROM xero_ar_invoices
           WHERE coalesce(status, '') NOT IN ('DELETED', 'VOIDED')
@@ -509,7 +509,7 @@ export async function reconcileDisputedWithArrivedCreditNotes(args?: {
           contactKey: name ? normalizeContactKey(name) : null,
           xeroContactId: r.xero_contact_id,
           issueDate: r.issue_date,
-          amountCents: dollarsToCents(coerceDollars(r.total)),
+          amountCents: dollarsToCents(coerceDollars(r.sub_total)), // ex-GST; Xero Total is inc-GST
           status: r.status,
         }
       })
