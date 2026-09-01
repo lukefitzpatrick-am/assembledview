@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const row = await setFinanceBillingRecordXeroMatch({
+    const { record: row } = await setFinanceBillingRecordXeroMatch({
       invoiceKey,
       xeroInvoiceId,
       matchedBy: "manual",

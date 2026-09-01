@@ -3,6 +3,7 @@
  * Postgres only. Natural key is invoice_key. Never writes xero: rows —
  * those belong to lib/xero/stages/importBillingRecords.ts.
  * Xero match stamps (`setFinanceBillingRecordXeroMatch`) never touch approved_*.
+ * An unchanged `matched_xero_invoice_id` does not rewrite `matched_at`.
  * Unmark-exported (`clearFinanceBillingRecordExported`) never touches approved_*.
  */
 
@@ -520,10 +521,15 @@ export async function clearFinanceBillingRecordExported(
  * Stamp `matched_xero_invoice_id` on an app billing record.
  * Never writes `xero:` keys. Never touches the approval snapshot.
  */
+export type XeroMatchWriteResult = {
+  record: Record<string, unknown>
+  unchanged: boolean
+}
+
 export async function setFinanceBillingRecordXeroMatch(
   input: SetFinanceBillingRecordXeroMatchInput,
   executor?: FinanceExecutor
-): Promise<Record<string, unknown>> {
+): Promise<XeroMatchWriteResult> {
   assertAppInvoiceKey(input.invoiceKey)
   const xeroInvoiceId = input.xeroInvoiceId.trim()
   if (!xeroInvoiceId) {
@@ -543,6 +549,7 @@ export async function setFinanceBillingRecordXeroMatch(
         updated_at = now()
       WHERE invoice_key = ${input.invoiceKey}
         AND invoice_key NOT LIKE 'xero:%'
+        AND matched_xero_invoice_id IS DISTINCT FROM ${xeroInvoiceId}
         AND (
           ${skipManual} = false
           OR matched_by IS NULL
@@ -553,13 +560,30 @@ export async function setFinanceBillingRecordXeroMatch(
     `)
   )
   const row = rows[0]
-  if (!row) {
+  if (row) return { record: asApiRecord(row), unchanged: false }
+
+  const existing = rowsOf<Record<string, unknown>>(
+    await db.execute(sql`
+      SELECT *
+      FROM finance_billing_records
+      WHERE invoice_key = ${input.invoiceKey}
+        AND invoice_key NOT LIKE 'xero:%'
+    `)
+  )[0]
+  if (!existing) {
     throw new FinanceBillingWriteError(
       "NOT_FOUND",
       `finance_billing_records invoice_key=${input.invoiceKey} not found`
     )
   }
-  return asApiRecord(row)
+  const existingId = String(existing.matched_xero_invoice_id ?? "").trim()
+  if (existingId === xeroInvoiceId) {
+    return { record: asApiRecord(existing), unchanged: true }
+  }
+  throw new FinanceBillingWriteError(
+    "NOT_FOUND",
+    `finance_billing_records invoice_key=${input.invoiceKey} not found`
+  )
 }
 
 export async function materialiseAndApproveFinanceBillingRecord(

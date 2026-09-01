@@ -20,6 +20,9 @@ export const SYNC_LOG_JSON_SHAPE_RE = /^\s*[{\[]/
 export const SQL_SYNC_LOG_NOTES_SOURCE_EXPR =
   "CASE WHEN notes ~ '^\\s*[{\\[]' THEN notes::jsonb->>'source' ELSE NULL END"
 
+export const SQL_SYNC_LOG_NOTES_PULLED_BY_EXPR =
+  "CASE WHEN notes ~ '^\\s*[{\\[]' THEN notes::jsonb->>'pulled_by' ELSE NULL END"
+
 export const sqlCronWatermarkLogWhere = sql.raw(
   `COALESCE(${SQL_SYNC_LOG_NOTES_SOURCE_EXPR}, '') IS DISTINCT FROM 'pull-xero'`,
 )

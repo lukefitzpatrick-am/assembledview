@@ -2,6 +2,7 @@ import { describe, it } from "node:test"
 import assert from "node:assert/strict"
 
 import {
+  SQL_SYNC_LOG_NOTES_PULLED_BY_EXPR,
   SQL_SYNC_LOG_NOTES_SOURCE_EXPR,
   isCronWatermarkEligibleNotes,
   pickLatestCronWatermarkLog,
@@ -75,5 +76,12 @@ describe("cron watermark lookup vs prose xero_sync_log.notes", () => {
     assert.ok(SQL_SYNC_LOG_NOTES_SOURCE_EXPR.includes("~"))
     assert.ok(SQL_SYNC_LOG_NOTES_SOURCE_EXPR.includes("notes::jsonb->>'source'"))
     assert.ok(SQL_SYNC_LOG_NOTES_SOURCE_EXPR.includes("ELSE NULL"))
+  })
+
+  it("guards pulled_by the same way so a per-user pull lookup cannot 22P02", () => {
+    assert.ok(SQL_SYNC_LOG_NOTES_PULLED_BY_EXPR.includes("CASE"))
+    assert.ok(SQL_SYNC_LOG_NOTES_PULLED_BY_EXPR.includes("~"))
+    assert.ok(SQL_SYNC_LOG_NOTES_PULLED_BY_EXPR.includes("notes::jsonb->>'pulled_by'"))
+    assert.ok(SQL_SYNC_LOG_NOTES_PULLED_BY_EXPR.includes("ELSE NULL"))
   })
 })

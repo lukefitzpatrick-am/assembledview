@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireFinanceAdmin } from "@/lib/requireRole"
-import { consumePullXeroRateLimit } from "@/lib/finance/sections/pullXeroRateLimit"
+import { checkPullXeroRateLimit } from "@/lib/finance/sections/pullXeroRateLimit"
 import { runPullXero } from "@/lib/finance/sections/pullXero"
 
 export const maxDuration = 60
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     (typeof gate.session?.user?.email === "string" && gate.session.user.email) ||
     "unknown"
 
-  const limit = consumePullXeroRateLimit(userKey)
+  const limit = await checkPullXeroRateLimit(userKey)
   if (!limit.ok) {
     return NextResponse.json(
       { error: "rate_limited", retry_after_seconds: limit.retryAfterSeconds },
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await runPullXero()
+    const result = await runPullXero({ pulledBy: userKey })
     return NextResponse.json(result)
   } catch (error) {
     console.error("[finance/sections/pull-xero]", error)

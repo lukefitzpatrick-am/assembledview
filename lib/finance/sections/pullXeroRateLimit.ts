@@ -1,36 +1,60 @@
 /**
  * Per-user 1/min gate for POST /api/finance/sections/pull-xero.
- * Process-local Map — Fluid instances do not share it (under-enforces across
- * isolates; does not queue).
+ * Source of truth is the newest pull-xero `xero_sync_log` row for this user
+ * (`notes.pulled_by`, CASE-guarded jsonb extract — never unguarded notes::jsonb).
  */
 
-const WINDOW_MS = 60_000
-const lastRunByUser = new Map<string, number>()
+import { sql } from "drizzle-orm"
+
+import { getDb } from "@/db"
+import { rowsOf } from "@/lib/xero/dbRows"
+import {
+  SQL_SYNC_LOG_NOTES_PULLED_BY_EXPR,
+  sqlPullXeroLogWhere,
+} from "@/lib/xero/syncLogNotes"
+
+export const PULL_XERO_WINDOW_MS = 60_000
 
 export type PullXeroRateLimitResult =
   | { ok: true }
   | { ok: false; retryAfterSeconds: number }
 
-export function consumePullXeroRateLimit(
-  userKey: string,
+export function pullXeroRetryAfterSeconds(
+  lastAtMs: number | null | undefined,
   now = Date.now()
-): PullXeroRateLimitResult {
-  const key = userKey.trim()
-  if (!key) return { ok: true }
-  const prev = lastRunByUser.get(key)
-  if (prev != null) {
-    const elapsed = now - prev
-    if (elapsed < WINDOW_MS) {
-      return {
-        ok: false,
-        retryAfterSeconds: Math.max(1, Math.ceil((WINDOW_MS - elapsed) / 1000)),
-      }
-    }
+): number | null {
+  if (lastAtMs == null || !Number.isFinite(lastAtMs)) return null
+  const elapsed = now - lastAtMs
+  if (elapsed < PULL_XERO_WINDOW_MS) {
+    return Math.max(1, Math.ceil((PULL_XERO_WINDOW_MS - elapsed) / 1000))
   }
-  lastRunByUser.set(key, now)
-  return { ok: true }
+  return null
 }
 
-export function resetPullXeroRateLimitForTests(): void {
-  lastRunByUser.clear()
+export async function checkPullXeroRateLimit(
+  userKey: string,
+  now = Date.now()
+): Promise<PullXeroRateLimitResult> {
+  const key = userKey.trim()
+  if (!key) return { ok: true }
+  const db = getDb()
+  const row = rowsOf<{ run_finished_at: string | null }>(
+    await db.execute(sql`
+      SELECT run_finished_at::text AS run_finished_at
+      FROM xero_sync_log
+      WHERE ${sqlPullXeroLogWhere}
+        AND ${sql.raw(SQL_SYNC_LOG_NOTES_PULLED_BY_EXPR)} = ${key}
+      ORDER BY id DESC
+      LIMIT 1
+    `)
+  )[0]
+  const lastMs = row?.run_finished_at ? Date.parse(String(row.run_finished_at)) : Number.NaN
+  const retryAfterSeconds = pullXeroRetryAfterSeconds(
+    Number.isFinite(lastMs) ? lastMs : null,
+    now
+  )
+  if (retryAfterSeconds != null) {
+    return { ok: false, retryAfterSeconds }
+  }
+  return { ok: true }
 }

@@ -92,22 +92,49 @@ async function loadLastPulledAt(): Promise<string | null> {
   return row?.run_finished_at ?? null
 }
 
-async function persistAutoStamps(stamps: DraftMatchStamp[]): Promise<number> {
-  let n = 0
-  for (const stamp of stamps) {
-    if (stamp.matched_by !== "auto") continue
-    try {
-      await setFinanceBillingRecordXeroMatch({
-        invoiceKey: stamp.invoice_key,
-        xeroInvoiceId: stamp.xero_invoice_id,
-        matchedBy: "auto",
-      })
-      n++
-    } catch {
-      // Already manual, missing row, or xero: key — skip.
+export type AutoStampPersistResult = {
+  ok: boolean
+  stamped: number
+  unchanged: number
+  failed: number
+  error?: string
+}
+
+export async function persistAutoStamps(
+  stamps: DraftMatchStamp[]
+): Promise<AutoStampPersistResult> {
+  const auto = stamps.filter((s) => s.matched_by === "auto")
+  if (auto.length === 0) {
+    return { ok: true, stamped: 0, unchanged: 0, failed: 0 }
+  }
+  try {
+    return await getDb().transaction(async (tx) => {
+      let stamped = 0
+      let unchanged = 0
+      for (const stamp of auto) {
+        const result = await setFinanceBillingRecordXeroMatch(
+          {
+            invoiceKey: stamp.invoice_key,
+            xeroInvoiceId: stamp.xero_invoice_id,
+            matchedBy: "auto",
+          },
+          tx
+        )
+        if (result.unchanged) unchanged += 1
+        else stamped += 1
+      }
+      return { ok: true, stamped, unchanged, failed: 0 }
+    })
+  } catch (err) {
+    console.error("[draft-match] auto-stamp transaction failed", err)
+    return {
+      ok: false,
+      stamped: 0,
+      unchanged: 0,
+      failed: auto.length,
+      error: err instanceof Error ? err.message : String(err),
     }
   }
-  return n
 }
 
 export async function fetchDraftMatchReport(
@@ -224,9 +251,6 @@ export async function fetchDraftMatchReport(
     scopes,
   })
 
-  const autoStamps = rows.flatMap((r) => r.stamps)
-  await persistAutoStamps(autoStamps)
-
   const grouped = groupDraftMatchRows(rows)
   return {
     lastPulledAt,
@@ -242,5 +266,3 @@ export async function fetchDraftMatchReport(
     approvedCandidates: approvedFiltered,
   }
 }
-
-export { persistAutoStamps }
