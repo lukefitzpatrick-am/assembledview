@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
-import { FINANCE_BILLING_RECORDS_PATH, xanoFinancePatch } from "@/lib/finance/xanoFinanceApi"
+import {
+  FinanceBillingWriteError,
+  patchFinanceBillingRecordById,
+} from "@/lib/data/writeFinance"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 
 export const maxDuration = 60
@@ -13,12 +16,21 @@ export async function PATCH(
 
   try {
     const { id } = await context.params
+    const numericId = Number(id)
     const body = (await request.json()) as Record<string, unknown>
-    const payload = await xanoFinancePatch(`${FINANCE_BILLING_RECORDS_PATH}/${id}`, body)
+    const payload = await patchFinanceBillingRecordById(numericId, body)
     return NextResponse.json(payload)
-  } catch (error: any) {
+  } catch (error: unknown) {
+    if (error instanceof FinanceBillingWriteError) {
+      const status =
+        error.code === "NOT_FOUND" ? 404 : error.code === "XERO_KEY_REFUSED" ? 409 : 400
+      return NextResponse.json({ error: error.code, details: error.message }, { status })
+    }
     return NextResponse.json(
-      { error: "Failed to update billing record", details: error?.message || String(error) },
+      {
+        error: "Failed to update billing record",
+        details: error instanceof Error ? error.message : String(error),
+      },
       { status: 500 }
     )
   }

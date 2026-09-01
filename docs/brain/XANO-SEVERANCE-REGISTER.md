@@ -129,11 +129,11 @@ SQL used (Postgres):
 | `/api/dashboard/spend-parity` | GET | via `global.ts` → `xanoDashboardsUrl` when plans≠pg | DATA_BACKEND_PLANS indirect | ZERO product callers | TOOLING |
 | `/api/finance/accrual` | GET | — | — | ZERO — UI uses billing+payables | RETIRE(dead) executed (410 X3) |
 | `/api/finance/billing` | GET | Hub compose; hard-requires `XANO_CLIENTS_BASE_URL`; schedule via DATA_BACKEND_FINANCE_SCHEDULE; `xanoReferenceCache` | partial | `lib/finance/api.ts`, costs accrual | PORT |
-| `/api/finance/billing/[id]` | PATCH | `xanoFinancePatch(finance_billing_records/:id)` | always-xano | `lib/finance/api.ts` | PORT |
-| `/api/finance/billing/line-items` | POST | `xanoFinancePost` | always-xano | `lib/finance/api.ts` | PORT |
-| `/api/finance/billing/line-items/[id]` | PATCH/DELETE | xanoFinancePatch/Delete | always-xano | `lib/finance/api.ts` | PORT |
-| `/api/finance/billing/mark-billed` | POST | xanoFinanceGet/Patch | always-xano | `lib/finance/api.ts` | PORT |
-| `/api/finance/billing/notes` | POST | xanoFinancePatch | always-xano | `lib/finance/api.ts` | PORT |
+| `/api/finance/billing/[id]` | PATCH | `writeFinance.patchFinanceBillingRecordById` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
+| `/api/finance/billing/line-items` | POST | `writeFinance.createFinanceBillingLineItem` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
+| `/api/finance/billing/line-items/[id]` | PATCH/DELETE | writeFinance patch/delete | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
+| `/api/finance/billing/mark-billed` | POST | `writeFinance` + Postgres echo | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
+| `/api/finance/billing/notes` | POST | `writeFinance.setFinanceBillingRecordNotes` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
 | `/api/finance/data` | GET | `relevantPlanVersions` + `readClients`/`readPublishers` | DATA_BACKEND_PLANS/CLIENTS/PUBLISHERS | Excel export dialog, UpcomingBilling | DUAL-DONE (X3 ported) |
 | `/api/finance/edits` | GET | `readFinance*` | DATA_BACKEND_FINANCE | `lib/finance/api.ts` | DUAL-DONE |
 | `/api/finance/edits` | POST | `xanoFinancePost(finance_edits)` | always-xano | store / api | PORT |
@@ -226,11 +226,11 @@ SQL used (Postgres):
 | `lib/api/mediaPlansListCache.ts` | versions + topline | DATA_BACKEND_PLANS | `/api/mediaplans` | DUAL-DONE |
 | `lib/api/dashboard/global.ts` | `xanoDashboardsUrl` monthly spend | DATA_BACKEND_PLANS | dashboard spend routes | PORT (cold if plans=pg) |
 | `lib/api/dashboard/{client,publisher,finance}.ts` | versions + channel fan-out | mostly unguarded | client/publisher/finance dashboards | PORT |
-| `lib/finance/xanoFinanceApi.ts` | finance_billing_* / edits / saved_views | none (writes) | finance write routes, xero-queue | PORT |
+| `lib/finance/xanoFinanceApi.ts` | finance_edits POST, xero-queue, leftover GET helpers | none (writes) | `writeFinanceAuditEdits`, xero-queue | PORT (billing record writes moved to writeFinance) |
 | `lib/finance/xanoReferenceCache.ts` | clients + get_publishers TTL | none | Ava, MBA GET, dashboard | PORT (retire behind dual readers) |
 | `lib/finance/billingOverrides.ts` | attach helpers only (`attachOverridesToLineInputs` / `*FromRow`); Xano soft-fail GET `fetchBillingOverridesForVersion` **deleted** (MB-5 — returned `[]` on miss → silent manual erase) | n/a (pure) | savePlan, recompute, UI | RETIRE(dead fetch) / KEEP(attach) — reads via `readBillingOverridesForVersion` (PG dual) |
 | `lib/data/writeMediaPlanMasters.ts` | PG insert `media_plan_masters` (seq) + Xano POST with explicit `id` | PG authoritative (X9) | `POST /api/mediaplans` | MIRROR (write) |
-| `lib/finance/materialiseFinanceBillingRecord.ts` | finance_billing_records GET/POST | none | mark-billed, notes | PORT |
+| `lib/finance/materialiseFinanceBillingRecord.ts` | `writeFinance.upsertFinanceBillingRecordByInvoiceKey` | PG (T0-1) | mark-billed, notes | DUAL-DONE (PG writes) |
 | `lib/finance/writeFinanceAuditEdits.ts` | finance_edits POST | none | finance edits | PORT |
 | `lib/finance/relevantPlanVersions.ts` | masters + versions crawl | none | finance hub relevance | PORT |
 | `lib/finance/forecast/snapshot/pgSnapshots.ts` | finance_forecast_snapshots(+lines) | DATABASE_URL | snapshot APIs | DUAL-DONE (PG) |

@@ -139,7 +139,7 @@ export async function fetchFinanceBillingRecordByIdFromXano(
 
 /**
  * List finance_billing_records with DATA_BACKEND_FINANCE / DATA_BACKEND.
- * Writes (upserts / mark-billed / notes) stay on Xano.
+ * Writes (upserts / mark-billed / notes) go through `lib/data/writeFinance.ts` (Postgres).
  */
 export async function readFinanceBillingRecords(): Promise<Record<string, unknown>[]> {
   const backend = getDataBackendFor(DOMAIN)

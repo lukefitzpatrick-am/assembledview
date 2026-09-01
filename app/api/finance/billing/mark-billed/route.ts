@@ -2,15 +2,13 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth0 } from "@/lib/auth0"
 import { getUserRoles } from "@/lib/rbac"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
+import { fetchFinanceBillingRecordByIdFromPostgres } from "@/lib/data/readFinance"
+import { setFinanceBillingRecordBilled } from "@/lib/data/writeFinance"
 import { hashBilledLineSet, toBilledLineSnapshots } from "@/lib/finance/billedDrift"
 import { ensureFinanceBillingRecord } from "@/lib/finance/materialiseFinanceBillingRecord"
 import { composeInvoiceKey } from "@/lib/finance/overlayFinanceStatus"
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
-import {
-  FINANCE_BILLING_RECORDS_PATH,
-  xanoFinanceGet,
-  xanoFinancePatch,
-} from "@/lib/finance/xanoFinanceApi"
+import { dollarsToCents } from "@/lib/xero/money"
 
 export const maxDuration = 60
 
@@ -185,6 +183,8 @@ export async function POST(request: NextRequest) {
 
     const billed_amount = billed ? (total as number) : null
     const billed_lines_hash = billed ? hashBilledLineSet(lineSnapshots) : null
+    const billed_amount_cents =
+      billed && billed_amount != null ? dollarsToCents(billed_amount) : null
 
     const patch = billed
       ? {
@@ -202,14 +202,19 @@ export async function POST(request: NextRequest) {
           billed_lines_hash: null,
         }
 
-    await xanoFinancePatch(`${FINANCE_BILLING_RECORDS_PATH}/${recordId}`, patch)
+    await setFinanceBillingRecordBilled({
+      invoiceKey: invoice_key,
+      billed,
+      billedBy: patch.billed_by,
+      billedAt: patch.billed_at,
+      billedAmountCents: billed_amount_cents,
+      billedLinesHash: patch.billed_lines_hash,
+    })
 
     if (billed) {
-      let echoed: Record<string, unknown>
+      let echoed: Record<string, unknown> | null
       try {
-        echoed = (await xanoFinanceGet(
-          `${FINANCE_BILLING_RECORDS_PATH}/${recordId}`
-        )) as Record<string, unknown>
+        echoed = await fetchFinanceBillingRecordByIdFromPostgres(recordId)
       } catch (error: unknown) {
         const details = error instanceof Error ? error.message : String(error)
         return NextResponse.json(
@@ -218,6 +223,18 @@ export async function POST(request: NextRequest) {
             message:
               "Marked billed but could not re-read finance_billing_records to verify snapshot fields.",
             details,
+          },
+          { status: 502 }
+        )
+      }
+
+      if (!echoed) {
+        return NextResponse.json(
+          {
+            error: "billed_snapshot_echo_failed",
+            message:
+              "Marked billed but could not re-read finance_billing_records to verify snapshot fields.",
+            details: "postgres row missing after write",
           },
           { status: 502 }
         )
@@ -234,7 +251,7 @@ export async function POST(request: NextRequest) {
           {
             error: "billed_snapshot_not_persisted",
             message:
-              "Xano PATCH did not persist billed_amount and/or billed_lines_hash. Check the finance_billing_records PATCH input map.",
+              "Postgres write did not persist billed_amount and/or billed_lines_hash.",
             expected: { billed_amount, billed_lines_hash },
             echoed: {
               billed_amount: echoed.billed_amount ?? null,
