@@ -131,8 +131,10 @@ export async function applyMatchMba(
   }
 
   if (result.matched && result.kind === "sow") {
-    // Scope invoices are resolved, not unmatched. Do not write mba_number
-    // (SOW is not an MBA). Do not touch existing xero_sync_exceptions rows.
+    // Unique scope match: clear any open exception left by a prior unmatched
+    // ingest (upsertOpenException only writes resolved:false). Do not write
+    // mba_number — a scope is not an MBA. Do not insert a new exception.
+    await resolveOpenExceptions(input.xeroInvoiceId, input.referenceRaw)
     return result
   }
 
