@@ -132,7 +132,10 @@ SQL used (Postgres):
 | `/api/finance/billing/[id]` | PATCH | `writeFinance.patchFinanceBillingRecordById` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
 | `/api/finance/billing/line-items` | POST | `writeFinance.createFinanceBillingLineItem` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
 | `/api/finance/billing/line-items/[id]` | PATCH/DELETE | writeFinance patch/delete | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
-| `/api/finance/billing/mark-billed` | POST | `writeFinance` + Postgres echo | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
+| `/api/finance/billing/mark-billed` | POST | 410 gone | — | `lib/finance/api.ts` | RETIRED (lifecycle derived) |
+| `/api/finance/billing/approve` | POST | `writeFinance.materialiseAndApproveFinanceBillingRecord` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
+| `/api/finance/billing/unapprove` | POST | `writeFinance.clearFinanceBillingRecordApproval` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
+| `/api/finance/billing/mark-exported` | POST | `writeFinance.setFinanceBillingRecordExported` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
 | `/api/finance/billing/notes` | POST | `writeFinance.setFinanceBillingRecordNotes` | PG (T0-1) | `lib/finance/api.ts` | DUAL-DONE (PG writes) |
 | `/api/finance/data` | GET | `relevantPlanVersions` + `readClients`/`readPublishers` | DATA_BACKEND_PLANS/CLIENTS/PUBLISHERS | Excel export dialog, UpcomingBilling | DUAL-DONE (X3 ported) |
 | `/api/finance/edits` | GET | `readFinance*` | DATA_BACKEND_FINANCE | `lib/finance/api.ts` | DUAL-DONE |
@@ -230,7 +233,7 @@ SQL used (Postgres):
 | `lib/finance/xanoReferenceCache.ts` | clients + get_publishers TTL | none | Ava, MBA GET, dashboard | PORT (retire behind dual readers) |
 | `lib/finance/billingOverrides.ts` | attach helpers only (`attachOverridesToLineInputs` / `*FromRow`); Xano soft-fail GET `fetchBillingOverridesForVersion` **deleted** (MB-5 — returned `[]` on miss → silent manual erase) | n/a (pure) | savePlan, recompute, UI | RETIRE(dead fetch) / KEEP(attach) — reads via `readBillingOverridesForVersion` (PG dual) |
 | `lib/data/writeMediaPlanMasters.ts` | PG insert `media_plan_masters` (seq) + Xano POST with explicit `id` | PG authoritative (X9) | `POST /api/mediaplans` | MIRROR (write) |
-| `lib/finance/materialiseFinanceBillingRecord.ts` | `writeFinance.upsertFinanceBillingRecordByInvoiceKey` | PG (T0-1) | mark-billed, notes | DUAL-DONE (PG writes) |
+| `lib/finance/materialiseFinanceBillingRecord.ts` | `writeFinance.upsertFinanceBillingRecordByInvoiceKey` | PG (T0-1) | approve, notes | DUAL-DONE (PG writes) |
 | `lib/finance/writeFinanceAuditEdits.ts` | finance_edits POST | none | finance edits | PORT |
 | `lib/finance/relevantPlanVersions.ts` | masters + versions crawl | none | finance hub relevance | PORT |
 | `lib/finance/forecast/snapshot/pgSnapshots.ts` | finance_forecast_snapshots(+lines) | DATABASE_URL | snapshot APIs | DUAL-DONE (PG) |

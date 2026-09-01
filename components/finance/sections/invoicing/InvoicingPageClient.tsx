@@ -17,9 +17,16 @@ import { LoadingState } from "@/components/finance/sections/LoadingState"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { exportBillingRecordsCsv } from "@/lib/finance/export"
 import { hasBillingEvidence } from "@/lib/finance/billingLifecycle"
+import {
+  filterApprovedReceivablesForExport,
+  summariseLastExport,
+} from "@/lib/finance/approvedReceivablesExport"
+import { grainFromBillingRecord } from "@/lib/finance/billingApproveGrain"
+import { approveBillingRecords, markBillingRecordsExported } from "@/lib/finance/api"
 import { exportReceivablesWorkbook } from "@/lib/finance/exportFinanceHub"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 import { formatAUD } from "@/lib/format/money"
+import { formatDateShort } from "@/lib/format/date"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import type { MonthGroup } from "@/lib/finance/useReceivablesData"
 import {
@@ -156,6 +163,8 @@ export function InvoicingPageClient() {
   } = useInvoicingReceivablesData(localFilters)
 
   const { toast } = useToast()
+  const [lastExportName, setLastExportName] = useState<string | null>(null)
+  const [approveBusy, setApproveBusy] = useState(false)
 
   const handleNotesSaved = useCallback(
     (result: { invoice_key: string; notes: string; persisted_record_id: number }) => {
@@ -191,6 +200,27 @@ export function InvoicingPageClient() {
     () => collectBillingRecordsFromMonthGroups(visibleMonthGroups),
     [visibleMonthGroups]
   )
+  const approvedRecords = useMemo(
+    () => filterApprovedReceivablesForExport(allRecords),
+    [allRecords]
+  )
+  const readyGrains = useMemo(
+    () =>
+      allRecords.flatMap((r) => {
+        if ((r.state ?? "ready") !== "ready") return []
+        const grain = grainFromBillingRecord(r)
+        return grain ? [grain] : []
+      }),
+    [allRecords]
+  )
+  const lastExport = useMemo(() => summariseLastExport(allRecords), [allRecords])
+  const lastExportLine = useMemo(() => {
+    if (!lastExport) return null
+    const name = lastExport.exportedByName ?? lastExportName ?? "finance admin"
+    const clients =
+      lastExport.clientCount === 1 ? "1 client" : `${lastExport.clientCount} clients`
+    return `Last exported ${formatDateShort(lastExport.exportedAt)} by ${name} · ${clients} · ${formatAUD(lastExport.total)}`
+  }, [lastExport, lastExportName])
 
   const kpi = useMemo(() => {
     const totalToBill = allRecords.reduce((s, r) => s + r.total, 0)
@@ -229,13 +259,22 @@ export function InvoicingPageClient() {
   }, [allRecords, monthLabel])
 
   const exportExcel = useCallback(async () => {
+    if (approvedRecords.length === 0) return
     try {
       // Bookkeeper / Xero invoice-style workbook (hub "Export to Excel"), not the flat grid.
       const { missingLegalBusinessNames } = await exportReceivablesWorkbook(
-        allRecords,
+        approvedRecords,
         monthLabel,
         "Finance_invoicing"
       )
+      const keys = approvedRecords
+        .map((r) => r.invoice_key)
+        .filter((k): k is string => typeof k === "string" && k.trim().length > 0)
+      if (keys.length > 0) {
+        const exported = await markBillingRecordsExported({ invoice_keys: keys })
+        setLastExportName(exported.exported_by_name)
+        bumpFetch()
+      }
       if (missingLegalBusinessNames.length > 0) {
         const names = missingLegalBusinessNames.map((c) => c.displayName).join(", ")
         console.warn(
@@ -256,7 +295,28 @@ export function InvoicingPageClient() {
         description: e instanceof Error ? e.message : "Unknown error",
       })
     }
-  }, [allRecords, monthLabel, toast])
+  }, [approvedRecords, monthLabel, toast, bumpFetch])
+
+  const approveReady = useCallback(async () => {
+    if (readyGrains.length === 0 || approveBusy) return
+    setApproveBusy(true)
+    try {
+      await approveBillingRecords({
+        invoice_keys: readyGrains.map((g) => g.invoice_key),
+        grains: readyGrains,
+      })
+      toast({ title: `Approved ${readyGrains.length} invoice${readyGrains.length === 1 ? "" : "s"}` })
+      bumpFetch()
+    } catch (e) {
+      toast({
+        variant: "destructive",
+        title: "Could not approve",
+        description: e instanceof Error ? e.message : "Unknown error",
+      })
+    } finally {
+      setApproveBusy(false)
+    }
+  }, [readyGrains, approveBusy, toast, bumpFetch])
 
   const coldLoading = loading && visibleMonthGroups.length === 0 && !loadError
   const showNoReceivables =
@@ -269,11 +329,19 @@ export function InvoicingPageClient() {
       scopeBar={
         <InvoicingToolbar
           showingLabel={`Receivables · ${applied.monthRange.from} → ${applied.monthRange.to}`}
+          lastExportLine={lastExportLine}
           localFilters={localFilters}
           onLocalFiltersChange={setLocalFilters}
           onExportCsv={exportCsv}
           onExportExcel={() => void exportExcel()}
-          exportDisabled={allRecords.length === 0 || isUpdating}
+          csvDisabled={allRecords.length === 0 || isUpdating}
+          excelDisabled={approvedRecords.length === 0 || isUpdating}
+          excelDisabledReason={
+            approvedRecords.length === 0 ? "Approve invoices before exporting." : undefined
+          }
+          onApproveReady={() => void approveReady()}
+          approveReadyCount={readyGrains.length}
+          approveBusy={approveBusy || isUpdating}
         />
       }
     >

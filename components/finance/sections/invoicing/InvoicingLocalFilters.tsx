@@ -39,7 +39,12 @@ type Props = {
   onChange: (next: InvoicingLocalFilters) => void
   onExportExcel?: () => void
   onExportCsv?: () => void
-  exportDisabled?: boolean
+  csvDisabled?: boolean
+  excelDisabled?: boolean
+  excelDisabledReason?: string
+  onApproveReady?: () => void
+  approveReadyCount?: number
+  approveBusy?: boolean
   /** When false, render field row only (parent owns the card — FIN-2 toolbar). */
   framed?: boolean
 }
@@ -49,7 +54,12 @@ export function InvoicingLocalFiltersBar({
   onChange,
   onExportExcel,
   onExportCsv,
-  exportDisabled,
+  csvDisabled,
+  excelDisabled,
+  excelDisabledReason,
+  onApproveReady,
+  approveReadyCount = 0,
+  approveBusy,
   framed = true,
 }: Props) {
   const [publisherOptions, setPublisherOptions] = useState<
@@ -178,25 +188,39 @@ export function InvoicingLocalFiltersBar({
           Include drafts
         </Label>
       </div>
-      <div className="ml-auto flex items-center gap-2 pb-0.5">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={exportDisabled}
-          onClick={onExportCsv}
-        >
-          CSV
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={exportDisabled}
-          onClick={onExportExcel}
-        >
-          Excel
-        </Button>
+      <div className="ml-auto flex flex-col items-end gap-1 pb-0.5">
+        <p className="text-[11px] text-muted-foreground">Only approved invoices export.</p>
+        <div className="flex items-center gap-2">
+          {onApproveReady ? (
+            <Button
+              type="button"
+              size="sm"
+              disabled={approveBusy || approveReadyCount === 0}
+              onClick={onApproveReady}
+            >
+              Approve ready{approveReadyCount > 0 ? ` (${approveReadyCount})` : ""}
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={csvDisabled}
+            onClick={onExportCsv}
+          >
+            CSV
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={excelDisabled}
+            title={excelDisabled && excelDisabledReason ? excelDisabledReason : undefined}
+            onClick={onExportExcel}
+          >
+            Excel
+          </Button>
+        </div>
       </div>
     </div>
   )

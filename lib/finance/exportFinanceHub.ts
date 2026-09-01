@@ -1,5 +1,6 @@
 import { saveAs } from "file-saver"
 import type { BillingRecord } from "@/lib/types/financeBilling"
+import { filterApprovedReceivablesForExport } from "@/lib/finance/approvedReceivablesExport"
 import { billingRecordsToFinanceCampaigns } from "@/lib/finance/billingRecordToCampaignData"
 import {
   loadFinanceExcelClientMeta,
@@ -44,9 +45,10 @@ export async function exportReceivablesWorkbook(
   const ExcelJS = (await import("exceljs")).default
   const { metaByClientId, missingLegalBusinessNames } = await loadFinanceExcelClientMeta()
   const workbook = new ExcelJS.Workbook()
-  const media = records.filter((r) => r.billing_type === "media")
-  const sow = records.filter((r) => r.billing_type === "sow")
-  const retainer = records.filter((r) => r.billing_type === "retainer")
+  const approved = filterApprovedReceivablesForExport(records)
+  const media = approved.filter((r) => r.billing_type === "media")
+  const sow = approved.filter((r) => r.billing_type === "sow")
+  const retainer = approved.filter((r) => r.billing_type === "retainer")
 
   if (media.length > 0) {
     await writeMediaFinanceWorksheet(

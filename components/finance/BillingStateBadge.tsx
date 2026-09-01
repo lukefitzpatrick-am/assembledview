@@ -23,15 +23,19 @@ function variantFor(state: BillingState): "critical" | "success" | "secondary" {
 export function BillingStateBadge({
   state,
   reason,
+  approvedDrift,
   className,
 }: {
   state: BillingState
   reason?: string
+  approvedDrift?: boolean
   className?: string
 }) {
+  const label =
+    state === "approved" && approvedDrift ? "Approved · changed since" : LABELS[state]
   return (
     <Badge size="sm" variant={variantFor(state)} title={reason} className={cn(className)}>
-      {LABELS[state]}
+      {label}
     </Badge>
   )
 }

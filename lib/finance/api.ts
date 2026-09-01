@@ -171,10 +171,14 @@ async function jsonOrThrow<T>(response: Response, pathForUrl: string): Promise<T
     let detail = trimmed.length > 0 ? trimmed : "Request failed"
     let field: string | undefined
     try {
-      const j = JSON.parse(raw) as { error?: unknown; field?: unknown }
-      if (j && typeof j === "object" && typeof j.error === "string") {
+      const j = JSON.parse(raw) as { error?: unknown; field?: unknown; message?: unknown }
+      if (j && typeof j === "object") {
         field = typeof j.field === "string" ? j.field : undefined
-        detail = `${j.error}${field ? ` (${field})` : ""}`
+        if (typeof j.message === "string" && j.message.trim()) {
+          detail = j.message.trim()
+        } else if (typeof j.error === "string") {
+          detail = `${j.error}${field ? ` (${field})` : ""}`
+        }
       }
     } catch {
       // keep detail as raw body text
@@ -419,6 +423,78 @@ export async function saveBillingNotes(params: {
   notes: string
 }> {
   const path = "/api/finance/billing/notes"
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  })
+  return jsonOrThrow(response, path)
+}
+
+export async function approveBillingRecords(params: {
+  invoice_keys: string[]
+  reapprove?: boolean
+  grains: Array<{
+    invoice_key: string
+    billing_type: BillingType
+    clients_id: number
+    client_name: string
+    mba_number: string | null
+    campaign_name: string | null
+    billing_month: string
+    total: number
+    line_items: Array<{
+      item_code: string
+      amount: number
+      schedule_line_item_id?: string | null
+    }>
+  }>
+}): Promise<{
+  ok: true
+  records: Array<{
+    invoice_key: string
+    persisted_record_id: number
+    approved_at: string | null
+    approved_by: number | null
+    approved_by_name: string | null
+    approved_amount: number | null
+    approved_lines_hash: string | null
+  }>
+}> {
+  const path = "/api/finance/billing/approve"
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  })
+  return jsonOrThrow(response, path)
+}
+
+export async function unapproveBillingRecords(params: { invoice_keys: string[] }): Promise<{
+  ok: true
+  records: Array<{ invoice_key: string; persisted_record_id: number }>
+}> {
+  const path = "/api/finance/billing/unapprove"
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  })
+  return jsonOrThrow(response, path)
+}
+
+export async function markBillingRecordsExported(params: { invoice_keys: string[] }): Promise<{
+  ok: true
+  exported_by_name: string
+  records: Array<{
+    invoice_key: string
+    persisted_record_id: number
+    exported_at: string | null
+    exported_by: number | null
+    exported_by_name: string
+  }>
+}> {
+  const path = "/api/finance/billing/mark-exported"
   const response = await fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

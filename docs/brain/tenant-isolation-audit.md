@@ -256,7 +256,7 @@ Path is under `/api/`. Gate column is the **effective** AuthZ (shared helpers co
 
 ### Finance (staff book)
 
-All finance handlers below are **admin-only** (`requireFinanceAdmin`, `requireRole(admin)`, or inline admin), including thin wrappers (`finance/sections/[...path]`, forecast snapshots/targets/variance, `xero-queue`, mark-billed, notes). Middleware also fail-closes `/api/finance/sections*` to admin.
+All finance handlers below are **admin-only** (`requireFinanceAdmin`, `requireRole(admin)`, or inline admin), including thin wrappers (`finance/sections/[...path]`, forecast snapshots/targets/variance, `xero-queue`, mark-billed, approve, unapprove, mark-exported, notes). Middleware also fail-closes `/api/finance/sections*` to admin.
 
 | Path group | Methods (summary) | Gate |
 |---|---|---|

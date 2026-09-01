@@ -16,12 +16,23 @@ import {
 
 export class FinanceBillingWriteError extends Error {
   constructor(
-    public readonly code: "XERO_KEY_REFUSED" | "NOT_FOUND" | "BAD_REQUEST",
+    public readonly code:
+      | "XERO_KEY_REFUSED"
+      | "NOT_FOUND"
+      | "BAD_REQUEST"
+      | "ALREADY_APPROVED"
+      | "ALREADY_EXPORTED",
     message: string
   ) {
     super(message)
     this.name = "FinanceBillingWriteError"
   }
+}
+
+type FinanceExecutor = { execute: ReturnType<typeof getDb>["execute"] }
+
+function financeDb(executor?: FinanceExecutor): FinanceExecutor {
+  return executor ?? getDb()
 }
 
 export type FinanceBillingRecordSeed = {
@@ -49,6 +60,20 @@ export type SetFinanceBillingRecordBilledInput = {
 export type SetFinanceBillingRecordNotesInput = {
   invoiceKey: string
   notes: string
+}
+
+export type SetFinanceBillingRecordApprovedInput = {
+  invoiceKey: string
+  approvedBy: number
+  approvedByName: string
+  approvedAmountCents: number
+  approvedLinesHash: string
+  reapprove?: boolean
+}
+
+export type SetFinanceBillingRecordExportedInput = {
+  invoiceKey: string
+  exportedBy: number
 }
 
 function rowsOf<T>(result: unknown): T[] {
@@ -143,10 +168,11 @@ async function loadInvoiceKeyByLineItemId(id: number): Promise<string | null> {
  */
 export async function upsertFinanceBillingRecordByInvoiceKey(
   invoiceKey: string,
-  values: FinanceBillingRecordSeed
+  values: FinanceBillingRecordSeed,
+  executor?: FinanceExecutor
 ): Promise<Record<string, unknown>> {
   assertAppInvoiceKey(invoiceKey)
-  const db = getDb()
+  const db = financeDb(executor)
   const total =
     typeof values.initial_total === "number" && Number.isFinite(values.initial_total)
       ? values.initial_total
@@ -199,10 +225,11 @@ export async function upsertFinanceBillingRecordByInvoiceKey(
 }
 
 export async function setFinanceBillingRecordBilled(
-  input: SetFinanceBillingRecordBilledInput
+  input: SetFinanceBillingRecordBilledInput,
+  executor?: FinanceExecutor
 ): Promise<Record<string, unknown>> {
   assertAppInvoiceKey(input.invoiceKey)
-  const db = getDb()
+  const db = financeDb(executor)
   const billedAt = input.billed ? toTimestamptz(input.billedAt) : null
   const billedBy = input.billed ? input.billedBy : null
   const cents = input.billed ? input.billedAmountCents : null
@@ -232,10 +259,11 @@ export async function setFinanceBillingRecordBilled(
 }
 
 export async function setFinanceBillingRecordNotes(
-  input: SetFinanceBillingRecordNotesInput
+  input: SetFinanceBillingRecordNotesInput,
+  executor?: FinanceExecutor
 ): Promise<Record<string, unknown>> {
   assertAppInvoiceKey(input.invoiceKey)
-  const db = getDb()
+  const db = financeDb(executor)
   const rows = rowsOf<Record<string, unknown>>(
     await db.execute(sql`
       UPDATE finance_billing_records SET
@@ -254,6 +282,159 @@ export async function setFinanceBillingRecordNotes(
     )
   }
   return asApiRecord(row)
+}
+
+async function loadApprovalExportStamps(
+  invoiceKey: string,
+  executor?: FinanceExecutor
+): Promise<{ approved_at: string | null; exported_at: string | null } | null> {
+  const db = financeDb(executor)
+  const rows = rowsOf<{ approved_at: string | null; exported_at: string | null }>(
+    await db.execute(sql`
+      SELECT approved_at, exported_at
+      FROM finance_billing_records
+      WHERE invoice_key = ${invoiceKey}
+        AND invoice_key NOT LIKE 'xero:%'
+      LIMIT 1
+    `)
+  )
+  return rows[0] ?? null
+}
+
+export async function setFinanceBillingRecordApproved(
+  input: SetFinanceBillingRecordApprovedInput,
+  executor?: FinanceExecutor
+): Promise<Record<string, unknown>> {
+  assertAppInvoiceKey(input.invoiceKey)
+  const db = financeDb(executor)
+  const reapprove = input.reapprove === true
+  const rows = rowsOf<Record<string, unknown>>(
+    await db.execute(sql`
+      UPDATE finance_billing_records SET
+        approved_at = now(),
+        approved_by = ${input.approvedBy},
+        approved_by_name = ${input.approvedByName},
+        approved_amount_cents = ${input.approvedAmountCents},
+        approved_lines_hash = ${input.approvedLinesHash},
+        updated_at = now()
+      WHERE invoice_key = ${input.invoiceKey}
+        AND invoice_key NOT LIKE 'xero:%'
+        AND (${reapprove} OR approved_at IS NULL)
+      RETURNING *
+    `)
+  )
+  const row = rows[0]
+  if (!row) {
+    const existing = await loadApprovalExportStamps(input.invoiceKey, executor)
+    if (!existing) {
+      throw new FinanceBillingWriteError(
+        "NOT_FOUND",
+        `finance_billing_records invoice_key=${input.invoiceKey} not found`
+      )
+    }
+    throw new FinanceBillingWriteError(
+      "ALREADY_APPROVED",
+      "Already approved. Pass reapprove: true to overwrite the snapshot."
+    )
+  }
+  return asApiRecord(row)
+}
+
+export async function clearFinanceBillingRecordApproval(
+  invoiceKey: string,
+  executor?: FinanceExecutor
+): Promise<Record<string, unknown>> {
+  assertAppInvoiceKey(invoiceKey)
+  const db = financeDb(executor)
+  const rows = rowsOf<Record<string, unknown>>(
+    await db.execute(sql`
+      UPDATE finance_billing_records SET
+        approved_at = NULL,
+        approved_by = NULL,
+        approved_by_name = NULL,
+        approved_amount_cents = NULL,
+        approved_lines_hash = NULL,
+        updated_at = now()
+      WHERE invoice_key = ${invoiceKey}
+        AND invoice_key NOT LIKE 'xero:%'
+        AND exported_at IS NULL
+      RETURNING *
+    `)
+  )
+  const row = rows[0]
+  if (!row) {
+    const existing = await loadApprovalExportStamps(invoiceKey, executor)
+    if (!existing) {
+      throw new FinanceBillingWriteError(
+        "NOT_FOUND",
+        `finance_billing_records invoice_key=${invoiceKey} not found`
+      )
+    }
+    if (existing.exported_at) {
+      throw new FinanceBillingWriteError(
+        "ALREADY_EXPORTED",
+        "This invoice has been exported. Amend the schedule and re-approve instead of unapproving."
+      )
+    }
+    throw new FinanceBillingWriteError(
+      "NOT_FOUND",
+      `finance_billing_records invoice_key=${invoiceKey} not found`
+    )
+  }
+  return asApiRecord(row)
+}
+
+export async function setFinanceBillingRecordExported(
+  input: SetFinanceBillingRecordExportedInput,
+  executor?: FinanceExecutor
+): Promise<Record<string, unknown>> {
+  assertAppInvoiceKey(input.invoiceKey)
+  const db = financeDb(executor)
+  const rows = rowsOf<Record<string, unknown>>(
+    await db.execute(sql`
+      UPDATE finance_billing_records SET
+        exported_at = now(),
+        exported_by = ${input.exportedBy},
+        updated_at = now()
+      WHERE invoice_key = ${input.invoiceKey}
+        AND invoice_key NOT LIKE 'xero:%'
+      RETURNING *
+    `)
+  )
+  const row = rows[0]
+  if (!row) {
+    throw new FinanceBillingWriteError(
+      "NOT_FOUND",
+      `finance_billing_records invoice_key=${input.invoiceKey} not found`
+    )
+  }
+  return asApiRecord(row)
+}
+
+export async function materialiseAndApproveFinanceBillingRecord(input: {
+  invoiceKey: string
+  seed: FinanceBillingRecordSeed
+  approvedBy: number
+  approvedByName: string
+  approvedAmountCents: number
+  approvedLinesHash: string
+  reapprove?: boolean
+}): Promise<Record<string, unknown>> {
+  const db = getDb()
+  return db.transaction(async (tx) => {
+    await upsertFinanceBillingRecordByInvoiceKey(input.invoiceKey, input.seed, tx)
+    return setFinanceBillingRecordApproved(
+      {
+        invoiceKey: input.invoiceKey,
+        approvedBy: input.approvedBy,
+        approvedByName: input.approvedByName,
+        approvedAmountCents: input.approvedAmountCents,
+        approvedLinesHash: input.approvedLinesHash,
+        reapprove: input.reapprove,
+      },
+      tx
+    )
+  })
 }
 
 function patchCentsFromBody(body: Record<string, unknown>): number | undefined {

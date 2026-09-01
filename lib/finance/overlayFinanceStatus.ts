@@ -35,6 +35,8 @@ export type PersistedFinanceStatusRow = {
   exported_by: number | null
   invoice_key: string | null
   approved_at?: string | number | null
+  approved_amount?: number | null
+  approved_lines_hash?: string | null
   matched_xero_invoice_id?: string | null
   /** Joined from xero_ar_invoices at overlay time; not stored on the billing row. */
   xero?: BillingXeroEvidence | null
@@ -199,6 +201,10 @@ export function applyStatusOverlay(
         billed_lines_hash: null,
         billed_drift: false,
         billed_drift_delta: null,
+        approved_amount: null,
+        approved_lines_hash: null,
+        approved_drift: false,
+        approved_drift_delta: null,
         notes: null,
         exported_at: null,
         exported_by: null,
@@ -220,6 +226,10 @@ export function applyStatusOverlay(
         billed_lines_hash: null,
         billed_drift: false,
         billed_drift_delta: null,
+        approved_amount: null,
+        approved_lines_hash: null,
+        approved_drift: false,
+        approved_drift_delta: null,
         notes: null,
         exported_at: null,
         exported_by: null,
@@ -237,13 +247,29 @@ export function applyStatusOverlay(
     typeof persisted.billed_lines_hash === "string" && persisted.billed_lines_hash.length > 0
       ? persisted.billed_lines_hash
       : null
+  const approved_amount =
+    typeof persisted.approved_amount === "number" && Number.isFinite(persisted.approved_amount)
+      ? persisted.approved_amount
+      : null
+  const approved_lines_hash =
+    typeof persisted.approved_lines_hash === "string" && persisted.approved_lines_hash.length > 0
+      ? persisted.approved_lines_hash
+      : null
+  const currentLines = toBilledLineSnapshots(record.line_items ?? [])
   // Schedule-derived total / line_items stay authoritative; drift is derived only.
   const drift = detectBilledDrift({
     billed,
     billedAmount: billed_amount,
     billedLinesHash: billed_lines_hash,
     currentTotal: record.total,
-    currentLines: toBilledLineSnapshots(record.line_items ?? []),
+    currentLines,
+  })
+  const approvalDrift = detectBilledDrift({
+    billed: overlayStampIso(persisted.approved_at) != null,
+    billedAmount: approved_amount,
+    billedLinesHash: approved_lines_hash,
+    currentTotal: record.total,
+    currentLines,
   })
   return withDerivedLifecycle(
     {
@@ -256,6 +282,10 @@ export function applyStatusOverlay(
       billed_lines_hash,
       billed_drift: drift.drift,
       billed_drift_delta: drift.delta,
+      approved_amount,
+      approved_lines_hash,
+      approved_drift: approvalDrift.drift,
+      approved_drift_delta: approvalDrift.delta,
       notes: persisted.notes ?? null,
       exported_at: persisted.exported_at ?? null,
       exported_by: persisted.exported_by ?? null,

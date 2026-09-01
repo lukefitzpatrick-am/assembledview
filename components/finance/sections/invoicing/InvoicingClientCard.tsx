@@ -14,6 +14,7 @@ import type { InlineScheduleEditContext } from "@/lib/finance/commitInlineSchedu
 import { clientInitials } from "@/lib/finance/cardHelpers"
 import { formatAUD } from "@/lib/format/money"
 import { BillingStateBadge } from "@/components/finance/BillingStateBadge"
+import { ReceivableApproveButton } from "@/components/finance/receivables/ReceivableApproveButton"
 import { ReceivableNotesButton } from "@/components/finance/receivables/ReceivableNotesButton"
 import { InvoicingMediaPlanSection } from "@/components/finance/sections/invoicing/InvoicingMediaPlanSection"
 import { formatInvoicedVsBooked } from "@/components/finance/sections/invoicing/invoicedVsBooked"
@@ -117,7 +118,12 @@ export function InvoicingClientCard({
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <BillingStateBadge state={rec.state ?? "ready"} reason={rec.state_reason} />
+                      <BillingStateBadge
+                        state={rec.state ?? "ready"}
+                        reason={rec.state_reason}
+                        approvedDrift={rec.approved_drift}
+                      />
+                      <ReceivableApproveButton record={rec} onDone={refetch} />
                       <ReceivableNotesButton record={rec} onSaved={onNotesSaved} />
                       <p className="num text-sm font-semibold">{formatAUD(rec.total)}</p>
                     </div>

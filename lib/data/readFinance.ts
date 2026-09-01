@@ -86,8 +86,16 @@ export function mapFinanceBillingRecordFromPostgres(
     const n = Number(api.billed_amount_cents)
     if (Number.isFinite(n)) api.billed_amount = n / 100
   }
+  const approvedCents = api.approved_amount_cents
+  if (typeof approvedCents === "number" && Number.isFinite(approvedCents)) {
+    api.approved_amount = approvedCents / 100
+  } else if (api.approved_amount_cents != null) {
+    const n = Number(api.approved_amount_cents)
+    if (Number.isFinite(n)) api.approved_amount = n / 100
+  }
   // Compare/serve on Xano field name; keep cents for postgresKeysOnly skip of reverse.
   delete api.billed_amount_cents
+  delete api.approved_amount_cents
   return api
 }
 

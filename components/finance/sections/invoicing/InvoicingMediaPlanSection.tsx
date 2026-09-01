@@ -16,6 +16,7 @@ import { formatAUD } from "@/lib/format/money"
 import { cn } from "@/lib/utils"
 import { MediaPlanActionBar } from "@/components/finance/MediaPlanActionBar"
 import { BillingStateBadge } from "@/components/finance/BillingStateBadge"
+import { ReceivableApproveButton } from "@/components/finance/receivables/ReceivableApproveButton"
 import { ReceivableNotesButton } from "@/components/finance/receivables/ReceivableNotesButton"
 import { ReceivablesLineGroupRow } from "@/components/finance/receivables/ReceivablesLineGroupRow"
 import { formatInvoicedVsBookedForRecords } from "@/components/finance/sections/invoicing/invoicedVsBooked"
@@ -189,7 +190,9 @@ export function InvoicingMediaPlanSection({
           <BillingStateBadge
             state={mp.records[0]?.state ?? "ready"}
             reason={mp.records[0]?.state_reason}
+            approvedDrift={mp.records[0]?.approved_drift}
           />
+          <ReceivableApproveButton record={mp.records[0]} onDone={refetch} />
           <ReceivableNotesButton record={mp.records[0]} onSaved={onNotesSaved} />
         </div>
       ) : null}

@@ -105,9 +105,20 @@ export interface BillingRecord {
   notes?: string | null
   exported_at?: number | string | null
   exported_by?: number | null
+  /** Display name at export time when the overlay has it; not a Postgres column. */
+  exported_by_name?: string | null
   invoice_key?: string | null
   /** Approval stamp ISO; evidence for derived `state`. Not a stored lifecycle column. */
   approved_at?: string | null
+  /** Dollars reconstituted from `approved_amount_cents` at overlay time. */
+  approved_amount?: number | null
+  approved_lines_hash?: string | null
+  /**
+   * True when approved and the current recomputed total / line set differs from
+   * the approval snapshot. Derived at overlay time via `detectBilledDrift`.
+   */
+  approved_drift?: boolean
+  approved_drift_delta?: number | null
   /**
    * Derived invoicing lifecycle (`resolveBillingState`). Never persisted.
    * Set on the overlay read path.

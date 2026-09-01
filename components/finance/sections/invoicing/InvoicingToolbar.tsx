@@ -11,25 +11,40 @@ import type { InvoicingLocalFilters } from "@/lib/finance/sections/useInvoicingR
 
 type Props = {
   showingLabel?: string
+  lastExportLine?: string | null
   localFilters: InvoicingLocalFilters
   onLocalFiltersChange: (next: InvoicingLocalFilters) => void
   onExportExcel?: () => void
   onExportCsv?: () => void
-  exportDisabled?: boolean
+  csvDisabled?: boolean
+  excelDisabled?: boolean
+  excelDisabledReason?: string
+  onApproveReady?: () => void
+  approveReadyCount?: number
+  approveBusy?: boolean
 }
 
 export function InvoicingToolbar({
   showingLabel,
+  lastExportLine,
   localFilters,
   onLocalFiltersChange,
   onExportExcel,
   onExportCsv,
-  exportDisabled,
+  csvDisabled,
+  excelDisabled,
+  excelDisabledReason,
+  onApproveReady,
+  approveReadyCount = 0,
+  approveBusy,
 }: Props) {
   return (
     <div className="rounded-card border border-border bg-card px-3 py-3 shadow-e1">
       <div className="flex flex-col gap-3">
         <SectionScopeBar showingLabel={showingLabel} />
+        {lastExportLine ? (
+          <p className="text-xs text-muted-foreground">{lastExportLine}</p>
+        ) : null}
         <div className="border-t border-border pt-3">
           <InvoicingLocalFiltersBar
             framed={false}
@@ -37,7 +52,12 @@ export function InvoicingToolbar({
             onChange={onLocalFiltersChange}
             onExportCsv={onExportCsv}
             onExportExcel={onExportExcel}
-            exportDisabled={exportDisabled}
+            csvDisabled={csvDisabled}
+            excelDisabled={excelDisabled}
+            excelDisabledReason={excelDisabledReason}
+            onApproveReady={onApproveReady}
+            approveReadyCount={approveReadyCount}
+            approveBusy={approveBusy}
           />
         </div>
       </div>
