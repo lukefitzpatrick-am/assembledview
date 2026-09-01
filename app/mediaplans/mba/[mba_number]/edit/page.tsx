@@ -1817,6 +1817,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   }>>([])
   const versionsMetaLoadedRef = useRef(false)
   const versionsMetaInflightRef = useRef<Promise<void> | null>(null)
+  const ingestStageIdRef = useRef<string | null>(null)
   const [latestVersionNumber, setLatestVersionNumber] = useState<number>(1)
   const [nextSaveVersionNumber, setNextSaveVersionNumber] = useState<number | null>(null)
   const [selectedVersionNumber, setSelectedVersionNumber] = useState<number | null>(null)
@@ -7842,6 +7843,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 production: shouldEnableProduction,
               },
               lineItems: lineItemsForSave,
+              ingestStageId: ingestStageIdRef.current || undefined,
             },
             {
               feeLoading: feeLoadingForSave,
@@ -7906,6 +7908,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
 
         updateSaveStatus("Save plan (transactional)", "success")
+        if (saveResult.data.ingestStageRetained) {
+          ingestStageIdRef.current = null
+        }
+        if (saveResult.data.ingestPanelError) {
+          toast({
+            variant: "destructive",
+            title: "Plan saved without panels",
+            description: saveResult.data.ingestPanelError,
+          })
+        }
         void planDraft.clearAfterPublish()
         const versionId = saveResult.data.versionId
         const numericSavedVersion = modeResolved.versionNumber
@@ -11237,11 +11249,18 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       channel,
       items,
       replace = true,
+      ingestStageId,
     }: {
       channel: "radio" | "ooh"
       items: Record<string, unknown>[]
       replace?: boolean
+      ingestStageId?: string
     }) => {
+      if (typeof ingestStageId === "string" && ingestStageId.trim()) {
+        ingestStageIdRef.current = ingestStageId.trim()
+      } else {
+        ingestStageIdRef.current = null
+      }
       if (channel === "radio") {
         setRadioMediaLineItems((prev) => (replace ? items : [...prev, ...items]))
         markUnsavedChanges()

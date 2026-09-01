@@ -81,4 +81,6 @@ export type CapturedLineItemsLoad = {
   channel: AutopopulateChannel
   items: Record<string, unknown>[]
   replace: boolean
+  /** Staged ingest to complete on the next human Save. Never shown in UI. */
+  ingestStageId?: string
 }

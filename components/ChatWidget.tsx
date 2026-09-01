@@ -1035,6 +1035,7 @@ async function maybeApplyLineItemsLoad({
       channel: load.channel,
       items: load.items,
       replace: load.replace !== false,
+      ingestStageId: load.ingestStageId,
     })
     if (typeof note === "string" && note.trim()) {
       appendAssistantNote(note)

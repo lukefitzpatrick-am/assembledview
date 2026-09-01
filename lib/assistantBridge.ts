@@ -45,6 +45,7 @@ type AssistantActionHandlers = {
     channel: "radio" | "ooh"
     items: Record<string, unknown>[]
     replace?: boolean
+    ingestStageId?: string
   }) => Promise<string | void> | string | void
   /**
    * Read current grid line items for a channel (AVA adjust_line_items → server).

@@ -333,6 +333,8 @@ describe("create + edit assembly twins (shared helpers)", () => {
         /postPlansSave\(\s*assemblePlansSaveRequestBody\(/
       )
       assert.match(src, /CampaignStatusControl/)
+      assert.match(src, /ingestStageIdRef/)
+      assert.match(src, /ingestStageId:\s*ingestStageIdRef\.current/)
     }
     // CS-C1: create AVA PageFields omit campaign status; selectable vocab stays on edit (control options).
     assert.equal(createSrc.includes("SELECTABLE_CAMPAIGN_STATUSES"), false)
@@ -495,11 +497,23 @@ describe("UI-1 twin: save messages live in the sidebar panel, bar is actions onl
 
       const panel = sliceConst(src, "wizardStatusPanel", "wizardDraftDialogs")
       assert.match(panel, /PlanDraftActiveBanner/)
-      assert.match(panel, /PlanDraftPill/)
-      assert.match(panel, /BuilderIssuesBadge/)
+      assert.match(panel, /issues=\{builderIssues\}/)
+      assert.match(panel, /extraProblemTexts=\{extraProblemTexts\}/)
+      assert.match(panel, /savePrimary=/)
+      assert.match(panel, /saveSecondary=/)
+      assert.match(panel, /saveTip=/)
+      assert.match(panel, /isSaving=/)
       assert.match(panel, /compact/)
+      assert.doesNotMatch(panel, /PlanDraftPill/)
+      assert.doesNotMatch(panel, /BuilderIssuesBadge/)
+      assert.doesNotMatch(panel, /saveMode=/)
+      assert.doesNotMatch(panel, /alerts=/)
       assert.doesNotMatch(panel, /CampaignExportsSection/)
       assert.doesNotMatch(panel, /handleSaveAll/)
+
+      assert.match(src, /const extraProblemTexts: string\[\] = \[\]/)
+      assert.match(src, /Duplicate line-item rows detected/)
+      assert.match(src, /flight dates outside the campaign window/)
 
       const bar = sliceBottomBar(src)
       assert.match(bar, /CampaignExportsSection/)
@@ -507,6 +521,7 @@ describe("UI-1 twin: save messages live in the sidebar panel, bar is actions onl
       assert.doesNotMatch(bar, /PlanDraftActiveBanner/)
       assert.doesNotMatch(bar, /PlanDraftPill/)
       assert.doesNotMatch(bar, /BuilderIssuesBadge/)
+      assert.doesNotMatch(bar, /PlanWizardSaveMessages/)
       assert.doesNotMatch(bar, /PlanDraftStaleBanner/)
       assert.doesNotMatch(bar, /dateWarning\.hasViolation/)
     }

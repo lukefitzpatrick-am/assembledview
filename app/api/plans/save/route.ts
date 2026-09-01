@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
-import { z } from "zod"
 import { eq, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
 import { LINE_CHANNELS } from "@/db/schema"
 import { checkClientMbaAccess } from "@/lib/auth/checkClientMbaAccess"
 import { getWriteBackend, isXanoMirrorEnabled } from "@/lib/data/backend"
+import { plansSaveBodySchema } from "@/lib/mediaplan/plansSaveBodySchema"
 import {
   mirrorInputFromSave,
   mirrorPlanToXano,
 } from "@/lib/data/mirrorToXano"
 import { SavePlanError, savePlanVersion } from "@/lib/data/savePlan"
+import { completeStagedIngestAfterSave } from "@/lib/mediaplans/ingest/completeStagedIngestAfterSave"
+import { ingestSourceRowRefsFromAttrs } from "@/lib/mediaplans/ingest/ingestSourceRowRefs"
 import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import { requireRole } from "@/lib/requireRole"
 import {
@@ -28,110 +30,6 @@ import {
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const maxDuration = 60
-
-const monthAmountSchema = z.object({
-  month: z.string().min(1),
-  amount: z.number(),
-})
-
-const overrideSchema = z.object({
-  mode: z.enum(["auto", "manual"]),
-  reason: z.enum(["prepayment", "client_terms", "manual"]).optional(),
-  months: z.array(monthAmountSchema),
-  dateBasis: z.string(),
-})
-
-const feeOverrideSchema = z.object({
-  mode: z.literal("manual"),
-  reason: z.enum(["prepayment", "client_terms", "manual"]).optional(),
-  months: z.array(monthAmountSchema),
-  dateBasis: z.string(),
-  component: z.literal("fee").optional(),
-})
-
-const lineItemSchema = z.object({
-  lineItemId: z.string().min(1),
-  channel: z.enum(LINE_CHANNELS as unknown as [string, ...string[]]),
-  position: z.number().int().nullable().optional(),
-  market: z.string().nullable().optional(),
-  buyingDemo: z.string().nullable().optional(),
-  buyType: z.string().nullable().optional(),
-  publisher: z.string().nullable().optional(),
-  platform: z.string().nullable().optional(),
-  bidStrategy: z.string().nullable().optional(),
-  fixedCostMedia: z.boolean().nullable().optional(),
-  clientPaysForMedia: z.boolean().nullable().optional(),
-  budgetIncludesFees: z.boolean().nullable().optional(),
-  noAdserving: z.boolean().nullable().optional(),
-  bursts: z.unknown(),
-  attrs: z.record(z.string(), z.unknown()).nullable().optional(),
-  mediaType: z.string().min(1),
-  rate: z.number(),
-  enteredAmount: z.number(),
-  feePct: z.number().optional(),
-  approval: z.enum(["approved", "excluded"]).optional(),
-  label: z.string().optional(),
-  billingOverride: overrideSchema.optional(),
-  feeOverride: feeOverrideSchema.optional(),
-})
-
-const ensureMasterSchema = z.object({
-  mbaNumber: z.string().min(1),
-  mpClientName: z.string().nullable().optional(),
-  campaignName: z.string().nullable().optional(),
-  campaignStatus: z.string().nullable().optional(),
-  campaignStartDate: z.string().nullable().optional(),
-  campaignEndDate: z.string().nullable().optional(),
-  campaignBudgetCents: z.number().int().nullable().optional(),
-  clientId: z.number().int().positive().nullable().optional(),
-})
-
-const bodySchema = z.object({
-  masterId: z.number().int().positive(),
-  mbaNumber: z.string().min(1),
-  versionNumber: z.number().int().positive(),
-  mode: z.enum(["draft", "new_version", "publish"]),
-  campaignName: z.string().nullable().optional(),
-  campaignStatus: z.string().nullable().optional(),
-  campaignStartDate: z.string().nullable().optional(),
-  campaignEndDate: z.string().nullable().optional(),
-  brand: z.string().nullable().optional(),
-  clientContact: z.string().nullable().optional(),
-  poNumber: z.string().nullable().optional(),
-  campaignBudgetCents: z.number().int().nullable().optional(),
-  fixedFee: z.boolean().nullable().optional(),
-  channelFlags: z.record(z.string(), z.unknown()).nullable().optional(),
-  mediaPlanFile: z.unknown().optional(),
-  mbaPdfFile: z.unknown().optional(),
-  aaMediaPlanFile: z.unknown().optional(),
-  lineItems: z.array(lineItemSchema),
-  feeLoading: z.record(z.string(), z.number()),
-  feeSnapshot: z.record(z.string(), z.unknown()).optional(),
-  adservaudio: z.number().optional(),
-  adservvideo: z.number().optional(),
-  adservdisplay: z.number().optional(),
-  adservimp: z.number().optional(),
-  /** Month chips at approve/publish — drives approved_slice. */
-  selectedMonthYears: z.array(z.string()).optional(),
-  /** O4 — working billing snapshot for AUTO correction toast (not authoritative). */
-  clientBillingSchedulePreview: z.array(z.any()).optional().nullable(),
-  /**
-   * MB-25 — override REPLACE-SET intent.
-   * authoritative:true only after a successful billing_overrides GET.
-   * Missing → treated as not authoritative (skip REPLACE-SET).
-   */
-  billingOverrides: z
-    .object({
-      authoritative: z.boolean(),
-      clearedLineIds: z.array(z.string()),
-    })
-    .optional()
-    .nullable(),
-  /** Safety net only (X9): master should already exist from POST /api/mediaplans. */
-  ensureMaster: ensureMasterSchema.optional(),
-  /** PC7: tip version id the editor started from — 409 if tip moved. */
-  baseVersionId: z.number().int().positive().optional().nullable(),
-})
 
 /**
  * POST /api/plans/save — Postgres transactional save (T4a) + best-effort Xano
@@ -159,7 +57,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
 
-  const parsed = bodySchema.safeParse(raw)
+  const parsed = plansSaveBodySchema.safeParse(raw)
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Validation failed", issues: parsed.error.flatten() },
@@ -397,6 +295,19 @@ export async function POST(request: NextRequest) {
       console.warn("[PC7] clear working draft after save failed", err)
     }
 
+    const ingestComplete = await completeStagedIngestAfterSave({
+      ingestStageId: body.ingestStageId,
+      mbaNumber: body.mbaNumber,
+      masterId: body.masterId,
+      acceptedVersionId: result.versionId,
+      savedLineItems: body.lineItems.map((l) => ({
+        lineItemId: l.lineItemId,
+        channel: l.channel,
+        ingestSourceRowRefs: ingestSourceRowRefsFromAttrs(l.attrs),
+      })),
+      uploadedBy: publishedByEmail,
+    })
+
     return NextResponse.json({
       versionId: result.versionId,
       versionNumber: result.versionNumber,
@@ -413,6 +324,12 @@ export async function POST(request: NextRequest) {
         ? { droppedBillingOverrides: result.droppedBillingOverrides }
         : {}),
       ...(mirror === "failed" ? { mirrorError } : {}),
+      ...(ingestComplete.ingestStageRetained
+        ? { ingestStageRetained: true }
+        : {}),
+      ...(ingestComplete.ingestPanelError
+        ? { ingestPanelError: ingestComplete.ingestPanelError }
+        : {}),
     })
   } catch (err) {
     if (err instanceof SavePlanError) {

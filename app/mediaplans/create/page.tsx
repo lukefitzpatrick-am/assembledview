@@ -1707,16 +1707,25 @@ function CreateMediaPlan() {
     return `Toggled ${selector} to ${value}`
   }, [])
 
+  const ingestStageIdRef = useRef<string | null>(null)
+
   const handleSetLineItems = useCallback(
     async ({
       channel,
       items,
       replace = true,
+      ingestStageId,
     }: {
       channel: "radio" | "ooh"
       items: Record<string, unknown>[]
       replace?: boolean
+      ingestStageId?: string
     }) => {
+      if (typeof ingestStageId === "string" && ingestStageId.trim()) {
+        ingestStageIdRef.current = ingestStageId.trim()
+      } else {
+        ingestStageIdRef.current = null
+      }
       if (channel === "radio") {
         setRadioMediaLineItems((prev) => (replace ? items : [...prev, ...items]))
         markUnsavedChanges()
@@ -5563,6 +5572,7 @@ function CreateMediaPlan() {
                 production: shouldEnableProduction,
               },
               lineItems: lineItemsForSave,
+              ingestStageId: ingestStageIdRef.current || undefined,
               ensureMaster: {
                 mbaNumber: mbaNum,
                 mpClientName: clientName,
@@ -5628,6 +5638,16 @@ function CreateMediaPlan() {
         }
 
         updateSaveStatus("Save plan (transactional)", "success")
+        if (saveResult.data.ingestStageRetained) {
+          ingestStageIdRef.current = null
+        }
+        if (saveResult.data.ingestPanelError) {
+          toast({
+            variant: "destructive",
+            title: "Plan saved without panels",
+            description: saveResult.data.ingestPanelError,
+          })
+        }
         void planDraft.clearAfterPublish()
         if (saveResult.data.mirror === "failed") {
           updateSaveStatus(

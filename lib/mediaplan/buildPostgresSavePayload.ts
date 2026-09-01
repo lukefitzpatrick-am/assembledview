@@ -291,6 +291,12 @@ export type PlansSaveRequestBody = {
     authoritative: boolean
     clearedLineIds: string[]
   } | null
+  /**
+   * Staged ingest to complete after this save. Not a plan-txn field —
+   * the route hook reads it after savePlanVersion. Assemble must pass it
+   * through (do not strip like campaignStatus).
+   */
+  ingestStageId?: string
 }
 
 export type PlansSaveResponse = {
@@ -323,6 +329,10 @@ export type PlansSaveResponse = {
     currentVersionId: number
     sections: { base: string; yours: string; current: string }
   }
+  /** Present when panels failed after the version committed. */
+  ingestPanelError?: string
+  /** True when the staged ingest was retained (or already retained). */
+  ingestStageRetained?: boolean
 }
 
 export async function postPlansSave(
