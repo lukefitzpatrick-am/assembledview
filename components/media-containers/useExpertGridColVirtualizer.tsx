@@ -42,6 +42,9 @@ export type ExpertGridColVirtualizerResult = {
 /**
  * Horizontal week-column window for expert grids (OOH Phase 2 column prototype).
  *
+ * UNUSED — fully written and not wired into ExpertGrid. Horizontal
+ * virtualisation is not live; do not assume this hook is on the scroll path.
+ *
  * Shares the same overflow scroller as row virtualization. Sticky descriptor
  * geometry stays fully mounted; only the week band after the sticky boundary is
  * windowed. Left/right spacer cells preserve the week-band scroll width — they

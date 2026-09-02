@@ -1843,7 +1843,7 @@ const handleValueChange = useCallback((lineItemIndex: number, burstIndex: number
             <DialogTitle>Television Expert Mode</DialogTitle>
           </DialogHeader>
           <ComboboxModalProvider>
-            <div className="flex-1 min-h-0 overflow-auto">
+            <div className="flex-1 min-h-0 overflow-hidden">
               <TelevisionExpertGrid
                 campaignStartDate={campaignStartDate}
                 campaignEndDate={campaignEndDate}

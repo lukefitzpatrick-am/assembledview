@@ -1451,7 +1451,7 @@ useEffect(() => {
             <DialogTitle>Digi Video Expert Mode</DialogTitle>
           </DialogHeader>
           <ComboboxModalProvider>
-            <div className="flex-1 min-h-0 overflow-auto">
+            <div className="flex-1 min-h-0 overflow-hidden">
               <DigitalVideoExpertGrid
                 campaignStartDate={campaignStartDate}
                 campaignEndDate={campaignEndDate}

@@ -1517,7 +1517,7 @@ useEffect(() => {
             <DialogTitle>Digital Audio Expert Mode</DialogTitle>
           </DialogHeader>
           <ComboboxModalProvider>
-            <div className="flex-1 min-h-0 overflow-auto">
+            <div className="flex-1 min-h-0 overflow-hidden">
               <DigitalAudioExpertGrid
                 campaignStartDate={campaignStartDate}
                 campaignEndDate={campaignEndDate}

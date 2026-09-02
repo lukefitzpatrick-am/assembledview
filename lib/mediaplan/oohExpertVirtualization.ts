@@ -12,8 +12,38 @@ import type { OohExpertScheduleRow } from "@/lib/mediaplan/expertModeWeeklySched
 /**
  * Fixed body-row height (px). Must match CSS `height` / `max-height` on each
  * schedule `<tr>` and `estimateSize` on the virtualizer — no measureElement.
+ * `max-height` on a `<tr>` does not apply (CSS 2.1 §10.5); `height` is a
+ * minimum. Dev builds assert the first mounted body row via
+ * {@link assertExpertGridBodyRowHeightPx}.
  */
 export const OOH_EXPERT_ROW_HEIGHT_PX = 41
+
+/**
+ * Seed for `scrollMargin` before the thead ResizeObserver fires.
+ * Descriptor `th` is py-2; week `th` is py-3.5 around a min-h-[3rem] label —
+ * measured ~76px, not 48.
+ */
+export const EXPERT_GRID_THEAD_HEIGHT_ESTIMATE_PX = 76
+
+/**
+ * Dev-only: the virtualiser is fixed-size (`OOH_EXPERT_ROW_HEIGHT_PX`).
+ * `height` on a table row is a minimum, so a multiline cell (e.g. `placement`)
+ * can grow the row and desync scroll. Do not add measureElement — shout instead.
+ */
+export function assertExpertGridBodyRowHeightPx(
+  row: { getBoundingClientRect(): { height: number } },
+  expectedPx: number = OOH_EXPERT_ROW_HEIGHT_PX
+): void {
+  if (process.env.NODE_ENV === "production") return
+  const height = row.getBoundingClientRect().height
+  if (!Number.isFinite(height) || height <= 0) return
+  const rounded = Math.round(height)
+  if (rounded !== expectedPx) {
+    console.error(
+      `[expert-grid] body row height ${rounded}px !== ${expectedPx}px (fixed virtualiser). A multiline descriptor (e.g. placement) likely grew the row.`
+    )
+  }
+}
 
 /**
  * Default overscan for expert-grid body virtualization (F-28 Phase 2).

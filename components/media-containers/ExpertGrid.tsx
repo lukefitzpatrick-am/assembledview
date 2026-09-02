@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -17,6 +18,8 @@ import {
 import {
   OOH_EXPERT_ROW_HEIGHT_PX,
   EXPERT_GRID_ROW_OVERSCAN_DEFAULT,
+  EXPERT_GRID_THEAD_HEIGHT_ESTIMATE_PX,
+  assertExpertGridBodyRowHeightPx,
 } from "@/lib/mediaplan/oohExpertVirtualization"
 import { isExpertRowIncomplete, expertRowIncompleteReasons } from "@/lib/mediaplan/expertRowCompleteness"
 import {
@@ -83,8 +86,8 @@ import {
 } from "@/components/media-containers/ExpertGridRowReorderCell"
 import {
   cumulativeLeftOffsets,
+  expertGridDescriptorStickySpanWidthPx,
   expertGridRowZebraProps,
-  expertGridStickyLeftWidthPx,
   expertGridStickyStyleBody,
   expertGridStickyStyleDescriptorTotalLabel,
   expertGridStickyStyleHeaderCorner,
@@ -623,16 +626,40 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     [descriptorColWidths]
   )
 
-  /** Full width of all descriptor columns (sticky “Weekly totals” label colspan). */
-  const descriptorStickyBlockWidthPx = useMemo(
-    () => descriptorColWidths.reduce((s, w) => s + w, 0),
-    [descriptorColWidths]
+  /** Totals-label width: same keys as colSpan, not trailing. */
+  const descriptorStickySpanWidthPx = useMemo(
+    () =>
+      expertGridDescriptorStickySpanWidthPx(
+        descriptorColWidths,
+        searchDescriptorKeys.length
+      ),
+    [descriptorColWidths, searchDescriptorKeys.length]
   )
 
-  const stickyStyleBodyDescriptorTotalLabel = useMemo(
-    () => expertGridStickyStyleDescriptorTotalLabel(descriptorStickyBlockWidthPx),
-    [descriptorStickyBlockWidthPx]
-  )
+  const stickyStyleBodyDescriptorTotalLabel = useMemo(() => {
+    const style = expertGridStickyStyleDescriptorTotalLabel(
+      descriptorStickySpanWidthPx
+    )
+    if (process.env.NODE_ENV !== "production") {
+      const spanned = searchDescriptorKeys.reduce(
+        (s, _k, i) => s + (descriptorColWidths[i] ?? 0),
+        0
+      )
+      if (descriptorStickySpanWidthPx !== spanned) {
+        console.error(
+          "[expert-grid] totals-label width",
+          descriptorStickySpanWidthPx,
+          "!== spanned column sum",
+          spanned
+        )
+      }
+    }
+    return style
+  }, [
+    descriptorColWidths,
+    descriptorStickySpanWidthPx,
+    searchDescriptorKeys,
+  ])
 
   const platformComboboxOptions: ComboboxOption[] = useMemo(
     () => platformNames.map((name) => ({ value: name, label: name })),
@@ -970,15 +997,18 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   )
 
   const theadRef = useRef<HTMLTableSectionElement>(null)
-  const [theadHeightPx, setTheadHeightPx] = useState(48)
-  useEffect(() => {
+  const [theadHeightPx, setTheadHeightPx] = useState(
+    EXPERT_GRID_THEAD_HEIGHT_ESTIMATE_PX
+  )
+  useLayoutEffect(() => {
     const el = theadRef.current
-    if (!el || typeof ResizeObserver === "undefined") return
+    if (!el) return
     const measure = () => {
       const h = el.getBoundingClientRect().height
-      if (h > 0) setTheadHeightPx(h)
+      if (h > 0) setTheadHeightPx((prev) => (prev === h ? prev : h))
     }
     measure()
+    if (typeof ResizeObserver === "undefined") return
     const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
@@ -1285,7 +1315,9 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
             domGridId,
             rowIndex,
             firstWeekNavColIndex,
-            ensureRowVisible
+            ensureRowVisible,
+            "forward",
+            navColCount
           )
           return
         }
@@ -1304,7 +1336,9 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
             domGridId,
             rowIndex,
             unitRateNavColIndex,
-            ensureRowVisible
+            ensureRowVisible,
+            "back",
+            navColCount
           )
           return
         }
@@ -2229,6 +2263,15 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   })
   rowVirtualizerRef.current = { scrollToIndex }
 
+  useLayoutEffect(() => {
+    if (process.env.NODE_ENV === "production") return
+    const row = gridScrollRef.current?.querySelector<HTMLElement>(
+      "tbody tr[data-search-expert-row-index]"
+    )
+    if (!row) return
+    assertExpertGridBodyRowHeightPx(row, SEARCH_EXPERT_ROW_HEIGHT_PX)
+  }, [normalizedRows.length, virtualItems.length])
+
   const virtualSpacerColSpan = useMemo(() => {
     let weekCells = 0
     for (const col of weekColumns) {
@@ -2936,7 +2979,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
 
   return (
     <TooltipProvider delayDuration={300}>
-      <Card className="relative overflow-hidden border-0 shadow-md">
+      <div className="flex h-full min-h-0 flex-col">
+      <Card className="relative flex min-h-0 flex-1 flex-col overflow-hidden border-0 shadow-md">
         {spanEdgeResize ? (
           <div
             className="pointer-events-none fixed z-eg-hint rounded-md border border-border bg-background px-2 py-1 text-xs tabular-nums shadow-md"
@@ -2962,14 +3006,14 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
             )}
           </div>
         ) : null}
-        <div className="flex min-w-0 flex-row">
+        <div className="flex min-h-0 min-w-0 flex-1 flex-row">
           <div
             className="w-1 shrink-0 self-stretch"
             style={{ backgroundColor: MEDIA_ACCENT_HEX }}
             aria-hidden
           />
-          <div className="min-w-0 flex-1">
-        <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-muted/5 pb-3">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <CardHeader className="flex shrink-0 flex-row flex-wrap items-center justify-between gap-2 border-b border-border/60 bg-muted/5 pb-3">
           <CardTitle className="text-base font-semibold tracking-tight">
             {config.channelLabel} Media — Expert Schedule
           </CardTitle>
@@ -3044,8 +3088,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
             ) : null}
           </div>
         </CardHeader>
-        <CardContent className="space-y-4 pt-5">
-          <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
+        <CardContent className="flex min-h-0 flex-1 flex-col space-y-4 overflow-hidden pt-5">
+          <div className="flex shrink-0 flex-wrap items-baseline justify-between gap-2 text-sm">
             <p className="text-muted-foreground">
               <span className="font-medium text-foreground">Campaign</span>{" "}
               <span className="tabular-nums">{campaignRangeLabel}</span>
@@ -3054,15 +3098,15 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
             </p>
           </div>
 
-          <div className="overflow-hidden rounded-lg border border-border/80 bg-card/30 shadow-sm">
-            <div className="flex items-center border-b border-border/60 bg-card/60 px-3 py-1.5">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border/80 bg-card/30 shadow-sm">
+            <div className="flex shrink-0 items-center border-b border-border/60 bg-card/60 px-3 py-1.5">
               <ExpertGridWeekCommencesBar
                 weekStartsOn={weekStartsOn}
                 onWeekStartsOnChange={handleWeekStartsOnChange}
               />
             </div>
             {normalizedRows.length === 0 ? (
-              <div className="flex flex-col items-center justify-center gap-4 px-6 py-14 text-center">
+              <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 py-14 text-center">
                 <div
                   className="rounded-full border border-border/60 p-3 text-muted-foreground/45"
                   style={{ backgroundColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.06) }}
@@ -3088,7 +3132,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
             ) : (
               <div
                 ref={gridScrollRef}
-                className="relative min-h-[400px] max-h-[min(70vh,900px)] min-w-0 overflow-x-auto overflow-y-auto overscroll-contain scroll-smooth [scrollbar-gutter:stable]"
+                className="relative h-full min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
                 onKeyDownCapture={handleGridKeyDownCapture}
                 onPasteCapture={handlePasteCapture}
                 onCopyCapture={handleCopyCapture}
@@ -5145,7 +5189,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
 
           {normalizedRows.length > 0 ? (
           <div
-            className="rounded-lg border border-border/80 bg-muted/15 px-3 py-2.5 shadow-sm"
+            className="shrink-0 rounded-lg border border-border/80 bg-muted/15 px-3 py-2.5 shadow-sm"
             style={{
               borderLeftWidth: 3,
               borderLeftColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.45),
@@ -5215,6 +5259,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
           </div>
         ) : null}
       </Card>
+      </div>
 
       <AlertDialog
         open={!!pendingFuzzyMatch}

@@ -137,17 +137,34 @@ export function expertGridStickyStyleReorderHeader(): CSSProperties {
   }
 }
 
+/**
+ * Width of the sticky totals label: sum of the columns the cell actually
+ * colSpans. `descriptorColWidths` also includes trailing (net / actions / Σ)
+ * which the label does not span — using the full sum redistributes min-width
+ * across the spanned columns and drifts sticky `left` offsets.
+ */
+export function expertGridDescriptorStickySpanWidthPx(
+  descriptorColWidths: readonly number[],
+  spannedKeyCount: number
+): number {
+  let sum = 0
+  for (let i = 0; i < spannedKeyCount; i++) {
+    sum += descriptorColWidths[i] ?? 0
+  }
+  return sum
+}
+
 export function expertGridStickyStyleDescriptorTotalLabel(
-  descriptorStickyBlockWidthPx: number,
+  descriptorStickySpanWidthPx: number,
   reorderColWidthPx: number = EXPERT_REORDER_COL_WIDTH_PX
 ): CSSProperties {
   return {
     position: "sticky",
     left: reorderColWidthPx,
     zIndex: 30,
-    width: descriptorStickyBlockWidthPx,
-    minWidth: descriptorStickyBlockWidthPx,
-    maxWidth: descriptorStickyBlockWidthPx,
+    width: descriptorStickySpanWidthPx,
+    minWidth: descriptorStickySpanWidthPx,
+    maxWidth: descriptorStickySpanWidthPx,
     boxSizing: "border-box",
   }
 }

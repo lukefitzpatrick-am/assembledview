@@ -8,6 +8,8 @@ export function expertGridCellId(
   return `${gridId}-r${rowIndex}-c${colIndex}`
 }
 
+export type ExpertGridFocusHoleSkip = "forward" | "back"
+
 export function focusExpertGridCell(
   gridId: string,
   rowIndex: number,
@@ -18,13 +20,18 @@ export function focusExpertGridCell(
    * yet mounted, the focus is retried on the next animation frame. Non-virtualized
    * callers omit this and behaviour is unchanged.
    */
-  ensureVisible?: (rowIndex: number) => void
+  ensureVisible?: (rowIndex: number) => void,
+  /**
+   * Merged interior weeks emit no element at `expertGridCellId` (the anchor td
+   * owns them via colSpan). Walk this way until an input/button exists.
+   */
+  holeSkip?: ExpertGridFocusHoleSkip,
+  colCount?: number
 ): boolean {
   if (ensureVisible) ensureVisible(rowIndex)
 
-  const id = expertGridCellId(gridId, rowIndex, colIndex)
-  const focusById = (): boolean => {
-    const el = document.getElementById(id)
+  const tryFocusCol = (c: number): boolean => {
+    const el = document.getElementById(expertGridCellId(gridId, rowIndex, c))
     if (!el) return false
     if (el instanceof HTMLInputElement) {
       el.focus()
@@ -42,12 +49,25 @@ export function focusExpertGridCell(
     return false
   }
 
-  if (focusById()) return true
+  const resolveFocus = (): boolean => {
+    if (tryFocusCol(colIndex)) return true
+    if (!holeSkip) return false
+    const step = holeSkip === "forward" ? 1 : -1
+    const last = colCount != null && colCount > 0 ? colCount - 1 : colIndex
+    const lo = 0
+    const hi = Math.max(lo, last)
+    for (let c = colIndex + step; c >= lo && c <= hi; c += step) {
+      if (tryFocusCol(c)) return true
+    }
+    return false
+  }
+
+  if (resolveFocus()) return true
 
   // Row was likely just scrolled into a virtual window and hasn't mounted yet.
   if (ensureVisible && typeof requestAnimationFrame === "function") {
     requestAnimationFrame(() => {
-      focusById()
+      resolveFocus()
     })
   }
   return false
@@ -82,21 +102,21 @@ export function handleExpertGridInputKeyDown(
   if (key === "Enter") {
     event.preventDefault()
     const nextRow = Math.min(rowIndex + 1, rowCount - 1)
-    focusExpertGridCell(gridId, nextRow, colIndex, ensureVisible)
+    focusExpertGridCell(gridId, nextRow, colIndex, ensureVisible, "back", colCount)
     return
   }
 
   if (key === "ArrowDown") {
     event.preventDefault()
     const nextRow = Math.min(rowIndex + 1, rowCount - 1)
-    focusExpertGridCell(gridId, nextRow, colIndex, ensureVisible)
+    focusExpertGridCell(gridId, nextRow, colIndex, ensureVisible, "back", colCount)
     return
   }
 
   if (key === "ArrowUp") {
     event.preventDefault()
     const nextRow = Math.max(rowIndex - 1, 0)
-    focusExpertGridCell(gridId, nextRow, colIndex, ensureVisible)
+    focusExpertGridCell(gridId, nextRow, colIndex, ensureVisible, "back", colCount)
     return
   }
 
@@ -110,7 +130,7 @@ export function handleExpertGridInputKeyDown(
     if (start === 0 && end === 0) {
       event.preventDefault()
       const nc = Math.max(colIndex - 1, 0)
-      focusExpertGridCell(gridId, rowIndex, nc, ensureVisible)
+      focusExpertGridCell(gridId, rowIndex, nc, ensureVisible, "back", colCount)
     }
     return
   }
@@ -122,7 +142,14 @@ export function handleExpertGridInputKeyDown(
     if (start === len && end === len) {
       event.preventDefault()
       const nc = Math.min(colIndex + 1, colCount - 1)
-      focusExpertGridCell(gridId, rowIndex, nc, ensureVisible)
+      focusExpertGridCell(
+        gridId,
+        rowIndex,
+        nc,
+        ensureVisible,
+        "forward",
+        colCount
+      )
     }
   }
 }
