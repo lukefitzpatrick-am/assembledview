@@ -9,6 +9,10 @@ import path from "path"
 import { Automizer, ModifyTextHelper } from "pptx-automizer"
 import { summariseInsight } from "@/lib/planning/insightText"
 import { PLANNING_CHANNEL_BENCH_VERSION } from "@/lib/planning/planningChannelBench"
+import {
+  audienceDefinitionPlaceholder,
+  audienceReachCommentary,
+} from "@/lib/planning/export/plannerDeckProvenance"
 
 export { summariseInsight } from "@/lib/planning/insightText"
 
@@ -42,6 +46,10 @@ export type PlannerDeckAudience = {
   insight?: string | null
   topMix: string
   topDfii: string
+  /** Upload-only line under the definition; omit for composed audiences. */
+  provenance?: string | null
+  /** Inherited + benchmark-only taxonomy rows; 0/omit keeps composed commentary. */
+  modelledChannelCount?: number | null
   charts: {
     reachIndexPng?: string | null
     reachIndexPngWidth?: number | null
@@ -321,7 +329,11 @@ export async function buildPlannerDeck(input: PlannerDeckInput): Promise<Buffer>
 
     pres.addSlide("tpl", 33, (slide) => {
       setText(slide, "Title 1", aud.name)
-      setText(slide, "Text Placeholder 2", `${aud.definition}\n${aud.stats}`)
+      setText(
+        slide,
+        "Text Placeholder 2",
+        audienceDefinitionPlaceholder(aud.definition, aud.stats, aud.provenance)
+      )
       setText(slide, "Text Placeholder 3", block2)
     })
 
@@ -331,9 +343,11 @@ export async function buildPlannerDeck(input: PlannerDeckInput): Promise<Buffer>
       aud.charts.reachIndexPngWidth,
       aud.charts.reachIndexPngHeight
     )
-    const commentary =
+    const commentary = audienceReachCommentary(
       insight.reachArchitecture ||
-      `Reach architecture for ${aud.name} · ${input.reachBasis} basis · wave ${input.waveLabel}`
+        `Reach architecture for ${aud.name} · ${input.reachBasis} basis · wave ${input.waveLabel}`,
+      aud.modelledChannelCount
+    )
 
     pres.addSlide("tpl", 27, (slide) => {
       setText(

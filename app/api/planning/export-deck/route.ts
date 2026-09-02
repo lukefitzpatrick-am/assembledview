@@ -95,6 +95,8 @@ function parseBody(raw: unknown): PlannerDeckInput {
       name: asString(row.name, 120) || `Audience ${i + 1}`,
       definition: asString(row.definition, 400) || "—",
       stats: asString(row.stats, 400) || "—",
+      provenance: asString(row.provenance, 400) ?? null,
+      modelledChannelCount: asNumber(row.modelledChannelCount) ?? null,
       insight: asString(row.insight, 4000) ?? null,
       topMix: asString(row.topMix, 300) || "—",
       topDfii: asString(row.topDfii, 120) || "—",

@@ -12,6 +12,10 @@ import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
 import { buildCreateCampaignHref } from "@/lib/mediaplan/createPrefill"
 import { PLANNING_CHANNEL_BENCH_VERSION } from "@/lib/planning/planningChannelBench"
 import { buildRecommendedSplitV1 } from "@/lib/planning/recommendedSplit"
+import {
+  savedAudienceProvenanceFields,
+  type SavedAudienceDefinition,
+} from "@/lib/planning/savedAudienceDefinition"
 import { cn } from "@/lib/utils"
 import { CompareAudienceInsight } from "./CompareAudienceInsight"
 import { ExportDeckButton } from "./ExportDeckButton"
@@ -38,15 +42,7 @@ export type AudienceCompareBundle = {
   error: string | null
 }
 
-export type SavedAudienceDefinition = {
-  audience: AudienceDraft
-  brief: BriefState
-  diagnosis: DiagnosisState
-  exclusions: string[]
-  wave_id: string
-  /** Frozen Stage E → create handoff snapshot (lives in freeform definition_json). */
-  recommended_split?: ReturnType<typeof buildRecommendedSplitV1>
-}
+export type { SavedAudienceDefinition }
 
 type StageCompareProps = {
   brief: BriefState
@@ -145,6 +141,7 @@ export function StageCompare({
       exclusions: excludedChannelIds,
       wave_id: waveId,
       recommended_split,
+      ...savedAudienceProvenanceFields(bundle.draft),
     }
     const res = await fetch("/api/planning/audiences", {
       method: "POST",

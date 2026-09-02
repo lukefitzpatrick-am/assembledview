@@ -23,12 +23,10 @@ import { StageBrief } from "@/components/planning/StageBrief"
 import {
   StageCompare,
   type AudienceCompareBundle,
-  type SavedAudienceDefinition,
 } from "@/components/planning/StageCompare"
 import { StageConstraints } from "@/components/planning/StageConstraints"
 import { StageDiagnosis } from "@/components/planning/StageDiagnosis"
 import {
-  createAudienceDraft,
   createInitialState,
   deriveBcsParams,
   effectiveSegmentId,
@@ -37,7 +35,6 @@ import {
   planningReducer,
   type AudienceDraft,
   type BriefState,
-  type DiagnosisState,
 } from "@/components/planning/store"
 import type { StageId } from "@/components/planning/constants"
 import { useToast } from "@/components/ui/use-toast"
@@ -55,6 +52,7 @@ import {
   audienceKey,
   resolveAudienceFetch,
 } from "@/lib/planning/plannerAudienceRequest"
+import { parseSavedDefinition } from "@/lib/planning/savedAudienceDefinition"
 import type {
   AudienceResponse,
   PlanningMeta,
@@ -121,40 +119,6 @@ function toPlannerInputs(
     ageMax: ageMax >= 75 ? 66 : ageMax,
     gender: draft.gender,
     geos: geos.length > 0 ? geos : ["au"],
-  }
-}
-
-function parseSavedDefinition(raw: unknown): SavedAudienceDefinition | null {
-  if (!raw || typeof raw !== "object") return null
-  const o = raw as Record<string, unknown>
-  if (!o.audience || typeof o.audience !== "object") return null
-  const audience = o.audience as AudienceDraft
-  if (!audience.id || !audience.name) return null
-  const segmentId =
-    typeof audience.segmentId === "string" && audience.segmentId.trim()
-      ? audience.segmentId
-      : "base"
-  return {
-    audience: createAudienceDraft({
-      ...audience,
-      colorIndex: (audience.colorIndex ?? 0) as 0 | 1 | 2,
-      segmentId,
-      id: audience.id,
-    }),
-    brief: (o.brief && typeof o.brief === "object" ? o.brief : {}) as BriefState,
-    diagnosis: (o.diagnosis && typeof o.diagnosis === "object"
-      ? o.diagnosis
-      : {
-          penetration: 35,
-          target: 45,
-          salience: "medium",
-          createCapture: 35,
-          weights: { A: 30, T: 25, E: 30, C: 15 },
-        }) as DiagnosisState,
-    exclusions: Array.isArray(o.exclusions)
-      ? o.exclusions.map((x) => String(x))
-      : [],
-    wave_id: typeof o.wave_id === "string" ? o.wave_id : "",
   }
 }
 

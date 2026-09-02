@@ -22,6 +22,10 @@ import { generateAudienceInsight } from "@/components/planning/useAudienceInsigh
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { buildExportDeckBrief } from "@/lib/planning/exportDeckBrief"
+import {
+  countModelledChannels,
+  uploadedRunProvenanceLine,
+} from "@/lib/planning/export/plannerDeckProvenance"
 import type { PlanningSegment } from "@/lib/planning/types"
 
 type ExportDeckButtonProps = {
@@ -177,6 +181,8 @@ export function ExportDeckButton({
         name: string
         definition: string
         stats: string
+        provenance: string | null
+        modelledChannelCount: number
         insight: string | null
         topMix: string
         topDfii: string
@@ -215,6 +221,15 @@ export function ExportDeckButton({
           name: b.draft.name,
           definition: definitionLine(b.draft, segments),
           stats: statsLine(b),
+          provenance: uploadedRunProvenanceLine({
+            source: b.draft.source,
+            fileName: b.draft.uploadFileName,
+            waveCode: b.draft.uploadWaveCode,
+            filterLabel: b.draft.uploadFilterLabel,
+          }),
+          modelledChannelCount: b.adapted
+            ? countModelledChannels(b.adapted.taxonomy)
+            : 0,
           insight,
           topMix: topMixLine(b) || topAffinityFallback(b),
           topDfii: topDfiiLabel(b.scored) ?? "—",
