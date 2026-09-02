@@ -29,6 +29,7 @@ function block(blockId: string, rows: RmDataRow[]): RmBlock {
     metrics: ["wc"],
     unweightedN: 10,
     popn000: 100,
+    filter: null,
     rows,
   }
 }

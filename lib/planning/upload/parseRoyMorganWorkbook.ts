@@ -107,6 +107,35 @@ function rowLastCol(ws: ExcelJS.Worksheet, row: number): number {
   return Math.max(r.cellCount || 0, ws.columnCount || 0, 1)
 }
 
+const PREAMBLE_LOOKBACK = 12
+
+function lastMetricColumn(pending: PendingBlock): number {
+  let last = pending.firstMetricCol
+  for (const col of Object.values(pending.metricCols)) {
+    if (typeof col === "number" && col > last) last = col
+  }
+  return last
+}
+
+/** Filter/Weights in this block's column window, searching up from the metric header. */
+function findPreambleInColumnWindow(
+  ws: ExcelJS.Worksheet,
+  headerRow: number,
+  colMin: number,
+  colMax: number,
+  prefix: string
+): string | null {
+  if (colMin > colMax) return null
+  const from = Math.max(1, headerRow - PREAMBLE_LOOKBACK)
+  for (let r = headerRow - 1; r >= from; r--) {
+    for (let c = colMin; c <= colMax; c++) {
+      const v = afterColon(cellText(sheetCell(ws, r, c)), prefix)
+      if (v != null) return v
+    }
+  }
+  return null
+}
+
 function detectBlocksOnHeaderRow(ws: ExcelJS.Worksheet, row: number): PendingBlock[] {
   const last = rowLastCol(ws, row)
   const tokens: Array<RmMetric | null> = []
@@ -419,7 +448,8 @@ function parseSheet(
       }
     }
 
-    for (const acc of accs) {
+    for (let i = 0; i < accs.length; i++) {
+      const acc = accs[i]!
       if (blockBudget.remaining <= 0) {
         warnings.push("stopped at 40 blocks per workbook")
         break
@@ -441,6 +471,14 @@ function parseSheet(
       const blockId = `${ws.name}:${acc.pending.firstMetricCol}`
       normaliseReachPcts(acc.rows, warnings, blockId)
       const name = acc.columnName
+      const prevLast = i === 0 ? 0 : lastMetricColumn(accs[i - 1]!.pending)
+      const blockFilter = findPreambleInColumnWindow(
+        ws,
+        headerRow,
+        prevLast + 1,
+        acc.pending.firstMetricCol,
+        "Filter:"
+      )
       blocks.push({
         blockId,
         columnName: name,
@@ -449,6 +487,7 @@ function parseSheet(
         metrics: acc.pending.metrics,
         unweightedN: acc.unweightedN,
         popn000: acc.popn000,
+        filter: blockFilter ?? provenance.filter,
         rows: acc.rows,
       })
     }

@@ -18,6 +18,8 @@ export type RmBlock = {
   metrics: RmMetric[]
   unweightedN: number | null
   popn000: number | null
+  /** Index-base label for this block. Sheet.filter is the fallback. */
+  filter: string | null
   rows: RmDataRow[]
 }
 

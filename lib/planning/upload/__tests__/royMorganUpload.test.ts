@@ -52,6 +52,8 @@ test("1. single column + preamble, no TOTAL → 1 block, universe_wc 0, unweight
   assert.equal(block.popn000, 500)
   assert.ok(block.rows.every((r) => r.reachPct == null))
   assert.equal(parsed.sheets[0]?.waveCode, "MAR26E1_ASM")
+  assert.equal(parsed.sheets[0]?.filter, "All cases")
+  assert.equal(block.filter, "All cases")
 
   const mapping = mapRoyMorganToChannels({ block, channels: STUB_PLANNING_CHANNELS })
   const audience = buildUploadedAudienceResponse({
@@ -208,6 +210,32 @@ test("5. two side-by-side blocks, different labelCol, filter captured", async ()
   const byName = Object.fromEntries(sheet.blocks.map((b) => [b.columnName, b]))
   assert.equal(byName.TOTAL?.labelCol, 1)
   assert.equal(byName.HML?.labelCol, 8)
+  assert.equal(byName.TOTAL?.filter, "Country Areas")
+  assert.equal(byName.HML?.filter, "All cases")
+})
+
+test("5b. Filter outside the block column window falls back to sheet.filter", async () => {
+  const buf = await workbookBuffer((wb) => {
+    const ws = wb.addWorksheet("Run")
+    ws.getCell(1, 1).value = "MAR26E1_ASM"
+    ws.getCell(2, 1).value = "Survey Period: Jan - Dec 2025"
+    ws.getCell(3, 20).value = "Filter: Grocery buyers"
+    ws.getCell(4, 1).value = "Weights: weighted"
+    writeBlock(ws, {
+      labelCol: 1,
+      firstMetricCol: 2,
+      metricRow: 9,
+      name: "Audience",
+      unweighted: 412,
+      popn: 500,
+      metrics: ["wc", "v%", "ix"],
+      rows: audienceRows(),
+    })
+  })
+  const parsed = await parseRoyMorganWorkbook(buf, "fallback.xlsx")
+  const sheet = parsed.sheets[0]!
+  assert.equal(sheet.filter, "Grocery buyers")
+  assert.equal(sheet.blocks[0]?.filter, "Grocery buyers")
 })
 
 test("6. v%/ix only (no wc) → reach_wc derived from reachPct × audience_wc", async () => {
@@ -493,6 +521,7 @@ test("extractRmDefinition: single-state Victoria + Men + age sub-bands", () => {
     metrics: ["wc", "v%", "ix"],
     unweightedN: 200,
     popn000: 400,
+    filter: null,
     rows: [
       {
         section: "STATES",

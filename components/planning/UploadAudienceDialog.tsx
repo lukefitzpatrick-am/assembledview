@@ -338,7 +338,7 @@ export function UploadAudienceDialog({
             provenance: {
               fileName: parse?.fileName ?? file?.name ?? null,
               waveCode: picked.sheet.waveCode,
-              filterLabel: picked.sheet.filter,
+              filterLabel: picked.block.filter ?? picked.sheet.filter,
             },
           },
         }),
@@ -588,7 +588,7 @@ export function UploadAudienceDialog({
               ]}
               coveredIds={coveredIds}
               channels={channels}
-              filterLabel={picked.sheet.filter}
+              filterLabel={picked.block.filter ?? picked.sheet.filter}
               options={options}
               onChangeOptions={setOptions}
             />

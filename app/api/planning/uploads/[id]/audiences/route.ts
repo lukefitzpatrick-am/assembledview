@@ -177,7 +177,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       sheetName: sheet_name,
       blockId: block_id,
       waveCode: found.sheet.waveCode ?? upload.wave_code,
-      filterLabel: found.sheet.filter ?? upload.filter_label,
+      filterLabel: found.block.filter ?? found.sheet.filter ?? upload.filter_label,
       audienceWc: found.block.popn000,
       unweightedN: found.block.unweightedN,
       universeWc: found.baseBlock?.popn000 ?? 0,
