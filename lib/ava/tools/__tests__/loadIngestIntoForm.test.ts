@@ -103,6 +103,19 @@ function rematchRequired(
   }
 }
 
+function withoutUnresolved(
+  review: IngestReviewPackage,
+): IngestReviewPackage {
+  if (!review.template_coverage) return review
+  return {
+    ...review,
+    template_coverage: {
+      ...review.template_coverage,
+      unresolved_controlled: [],
+    },
+  }
+}
+
 async function stageQms(
   mutate?: (review: IngestReviewPackage) => IngestReviewPackage,
 ): Promise<{ stageId: string; review: IngestReviewPackage }> {
@@ -214,7 +227,7 @@ test("money-fail file refuses load, sets no load, and writes one blocked run", a
 
 test("required-field-fail file refuses load, names the fields, and writes no run", async () => {
   const { stageId, review } = await stageQms((hub) =>
-    unmatchRequired(hub, ["media_money"]),
+    withoutUnresolved(unmatchRequired(hub, ["media_money"])),
   )
   const missing = review.template_coverage?.required.find((f) => f.id === "media_money")
   assert.equal(missing?.matched, false)
@@ -233,8 +246,22 @@ test("required-field-fail file refuses load, names the fields, and writes no run
   assert.equal(blockedAfter, blockedBefore)
 })
 
+test("loadIngestIntoForm refuses when an unresolved value is outstanding and names the value", async () => {
+  const { stageId, review } = await stageQms()
+  const digital = (review.template_coverage?.unresolved_controlled ?? []).find(
+    (item) => /digital/i.test(item.raw),
+  )
+  assert.ok(digital, "QMS fixture must still raise Digital as unresolved")
+  const c = ctx({ pendingIngest: { stageId, fileName: QMS } })
+  const refused = await loadIngestIntoFormTool.execute({ confirm: true }, c)
+  assert.equal(refused.isError, true)
+  assert.equal(c.capturedLineItemsLoad, null)
+  assert.match(refused.content, /Digital/)
+  assert.match(refused.content, /value card/i)
+})
+
 test("clean file loads into the form as it does now", async () => {
-  const { stageId } = await stageQms()
+  const { stageId } = await stageQms(withoutUnresolved)
   const c = ctx({ pendingIngest: { stageId, fileName: QMS } })
   const ok = await loadIngestIntoFormTool.execute({ confirm: true }, c)
   assert.equal(ok.isError, false)
@@ -265,7 +292,10 @@ test("retry after remap succeeds", async () => {
   assert.equal(first.capturedLineItemsLoad, null)
   assert.match(refused.content, /Media money/i)
 
-  await patchIngestStageReview(stageId, rematchRequired(review, ["media_money"]))
+  await patchIngestStageReview(
+    stageId,
+    withoutUnresolved(rematchRequired(review, ["media_money"])),
+  )
   const retry = ctx({ pendingIngest: { stageId, fileName: QMS } })
   const ok = await loadIngestIntoFormTool.execute({ confirm: true }, retry)
   assert.equal(ok.isError, false)

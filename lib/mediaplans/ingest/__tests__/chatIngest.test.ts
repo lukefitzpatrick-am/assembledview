@@ -21,15 +21,9 @@ import {
 import { summariseIngestReview } from "../summariseIngestReview"
 import { stageIngestReviewFromBuffer } from "../stageIngestReview"
 import { executeIngestAccept } from "../executeIngestAccept"
-import { hydrateOohEditorLine } from "../hydrateEditorCard"
-import { mapLineItemFromPostgres } from "@/lib/data/planShapes"
-import { parseBurstMoney } from "@/lib/mediaplan/formatBurstsForPersist"
-import type { SavePlanLineItem } from "@/lib/data/savePlan"
 
 const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")
 const QMS = "qms_strength-meals_esb-ooh.xlsx"
-const CAMPAIGN_START = new Date(2026, 7, 1)
-const CAMPAIGN_END = new Date(2026, 7, 31)
 
 test.beforeEach(() => {
   clearIngestStageForTests()
@@ -96,7 +90,7 @@ test("stage store round-trips the same package Hub would show", async () => {
   )
 })
 
-test("confirm-in-chat accept hydrates the editor card (MR-12 QMS round-trip)", async () => {
+test("confirm-in-chat accept refuses unanswered QMS Digital and names the value", async () => {
   const profiles = loadSeedPublisherProfiles()
   const hub = await buildIngestReviewFromFile(path.join(FIX, QMS), profiles, {
     skipAva: true,
@@ -106,7 +100,7 @@ test("confirm-in-chat accept hydrates the editor card (MR-12 QMS round-trip)", a
     fileName: QMS,
     uploadedBy: "ava@assembledmedia.com.au",
   })
-  let savedLines: SavePlanLineItem[] = []
+  let saves = 0
   const result = await executeIngestAccept({
     stageId,
     mbaNumber: "qmsround01",
@@ -120,56 +114,26 @@ test("confirm-in-chat accept hydrates the editor card (MR-12 QMS round-trip)", a
       mode: "draft",
     }),
     savePlanVersion: async (input) => {
-      savedLines = input.lineItems
+      saves++
       return { versionId: 9, versionNumber: 1, lineCount: input.lineItems.length }
     },
     insertPanels: async () => 0,
   })
-  assert.equal(result.ok, true)
-  if (!result.ok) return
-  assert.ok(savedLines.length > 0)
-  const line = savedLines[0]!
-  const assembled = mapLineItemFromPostgres(
-    {
-      id: 1,
-      channel: line.channel,
-      lineItemId: line.lineItemId,
-      position: line.position ?? 0,
-      market: line.market,
-      buyingDemo: line.buyingDemo,
-      buyType: line.buyType,
-      publisher: line.publisher,
-      platform: line.platform ?? null,
-      bidStrategy: line.bidStrategy ?? null,
-      fixedCostMedia: line.fixedCostMedia ?? false,
-      clientPaysForMedia: line.clientPaysForMedia ?? false,
-      budgetIncludesFees: line.budgetIncludesFees ?? false,
-      noAdserving: line.noAdserving ?? true,
-      bursts: line.bursts,
-      attrs: line.attrs ?? {},
-    },
-    {
-      versionId: 1,
-      versionNumber: 1,
-      mbaNumber: "qmsround01",
-      mpClientName: "Test",
-    },
-  )
-  const card = hydrateOohEditorLine(assembled, {
-    campaignStartDate: CAMPAIGN_START,
-    campaignEndDate: CAMPAIGN_END,
-    feePct: 0,
-  })
-  assert.ok(card.network.trim(), "Network empty after chat accept")
-  assert.equal(card.format, "", "QMS publisher format must not land on the card")
-  const rawFormat = String(card.attrs?.publisher_format_name ?? "").trim()
-  assert.ok(rawFormat, "publisher_format_name missing after chat accept")
-  assert.equal(card.buyType, "fixed_cost")
-  assert.ok(card.bursts.length > 0)
-  const money = card.bursts.reduce((s, b) => s + parseBurstMoney(b.budget), 0)
-  assert.ok(money > 0, `money ${money}`)
+  assert.equal(result.ok, false)
+  if (result.ok) return
+  assert.equal(result.status, 409)
+  assert.match(result.error, /Digital/)
+  assert.match(result.error, /value card/i)
+  assert.equal(saves, 0)
   const runs = await listIngestRuns({ publisherName: "QMS" })
-  assert.ok(runs.some((r) => r.outcome === "accepted" && r.uploadedBy === "ava@assembledmedia.com.au"))
+  assert.ok(
+    runs.some(
+      (r) =>
+        r.outcome === "blocked" &&
+        /Digital/.test(r.outcomeReason ?? "") &&
+        r.uploadedBy === "ava@assembledmedia.com.au",
+    ),
+  )
 })
 
 test("money-blocked file refuses in chat with the delta and does not accept", async () => {

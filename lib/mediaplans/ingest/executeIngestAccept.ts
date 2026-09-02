@@ -1,6 +1,6 @@
 /**
  * Shared Accept path for Hub POST /api/admin/ingest/accept and AVA chat.
- * Same 409 money / required-field gates; ingest_runs on accept and blocked.
+ * Same 409 money / required-field / unresolved-value gates; ingest_runs on accept and blocked.
  */
 
 import { acceptIngestProposal } from "@/lib/mediaplans/ingest/acceptIngestProposal"
@@ -16,7 +16,7 @@ import {
 } from "@/lib/mediaplans/ingest/ingestStageStore"
 import { resolveCatalogueIdForProfileName } from "@/lib/mediaplans/ingest/publisherCatalogueJoin"
 import { resolveIngestCampaignFromDb } from "@/lib/mediaplans/ingest/resolveIngestCampaign"
-import { evaluateTemplateCoverage } from "@/lib/mediaplans/ingest/templateCoverage"
+import { evaluateRequiredFieldGate, evaluateTemplateCoverage } from "@/lib/mediaplans/ingest/templateCoverage"
 import {
   NO_PUBLISHER_PROFILE_MESSAGE,
   summariseIngestReview,
@@ -186,6 +186,25 @@ export async function executeIngestAccept(
       status: 409,
       error: recon.block_reason ?? "Money total is outside the 0.5% gate. Nothing was written.",
       reconciliation: recon,
+    }
+  }
+
+  if (review) {
+    const gate = evaluateRequiredFieldGate(
+      review.template_coverage ?? { required: [], waivers: [] },
+    )
+    if (!gate.ok) {
+      await recordRun({
+        ...baseRun,
+        outcome: "blocked",
+        outcomeReason: gate.reason,
+        acceptedVersionId: null,
+      })
+      return {
+        ok: false,
+        status: 409,
+        error: gate.reason ?? "Required fields unmatched.",
+      }
     }
   }
 

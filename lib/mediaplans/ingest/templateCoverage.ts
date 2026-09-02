@@ -600,20 +600,47 @@ export async function attachControlledResolutions(args: {
   }
 }
 
+export type RequiredFieldGateResult = {
+  ok: boolean
+  missing: string[]
+  unresolvedValues: Array<{ fieldId: string; label: string; raw: string }>
+  reason: string | null
+}
+
 export function evaluateRequiredFieldGate(coverage: {
   required: Array<{ id: string; label: string; matched: boolean }>
   waivers: CoverageWaiver[]
-}): { ok: boolean; missing: string[]; reason: string | null } {
+  unresolved_controlled?: UnresolvedControlledValue[]
+}): RequiredFieldGateResult {
   const waived = new Set(coverage.waivers.map((w) => w.fieldId))
   const missing = coverage.required
     .filter((f) => !f.matched && !waived.has(f.id))
     .map((f) => f.label)
-  if (missing.length === 0) {
-    return { ok: true, missing: [], reason: null }
+  // A waiver means AssembledView can live without a source, not that any
+  // sourced value may be loaded unanswered.
+  const unresolvedValues = (coverage.unresolved_controlled ?? []).map((u) => ({
+    fieldId: u.fieldId,
+    label: u.label,
+    raw: u.raw,
+  }))
+  if (missing.length === 0 && unresolvedValues.length === 0) {
+    return { ok: true, missing: [], unresolvedValues: [], reason: null }
   }
+  const unresolvedReason = unresolvedValues
+    .map(
+      (u) =>
+        `Unresolved ${u.label}: "${u.raw}". Answer the value card before loading.`,
+    )
+    .join(" ")
+  const missingReason =
+    missing.length > 0
+      ? `Required field unmatched: ${missing.join(", ")}`
+      : ""
+  const reason = [unresolvedReason, missingReason].filter(Boolean).join(" ")
   return {
     ok: false,
     missing,
-    reason: `Required field unmatched: ${missing.join(", ")}`,
+    unresolvedValues,
+    reason,
   }
 }

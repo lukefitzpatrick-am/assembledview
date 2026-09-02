@@ -308,3 +308,54 @@ test("stampProposalForSave never leaves empty lineItemId; preserves raw_unmapped
   assert.equal(lineItems[0]!.attrs?.buy_granularity, "panel")
   assert.equal(panels[0]!.buyGranularity, "panel")
 })
+
+test("attrsForLine with an unresolvable format keeps null, not empty string", () => {
+  const proposal = {
+    publisher_name: "QMS",
+    media_type: "ooh" as const,
+    sheet_name: "Paid",
+    line_items: [
+      {
+        grouping: { format: "Digital" },
+        panels: [
+          {
+            descriptors: { site_number: "1" },
+            raw_unmapped: {},
+            source_publisher: "QMS",
+            source_row_ref: "Paid!r10",
+            flights: [],
+            grid_period_count: 0,
+          },
+        ],
+        bursts: [
+          {
+            start_date: "2026-01-01",
+            end_date: "2026-01-07",
+            quantity: 1,
+            media_amount: 0,
+            booking_status: "paid" as const,
+          },
+        ],
+      },
+    ],
+    reconciliation: {
+      line_item_count: 1,
+      panel_count: 1,
+      burst_count: 1,
+      total_media_amount: 0,
+      file_stated_total: null,
+      delta: null,
+      delta_pct: null,
+      accept_ok: true,
+      block_reason: null,
+      warnings: [],
+      charges_detected_total: 0,
+    },
+  }
+  const { lineItems } = stampProposalForSave(proposal, "stamp002")
+  const attrs = lineItems[0]!.attrs as Record<string, unknown>
+  assert.equal(attrs.format, null)
+  assert.notEqual(attrs.format, "")
+  assert.equal(attrs.format_unresolved_raw, "Digital")
+  assert.equal(attrs.publisher_format_name, "Digital")
+})

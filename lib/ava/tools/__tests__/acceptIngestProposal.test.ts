@@ -82,6 +82,17 @@ function unmatchCoverageFields(
   }
 }
 
+function withoutUnresolved(review: IngestReviewPackage): IngestReviewPackage {
+  if (!review.template_coverage) return review
+  return {
+    ...review,
+    template_coverage: {
+      ...review.template_coverage,
+      unresolved_controlled: [],
+    },
+  }
+}
+
 test("get_pending_ingest_review confirmed block is markdown from the staged package, never invented", async () => {
   const hub = await buildIngestReviewFromFile(
     path.join(FIX, QMS),
@@ -404,7 +415,7 @@ test("accept_ingest_proposal confirm with page MBA accepts via shared engine", a
     { skipAva: true },
   )
   const stageId = await putIngestStage({
-    review: hub,
+    review: withoutUnresolved(hub),
     fileName: QMS,
     uploadedBy: "ava@assembledmedia.com.au",
   })

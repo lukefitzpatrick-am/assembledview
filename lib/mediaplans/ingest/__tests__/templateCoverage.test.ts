@@ -215,6 +215,57 @@ test("missing required field blocks Accept and names the field", () => {
   assert.equal(waived.ok, true)
 })
 
+test("evaluateRequiredFieldGate with one unresolved_controlled entry names the raw value", () => {
+  const gated = evaluateRequiredFieldGate({
+    required: [
+      { id: "format", label: "Format", matched: true },
+    ],
+    waivers: [],
+    unresolved_controlled: [
+      {
+        fieldId: "format",
+        label: "Format",
+        raw: "Digital",
+        vocabulary: "ooh_format",
+        suggestion: null,
+      },
+    ],
+  })
+  assert.equal(gated.ok, false)
+  assert.equal(gated.unresolvedValues.length, 1)
+  assert.equal(gated.unresolvedValues[0]!.raw, "Digital")
+  assert.match(gated.reason ?? "", /Digital/)
+  assert.doesNotMatch(gated.reason ?? "", /\b1\b unresolved/i)
+})
+
+test("a waived field with an unresolved value still gates", () => {
+  const gated = evaluateRequiredFieldGate({
+    required: [
+      { id: "buyType", label: "Buy type", matched: true },
+    ],
+    waivers: [
+      {
+        fieldId: "buyType",
+        defaultValue: "fixed_cost",
+        by: "system",
+        reason: "canonical OOH vocab",
+      },
+    ],
+    unresolved_controlled: [
+      {
+        fieldId: "buyType",
+        label: "Buy type",
+        raw: "Special Deal",
+        vocabulary: "ooh_buy_type",
+        suggestion: null,
+      },
+    ],
+  })
+  assert.equal(gated.ok, false)
+  assert.equal(gated.unresolvedValues[0]!.fieldId, "buyType")
+  assert.match(gated.reason ?? "", /Special Deal/)
+})
+
 test("QMS / JCD / SCA: all required matched, leftovers not used, AVA 0, confidence ≥ 90%", async () => {
   const profiles = loadSeedPublisherProfiles()
   const cases: Array<{
@@ -342,7 +393,10 @@ test("ENRICH unmatched are optional: never blocking, never red", async () => {
     assert.equal(f.role, "enrich")
     assert.notEqual(f.source.kind, "blocking")
   }
-  const gate = evaluateRequiredFieldGate(review.template_coverage!)
+  const gate = evaluateRequiredFieldGate({
+    ...review.template_coverage!,
+    unresolved_controlled: [],
+  })
   assert.equal(gate.ok, true, "enrich gaps must not block Accept")
 })
 
@@ -480,7 +534,10 @@ test("panel identity: neither site_number nor panel_name matched → anonymous w
     cov.warnings.some((w) => /panel lines will be anonymous/i.test(w)),
     `expected anonymous-panel warning, got ${cov.warnings.join(" | ")}`,
   )
-  assert.equal(evaluateRequiredFieldGate(cov).ok, true)
+  assert.equal(
+    evaluateRequiredFieldGate({ ...cov, unresolved_controlled: [] }).ok,
+    true,
+  )
 })
 
 test("overlayMoneySynonyms does not map a repeating campaign total", () => {

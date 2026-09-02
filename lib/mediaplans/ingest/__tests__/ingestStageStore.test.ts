@@ -28,6 +28,17 @@ const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")
 const QMS = "qms_strength-meals_esb-ooh.xlsx"
 const JCD = "jcd_strength-meals_ooh.xlsx"
 
+function withoutUnresolved(review: IngestReviewPackage): IngestReviewPackage {
+  if (!review.template_coverage) return review
+  return {
+    ...review,
+    template_coverage: {
+      ...review.template_coverage,
+      unresolved_controlled: [],
+    },
+  }
+}
+
 function stubReview(
   over: Partial<IngestReviewPackage> = {},
 ): IngestReviewPackage {
@@ -178,7 +189,7 @@ test("accepted stage is retained with master and version linkage", async () => {
     { skipAva: true },
   )
   const stageId = await putIngestStage({
-    review: hub,
+    review: withoutUnresolved(hub),
     fileName: QMS,
     uploadedBy: "ava@assembledmedia.com.au",
   })
@@ -294,7 +305,7 @@ test("sweep deletes expired non-retained rows and keeps retained", async () => {
     { skipAva: true },
   )
   const kept = await putIngestStage({
-    review: hub,
+    review: withoutUnresolved(hub),
     fileName: QMS,
     uploadedBy: "ava@assembledmedia.com.au",
   })

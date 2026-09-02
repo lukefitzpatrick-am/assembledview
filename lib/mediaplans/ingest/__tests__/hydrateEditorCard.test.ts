@@ -91,6 +91,24 @@ function assertPopulatedOohCard(
   )
 }
 
+test("hydrateOohEditorLine with an unresolvable buy type returns null and carries the raw", () => {
+  const card = hydrateOohEditorLine(
+    {
+      publisher: "QMS",
+      buyType: "zzzz-not-a-buy-type",
+      attrs: { network: "QMS" },
+    },
+    {
+      campaignStartDate: CAMPAIGN_START,
+      campaignEndDate: CAMPAIGN_END,
+      feePct: 0,
+    },
+  )
+  assert.equal(card.buyType, null)
+  assert.notEqual(card.buyType, "")
+  assert.equal(card.attrs?.buyType_unresolved_raw, "zzzz-not-a-buy-type")
+})
+
 test("JCD accept→editor: 106 buy-row lines (not the old 118 data_rows incl. totals), each card from its own row, money sums to file total", async () => {
   const { review, stamped } = await stampFixture(
     "jcd_strength-meals_ooh.xlsx",
@@ -164,9 +182,15 @@ test("QMS accept→editor: 41 lines (supersedes grouped 3-of-41), each card from
       feePct: 0,
     })
     assert.ok(card.network.trim(), "Network empty")
-    assert.equal(card.format, "", "QMS publisher format must not land on the card")
-    const rawFormat = String(card.attrs?.publisher_format_name ?? "").trim()
-    assert.ok(rawFormat, "QMS publisher_format_name missing")
+    assert.equal(card.format, null, "QMS Digital must not be coerced to empty")
+    assert.notEqual(card.format, "")
+    const rawFormat = String(
+      card.attrs?.format_unresolved_raw ??
+        card.attrs?.publisher_format_name ??
+        "",
+    ).trim()
+    assert.ok(rawFormat, "QMS unresolved format raw missing")
+    assert.equal(card.attrs?.format_unresolved_raw, rawFormat)
     assert.ok(card.market.trim(), "Market empty")
     assert.ok(card.bursts.length > 0)
   }

@@ -165,7 +165,10 @@ function attrsForLine(
     buy_granularity: buyGranularity,
   }
   if (mediaType === "ooh") {
-    attrs.format = resolvedFormat ?? ""
+    attrs.format = resolvedFormat
+    if (resolvedFormat == null && formatCandidate) {
+      attrs.format_unresolved_raw = formatCandidate
+    }
     if (publisherFormatName) {
       attrs.publisher_format_name = publisherFormatName
     }

@@ -120,7 +120,8 @@ function saveLineToFormItem(
       ? { ...line.attrs }
       : {}
   const bursts = formBursts(line)
-  const format = asText(attrs.format)
+  const format =
+    asText(attrs.format) || asText(attrs.format_unresolved_raw)
   const network = asText(attrs.network) || asText(line.publisher)
   const type = asText(attrs.type)
   const size = asText(attrs.size)

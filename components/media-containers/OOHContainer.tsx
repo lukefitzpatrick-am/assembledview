@@ -557,8 +557,16 @@ export default function OohContainer({
         return {
           ...mapHydrationToForm(OOH_CONTAINER_CONFIG.fieldMap, item),
           network: hydrated.network,
-          format: hydrated.format,
-          buyType: hydrated.buyType,
+          format:
+            hydrated.format ??
+            String(
+              hydrated.attrs?.format_unresolved_raw ??
+                hydrated.attrs?.publisher_format_name ??
+                "",
+            ),
+          buyType:
+            hydrated.buyType ??
+            String(hydrated.attrs?.buyType_unresolved_raw ?? ""),
           type: hydrated.type,
           size: hydrated.size,
           market: hydrated.market,

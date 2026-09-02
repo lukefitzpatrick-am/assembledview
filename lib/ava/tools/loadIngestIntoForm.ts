@@ -54,7 +54,7 @@ export const loadIngestIntoFormTool: AvaTool = {
   definition: {
     name: "load_ingest_into_form",
     description:
-      "Loads the staged publisher schedule into the create/edit form for human review. Writes nothing. Requires an explicit user confirm first — do not call until the user confirms. Refuses when the money total is outside the 0.5% gate or a required template field has no source column.",
+      "Loads the staged publisher schedule into the create/edit form for human review. Writes nothing. Requires an explicit user confirm first — do not call until the user confirms. Refuses when the money total is outside the 0.5% gate, a required template field has no source column, or a sourced controlled value is still unanswered.",
     input_schema: {
       type: "object",
       properties: {
@@ -135,6 +135,12 @@ export const loadIngestIntoFormTool: AvaTool = {
       review.template_coverage ?? { required: [], waivers: [] },
     )
     if (!gate.ok) {
+      if (gate.unresolvedValues.length > 0) {
+        return {
+          content: gate.reason ?? "Answer the value card before loading.",
+          isError: true,
+        }
+      }
       const named = gate.missing.join(", ")
       return {
         content: `These fields have no source column, so the schedule wasn't loaded: ${named}. Answer the mapping cards and I'll load it.`,

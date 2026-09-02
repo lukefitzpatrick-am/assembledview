@@ -35,8 +35,8 @@ export type HydratedOohEditorBurst = {
 
 export type HydratedOohEditorLine = {
   network: string
-  format: string
-  buyType: string
+  format: string | null
+  buyType: string | null
   type: string
   size: string
   market: string
@@ -74,16 +74,24 @@ export function hydrateOohEditorLine(
     asText(attrs?.network)
   const publisher =
     asText(item.publisher) || asText(attrs?.network)
-  const formatRaw = asText(item.format) || asText(attrs?.format)
-  const format = resolveControlledFormat(formatRaw, publisher) ?? ""
+  const formatRaw =
+    asText(item.format) ||
+    asText(attrs?.format) ||
+    asText(item.format_unresolved_raw) ||
+    asText(attrs?.format_unresolved_raw)
+  const format = formatRaw
+    ? resolveControlledFormat(formatRaw, publisher)
+    : null
   const publisherFormatName =
     asText(item.publisher_format_name) ||
     asText(attrs?.publisher_format_name)
   const buyTypeRaw =
     asText(item.buy_type) ||
     asText(item.buyType) ||
-    asText(attrs?.buyType)
-  const buyType = resolveControlledBuyType(buyTypeRaw) ?? ""
+    asText(attrs?.buyType) ||
+    asText(item.buyType_unresolved_raw) ||
+    asText(attrs?.buyType_unresolved_raw)
+  const buyType = buyTypeRaw ? resolveControlledBuyType(buyTypeRaw) : null
   const type =
     asText(item.type) ||
     asText(item.environment) ||
@@ -144,12 +152,25 @@ export function hydrateOohEditorLine(
           },
         ]
 
+  const unresolvedFormatRaw =
+    format == null ? formatRaw || publisherFormatName : ""
+  const unresolvedBuyTypeRaw = buyType == null ? buyTypeRaw : ""
+
   const mergedAttrs: Record<string, unknown> | undefined =
-    attrs || publisherFormatName
+    attrs ||
+    publisherFormatName ||
+    unresolvedFormatRaw ||
+    unresolvedBuyTypeRaw
       ? {
           ...(attrs ?? {}),
           ...(publisherFormatName
             ? { publisher_format_name: publisherFormatName }
+            : {}),
+          ...(unresolvedFormatRaw
+            ? { format_unresolved_raw: unresolvedFormatRaw }
+            : {}),
+          ...(unresolvedBuyTypeRaw
+            ? { buyType_unresolved_raw: unresolvedBuyTypeRaw }
             : {}),
         }
       : undefined
