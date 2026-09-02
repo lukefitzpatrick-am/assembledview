@@ -1,8 +1,12 @@
 /**
  * Shared ETL / recon table families.
  *
- * Postgres-authoritative tables are never truncate-reloaded from a Xano
- * snapshot. Recon reports their counts but never fails on mismatch.
+ * Two independent protection lists — two jobs:
+ *   POSTGRES_AUTHORITATIVE_TABLES       — ETL truncate skip
+ *   POSTGRES_AUTHORITATIVE_RECON_TABLES — recon informational (never a hard fail)
+ *
+ * A table needs adding to both. ETL-only leaves recon failing on a
+ * deliberate Xano↔Postgres delta (the FIN-ETL-1 billing gap).
  */
 
 /**
@@ -102,6 +106,8 @@ export const POSTGRES_AUTHORITATIVE_RECON_TABLES = [
   "xero_match_month_metrics",
   "xero_contact_links",
   "xero_client_aliases",
+  "finance_billing_records",
+  "finance_billing_line_items",
 ] as const
 
 const RECON_INFORMATIONAL = new Set<string>(POSTGRES_AUTHORITATIVE_RECON_TABLES)

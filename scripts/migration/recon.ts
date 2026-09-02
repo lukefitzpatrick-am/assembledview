@@ -56,8 +56,6 @@ const ONE_TO_ONE: Array<{ xano: string; supabase: string; table: keyof typeof sc
   { xano: "client_kpi", supabase: "client_kpi", table: "clientKpi" },
   { xano: "campaign_kpi", supabase: "campaign_kpi", table: "campaignKpi" },
   { xano: "publisher_kpi", supabase: "publisher_kpi", table: "publisherKpi" },
-  { xano: "finance_billing_records", supabase: "finance_billing_records", table: "financeBillingRecords" },
-  { xano: "finance_billing_line_items", supabase: "finance_billing_line_items", table: "financeBillingLineItems" },
   { xano: "finance_edits", supabase: "finance_edits", table: "financeEdits" },
   { xano: "finance_saved_views", supabase: "finance_saved_views", table: "financeSavedViews" },
   // revenue_forecast_lines / revenue_line_catalog: postgres-authoritative (forecast target cutover)
@@ -67,6 +65,7 @@ const ONE_TO_ONE: Array<{ xano: string; supabase: string; table: keyof typeof sc
   // Codex v2 (0013): tasks* / client_notes / client_domains dropped from 1:1 recon
   // T0-9 xero_*: postgres-authoritative (excluded from ETL + hard 1:1 gate)
   // mba_line_approvals: postgres-authoritative (excluded from ETL + hard 1:1 gate)
+  // c775cd3a finance_billing_*: postgres-authoritative (lifecycle columns; excluded from ETL + hard 1:1 gate)
 ]
 
 async function countTable(db: ReturnType<typeof getDb>, tableName: string): Promise<number> {
