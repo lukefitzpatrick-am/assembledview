@@ -32,7 +32,7 @@ Rule of direction: **L5 never talks to L2.** A page calls an API route or a serv
 | 8 | [Clients](#8-clients) | `/client` | `components/client-hub/`, `components/client-dashboard/` | `lib/clients/` | `/api/clients`, `/api/admin/client-hub` | `clients`, `client_domains` |
 | 9 | [Codex](#9-codex-tasks-time-meetings) | `/tasks` | `components/tasks/` | `lib/codex/`, `lib/fireflies/`, `lib/myhours/` | `/api/codex` | `tasks`, `client_notes`, `team_members`, `ava_*_proposals`, `time_entries` |
 | 10 | [Scopes of work](#10-scopes-of-work) | `/scopes-of-work` | (page-local) | `lib/scopes/` | `/api/scopes-of-work` | `scope_of_work` |
-| 11 | [Planning tools](#11-planning--insights) | `/tools/behavioural-planner`, `/insights` | `components/planning/`, `components/insights/` | `lib/planning/`, `lib/insights/` | `/api/planning`, `/api/insights` | `planning_audiences`, `campaign_insights` |
+| 11 | [Planning tools](#11-planning--insights) | `/tools/behavioural-planner`, `/insights` | `components/planning/`, `components/insights/` | `lib/planning/`, `lib/insights/` | `/api/planning`, `/api/insights` | `planning_audiences`, `planning_audience_uploads`, `planning_uploaded_audiences`, `campaign_insights` |
 | 12 | [Knowledge hub](#12-knowledge-hub) | `/knowledge` | `components/learning/` | `src/lib/learning/`, `src/data/learning/` | — | none (file-driven) |
 | 13 | [AVA](#13-ava) | floating widget | `components/ava/`, `components/ChatWidget.tsx` | `lib/ava/`, `src/ava/` | `/api/chat-v2` | reads most, writes few |
 | 14 | [Admin & M365](#14-admin--m365) | `/admin/*` | `components/admin/`, `components/best-practice/` | `lib/m365/`, `lib/ops/` | `/api/admin` | `m365_provisioning_log`, `media_container_best_practice` |
@@ -153,7 +153,7 @@ Identity here is **email**, not a numeric user id.
 
 ## 11. Planning & insights
 
-`/tools/behavioural-planner` is the Behavioural Change Sequence planner with deterministic narration — not the chat widget. `lib/planning/` is the largest lib directory by bytes (30 MB, mostly reference data). Uploaded Roy Morgan workbooks parse through `lib/planning/upload/` into the same `AudienceResponse` as the live Snowflake path (no UI yet). Saved audiences in `planning_audiences`; `campaign_insights` is append-and-supersede, never delete.
+`/tools/behavioural-planner` is the Behavioural Change Sequence planner with deterministic narration — not the chat widget. `lib/planning/` is the largest lib directory by bytes (30 MB, mostly reference data). Uploaded Roy Morgan workbooks parse through `lib/planning/upload/` into the same `AudienceResponse` as the live Snowflake path, then persist via `planning_audience_uploads` / `planning_uploaded_audiences` (0058 AUTHOR ONLY; admin routes, no UI yet). Saved live audiences in `planning_audiences`; `campaign_insights` is append-and-supersede, never delete.
 
 ## 12. Knowledge hub
 

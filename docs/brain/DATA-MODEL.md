@@ -14,7 +14,7 @@ Xano is no longer in the runtime read or write path. `lib/api/xano.ts` is the on
 | `db/avaClient.ts` → `AVA_DATABASE_URL` as role `ava_readonly` | AVA only | Fail-closed; explicit per-table `GRANT SELECT` + `CREATE POLICY ava_read`. New tables are excluded by default |
 | `DIRECT_URL` (port 5432) | `drizzle-kit` only | Never at runtime |
 
-**Migrations are applied by hand** through the Supabase SQL editor from `db/migrations/00NN_*.sql` (50 applied, `0001`…`0050`; there is no `0047` — the number was minted and abandoned). `0055_line_item_panels_unique.sql` is applied. `0051_finance_billing_records_backfill.sql`, `0052_xero_billing_amounts_ex_gst.sql`, and `0053_client_billing_lifecycle.sql` are authored, not applied. `db/schema/*.ts` is a hand-kept Drizzle mirror covering all 78 tables. Do not `db:migrate` the drizzle baseline — the tables already exist.
+**Migrations are applied by hand** through the Supabase SQL editor from `db/migrations/00NN_*.sql` (50 applied, `0001`…`0050`; there is no `0047` — the number was minted and abandoned). `0055_line_item_panels_unique.sql` is applied. `0051_finance_billing_records_backfill.sql`, `0052_xero_billing_amounts_ex_gst.sql`, `0053_client_billing_lifecycle.sql`, and `0058_planning_uploaded_audiences.sql` are authored, not applied. `db/schema/*.ts` is a hand-kept Drizzle mirror covering all 78 tables (0058 adds two more once applied). Do not `db:migrate` the drizzle baseline — the tables already exist.
 
 **`db:generate` does not prove the mirror matches the database.** The baseline was regenerated from the TypeScript mirrors, so an empty diff proves only that nobody edited `db/schema/*.ts` without regenerating the snapshot. It compares code to its own snapshot, not code to Postgres. Two columns were missing from the mirror while `db:generate` was clean.
 
@@ -159,6 +159,8 @@ erDiagram
 | `creative_asset` | 22 | Row + Vercel Blob file; `blob_url` / `blob_pathname` |
 | `scope_of_work` | 9 | jsonb `cost` and `billing_schedule` |
 | `planning_audiences` | 1 | saved audience definitions, `client_visible` flag |
+| `planning_audience_uploads` | 0 (0058 not applied) | staged Roy Morgan workbook parse (`parse_json` jsonb); 48h TTL (`expires_at` NULL = retained); `blob_url` stores a private Blob pathname, never a public URL |
+| `planning_uploaded_audiences` | 0 (0058 not applied) | saved uploaded audiences; `segment_key` = `upl_<id>` (`AudienceDraft.segmentId`); `channels_json` is server-mapped `RmMappedChannel[]` |
 | `campaign_insights` | 0 | Append and supersede (`superseded_by` self-FK, paired with `superseded_at` by CHECK). **Never delete.** GIN full-text index on `body`. `mba_number` lowercase by CHECK |
 | `pacing_orphan_fixes` | 1 | admin reassignment audit for unmatched platform line items |
 | `m365_provisioning_log` | 0 | every Graph provisioning attempt: success / failure / skipped |
