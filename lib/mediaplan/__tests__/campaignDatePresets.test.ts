@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import {
+  CAMPAIGN_DATE_PRESETS,
   campaignDateRangeForPreset,
   defaultCampaignDateRange,
 } from "@/lib/mediaplan/campaignDatePresets"
@@ -45,4 +46,33 @@ test("this-quarter and 12-months presets span expected bounds", () => {
   assert.equal(y.end.getFullYear(), 2027)
   assert.equal(y.end.getMonth(), 6)
   assert.equal(y.end.getDate(), 14)
+})
+
+test("annual-plan is first of next month through end of month 12 months later", () => {
+  const today = new Date(2026, 8, 2) // 2 Sep 2026
+  const range = campaignDateRangeForPreset("annual-plan", today)
+  assert.equal(range.start.getFullYear(), 2026)
+  assert.equal(range.start.getMonth(), 9)
+  assert.equal(range.start.getDate(), 1)
+  assert.equal(range.end.getFullYear(), 2027)
+  assert.equal(range.end.getMonth(), 8)
+  assert.equal(range.end.getDate(), 30)
+})
+
+test("FY preset on 2 Sep 2026 is 1 Jul 2026 – 30 Jun 2027", () => {
+  const fy = campaignDateRangeForPreset("fy", new Date(2026, 8, 2))
+  assert.equal(fy.start.getFullYear(), 2026)
+  assert.equal(fy.start.getMonth(), 6)
+  assert.equal(fy.start.getDate(), 1)
+  assert.equal(fy.end.getFullYear(), 2027)
+  assert.equal(fy.end.getMonth(), 5)
+  assert.equal(fy.end.getDate(), 30)
+})
+
+test("CAMPAIGN_DATE_PRESETS stays four entries without annual-plan", () => {
+  assert.equal(CAMPAIGN_DATE_PRESETS.length, 4)
+  assert.equal(
+    CAMPAIGN_DATE_PRESETS.some((p) => p.id === "annual-plan"),
+    false
+  )
 })

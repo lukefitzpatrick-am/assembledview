@@ -14,9 +14,13 @@ import {
 export function CampaignDatePresetBar({
   onApply,
   className,
+  presets = CAMPAIGN_DATE_PRESETS,
+  label = "Quick",
 }: {
   onApply: (range: CampaignDateRange) => void
   className?: string
+  presets?: ReadonlyArray<{ id: CampaignDatePresetId; label: string }>
+  label?: string
 }) {
   const apply = (id: CampaignDatePresetId) => {
     onApply(campaignDateRangeForPreset(id))
@@ -29,9 +33,9 @@ export function CampaignDatePresetBar({
       className={cn("flex flex-wrap items-center gap-1.5", className)}
     >
       <span className="mr-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        Quick
+        {label}
       </span>
-      {CAMPAIGN_DATE_PRESETS.map(({ id, label }) => (
+      {presets.map(({ id, label: presetLabel }) => (
         <button
           key={id}
           type="button"
@@ -42,7 +46,7 @@ export function CampaignDatePresetBar({
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           )}
         >
-          {label}
+          {presetLabel}
         </button>
       ))}
     </div>

@@ -24,7 +24,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
+import { CampaignDatePresetBar } from "@/components/mediaplans/CampaignDatePresetBar"
 import { getClientDisplayName } from "@/lib/clients/slug"
+import { PLANNER_DATE_PRESETS } from "@/lib/mediaplan/campaignDatePresets"
 import { cn } from "@/lib/utils"
 import { PLANNING_CATEGORIES, OBJECTIVE_PRESETS, type ObjectiveKind } from "./constants"
 import type { BriefState } from "./store"
@@ -191,20 +193,32 @@ export function StageBrief({ brief, onPatch, onObjective, onContinue }: StageBri
             />
           </div>
 
-          <div className="space-y-2">
-            <Label>Start date</Label>
-            <DatePicker
-              date={parseYmd(brief.startDate)}
-              setDate={(d) => onPatch({ startDate: toYmd(d) })}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label>End date</Label>
-            <DatePicker
-              date={parseYmd(brief.endDate)}
-              setDate={(d) => onPatch({ endDate: toYmd(d) })}
-            />
+          <div className="space-y-2 md:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label>Flight dates</Label>
+              <CampaignDatePresetBar
+                presets={PLANNER_DATE_PRESETS}
+                onApply={(range) =>
+                  onPatch({ startDate: toYmd(range.start), endDate: toYmd(range.end) })
+                }
+              />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Start date</Label>
+                <DatePicker
+                  date={parseYmd(brief.startDate)}
+                  setDate={(d) => onPatch({ startDate: toYmd(d) })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>End date</Label>
+                <DatePicker
+                  date={parseYmd(brief.endDate)}
+                  setDate={(d) => onPatch({ endDate: toYmd(d) })}
+                />
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">

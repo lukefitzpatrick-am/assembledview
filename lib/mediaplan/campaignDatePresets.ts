@@ -19,7 +19,12 @@ export function defaultCampaignDateRange(today: Date = new Date()): CampaignDate
   }
 }
 
-export type CampaignDatePresetId = "this-month" | "this-quarter" | "fy" | "12-months"
+export type CampaignDatePresetId =
+  | "this-month"
+  | "this-quarter"
+  | "fy"
+  | "annual-plan"
+  | "12-months"
 
 export const CAMPAIGN_DATE_PRESETS: ReadonlyArray<{
   id: CampaignDatePresetId
@@ -28,6 +33,18 @@ export const CAMPAIGN_DATE_PRESETS: ReadonlyArray<{
   { id: "this-month", label: "This month" },
   { id: "this-quarter", label: "This quarter" },
   { id: "fy", label: "FY" },
+  { id: "12-months", label: "12 months" },
+]
+
+/** Planner Stage A pills. Create/edit keep `CAMPAIGN_DATE_PRESETS` (no annual-plan). */
+export const PLANNER_DATE_PRESETS: ReadonlyArray<{
+  id: CampaignDatePresetId
+  label: string
+}> = [
+  { id: "this-month", label: "This month" },
+  { id: "this-quarter", label: "This quarter" },
+  { id: "fy", label: "FY" },
+  { id: "annual-plan", label: "Annual plan" },
   { id: "12-months", label: "12 months" },
 ]
 
@@ -51,6 +68,11 @@ export function campaignDateRangeForPreset(
         end: endOfDay(new Date(fyStartYear + 1, 5, 30)),
       }
     }
+    case "annual-plan":
+      return {
+        start: startOfDay(startOfMonth(addMonths(today, 1))),
+        end: endOfDay(endOfMonth(addMonths(today, 12))),
+      }
     case "12-months":
       return {
         start: startOfDay(today),
