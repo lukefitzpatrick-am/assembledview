@@ -17,10 +17,12 @@ import {
   FinanceBillingWriteError,
   classifyApprovePersistedKeys,
   classifyMarkExportedKeys,
+  billingBatchOk,
   classifyUnapproveKeys,
   clearFinanceBillingRecordApproval,
   clearFinanceBillingRecordExported,
   createFinanceBillingLineItem,
+  deleteFinanceBillingLineItemById,
   loadFinanceBillingKeyStamps,
   materialiseAndApproveFinanceBillingRecord,
   patchFinanceBillingLineItemById,
@@ -71,6 +73,7 @@ if (skipPg) {
 const MBA = `T01WF${Date.now().toString(36)}`
 const INVOICE_KEY = `media:${MBA}:2026-09`
 const INVOICE_KEY_B = `media:${MBA}:2026-10`
+const XERO_INVOICE_KEY = `xero:${MBA}:2026-09`
 const LINE_SNAPSHOTS = [
   { item_code: "FEE", amount: 100.5, schedule_line_item_id: `${MBA}SE1` },
 ]
@@ -84,13 +87,24 @@ async function wipe(): Promise<void> {
     sql`DELETE FROM finance_billing_line_items
         WHERE finance_billing_records_id IN (
           SELECT id FROM finance_billing_records
-          WHERE invoice_key IN (${INVOICE_KEY}, ${INVOICE_KEY_B})
+          WHERE invoice_key IN (${INVOICE_KEY}, ${INVOICE_KEY_B}, ${XERO_INVOICE_KEY})
         )`
   )
   await db.execute(
     sql`DELETE FROM finance_billing_records
-        WHERE invoice_key IN (${INVOICE_KEY}, ${INVOICE_KEY_B})`
+        WHERE invoice_key IN (${INVOICE_KEY}, ${INVOICE_KEY_B}, ${XERO_INVOICE_KEY})`
   )
+}
+
+async function lineItemRowCount(id: number): Promise<number> {
+  const db = getDb()
+  const rows = await db.execute(sql`
+    SELECT COUNT(*)::int AS n FROM finance_billing_line_items WHERE id = ${id}
+  `)
+  const list = Array.isArray(rows)
+    ? rows
+    : ((rows as { rows?: Array<{ n?: number }> }).rows ?? [])
+  return Number((list[0] as { n?: number } | undefined)?.n ?? 0)
 }
 
 describe("writeFinance xero: guard", () => {
@@ -224,6 +238,31 @@ describe("writeFinance batch key classification", () => {
     )
     assert.deepEqual(classified.actionable, ["media:B:2026-09"])
     assert.equal(classified.errors[0]?.error, "already_approved")
+  })
+
+  it("unapprove with one failing key returns ok:false and the per-key error", () => {
+    const stamps = new Map([
+      ["media:A:2026-09", { approved_at: "2026-09-01T00:00:00Z", approved_amount_cents: 100, exported_at: null }],
+    ])
+    const classified = classifyUnapproveKeys(["media:A:2026-09", "media:MISSING:2026-09"], stamps)
+    assert.equal(billingBatchOk(classified.errors), false)
+    assert.deepEqual(classified.errors, [
+      { invoice_key: "media:MISSING:2026-09", error: "not_found" },
+    ])
+  })
+
+  it("mark-exported with one failing key returns ok:false and the per-key error", () => {
+    const stamps = new Map([
+      ["media:A:2026-09", { approved_at: "2026-09-01T00:00:00Z", approved_amount_cents: 100, exported_at: null }],
+    ])
+    const classified = classifyMarkExportedKeys(
+      ["media:A:2026-09", "media:MISSING:2026-09"],
+      stamps
+    )
+    assert.equal(billingBatchOk(classified.errors), false)
+    assert.deepEqual(classified.errors, [
+      { invoice_key: "media:MISSING:2026-09", error: "not_found" },
+    ])
   })
 })
 
@@ -872,6 +911,105 @@ describe("writeFinance postgres path", { skip: skipPg }, () => {
         return true
       }
     )
+  })
+
+  it("refuses to delete a line under an approved parent (row stays)", async () => {
+    await wipe()
+    const created = await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+      initial_total: 100.5,
+    })
+    const line = await createFinanceBillingLineItem({
+      finance_billing_records_id: Number(created.id),
+      item_code: "FEE",
+      amount: 100.5,
+    })
+    const lineId = Number(line.id)
+    await setFinanceBillingRecordApproved({
+      invoiceKey: INVOICE_KEY,
+      approvedBy: 7,
+      approvedByName: "Ada Admin",
+      approvedAmountCents: 10050,
+      approvedLinesHash: HASH,
+    })
+    await assert.rejects(
+      () => deleteFinanceBillingLineItemById(lineId),
+      (err: unknown) => {
+        assert.ok(err instanceof FinanceBillingWriteError)
+        assert.equal(err.code, "APPROVED_FROZEN")
+        return true
+      }
+    )
+    assert.equal(await lineItemRowCount(lineId), 1)
+  })
+
+  it("deletes a line under an unapproved parent (row gone)", async () => {
+    await wipe()
+    const created = await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+      initial_total: 100.5,
+    })
+    const line = await createFinanceBillingLineItem({
+      finance_billing_records_id: Number(created.id),
+      item_code: "FEE",
+      amount: 100.5,
+    })
+    const lineId = Number(line.id)
+    assert.equal(await lineItemRowCount(lineId), 1)
+    await deleteFinanceBillingLineItemById(lineId)
+    assert.equal(await lineItemRowCount(lineId), 0)
+  })
+
+  it("refuses to delete a line under a xero: parent (row stays)", async () => {
+    await wipe()
+    const db = getDb()
+    const parentRows = await db.execute(sql`
+      INSERT INTO finance_billing_records (
+        invoice_key, billing_type, clients_id, client_name,
+        mba_number, campaign_name, billing_month
+      ) VALUES (
+        ${XERO_INVOICE_KEY}, 'media', 1, 'Xero fence',
+        ${MBA}, 'Xero', '2026-09'
+      )
+      RETURNING id
+    `)
+    const parentList = Array.isArray(parentRows)
+      ? parentRows
+      : ((parentRows as { rows?: Array<{ id?: number }> }).rows ?? [])
+    const parentId = Number((parentList[0] as { id?: number } | undefined)?.id)
+    assert.ok(Number.isFinite(parentId) && parentId > 0)
+    const lineRows = await db.execute(sql`
+      INSERT INTO finance_billing_line_items (
+        finance_billing_records_id, item_code, amount
+      ) VALUES (
+        ${parentId}, 'XERO-LI', 10
+      )
+      RETURNING id
+    `)
+    const lineList = Array.isArray(lineRows)
+      ? lineRows
+      : ((lineRows as { rows?: Array<{ id?: number }> }).rows ?? [])
+    const lineId = Number((lineList[0] as { id?: number } | undefined)?.id)
+    assert.ok(Number.isFinite(lineId) && lineId > 0)
+    await assert.rejects(
+      () => deleteFinanceBillingLineItemById(lineId),
+      (err: unknown) => {
+        assert.ok(err instanceof FinanceBillingWriteError)
+        assert.equal(err.code, "XERO_KEY_REFUSED")
+        return true
+      }
+    )
+    assert.equal(await lineItemRowCount(lineId), 1)
   })
 
   it("auto-stamp skips a manually-matched row and still stamps the rest of the batch", async () => {

@@ -7,6 +7,7 @@ import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
 import { parseInvoiceKeys } from "@/lib/finance/resolveApproveGrains"
 import {
   FinanceBillingWriteError,
+  billingBatchOk,
   classifyUnapproveKeys,
   clearFinanceBillingRecordApproval,
   loadFinanceBillingKeyStamps,
@@ -119,7 +120,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      ok: true,
+      ok: billingBatchOk(errors),
       records: results,
       errors: errors.map((e) => ({
         invoice_key: e.invoice_key,

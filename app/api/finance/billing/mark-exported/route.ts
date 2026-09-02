@@ -7,6 +7,7 @@ import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
 import { parseInvoiceKeys } from "@/lib/finance/resolveApproveGrains"
 import {
   FinanceBillingWriteError,
+  billingBatchOk,
   classifyMarkExportedKeys,
   loadFinanceBillingKeyStamps,
   stampExportedKeysSkippingUnapproved,
@@ -123,7 +124,7 @@ export async function POST(request: NextRequest) {
     }
 
     return NextResponse.json({
-      ok: true,
+      ok: billingBatchOk(classified.errors),
       exported_by_name: editedByName,
       records: results,
       skipped: classified.skipped.map((s) => ({

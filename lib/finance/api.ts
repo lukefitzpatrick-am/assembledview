@@ -428,7 +428,7 @@ export async function approveBillingRecords(params: {
 }
 
 export async function unapproveBillingRecords(params: { invoice_keys: string[] }): Promise<{
-  ok: true
+  ok: boolean
   records: Array<{ invoice_key: string; persisted_record_id: number }>
   errors: Array<{
     invoice_key: string
@@ -446,7 +446,7 @@ export async function unapproveBillingRecords(params: { invoice_keys: string[] }
 }
 
 export async function markBillingRecordsExported(params: { invoice_keys: string[] }): Promise<{
-  ok: true
+  ok: boolean
   exported_by_name: string
   records: Array<{
     invoice_key: string

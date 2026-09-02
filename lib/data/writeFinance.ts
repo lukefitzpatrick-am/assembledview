@@ -9,7 +9,7 @@
  * Unmark-exported (`clearFinanceBillingRecordExported`) never touches approved_*.
  * PATCH-by-id is field-allowlisted (notes, po_number, payment_days, payment_terms,
  * status, invoice_date, campaign_name). Money and lifecycle stamps are refused.
- * Line-item amount / received_amount freeze once the parent is approved.
+ * Line-item amount / received_amount / delete freeze once the parent is approved.
  * Re-approve refuses once exported_at is set (same as unapprove).
  * setFinanceBillingRecordBilled is the 410 route's documented counterpart
  * (tests only; no production caller).
@@ -145,6 +145,11 @@ export function classifyMarkExportedKeys(
     actionable.push(invoice_key)
   }
   return { actionable, skipped, errors }
+}
+
+/** Honest batch flag: ok is false when any per-key error is present. */
+export function billingBatchOk(errors: readonly unknown[]): boolean {
+  return errors.length === 0
 }
 
 /**
@@ -1032,5 +1037,19 @@ export async function deleteFinanceBillingLineItemById(id: number): Promise<void
   }
   assertAppInvoiceKey(parentKey)
   const db = getDb()
-  await db.execute(sql`DELETE FROM finance_billing_line_items WHERE id = ${id}`)
+  const rows = rowsOf<{ id: number }>(
+    await db.execute(sql`
+      DELETE FROM finance_billing_line_items AS li
+      USING finance_billing_records AS r
+      WHERE li.id = ${id}
+        AND r.id = li.finance_billing_records_id
+        AND r.invoice_key NOT LIKE 'xero:%'
+        AND r.approved_at IS NULL
+      RETURNING li.id
+    `)
+  )
+  if (rows.length > 0) return
+  const retry = await loadParentStampByLineItemId(id)
+  if (retry?.approved_at) throwApprovedMoneyFrozen("amount")
+  throw new FinanceBillingWriteError("NOT_FOUND", `finance_billing_line_items id=${id} not found`)
 }
