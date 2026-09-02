@@ -23,6 +23,7 @@ import {
   type FinanceLineItem,
 } from "@/lib/finance/utils"
 import { roundMoney2 } from "@/lib/format/money"
+import { resolveFinanceCampaignStatus, isFinanceIncludedCampaignStatus } from "@/lib/finance/sections/financeCampaignStatus"
 
 function financeMediaLineToBillingLine(
   li: FinanceLineItem,
@@ -124,10 +125,12 @@ export function derivePlanReceivableBillingRecordsForMonth(
   let syntheticId = 1
 
   for (const version of relevantVersions) {
-    const status = String(version.campaign_status ?? "").toLowerCase()
-    const bookedLike =
-      status === "booked" || status === "approved" || status === "completed"
-    if (!bookedLike && !options.includeNonBookedCampaigns) continue
+    if (
+      !isFinanceIncludedCampaignStatus(resolveFinanceCampaignStatus(version)) &&
+      !options.includeNonBookedCampaigns
+    ) {
+      continue
+    }
 
     const financials = computeCampaignFinancialsFromVersion(version)
     if (!financials) continue

@@ -11,6 +11,7 @@
 import { sql } from "drizzle-orm"
 import { getDb } from "@/db"
 import { SCHEDULE_LINE_JOIN_SQL } from "@/lib/finance/sections/scheduleLineJoinSql"
+import { FINANCE_STATUS_INCLUDED_SQL } from "@/lib/finance/sections/financeCampaignStatus"
 import {
   AR_COVERAGE_NOTE,
   type InvestmentCutDim,
@@ -252,7 +253,7 @@ WITH booked AS (
     LIMIT 1
   ) li ON TRUE
   WHERE m.published_version_id IS NOT NULL
-    AND LOWER(COALESCE(v.campaign_status, '')) IN ('approved', 'booked', 'completed')
+    AND ${FINANCE_STATUS_INCLUDED_SQL}
     ${deliveryGate}
     AND ${clientWhere}
   GROUP BY 1, 2

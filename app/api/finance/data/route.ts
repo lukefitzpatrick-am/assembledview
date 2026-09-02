@@ -7,6 +7,7 @@ import {
   financeClientNamesMatch,
 } from "@/lib/finance/utils"
 import { fetchRelevantPlanVersionsForFinanceMonth } from "@/lib/finance/relevantPlanVersions"
+import { resolveFinanceCampaignStatus } from "@/lib/finance/sections/financeCampaignStatus"
 import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMonthsSource"
 import { requireFinanceAdmin } from "@/lib/requireRole"
 import { readClientsList } from "@/lib/data/readClients"
@@ -160,7 +161,7 @@ export async function GET(request: NextRequest) {
         total: totalCampaignAmount,
       }
 
-      const status = String(version.campaign_status || "").toLowerCase()
+      const status = resolveFinanceCampaignStatus(version as Record<string, unknown>)
       if (status === "booked" || status === "approved") {
         bookedApprovedCampaigns.push(campaignData)
       } else {

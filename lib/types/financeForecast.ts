@@ -265,6 +265,8 @@ export interface FinanceForecastMediaPlanVersionInput {
   campaign_id?: string | number | null
   campaign_status?: string | null
   mp_campaignstatus?: string | null
+  /** Threaded from media_plan_masters — finance include/exclude prefers this. */
+  master_campaign_status?: string | null
   campaign_start_date?: string | null
   campaign_end_date?: string | null
   billingSchedule?: unknown

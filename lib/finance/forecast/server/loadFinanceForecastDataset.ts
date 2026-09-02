@@ -11,6 +11,9 @@ import type {
 } from "@/lib/types/financeForecast"
 import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
+import { getDataBackendFor } from "@/lib/data/backend"
+import { readPlanMasters } from "@/lib/data/readMediaPlans"
+import { stampMasterCampaignStatus } from "@/lib/finance/sections/financeCampaignStatus"
 import { stabilizeFinanceForecastDataset } from "./stabilizeFinanceForecastDataset"
 import { redactForecastRowDebug } from "./redactForecastDebug"
 import { hydrateVersionsFinanceScheduleSource } from "@/lib/finance/scheduleMonthsSource"
@@ -125,7 +128,7 @@ async function fetchFinanceForecastRawFromXanoUncached(): Promise<{
   const clientsUrl = xanoUrl("get_clients", "XANO_CLIENTS_BASE_URL")
   const publishersUrl = xanoUrl("get_publishers", "XANO_PUBLISHERS_BASE_URL")
 
-  const [versions, clientsRes, publishersRes] = await Promise.all([
+  const [versions, clientsRes, publishersRes, masters] = await Promise.all([
     fetchAllXanoPages(versionsUrl, {}, "FINANCE_forecast_media_plan_versions", 100, 50).catch(
       () => [] as any[]
     ),
@@ -135,10 +138,20 @@ async function fetchFinanceForecastRawFromXanoUncached(): Promise<{
     axios
       .get(publishersUrl, { timeout: 15_000, headers: xanoAuthHeaderRecord() })
       .catch(() => ({ data: [] })),
+    getDataBackendFor("plans") === "postgres"
+      ? readPlanMasters().catch(() => [] as Record<string, unknown>[])
+      : axios
+          .get(xanoUrl("media_plan_master", MEDIA_BASE_KEYS as unknown as string[]), {
+            timeout: 15_000,
+            headers: xanoAuthHeaderRecord(),
+          })
+          .then((res) => unwrapArray(res.data) as Record<string, unknown>[])
+          .catch(() => [] as Record<string, unknown>[]),
   ])
 
   const clients = unwrapArray(clientsRes.data) as FinanceForecastClientInput[]
   const publishers = unwrapArray(publishersRes.data) as FinanceForecastPublisherInput[]
+  stampMasterCampaignStatus(versions as Record<string, unknown>[], masters)
 
   return {
     versions: versions as FinanceForecastMediaPlanVersionInput[],

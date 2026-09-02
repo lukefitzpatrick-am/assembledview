@@ -168,7 +168,7 @@ export async function fetchFinanceClientPays(
         NULLIF(BTRIM(v.campaign_name), ''),
         ''
       ) AS campaign_name,
-      LOWER(COALESCE(v.campaign_status, '')) AS campaign_status,
+      LOWER(COALESCE(m.campaign_status, '')) AS campaign_status,
       li.line_item_id AS line_item_id,
       ${sql.raw(publisherExpr)} AS publisher,
       li.channel::text AS channel,

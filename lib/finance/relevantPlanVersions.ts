@@ -4,6 +4,7 @@ import { xanoAuthHeaderRecord, xanoUrl } from "@/lib/api/xano"
 import { fetchAllXanoPages } from "@/lib/api/xanoPagination"
 import { getDataBackendFor } from "@/lib/data/backend"
 import { readPlanMasters, readPlanVersions } from "@/lib/data/readMediaPlans"
+import { stampMasterCampaignStatus } from "@/lib/finance/sections/financeCampaignStatus"
 
 export type RelevantVersionsResult = {
   year: number
@@ -112,6 +113,7 @@ async function fetchMastersAndAllVersions(): Promise<{ masters: any[]; allVersio
       const name = clientByMba.get(normaliseMbaKey(v.mba_number))
       if (name) v.mp_client_name = name
     }
+    stampMasterCampaignStatus(allVersions, masters)
     return { masters, allVersions }
   }
 
@@ -130,6 +132,7 @@ async function fetchMastersAndAllVersions(): Promise<{ masters: any[]; allVersio
     50
   )
 
+  stampMasterCampaignStatus(allVersions, masters)
   return { masters, allVersions }
 }
 

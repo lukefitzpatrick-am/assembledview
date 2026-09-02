@@ -21,6 +21,7 @@ import type {
   FinanceForecastRowGroup,
   FinanceForecastScenario,
 } from "@/lib/types/financeForecast"
+import { resolveFinanceCampaignStatus } from "@/lib/finance/sections/financeCampaignStatus"
 import {
   FINANCE_FORECAST_FISCAL_MONTH_ORDER,
   FINANCE_FORECAST_GROUP_KEYS,
@@ -168,10 +169,7 @@ export function buildFinanceForecastDataset(
 // ---------------------------------------------------------------------------
 
 function normalizeCampaignStatus(version: FinanceForecastMediaPlanVersionInput): string {
-  const s = String(version.campaign_status ?? version.mp_campaignstatus ?? "")
-    .trim()
-    .toLowerCase()
-  return s
+  return resolveFinanceCampaignStatus(version)
 }
 
 function isCancelledStatus(status: string): boolean {

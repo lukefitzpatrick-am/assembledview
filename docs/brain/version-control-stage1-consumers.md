@@ -96,12 +96,12 @@ Not Stage 1. Listed so Claude does not “helpfully” repoint them.
 
 | file:line / area | what it decides |
 |---|---|
-| `lib/finance/sections/financeCampaignStatus.ts` (+ SQL constants) | Include/exclude campaign dollars in Costs / client-pays / investment cuts |
+| `lib/finance/sections/financeCampaignStatus.ts` (+ SQL constants) | Include/exclude campaign dollars in Costs / client-pays / investment cuts — reads **master** `campaign_status` (alias `m`), not the version snapshot |
 | Finance consumers of `isFinanceIncludedCampaignStatus` / `FINANCE_STATUS_*_SQL` (`clientPaysQuery`, `cutArQuery`, `cutAggregate`, `deriveReceivableRecords`, forecast, etc.) | Commercial totals scope |
 | `app/mediaplans/page.tsx` status filter / badges (~379, ~727) | List UX buckets |
 | `lib/mediaplan/campaignStatusGuard.ts` `mapCampaignStatusForPersist` / `normaliseStatus` | Persist vocabulary — keep; stop **using** status as publication |
 | `getDraftReturnRejection` + edit `canReturnToDraft` (~2240) | Lifecycle: cannot return to Draft once left — commercial workflow |
-| `app/api/plans/save/route.ts` + `savePlan` status persist | Stores commercial status on the version row |
+| `app/api/plans/save/route.ts` + `savePlan` status persist | CS-B: save does **not** write version `campaign_status`. Master is the commercial fact (`PATCH …/status`) |
 | Pacing / ops digest status fields | Display / banding, not “client has this version” |
 
 ---

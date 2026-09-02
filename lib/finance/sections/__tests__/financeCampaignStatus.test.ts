@@ -8,13 +8,21 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
+import { readFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
+
+import { filterPlanVersionsByIncludeDrafts } from "@/lib/finance/filterBillingRecords"
 import {
   FINANCE_EXCLUDED_CAMPAIGN_STATUSES,
   FINANCE_INCLUDED_CAMPAIGN_STATUSES,
+  FINANCE_STATUS_EXCLUDED_SQL,
+  FINANCE_STATUS_INCLUDED_SQL,
   PAYABLES_MEDIA_ONLY_BASIS_CAPTION,
   formatExcludedByStatusCaption,
   isFinanceExcludedCampaignStatus,
   isFinanceIncludedCampaignStatus,
+  resolveFinanceCampaignStatus,
 } from "../financeCampaignStatus.js"
 import { isServiceLineItemId } from "../serviceLineBucket.js"
 
@@ -22,7 +30,10 @@ type Cell = {
   lineItemId: string
   component: "media" | "fee" | "adserving"
   amountCents: number
+  /** Version-row status (historical snapshot). */
   campaignStatus: string
+  /** Master status when threaded; finance must follow this when present. */
+  masterCampaignStatus?: string
   clientPaysForMedia: boolean | null // null = orphan (no li)
 }
 
@@ -43,13 +54,17 @@ function composePayables(cells: Cell[]) {
   const excludedByStatusCents = { media: 0, fee: 0, adserving: 0 }
 
   for (const cell of cells) {
-    if (isFinanceExcludedCampaignStatus(cell.campaignStatus)) {
+    const status = resolveFinanceCampaignStatus({
+      campaign_status: cell.campaignStatus,
+      master_campaign_status: cell.masterCampaignStatus,
+    })
+    if (isFinanceExcludedCampaignStatus(status)) {
       if (cell.component === "media") excludedByStatusCents.media += cell.amountCents
       else if (cell.component === "fee") excludedByStatusCents.fee += cell.amountCents
       else excludedByStatusCents.adserving += cell.amountCents
       continue
     }
-    if (!isFinanceIncludedCampaignStatus(cell.campaignStatus)) continue
+    if (!isFinanceIncludedCampaignStatus(status)) continue
 
     if (cell.component === "fee") {
       feeCents += cell.amountCents
@@ -209,4 +224,91 @@ test("draft campaign fixture is excluded from totals but visible in coverage", (
       "media on the delivery schedule · campaign statuses approved/booked/completed"
     )
   )
+})
+
+test("SQL constants read media_plan_masters.campaign_status via alias m", () => {
+  assert.match(FINANCE_STATUS_INCLUDED_SQL, /\bm\.campaign_status\b/)
+  assert.doesNotMatch(FINANCE_STATUS_INCLUDED_SQL, /\bv\.campaign_status\b/)
+  assert.match(FINANCE_STATUS_EXCLUDED_SQL, /\bm\.campaign_status\b/)
+  assert.doesNotMatch(FINANCE_STATUS_EXCLUDED_SQL, /\bv\.campaign_status\b/)
+})
+
+test("master booked + version planned is included in finance", () => {
+  const row = {
+    campaign_status: "planned",
+    master_campaign_status: "booked",
+  }
+  const status = resolveFinanceCampaignStatus(row)
+  assert.equal(isFinanceIncludedCampaignStatus(status), true)
+  assert.equal(isFinanceExcludedCampaignStatus(status), false)
+
+  const kept = filterPlanVersionsByIncludeDrafts([row], false)
+  assert.equal(kept.length, 1)
+
+  const r = composePayables([
+    {
+      lineItemId: "trap-se1",
+      component: "media",
+      amountCents: 40_000_00,
+      campaignStatus: "planned",
+      masterCampaignStatus: "booked",
+      clientPaysForMedia: false,
+    },
+  ])
+  assert.equal(r.mediaHeadline, 40_000_00)
+  assert.equal(r.excludedByStatusCents.media, 0)
+})
+
+test("master planned + version booked is excluded from finance", () => {
+  const row = {
+    campaign_status: "booked",
+    master_campaign_status: "planned",
+  }
+  const status = resolveFinanceCampaignStatus(row)
+  assert.equal(isFinanceIncludedCampaignStatus(status), false)
+  assert.equal(isFinanceExcludedCampaignStatus(status), true)
+
+  const kept = filterPlanVersionsByIncludeDrafts([row], false)
+  assert.equal(kept.length, 0)
+})
+
+test("excluded-by-status coverage follows the master, not the version snapshot", () => {
+  const r = composePayables([
+    {
+      lineItemId: "stale-booked-se1",
+      component: "media",
+      amountCents: 12_000_00,
+      campaignStatus: "booked",
+      masterCampaignStatus: "planned",
+      clientPaysForMedia: false,
+    },
+    {
+      lineItemId: "stale-booked-se1",
+      component: "fee",
+      amountCents: 1_200_00,
+      campaignStatus: "booked",
+      masterCampaignStatus: "planned",
+      clientPaysForMedia: false,
+    },
+  ])
+  assert.equal(r.mediaHeadline, 0)
+  assert.equal(r.feeCents, 0)
+  assert.equal(r.excludedByStatusCents.media, 12_000_00)
+  assert.equal(r.excludedByStatusCents.fee, 1_200_00)
+})
+
+test("cutArQuery has no inline campaign-status list", () => {
+  const src = readFileSync(
+    join(dirname(fileURLToPath(import.meta.url)), "../investment/cutArQuery.ts"),
+    "utf8"
+  )
+  assert.doesNotMatch(
+    src,
+    /LOWER\(\s*COALESCE\(\s*v\.campaign_status/
+  )
+  assert.doesNotMatch(
+    src,
+    /IN\s*\(\s*'approved'\s*,\s*'booked'\s*,\s*'completed'\s*\)/
+  )
+  assert.match(src, /FINANCE_STATUS_INCLUDED_SQL/)
 })

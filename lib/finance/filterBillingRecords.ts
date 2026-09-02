@@ -1,5 +1,9 @@
 import type { BillingRecord, BillingType } from "@/lib/types/financeBilling"
 import { matchText } from "@/lib/search/matchText"
+import {
+  isFinanceIncludedCampaignStatus,
+  resolveFinanceCampaignStatus,
+} from "@/lib/finance/sections/financeCampaignStatus"
 
 /**
  * Shared post-derive filters for finance hub list APIs (`GET /api/finance/billing`,
@@ -89,10 +93,9 @@ export function filterPlanVersionsByIncludeDrafts(
   includeNonBooked: boolean
 ): Record<string, unknown>[] {
   if (includeNonBooked) return versions
-  return versions.filter((version) => {
-    const status = String(version.campaign_status ?? "").toLowerCase()
-    return status === "booked" || status === "approved" || status === "completed"
-  })
+  return versions.filter((version) =>
+    isFinanceIncludedCampaignStatus(resolveFinanceCampaignStatus(version))
+  )
 }
 
 export type HubBillingRecordFilterParams = {
