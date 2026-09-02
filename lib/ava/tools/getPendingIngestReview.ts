@@ -7,6 +7,7 @@ import {
 import {
   applyIngestReviewAnswers,
   formatFilteredUnusedMappingLine,
+  formatUnmatchedNonCardFieldsLine,
   listFilteredUnusedMappingProposals,
   listOpenIngestReviewQuestions,
   outstandingIngestLabels,
@@ -133,7 +134,9 @@ export const getPendingIngestReviewTool: AvaTool = {
     const unusedLine = formatFilteredUnusedMappingLine(
       listFilteredUnusedMappingProposals(review),
     )
-    let content = unusedLine ? `${confirmed}\n\n${unusedLine}` : confirmed
+    const nonCardLine = formatUnmatchedNonCardFieldsLine(review)
+    const extras = [unusedLine, nonCardLine].filter(Boolean).join("\n")
+    let content = extras ? `${confirmed}\n\n${extras}` : confirmed
     if (followUp) {
       const lines: string[] = []
       if (changed.length > 0) lines.push(changed.join(" "))

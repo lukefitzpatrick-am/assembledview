@@ -607,11 +607,39 @@ export type RequiredFieldGateResult = {
   reason: string | null
 }
 
+function warnRequiredFieldsMissingFromCard(coverage: {
+  media_type?: string
+  required: Array<{ id: string; label: string }>
+}): void {
+  if (process.env.NODE_ENV === "production") return
+  const mediaType = coverage.media_type?.trim()
+  if (!mediaType) return
+  let cardIds: string[]
+  try {
+    cardIds = getTargetTemplate(mediaType).card_field_ids
+  } catch {
+    return
+  }
+  const card = new Set(cardIds)
+  const defs = new Map(
+    getTargetTemplate(mediaType).required.map((field) => [field.id, field]),
+  )
+  for (const field of coverage.required) {
+    if (card.has(field.id)) continue
+    if (defs.get(field.id)?.kind === "derived") continue
+    console.warn(
+      `[ingest] required field "${field.id}" (${field.label}) is missing from card_field_ids for ${mediaType}`,
+    )
+  }
+}
+
 export function evaluateRequiredFieldGate(coverage: {
+  media_type?: string
   required: Array<{ id: string; label: string; matched: boolean }>
   waivers: CoverageWaiver[]
   unresolved_controlled?: UnresolvedControlledValue[]
 }): RequiredFieldGateResult {
+  warnRequiredFieldsMissingFromCard(coverage)
   const waived = new Set(coverage.waivers.map((w) => w.fieldId))
   const missing = coverage.required
     .filter((f) => !f.matched && !waived.has(f.id))

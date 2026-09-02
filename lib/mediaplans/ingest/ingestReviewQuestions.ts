@@ -1,9 +1,10 @@
 /**
  * Confirm-then-ask cards for staged ingest — ChatInterviewQuestion only.
- * Unmatched-source cards walk required then enrich in card_field_ids order
- * (which column feeds Format). Sourced-but-unresolved controlled values are
- * ingest:value:<field>:<raw> (the source says X — which of our formats is that?).
- * Both are needed and they are different questions.
+ * Unmatched-source cards walk card_field_ids only (which column feeds Format).
+ * A template field not on the card is captured when mapped and never asked.
+ * Sourced-but-unresolved controlled values are ingest:value:<field>:<raw>
+ * (the source says X — which of our formats is that?). Both are needed and
+ * they are different questions.
  */
 
 import {
@@ -185,37 +186,53 @@ function cardFieldIdsFor(review: IngestReviewPackage): string[] {
   }
 }
 
-function orderUnmatchedByCard(
+function unmatchedById(
   fields: TemplateFieldCoverage[],
-  cardIds: string[],
-): TemplateFieldCoverage[] {
-  const unmatched = fields.filter((field) => !field.matched)
-  const byId = new Map(unmatched.map((field) => [field.id, field]))
-  const ordered: TemplateFieldCoverage[] = []
-  const seen = new Set<string>()
-  for (const id of cardIds) {
-    const field = byId.get(id)
-    if (!field) continue
-    ordered.push(field)
-    seen.add(id)
+): Map<string, TemplateFieldCoverage> {
+  const byId = new Map<string, TemplateFieldCoverage>()
+  for (const field of fields) {
+    if (field.matched) continue
+    byId.set(field.id, field)
   }
-  for (const field of unmatched) {
-    if (seen.has(field.id)) continue
-    ordered.push(field)
-  }
-  return ordered
+  return byId
 }
 
+/** Unmatched required + enrich that appear on the editor card, in card_field_ids order. */
 function unmatchedFieldsInCardOrder(
   review: IngestReviewPackage,
 ): TemplateFieldCoverage[] {
   const coverage = review.template_coverage
   if (!coverage) return []
   const cardIds = cardFieldIdsFor(review)
-  return [
-    ...orderUnmatchedByCard(coverage.required, cardIds),
-    ...orderUnmatchedByCard(coverage.enrich, cardIds),
-  ]
+  const byId = unmatchedById([...coverage.required, ...coverage.enrich])
+  const ordered: TemplateFieldCoverage[] = []
+  for (const id of cardIds) {
+    const field = byId.get(id)
+    if (field) ordered.push(field)
+  }
+  return ordered
+}
+
+/** Unmatched enrich fields that are not on the card — captured when mapped, never asked. */
+export function unmatchedNonCardEnrichFields(
+  review: IngestReviewPackage,
+): TemplateFieldCoverage[] {
+  const coverage = review.template_coverage
+  if (!coverage) return []
+  const card = new Set(cardFieldIdsFor(review))
+  return coverage.enrich.filter((field) => !field.matched && !card.has(field.id))
+}
+
+export function formatUnmatchedNonCardFieldsLine(
+  review: IngestReviewPackage,
+): string | null {
+  const fields = unmatchedNonCardEnrichFields(review)
+  if (fields.length === 0) return null
+  const names = fields.map((field) => field.label).join(", ")
+  if (fields.length === 1) {
+    return `1 optional panel field has no source in this file (${names}) — it stays empty.`
+  }
+  return `${fields.length} optional panel fields have no source in this file (${names}) — they stay empty.`
 }
 
 const MEDIA_MONEY_FALLBACK: RequiredCardField = {
@@ -247,11 +264,13 @@ function reconDeltaText(review: IngestReviewPackage): string {
 
 function unmatchedWantedCanonicals(review: IngestReviewPackage): Set<string> {
   const wanted = new Set<string>()
+  const cardIds = new Set(cardFieldIdsFor(review))
   const consider = (
     fields: NonNullable<IngestReviewPackage["template_coverage"]>["required"] | undefined,
   ) => {
     for (const field of fields ?? []) {
       if (field.matched) continue
+      if (!cardIds.has(field.id)) continue
       for (const canon of field.canonicals ?? []) {
         if (canon) wanted.add(canon)
       }

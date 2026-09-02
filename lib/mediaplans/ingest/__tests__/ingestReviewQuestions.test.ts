@@ -6,6 +6,7 @@ import type { AvaColumnMappingProposal } from "../avaColumnMapping"
 import {
   applyIngestReviewAnswers,
   formatFilteredUnusedMappingLine,
+  formatUnmatchedNonCardFieldsLine,
   LEAVE_UNMAPPED_OPTION,
   NOT_IN_THIS_FILE_OPTION,
   listFilteredUnusedMappingProposals,
@@ -17,8 +18,16 @@ import {
 import type { IngestReviewPackage } from "../buildIngestReview"
 import { buildIngestReviewFromFile } from "../buildIngestReview"
 import { loadSeedPublisherProfiles } from "../loadPublisherProfiles"
-import { getTargetTemplate, registerTargetTemplateForTests } from "../targetTemplates"
-import type { TemplateCoverage, TemplateFieldCoverage } from "../templateCoverage"
+import {
+  getTargetTemplate,
+  listTargetTemplateMediaTypes,
+  registerTargetTemplateForTests,
+} from "../targetTemplates"
+import {
+  evaluateRequiredFieldGate,
+  type TemplateCoverage,
+  type TemplateFieldCoverage,
+} from "../templateCoverage"
 import {
   clearPublisherProfileSeedOverlayForTests,
   getPublisherProfileSeedOverlay,
@@ -139,14 +148,12 @@ test("skipped mapping answer does not call remapIngestColumn and is recorded", a
   assert.equal(mapping?.unmapped, true)
 })
 
-function sortUnmatchedByCard(ids: string[], cardIds: string[]): string[] {
+function sortUnmatchedOnCard(ids: string[], cardIds: string[]): string[] {
   const want = new Set(ids)
-  const inCard = cardIds.filter((id) => want.has(id))
-  const rest = ids.filter((id) => !cardIds.includes(id))
-  return [...inCard, ...rest]
+  return cardIds.filter((id) => want.has(id))
 }
 
-test("field cards walk unmatched required then enrich in card order; leftover columns are not cards", () => {
+test("field cards walk unmatched card_field_ids only; leftover columns are not cards", () => {
   const review = stubReview({
     ignored: {
       sheets_skipped: [],
@@ -196,10 +203,9 @@ test("field cards walk unmatched required then enrich in card order; leftover co
   assert.equal(questions.some((q) => q.id.startsWith("ingest:money:")), false)
   assert.deepEqual(
     questions.map((q) => q.id),
-    ["ingest:required:format", "ingest:required:site_number"],
+    ["ingest:required:format"],
   )
   assert.match(questions[0]!.text, /Which column in this schedule holds Format/)
-  assert.match(questions[1]!.text, /Which column in this schedule holds Site number/)
   assert.equal(questions[0]!.options?.[0], "FORMAT COL (AVA suggestion)")
   assert.ok(questions[0]!.options?.includes(NOT_IN_THIS_FILE_OPTION))
   assert.ok(questions[0]!.options?.includes(OTHER_OPTION))
@@ -207,9 +213,13 @@ test("field cards walk unmatched required then enrich in card order; leftover co
     questions.some((q) => /JUNK COL/.test(q.text) && q.id.startsWith("ingest:")),
     false,
   )
+  assert.equal(
+    questions.some((q) => q.id === "ingest:required:site_number"),
+    false,
+  )
   const filtered = listFilteredUnusedMappingProposals(review)
-  assert.equal(filtered.count, 1)
-  assert.deepEqual(filtered.headers, ["JUNK COL"])
+  assert.equal(filtered.count, 2)
+  assert.deepEqual(filtered.headers, ["SITE COL", "JUNK COL"])
   for (const header of filtered.headers) {
     assert.ok(
       review.ignored.columns_unmapped.some(
@@ -221,7 +231,11 @@ test("field cards walk unmatched required then enrich in card order; leftover co
   }
   assert.match(
     formatFilteredUnusedMappingLine(filtered) ?? "",
-    /1 other column isn't used by AssembledView/,
+    /2 other columns aren't used by AssembledView/,
+  )
+  assert.match(
+    formatUnmatchedNonCardFieldsLine(review) ?? "",
+    /Site number/,
   )
 })
 
@@ -305,7 +319,7 @@ test("orphan unused proposal is not a card; listFilteredUnusedMappingProposals s
   }
 })
 
-test("unmatched required field not on the editor card is still asked", () => {
+test("unmatched required field not on the editor card is not asked", () => {
   const review = stubReview({
     template_coverage: stubCoverage({
       required: [
@@ -335,9 +349,12 @@ test("unmatched required field not on the editor card is still asked", () => {
   })
   assert.deepEqual(
     questions.map((q) => q.id),
-    ["ingest:required:format", "ingest:required:buy_granularity"],
+    ["ingest:required:format"],
   )
-  assert.match(questions[1]!.text, /Which column in this schedule holds Buy granularity/)
+  assert.equal(
+    questions.some((q) => q.id === "ingest:required:buy_granularity"),
+    false,
+  )
 })
 
 const JCD_FIX = path.join(process.cwd(), "tests/fixtures/ava-plans/jcd_strength-meals_ooh.xlsx")
@@ -355,10 +372,10 @@ test("JCD fixture: cards only for unmatched required/enrich in card order; no co
   const cardIds = getTargetTemplate("ooh").card_field_ids
   const requiredUnmatched = cov.required.filter((f) => !f.matched).map((f) => f.id)
   const enrichUnmatched = cov.enrich.filter((f) => !f.matched).map((f) => f.id)
-  const expected = [
-    ...sortUnmatchedByCard(requiredUnmatched, cardIds),
-    ...sortUnmatchedByCard(enrichUnmatched, cardIds),
-  ].map((id) => `ingest:required:${id}`)
+  const expected = sortUnmatchedOnCard(
+    [...requiredUnmatched, ...enrichUnmatched],
+    cardIds,
+  ).map((id) => `ingest:required:${id}`)
 
   const ignoredUnmapped = [...review.ignored.columns_unmapped]
   const notUsed = [...(cov.not_used ?? [])]
@@ -889,6 +906,166 @@ test("a controlled field on a non-ooh throwaway template raises a value card", (
     assert.match(value.text, /formats/)
     assert.ok(value.options?.includes("Large Format"))
   } finally {
+    unregister()
+  }
+})
+
+test("JCD unmatched latitude and longitude are not cards", async () => {
+  const review = await jcdReview()
+  const cov = review.template_coverage
+  assert.ok(cov)
+  const lat = cov.enrich.find((f) => f.id === "latitude")
+  const lng = cov.enrich.find((f) => f.id === "longitude")
+  assert.equal(lat?.matched, false, "JCD has no latitude column — field stays unmatched")
+  assert.equal(lng?.matched, false, "JCD has no longitude column — field stays unmatched")
+
+  const questions = listOpenIngestReviewQuestions(review, {
+    mbaNumber: "jcd001",
+    mbaNumbers: ["jcd001"],
+  })
+  assert.equal(
+    questions.some((q) => q.id === "ingest:required:latitude"),
+    false,
+    "latitude is not on the OOH card — do not ask",
+  )
+  assert.equal(
+    questions.some((q) => q.id === "ingest:required:longitude"),
+    false,
+    "longitude is not on the OOH card — do not ask",
+  )
+  assert.equal(
+    questions.some((q) => /Latitude|Longitude/.test(q.text) && q.id.startsWith("ingest:required:")),
+    false,
+  )
+})
+
+test("unmatched format is still carded first in card_field_ids order", () => {
+  const review = stubReview({
+    template_coverage: stubCoverage({
+      required: [
+        coverageField({
+          id: "publisher",
+          role: "required",
+          matched: true,
+          dest: "line_items.publisher",
+          label: "Network",
+        }),
+        coverageField({
+          id: "format",
+          role: "required",
+          matched: false,
+          dest: "attrs.format",
+          label: "Format",
+          canonicals: ["format"],
+        }),
+        coverageField({
+          id: "market",
+          role: "required",
+          matched: true,
+          dest: "line_items.market",
+          label: "Market",
+        }),
+      ],
+      enrich: [
+        coverageField({
+          id: "latitude",
+          role: "enrich",
+          matched: false,
+          dest: "line_item_panels.latitude",
+          label: "Latitude",
+          canonicals: ["latitude"],
+        }),
+        coverageField({
+          id: "type",
+          role: "enrich",
+          matched: false,
+          dest: "attrs.type",
+          label: "Type",
+          canonicals: ["type"],
+        }),
+      ],
+      not_used: [],
+    }),
+  })
+  const questions = listOpenIngestReviewQuestions(review, {
+    mbaNumber: "mba1",
+    mbaNumbers: ["mba1"],
+  })
+  const fieldCards = questions.filter((q) => q.id.startsWith("ingest:required:"))
+  assert.equal(fieldCards[0]?.id, "ingest:required:format")
+  assert.match(fieldCards[0]!.text, /Format/)
+  assert.deepEqual(
+    fieldCards.map((q) => q.id),
+    ["ingest:required:format", "ingest:required:type"],
+  )
+})
+
+test("optional fields with no source line names Latitude and Longitude", async () => {
+  const review = await jcdReview()
+  const line = formatUnmatchedNonCardFieldsLine(review)
+  assert.ok(line, "expected a named optional-fields line, not silence")
+  assert.match(line, /Latitude/)
+  assert.match(line, /Longitude/)
+  assert.match(line, /no source in this file/)
+  assert.match(line, /stay empty/)
+  assert.equal(/\b\d+\b/.test(line) && /Latitude/.test(line), true)
+})
+
+test("every template: required ids are a subset of card_field_ids", () => {
+  for (const mediaType of listTargetTemplateMediaTypes()) {
+    const template = getTargetTemplate(mediaType)
+    const card = new Set(template.card_field_ids)
+    const missing = template.required
+      .filter((f) => f.kind !== "derived")
+      .map((f) => f.id)
+      .filter((id) => !card.has(id))
+    assert.deepEqual(
+      missing,
+      [],
+      `${mediaType}: required fields missing from card_field_ids: ${missing.join(", ")}`,
+    )
+  }
+})
+
+test("required field absent from card_field_ids still fails the gate and logs a warning", () => {
+  const unregister = registerTargetTemplateForTests({
+    media_type: "test_card_bug",
+    required: [
+      {
+        id: "secret_sauce",
+        label: "Secret sauce",
+        dest: "attrs.secret_sauce",
+        kind: "column",
+      },
+    ],
+    enrich: [],
+    system_waivers: [],
+    card_field_ids: ["publisher"],
+  })
+  const warn = mock.method(console, "warn", () => {})
+  try {
+    const gated = evaluateRequiredFieldGate({
+      media_type: "test_card_bug",
+      required: [
+        { id: "secret_sauce", label: "Secret sauce", matched: false },
+      ],
+      waivers: [],
+    })
+    assert.equal(gated.ok, false)
+    assert.match(gated.reason ?? "", /Secret sauce/)
+    assert.ok(
+      warn.mock.calls.some((call) => {
+        const msg = String(call.arguments[0] ?? "")
+        return (
+          msg.includes("secret_sauce") &&
+          msg.includes("card_field_ids") &&
+          msg.includes("test_card_bug")
+        )
+      }),
+      "expected a warning naming the required field missing from card_field_ids",
+    )
+  } finally {
+    warn.mock.restore()
     unregister()
   }
 })
