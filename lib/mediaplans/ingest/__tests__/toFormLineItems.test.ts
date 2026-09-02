@@ -233,11 +233,15 @@ test("each form line keeps its own row descriptors, not the first row's", () => 
   assert.equal(items.length, 2)
   const a = items[0] as Record<string, unknown>
   const b = items[1] as Record<string, unknown>
-  assert.equal(a.format, "Portrait")
+  assert.equal(a.format, "")
   assert.equal(a.market, "Sydney")
-  assert.equal(b.format, "Landscape")
+  assert.equal(b.format, "")
   assert.equal(b.market, "Melbourne")
-  assert.notEqual(b.format, a.format)
+  const aAttrs = a.attrs as { publisher_format_name?: string }
+  const bAttrs = b.attrs as { publisher_format_name?: string }
+  assert.equal(aAttrs.publisher_format_name, "Portrait")
+  assert.equal(bAttrs.publisher_format_name, "Landscape")
+  assert.notEqual(aAttrs.publisher_format_name, bAttrs.publisher_format_name)
 })
 
 test("postcodes stay strings with leading zeros", () => {

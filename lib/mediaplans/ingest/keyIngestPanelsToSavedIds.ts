@@ -21,6 +21,7 @@ export function keyIngestPanelsToSavedIds(args: {
   proposal: IngestProposal
   mbaNumber: string
   savedLineItems: SavedLineForIngestPanels[]
+  resolvedControlled?: import("@/lib/mediaplans/ingest/templateCoverage").ResolvedControlledValue[]
 }): {
   panels: IngestPanelRow[]
   sourcePanelCount: number
@@ -29,6 +30,7 @@ export function keyIngestPanelsToSavedIds(args: {
   const { lineItems: stamped, panels } = stampProposalForSave(
     args.proposal,
     args.mbaNumber,
+    args.resolvedControlled,
   )
   const sourcePanelCount = panels.length
   if (stamped.length === 0) {

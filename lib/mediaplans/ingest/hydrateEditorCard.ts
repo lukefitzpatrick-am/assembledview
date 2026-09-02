@@ -13,6 +13,10 @@ import {
   defaultMediaBurstEndDate,
   defaultMediaBurstStartDate,
 } from "@/lib/date-picker-anchor"
+import {
+  resolveControlledBuyType,
+  resolveControlledFormat,
+} from "@/lib/mediaplans/ingest/resolveControlledOoh"
 
 export type HydrateEditorBurstOpts = {
   campaignStartDate: Date
@@ -68,12 +72,18 @@ export function hydrateOohEditorLine(
     asText(item.environment) ||
     asText(item.publisher) ||
     asText(attrs?.network)
-  const format =
-    asText(item.format) || asText(attrs?.format)
-  const buyType =
+  const publisher =
+    asText(item.publisher) || asText(attrs?.network)
+  const formatRaw = asText(item.format) || asText(attrs?.format)
+  const format = resolveControlledFormat(formatRaw, publisher) ?? ""
+  const publisherFormatName =
+    asText(item.publisher_format_name) ||
+    asText(attrs?.publisher_format_name)
+  const buyTypeRaw =
     asText(item.buy_type) ||
     asText(item.buyType) ||
     asText(attrs?.buyType)
+  const buyType = resolveControlledBuyType(buyTypeRaw) ?? ""
   const type =
     asText(item.type) ||
     asText(item.environment) ||
@@ -134,6 +144,16 @@ export function hydrateOohEditorLine(
           },
         ]
 
+  const mergedAttrs: Record<string, unknown> | undefined =
+    attrs || publisherFormatName
+      ? {
+          ...(attrs ?? {}),
+          ...(publisherFormatName
+            ? { publisher_format_name: publisherFormatName }
+            : {}),
+        }
+      : undefined
+
   return {
     network,
     format,
@@ -144,6 +164,6 @@ export function hydrateOohEditorLine(
     buyingDemo,
     placement,
     bursts,
-    attrs,
+    attrs: mergedAttrs,
   }
 }

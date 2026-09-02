@@ -17,12 +17,13 @@ import {
 import type { IngestReviewPackage } from "../buildIngestReview"
 import { buildIngestReviewFromFile } from "../buildIngestReview"
 import { loadSeedPublisherProfiles } from "../loadPublisherProfiles"
-import { getTargetTemplate } from "../targetTemplates"
+import { getTargetTemplate, registerTargetTemplateForTests } from "../targetTemplates"
 import type { TemplateCoverage, TemplateFieldCoverage } from "../templateCoverage"
 import {
   clearPublisherProfileSeedOverlayForTests,
   getPublisherProfileSeedOverlay,
 } from "../persistColumnRemap"
+import { clearValueSynonymOverlayForTests } from "../valueSynonymRepo"
 import path from "node:path"
 
 const TEST_IDENTITY = {
@@ -56,6 +57,7 @@ function stubCoverage(
     warnings: [],
     waivers: [],
     unresolved_controlled: [],
+    resolved_controlled: [],
     ...overrides,
   }
 }
@@ -519,7 +521,13 @@ test("unresolvable format is a value card offering AV options, not a column-sour
       enrich: [],
       not_used: [],
       unresolved_controlled: [
-        { fieldId: "format", label: "Format", raw },
+        {
+          fieldId: "format",
+          label: "Format",
+          raw,
+          vocabulary: "ooh_format",
+          suggestion: null,
+        },
       ],
     }),
   })
@@ -601,7 +609,13 @@ test("answering a value card writes the AV canonical in-session and does not per
       enrich: [],
       not_used: [],
       unresolved_controlled: [
-        { fieldId: "format", label: "Format", raw },
+        {
+          fieldId: "format",
+          label: "Format",
+          raw,
+          vocabulary: "ooh_format",
+          suggestion: null,
+        },
       ],
     }),
   })
@@ -618,6 +632,10 @@ test("answering a value card writes the AV canonical in-session and does not per
     result.review.proposal?.line_items[0]?.grouping.publisher_format_name,
     raw,
   )
+  assert.equal(
+    result.review.proposal?.line_items[0]?.panels[0]?.descriptors.format,
+    "large_format",
+  )
   const still = listOpenIngestReviewQuestions(result.review, {
     mbaNumber: "mba1",
     mbaNumbers: ["mba1"],
@@ -626,6 +644,7 @@ test("answering a value card writes the AV canonical in-session and does not per
 })
 
 test("QMS Digital produces a value-resolution card offering AV options", async () => {
+  clearValueSynonymOverlayForTests()
   const review = await buildIngestReviewFromFile(
     path.join(process.cwd(), "tests/fixtures/ava-plans/qms_strength-meals_esb-ooh.xlsx"),
     loadSeedPublisherProfiles(),
@@ -643,5 +662,234 @@ test("QMS Digital produces a value-resolution card offering AV options", async (
   assert.ok(valueCards[0]!.options?.includes("Large Format"))
   assert.ok(valueCards[0]!.options?.includes("Active"))
   assert.ok(valueCards[0]!.options?.includes(LEAVE_UNMAPPED_OPTION))
+})
+
+test("a buy-type value card offers OOH buy-type labels, not format labels", () => {
+  const raw = "ZZORP BUY"
+  const review = stubReview({
+    proposal: {
+      publisher_name: "QMS",
+      media_type: "ooh",
+      sheet_name: "Paid",
+      line_items: [
+        {
+          grouping: { buyType: raw, format: "large_format" },
+          panels: [
+            {
+              descriptors: { buyType: raw },
+              raw_unmapped: {},
+              source_publisher: "QMS",
+              source_row_ref: "Paid!r2",
+              flights: [],
+              grid_period_count: 1,
+            },
+          ],
+          bursts: [],
+        },
+      ],
+      reconciliation: {
+        line_item_count: 1,
+        panel_count: 1,
+        burst_count: 0,
+        total_media_amount: 0,
+        file_stated_total: null,
+        delta: null,
+        delta_pct: null,
+        accept_ok: true,
+        block_reason: null,
+        warnings: [],
+        charges_detected_total: 0,
+      },
+    },
+    template_coverage: stubCoverage({
+      required: [
+        coverageField({
+          id: "format",
+          role: "required",
+          matched: true,
+          dest: "attrs.format",
+          label: "Format",
+          canonicals: ["format", "publisher_format_name"],
+        }),
+      ],
+      enrich: [
+        coverageField({
+          id: "buyType",
+          role: "enrich",
+          matched: true,
+          dest: "line_items.buyType",
+          label: "Buy Type",
+          canonicals: ["buy_type", "buyType"],
+        }),
+      ],
+      not_used: [],
+      unresolved_controlled: [
+        {
+          fieldId: "buyType",
+          label: "Buy Type",
+          raw,
+          vocabulary: "ooh_buy_type",
+          suggestion: null,
+        },
+      ],
+    }),
+  })
+  const questions = listOpenIngestReviewQuestions(review, {
+    mbaNumber: "mba1",
+    mbaNumbers: ["mba1"],
+  })
+  const value = questions.find((q) => q.id === valueQuestionId("buyType", raw))
+  assert.ok(value, "expected a buy-type value card")
+  assert.match(value.text, /buy types/)
+  assert.ok(value.options?.includes("Fixed Cost"))
+  assert.ok(value.options?.includes("Package Inclusions"))
+  assert.equal(value.options?.includes("Large Format"), false)
+})
+
+test("answering a buy-type value card writes buyType, not format", async () => {
+  clearPublisherProfileSeedOverlayForTests()
+  clearValueSynonymOverlayForTests()
+  const raw = "ZZORP BUY"
+  const review = stubReview({
+    detected_publisher: "QMS",
+    proposal: {
+      publisher_name: "QMS",
+      media_type: "ooh",
+      sheet_name: "Paid",
+      line_items: [
+        {
+          grouping: { buyType: raw, format: "large_format" },
+          panels: [
+            {
+              descriptors: { buyType: raw, format: "large_format" },
+              raw_unmapped: {},
+              source_publisher: "QMS",
+              source_row_ref: "Paid!r2",
+              flights: [],
+              grid_period_count: 1,
+            },
+          ],
+          bursts: [],
+        },
+      ],
+      reconciliation: {
+        line_item_count: 1,
+        panel_count: 1,
+        burst_count: 0,
+        total_media_amount: 0,
+        file_stated_total: null,
+        delta: null,
+        delta_pct: null,
+        accept_ok: true,
+        block_reason: null,
+        warnings: [],
+        charges_detected_total: 0,
+      },
+    },
+    template_coverage: stubCoverage({
+      required: [
+        coverageField({
+          id: "format",
+          role: "required",
+          matched: true,
+          dest: "attrs.format",
+          label: "Format",
+        }),
+      ],
+      enrich: [
+        coverageField({
+          id: "buyType",
+          role: "enrich",
+          matched: true,
+          dest: "line_items.buyType",
+          label: "Buy Type",
+        }),
+      ],
+      not_used: [],
+      unresolved_controlled: [
+        {
+          fieldId: "buyType",
+          label: "Buy Type",
+          raw,
+          vocabulary: "ooh_buy_type",
+          suggestion: null,
+        },
+      ],
+    }),
+  })
+  const result = await applyIngestReviewAnswers(
+    review,
+    [{ questionId: valueQuestionId("buyType", raw), answer: "Fixed Cost" }],
+    TEST_IDENTITY,
+  )
+  assert.equal(result.review.proposal?.line_items[0]?.grouping.buyType, "fixed_cost")
+  assert.equal(result.review.proposal?.line_items[0]?.grouping.format, "large_format")
+  assert.equal(
+    result.review.proposal?.line_items[0]?.panels[0]?.descriptors.buyType,
+    "fixed_cost",
+  )
+  assert.equal(
+    result.review.proposal?.line_items[0]?.grouping.publisher_buyType_name,
+    undefined,
+  )
+})
+
+test("a controlled field on a non-ooh throwaway template raises a value card", () => {
+  const unregister = registerTargetTemplateForTests({
+    media_type: "test_vocab",
+    required: [
+      {
+        id: "flavour",
+        label: "Flavour",
+        dest: "attrs.flavour",
+        kind: "column",
+        canonicals: ["flavour"],
+        controlled: { vocabulary: "ooh_format" },
+      },
+    ],
+    enrich: [],
+    system_waivers: [],
+    card_field_ids: ["flavour"],
+  })
+  try {
+    const raw = "ZZORP FLAVOUR"
+    const review = stubReview({
+      detected_media_type: "test_vocab",
+      template_coverage: stubCoverage({
+        media_type: "test_vocab",
+        required: [
+          coverageField({
+            id: "flavour",
+            role: "required",
+            matched: true,
+            dest: "attrs.flavour",
+            label: "Flavour",
+            canonicals: ["flavour"],
+          }),
+        ],
+        enrich: [],
+        not_used: [],
+        unresolved_controlled: [
+          {
+            fieldId: "flavour",
+            label: "Flavour",
+            raw,
+            vocabulary: "ooh_format",
+            suggestion: null,
+          },
+        ],
+      }),
+    })
+    const questions = listOpenIngestReviewQuestions(review, {
+      mbaNumber: "mba1",
+      mbaNumbers: ["mba1"],
+    })
+    const value = questions.find((q) => q.id === valueQuestionId("flavour", raw))
+    assert.ok(value, "expected a value card on a non-ooh template")
+    assert.match(value.text, /formats/)
+    assert.ok(value.options?.includes("Large Format"))
+  } finally {
+    unregister()
+  }
 })
 

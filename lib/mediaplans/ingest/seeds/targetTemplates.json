@@ -40,7 +40,8 @@
         "label": "Format",
         "dest": "attrs.format",
         "kind": "column",
-        "canonicals": ["format", "publisher_format_name"]
+        "canonicals": ["format", "publisher_format_name"],
+        "controlled": { "vocabulary": "ooh_format" }
       },
       {
         "id": "market",
@@ -122,7 +123,8 @@
         "label": "Buy Type",
         "dest": "line_items.buyType",
         "kind": "column",
-        "canonicals": ["buy_type", "buyType"]
+        "canonicals": ["buy_type", "buyType"],
+        "controlled": { "vocabulary": "ooh_buy_type" }
       },
       {
         "id": "type",

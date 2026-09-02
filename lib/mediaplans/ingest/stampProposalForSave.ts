@@ -13,6 +13,8 @@ import type {
   ProposedLineItem,
   ProposedPanel,
 } from "@/lib/mediaplans/ingest/proposeLineItems"
+import { resolveControlledBuyType, resolveControlledFormat } from "@/lib/mediaplans/ingest/resolveControlledOoh"
+import type { ResolvedControlledValue } from "@/lib/mediaplans/ingest/templateCoverage"
 
 export type IngestPanelFlightRow = {
   periodStart: string
@@ -109,26 +111,64 @@ function buyTypeForMedia(mediaType: string): string {
   return mediaType === "radio" ? "spots" : "fixed_cost"
 }
 
+function headerKey(value: string): string {
+  return value.replace(/\s+/g, " ").trim().toLowerCase()
+}
+
+function lookupResolvedCanonical(
+  resolved: ResolvedControlledValue[] | undefined,
+  fieldId: string,
+  raw: string | null,
+): string | null {
+  if (!raw || !resolved?.length) return null
+  const key = headerKey(raw)
+  return (
+    resolved.find(
+      (row) => row.fieldId === fieldId && headerKey(row.raw) === key,
+    )?.canonical ?? null
+  )
+}
+
 function attrsForLine(
   item: ProposedLineItem,
   mediaType: "radio" | "ooh",
   buyGranularity: "panel" | "pack",
   sheetName: string,
   publisherName: string,
+  resolvedControlled?: ResolvedControlledValue[],
 ): Record<string, unknown> {
-  const format =
-    str(item.grouping.format) ??
-    firstDescriptor(item, ["format", "publisher_format_name"])
+  const groupingFormat = str(item.grouping.format)
+  const groupingPublisherFormat = str(item.grouping.publisher_format_name)
+  const panelPublisherFormat = firstDescriptor(item, ["publisher_format_name"])
+  const panelFormat = firstDescriptor(item, ["format"])
+  const formatCandidate =
+    groupingFormat ?? groupingPublisherFormat ?? panelPublisherFormat ?? panelFormat
+  const resolvedFormat =
+    lookupResolvedCanonical(resolvedControlled, "format", formatCandidate) ??
+    lookupResolvedCanonical(resolvedControlled, "format", groupingFormat) ??
+    lookupResolvedCanonical(resolvedControlled, "format", panelFormat) ??
+    (formatCandidate
+      ? resolveControlledFormat(formatCandidate, publisherName)
+      : null)
+  const publisherFormatName =
+    groupingPublisherFormat ??
+    panelPublisherFormat ??
+    (formatCandidate && formatCandidate !== resolvedFormat ? formatCandidate : null)
   const network =
     str(item.grouping.network) ??
     firstDescriptor(item, ["network"]) ??
     publisherName
   const attrs: Record<string, unknown> = {
-    format,
     network,
     ingest_grouping: item.grouping,
     ingest_sheet: sheetName,
     buy_granularity: buyGranularity,
+  }
+  if (mediaType === "ooh") {
+    attrs.format = resolvedFormat ?? ""
+    if (publisherFormatName) {
+      attrs.publisher_format_name = publisherFormatName
+    }
   }
   if (mediaType === "radio") {
     attrs.station = firstDescriptor(item, ["station"])
@@ -207,6 +247,7 @@ export function proposedPanelToRow(
     lineItemId: string
     mbaNumber: string
     buyGranularity: "panel" | "pack"
+    fallbackPublisherFormatName?: string | null
   },
 ): IngestPanelRow {
   const d = panel.descriptors
@@ -216,7 +257,8 @@ export function proposedPanelToRow(
     buyGranularity: args.buyGranularity,
     latitude: numStr(d.latitude),
     longitude: numStr(d.longitude),
-    publisherFormatName: str(d.publisher_format_name),
+    publisherFormatName:
+      str(d.publisher_format_name) ?? str(args.fallbackPublisherFormatName),
     state: str(d.state),
     siteNumber: str(d.site_number),
     addressOrPackDetails: str(d.address_or_pack_details),
@@ -255,6 +297,7 @@ export function proposedPanelToRow(
 export function stampProposalForSave(
   proposal: IngestProposal,
   mbaNumber: string,
+  resolvedControlled?: ResolvedControlledValue[],
 ): {
   lineItems: SavePlanLineItem[]
   panels: IngestPanelRow[]
@@ -264,7 +307,12 @@ export function stampProposalForSave(
   const code = mediaCodeForChannel(channel)
 
   const stubs = proposal.line_items.map((item, index) => {
-    const buyType = buyTypeForMedia(mediaType)
+    const groupingBuy =
+      str(item.grouping.buyType) ?? str(item.grouping.buy_type)
+    const resolvedBuy =
+      lookupResolvedCanonical(resolvedControlled, "buyType", groupingBuy) ??
+      (groupingBuy ? resolveControlledBuyType(groupingBuy) : null)
+    const buyType = resolvedBuy ?? buyTypeForMedia(mediaType)
     const mediaSum = item.bursts.reduce((s, b) => s + (b.media_amount || 0), 0)
     const buyGranularity: "panel" | "pack" =
       item.panels.length > 1 ? "pack" : "panel"
@@ -296,6 +344,7 @@ export function stampProposalForSave(
         buyGranularity,
         proposal.sheet_name,
         proposal.publisher_name,
+        resolvedControlled,
       ),
     }
     return line
@@ -309,12 +358,25 @@ export function stampProposalForSave(
     const lineItemId = String(stamped[i]!.lineItemId)
     const buyGranularity: "panel" | "pack" =
       item.panels.length > 1 ? "pack" : "panel"
+    const groupingFormat = str(item.grouping.format)
+    const groupingPublisherFormat = str(item.grouping.publisher_format_name)
+    const resolvedGrouping =
+      lookupResolvedCanonical(resolvedControlled, "format", groupingFormat) ??
+      (groupingFormat
+        ? resolveControlledFormat(groupingFormat, proposal.publisher_name)
+        : null)
+    const fallbackPublisherFormatName =
+      groupingPublisherFormat ??
+      (groupingFormat && groupingFormat !== resolvedGrouping
+        ? groupingFormat
+        : null)
     for (const p of item.panels) {
       panels.push(
         proposedPanelToRow(p, {
           lineItemId,
           mbaNumber,
           buyGranularity,
+          fallbackPublisherFormatName,
         }),
       )
     }

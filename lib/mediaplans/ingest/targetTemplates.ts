@@ -19,6 +19,7 @@ export type TemplateFieldDef = {
   dest: string
   kind: TemplateFieldKind
   canonicals?: string[]
+  controlled?: { vocabulary: string }
 }
 
 export type SystemWaiverDef = {
@@ -47,10 +48,21 @@ export type TargetTemplate = {
 }
 
 const TEMPLATES = raw as Record<string, TargetTemplate>
+const extraForTests = new Map<string, TargetTemplate>()
+
+export function registerTargetTemplateForTests(
+  template: TargetTemplate,
+): () => void {
+  const key = template.media_type.trim().toLowerCase()
+  extraForTests.set(key, template)
+  return () => {
+    extraForTests.delete(key)
+  }
+}
 
 export function getTargetTemplate(mediaType: string): TargetTemplate {
   const key = mediaType.trim().toLowerCase()
-  const t = TEMPLATES[key]
+  const t = extraForTests.get(key) ?? TEMPLATES[key]
   if (!t) {
     throw new Error(`No ingest target template for media type "${mediaType}"`)
   }

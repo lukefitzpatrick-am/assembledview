@@ -161,7 +161,9 @@ test("confirm-in-chat accept hydrates the editor card (MR-12 QMS round-trip)", a
     feePct: 0,
   })
   assert.ok(card.network.trim(), "Network empty after chat accept")
-  assert.ok(card.format.trim(), "Format empty after chat accept")
+  assert.equal(card.format, "", "QMS publisher format must not land on the card")
+  const rawFormat = String(card.attrs?.publisher_format_name ?? "").trim()
+  assert.ok(rawFormat, "publisher_format_name missing after chat accept")
   assert.equal(card.buyType, "fixed_cost")
   assert.ok(card.bursts.length > 0)
   const money = card.bursts.reduce((s, b) => s + parseBurstMoney(b.budget), 0)

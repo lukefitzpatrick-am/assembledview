@@ -27,6 +27,7 @@ export function ingestReviewToFormLineItems(
   const { lineItems, panels } = stampProposalForSave(
     review.proposal,
     FORM_STAMP_MBA,
+    review.template_coverage?.resolved_controlled,
   )
   const panelsByLine = new Map<string, IngestPanelRow[]>()
   for (const panel of panels) {

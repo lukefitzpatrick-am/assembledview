@@ -8381,6 +8381,181 @@
       },
       "isRLSEnabled": false
     },
+    "public.publisher_value_synonyms": {
+      "name": "publisher_value_synonyms",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "bigint",
+          "primaryKey": true,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "publisher_value_synonyms_id_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "publisher_id": {
+          "name": "publisher_id",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "media_type": {
+          "name": "media_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "vocabulary": {
+          "name": "vocabulary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "av_field": {
+          "name": "av_field",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "raw_value": {
+          "name": "raw_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "raw_value_display": {
+          "name": "raw_value_display",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "av_canonical": {
+          "name": "av_canonical",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "learned_from_stage_id": {
+          "name": "learned_from_stage_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retired_by": {
+          "name": "retired_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "uq_pvs_scope": {
+          "name": "uq_pvs_scope",
+          "columns": [
+            {
+              "expression": "coalesce(\"publisher_id\", 0)",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "vocabulary",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "raw_value",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"publisher_value_synonyms\".\"is_active\" = true",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_pvs_lookup": {
+          "name": "idx_pvs_lookup",
+          "columns": [
+            {
+              "expression": "vocabulary",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "raw_value",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"publisher_value_synonyms\".\"is_active\" = true",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "publisher_value_synonyms_publisher_id_publishers_id_fk": {
+          "name": "publisher_value_synonyms_publisher_id_publishers_id_fk",
+          "tableFrom": "publisher_value_synonyms",
+          "tableTo": "publishers",
+          "columnsFrom": [
+            "publisher_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.ava_time_entry_proposals": {
       "name": "ava_time_entry_proposals",
       "schema": "",

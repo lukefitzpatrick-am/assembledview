@@ -28,7 +28,7 @@ Rule of direction: **L5 never talks to L2.** A page calls an API route or a serv
 | 4 | [Client dashboards](#4-client-dashboards) | `/dashboard/[slug]` | `components/dashboard/`, `components/charts/` | `lib/dashboard/`, `lib/charts/`, `lib/spend/` | `/api/dashboard`, `/api/campaigns` | `media_plan_*`, `schedule_months`, `campaign_insights` |
 | 5 | [KPI](#5-kpi) | (inside plan + pacing) | `components/kpis/` | `lib/kpi/` | `/api/kpis` | `campaign_kpi`, `client_kpi`, `publisher_kpi` |
 | 6 | [Trafficking & creative](#6-trafficking--creative) | `/creative`, `/mediaplans/mba/[mba]/trafficking` | `components/creative/`, `components/trafficking/` | `lib/naming/`, `lib/creative/` | `/api/creative-assets`, `/api/naming` | `creative_asset` |
-| 7 | [Publishers & specs](#7-publishers-specs--ingest) | `/publishers` | `components/specs/`, `components/ingest/` | `lib/publisher/`, `lib/specs/` | `/api/publishers`, `/api/admin/ingest` | `publishers`, `publisher_profiles`, `publisher_specs`, `ingest_*`, `line_item_panels` |
+| 7 | [Publishers & specs](#7-publishers-specs--ingest) | `/publishers` | `components/specs/`, `components/ingest/` | `lib/publisher/`, `lib/specs/` | `/api/publishers`, `/api/admin/ingest` | `publishers`, `publisher_profiles`, `publisher_value_synonyms`, `publisher_specs`, `ingest_*`, `line_item_panels` |
 | 8 | [Clients](#8-clients) | `/client` | `components/client-hub/`, `components/client-dashboard/` | `lib/clients/` | `/api/clients`, `/api/admin/client-hub` | `clients`, `client_domains` |
 | 9 | [Codex](#9-codex-tasks-time-meetings) | `/tasks` | `components/tasks/` | `lib/codex/`, `lib/fireflies/`, `lib/myhours/` | `/api/codex` | `tasks`, `client_notes`, `team_members`, `ava_*_proposals`, `time_entries` |
 | 10 | [Scopes of work](#10-scopes-of-work) | `/scopes-of-work` | (page-local) | `lib/scopes/` | `/api/scopes-of-work` | `scope_of_work` |
@@ -128,6 +128,7 @@ Naming/trafficking builder generates platform names from plan lines (`lib/naming
 
 Three related-but-distinct stores, all joined on `publishers.id` and never on display name:
 - `publisher_profiles` — how to parse a publisher's schedule spreadsheet (`detect_signature`, `column_map`, `grid_semantics`, `line_granularity`). Config is jsonb on the row, not TypeScript per publisher.
+- `publisher_value_synonyms` — learned publisher prose → AV canonical (`0060` AUTHOR ONLY). `publisher_id` NULL is a global suggestion, never auto-applied.
 - `publisher_specs` + `spec_runs` — material specs and deadlines.
 - `ingest_stages` → `ingest_runs` — staged review package, then accepted run history. OOH detail lands in `line_item_panels` + `line_item_panel_flights` (no money columns; spend stays on the burst).
 

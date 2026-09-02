@@ -170,6 +170,8 @@ test("a media type with no detail_table renders no detail row", () => {
       by: "system",
       reason: w.reason,
     })),
+    unresolved_controlled: [],
+    resolved_controlled: [],
   }
   const surface = buildReviewCardSurface(coverage)
   assert.ok(!surface.rows.some((r) => r.kind === "detail_table"))

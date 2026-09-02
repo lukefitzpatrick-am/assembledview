@@ -9,8 +9,11 @@ import {
   isReferenceIgnoreTarget,
   type PublisherProfileConfig,
 } from "@/lib/mediaplans/ingest/publisherProfileConfig"
+import { resolveCatalogueIdForProfileName } from "@/lib/mediaplans/ingest/publisherCatalogueJoin"
+import { resolveControlledValue } from "@/lib/mediaplans/ingest/resolveControlledValue"
 import {
   getTargetTemplate,
+  type TargetTemplate,
   type TemplateFieldDef,
 } from "@/lib/mediaplans/ingest/targetTemplates"
 
@@ -52,6 +55,22 @@ export type NotUsedColumn = {
   sample?: string
 }
 
+/** Publisher prose on a sourced controlled field that did not match AV vocab. */
+export type UnresolvedControlledValue = {
+  fieldId: string
+  label: string
+  raw: string
+  vocabulary: string
+  suggestion: string | null
+}
+
+export type ResolvedControlledValue = {
+  fieldId: string
+  raw: string
+  canonical: string
+  via: string
+}
+
 export type TemplateCoverage = {
   media_type: string
   required: TemplateFieldCoverage[]
@@ -67,6 +86,8 @@ export type TemplateCoverage = {
   }
   warnings: string[]
   waivers: CoverageWaiver[]
+  unresolved_controlled: UnresolvedControlledValue[]
+  resolved_controlled: ResolvedControlledValue[]
 }
 
 function headerKey(h: string): string {
@@ -97,6 +118,161 @@ function sampleForHeader(
     if (v) return v
   }
   return undefined
+}
+
+function uniqueGroupingRaws(
+  proposal: IngestProposal | null,
+  keys: string[],
+): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  if (!proposal) return out
+  for (const item of proposal.line_items) {
+    for (const key of keys) {
+      const fromGroup = item.grouping[key]?.trim()
+      if (fromGroup) {
+        const k = headerKey(fromGroup)
+        if (!seen.has(k)) {
+          seen.add(k)
+          out.push(fromGroup)
+        }
+      }
+      for (const panel of item.panels) {
+        const fromPanel = panel.descriptors[key]?.trim()
+        if (!fromPanel) continue
+        const k = headerKey(fromPanel)
+        if (seen.has(k)) continue
+        seen.add(k)
+        out.push(fromPanel)
+      }
+    }
+  }
+  return out
+}
+
+export function publisherRawFieldFor(
+  template: TargetTemplate,
+  fieldId: string,
+): string | null {
+  const name = `publisher_${fieldId}_name`
+  const all = [...template.required, ...template.enrich]
+  const declared = all.some(
+    (f) => f.id === name || (f.canonicals ?? []).includes(name),
+  )
+  return declared ? name : null
+}
+
+function groupingKeysForControlledField(field: TemplateFieldDef): string[] {
+  const publisherRaw = `publisher_${field.id}_name`
+  const keys = [field.id]
+  for (const c of field.canonicals ?? []) {
+    if (c === publisherRaw || c.includes(":")) continue
+    if (!keys.includes(c)) keys.push(c)
+  }
+  return keys
+}
+
+export function applyCanonicalControlledValue(
+  proposal: IngestProposal,
+  args: {
+    fieldId: string
+    raw: string
+    canonical: string
+    publisherRawField: string | null
+  },
+): IngestProposal {
+  const rawKey = headerKey(args.raw)
+  return {
+    ...proposal,
+    line_items: proposal.line_items.map((item) => {
+      const groupingHit =
+        headerKey(item.grouping[args.fieldId] ?? "") === rawKey
+      const panels = item.panels.map((panel) => {
+        const hit =
+          headerKey(panel.descriptors[args.fieldId] ?? "") === rawKey
+        if (!hit) return panel
+        return {
+          ...panel,
+          descriptors: {
+            ...panel.descriptors,
+            [args.fieldId]: args.canonical,
+          },
+        }
+      })
+      const panelHit = panels.some(
+        (panel, i) => panel !== item.panels[i],
+      )
+      if (!groupingHit && !panelHit) return item
+      const grouping = { ...item.grouping, [args.fieldId]: args.canonical }
+      if (args.publisherRawField) {
+        grouping[args.publisherRawField] =
+          item.grouping[args.publisherRawField] ||
+          (groupingHit ? item.grouping[args.fieldId] : "") ||
+          args.raw
+      }
+      return { ...item, grouping, panels }
+    }),
+  }
+}
+
+async function collectControlledResolutions(args: {
+  mediaType: string
+  profile: PublisherProfileConfig | null
+  proposal: IngestProposal | null
+  required: TemplateFieldCoverage[]
+  enrich: TemplateFieldCoverage[]
+}): Promise<{
+  unresolved: UnresolvedControlledValue[]
+  resolved: ResolvedControlledValue[]
+}> {
+  const template = getTargetTemplate(args.mediaType)
+  const coverageById = new Map(
+    [...args.required, ...args.enrich].map((f) => [f.id, f]),
+  )
+  const publisherName =
+    args.profile?.publisher_name ?? args.proposal?.publisher_name ?? null
+  const publisherId =
+    args.profile?.publisher_id ??
+    (publisherName ? resolveCatalogueIdForProfileName(publisherName) : null)
+  const unresolved: UnresolvedControlledValue[] = []
+  const resolved: ResolvedControlledValue[] = []
+
+  for (const field of [...template.required, ...template.enrich]) {
+    const vocabKey = field.controlled?.vocabulary
+    if (!vocabKey) continue
+    const coverageField = coverageById.get(field.id)
+    if (!coverageField?.matched || coverageField.source.kind === "unmatched") {
+      continue
+    }
+    for (const raw of uniqueGroupingRaws(
+      args.proposal,
+      groupingKeysForControlledField(field),
+    )) {
+      const resolution = await resolveControlledValue({
+        vocabularyKey: vocabKey,
+        raw,
+        publisherId,
+        publisherName,
+      })
+      if (resolution.canonical) {
+        resolved.push({
+          fieldId: field.id,
+          raw,
+          canonical: resolution.canonical,
+          via: resolution.via ?? "exact",
+        })
+        continue
+      }
+      unresolved.push({
+        fieldId: field.id,
+        label: field.label,
+        raw,
+        vocabulary: vocabKey,
+        suggestion: resolution.suggestion,
+      })
+    }
+  }
+  return { unresolved, resolved }
 }
 
 function groupingSample(
@@ -357,6 +533,7 @@ export function evaluateTemplateCoverage(args: {
     (li) => li.panels.length > 0,
   )
   if (
+    // channel-specific by design — panel identity is an OOH concern
     args.mediaType.toLowerCase() === "ooh" &&
     hasPanels &&
     !site?.matched &&
@@ -376,6 +553,50 @@ export function evaluateTemplateCoverage(args: {
     grid,
     warnings,
     waivers,
+    unresolved_controlled: [],
+    resolved_controlled: [],
+  }
+}
+
+/**
+ * Resolve controlled vocabularies (including publisher synonyms) onto coverage.
+ * Auto-applied hits rewrite the proposal so stamp can stay synchronous.
+ */
+export async function attachControlledResolutions(args: {
+  coverage: TemplateCoverage
+  mediaType: string
+  profile: PublisherProfileConfig | null
+  proposal: IngestProposal | null
+}): Promise<{
+  coverage: TemplateCoverage
+  proposal: IngestProposal | null
+}> {
+  const { unresolved, resolved } = await collectControlledResolutions({
+    mediaType: args.mediaType,
+    profile: args.profile,
+    proposal: args.proposal,
+    required: args.coverage.required,
+    enrich: args.coverage.enrich,
+  })
+  const template = getTargetTemplate(args.mediaType)
+  let proposal = args.proposal
+  if (proposal) {
+    for (const hit of resolved) {
+      proposal = applyCanonicalControlledValue(proposal, {
+        fieldId: hit.fieldId,
+        raw: hit.raw,
+        canonical: hit.canonical,
+        publisherRawField: publisherRawFieldFor(template, hit.fieldId),
+      })
+    }
+  }
+  return {
+    coverage: {
+      ...args.coverage,
+      unresolved_controlled: unresolved,
+      resolved_controlled: resolved,
+    },
+    proposal,
   }
 }
 

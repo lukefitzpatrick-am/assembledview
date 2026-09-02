@@ -71,7 +71,6 @@ function assertPopulatedOohCard(
     feePct: 0,
   })
   assert.ok(card.network.trim(), `${label}: Network empty`)
-  assert.ok(card.format.trim(), `${label}: Format empty`)
   assert.equal(card.buyType, "fixed_cost", `${label}: buyType ${card.buyType}`)
   assert.ok(card.market.trim(), `${label}: Market empty`)
   assert.ok(card.bursts.length > 0, `${label}: no bursts`)
@@ -121,7 +120,14 @@ test("JCD accept→editor: 106 buy-row lines (not the old 118 data_rows incl. to
       feePct: 0,
     })
     assert.ok(card.network.trim(), `JCD[${i}]: Network empty`)
-    assert.ok(card.format.trim(), `JCD[${i}]: Format empty`)
+    assert.equal(card.format, "large_format", `JCD[${i}]: format ${card.format}`)
+    const rawFormat = String(card.attrs?.publisher_format_name ?? "").trim()
+    assert.ok(rawFormat, `JCD[${i}]: publisher_format_name missing`)
+    assert.notEqual(rawFormat, "large_format")
+    assert.ok(
+      String(panel.publisherFormatName ?? "").trim() || rawFormat,
+      `JCD[${i}]: panel publisherFormatName missing`,
+    )
     assert.equal(card.buyType, "fixed_cost")
     assert.ok(card.market.trim(), `JCD[${i}]: Market empty`)
     assert.ok(card.bursts.length > 0, `JCD[${i}]: no bursts`)
@@ -158,7 +164,9 @@ test("QMS accept→editor: 41 lines (supersedes grouped 3-of-41), each card from
       feePct: 0,
     })
     assert.ok(card.network.trim(), "Network empty")
-    assert.ok(card.format.trim(), "Format empty")
+    assert.equal(card.format, "", "QMS publisher format must not land on the card")
+    const rawFormat = String(card.attrs?.publisher_format_name ?? "").trim()
+    assert.ok(rawFormat, "QMS publisher_format_name missing")
     assert.ok(card.market.trim(), "Market empty")
     assert.ok(card.bursts.length > 0)
   }

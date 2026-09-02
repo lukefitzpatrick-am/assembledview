@@ -1478,3 +1478,24 @@ CREATE INDEX "idx_planning_audience_uploads_expires_at" ON "planning_audience_up
 CREATE INDEX "idx_planning_uploaded_audiences_clients_id" ON "planning_uploaded_audiences" USING btree ("clients_id");--> statement-breakpoint
 CREATE INDEX "idx_planning_uploaded_audiences_upload_id" ON "planning_uploaded_audiences" USING btree ("upload_id");--> statement-breakpoint
 CREATE INDEX "idx_planning_uploaded_audiences_not_archived" ON "planning_uploaded_audiences" USING btree ("clients_id") WHERE "planning_uploaded_audiences"."is_archived" = false;
+--> statement-breakpoint
+CREATE TABLE "publisher_value_synonyms" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "publisher_value_synonyms_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"publisher_id" bigint,
+	"media_type" text NOT NULL,
+	"vocabulary" text NOT NULL,
+	"av_field" text NOT NULL,
+	"raw_value" text NOT NULL,
+	"raw_value_display" text NOT NULL,
+	"av_canonical" text NOT NULL,
+	"learned_from_stage_id" uuid,
+	"created_by" text NOT NULL,
+	"is_active" boolean DEFAULT true NOT NULL,
+	"retired_at" timestamp with time zone,
+	"retired_by" text
+);
+--> statement-breakpoint
+ALTER TABLE "publisher_value_synonyms" ADD CONSTRAINT "publisher_value_synonyms_publisher_id_publishers_id_fk" FOREIGN KEY ("publisher_id") REFERENCES "public"."publishers"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "uq_pvs_scope" ON "publisher_value_synonyms" USING btree (coalesce("publisher_id", 0),"vocabulary","raw_value") WHERE "publisher_value_synonyms"."is_active" = true;--> statement-breakpoint
+CREATE INDEX "idx_pvs_lookup" ON "publisher_value_synonyms" USING btree ("vocabulary","raw_value") WHERE "publisher_value_synonyms"."is_active" = true;

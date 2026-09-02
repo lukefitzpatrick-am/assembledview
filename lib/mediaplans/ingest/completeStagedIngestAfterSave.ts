@@ -105,6 +105,7 @@ export async function completeStagedIngestAfterSave(
     proposal,
     mbaNumber: args.mbaNumber,
     savedLineItems: args.savedLineItems,
+    resolvedControlled: staged.review.template_coverage?.resolved_controlled,
   })
   if (sourcePanelCount > 0 && panels.length === 0) {
     const ingestPanelError =

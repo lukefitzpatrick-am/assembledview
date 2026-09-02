@@ -225,6 +225,7 @@ export async function executeIngestAccept(
       proposal,
       campaign,
       feeLoading: args.feeLoading ?? {},
+      resolvedControlled: review?.template_coverage?.resolved_controlled,
     },
     {
       savePlanVersion: savePlanVersion as AcceptIngestDeps["savePlanVersion"],

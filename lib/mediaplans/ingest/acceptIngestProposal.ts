@@ -62,12 +62,14 @@ export async function acceptIngestProposal(
     feeLoading: FeeLoading
     /** When set, these existing lines are kept and ingest lines appended. */
     existingLineItems?: SavePlanVersionInput["lineItems"]
+    resolvedControlled?: import("@/lib/mediaplans/ingest/templateCoverage").ResolvedControlledValue[]
   },
   deps: AcceptIngestDeps,
 ): Promise<AcceptIngestResult> {
   const { lineItems, panels } = stampProposalForSave(
     args.proposal,
     args.campaign.mbaNumber,
+    args.resolvedControlled,
   )
 
   const merged = [...(args.existingLineItems ?? []), ...lineItems]

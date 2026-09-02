@@ -28,6 +28,7 @@ import {
 } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import { overlayMoneySynonyms } from "@/lib/mediaplans/ingest/moneySynonyms"
 import {
+  attachControlledResolutions,
   evaluateTemplateCoverage,
   type TemplateCoverage,
 } from "@/lib/mediaplans/ingest/templateCoverage"
@@ -351,7 +352,7 @@ export async function buildIngestReviewFromBuffer(
   const column_mapping =
     primary && profile ? buildColumnMapping(primary, profile) : []
 
-  const proposal =
+  let proposal =
     primary && profile ? proposeLineItemsFromSheet(primary, profile) : null
 
   const media = mediaTypeStatusFor(unknown ? null : profile)
@@ -364,6 +365,14 @@ export async function buildIngestReviewFromBuffer(
         shape: primary,
         proposal,
       })
+      const attached = await attachControlledResolutions({
+        coverage: template_coverage,
+        mediaType: media.detected_media_type,
+        profile,
+        proposal,
+      })
+      template_coverage = attached.coverage
+      proposal = attached.proposal
       publisher_confidence = Math.max(
         publisher_confidence,
         template_coverage.completeness,

@@ -64,6 +64,7 @@ function stubCoverage(
     warnings: [],
     waivers: [],
     unresolved_controlled: [],
+    resolved_controlled: [],
     ...overrides,
   }
 }

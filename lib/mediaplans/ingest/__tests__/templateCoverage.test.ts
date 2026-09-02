@@ -9,10 +9,88 @@ import { buildIngestReviewFromFile } from "../buildIngestReview"
 import { loadSeedPublisherProfiles } from "../loadPublisherProfiles"
 import { overlayMoneySynonyms, classifyMoneyColumn } from "../moneySynonyms"
 import { shouldCallAvaForMappings } from "../avaColumnMapping"
-import { evaluateRequiredFieldGate } from "../templateCoverage"
-import { getTargetTemplate } from "../targetTemplates"
+import { evaluateRequiredFieldGate, attachControlledResolutions, evaluateTemplateCoverage } from "../templateCoverage"
+import { getTargetTemplate, registerTargetTemplateForTests } from "../targetTemplates"
 import { stampProposalForSave } from "../stampProposalForSave"
 import { parsePublisherProfile } from "../publisherProfileConfig"
+import type { IngestProposal } from "../proposeLineItems"
+
+test("coverage for a non-ooh media type returns unresolved_controlled entries", async () => {
+  const unregister = registerTargetTemplateForTests({
+    media_type: "test_vocab",
+    required: [
+      {
+        id: "flavour",
+        label: "Flavour",
+        dest: "attrs.flavour",
+        kind: "column",
+        canonicals: ["flavour"],
+        controlled: { vocabulary: "ooh_format" },
+      },
+    ],
+    enrich: [],
+    system_waivers: [],
+    card_field_ids: ["flavour"],
+  })
+  try {
+    const proposal: IngestProposal = {
+      publisher_name: "QMS",
+      media_type: "test_vocab",
+      sheet_name: "Paid",
+      line_items: [
+        {
+          grouping: { flavour: "ZZORP BLIB" },
+          panels: [],
+          bursts: [],
+        },
+      ],
+      reconciliation: {
+        line_item_count: 1,
+        panel_count: 0,
+        burst_count: 0,
+        total_media_amount: 0,
+        file_stated_total: null,
+        delta: null,
+        delta_pct: null,
+        accept_ok: true,
+        block_reason: null,
+        warnings: [],
+        charges_detected_total: 0,
+      },
+    }
+    const profile = parsePublisherProfile({
+      publisher_name: "TestPub",
+      media_type: "test_vocab",
+      active: true,
+      grid_semantics: "count",
+      grouping_keys: ["flavour"],
+      detect_signature: { grouping_keys: ["flavour"] },
+      column_map: { Flavour: "flavour" },
+    })
+    const coverage = evaluateTemplateCoverage({
+      mediaType: "test_vocab",
+      profile,
+      shape: null,
+      proposal,
+    })
+    const attached = await attachControlledResolutions({
+      coverage,
+      mediaType: "test_vocab",
+      profile,
+      proposal,
+    })
+    assert.ok(
+      attached.coverage.unresolved_controlled.some(
+        (item) => item.fieldId === "flavour" && item.raw === "ZZORP BLIB",
+      ),
+      `expected unresolved flavour, got ${JSON.stringify(attached.coverage.unresolved_controlled)}`,
+    )
+    assert.equal(attached.coverage.media_type, "test_vocab")
+  } finally {
+    unregister()
+  }
+})
+
 
 const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")
 

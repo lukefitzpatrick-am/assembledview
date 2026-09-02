@@ -21,12 +21,19 @@ import {
 } from "@/lib/mediaplans/ingest/persistColumnRemap"
 import { isMoneyTarget } from "@/lib/mediaplans/ingest/moneyTargets"
 import { remapIngestColumn } from "@/lib/mediaplans/ingest/remapIngestColumn"
-import { oohFormatChoiceLabels, resolveControlledFormat } from "@/lib/mediaplans/ingest/resolveControlledOoh"
 import { getTargetTemplate } from "@/lib/mediaplans/ingest/targetTemplates"
-import type {
-  TemplateFieldCoverage,
-  UnresolvedControlledValue,
+import {
+  applyCanonicalControlledValue,
+  publisherRawFieldFor,
+  type TemplateFieldCoverage,
+  type UnresolvedControlledValue,
 } from "@/lib/mediaplans/ingest/templateCoverage"
+import {
+  choiceLabelsForVocabulary,
+  getControlledVocabulary,
+} from "@/lib/mediaplans/ingest/controlledVocabularies"
+import { resolveCatalogueIdForProfileName } from "@/lib/mediaplans/ingest/publisherCatalogueJoin"
+import { learnSynonym } from "@/lib/mediaplans/ingest/valueSynonymRepo"
 
 export const LEAVE_UNMAPPED_OPTION = "Leave unmapped"
 /** Decline a required-field card — records the answer, writes nothing. */
@@ -135,14 +142,22 @@ function parseValueAnswer(answer: string): string | null {
   return raw
 }
 
-function valueCardNoun(fieldId: string, label: string): string {
-  if (fieldId === "format") return "formats"
-  return `${label.toLowerCase()} values`
+function valueCardNoun(item: UnresolvedControlledValue): string {
+  const vocab = getControlledVocabulary(item.vocabulary)
+  const label = (vocab?.label ?? item.label).trim().toLowerCase()
+  if (!label) return "values"
+  if (/s$/i.test(label)) return label
+  return `${label}s`
 }
 
-function valueCardOptions(fieldId: string): string[] {
-  if (fieldId === "format") return oohFormatChoiceLabels()
-  return []
+function valueCardOptions(item: UnresolvedControlledValue): string[] {
+  const vocab = getControlledVocabulary(item.vocabulary)
+  if (!vocab) {
+    throw new Error(
+      `value card for field ${item.fieldId} has no vocabulary (got ${item.vocabulary || "none"})`,
+    )
+  }
+  return choiceLabelsForVocabulary(vocab)
 }
 
 function leftoverHeaders(review: IngestReviewPackage): string[] {
@@ -345,6 +360,7 @@ function buildRequiredCard(
     questionId?: string
     kind?: "required" | "value" | "recon"
     mappedTo?: string | null
+    selected?: string[]
   },
 ): ChatInterviewQuestion {
   const hit = proposals.find(
@@ -381,7 +397,9 @@ function buildRequiredCard(
       `Which column in this schedule holds ${field.label}?`,
     type: "choice",
     options,
-    selected: hit ? [`${hit.header}${AVA_SUGGESTION_SUFFIX}`] : undefined,
+    selected:
+      opts?.selected ??
+      (hit ? [`${hit.header}${AVA_SUGGESTION_SUFFIX}`] : undefined),
     index,
     total,
   })
@@ -449,11 +467,29 @@ export function listOpenIngestReviewQuestions(
     if (unmatchedIds.has(item.fieldId)) continue
     const id = valueQuestionId(item.fieldId, item.raw)
     if (answered.has(id)) continue
-    const noun = valueCardNoun(item.fieldId, item.label)
+    if (!item.vocabulary || !getControlledVocabulary(item.vocabulary)) {
+      throw new Error(
+        `value card for field ${item.fieldId} has no vocabulary (got ${item.vocabulary || "none"})`,
+      )
+    }
+    const vocab = getControlledVocabulary(item.vocabulary)!
+    const noun = valueCardNoun(item)
+    const labels = valueCardOptions(item)
+    const suggestionLabel = item.suggestion
+      ? (vocab.labelByValue[item.suggestion] ?? item.suggestion)
+      : null
+    const leftovers = suggestionLabel
+      ? [
+          `${suggestionLabel}${AVA_SUGGESTION_SUFFIX}`,
+          ...labels.filter(
+            (label) => headerKey(label) !== headerKey(suggestionLabel),
+          ),
+        ]
+      : labels
     draft.push(
       buildRequiredCard(
         { id: item.fieldId, label: item.label },
-        valueCardOptions(item.fieldId),
+        leftovers,
         [],
         1,
         1,
@@ -461,6 +497,9 @@ export function listOpenIngestReviewQuestions(
           questionId: id,
           text: `The source says ${item.raw} — which of our ${noun} is that?`,
           kind: "value",
+          selected: suggestionLabel
+            ? [`${suggestionLabel}${AVA_SUGGESTION_SUFFIX}`]
+            : undefined,
         },
       ),
     )
@@ -537,31 +576,26 @@ function applyControlledValueToReview(
   canonical: string,
 ): IngestReviewPackage {
   const rawKey = headerKey(unresolved.raw)
-  const proposal = review.proposal
-  const nextProposal = proposal
-    ? {
-        ...proposal,
-        line_items: proposal.line_items.map((item) => {
-          const groupingFormat = item.grouping.format ?? ""
-          const panelHit = item.panels.some(
-            (panel) => headerKey(panel.descriptors.format ?? "") === rawKey,
-          )
-          if (headerKey(groupingFormat) !== rawKey && !panelHit) return item
-          return {
-            ...item,
-            grouping: {
-              ...item.grouping,
-              publisher_format_name:
-                item.grouping.publisher_format_name ||
-                groupingFormat ||
-                unresolved.raw,
-              format: canonical,
-            },
-          }
-        }),
-      }
-    : proposal
+  const mediaType =
+    review.template_coverage?.media_type ||
+    review.detected_media_type ||
+    "ooh"
+  const template = getTargetTemplate(mediaType)
+  const nextProposal = review.proposal
+    ? applyCanonicalControlledValue(review.proposal, {
+        fieldId: unresolved.fieldId,
+        raw: unresolved.raw,
+        canonical,
+        publisherRawField: publisherRawFieldFor(template, unresolved.fieldId),
+      })
+    : review.proposal
   const coverage = review.template_coverage
+  const resolvedRow = {
+    fieldId: unresolved.fieldId,
+    raw: unresolved.raw,
+    canonical,
+    via: "publisher_synonym",
+  }
   return {
     ...review,
     proposal: nextProposal,
@@ -575,6 +609,16 @@ function applyControlledValueToReview(
                 headerKey(item.raw) === rawKey
               ),
           ),
+          resolved_controlled: [
+            ...(coverage.resolved_controlled ?? []).filter(
+              (item) =>
+                !(
+                  item.fieldId === unresolved.fieldId &&
+                  headerKey(item.raw) === rawKey
+                ),
+            ),
+            resolvedRow,
+          ],
         }
       : coverage,
   }
@@ -826,11 +870,34 @@ async function applyOneAnswer(
       return { review, changed: `Left ${label} unmapped.`, record: true }
     }
     const chosen = parseValueAnswer(answer)
-    const canonical = chosen
-      ? resolveControlledFormat(chosen, publisher ?? undefined)
+    const vocab = unresolved?.vocabulary
+      ? getControlledVocabulary(unresolved.vocabulary)
       : null
-    if (!canonical || !unresolved) {
+    const canonical =
+      chosen && vocab ? (vocab.exact(chosen) ?? vocab.fuzzy(chosen)) : null
+    if (!canonical || !unresolved || !vocab) {
       return { review, changed: `Left ${label} unmapped.`, record: true }
+    }
+    const publisherName =
+      publisher ?? review.proposal?.publisher_name ?? null
+    const publisherId =
+      review.profile?.publisher_id ??
+      (publisherName ? resolveCatalogueIdForProfileName(publisherName) : null)
+    if (publisherId != null) {
+      await learnSynonym({
+        publisherId,
+        mediaType:
+          review.template_coverage?.media_type ??
+          review.detected_media_type ??
+          "ooh",
+        vocabulary: unresolved.vocabulary,
+        avField: unresolved.fieldId,
+        rawValue: unresolved.raw,
+        rawValueDisplay: unresolved.raw,
+        avCanonical: canonical,
+        learnedFromStageId: identity.stageId,
+        createdBy: identity.changedBy,
+      })
     }
     return {
       review: applyControlledValueToReview(review, unresolved, canonical),
