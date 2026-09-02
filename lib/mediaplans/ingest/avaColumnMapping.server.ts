@@ -21,7 +21,7 @@ const EMIT_TOOL_NAME = "emit_column_mapping_proposals"
 const EMIT_TOOL: Anthropic.Tool = {
   name: EMIT_TOOL_NAME,
   description:
-    "Propose canonical descriptor mappings for unmapped publisher columns. Mapping only.",
+    "Propose canonical mappings for unmapped publisher columns. A rate column and a stated-total column are different targets. reference:ignore means acknowledged, not imported — not the same as unmapped.",
   input_schema: {
     type: "object",
     properties: {
@@ -34,7 +34,7 @@ const EMIT_TOOL: Anthropic.Tool = {
             proposed_mapped_to: {
               type: ["string", "null"],
               description:
-                "One of the target descriptors, or null to leave unmapped",
+                "One of the target descriptors (rate vs stated total vs charge vs buy_type vs reference:ignore), or null if truly unknown",
             },
             reasoning: { type: "string" },
           },
@@ -51,8 +51,13 @@ function buildSystemPrompt(targets: readonly string[]): string {
     "You propose column mappings for publisher media schedules.",
     "You ONLY map header → canonical descriptor. You do NOT parse cell values into numbers,",
     "compute bursts, invent dates, or decide grid_semantics.",
-    "If a column is clearly a rate/money/charge field, propose proposed_mapped_to=null",
-    "and explain that it stays unmapped (spend stays on bursts/line items).",
+    "A rate column and a stated-total column are different targets:",
+    "media_rate:weekly / media_rate:lunar / media_rate:per_spot are rates;",
+    "media_amount:stated is a line total already computed in the file;",
+    "charge:production and charge:installation are one-off charges, not media.",
+    "buy_type is the buy-type vocabulary (panels, fixed_cost, bonus, spots, …).",
+    "reference:ignore means acknowledged, not imported — not the same as unmapped.",
+    "Leave proposed_mapped_to=null only when you cannot tell what the column is.",
     `Allowed targets: ${targets.join(", ")}.`,
     "Return proposals via the emit_column_mapping_proposals tool only.",
   ].join(" ")

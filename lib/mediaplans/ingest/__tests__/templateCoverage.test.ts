@@ -13,7 +13,7 @@ import { evaluateRequiredFieldGate, attachControlledResolutions, evaluateTemplat
 import { getTargetTemplate, registerTargetTemplateForTests } from "../targetTemplates"
 import { stampProposalForSave } from "../stampProposalForSave"
 import { parsePublisherProfile } from "../publisherProfileConfig"
-import type { IngestProposal } from "../proposeLineItems"
+import type { IngestProposal, ProposedLineItem } from "../proposeLineItems"
 
 test("coverage for a non-ooh media type returns unresolved_controlled entries", async () => {
   const unregister = registerTargetTemplateForTests({
@@ -406,6 +406,54 @@ test("SCA Days is IGNORE-BY-DEFAULT (not in column_map, not stuffed into placeme
   assert.ok(!Object.values(sca.column_map).includes("days"))
 })
 
+function oohLineProposal(args?: {
+  grouping?: Record<string, string>
+  descriptors?: Record<string, string>
+}): IngestProposal {
+  return {
+    publisher_name: "QMS",
+    media_type: "ooh",
+    sheet_name: "Paid",
+    line_items: [
+      {
+        grouping: args?.grouping ?? { format: "ESB", state: "NSW" },
+        panels: [
+          {
+            descriptors: args?.descriptors ?? { site_number: "1" },
+            raw_unmapped: {},
+            source_publisher: "QMS",
+            source_row_ref: "Paid!r10",
+            flights: [],
+            grid_period_count: 1,
+          },
+        ],
+        bursts: [
+          {
+            start_date: "2026-01-01",
+            end_date: "2026-01-07",
+            quantity: 1,
+            media_amount: 100,
+            booking_status: "paid",
+          },
+        ],
+      } satisfies ProposedLineItem,
+    ],
+    reconciliation: {
+      line_item_count: 1,
+      panel_count: 1,
+      burst_count: 1,
+      total_media_amount: 100,
+      file_stated_total: null,
+      delta: null,
+      delta_pct: null,
+      accept_ok: true,
+      block_reason: null,
+      warnings: [],
+      charges_detected_total: 0,
+    },
+  }
+}
+
 test("stamp: OOH buyType is fixed_cost; radio buyType is spots; duration lands on attrs", () => {
   const ooh = stampProposalForSave(
     {
@@ -515,6 +563,82 @@ test("stamp: OOH buyType is fixed_cost; radio buyType is spots; duration lands o
   assert.equal(radio.lineItems[0]!.attrs?.duration, "30")
   assert.equal(radio.lineItems[0]!.attrs?.station, "2DAY")
   assert.equal(radio.lineItems[0]!.attrs?.placement, "Breakfast")
+})
+
+test("stamp: buy_type Panels on a panel descriptor becomes panels, not fixed_cost", () => {
+  const stamped = stampProposalForSave(
+    oohLineProposal({
+      descriptors: { site_number: "1", buy_type: "Panels" },
+    }),
+    "stamppnl",
+  )
+  const line = stamped.lineItems[0]!
+  assert.equal(line.buyType, "panels")
+  assert.notEqual(line.buyType, "fixed_cost")
+  const burst = line.bursts?.[0] as { mediaAmount?: string } | undefined
+  assert.ok(burst, "per-line buyType must reach burstFromProposed")
+  assert.notEqual(burst.mediaAmount, "$0.00")
+})
+
+test("stamp: no buy-type column falls back to fixed_cost (OOH) / spots (radio)", () => {
+  const ooh = stampProposalForSave(oohLineProposal(), "stampdef")
+  assert.equal(ooh.lineItems[0]!.buyType, "fixed_cost")
+  assert.equal(ooh.lineItems[0]!.attrs?.buyType_unresolved_raw, undefined)
+})
+
+test("sourced unresolvable buy type raises a value card and IG-3's gate refuses load", async () => {
+  const raw = "zzzz-not-a-buy-type"
+  const proposal = oohLineProposal({
+    grouping: { format: "ESB", state: "NSW", buy_type: raw },
+    descriptors: { site_number: "1", buy_type: raw },
+  })
+  const qms = loadSeedPublisherProfiles().find((p) => p.publisher_name === "QMS")!
+  const coverage = evaluateTemplateCoverage({
+    mediaType: "ooh",
+    profile: qms,
+    shape: null,
+    proposal,
+  })
+  const attached = await attachControlledResolutions({
+    coverage,
+    mediaType: "ooh",
+    profile: qms,
+    proposal,
+  })
+  assert.ok(
+    attached.coverage.unresolved_controlled.some(
+      (u) => u.fieldId === "buyType" && u.raw === raw,
+    ),
+    `expected buyType value card input, got ${JSON.stringify(attached.coverage.unresolved_controlled)}`,
+  )
+  const gate = evaluateRequiredFieldGate(attached.coverage)
+  assert.equal(gate.ok, false, "IG-3 gate must refuse the load")
+  assert.match(gate.reason ?? "", /zzzz-not-a-buy-type/)
+  const stamped = stampProposalForSave(
+    proposal,
+    "stampzzz",
+    attached.coverage.resolved_controlled,
+  )
+  assert.notEqual(stamped.lineItems[0]!.buyType, "fixed_cost")
+  assert.equal(stamped.lineItems[0]!.attrs?.buyType_unresolved_raw, raw)
+})
+
+test("stamp: QMS fixture with no buy-type column still stamps fixed_cost", async () => {
+  const review = await buildIngestReviewFromFile(
+    path.join(FIX, "qms_strength-meals_esb-ooh.xlsx"),
+    loadSeedPublisherProfiles(),
+    { skipAva: true },
+  )
+  assert.ok(review.proposal)
+  const stamped = stampProposalForSave(
+    review.proposal!,
+    "stampqms",
+    review.template_coverage?.resolved_controlled,
+  )
+  assert.ok(stamped.lineItems.length > 0)
+  for (const line of stamped.lineItems) {
+    assert.equal(line.buyType, "fixed_cost")
+  }
 })
 
 test("panel identity: neither site_number nor panel_name matched → anonymous warning, not a gate", async () => {

@@ -9,6 +9,7 @@ import {
   dedupeUnmappedColumnSamples,
   ingestMappingRowKey,
   parseAvaMappingRequestBody,
+  parseToolProposals,
   runAvaColumnMappingProposals,
   shouldCallAvaForMappings,
   type AvaMappingClient,
@@ -26,6 +27,23 @@ const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")
 
 test.beforeEach(() => {
   clearPublisherProfileSeedOverlayForTests()
+})
+
+test("parseToolProposals keeps a media_amount:stated proposal instead of nulling it", () => {
+  const proposals = parseToolProposals(
+    {
+      proposals: [
+        {
+          header: "Client Total",
+          proposed_mapped_to: "media_amount:stated",
+          reasoning: "Stated line total, not a weekly rate.",
+        },
+      ],
+    },
+    [{ header: "Client Total", sample_values: ["120000"] }],
+  )
+  assert.equal(proposals.length, 1)
+  assert.equal(proposals[0]!.proposed_mapped_to, "media_amount:stated")
 })
 
 test("avaColumnMapping.ts is client-safe: no Anthropic / SDK imports", () => {

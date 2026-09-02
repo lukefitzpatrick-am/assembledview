@@ -10,7 +10,10 @@ import type { DetectedSheetShape } from "@/lib/mediaplans/ingest/detectShape"
 /** Publisher match confidence at/above this → deterministic mapping wins; no AVA. */
 export const AVA_MAPPING_CONFIDENCE_FLOOR = 0.9
 
-/** Canonical panel / line descriptors AVA may propose (not grid/money semantics). */
+/**
+ * Canonical descriptors AVA may propose. Includes buy type, typed money
+ * targets, and reference:ignore. parseToolProposals drops anything else.
+ */
 export const AVA_MAPPING_TARGET_DESCRIPTORS = [
   "latitude",
   "longitude",
@@ -40,6 +43,14 @@ export const AVA_MAPPING_TARGET_DESCRIPTORS = [
   "market",
   "length",
   "duration",
+  "buy_type",
+  "media_amount:stated",
+  "media_rate:weekly",
+  "media_rate:lunar",
+  "media_rate:per_spot",
+  "charge:production",
+  "charge:installation",
+  "reference:ignore",
 ] as const
 
 export type AvaMappingTarget = (typeof AVA_MAPPING_TARGET_DESCRIPTORS)[number]

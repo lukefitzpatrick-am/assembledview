@@ -11,7 +11,7 @@ export type GridSemantics = (typeof GRID_SEMANTICS)[number]
 export const LINE_GRANULARITIES = ["per_row", "grouped"] as const
 export type LineGranularity = (typeof LINE_GRANULARITIES)[number]
 
-/** Acknowledged non-imported column — not unmapped, never sent to AVA. */
+/** Acknowledged non-imported column — not unmapped. AVA may propose this target; already-mapped ignore columns are not leftovers. */
 export const REFERENCE_IGNORE_TARGET = "reference:ignore"
 
 export function isReferenceIgnoreTarget(canon: string): boolean {

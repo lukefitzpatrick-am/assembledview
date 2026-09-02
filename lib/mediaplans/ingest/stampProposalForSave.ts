@@ -107,8 +107,28 @@ function oohTypeForLine(item: ProposedLineItem): string {
   return ""
 }
 
+/** Media-type default when the file has no buy-type column. Fallback, not the rule. */
 function buyTypeForMedia(mediaType: string): string {
   return mediaType === "radio" ? "spots" : "fixed_cost"
+}
+
+function resolveLineBuyType(
+  item: ProposedLineItem,
+  mediaType: "radio" | "ooh",
+  resolvedControlled?: ResolvedControlledValue[],
+): { buyType: string; unresolvedRaw: string | null } {
+  const candidate = firstDescriptor(item, ["buy_type", "buyType"])
+  if (!candidate) {
+    return { buyType: buyTypeForMedia(mediaType), unresolvedRaw: null }
+  }
+  const resolved =
+    lookupResolvedCanonical(resolvedControlled, "buyType", candidate) ??
+    resolveControlledBuyType(candidate)
+  if (resolved) {
+    return { buyType: resolved, unresolvedRaw: null }
+  }
+  // Sourced but unresolvable — raise a value card (IG-2/IG-3). Never fall back.
+  return { buyType: candidate, unresolvedRaw: candidate }
 }
 
 function headerKey(value: string): string {
@@ -136,6 +156,7 @@ function attrsForLine(
   sheetName: string,
   publisherName: string,
   resolvedControlled?: ResolvedControlledValue[],
+  unresolvedBuyTypeRaw?: string | null,
 ): Record<string, unknown> {
   const groupingFormat = str(item.grouping.format)
   const groupingPublisherFormat = str(item.grouping.publisher_format_name)
@@ -181,6 +202,9 @@ function attrsForLine(
     attrs.type = oohTypeForLine(item)
     attrs.placement = firstDescriptor(item, ["placement"])
     attrs.size = firstDescriptor(item, ["size"])
+  }
+  if (unresolvedBuyTypeRaw) {
+    attrs.buyType_unresolved_raw = unresolvedBuyTypeRaw
   }
   return attrs
 }
@@ -310,12 +334,11 @@ export function stampProposalForSave(
   const code = mediaCodeForChannel(channel)
 
   const stubs = proposal.line_items.map((item, index) => {
-    const groupingBuy =
-      str(item.grouping.buyType) ?? str(item.grouping.buy_type)
-    const resolvedBuy =
-      lookupResolvedCanonical(resolvedControlled, "buyType", groupingBuy) ??
-      (groupingBuy ? resolveControlledBuyType(groupingBuy) : null)
-    const buyType = resolvedBuy ?? buyTypeForMedia(mediaType)
+    const { buyType, unresolvedRaw } = resolveLineBuyType(
+      item,
+      mediaType,
+      resolvedControlled,
+    )
     const mediaSum = item.bursts.reduce((s, b) => s + (b.media_amount || 0), 0)
     const buyGranularity: "panel" | "pack" =
       item.panels.length > 1 ? "pack" : "panel"
@@ -348,6 +371,7 @@ export function stampProposalForSave(
         proposal.sheet_name,
         proposal.publisher_name,
         resolvedControlled,
+        unresolvedRaw,
       ),
     }
     return line
