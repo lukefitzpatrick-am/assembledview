@@ -4,6 +4,8 @@
  * those belong to lib/xero/stages/importBillingRecords.ts.
  * Xero match stamps (`setFinanceBillingRecordXeroMatch`) never touch approved_*.
  * An unchanged `matched_xero_invoice_id` does not rewrite `matched_at`.
+ * An auto stamp that hits a manual match (or a different invoice) returns
+ * skipped rather than NOT_FOUND, so persistAutoStamps can keep going.
  * Unmark-exported (`clearFinanceBillingRecordExported`) never touches approved_*.
  * PATCH-by-id is field-allowlisted (notes, po_number, payment_days, payment_terms,
  * status, invoice_date, campaign_name). Money and lifecycle stamps are refused.
@@ -568,6 +570,7 @@ export async function clearFinanceBillingRecordExported(
 export type XeroMatchWriteResult = {
   record: Record<string, unknown>
   unchanged: boolean
+  skipped: boolean
 }
 
 export async function setFinanceBillingRecordXeroMatch(
@@ -604,7 +607,7 @@ export async function setFinanceBillingRecordXeroMatch(
     `)
   )
   const row = rows[0]
-  if (row) return { record: asApiRecord(row), unchanged: false }
+  if (row) return { record: asApiRecord(row), unchanged: false, skipped: false }
 
   const existing = rowsOf<Record<string, unknown>>(
     await db.execute(sql`
@@ -622,11 +625,16 @@ export async function setFinanceBillingRecordXeroMatch(
   }
   const existingId = String(existing.matched_xero_invoice_id ?? "").trim()
   if (existingId === xeroInvoiceId) {
-    return { record: asApiRecord(existing), unchanged: true }
+    return { record: asApiRecord(existing), unchanged: true, skipped: false }
+  }
+  // Auto cannot overwrite a manual match (or a different invoice the
+  // skipManual predicate left in place). That is a skip, not a missing row.
+  if (skipManual) {
+    return { record: asApiRecord(existing), unchanged: false, skipped: true }
   }
   throw new FinanceBillingWriteError(
-    "NOT_FOUND",
-    `finance_billing_records invoice_key=${input.invoiceKey} not found`
+    "BAD_REQUEST",
+    `finance_billing_records invoice_key=${input.invoiceKey} did not update`
   )
 }
 

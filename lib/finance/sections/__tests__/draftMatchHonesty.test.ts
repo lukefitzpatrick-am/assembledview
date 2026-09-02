@@ -9,7 +9,7 @@ import { mockModuleSkip, supportsMockModule } from "../../../test/mockModuleHarn
 
 const skip = mockModuleSkip()
 
-type Mode = "report" | "idempotent" | "txn-fail" | "rate-limit"
+type Mode = "report" | "idempotent" | "txn-fail" | "rate-limit" | "manual-skip"
 
 const state: {
   mode: Mode
@@ -102,6 +102,16 @@ function selectRows(text: string): unknown[] {
     return [{ run_finished_at: "2026-09-01T00:00:00.000Z" }]
   }
   if (/FROM finance_billing_records/i.test(text) && /invoice_key/i.test(text)) {
+    if (state.mode === "manual-skip") {
+      return [
+        {
+          ...MATCH_ROW,
+          matched_xero_invoice_id: "guid-manual-A",
+          matched_by: "manual",
+          matched_at: state.matchedAt,
+        },
+      ]
+    }
     return [{ ...MATCH_ROW, matched_at: state.matchedAt }]
   }
   return []
@@ -111,6 +121,18 @@ async function executeSql(query: unknown): Promise<unknown[]> {
   const text = sqlText(query)
   state.sql.push(text)
   if (isWriteSql(text)) {
+    if (state.mode === "manual-skip") {
+      const writes = state.sql.filter(isWriteSql).length
+      if (writes <= 1) return []
+      return [
+        {
+          ...MATCH_ROW,
+          invoice_key: "media:PENFOLD018:2026-09",
+          matched_xero_invoice_id: "guid-auto-C",
+          matched_by: "auto",
+        },
+      ]
+    }
     if (state.mode === "idempotent") {
       if (/IS DISTINCT FROM/i.test(text)) return []
       state.matchedAt = "2026-09-01T12:00:00.000Z"
@@ -220,6 +242,27 @@ test("re-running the stamp with an unchanged match does not move matched_at", { 
   assert.equal(state.matchedAt, "2026-01-15T00:00:00.000Z")
 })
 
+test("a manually-matched row proposed a different invoice is skipped; the rest still stamp", { skip }, async () => {
+  assert.ok(draftMatchQuery)
+  reset("manual-skip")
+  const stamps = [
+    { invoice_key: "media:PENFOLD018:2026-08", xero_invoice_id: "guid-auto-B", matched_by: "auto" as const },
+    { invoice_key: "media:PENFOLD018:2026-09", xero_invoice_id: "guid-auto-C", matched_by: "auto" as const },
+  ]
+  const result = (await draftMatchQuery.persistAutoStamps(stamps)) as {
+    ok?: boolean
+    stamped?: number
+    skipped?: number
+    failed?: number
+  }
+  assert.equal(result.ok, true)
+  assert.equal(result.skipped, 1)
+  assert.equal(result.stamped, 1)
+  assert.equal(result.failed, 0)
+  assert.equal(state.txStarted, true)
+  assert.equal(state.txRolledBack, false)
+})
+
 test("a mid-loop stamp failure rolls back and is reported, not swallowed", { skip }, async () => {
   assert.ok(draftMatchQuery)
   reset("txn-fail")
@@ -231,11 +274,13 @@ test("a mid-loop stamp failure rolls back and is reported, not swallowed", { ski
     ok?: boolean
     failed?: number
     stamped?: number
+    skipped?: number
     error?: string
   }
   assert.equal(result.ok, false)
   assert.ok((result.failed ?? 0) >= 1)
   assert.equal(result.stamped, 0)
+  assert.equal(result.skipped, 0)
   assert.equal(state.txStarted, true)
   assert.equal(state.txRolledBack, true)
   assert.match(result.error ?? "", /mid-loop stamp failed/)

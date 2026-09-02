@@ -126,6 +126,7 @@ export function InXeroPageClient() {
         error?: string
         retry_after_seconds?: number
         ok?: boolean
+        stamps?: { stamped?: number; skipped?: number; unchanged?: number; failed?: number }
       }
       if (res.status === 429) {
         const secs = body.retry_after_seconds ?? 60
@@ -139,7 +140,15 @@ export function InXeroPageClient() {
       if (!res.ok) {
         throw new Error(body.error || `Pull failed (${res.status})`)
       }
-      toast({ title: "Pulled from Xero", description: "Drafts refreshed. Matching again." })
+      const stamped = body.stamps?.stamped ?? 0
+      const skipped = body.stamps?.skipped ?? 0
+      toast({
+        title: "Pulled from Xero",
+        description:
+          skipped > 0
+            ? `${stamped} auto-matched, ${skipped} skipped (already matched manually).`
+            : "Drafts refreshed. Matching again.",
+      })
       load()
     } catch (e) {
       toast({

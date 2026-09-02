@@ -96,6 +96,7 @@ export type AutoStampPersistResult = {
   ok: boolean
   stamped: number
   unchanged: number
+  skipped: number
   failed: number
   error?: string
 }
@@ -105,12 +106,13 @@ export async function persistAutoStamps(
 ): Promise<AutoStampPersistResult> {
   const auto = stamps.filter((s) => s.matched_by === "auto")
   if (auto.length === 0) {
-    return { ok: true, stamped: 0, unchanged: 0, failed: 0 }
+    return { ok: true, stamped: 0, unchanged: 0, skipped: 0, failed: 0 }
   }
   try {
     return await getDb().transaction(async (tx) => {
       let stamped = 0
       let unchanged = 0
+      let skipped = 0
       for (const stamp of auto) {
         const result = await setFinanceBillingRecordXeroMatch(
           {
@@ -120,10 +122,11 @@ export async function persistAutoStamps(
           },
           tx
         )
-        if (result.unchanged) unchanged += 1
+        if (result.skipped) skipped += 1
+        else if (result.unchanged) unchanged += 1
         else stamped += 1
       }
-      return { ok: true, stamped, unchanged, failed: 0 }
+      return { ok: true, stamped, unchanged, skipped, failed: 0 }
     })
   } catch (err) {
     console.error("[draft-match] auto-stamp transaction failed", err)
@@ -131,6 +134,7 @@ export async function persistAutoStamps(
       ok: false,
       stamped: 0,
       unchanged: 0,
+      skipped: 0,
       failed: auto.length,
       error: err instanceof Error ? err.message : String(err),
     }

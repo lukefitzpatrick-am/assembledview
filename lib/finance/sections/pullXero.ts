@@ -87,6 +87,7 @@ export async function runPullXero(opts?: {
     ok: true,
     stamped: 0,
     unchanged: 0,
+    skipped: 0,
     failed: 0,
   }
   try {
@@ -98,6 +99,7 @@ export async function runPullXero(opts?: {
       ok: false,
       stamped: 0,
       unchanged: 0,
+      skipped: 0,
       failed: 0,
       error: err instanceof Error ? err.message : String(err),
     }

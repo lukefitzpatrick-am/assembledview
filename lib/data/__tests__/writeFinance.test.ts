@@ -25,9 +25,11 @@ import {
   setFinanceBillingRecordBilled,
   setFinanceBillingRecordExported,
   setFinanceBillingRecordNotes,
+  setFinanceBillingRecordXeroMatch,
   stampExportedKeysSkippingUnapproved,
   upsertFinanceBillingRecordByInvoiceKey,
 } from "@/lib/data/writeFinance"
+import { persistAutoStamps } from "@/lib/finance/sections/draftMatchQuery"
 import { billedSnapshotAmountEchoOk } from "@/lib/finance/billedSnapshotEcho"
 import { hashBilledLineSet } from "@/lib/finance/billedDrift"
 import { loadEnvLocal } from "../../../scripts/migration/_shared.js"
@@ -668,6 +670,88 @@ describe("writeFinance postgres path", { skip: skipPg }, () => {
         assert.equal(err.field, "amount")
         return true
       }
+    )
+  })
+
+  it("auto-stamp skips a manually-matched row and still stamps the rest of the batch", async () => {
+    await wipe()
+    const seed = {
+      billing_type: "media" as const,
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+    }
+    await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      ...seed,
+      billing_month: "2026-09",
+    })
+    await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY_B, {
+      ...seed,
+      billing_month: "2026-10",
+    })
+    await setFinanceBillingRecordXeroMatch({
+      invoiceKey: INVOICE_KEY,
+      xeroInvoiceId: "guid-manual-A",
+      matchedBy: "manual",
+    })
+    const result = await persistAutoStamps([
+      {
+        invoice_key: INVOICE_KEY,
+        xero_invoice_id: "guid-auto-B",
+        matched_by: "auto",
+      },
+      {
+        invoice_key: INVOICE_KEY_B,
+        xero_invoice_id: "guid-auto-C",
+        matched_by: "auto",
+      },
+    ])
+    assert.equal(result.ok, true)
+    assert.equal(result.skipped, 1)
+    assert.equal(result.stamped, 1)
+    assert.equal(result.failed, 0)
+    const listed = await fetchFinanceBillingRecordsFromPostgres()
+    const manual = listed.find((r) => r.invoice_key === INVOICE_KEY)
+    const auto = listed.find((r) => r.invoice_key === INVOICE_KEY_B)
+    assert.equal(String(manual?.matched_xero_invoice_id), "guid-manual-A")
+    assert.equal(String(manual?.matched_by), "manual")
+    assert.equal(String(auto?.matched_xero_invoice_id), "guid-auto-C")
+    assert.equal(String(auto?.matched_by), "auto")
+  })
+
+  it("a genuine missing auto-stamp row rolls the batch back", async () => {
+    await wipe()
+    await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+    })
+    const result = await persistAutoStamps([
+      {
+        invoice_key: INVOICE_KEY,
+        xero_invoice_id: "guid-ok",
+        matched_by: "auto",
+      },
+      {
+        invoice_key: `media:${MBA}:2099-01`,
+        xero_invoice_id: "guid-missing",
+        matched_by: "auto",
+      },
+    ])
+    assert.equal(result.ok, false)
+    assert.equal(result.stamped, 0)
+    assert.equal(result.skipped, 0)
+    assert.equal(result.failed, 2)
+    assert.match(result.error ?? "", /not found/i)
+    const listed = await fetchFinanceBillingRecordsFromPostgres()
+    const row = listed.find((r) => r.invoice_key === INVOICE_KEY)
+    assert.ok(row)
+    assert.ok(
+      row.matched_xero_invoice_id == null || row.matched_xero_invoice_id === ""
     )
   })
 })
