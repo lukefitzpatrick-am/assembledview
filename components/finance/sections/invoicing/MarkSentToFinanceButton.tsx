@@ -23,9 +23,18 @@ type Props = {
   disabled?: boolean
   busy?: boolean
   onConfirm: () => void | Promise<void>
+  /** Trigger label. Dialog copy stays the shared mark-sent strings. */
+  label?: string
+  variant?: "default" | "secondary" | "outline"
 }
 
-export function MarkSentToFinanceButton({ disabled, busy, onConfirm }: Props) {
+export function MarkSentToFinanceButton({
+  disabled,
+  busy,
+  onConfirm,
+  label = MARK_SENT_TO_FINANCE_CONFIRM,
+  variant = "outline",
+}: Props) {
   const [open, setOpen] = useState(false)
 
   return (
@@ -33,12 +42,12 @@ export function MarkSentToFinanceButton({ disabled, busy, onConfirm }: Props) {
       <Button
         type="button"
         size="sm"
-        variant="outline"
+        variant={variant}
         disabled={disabled || busy}
         onClick={() => setOpen(true)}
       >
-        {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
-        {MARK_SENT_TO_FINANCE_CONFIRM}
+        {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
+        {label}
       </Button>
       <AlertDialog
         open={open}

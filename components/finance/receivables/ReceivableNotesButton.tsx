@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, type Ref } from "react"
 import { Loader2, StickyNote } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -20,9 +20,15 @@ type ReceivableNotesButtonProps = {
     persisted_record_id: number
   }) => void
   className?: string
+  ref?: Ref<HTMLButtonElement>
 }
 
-export function ReceivableNotesButton({ record, onSaved, className }: ReceivableNotesButtonProps) {
+export function ReceivableNotesButton({
+  record,
+  onSaved,
+  className,
+  ref,
+}: ReceivableNotesButtonProps) {
   const { toast } = useToast()
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState(record.notes ?? "")
@@ -68,6 +74,7 @@ export function ReceivableNotesButton({ record, onSaved, className }: Receivable
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
+          ref={ref}
           type="button"
           aria-label={hasNotes ? "Edit billing note" : "Add billing note"}
           disabled={disabled}

@@ -45,6 +45,7 @@ export default defineConfig({
       "components/finance/receivables/__tests__/InlineScheduleAmountCell.test.tsx",
       "components/finance/receivables/__tests__/ReceivableApproveButton.test.tsx",
       "components/finance/__tests__/rowActionLine.test.tsx",
+      "components/finance/sections/invoicing/__tests__/invoicingPlanRow.test.tsx",
       "components/finance/sections/periods/__tests__/periodsScopeHydrate.test.tsx",
       "components/finance/sections/invoicing/__tests__/markSentToFinance.test.tsx",
       "hooks/__tests__/usePlanDraftSession.test.tsx",

@@ -25,12 +25,15 @@ function pillActive(pathname: string, href: string): boolean {
 
 export function FinanceSectionsShell({
   title,
+  headerNote,
   children,
   scopeBar,
   /** When false, render `scopeBar` as-is (toolbar owns its own card — FIN-2). Default wraps in a panel. */
   scopeBarFramed = true,
 }: {
   title: string
+  /** One-line basis note under the title (e.g. ex-GST). */
+  headerNote?: string
   children: React.ReactNode
   scopeBar?: React.ReactNode
   scopeBarFramed?: boolean
@@ -43,8 +46,11 @@ export function FinanceSectionsShell({
   return (
     <div className="w-full max-w-none px-4 pb-10 pt-4 md:px-6">
       <div className="mb-4 space-y-3">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <h1 className="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
+          {headerNote ? (
+            <p className="text-xs text-muted-foreground">{headerNote}</p>
+          ) : null}
         </div>
         {pills.length > 0 ? (
           <nav aria-label="Clients billing sections" className="flex flex-wrap gap-1.5">

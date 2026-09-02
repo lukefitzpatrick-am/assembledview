@@ -24,6 +24,7 @@ export type StatTileProps = {
   basisCaption: string
   state: StatTileMoneyState
   className?: string
+  /** Colour class for the 3px top bar. `"none"` hides it. */
   accent?: string
 }
 
@@ -54,7 +55,9 @@ export function StatTile({ label, basisCaption, state, className, accent }: Stat
         )}
         aria-busy="true"
       >
-        <div className={cn("h-[3px] w-full", accent ?? "bg-primary")} aria-hidden />
+        {accent === "none" ? null : (
+          <div className={cn("h-[3px] w-full", accent ?? "bg-primary")} aria-hidden />
+        )}
         <div className="p-4">
           <Skeleton className="h-3 w-24" />
           <Skeleton className="mt-2 h-8 w-32" />
@@ -73,7 +76,9 @@ export function StatTile({ label, basisCaption, state, className, accent }: Stat
           className
         )}
       >
-        <div className={cn("h-[3px] w-full", accent ?? "bg-status-danger")} aria-hidden />
+        {accent === "none" ? null : (
+          <div className={cn("h-[3px] w-full", accent ?? "bg-status-danger")} aria-hidden />
+        )}
         <div className="p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-status-critical-fg">
             {label}
@@ -96,7 +101,9 @@ export function StatTile({ label, basisCaption, state, className, accent }: Stat
           className
         )}
       >
-        <div className={cn("h-[3px] w-full", accent ?? "bg-muted")} aria-hidden />
+        {accent === "none" ? null : (
+          <div className={cn("h-[3px] w-full", accent ?? "bg-muted")} aria-hidden />
+        )}
         <div className="p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             {label}
@@ -117,7 +124,9 @@ export function StatTile({ label, basisCaption, state, className, accent }: Stat
         className
       )}
     >
-      <div className={cn("h-[3px] w-full", accent ?? "bg-primary")} aria-hidden />
+      {accent === "none" ? null : (
+        <div className={cn("h-[3px] w-full", accent ?? "bg-primary")} aria-hidden />
+      )}
       <div className="p-4 pb-3">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           {label}

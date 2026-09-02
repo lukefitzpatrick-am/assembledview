@@ -5,7 +5,7 @@
  * Wired to `useFinanceScope` + auto-load (no Load gate). Legacy files untouched.
  */
 
-import { useCallback, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { InvoicingClientCard } from "@/components/finance/sections/invoicing/InvoicingClientCard"
 import { InvoicingToolbar } from "@/components/finance/sections/invoicing/InvoicingToolbar"
@@ -29,6 +29,12 @@ import { exportReceivablesWorkbook } from "@/lib/finance/exportFinanceHub"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 import { formatAUD } from "@/lib/format/money"
 import { formatDateShort } from "@/lib/format/date"
+import {
+  INVOICING_CLIENT_GRID_CLASS,
+  INVOICING_EX_GST_HEADER,
+  type InvoicingClientBlockerMeta,
+} from "@/lib/finance/sections/invoicingRowPresentation"
+import { loadInvoicingClientBlockerMeta } from "@/lib/finance/sections/invoicingClientBlockerMeta"
 import type { BillingRecord } from "@/lib/types/financeBilling"
 import type { MonthGroup } from "@/lib/finance/useReceivablesData"
 import {
@@ -108,6 +114,7 @@ function InvoicingMonthSections({
   refetch,
   onNotesSaved,
   onLineAmountCommitted,
+  clientMetaById,
 }: {
   groups: MonthGroup[]
   refetch: () => void
@@ -121,6 +128,7 @@ function InvoicingMonthSections({
     next: { amount: number; billing_mode?: "auto" | "manual" | null },
     ctx: import("@/lib/finance/commitInlineScheduleAmountEdit").InlineScheduleEditContext
   ) => void
+  clientMetaById: Map<number, InvoicingClientBlockerMeta>
 }) {
   if (groups.length === 0) return null
   return (
@@ -131,7 +139,7 @@ function InvoicingMonthSections({
             <p className="text-sm font-medium text-foreground">{mg.monthLabel}</p>
             <p className="num text-xs font-medium text-foreground">{formatAUD(mg.total)}</p>
           </div>
-          <div className="space-y-4">
+          <div data-invoicing-client-grid="" className={INVOICING_CLIENT_GRID_CLASS}>
             {mg.clients.map((client) => (
               <InvoicingClientCard
                 key={`${mg.monthIso}-${client.clientsId}`}
@@ -140,6 +148,7 @@ function InvoicingMonthSections({
                 refetch={refetch}
                 onNotesSaved={onNotesSaved}
                 onLineAmountCommitted={onLineAmountCommitted}
+                clientMeta={clientMetaById.get(client.clientsId) ?? null}
               />
             ))}
           </div>
@@ -168,6 +177,19 @@ export function InvoicingPageClient() {
   const [lastExportName, setLastExportName] = useState<string | null>(null)
   const [approveBusy, setApproveBusy] = useState(false)
   const [markSentBusy, setMarkSentBusy] = useState(false)
+  const [clientMetaById, setClientMetaById] = useState<Map<number, InvoicingClientBlockerMeta>>(
+    () => new Map()
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    void loadInvoicingClientBlockerMeta().then((map) => {
+      if (!cancelled) setClientMetaById(map)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleNotesSaved = useCallback(
     (result: { invoice_key: string; notes: string; persisted_record_id: number }) => {
@@ -364,6 +386,7 @@ export function InvoicingPageClient() {
   return (
     <FinanceSectionsShell
       title="Clients billing"
+      headerNote={INVOICING_EX_GST_HEADER}
       scopeBarFramed={false}
       scopeBar={
         <InvoicingToolbar
@@ -448,6 +471,7 @@ export function InvoicingPageClient() {
                 refetch={bumpFetch}
                 onNotesSaved={handleNotesSaved}
                 onLineAmountCommitted={handleLineAmountCommitted}
+                clientMetaById={clientMetaById}
               />
 
               {billedInvoiceCount > 0 ? (
@@ -465,24 +489,11 @@ export function InvoicingPageClient() {
                       refetch={bumpFetch}
                       onNotesSaved={handleNotesSaved}
                       onLineAmountCommitted={handleLineAmountCommitted}
+                      clientMetaById={clientMetaById}
                     />
                   </CollapsibleContent>
                 </Collapsible>
-              ) : (
-                <Collapsible defaultOpen={false} className="group/billed">
-                  <CollapsibleTrigger className="flex w-full items-center gap-2 rounded-card border border-border bg-surface-panel px-4 py-3 text-left hover:bg-table-row-hover">
-                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=closed]/billed:-rotate-90" />
-                    <span className="text-sm font-medium text-muted-foreground">
-                      Approved & beyond · 0 invoices · {formatAUD(0)}
-                    </span>
-                  </CollapsibleTrigger>
-                  <CollapsibleContent className="mt-4">
-                    <p className="text-sm text-muted-foreground">
-                      No approved, sent, or issued invoices for this period.
-                    </p>
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
+              ) : null}
             </div>
           </div>
         ) : null}

@@ -1,23 +1,16 @@
 "use client"
 
 /**
- * COPY of `ReceivablesClientCard` for invoicing — uses InvoicingMediaPlanSection
- * (invoiced vs booked). Original untouched.
+ * One card per client: header + one InvoicingPlanRow per record.
  */
 
-import { ChevronDown } from "lucide-react"
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import type { BillingLineItem } from "@/lib/types/financeBilling"
 import type { ClientGroup } from "@/lib/finance/useReceivablesData"
 import type { InlineScheduleEditContext } from "@/lib/finance/commitInlineScheduleAmountEdit"
-import { clientInitials } from "@/lib/finance/cardHelpers"
+import type { InvoicingClientBlockerMeta } from "@/lib/finance/sections/invoicingRowPresentation"
 import { formatAUD } from "@/lib/format/money"
-import { BillingStateBadge } from "@/components/finance/BillingStateBadge"
-import { ReceivableApproveButton } from "@/components/finance/receivables/ReceivableApproveButton"
-import { ReceivableNotesButton } from "@/components/finance/receivables/ReceivableNotesButton"
 import { InvoicingMediaPlanSection } from "@/components/finance/sections/invoicing/InvoicingMediaPlanSection"
-import { formatInvoicedVsBooked } from "@/components/finance/sections/invoicing/invoicedVsBooked"
+import { InvoicingPlanRow } from "@/components/finance/sections/invoicing/InvoicingPlanRow"
 
 type InvoicingClientCardProps = {
   client: ClientGroup
@@ -33,6 +26,7 @@ type InvoicingClientCardProps = {
     next: { amount: number; billing_mode?: "auto" | "manual" | null },
     ctx: InlineScheduleEditContext
   ) => void
+  clientMeta?: InvoicingClientBlockerMeta | null
 }
 
 export function InvoicingClientCard({
@@ -41,6 +35,7 @@ export function InvoicingClientCard({
   refetch,
   onNotesSaved,
   onLineAmountCommitted,
+  clientMeta,
 }: InvoicingClientCardProps) {
   const invCount =
     client.mediaPlans.reduce((n, mp) => n + mp.records.length, 0) +
@@ -49,91 +44,55 @@ export function InvoicingClientCard({
   const invNoun = invCount === 1 ? "invoice" : "invoices"
 
   return (
-    <Collapsible defaultOpen className="group/client">
-      <div className="overflow-hidden rounded-card border border-border bg-card shadow-e1">
-        <CollapsibleTrigger asChild>
-          <header className="flex w-full cursor-pointer items-center gap-3 border-b border-border bg-surface-panel px-4 py-3 text-left transition-colors hover:bg-table-row-hover">
-            <Avatar className="h-9 w-9 rounded-pill border border-border shadow-e0">
-              <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
-                {clientInitials(client.clientName)}
-              </AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{client.clientName}</p>
-              <p className="text-xs text-muted-foreground">
-                {invCount} {invNoun} · {monthLabel}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Subtotal</p>
-              <p className="num text-base font-semibold">{formatAUD(client.total)}</p>
-            </div>
-            <ChevronDown
-              className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=closed]/client:-rotate-90"
-              aria-hidden
-            />
-          </header>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <div className="space-y-4 p-4">
-            {client.mediaPlans.map((mp, mpIdx) => (
-              <InvoicingMediaPlanSection
-                key={`mp-${client.clientsId}-${mpIdx}-${mp.mbaNumber}`}
-                mp={mp}
-                kind="media"
-                sectionLabel={mpIdx === 0 && client.mediaPlans.length ? "Media plans" : undefined}
-                refetch={refetch}
-                onNotesSaved={onNotesSaved}
-                onLineAmountCommitted={onLineAmountCommitted}
-              />
-            ))}
-            {client.scopeOfWorks.map((mp, mpIdx) => (
-              <InvoicingMediaPlanSection
-                key={`sow-${client.clientsId}-${mpIdx}-${mp.mbaNumber}`}
-                mp={mp}
-                kind="sow"
-                sectionLabel="Fees"
-                refetch={refetch}
-                onNotesSaved={onNotesSaved}
-                onLineAmountCommitted={onLineAmountCommitted}
-              />
-            ))}
-            {client.retainers.length > 0 ? (
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-muted-foreground">Retainers</p>
-                {client.retainers.map((rec, recIdx) => (
-                  <div
-                    key={`ret-${client.clientsId}-${rec.id}-${recIdx}`}
-                    className="flex items-center justify-between gap-2 rounded-input border border-border bg-surface-panel px-3 py-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium">
-                        {rec.campaign_name || "Retainer"}
-                      </p>
-                      {rec.invoice_date ? (
-                        <p className="text-[11px] text-muted-foreground">{rec.invoice_date}</p>
-                      ) : null}
-                      <p className="num mt-0.5 text-[11px] text-muted-foreground">
-                        Invoiced vs booked: {formatInvoicedVsBooked(rec)}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <BillingStateBadge
-                        state={rec.state ?? "ready"}
-                        reason={rec.state_reason}
-                        approvedDrift={rec.approved_drift}
-                      />
-                      <ReceivableApproveButton record={rec} onDone={refetch} />
-                      <ReceivableNotesButton record={rec} onSaved={onNotesSaved} />
-                      <p className="num text-sm font-semibold">{formatAUD(rec.total)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </CollapsibleContent>
+    <article
+      data-invoicing-client-card=""
+      className="rounded-card border border-border bg-card shadow-e1"
+      aria-label={`${client.clientName}, ${invCount} ${invNoun}`}
+    >
+      <header className="flex items-start justify-between gap-3 border-b border-border bg-surface-panel px-4 py-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium text-foreground">{client.clientName}</p>
+          <p className="text-xs text-muted-foreground">
+            {invCount} {invNoun}
+            <span className="sr-only"> {monthLabel}</span>
+          </p>
+        </div>
+        <p className="num shrink-0 text-sm font-semibold tabular-nums">{formatAUD(client.total)}</p>
+      </header>
+      <div className="px-4 py-2">
+        {client.mediaPlans.map((mp, mpIdx) => (
+          <InvoicingMediaPlanSection
+            key={`mp-${client.clientsId}-${mpIdx}-${mp.mbaNumber}`}
+            mp={mp}
+            kind="media"
+            refetch={refetch}
+            onNotesSaved={onNotesSaved}
+            onLineAmountCommitted={onLineAmountCommitted}
+            clientMeta={clientMeta}
+          />
+        ))}
+        {client.scopeOfWorks.map((mp, mpIdx) => (
+          <InvoicingMediaPlanSection
+            key={`sow-${client.clientsId}-${mpIdx}-${mp.mbaNumber}`}
+            mp={mp}
+            kind="sow"
+            refetch={refetch}
+            onNotesSaved={onNotesSaved}
+            onLineAmountCommitted={onLineAmountCommitted}
+            clientMeta={clientMeta}
+          />
+        ))}
+        {client.retainers.map((record, recIdx) => (
+          <InvoicingPlanRow
+            key={record.invoice_key ?? `ret-${client.clientsId}-${recIdx}-${record.id}`}
+            record={record}
+            kind="retainer"
+            refetch={refetch}
+            onNotesSaved={onNotesSaved}
+            clientMeta={clientMeta}
+          />
+        ))}
       </div>
-    </Collapsible>
+    </article>
   )
 }

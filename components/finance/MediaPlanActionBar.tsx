@@ -17,7 +17,11 @@ type MediaPlanActionBarProps = {
   onSaved: () => void
 }
 
-export function MediaPlanActionBar({ mp, billingMonth, onSaved }: MediaPlanActionBarProps) {
+export function useMediaPlanActions({
+  mp,
+  billingMonth,
+  onSaved,
+}: MediaPlanActionBarProps) {
   const [isDownloadingAa, setIsDownloadingAa] = useState(false)
   const [isLoadingAlter, setIsLoadingAlter] = useState(false)
   const [alterMonths, setAlterMonths] = useState<BillingMonth[] | null>(null)
@@ -112,6 +116,74 @@ export function MediaPlanActionBar({ mp, billingMonth, onSaved }: MediaPlanActio
   }, [mp.mbaNumber, mp.versionId, mp.versionNumber])
 
   const canAlter = Boolean(mp.mbaNumber) && mp.versionId != null && mp.versionNumber != null
+  const editHref = mp.mbaNumber
+    ? `/mediaplans/mba/${encodeURIComponent(mp.mbaNumber)}/edit`
+    : null
+
+  const alterDialog =
+    alterMonths && mp.mbaNumber ? (
+      <AlterBillingDialog
+        open
+        onOpenChange={(open) => {
+          if (!open) setAlterMonths(null)
+        }}
+        initialMonths={alterMonths}
+        title={mp.mbaNumber}
+        mbaNumber={mp.mbaNumber}
+        isSaving={isSaving}
+        onSave={async (newMonths) => {
+          if (mp.versionId == null) return
+          setIsSaving(true)
+          try {
+            const res = await fetch(
+              `/api/mediaplans/versions/${mp.versionId}/billing-schedule`,
+              {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ billingSchedule: buildBillingScheduleJSON(newMonths) }),
+              }
+            )
+            if (!res.ok) {
+              const err = (await res.json().catch(() => ({ error: "Save failed" }))) as { error?: string }
+              throw new Error(err.error || "Save failed")
+            }
+            setAlterMonths(null)
+            onSaved()
+            toast({ title: "Billing updated", description: "Billing schedule saved for this version." })
+          } catch (e) {
+            toast({
+              variant: "destructive",
+              title: "Alter Billing",
+              description: e instanceof Error ? e.message : "Save failed",
+            })
+          } finally {
+            setIsSaving(false)
+          }
+        }}
+      />
+    ) : null
+
+  return {
+    editHref,
+    downloadAa,
+    openAlter,
+    canAlter,
+    isDownloadingAa,
+    isLoadingAlter,
+    alterDialog,
+  }
+}
+
+export function MediaPlanActionBar({ mp, billingMonth, onSaved }: MediaPlanActionBarProps) {
+  const {
+    editHref,
+    downloadAa,
+    openAlter,
+    canAlter,
+    isDownloadingAa,
+    isLoadingAlter,
+    alterDialog,
+  } = useMediaPlanActions({ mp, billingMonth, onSaved })
 
   if (!mp.mbaNumber) {
     return (
@@ -131,11 +203,7 @@ export function MediaPlanActionBar({ mp, billingMonth, onSaved }: MediaPlanActio
     <>
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
         <Button variant="outline" size="sm" asChild className="shrink-0">
-          <a
-            href={`/mediaplans/mba/${encodeURIComponent(mp.mbaNumber)}/edit`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+          <a href={editHref ?? "#"} target="_blank" rel="noopener noreferrer">
             Edit
           </a>
         </Button>
@@ -177,47 +245,7 @@ export function MediaPlanActionBar({ mp, billingMonth, onSaved }: MediaPlanActio
           )}
         </Button>
       </div>
-      {alterMonths ? (
-        <AlterBillingDialog
-          open
-          onOpenChange={(open) => {
-            if (!open) setAlterMonths(null)
-          }}
-          initialMonths={alterMonths}
-          title={mp.mbaNumber}
-          mbaNumber={mp.mbaNumber}
-          isSaving={isSaving}
-          onSave={async (newMonths) => {
-            if (mp.versionId == null) return
-            setIsSaving(true)
-            try {
-              const res = await fetch(
-                `/api/mediaplans/versions/${mp.versionId}/billing-schedule`,
-                {
-                  method: "PATCH",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ billingSchedule: buildBillingScheduleJSON(newMonths) }),
-                }
-              )
-              if (!res.ok) {
-                const err = (await res.json().catch(() => ({ error: "Save failed" }))) as { error?: string }
-                throw new Error(err.error || "Save failed")
-              }
-              setAlterMonths(null)
-              onSaved()
-              toast({ title: "Billing updated", description: "Billing schedule saved for this version." })
-            } catch (e) {
-              toast({
-                variant: "destructive",
-                title: "Alter Billing",
-                description: e instanceof Error ? e.message : "Save failed",
-              })
-            } finally {
-              setIsSaving(false)
-            }
-          }}
-        />
-      ) : null}
+      {alterDialog}
     </>
   )
 }

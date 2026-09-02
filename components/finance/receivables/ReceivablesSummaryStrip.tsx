@@ -43,16 +43,19 @@ export function ReceivablesSummaryStrip({
       <StatTile
         label="Total to bill"
         basisCaption={TOTAL_TO_BILL_CAPTION}
+        accent="none"
         state={tileState(view, totalToBillCents, errorMessage)}
       />
       <StatTile
         label="Approved & beyond"
         basisCaption={APPROVED_AND_BEYOND_CAPTION}
+        accent="none"
         state={tileState(view, approvedAndBeyondCents, errorMessage)}
       />
       <StatTile
         label="Not yet approved"
         basisCaption={NOT_YET_APPROVED_CAPTION}
+        accent="none"
         state={tileState(view, notYetApprovedCents, errorMessage)}
       />
     </div>
