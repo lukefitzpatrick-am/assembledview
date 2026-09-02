@@ -23,7 +23,7 @@ export function ReceivableApproveButton({ record, onDone }: Props) {
   const state = record.state ?? "ready"
   const grain = grainFromBillingRecord(record)
   const drifted = record.approved_drift === true
-  const canReapprove = drifted && (state === "approved" || state === "sent_to_finance")
+  const canReapprove = drifted && state === "approved"
 
   if (!grain) return null
   if (state !== "ready" && state !== "approved" && state !== "sent_to_finance") return null

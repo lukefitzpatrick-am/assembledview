@@ -10,6 +10,7 @@
  * PATCH-by-id is field-allowlisted (notes, po_number, payment_days, payment_terms,
  * status, invoice_date, campaign_name). Money and lifecycle stamps are refused.
  * Line-item amount / received_amount freeze once the parent is approved.
+ * Re-approve refuses once exported_at is set (same as unapprove).
  */
 
 import "server-only"
@@ -47,6 +48,23 @@ export type FinanceExecutor = { execute: ReturnType<typeof getDb>["execute"] }
 export type ClearFinanceBillingApprovalResult = {
   record: Record<string, unknown>
   priorApprovedAt: string | null
+}
+
+export type SetFinanceBillingApprovalResult = {
+  record: Record<string, unknown>
+  priorApprovedAt: string | null
+  priorApprovedAmountCents: number | null
+}
+
+/** Audit `old_value` for a re-approve. Captures the stamp that was overwritten. */
+export function reapproveAuditOldValue(prior: {
+  priorApprovedAt: string | null
+  priorApprovedAmountCents: number | null
+}): string {
+  return JSON.stringify({
+    approved_at: prior.priorApprovedAt,
+    approved_amount_cents: prior.priorApprovedAmountCents,
+  })
 }
 
 export type ClearFinanceBillingExportedResult = {
@@ -354,25 +372,45 @@ export async function setFinanceBillingRecordNotes(
 async function loadApprovalExportStamps(
   invoiceKey: string,
   executor?: FinanceExecutor
-): Promise<{ approved_at: string | null; exported_at: string | null } | null> {
+): Promise<{
+  approved_at: string | null
+  approved_amount_cents: number | null
+  exported_at: string | null
+} | null> {
   const db = financeDb(executor)
-  const rows = rowsOf<{ approved_at: string | null; exported_at: string | null }>(
+  const rows = rowsOf<{
+    approved_at: string | null
+    approved_amount_cents: unknown
+    exported_at: string | null
+  }>(
     await db.execute(sql`
-      SELECT approved_at, exported_at
+      SELECT approved_at, approved_amount_cents, exported_at
       FROM finance_billing_records
       WHERE invoice_key = ${invoiceKey}
         AND invoice_key NOT LIKE 'xero:%'
       LIMIT 1
     `)
   )
-  return rows[0] ?? null
+  const row = rows[0]
+  if (!row) return null
+  const centsRaw = row.approved_amount_cents
+  const cents =
+    centsRaw == null || centsRaw === ""
+      ? null
+      : Number(centsRaw)
+  return {
+    approved_at: row.approved_at,
+    approved_amount_cents: cents != null && Number.isFinite(cents) ? cents : null,
+    exported_at: row.exported_at,
+  }
 }
 
 export async function setFinanceBillingRecordApproved(
   input: SetFinanceBillingRecordApprovedInput,
   executor?: FinanceExecutor
-): Promise<Record<string, unknown>> {
+): Promise<SetFinanceBillingApprovalResult> {
   assertAppInvoiceKey(input.invoiceKey)
+  const prior = await loadApprovalExportStamps(input.invoiceKey, executor)
   const db = financeDb(executor)
   const reapprove = input.reapprove === true
   const rows = rowsOf<Record<string, unknown>>(
@@ -386,17 +424,23 @@ export async function setFinanceBillingRecordApproved(
         updated_at = now()
       WHERE invoice_key = ${input.invoiceKey}
         AND invoice_key NOT LIKE 'xero:%'
+        AND exported_at IS NULL
         AND (${reapprove} OR approved_at IS NULL)
       RETURNING *
     `)
   )
   const row = rows[0]
   if (!row) {
-    const existing = await loadApprovalExportStamps(input.invoiceKey, executor)
-    if (!existing) {
+    if (!prior) {
       throw new FinanceBillingWriteError(
         "NOT_FOUND",
         `finance_billing_records invoice_key=${input.invoiceKey} not found`
+      )
+    }
+    if (prior.exported_at) {
+      throw new FinanceBillingWriteError(
+        "ALREADY_EXPORTED",
+        "This invoice has been sent to finance. Un-mark sent before re-approving."
       )
     }
     throw new FinanceBillingWriteError(
@@ -404,7 +448,11 @@ export async function setFinanceBillingRecordApproved(
       "Already approved. Pass reapprove: true to overwrite the snapshot."
     )
   }
-  return asApiRecord(row)
+  return {
+    record: asApiRecord(row),
+    priorApprovedAt: prior?.approved_at != null ? String(prior.approved_at) : null,
+    priorApprovedAmountCents: prior?.approved_amount_cents ?? null,
+  }
 }
 
 export async function clearFinanceBillingRecordApproval(
@@ -649,7 +697,7 @@ export async function materialiseAndApproveFinanceBillingRecord(
     reapprove?: boolean
   },
   executor?: FinanceExecutor
-): Promise<Record<string, unknown>> {
+): Promise<SetFinanceBillingApprovalResult> {
   const run = async (tx: FinanceExecutor) => {
     await upsertFinanceBillingRecordByInvoiceKey(input.invoiceKey, input.seed, tx)
     return setFinanceBillingRecordApproved(

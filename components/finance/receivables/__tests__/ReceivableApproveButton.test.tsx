@@ -88,6 +88,18 @@ describe("ReceivableApproveButton", () => {
     expect(unapproveMock).not.toHaveBeenCalled()
   })
 
+  it("does not offer re-approve on a drifted sent-to-finance row", () => {
+    act(() => {
+      root.render(
+        <ReceivableApproveButton
+          record={rec({ state: "sent_to_finance", approved_drift: true })}
+        />
+      )
+    })
+    expect(labels()).toContain("Un-mark")
+    expect(labels()).not.toContain("Re-approve at the current amount")
+  })
+
   it("wires reapprove: true on a drifted approved row", async () => {
     act(() => {
       root.render(

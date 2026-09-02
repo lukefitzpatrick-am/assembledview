@@ -16,6 +16,7 @@ import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
 import {
   FinanceBillingWriteError,
   materialiseAndApproveFinanceBillingRecord,
+  reapproveAuditOldValue,
 } from "@/lib/data/writeFinance"
 import { dollarsToCents } from "@/lib/xero/money"
 
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
           const rows: Record<string, unknown>[] = []
           for (const grain of grains) {
             const { approvedAmountCents, approvedLinesHash } = snapshotFromGrain(grain)
-            const row = await materialiseAndApproveFinanceBillingRecord(
+            const result = await materialiseAndApproveFinanceBillingRecord(
               {
                 invoiceKey: grain.invoice_key,
                 seed: {
@@ -115,10 +116,15 @@ export async function POST(request: NextRequest) {
               },
               tx
             )
+            const row = result.record
             if (!billedSnapshotAmountEchoOk(row.approved_amount, grain.total)) {
               throw new Error("Approved amount echo did not match at cents precision.")
             }
-            rows.push(row)
+            rows.push({
+              ...row,
+              priorApprovedAt: result.priorApprovedAt,
+              priorApprovedAmountCents: result.priorApprovedAmountCents,
+            })
           }
           return rows
         })
@@ -126,6 +132,12 @@ export async function POST(request: NextRequest) {
         if (error instanceof FinanceBillingWriteError && error.code === "ALREADY_APPROVED") {
           return NextResponse.json(
             { error: "already_approved", message: error.message },
+            { status: 409 }
+          )
+        }
+        if (error instanceof FinanceBillingWriteError && error.code === "ALREADY_EXPORTED") {
+          return NextResponse.json(
+            { error: "already_exported", message: error.message },
             { status: 409 }
           )
         }
@@ -159,7 +171,18 @@ export async function POST(request: NextRequest) {
             ? persisted_record_id
             : null,
           field_name: "approved_at",
-          old_value: reapprove ? "reapprove" : null,
+          old_value: reapprove
+            ? reapproveAuditOldValue({
+                priorApprovedAt:
+                  typeof row.priorApprovedAt === "string" ? row.priorApprovedAt : null,
+                priorApprovedAmountCents:
+                  typeof row.priorApprovedAmountCents === "number"
+                    ? row.priorApprovedAmountCents
+                    : row.priorApprovedAmountCents == null
+                      ? null
+                      : Number(row.priorApprovedAmountCents),
+              })
+            : null,
           new_value: String(row.approved_at ?? ""),
         },
         {

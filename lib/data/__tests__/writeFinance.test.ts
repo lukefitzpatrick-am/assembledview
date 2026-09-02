@@ -21,6 +21,7 @@ import {
   materialiseAndApproveFinanceBillingRecord,
   patchFinanceBillingLineItemById,
   patchFinanceBillingRecordById,
+  reapproveAuditOldValue,
   setFinanceBillingRecordApproved,
   setFinanceBillingRecordBilled,
   setFinanceBillingRecordExported,
@@ -241,7 +242,7 @@ describe("writeFinance postgres path", { skip: skipPg }, () => {
       approvedAmountCents: 10012,
       approvedLinesHash: HASH,
     })
-    const echoed = await fetchFinanceBillingRecordByIdFromPostgres(Number(approved.id))
+    const echoed = await fetchFinanceBillingRecordByIdFromPostgres(Number(approved.record.id))
     assert.ok(echoed)
     assert.ok(echoed.approved_at, "approved_at must be stamped")
     assert.equal(Number(echoed.approved_by), 7)
@@ -275,8 +276,85 @@ describe("writeFinance postgres path", { skip: skipPg }, () => {
       approvedLinesHash: HASH,
       reapprove: true,
     })
-    assert.equal(Number(reapproved.approved_by), 8)
-    assert.equal(reapproved.approved_by_name, "Other")
+    assert.equal(Number(reapproved.record.approved_by), 8)
+    assert.equal(reapproved.record.approved_by_name, "Other")
+  })
+
+  it("reapprove refuses once exported", async () => {
+    await wipe()
+    await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+      initial_total: 100.5,
+    })
+    await setFinanceBillingRecordApproved({
+      invoiceKey: INVOICE_KEY,
+      approvedBy: 7,
+      approvedByName: "Ada Admin",
+      approvedAmountCents: 10050,
+      approvedLinesHash: HASH,
+    })
+    await setFinanceBillingRecordExported({ invoiceKey: INVOICE_KEY, exportedBy: 7 })
+    await assert.rejects(
+      () =>
+        setFinanceBillingRecordApproved({
+          invoiceKey: INVOICE_KEY,
+          approvedBy: 8,
+          approvedByName: "Other",
+          approvedAmountCents: 50,
+          approvedLinesHash: HASH,
+          reapprove: true,
+        }),
+      (err: unknown) => {
+        assert.ok(err instanceof FinanceBillingWriteError)
+        assert.equal(err.code, "ALREADY_EXPORTED")
+        return true
+      }
+    )
+  })
+
+  it("reapprove audit captures the prior stamp and prior amount", async () => {
+    await wipe()
+    await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+      initial_total: 100.5,
+    })
+    const first = await setFinanceBillingRecordApproved({
+      invoiceKey: INVOICE_KEY,
+      approvedBy: 7,
+      approvedByName: "Ada Admin",
+      approvedAmountCents: 10050,
+      approvedLinesHash: HASH,
+    })
+    const second = await setFinanceBillingRecordApproved({
+      invoiceKey: INVOICE_KEY,
+      approvedBy: 8,
+      approvedByName: "Other",
+      approvedAmountCents: 50,
+      approvedLinesHash: HASH,
+      reapprove: true,
+    })
+    assert.ok(second.priorApprovedAt)
+    assert.equal(
+      new Date(String(second.priorApprovedAt)).getTime(),
+      new Date(String(first.record.approved_at)).getTime()
+    )
+    assert.equal(second.priorApprovedAmountCents, 10050)
+    const auditOld = JSON.parse(reapproveAuditOldValue(second)) as {
+      approved_at: string | null
+      approved_amount_cents: number | null
+    }
+    assert.equal(auditOld.approved_at, second.priorApprovedAt)
+    assert.equal(auditOld.approved_amount_cents, 10050)
   })
 
   it("unapprove audit captures the pre-update approved_at", async () => {
@@ -297,13 +375,13 @@ describe("writeFinance postgres path", { skip: skipPg }, () => {
       approvedAmountCents: 10050,
       approvedLinesHash: HASH,
     })
-    assert.ok(approved.approved_at, "approved_at must be stamped before unapprove")
+    assert.ok(approved.record.approved_at, "approved_at must be stamped before unapprove")
     const cleared = await clearFinanceBillingRecordApproval(INVOICE_KEY)
     assert.ok(cleared.priorApprovedAt)
     assert.notEqual(String(cleared.priorApprovedAt), "cleared")
     assert.equal(
       new Date(String(cleared.priorApprovedAt)).getTime(),
-      new Date(String(approved.approved_at)).getTime()
+      new Date(String(approved.record.approved_at)).getTime()
     )
     assert.ok(cleared.record.approved_at == null || cleared.record.approved_at === "")
   })
