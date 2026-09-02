@@ -1,6 +1,7 @@
 /**
  * Publisher schedule ingest profiles (migration 0024).
  * Config only — mapping is jsonb on the row, not TypeScript per publisher.
+ * 0059 adds updated_by + publisher_profile_changes (AUTHOR ONLY).
  */
 import { sql } from "drizzle-orm"
 import {
@@ -13,6 +14,7 @@ import {
   text,
   timestamp,
   unique,
+  uuid,
 } from "drizzle-orm/pg-core"
 import { publishers } from "./ported"
 
@@ -39,6 +41,7 @@ export const publisherProfiles = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
       .notNull()
       .defaultNow(),
+    updatedBy: text("updated_by"),
   },
   (table) => [
     unique("publisher_profiles_publisher_name_unique").on(table.publisherName),
@@ -55,5 +58,34 @@ export const publisherProfiles = pgTable(
       .on(table.active)
       .where(sql`${table.active} = true`),
     index("idx_publisher_profiles_publisher_id").on(table.publisherId),
+  ],
+)
+
+export const publisherProfileChanges = pgTable(
+  "publisher_profile_changes",
+  {
+    id: bigint("id", { mode: "number" }).generatedAlwaysAsIdentity().primaryKey(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .notNull()
+      .defaultNow(),
+    publisherProfileId: bigint("publisher_profile_id", { mode: "number" })
+      .notNull()
+      .references(() => publisherProfiles.id),
+    publisherName: text("publisher_name").notNull(),
+    field: text("field").notNull(),
+    header: text("header").notNull(),
+    previousValue: text("previous_value"),
+    nextValue: text("next_value"),
+    action: text("action").notNull(),
+    changedBy: text("changed_by").notNull(),
+    source: text("source").notNull(),
+    stageId: uuid("stage_id"),
+  },
+  (table) => [
+    check(
+      "publisher_profile_changes_action_check",
+      sql`${table.action} in ('map','remap','remove')`,
+    ),
+    index("idx_ppc_profile").on(table.publisherProfileId, table.createdAt.desc()),
   ],
 )

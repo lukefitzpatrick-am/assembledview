@@ -1,23 +1,44 @@
 /**
  * Confirm-then-ask cards for staged ingest — ChatInterviewQuestion only.
- * Suggestion source is review.ava_mapping_proposals (same as Hub Accept AVA).
+ * Unmatched-source cards walk required then enrich in card_field_ids order
+ * (which column feeds Format). Sourced-but-unresolved controlled values are
+ * ingest:value:<field>:<raw> (the source says X — which of our formats is that?).
+ * Both are needed and they are different questions.
  */
 
-import { isSkipAnswer, toChatInterviewQuestion } from "@/lib/ava/chatInterviewQuestion"
-import type { ChatInterviewQuestion } from "@/lib/ava/types"
 import {
-  AVA_MAPPING_TARGET_DESCRIPTORS,
-  type AvaColumnMappingProposal,
-} from "@/lib/mediaplans/ingest/avaColumnMapping"
+  isSkipAnswer,
+  OTHER_OPTION,
+  toChatInterviewQuestion,
+} from "@/lib/ava/chatInterviewQuestion"
+import type { ChatInterviewQuestion } from "@/lib/ava/types"
+import type { AvaColumnMappingProposal } from "@/lib/mediaplans/ingest/avaColumnMapping"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
 import {
   applyReviewColumnRemap,
+  knownHeadersFromReview,
+  validateRemapHeader,
 } from "@/lib/mediaplans/ingest/persistColumnRemap"
-import { isMoneyTarget, MONEY_TARGETS } from "@/lib/mediaplans/ingest/moneyTargets"
+import { isMoneyTarget } from "@/lib/mediaplans/ingest/moneyTargets"
 import { remapIngestColumn } from "@/lib/mediaplans/ingest/remapIngestColumn"
+import { oohFormatChoiceLabels, resolveControlledFormat } from "@/lib/mediaplans/ingest/resolveControlledOoh"
+import { getTargetTemplate } from "@/lib/mediaplans/ingest/targetTemplates"
+import type {
+  TemplateFieldCoverage,
+  UnresolvedControlledValue,
+} from "@/lib/mediaplans/ingest/templateCoverage"
 
 export const LEAVE_UNMAPPED_OPTION = "Leave unmapped"
+/** Decline a required-field card — records the answer, writes nothing. */
+export const NOT_IN_THIS_FILE_OPTION = "Not in this file"
+/** Prefix for the only answer that deletes a mapping. Full label names the target. */
+export const REMOVE_MAPPING_OPTION = "Remove this mapping"
 export const AVA_SUGGESTION_SUFFIX = " (AVA suggestion)"
+
+export type IngestRemapIdentity = {
+  changedBy: string
+  stageId?: string | null
+}
 
 export type IngestQuestionContext = {
   mbaNumber?: string | null
@@ -33,14 +54,44 @@ function headerKey(header: string): string {
   return header.replace(/\s+/g, " ").trim().toLowerCase()
 }
 
-function suggestionLabel(canon: string): string {
-  return `${canon}${AVA_SUGGESTION_SUFFIX}`
+export function removeMappingOptionLabel(mappedTo: string): string {
+  return `${REMOVE_MAPPING_OPTION} (currently ${mappedTo})`
+}
+
+export function isRemoveMappingAnswer(answer: string): boolean {
+  const raw = answer.replace(AVA_SUGGESTION_SUFFIX, "").trim()
+  return raw === REMOVE_MAPPING_OPTION || raw.startsWith(`${REMOVE_MAPPING_OPTION} (`)
+}
+
+export function isDeclineAnswer(answer: string): boolean {
+  if (isSkipAnswer(answer)) return true
+  const raw = answer.replace(AVA_SUGGESTION_SUFFIX, "").trim()
+  return (
+    raw === LEAVE_UNMAPPED_OPTION ||
+    raw === NOT_IN_THIS_FILE_OPTION ||
+    raw === OTHER_OPTION
+  )
+}
+
+/** Leave unmapped always; Remove this mapping only when the header is already mapped. */
+export function columnMappingActionOptions(mappedTo: string | null): string[] {
+  const options = [LEAVE_UNMAPPED_OPTION]
+  if (mappedTo) options.push(removeMappingOptionLabel(mappedTo))
+  options.push(OTHER_OPTION)
+  return options
 }
 
 export function parseMappedOption(answer: string): string | null {
-  if (isSkipAnswer(answer)) return null
+  if (isSkipAnswer(answer) || isRemoveMappingAnswer(answer)) return null
   const raw = answer.replace(AVA_SUGGESTION_SUFFIX, "").trim()
-  if (!raw || raw === LEAVE_UNMAPPED_OPTION) return null
+  if (
+    !raw ||
+    raw === LEAVE_UNMAPPED_OPTION ||
+    raw === NOT_IN_THIS_FILE_OPTION ||
+    raw === OTHER_OPTION
+  ) {
+    return null
+  }
   return raw
 }
 
@@ -52,58 +103,131 @@ export function isMoneyMappingHeader(
   return /media value|production|media bought rate/i.test(header)
 }
 
-function mapQuestionId(header: string): string {
-  return `ingest:map:${header}`
-}
-
-function moneyQuestionId(header: string): string {
-  return `ingest:money:${header}`
-}
-
 function requiredQuestionId(fieldId: string): string {
   return `ingest:required:${fieldId}`
 }
 
 export const MBA_QUESTION_ID = "ingest:mba"
+export const MONEY_RECONCILE_QUESTION_ID = "ingest:money:reconcile"
+export const VALUE_QUESTION_PREFIX = "ingest:value:"
 
-function planFieldOptions(suggestion: string | null): string[] {
-  const opts: string[] = []
-  const seen = new Set<string>()
-  const push = (label: string) => {
-    if (seen.has(label)) return
-    seen.add(label)
-    opts.push(label)
-  }
-  if (suggestion) push(suggestionLabel(suggestion))
-  for (const f of AVA_MAPPING_TARGET_DESCRIPTORS) {
-    if (suggestion && f === suggestion) continue
-    push(f)
-  }
-  push(LEAVE_UNMAPPED_OPTION)
-  return opts
+export function valueQuestionId(fieldId: string, raw: string): string {
+  return `${VALUE_QUESTION_PREFIX}${fieldId}:${headerKey(raw)}`
 }
 
-function moneyFieldOptions(current: string | null): string[] {
-  const opts: string[] = []
-  const seen = new Set<string>()
-  const push = (label: string) => {
-    if (seen.has(label)) return
-    seen.add(label)
-    opts.push(label)
-  }
-  if (current && isMoneyTarget(current)) push(suggestionLabel(current))
-  for (const t of MONEY_TARGETS) {
-    if (current && t === current) continue
-    push(t)
-  }
-  push(LEAVE_UNMAPPED_OPTION)
-  return opts
+function parseValueQuestionId(
+  questionId: string,
+): { fieldId: string; rawKey: string } | null {
+  if (!questionId.startsWith(VALUE_QUESTION_PREFIX)) return null
+  const rest = questionId.slice(VALUE_QUESTION_PREFIX.length)
+  const split = rest.indexOf(":")
+  if (split <= 0) return null
+  const fieldId = rest.slice(0, split)
+  const rawKey = rest.slice(split + 1)
+  if (!fieldId || !rawKey) return null
+  return { fieldId, rawKey }
+}
+
+function parseValueAnswer(answer: string): string | null {
+  if (isSkipAnswer(answer)) return null
+  const raw = answer.replace(AVA_SUGGESTION_SUFFIX, "").trim()
+  if (!raw || raw === LEAVE_UNMAPPED_OPTION) return null
+  return raw
+}
+
+function valueCardNoun(fieldId: string, label: string): string {
+  if (fieldId === "format") return "formats"
+  return `${label.toLowerCase()} values`
+}
+
+function valueCardOptions(fieldId: string): string[] {
+  if (fieldId === "format") return oohFormatChoiceLabels()
+  return []
 }
 
 function leftoverHeaders(review: IngestReviewPackage): string[] {
   const fromCoverage = (review.template_coverage?.not_used ?? []).map((n) => n.header)
   if (fromCoverage.length > 0) return fromCoverage
   return review.ignored.columns_unmapped
+}
+
+type RequiredCardField = { id: string; label: string; canonicals?: string[] }
+
+function cardFieldIdsFor(review: IngestReviewPackage): string[] {
+  const mediaType = (
+    review.template_coverage?.media_type ||
+    review.detected_media_type ||
+    review.proposal?.media_type ||
+    ""
+  )
+    .trim()
+    .toLowerCase()
+  if (!mediaType) return []
+  try {
+    return getTargetTemplate(mediaType).card_field_ids
+  } catch {
+    return []
+  }
+}
+
+function orderUnmatchedByCard(
+  fields: TemplateFieldCoverage[],
+  cardIds: string[],
+): TemplateFieldCoverage[] {
+  const unmatched = fields.filter((field) => !field.matched)
+  const byId = new Map(unmatched.map((field) => [field.id, field]))
+  const ordered: TemplateFieldCoverage[] = []
+  const seen = new Set<string>()
+  for (const id of cardIds) {
+    const field = byId.get(id)
+    if (!field) continue
+    ordered.push(field)
+    seen.add(id)
+  }
+  for (const field of unmatched) {
+    if (seen.has(field.id)) continue
+    ordered.push(field)
+  }
+  return ordered
+}
+
+function unmatchedFieldsInCardOrder(
+  review: IngestReviewPackage,
+): TemplateFieldCoverage[] {
+  const coverage = review.template_coverage
+  if (!coverage) return []
+  const cardIds = cardFieldIdsFor(review)
+  return [
+    ...orderUnmatchedByCard(coverage.required, cardIds),
+    ...orderUnmatchedByCard(coverage.enrich, cardIds),
+  ]
+}
+
+const MEDIA_MONEY_FALLBACK: RequiredCardField = {
+  id: "media_money",
+  label: "Media money",
+  canonicals: [
+    "media_rate:weekly",
+    "media_rate:lunar",
+    "media_rate:per_spot",
+    "media_amount:stated",
+  ],
+}
+
+function reconDeltaText(review: IngestReviewPackage): string {
+  const recon = review.proposal?.reconciliation
+  const delta = recon?.delta
+  const pct = recon?.delta_pct
+  const deltaLabel =
+    delta != null
+      ? `$${Math.abs(delta).toLocaleString("en-AU", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`
+      : "the file total"
+  const pctLabel =
+    pct != null ? `${(Math.abs(pct) * 100).toFixed(2)}%` : "the 0.5% gate"
+  return `The file total is off by ${deltaLabel} (${pctLabel}). Which column feeds Media money?`
 }
 
 function unmatchedWantedCanonicals(review: IngestReviewPackage): Set<string> {
@@ -210,70 +334,54 @@ export function formatFilteredUnusedMappingLine(
   return `${filtered.count} other columns aren't used by AssembledView — listed in the ignored rows.`
 }
 
-function buildSuggestionCard(
-  proposal: AvaColumnMappingProposal,
-  index: number,
-  total: number,
-): ChatInterviewQuestion {
-  const suggested = proposal.proposed_mapped_to
-  return toChatInterviewQuestion({
-    id: mapQuestionId(proposal.header),
-    text: `"${proposal.header}" isn't mapped. I suggest ${suggested ?? "leave unmapped"}. Pick a plan field.`,
-    type: "choice",
-    options: planFieldOptions(suggested),
-    selected: suggested ? [suggestionLabel(suggested)] : [LEAVE_UNMAPPED_OPTION],
-    index,
-    total,
-  })
-}
-
 function buildRequiredCard(
-  field: { id: string; label: string; canonicals?: string[] },
+  field: RequiredCardField,
   leftovers: string[],
   proposals: AvaColumnMappingProposal[],
   index: number,
   total: number,
+  opts?: {
+    text?: string
+    questionId?: string
+    kind?: "required" | "value" | "recon"
+    mappedTo?: string | null
+  },
 ): ChatInterviewQuestion {
   const hit = proposals.find(
     (p) =>
       p.proposed_mapped_to != null &&
       (field.canonicals?.includes(p.proposed_mapped_to) ?? false),
   )
-  const opts: string[] = []
+  const options: string[] = []
   const seen = new Set<string>()
   const push = (label: string) => {
     if (seen.has(headerKey(label))) return
     seen.add(headerKey(label))
-    opts.push(label)
+    options.push(label)
   }
   if (hit) push(`${hit.header}${AVA_SUGGESTION_SUFFIX}`)
-  for (const h of leftovers) push(h)
-  push(LEAVE_UNMAPPED_OPTION)
+  for (const header of leftovers) {
+    if (hit && headerKey(header) === headerKey(hit.header)) continue
+    push(header)
+  }
+  const kind = opts?.kind ?? "required"
+  if (kind === "required") {
+    push(NOT_IN_THIS_FILE_OPTION)
+  } else {
+    push(LEAVE_UNMAPPED_OPTION)
+  }
+  if (kind !== "required" && kind !== "value" && opts?.mappedTo) {
+    push(removeMappingOptionLabel(opts.mappedTo))
+  }
+  push(OTHER_OPTION)
   return toChatInterviewQuestion({
-    id: requiredQuestionId(field.id),
-    text: `${field.label} has no source column. Which publisher column maps to it?`,
+    id: opts?.questionId ?? requiredQuestionId(field.id),
+    text:
+      opts?.text ??
+      `Which column in this schedule holds ${field.label}?`,
     type: "choice",
-    options: opts,
+    options,
     selected: hit ? [`${hit.header}${AVA_SUGGESTION_SUFFIX}`] : undefined,
-    index,
-    total,
-  })
-}
-
-function buildMoneyCard(
-  header: string,
-  mappedTo: string | null,
-  index: number,
-  total: number,
-): ChatInterviewQuestion {
-  return toChatInterviewQuestion({
-    id: moneyQuestionId(header),
-    text: `"${header}" is mapped to ${mappedTo ?? "nothing"}. Changing it re-checks the money total against the 0.5% gate.`,
-    type: "choice",
-    options: moneyFieldOptions(mappedTo),
-    selected: mappedTo && isMoneyTarget(mappedTo)
-      ? [suggestionLabel(mappedTo)]
-      : [LEAVE_UNMAPPED_OPTION],
     index,
     total,
   })
@@ -325,43 +433,63 @@ export function listOpenIngestReviewQuestions(
     Object.keys(review.ava_chat?.answers ?? {}).map((id) => id),
   )
   const draft: Array<Omit<ChatInterviewQuestion, "index" | "total"> & { index?: number; total?: number }> = []
-
-  const moneyHeaders = new Set(
-    moneyColumns(review).map((c) => headerKey(c.header)),
-  )
   const leftovers = leftoverHeaders(review)
+  const proposals = review.ava_mapping_proposals ?? []
+  const unmatched = unmatchedFieldsInCardOrder(review)
 
-  for (const proposal of review.ava_mapping_proposals ?? []) {
-    if (moneyHeaders.has(headerKey(proposal.header))) continue
-    const id = mapQuestionId(proposal.header)
-    if (answered.has(id)) continue
-    if (!proposalServesUnmatchedWantedField(review, proposal)) {
-      if (isProposalAccountedAsUnused(review, proposal)) continue
-      warnOrphanMappingProposal(review, proposal)
-    }
-    draft.push(buildSuggestionCard(proposal, 1, 1))
-  }
-
-  const unmatchedRequired =
-    review.template_coverage?.required.filter((f) => !f.matched) ?? []
-  for (const field of unmatchedRequired) {
+  for (const field of unmatched) {
     const id = requiredQuestionId(field.id)
     if (answered.has(id)) continue
+    draft.push(buildRequiredCard(field, leftovers, proposals, 1, 1))
+  }
+
+  const unmatchedIds = new Set(unmatched.map((field) => field.id))
+  const unresolved = review.template_coverage?.unresolved_controlled ?? []
+  for (const item of unresolved) {
+    if (unmatchedIds.has(item.fieldId)) continue
+    const id = valueQuestionId(item.fieldId, item.raw)
+    if (answered.has(id)) continue
+    const noun = valueCardNoun(item.fieldId, item.label)
     draft.push(
       buildRequiredCard(
-        field,
-        leftovers,
-        review.ava_mapping_proposals ?? [],
+        { id: item.fieldId, label: item.label },
+        valueCardOptions(item.fieldId),
+        [],
         1,
         1,
+        {
+          questionId: id,
+          text: `The source says ${item.raw} — which of our ${noun} is that?`,
+          kind: "value",
+        },
       ),
     )
   }
 
-  for (const col of moneyColumns(review)) {
-    const id = moneyQuestionId(col.header)
-    if (answered.has(id)) continue
-    draft.push(buildMoneyCard(col.header, col.mappedTo, 1, 1))
+  const moneyUnmatched = unmatched.some((field) => field.id === "media_money")
+  const reconFail = review.proposal?.reconciliation.accept_ok === false
+  if (
+    reconFail &&
+    !moneyUnmatched &&
+    !answered.has(MONEY_RECONCILE_QUESTION_ID)
+  ) {
+    const mediaMoney =
+      review.template_coverage?.required.find((field) => field.id === "media_money") ??
+      MEDIA_MONEY_FALLBACK
+    draft.push(
+      buildRequiredCard(
+        mediaMoney,
+        moneyColumns(review).map((col) => col.header),
+        proposals,
+        1,
+        1,
+        {
+          questionId: MONEY_RECONCILE_QUESTION_ID,
+          text: reconDeltaText(review),
+          kind: "recon",
+        },
+      ),
+    )
   }
 
   const haveMba = Boolean(context.mbaNumber?.trim() || review.ava_chat?.selectedMbaNumber)
@@ -403,17 +531,118 @@ function mergeAnswers(
   return next
 }
 
+function applyControlledValueToReview(
+  review: IngestReviewPackage,
+  unresolved: UnresolvedControlledValue,
+  canonical: string,
+): IngestReviewPackage {
+  const rawKey = headerKey(unresolved.raw)
+  const proposal = review.proposal
+  const nextProposal = proposal
+    ? {
+        ...proposal,
+        line_items: proposal.line_items.map((item) => {
+          const groupingFormat = item.grouping.format ?? ""
+          const panelHit = item.panels.some(
+            (panel) => headerKey(panel.descriptors.format ?? "") === rawKey,
+          )
+          if (headerKey(groupingFormat) !== rawKey && !panelHit) return item
+          return {
+            ...item,
+            grouping: {
+              ...item.grouping,
+              publisher_format_name:
+                item.grouping.publisher_format_name ||
+                groupingFormat ||
+                unresolved.raw,
+              format: canonical,
+            },
+          }
+        }),
+      }
+    : proposal
+  const coverage = review.template_coverage
+  return {
+    ...review,
+    proposal: nextProposal,
+    template_coverage: coverage
+      ? {
+          ...coverage,
+          unresolved_controlled: (coverage.unresolved_controlled ?? []).filter(
+            (item) =>
+              !(
+                item.fieldId === unresolved.fieldId &&
+                headerKey(item.raw) === rawKey
+              ),
+          ),
+        }
+      : coverage,
+  }
+}
+
+function inventedHeaderChanged(
+  answer: string,
+  fieldLabel: string,
+  knownHeaders: string[],
+): string {
+  const shown = knownHeaders.slice(0, 12).join(", ")
+  const more = knownHeaders.length > 12 ? "…" : ""
+  return `"${answer}" is not a column in this schedule. ${fieldLabel} needs the name of the column that holds it — the columns available are: ${shown}${more}`
+}
+
+function currentMappedTo(
+  review: IngestReviewPackage,
+  header: string,
+): string | null {
+  const row = review.column_mapping.find(
+    (c) => headerKey(c.header) === headerKey(header),
+  )
+  return row?.mapped_to ?? review.profile?.column_map[header] ?? null
+}
+
+async function persistMapping(args: {
+  publisher: string
+  header: string
+  mappedTo: string | null
+  review: IngestReviewPackage
+  identity: IngestRemapIdentity
+}): Promise<
+  | { ok: true; header: string }
+  | { ok: false; reason: string; knownHeaders: string[] }
+> {
+  const knownHeaders = knownHeadersFromReview(args.review)
+  const validated = validateRemapHeader(args.header, knownHeaders)
+  if (!validated.ok) {
+    return { ok: false, reason: validated.reason, knownHeaders }
+  }
+  const result = await remapIngestColumn({
+    publisherName: args.publisher,
+    header: validated.header,
+    mappedTo: args.mappedTo,
+    knownHeaders,
+    changedBy: args.identity.changedBy,
+    source: "ava_card",
+    stageId: args.identity.stageId,
+  })
+  if (!result.ok) {
+    return { ok: false, reason: result.reason, knownHeaders: result.knownHeaders }
+  }
+  return { ok: true, header: validated.header }
+}
+
 async function applyOneAnswer(
   review: IngestReviewPackage,
   questionId: string,
   answer: string,
-): Promise<{ review: IngestReviewPackage; changed: string }> {
+  identity: IngestRemapIdentity,
+): Promise<{ review: IngestReviewPackage; changed: string; record: boolean }> {
   const mapped = parseMappedOption(answer)
   const publisher = review.detected_publisher
   const skipRemap = isSkipAnswer(answer)
+  const knownHeaders = knownHeadersFromReview(review)
   if (questionId === MBA_QUESTION_ID) {
     if (skipRemap) {
-      return { review, changed: "Left campaign unselected." }
+      return { review, changed: "Left campaign unselected.", record: true }
     }
     const mba = parseMappedOption(answer) ?? answer.trim()
     return {
@@ -425,30 +654,188 @@ async function applyOneAnswer(
         },
       },
       changed: `Campaign set to ${mba}.`,
+      record: true,
     }
   }
   if (questionId.startsWith("ingest:map:")) {
     const header = questionId.slice("ingest:map:".length)
-    if (publisher && !skipRemap) {
-      await remapIngestColumn({ publisherName: publisher, header, mappedTo: mapped })
+    const existing = currentMappedTo(review, header)
+    if (isRemoveMappingAnswer(answer)) {
+      if (!existing || !publisher) {
+        return { review, changed: `Left ${header} unmapped.`, record: true }
+      }
+      const persisted = await persistMapping({
+        publisher,
+        header,
+        mappedTo: null,
+        review,
+        identity,
+      })
+      if (!persisted.ok) {
+        return {
+          review,
+          changed: inventedHeaderChanged(answer, header, persisted.knownHeaders),
+          record: false,
+        }
+      }
+      return {
+        review: applyReviewColumnRemap(review, persisted.header, null),
+        changed: `Removed ${persisted.header} → ${existing} from the ${publisher} profile. Every future upload from this publisher is affected.`,
+        record: true,
+      }
+    }
+    if (skipRemap || isDeclineAnswer(answer) || mapped == null) {
+      return { review, changed: `Left ${header} unmapped.`, record: true }
+    }
+    if (!publisher) {
+      return { review, changed: `Left ${header} unmapped.`, record: true }
+    }
+    const persisted = await persistMapping({
+      publisher,
+      header,
+      mappedTo: mapped,
+      review,
+      identity,
+    })
+    if (!persisted.ok) {
+      return {
+        review,
+        changed: inventedHeaderChanged(answer, header, persisted.knownHeaders),
+        record: false,
+      }
     }
     return {
-      review: applyReviewColumnRemap(review, header, mapped),
-      changed: mapped
-        ? `Mapped ${header} to ${mapped}.`
-        : `Left ${header} unmapped.`,
+      review: applyReviewColumnRemap(review, persisted.header, mapped),
+      changed: `Mapped ${persisted.header} to ${mapped}.`,
+      record: true,
+    }
+  }
+  if (questionId === MONEY_RECONCILE_QUESTION_ID) {
+    const header = mapped
+    const dest = "media_amount:stated"
+    if (header && publisher && !skipRemap && !isDeclineAnswer(answer)) {
+      const headerCheck = validateRemapHeader(header, knownHeaders)
+      if (!headerCheck.ok) {
+        return {
+          review,
+          changed: inventedHeaderChanged(answer, "Media money", knownHeaders),
+          record: false,
+        }
+      }
+      const persisted = await persistMapping({
+        publisher,
+        header: headerCheck.header,
+        mappedTo: dest,
+        review,
+        identity,
+      })
+      if (!persisted.ok) {
+        return {
+          review,
+          changed: inventedHeaderChanged(answer, "Media money", persisted.knownHeaders),
+          record: false,
+        }
+      }
+      return {
+        review: applyReviewColumnRemap(review, persisted.header, dest),
+        changed: `Mapped ${persisted.header} to ${dest}. The 0.5% money check will run again.`,
+        record: true,
+      }
+    }
+    return {
+      review,
+      changed: "Left Media money remapping unmapped. The 0.5% money check will run again.",
+      record: true,
     }
   }
   if (questionId.startsWith("ingest:money:")) {
     const header = questionId.slice("ingest:money:".length)
-    if (publisher && !skipRemap) {
-      await remapIngestColumn({ publisherName: publisher, header, mappedTo: mapped })
+    const existing = currentMappedTo(review, header)
+    if (isRemoveMappingAnswer(answer)) {
+      if (!existing || !publisher) {
+        return {
+          review,
+          changed: `Left ${header} unmapped. The 0.5% money check will run again.`,
+          record: true,
+        }
+      }
+      const persisted = await persistMapping({
+        publisher,
+        header,
+        mappedTo: null,
+        review,
+        identity,
+      })
+      if (!persisted.ok) {
+        return {
+          review,
+          changed: inventedHeaderChanged(answer, header, persisted.knownHeaders),
+          record: false,
+        }
+      }
+      return {
+        review: applyReviewColumnRemap(review, persisted.header, null),
+        changed: `Removed ${persisted.header} → ${existing} from the ${publisher} profile. Every future upload from this publisher is affected.`,
+        record: true,
+      }
+    }
+    if (skipRemap || isDeclineAnswer(answer) || mapped == null) {
+      return {
+        review,
+        changed: `Left ${header} unmapped. The 0.5% money check will run again.`,
+        record: true,
+      }
+    }
+    if (!publisher) {
+      return {
+        review,
+        changed: `Left ${header} unmapped. The 0.5% money check will run again.`,
+        record: true,
+      }
+    }
+    const persisted = await persistMapping({
+      publisher,
+      header,
+      mappedTo: mapped,
+      review,
+      identity,
+    })
+    if (!persisted.ok) {
+      return {
+        review,
+        changed: inventedHeaderChanged(answer, header, persisted.knownHeaders),
+        record: false,
+      }
     }
     return {
-      review: applyReviewColumnRemap(review, header, mapped),
-      changed: mapped
-        ? `Remapped ${header} to ${mapped}. The 0.5% money check will run again.`
-        : `Left ${header} unmapped. The 0.5% money check will run again.`,
+      review: applyReviewColumnRemap(review, persisted.header, mapped),
+      changed: `Remapped ${persisted.header} to ${mapped}. The 0.5% money check will run again.`,
+      record: true,
+    }
+  }
+  if (questionId.startsWith(VALUE_QUESTION_PREFIX)) {
+    const parsed = parseValueQuestionId(questionId)
+    const unresolved = (review.template_coverage?.unresolved_controlled ?? []).find(
+      (item) =>
+        parsed != null &&
+        item.fieldId === parsed.fieldId &&
+        headerKey(item.raw) === parsed.rawKey,
+    )
+    const label = unresolved?.label ?? parsed?.fieldId ?? "value"
+    if (skipRemap) {
+      return { review, changed: `Left ${label} unmapped.`, record: true }
+    }
+    const chosen = parseValueAnswer(answer)
+    const canonical = chosen
+      ? resolveControlledFormat(chosen, publisher ?? undefined)
+      : null
+    if (!canonical || !unresolved) {
+      return { review, changed: `Left ${label} unmapped.`, record: true }
+    }
+    return {
+      review: applyControlledValueToReview(review, unresolved, canonical),
+      changed: `Mapped ${unresolved.raw} to ${canonical}.`,
+      record: true,
     }
   }
   if (questionId.startsWith("ingest:required:")) {
@@ -458,43 +845,70 @@ async function applyOneAnswer(
       ...(review.template_coverage?.enrich ?? []),
     ].find((f) => f.id === fieldId)
     const dest = field?.canonicals?.[0] ?? field?.dest ?? null
-    const header = mapped
-    if (header && dest && publisher && !skipRemap) {
-      await remapIngestColumn({
-        publisherName: publisher,
-        header,
-        mappedTo: dest,
-      })
+    const label = field?.label ?? fieldId
+    if (skipRemap || isDeclineAnswer(answer) || mapped == null) {
+      return { review, changed: `Left ${label} unmatched.`, record: true }
+    }
+    const headerCheck = validateRemapHeader(mapped, knownHeaders)
+    if (!headerCheck.ok) {
       return {
-        review: applyReviewColumnRemap(review, header, dest),
-        changed: `Mapped ${header} to ${dest} (${field?.label ?? fieldId}).`,
+        review,
+        changed: inventedHeaderChanged(answer, label, knownHeaders),
+        record: false,
+      }
+    }
+    if (dest && publisher) {
+      const persisted = await persistMapping({
+        publisher,
+        header: headerCheck.header,
+        mappedTo: dest,
+        review,
+        identity,
+      })
+      if (!persisted.ok) {
+        return {
+          review,
+          changed: inventedHeaderChanged(answer, label, persisted.knownHeaders),
+          record: false,
+        }
+      }
+      return {
+        review: applyReviewColumnRemap(review, persisted.header, dest),
+        changed: `Mapped ${persisted.header} to ${dest} (${label}).`,
+        record: true,
       }
     }
     return {
       review,
-      changed: `Left ${field?.label ?? fieldId} unmatched.`,
+      changed: `Left ${label} unmatched.`,
+      record: true,
     }
   }
-  return { review, changed: "" }
+  return { review, changed: "", record: true }
 }
 
 export async function applyIngestReviewAnswers(
   review: IngestReviewPackage,
   answers: IngestQuestionAnswer[],
+  identity: IngestRemapIdentity,
 ): Promise<{ review: IngestReviewPackage; changed: string[] }> {
+  if (!identity.changedBy?.trim()) {
+    throw new Error("applyIngestReviewAnswers: changedBy is required (do not default)")
+  }
   let next = review
   const changed: string[] = []
-  const merged = mergeAnswers(review, answers)
+  const recorded: IngestQuestionAnswer[] = []
   for (const a of answers) {
-    const result = await applyOneAnswer(next, a.questionId, a.answer)
+    const result = await applyOneAnswer(next, a.questionId, a.answer, identity)
     next = result.review
     if (result.changed) changed.push(result.changed)
+    if (result.record) recorded.push(a)
   }
   next = {
     ...next,
     ava_chat: {
       ...next.ava_chat,
-      answers: merged,
+      answers: mergeAnswers(next, recorded),
     },
   }
   return { review: next, changed }

@@ -1412,3 +1412,69 @@ CREATE INDEX "idx_xero_invoice_matches_run_item" ON "xero_invoice_matches" USING
 CREATE INDEX "idx_xero_invoice_matches_status" ON "xero_invoice_matches" USING btree ("status");--> statement-breakpoint
 CREATE INDEX "idx_plan_working_drafts_master" ON "plan_working_drafts" USING btree ("master_id");--> statement-breakpoint
 CREATE INDEX "idx_plan_working_drafts_updated" ON "plan_working_drafts" USING btree ("updated_at");
+--> statement-breakpoint
+CREATE TABLE "publisher_profile_changes" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "publisher_profile_changes_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"publisher_profile_id" bigint NOT NULL,
+	"publisher_name" text NOT NULL,
+	"field" text NOT NULL,
+	"header" text NOT NULL,
+	"previous_value" text,
+	"next_value" text,
+	"action" text NOT NULL,
+	"changed_by" text NOT NULL,
+	"source" text NOT NULL,
+	"stage_id" uuid,
+	CONSTRAINT "publisher_profile_changes_action_check" CHECK ("publisher_profile_changes"."action" in ('map','remap','remove'))
+);
+--> statement-breakpoint
+CREATE TABLE "planning_audience_uploads" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "planning_audience_uploads_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"clients_id" bigint,
+	"file_name" text NOT NULL,
+	"blob_url" text,
+	"byte_size" bigint,
+	"wave_code" text,
+	"survey_period" text,
+	"filter_label" text,
+	"parse_json" jsonb NOT NULL,
+	"uploaded_by_email" text NOT NULL,
+	"status" text DEFAULT 'staged' NOT NULL,
+	"expires_at" timestamp with time zone,
+	"retained_at" timestamp with time zone
+);
+--> statement-breakpoint
+CREATE TABLE "planning_uploaded_audiences" (
+	"id" bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY (sequence name "planning_uploaded_audiences_id_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"upload_id" bigint NOT NULL,
+	"clients_id" bigint,
+	"name" text NOT NULL,
+	"sheet_name" text NOT NULL,
+	"block_id" text NOT NULL,
+	"segment_key" text NOT NULL,
+	"wave_code" text,
+	"filter_label" text,
+	"audience_wc" numeric,
+	"unweighted_n" integer,
+	"universe_wc" numeric,
+	"suppressed_cells" integer,
+	"mapping_json" jsonb NOT NULL,
+	"channels_json" jsonb NOT NULL,
+	"definition_json" jsonb NOT NULL,
+	"created_by_email" text NOT NULL,
+	"is_archived" boolean DEFAULT false NOT NULL,
+	CONSTRAINT "planning_uploaded_audiences_segment_key_unique" UNIQUE("segment_key")
+);
+--> statement-breakpoint
+ALTER TABLE "publisher_profiles" ADD COLUMN "updated_by" text;--> statement-breakpoint
+ALTER TABLE "publisher_profile_changes" ADD CONSTRAINT "publisher_profile_changes_publisher_profile_id_publisher_profiles_id_fk" FOREIGN KEY ("publisher_profile_id") REFERENCES "public"."publisher_profiles"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "planning_uploaded_audiences" ADD CONSTRAINT "planning_uploaded_audiences_upload_id_planning_audience_uploads_id_fk" FOREIGN KEY ("upload_id") REFERENCES "public"."planning_audience_uploads"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE INDEX "idx_ppc_profile" ON "publisher_profile_changes" USING btree ("publisher_profile_id","created_at" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "idx_planning_audience_uploads_clients_id" ON "planning_audience_uploads" USING btree ("clients_id");--> statement-breakpoint
+CREATE INDEX "idx_planning_audience_uploads_expires_at" ON "planning_audience_uploads" USING btree ("expires_at") WHERE "planning_audience_uploads"."retained_at" IS NULL AND "planning_audience_uploads"."expires_at" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "idx_planning_uploaded_audiences_clients_id" ON "planning_uploaded_audiences" USING btree ("clients_id");--> statement-breakpoint
+CREATE INDEX "idx_planning_uploaded_audiences_upload_id" ON "planning_uploaded_audiences" USING btree ("upload_id");--> statement-breakpoint
+CREATE INDEX "idx_planning_uploaded_audiences_not_archived" ON "planning_uploaded_audiences" USING btree ("clients_id") WHERE "planning_uploaded_audiences"."is_archived" = false;

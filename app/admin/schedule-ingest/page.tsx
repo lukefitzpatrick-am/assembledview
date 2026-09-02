@@ -190,10 +190,18 @@ function ScheduleIngestPageInner() {
             publisherName: review.detected_publisher,
             header,
             mappedTo,
+            knownHeaders: review.column_mapping.map((c) => c.header),
           }),
         })
-        const json = (await res.json()) as { error?: string }
+        const json = (await res.json()) as {
+          error?: string
+          ok?: boolean
+          reason?: string
+        }
         if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
+        if (json.ok === false) {
+          throw new Error(json.reason || "That header is not a column in this schedule")
+        }
 
         setReview((prev) => {
           if (!prev) return prev
@@ -253,7 +261,7 @@ function ScheduleIngestPageInner() {
         setRemapping(false)
       }
     },
-    [review?.detected_publisher],
+    [review],
   )
 
   const onAcceptAvaProposal = useCallback(

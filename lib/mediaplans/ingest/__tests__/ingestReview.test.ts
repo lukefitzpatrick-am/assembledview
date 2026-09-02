@@ -216,6 +216,12 @@ test("corrected mapping persists to the profile", async () => {
     publisherName: "QMS",
     header: "PANEL EXCLUSIVITY",
     mappedTo: "panel_name",
+    knownHeaders: ["PANEL EXCLUSIVITY"],
+    changedBy: "test@assembledmedia.com.au",
+    source: "admin",
+  }).then((result) => {
+    if (!result.ok) throw new Error(result.reason)
+    return result
   })
   assert.ok(source === "seed" || source === "postgres")
   assert.equal(profile.column_map["PANEL EXCLUSIVITY"], "panel_name")

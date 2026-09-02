@@ -94,10 +94,22 @@ export function PublisherIngestSection({ publisher }: { publisher: Publisher }) 
       const res = await fetch("/api/admin/ingest/remap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ publisherName: name, header, mappedTo }),
+        body: JSON.stringify({
+          publisherName: name,
+          header,
+          mappedTo,
+          knownHeaders: mappingRows.map((row) => row.header),
+        }),
       })
-      const json = (await res.json()) as { error?: string }
+      const json = (await res.json()) as {
+        error?: string
+        ok?: boolean
+        reason?: string
+      }
       if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
+      if (json.ok === false) {
+        throw new Error(json.reason || "That header is not a column in this schedule")
+      }
       await load()
     } catch (e) {
       setError(e instanceof Error ? e.message : "Remap failed")

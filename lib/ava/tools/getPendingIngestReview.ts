@@ -33,7 +33,7 @@ export const getPendingIngestReviewTool: AvaTool = {
   definition: {
     name: "get_pending_ingest_review",
     description:
-      "Read the staged publisher-schedule ingest review. Returns a compact confirmed markdown table (publisher, coverage, money delta, named ignored rows) plus question cards for open decisions. Echo the table; ask only via the cards — never as prose asking the user to type a column name. Pass prior card answers as answers to accumulate mapping. Does not invent figures.",
+      "Read the staged publisher-schedule ingest review. Returns a compact confirmed markdown table (publisher, coverage, money delta, named ignored rows) plus question cards: unmatched AssembledView fields asking which file column feeds them, and a money card only when media money is unmapped or the 0.5% gate fails. Echo the table; ask only via the cards — never as prose asking the user to type a column name. Pass prior card answers as answers to accumulate mapping. Does not invent figures.",
     input_schema: {
       type: "object",
       properties: {
@@ -90,7 +90,18 @@ export const getPendingIngestReviewTool: AvaTool = {
     let review = looked.staged.review
     let changed: string[] = []
     if (incoming.length > 0) {
-      const applied = await applyIngestReviewAnswers(review, incoming)
+      const changedBy = context.userEmail?.trim()
+      if (!changedBy) {
+        return {
+          content:
+            "I can't save mapping changes without knowing who you are. Reload and try again.",
+          isError: true,
+        }
+      }
+      const applied = await applyIngestReviewAnswers(review, incoming, {
+        changedBy,
+        stageId,
+      })
       review = applied.review
       changed = applied.changed
       await patchIngestStageReview(stageId, review)

@@ -16,13 +16,13 @@ import { clearIngestRunOverlayForTests } from "@/lib/mediaplans/ingest/ingestRun
 import { setExecuteIngestAcceptDepsForTests } from "@/lib/mediaplans/ingest/executeIngestAccept"
 import { clearPublisherProfileSeedOverlayForTests } from "@/lib/mediaplans/ingest/persistColumnRemap"
 import { summariseIngestReview } from "@/lib/mediaplans/ingest/summariseIngestReview"
+import { listOpenIngestReviewQuestions } from "@/lib/mediaplans/ingest/ingestReviewQuestions"
 import type { AvaColumnMappingProposal } from "@/lib/mediaplans/ingest/avaColumnMapping"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
 
 const FIX = path.join(process.cwd(), "tests/fixtures/ava-plans")
 const QMS = "qms_strength-meals_esb-ooh.xlsx"
 const JCD = "jcd_strength-meals_ooh.xlsx"
-const LEAVE_UNMAPPED = "Leave unmapped"
 
 function ctx(overrides: Partial<AvaToolContext> = {}): AvaToolContext {
   return {
@@ -147,7 +147,7 @@ test("get_pending_ingest_review names JCD ignored rows in the confirmed block", 
   assert.match(out.content, /CAMPAIGN SUMMARY/i)
 })
 
-test("suggestion card offers AVA's proposal first plus Leave unmapped", async () => {
+test("Format card offers AVA's suggested source column first plus Not in this file", async () => {
   const hub = await buildIngestReviewFromFile(
     path.join(FIX, QMS),
     loadSeedPublisherProfiles(),
@@ -171,14 +171,14 @@ test("suggestion card offers AVA's proposal first plus Leave unmapped", async ()
     ctx({ pendingIngest: { stageId, fileName: QMS }, mbaNumber: "qmsround01" }),
   )
   assert.equal(out.isError, false)
-  const card = (out.questions ?? []).find((q) =>
-    /MINIMUM INSTALL/i.test(`${q.id} ${q.text}`),
-  )
-  assert.ok(card, "expected a suggestion card for MINIMUM INSTALL")
+  const card = (out.questions ?? []).find((q) => q.id === "ingest:required:format")
+  assert.ok(card, "expected a Format field card")
+  assert.match(card.text, /Which column in this schedule holds Format/)
+  assert.doesNotMatch(card.text, /^["']?MINIMUM INSTALL/i)
   assert.equal(card.type, "choice")
   assert.ok(card.options && card.options.length >= 2)
-  assert.equal(card.options[0], suggestionLabel("format"))
-  assert.ok(card.options.includes(LEAVE_UNMAPPED))
+  assert.equal(card.options[0], suggestionLabel("MINIMUM INSTALL"))
+  assert.ok(card.options.includes("Not in this file"))
 })
 
 test("two open ingest cards: confirming one leaves the other outstanding", async () => {
@@ -214,12 +214,12 @@ test("two open ingest cards: confirming one leaves the other outstanding", async
   const first = await getPendingIngestReviewTool.execute({}, c)
   const open = (first.questions ?? []).filter(
     (q) =>
-      q.id === "ingest:map:MINIMUM INSTALL" ||
-      q.id === "ingest:map:PANEL EXCLUSIVITY",
+      q.id === "ingest:required:format" ||
+      q.id === "ingest:required:size",
   )
   assert.equal(open.length, 2)
-  const confirm = open.find((q) => /MINIMUM INSTALL/i.test(`${q.id} ${q.text}`))
-  const keep = open.find((q) => /PANEL EXCLUSIVITY/i.test(`${q.id} ${q.text}`))
+  const confirm = open.find((q) => q.id === "ingest:required:format")
+  const keep = open.find((q) => q.id === "ingest:required:size")
   assert.ok(confirm && keep)
   const pick = confirm.options?.[0]
   assert.ok(pick)
@@ -231,17 +231,18 @@ test("two open ingest cards: confirming one leaves the other outstanding", async
   assert.doesNotMatch(second.content, /\| Publisher \|/i)
   const staged = await getIngestStage(stageId)
   assert.ok(staged)
-  assert.deepEqual(
-    (staged.review.ava_mapping_proposals ?? []).map((p) => p.header),
-    ["PANEL EXCLUSIVITY"],
+  assert.equal(
+    staged.review.ava_chat?.answers?.["ingest:required:format"],
+    pick,
   )
-  const reemitted = (second.questions ?? []).some((q) => q.id === keep.id)
+  const still = listOpenIngestReviewQuestions(staged.review, {
+    mbaNumber: "qmsround01",
+    mbaNumbers: [],
+  })
+  assert.equal(still.some((q) => q.id === "ingest:required:format"), false)
   assert.ok(
-    reemitted ||
-      (staged.review.ava_mapping_proposals ?? []).some(
-        (p) => p.header === "PANEL EXCLUSIVITY",
-      ),
-    "unconfirmed PANEL EXCLUSIVITY card must remain outstanding",
+    still.some((q) => q.id === keep.id),
+    "unconfirmed Size card must remain outstanding",
   )
 })
 
@@ -290,7 +291,7 @@ test("get_pending_ingest_review unused leftover proposals are a count line, not 
   )
 })
 
-test("JCD money-mapping columns get their own card that warns recon re-runs", async () => {
+test("JCD reconciling money produces zero money cards; Production Charge is not asked", async () => {
   const hub = await buildIngestReviewFromFile(
     path.join(FIX, JCD),
     loadSeedPublisherProfiles(),
@@ -307,13 +308,15 @@ test("JCD money-mapping columns get their own card that warns recon re-runs", as
   )
   assert.equal(out.isError, false)
   const moneyCards = (out.questions ?? []).filter((q) =>
-    /0\.5%|reconcil/i.test(q.text),
+    q.id.startsWith("ingest:money:"),
   )
-  assert.ok(moneyCards.length >= 1, "expected money-mapping cards")
-  const hay = moneyCards.map((q) => q.text).join(" | ")
-  assert.match(hay, /MEDIA VALUE/i)
-  assert.match(hay, /PRODUCTION|Production Charge/i)
-  assert.match(hay, /MEDIA BOUGHT RATE/i)
+  assert.equal(moneyCards.length, 0)
+  assert.equal(
+    (out.questions ?? []).some((q) =>
+      /Production Charge|MEDIA BOUGHT RATE/i.test(q.text),
+    ),
+    false,
+  )
 })
 
 test("MBA card is a campaign single-select, not free text, when page has no MBA", async () => {

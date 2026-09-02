@@ -272,11 +272,17 @@ test("accepted AVA proposal persists to the profile exactly like a human remap",
   }
 
   // Human Accept of AVA proposal = persistColumnRemap (same path as remap UI)
-  const { profile } = await persistColumnRemap({
+  const result = await persistColumnRemap({
     publisherName: "QMS",
     header: proposed.header,
     mappedTo: proposed.proposed_mapped_to,
+    knownHeaders: [proposed.header],
+    changedBy: "test@assembledmedia.com.au",
+    source: "hub_remap",
   })
+  assert.equal(result.ok, true)
+  if (!result.ok) return
+  const { profile } = result
   assert.equal(profile.column_map["PANEL EXCLUSIVITY"], "panel_name")
 
   const overlaid = profilesWithRemapOverlay(loadSeedPublisherProfiles())

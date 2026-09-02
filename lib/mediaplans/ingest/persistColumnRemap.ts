@@ -1,7 +1,9 @@
 /**
  * Persist a corrected column mapping onto a publisher_profiles row.
  * Writes Postgres when available; otherwise mutates the in-memory/seed
- * store used by tests and local fallback.
+ * store used by tests and local fallback. A chat answer never silently
+ * deletes: callers must pass an explicit mappedTo null for remove, and
+ * the header must exist on the sheet under review.
  */
 
 import {
@@ -14,8 +16,37 @@ import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestRev
 /** Process-local overlay so remaps stick across requests when DB is unavailable. */
 const seedOverlay = new Map<string, PublisherProfileConfig>()
 
+export type RemapSource = "ava_card" | "hub_remap" | "admin"
+
+export type RemapRejection = {
+  ok: false
+  reason: string
+  knownHeaders: string[]
+}
+
+export type RemapResult = {
+  ok: true
+  profile: PublisherProfileConfig
+  source: "postgres" | "seed"
+}
+
+export type PublisherProfileAuditSeedRow = {
+  action: "map" | "remap" | "remove"
+  field: "column_map"
+  header: string
+  previous_value: string | null
+  next_value: string | null
+  changed_by: string
+  source: RemapSource
+  stage_id: string | null
+  publisher_name: string
+}
+
+const seedAuditLog: PublisherProfileAuditSeedRow[] = []
+
 export function clearPublisherProfileSeedOverlayForTests() {
   seedOverlay.clear()
+  seedAuditLog.length = 0
 }
 
 export function getPublisherProfileSeedOverlay(): Map<
@@ -23,6 +54,10 @@ export function getPublisherProfileSeedOverlay(): Map<
   PublisherProfileConfig
 > {
   return seedOverlay
+}
+
+export function getPublisherProfileSeedAuditForTests(): PublisherProfileAuditSeedRow[] {
+  return seedAuditLog
 }
 
 export function registerPublisherProfileOverlay(
@@ -47,6 +82,25 @@ function keyOf(name: string): string {
   return name.trim().toLowerCase()
 }
 
+export function headerKeyOf(header: string): string {
+  return header.replace(/\s+/g, " ").trim().toLowerCase()
+}
+
+export function validateRemapHeader(
+  header: string,
+  knownHeaders: string[],
+): { ok: true; header: string } | { ok: false; reason: string } {
+  const want = headerKeyOf(header)
+  if (!want) {
+    return { ok: false, reason: `"${header}" is not a column in this schedule.` }
+  }
+  const hit = knownHeaders.find((h) => headerKeyOf(h) === want)
+  if (!hit) {
+    return { ok: false, reason: `"${header}" is not a column in this schedule.` }
+  }
+  return { ok: true, header: hit }
+}
+
 export function applyColumnRemap(
   profile: PublisherProfileConfig,
   header: string,
@@ -54,14 +108,10 @@ export function applyColumnRemap(
 ): PublisherProfileConfig {
   const nextMap = { ...profile.column_map }
   const headerKey = Object.keys(nextMap).find(
-    (k) => k.replace(/\s+/g, " ").trim().toLowerCase() ===
-      header.replace(/\s+/g, " ").trim().toLowerCase(),
+    (k) => headerKeyOf(k) === headerKeyOf(header),
   )
   if (mappedTo == null || mappedTo === "" || mappedTo === "__unmap__") {
     if (headerKey) delete nextMap[headerKey]
-    else {
-      // header was never mapped — nothing to delete
-    }
   } else {
     const storeKey = headerKey ?? header
     nextMap[storeKey] = mappedTo
@@ -72,8 +122,24 @@ export function applyColumnRemap(
   })
 }
 
-function headerKeyOf(header: string): string {
-  return header.replace(/\s+/g, " ").trim().toLowerCase()
+function previousMappedTo(
+  profile: PublisherProfileConfig,
+  header: string,
+): string | null {
+  const headerKey = Object.keys(profile.column_map).find(
+    (k) => headerKeyOf(k) === headerKeyOf(header),
+  )
+  if (!headerKey) return null
+  return profile.column_map[headerKey] ?? null
+}
+
+export function auditActionForRemap(args: {
+  previousValue: string | null
+  nextValue: string | null
+}): "map" | "remap" | "remove" {
+  if (args.nextValue == null) return "remove"
+  if (args.previousValue == null) return "map"
+  return "remap"
 }
 
 /** In-memory Hub remap patch — chat uses the same function, never a fork. */
@@ -133,19 +199,69 @@ export function applyReviewColumnRemap(
   }
 }
 
+export function knownHeadersFromReview(review: IngestReviewPackage): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  const push = (header: string) => {
+    const key = headerKeyOf(header)
+    if (!key || seen.has(key)) return
+    seen.add(key)
+    out.push(header)
+  }
+  for (const c of review.column_mapping) push(c.header)
+  for (const n of review.template_coverage?.not_used ?? []) push(n.header)
+  for (const header of review.ignored.columns_unmapped) push(header)
+  for (const p of review.ava_mapping_proposals ?? []) push(p.header)
+  return out
+}
+
+function reject(
+  reason: string,
+  knownHeaders: string[],
+): RemapRejection {
+  return { ok: false, reason, knownHeaders }
+}
+
+function recordSeedAudit(row: PublisherProfileAuditSeedRow) {
+  seedAuditLog.push(row)
+  console.info("[publisher-profile-audit]", row)
+}
+
 export async function persistColumnRemap(args: {
   publisherName: string
   header: string
   mappedTo: string | null
-}): Promise<{
-  profile: PublisherProfileConfig
-  source: "postgres" | "seed"
-}> {
-  const { publisherName, header, mappedTo } = args
+  knownHeaders: string[]
+  changedBy: string
+  source: RemapSource
+  stageId?: string | null
+}): Promise<RemapResult | RemapRejection> {
+  const { publisherName, mappedTo, source } = args
+  const knownHeaders = args.knownHeaders ?? []
+  const changedBy = args.changedBy?.trim()
+  if (!changedBy) {
+    throw new Error("persistColumnRemap: changedBy is required (do not default)")
+  }
+  if (!Array.isArray(knownHeaders) || knownHeaders.length === 0) {
+    return reject("knownHeaders is required and must be non-empty.", knownHeaders)
+  }
+  const validated = validateRemapHeader(args.header, knownHeaders)
+  if (!validated.ok) {
+    return reject(validated.reason, knownHeaders)
+  }
+  const header = validated.header
+  const nextValue =
+    mappedTo == null || mappedTo === "" || mappedTo === "__unmap__"
+      ? null
+      : mappedTo
+  const stageId = args.stageId?.trim() || null
 
+  let postgresWriteStarted = false
   try {
     const { db } = await import("@/db")
-    const { publisherProfiles } = await import("@/db/schema/publisherProfiles")
+    const { publisherProfiles, publisherProfileChanges } = await import(
+      "@/db/schema/publisherProfiles"
+    )
     const { eq, sql } = await import("drizzle-orm")
     const rows = await db
       .select()
@@ -169,18 +285,37 @@ export async function persistColumnRemap(args: {
         sheet_rules: rows[0].sheetRules,
         notes: rows[0].notes,
       })
-      const updated = applyColumnRemap(current, header, mappedTo)
-      await db
-        .update(publisherProfiles)
-        .set({
-          columnMap: updated.column_map,
-          updatedAt: sql`now()`,
+      const previousValue = previousMappedTo(current, header)
+      const action = auditActionForRemap({ previousValue, nextValue })
+      const updated = applyColumnRemap(current, header, nextValue)
+      postgresWriteStarted = true
+      await db.transaction(async (tx) => {
+        await tx
+          .update(publisherProfiles)
+          .set({
+            columnMap: updated.column_map,
+            updatedAt: sql`now()`,
+            updatedBy: changedBy,
+          })
+          .where(eq(publisherProfiles.publisherName, publisherName))
+        await tx.insert(publisherProfileChanges).values({
+          publisherProfileId: rows[0].id,
+          publisherName: rows[0].publisherName,
+          field: "column_map",
+          header,
+          previousValue,
+          nextValue,
+          action,
+          changedBy,
+          source,
+          stageId,
         })
-        .where(eq(publisherProfiles.publisherName, publisherName))
+      })
       seedOverlay.set(keyOf(publisherName), updated)
-      return { profile: updated, source: "postgres" }
+      return { ok: true, profile: updated, source: "postgres" }
     }
-  } catch {
+  } catch (err) {
+    if (postgresWriteStarted) throw err
     // fall through to seed overlay
   }
 
@@ -192,9 +327,22 @@ export async function persistColumnRemap(args: {
   if (!base) {
     throw new Error(`Unknown publisher profile: ${publisherName}`)
   }
-  const updated = applyColumnRemap(base, header, mappedTo)
+  const previousValue = previousMappedTo(base, header)
+  const action = auditActionForRemap({ previousValue, nextValue })
+  const updated = applyColumnRemap(base, header, nextValue)
   seedOverlay.set(keyOf(publisherName), updated)
-  return { profile: updated, source: "seed" }
+  recordSeedAudit({
+    action,
+    field: "column_map",
+    header,
+    previous_value: previousValue,
+    next_value: nextValue,
+    changed_by: changedBy,
+    source,
+    stage_id: stageId,
+    publisher_name: base.publisher_name,
+  })
+  return { ok: true, profile: updated, source: "seed" }
 }
 
 /** Profiles with seed overlay applied (for review after remap without DB). */
