@@ -4,7 +4,8 @@
  * Expert Net media is rate×weekly-qty. A card lump-sum (budget set, no rate /
  * weekly allocation) imports as Net media $0; Apply then writes empty/"0"
  * bursts and wipes the card. These helpers project the card total onto the
- * grid on open, and refuse Apply that would zero a non-zero card budget.
+ * grid on open, and refuse Apply that would zero a non-zero card budget
+ * (except bonus / package_inclusions, where generated 0 is intended).
  */
 import { parseBurstMoney } from "@/lib/mediaplan/formatBurstsForPersist"
 import {
@@ -14,6 +15,16 @@ import {
 } from "@/lib/mediaplan/expertRowCost"
 import type { ExpertDailyValues } from "@/lib/mediaplan/expertDayModel"
 import type { ExpertWeeklyValues } from "@/lib/mediaplan/expertModeWeeklySchedule"
+import type { BuyType } from "@/lib/mediaplan/deliverableBudget"
+
+/** Value-add buy types: generated budget 0 is intended, never a wipe to restore. */
+const ZERO_MONEY_BUY_TYPES = new Set<BuyType>(["bonus", "package_inclusions"])
+
+function isZeroMoneyBuyType(buyType: string | null | undefined): boolean {
+  return ZERO_MONEY_BUY_TYPES.has(
+    String(buyType || "").trim().toLowerCase() as BuyType
+  )
+}
 
 export type LumpSumProjectableExpertRow = ExpertRowCostFields & {
   unitRate?: string | number | null
@@ -47,7 +58,7 @@ export function rateAndQtyForCardGross(
 ): { rate: number; qty: number } {
   const bt = String(buyType || "").toLowerCase()
   if (!(gross > 0)) return { rate: 0, qty: 0 }
-  if (bt === "bonus" || bt === "package_inclusions") {
+  if (isZeroMoneyBuyType(buyType)) {
     return { rate: 0, qty: 0 }
   }
   if (bt === "fixed_cost") {
@@ -154,12 +165,24 @@ export function sumBurstsBudgetMoney(
 /**
  * Safety floor: never let Apply replace a non-zero card budget with empty/zero
  * bursts from an unallocated expert grid.
+ *
+ * Bonus / package_inclusions always generate budget 0 — that is the intended
+ * answer, so the floor must not restore previous bursts for those buy types.
+ * `generatedBuyType` is the GENERATED line's buy type (optional so callers
+ * that omit it keep the non-bonus floor exactly).
  */
 export function preservePreviousBurstsIfApplyWouldZeroBudget<
   B extends { budget?: unknown },
->(generated: B[] | undefined, previous: B[] | undefined): B[] {
+>(
+  generated: B[] | undefined,
+  previous: B[] | undefined,
+  generatedBuyType?: string | null,
+): B[] {
   const gen = generated ?? []
   const prev = previous ?? []
+  if (isZeroMoneyBuyType(generatedBuyType)) {
+    return gen
+  }
   const prevTotal = sumBurstsBudgetMoney(prev)
   const genTotal = sumBurstsBudgetMoney(gen)
   if (prevTotal > 0 && genTotal <= 0) {

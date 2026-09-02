@@ -76,6 +76,26 @@ test("helper: Apply from empty/unallocated grid cannot zero a non-zero card budg
   assert.equal(parseBurstMoney(passthrough[0]!.budget), 5000)
 })
 
+test("helper: bonus Apply keeps generated zero bursts (does not restore previous cost)", () => {
+  const prev = [{ budget: LUMP, buyAmount: "", calculatedValue: 0 }]
+  const generated = [{ budget: "0", buyAmount: "0", calculatedValue: 0 }]
+  const kept = preservePreviousBurstsIfApplyWouldZeroBudget(generated, prev, "bonus")
+  assert.equal(kept, generated)
+  assert.equal(parseBurstMoney(kept[0]!.budget), 0)
+})
+
+test("helper: package_inclusions Apply keeps generated zero bursts (does not restore previous cost)", () => {
+  const prev = [{ budget: LUMP, buyAmount: "", calculatedValue: 0 }]
+  const generated = [{ budget: "0", buyAmount: "0", calculatedValue: 0 }]
+  const kept = preservePreviousBurstsIfApplyWouldZeroBudget(
+    generated,
+    prev,
+    "package_inclusions"
+  )
+  assert.equal(kept, generated)
+  assert.equal(parseBurstMoney(kept[0]!.budget), 0)
+})
+
 test("Radio spots lump-sum: open expert shows Net media = card total; Apply preserves budget", () => {
   const prev: StandardRadioFormLineItem[] = [
     {

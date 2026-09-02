@@ -49,7 +49,7 @@ import { preservePreviousBurstsIfApplyWouldZeroBudget } from "./cardExpertBudget
 export { preservePreviousBurstsIfApplyWouldZeroBudget }
 
 /** Keep prior card bursts when expert Apply would wipe a non-zero budget to empty/0. */
-function attachBurstPreserve<T extends { bursts?: unknown }>(
+function attachBurstPreserve<T extends { bursts?: unknown; buyType?: string }>(
   li: T,
   prev: T | undefined
 ): T {
@@ -58,7 +58,8 @@ function attachBurstPreserve<T extends { bursts?: unknown }>(
     ...li,
     bursts: preservePreviousBurstsIfApplyWouldZeroBudget(
       (li as { bursts?: Array<{ budget?: unknown }> }).bursts,
-      (prev as { bursts?: Array<{ budget?: unknown }> }).bursts
+      (prev as { bursts?: Array<{ budget?: unknown }> }).bursts,
+      li.buyType,
     ) as T["bursts"],
   }
 }
