@@ -22,7 +22,7 @@ import {
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import { AVA_MAPPING_TARGET_DESCRIPTORS } from "@/lib/mediaplans/ingest/avaColumnMapping"
 import { MONEY_TARGETS } from "@/lib/mediaplans/ingest/moneyTargets"
-import { REFERENCE_IGNORE_TARGET } from "@/lib/mediaplans/ingest/publisherProfileConfig"
+import { REFERENCE_IGNORE_TARGET, FIXED_VALUE_COLUMN_LABEL, constantMappingHeader, isConstantMappingHeader } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import type { PublisherProfileConfig } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import type { IngestRunRecord } from "@/lib/mediaplans/ingest/ingestRuns"
 import type { Publisher } from "@/lib/types/publisher"
@@ -80,9 +80,19 @@ export function PublisherIngestSection({ publisher }: { publisher: Publisher }) 
   const mappingRows = useMemo(() => {
     const profile = data?.profile
     if (!profile) return []
-    return Object.entries(profile.column_map)
-      .map(([header, dest]) => ({ header, dest }))
-      .sort((a, b) => a.dest.localeCompare(b.dest) || a.header.localeCompare(b.header))
+    const columns = Object.entries(profile.column_map)
+      .map(([header, dest]) => ({ header, dest, kind: "column" as const }))
+    const constants = Object.entries(profile.field_defaults ?? {}).map(
+      ([fieldId, value]) => ({
+        header: constantMappingHeader(fieldId),
+        dest: fieldId,
+        kind: "constant" as const,
+        value,
+      }),
+    )
+    return [...constants, ...columns].sort(
+      (a, b) => a.dest.localeCompare(b.dest) || a.header.localeCompare(b.header),
+    )
   }, [data?.profile])
 
   const onRemap = async (header: string, mappedTo: string | null) => {
@@ -98,7 +108,9 @@ export function PublisherIngestSection({ publisher }: { publisher: Publisher }) 
           publisherName: name,
           header,
           mappedTo,
-          knownHeaders: mappingRows.map((row) => row.header),
+          ...(isConstantMappingHeader(header)
+            ? {}
+            : { knownHeaders: mappingRows.filter((row) => row.kind === "column").map((row) => row.header) }),
         }),
       })
       const json = (await res.json()) as {
@@ -218,9 +230,16 @@ export function PublisherIngestSection({ publisher }: { publisher: Publisher }) 
                           disabled={remapping}
                           onChange={(e) => {
                             const next = e.target.value
+                            if (row.kind === "constant") {
+                              if (!next) void onRemap(row.header, null)
+                              return
+                            }
                             void onRemap(row.header, next || null)
                           }}
                         >
+                          {row.kind === "constant" ? (
+                            <option value="">— UNMAPPED —</option>
+                          ) : null}
                           {PLAN_FIELDS.map((f) => (
                             <option key={f} value={f}>
                               {f}
@@ -228,7 +247,11 @@ export function PublisherIngestSection({ publisher }: { publisher: Publisher }) 
                           ))}
                         </select>
                       </TableCell>
-                      <TableCell className="font-medium">{row.header}</TableCell>
+                      <TableCell className="font-medium">
+                        {row.kind === "constant"
+                          ? FIXED_VALUE_COLUMN_LABEL
+                          : row.header}
+                      </TableCell>
                     </TableRow>
                   ))
                 )}

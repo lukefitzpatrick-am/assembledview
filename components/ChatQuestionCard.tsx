@@ -6,6 +6,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import {
+  CONSTANT_VALUE_OPTION,
+  CONSTANT_QUESTION_PREFIX,
   displayMiAnswerText,
   formatQuestionAnswerMessage,
   isSkipAnswer,
@@ -25,6 +27,10 @@ type ChatQuestionCardProps = {
   onConfirm: (answerText: string) => void
 }
 
+function isConstantConfirmed(confirmedAnswer?: string): boolean {
+  return (confirmedAnswer ?? "").includes(`[mi:${CONSTANT_QUESTION_PREFIX}`)
+}
+
 function isListedOptionOn(
   option: string,
   locked: boolean,
@@ -37,7 +43,11 @@ function isListedOptionOn(
   if (isSkipAnswer(confirmedAnswer ?? "")) return false
   const display = displayMiAnswerText(confirmedAnswer ?? "")
   const listed = new Set(options)
+  if (option === CONSTANT_VALUE_OPTION) {
+    return isConstantConfirmed(confirmedAnswer)
+  }
   if (option === OTHER_OPTION) {
+    if (isConstantConfirmed(confirmedAnswer)) return false
     if (type === "multichoice") {
       return display
         .split(",")
@@ -70,6 +80,7 @@ export function ChatQuestionCard({
 
   const options = question.options ?? []
   const otherOn = selected.includes(OTHER_OPTION)
+  const constantOn = selected.includes(CONSTANT_VALUE_OPTION)
   const showOtherInput =
     question.type === "choice" || question.type === "multichoice"
       ? locked
@@ -80,14 +91,22 @@ export function ChatQuestionCard({
             selected,
             options,
             question.type,
+          ) ||
+          isListedOptionOn(
+            CONSTANT_VALUE_OPTION,
+            true,
+            question.confirmedAnswer,
+            selected,
+            options,
+            question.type,
           )
-        : otherOn
+        : otherOn || constantOn
       : false
   const canConfirm = locked
     ? false
     : question.type === "text"
       ? freeText.trim().length > 0
-      : otherOn
+      : otherOn || constantOn
         ? freeText.trim().length > 0
         : selected.length > 0
   const skipped = locked && isSkipAnswer(question.confirmedAnswer ?? "")
@@ -281,7 +300,11 @@ export function ChatQuestionCard({
           value={locked ? lockedDisplay : freeText}
           onChange={(e) => setFreeText(e.target.value)}
           disabled={locked || disabled}
-          placeholder="Type your answer"
+          placeholder={
+            constantOn || isConstantConfirmed(question.confirmedAnswer)
+              ? "e.g. Large Format"
+              : "Type your answer"
+          }
           className="rounded-input"
         />
       ) : null}

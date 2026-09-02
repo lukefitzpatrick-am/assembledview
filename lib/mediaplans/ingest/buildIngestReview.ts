@@ -28,6 +28,7 @@ import {
 } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import { overlayMoneySynonyms } from "@/lib/mediaplans/ingest/moneySynonyms"
 import {
+  applyFieldDefaultsToProposal,
   attachControlledResolutions,
   evaluateTemplateCoverage,
   type TemplateCoverage,
@@ -354,6 +355,9 @@ export async function buildIngestReviewFromBuffer(
 
   let proposal =
     primary && profile ? proposeLineItemsFromSheet(primary, profile) : null
+  if (proposal && profile) {
+    proposal = applyFieldDefaultsToProposal(proposal, profile)
+  }
 
   const media = mediaTypeStatusFor(unknown ? null : profile)
   let template_coverage: TemplateCoverage | null = null

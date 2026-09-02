@@ -128,6 +128,7 @@ export async function createLinkedPublisherProfile(args: {
       active: created.active,
       detectSignature: created.detect_signature,
       columnMap: created.column_map,
+      fieldDefaults: created.field_defaults,
       gridSemantics: created.grid_semantics,
       lineGranularity: created.line_granularity,
       legendMap: created.legend_map,

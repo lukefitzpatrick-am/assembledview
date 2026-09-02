@@ -8,6 +8,10 @@ import { Input } from "@/components/ui/input"
 import { IngestReviewScreen } from "@/components/ingest/IngestReviewScreen"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
 import {
+  isConstantMappingHeader,
+  fieldIdFromConstantHeader,
+} from "@/lib/mediaplans/ingest/publisherProfileConfig"
+import {
   shouldCallAvaForMappings,
   type AvaColumnMappingProposal,
 } from "@/lib/mediaplans/ingest/avaColumnMapping"
@@ -183,6 +187,7 @@ function ScheduleIngestPageInner() {
       setRemapping(true)
       setError(null)
       try {
+        const constant = isConstantMappingHeader(header)
         const res = await fetch("/api/admin/ingest/remap", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -190,7 +195,9 @@ function ScheduleIngestPageInner() {
             publisherName: review.detected_publisher,
             header,
             mappedTo,
-            knownHeaders: review.column_mapping.map((c) => c.header),
+            ...(constant
+              ? {}
+              : { knownHeaders: review.column_mapping.map((c) => c.header) }),
           }),
         })
         const json = (await res.json()) as {
@@ -205,6 +212,42 @@ function ScheduleIngestPageInner() {
 
         setReview((prev) => {
           if (!prev) return prev
+          if (isConstantMappingHeader(header)) {
+            const fieldId = fieldIdFromConstantHeader(header)
+            const nextDefaults = { ...(prev.profile?.field_defaults ?? {}) }
+            if (mappedTo == null) delete nextDefaults[fieldId]
+            const mark = (
+              f: NonNullable<typeof prev.template_coverage>["required"][number],
+            ) => {
+              if (f.id !== fieldId) return f
+              if (mappedTo != null) return f
+              if (f.source.kind !== "constant") return f
+              return {
+                ...f,
+                matched: false,
+                source: { kind: "unmatched" as const },
+                confidence: 0,
+              }
+            }
+            const required = prev.template_coverage?.required.map(mark)
+            const enrich = prev.template_coverage?.enrich.map(mark)
+            return {
+              ...prev,
+              profile: prev.profile
+                ? { ...prev.profile, field_defaults: nextDefaults }
+                : prev.profile,
+              template_coverage: prev.template_coverage
+                ? {
+                    ...prev.template_coverage,
+                    required: required ?? prev.template_coverage.required,
+                    enrich: enrich ?? prev.template_coverage.enrich,
+                    required_matched: (
+                      required ?? prev.template_coverage.required
+                    ).filter((f) => f.matched).length,
+                  }
+                : prev.template_coverage,
+            }
+          }
           const mark = (f: NonNullable<typeof prev.template_coverage>["required"][number]) => {
             if (f.matched || mappedTo == null) return f
             if (

@@ -6,6 +6,11 @@ export const SKIP_ANSWER = "__ava_skip__"
 /** Choice/multichoice free-text escape label. Not stored as the answer. */
 export const OTHER_OPTION = "Other"
 
+/** Ingest field-card escape: one typed value for every line. Never a column name. */
+export const CONSTANT_VALUE_OPTION = "Use one value for every line…"
+export const CONSTANT_QUESTION_PREFIX = "ingest:constant:"
+const REQUIRED_QUESTION_PREFIX = "ingest:required:"
+
 const MI_ANSWER_TAG = /^\[mi:([^\]]+)\]\s*/i
 
 export function isSkipAnswer(answer: string): boolean {
@@ -78,6 +83,9 @@ export function formatQuestionAnswerText(
     return SKIP_ANSWER
   }
   if (type === "text") return freeText.trim()
+  if (values.some((value) => value.trim() === CONSTANT_VALUE_OPTION)) {
+    return freeText.trim()
+  }
   return values
     .map((value) => {
       const trimmed = value.trim()
@@ -100,7 +108,14 @@ export function formatQuestionAnswerMessage(
 ): string {
   const answer = formatQuestionAnswerText(type, values, freeText)
   if (!answer) return ""
-  return `[mi:${questionId}] ${answer}`
+  let id = questionId
+  if (
+    values.some((value) => value.trim() === CONSTANT_VALUE_OPTION) &&
+    id.startsWith(REQUIRED_QUESTION_PREFIX)
+  ) {
+    id = `${CONSTANT_QUESTION_PREFIX}${id.slice(REQUIRED_QUESTION_PREFIX.length)}`
+  }
+  return `[mi:${id}] ${answer}`
 }
 
 /** Parse a Confirm message produced by formatQuestionAnswerMessage. */
@@ -128,8 +143,14 @@ export function lockChatQuestionAnswer<T extends { id: string }>(
   questionId: string,
   confirmedAnswer: string,
 ): (T & { confirmedAnswer?: string })[] {
+  const aliases = new Set([questionId])
+  if (questionId.startsWith(CONSTANT_QUESTION_PREFIX)) {
+    aliases.add(
+      `${REQUIRED_QUESTION_PREFIX}${questionId.slice(CONSTANT_QUESTION_PREFIX.length)}`,
+    )
+  }
   return questions.map((question) =>
-    question.id === questionId
+    aliases.has(question.id)
       ? { ...question, confirmedAnswer }
       : question,
   )

@@ -12,6 +12,7 @@ import {
 } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import { loadSeedPublisherProfiles } from "@/lib/mediaplans/ingest/loadPublisherProfiles"
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
+import { applyConstantFieldValue } from "@/lib/mediaplans/ingest/templateCoverage"
 
 /** Process-local overlay so remaps stick across requests when DB is unavailable. */
 const seedOverlay = new Map<string, PublisherProfileConfig>()
@@ -32,7 +33,7 @@ export type RemapResult = {
 
 export type PublisherProfileAuditSeedRow = {
   action: "map" | "remap" | "remove"
-  field: "column_map"
+  field: "column_map" | "field_defaults"
   header: string
   previous_value: string | null
   next_value: string | null
@@ -122,6 +123,26 @@ export function applyColumnRemap(
   })
 }
 
+export function applyFieldDefault(
+  profile: PublisherProfileConfig,
+  field: string,
+  value: string | null,
+): PublisherProfileConfig {
+  const nextDefaults = { ...profile.field_defaults }
+  const fieldKey = Object.keys(nextDefaults).find(
+    (k) => headerKeyOf(k) === headerKeyOf(field),
+  )
+  if (value == null || value === "") {
+    if (fieldKey) delete nextDefaults[fieldKey]
+  } else {
+    nextDefaults[fieldKey ?? field] = value
+  }
+  return parsePublisherProfile({
+    ...profile,
+    field_defaults: nextDefaults,
+  })
+}
+
 function previousMappedTo(
   profile: PublisherProfileConfig,
   header: string,
@@ -131,6 +152,17 @@ function previousMappedTo(
   )
   if (!headerKey) return null
   return profile.column_map[headerKey] ?? null
+}
+
+function previousFieldDefault(
+  profile: PublisherProfileConfig,
+  field: string,
+): string | null {
+  const fieldKey = Object.keys(profile.field_defaults).find(
+    (k) => headerKeyOf(k) === headerKeyOf(field),
+  )
+  if (!fieldKey) return null
+  return profile.field_defaults[fieldKey] ?? null
 }
 
 export function auditActionForRemap(args: {
@@ -194,6 +226,58 @@ export function applyReviewColumnRemap(
           not_used: review.template_coverage.not_used.filter(
             (n) => headerKeyOf(n.header) !== want,
           ),
+        }
+      : review.template_coverage,
+  }
+}
+
+/** In-memory Hub/chat patch for a field default — same function, never a fork. */
+export function applyReviewFieldDefault(
+  review: IngestReviewPackage,
+  fieldId: string,
+  value: string | null,
+): IngestReviewPackage {
+  const mark = (
+    f: NonNullable<typeof review.template_coverage>["required"][number],
+  ) => {
+    if (f.id !== fieldId) return f
+    if (value == null || value === "") {
+      if (f.source.kind !== "constant") return f
+      return {
+        ...f,
+        matched: false,
+        source: { kind: "unmatched" as const },
+        confidence: 0,
+      }
+    }
+    return {
+      ...f,
+      matched: true,
+      source: { kind: "constant" as const, sample: value },
+      confidence: 1,
+    }
+  }
+  const required = review.template_coverage?.required.map(mark)
+  const enrich = review.template_coverage?.enrich.map(mark)
+  const profile = review.profile
+    ? applyFieldDefault(review.profile, fieldId, value)
+    : review.profile
+  let proposal = review.proposal
+  if (proposal && value != null && value !== "") {
+    proposal = applyConstantFieldValue(proposal, fieldId, value)
+  }
+  return {
+    ...review,
+    profile,
+    proposal,
+    template_coverage: review.template_coverage
+      ? {
+          ...review.template_coverage,
+          required: required ?? review.template_coverage.required,
+          enrich: enrich ?? review.template_coverage.enrich,
+          required_matched: (required ?? review.template_coverage.required).filter(
+            (f) => f.matched,
+          ).length,
         }
       : review.template_coverage,
   }
@@ -280,6 +364,7 @@ export async function persistColumnRemap(args: {
         )?.grouping_keys,
         line_granularity: rows[0].lineGranularity,
         column_map: rows[0].columnMap,
+        field_defaults: rows[0].fieldDefaults ?? {},
         grid_semantics: rows[0].gridSemantics,
         legend_map: rows[0].legendMap,
         sheet_rules: rows[0].sheetRules,
@@ -335,6 +420,117 @@ export async function persistColumnRemap(args: {
     action,
     field: "column_map",
     header,
+    previous_value: previousValue,
+    next_value: nextValue,
+    changed_by: changedBy,
+    source,
+    stage_id: stageId,
+    publisher_name: base.publisher_name,
+  })
+  return { ok: true, profile: updated, source: "seed" }
+}
+
+export async function persistFieldDefault(args: {
+  publisherName: string
+  field: string
+  value: string | null
+  changedBy: string
+  source: RemapSource
+  stageId?: string | null
+}): Promise<RemapResult | RemapRejection> {
+  const { publisherName, source } = args
+  const field = args.field.replace(/\s+/g, " ").trim()
+  const changedBy = args.changedBy?.trim()
+  if (!changedBy) {
+    throw new Error("persistFieldDefault: changedBy is required (do not default)")
+  }
+  if (!field) {
+    return reject("field is required.", [])
+  }
+  const nextValue =
+    args.value == null || args.value === "" ? null : args.value.trim()
+  const stageId = args.stageId?.trim() || null
+
+  let postgresWriteStarted = false
+  try {
+    const { db } = await import("@/db")
+    const { publisherProfiles, publisherProfileChanges } = await import(
+      "@/db/schema/publisherProfiles"
+    )
+    const { eq, sql } = await import("drizzle-orm")
+    const rows = await db
+      .select()
+      .from(publisherProfiles)
+      .where(eq(publisherProfiles.publisherName, publisherName))
+      .limit(1)
+    if (rows[0]) {
+      const current = parsePublisherProfile({
+        publisher_name: rows[0].publisherName,
+        publisher_id: rows[0].publisherId ?? null,
+        media_type: rows[0].mediaType,
+        active: rows[0].active,
+        detect_signature: rows[0].detectSignature,
+        grouping_keys: (
+          rows[0].detectSignature as { grouping_keys?: string[] }
+        )?.grouping_keys,
+        line_granularity: rows[0].lineGranularity,
+        column_map: rows[0].columnMap,
+        field_defaults: rows[0].fieldDefaults ?? {},
+        grid_semantics: rows[0].gridSemantics,
+        legend_map: rows[0].legendMap,
+        sheet_rules: rows[0].sheetRules,
+        notes: rows[0].notes,
+      })
+      const previousValue = previousFieldDefault(current, field)
+      const action = auditActionForRemap({ previousValue, nextValue })
+      const updated = applyFieldDefault(current, field, nextValue)
+      postgresWriteStarted = true
+      await db.transaction(async (tx) => {
+        await tx
+          .update(publisherProfiles)
+          .set({
+            fieldDefaults: updated.field_defaults,
+            updatedAt: sql`now()`,
+            updatedBy: changedBy,
+          })
+          .where(eq(publisherProfiles.publisherName, publisherName))
+        await tx.insert(publisherProfileChanges).values({
+          publisherProfileId: rows[0].id,
+          publisherName: rows[0].publisherName,
+          field: "field_defaults",
+          header: field,
+          previousValue,
+          nextValue,
+          action,
+          changedBy,
+          source,
+          stageId,
+        })
+      })
+      seedOverlay.set(keyOf(publisherName), updated)
+      return { ok: true, profile: updated, source: "postgres" }
+    }
+  } catch (err) {
+    if (postgresWriteStarted) throw err
+    // fall through to seed overlay
+  }
+
+  const base =
+    seedOverlay.get(keyOf(publisherName)) ??
+    loadSeedPublisherProfiles().find(
+      (p) => keyOf(p.publisher_name) === keyOf(publisherName),
+    )
+  if (!base) {
+    throw new Error(`Unknown publisher profile: ${publisherName}`)
+  }
+  const previousValue = previousFieldDefault(base, field)
+  const action = auditActionForRemap({ previousValue, nextValue })
+  const updated = applyFieldDefault(base, field, nextValue)
+  seedOverlay.set(keyOf(publisherName), updated)
+  recordSeedAudit({
+    action,
+    field: "field_defaults",
+    header: field,
     previous_value: previousValue,
     next_value: nextValue,
     changed_by: changedBy,

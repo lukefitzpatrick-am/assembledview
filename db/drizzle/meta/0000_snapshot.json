@@ -8241,6 +8241,13 @@
           "notNull": true,
           "default": "'{}'::jsonb"
         },
+        "field_defaults": {
+          "name": "field_defaults",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
+        },
         "grid_semantics": {
           "name": "grid_semantics",
           "type": "text",

@@ -79,6 +79,47 @@ describe("ChatQuestionCard Other and Skip", () => {
     expect(String(onConfirm.mock.calls[0]?.[0])).not.toContain("Other")
   })
 
+  it("Use one value for every line opens free text and confirms as ingest:constant", () => {
+    const onConfirm = vi.fn()
+    const question: ChatInterviewQuestion = {
+      kind: "question",
+      id: "ingest:required:format",
+      text: "Which column in this schedule holds Format?",
+      type: "choice",
+      options: ["FORMAT COL", "Use one value for every line…", "Not in this file", "Other"],
+      index: 1,
+      total: 1,
+    }
+    act(() => {
+      root.render(<ChatQuestionCard question={question} onConfirm={onConfirm} />)
+    })
+
+    const constant = Array.from(container.querySelectorAll("button")).find(
+      (el) => el.textContent?.trim() === "Use one value for every line…",
+    )
+    expect(constant).toBeTruthy()
+    act(() => {
+      constant!.click()
+    })
+
+    const input = container.querySelector("input")
+    expect(input).toBeTruthy()
+    expect((input as HTMLInputElement).placeholder).toBe("e.g. Large Format")
+    act(() => {
+      setInputValue(input as HTMLInputElement, "Large Format")
+    })
+
+    const confirm = Array.from(container.querySelectorAll("button")).find(
+      (el) => el.textContent?.trim() === "Confirm",
+    )
+    act(() => {
+      confirm!.click()
+    })
+
+    expect(onConfirm).toHaveBeenCalledTimes(1)
+    expect(onConfirm.mock.calls[0]?.[0]).toBe("[mi:ingest:constant:format] Large Format")
+  })
+
   it("Skip is always enabled and locks the card as Skipped", () => {
     const onConfirm = vi.fn()
     act(() => {

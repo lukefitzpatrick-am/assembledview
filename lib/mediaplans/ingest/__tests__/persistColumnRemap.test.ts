@@ -19,6 +19,7 @@ import {
   getPublisherProfileSeedAuditForTests,
   getPublisherProfileSeedOverlay,
   persistColumnRemap,
+  persistFieldDefault,
   validateRemapHeader,
 } from "../persistColumnRemap"
 import { loadSeedPublisherProfiles } from "../loadPublisherProfiles"
@@ -287,4 +288,58 @@ test("seed overlay logs an audit line and does not throw for a rejected header",
   } finally {
     info.mock.restore()
   }
+})
+
+test("persistFieldDefault writes a publisher_profile_changes row with field field_defaults", async () => {
+  clearPublisherProfileSeedOverlayForTests()
+  const result = await persistFieldDefault({
+    publisherName: "JCDecaux",
+    field: "format",
+    value: "large_format",
+    changedBy: TEST_IDENTITY.changedBy,
+    source: "ava_card",
+    stageId: TEST_IDENTITY.stageId,
+  })
+  assert.equal(result.ok, true)
+  const overlay = getPublisherProfileSeedOverlay().get("jcdecaux")
+  assert.equal(overlay?.field_defaults.format, "large_format")
+  const audit = getPublisherProfileSeedAuditForTests()
+  const row = audit.find((r) => r.field === "field_defaults" && r.header === "format")
+  assert.ok(row)
+  assert.equal(row.action, "map")
+  assert.equal(row.previous_value, null)
+  assert.equal(row.next_value, "large_format")
+  assert.equal(row.changed_by, TEST_IDENTITY.changedBy)
+  assert.equal(row.source, "ava_card")
+  assert.equal(row.stage_id, TEST_IDENTITY.stageId)
+})
+
+test("clearing a field default from the Hub writes action remove", async () => {
+  clearPublisherProfileSeedOverlayForTests()
+  const mapped = await persistFieldDefault({
+    publisherName: "JCDecaux",
+    field: "placement",
+    value: "Roadside",
+    changedBy: TEST_IDENTITY.changedBy,
+    source: "hub_remap",
+  })
+  assert.equal(mapped.ok, true)
+  const cleared = await persistFieldDefault({
+    publisherName: "JCDecaux",
+    field: "placement",
+    value: null,
+    changedBy: TEST_IDENTITY.changedBy,
+    source: "hub_remap",
+  })
+  assert.equal(cleared.ok, true)
+  const overlay = getPublisherProfileSeedOverlay().get("jcdecaux")
+  assert.equal(overlay?.field_defaults.placement, undefined)
+  const audit = getPublisherProfileSeedAuditForTests()
+  const remove = audit.find(
+    (r) => r.field === "field_defaults" && r.header === "placement" && r.action === "remove",
+  )
+  assert.ok(remove)
+  assert.equal(remove.previous_value, "Roadside")
+  assert.equal(remove.next_value, null)
+  assert.equal(remove.source, "hub_remap")
 })

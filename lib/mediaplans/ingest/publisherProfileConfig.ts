@@ -14,6 +14,23 @@ export type LineGranularity = (typeof LINE_GRANULARITIES)[number]
 /** Acknowledged non-imported column — not unmapped. AVA may propose this target; already-mapped ignore columns are not leftovers. */
 export const REFERENCE_IGNORE_TARGET = "reference:ignore"
 
+/** Hub MappingTable synthetic header for a stored field default. */
+export const CONSTANT_MAPPING_HEADER_PREFIX = "__constant__:"
+/** Publisher-column label for a stored field default. */
+export const FIXED_VALUE_COLUMN_LABEL = "— fixed value —"
+
+export function isConstantMappingHeader(header: string): boolean {
+  return header.startsWith(CONSTANT_MAPPING_HEADER_PREFIX)
+}
+
+export function fieldIdFromConstantHeader(header: string): string {
+  return header.slice(CONSTANT_MAPPING_HEADER_PREFIX.length)
+}
+
+export function constantMappingHeader(fieldId: string): string {
+  return `${CONSTANT_MAPPING_HEADER_PREFIX}${fieldId}`
+}
+
 export function isReferenceIgnoreTarget(canon: string): boolean {
   return canon === REFERENCE_IGNORE_TARGET
 }
@@ -57,6 +74,8 @@ export type PublisherProfileConfig = {
   /** Canonical field names used to group panels into line items when grouped. */
   grouping_keys: string[]
   column_map: Record<string, string>
+  /** Canonical AV field → one value for every line. Never a column name. */
+  field_defaults: Record<string, string>
   grid_semantics: GridSemantics
   legend_map: Record<string, BookingStatus>
   sheet_rules: SheetRule[]
@@ -191,6 +210,7 @@ export function parsePublisherProfile(input: unknown): PublisherProfileConfig {
     line_granularity: rawGranularity as LineGranularity,
     grouping_keys,
     column_map: asStringRecord(input.column_map ?? {}, "column_map"),
+    field_defaults: asStringRecord(input.field_defaults ?? {}, "field_defaults"),
     grid_semantics: grid_semantics as GridSemantics,
     legend_map: parseLegendMap(input.legend_map),
     sheet_rules: parseSheetRules(input.sheet_rules ?? []),
@@ -214,6 +234,7 @@ export function serializePublisherProfile(
     line_granularity: profile.line_granularity,
     grouping_keys: profile.grouping_keys,
     column_map: profile.column_map,
+    field_defaults: profile.field_defaults,
     grid_semantics: profile.grid_semantics,
     legend_map: profile.legend_map,
     sheet_rules: profile.sheet_rules,

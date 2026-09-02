@@ -18,7 +18,7 @@ import {
   ingestMappingRowKey,
   type AvaColumnMappingProposal,
 } from "@/lib/mediaplans/ingest/avaColumnMapping"
-import { REFERENCE_IGNORE_TARGET } from "@/lib/mediaplans/ingest/publisherProfileConfig"
+import { REFERENCE_IGNORE_TARGET, FIXED_VALUE_COLUMN_LABEL, constantMappingHeader } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import { summarizePanelFlights } from "@/lib/mediaplans/ingest/panelFlightSummary"
 import { isStatedMoneySynonym } from "@/lib/mediaplans/ingest/moneySynonyms"
 import {
@@ -464,6 +464,12 @@ function PlanFieldsTable({
   )
 }
 
+type MappingTableRow = ColumnMappingRow & {
+  displayHeader?: string
+  statusLabel?: string
+  kind?: "column" | "constant"
+}
+
 function MappingTable({
   rows,
   onRemap,
@@ -471,7 +477,7 @@ function MappingTable({
   avaByHeader,
   onAcceptAvaProposal,
 }: {
-  rows: ColumnMappingRow[]
+  rows: MappingTableRow[]
   onRemap: (header: string, mappedTo: string | null) => Promise<void>
   remapping?: boolean
   avaByHeader: Map<string, AvaColumnMappingProposal>
@@ -493,12 +499,15 @@ function MappingTable({
             const ava = avaByHeader.get(
               row.header.replace(/\s+/g, " ").trim().toLowerCase(),
             )
+            const isConstant = row.kind === "constant"
             return (
               <tr
                 key={ingestMappingRowKey(row, index)}
                 className="interactive-row border-t border-border align-top"
               >
-                <td className="px-3 py-2 text-foreground">{row.header}</td>
+                <td className="px-3 py-2 text-foreground">
+                  {row.displayHeader ?? row.header}
+                </td>
                 <td className="px-3 py-2">
                   <select
                     className="w-full rounded-input border border-border bg-background px-2 py-1 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -506,6 +515,10 @@ function MappingTable({
                     value={row.mapped_to ?? ""}
                     onChange={(e) => {
                       const v = e.target.value
+                      if (isConstant) {
+                        if (v === "") void onRemap(row.header, null)
+                        return
+                      }
                       void onRemap(row.header, v === "" ? null : v)
                     }}
                   >
@@ -520,7 +533,9 @@ function MappingTable({
                   </select>
                 </td>
                 <td className="px-3 py-2">
-                  {row.mapped_to === REFERENCE_IGNORE_TARGET ? (
+                  {isConstant && row.statusLabel ? (
+                    <Badge variant="secondary">{row.statusLabel}</Badge>
+                  ) : row.mapped_to === REFERENCE_IGNORE_TARGET ? (
                     <Badge variant="outline">reference — ignored</Badge>
                   ) : row.unmapped ? (
                     <Badge variant="destructive">UNMAPPED</Badge>
@@ -656,6 +671,16 @@ export function IngestReviewScreen({
     mapped_to: null,
     unmapped: true,
   }))
+  const constantRows = Object.entries(review.profile?.field_defaults ?? {}).map(
+    ([fieldId, value]) => ({
+      header: constantMappingHeader(fieldId),
+      mapped_to: fieldId,
+      unmapped: false,
+      displayHeader: FIXED_VALUE_COLUMN_LABEL,
+      statusLabel: value,
+      kind: "constant" as const,
+    }),
+  )
   const cardSurface = coverage ? buildReviewCardSurface(coverage) : null
   const headerWarnings = (coverage?.warnings ?? []).filter(
     (w) => !isPanelAnonymousWarning(w),
@@ -740,7 +765,15 @@ export function IngestReviewScreen({
           />
         ) : review.column_mapping.length > 0 ? (
           <MappingTable
-            rows={review.column_mapping}
+            rows={[...constantRows, ...review.column_mapping]}
+            onRemap={onRemap}
+            remapping={remapping}
+            avaByHeader={avaByHeader}
+            onAcceptAvaProposal={onAcceptAvaProposal}
+          />
+        ) : constantRows.length > 0 ? (
+          <MappingTable
+            rows={constantRows}
             onRemap={onRemap}
             remapping={remapping}
             avaByHeader={avaByHeader}
@@ -751,6 +784,15 @@ export function IngestReviewScreen({
             Detect a publisher to see the plan template.
           </p>
         )}
+        {cardSurface && cardSurface.rows.length > 0 && constantRows.length > 0 ? (
+          <MappingTable
+            rows={constantRows}
+            onRemap={onRemap}
+            remapping={remapping}
+            avaByHeader={avaByHeader}
+            onAcceptAvaProposal={onAcceptAvaProposal}
+          />
+        ) : null}
       </section>
 
       {leftoverRows.length > 0 ? (

@@ -5,6 +5,7 @@ import { SKIP_ANSWER, OTHER_OPTION } from "@/lib/ava/chatInterviewQuestion"
 import type { AvaColumnMappingProposal } from "../avaColumnMapping"
 import {
   applyIngestReviewAnswers,
+  CONSTANT_VALUE_OPTION,
   formatFilteredUnusedMappingLine,
   formatUnmatchedNonCardFieldsLine,
   LEAVE_UNMAPPED_OPTION,
@@ -15,9 +16,11 @@ import {
   parseMappedOption,
   valueQuestionId,
 } from "../ingestReviewQuestions"
+import type { IngestProposal, ProposedPanel } from "../proposeLineItems"
 import type { IngestReviewPackage } from "../buildIngestReview"
 import { buildIngestReviewFromFile } from "../buildIngestReview"
 import { loadSeedPublisherProfiles } from "../loadPublisherProfiles"
+import { parsePublisherProfile } from "../publisherProfileConfig"
 import {
   getTargetTemplate,
   listTargetTemplateMediaTypes,
@@ -31,6 +34,8 @@ import {
 import {
   clearPublisherProfileSeedOverlayForTests,
   getPublisherProfileSeedOverlay,
+  profilesWithRemapOverlay,
+  registerPublisherProfileOverlay,
 } from "../persistColumnRemap"
 import { clearValueSynonymOverlayForTests } from "../valueSynonymRepo"
 import path from "node:path"
@@ -360,9 +365,13 @@ test("unmatched required field not on the editor card is not asked", () => {
 const JCD_FIX = path.join(process.cwd(), "tests/fixtures/ava-plans/jcd_strength-meals_ooh.xlsx")
 
 async function jcdReview(): Promise<IngestReviewPackage> {
-  return buildIngestReviewFromFile(JCD_FIX, loadSeedPublisherProfiles(), {
-    skipAva: true,
-  })
+  return buildIngestReviewFromFile(
+    JCD_FIX,
+    profilesWithRemapOverlay(loadSeedPublisherProfiles()),
+    {
+      skipAva: true,
+    },
+  )
 }
 
 test("JCD fixture: cards only for unmatched required/enrich in card order; no column-first or per-column money cards", async () => {
@@ -1067,6 +1076,228 @@ test("required field absent from card_field_ids still fails the gate and logs a 
   } finally {
     warn.mock.restore()
     unregister()
+  }
+})
+
+function stubPanel(ref: string): ProposedPanel {
+  return {
+    descriptors: {},
+    raw_unmapped: {},
+    source_publisher: "QMS",
+    source_row_ref: ref,
+    flights: [],
+    grid_period_count: 0,
+  }
+}
+
+function stubProposal(): IngestProposal {
+  return {
+    publisher_name: "QMS",
+    media_type: "ooh",
+    sheet_name: "Sheet1",
+    line_items: [
+      {
+        grouping: {},
+        panels: [stubPanel("r1"), stubPanel("r2")],
+        bursts: [],
+      },
+      {
+        grouping: {},
+        panels: [stubPanel("r3"), stubPanel("r4")],
+        bursts: [],
+      },
+    ],
+    reconciliation: {
+      line_item_count: 2,
+      panel_count: 4,
+      burst_count: 0,
+      total_media_amount: 0,
+      file_stated_total: 0,
+      delta: 0,
+      delta_pct: 0,
+      accept_ok: true,
+      block_reason: null,
+      warnings: [],
+      charges_detected_total: 0,
+    },
+  }
+}
+
+function unmatchedCardReview(): IngestReviewPackage {
+  const seed = loadSeedPublisherProfiles().find((p) => p.publisher_name === "QMS")
+  assert.ok(seed)
+  return stubReview({
+    detected_publisher: "QMS",
+    profile: seed,
+    proposal: stubProposal(),
+    template_coverage: stubCoverage({
+      required: [
+        coverageField({
+          id: "format",
+          role: "required",
+          matched: false,
+          dest: "attrs.format",
+          label: "Format",
+          canonicals: ["format", "publisher_format_name"],
+        }),
+      ],
+      enrich: [
+        coverageField({
+          id: "placement",
+          role: "enrich",
+          matched: false,
+          dest: "line_item_panels.placement",
+          label: "Placement",
+          canonicals: ["placement"],
+        }),
+      ],
+      not_used: [],
+    }),
+  })
+}
+
+test("required card Other with a non-header string is still refused and leaves the profile unchanged", async () => {
+  clearPublisherProfileSeedOverlayForTests()
+  const review = unmatchedCardReview()
+  const before = { ...review.profile!.column_map }
+  const questions = listOpenIngestReviewQuestions(review, {
+    mbaNumber: "mba1",
+    mbaNumbers: ["mba1"],
+  })
+  const formatCard = questions.find((q) => q.id === "ingest:required:format")
+  assert.ok(formatCard)
+  assert.ok(formatCard.options?.includes(CONSTANT_VALUE_OPTION))
+  assert.ok(formatCard.options?.includes(OTHER_OPTION))
+  assert.notEqual(CONSTANT_VALUE_OPTION, OTHER_OPTION)
+
+  const result = await applyIngestReviewAnswers(
+    review,
+    [{ questionId: "ingest:required:format", answer: "Large Format" }],
+    TEST_IDENTITY,
+  )
+  assert.deepEqual(
+    getPublisherProfileSeedOverlay().get("qms")?.column_map ?? before,
+    before,
+  )
+  assert.equal(result.review.ava_chat?.answers?.["ingest:required:format"], undefined)
+  assert.match(result.changed[0] ?? "", /not a column in this schedule/)
+  const still = listOpenIngestReviewQuestions(result.review, {
+    mbaNumber: "mba1",
+    mbaNumbers: ["mba1"],
+  })
+  assert.ok(still.some((q) => q.id === "ingest:required:format"))
+})
+
+test("Use one value for every line + Large Format stamps every line and panel, never column_map", async () => {
+  clearPublisherProfileSeedOverlayForTests()
+  const review = unmatchedCardReview()
+  const beforeKeys = Object.keys(review.profile!.column_map)
+  const result = await applyIngestReviewAnswers(
+    review,
+    [{ questionId: "ingest:constant:format", answer: "Large Format" }],
+    TEST_IDENTITY,
+  )
+  const overlay = getPublisherProfileSeedOverlay().get("qms")
+  assert.ok(overlay)
+  assert.deepEqual(Object.keys(overlay.column_map).sort(), [...beforeKeys].sort())
+  assert.equal(overlay.field_defaults.format, "large_format")
+  const formatCov = result.review.template_coverage?.required.find((f) => f.id === "format")
+  assert.equal(formatCov?.matched, true)
+  assert.equal(formatCov?.source.kind, "constant")
+  assert.equal(formatCov?.source.sample, "large_format")
+  for (const item of result.review.proposal?.line_items ?? []) {
+    assert.equal(item.grouping.format, "large_format")
+    for (const panel of item.panels) {
+      assert.equal(panel.descriptors.format, "large_format")
+    }
+  }
+  const still = listOpenIngestReviewQuestions(result.review, {
+    mbaNumber: "mba1",
+    mbaNumbers: ["mba1"],
+  })
+  assert.equal(still.some((q) => q.id === "ingest:required:format"), false)
+})
+
+test("Use one value for every line + Nonsense reopens naming valid options and writes nothing", async () => {
+  clearPublisherProfileSeedOverlayForTests()
+  const review = unmatchedCardReview()
+  const result = await applyIngestReviewAnswers(
+    review,
+    [{ questionId: "ingest:constant:format", answer: "Nonsense" }],
+    TEST_IDENTITY,
+  )
+  assert.equal(getPublisherProfileSeedOverlay().get("qms")?.field_defaults.format, undefined)
+  assert.equal(result.review.ava_chat?.answers?.["ingest:constant:format"], undefined)
+  assert.match(result.changed[0] ?? "", /"Nonsense" is not one of our formats/)
+  assert.match(result.changed[0] ?? "", /Pick one of:/)
+  assert.match(result.changed[0] ?? "", /Large Format/)
+  const formatCov = result.review.template_coverage?.required.find((f) => f.id === "format")
+  assert.equal(formatCov?.matched, false)
+  const still = listOpenIngestReviewQuestions(result.review, {
+    mbaNumber: "mba1",
+    mbaNumbers: ["mba1"],
+  })
+  assert.ok(still.some((q) => q.id === "ingest:required:format"))
+})
+
+test("Use one value for every line + Roadside on placement stores the text verbatim", async () => {
+  clearPublisherProfileSeedOverlayForTests()
+  const review = unmatchedCardReview()
+  const result = await applyIngestReviewAnswers(
+    review,
+    [{ questionId: "ingest:constant:placement", answer: "Roadside" }],
+    TEST_IDENTITY,
+  )
+  const overlay = getPublisherProfileSeedOverlay().get("qms")
+  assert.equal(overlay?.field_defaults.placement, "Roadside")
+  assert.equal(overlay?.column_map.placement, undefined)
+  const placement = result.review.template_coverage?.enrich.find((f) => f.id === "placement")
+  assert.equal(placement?.matched, true)
+  assert.equal(placement?.source.kind, "constant")
+  assert.equal(placement?.source.sample, "Roadside")
+  for (const item of result.review.proposal?.line_items ?? []) {
+    assert.equal(item.grouping.placement, "Roadside")
+    for (const panel of item.panels) {
+      assert.equal(panel.descriptors.placement, "Roadside")
+    }
+  }
+})
+
+test("a profile carrying field_defaults.format raises no format card on the next review", async () => {
+  clearPublisherProfileSeedOverlayForTests()
+  const seed = loadSeedPublisherProfiles().find((p) => p.publisher_name === "JCDecaux")
+  assert.ok(seed)
+  const column_map = { ...seed.column_map }
+  registerPublisherProfileOverlay(
+    parsePublisherProfile({
+      ...seed,
+      grouping_keys: seed.grouping_keys.filter((k) => k !== "format"),
+      detect_signature: {
+        ...seed.detect_signature,
+        grouping_keys: (Array.isArray(
+          (seed.detect_signature as { grouping_keys?: string[] }).grouping_keys,
+        )
+          ? (seed.detect_signature as { grouping_keys: string[] }).grouping_keys
+          : seed.grouping_keys
+        ).filter((k) => k !== "format"),
+      },
+      column_map,
+      field_defaults: { format: "large_format" },
+    }),
+  )
+  const review = await jcdReview()
+  const formatCov = review.template_coverage?.required.find((f) => f.id === "format")
+  assert.equal(formatCov?.matched, true)
+  assert.equal(formatCov?.source.kind, "constant")
+  assert.equal(formatCov?.source.sample, "large_format")
+  const questions = listOpenIngestReviewQuestions(review, {
+    mbaNumber: "jcd001",
+    mbaNumbers: ["jcd001"],
+  })
+  assert.equal(questions.some((q) => q.id === "ingest:required:format"), false)
+  assert.ok((review.proposal?.line_items.length ?? 0) > 0)
+  for (const item of review.proposal?.line_items ?? []) {
+    assert.equal(item.grouping.format, "large_format")
   }
 })
 

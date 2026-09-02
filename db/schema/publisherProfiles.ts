@@ -2,6 +2,7 @@
  * Publisher schedule ingest profiles (migration 0024).
  * Config only — mapping is jsonb on the row, not TypeScript per publisher.
  * 0059 adds updated_by + publisher_profile_changes (AUTHOR ONLY).
+ * 0061 adds field_defaults jsonb (AUTHOR ONLY).
  */
 import { sql } from "drizzle-orm"
 import {
@@ -30,6 +31,7 @@ export const publisherProfiles = pgTable(
     active: boolean("active").notNull().default(true),
     detectSignature: jsonb("detect_signature").notNull().default({}),
     columnMap: jsonb("column_map").notNull().default({}),
+    fieldDefaults: jsonb("field_defaults").notNull().default({}),
     gridSemantics: text("grid_semantics").notNull(),
     lineGranularity: text("line_granularity").notNull().default("per_row"),
     legendMap: jsonb("legend_map").notNull().default({}),

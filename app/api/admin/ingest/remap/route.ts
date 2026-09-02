@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAdmin } from "@/lib/requireRole"
+import { persistFieldDefault } from "@/lib/mediaplans/ingest/persistColumnRemap"
+import {
+  fieldIdFromConstantHeader,
+  isConstantMappingHeader,
+} from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import { remapIngestColumn } from "@/lib/mediaplans/ingest/remapIngestColumn"
 
 export const runtime = "nodejs"
@@ -33,8 +38,37 @@ export async function POST(request: NextRequest) {
       mappedTo?: string | null
       knownHeaders?: unknown
       stageId?: string | null
+      fieldDefault?: { field?: string; value?: string | null } | null
     }
-    if (!body.publisherName?.trim() || !body.header?.trim()) {
+    if (!body.publisherName?.trim()) {
+      return NextResponse.json(
+        { error: "publisherName required" },
+        { status: 400 },
+      )
+    }
+    const fieldDefaultField =
+      body.fieldDefault?.field?.trim() ||
+      (body.header && isConstantMappingHeader(body.header)
+        ? fieldIdFromConstantHeader(body.header).trim()
+        : "")
+    if (fieldDefaultField) {
+      const result = await persistFieldDefault({
+        publisherName: body.publisherName.trim(),
+        field: fieldDefaultField,
+        value:
+          body.fieldDefault && "value" in body.fieldDefault
+            ? (body.fieldDefault.value ?? null)
+            : (body.mappedTo ?? null),
+        changedBy,
+        source: "hub_remap",
+        stageId: body.stageId ?? null,
+      })
+      if (!result.ok) {
+        return NextResponse.json(result, { status: 200 })
+      }
+      return NextResponse.json(result)
+    }
+    if (!body.header?.trim()) {
       return NextResponse.json(
         { error: "publisherName and header required" },
         { status: 400 },

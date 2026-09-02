@@ -24,6 +24,7 @@ export type CoverageSourceKind =
   | "derived"
   | "grid"
   | "waiver"
+  | "constant"
   | "unmatched"
 
 export type CoverageSource = {
@@ -215,6 +216,48 @@ export function applyCanonicalControlledValue(
   }
 }
 
+/** Stamp one value onto every line grouping and every panel descriptor. */
+export function applyConstantFieldValue(
+  proposal: IngestProposal,
+  fieldId: string,
+  value: string,
+): IngestProposal {
+  return {
+    ...proposal,
+    line_items: proposal.line_items.map((item) => ({
+      ...item,
+      grouping: { ...item.grouping, [fieldId]: value },
+      panels: item.panels.map((panel) => ({
+        ...panel,
+        descriptors: { ...panel.descriptors, [fieldId]: value },
+      })),
+    })),
+  }
+}
+
+function fieldHasHeaderSource(
+  fieldId: string,
+  reverse: Map<string, string>,
+): boolean {
+  return reverse.has(fieldId)
+}
+
+/** Apply stored field_defaults onto the proposal before coverage / stamp. Header wins. */
+export function applyFieldDefaultsToProposal(
+  proposal: IngestProposal,
+  profile: PublisherProfileConfig,
+): IngestProposal {
+  const reverse = reverseColumnMap(profile)
+  let next = proposal
+  for (const [fieldId, raw] of Object.entries(profile.field_defaults ?? {})) {
+    const value = raw.trim()
+    if (!value) continue
+    if (fieldHasHeaderSource(fieldId, reverse)) continue
+    next = applyConstantFieldValue(next, fieldId, value)
+  }
+  return next
+}
+
 async function collectControlledResolutions(args: {
   mediaType: string
   profile: PublisherProfileConfig | null
@@ -381,7 +424,7 @@ function evaluateField(
     return unmatched()
   }
 
-  // column + money: header first, then grouping rows
+  // column + money: header first, then a stored field default, then grouping rows
   for (const canon of canonicals) {
     const header = args.reverse.get(canon)
     if (header) {
@@ -395,6 +438,16 @@ function evaluateField(
         },
         confidence: 1,
       }
+    }
+  }
+
+  const defaultValue = args.profile?.field_defaults?.[field.id]?.trim()
+  if (defaultValue) {
+    return {
+      ...base,
+      matched: true,
+      source: { kind: "constant", sample: defaultValue },
+      confidence: 1,
     }
   }
 

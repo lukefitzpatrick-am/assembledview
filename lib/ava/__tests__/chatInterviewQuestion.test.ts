@@ -11,6 +11,7 @@ import {
   lockChatQuestionAnswer,
   parseMiAnswerMessage,
   SKIP_ANSWER,
+  CONSTANT_VALUE_OPTION,
   toChatInterviewQuestion,
 } from "../chatInterviewQuestion.js"
 
@@ -141,4 +142,34 @@ test("skip token round-trips and displays as Skipped", () => {
   })
   assert.equal(displayMiAnswerText(message), "Skipped")
   assert.equal(displayMiAnswerText(SKIP_ANSWER), "Skipped")
+})
+
+test("Use one value for every line rewrites ingest:required to ingest:constant", () => {
+  assert.equal(
+    formatQuestionAnswerText("choice", [CONSTANT_VALUE_OPTION], "  Large Format  "),
+    "Large Format",
+  )
+  assert.equal(
+    formatQuestionAnswerMessage(
+      "ingest:required:format",
+      "choice",
+      [CONSTANT_VALUE_OPTION],
+      "Large Format",
+    ),
+    "[mi:ingest:constant:format] Large Format",
+  )
+  const required = toChatInterviewQuestion({
+    id: "ingest:required:format",
+    text: "Which column in this schedule holds Format?",
+    type: "choice",
+    options: ["FORMAT COL", CONSTANT_VALUE_OPTION, "Not in this file", "Other"],
+    index: 1,
+    total: 1,
+  })
+  const locked = lockChatQuestionAnswer(
+    [required],
+    "ingest:constant:format",
+    "[mi:ingest:constant:format] Large Format",
+  )
+  assert.equal(locked[0]?.confirmedAnswer, "[mi:ingest:constant:format] Large Format")
 })

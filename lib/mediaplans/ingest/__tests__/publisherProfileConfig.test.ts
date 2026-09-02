@@ -224,6 +224,36 @@ test("0049 line_granularity SQL is AUTHOR ONLY and idempotent", () => {
   assert.doesNotMatch(sql, /CREATE POLICY|ENABLE ROW LEVEL SECURITY/i)
 })
 
+test("0061 field_defaults SQL is AUTHOR ONLY and idempotent", () => {
+  const sql = readFileSync(
+    path.join(
+      process.cwd(),
+      "db/migrations/0061_publisher_profile_field_defaults.sql",
+    ),
+    "utf8",
+  )
+  assert.match(sql, /AUTHOR ONLY/i)
+  assert.match(sql, /ADD COLUMN IF NOT EXISTS field_defaults/i)
+  assert.match(sql, /0061_publisher_profile_field_defaults/)
+  assert.match(sql, /RAISE NOTICE/)
+  assert.match(sql, /publisher_profiles rows/)
+  assert.doesNotMatch(sql, /CREATE POLICY|ENABLE ROW LEVEL SECURITY/i)
+})
+
+test("field_defaults defaults to empty and round-trips", () => {
+  const base = loadSeeds()[0]!
+  assert.deepEqual(base.field_defaults, {})
+  const withDefault = parsePublisherProfile({
+    ...serializePublisherProfile(base),
+    field_defaults: { format: "large_format" },
+  })
+  assert.equal(withDefault.field_defaults.format, "large_format")
+  assert.deepEqual(
+    parsePublisherProfile(serializePublisherProfile(withDefault)).field_defaults,
+    { format: "large_format" },
+  )
+})
+
 test("line_granularity defaults to per_row; grouped is valid; invalid throws", () => {
   const base = loadSeeds()[0]!
   const omitted = parsePublisherProfile({

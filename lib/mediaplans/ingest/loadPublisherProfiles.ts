@@ -42,6 +42,7 @@ export async function listPublisherProfiles(): Promise<{
             ?.grouping_keys,
           line_granularity: row.lineGranularity,
           column_map: row.columnMap,
+          field_defaults: row.fieldDefaults ?? {},
           grid_semantics: row.gridSemantics,
           legend_map: row.legendMap,
           sheet_rules: row.sheetRules,

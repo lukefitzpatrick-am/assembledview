@@ -8,6 +8,7 @@
  */
 
 import {
+  CONSTANT_VALUE_OPTION,
   isSkipAnswer,
   OTHER_OPTION,
   toChatInterviewQuestion,
@@ -17,7 +18,9 @@ import type { AvaColumnMappingProposal } from "@/lib/mediaplans/ingest/avaColumn
 import type { IngestReviewPackage } from "@/lib/mediaplans/ingest/buildIngestReview"
 import {
   applyReviewColumnRemap,
+  applyReviewFieldDefault,
   knownHeadersFromReview,
+  persistFieldDefault,
   validateRemapHeader,
 } from "@/lib/mediaplans/ingest/persistColumnRemap"
 import { isMoneyTarget } from "@/lib/mediaplans/ingest/moneyTargets"
@@ -34,7 +37,10 @@ import {
   getControlledVocabulary,
 } from "@/lib/mediaplans/ingest/controlledVocabularies"
 import { resolveCatalogueIdForProfileName } from "@/lib/mediaplans/ingest/publisherCatalogueJoin"
+import { resolveControlledValue } from "@/lib/mediaplans/ingest/resolveControlledValue"
 import { learnSynonym } from "@/lib/mediaplans/ingest/valueSynonymRepo"
+
+export { CONSTANT_VALUE_OPTION }
 
 export const LEAVE_UNMAPPED_OPTION = "Leave unmapped"
 /** Decline a required-field card — records the answer, writes nothing. */
@@ -96,7 +102,8 @@ export function parseMappedOption(answer: string): string | null {
     !raw ||
     raw === LEAVE_UNMAPPED_OPTION ||
     raw === NOT_IN_THIS_FILE_OPTION ||
-    raw === OTHER_OPTION
+    raw === OTHER_OPTION ||
+    raw === CONSTANT_VALUE_OPTION
   ) {
     return null
   }
@@ -401,6 +408,7 @@ function buildRequiredCard(
   }
   const kind = opts?.kind ?? "required"
   if (kind === "required") {
+    push(CONSTANT_VALUE_OPTION)
     push(NOT_IN_THIS_FILE_OPTION)
   } else {
     push(LEAVE_UNMAPPED_OPTION)
@@ -476,7 +484,7 @@ export function listOpenIngestReviewQuestions(
 
   for (const field of unmatched) {
     const id = requiredQuestionId(field.id)
-    if (answered.has(id)) continue
+    if (answered.has(id) || answered.has(`ingest:constant:${field.id}`)) continue
     draft.push(buildRequiredCard(field, leftovers, proposals, 1, 1))
   }
 
@@ -921,6 +929,76 @@ async function applyOneAnswer(
     return {
       review: applyControlledValueToReview(review, unresolved, canonical),
       changed: `Mapped ${unresolved.raw} to ${canonical}.`,
+      record: true,
+    }
+  }
+  if (questionId.startsWith("ingest:constant:")) {
+    const fieldId = questionId.slice("ingest:constant:".length)
+    const field = [
+      ...(review.template_coverage?.required ?? []),
+      ...(review.template_coverage?.enrich ?? []),
+    ].find((f) => f.id === fieldId)
+    const label = field?.label ?? fieldId
+    const typed = answer.trim()
+    if (skipRemap || !typed) {
+      return { review, changed: `Left ${label} unmatched.`, record: true }
+    }
+    const mediaType =
+      review.template_coverage?.media_type ||
+      review.detected_media_type ||
+      review.proposal?.media_type ||
+      "ooh"
+    let vocabKey: string | undefined
+    try {
+      const template = getTargetTemplate(mediaType)
+      vocabKey = [...template.required, ...template.enrich].find(
+        (f) => f.id === fieldId,
+      )?.controlled?.vocabulary
+    } catch {
+      vocabKey = undefined
+    }
+    let value = typed
+    if (vocabKey) {
+      const vocab = getControlledVocabulary(vocabKey)
+      const publisherName = publisher ?? review.proposal?.publisher_name ?? null
+      const publisherId =
+        review.profile?.publisher_id ??
+        (publisherName ? resolveCatalogueIdForProfileName(publisherName) : null)
+      const resolution = await resolveControlledValue({
+        vocabularyKey: vocabKey,
+        raw: typed,
+        publisherId,
+        publisherName,
+      })
+      if (!resolution.canonical || !vocab) {
+        const labels = vocab ? choiceLabelsForVocabulary(vocab) : []
+        const vocabLabel = (vocab?.label ?? label).trim().toLowerCase()
+        const noun = /s$/i.test(vocabLabel) ? vocabLabel : `${vocabLabel}s`
+        return {
+          review,
+          changed: `"${typed}" is not one of our ${noun}. Pick one of: ${labels.join(", ")}.`,
+          record: false,
+        }
+      }
+      value = resolution.canonical
+    }
+    if (!publisher) {
+      return { review, changed: `Left ${label} unmatched.`, record: true }
+    }
+    const persisted = await persistFieldDefault({
+      publisherName: publisher,
+      field: fieldId,
+      value,
+      changedBy: identity.changedBy,
+      source: "ava_card",
+      stageId: identity.stageId,
+    })
+    if (!persisted.ok) {
+      return { review, changed: persisted.reason, record: false }
+    }
+    return {
+      review: applyReviewFieldDefault(review, fieldId, value),
+      changed: `Set ${label} to ${value} for every line.`,
       record: true,
     }
   }
