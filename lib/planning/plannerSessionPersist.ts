@@ -3,7 +3,8 @@
  * Versioned key — bump the suffix when the snapshot shape changes incompatibly.
  */
 
-import type { PlanningWorkflowState } from "@/components/planning/store"
+import type { AudienceDraft, PlanningWorkflowState } from "@/components/planning/store"
+import { normalizeAudienceDraft } from "@/components/planning/store"
 
 export const PLANNER_SESSION_STORAGE_KEY = "av:behavioural-planner:session:v1"
 
@@ -38,7 +39,12 @@ export function parsePlannerSession(raw: string | null): PlannerSessionSnapshot 
     return {
       v: 1,
       savedAt: typeof parsed.savedAt === "string" ? parsed.savedAt : new Date().toISOString(),
-      state: parsed.state,
+      state: {
+        ...parsed.state,
+        audiences: parsed.state.audiences.map((a: AudienceDraft) =>
+          normalizeAudienceDraft(a)
+        ),
+      },
       insightByKey:
         parsed.insightByKey && typeof parsed.insightByKey === "object"
           ? parsed.insightByKey

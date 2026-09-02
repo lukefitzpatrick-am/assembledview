@@ -153,7 +153,7 @@ Identity here is **email**, not a numeric user id.
 
 ## 11. Planning & insights
 
-`/tools/behavioural-planner` is the Behavioural Change Sequence planner with deterministic narration — not the chat widget. `lib/planning/` is the largest lib directory by bytes (30 MB, mostly reference data). Uploaded Roy Morgan workbooks parse through `lib/planning/upload/` into the same `AudienceResponse` as the live Snowflake path, then persist via `planning_audience_uploads` / `planning_uploaded_audiences` (0058 AUTHOR ONLY; admin routes, no UI yet). Saved live audiences in `planning_audiences`; `campaign_insights` is append-and-supersede, never delete.
+`/tools/behavioural-planner` is the Behavioural Change Sequence planner with deterministic narration — not the chat widget. `lib/planning/` is the largest lib directory by bytes (30 MB, mostly reference data). Uploaded Roy Morgan workbooks parse through `lib/planning/upload/` into the same `AudienceResponse` as the live Snowflake path, persist via `planning_audience_uploads` / `planning_uploaded_audiences` (0058 AUTHOR ONLY), and enter the five stages as `AudienceDraft.source = "uploaded"` (`POST /api/planning/audience/uploaded`). Saved live audiences in `planning_audiences`; `campaign_insights` is append-and-supersede, never delete.
 
 ## 12. Knowledge hub
 

@@ -42,6 +42,11 @@ export type AudienceDraft = {
   gender: Gender
   ageBands: PlanningAgeBand[]
   reachBasis: ReachBasis
+  source: "composed" | "uploaded"
+  uploadedAudienceId?: number
+  uploadFileName?: string
+  uploadWaveCode?: string
+  uploadFilterLabel?: string
 }
 
 /** API / affinity key: no lens choice → national `"base"`. */
@@ -133,6 +138,11 @@ export function createAudienceDraft(
     gender: over.gender ?? "all",
     ageBands: over.ageBands ?? ["25-34", "35-49"],
     reachBasis: over.reachBasis ?? "addressable",
+    source: over.source ?? "composed",
+    uploadedAudienceId: over.uploadedAudienceId,
+    uploadFileName: over.uploadFileName,
+    uploadWaveCode: over.uploadWaveCode,
+    uploadFilterLabel: over.uploadFilterLabel,
   }
 }
 
@@ -237,10 +247,20 @@ export function isBriefComplete(brief: BriefState): boolean {
 
 export function isAudiencesComplete(audiences: AudienceDraft[]): boolean {
   if (audiences.length === 0) return false
-  // Segment lens is optional — empty / base = All People national.
-  return audiences.every(
-    (a) => a.states.length > 0 && a.ageBands.length > 0 && a.name.trim()
-  )
+  return audiences.every((a) => {
+    if ((a.source ?? "composed") === "uploaded") {
+      return Boolean(a.name.trim() && a.uploadedAudienceId)
+    }
+    // Segment lens is optional — empty / base = All People national.
+    return a.states.length > 0 && a.ageBands.length > 0 && Boolean(a.name.trim())
+  })
+}
+
+export function normalizeAudienceDraft(draft: AudienceDraft): AudienceDraft {
+  return {
+    ...draft,
+    source: draft.source === "uploaded" ? "uploaded" : "composed",
+  }
 }
 
 export function planningReducer(

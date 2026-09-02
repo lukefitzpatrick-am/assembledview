@@ -51,13 +51,14 @@ import {
   writePlannerSession,
 } from "@/lib/planning/plannerSessionPersist"
 import type { PlanningAudienceRow } from "@/lib/planning/audienceTypes"
+import {
+  audienceKey,
+  resolveAudienceFetch,
+} from "@/lib/planning/plannerAudienceRequest"
 import type {
-  AudienceRequest,
   AudienceResponse,
   PlanningMeta,
-  ReachBasis,
 } from "@/lib/planning/types"
-import { PLANNING_GENDERS } from "@/lib/planning/types"
 
 const DEBOUNCE_MS = 350
 const AVA_LIST_CAP = 20
@@ -77,40 +78,6 @@ type AudienceResult = {
 
 function defaultSegmentId(_meta: PlanningMeta): string {
   return "base"
-}
-
-function toAudienceRequest(
-  waveId: string,
-  draft: AudienceDraft
-): AudienceRequest | null {
-  if (!waveId) return null
-  if (draft.states.length === 0) return null
-  const genders =
-    draft.gender === "all"
-      ? []
-      : PLANNING_GENDERS.includes(draft.gender as (typeof PLANNING_GENDERS)[number])
-        ? [draft.gender as (typeof PLANNING_GENDERS)[number]]
-        : []
-  return {
-    wave_id: waveId,
-    segment_id: effectiveSegmentId(draft.segmentId),
-    states: draft.states,
-    genders,
-    age_bands: draft.ageBands,
-    reach_basis: draft.reachBasis as ReachBasis,
-  }
-}
-
-function audienceKey(waveId: string, draft: AudienceDraft): string {
-  return [
-    waveId,
-    draft.id,
-    effectiveSegmentId(draft.segmentId),
-    draft.states.join(","),
-    draft.ageBands.join(","),
-    draft.gender,
-    draft.reachBasis,
-  ].join("|")
 }
 
 function toEngineChannels(adapted: AdapterResult, excluded: Set<string>): Channel[] {
@@ -320,8 +287,8 @@ export function BehaviouralPlannerClient() {
 
   const fetchOne = useCallback(
     async (draft: AudienceDraft, currentMeta: PlanningMeta, waveId: string) => {
-      const body = toAudienceRequest(waveId, draft)
-      if (!body) return
+      const spec = resolveAudienceFetch(waveId, draft)
+      if (spec.kind === "skip") return
 
       abortMap.current.get(draft.id)?.abort()
       const ac = new AbortController()
@@ -339,10 +306,10 @@ export function BehaviouralPlannerClient() {
       }))
 
       try {
-        const res = await fetch("/api/planning/audience", {
+        const res = await fetch(spec.url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify(spec.body),
           signal: ac.signal,
         })
         if (!res.ok) {
@@ -585,6 +552,16 @@ export function BehaviouralPlannerClient() {
         robustnessBand: rob.band,
         robustnessLabel: rob.label,
         topIndexChannels,
+        source: a.source ?? "composed",
+        ...((a.source ?? "composed") === "uploaded"
+          ? {
+              uploadProvenance: {
+                fileName: avaTruncate(a.uploadFileName, AVA_TEXT_CAP),
+                waveCode: avaTruncate(a.uploadWaveCode, AVA_TEXT_CAP),
+                filterLabel: avaTruncate(a.uploadFilterLabel, AVA_TEXT_CAP),
+              },
+            }
+          : {}),
       }
     })
     const active = state.audiences.find((a) => a.id === state.activeAudienceId)

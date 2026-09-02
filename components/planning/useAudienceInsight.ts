@@ -100,6 +100,15 @@ export async function generateAudienceInsight(
         ageBands: draft.ageBands,
         reachBasis: draft.reachBasis,
       },
+      source: draft.source ?? "composed",
+      provenance:
+        (draft.source ?? "composed") === "uploaded"
+          ? {
+              fileName: draft.uploadFileName ?? "",
+              waveCode: draft.uploadWaveCode ?? "",
+              filterLabel: draft.uploadFilterLabel ?? "",
+            }
+          : null,
       stats: {
         audienceWc: adapted.audienceWc,
         universeWc: adapted.universeWc,

@@ -67,6 +67,12 @@ type InsightBody = {
     ageBands: string[]
     reachBasis: string
   }
+  source: "composed" | "uploaded"
+  provenance: {
+    fileName: string
+    waveCode: string
+    filterLabel: string
+  } | null
   stats: {
     audienceWc: number
     universeWc: number
@@ -121,6 +127,19 @@ function parseBody(raw: unknown): { ok: true; body: InsightBody } | { ok: false;
     })
   }
 
+  const sourceRaw = asTrimmedString(o.source)
+  const source: "composed" | "uploaded" =
+    sourceRaw === "uploaded" ? "uploaded" : "composed"
+  let provenance: InsightBody["provenance"] = null
+  if (source === "uploaded" && o.provenance && typeof o.provenance === "object") {
+    const p = o.provenance as Record<string, unknown>
+    provenance = {
+      fileName: asTrimmedString(p.fileName) ?? "",
+      waveCode: asTrimmedString(p.waveCode) ?? "",
+      filterLabel: asTrimmedString(p.filterLabel) ?? "",
+    }
+  }
+
   return {
     ok: true,
     body: {
@@ -140,6 +159,8 @@ function parseBody(raw: unknown): { ok: true; body: InsightBody } | { ok: false;
         ageBands: asStringArray(audienceRaw.ageBands).slice(0, 12),
         reachBasis: asTrimmedString(audienceRaw.reachBasis) ?? "addressable",
       },
+      source,
+      provenance,
       stats: {
         audienceWc: asNumber(statsRaw.audienceWc) ?? 0,
         universeWc: asNumber(statsRaw.universeWc) ?? 0,
@@ -154,7 +175,7 @@ function parseBody(raw: unknown): { ok: true; body: InsightBody } | { ok: false;
   }
 }
 
-const FRAMING = `You are AVA generating an in-page audience insight inside the Demand Flow planner. The JSON below is the planner's full composition for this audience: Roy Morgan channel-level reach % and affinity indexes (index 100 = national base) for every channel, plus the audience definition and robustness. This is channel-consumption composition — attitudinal/behavioural variables are not in this dataset, so do not invent them; note the limit in WATCH-OUTS. Follow the skill's output format. Australian English. No em dashes.`
+const FRAMING = `You are AVA generating an in-page audience insight inside the Demand Flow planner. The JSON below is the planner's full composition for this audience: Roy Morgan channel-level reach % and affinity indexes (index 100 = national base) for every channel, plus the audience definition and robustness. This is channel-consumption composition — attitudinal/behavioural variables are not in this dataset, so do not invent them; note the limit in WATCH-OUTS. When source is 'uploaded', the composition comes from a supplied Roy Morgan export, not the live warehouse wave — say so once and never claim live data. If a filter label other than 'All cases' is present, state that indexes are against that filtered base. Follow the skill's output format. Australian English. No em dashes.`
 
 export async function POST(request: NextRequest) {
   const gate = await requireRole(request, ["admin"])
