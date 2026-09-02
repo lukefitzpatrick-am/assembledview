@@ -146,6 +146,7 @@ pct === 100 → fee = 0 (division guard)
 - Provenance: `PLANNING_CHANNEL_BENCH` carries per-pillar `{value, source}`; carry-through maps to channel-level budget targets only — never fabricate line items.
 - Client visibility per audience defaults OFF.
 - Campaign date pills: `CAMPAIGN_DATE_PRESETS` is the create/edit default (four pills; no annual-plan). Planner Stage A uses `PLANNER_DATE_PRESETS` (adds Annual plan = first of next month → last day of the month 12 months later). Do not add planner-only ids to `CAMPAIGN_DATE_PRESETS`.
+- Uploaded Roy Morgan runs produce the same `AudienceResponse` contract as the live path (`lib/planning/upload/`). Missing TOTAL column → `universe_wc` 0 (never substitute a Snowflake universe). Missing index stays null (never default 100). `unweighted_n` 0 is a thin-base signal, not a skip.
 
 ## AVA law
 

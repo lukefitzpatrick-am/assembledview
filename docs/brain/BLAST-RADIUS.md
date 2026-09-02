@@ -70,6 +70,11 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | `lib/api/dashboard/client.ts` / `lib/dashboard/clientDateRange.ts` / `components/dashboard/shared/DateRangeSelector.tsx` | Client hub URL `startDate`/`endDate`; no params = current AU FY. Lists overlap the range; spend series share the window; delivered tile `from`/`to`; `spendPast30Days` stays 30-day. Tests: `test:client-dashboard-range` |
 | `lib/dashboard/spendInsightsCaptions.ts` / `components/dashboard/SpendingInsightsSection.tsx` | Captions are `spendInsightsCaption` (planned delivery-schedule-month media). Do not reuse `MEDIA_MIX_DONUT_BASIS_CAPTION`. Tests: `lib/dashboard/__tests__/spendInsightsCaptions.test.ts` + `SpendingInsightsSection.render.test.tsx` |
 
+### Planning
+| Touch | Also check |
+|---|---|
+| `lib/planning/upload/*` (`parseRoyMorganWorkbook`, `mapRoyMorganToChannels`, `buildUploadedAudienceResponse`) | Must keep emitting locked `AudienceResponse` so `adaptAudienceToEngine` is unchanged. No Snowflake universe fallback when TOTAL is absent (`universe_wc` 0). Alias table grows with a test, not a silent code change. Tests: `lib/planning/upload/__tests__/royMorganUpload.test.ts`. Downstream still untouched (no UI / routes / DB). |
+
 ### Finance / billing
 | Touch | Also check |
 |---|---|
