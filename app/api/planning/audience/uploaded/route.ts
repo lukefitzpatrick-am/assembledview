@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireRole } from "@/lib/requireRole"
 import { getCachedPlanningMeta } from "@/lib/planning/metaCache"
 import { buildUploadedAudienceResponse } from "@/lib/planning/upload/buildUploadedAudienceResponse"
-import { findRmBlock } from "@/lib/planning/upload/findRmBlock"
 import type { RmMappingResult } from "@/lib/planning/upload/mapRoyMorganToChannels"
 import {
-  getUpload,
   getUploadedAudience,
   UploadedAudienceError,
 } from "@/lib/planning/upload/uploadedAudienceRepo"
@@ -24,7 +22,8 @@ function repoError(error: unknown): NextResponse {
 
 /**
  * POST /api/planning/audience/uploaded — drop-in for /api/planning/audience.
- * Returns a plain AudienceResponse. Provenance stays on the saved row / definition_json.
+ * Rebuilds from the saved audience row's scalars. Parent parse_json is
+ * provenance only and is not loaded on this path.
  */
 export async function POST(request: NextRequest) {
   const gate = await requireRole(request, ["admin"])
@@ -62,32 +61,29 @@ export async function POST(request: NextRequest) {
 
   try {
     const row = await getUploadedAudience(uploaded_audience_id)
-    const upload = await getUpload(row.upload_id)
-    const found = findRmBlock(upload.parse_json, row.sheet_name, row.block_id)
-    if (!found) {
-      return NextResponse.json(
-        { error: "Stored sheet/block is missing from parse_json" },
-        { status: 422 }
-      )
-    }
-
     const meta = await getCachedPlanningMeta()
+    const byId = new Map(meta.channels.map((c) => [c.channel_id, c]))
     const mapping: RmMappingResult = {
       mapped: row.channels_json,
       unmatchedRows: [],
       uncoveredLeafIds: [],
       duplicateChannelIds: [],
-      scoreableCount: row.channels_json.length,
+      scoreableCount: row.channels_json.filter((m) => {
+        const ch = byId.get(m.channelId)
+        return ch?.engine_channel_id != null && ch.engine_channel_id !== ""
+      }).length,
     }
 
     const response = buildUploadedAudienceResponse({
       mapping,
-      block: found.block,
-      baseBlock: found.baseBlock,
       channels: meta.channels,
       segmentKey: row.segment_key,
       waveCode: row.wave_code,
       reachBasis: reach_basis as ReachBasis,
+      audienceWc: row.audience_wc ?? 0,
+      unweightedN: row.unweighted_n ?? 0,
+      universeWc: row.universe_wc ?? 0,
+      suppressedCells: row.suppressed_cells ?? 0,
     })
     return NextResponse.json(response)
   } catch (error) {

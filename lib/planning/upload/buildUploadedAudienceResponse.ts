@@ -7,26 +7,67 @@ import type {
 import type { RmMappingResult } from "./mapRoyMorganToChannels"
 import type { RmBlock } from "./royMorganTypes"
 
-export function buildUploadedAudienceResponse(args: {
+type SharedArgs = {
   mapping: RmMappingResult
-  block: RmBlock
-  baseBlock: RmBlock | null
   channels: PlanningChannelMeta[]
   segmentKey: string
   waveCode: string | null
   reachBasis: ReachBasis
-}): AudienceResponse {
-  const { mapping, block, baseBlock, channels, segmentKey, waveCode, reachBasis } = args
-  const audience_wc = block.popn000 ?? 0
-  const unweighted_n = block.unweightedN ?? 0
-  const universe_wc = baseBlock?.popn000 ?? 0
+}
 
+type BlockDerivedArgs = SharedArgs & {
+  block: RmBlock
+  baseBlock: RmBlock | null
+}
+
+type ScalarArgs = SharedArgs & {
+  audienceWc: number
+  unweightedN: number
+  universeWc: number
+  suppressedCells: number
+}
+
+export function countSuppressedMappedCells(
+  mapping: RmMappingResult,
+  block: RmBlock
+): number {
   const sourceByRow = new Map(block.rows.map((r) => [r.rowIndex, r]))
   let suppressed_cells = 0
   for (const m of mapping.mapped) {
     if (m.sourceRowIndex == null) continue
     if (sourceByRow.get(m.sourceRowIndex)?.suppressed) suppressed_cells += 1
   }
+  return suppressed_cells
+}
+
+function scalarsFromArgs(args: BlockDerivedArgs | ScalarArgs): {
+  audience_wc: number
+  unweighted_n: number
+  universe_wc: number
+  suppressed_cells: number
+} {
+  if ("block" in args) {
+    return {
+      audience_wc: args.block.popn000 ?? 0,
+      unweighted_n: args.block.unweightedN ?? 0,
+      universe_wc: args.baseBlock?.popn000 ?? 0,
+      suppressed_cells: countSuppressedMappedCells(args.mapping, args.block),
+    }
+  }
+  return {
+    audience_wc: args.audienceWc,
+    unweighted_n: args.unweightedN,
+    universe_wc: args.universeWc,
+    suppressed_cells: args.suppressedCells,
+  }
+}
+
+export function buildUploadedAudienceResponse(
+  args: BlockDerivedArgs | ScalarArgs
+): AudienceResponse {
+  const { mapping, channels, segmentKey, waveCode, reachBasis } = args
+  const { audience_wc, unweighted_n, universe_wc, suppressed_cells } =
+    scalarsFromArgs(args)
 
   const mappedById = new Map(mapping.mapped.map((m) => [m.channelId, m]))
   const ordered = [...channels].sort((a, b) => a.sort_order - b.sort_order)

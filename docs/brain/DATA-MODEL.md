@@ -66,7 +66,7 @@ erDiagram
 | `mba_fee_snapshots` | 74 | `version_id` UNIQUE, `fees` jsonb | Fee state captured at publish |
 | `billing_overrides` | 1 | UNIQUE(`version_id`,`line_item_id`,`component`) | Recorded manual overrides — who, when, value. Never inferred from drift |
 | `mba_line_approvals` | 0 | UNIQUE(`mba_number`,`media_plan_version`,`line_item_id`,`media_type`) | **Absence of a row means approved.** Postgres-authoritative; skipped by ETL |
-| `plan_working_drafts` | 5 | `master_id`, `base_version_id` | Autosave. Flag `NEXT_PUBLIC_PLAN_DRAFTS`; off does not delete rows. Callers use raw `sql` |
+| `plan_working_drafts` | 5 | `master_id`, `base_version_id` | Autosave. Flag `NEXT_PUBLIC_PLAN_DRAFTS`; off does not delete rows. Callers use raw `sql`. **Interim `SAVE_PUBLISHES_IMMEDIATELY`:** save no longer writes these as the save path; matching-base rows still auto-apply and clear on save |
 
 **Channel enum** (`line_channel`, 20 values): `television radio cinema newspaper magazines ooh prog_display prog_video prog_audio prog_bvod prog_ooh digi_display digi_video digi_audio digi_bvod social search influencers integrations production`
 
@@ -80,7 +80,7 @@ erDiagram
 | `client_domains` | 56 | email domain → client, for meeting attribution |
 | `clientdashboard` | 1 | per-platform dashboard ids |
 | `publishers` | 77 | ~100 columns: `pub_*` channel flags, `*_comms` commission rates, per-family CPM/CPC/CPV/CTR/VTR/frequency defaults, `best_practice` jsonb, `publisher_colour` |
-| `publisher_profiles` | 4 | Schedule-ingest parsing config. `detect_signature`, `column_map`, `grid_semantics` (status_matrix\|count\|currency), `line_granularity` (per_row\|grouped), `legend_map`, `sheet_rules` — all jsonb on the row, not TypeScript |
+| `publisher_profiles` | 4 | Schedule-ingest parsing config. `detect_signature`, `column_map` (header→field), `grid_semantics` (status_matrix\|count\|currency), `line_granularity` (per_row\|grouped), `legend_map`, `sheet_rules` — all jsonb on the row, not TypeScript. No value-level synonym map (publisher prose → AV canonical) — C-79 |
 | `publisher_specs` / `spec_runs` | 20 / 0 | Material specs and deadline days. Joined on `publishers.id`, never on display name |
 | `spec_deadline_overrides` | 0 | Explicit manual deadline override: who, when, value |
 | `publisher_domains` | 1 | Learned on manual Fireflies assign. **Never seed vendor domains** |
@@ -158,9 +158,9 @@ erDiagram
 |---|---|---|
 | `creative_asset` | 22 | Row + Vercel Blob file; `blob_url` / `blob_pathname` |
 | `scope_of_work` | 9 | jsonb `cost` and `billing_schedule` |
-| `planning_audiences` | 1 | saved audience definitions, `client_visible` flag |
+| `planning_audiences` | 1 | saved audience definitions, `client_visible` flag; `definition_json` additive upload provenance (`source` + file/wave/filter) |
 | `planning_audience_uploads` | 0 (0058 not applied) | staged Roy Morgan workbook parse (`parse_json` jsonb); 48h TTL (`expires_at` NULL = retained); `blob_url` stores a private Blob pathname, never a public URL |
-| `planning_uploaded_audiences` | 0 (0058 not applied) | saved uploaded audiences; `segment_key` = `upl_<id>` (`AudienceDraft.segmentId`); `channels_json` is server-mapped `RmMappedChannel[]` |
+| `planning_uploaded_audiences` | 0 (0058 not applied) | saved uploaded audiences; `segment_key` = `upl_<id>` (`AudienceDraft.segmentId`); `channels_json` is server-mapped `RmMappedChannel[]`; rebuild uses `audience_wc` / `unweighted_n` / `universe_wc` / `suppressed_cells` on the row, not parent `parse_json` |
 | `campaign_insights` | 0 | Append and supersede (`superseded_by` self-FK, paired with `superseded_at` by CHECK). **Never delete.** GIN full-text index on `body`. `mba_number` lowercase by CHECK |
 | `pacing_orphan_fixes` | 1 | admin reassignment audit for unmatched platform line items |
 | `m365_provisioning_log` | 0 | every Graph provisioning attempt: success / failure / skipped |

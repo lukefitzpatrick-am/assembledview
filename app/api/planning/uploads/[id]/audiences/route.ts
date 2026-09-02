@@ -7,10 +7,10 @@ import {
   type RmMappingOptions,
   type RmMappingOverrides,
 } from "@/lib/planning/upload/mapRoyMorganToChannels"
+import { countSuppressedMappedCells } from "@/lib/planning/upload/buildUploadedAudienceResponse"
 import {
-  createUploadedAudience,
   getUpload,
-  markUploadSaved,
+  retainUploadThenCreateAudience,
   UploadedAudienceError,
 } from "@/lib/planning/upload/uploadedAudienceRepo"
 
@@ -170,7 +170,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       )
     }
 
-    const row = await createUploadedAudience({
+    const row = await retainUploadThenCreateAudience({
       uploadId,
       clientsId: clients_id,
       name,
@@ -181,12 +181,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
       audienceWc: found.block.popn000,
       unweightedN: found.block.unweightedN,
       universeWc: found.baseBlock?.popn000 ?? 0,
+      suppressedCells: countSuppressedMappedCells(mapping, found.block),
       mappingJson: { overrides, options },
       channelsJson: mapping.mapped,
       definitionJson: o.definition,
       createdByEmail: sessionEmail,
     })
-    await markUploadSaved(uploadId)
     return NextResponse.json(row, { status: 201 })
   } catch (error) {
     return repoError(error)

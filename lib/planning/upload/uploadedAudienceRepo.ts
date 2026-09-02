@@ -72,6 +72,7 @@ export type PlanningUploadedAudienceRow = {
   audience_wc: number | null
   unweighted_n: number | null
   universe_wc: number | null
+  suppressed_cells: number | null
   mapping_json: { overrides: RmMappingOverrides; options: RmMappingOptions }
   channels_json: RmMappedChannel[]
   definition_json: unknown
@@ -116,6 +117,7 @@ function audienceToApi(row: AudiencePgRow): PlanningUploadedAudienceRow {
     audience_wc: numOrNull(row.audienceWc),
     unweighted_n: row.unweightedN ?? null,
     universe_wc: numOrNull(row.universeWc),
+    suppressed_cells: row.suppressedCells ?? null,
     mapping_json: row.mappingJson as PlanningUploadedAudienceRow["mapping_json"],
     channels_json: (row.channelsJson ?? []) as RmMappedChannel[],
     definition_json: row.definitionJson,
@@ -180,28 +182,7 @@ export async function getUpload(id: number): Promise<PlanningAudienceUploadRow> 
   }
 }
 
-export async function markUploadSaved(id: number): Promise<PlanningAudienceUploadRow> {
-  try {
-    const db = getDb()
-    const [row] = await db
-      .update(schema.planningAudienceUploads)
-      .set({
-        status: "saved",
-        retainedAt: new Date().toISOString(),
-        expiresAt: null,
-      })
-      .where(eq(schema.planningAudienceUploads.id, id))
-      .returning()
-    if (!row) {
-      throw new UploadedAudienceError("Upload not found", 404)
-    }
-    return uploadToApi(row)
-  } catch (error) {
-    mapDbError(error, "markUploadSaved")
-  }
-}
-
-export async function createUploadedAudience(input: {
+export type CreateUploadedAudienceInput = {
   uploadId: number
   clientsId: number | null
   name: string
@@ -212,48 +193,108 @@ export async function createUploadedAudience(input: {
   audienceWc: number | null
   unweightedN: number | null
   universeWc: number | null
+  suppressedCells: number
   mappingJson: PlanningUploadedAudienceRow["mapping_json"]
   channelsJson: RmMappedChannel[]
   definitionJson: unknown
   createdByEmail: string
-}): Promise<PlanningUploadedAudienceRow> {
+}
+
+type PlanningWriter = Pick<ReturnType<typeof getDb>, "insert" | "update">
+
+async function retainUploadOn(
+  db: PlanningWriter,
+  id: number
+): Promise<PlanningAudienceUploadRow> {
+  const [row] = await db
+    .update(schema.planningAudienceUploads)
+    .set({
+      status: "saved",
+      retainedAt: new Date().toISOString(),
+      expiresAt: null,
+    })
+    .where(eq(schema.planningAudienceUploads.id, id))
+    .returning()
+  if (!row) {
+    throw new UploadedAudienceError("Upload not found", 404)
+  }
+  return uploadToApi(row)
+}
+
+async function insertUploadedAudienceOn(
+  db: PlanningWriter,
+  input: CreateUploadedAudienceInput
+): Promise<PlanningUploadedAudienceRow> {
+  const tempKey = `upl_tmp_${randomUUID()}`
+  const [inserted] = await db
+    .insert(schema.planningUploadedAudiences)
+    .values({
+      uploadId: input.uploadId,
+      clientsId: input.clientsId,
+      name: input.name,
+      sheetName: input.sheetName,
+      blockId: input.blockId,
+      segmentKey: tempKey,
+      waveCode: input.waveCode,
+      filterLabel: input.filterLabel,
+      audienceWc: input.audienceWc == null ? null : String(input.audienceWc),
+      unweightedN: input.unweightedN,
+      universeWc: input.universeWc == null ? null : String(input.universeWc),
+      suppressedCells: input.suppressedCells,
+      mappingJson: input.mappingJson,
+      channelsJson: input.channelsJson,
+      definitionJson: input.definitionJson,
+      createdByEmail: input.createdByEmail,
+    })
+    .returning()
+  if (!inserted) {
+    throw new UploadedAudienceError("create failed: no row returned", 502)
+  }
+  const [patched] = await db
+    .update(schema.planningUploadedAudiences)
+    .set({ segmentKey: `upl_${inserted.id}` })
+    .where(eq(schema.planningUploadedAudiences.id, inserted.id))
+    .returning()
+  if (!patched) {
+    throw new UploadedAudienceError("create failed: segment_key patch returned no row", 502)
+  }
+  return audienceToApi(patched)
+}
+
+export async function markUploadSaved(id: number): Promise<PlanningAudienceUploadRow> {
   try {
-    const db = getDb()
-    const tempKey = `upl_tmp_${randomUUID()}`
-    const [inserted] = await db
-      .insert(schema.planningUploadedAudiences)
-      .values({
-        uploadId: input.uploadId,
-        clientsId: input.clientsId,
-        name: input.name,
-        sheetName: input.sheetName,
-        blockId: input.blockId,
-        segmentKey: tempKey,
-        waveCode: input.waveCode,
-        filterLabel: input.filterLabel,
-        audienceWc: input.audienceWc == null ? null : String(input.audienceWc),
-        unweightedN: input.unweightedN,
-        universeWc: input.universeWc == null ? null : String(input.universeWc),
-        mappingJson: input.mappingJson,
-        channelsJson: input.channelsJson,
-        definitionJson: input.definitionJson,
-        createdByEmail: input.createdByEmail,
-      })
-      .returning()
-    if (!inserted) {
-      throw new UploadedAudienceError("create failed: no row returned", 502)
-    }
-    const [patched] = await db
-      .update(schema.planningUploadedAudiences)
-      .set({ segmentKey: `upl_${inserted.id}` })
-      .where(eq(schema.planningUploadedAudiences.id, inserted.id))
-      .returning()
-    if (!patched) {
-      throw new UploadedAudienceError("create failed: segment_key patch returned no row", 502)
-    }
-    return audienceToApi(patched)
+    return await retainUploadOn(getDb(), id)
+  } catch (error) {
+    mapDbError(error, "markUploadSaved")
+  }
+}
+
+export async function createUploadedAudience(
+  input: CreateUploadedAudienceInput
+): Promise<PlanningUploadedAudienceRow> {
+  try {
+    return await insertUploadedAudienceOn(getDb(), input)
   } catch (error) {
     mapDbError(error, "createUploadedAudience")
+  }
+}
+
+/**
+ * Retain the staged upload, then insert the audience, in one transaction.
+ * Order is retain-then-insert so a crash that somehow escaped the transaction
+ * leaves a retained upload with no audience (harmless) rather than an
+ * audience whose parent still has expires_at set.
+ */
+export async function retainUploadThenCreateAudience(
+  input: CreateUploadedAudienceInput
+): Promise<PlanningUploadedAudienceRow> {
+  try {
+    return await getDb().transaction(async (tx) => {
+      await retainUploadOn(tx, input.uploadId)
+      return insertUploadedAudienceOn(tx, input)
+    })
+  } catch (error) {
+    mapDbError(error, "retainUploadThenCreateAudience")
   }
 }
 

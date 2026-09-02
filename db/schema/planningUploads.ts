@@ -64,6 +64,7 @@ export const planningUploadedAudiences = pgTable(
     audienceWc: numeric("audience_wc"),
     unweightedN: integer("unweighted_n"),
     universeWc: numeric("universe_wc"),
+    suppressedCells: integer("suppressed_cells"),
     mappingJson: jsonb("mapping_json").notNull(),
     channelsJson: jsonb("channels_json").notNull(),
     definitionJson: jsonb("definition_json").notNull(),

@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS public.planning_uploaded_audiences (
   audience_wc numeric,
   unweighted_n integer,
   universe_wc numeric,
+  suppressed_cells integer,
   mapping_json jsonb NOT NULL,
   channels_json jsonb NOT NULL,
   definition_json jsonb NOT NULL,
@@ -90,6 +91,11 @@ CREATE INDEX IF NOT EXISTS idx_planning_uploaded_audiences_not_archived
   WHERE is_archived = false;
 
 ALTER TABLE public.planning_uploaded_audiences ENABLE ROW LEVEL SECURITY;
+
+-- In-place add: CREATE TABLE IF NOT EXISTS will not add a column if the table
+-- already exists from an earlier 0058 draft. Rebuild reads these scalars, not parse_json.
+ALTER TABLE public.planning_uploaded_audiences
+  ADD COLUMN IF NOT EXISTS suppressed_cells integer;
 
 INSERT INTO public.migration_markers (key, note)
 VALUES (
