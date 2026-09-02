@@ -701,6 +701,7 @@ export function BehaviouralPlannerClient() {
           results={results}
           brief={state.brief}
           waveLabel={waveLabel}
+          channels={meta.channels}
           insightCacheKey={activeInsightKey}
           cachedInsight={activeInsightKey ? insightByKey[activeInsightKey] ?? null : null}
           onInsight={(key, text) =>

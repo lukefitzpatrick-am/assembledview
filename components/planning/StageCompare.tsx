@@ -376,6 +376,19 @@ export function StageCompare({
         <Badge variant="outline" size="sm" className="font-normal">
           Roy Morgan Single Source · wave {waveLabel}
         </Badge>
+        {bundles
+          .filter((b) => b.draft.source === "uploaded")
+          .map((b) => (
+            <Badge
+              key={`upload-${b.draft.id}`}
+              variant="outline"
+              size="sm"
+              className="font-normal"
+            >
+              Audience uploaded from {b.draft.uploadFileName ?? "workbook"} (
+              {b.draft.uploadWaveCode ?? "—"})
+            </Badge>
+          ))}
         <Badge variant="outline" size="sm" className="font-normal">
           Benchmarks: Assembled (editable)
         </Badge>

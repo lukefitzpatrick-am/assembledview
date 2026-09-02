@@ -85,6 +85,10 @@ export type TaxonomyRow = {
   isRmMeasured: boolean
   /** Engine inputs for leaf / injected rows; null for display-only rollups. */
   engine: AdaptedChannel | null
+  /** Uploaded-run mapping honesty. Absent on live compose. */
+  mappingProvenance?: "matched" | "inherited" | "benchmark-only"
+  /** LEVEL1 (or rollup id) when provenance is inherited. */
+  inheritedFromLabel?: string
 }
 
 export type AdapterResult = {
@@ -173,6 +177,22 @@ function displayLabel(meta: PlanningChannelMeta | undefined, channelId: string):
   return channelId
 }
 
+function mappingUi(
+  row: AudienceChannelResult,
+  metaById: Map<string, PlanningChannelMeta>
+): Pick<TaxonomyRow, "mappingProvenance" | "inheritedFromLabel"> {
+  if (!row.mapping_provenance) return {}
+  let inheritedFromLabel: string | undefined
+  if (row.mapping_provenance === "inherited" && row.inherited_from) {
+    const src = metaById.get(row.inherited_from)
+    inheritedFromLabel = src?.level1 ?? src?.level2 ?? row.inherited_from
+  }
+  return {
+    mappingProvenance: row.mapping_provenance,
+    inheritedFromLabel,
+  }
+}
+
 function toReachProfileRow(row: TaxonomyRow): ReachProfileRow {
   return {
     channelId: row.channelId,
@@ -234,6 +254,7 @@ export function adaptAudienceToEngine(opts: {
         ageBase: row.age_base,
         isRmMeasured: row.is_rm_measured,
         engine: null,
+        ...mappingUi(row, metaById),
       })
       continue
     }
@@ -253,6 +274,7 @@ export function adaptAudienceToEngine(opts: {
         ageBase: row.age_base,
         isRmMeasured: row.is_rm_measured,
         engine: null,
+        ...mappingUi(row, metaById),
       })
       continue
     }
@@ -278,6 +300,7 @@ export function adaptAudienceToEngine(opts: {
         ageBase: row.age_base,
         isRmMeasured: row.is_rm_measured,
         engine: null,
+        ...mappingUi(row, metaById),
       })
       continue
     }
@@ -317,6 +340,7 @@ export function adaptAudienceToEngine(opts: {
       ageBase: row.age_base,
       isRmMeasured: row.is_rm_measured,
       engine,
+      ...mappingUi(row, metaById),
     })
   }
 

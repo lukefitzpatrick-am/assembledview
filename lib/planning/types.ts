@@ -129,6 +129,10 @@ export type AudienceChannelResult = {
   is_rm_measured: boolean
   age_base: number
   bench: PlanningBench
+  /** Present on uploaded-run channels only. Live compose omits this. */
+  mapping_provenance?: "matched" | "inherited" | "benchmark-only"
+  /** Rollup `channel_id` when `mapping_provenance` is `inherited`. */
+  inherited_from?: string | null
 }
 
 /** Locked §8.3 shape + reach_basis + per-channel age_base (+ channel_id/reach_wc for compose/smoke). */

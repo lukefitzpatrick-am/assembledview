@@ -51,6 +51,8 @@ export function buildUploadedAudienceResponse(args: {
       is_rm_measured: m.provenance !== "benchmark-only",
       age_base: meta.age_base,
       bench: meta.bench,
+      mapping_provenance: m.provenance,
+      inherited_from: m.inheritedFrom,
     })
   }
 
@@ -70,6 +72,8 @@ export function buildUploadedAudienceResponse(args: {
       is_rm_measured: m.provenance !== "benchmark-only",
       age_base: 14,
       bench: { attn: null, brand_effect: null, direct_effect: null, cpm: null },
+      mapping_provenance: m.provenance,
+      inherited_from: m.inheritedFrom,
     })
   }
 

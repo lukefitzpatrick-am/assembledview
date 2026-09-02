@@ -1,7 +1,7 @@
 import "server-only"
 
 import { randomUUID } from "node:crypto"
-import { and, eq, isNull, or } from "drizzle-orm"
+import { and, desc, eq, isNull, or } from "drizzle-orm"
 import { getDb, schema } from "@/db"
 import type { RmMappedChannel, RmMappingOptions, RmMappingOverrides } from "./mapRoyMorganToChannels"
 import type { RmWorkbookParse } from "./royMorganTypes"
@@ -77,6 +77,9 @@ export type PlanningUploadedAudienceRow = {
   definition_json: unknown
   created_by_email: string
   is_archived: boolean
+  /** Joined from the parent upload on list; omitted on get/create. */
+  file_name?: string | null
+  byte_size?: number | null
 }
 
 function uploadToApi(row: UploadPgRow): PlanningAudienceUploadRow {
@@ -260,20 +263,27 @@ export async function listUploadedAudiences(opts: {
   try {
     const db = getDb()
     const table = schema.planningUploadedAudiences
+    const uploads = schema.planningAudienceUploads
     const live = eq(table.isArchived, false)
-    const rows =
+    const whereClause =
       opts.clientsId == null
-        ? await db.select().from(table).where(live)
-        : await db
-            .select()
-            .from(table)
-            .where(
-              and(
-                live,
-                or(eq(table.clientsId, opts.clientsId), isNull(table.clientsId))
-              )
-            )
-    return rows.map(audienceToApi)
+        ? live
+        : and(live, or(eq(table.clientsId, opts.clientsId), isNull(table.clientsId)))
+    const rows = await db
+      .select({
+        audience: table,
+        fileName: uploads.fileName,
+        byteSize: uploads.byteSize,
+      })
+      .from(table)
+      .leftJoin(uploads, eq(table.uploadId, uploads.id))
+      .where(whereClause)
+      .orderBy(desc(table.createdAt))
+    return rows.map((r) => ({
+      ...audienceToApi(r.audience),
+      file_name: r.fileName ?? null,
+      byte_size: r.byteSize ?? null,
+    }))
   } catch (error) {
     mapDbError(error, "listUploadedAudiences")
   }

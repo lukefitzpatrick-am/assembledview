@@ -575,6 +575,12 @@ export function OutcomeCharts({
       </BaseChartCard>
       </div>
 
+      {chipAudience?.draft.source === "uploaded" ||
+      (audienceKey === ALL_AUDIENCES &&
+        ready.length > 0 &&
+        ready.every((b) => b.draft.source === "uploaded")) ? (
+        <p className="text-sm text-muted-foreground">One reach basis in an uploaded run.</p>
+      ) : (
       <BaseChartCard
         title="Addressable vs Total reach"
         subtitle={
@@ -612,6 +618,7 @@ export function OutcomeCharts({
           </>
         )}
       </BaseChartCard>
+      )}
         </>
       ) : null}
 

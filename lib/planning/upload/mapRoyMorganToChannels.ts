@@ -42,10 +42,14 @@ const SKIP_SECTIONS = [
   /- agree$/i,
 ]
 
-function isDemographicSection(section: string | null): boolean {
+export function isRmDemographicSection(section: string | null): boolean {
   if (!section) return false
   const t = section.trim()
   return SKIP_SECTIONS.some((re) => re.test(t))
+}
+
+export function isPlanningEngineLeaf(ch: PlanningChannelMeta): boolean {
+  return ch.engine_channel_id != null && ch.engine_channel_id.trim() !== ""
 }
 
 function tokens(s: string): Set<string> {
@@ -69,9 +73,6 @@ function tokenOverlap(a: string, b: string): number {
   return union === 0 ? 0 : inter / union
 }
 
-function isLeaf(ch: PlanningChannelMeta): boolean {
-  return ch.engine_channel_id != null && ch.engine_channel_id.trim() !== ""
-}
 
 function suggestionFor(
   label: string,
@@ -80,7 +81,7 @@ function suggestionFor(
   const q = normaliseRmLabel(label)
   let best: { id: string; score: number } | null = null
   for (const ch of channels) {
-    if (!isLeaf(ch)) continue
+    if (!isPlanningEngineLeaf(ch)) continue
     const level2 = ch.level2 ? normaliseRmLabel(ch.level2) : ""
     const idWords = normaliseRmLabel(ch.channel_id.replace(/_/g, " "))
     const score = Math.max(
@@ -134,7 +135,7 @@ export function mapRoyMorganToChannels(args: {
   }
 
   for (const row of block.rows) {
-    if (isDemographicSection(row.section)) continue
+    if (isRmDemographicSection(row.section)) continue
     if (Object.prototype.hasOwnProperty.call(overrides, row.rowIndex)) {
       const ov = overrides[row.rowIndex]
       if (ov == null) continue
@@ -174,7 +175,7 @@ export function mapRoyMorganToChannels(args: {
   }
 
   const covered = new Set(mapped.map((m) => m.channelId))
-  const leaves = channels.filter((c) => isLeaf(c))
+  const leaves = channels.filter((c) => isPlanningEngineLeaf(c))
 
   for (const rollupId of options.inheritRollupIds) {
     const source = mapped.find((m) => m.channelId === rollupId)
