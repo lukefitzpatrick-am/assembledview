@@ -38,6 +38,7 @@ export default defineConfig({
       "components/tasks/__tests__/TaskMbaSelect.render.test.tsx",
       "components/tasks/__tests__/TaskChecklist.render.test.tsx",
       "components/dashboard/__tests__/SpendingInsightsSection.render.test.tsx",
+      "components/planning/__tests__/UploadCoveragePanel.render.test.tsx",
       "components/dashboard/delivery/__tests__/ChannelSection.render.test.tsx",
       "components/ava/__tests__/ChatMarkdown.render.test.tsx",
       "components/__tests__/ChatQuestionCard.test.tsx",

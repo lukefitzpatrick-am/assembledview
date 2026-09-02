@@ -31,6 +31,8 @@ test("groupUncoveredLeaves groups by LEVEL1 and offers inherit only when rollup 
   assert.ok(outdoor)
   assert.equal(outdoor!.rollupCovered, true)
   assert.equal(outdoor!.rollup?.channel_id, "ooh_total")
+  assert.equal(outdoor!.leaves.length, 1)
   assert.ok(social)
   assert.equal(social!.rollupCovered, false)
+  assert.equal(social!.leaves.length, 2)
 })
