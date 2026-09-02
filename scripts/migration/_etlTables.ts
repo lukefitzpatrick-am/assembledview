@@ -38,6 +38,14 @@ export const POSTGRES_AUTHORITATIVE_TABLES = new Set([
   "xero_match_month_metrics",
   "xero_contact_links",
   "xero_client_aliases",
+  // CB-0..CB-8: finance_billing_records carries the six-state lifecycle
+  // (approved_at, approved_by, approved_by_name, approved_amount_cents,
+  // approved_lines_hash, exported_at, exported_by, matched_xero_invoice_id,
+  // matched_at, matched_by). The Xano snapshot has none of those columns.
+  // A truncate-reload destroys every approval and every Xero match.
+  // NEVER truncate-reload these.
+  "finance_billing_records",
+  "finance_billing_line_items",
 ])
 
 /** Names in the kpi_finance_tasks_xero ETL family (order matches the ETL loop). */

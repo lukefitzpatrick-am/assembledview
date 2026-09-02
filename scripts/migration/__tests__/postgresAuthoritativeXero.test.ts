@@ -64,3 +64,31 @@ describe("recon count gate (T0-9)", () => {
     assert.equal(reconCountMismatchFails("mba_line_approvals", 0, 12), false)
   })
 })
+
+const BILLING_LIFECYCLE_AUTHORITATIVE = [
+  "finance_billing_records",
+  "finance_billing_line_items",
+] as const
+
+describe("POSTGRES_AUTHORITATIVE_TABLES (FIN-ETL-1 billing lifecycle)", () => {
+  for (const name of BILLING_LIFECYCLE_AUTHORITATIVE) {
+    it(`lists ${name} as postgres-authoritative`, () => {
+      assert.equal(
+        POSTGRES_AUTHORITATIVE_TABLES.has(name),
+        true,
+        `${name} must be in POSTGRES_AUTHORITATIVE_TABLES`
+      )
+    })
+  }
+
+  it("contains no truncate step for finance_billing_records in the ETL table plan", () => {
+    const reloadable = reloadableTableNames(KPI_FINANCE_TASKS_XERO_TABLE_NAMES)
+    for (const name of BILLING_LIFECYCLE_AUTHORITATIVE) {
+      assert.equal(
+        reloadable.includes(name),
+        false,
+        `${name} must not appear in the truncate/reload plan`
+      )
+    }
+  })
+})
