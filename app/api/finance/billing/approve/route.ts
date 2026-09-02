@@ -10,11 +10,14 @@ import { loadComposedBillingRecordsForMonth } from "@/lib/finance/loadComposedBi
 import {
   notFoundErrors,
   parseApproveRequestBody,
+  persistedApproveErrors,
   resolveApproveGrains,
 } from "@/lib/finance/resolveApproveGrains"
 import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
 import {
   FinanceBillingWriteError,
+  classifyApprovePersistedKeys,
+  loadFinanceBillingKeyStamps,
   materialiseAndApproveFinanceBillingRecord,
   reapproveAuditOldValue,
 } from "@/lib/data/writeFinance"
@@ -84,8 +87,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { grains, notFound } = resolveApproveGrains(invoice_keys, loaded.records)
+    const { grains: resolvedGrains, notFound } = resolveApproveGrains(invoice_keys, loaded.records)
     const errors = notFoundErrors(notFound)
+    const stamps = await loadFinanceBillingKeyStamps(resolvedGrains.map((g) => g.invoice_key))
+    const classified = classifyApprovePersistedKeys(
+      resolvedGrains.map((g) => g.invoice_key),
+      stamps,
+      reapprove
+    )
+    const actionable = new Set(classified.actionable)
+    const grains = resolvedGrains.filter((g) => actionable.has(g.invoice_key))
+    errors.push(
+      ...persistedApproveErrors(
+        classified.errors.flatMap((e) =>
+          e.error === "already_approved" || e.error === "already_exported"
+            ? [{ invoice_key: e.invoice_key, error: e.error }]
+            : []
+        )
+      )
+    )
     const approvedByName = currentUser.name ?? currentUser.email ?? String(currentUser.id)
 
     let stamped: Record<string, unknown>[] = []

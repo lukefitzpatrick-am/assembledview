@@ -7,6 +7,8 @@ import { writeStatusChangeEdit } from "@/lib/finance/writeFinanceAuditEdits"
 import { parseInvoiceKeys } from "@/lib/finance/resolveApproveGrains"
 import {
   FinanceBillingWriteError,
+  classifyMarkExportedKeys,
+  loadFinanceBillingKeyStamps,
   stampExportedKeysSkippingUnapproved,
 } from "@/lib/data/writeFinance"
 
@@ -56,26 +58,33 @@ export async function POST(request: NextRequest) {
     }
 
     const editedByName = currentUser.name ?? currentUser.email ?? String(currentUser.id)
-    let stamped: Array<{ invoiceKey: string; record: Record<string, unknown> }>
-    try {
-      const db = getDb()
-      stamped = await db.transaction(async (tx) =>
-        stampExportedKeysSkippingUnapproved(invoice_keys, currentUser.id, tx)
-      )
-    } catch (error: unknown) {
-      if (error instanceof FinanceBillingWriteError && error.code === "XERO_KEY_REFUSED") {
-        return NextResponse.json(
-          { error: "xero_key_refused", message: error.message },
-          { status: 400 }
+    const stamps = await loadFinanceBillingKeyStamps(invoice_keys)
+    const classified = classifyMarkExportedKeys(invoice_keys, stamps)
+
+    let stamped: Array<{ invoiceKey: string; record: Record<string, unknown> }> = []
+    if (classified.actionable.length > 0) {
+      try {
+        const db = getDb()
+        const result = await db.transaction(async (tx) =>
+          stampExportedKeysSkippingUnapproved(classified.actionable, currentUser.id, tx)
         )
+        stamped = result.stamped
+        for (const skip of result.skipped) {
+          if (skip.reason === "not_approved") {
+            classified.skipped.push({ invoice_key: skip.invoiceKey, error: "not_approved" })
+          } else {
+            classified.errors.push({ invoice_key: skip.invoiceKey, error: "not_found" })
+          }
+        }
+      } catch (error: unknown) {
+        if (error instanceof FinanceBillingWriteError && error.code === "XERO_KEY_REFUSED") {
+          return NextResponse.json(
+            { error: "xero_key_refused", message: error.message },
+            { status: 400 }
+          )
+        }
+        throw error
       }
-      if (error instanceof FinanceBillingWriteError && error.code === "NOT_FOUND") {
-        return NextResponse.json(
-          { error: "not_found", message: error.message },
-          { status: 404 }
-        )
-      }
-      throw error
     }
 
     const results: Array<{
@@ -88,6 +97,7 @@ export async function POST(request: NextRequest) {
 
     for (const item of stamped) {
       const persisted_record_id = Number(item.record.id)
+      const exportedAt = item.record.exported_at
       await writeStatusChangeEdit(
         {
           finance_billing_records_id: Number.isFinite(persisted_record_id)
@@ -95,7 +105,7 @@ export async function POST(request: NextRequest) {
             : null,
           field_name: "exported_at",
           old_value: null,
-          new_value: editedByName,
+          new_value: exportedAt != null ? String(exportedAt) : null,
         },
         {
           editedBy: currentUser.id,
@@ -106,13 +116,26 @@ export async function POST(request: NextRequest) {
       results.push({
         invoice_key: item.invoiceKey,
         persisted_record_id,
-        exported_at: item.record.exported_at,
+        exported_at: exportedAt,
         exported_by: item.record.exported_by,
         exported_by_name: editedByName,
       })
     }
 
-    return NextResponse.json({ ok: true, exported_by_name: editedByName, records: results })
+    return NextResponse.json({
+      ok: true,
+      exported_by_name: editedByName,
+      records: results,
+      skipped: classified.skipped.map((s) => ({
+        invoice_key: s.invoice_key,
+        error: s.error,
+      })),
+      errors: classified.errors.map((e) => ({
+        invoice_key: e.invoice_key,
+        error: e.error,
+        status: 404,
+      })),
+    })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error)
     return NextResponse.json({ error: "mark_exported_failed", details: message }, { status: 500 })

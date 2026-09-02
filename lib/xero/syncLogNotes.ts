@@ -37,7 +37,10 @@ export function syncLogNotesLooksLikeJson(
   return typeof notes === "string" && SYNC_LOG_JSON_SHAPE_RE.test(notes)
 }
 
-/** CASE equivalent: prose / invalid / missing source → null. Never throws. */
+/** TS try/catch: prose / invalid JSON / missing source → null. Never throws.
+ *  NOT equivalent to the SQL CASE for invalid JSON that begins with `{` or `[`:
+ *  the CASE enters THEN and `notes::jsonb` raises 22P02. 0056 (source column)
+ *  is the durable fix — do not treat this CASE as a complete guard. */
 export function syncLogNotesSource(
   notes: string | null | undefined,
 ): string | null {

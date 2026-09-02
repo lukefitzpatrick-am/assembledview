@@ -15,9 +15,13 @@ import {
 } from "@/lib/data/readFinance"
 import {
   FinanceBillingWriteError,
+  classifyApprovePersistedKeys,
+  classifyMarkExportedKeys,
+  classifyUnapproveKeys,
   clearFinanceBillingRecordApproval,
   clearFinanceBillingRecordExported,
   createFinanceBillingLineItem,
+  loadFinanceBillingKeyStamps,
   materialiseAndApproveFinanceBillingRecord,
   patchFinanceBillingLineItemById,
   patchFinanceBillingRecordById,
@@ -170,6 +174,56 @@ describe("writeFinance xero: guard", () => {
         return true
       }
     )
+  })
+})
+
+describe("writeFinance batch key classification", () => {
+  it("unapprove treats a missing key as a per-key error, not a batch abort", () => {
+    const stamps = new Map([
+      ["media:A:2026-09", { approved_at: "2026-09-01T00:00:00Z", approved_amount_cents: 100, exported_at: null }],
+    ])
+    const classified = classifyUnapproveKeys(["media:A:2026-09", "media:MISSING:2026-09"], stamps)
+    assert.deepEqual(classified.actionable, ["media:A:2026-09"])
+    assert.deepEqual(classified.errors, [
+      { invoice_key: "media:MISSING:2026-09", error: "not_found" },
+    ])
+  })
+
+  it("unapprove treats an exported key as a per-key already_exported error", () => {
+    const stamps = new Map([
+      ["media:A:2026-09", { approved_at: "2026-09-01T00:00:00Z", approved_amount_cents: 100, exported_at: null }],
+      ["media:B:2026-09", { approved_at: "2026-09-01T00:00:00Z", approved_amount_cents: 100, exported_at: "2026-09-02T00:00:00Z" }],
+    ])
+    const classified = classifyUnapproveKeys(["media:A:2026-09", "media:B:2026-09"], stamps)
+    assert.deepEqual(classified.actionable, ["media:A:2026-09"])
+    assert.equal(classified.errors[0]?.error, "already_exported")
+  })
+
+  it("mark-sent skips unapproved and errors missing, without aborting", () => {
+    const stamps = new Map([
+      ["media:A:2026-09", { approved_at: "2026-09-01T00:00:00Z", approved_amount_cents: 100, exported_at: null }],
+      ["media:B:2026-09", { approved_at: null, approved_amount_cents: null, exported_at: null }],
+    ])
+    const classified = classifyMarkExportedKeys(
+      ["media:A:2026-09", "media:B:2026-09", "media:MISSING:2026-09"],
+      stamps
+    )
+    assert.deepEqual(classified.actionable, ["media:A:2026-09"])
+    assert.deepEqual(classified.skipped, [{ invoice_key: "media:B:2026-09", error: "not_approved" }])
+    assert.deepEqual(classified.errors, [{ invoice_key: "media:MISSING:2026-09", error: "not_found" }])
+  })
+
+  it("approve already-approved is per-key so a ready key still proceeds", () => {
+    const stamps = new Map([
+      ["media:A:2026-09", { approved_at: "2026-09-01T00:00:00Z", approved_amount_cents: 100, exported_at: null }],
+    ])
+    const classified = classifyApprovePersistedKeys(
+      ["media:A:2026-09", "media:B:2026-09"],
+      stamps,
+      false
+    )
+    assert.deepEqual(classified.actionable, ["media:B:2026-09"])
+    assert.equal(classified.errors[0]?.error, "already_approved")
   })
 })
 
@@ -580,9 +634,12 @@ describe("writeFinance postgres path", { skip: skipPg }, () => {
       [INVOICE_KEY, INVOICE_KEY_B],
       11
     )
-    assert.equal(stamped.length, 1)
-    assert.equal(stamped[0]?.invoiceKey, INVOICE_KEY)
-    assert.ok(stamped[0]?.record.exported_at)
+    assert.equal(stamped.stamped.length, 1)
+    assert.equal(stamped.stamped[0]?.invoiceKey, INVOICE_KEY)
+    assert.ok(stamped.stamped[0]?.record.exported_at)
+    assert.equal(stamped.skipped.length, 1)
+    assert.equal(stamped.skipped[0]?.invoiceKey, INVOICE_KEY_B)
+    assert.equal(stamped.skipped[0]?.reason, "not_approved")
     const listed = await fetchFinanceBillingRecordsFromPostgres()
     const approved = listed.find((r) => r.invoice_key === INVOICE_KEY)
     const unapproved = listed.find((r) => r.invoice_key === INVOICE_KEY_B)
@@ -590,6 +647,72 @@ describe("writeFinance postgres path", { skip: skipPg }, () => {
     assert.equal(Number(approved?.exported_by), 11)
     assert.ok(unapproved)
     assert.ok(unapproved.exported_at == null || unapproved.exported_at === "")
+  })
+
+  it("a missing mark-sent key is skipped and the rest of the batch still stamps", async () => {
+    await wipe()
+    await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+    })
+    await materialiseAndApproveFinanceBillingRecord({
+      invoiceKey: INVOICE_KEY,
+      seed: {
+        billing_type: "media",
+        clients_id: 1,
+        client_name: "T0-1 writeFinance",
+        mba_number: MBA,
+        campaign_name: "T0-1",
+        billing_month: "2026-09",
+        initial_total: 100.5,
+      },
+      approvedBy: 7,
+      approvedByName: "Ada Admin",
+      approvedAmountCents: 10050,
+      approvedLinesHash: HASH,
+    })
+    const missingKey = `media:${MBA}:2099-01`
+    const result = await stampExportedKeysSkippingUnapproved(
+      [INVOICE_KEY, missingKey],
+      11
+    )
+    assert.equal(result.stamped.length, 1)
+    assert.equal(result.stamped[0]?.invoiceKey, INVOICE_KEY)
+    assert.equal(result.skipped.length, 1)
+    assert.equal(result.skipped[0]?.invoiceKey, missingKey)
+    assert.equal(result.skipped[0]?.reason, "not_found")
+  })
+
+  it("unapprove classifies a missing key as not_found and still clears the other", async () => {
+    await wipe()
+    await upsertFinanceBillingRecordByInvoiceKey(INVOICE_KEY, {
+      billing_type: "media",
+      clients_id: 1,
+      client_name: "T0-1 writeFinance",
+      mba_number: MBA,
+      campaign_name: "T0-1",
+      billing_month: "2026-09",
+      initial_total: 100.5,
+    })
+    await setFinanceBillingRecordApproved({
+      invoiceKey: INVOICE_KEY,
+      approvedBy: 7,
+      approvedByName: "Ada Admin",
+      approvedAmountCents: 10050,
+      approvedLinesHash: HASH,
+    })
+    const missingKey = `media:${MBA}:2099-01`
+    const stamps = await loadFinanceBillingKeyStamps([INVOICE_KEY, missingKey])
+    const classified = classifyUnapproveKeys([INVOICE_KEY, missingKey], stamps)
+    assert.deepEqual(classified.actionable, [INVOICE_KEY])
+    assert.equal(classified.errors[0]?.error, "not_found")
+    await clearFinanceBillingRecordApproval(classified.actionable[0]!)
+    const after = await loadFinanceBillingKeyStamps([INVOICE_KEY])
+    assert.equal(after.get(INVOICE_KEY)?.approved_at, null)
   })
 
   it("unmark-exported clears the stamp, leaves approved_at, and makes unapprove possible", async () => {

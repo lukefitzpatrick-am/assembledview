@@ -24,6 +24,7 @@ import {
 } from "@/lib/finance/approvedReceivablesExport"
 import { grainFromBillingRecord } from "@/lib/finance/billingApproveGrain"
 import { approveBillingRecords, markBillingRecordsExported } from "@/lib/finance/api"
+import { markSentResultToast } from "@/lib/finance/markSentToFinanceCopy"
 import { exportReceivablesWorkbook } from "@/lib/finance/exportFinanceHub"
 import { expandMonthRange } from "@/lib/finance/monthRange"
 import { formatAUD } from "@/lib/format/money"
@@ -335,9 +336,14 @@ export function InvoicingPageClient() {
     setMarkSentBusy(true)
     try {
       const exported = await markBillingRecordsExported({ invoice_keys: markSentKeys })
-      setLastExportName(exported.exported_by_name)
+      if (exported.records.length > 0) {
+        setLastExportName(exported.exported_by_name)
+      }
       toast({
-        title: `Marked ${exported.records.length} invoice${exported.records.length === 1 ? "" : "s"} as sent to finance`,
+        title: markSentResultToast({
+          marked: exported.records.length,
+          skippedNotApproved: exported.skipped?.length ?? 0,
+        }),
       })
       bumpFetch()
     } catch (e) {

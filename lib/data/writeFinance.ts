@@ -11,6 +11,8 @@
  * status, invoice_date, campaign_name). Money and lifecycle stamps are refused.
  * Line-item amount / received_amount freeze once the parent is approved.
  * Re-approve refuses once exported_at is set (same as unapprove).
+ * setFinanceBillingRecordBilled is the 410 route's documented counterpart
+ * (tests only; no production caller).
  */
 
 import "server-only"
@@ -70,6 +72,107 @@ export function reapproveAuditOldValue(prior: {
 export type ClearFinanceBillingExportedResult = {
   record: Record<string, unknown>
   priorExportedAt: string | null
+}
+
+export type FinanceBillingKeyStamp = {
+  approved_at: string | null
+  approved_amount_cents: number | null
+  exported_at: string | null
+}
+
+export type FinanceBillingKeyError = {
+  invoice_key: string
+  error: "not_found" | "already_exported" | "already_approved" | "not_approved"
+}
+
+export type StampExportedSkip = {
+  invoiceKey: string
+  reason: "not_approved" | "not_found"
+}
+
+export type StampExportedResult = {
+  stamped: Array<{ invoiceKey: string; record: Record<string, unknown> }>
+  skipped: StampExportedSkip[]
+}
+
+/** Classify unapprove keys before the transaction so one miss cannot roll the rest back. */
+export function classifyUnapproveKeys(
+  invoiceKeys: string[],
+  stamps: Map<string, FinanceBillingKeyStamp>
+): { actionable: string[]; errors: FinanceBillingKeyError[] } {
+  const actionable: string[] = []
+  const errors: FinanceBillingKeyError[] = []
+  for (const invoice_key of invoiceKeys) {
+    const stamp = stamps.get(invoice_key)
+    if (!stamp) {
+      errors.push({ invoice_key, error: "not_found" })
+      continue
+    }
+    if (stamp.exported_at) {
+      errors.push({ invoice_key, error: "already_exported" })
+      continue
+    }
+    actionable.push(invoice_key)
+  }
+  return { actionable, errors }
+}
+
+/**
+ * Classify mark-sent keys. Unapproved is a skip (not a batch failure).
+ * Missing is a per-key error — same honesty as unapprove.
+ */
+export function classifyMarkExportedKeys(
+  invoiceKeys: string[],
+  stamps: Map<string, FinanceBillingKeyStamp>
+): {
+  actionable: string[]
+  skipped: FinanceBillingKeyError[]
+  errors: FinanceBillingKeyError[]
+} {
+  const actionable: string[] = []
+  const skipped: FinanceBillingKeyError[] = []
+  const errors: FinanceBillingKeyError[] = []
+  for (const invoice_key of invoiceKeys) {
+    const stamp = stamps.get(invoice_key)
+    if (!stamp) {
+      errors.push({ invoice_key, error: "not_found" })
+      continue
+    }
+    if (!stamp.approved_at) {
+      skipped.push({ invoice_key, error: "not_approved" })
+      continue
+    }
+    actionable.push(invoice_key)
+  }
+  return { actionable, skipped, errors }
+}
+
+/**
+ * After compose has resolved grains, drop persisted rows that cannot be
+ * approved in this request. Missing stamps are first-approves (materialise).
+ * ALREADY_APPROVED is per-key so one already-approved key does not 409 the
+ * ready ones — same honesty as not_found.
+ */
+export function classifyApprovePersistedKeys(
+  invoiceKeys: string[],
+  stamps: Map<string, FinanceBillingKeyStamp>,
+  reapprove: boolean
+): { actionable: string[]; errors: FinanceBillingKeyError[] } {
+  const actionable: string[] = []
+  const errors: FinanceBillingKeyError[] = []
+  for (const invoice_key of invoiceKeys) {
+    const stamp = stamps.get(invoice_key)
+    if (stamp?.exported_at) {
+      errors.push({ invoice_key, error: "already_exported" })
+      continue
+    }
+    if (!reapprove && stamp?.approved_at) {
+      errors.push({ invoice_key, error: "already_approved" })
+      continue
+    }
+    actionable.push(invoice_key)
+  }
+  return { actionable, errors }
 }
 
 function financeDb(executor?: FinanceExecutor): FinanceExecutor {
@@ -309,6 +412,11 @@ export async function upsertFinanceBillingRecordByInvoiceKey(
   return asApiRecord(row)
 }
 
+/**
+ * Postgres writer for billed-era columns. No production caller — the human
+ * writer is the 410 mark-billed route. Kept as that route's documented
+ * counterpart so billed-column echo tests still have a mutate path.
+ */
 export async function setFinanceBillingRecordBilled(
   input: SetFinanceBillingRecordBilledInput,
   executor?: FinanceExecutor
@@ -369,14 +477,25 @@ export async function setFinanceBillingRecordNotes(
   return asApiRecord(row)
 }
 
+function stampFromRow(row: {
+  approved_at: string | null
+  approved_amount_cents: unknown
+  exported_at: string | null
+}): FinanceBillingKeyStamp {
+  const centsRaw = row.approved_amount_cents
+  const cents =
+    centsRaw == null || centsRaw === "" ? null : Number(centsRaw)
+  return {
+    approved_at: row.approved_at,
+    approved_amount_cents: cents != null && Number.isFinite(cents) ? cents : null,
+    exported_at: row.exported_at,
+  }
+}
+
 async function loadApprovalExportStamps(
   invoiceKey: string,
   executor?: FinanceExecutor
-): Promise<{
-  approved_at: string | null
-  approved_amount_cents: number | null
-  exported_at: string | null
-} | null> {
+): Promise<FinanceBillingKeyStamp | null> {
   const db = financeDb(executor)
   const rows = rowsOf<{
     approved_at: string | null
@@ -392,17 +511,36 @@ async function loadApprovalExportStamps(
     `)
   )
   const row = rows[0]
-  if (!row) return null
-  const centsRaw = row.approved_amount_cents
-  const cents =
-    centsRaw == null || centsRaw === ""
-      ? null
-      : Number(centsRaw)
-  return {
-    approved_at: row.approved_at,
-    approved_amount_cents: cents != null && Number.isFinite(cents) ? cents : null,
-    exported_at: row.exported_at,
+  return row ? stampFromRow(row) : null
+}
+
+export async function loadFinanceBillingKeyStamps(
+  invoiceKeys: string[],
+  executor?: FinanceExecutor
+): Promise<Map<string, FinanceBillingKeyStamp>> {
+  const out = new Map<string, FinanceBillingKeyStamp>()
+  if (invoiceKeys.length === 0) return out
+  const db = financeDb(executor)
+  const rows = rowsOf<{
+    invoice_key: string
+    approved_at: string | null
+    approved_amount_cents: unknown
+    exported_at: string | null
+  }>(
+    await db.execute(sql`
+      SELECT invoice_key, approved_at, approved_amount_cents, exported_at
+      FROM finance_billing_records
+      WHERE invoice_key = ANY(ARRAY[${sql.join(
+        invoiceKeys.map((k) => sql`${k}`),
+        sql`, `
+      )}])
+        AND invoice_key NOT LIKE 'xero:%'
+    `)
+  )
+  for (const row of rows) {
+    out.set(String(row.invoice_key), stampFromRow(row))
   }
+  return out
 }
 
 export async function setFinanceBillingRecordApproved(
@@ -544,15 +682,16 @@ export async function setFinanceBillingRecordExported(
 }
 
 /**
- * Stamp exported_at on approved keys only. Unapproved keys are skipped, not
- * a batch failure — mark-as-sent is scoped to whatever is already approved.
+ * Stamp exported_at on approved keys only. Unapproved and missing keys are
+ * skipped (counted), not a batch failure. Genuine write failures still throw.
  */
 export async function stampExportedKeysSkippingUnapproved(
   invoiceKeys: string[],
   exportedBy: number,
   executor?: FinanceExecutor
-): Promise<Array<{ invoiceKey: string; record: Record<string, unknown> }>> {
+): Promise<StampExportedResult> {
   const stamped: Array<{ invoiceKey: string; record: Record<string, unknown> }> = []
+  const skipped: StampExportedSkip[] = []
   for (const invoiceKey of invoiceKeys) {
     try {
       const record = await setFinanceBillingRecordExported(
@@ -562,12 +701,17 @@ export async function stampExportedKeysSkippingUnapproved(
       stamped.push({ invoiceKey, record })
     } catch (error: unknown) {
       if (error instanceof FinanceBillingWriteError && error.code === "NOT_APPROVED") {
+        skipped.push({ invoiceKey, reason: "not_approved" })
+        continue
+      }
+      if (error instanceof FinanceBillingWriteError && error.code === "NOT_FOUND") {
+        skipped.push({ invoiceKey, reason: "not_found" })
         continue
       }
       throw error
     }
   }
-  return stamped
+  return { stamped, skipped }
 }
 
 /**

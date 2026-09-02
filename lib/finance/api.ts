@@ -412,7 +412,11 @@ export async function approveBillingRecords(params: {
     approved_amount: number | null
     approved_lines_hash: string | null
   }>
-  errors: Array<{ invoice_key: string; error: "not_found"; status: 404 }>
+  errors: Array<{
+    invoice_key: string
+    error: "not_found" | "already_approved" | "already_exported"
+    status: 404 | 409
+  }>
 }> {
   const path = "/api/finance/billing/approve"
   const response = await fetch(path, {
@@ -426,6 +430,11 @@ export async function approveBillingRecords(params: {
 export async function unapproveBillingRecords(params: { invoice_keys: string[] }): Promise<{
   ok: true
   records: Array<{ invoice_key: string; persisted_record_id: number }>
+  errors: Array<{
+    invoice_key: string
+    error: "not_found" | "already_exported"
+    status: 404 | 409
+  }>
 }> {
   const path = "/api/finance/billing/unapprove"
   const response = await fetch(path, {
@@ -446,6 +455,8 @@ export async function markBillingRecordsExported(params: { invoice_keys: string[
     exported_by: number | null
     exported_by_name: string
   }>
+  skipped: Array<{ invoice_key: string; error: "not_approved" }>
+  errors: Array<{ invoice_key: string; error: "not_found"; status: 404 }>
 }> {
   const path = "/api/finance/billing/mark-exported"
   const response = await fetch(path, {

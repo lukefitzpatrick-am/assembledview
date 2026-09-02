@@ -11,6 +11,7 @@ import {
   MARK_SENT_TO_FINANCE_CONFIRM,
   MARK_SENT_TO_FINANCE_COPY,
   MARK_SENT_TO_FINANCE_TITLE,
+  markSentResultToast,
 } from "@/lib/finance/markSentToFinanceCopy"
 import { MarkSentToFinanceButton } from "../MarkSentToFinanceButton"
 
@@ -63,5 +64,11 @@ describe("MarkSentToFinanceButton", () => {
     })
     expect(window.confirm).not.toHaveBeenCalled()
     expect(onConfirm).toHaveBeenCalledTimes(1)
+  })
+
+  it("says N marked, M skipped when some keys were not approved", () => {
+    expect(markSentResultToast({ marked: 2, skippedNotApproved: 3 })).toBe(
+      "2 marked, 3 skipped (not approved)"
+    )
   })
 })

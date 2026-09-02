@@ -23,8 +23,8 @@ export type ApproveRequestParseErr = {
 
 export type ApproveKeyError = {
   invoice_key: string
-  error: "not_found"
-  status: 404
+  error: "not_found" | "already_approved" | "already_exported"
+  status: 404 | 409
 }
 
 export function parseInvoiceKeys(raw: unknown): string[] | null {
@@ -108,5 +108,15 @@ export function notFoundErrors(keys: string[]): ApproveKeyError[] {
     invoice_key,
     error: "not_found" as const,
     status: 404 as const,
+  }))
+}
+
+export function persistedApproveErrors(
+  items: Array<{ invoice_key: string; error: "already_approved" | "already_exported" }>
+): ApproveKeyError[] {
+  return items.map((item) => ({
+    invoice_key: item.invoice_key,
+    error: item.error,
+    status: 409 as const,
   }))
 }

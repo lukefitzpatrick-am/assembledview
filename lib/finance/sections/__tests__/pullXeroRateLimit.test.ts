@@ -16,4 +16,8 @@ describe("pull-xero rate limit window", () => {
   it("allows a run after the window", () => {
     assert.equal(pullXeroRetryAfterSeconds(1_000, 1_000 + 60_000), null)
   })
+
+  it("does not rate-limit when lastAt is NaN (NULL run_finished_at)", () => {
+    assert.equal(pullXeroRetryAfterSeconds(Number.NaN, 1_000), null)
+  })
 })

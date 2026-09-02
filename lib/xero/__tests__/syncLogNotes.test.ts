@@ -6,6 +6,7 @@ import {
   SQL_SYNC_LOG_NOTES_SOURCE_EXPR,
   isCronWatermarkEligibleNotes,
   pickLatestCronWatermarkLog,
+  syncLogNotesSource,
 } from "../syncLogNotes"
 import { resumeInvoiceWatermark } from "../watermark"
 
@@ -83,5 +84,9 @@ describe("cron watermark lookup vs prose xero_sync_log.notes", () => {
     assert.ok(SQL_SYNC_LOG_NOTES_PULLED_BY_EXPR.includes("~"))
     assert.ok(SQL_SYNC_LOG_NOTES_PULLED_BY_EXPR.includes("notes::jsonb->>'pulled_by'"))
     assert.ok(SQL_SYNC_LOG_NOTES_PULLED_BY_EXPR.includes("ELSE NULL"))
+  })
+
+  it("TS extract returns null for invalid JSON that begins with a brace (SQL CASE would raise 22P02)", () => {
+    assert.equal(syncLogNotesSource("{not json"), null)
   })
 })
