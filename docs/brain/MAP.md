@@ -62,7 +62,7 @@ Adding or altering a channel touches, at minimum:
 
 `BLAST-RADIUS.md` carries the full ~12-map list. Complete all of them or the channel half-works.
 
-**Save path** `POST /api/plans/save` → `lib/data/savePlan.ts` → one transaction writing `media_plan_versions` + `line_items` + `schedule_months` + `mba_fee_snapshots`. After that commit, when `ingestStageId` is present, `completeStagedIngestAfterSave` writes panels / `ingest_runs` / retain — never inside `savePlanVersion`. `WRITE_BACKEND=postgres`. Working drafts live in `plan_working_drafts` behind `NEXT_PUBLIC_PLAN_DRAFTS`.
+**Save path** `POST /api/plans/save` → `lib/data/savePlan.ts` → one transaction writing `media_plan_versions` + `line_items` + `schedule_months` + `mba_fee_snapshots`. After that commit, when `ingestStageId` is present, `completeStagedIngestAfterSave` writes panels / `ingest_runs` / retain — never inside `savePlanVersion`. `WRITE_BACKEND=postgres`. Working drafts live in `plan_working_drafts` (unique `(master_id, user_id)`; identity email else `sub`, never `"unknown"`). `NEXT_PUBLIC_PLAN_DRAFTS` gates autosave chrome; persistence + offer are always on.
 
 **Read path** `GET /api/mediaplans/mba/[mba_number]` (1,588 lines) → `lib/data/readMbaPlanDetail.ts`. One query set, no fallback: a failure is a 500 `PLAN_DETAIL_POSTGRES_FAILED`, deliberately.
 
