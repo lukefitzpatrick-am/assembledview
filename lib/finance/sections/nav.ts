@@ -16,7 +16,7 @@ export const FINANCE_SECTION_SIDEBAR_ITEMS: readonly FinanceSectionNavItem[] = [
     path: "/finance/invoicing",
     label: "Clients billing",
     legacyTab: "billing",
-    description: "Client billing, owed, In Xero, periods, and Xero",
+    description: "To bill, In Xero, owed, exceptions, and periods",
   },
   {
     path: "/finance/costs",
@@ -39,21 +39,16 @@ export const FINANCE_SECTION_SIDEBAR_ITEMS: readonly FinanceSectionNavItem[] = [
 ] as const
 
 /**
- * In-page tabs for the Clients billing sidebar item (Invoicing | Owed | In Xero | Periods | Xero).
+ * In-page tabs for the Clients billing sidebar item, in lifecycle order
+ * (To bill | In Xero | Owed | Exceptions | Periods). Labels are not URLs.
  * Forecasting and Investment have no cross-section tab bar (FIN-1).
  */
 export const CLIENTS_BILLING_TAB_ITEMS: readonly FinanceSectionNavItem[] = [
   {
     path: "/finance/invoicing",
-    label: "Invoicing",
+    label: "To bill",
     legacyTab: "billing",
     description: "Client billing and receivables",
-  },
-  {
-    path: "/finance/owed",
-    label: "Owed",
-    legacyTab: "billing",
-    description: "Debtors ledger — live Xero AR ageing",
   },
   {
     path: "/finance/in-xero",
@@ -62,16 +57,22 @@ export const CLIENTS_BILLING_TAB_ITEMS: readonly FinanceSectionNavItem[] = [
     description: "Match Xero drafts to approved invoices before authorise",
   },
   {
+    path: "/finance/owed",
+    label: "Owed",
+    legacyTab: "billing",
+    description: "Debtors ledger — live Xero AR ageing",
+  },
+  {
+    path: "/finance/xero",
+    label: "Exceptions",
+    legacyTab: "queue",
+    description: "Xero exceptions and PC6 matches",
+  },
+  {
     path: "/finance/periods",
     label: "Periods",
     legacyTab: "overview",
     description: "Finance period rail and runs",
-  },
-  {
-    path: "/finance/xero",
-    label: "Xero",
-    legacyTab: "queue",
-    description: "Xero exceptions and PC6 matches",
   },
 ] as const
 
@@ -167,7 +168,7 @@ export function isPublishersFinancePath(pathname: string): boolean {
 
 /**
  * In-shell tab pills for the current path.
- * Clients billing → Invoicing | Owed | In Xero | Periods | Xero.
+ * Clients billing → To bill | In Xero | Owed | Exceptions | Periods.
  * Periods is omitted when `periodsEnabled` is false (`FINANCE_PERIODS` off — FIN-8).
  * Publishers keeps CostsSubNav only (no shell pills).
  * Forecasting / Investment → none (dedicated sidebar items).

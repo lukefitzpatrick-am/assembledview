@@ -34,7 +34,7 @@ export function XeroPageClient({ section }: { section: "exceptions" | "matches" 
   }, [])
 
   return (
-    <FinanceSectionsShell title="Xero">
+    <FinanceSectionsShell title="Exceptions">
       <div className="space-y-4">
         <XeroSubNav />
         {coverage ? (

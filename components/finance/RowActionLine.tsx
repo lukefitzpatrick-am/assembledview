@@ -10,7 +10,9 @@ import {
 import type { BillingState } from "@/lib/finance/billingLifecycle"
 
 export type RowActionLineProps = {
-  state: BillingState
+  state?: BillingState
+  /** When set, used instead of BillingStateBadge. Still never clickable. */
+  pill?: ReactNode
   approvedDrift?: boolean
   reason?: string
   context?: ReactNode
@@ -25,6 +27,7 @@ export type RowActionLineProps = {
  */
 export function RowActionLine({
   state,
+  pill,
   approvedDrift,
   reason,
   context,
@@ -32,14 +35,22 @@ export function RowActionLine({
   document,
   menuItems,
 }: RowActionLineProps) {
+  const pillNode =
+    pill ??
+    (state != null ? (
+      <BillingStateBadge state={state} approvedDrift={approvedDrift} reason={reason} />
+    ) : null)
+
   return (
     <div
       data-row-action-line=""
       className="flex min-w-0 items-center gap-2"
     >
-      <div data-row-action-slot="pill" className="shrink-0">
-        <BillingStateBadge state={state} approvedDrift={approvedDrift} reason={reason} />
-      </div>
+      {pillNode != null ? (
+        <div data-row-action-slot="pill" className="shrink-0">
+          {pillNode}
+        </div>
+      ) : null}
       {context != null && context !== "" ? (
         <div
           data-row-action-slot="context"

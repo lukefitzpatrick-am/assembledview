@@ -87,7 +87,7 @@ On every finance row, controls follow a locked three-way split. Do not add a fou
 
 | Kind | What it is | Rule |
 |---|---|---|
-| **Pill** | A state | Never clickable. Always first on the action line. Seven values: `ready` \| `approved` \| `sent_to_finance` \| `drafted` \| `issued` \| `paid` \| `overdue`. Render `BillingStateBadge` — do not create a second badge. |
+| **Pill** | A state | Never clickable. Always first on the action line. Invoicing uses `BillingStateBadge` (seven values: `ready` \| `approved` \| `sent_to_finance` \| `drafted` \| `issued` \| `paid` \| `overdue`). In Xero uses the match outcome (`Differs` \| `Missing` \| `Extra` \| `Agrees`) in the same slot — not a second billing-lifecycle palette. |
 | **Button** | The one action that moves this row forward | Labelled as the next step. Everything else goes in the overflow menu. |
 | **Icon / document control** | Opens a file or opens the menu | Never changes state. The invoice download is labelled `📄 Invoice` and renders only when a PDF exists — never disabled, never "coming soon". |
 
@@ -95,7 +95,7 @@ Layout is `RowActionLine`: pill → optional context text → spacer → primary
 
 **Three-way test:** if it is a state, it is the pill; if it moves the row forward, it is the button; if it opens a file or a menu, it is the document control or the ⋯. If none of those fit, stop — do not invent a fourth control.
 
-Primitives: `components/finance/RowActionLine.tsx`, `RowActionMenu.tsx`, `InvoiceDocumentButton.tsx`. Clients billing (`/finance/invoicing`) is the first mounted caller — one `RowActionLine` per `invoice_key`. Do not wire a parallel chrome.
+Primitives: `components/finance/RowActionLine.tsx`, `RowActionMenu.tsx`, `InvoiceDocumentButton.tsx`. Mounted callers: Clients billing `/finance/invoicing` (one line per `invoice_key`) and In Xero `/finance/in-xero` (one line per match row). Do not wire a parallel chrome.
 
 ## Change protocol
 

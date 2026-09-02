@@ -638,7 +638,7 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
     inBottomNav: true,
     roles: ["admin"],
     group: "finance",
-    searchTerms: "billing receivables invoicing clients billing finance",
+    searchTerms: "billing receivables invoicing clients billing finance to bill",
   },
   {
     path: "/finance/owed",
@@ -669,12 +669,12 @@ export const ROUTE_MANIFEST: readonly RouteManifestEntry[] = [
   },
   {
     path: "/finance/xero",
-    label: "Xero",
-    title: "Finance · Xero",
+    label: "Exceptions",
+    title: "Finance · Exceptions",
     inPalette: true,
     roles: ["admin"],
     group: "finance",
-    searchTerms: "xero queue match exceptions clients billing",
+    searchTerms: "xero queue match exceptions clients billing invoicing",
   },
   {
     path: "/finance/xero/matches",

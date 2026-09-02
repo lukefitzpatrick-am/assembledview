@@ -83,7 +83,17 @@ test("sidebar snapshot is FIN-1 four-item Finance group", () => {
 test("Clients billing tabs; Forecasting/Investment/Publishers have no shell pills", () => {
   assert.deepEqual(
     CLIENTS_BILLING_TAB_ITEMS.map((i) => i.label),
-    ["Invoicing", "Owed", "In Xero", "Periods", "Xero"]
+    ["To bill", "In Xero", "Owed", "Exceptions", "Periods"]
+  )
+  assert.deepEqual(
+    CLIENTS_BILLING_TAB_ITEMS.map((i) => i.path),
+    [
+      "/finance/invoicing",
+      "/finance/in-xero",
+      "/finance/owed",
+      "/finance/xero",
+      "/finance/periods",
+    ]
   )
   assert.equal(financeSectionPillsForPath("/finance/invoicing").length, 5)
   assert.equal(financeSectionPillsForPath("/finance/owed").length, 5)
@@ -99,7 +109,11 @@ test("Clients billing hides Periods tab when FINANCE_PERIODS is off (FIN-8)", ()
   const pills = financeSectionPillsForPath("/finance/invoicing", { periodsEnabled: false })
   assert.deepEqual(
     pills.map((i) => i.label),
-    ["Invoicing", "Owed", "In Xero", "Xero"]
+    ["To bill", "In Xero", "Owed", "Exceptions"]
+  )
+  assert.deepEqual(
+    pills.map((i) => i.path),
+    ["/finance/invoicing", "/finance/in-xero", "/finance/owed", "/finance/xero"]
   )
   assert.equal(
     financeSectionPillsForPath("/finance/xero", { periodsEnabled: false }).length,
@@ -108,6 +122,35 @@ test("Clients billing hides Periods tab when FINANCE_PERIODS is off (FIN-8)", ()
   assert.equal(
     financeSectionPillsForPath("/finance/invoicing", { periodsEnabled: true }).length,
     5
+  )
+})
+
+test("old tab labels were never URLs and do not redirect", () => {
+  for (const label of ["Invoicing", "Xero", "To bill", "Exceptions", "Owed", "In Xero"]) {
+    assert.equal(sectionPathForFinanceTab(label), null, `${label} is a display label, not a ?tab=`)
+    assert.equal(FINANCE_TAB_TO_SECTION_PATH[label], undefined)
+  }
+  const sources = FINANCE_LEGACY_PATH_REDIRECTS.map((r) => r.source)
+  assert.ok(!sources.includes("/finance/Invoicing"))
+  assert.ok(!sources.includes("/finance/Xero"))
+  assert.ok(!sources.includes("/To bill"))
+  assert.equal(
+    FINANCE_LEGACY_PATH_REDIRECTS.find((r) => r.source === "/finance/invoicing"),
+    undefined,
+    "canonical /finance/invoicing is a live route, not a redirect source"
+  )
+  assert.equal(
+    FINANCE_LEGACY_PATH_REDIRECTS.find((r) => r.source === "/finance/xero"),
+    undefined,
+    "canonical /finance/xero is a live route, not a redirect source"
+  )
+  assert.equal(
+    FINANCE_LEGACY_PATH_REDIRECTS.find((r) => r.source === "/finance/in-xero"),
+    undefined
+  )
+  assert.equal(
+    FINANCE_LEGACY_PATH_REDIRECTS.find((r) => r.source === "/finance/owed"),
+    undefined
   )
 })
 

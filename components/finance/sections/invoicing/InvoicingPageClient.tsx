@@ -385,7 +385,7 @@ export function InvoicingPageClient() {
 
   return (
     <FinanceSectionsShell
-      title="Clients billing"
+      title="To bill"
       headerNote={INVOICING_EX_GST_HEADER}
       scopeBarFramed={false}
       scopeBar={
