@@ -38,6 +38,8 @@ export type HandlerRow = {
 const RECOGNISED_GUARD_PATTERNS: { name: string; re: RegExp; bucket: Mechanism }[] = [
   { name: "checkClientMbaAccess", re: /\bcheckClientMbaAccess\b/, bucket: "checkClientMbaAccess" },
   { name: "resolveClientMbaScope", re: /\bresolveClientMbaScope\b/, bucket: "checkClientMbaAccess" },
+  { name: "assertClientAccess", re: /\bassertClientAccess\b/, bucket: "checkClientMbaAccess" },
+  { name: "serveArInvoicePdf", re: /\bserveArInvoicePdf\b/, bucket: "checkClientMbaAccess" },
   { name: "requirePacingAccess", re: /\brequirePacingAccess\b/, bucket: "checkClientMbaAccess" },
   {
     name: "createChannelLineItemsGetHandler",
@@ -314,6 +316,10 @@ export function classifyHandler(opts: {
   }
   if (opts.guardsFound.includes("verifyFrameToken")) {
     return "public"
+  }
+  // AR invoice PDFs are client-downloadable (assertClientAccess) — not book-wide staff.
+  if (p.startsWith("/api/finance/invoices/")) {
+    return "tenant-scoped"
   }
   // Staff namespaces (book-wide by design)
   if (

@@ -19,6 +19,7 @@ import { exportCostsInvoicesExcel } from "@/lib/finance/sections/exportCostsInvo
 import { fyDisplayLabel } from "@/lib/finance/months"
 import { formatMoney } from "@/lib/format/money"
 import { financeHref } from "@/lib/finance/sections/financeHref"
+import { apInvoicePdfPath } from "@/lib/finance/invoices/invoicePdfPaths"
 import {
   useFinanceScopeApplied,
   useFinanceScopeStore,
@@ -247,9 +248,9 @@ export function CostsInvoicesClient() {
                               heuristic
                             </Badge>
                           ) : null}
-                          {bill.pdfUrl ? (
+                          {bill.xeroInvoiceId && bill.pdfUrl ? (
                             <a
-                              href={bill.pdfUrl}
+                              href={apInvoicePdfPath(bill.xeroInvoiceId)}
                               target="_blank"
                               rel="noreferrer"
                               className="ml-2 inline-flex items-center gap-0.5 text-foreground underline-offset-2 hover:underline"
@@ -349,9 +350,9 @@ function FragmentRow({
                     heuristic
                   </Badge>
                 ) : null}
-                {bill.pdfUrl ? (
+                {bill.xeroInvoiceId && bill.pdfUrl ? (
                   <a
-                    href={bill.pdfUrl}
+                    href={apInvoicePdfPath(bill.xeroInvoiceId)}
                     target="_blank"
                     rel="noreferrer"
                     className="ml-2 inline-flex items-center gap-0.5 text-foreground underline-offset-2 hover:underline"

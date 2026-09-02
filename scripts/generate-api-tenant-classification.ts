@@ -221,7 +221,7 @@ Living recount of every HTTP handler under \`app/api\` \`route.ts\` files. Regen
 
 | Mechanism | Maps from |
 |---|---|
-| checkClientMbaAccess | \`checkClientMbaAccess\`, \`resolveClientMbaScope\`, \`requirePacingAccess\`, \`createChannelLineItemsGetHandler\`, \`getUserClientSlugs\` / \`getUserClientIdentifier\` used as AuthZ |
+| checkClientMbaAccess | \`checkClientMbaAccess\`, \`resolveClientMbaScope\`, \`assertClientAccess\`, \`serveArInvoicePdf\`, \`requirePacingAccess\`, \`createChannelLineItemsGetHandler\`, \`getUserClientSlugs\` / \`getUserClientIdentifier\` used as AuthZ |
 | requireRole | \`requireRole\`, \`requireAdmin\`, \`requireFinanceAdmin\`, \`requireCodexInternalAccess\`, \`requireProxyStaff\`, inline admin/client deny |
 | CRON_SECRET | \`assertCronSecret\` |
 | none | No recognised guard in the handler body or one-hop same-file helper |

@@ -10,6 +10,8 @@
 import { sql, type SQL } from "drizzle-orm"
 import { getDb } from "@/db"
 import { getCurrentBillingMonth } from "@/lib/finance/months"
+import { apInvoicePdfPath } from "@/lib/finance/invoices/invoicePdfPaths"
+import { pdfAvailableFromJson } from "@/lib/finance/sections/owedQuery"
 import {
   AP_ATTRIBUTION_RULE_TEXT,
   attributeApBillToPublisher,
@@ -50,6 +52,7 @@ export type FinanceCostsQuery = {
 
 export type CostsApBillRow = {
   id: number
+  xeroInvoiceId: string | null
   invoiceNumber: string | null
   status: string | null
   activityMonth: string
@@ -57,6 +60,7 @@ export type CostsApBillRow = {
   totalCents: number
   amountDueCents: number
   contactName: string | null
+  /** Proxied same-origin path — never the private blob URL. */
   pdfUrl: string | null
   attributionMethod: "name" | "unattributed"
   heuristic: boolean
@@ -182,23 +186,6 @@ function monthKeyFromDate(v: unknown): string {
   if (v == null) return ""
   const s = String(v)
   return s.length >= 7 ? s.slice(0, 7) : s
-}
-
-function pdfUrlFromJson(v: unknown): string | null {
-  if (v == null) return null
-  let obj: unknown = v
-  if (typeof v === "string") {
-    try {
-      obj = JSON.parse(v)
-    } catch {
-      return null
-    }
-  }
-  if (obj && typeof obj === "object" && "url" in obj) {
-    const url = (obj as { url?: unknown }).url
-    return typeof url === "string" && url.trim() ? url : null
-  }
-  return null
 }
 
 export function normalizeCostsQuery(input: {
@@ -388,6 +375,7 @@ export async function fetchFinanceCostsSummary(
   const apAgg = await db.execute(sql`
     SELECT
       b.id,
+      b.xero_invoice_id,
       b.invoice_number,
       b.status,
       to_char(date_trunc('month', COALESCE(b.activity_month, b.issue_date))::date, 'YYYY-MM') AS activity_month,
@@ -428,8 +416,11 @@ export async function fetchFinanceCostsSummary(
   for (const row of executeRows(apAgg)) {
     const contactName = row.contact_name == null ? null : String(row.contact_name)
     const attr = attributeApBillToPublisher(contactName, publisherIndex, bookedLabelsByKey)
+    const xeroInvoiceId =
+      row.xero_invoice_id == null ? null : String(row.xero_invoice_id).trim() || null
     const bill: CostsApBillRow = {
       id: asBigInt(row.id),
+      xeroInvoiceId,
       invoiceNumber: row.invoice_number == null ? null : String(row.invoice_number),
       status: row.status == null ? null : String(row.status),
       activityMonth: String(row.activity_month ?? monthKeyFromDate(row.due_date)),
@@ -437,7 +428,10 @@ export async function fetchFinanceCostsSummary(
       totalCents: xeroApExGstCents(row.sub_total),
       amountDueCents: asDollarsToCents(row.amount_due),
       contactName,
-      pdfUrl: pdfUrlFromJson(row.pdf_file),
+      pdfUrl:
+        xeroInvoiceId && pdfAvailableFromJson(row.pdf_file)
+          ? apInvoicePdfPath(xeroInvoiceId)
+          : null,
       attributionMethod: attr.method,
       heuristic: attr.heuristic,
       publisherLabel: attr.publisherLabel,

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/sortable-table-header"
 import { fetchFinanceSectionsJson } from "@/lib/finance/sections/api"
 import { exportOwedExcel } from "@/lib/finance/sections/exportOwed"
+import { arInvoicePdfPath } from "@/lib/finance/invoices/invoicePdfPaths"
 import {
   OWED_BUCKET_IDS,
   type OwedBucket,
@@ -338,12 +339,16 @@ function OwedInvoiceRow({ row }: { row: OwedLedgerRow }) {
         <BillingStateBadge state={row.state} />
       </TableCell>
       <TableCell>
-        <span
-          className="text-[11px] text-muted-foreground"
-          title="PDF download arrives in CB-6 (proxied private blob). Column kept; link omitted so a private blob URL is never opened in the browser."
-        >
-          {row.pdfAvailable ? "Coming soon" : "—"}
-        </span>
+        {row.pdfAvailable ? (
+          <a
+            href={arInvoicePdfPath(row.invoiceKey)}
+            className="text-[11px] text-foreground underline-offset-2 hover:underline"
+          >
+            PDF
+          </a>
+        ) : (
+          <span className="text-[11px] text-muted-foreground">—</span>
+        )}
       </TableCell>
     </TableRow>
   )
