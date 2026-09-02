@@ -24,17 +24,30 @@ export function BillingStateBadge({
   state,
   reason,
   approvedDrift,
+  overdueDays,
   className,
 }: {
   state: BillingState
   reason?: string
   approvedDrift?: boolean
+  /** Owed ledger only — cards omit this and keep the bare "Overdue" label. */
+  overdueDays?: number
   className?: string
 }) {
   const label =
-    state === "approved" && approvedDrift ? "Approved · changed since" : LABELS[state]
+    state === "approved" && approvedDrift
+      ? "Approved · changed since"
+      : state === "overdue" && overdueDays != null && overdueDays > 0
+        ? `Overdue ${overdueDays}d`
+        : LABELS[state]
   return (
-    <Badge size="sm" variant={variantFor(state)} title={reason} className={cn(className)}>
+    <Badge
+      size="sm"
+      variant={variantFor(state)}
+      title={reason}
+      data-billing-state={state}
+      className={cn(className)}
+    >
       {label}
     </Badge>
   )

@@ -47,6 +47,7 @@ export default defineConfig({
       "components/finance/__tests__/rowActionLine.test.tsx",
       "components/finance/sections/invoicing/__tests__/invoicingPlanRow.test.tsx",
       "components/finance/sections/inXero/__tests__/inXeroMatchRow.test.tsx",
+      "components/finance/sections/owed/__tests__/owedInvoiceRow.test.tsx",
       "components/finance/sections/periods/__tests__/periodsScopeHydrate.test.tsx",
       "components/finance/sections/invoicing/__tests__/markSentToFinance.test.tsx",
       "hooks/__tests__/usePlanDraftSession.test.tsx",

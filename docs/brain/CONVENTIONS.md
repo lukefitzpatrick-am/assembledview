@@ -95,7 +95,7 @@ Layout is `RowActionLine`: pill → optional context text → spacer → primary
 
 **Three-way test:** if it is a state, it is the pill; if it moves the row forward, it is the button; if it opens a file or a menu, it is the document control or the ⋯. If none of those fit, stop — do not invent a fourth control.
 
-Primitives: `components/finance/RowActionLine.tsx`, `RowActionMenu.tsx`, `InvoiceDocumentButton.tsx`. Mounted callers: Clients billing `/finance/invoicing` (one line per `invoice_key`) and In Xero `/finance/in-xero` (one line per match row). Do not wire a parallel chrome.
+Primitives: `components/finance/RowActionLine.tsx`, `RowActionMenu.tsx`, `InvoiceDocumentButton.tsx`. Mounted callers: Clients billing `/finance/invoicing` (one line per `invoice_key`), In Xero `/finance/in-xero` (one line per match row), and Owed `/finance/owed` (same primitives in **table cells**, never cards, never a primary). Do not wire a parallel chrome.
 
 ## Change protocol
 

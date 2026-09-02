@@ -5,7 +5,7 @@ import { Download } from "lucide-react"
 import { FinanceSectionsShell } from "@/components/finance/sections/FinanceSectionsShell"
 import { SectionScopeBar } from "@/components/finance/sections/SectionScopeBar"
 import { StatTile } from "@/components/finance/sections/StatTile"
-import { BillingStateBadge } from "@/components/finance/BillingStateBadge"
+import { OwedInvoiceRow } from "@/components/finance/sections/owed/OwedInvoiceRow"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -18,13 +18,11 @@ import {
 } from "@/components/ui/table"
 import { EmptyState, ErrorState, LoadingState } from "@/components/ui/states"
 import {
-  compareValues,
   SortableTableHeader,
   type SortDirection,
 } from "@/components/ui/sortable-table-header"
 import { fetchFinanceSectionsJson } from "@/lib/finance/sections/api"
 import { exportOwedExcel } from "@/lib/finance/sections/exportOwed"
-import { arInvoicePdfPath } from "@/lib/finance/invoices/invoicePdfPaths"
 import {
   OWED_BUCKET_IDS,
   type OwedBucket,
@@ -32,10 +30,13 @@ import {
   type OwedLedgerRow,
 } from "@/lib/finance/sections/owedLedger"
 import {
+  sortOwedLedgerRows,
+  type OwedSortColumn,
+} from "@/lib/finance/sections/owedPresentation"
+import {
   useFinanceScopeApplied,
   useFinanceScopeVersion,
 } from "@/lib/finance/sections/useFinanceScope"
-import { formatDateShort } from "@/lib/format/date"
 import { formatMoney } from "@/lib/format/money"
 import type { ViewState } from "@/lib/ui/viewState"
 import { cn } from "@/lib/utils"
@@ -58,20 +59,8 @@ const BUCKET_ACCENT: Record<OwedBucket, string> = {
 
 const BASIS = "Xero AR outstanding, ex-GST"
 
-type SortColumn = "dueDate" | "outstanding"
-
 function moneyCell(cents: number): string {
   return formatMoney(cents / 100)
-}
-
-function sortRows(
-  rows: OwedLedgerRow[],
-  column: SortColumn,
-  direction: Exclude<SortDirection, null>
-): OwedLedgerRow[] {
-  const valueOf = (row: OwedLedgerRow) =>
-    column === "dueDate" ? row.dueDate ?? "" : row.outstandingCents
-  return rows.toSorted((a, b) => compareValues(valueOf(a), valueOf(b), direction))
 }
 
 export function OwedPageClient() {
@@ -81,7 +70,7 @@ export function OwedPageClient() {
   const [searchInput, setSearchInput] = useState("")
   const [search, setSearch] = useState("")
   const [exporting, setExporting] = useState(false)
-  const [sortColumn, setSortColumn] = useState<SortColumn>("dueDate")
+  const [sortColumn, setSortColumn] = useState<OwedSortColumn>("dueDate")
   const [sortDirection, setSortDirection] = useState<Exclude<SortDirection, null>>("asc")
   const [view, setView] = useState<ViewState<OwedLedgerPayload>>({ status: "loading" })
   const [updating, setUpdating] = useState(false)
@@ -115,7 +104,7 @@ export function OwedPageClient() {
     load()
   }, [load, scopeVersion])
 
-  const toggleSort = (column: SortColumn) => {
+  const toggleSort = (column: OwedSortColumn) => {
     if (sortColumn !== column) {
       setSortColumn(column)
       setSortDirection(column === "outstanding" ? "desc" : "asc")
@@ -128,12 +117,12 @@ export function OwedPageClient() {
 
   const sortedRows = useMemo(() => {
     if (!payload) return { resolved: [] as OwedLedgerRow[], unresolved: [] as OwedLedgerRow[] }
-    const resolved = sortRows(
+    const resolved = sortOwedLedgerRows(
       payload.rows.filter((r) => r.group === "client"),
       sortColumn,
       sortDirection
     )
-    const unresolved = sortRows(
+    const unresolved = sortOwedLedgerRows(
       payload.rows.filter((r) => r.group === "unresolved"),
       sortColumn,
       sortDirection
@@ -284,6 +273,9 @@ export function OwedPageClient() {
                   <TableHead className="text-right">Age</TableHead>
                   <TableHead>State</TableHead>
                   <TableHead>PDF</TableHead>
+                  <TableHead>
+                    <span className="sr-only">Actions</span>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -293,7 +285,7 @@ export function OwedPageClient() {
                 {sortedRows.unresolved.length > 0 ? (
                   <>
                     <TableRow className="bg-surface-panel hover:bg-surface-panel">
-                      <TableCell colSpan={10} className="text-xs font-medium text-muted-foreground">
+                      <TableCell colSpan={11} className="text-xs font-medium text-muted-foreground">
                         Unresolved client
                         <span className="num ml-2">{sortedRows.unresolved.length}</span>
                       </TableCell>
@@ -309,47 +301,5 @@ export function OwedPageClient() {
         )}
       </div>
     </FinanceSectionsShell>
-  )
-}
-
-function OwedInvoiceRow({ row }: { row: OwedLedgerRow }) {
-  return (
-    <TableRow className="interactive-row">
-      <TableCell className="text-xs">
-        <p className="truncate font-medium">{row.clientName}</p>
-        {row.contactName &&
-        row.contactName.toLowerCase() !== row.clientName.toLowerCase() ? (
-          <p className="truncate text-[11px] text-muted-foreground" title={row.contactName}>
-            {row.contactName}
-          </p>
-        ) : null}
-      </TableCell>
-      <TableCell className="num text-xs">{row.invoiceNumber}</TableCell>
-      <TableCell className="num text-xs">{formatDateShort(row.issueDate)}</TableCell>
-      <TableCell className="num text-xs">{formatDateShort(row.dueDate)}</TableCell>
-      <TableCell className="num text-right text-xs">{moneyCell(row.totalCents)}</TableCell>
-      <TableCell className="num text-right text-xs">{moneyCell(row.paidCents)}</TableCell>
-      <TableCell className="num text-right text-xs font-medium">
-        {moneyCell(row.outstandingCents)}
-      </TableCell>
-      <TableCell className="num text-right text-xs">
-        {row.daysOverdue > 0 ? `${row.daysOverdue}d` : "—"}
-      </TableCell>
-      <TableCell>
-        <BillingStateBadge state={row.state} />
-      </TableCell>
-      <TableCell>
-        {row.pdfAvailable ? (
-          <a
-            href={arInvoicePdfPath(row.invoiceKey)}
-            className="text-[11px] text-foreground underline-offset-2 hover:underline"
-          >
-            PDF
-          </a>
-        ) : (
-          <span className="text-[11px] text-muted-foreground">—</span>
-        )}
-      </TableCell>
-    </TableRow>
   )
 }
