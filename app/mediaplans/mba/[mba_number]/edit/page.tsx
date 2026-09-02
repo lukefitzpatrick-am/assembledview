@@ -401,6 +401,7 @@ import {
   classifyDocStepFailure,
   shouldSkipDocsForCampaignStatus,
 } from "@/lib/docs/saveDocSteps"
+import { deriveLiveMbaScopeSelection } from "@/lib/docs/liveMbaScopeSelection"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
@@ -6481,6 +6482,16 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     feecontentcreator,
   ])
 
+  const liveMbaScopeSelection = useMemo(
+    () =>
+      deriveLiveMbaScopeSelection({
+        allChannelsHydrated,
+        lineItems: billingSaveInputs.lineItems,
+        selectedMonthYears: partialMBAMonthYears,
+      }),
+    [allChannelsHydrated, billingSaveInputs, partialMBAMonthYears]
+  )
+
   /**
    * Single source of truth for MBA totals, panel indicators, PDF/xlsx exports —
    * includes partial selection via billingSaveInputs.
@@ -9094,7 +9105,10 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
   }
 
-  const generateMbaPdfBlob = async (opts?: { planVersion?: string }) => {
+  const generateMbaPdfBlob = async (opts?: {
+    planVersion?: string
+    liveScope?: boolean
+  }) => {
     await waitForStateFlush()
 
     const fv = form.getValues()
@@ -9121,6 +9135,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       body: JSON.stringify({
         mba_number: mbaNum,
         version_number: Number(resolvedPlanVersion),
+        ...(opts?.liveScope && liveMbaScopeSelection
+          ? liveMbaScopeSelection
+          : {}),
       }),
     })
 
@@ -9298,7 +9315,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
     setIsLoading(true)
     try {
-      const { blob: pdfBlob, fileName } = await generateMbaPdfBlob()
+      const { blob: pdfBlob, fileName } = await generateMbaPdfBlob({
+        liveScope: true,
+      })
 
       // Create a URL for the blob
       const url = window.URL.createObjectURL(pdfBlob)
@@ -9467,7 +9486,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
     try {
       const [{ blob: mbaBlob, fileName: mbaFileName }, { blob: mediaPlanBlob, fileName: mediaPlanFileName }, { blob: namingBlob, fileName: namingFileName }] = await Promise.all([
-        generateMbaPdfBlob(),
+        generateMbaPdfBlob({ liveScope: true }),
         generateMediaPlanXlsxBlob(),
         generateNamingConventionsXlsxBlob(),
       ]);
