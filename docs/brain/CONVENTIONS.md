@@ -81,6 +81,22 @@ Do not reintroduce background/fire-and-forget refresh. It was removed on purpose
 
 On this project **redeploy is the promote** — a Vercel env var set after a build does not reach that build.
 
+## Finance row action grammar
+
+On every finance row, controls follow a locked three-way split. Do not add a fourth kind.
+
+| Kind | What it is | Rule |
+|---|---|---|
+| **Pill** | A state | Never clickable. Always first on the action line. Seven values: `ready` \| `approved` \| `sent_to_finance` \| `drafted` \| `issued` \| `paid` \| `overdue`. Render `BillingStateBadge` — do not create a second badge. |
+| **Button** | The one action that moves this row forward | Labelled as the next step. Everything else goes in the overflow menu. |
+| **Icon / document control** | Opens a file or opens the menu | Never changes state. The invoice download is labelled `📄 Invoice` and renders only when a PDF exists — never disabled, never "coming soon". |
+
+Layout is `RowActionLine`: pill → optional context text → spacer → primary button → document control → ⋯. Callers do not choose the order. Overflow is `RowActionMenu`; disabled items stay visible and expose `disabledReason` on hover — a missing action is confusing, a disabled one with a reason is informative.
+
+**Three-way test:** if it is a state, it is the pill; if it moves the row forward, it is the button; if it opens a file or a menu, it is the document control or the ⋯. If none of those fit, stop — do not invent a fourth control.
+
+Primitives: `components/finance/RowActionLine.tsx`, `RowActionMenu.tsx`, `InvoiceDocumentButton.tsx`. They are unmounted until a caller adopts them; do not wire a parallel chrome.
+
 ## Change protocol
 
 One prompt = one commit = one gate review. Claude and Cursor propose; a human applies. Anything ambiguous is reported, not guessed.
