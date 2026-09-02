@@ -112,6 +112,30 @@ function buyTypeForMedia(mediaType: string): string {
   return mediaType === "radio" ? "spots" : "fixed_cost"
 }
 
+function isBonusBookingStatus(status: string): boolean {
+  return status === "bonus" || status === "bonus_display"
+}
+
+/**
+ * When the file supplied no buy type, infer from burst booking_status — never
+ * from amount. A paid line at $0 is a money defect, not bonus.
+ *
+ * Mixed paid + bonus on one source row stay at the media fallback (OOH
+ * fixed_cost). Bonus bursts already carry media_amount 0, so the money is
+ * right; the line is a paid line that also got bonus weeks. Deliberate, not
+ * an oversight.
+ */
+function buyTypeFromBookingStatus(
+  item: ProposedLineItem,
+  fallback: string,
+): string {
+  if (item.bursts.length === 0) return fallback
+  const allBonus = item.bursts.every((b) =>
+    isBonusBookingStatus(b.booking_status),
+  )
+  return allBonus ? "bonus" : fallback
+}
+
 function resolveLineBuyType(
   item: ProposedLineItem,
   mediaType: "radio" | "ooh",
@@ -334,11 +358,17 @@ export function stampProposalForSave(
   const code = mediaCodeForChannel(channel)
 
   const stubs = proposal.line_items.map((item, index) => {
-    const { buyType, unresolvedRaw } = resolveLineBuyType(
+    const sourcedBuyType = firstDescriptor(item, ["buy_type", "buyType"])
+    const { buyType: resolvedBuyType, unresolvedRaw } = resolveLineBuyType(
       item,
       mediaType,
       resolvedControlled,
     )
+    // File-supplied buy type (IG-4) wins. Otherwise all-bonus / all
+    // bonus_display stamps bonus; mixed and paid keep the media fallback.
+    const buyType = sourcedBuyType
+      ? resolvedBuyType
+      : buyTypeFromBookingStatus(item, resolvedBuyType)
     const mediaSum = item.bursts.reduce((s, b) => s + (b.media_amount || 0), 0)
     const buyGranularity: "panel" | "pack" =
       item.panels.length > 1 ? "pack" : "panel"

@@ -146,10 +146,19 @@ test("JCD accept→editor: 106 buy-row lines (not the old 118 data_rows incl. to
       String(panel.publisherFormatName ?? "").trim() || rawFormat,
       `JCD[${i}]: panel publisherFormatName missing`,
     )
-    assert.equal(card.buyType, "fixed_cost")
     assert.ok(card.market.trim(), `JCD[${i}]: Market empty`)
     assert.ok(card.bursts.length > 0, `JCD[${i}]: no bursts`)
     const money = card.bursts.reduce((s, b) => s + parseBurstMoney(b.budget), 0)
+    if (line.buyType === "bonus") {
+      assert.equal(card.buyType, "bonus", `JCD[${i}]: bonus line must hydrate Bonus`)
+      assert.equal(money, 0, `JCD[${i}]: bonus line must stay $0`)
+    } else {
+      assert.equal(
+        card.buyType,
+        "fixed_cost",
+        `JCD[${i}]: buyType ${card.buyType}`,
+      )
+    }
     moneySum += money
     if (money > 0) paidCards++
   }

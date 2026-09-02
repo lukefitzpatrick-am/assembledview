@@ -623,7 +623,7 @@ test("sourced unresolvable buy type raises a value card and IG-3's gate refuses 
   assert.equal(stamped.lineItems[0]!.attrs?.buyType_unresolved_raw, raw)
 })
 
-test("stamp: QMS fixture with no buy-type column still stamps fixed_cost", async () => {
+test("stamp: QMS fixture with no buy-type column stamps fixed_cost except all-bonus lines", async () => {
   const review = await buildIngestReviewFromFile(
     path.join(FIX, "qms_strength-meals_esb-ooh.xlsx"),
     loadSeedPublisherProfiles(),
@@ -636,8 +636,20 @@ test("stamp: QMS fixture with no buy-type column still stamps fixed_cost", async
     review.template_coverage?.resolved_controlled,
   )
   assert.ok(stamped.lineItems.length > 0)
-  for (const line of stamped.lineItems) {
-    assert.equal(line.buyType, "fixed_cost")
+  const items = review.proposal!.line_items
+  assert.equal(stamped.lineItems.length, items.length)
+  for (let i = 0; i < stamped.lineItems.length; i++) {
+    const item = items[i]!
+    const allBonus =
+      item.bursts.length > 0 &&
+      item.bursts.every(
+        (b) =>
+          b.booking_status === "bonus" || b.booking_status === "bonus_display",
+      )
+    assert.equal(
+      stamped.lineItems[i]!.buyType,
+      allBonus ? "bonus" : "fixed_cost",
+    )
   }
 })
 
