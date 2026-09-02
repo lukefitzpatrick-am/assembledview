@@ -105,8 +105,8 @@ Same hand-rolled pattern: `markUnsavedChanges` gated by `navigationHydratedRef` 
 | Site | Mechanism | Sets dirty when | Clears dirty when | SUCCESS vs ATTEMPT | Notes |
 |---|---|---|---|---|---|
 | Edit `handleSaveAll` working_draft branch | `clearDirtyOnSaveSuccess` after `planDraft.saveDraftNow()` | — | After draft save succeeds | **SUCCESS** | Early return on draft failure; dirty kept |
-| Edit `handleSaveAll` postgres/path success | clear then `router.push` | — | After save + KPI/approval side paths that reached success toast | **SUCCESS** | |
-| Edit `handleSaveAll` legacy Xano success | clear then navigate | — | End of try, after success toast | **SUCCESS** | Outer `catch` does **not** clear (characterisation + P2-3) |
+| Edit `handleSaveAll` postgres/path success | `clearDirtyOnSaveSuccess` then optional `exitAfter` navigate | — | After save + KPI/approval side paths that reached success | **SUCCESS** | Download only when `download: true`; stay on page by default |
+| Edit `handleSaveAll` legacy Xano success | clear then optional `exitAfter` navigate | — | End of try, after success toast | **SUCCESS** | Outer `catch` does **not** clear (characterisation + P2-3) |
 | Edit `handleSaveAll` entry / early returns | none | — | — | **ATTEMPT does not clear** | Hydration hold, clients error, duplicates, billing-overrides block, user cancels overspend confirm |
 | Create `handleSaveAll` | `clearDirtyOnSaveSuccess` after version save | — | After `handleSaveMediaPlanVersion` completes (not `publish_pending`) | **SUCCESS** | `publish_pending` returns without clear |
 | Create publish-retry | clear on ok | — | After `publishResponse.ok` | **SUCCESS** | `!ok` / catch: no clear |

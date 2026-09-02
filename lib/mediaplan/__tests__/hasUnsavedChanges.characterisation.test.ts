@@ -194,9 +194,9 @@ test("CHARACTERISATION edit page: dirty sources and clear sites", () => {
   )
 
   const saveBtn = edit.match(
-    /onClick=\{\(\) => void handleSaveAll\(\)\}[\s\S]{0,280}disabled=\{([\s\S]*?)\}/
+    /saveBarDisabled =\s*([\s\S]*?)const saveBarTitle/
   )
-  assert.ok(saveBtn, "main Save button disabled expression must exist")
+  assert.ok(saveBtn, "primary Save disabled expression must exist")
   assert.doesNotMatch(
     saveBtn![1]!,
     /hasUnsavedChanges/,
@@ -205,14 +205,14 @@ test("CHARACTERISATION edit page: dirty sources and clear sites", () => {
 
   assert.match(
     edit,
-    /onClick=\{\(\) => void planDraft\.saveDraftNow\(\)\}[\s\S]{0,120}!hasUnsavedChanges/s
+    /onPrimary=\{\(\) => void planDraft\.saveDraftNow\(\)\}[\s\S]{0,200}!hasUnsavedChanges/s
   )
 })
 
 test("CHARACTERISATION edit page: outer handleSaveAll catch does NOT clear dirty (failed save stays dirty)", () => {
   const edit = read("app/mediaplans/mba/[mba_number]/edit/page.tsx")
   const marker =
-    "Navigate to mediaplans page after successful save\n      clearDirtyOnSaveSuccess()\n      router.push('/mediaplans')\n    } catch (error: any) {"
+    "Stay on the campaign after a successful save unless exitAfter is set."
   const idx = edit.indexOf(marker)
   assert.ok(idx >= 0, "expected success-clear → outer catch sequence")
   const catchStart = edit.indexOf("} catch (error: any) {", idx)

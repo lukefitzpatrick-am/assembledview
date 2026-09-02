@@ -47,6 +47,7 @@ import { MediaPlanEditorHero } from "@/components/mediaplans/MediaPlanEditorHero
 import { MediaPlanEditorHeroActions } from "@/components/mediaplans/MediaPlanEditorHeroActions"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
+import { SplitActionButton } from "@/components/mediaplans/SplitActionButton"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -184,7 +185,14 @@ import { useWriteBackend } from "@/lib/data/WriteBackendContext"
 import {
   buildSaveModeInput,
   resolvePostgresSaveMode,
+  SAVE_PUBLISHES_IMMEDIATELY,
+  showExplicitPublishButton,
 } from "@/lib/mediaplan/resolvePostgresSaveMode"
+import {
+  describePublishSuccessToast,
+  runSaveSuccessSideEffects,
+  wizardPrimarySaveLabel,
+} from "@/lib/mediaplan/planWizardSaveBar"
 import {
   POSTGRES_SAVE_MODAL_STEPS,
   assemblePlansSaveRequestBody,
@@ -7228,8 +7236,35 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     // from publisher/client tables only
   }, [])
 
-  const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
+  const handleSaveAll = async (opts?: {
+    intent?: "save" | "publish"
+    exitAfter?: boolean
+    download?: boolean
+  }) => {
     const saveIntent = opts?.intent === "publish" ? "publish" : "save"
+    const afterSuccessfulSave = async (args: {
+      versionNumber?: number | string
+      skipDownload?: boolean
+      existingToast?: { title: string; description: string }
+    }) => {
+      if (args.existingToast && !opts?.download) {
+        toast(args.existingToast)
+      }
+      clearDirtyOnSaveSuccess()
+      const side = await runSaveSuccessSideEffects({
+        succeeded: true,
+        opts: args.skipDownload ? { ...opts, download: false } : opts,
+        navigate: () => router.push("/mediaplans"),
+        downloadPlan: () => handleDownloadMediaPlan({ fromPublish: true }),
+      })
+      if (opts?.download && !args.skipDownload) {
+        const published = describePublishSuccessToast({
+          versionNumber: args.versionNumber ?? "",
+          downloadOk: side.downloaded === true,
+        })
+        toast({ title: published.title, description: published.description })
+      }
+    }
     if (saveBlockedByClientsError) {
       toast({
         title: "Save disabled",
@@ -7710,10 +7745,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             return
           }
           updateSaveStatus("Save plan (transactional)", "success")
-          clearDirtyOnSaveSuccess()
-          toast({
-            title: "Working draft saved",
-            description: `Draft of v${modeResolved.versionNumber} stored — publish to cut the next version.`,
+          await afterSuccessfulSave({
+            skipDownload: true,
+            existingToast: {
+              title: "Working draft saved",
+              description: `Draft of v${modeResolved.versionNumber} stored — publish to cut the next version.`,
+            },
           })
           setIsSaving(false)
           return
@@ -7988,6 +8025,8 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             id: versionId,
             version_number: numericSavedVersion,
             created_at: Date.now(),
+            published_at:
+              modeResolved.mode === "publish" ? new Date().toISOString() : undefined,
           }
           if (existing) {
             return prev.map((v) =>
@@ -7996,6 +8035,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           }
           return [...prev, newEntry]
         })
+        if (modeResolved.mode === "publish") {
+          setMediaPlan((prev: any) =>
+            prev
+              ? {
+                  ...prev,
+                  published_at: prev.published_at ?? new Date().toISOString(),
+                  version_number: numericSavedVersion,
+                }
+              : prev
+          )
+        }
 
         const snapshotAfterSave = deepCloneBillingMonthsState(
           billingMonthsForSave.length > 0 ? billingMonthsForSave : workingBillingMonths
@@ -8072,21 +8122,22 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           }
         }
 
-        toast({
-          title: "Success",
-          description:
-            modeResolved.uiMode === "overwrite"
-              ? `Saved over v${numericSavedVersion} — still unpublished`
-              : modeResolved.uiMode === "increment_unpublished"
-                ? `Cut v${numericSavedVersion} (unpublished) — approval scope changed`
-                : `Saved as version ${numericSavedVersion}`,
-        })
         // MB-25: committed — clear Reset tombstone + pending (DB now matches).
         setClearedBillingOverrideLineIds([])
         setPendingBillingOverrideRows([])
         pendingBillingOverrideMetaRef.current = new Map()
-        clearDirtyOnSaveSuccess()
-        router.push("/mediaplans")
+        await afterSuccessfulSave({
+          versionNumber: numericSavedVersion,
+          existingToast: {
+            title: "Success",
+            description:
+              modeResolved.uiMode === "overwrite"
+                ? `Saved over v${numericSavedVersion} — still unpublished`
+                : modeResolved.uiMode === "increment_unpublished"
+                  ? `Cut v${numericSavedVersion} (unpublished) — approval scope changed`
+                  : `Saved as version ${numericSavedVersion}`,
+          },
+        })
         setIsSaving(false)
         return
       }
@@ -9067,11 +9118,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         }
       }
       
-      toast({ 
-        title: "Success", 
-        description: `Saved as version ${nextVersion}` 
-      })
-
       if (activityDiff.isAdditivePreserve) {
         const preserveMsg = formatPreservePriorAlert(activityDiff)
         if (preserveMsg) {
@@ -9089,9 +9135,14 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         })
       }
       
-      // Navigate to mediaplans page after successful save
-      clearDirtyOnSaveSuccess()
-      router.push('/mediaplans')
+      // Stay on the campaign after a successful save unless exitAfter is set.
+      await afterSuccessfulSave({
+        versionNumber: nextVersion,
+        existingToast: {
+          title: "Success",
+          description: `Saved as version ${nextVersion}`,
+        },
+      })
     } catch (error: any) {
       console.error("Error saving:", error)
       if (!isWriteSessionExpiredError(error)) {
@@ -9352,24 +9403,30 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
   }
 
-  const handleDownloadMediaPlan = async () => {
-    if (!isPublished) {
+  const handleDownloadMediaPlan = async (opts?: { fromPublish?: boolean }): Promise<boolean> => {
+    if (!opts?.fromPublish && !isPublished) {
       toast({ title: draftBlocksDownloadMessage })
-      return
+      return false
     }
     setIsDownloading(true)
     try {
       const { blob, fileName } = await generateMediaPlanXlsxBlob()
       saveAs(blob, fileName)
 
-      toast({ title: 'Success', description: 'Media plan generated successfully' })
+      if (!opts?.fromPublish) {
+        toast({ title: 'Success', description: 'Media plan generated successfully' })
+      }
+      return true
     } catch (error: any) {
       console.error(error)
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to generate media plan',
-        variant: 'destructive',
-      })
+      if (!opts?.fromPublish) {
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to generate media plan',
+          variant: 'destructive',
+        })
+      }
+      return false
     } finally {
       setIsDownloading(false)
     }
@@ -11352,6 +11409,26 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     }
   }, [getPageContext]);
 
+  const saveDraftThenExit = async () => {
+    try {
+      await planDraft.saveDraftNow()
+      clearDirtyOnSaveSuccess()
+      router.push("/mediaplans")
+    } catch (err: unknown) {
+      const expired = isWriteSessionExpiredError(err)
+      const human = expired
+        ? SESSION_EXPIRED_SAVE_MESSAGE
+        : err instanceof Error
+          ? err.message
+          : String(err)
+      toast({
+        variant: "destructive",
+        title: expired ? SESSION_EXPIRED_TITLE : "Draft save failed",
+        description: human,
+      })
+    }
+  }
+
   const handleExit = useCallback(() => {
     requestNavigation("/mediaplans")
   }, [requestNavigation])
@@ -11481,6 +11558,27 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
     </>
   )
 
+  const saveBarDisabled =
+    isSaving ||
+    isLoading ||
+    saveBlockedByDuplicates ||
+    saveHeldForHydration ||
+    saveBlockedByClientsError
+  const saveBarTitle = saveBlockedByClientsError
+    ? clientsError ?? "Client list unavailable"
+    : saveHeldForHydration || isLoading
+      ? saveHydrationHoldReason ?? "Waiting for channels to load — you can't save yet"
+      : undefined
+  const primarySaveLabel = wizardPrimarySaveLabel({
+    savePublishesImmediately: SAVE_PUBLISHES_IMMEDIATELY,
+    isPublished,
+    isSaving: false,
+    isPublishAction: SAVE_PUBLISHES_IMMEDIATELY,
+    saveBlockedByClientsError,
+    saveHeldForHydration: saveHeldForHydration || isLoading,
+    saveHydrationHoldReason,
+  })
+
   const wizardBottomBar = (
     <>
       <CampaignExportsSection
@@ -11491,63 +11589,69 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         ariaStatus=""
         className="max-w-full justify-center"
       >
-        <Button
-          type="button"
-          variant="action"
-          onClick={() => void handleSaveAll()}
-          disabled={
-            isSaving ||
-            isLoading ||
-            saveBlockedByDuplicates ||
-            saveHeldForHydration ||
-            saveBlockedByClientsError
+        <SplitActionButton
+          label={primarySaveLabel}
+          busyLabel={SAVE_PUBLISHES_IMMEDIATELY ? "Publishing…" : "Saving…"}
+          isBusy={isSaving}
+          disabled={saveBarDisabled}
+          title={saveBarTitle}
+          onPrimary={() =>
+            void (SAVE_PUBLISHES_IMMEDIATELY
+              ? handleSaveAll({ intent: "publish", download: true })
+              : handleSaveAll())
           }
-          title={
-            saveBlockedByClientsError
-              ? clientsError ?? "Client list unavailable"
-              : saveHeldForHydration || isLoading
-              ? saveHydrationHoldReason ?? "Waiting for channels to load — you can't save yet"
-              : undefined
+          menu={
+            SAVE_PUBLISHES_IMMEDIATELY
+              ? [
+                  {
+                    label: "Publish and exit",
+                    hint: "Publishes, then returns to Campaigns",
+                    onSelect: () =>
+                      void handleSaveAll({ intent: "publish", exitAfter: true }),
+                  },
+                ]
+              : [
+                  {
+                    label: isPublished ? "Save draft and exit" : "Save and exit",
+                    hint: isPublished
+                      ? "Keeps your working draft, then returns to Campaigns"
+                      : "Saves, then returns to Campaigns",
+                    onSelect: () => void handleSaveAll({ exitAfter: true }),
+                  },
+                ]
           }
-          className="h-9 shrink-0 rounded-pill px-4 shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          {isSaving
-            ? "Saving..."
-            : saveBlockedByClientsError
-              ? "Client list unavailable"
-            : saveHeldForHydration || isLoading
-              ? saveHydrationHoldReason ?? "Waiting for channels…"
-              : isPublished
-                ? "Save draft"
-                : "Save"}
-        </Button>
-        {isPublished ? (
-          <Button
-            type="button"
-            variant="action"
-            onClick={() => void handleSaveAll({ intent: "publish" })}
-            disabled={
-              isSaving ||
-              isLoading ||
-              saveBlockedByDuplicates ||
-              saveHeldForHydration ||
-              saveBlockedByClientsError
-            }
-            className="h-9 shrink-0 rounded-pill px-4 shadow-sm focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            {isSaving ? "Publishing..." : "Publish"}
-          </Button>
+        />
+        {showExplicitPublishButton(isPublished) ? (
+          <SplitActionButton
+            label="Publish"
+            busyLabel="Publishing…"
+            isBusy={isSaving}
+            disabled={saveBarDisabled}
+            onPrimary={() => void handleSaveAll({ intent: "publish", download: true })}
+            menu={[
+              {
+                label: "Publish and exit",
+                hint: "Publishes, then returns to Campaigns",
+                onSelect: () =>
+                  void handleSaveAll({ intent: "publish", exitAfter: true }),
+              },
+            ]}
+          />
         ) : null}
         {planDraft.enabled && !isPublished ? (
-          <Button
-            type="button"
+          <SplitActionButton
             variant="outline"
-            onClick={() => void planDraft.saveDraftNow()}
+            label="Save draft"
+            onPrimary={() => void planDraft.saveDraftNow()}
             disabled={isSaving || isLoading || !hasUnsavedChanges}
-            className="h-9 shrink-0 rounded-pill border-border px-4 focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            Save draft
-          </Button>
+            menu={[
+              {
+                label: "Save draft and exit",
+                hint: "Keeps your working draft, then returns to Campaigns",
+                onSelect: () => void saveDraftThenExit(),
+              },
+            ]}
+          />
         ) : null}
         <Button
           type="button"
@@ -11574,7 +11678,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
-                onClick={handleDownloadMediaPlan}
+                onClick={() => void handleDownloadMediaPlan()}
                 disabled={
                   !isPublished ||
                   isDownloading ||
@@ -11624,7 +11728,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         </div>
         <Button
           type="button"
-          onClick={handleDownloadMediaPlan}
+          onClick={() => void handleDownloadMediaPlan()}
           disabled={
             !isPublished ||
             isDownloading ||

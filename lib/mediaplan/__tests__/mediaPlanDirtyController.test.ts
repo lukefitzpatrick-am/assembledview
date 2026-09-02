@@ -133,7 +133,7 @@ test("P2-3 PROPERTY adapter: edit save clears only via clearDirtyOnSaveSuccess",
   assert.doesNotMatch(edit, /setHasUnsavedChanges\(false\)/)
   // Legacy success marker sequence still clears via the success API, not attempt.
   const marker =
-    "Navigate to mediaplans page after successful save\n      clearDirtyOnSaveSuccess()\n      router.push('/mediaplans')\n    } catch (error: any) {"
+    "Stay on the campaign after a successful save unless exitAfter is set."
   const idx = edit.indexOf(marker)
   assert.ok(idx >= 0, "expected success-clear → outer catch sequence")
   const catchStart = edit.indexOf("} catch (error: any) {", idx)

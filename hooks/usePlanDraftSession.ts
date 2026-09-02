@@ -16,7 +16,7 @@ import {
   type PlanSavePill,
 } from "@/lib/mediaplan/drafts/pill"
 import { compareDraftToTip } from "@/lib/mediaplan/drafts/compare"
-import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
+import { resolvePostgresSaveMode, SAVE_PUBLISHES_IMMEDIATELY } from "@/lib/mediaplan/resolvePostgresSaveMode"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types"
 import {
   clickResume,
@@ -164,51 +164,65 @@ export function usePlanDraftSession(args: {
     )
   }, [modeResolved, lastAutosaveAt, recovery, activeDraft, args.dirty])
 
+  const persistQueueRef = useRef(Promise.resolve())
+  const enqueuePersist = useCallback((work: () => Promise<void>) => {
+    const run = persistQueueRef.current.then(work, work)
+    persistQueueRef.current = run.then(
+      () => undefined,
+      () => undefined
+    )
+    return run
+  }, [])
+
   const persistLocal = useCallback(
     async (opts?: { force?: boolean }) => {
-      if ((!autosaveEnabled && !opts?.force) || !userId) return
-      const state = getSnapshotRef.current()
-      if (args.masterId == null && !isMeaningfulCreateDraft(state)) return
-      setPayloadBytes(estimateDraftPayloadBytes(state))
-      await writeLocalDraft({
-        masterId: args.masterId,
-        mbaNumber: args.mbaNumber,
-        userId,
-        state,
+      return enqueuePersist(async () => {
+        if ((!autosaveEnabled && !opts?.force) || !userId) return
+        const state = getSnapshotRef.current()
+        if (args.masterId == null && !isMeaningfulCreateDraft(state)) return
+        setPayloadBytes(estimateDraftPayloadBytes(state))
+        await writeLocalDraft({
+          masterId: args.masterId,
+          mbaNumber: args.mbaNumber,
+          userId,
+          state,
+        })
+        setLastAutosaveAt(Date.now())
       })
-      setLastAutosaveAt(Date.now())
     },
-    [autosaveEnabled, args.masterId, args.mbaNumber, userId]
+    [autosaveEnabled, args.masterId, args.mbaNumber, userId, enqueuePersist]
   )
 
   const persistServer = useCallback(
     async (opts?: { force?: boolean }) => {
-      if ((!autosaveEnabled && !opts?.force) || args.masterId == null || !userId) return
-      const state = getSnapshotRef.current()
-      setPayloadBytes(estimateDraftPayloadBytes(state))
-      const res = await fetch("/api/plans/drafts", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      return enqueuePersist(async () => {
+        if ((!autosaveEnabled && !opts?.force) || args.masterId == null || !userId) return
+        const state = getSnapshotRef.current()
+        setPayloadBytes(estimateDraftPayloadBytes(state))
+        const res = await fetch("/api/plans/drafts", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            masterId: args.masterId,
+            baseVersionId: args.baseVersionId,
+            state,
+          }),
+        })
+        if (!res.ok) {
+          throwIfWriteUnauthorized(res.status)
+          const body = (await res.json().catch(() => ({}))) as { error?: string }
+          throw new Error(body.error || `Draft save failed (${res.status})`)
+        }
+        noteAuthenticatedWriteOk()
+        await clearLocalDraft({
           masterId: args.masterId,
-          baseVersionId: args.baseVersionId,
-          state,
-        }),
+          mbaNumber: args.mbaNumber,
+          userId,
+        })
+        setLastAutosaveAt(Date.now())
       })
-      if (!res.ok) {
-        throwIfWriteUnauthorized(res.status)
-        const body = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(body.error || `Draft save failed (${res.status})`)
-      }
-      noteAuthenticatedWriteOk()
-      await clearLocalDraft({
-        masterId: args.masterId,
-        mbaNumber: args.mbaNumber,
-        userId,
-      })
-      setLastAutosaveAt(Date.now())
     },
-    [autosaveEnabled, args.masterId, args.mbaNumber, userId, args.baseVersionId]
+    [autosaveEnabled, args.masterId, args.mbaNumber, userId, args.baseVersionId, enqueuePersist]
   )
 
   // Tier 1 ~3s after dirty
@@ -439,6 +453,7 @@ export function usePlanDraftSession(args: {
     if (args.masterId == null) {
       throw new Error("Missing master id — cannot save working draft")
     }
+    await persistQueueRef.current
     await persistLocal({ force: true })
     await persistServer({ force: true })
   }, [persistLocal, persistServer, userId, args.masterId])
@@ -455,7 +470,9 @@ export function usePlanDraftSession(args: {
       mbaNumber: args.mbaNumber,
       userId,
     })
-    if (args.masterId != null) {
+    // Save route owns matching-base delete while Save publishes. Do not
+    // bulk-delete stale-base rows from the client after a successful save.
+    if (args.masterId != null && !SAVE_PUBLISHES_IMMEDIATELY) {
       await fetch(`/api/plans/drafts?masterId=${args.masterId}`, { method: "DELETE" })
     }
     setLastAutosaveAt(null)
