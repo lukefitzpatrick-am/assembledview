@@ -6,7 +6,7 @@ import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
 import { resolveLineNoAdserving as resolveNoAdserving } from "@/lib/billing/resolveLineNoAdserving"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { resolveProductionBurstBudget } from "@/lib/mediaplan/resolveProductionBurstBudget"
-import { parseMoneyInput } from "@/lib/format/money"
+import { parseMoneyInput, type MoneyInput } from "@/lib/format/money"
 import type {
   BurstInput,
   FeeLoading,
@@ -46,6 +46,12 @@ export type BuildEditorLineItemInputsOpts = {
 function parseMoney(value: unknown): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0
   return parseMoneyInput(value as string | number | null | undefined) ?? 0
+}
+
+/** True when the raw burst has an entered budget, including explicit `"0"`. Blank is unstated. */
+function rawBurstStatesBudget(burst: unknown): boolean {
+  if (!burst || typeof burst !== "object") return false
+  return parseMoneyInput((burst as { budget?: MoneyInput }).budget) != null
 }
 
 /** Same id shape as edit-page billingStableLineItemId / fee-seed. */
@@ -183,7 +189,15 @@ export function buildEditorLineItemInputs(
       const buyType = resolveBuyType(lineItem)
 
       let enteredAmount = bursts.reduce((sum, b) => sum + parseMoney(b.budget), 0)
-      if (enteredAmount <= 0) {
+      const isProduction = billingKey === "production"
+      // Production budgets often live in cost×amount with an empty budget key
+      // (`resolveProductionBurstBudget`); a stated-budget test would refill those
+      // incorrectly. Non-production: back-fill from the line total only when no
+      // raw burst states a budget. Explicit `"0"` is stated and must be kept.
+      const shouldBackFillFromLineTotal = isProduction
+        ? enteredAmount <= 0
+        : !rawBursts.some(rawBurstStatesBudget)
+      if (shouldBackFillFromLineTotal) {
         enteredAmount = parseMoney(
           lineItem.totalMedia ?? lineItem.total_media ?? lineItem.budget
         )
