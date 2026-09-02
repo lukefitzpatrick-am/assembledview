@@ -13,7 +13,7 @@ import type { BillingLineItem, BillingRecord } from "@/lib/types/financeBilling"
 export const INVOICING_CLIENT_GRID_CLASS =
   "grid grid-cols-1 min-[700px]:grid-cols-2 gap-4"
 
-export const INVOICING_EX_GST_HEADER = "Amounts are ex-GST."
+export const INVOICING_EX_GST_HEADER = "All amounts ex-GST"
 
 export type InvoicingPrimaryKind = "approve" | "mark_sent"
 

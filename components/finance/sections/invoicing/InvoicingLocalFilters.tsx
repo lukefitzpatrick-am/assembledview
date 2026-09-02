@@ -42,9 +42,6 @@ type Props = {
   csvDisabled?: boolean
   excelDisabled?: boolean
   excelDisabledReason?: string
-  onApproveReady?: () => void
-  approveReadyCount?: number
-  approveBusy?: boolean
   markSentButton?: ReactNode
   /** When false, render field row only (parent owns the card — FIN-2 toolbar). */
   framed?: boolean
@@ -58,9 +55,6 @@ export function InvoicingLocalFiltersBar({
   csvDisabled,
   excelDisabled,
   excelDisabledReason,
-  onApproveReady,
-  approveReadyCount = 0,
-  approveBusy,
   markSentButton,
   framed = true,
 }: Props) {
@@ -190,40 +184,40 @@ export function InvoicingLocalFiltersBar({
           Include drafts
         </Label>
       </div>
-      <div className="ml-auto flex flex-col items-end gap-1 pb-0.5">
-        <p className="text-[11px] text-muted-foreground">Only approved invoices export.</p>
-        <div className="flex items-center gap-2">
-          {onApproveReady ? (
+      <div className="ml-auto flex items-center gap-2 pb-0.5">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={csvDisabled}
+          onClick={onExportCsv}
+        >
+          CSV
+        </Button>
+        {excelDisabled && excelDisabledReason ? (
+          <span title={excelDisabledReason} className="inline-flex">
             <Button
               type="button"
               size="sm"
-              disabled={approveBusy || approveReadyCount === 0}
-              onClick={onApproveReady}
+              variant="outline"
+              disabled
+              aria-label={`Excel. ${excelDisabledReason}`}
             >
-              Approve ready{approveReadyCount > 0 ? ` (${approveReadyCount})` : ""}
+              Excel
             </Button>
-          ) : null}
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            disabled={csvDisabled}
-            onClick={onExportCsv}
-          >
-            CSV
-          </Button>
+          </span>
+        ) : (
           <Button
             type="button"
             size="sm"
             variant="outline"
             disabled={excelDisabled}
-            title={excelDisabled && excelDisabledReason ? excelDisabledReason : undefined}
             onClick={onExportExcel}
           >
             Excel
           </Button>
-          {markSentButton}
-        </div>
+        )}
+        {markSentButton}
       </div>
     </div>
   )

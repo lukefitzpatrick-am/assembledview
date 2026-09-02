@@ -5,6 +5,7 @@ import { formatAUD } from "../../../../lib/format/money.js"
 import type { BillingRecord } from "../../../types/financeBilling.js"
 import {
   INVOICING_CLIENT_GRID_CLASS,
+  INVOICING_EX_GST_HEADER,
   buildMediaTypeRollups,
   formatMediaTypeCaption,
   invoicingPrimaryAction,
@@ -153,4 +154,8 @@ test("fixture month totals are byte-identical to the pre-change formatAUD render
     formatAUD(rollups.reduce((s, r) => s + r.total, 0)),
     formatAUD(clientTotal)
   )
+})
+
+test("page header states the GST basis once", () => {
+  assert.equal(INVOICING_EX_GST_HEADER, "All amounts ex-GST")
 })

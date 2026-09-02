@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { ChevronDown } from "lucide-react"
+import { BulkApproveReadyButton } from "@/components/finance/sections/invoicing/BulkApproveReadyButton"
 import { InvoicingClientCard } from "@/components/finance/sections/invoicing/InvoicingClientCard"
 import { InvoicingToolbar } from "@/components/finance/sections/invoicing/InvoicingToolbar"
 import { ReceivablesSummaryStrip } from "@/components/finance/receivables/ReceivablesSummaryStrip"
@@ -17,6 +18,11 @@ import { LoadingState } from "@/components/finance/sections/LoadingState"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { exportBillingRecordsCsv } from "@/lib/finance/export"
 import { hasBillingEvidence } from "@/lib/finance/billingLifecycle"
+import { INVOICING_EXCEL_DISABLED_REASON } from "@/lib/finance/sections/invoicingBulkApproveCopy"
+import {
+  formatFunnelCountCaption,
+  summariseInvoicingFunnel,
+} from "@/lib/finance/sections/invoicingFunnel"
 import {
   filterApprovedReceivablesForExport,
   invoiceKeysReadyToMarkSent,
@@ -105,6 +111,21 @@ function countInvoicesInMonthGroups(groups: MonthGroup[]): number {
   return collectBillingRecordsFromMonthGroups(groups).length
 }
 
+function collectBillingRecordsFromMonthGroup(mg: MonthGroup): BillingRecord[] {
+  return collectBillingRecordsFromMonthGroups([mg])
+}
+
+function monthReadyStats(mg: MonthGroup): { count: number; amountDollars: number } {
+  let count = 0
+  let amountDollars = 0
+  for (const record of collectBillingRecordsFromMonthGroup(mg)) {
+    if ((record.state ?? "ready") !== "ready") continue
+    count += 1
+    amountDollars += record.total
+  }
+  return { count, amountDollars }
+}
+
 function sumMonthGroupsTotal(groups: MonthGroup[]): number {
   return groups.reduce((s, mg) => s + mg.total, 0)
 }
@@ -115,6 +136,8 @@ function InvoicingMonthSections({
   onNotesSaved,
   onLineAmountCommitted,
   clientMetaById,
+  approveBusy,
+  onApproveReady,
 }: {
   groups: MonthGroup[]
   refetch: () => void
@@ -129,15 +152,35 @@ function InvoicingMonthSections({
     ctx: import("@/lib/finance/commitInlineScheduleAmountEdit").InlineScheduleEditContext
   ) => void
   clientMetaById: Map<number, InvoicingClientBlockerMeta>
+  approveBusy?: boolean
+  onApproveReady?: (monthIso: string) => void
 }) {
   if (groups.length === 0) return null
   return (
     <div className="space-y-8">
-      {groups.map((mg) => (
+      {groups.map((mg) => {
+        const invoiceCount = collectBillingRecordsFromMonthGroup(mg).length
+        const ready = onApproveReady ? monthReadyStats(mg) : null
+        return (
         <section key={mg.monthIso} className="space-y-4">
-          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1 border-b border-border/50 pb-2">
-            <p className="text-sm font-medium text-foreground">{mg.monthLabel}</p>
-            <p className="num text-xs font-medium text-foreground">{formatAUD(mg.total)}</p>
+          <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border/50 pb-2">
+            <p className="text-sm font-medium text-foreground">
+              {mg.monthLabel}
+              <span className="num"> · {formatAUD(mg.total)}</span>
+              <span className="font-normal text-muted-foreground">
+                {" "}
+                · {invoiceCount} {invoiceCount === 1 ? "invoice" : "invoices"}
+              </span>
+            </p>
+            {ready ? (
+              <BulkApproveReadyButton
+                count={ready.count}
+                amountDollars={ready.amountDollars}
+                monthLabel={mg.monthLabel}
+                busy={approveBusy}
+                onConfirm={() => onApproveReady?.(mg.monthIso)}
+              />
+            ) : null}
           </div>
           <div data-invoicing-client-grid="" className={INVOICING_CLIENT_GRID_CLASS}>
             {mg.clients.map((client) => (
@@ -153,7 +196,8 @@ function InvoicingMonthSections({
             ))}
           </div>
         </section>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -248,17 +292,7 @@ export function InvoicingPageClient() {
     return `Last exported ${formatDateShort(lastExport.exportedAt)} by ${name} · ${clients} · ${formatAUD(lastExport.total)}`
   }, [lastExport, lastExportName])
 
-  const kpi = useMemo(() => {
-    const totalToBill = allRecords.reduce((s, r) => s + r.total, 0)
-    const billed = allRecords
-      .filter((r) => hasBillingEvidence(r.state))
-      .reduce((s, r) => s + r.total, 0)
-    return {
-      totalToBill: Math.round(totalToBill * 100) / 100,
-      billed: Math.round(billed * 100) / 100,
-      outstanding: Math.round((totalToBill - billed) * 100) / 100,
-    }
-  }, [allRecords])
+  const funnel = useMemo(() => summariseInvoicingFunnel(allRecords), [allRecords])
 
   const unbilledGroups = useMemo(
     () => filterReceivablesMonthGroups(visibleMonthGroups, (r) => !hasBillingEvidence(r.state)),
@@ -315,43 +349,39 @@ export function InvoicingPageClient() {
     }
   }, [approvedRecords, monthLabel, toast])
 
-  const approveReady = useCallback(async () => {
-    if (readyGrains.length === 0 || approveBusy) return
-    setApproveBusy(true)
-    try {
-      const keysByMonth = new Map<string, string[]>()
-      for (const g of readyGrains) {
-        const list = keysByMonth.get(g.billing_month) ?? []
-        list.push(g.invoice_key)
-        keysByMonth.set(g.billing_month, list)
+  const approveReadyForMonth = useCallback(
+    async (billing_month: string) => {
+      const grains = readyGrains.filter((g) => g.billing_month === billing_month)
+      if (grains.length === 0 || approveBusy) return
+      setApproveBusy(true)
+      try {
+        const res = await approveBillingRecords({
+          invoice_keys: grains.map((g) => g.invoice_key),
+          billing_month,
+        })
+        const notFoundKeys = (res.errors ?? [])
+          .filter((err) => err.error === "not_found")
+          .map((err) => err.invoice_key)
+        toast({
+          title: `Approved ${res.records.length} invoice${res.records.length === 1 ? "" : "s"}`,
+          description:
+            notFoundKeys.length > 0
+              ? `${notFoundKeys.length} could not be derived on the server.`
+              : undefined,
+        })
+        bumpFetch()
+      } catch (e) {
+        toast({
+          variant: "destructive",
+          title: "Could not approve",
+          description: e instanceof Error ? e.message : "Unknown error",
+        })
+      } finally {
+        setApproveBusy(false)
       }
-      let approvedCount = 0
-      const notFoundKeys: string[] = []
-      for (const [billing_month, invoice_keys] of keysByMonth) {
-        const res = await approveBillingRecords({ invoice_keys, billing_month })
-        approvedCount += res.records.length
-        for (const err of res.errors ?? []) {
-          if (err.error === "not_found") notFoundKeys.push(err.invoice_key)
-        }
-      }
-      toast({
-        title: `Approved ${approvedCount} invoice${approvedCount === 1 ? "" : "s"}`,
-        description:
-          notFoundKeys.length > 0
-            ? `${notFoundKeys.length} could not be derived on the server.`
-            : undefined,
-      })
-      bumpFetch()
-    } catch (e) {
-      toast({
-        variant: "destructive",
-        title: "Could not approve",
-        description: e instanceof Error ? e.message : "Unknown error",
-      })
-    } finally {
-      setApproveBusy(false)
-    }
-  }, [readyGrains, approveBusy, toast, bumpFetch])
+    },
+    [readyGrains, approveBusy, toast, bumpFetch]
+  )
 
   const markSentToFinance = useCallback(async () => {
     if (markSentKeys.length === 0 || markSentBusy) return
@@ -399,11 +429,8 @@ export function InvoicingPageClient() {
           csvDisabled={allRecords.length === 0 || isUpdating}
           excelDisabled={approvedRecords.length === 0 || isUpdating}
           excelDisabledReason={
-            approvedRecords.length === 0 ? "Approve invoices before exporting." : undefined
+            approvedRecords.length === 0 ? INVOICING_EXCEL_DISABLED_REASON : undefined
           }
-          onApproveReady={() => void approveReady()}
-          approveReadyCount={readyGrains.length}
-          approveBusy={approveBusy || isUpdating}
           onMarkSentToFinance={() => void markSentToFinance()}
           markSentDisabled={markSentKeys.length === 0 || isUpdating}
           markSentBusy={markSentBusy || isUpdating}
@@ -435,9 +462,21 @@ export function InvoicingPageClient() {
                     : "ready"
             }
             errorMessage={loadError ?? undefined}
-            totalToBillCents={Math.round(kpi.totalToBill * 100)}
-            approvedAndBeyondCents={Math.round(kpi.billed * 100)}
-            notYetApprovedCents={Math.round(kpi.outstanding * 100)}
+            readyCents={funnel.ready.cents}
+            approvedCents={funnel.approved.cents}
+            sentToFinanceCents={funnel.sentToFinance.cents}
+            readyCaption={formatFunnelCountCaption(
+              funnel.ready.invoiceCount,
+              funnel.ready.monthCount
+            )}
+            approvedCaption={formatFunnelCountCaption(
+              funnel.approved.invoiceCount,
+              funnel.approved.monthCount
+            )}
+            sentToFinanceCaption={formatFunnelCountCaption(
+              funnel.sentToFinance.invoiceCount,
+              funnel.sentToFinance.monthCount
+            )}
           />
         ) : null}
 
@@ -472,6 +511,8 @@ export function InvoicingPageClient() {
                 onNotesSaved={handleNotesSaved}
                 onLineAmountCommitted={handleLineAmountCommitted}
                 clientMetaById={clientMetaById}
+                approveBusy={approveBusy || isUpdating}
+                onApproveReady={(monthIso) => void approveReadyForMonth(monthIso)}
               />
 
               {billedInvoiceCount > 0 ? (

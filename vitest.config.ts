@@ -50,6 +50,7 @@ export default defineConfig({
       "components/finance/sections/owed/__tests__/owedInvoiceRow.test.tsx",
       "components/finance/sections/periods/__tests__/periodsScopeHydrate.test.tsx",
       "components/finance/sections/invoicing/__tests__/markSentToFinance.test.tsx",
+      "components/finance/sections/invoicing/__tests__/bulkApproveReady.test.tsx",
       "hooks/__tests__/usePlanDraftSession.test.tsx",
       "hooks/__tests__/useDraftFieldDiff.test.tsx",
       "hooks/__tests__/useStableHydration.test.tsx",

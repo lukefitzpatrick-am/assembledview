@@ -3,6 +3,7 @@
 /**
  * FIN-2 — single invoicing toolbar (scope + filters + exports).
  * Scope (FY / months / clients) commits on Apply; local filters apply on change.
+ * Bulk approve lives on the month bar, not in this filter row.
  */
 
 import { MarkSentToFinanceButton } from "@/components/finance/sections/invoicing/MarkSentToFinanceButton"
@@ -20,9 +21,6 @@ type Props = {
   csvDisabled?: boolean
   excelDisabled?: boolean
   excelDisabledReason?: string
-  onApproveReady?: () => void
-  approveReadyCount?: number
-  approveBusy?: boolean
   onMarkSentToFinance?: () => void
   markSentDisabled?: boolean
   markSentBusy?: boolean
@@ -38,9 +36,6 @@ export function InvoicingToolbar({
   csvDisabled,
   excelDisabled,
   excelDisabledReason,
-  onApproveReady,
-  approveReadyCount = 0,
-  approveBusy,
   onMarkSentToFinance,
   markSentDisabled,
   markSentBusy,
@@ -62,9 +57,6 @@ export function InvoicingToolbar({
             csvDisabled={csvDisabled}
             excelDisabled={excelDisabled}
             excelDisabledReason={excelDisabledReason}
-            onApproveReady={onApproveReady}
-            approveReadyCount={approveReadyCount}
-            approveBusy={approveBusy}
             markSentButton={
               onMarkSentToFinance ? (
                 <MarkSentToFinanceButton
