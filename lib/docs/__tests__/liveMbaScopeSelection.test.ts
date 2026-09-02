@@ -10,8 +10,19 @@ const LINE_A = { lineItemId: "billing-search::SE1", approval: "approved" as cons
 const LINE_B = { lineItemId: "billing-search::SE2", approval: "excluded" as const }
 const LINE_C = { lineItemId: "billing-prog::PD1", approval: "approved" as const }
 
+test("returns null when isPartialMBA is false even if hydrated with exclusions", () => {
+  const result = deriveLiveMbaScopeSelection({
+    isPartialMBA: false,
+    allChannelsHydrated: true,
+    lineItems: [LINE_A, LINE_B],
+    selectedMonthYears: ["August 2026"],
+  })
+  assert.equal(result, null)
+})
+
 test("returns null when channels are not hydrated", () => {
   const result = deriveLiveMbaScopeSelection({
+    isPartialMBA: true,
     allChannelsHydrated: false,
     lineItems: [LINE_A, LINE_B],
     selectedMonthYears: ["August 2026"],
@@ -21,6 +32,7 @@ test("returns null when channels are not hydrated", () => {
 
 test("drops excluded lines from approvedLineItemIds", () => {
   const result = deriveLiveMbaScopeSelection({
+    isPartialMBA: true,
     allChannelsHydrated: true,
     lineItems: [LINE_A, LINE_B, LINE_C],
     selectedMonthYears: [],
@@ -32,6 +44,7 @@ test("drops excluded lines from approvedLineItemIds", () => {
 
 test("returns null when every line is excluded", () => {
   const result = deriveLiveMbaScopeSelection({
+    isPartialMBA: true,
     allChannelsHydrated: true,
     lineItems: [LINE_B, { lineItemId: "billing-tv::TV1", approval: "excluded" }],
     selectedMonthYears: ["August 2026"],
@@ -41,6 +54,7 @@ test("returns null when every line is excluded", () => {
 
 test("includes selectedMonthYears only when non-empty", () => {
   const withMonths = deriveLiveMbaScopeSelection({
+    isPartialMBA: true,
     allChannelsHydrated: true,
     lineItems: [LINE_A],
     selectedMonthYears: ["August 2026", "September 2026"],
@@ -51,6 +65,7 @@ test("includes selectedMonthYears only when non-empty", () => {
   })
 
   const withoutMonths = deriveLiveMbaScopeSelection({
+    isPartialMBA: true,
     allChannelsHydrated: true,
     lineItems: [LINE_A],
     selectedMonthYears: [],

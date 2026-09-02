@@ -6485,11 +6485,12 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
   const liveMbaScopeSelection = useMemo(
     () =>
       deriveLiveMbaScopeSelection({
+        isPartialMBA,
         allChannelsHydrated,
         lineItems: billingSaveInputs.lineItems,
         selectedMonthYears: partialMBAMonthYears,
       }),
-    [allChannelsHydrated, billingSaveInputs, partialMBAMonthYears]
+    [isPartialMBA, allChannelsHydrated, billingSaveInputs, partialMBAMonthYears]
   )
 
   /**
