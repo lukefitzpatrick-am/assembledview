@@ -52,7 +52,7 @@ function buildSystemPrompt(targets: readonly string[]): string {
     "You ONLY map header → canonical descriptor. You do NOT parse cell values into numbers,",
     "compute bursts, invent dates, or decide grid_semantics.",
     "A rate column and a stated-total column are different targets:",
-    "media_rate:weekly / media_rate:lunar / media_rate:per_spot are rates;",
+    "media_rate:weekly / media_rate:lunar / media_rate:per_spot / media_rate:bought are rates (not line totals);",
     "media_amount:stated is a line total already computed in the file;",
     "charge:production and charge:installation are one-off charges, not media.",
     "buy_type is the buy-type vocabulary (panels, fixed_cost, bonus, spots, …).",

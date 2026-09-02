@@ -177,6 +177,6 @@ function saveLineToFormItem(
     type,
     location: placement,
     targeting_attribute: "",
-    unit_rate: "",
+    unit_rate: asText(attrs.unitRate),
   }
 }

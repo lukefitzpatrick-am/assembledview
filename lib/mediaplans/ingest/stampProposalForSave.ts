@@ -13,6 +13,7 @@ import type {
   ProposedLineItem,
   ProposedPanel,
 } from "@/lib/mediaplans/ingest/proposeLineItems"
+import type { GridSemantics } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 import { resolveControlledBuyType, resolveControlledFormat } from "@/lib/mediaplans/ingest/resolveControlledOoh"
 import type { ResolvedControlledValue } from "@/lib/mediaplans/ingest/templateCoverage"
 
@@ -233,15 +234,29 @@ function attrsForLine(
   return attrs
 }
 
+function burstBuyAmount(
+  b: ProposedLineItem["bursts"][number],
+  gridSemantics: GridSemantics | undefined,
+  unitRate: number | null | undefined,
+): string {
+  if (gridSemantics === "count") return String(b.quantity)
+  // status_matrix, currency, or missing (never infer from media type).
+  if (unitRate != null) return String(unitRate)
+  return ""
+}
+
 function burstFromProposed(
   b: ProposedLineItem["bursts"][number],
   buyType: string,
+  gridSemantics: GridSemantics | undefined,
+  unitRate: number | null | undefined,
 ) {
+  const buyAmount = burstBuyAmount(b, gridSemantics, unitRate)
   const [serialized] = serializeBurstsJson({
     bursts: [
       {
         budget: b.media_amount,
-        buyAmount: String(b.quantity),
+        buyAmount,
         startDate: b.start_date ?? "",
         endDate: b.end_date ?? "",
       },
@@ -255,7 +270,7 @@ function burstFromProposed(
     startDate: serialized?.startDate ?? b.start_date ?? "",
     endDate: serialized?.endDate ?? b.end_date ?? "",
     budget: serialized?.budget ?? String(b.media_amount ?? ""),
-    buyAmount: serialized?.buyAmount ?? String(b.quantity ?? ""),
+    buyAmount: serialized?.buyAmount ?? buyAmount,
     calculatedValue: serialized?.calculatedValue ?? 0,
     mediaAmount: serialized?.mediaAmount,
     feeAmount: serialized?.feeAmount,
@@ -372,6 +387,19 @@ export function stampProposalForSave(
     const mediaSum = item.bursts.reduce((s, b) => s + (b.media_amount || 0), 0)
     const buyGranularity: "panel" | "pack" =
       item.panels.length > 1 ? "pack" : "panel"
+    const boughtRate = item.bought_rate
+    const attrs = attrsForLine(
+      item,
+      mediaType,
+      buyGranularity,
+      proposal.sheet_name,
+      proposal.publisher_name,
+      resolvedControlled,
+      unresolvedRaw,
+    )
+    if (boughtRate != null) {
+      attrs.unitRate = String(boughtRate)
+    }
     const line: SavePlanLineItem & {
       line_item_id?: string
       lineItemId?: string
@@ -384,7 +412,7 @@ export function stampProposalForSave(
       buyingDemo: firstDescriptor(item, ["buying_demo", "buyingDemo"]),
       publisher: proposal.publisher_name,
       buyType,
-      rate: 0,
+      rate: boughtRate ?? 0,
       enteredAmount: mediaSum,
       budgetIncludesFees: false,
       clientPaysForMedia: false,
@@ -393,16 +421,10 @@ export function stampProposalForSave(
       approval: "approved",
       label: labelForLine(item),
       position: index + 1,
-      bursts: item.bursts.map((b) => burstFromProposed(b, buyType)),
-      attrs: attrsForLine(
-        item,
-        mediaType,
-        buyGranularity,
-        proposal.sheet_name,
-        proposal.publisher_name,
-        resolvedControlled,
-        unresolvedRaw,
+      bursts: item.bursts.map((b) =>
+        burstFromProposed(b, buyType, proposal.grid_semantics, boughtRate),
       ),
+      attrs,
     }
     return line
   })

@@ -7,6 +7,7 @@ export const MONEY_TARGETS = [
   "media_rate:weekly",
   "media_rate:lunar",
   "media_rate:per_spot",
+  "media_rate:bought",
   "media_amount:stated",
   "charge:production",
   "charge:installation",

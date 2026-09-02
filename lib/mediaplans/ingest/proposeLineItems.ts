@@ -14,6 +14,7 @@ import {
   interpretGridCell,
   isReferenceIgnoreTarget,
   type BookingStatus,
+  type GridSemantics,
   type PublisherProfileConfig,
 } from "@/lib/mediaplans/ingest/publisherProfileConfig"
 
@@ -50,6 +51,12 @@ export type ProposedLineItem = {
   grouping: Record<string, string>
   panels: ProposedPanel[]
   bursts: ProposedBurst[]
+  /**
+   * Publisher per-unit bought rate for the row (`media_rate:bought`).
+   * `null` / omitted = unmapped; `0` = mapped zero. Display/rate only —
+   * never a line total.
+   */
+  bought_rate?: number | null
   /** One-off charges seen on source rows — not imported into media. */
   charges_detected?: {
     production: number
@@ -81,6 +88,8 @@ export type IngestProposal = {
   publisher_name: string
   media_type: string
   sheet_name: string
+  /** Profile grid semantics — stamp uses this, never infers from media type. */
+  grid_semantics?: GridSemantics
   line_items: ProposedLineItem[]
   reconciliation: IngestReconciliation
 }
@@ -91,6 +100,7 @@ type RowMoney = {
   stated: number | null
   weeklyRate: number | null
   lunarRate: number | null
+  boughtRate: number | null
   production: number | null
   installation: number | null
 }
@@ -130,6 +140,7 @@ function readRowMoney(
     stated: null,
     weeklyRate: null,
     lunarRate: null,
+    boughtRate: null,
     production: null,
     installation: null,
   }
@@ -141,6 +152,7 @@ function readRowMoney(
     if (canon === "media_amount:stated") out.stated = n
     else if (canon === "media_rate:weekly") out.weeklyRate = n
     else if (canon === "media_rate:lunar") out.lunarRate = n
+    else if (canon === "media_rate:bought") out.boughtRate = n
     else if (canon === "charge:production") out.production = n
     else if (canon === "charge:installation") out.installation = n
   }
@@ -165,13 +177,25 @@ function countPaidWeeks(
   return n
 }
 
+/**
+ * Stated line total is not derived here. Rate × period:
+ * weekly → lunar/4 → bought last, and only when the profile declares
+ * the bought-rate period. An unknown-period rate is display-only.
+ */
 function derivedMediaForRow(
   money: RowMoney,
   paidWeeks: number,
+  boughtRatePeriod?: "weekly" | "lunar" | null,
 ): number | null {
   if (paidWeeks <= 0) return null
   if (money.weeklyRate != null) return money.weeklyRate * paidWeeks
   if (money.lunarRate != null) return (money.lunarRate / 4) * paidWeeks
+  if (money.boughtRate != null && boughtRatePeriod === "weekly") {
+    return money.boughtRate * paidWeeks
+  }
+  if (money.boughtRate != null && boughtRatePeriod === "lunar") {
+    return (money.boughtRate / 4) * paidWeeks
+  }
   return null
 }
 
@@ -427,6 +451,7 @@ function buildBurstsForRow(
     stated: null,
     weeklyRate: null,
     lunarRate: null,
+    boughtRate: null,
     production: null,
     installation: null,
   },
@@ -497,6 +522,7 @@ type Acc = {
   bursts: ProposedBurst[]
   production: number
   installation: number
+  bought_rate: number | null
 }
 
 function groupingFromDescriptors(
@@ -544,6 +570,7 @@ function accToLineItem(g: Acc): ProposedLineItem {
     panels: g.panels,
     bursts: g.bursts,
   }
+  if (g.bought_rate != null) item.bought_rate = g.bought_rate
   if (g.production > 0 || g.installation > 0) {
     item.charges_detected = {
       production: g.production,
@@ -610,6 +637,7 @@ export function proposeLineItemsFromSheet(
       bursts: [],
       production: 0,
       installation: 0,
+      bought_rate: money.boughtRate,
     }
 
     if (money.production != null && money.production > 0) {
@@ -643,12 +671,16 @@ export function proposeLineItemsFromSheet(
         bursts: [],
         production: 0,
         installation: 0,
+        bought_rate: null,
       }
       groups.set(gk, acc)
     }
     acc.panels.push(panel)
     acc.production += rowAcc.production
     acc.installation += rowAcc.installation
+    if (acc.bought_rate == null && rowAcc.bought_rate != null) {
+      acc.bought_rate = rowAcc.bought_rate
+    }
     if (profile.grid_semantics === "count") {
       mergeCountBursts(acc, rowBursts)
     } else {
@@ -690,6 +722,7 @@ export function proposeLineItemsFromSheet(
     publisher_name: profile.publisher_name,
     media_type: profile.media_type,
     sheet_name: shape.sheet_name,
+    grid_semantics: profile.grid_semantics,
     line_items,
     reconciliation: {
       line_item_count: line_items.length,

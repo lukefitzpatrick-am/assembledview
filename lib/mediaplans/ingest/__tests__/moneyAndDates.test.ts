@@ -8,6 +8,8 @@ import test from "node:test"
 import { detectWorkbookShapesFromFile } from "../detectShape"
 import {
   evaluateReconciliationGate,
+  isMoneyTarget,
+  MONEY_TARGETS,
   RECONCILIATION_BLOCK_PCT,
 } from "../moneyTargets"
 import {
@@ -174,4 +176,35 @@ test("JCD fixture: explicit DMY grid dates win (campaign week labels unused)", a
   assert.equal(first!.start_date, "2026-08-24")
   assert.equal(first!.end_date, "2026-08-30")
   assert.ok(first!.confidence >= 0.9)
+})
+
+test("SF-6 media_rate:bought is a MONEY_TARGET and is not a stated line total", () => {
+  assert.ok(
+    (MONEY_TARGETS as readonly string[]).includes("media_rate:bought"),
+  )
+  assert.equal(isMoneyTarget("media_rate:bought"), true)
+  assert.notEqual("media_rate:bought", "media_amount:stated")
+  assert.equal(isMoneyTarget("media_amount:stated"), true)
+})
+
+test("SF-6 bought rate alone does not become authoritative media (unknown period)", async () => {
+  const jcd = loadProfile("JCDecaux")
+  const column_map = { ...jcd.column_map }
+  delete column_map["MEDIA VALUE (inc. STA)"]
+  delete column_map["Lunar (4 week) Market Rate"]
+  column_map["MEDIA BOUGHT RATE"] = "media_rate:bought"
+  const stripped = parsePublisherProfile({
+    ...jcd,
+    column_map,
+    notes: jcd.notes,
+  })
+  const shapes = await detectWorkbookShapesFromFile(
+    path.join(FIX, "jcd_strength-meals_ooh.xlsx"),
+  )
+  const proposal = proposeLineItemsFromSheet(shapes[0]!, stripped)
+  assert.equal(
+    proposal.reconciliation.total_media_amount,
+    0,
+    `bought rate of unknown period must not feed total_media_amount, got ${proposal.reconciliation.total_media_amount}`,
+  )
 })

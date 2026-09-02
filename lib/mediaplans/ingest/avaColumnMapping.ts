@@ -48,6 +48,7 @@ export const AVA_MAPPING_TARGET_DESCRIPTORS = [
   "media_rate:weekly",
   "media_rate:lunar",
   "media_rate:per_spot",
+  "media_rate:bought",
   "charge:production",
   "charge:installation",
   "reference:ignore",

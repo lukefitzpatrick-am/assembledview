@@ -132,6 +132,7 @@
       "Advertiser Share-of-Time": "advertiser_share",
       "Direction": "direction",
       "Lunar (4 week) Market Rate": "media_rate:lunar",
+      "MEDIA BOUGHT RATE": "media_rate:bought",
       "Production Charge": "charge:production",
       "Installation Charge": "charge:installation",
       "MEDIA VALUE (inc. STA)": "media_amount:stated"

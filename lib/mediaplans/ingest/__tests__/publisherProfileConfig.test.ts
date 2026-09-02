@@ -208,6 +208,48 @@ test("fixture descriptor headers: report unmapped columns", () => {
   assert.deepEqual(unmappedHeaders(sen, senMoneyHeaders), senMoneyHeaders)
 })
 
+test("JCDecaux MEDIA BOUGHT RATE seed key matches a fixture header that contains a newline", async () => {
+  const { detectWorkbookShapesFromFile } = await import("../detectShape")
+  const jcd = loadSeeds().find((s) => s.publisher_name === "JCDecaux")!
+  assert.equal(jcd.column_map["MEDIA BOUGHT RATE"], "media_rate:bought")
+  const headerKey = (h: string) => h.replace(/\s+/g, " ").trim().toLowerCase()
+  const rawHeader = "MEDIA \nBOUGHT RATE"
+  assert.equal(headerKey(rawHeader), headerKey("MEDIA BOUGHT RATE"))
+  // detectShape.cellText already collapses newlines; matching still works.
+  assert.equal(unmappedHeaders(jcd, [rawHeader]).length, 0)
+  const shapes = await detectWorkbookShapesFromFile(
+    path.join(process.cwd(), "tests/fixtures/ava-plans/jcd_strength-meals_ooh.xlsx"),
+  )
+  const sheet = shapes[0]
+  assert.ok(sheet)
+  const hit = sheet!.descriptor_columns.find(
+    (d) => headerKey(d.header) === headerKey("MEDIA BOUGHT RATE"),
+  )
+  assert.ok(hit, "fixture must expose MEDIA BOUGHT RATE as a descriptor")
+  assert.equal(headerKey(hit!.header), headerKey(rawHeader))
+  assert.equal(unmappedHeaders(jcd, [hit!.header]).length, 0)
+})
+
+test("0062 JCDecaux bought-rate SQL is AUTHOR ONLY jsonb merge, not a rewrite", () => {
+  const sql = readFileSync(
+    path.join(
+      process.cwd(),
+      "db/migrations/0062_publisher_profiles_jcd_bought_rate.sql",
+    ),
+    "utf8",
+  )
+  assert.match(sql, /AUTHOR ONLY/i)
+  assert.match(sql, /0062_publisher_profiles_jcd_bought_rate/)
+  assert.match(sql, /RAISE NOTICE/)
+  assert.match(sql, /publisher_profiles rows/)
+  assert.match(sql, /column_map \|\|/)
+  assert.match(sql, /MEDIA BOUGHT RATE/)
+  assert.match(sql, /media_rate:bought/)
+  assert.match(sql, /publisher_name = 'JCDecaux'/)
+  assert.doesNotMatch(sql, /column_map\s*=\s*'\{/)
+  assert.doesNotMatch(sql, /CREATE POLICY|ENABLE ROW LEVEL SECURITY/i)
+})
+
 test("0049 line_granularity SQL is AUTHOR ONLY and idempotent", () => {
   const sql = readFileSync(
     path.join(
