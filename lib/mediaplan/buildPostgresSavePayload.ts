@@ -8,7 +8,7 @@ import type {
 } from "@/lib/finance/campaignFinancials.types"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
 import { mapUiMediaTypeToLineChannel } from "@/lib/mediaplan/mapUiMediaTypeToLineChannel"
-import { parseMoneyInput } from "@/lib/format/money"
+import { parseMoneyInput, type MoneyInput } from "@/lib/format/money"
 import {
   isUnauthorizedStatus,
   noteAuthenticatedWriteOk,
@@ -59,6 +59,12 @@ function pickAttrs(raw: Record<string, unknown>): Record<string, unknown> | null
 function parseMoney(value: unknown): number {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0
   return parseMoneyInput(value as string | number | null | undefined) ?? 0
+}
+
+/** True when the raw burst has an entered budget, including explicit `"0"`. Blank is unstated. */
+function rawBurstStatesBudget(burst: unknown): boolean {
+  if (!burst || typeof burst !== "object") return false
+  return parseMoneyInput((burst as { budget?: MoneyInput }).budget) != null
 }
 
 function stripBillingPrefix(id: string): string {
@@ -132,7 +138,15 @@ export function buildSavePlanLineItemsFromSnapshots(
         (sum, b) => sum + parseMoney((b as { budget?: unknown }).budget),
         0
       )
-      if (enteredAmount <= 0) {
+      const isProduction = channel === "production"
+      // Production budgets often live in cost×amount with an empty budget key
+      // (`resolveProductionBurstBudget`); a stated-budget test would refill those
+      // incorrectly. Non-production: back-fill from the line total only when no
+      // raw burst states a budget. Explicit `"0"` is stated and must be kept.
+      const shouldBackFillFromLineTotal = isProduction
+        ? enteredAmount <= 0
+        : !bursts.some(rawBurstStatesBudget)
+      if (shouldBackFillFromLineTotal) {
         enteredAmount = parseMoney(raw.totalMedia ?? raw.total_media ?? raw.budget)
       }
       const rate =

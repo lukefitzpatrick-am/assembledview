@@ -459,3 +459,68 @@ describe("O4.5 publish/status-change carries feeLoading (shared assembler)", () 
     assert.equal(wiped.mbaScopeTotals.grossMedia, 40_000)
   })
 })
+
+/**
+ * C-82 / FIN-ZERO-1 persist twin: stated-zero burst budgets must not be
+ * refilled from the line total. Blank (never entered) still back-fills.
+ */
+const STATED_ZERO_LINE_TOTAL = 50_000
+const STATED_ZERO_BURST_DATES = { startDate: "2026-01-01", endDate: "2026-01-31" }
+
+function radioSnapshotRow(burstBudgets: unknown[]): Record<string, unknown> {
+  return {
+    line_item_id: "R1",
+    lineItemId: "R1",
+    buy_type: "spots",
+    totalMedia: STATED_ZERO_LINE_TOTAL,
+    bursts: burstBudgets.map((budget) => ({ ...STATED_ZERO_BURST_DATES, budget })),
+  }
+}
+
+describe("stated-zero enteredAmount on postgres save payload", () => {
+  it("three bursts all \"0\", line totalMedia $50,000 → payload enteredAmount 0", () => {
+    const [line] = buildSavePlanLineItemsFromSnapshots({
+      radio: [radioSnapshotRow(["0", "0", "0"])],
+    })
+    assert.equal(line!.enteredAmount, 0)
+  })
+
+  it("three bursts all blank, line totalMedia $50,000 → payload enteredAmount 50000", () => {
+    const [line] = buildSavePlanLineItemsFromSnapshots({
+      radio: [radioSnapshotRow(["", "", ""])],
+    })
+    assert.equal(line!.enteredAmount, STATED_ZERO_LINE_TOTAL)
+  })
+
+  it("mixed stated zero and blank skips the line-total back-fill", () => {
+    const [line] = buildSavePlanLineItemsFromSnapshots({
+      radio: [radioSnapshotRow(["0", "", ""])],
+    })
+    assert.equal(line!.enteredAmount, 0)
+  })
+
+  it("production with blank budgets and cost × amount still back-fills from totalMedia", () => {
+    const cost = 250
+    const amount = 4
+    const [line] = buildSavePlanLineItemsFromSnapshots({
+      production: [
+        {
+          line_item_id: "PRD1",
+          lineItemId: "PRD1",
+          buy_type: "production",
+          totalMedia: cost * amount,
+          bursts: [
+            {
+              ...STATED_ZERO_BURST_DATES,
+              budget: "",
+              cost,
+              amount,
+            },
+          ],
+        },
+      ],
+    })
+    assert.equal(line!.enteredAmount, cost * amount)
+  })
+})
+
