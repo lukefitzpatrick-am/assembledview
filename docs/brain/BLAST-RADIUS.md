@@ -79,6 +79,7 @@ Status ladder order deliberately mirrors Snowflake `V_LINE_ITEM_PACING` (`// Ord
 | Touch | Also check |
 |---|---|
 | `computeCampaignFinancials.ts` | MBA create + edit pages (3 call sites), `recomputeBillingScheduleOnSave` (→ every schedule PATCH can 409), `computeCampaignFinancialsFromVersion` (→ all receivables) |
+| `deriveReceivableRecords.ts` | Hub/invoicing compose (`composeFinanceHubRecords`). Record status is `resolveFinanceCampaignStatus` (once). Client-pays media lines are dropped + logged; `total` stays `monthExGstFromScheduleEntry`. Tests: `npm run test:finance-derive` |
 | `resolveFeePctFromFeeLoading` / `FEE_FIELD_BY_MEDIA` | Wrong mapping = save-blocking 409s for planners, not just wrong numbers. Special cases: production→0, influencers→`feecontentcreator` fallback, integration→no fallback |
 | `monthExGstFromScheduleEntry` | THE definition of a month's ex-GST value: receivable totals, `billableEqualsMba` validation, MBA panel indicators |
 | `receivableMergeKey` / `composeInvoiceKey` | Key change orphans existing `finance_billing_records` status rows → billed invoices reappear as unbilled |

@@ -15,6 +15,11 @@ export interface FinanceLineItem {
   planLineItemId?: string | null
   /** Persisted schedule billingMode when present on the source line. */
   billingMode?: "auto" | "manual" | null
+  /**
+   * True when the client pays the supplier for media. Receivables must refuse
+   * these lines; agency fee stays billable.
+   */
+  clientPaysMedia?: boolean
 }
 
 export interface FinanceServiceRow {
@@ -86,6 +91,7 @@ export function mergeFinanceLineItems(items: FinanceLineItem[]): FinanceLineItem
         publisherName: item.publisherName ?? null,
         planLineItemId: item.planLineItemId ?? null,
         billingMode: item.billingMode ?? null,
+        clientPaysMedia: item.clientPaysMedia === true,
       }
       byKey.set(key, copy)
       merged.push(copy)
@@ -93,6 +99,7 @@ export function mergeFinanceLineItems(items: FinanceLineItem[]): FinanceLineItem
     }
 
     existing.amount += item.amount
+    if (item.clientPaysMedia === true) existing.clientPaysMedia = true
   }
 
   // Round to 2dp to keep currency display/export stable

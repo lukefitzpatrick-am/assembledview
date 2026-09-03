@@ -1,3 +1,46 @@
 {
-  "extends": ["next/core-web-vitals"]
+  "extends": ["next/core-web-vitals"],
+  "overrides": [
+    {
+      "files": [
+        "lib/**/*.js",
+        "lib/**/*.jsx",
+        "lib/**/*.ts",
+        "lib/**/*.tsx",
+        "app/**/*.js",
+        "app/**/*.jsx",
+        "app/**/*.ts",
+        "app/**/*.tsx"
+      ],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          {
+            "name": "status",
+            "message": "Bare `status` is Window.status (lib.dom). Bind a local."
+          },
+          {
+            "name": "name",
+            "message": "Bare `name` is Window.name (lib.dom). Bind a local."
+          },
+          {
+            "name": "length",
+            "message": "Bare `length` is Window.length (lib.dom). Bind a local."
+          },
+          {
+            "name": "top",
+            "message": "Bare `top` is Window.top (lib.dom). Bind a local."
+          },
+          {
+            "name": "self",
+            "message": "Bare `self` is Window.self (lib.dom). Use globalThis or bind a local."
+          },
+          {
+            "name": "event",
+            "message": "Bare `event` is Window.event (lib.dom). Use the handler argument."
+          }
+        ]
+      }
+    }
+  ]
 }

@@ -42,7 +42,7 @@ function financeMediaLineToBillingLine(
     description: li.description || null,
     publisher_name: li.publisherName?.trim() || null,
     amount: li.amount,
-    client_pays_media: false,
+    client_pays_media: li.clientPaysMedia === true,
     sort_order: idx,
     schedule_line_item_id: li.planLineItemId ?? null,
     billing_mode: li.billingMode ?? null,
@@ -125,8 +125,9 @@ export function derivePlanReceivableBillingRecordsForMonth(
   let syntheticId = 1
 
   for (const version of relevantVersions) {
+    const campaignStatus = resolveFinanceCampaignStatus(version)
     if (
-      !isFinanceIncludedCampaignStatus(resolveFinanceCampaignStatus(version)) &&
+      !isFinanceIncludedCampaignStatus(campaignStatus) &&
       !options.includeNonBookedCampaigns
     ) {
       continue
@@ -148,12 +149,20 @@ export function derivePlanReceivableBillingRecordsForMonth(
 
     const planLookup = buildPlanLineItemMediaDetailLookup(version as Record<string, unknown>)
 
-    const financeMediaLines = mergeFinanceLineItems(
+    const mergedMediaLines = mergeFinanceLineItems(
       financeMediaLinesFromBillingMonth(
         coreBillingMonth,
         publisherMap as Map<string, { billingagency?: string | null }>
       )
     )
+    const droppedClientPays = mergedMediaLines.filter((li) => li.clientPaysMedia === true)
+    const financeMediaLines = mergedMediaLines.filter((li) => li.clientPaysMedia !== true)
+    if (droppedClientPays.length > 0) {
+      const droppedSum = roundMoney2(droppedClientPays.reduce((s, li) => s + li.amount, 0))
+      console.log(
+        `[finance-derive] ${mba || "?"} ${billingMonthKey}: dropped ${droppedClientPays.length} client-pays media lines ($${droppedSum})`
+      )
+    }
     const serviceAmounts = serviceAmountsFromBillingMonth(coreBillingMonth)
 
     const totalLineItemsAmount = financeMediaLines.reduce((s, li) => s + li.amount, 0)
@@ -175,10 +184,9 @@ export function derivePlanReceivableBillingRecordsForMonth(
         : NaN
     const media_plan_version_number = Number(version.version_number)
     const recordStatus: BillingRecord["status"] =
-      status === "completed" ? "booked"
-      : status === "approved" ? "booked"
-      : status === "booked" ? "booked"
-      : "draft"
+      campaignStatus === "completed" || campaignStatus === "approved" || campaignStatus === "booked"
+        ? "booked"
+        : "draft"
 
     const mediaLines = financeMediaLines.map((li, i) => financeMediaLineToBillingLine(li, i, planLookup))
     // Report enrichment only when the persisted schedule already carries enriched

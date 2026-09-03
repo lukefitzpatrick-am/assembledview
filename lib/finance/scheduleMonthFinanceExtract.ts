@@ -52,7 +52,9 @@ function lineAmountForMonth(item: BillingLineItem, monthYear: string): number {
 
 /**
  * Receivable media lines for one core billing month.
- * Only amounts &gt; 0 (client-pays media already zeroed on billing schedule).
+ * Amounts &gt; 0 only. Client-pays media is flagged (`clientPaysMedia`) so
+ * derive can refuse it — persisted schedules can still carry a stale non-zero
+ * month after the flag flips.
  */
 export function financeMediaLinesFromBillingMonth(
   month: BillingMonth,
@@ -118,6 +120,7 @@ export function financeMediaLinesFromBillingMonth(
         billingMode: item.billingMode === "auto" || item.billingMode === "manual"
           ? item.billingMode
           : null,
+        clientPaysMedia: item.clientPaysForMedia === true,
       })
     }
   }
