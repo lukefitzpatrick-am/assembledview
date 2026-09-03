@@ -52,9 +52,10 @@ function lineAmountForMonth(item: BillingLineItem, monthYear: string): number {
 
 /**
  * Receivable media lines for one core billing month.
- * Amounts &gt; 0 only. Client-pays media is flagged (`clientPaysMedia`) so
- * derive can refuse it — persisted schedules can still carry a stale non-zero
- * month after the flag flips.
+ * Amounts &gt; 0 only. Client-pays media is flagged (`clientPaysMedia`) from the
+ * schedule line so derive can refuse it. Derive also ORs the plan line's
+ * `client_pays_for_media` on (version_id, line_item_id) — rows-mode rebuild may
+ * omit the blob flag.
  */
 export function financeMediaLinesFromBillingMonth(
   month: BillingMonth,

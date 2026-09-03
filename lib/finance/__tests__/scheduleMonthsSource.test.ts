@@ -280,3 +280,23 @@ test("mediaTypeFromScheduleLineId: decorated, service, bare, legacy ETL, unknown
     assert.equal(mediaTypeFromScheduleLineId(id), expected, id)
   }
 })
+
+test("SF-11: rows-mode rebuild stamps clientPaysForMedia from the plan-line join", () => {
+  const financials = computeCampaignFinancials(boss001StyleFixture(), { feeLoading: {} })
+  const rows = explodeBoth(42, financials)
+  const clientPaysCanonIds = new Set(["BOSS001PD001"])
+  const rebuilt = buildSchedulesFromMonthRows(rows, { clientPaysCanonIds })
+  const mayBill = rebuilt.billing.find((m) => m.monthYear === "May 2026")
+  assert.ok(mayBill)
+  const pd = mayBill!.lineItems?.progDisplay?.find(
+    (li) => li.id === "billing-progDisplay::BOSS001PD001"
+  )
+  assert.ok(pd)
+  assert.equal(pd!.clientPaysForMedia, true)
+
+  const search = mayBill!.lineItems?.search?.find(
+    (li) => li.id === "billing-search::BOSS001SEA001"
+  )
+  assert.ok(search)
+  assert.notEqual(search!.clientPaysForMedia, true)
+})

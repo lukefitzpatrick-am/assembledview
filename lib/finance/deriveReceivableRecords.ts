@@ -12,6 +12,7 @@ import {
   lookupMediaDetailSlice,
   type PlanLineItemMediaDetailLookup,
 } from "@/lib/finance/planLineItemEnrichment"
+import { overlayClientPaysFromPlanLines } from "@/lib/finance/planLineClientPays"
 import {
   financeMediaLinesFromBillingMonth,
   serviceAmountsFromBillingMonth,
@@ -155,6 +156,7 @@ export function derivePlanReceivableBillingRecordsForMonth(
         publisherMap as Map<string, { billingagency?: string | null }>
       )
     )
+    overlayClientPaysFromPlanLines(mergedMediaLines, version)
     const droppedClientPays = mergedMediaLines.filter((li) => li.clientPaysMedia === true)
     const financeMediaLines = mergedMediaLines.filter((li) => li.clientPaysMedia !== true)
     if (droppedClientPays.length > 0) {

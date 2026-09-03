@@ -8,7 +8,7 @@
  * empty-divergence versions (DISPOSITIONS §E) land here.
  */
 
-import { eq, inArray } from "drizzle-orm"
+import { and, eq, inArray } from "drizzle-orm"
 import type { BillingLineItem, BillingMonth } from "@/lib/billing/types"
 import { parsePersistedBillingScheduleToMonths } from "@/lib/billing/parsePersistedBillingScheduleToMonths"
 import { getDb, schema } from "@/db"
@@ -25,6 +25,10 @@ import {
 } from "@/lib/finance/computeCampaignFinancials"
 import { getBillingSchedule, getDeliverySchedule } from "@/lib/finance/normalizeFields"
 import { toBillingOverrideLineItemId } from "@/lib/finance/manualBillingOverridesUi"
+import {
+  collectClientPaysPlanLineCanonIds,
+  planLineIsClientPays,
+} from "@/lib/finance/planLineClientPays"
 import { roundMoney2 } from "@/lib/format/money"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import type { ScheduleBasis, ScheduleComponent } from "@/scripts/migration/_scheduleTransform"
@@ -236,7 +240,15 @@ function ensureLine(month: MonthAccum, lineItemId: string, mediaType: MediaCostK
   return line
 }
 
-function finalizeMonths(byMonth: Map<string, MonthAccum>): BillingMonth[] {
+export type BuildSchedulesFromMonthRowsOpts = {
+  /** Canonical (bare) line_item_ids that are client-pays on the plan line. */
+  clientPaysCanonIds?: ReadonlySet<string>
+}
+
+function finalizeMonths(
+  byMonth: Map<string, MonthAccum>,
+  clientPaysCanonIds?: ReadonlySet<string>
+): BillingMonth[] {
   const keys = [...byMonth.keys()].sort()
   const out: BillingMonth[] = []
 
@@ -294,6 +306,9 @@ function finalizeMonths(byMonth: Map<string, MonthAccum>): BillingMonth[] {
       }
       if (line.mediaOverride) item.billingMode = "manual"
       if (line.feeOverride) item.feeBillingMode = "manual"
+      if (clientPaysCanonIds && planLineIsClientPays(clientPaysCanonIds, line.id)) {
+        item.clientPaysForMedia = true
+      }
       const bucket = (lineItems[line.mediaType] ??= [])
       bucket.push(item)
     }
@@ -385,13 +400,16 @@ function accumulateRows(
  * Inverse of `explodeScheduleToMonthRows` — rebuild billing + delivery
  * BillingMonth[] from typed schedule_months rows.
  */
-export function buildSchedulesFromMonthRows(rows: ScheduleMonthRowInput[]): {
+export function buildSchedulesFromMonthRows(
+  rows: ScheduleMonthRowInput[],
+  opts?: BuildSchedulesFromMonthRowsOpts
+): {
   billing: BillingMonth[]
   delivery: BillingMonth[]
 } {
   return {
-    billing: finalizeMonths(accumulateRows(rows, "billing")),
-    delivery: finalizeMonths(accumulateRows(rows, "delivery")),
+    billing: finalizeMonths(accumulateRows(rows, "billing"), opts?.clientPaysCanonIds),
+    delivery: finalizeMonths(accumulateRows(rows, "delivery"), opts?.clientPaysCanonIds),
   }
 }
 
@@ -401,7 +419,8 @@ export function buildSchedulesFromMonthRows(rows: ScheduleMonthRowInput[]): {
  */
 export function resolveVersionSchedules(
   version: Record<string, unknown>,
-  rows: ScheduleMonthRowInput[]
+  rows: ScheduleMonthRowInput[],
+  opts?: BuildSchedulesFromMonthRowsOpts
 ): ResolvedVersionSchedules {
   const versionId = Number(version.id ?? version.version_id ?? 0)
   if (!rows.length) {
@@ -417,7 +436,7 @@ export function resolveVersionSchedules(
     }
     return { billing, delivery, fallbackUsed: true }
   }
-  const built = buildSchedulesFromMonthRows(rows)
+  const built = buildSchedulesFromMonthRows(rows, opts)
   return { ...built, fallbackUsed: false }
 }
 
@@ -627,6 +646,55 @@ export async function loadScheduleMonthRowsForVersions(
   return out
 }
 
+export type PlanLineClientPaysRow = {
+  version_id: number
+  line_item_id: string
+  client_pays_for_media: boolean
+}
+
+/** Batch-load client-pays plan lines for the (version_id, line_item_id) join. */
+export async function loadClientPaysPlanLinesForVersions(
+  versionIds: number[]
+): Promise<Map<number, PlanLineClientPaysRow[]>> {
+  const out = new Map<number, PlanLineClientPaysRow[]>()
+  const ids = [...new Set(versionIds.filter((id) => Number.isFinite(id) && id > 0))]
+  for (const id of ids) out.set(id, [])
+  if (ids.length === 0) return out
+
+  const db = getDb()
+  const rows = await db
+    .select({
+      versionId: schema.lineItems.versionId,
+      lineItemId: schema.lineItems.lineItemId,
+      clientPaysForMedia: schema.lineItems.clientPaysForMedia,
+    })
+    .from(schema.lineItems)
+    .where(
+      and(inArray(schema.lineItems.versionId, ids), eq(schema.lineItems.clientPaysForMedia, true))
+    )
+
+  for (const r of rows) {
+    const list = out.get(r.versionId) ?? []
+    list.push({
+      version_id: r.versionId,
+      line_item_id: r.lineItemId,
+      client_pays_for_media: true,
+    })
+    out.set(r.versionId, list)
+  }
+  return out
+}
+
+function attachClientPaysPlanLinesIfAbsent(
+  version: Record<string, unknown>,
+  rows: PlanLineClientPaysRow[]
+): void {
+  if (rows.length === 0) return
+  const existing = version.line_items ?? version.lineItems
+  if (Array.isArray(existing) && existing.length > 0) return
+  version.line_items = rows
+}
+
 export type HydrateFinanceScheduleResult = {
   mode: FinanceScheduleBackend
   versionCount: number
@@ -636,19 +704,38 @@ export type HydrateFinanceScheduleResult = {
 
 /**
  * Attach resolved schedules onto versions for compose/derive/accrual/forecast.
- * - blob: no-op
+ * Always attaches client-pays plan lines (`line_items` probe shape) so receivable
+ * refusal can join on (version_id, line_item_id) even when the blob omitted the flag.
+ * - blob: no schedule rebuild
  * - shadow: serve blob; async-compare rows; attach blob resolved (fallbackUsed false unless empty both)
- * - rows: attach rows-derived (blob fallback when zero rows)
+ * - rows: attach rows-derived (blob fallback when zero rows); stamp clientPaysForMedia from the join
  */
 export async function hydrateVersionsFinanceScheduleSource(
   versions: Record<string, unknown>[]
 ): Promise<HydrateFinanceScheduleResult> {
   const mode = getFinanceScheduleBackend()
-  if (mode === "blob" || versions.length === 0) {
-    return { mode, versionCount: versions.length, fallbackCount: 0, shadowDiffCount: 0 }
+  if (versions.length === 0) {
+    return { mode, versionCount: 0, fallbackCount: 0, shadowDiffCount: 0 }
   }
 
   const versionIds = versions.map((v) => Number(v.id ?? v.version_id ?? 0)).filter((id) => id > 0)
+  try {
+    const clientPaysByVersion = await loadClientPaysPlanLinesForVersions(versionIds)
+    for (const version of versions) {
+      const versionId = Number(version.id ?? version.version_id ?? 0)
+      attachClientPaysPlanLinesIfAbsent(version, clientPaysByVersion.get(versionId) ?? [])
+    }
+  } catch (err) {
+    console.error(
+      "[finance-schedule] failed to load line_items client_pays; refusal stays blob-flag-only",
+      err
+    )
+  }
+
+  if (mode === "blob") {
+    return { mode, versionCount: versions.length, fallbackCount: 0, shadowDiffCount: 0 }
+  }
+
   let rowsByVersion: Map<number, ScheduleMonthRowInput[]>
   try {
     rowsByVersion = await loadScheduleMonthRowsForVersions(versionIds)
@@ -663,6 +750,8 @@ export async function hydrateVersionsFinanceScheduleSource(
   for (const version of versions) {
     const versionId = Number(version.id ?? version.version_id ?? 0)
     const rows = rowsByVersion.get(versionId) ?? []
+    const clientPaysCanonIds = collectClientPaysPlanLineCanonIds(version)
+    const rebuildOpts: BuildSchedulesFromMonthRowsOpts = { clientPaysCanonIds }
     const blobBilling =
       parsePersistedBillingScheduleToMonths(getBillingSchedule(version)) ?? []
     const blobDelivery =
@@ -684,7 +773,7 @@ export async function hydrateVersionsFinanceScheduleSource(
         ;(version as Record<string, unknown>)[FINANCE_SCHEDULE_RESOLVED_KEY] = attached
         continue
       }
-      const rebuilt = buildSchedulesFromMonthRows(rows)
+      const rebuilt = buildSchedulesFromMonthRows(rows, rebuildOpts)
       const diffs = recordFinanceScheduleShadowDiff(
         versionId,
         blobBilling,
@@ -704,7 +793,7 @@ export async function hydrateVersionsFinanceScheduleSource(
     }
 
     // rows mode
-    const resolved = resolveVersionSchedules(version, rows)
+    const resolved = resolveVersionSchedules(version, rows, rebuildOpts)
     if (resolved.fallbackUsed) fallbackCount++
     const attached: AttachedFinanceSchedule = { ...resolved, mode }
     ;(version as Record<string, unknown>)[FINANCE_SCHEDULE_RESOLVED_KEY] = attached
