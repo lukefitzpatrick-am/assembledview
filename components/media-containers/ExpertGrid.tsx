@@ -221,6 +221,7 @@ import {
   mergedWeekSpansAfterCutRect,
   clearSpanDateOverridesOnWeekRangeChange,
   resolveWeeklyExportSelection,
+  weeklySelectionStealsDelete,
   buildWeeklyExportTsv,
   applyWeeklyCutToRows,
   type ExpertWeekRectSelection,
@@ -2611,16 +2612,65 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     ]
   )
 
-  const copySelectedWeekRangeToClipboard = useCallback(async (): Promise<boolean> => {
-    const rows = normalizedRowsRef.current
-    const sel = resolveWeeklyExportSelection(
+  const resolveCurrentWeeklyExportSelection = useCallback((): WeeklyExportSelection | null => {
+    return resolveWeeklyExportSelection(
       weekRectSelectionRef.current,
+      weekMultiSelectRef.current,
       weekStripSelectionRef.current,
       mergeTargetRef.current,
       focusedCellRef.current,
       weekKeys,
-      rows
+      normalizedRowsRef.current
     )
+  }, [weekKeys])
+
+  const commitResolvedWeeklyCut = useCallback(
+    (sel: WeeklyExportSelection): boolean => {
+      const next = applyWeeklyCutToRows(
+        sel,
+        normalizedRowsRef.current,
+        weekKeys,
+        dayKeysByWeekKey
+      )
+      if (!next) return false
+      pushRows(next)
+      switch (sel.kind) {
+        case "rect":
+        case "mergeContiguous":
+          setWeekRectSelection(null)
+          setWeekMultiSelect(null)
+          break
+        case "strip":
+          setWeekStripSelection(null)
+          break
+        default:
+          break
+      }
+      return true
+    },
+    [dayKeysByWeekKey, pushRows, weekKeys]
+  )
+
+  const handleWeekCellDeleteOrBackspace = useCallback(
+    (e: KeyboardEvent<HTMLElement>): boolean => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return false
+      const sel = resolveCurrentWeeklyExportSelection()
+      if (!weeklySelectionStealsDelete(sel, weekKeys)) return false
+      e.preventDefault()
+      e.stopPropagation()
+      if (sel) commitResolvedWeeklyCut(sel)
+      return true
+    },
+    [
+      commitResolvedWeeklyCut,
+      resolveCurrentWeeklyExportSelection,
+      weekKeys,
+    ]
+  )
+
+  const copySelectedWeekRangeToClipboard = useCallback(async (): Promise<boolean> => {
+    const rows = normalizedRowsRef.current
+    const sel = resolveCurrentWeeklyExportSelection()
     if (!sel) return false
     const text = buildWeeklyExportTsv(sel, rows, weekKeys)
     if (!text) return false
@@ -2640,18 +2690,11 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     } catch {
       return false
     }
-  }, [weekKeys])
+  }, [resolveCurrentWeeklyExportSelection, weekKeys])
 
   const cutSelectedWeekRangeToClipboard = useCallback(async (): Promise<boolean> => {
     const rows = normalizedRowsRef.current
-    const sel = resolveWeeklyExportSelection(
-      weekRectSelectionRef.current,
-      weekStripSelectionRef.current,
-      mergeTargetRef.current,
-      focusedCellRef.current,
-      weekKeys,
-      rows
-    )
+    const sel = resolveCurrentWeeklyExportSelection()
     if (!sel) return false
     const text = buildWeeklyExportTsv(sel, rows, weekKeys)
     if (!text) return false
@@ -2668,25 +2711,21 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
         })
       }
     } catch {
-      return false
+      toast({
+        variant: "destructive",
+        title: "Copy failed",
+        description:
+          "The selection was cleared, but it could not be copied to the clipboard.",
+      })
     }
-    const next = applyWeeklyCutToRows(sel, rows, weekKeys)
-    if (!next) return true
-    pushRows(next)
-    switch (sel.kind) {
-      case "rect":
-      case "mergeContiguous":
-        setWeekRectSelection(null)
-        setWeekMultiSelect(null)
-        break
-      case "strip":
-        setWeekStripSelection(null)
-        break
-      default:
-        break
-    }
+    commitResolvedWeeklyCut(sel)
     return true
-  }, [pushRows, weekKeys])
+  }, [
+    commitResolvedWeeklyCut,
+    resolveCurrentWeeklyExportSelection,
+    toast,
+    weekKeys,
+  ])
 
   const handlePasteCapture = useCallback(
     (e: React.ClipboardEvent) => {
@@ -2726,14 +2765,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       const key = e.key.length === 1 ? e.key.toLowerCase() : e.key
 
       if (key === "c") {
-        const sel = resolveWeeklyExportSelection(
-          weekRectSelectionRef.current,
-          weekStripSelectionRef.current,
-          mergeTargetRef.current,
-          focusedCellRef.current,
-          weekKeys,
-          normalizedRowsRef.current
-        )
+        const sel = resolveCurrentWeeklyExportSelection()
         if (sel) {
           e.preventDefault()
           e.stopPropagation()
@@ -2743,14 +2775,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       }
 
       if (key === "x") {
-        const sel = resolveWeeklyExportSelection(
-          weekRectSelectionRef.current,
-          weekStripSelectionRef.current,
-          mergeTargetRef.current,
-          focusedCellRef.current,
-          weekKeys,
-          normalizedRowsRef.current
-        )
+        const sel = resolveCurrentWeeklyExportSelection()
         if (sel) {
           e.preventDefault()
           e.stopPropagation()
@@ -2790,6 +2815,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       copySelectedWeekRangeToClipboard,
       cutSelectedWeekRangeToClipboard,
       pasteMatrixIntoGrid,
+      resolveCurrentWeeklyExportSelection,
       weekKeys,
     ]
   )
@@ -2797,14 +2823,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   const handleCopyCapture = useCallback(
     (e: React.ClipboardEvent) => {
       const rows = normalizedRowsRef.current
-      const sel = resolveWeeklyExportSelection(
-        weekRectSelectionRef.current,
-        weekStripSelectionRef.current,
-        mergeTargetRef.current,
-        focusedCellRef.current,
-        weekKeys,
-        rows
-      )
+      const sel = resolveCurrentWeeklyExportSelection()
       if (!sel) return
       const text = buildWeeklyExportTsv(sel, rows, weekKeys)
       if (!text) return
@@ -2823,20 +2842,13 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
         })
       }
     },
-    [weekKeys]
+    [resolveCurrentWeeklyExportSelection, weekKeys]
   )
 
   const handleCutCapture = useCallback(
     (e: React.ClipboardEvent) => {
       const rows = normalizedRowsRef.current
-      const sel = resolveWeeklyExportSelection(
-        weekRectSelectionRef.current,
-        weekStripSelectionRef.current,
-        mergeTargetRef.current,
-        focusedCellRef.current,
-        weekKeys,
-        rows
-      )
+      const sel = resolveCurrentWeeklyExportSelection()
       if (!sel) return
       const text = buildWeeklyExportTsv(sel, rows, weekKeys)
       if (!text) return
@@ -2854,24 +2866,9 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
           selection,
         })
       }
-      const next = applyWeeklyCutToRows(sel, rows, weekKeys)
-      if (next) {
-        pushRows(next)
-        switch (sel.kind) {
-          case "rect":
-          case "mergeContiguous":
-            setWeekRectSelection(null)
-            setWeekMultiSelect(null)
-            break
-          case "strip":
-            setWeekStripSelection(null)
-            break
-          default:
-            break
-        }
-      }
+      commitResolvedWeeklyCut(sel)
     },
-    [pushRows, weekKeys]
+    [commitResolvedWeeklyCut, resolveCurrentWeeklyExportSelection, weekKeys]
   )
 
   const containerTotals = useMemo(() => {
@@ -4868,12 +4865,11 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                                       handleCellFocus(rowIndex, col.weekKey)
                                     }}
                                       onKeyDown={(e) => {
-                                      // Delete/Backspace can clear qty, but must never unmerge.
-                                      if (
-                                        isMergedAnchorCell &&
-                                        (e.key === "Delete" || e.key === "Backspace")
-                                      ) {
-                                        // Intentionally allow native input editing path.
+                                      // Multi-cell Delete/Backspace range-clears via
+                                      // applyWeeklyCutToRows (logical rows). A single
+                                      // caret stays native — including merged-anchor edit.
+                                      if (handleWeekCellDeleteOrBackspace(e)) {
+                                        return
                                       }
                                       if (
                                         (e.ctrlKey || e.metaKey) &&

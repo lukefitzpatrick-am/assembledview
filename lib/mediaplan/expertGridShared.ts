@@ -10,6 +10,7 @@ import {
 } from "date-fns"
 
 import { cn } from "@/lib/utils"
+import type { ExpertDailyValues } from "@/lib/mediaplan/expertDayModel"
 import type { ExpertWeeklyValues } from "@/lib/mediaplan/expertModeWeeklySchedule"
 import {
   parseDatePasteValue,
@@ -101,6 +102,7 @@ export { clearSpanDateOverridesOnWeekRangeChange } from "@/lib/mediaplan/expertS
 export type ExpertGridRowWithWeekly = Readonly<{
   weeklyValues: ExpertWeeklyValues
   mergedWeekSpans?: readonly ExpertGridMergeSpan[] | undefined
+  dailyValues?: ExpertDailyValues
 }>
 
 export type ExpertRowMergeMap = Readonly<{
@@ -345,6 +347,23 @@ export function selectionBoundsFromWeeklyExportSelection(
     default:
       return null
   }
+}
+
+/**
+ * Delete/Backspace must steal only when the resolved selection covers more
+ * than one cell. A 1×1 rect or focused caret stays native editing.
+ */
+export function weeklySelectionStealsDelete(
+  selection: WeeklyExportSelection | null,
+  weekKeys: readonly string[]
+): boolean {
+  if (!selection) return false
+  const bounds = selectionBoundsFromWeeklyExportSelection(selection, weekKeys)
+  if (!bounds) return false
+  const cellCount =
+    (bounds.endRow - bounds.startRow + 1) *
+    (bounds.endCol - bounds.startCol + 1)
+  return cellCount > 1
 }
 
 export function coerceWeeklySelectionBounds(
@@ -1080,16 +1099,28 @@ export function mergedWeekSpansAfterCutRect<S extends ExpertGridMergeSpan>(
   })
 }
 
+/**
+ * Copy / cut / export / Delete share this resolver.
+ * Order: rect → weekMultiSelect → strip → mergeTarget → focused cell.
+ */
 export function resolveWeeklyExportSelection<R extends ExpertGridRowWithWeekly>(
   weekRectSelection: ExpertWeekRectSelection | null,
+  weekMultiSelect: { rowIndex: number; keys: readonly string[] } | null,
   weekStripSelection: { rowIndex: number } | null,
-  mergeTarget: { rowIndex: number; keys: string[] } | null,
+  mergeTarget: { rowIndex: number; keys: readonly string[] } | null,
   focusedCell: { rowIndex: number; columnKey: string } | null,
   weekKeys: readonly string[],
   rows: readonly R[] | null
 ): WeeklyExportSelection | null {
   if (weekRectSelection) {
     return { kind: "rect", rect: weekRectSelection }
+  }
+  if (weekMultiSelect && weekMultiSelect.keys.length >= 2) {
+    return {
+      kind: "mergeContiguous",
+      rowIndex: weekMultiSelect.rowIndex,
+      weekKeys: weekMultiSelect.keys,
+    }
   }
   if (weekStripSelection) {
     return { kind: "strip", rowIndex: weekStripSelection.rowIndex }
@@ -1173,10 +1204,50 @@ export function buildWeeklyExportTsv<R extends ExpertGridRowWithWeekly>(
   }
 }
 
+function omitDailyKeysCoveredByWeeks(
+  dailyValues: ExpertDailyValues | undefined,
+  coveredWeekKeys: readonly string[],
+  dayKeysByWeekKey: Readonly<Record<string, readonly string[]>> | undefined
+): ExpertDailyValues | undefined {
+  if (!dailyValues || !dayKeysByWeekKey) return dailyValues
+  let changed = false
+  const next = { ...dailyValues }
+  for (const wk of coveredWeekKeys) {
+    for (const dk of dayKeysByWeekKey[wk] ?? []) {
+      if (dk in next) {
+        delete next[dk]
+        changed = true
+      }
+    }
+  }
+  return changed ? next : dailyValues
+}
+
+function withWeeklyCutOnRow<R extends ExpertGridRowWithWeekly>(
+  row: R,
+  weeklyValues: ExpertWeeklyValues,
+  coveredWeekKeys: readonly string[],
+  dayKeysByWeekKey: Readonly<Record<string, readonly string[]>> | undefined,
+  mergedWeekSpans: readonly ExpertGridMergeSpan[] | undefined
+): R {
+  const dailyValues = omitDailyKeysCoveredByWeeks(
+    row.dailyValues,
+    coveredWeekKeys,
+    dayKeysByWeekKey
+  )
+  return {
+    ...row,
+    weeklyValues,
+    mergedWeekSpans,
+    ...(dailyValues !== undefined ? { dailyValues } : {}),
+  } as R
+}
+
 export function applyWeeklyCutToRows<R extends ExpertGridRowWithWeekly>(
   selection: WeeklyExportSelection,
   rows: readonly R[],
-  weekKeys: readonly string[]
+  weekKeys: readonly string[],
+  dayKeysByWeekKey?: Readonly<Record<string, readonly string[]>>
 ): R[] | null {
   switch (selection.kind) {
     case "rect": {
@@ -1190,6 +1261,7 @@ export function applyWeeklyCutToRows<R extends ExpertGridRowWithWeekly>(
         weekKeys.indexOf(rect.weekKeyEnd)
       )
       if (wi0 < 0 || wi1 < 0) return null
+      const covered = weekKeys.slice(wi0, wi1 + 1)
       const next: R[] = rows.map((r) => ({
         ...r,
         mergedWeekSpans: [...(r.mergedWeekSpans ?? [])],
@@ -1198,20 +1270,19 @@ export function applyWeeklyCutToRows<R extends ExpertGridRowWithWeekly>(
         const row = next[r]
         if (!row) continue
         const weeklyValues = { ...row.weeklyValues } as ExpertWeeklyValues
-        for (let wi = wi0; wi <= wi1; wi++) {
-          const wk = weekKeys[wi]
-          if (wk) weeklyValues[wk] = ""
-        }
-        next[r] = {
-          ...row,
+        for (const wk of covered) weeklyValues[wk] = ""
+        next[r] = withWeeklyCutOnRow(
+          row,
           weeklyValues,
-          mergedWeekSpans: mergedWeekSpansAfterCutRect(
+          covered,
+          dayKeysByWeekKey,
+          mergedWeekSpansAfterCutRect(
             row.mergedWeekSpans,
             wi0,
             wi1,
             weekKeys
-          ),
-        } as R
+          )
+        )
       }
       return next
     }
@@ -1223,14 +1294,16 @@ export function applyWeeklyCutToRows<R extends ExpertGridRowWithWeekly>(
       for (const k of weekKeys) cleared[k] = ""
       return rows.map((r, i) =>
         i === rowIndex
-          ? ({
-              ...r,
-              weeklyValues: cleared,
-              mergedWeekSpans: (r.mergedWeekSpans ?? []).map((sp) => ({
+          ? withWeeklyCutOnRow(
+              r,
+              cleared,
+              weekKeys,
+              dayKeysByWeekKey,
+              (r.mergedWeekSpans ?? []).map((sp) => ({
                 ...sp,
                 totalQty: 0,
-              })),
-            } as R)
+              }))
+            )
           : r
       ) as R[]
     }
@@ -1240,6 +1313,7 @@ export function applyWeeklyCutToRows<R extends ExpertGridRowWithWeekly>(
       const wi0 = weekKeys.indexOf(ordered[0]!)
       const wi1 = weekKeys.indexOf(ordered[ordered.length - 1]!)
       if (wi0 < 0 || wi1 < 0) return null
+      const covered = weekKeys.slice(wi0, wi1 + 1)
       const r = selection.rowIndex
       const next: R[] = rows.map((row) => ({
         ...row,
@@ -1248,20 +1322,19 @@ export function applyWeeklyCutToRows<R extends ExpertGridRowWithWeekly>(
       const row = next[r]
       if (!row) return null
       const weeklyValues = { ...row.weeklyValues } as ExpertWeeklyValues
-      for (let wi = wi0; wi <= wi1; wi++) {
-        const wk = weekKeys[wi]
-        if (wk) weeklyValues[wk] = ""
-      }
-      next[r] = {
-        ...row,
+      for (const wk of covered) weeklyValues[wk] = ""
+      next[r] = withWeeklyCutOnRow(
+        row,
         weeklyValues,
-        mergedWeekSpans: mergedWeekSpansAfterCutRect(
+        covered,
+        dayKeysByWeekKey,
+        mergedWeekSpansAfterCutRect(
           row.mergedWeekSpans,
           wi0,
           wi1,
           weekKeys
-        ),
-      } as R
+        )
+      )
       return next
     }
     case "focusedWeekCell": {
@@ -1273,18 +1346,27 @@ export function applyWeeklyCutToRows<R extends ExpertGridRowWithWeekly>(
         if (span && span.startWeekKey !== wk) {
           return row
         }
+        const covered = span
+          ? weekKeysInSpanInclusive(weekKeys, span.startWeekKey, span.endWeekKey)
+          : [wk]
         if (span && span.startWeekKey === wk) {
-          return {
-            ...row,
-            mergedWeekSpans: (row.mergedWeekSpans ?? []).map((s) =>
+          return withWeeklyCutOnRow(
+            row,
+            { ...row.weeklyValues } as ExpertWeeklyValues,
+            covered,
+            dayKeysByWeekKey,
+            (row.mergedWeekSpans ?? []).map((s) =>
               s.id === span.id ? { ...s, totalQty: 0 } : s
-            ),
-          } as R
+            )
+          )
         }
-        return {
-          ...row,
-          weeklyValues: { ...row.weeklyValues, [wk]: "" as const },
-        } as R
+        return withWeeklyCutOnRow(
+          row,
+          { ...row.weeklyValues, [wk]: "" as const },
+          covered,
+          dayKeysByWeekKey,
+          row.mergedWeekSpans
+        )
       }) as R[]
     }
     default:
