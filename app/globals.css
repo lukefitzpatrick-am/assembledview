@@ -369,6 +369,20 @@
   @apply bg-info text-foreground border-secondary;
 }
 
+/*
+ * ExpertGrid schedule body rows: height is enforced on the cells, not only
+ * the <tr>. `max-height` does not apply to table-row; `height` is a minimum.
+ * `--eg-body-row-height` is set in px on [data-expert-grid] from JS.
+ */
+[data-expert-grid] tbody tr[data-search-expert-row-index] > td,
+[data-expert-grid] tbody tr[data-search-expert-row-index] > th {
+  height: var(--eg-body-row-height);
+  max-height: var(--eg-body-row-height);
+  min-height: var(--eg-body-row-height);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
 /* Sidebar styles */
 .group\/sidebar-wrapper {
   @apply transition-all ease-in-out duration-300;

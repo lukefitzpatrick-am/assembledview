@@ -16,7 +16,7 @@ import {
   useExpertGridRowVirtualizer,
 } from "@/components/media-containers/useExpertGridRowVirtualizer"
 import {
-  OOH_EXPERT_ROW_HEIGHT_PX,
+  EXPERT_GRID_BODY_ROW_HEIGHT_PX,
   EXPERT_GRID_ROW_OVERSCAN_DEFAULT,
   EXPERT_GRID_THEAD_HEIGHT_ESTIMATE_PX,
   assertExpertGridBodyRowHeightPx,
@@ -253,10 +253,9 @@ function normalizeSearchKey(input: unknown): string {
 
 /**
  * F-28 Phase 2 — row virtualization (shared helper from OOH). Fixed row height
- * matches Prompt A (`OOH_EXPERT_ROW_HEIGHT_PX`); no measureElement.
+ * matches {@link EXPERT_GRID_BODY_ROW_HEIGHT_PX}; no measureElement.
  */
 const SEARCH_EXPERT_ROW_VIRTUALIZATION = true
-const SEARCH_EXPERT_ROW_HEIGHT_PX = OOH_EXPERT_ROW_HEIGHT_PX
 const SEARCH_EXPERT_ROW_OVERSCAN = EXPERT_GRID_ROW_OVERSCAN_DEFAULT
 
 /**
@@ -435,6 +434,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   onWeekStartsOnChange,
 }: ExpertGridProps<TRow>) {
   const MEDIA_ACCENT_HEX = getMediaTypeThemeHex(config.mediaTypeKey)
+  const bodyRowHeightPx =
+    config.bodyRowHeightPx ?? EXPERT_GRID_BODY_ROW_HEIGHT_PX
   const searchExpertHeaderCellBgStyle = {
     backgroundColor: rgbaFromHex(MEDIA_ACCENT_HEX, 0.08),
   }
@@ -1019,12 +1020,12 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       SEARCH_EXPERT_ROW_VIRTUALIZATION
         ? {
             rowCount: normalizedRows.length,
-            estimateSizePx: SEARCH_EXPERT_ROW_HEIGHT_PX,
+            estimateSizePx: bodyRowHeightPx,
             getScrollElement: () => gridScrollRef.current,
             getBodyOffsetTop: () => theadHeightPx,
           }
         : null,
-    [normalizedRows.length, theadHeightPx]
+    [normalizedRows.length, theadHeightPx, bodyRowHeightPx]
   )
 
   const { dragRowIndex, handleProps, rowDropProps, isDropTarget } =
@@ -2256,7 +2257,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
   } = useExpertGridRowVirtualizer({
     count: normalizedRows.length,
     getScrollElement: () => gridScrollRef.current,
-    estimateSize: SEARCH_EXPERT_ROW_HEIGHT_PX,
+    estimateSize: bodyRowHeightPx,
     overscan: SEARCH_EXPERT_ROW_OVERSCAN,
     scrollMargin: theadHeightPx,
     scrollPaddingStart: theadHeightPx,
@@ -2269,8 +2270,12 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
       "tbody tr[data-search-expert-row-index]"
     )
     if (!row) return
-    assertExpertGridBodyRowHeightPx(row, SEARCH_EXPERT_ROW_HEIGHT_PX)
-  }, [normalizedRows.length, virtualItems.length])
+    assertExpertGridBodyRowHeightPx(
+      row,
+      bodyRowHeightPx,
+      config.channelLabel
+    )
+  }, [normalizedRows.length, virtualItems.length, bodyRowHeightPx, config.channelLabel])
 
   const virtualSpacerColSpan = useMemo(() => {
     let weekCells = 0
@@ -3133,6 +3138,9 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
               <div
                 ref={gridScrollRef}
                 className="relative h-full min-h-0 min-w-0 flex-1 overflow-x-auto overflow-y-auto overscroll-contain [scrollbar-gutter:stable]"
+                style={{
+                  ["--eg-body-row-height" as string]: `${bodyRowHeightPx}px`,
+                }}
                 onKeyDownCapture={handleGridKeyDownCapture}
                 onPasteCapture={handlePasteCapture}
                 onCopyCapture={handleCopyCapture}
@@ -3369,8 +3377,8 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                           data-search-expert-row-index={rowIndex}
                           style={{
                             ...stripeStyle,
-                            height: SEARCH_EXPERT_ROW_HEIGHT_PX,
-                            maxHeight: SEARCH_EXPERT_ROW_HEIGHT_PX,
+                            height: bodyRowHeightPx,
+                            maxHeight: bodyRowHeightPx,
                           }}
                           {...rowDropProps(rowIndex)}
                         >

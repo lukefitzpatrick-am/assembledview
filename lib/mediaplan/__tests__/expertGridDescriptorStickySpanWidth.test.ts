@@ -14,7 +14,7 @@ import {
   expertGridDescriptorKeys,
 } from "@/lib/mediaplan/expertGridChannelConfig"
 import {
-  OOH_EXPERT_ROW_HEIGHT_PX,
+  EXPERT_GRID_BODY_ROW_HEIGHT_PX,
   assertExpertGridBodyRowHeightPx,
   expertGridVirtualSpacerPaddings,
 } from "@/lib/mediaplan/oohExpertVirtualization"
@@ -83,7 +83,40 @@ test("expertGridVirtualSpacerPaddings unchanged (scrollMargin 48 and 76)", () =>
   }
 })
 
-test("row-height assertion console.errors when a row exceeds 41", () => {
+test("row-height assertion names channel, shorter direction, and per-row drift", () => {
+  const errors: string[] = []
+  const orig = console.error
+  console.error = (...args: unknown[]) => {
+    errors.push(args.map(String).join(" "))
+  }
+  try {
+    assertExpertGridBodyRowHeightPx(
+      {
+        getBoundingClientRect: () => ({ height: 39 }),
+        tagName: "TR",
+        getAttribute: (name: string) =>
+          name === "data-search-expert-row-index" ? "0" : null,
+        style: { height: "41px" },
+      },
+      EXPERT_GRID_BODY_ROW_HEIGHT_PX,
+      "Radio"
+    )
+    assert.equal(errors.length, 1)
+    assert.match(
+      errors[0]!,
+      /\[expert-grid\] Radio body row measured 39px, virtualiser assumes 41px \(shorter\)/
+    )
+    assert.match(errors[0]!, /drift by 2px per row/)
+    assert.match(
+      errors[0]!,
+      /<tr data-search-expert-row-index="0" aria-hidden=null style.height="41px">/
+    )
+  } finally {
+    console.error = orig
+  }
+})
+
+test("row-height assertion names taller direction", () => {
   const errors: string[] = []
   const orig = console.error
   console.error = (...args: unknown[]) => {
@@ -92,16 +125,21 @@ test("row-height assertion console.errors when a row exceeds 41", () => {
   try {
     assertExpertGridBodyRowHeightPx(
       { getBoundingClientRect: () => ({ height: 50 }) },
-      OOH_EXPERT_ROW_HEIGHT_PX
+      EXPERT_GRID_BODY_ROW_HEIGHT_PX,
+      "OOH"
     )
     assert.equal(errors.length, 1)
-    assert.match(errors[0]!, /50px !== 41px/)
+    assert.match(
+      errors[0]!,
+      /\[expert-grid\] OOH body row measured 50px, virtualiser assumes 41px \(taller\)/
+    )
+    assert.match(errors[0]!, /drift by 9px per row/)
   } finally {
     console.error = orig
   }
 })
 
-test("row-height assertion is silent when height is 41", () => {
+test("row-height assertion is silent when height matches the virtualiser", () => {
   const errors: string[] = []
   const orig = console.error
   console.error = (...args: unknown[]) => {
@@ -110,7 +148,8 @@ test("row-height assertion is silent when height is 41", () => {
   try {
     assertExpertGridBodyRowHeightPx(
       { getBoundingClientRect: () => ({ height: 41 }) },
-      OOH_EXPERT_ROW_HEIGHT_PX
+      EXPERT_GRID_BODY_ROW_HEIGHT_PX,
+      "Radio"
     )
     assert.equal(errors.length, 0)
   } finally {

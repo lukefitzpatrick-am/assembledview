@@ -21,7 +21,7 @@ export type UseExpertGridRowVirtualizerArgs = {
   getScrollElement: () => HTMLElement | null
   /**
    * Fixed row height (px), or a per-index estimator. Expert grids use a fixed
-   * height + no `measureElement` (see OOH hardening).
+   * height + no `measureElement` (see EXPERT_GRID_BODY_ROW_HEIGHT_PX).
    */
   estimateSize: number | ((index: number) => number)
   overscan?: number

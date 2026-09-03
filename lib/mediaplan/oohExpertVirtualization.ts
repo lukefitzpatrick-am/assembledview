@@ -10,13 +10,19 @@ import { expertRowCostSplit } from "@/lib/mediaplan/expertRowCost"
 import type { OohExpertScheduleRow } from "@/lib/mediaplan/expertModeWeeklySchedule"
 
 /**
- * Fixed body-row height (px). Must match CSS `height` / `max-height` on each
- * schedule `<tr>` and `estimateSize` on the virtualizer — no measureElement.
- * `max-height` on a `<tr>` does not apply (CSS 2.1 §10.5); `height` is a
- * minimum. Dev builds assert the first mounted body row via
+ * Fixed schedule body-row height (px) for every expert channel that shares
+ * ExpertGrid. Must match `--eg-body-row-height` on the cells (not only the
+ * `<tr>` — `max-height` does not apply to table-row, and `height` is only a
+ * minimum) and `estimateSize` on the virtualizer. Pixel, not rem: `html`
+ * font-size is 80% so Tailwind `h-8` is not 32 CSS px.
+ *
+ * Dev builds assert the first mounted body row via
  * {@link assertExpertGridBodyRowHeightPx}.
  */
-export const OOH_EXPERT_ROW_HEIGHT_PX = 41
+export const EXPERT_GRID_BODY_ROW_HEIGHT_PX = 41
+
+/** @deprecated Use {@link EXPERT_GRID_BODY_ROW_HEIGHT_PX} — shared, not OOH-only. */
+export const OOH_EXPERT_ROW_HEIGHT_PX = EXPERT_GRID_BODY_ROW_HEIGHT_PX
 
 /**
  * Seed for `scrollMargin` before the thead ResizeObserver fires.
@@ -25,22 +31,43 @@ export const OOH_EXPERT_ROW_HEIGHT_PX = 41
  */
 export const EXPERT_GRID_THEAD_HEIGHT_ESTIMATE_PX = 76
 
+export type ExpertGridBodyRowMeasureTarget = {
+  getBoundingClientRect(): { height: number }
+  tagName?: string
+  getAttribute?: (name: string) => string | null
+  style?: { height?: string }
+}
+
+function describeMeasuredExpertGridBodyRow(
+  row: ExpertGridBodyRowMeasureTarget
+): string {
+  const tag =
+    typeof row.tagName === "string" ? row.tagName.toLowerCase() : "node"
+  const idx = row.getAttribute?.("data-search-expert-row-index") ?? null
+  const hidden = row.getAttribute?.("aria-hidden") ?? null
+  const inlineH = row.style?.height ?? ""
+  return `<${tag} data-search-expert-row-index=${JSON.stringify(idx)} aria-hidden=${JSON.stringify(hidden)} style.height=${JSON.stringify(inlineH)}>`
+}
+
 /**
- * Dev-only: the virtualiser is fixed-size (`OOH_EXPERT_ROW_HEIGHT_PX`).
- * `height` on a table row is a minimum, so a multiline cell (e.g. `placement`)
- * can grow the row and desync scroll. Do not add measureElement — shout instead.
+ * Dev-only: the virtualiser is fixed-size (`EXPERT_GRID_BODY_ROW_HEIGHT_PX`).
+ * `height` on a table row is a minimum, so a multiline cell can grow the row
+ * and desync scroll. Do not add measureElement — shout instead.
  */
 export function assertExpertGridBodyRowHeightPx(
-  row: { getBoundingClientRect(): { height: number } },
-  expectedPx: number = OOH_EXPERT_ROW_HEIGHT_PX
+  row: ExpertGridBodyRowMeasureTarget,
+  expectedPx: number = EXPERT_GRID_BODY_ROW_HEIGHT_PX,
+  channelLabel: string = "expert"
 ): void {
   if (process.env.NODE_ENV === "production") return
   const height = row.getBoundingClientRect().height
   if (!Number.isFinite(height) || height <= 0) return
   const rounded = Math.round(height)
   if (rounded !== expectedPx) {
+    const direction = rounded > expectedPx ? "taller" : "shorter"
+    const drift = Math.abs(rounded - expectedPx)
     console.error(
-      `[expert-grid] body row height ${rounded}px !== ${expectedPx}px (fixed virtualiser). A multiline descriptor (e.g. placement) likely grew the row.`
+      `[expert-grid] ${channelLabel} body row measured ${rounded}px, virtualiser assumes ${expectedPx}px (${direction}). Scroll position will drift by ${drift}px per row. measured ${describeMeasuredExpertGridBodyRow(row)}`
     )
   }
 }

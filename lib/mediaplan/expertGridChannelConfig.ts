@@ -174,6 +174,12 @@ export type ExpertGridChannelConfig<TRow extends ExpertScheduleRowCommon> = {
   mediaTypeKey: MediaTypeThemeKey
   /** Human channel name in UI chrome. */
   channelLabel: string
+  /**
+   * Fixed schedule body-row height (px) for the virtualiser, cell box, and
+   * the dev assertion. Omit to use the shared ExpertGrid default (41px).
+   * Must be CSS pixels, not rem — `html { font-size: 80% }` desyncs `h-8`.
+   */
+  bodyRowHeightPx?: number
   /** Publisher fuzzy-match field (Search/Prog: platform; OOH: network). */
   publisherField: ExpertGridPublisherField
   /**
