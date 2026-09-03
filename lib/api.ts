@@ -1918,25 +1918,25 @@ export async function saveSocialMediaLineItems(mediaPlanVersionId: number, mbaNu
 
 
 
-/** Maps lineItems object keys to Next.js /api/media_plans path segments (or Xano table names for catch-all). */
+/** Maps lineItems object keys to dedicated /api/media_plans path segments (never media_plan_* catch-all). */
 const LINE_ITEM_BROWSER_API_PATH: Record<string, string> = {
   television: "television",
-  radio: "media_plan_radio",
+  radio: "radio",
   newspaper: "newspaper",
-  magazines: "media_plan_magazines",
-  ooh: "media_plan_ooh",
+  magazines: "magazines",
+  ooh: "ooh",
   cinema: "cinema",
-  digitalDisplay: "media_plan_digi_display",
-  digitalAudio: "media_plan_digi_audio",
-  digitalVideo: "media_plan_digi_video",
+  digitalDisplay: "digi-display",
+  digitalAudio: "digi-audio",
+  digitalVideo: "digi-video",
   bvod: "digi-bvod",
   integration: "integration",
   search: "search",
   socialMedia: "social",
   progDisplay: "prog-display",
   progVideo: "prog-video",
-  progBvod: "media_plan_prog_bvod",
-  progAudio: "media_plan_prog_audio",
+  progBvod: "prog-bvod",
+  progAudio: "prog-audio",
   progOoh: "prog-ooh",
   influencers: "influencers",
   production: "production",

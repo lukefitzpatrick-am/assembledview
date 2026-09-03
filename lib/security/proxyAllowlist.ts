@@ -24,19 +24,19 @@ export const MEDIA_PLANS_ALLOWLIST: Record<string, { base: MethodSet; withId: Me
   media_plan_newspaper: { base: M("GET", "POST"), withId: M("DELETE") },
   // consumer: replaceChannelLineItems + social dedicated GET; death: T6
   media_plan_social: { base: M("GET", "POST"), withId: M("DELETE") },
-  // consumer: replaceChannelLineItems + fetchLineItemsFromApi(radio→catch-all); death: T6
+  // consumer: replaceChannelLineItems + radio dedicated GET; death: T6
   media_plan_radio: { base: M("GET", "POST"), withId: M("DELETE") },
-  // consumer: replaceChannelLineItems + fetchLineItemsFromApi(magazines); death: T6
+  // consumer: replaceChannelLineItems + magazines dedicated GET; death: T6
   media_plan_magazines: { base: M("GET", "POST"), withId: M("DELETE") },
-  // consumer: replaceChannelLineItems + fetchLineItemsFromApi(ooh); death: T6
+  // consumer: replaceChannelLineItems + ooh dedicated GET; death: T6
   media_plan_ooh: { base: M("GET", "POST"), withId: M("DELETE") },
   // consumer: replaceChannelLineItems + cinema dedicated GET; death: T6
   media_plan_cinema: { base: M("GET", "POST"), withId: M("DELETE") },
-  // consumer: replaceChannelLineItems + fetchLineItemsFromApi(digitalDisplay); death: T6
+  // consumer: replaceChannelLineItems + digi-display dedicated GET; death: T6
   media_plan_digi_display: { base: M("GET", "POST"), withId: M("DELETE") },
-  // consumer: replaceChannelLineItems + fetchLineItemsFromApi(digitalAudio); death: T6
+  // consumer: replaceChannelLineItems + digi-audio dedicated GET; death: T6
   media_plan_digi_audio: { base: M("GET", "POST"), withId: M("DELETE") },
-  // consumer: replaceChannelLineItems + fetchLineItemsFromApi(digitalVideo); death: T6
+  // consumer: replaceChannelLineItems + digi-video dedicated GET; death: T6
   media_plan_digi_video: { base: M("GET", "POST"), withId: M("DELETE") },
   // consumer: replaceChannelLineItems + digi-bvod dedicated GET; death: T6
   media_plan_digi_bvod: { base: M("GET", "POST"), withId: M("DELETE") },
@@ -48,9 +48,9 @@ export const MEDIA_PLANS_ALLOWLIST: Record<string, { base: MethodSet; withId: Me
   media_plan_prog_display: { base: M("GET", "POST"), withId: M("DELETE") },
   // consumer: replaceChannelLineItems + prog-video dedicated GET; death: T6
   media_plan_prog_video: { base: M("GET", "POST"), withId: M("DELETE") },
-  // consumer: replaceChannelLineItems + fetchLineItemsFromApi(progBvod); death: T6
+  // consumer: replaceChannelLineItems + prog-bvod dedicated GET; death: T6
   media_plan_prog_bvod: { base: M("GET", "POST"), withId: M("DELETE") },
-  // consumer: replaceChannelLineItems + fetchLineItemsFromApi(progAudio); death: T6
+  // consumer: replaceChannelLineItems + prog-audio dedicated GET; death: T6
   media_plan_prog_audio: { base: M("GET", "POST"), withId: M("DELETE") },
   // consumer: replaceChannelLineItems + prog-ooh dedicated GET; death: T6
   media_plan_prog_ooh: { base: M("GET", "POST"), withId: M("DELETE") },

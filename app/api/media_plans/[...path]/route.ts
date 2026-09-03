@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { createChannelLineItemsGetHandler } from "@/lib/api/channelLineItemsGetHandler"
-import { isChannelLineItemEndpoint } from "@/lib/api/fetchChannelLineItemsByMba"
+import { resolveChannelLineItemEndpoint } from "@/lib/api/fetchChannelLineItemsByMba"
 import { getDataBackendFor, getWriteBackend } from "@/lib/data/backend"
 import { xanoAuthHeader, xanoUrl } from "@/lib/api/xano"
 import { requireRole } from "@/lib/requireRole"
@@ -121,8 +121,11 @@ export async function GET(request: Request, context: Ctx) {
 
   // Channel line-item GETs: FK-first (same as dedicated routes / MBA GET).
   // Skip proxy mba_number+version_number filters that miss skewed plans.
-  if (path && isChannelLineItemEndpoint(path) && mbaNumber) {
-    return createChannelLineItemsGetHandler(path, `CATCHALL_${path}`)(request)
+  // Resolve kebab URL segments to media_plan_* so a missing dedicated route
+  // still hits postgres instead of proxying Xano (admin gate still applies).
+  const channelEndpoint = path ? resolveChannelLineItemEndpoint(path) : null
+  if (channelEndpoint && mbaNumber) {
+    return createChannelLineItemsGetHandler(channelEndpoint, `CATCHALL_${channelEndpoint}`)(request)
   }
 
   const plansResponse = path ? await handlePlansDomainGet(request, path) : null
@@ -139,7 +142,7 @@ export async function GET(request: Request, context: Ctx) {
 function retiredChannelWriteResponse(parts: string[] | undefined): NextResponse | null {
   if (getWriteBackend() !== "postgres") return null
   const segment = parts?.[0] ?? ""
-  if (!segment || !isChannelLineItemEndpoint(segment)) return null
+  if (!segment || !resolveChannelLineItemEndpoint(segment)) return null
   return NextResponse.json(
     {
       error:

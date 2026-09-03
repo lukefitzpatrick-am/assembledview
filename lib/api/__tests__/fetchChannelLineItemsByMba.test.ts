@@ -22,6 +22,7 @@ const {
   filterByMbaAndVersion,
   fetchXanoTableForEndpoint,
   isChannelLineItemEndpoint,
+  resolveChannelLineItemEndpoint,
 } = await import("../fetchChannelLineItemsByMba.js")
 
 beforeEach(() => {
@@ -72,6 +73,10 @@ test("CHANNEL_LINE_ITEM_ENDPOINTS covers all 20 channel tables", () => {
   assert.equal(isChannelLineItemEndpoint("media_plan_search"), true)
   assert.equal(isChannelLineItemEndpoint("media_plan_radio"), true)
   assert.equal(isChannelLineItemEndpoint("search"), false)
+  assert.equal(resolveChannelLineItemEndpoint("search"), "media_plan_search")
+  assert.equal(resolveChannelLineItemEndpoint("media_plan_radio"), "media_plan_radio")
+  assert.equal(resolveChannelLineItemEndpoint("radio"), "media_plan_radio")
+  assert.equal(resolveChannelLineItemEndpoint("not-a-channel"), null)
 })
 
 test("filterByMbaAndVersion: skewed plan matches by FK id (not mp_plannumber)", () => {

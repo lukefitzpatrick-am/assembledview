@@ -55,6 +55,41 @@ export function isChannelLineItemEndpoint(path: string): path is ChannelLineItem
   return CHANNEL_LINE_ITEM_ENDPOINT_SET.has(path)
 }
 
+/**
+ * Catch-all URL segment → table endpoint. Kebab is never itself an endpoint;
+ * dedicated routes must pass the `media_plan_*` name into the GET handler.
+ * Without this map, a LINE_ITEM_BROWSER_API_PATH kebab with no dedicated route
+ * hits the catch-all and proxies Xano (`isChannelLineItemEndpoint(kebab)` is false).
+ */
+export const CHANNEL_LINE_ITEM_URL_SEGMENT_TO_ENDPOINT: Record<string, ChannelLineItemEndpoint> =
+  {
+    television: "media_plan_television",
+    radio: "media_plan_radio",
+    newspaper: "media_plan_newspaper",
+    magazines: "media_plan_magazines",
+    ooh: "media_plan_ooh",
+    cinema: "media_plan_cinema",
+    "digi-display": "media_plan_digi_display",
+    "digi-audio": "media_plan_digi_audio",
+    "digi-video": "media_plan_digi_video",
+    "digi-bvod": "media_plan_digi_bvod",
+    integration: "media_plan_integrations",
+    search: "media_plan_search",
+    social: "media_plan_social",
+    "prog-display": "media_plan_prog_display",
+    "prog-video": "media_plan_prog_video",
+    "prog-bvod": "media_plan_prog_bvod",
+    "prog-audio": "media_plan_prog_audio",
+    "prog-ooh": "media_plan_prog_ooh",
+    influencers: "media_plan_influencers",
+    production: "media_plan_production",
+  }
+
+export function resolveChannelLineItemEndpoint(path: string): ChannelLineItemEndpoint | null {
+  if (isChannelLineItemEndpoint(path)) return path
+  return CHANNEL_LINE_ITEM_URL_SEGMENT_TO_ENDPOINT[path] ?? null
+}
+
 function normalise(value: unknown): string {
   return String(value ?? "")
     .trim()

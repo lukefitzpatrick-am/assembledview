@@ -1,17 +1,12 @@
 /**
  * SF-10 — Prog BVOD container load.
  *
- * Diagnostic: fieldMap shared-flag parity and spelling aliases are GREEN.
- * The RED tests encode the intended editor GET (dedicated tenant-scoped
- * `prog-bvod` route, same shape as prog-video). Leave them failing until
- * the next commit adds `app/api/media_plans/prog-bvod/route.ts` and points
- * `LINE_ITEM_BROWSER_API_PATH.progBvod` at `prog-bvod`.
+ * Dedicated `prog-bvod` GET landed in SF-10a alongside the other seven
+ * catch-all channels. `isChannelLineItemEndpoint("prog-bvod")` stays false —
+ * the route must pass `media_plan_prog_bvod` into the handler.
  *
  * Do not import `containerChannelConfig` here — it pulls `lib/api.ts`, which
  * throws at module scope without Xano publisher env (BLAST-RADIUS).
- *
- * A one-line path change without that route is worse: `isChannelLineItemEndpoint("prog-bvod")`
- * is false, so catch-all would proxy Xano instead of postgres `line_items`.
  *
  * Run: npx tsx --test lib/mediaplan/__tests__/progBvodLoad.sf10.test.ts
  */
