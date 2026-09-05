@@ -539,6 +539,15 @@ describe("create + edit assembly twins (shared helpers)", () => {
     )
     assert.equal(editCampaignSetup.includes("xl:grid-cols-3"), false)
     assert.doesNotMatch(editSrc, /PlannerCreateTargetsStrip/)
+
+    const bootStart = editSrc.indexOf('if (loadPhase === "bootstrapping")')
+    const bootEnd = editSrc.indexOf("<PlanWizardShell", bootStart)
+    assert.ok(bootStart >= 0 && bootEnd > bootStart, "missing bootstrapping skeleton")
+    const boot = editSrc.slice(bootStart, bootEnd)
+    assert.match(
+      boot,
+      /md:grid-cols-2 xl:grid-cols-4/,
+    )
   })
 
   it("edit overwrite toast is explicit (not a version-cut message) + uiMode→mode guard comment", () => {

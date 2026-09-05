@@ -11897,13 +11897,13 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
           <div className="space-y-6">
             {/* Row 2 — Campaign Details + Media Types */}
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 xl:gap-7 2xl:gap-8 xl:items-stretch">
-              <div className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm xl:col-span-2">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
-                  <Skeleton className="h-5 w-40" />
-                  <Skeleton className="h-8 w-64" />
+              <div className="scroll-mt-[18px] rounded-frame border border-border bg-card p-4 shadow-e1 sm:p-5 xl:col-span-2">
+                <div className="mb-5 flex flex-col gap-1">
+                  <Skeleton className="h-3 w-16" />
+                  <Skeleton className="h-6 w-40" />
                 </div>
-                <div className="grid w-full flex-1 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-3">
-                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((i) => (
+                <div className="grid w-full flex-1 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-4">
+                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
                     <div key={i} className="space-y-2">
                       <Skeleton className="h-3 w-24" />
                       <Skeleton className="h-10 w-full" />
