@@ -46,6 +46,86 @@ test("one stated zero among blanks is enough to skip the line-total back-fill", 
   assert.equal(input!.enteredAmount, 0)
 })
 
+function productionConfig(line: Record<string, unknown>): SeedLineFeesMediaConfig {
+  return {
+    billingKey: "production",
+    lineItems: [line],
+    containerBursts: [],
+  }
+}
+
+test("production line with null buy_type resolves LineItemInput.buyType to production", () => {
+  const [input] = buildEditorLineItemInputs([
+    productionConfig({
+      line_item_id: "glenda008PROD1",
+      buy_type: null,
+      bursts: [
+        {
+          cost: 4000,
+          amount: 3,
+          startDate: "2026-01-01",
+          endDate: "2026-01-31",
+        },
+      ],
+    }),
+  ])
+  assert.equal(input!.buyType, "production")
+})
+
+test("production line with blank buyType resolves to production", () => {
+  const [input] = buildEditorLineItemInputs([
+    productionConfig({
+      line_item_id: "PROD2",
+      buyType: "",
+      bursts: [{ cost: 100, amount: 1, startDate: "2026-01-01", endDate: "2026-01-31" }],
+    }),
+  ])
+  assert.equal(input!.buyType, "production")
+})
+
+test("radio blank buyType stays blank (production default is channel-scoped)", () => {
+  const [input] = buildEditorLineItemInputs([radioConfig(radioLine(["0"]))])
+  assert.equal(input!.buyType, "spots")
+  const [blank] = buildEditorLineItemInputs([
+    radioConfig({ line_item_id: "R2", buyType: "", totalMedia: 1, bursts: [{ ...BURST_DATES, budget: "0" }] }),
+  ])
+  assert.equal(blank!.buyType, "")
+})
+
+test("glenda008-shaped production line with null buy_type emits zero deliverableBudget warnings", () => {
+  const prev = process.env.NODE_ENV
+  const env = process.env as { NODE_ENV?: string }
+  env.NODE_ENV = "development"
+  const originalWarn = console.warn
+  const warns: string[] = []
+  console.warn = (...args: unknown[]) => {
+    warns.push(args.map(String).join(" "))
+  }
+  try {
+    const [input] = buildEditorLineItemInputs([
+      productionConfig({
+        line_item_id: "glenda008PROD1",
+        buy_type: null,
+        bursts: [
+          {
+            cost: 4000,
+            amount: 3,
+            startDate: "2026-01-01",
+            endDate: "2026-01-31",
+          },
+        ],
+      }),
+    ])
+    assert.equal(input!.buyType, "production")
+    computeCampaignFinancials([input!], { feeLoading: {} })
+    const budgetWarns = warns.filter((w) => w.includes("[deliverableBudget]"))
+    assert.deepEqual(budgetWarns, [])
+  } finally {
+    console.warn = originalWarn
+    env.NODE_ENV = prev
+  }
+})
+
 test("enteredAmount 0 with three zero-budget bursts produces zero media, fee, and months", () => {
   const line: LineItemInput = {
     lineItemId: "R1",

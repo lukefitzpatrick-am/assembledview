@@ -30,6 +30,7 @@ import {
 import { formatBurstLabel } from "@/lib/bursts"
 import { formatMoney, parseMoneyInput } from "@/lib/format/money"
 import { withInjectedComboboxValue } from "@/lib/mediaplan/comboboxCurrentValue"
+import { shouldMountCpcFamilyBurstCalculatedField } from "@/lib/mediaplan/deliverableBudget"
 import {
   getExpertCardSurfaceFields,
   getExpertOptionFlags,
@@ -492,6 +493,7 @@ function ExpertCardBursts<T extends FieldValues>({
   lineItemId,
   feePct,
   calculatedVariant,
+  mediaTypeKey,
   campaignStartDate,
   campaignEndDate,
   onBurstValueChange,
@@ -505,6 +507,7 @@ function ExpertCardBursts<T extends FieldValues>({
   lineItemId: string
   feePct: number
   calculatedVariant: CpcFamilyVariant
+  mediaTypeKey: string
   campaignStartDate: Date
   campaignEndDate: Date
   onBurstValueChange: (lineItemIndex: number, burstIndex: number) => void
@@ -527,6 +530,10 @@ function ExpertCardBursts<T extends FieldValues>({
     }) as unknown[] | undefined) ?? []
 
   const bonusLocked = buyType === "bonus" || buyType === "package_inclusions"
+  const mountCalculated = shouldMountCpcFamilyBurstCalculatedField({
+    mediaTypeKey,
+    buyType,
+  })
   const calculatedLabel = getCpcFamilyBurstCalculatedColumnLabel(
     calculatedVariant,
     buyType || ""
@@ -545,7 +552,7 @@ function ExpertCardBursts<T extends FieldValues>({
               <span>Buy Amount</span>
               <span>Start</span>
               <span>End</span>
-              <span>{calculatedLabel}</span>
+              <span>{mountCalculated ? calculatedLabel : ""}</span>
               <span>Media</span>
               <span>{`Fee (${feePct}%)`}</span>
             </div>
@@ -745,26 +752,30 @@ function ExpertCardBursts<T extends FieldValues>({
                     )}
                   />
 
-                  <FormField
-                    control={form.control}
-                    name={burstFieldName<T>(
-                      itemsKey,
-                      lineItemIndex,
-                      burstIndex,
-                      "calculatedValue"
-                    )}
-                    render={({ field }) => (
-                      <CpcFamilyBurstCalculatedField
-                        form={form}
-                        itemsKey={itemsKey}
-                        lineItemIndex={lineItemIndex}
-                        burstIndex={burstIndex}
-                        field={field}
-                        feePct={feePct}
-                        variant={calculatedVariant}
-                      />
-                    )}
-                  />
+                  {mountCalculated ? (
+                    <FormField
+                      control={form.control}
+                      name={burstFieldName<T>(
+                        itemsKey,
+                        lineItemIndex,
+                        burstIndex,
+                        "calculatedValue"
+                      )}
+                      render={({ field }) => (
+                        <CpcFamilyBurstCalculatedField
+                          form={form}
+                          itemsKey={itemsKey}
+                          lineItemIndex={lineItemIndex}
+                          burstIndex={burstIndex}
+                          field={field}
+                          feePct={feePct}
+                          variant={calculatedVariant}
+                        />
+                      )}
+                    />
+                  ) : (
+                    <div />
+                  )}
 
                   <Input
                     type="text"
@@ -1053,6 +1064,7 @@ export function ExpertCard<T extends FieldValues>({
               lineItemId={lineItemId}
               feePct={feePct}
               calculatedVariant={calculatedVariant}
+              mediaTypeKey={config.mediaTypeKey}
               campaignStartDate={campaignStartDate}
               campaignEndDate={campaignEndDate}
               onBurstValueChange={onBurstValueChange}

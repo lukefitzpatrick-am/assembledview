@@ -31,6 +31,7 @@ import { formatCurrencyFull } from "@/lib/format/currency"
 import { formatAUD } from "@/lib/format/money"
 import { ExpertCard } from "@/components/media-containers/ExpertCard"
 import { PRODUCTION_EXPERT_CHANNEL_CONFIG } from "@/lib/mediaplan/expertGridChannelConfig"
+import { resolveBuyTypeForChannel } from "@/lib/mediaplan/deliverableBudget"
 import {
   PRODUCTION_CONTAINER_CONFIG,
   buildDefaultLineItem,
@@ -535,6 +536,10 @@ export default function ProductionContainer({
               item.line_item_id ||
               item.lineItemId ||
               buildLineItemId(mbaNumber, MEDIA_TYPE_ID_CODES.production, idx + 1),
+            buyType: resolveBuyTypeForChannel(
+              "production",
+              (item.buy_type ?? item.buyType) as string | null | undefined
+            ),
             bursts: bursts.length > 0 ? bursts : [makeDefaultBurst()],
           }
         })
@@ -813,7 +818,6 @@ export default function ProductionContainer({
                       publishers={[]}
                       dynamicOptionsByKey={{ mediaType: productionTypeComboboxOptions }}
                       feePct={0}
-                      calculatedVariant="cpcCpvCpm"
                       campaignStartDate={campaignStartDate}
                       campaignEndDate={campaignEndDate}
                       onBurstValueChange={() => {}}

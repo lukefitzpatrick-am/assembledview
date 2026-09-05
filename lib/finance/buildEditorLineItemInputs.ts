@@ -5,6 +5,7 @@
 import type { SeedLineFeesMediaConfig } from "@/lib/billing/seedLineFees"
 import { resolveLineNoAdserving as resolveNoAdserving } from "@/lib/billing/resolveLineNoAdserving"
 import { resolveLineItemBursts } from "@/lib/mediaplan/deriveBursts"
+import { resolveBuyTypeForChannel } from "@/lib/mediaplan/deliverableBudget"
 import { resolveProductionBurstBudget } from "@/lib/mediaplan/resolveProductionBurstBudget"
 import { parseMoneyInput, type MoneyInput } from "@/lib/format/money"
 import type {
@@ -98,8 +99,14 @@ export function buildFeeLoadingFromEditorFees(fees: EditorFeeState): FeeLoading 
   return out
 }
 
-function resolveBuyType(lineItem: Record<string, unknown>): string {
-  return String(lineItem.buy_type ?? lineItem.buyType ?? "")
+function resolveBuyType(
+  mediaType: string,
+  lineItem: Record<string, unknown>
+): string {
+  return resolveBuyTypeForChannel(
+    mediaType,
+    (lineItem.buy_type ?? lineItem.buyType) as string | null | undefined
+  )
 }
 
 function resolveBudgetIncludesFees(lineItem: Record<string, unknown>): boolean {
@@ -186,7 +193,7 @@ export function buildEditorLineItemInputs(
       const lineItemId = editorBillingStableLineItemId(billingKey, rawLine, index)
       const rawBursts = resolveLineItemBursts(rawLine)
       const bursts = rawBursts.map((b) => mapBurst(b, billingKey))
-      const buyType = resolveBuyType(lineItem)
+      const buyType = resolveBuyType(billingKey, lineItem)
 
       let enteredAmount = bursts.reduce((sum, b) => sum + parseMoney(b.budget), 0)
       const isProduction = billingKey === "production"

@@ -43,6 +43,36 @@ const BUY_TYPE_RUNTIME_SET = new Set<string>([
   "production",
 ]);
 
+const warnedUnknownBuyType = new Set<string>()
+
+function isProductionMediaType(channel: string | null | undefined): boolean {
+  return String(channel ?? "").trim().toLowerCase() === "production"
+}
+
+/**
+ * Read-side default: production lines with null/blank buyType are `"production"`.
+ * Does not write the stored row. Other channels keep a blank string.
+ */
+export function resolveBuyTypeForChannel(
+  channel: string | null | undefined,
+  buyType: string | null | undefined
+): string {
+  const raw = String(buyType ?? "").trim()
+  if (raw) return raw
+  if (isProductionMediaType(channel)) return "production"
+  return ""
+}
+
+/** Production has no deliverable maths — do not mount CpcFamilyBurstCalculatedField. */
+export function shouldMountCpcFamilyBurstCalculatedField(args: {
+  mediaTypeKey?: string | null
+  buyType?: string | null
+}): boolean {
+  if (isProductionMediaType(args.mediaTypeKey)) return false
+  if (String(args.buyType ?? "").trim().toLowerCase() === "production") return false
+  return true
+}
+
 /** Warn once per unknown buy type string in development (containers should extend {@link BuyType}). */
 export function coerceBuyTypeWithDevWarn(
   buyType: string | undefined | null,
@@ -50,9 +80,13 @@ export function coerceBuyTypeWithDevWarn(
 ): BuyType {
   const bt = String(buyType || "").toLowerCase() as BuyType;
   if (!BUY_TYPE_RUNTIME_SET.has(bt) && process.env.NODE_ENV === "development") {
-    console.warn(
-      `[deliverableBudget] Unrecognised buyType "${String(buyType)}" in ${context}; using string as BuyType (may default to 0).`
-    );
+    const key = `${bt}\0${context}`
+    if (!warnedUnknownBuyType.has(key)) {
+      warnedUnknownBuyType.add(key)
+      console.warn(
+        `[deliverableBudget] Unrecognised buyType "${String(buyType)}" in ${context}; using string as BuyType (may default to 0).`
+      );
+    }
   }
   return bt;
 }

@@ -31,6 +31,7 @@
     "test:spreadsheet": "tsx --test tests/lib/spreadsheetSelection.test.ts",
     "test:finance-forecast": "tsx --test tests/finance/buildFinanceForecastDataset.test.ts tests/finance/varianceEngine.test.ts",
     "test:retained-commission": "tsx --test lib/finance/__tests__/retainedCommission.test.ts",
+    "test:deliverable-budget": "tsx --test lib/mediaplan/__tests__/deliverableBudget.test.ts",
     "test:editor-line-inputs": "tsx --test lib/finance/__tests__/buildEditorLineItemInputs.test.ts",
     "test:finance-filters": "tsx --test lib/finance/__tests__/filterBillingRecords.test.ts",
     "test:finance-derive": "node --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/finance/__tests__/deriveReceivableRecords.sf8.test.ts lib/finance/__tests__/deriveReceivableRecords.sf11.test.ts lib/finance/__tests__/deriveFromVersionCore.test.ts lib/finance/__tests__/extractReportLines.test.ts lib/finance/__tests__/versionPathClientPays.test.ts",

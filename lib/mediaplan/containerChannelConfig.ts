@@ -3099,5 +3099,14 @@ export const PRODUCTION_CONTAINER_CONFIG: ContainerChannelConfig = {
       inHydration: true,
       inApi: true,
     },
+    {
+      camel: "buyType",
+      snake: "buy_type",
+      excel: null,
+      default: "production",
+      inDefaults: true,
+      inHydration: false,
+      inApi: false,
+    },
   ],
 }
