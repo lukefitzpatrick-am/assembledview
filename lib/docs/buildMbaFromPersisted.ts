@@ -34,6 +34,10 @@ import {
 import { MEDIA_TYPE_LABELS } from "@/lib/media/mediaTypes"
 import { roundMoney2 } from "@/lib/format/money"
 import { deriveMbaScope, mbaDocumentFilename } from "@/lib/docs/mbaScope"
+import {
+  mbaCampaignDateFields,
+  type LiveCampaignDates,
+} from "@/lib/docs/liveCampaignDates"
 import type { MBAData } from "@/lib/generateMBA"
 import {
   computeSnapshotChecksum,
@@ -197,6 +201,8 @@ export async function buildMbaFromPersisted(args: {
   versionNumber: number
   liveCampaignStatus?: string | null
   liveSelection?: LiveMbaSelection | null
+  /** Independent of liveSelection — a full MBA may carry unsaved form dates. */
+  liveCampaignDates?: LiveCampaignDates | null
   now?: Date
 }): Promise<PersistedMbaRender> {
   const mbaNumber = String(args.mbaNumber ?? "").trim()
@@ -413,6 +419,12 @@ export async function buildMbaFromPersisted(args: {
     includedMonths: finalBilling.map((b) => b.monthYear),
   })
 
+  const campaignDates = mbaCampaignDateFields({
+    persistedStart: version.campaignStartDate,
+    persistedEnd: version.campaignEndDate,
+    liveCampaignDates: args.liveCampaignDates,
+  })
+
   const mbaData: MBAData = {
     date: dateLabel,
     mba_number: version.mbaNumber,
@@ -422,9 +434,10 @@ export async function buildMbaFromPersisted(args: {
     media_plan_version: String(versionNumber),
     client,
     campaign: {
-      date_start: formatDateDdMmYyyy(version.campaignStartDate),
-      date_end: formatDateDdMmYyyy(version.campaignEndDate),
+      date_start: campaignDates.date_start,
+      date_end: campaignDates.date_end,
     },
+    ...(campaignDates.datesUnsaved ? { datesUnsaved: true as const } : {}),
     gross_media,
     totals: {
       gross_media: centsToDollars(

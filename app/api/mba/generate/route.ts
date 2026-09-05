@@ -5,29 +5,18 @@ import {
   buildMbaFromPersisted,
   PersistedDocError,
 } from "@/lib/docs/buildMbaFromPersisted"
+import { parseMbaGenerateBody } from "@/lib/docs/mbaGenerateBody"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 export const maxDuration = 60
 
-function parseOptionalStringArray(
-  raw: Record<string, unknown>,
-  key: string
-): string[] | undefined | "invalid" {
-  if (!Object.prototype.hasOwnProperty.call(raw, key)) return undefined
-  const value = raw[key]
-  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-    return "invalid"
-  }
-  return value as string[]
-}
-
 /**
  * PC3 — MBA PDF from persisted schedule_months + approved_slice + fee snapshot.
  * Missing approved_slice is derived at read time (never written). Body:
  * { mba_number, version_number } plus optional live selection keys
- * (selectedMonthYears, approvedLineItemIds). Totals stay forbidden.
- * Admin only. Published version (`published_at`).
+ * (selectedMonthYears, approvedLineItemIds) and optional liveCampaignDates.
+ * Totals stay forbidden. Admin only. Published version (`published_at`).
  */
 export async function POST(req: NextRequest) {
   const gate = await requireRole(req, ["admin"])
@@ -41,70 +30,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
     }
 
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
-      return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
+    const parsed = parseMbaGenerateBody(body)
+    if (!parsed.ok) {
+      return NextResponse.json(parsed.payload, { status: parsed.status })
     }
 
-    const raw = body as Record<string, unknown>
-    const allowed = new Set([
-      "mba_number",
-      "version_number",
-      "mbanumber",
-      "campaign_status",
-      "selectedMonthYears",
-      "approvedLineItemIds",
-    ])
-    const extra = Object.keys(raw).filter((k) => !allowed.has(k))
-    if (extra.length > 0) {
-      return NextResponse.json(
-        {
-          error: "Client-sent totals rejected — pass mba_number and version_number only",
-          extra_keys: extra,
-          code: "CLIENT_TOTALS_REJECTED",
-        },
-        { status: 400 }
-      )
-    }
-
-    const mbaNumber = String(raw.mba_number ?? raw.mbanumber ?? "").trim()
-    const versionNumber = Number(raw.version_number)
-    if (!mbaNumber || !Number.isFinite(versionNumber) || versionNumber <= 0) {
-      return NextResponse.json(
-        { error: "mba_number and version_number are required" },
-        { status: 400 }
-      )
-    }
-
-    const selectedMonthYears = parseOptionalStringArray(raw, "selectedMonthYears")
-    if (selectedMonthYears === "invalid") {
-      return NextResponse.json(
-        { error: "selectedMonthYears must be an array of strings", code: "BAD_REQUEST" },
-        { status: 400 }
-      )
-    }
-    const approvedLineItemIds = parseOptionalStringArray(raw, "approvedLineItemIds")
-    if (approvedLineItemIds === "invalid") {
-      return NextResponse.json(
-        { error: "approvedLineItemIds must be an array of strings", code: "BAD_REQUEST" },
-        { status: 400 }
-      )
-    }
-
-    const liveSelection =
-      selectedMonthYears !== undefined || approvedLineItemIds !== undefined
-        ? {
-            ...(selectedMonthYears !== undefined ? { selectedMonthYears } : {}),
-            ...(approvedLineItemIds !== undefined ? { approvedLineItemIds } : {}),
-          }
-        : undefined
-
-    const liveCampaignStatus =
-      raw.campaign_status == null ? null : String(raw.campaign_status)
     const rendered = await buildMbaFromPersisted({
-      mbaNumber,
-      versionNumber,
-      liveCampaignStatus,
-      liveSelection,
+      mbaNumber: parsed.mbaNumber,
+      versionNumber: parsed.versionNumber,
+      liveCampaignStatus: parsed.liveCampaignStatus,
+      liveSelection: parsed.liveSelection,
+      liveCampaignDates: parsed.liveCampaignDates,
     })
     const pdfBuffer = await generateMBA(rendered.mbaData)
 

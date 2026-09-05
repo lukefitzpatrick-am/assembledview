@@ -411,6 +411,7 @@ import {
   shouldSkipDocsForCampaignStatus,
 } from "@/lib/docs/saveDocSteps"
 import { deriveLiveMbaScopeSelection } from "@/lib/docs/liveMbaScopeSelection"
+import { liveCampaignDatesIfChanged } from "@/lib/docs/liveCampaignDates"
 import { MEDIA_TYPE_ID_CODES } from "@/lib/mediaplan/lineItemIds"
 import { MEDIA_TYPE_COLORS } from "@/lib/media/mediaTypes"
 import { assignStableLineItemNumbers } from "@/lib/mediaplan/lineItemOrder"
@@ -9162,6 +9163,17 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         1
     )
 
+    const liveCampaignDates = opts?.liveScope
+      ? liveCampaignDatesIfChanged({
+          formStart: fv.mp_campaigndates_start,
+          formEnd: fv.mp_campaigndates_end,
+          persistedStart:
+            mediaPlan?.campaign_start_date ?? mediaPlan?.campaignStartDate,
+          persistedEnd:
+            mediaPlan?.campaign_end_date ?? mediaPlan?.campaignEndDate,
+        })
+      : undefined
+
     // PC3: server renders from persisted rows — no client totals.
     const response = await fetch("/api/mba/generate", {
       method: "POST",
@@ -9172,6 +9184,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         ...(opts?.liveScope && liveMbaScopeSelection
           ? liveMbaScopeSelection
           : {}),
+        ...(liveCampaignDates ? { liveCampaignDates } : {}),
       }),
     })
 

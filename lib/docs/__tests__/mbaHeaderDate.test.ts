@@ -45,9 +45,11 @@ describe("buildMbaFromPersisted date wiring", () => {
     )
   })
 
-  it("leaves campaign.date_start / date_end on the version campaign dates", () => {
-    assert.match(src, /date_start:\s*formatDateDdMmYyyy\(\s*version\.campaignStartDate\s*\)/)
-    assert.match(src, /date_end:\s*formatDateDdMmYyyy\(\s*version\.campaignEndDate\s*\)/)
+  it("prints campaign dates via mbaCampaignDateFields (persisted unless live override)", () => {
+    assert.match(src, /mbaCampaignDateFields\(/)
+    assert.match(src, /persistedStart:\s*version\.campaignStartDate/)
+    assert.match(src, /persistedEnd:\s*version\.campaignEndDate/)
+    assert.match(src, /liveCampaignDates:\s*args\.liveCampaignDates/)
   })
 })
 
