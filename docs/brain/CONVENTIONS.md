@@ -103,9 +103,9 @@ Create (`/mediaplans/create`) and edit (`/mediaplans/mba/[mba_number]/edit`) sha
 
 | Row | Create | Edit |
 |---|---|---|
-| Primary | Title + subtitle; actions slot reserved (`MediaPlanEditorHeroActions` without `mbaNumber`) | Same title row; actions slot filled (Creative, Trafficking) |
-| Secondary | omitted | Version trail (`describeVersionHeaderTrail`) + version picker + `CampaignStatusControl` |
-| Campaign Details card | Heading + date presets | Same — version chrome does not live here |
+| Primary | Title + subtitle only (no actions slot) | Same title row |
+| Secondary | omitted | Version pill · trail (`describeVersionHeaderTrail`) + version picker |
+| Campaign Details card | Heading + date presets; Campaign Status field is the only status control | Same |
 
 Never a third hero row. Long client / campaign names wrap (`break-words`, `min-w-0`); do not clip under the hero `overflow-hidden`.
 

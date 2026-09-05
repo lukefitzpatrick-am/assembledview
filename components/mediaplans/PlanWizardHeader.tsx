@@ -18,8 +18,6 @@ export type PlanWizardHeaderProps = {
   subtitle?: ReactNode
   /** Current page crumb (e.g. "Edit Campaign"). */
   breadcrumbCurrent?: string
-  /** Right slot on the primary row — create reserves it empty; edit fills Creative / Trafficking. */
-  actions?: ReactNode
   /**
    * Optional second row inside the same hero card (edit-only chrome).
    * Never a third hero row — wrap inside this slot instead.
@@ -30,12 +28,12 @@ export type PlanWizardHeaderProps = {
 /**
  * Shared create/edit wizard page header (breadcrumb + hero).
  * Both mega-pages render this so row structure cannot drift.
+ * Primary row is title + helper copy only — no actions slot.
  */
 export function PlanWizardHeader({
   title,
   subtitle,
   breadcrumbCurrent,
-  actions,
   secondary,
 }: PlanWizardHeaderProps) {
   const crumb =
@@ -61,7 +59,6 @@ export function PlanWizardHeader({
         className="mb-2"
         title={title}
         detail={subtitle}
-        actions={actions}
         secondary={secondary}
       />
     </>
@@ -72,33 +69,26 @@ export type PlanWizardVersionChromeProps = {
   versionLabel: ReactNode
   trail: ReactNode
   versionSelect?: ReactNode
-  status?: ReactNode
 }
 
-/** Edit-only secondary-row chrome: version trail (+ picker) and optional status. */
+/** Edit-only secondary-row chrome: version pill · trail · picker. */
 export function PlanWizardVersionChrome({
   versionLabel,
   trail,
   versionSelect,
-  status,
 }: PlanWizardVersionChromeProps) {
   return (
-    <>
-      <div
-        className="flex min-w-0 flex-1 flex-wrap items-center gap-3 text-xs text-muted-foreground"
-        role="group"
-        aria-label="Plan version"
-      >
-        <span className="num break-words">{versionLabel}</span>
-        <span className="text-border" aria-hidden>
-          •
-        </span>
-        <span className="min-w-0 break-words">{trail}</span>
-        {versionSelect}
-      </div>
-      {status ? (
-        <div className="min-w-0 w-full max-w-full sm:w-auto sm:max-w-xs">{status}</div>
-      ) : null}
-    </>
+    <div
+      className="flex min-w-0 flex-1 flex-wrap items-center gap-3 text-xs text-muted-foreground"
+      role="group"
+      aria-label="Plan version"
+    >
+      <span className="num break-words">{versionLabel}</span>
+      <span className="text-border" aria-hidden>
+        •
+      </span>
+      <span className="min-w-0 break-words">{trail}</span>
+      {versionSelect}
+    </div>
   )
 }

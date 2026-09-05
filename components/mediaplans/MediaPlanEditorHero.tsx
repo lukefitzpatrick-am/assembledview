@@ -25,7 +25,7 @@ export interface MediaPlanEditorHeroProps {
   title: ReactNode
   /** Primary helper text and any extra lines (e.g. MBA reference) */
   detail?: ReactNode
-  /** Right-aligned controls (e.g. Creative / Trafficking links) */
+  /** Right-aligned controls on non-wizard heroes (e.g. Creative / Trafficking pages). */
   actions?: ReactNode
   /**
    * Optional second row in the same card (wizard edit chrome).

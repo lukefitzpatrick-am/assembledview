@@ -44,7 +44,6 @@ import { Download, FileText, Loader2, MoreHorizontal } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { PlanWizardHeader, PlanWizardVersionChrome } from "@/components/mediaplans/PlanWizardHeader"
-import { MediaPlanEditorHeroActions } from "@/components/mediaplans/MediaPlanEditorHeroActions"
 import { PlanPresenceBanner } from "@/components/mediaplans/PlanPresenceBanner"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
@@ -12064,7 +12063,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
             title="Edit Campaign"
             breadcrumbCurrent="Edit Campaign"
             subtitle={<p>Update campaign settings, media types, and line item details.</p>}
-            actions={<MediaPlanEditorHeroActions mbaNumber={mbaNumber} />}
             secondary={
               <PlanWizardVersionChrome
                 versionLabel={`v${selectedVersionNumber ?? mediaPlan?.version_number ?? "—"}`}
@@ -12097,26 +12095,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                       }
                     />
                   ) : undefined
-                }
-                status={
-                  <CampaignStatusControl
-                    mbaNumber={mbaNumber}
-                    persisted={true}
-                    status={String(
-                      watchedCampaignStatus ??
-                        mediaPlan?.campaign_status ??
-                        mediaPlan?.mp_campaignstatus ??
-                        ""
-                    )}
-                    startDate={campaignStartDate}
-                    endDate={campaignEndDate}
-                    onStatusCommitted={(next) => {
-                      form.setValue("mp_campaignstatus", next, {
-                        shouldDirty: false,
-                        shouldValidate: true,
-                      })
-                    }}
-                  />
                 }
               />
             }

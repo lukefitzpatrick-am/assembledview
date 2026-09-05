@@ -59,7 +59,6 @@ import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSe
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { PlanWizardHeader } from "@/components/mediaplans/PlanWizardHeader"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
-import { MediaPlanEditorHeroActions } from "@/components/mediaplans/MediaPlanEditorHeroActions"
 import { sortByLabel } from "@/lib/utils/sort"
 import { useMediaPlanContext } from "@/contexts/MediaPlanContext"
 import { UnsavedChangesDialog } from "@/components/mediaplans/UnsavedChangesDialog"
@@ -7461,7 +7460,6 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
             title="Create a Campaign"
             breadcrumbCurrent="Create Campaign"
             subtitle={<p>Set up campaign details, select media types, and configure line items.</p>}
-            actions={<MediaPlanEditorHeroActions />}
           />
         }
         steps={createCampaignSteps.map((step) => ({

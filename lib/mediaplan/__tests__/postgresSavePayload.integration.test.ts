@@ -473,10 +473,33 @@ describe("create + edit assembly twins (shared helpers)", () => {
   it("create and edit both render PlanWizardHeader so hero rows cannot drift", () => {
     const createSrc = readFileSync(CREATE_PAGE, "utf8")
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    const headerComp = readFileSync(
+      join(process.cwd(), "components/mediaplans/PlanWizardHeader.tsx"),
+      "utf8"
+    )
     assert.match(createSrc, /<PlanWizardHeader/)
     assert.match(editSrc, /<PlanWizardHeader/)
     assert.match(editSrc, /<PlanWizardVersionChrome/)
     assert.doesNotMatch(createSrc, /<PlanWizardVersionChrome/)
+    assert.doesNotMatch(createSrc, /MediaPlanEditorHeroActions/)
+    assert.doesNotMatch(editSrc, /MediaPlanEditorHeroActions/)
+    assert.doesNotMatch(headerComp, /actions\?:/)
+    assert.doesNotMatch(headerComp, /status\?:/)
+    assert.doesNotMatch(headerComp, /CampaignStatusControl/)
+    assert.match(headerComp, /break-words/)
+    assert.equal(
+      [...createSrc.matchAll(/<CampaignStatusControl/g)].length,
+      1
+    )
+    assert.equal(
+      [...editSrc.matchAll(/<CampaignStatusControl/g)].length,
+      1
+    )
+    assert.match(
+      createSrc,
+      /<CampaignStatusControl[\s\S]*?persisted=\{mediaPlanId\s*!=\s*null\}/
+    )
+    assert.match(editSrc, /<CampaignStatusControl[\s\S]*?persisted=\{true\}/)
   })
 
   it("edit overwrite toast is explicit (not a version-cut message) + uiMode→mode guard comment", () => {
