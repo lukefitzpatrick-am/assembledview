@@ -1,6 +1,7 @@
 /**
- * SM-13 / SM-14 — descriptor compact-mode hysteresis, pin/focus resolve,
- * logical-scroll auto-mode, canCompact, suppression, and clamped compensation.
+ * SM-13 / SM-14 / SM-16 — descriptor compact-mode hysteresis, pin/focus resolve,
+ * logical-scroll auto-mode, canCompact, suppression, clamped compensation,
+ * and auto-compact gated off (unpinned defaults expanded).
  *
  * Run: npx tsx --test lib/mediaplan/__tests__/expertGridDescriptorMode.test.ts
  */
@@ -13,6 +14,7 @@ import {
   applyDescriptorScrollEvent,
   canCompact,
   descriptorLogicalScrollLeft,
+  DESCRIPTOR_AUTO_COMPACT_ENABLED,
   DESCRIPTOR_SCROLL_SUPPRESS_MS,
   nextDescriptorPin,
   nextDescriptorScrollIntent,
@@ -101,7 +103,8 @@ test("pinned true forces expanded; pinned false forces compact unless focusWithi
   )
 })
 
-test("pinned null uses auto", () => {
+test("SM-16: flag false + pinned null + auto compact → expanded", () => {
+  assert.equal(DESCRIPTOR_AUTO_COMPACT_ENABLED, false)
   assert.equal(
     resolveExpertGridDescriptorMode({
       focusWithin: false,
@@ -109,18 +112,47 @@ test("pinned null uses auto", () => {
       pinned: null,
       auto: "compact",
     }),
-    "compact"
+    "expanded"
   )
+})
+
+test("SM-16: flag false + pinned false → compact", () => {
+  assert.equal(DESCRIPTOR_AUTO_COMPACT_ENABLED, false)
   assert.equal(
     resolveExpertGridDescriptorMode({
       focusWithin: false,
       errorWithin: false,
-      pinned: null,
+      pinned: false,
       auto: "expanded",
     }),
-    "expanded"
+    "compact"
   )
 })
+
+test(
+  "pinned null uses auto when auto-compact is on",
+  { skip: !DESCRIPTOR_AUTO_COMPACT_ENABLED },
+  () => {
+    assert.equal(
+      resolveExpertGridDescriptorMode({
+        focusWithin: false,
+        errorWithin: false,
+        pinned: null,
+        auto: "compact",
+      }),
+      "compact"
+    )
+    assert.equal(
+      resolveExpertGridDescriptorMode({
+        focusWithin: false,
+        errorWithin: false,
+        pinned: null,
+        auto: "expanded",
+      }),
+      "expanded"
+    )
+  }
+)
 
 test("pin cycle: auto → expanded → compact → auto", () => {
   assert.equal(nextDescriptorPin(null), true)

@@ -13,6 +13,8 @@ export const DESCRIPTOR_COMPACT_SCROLL_PX = 160
 export const DESCRIPTOR_EXPAND_SCROLL_PX = 40
 /** Ignore scroll events for ~2 frames after a compensation write. */
 export const DESCRIPTOR_SCROLL_SUPPRESS_MS = 34
+/** SM-16: auto-compact off pending live measurement. Pin-compact still works. */
+export const DESCRIPTOR_AUTO_COMPACT_ENABLED = false
 
 export type DescriptorStickyWidths = {
   expandedStickyWidthPx: number
@@ -131,6 +133,7 @@ export function applyDescriptorScrollEvent(args: {
 
 /**
  * Resolution: focusWithin / errorWithin → expanded; then pinned; then auto.
+ * When auto-compact is off and pinned is null, stay expanded regardless of `auto`.
  */
 export function resolveExpertGridDescriptorMode(args: {
   focusWithin: boolean
@@ -141,6 +144,7 @@ export function resolveExpertGridDescriptorMode(args: {
   if (args.focusWithin || args.errorWithin) return "expanded"
   if (args.pinned === true) return "expanded"
   if (args.pinned === false) return "compact"
+  if (!DESCRIPTOR_AUTO_COMPACT_ENABLED) return "expanded"
   return args.auto
 }
 
