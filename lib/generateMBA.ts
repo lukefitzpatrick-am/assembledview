@@ -51,7 +51,7 @@ export interface MBAData {
     includedLineCount: number;
     totalLineCount: number;
   };
-  /** Live form campaign dates differ from the persisted row — watermark only. */
+  /** Live form campaign dates differ from the persisted row — audit flag, not drawn. */
   datesUnsaved?: boolean;
 }
 
@@ -183,16 +183,6 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
 
   // Dates
   doc.text(`Campaign Dates: From ${mbaData.campaign.date_start} to ${mbaData.campaign.date_end}`, margin.left, y);
-  if (mbaData.datesUnsaved) {
-    y += lineHeight;
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(8);
-    doc.setTextColor(110, 110, 110);
-    doc.text("Dates as edited in the plan — not yet saved", margin.left, y);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
-  }
   y += lineHeight * 2;
 
   // Gross Media Table

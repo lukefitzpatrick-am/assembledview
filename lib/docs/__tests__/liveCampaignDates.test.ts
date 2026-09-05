@@ -1,6 +1,7 @@
 /**
- * SM-5 — Generate MBA uses live form campaign dates when they differ from the
- * saved row, with a watermark. Independent of Partial MBA overlay (MBA-LIVE-2).
+ * SM-5 / SM-15 — Generate MBA uses live form campaign dates when they differ
+ * from the saved row. `datesUnsaved` is an audit flag, not a drawn line.
+ * Independent of Partial MBA overlay (MBA-LIVE-2).
  */
 import assert from "node:assert/strict"
 import { readFileSync } from "node:fs"
@@ -219,8 +220,8 @@ describe("full MBA + live dates does not set liveOverlay", () => {
   })
 })
 
-describe("generateMBA datesUnsaved watermark", () => {
-  it("prints live campaign dates and the unsaved watermark", async () => {
+describe("generateMBA datesUnsaved line", () => {
+  it("prints live campaign dates and does not draw the unsaved-dates line", async () => {
     const data = fixtureMbaData({
       campaign: { date_start: "01/02/2026", date_end: "30/11/2026" },
       datesUnsaved: true,
@@ -228,8 +229,18 @@ describe("generateMBA datesUnsaved watermark", () => {
     const buf = Buffer.from(await (await generateMBA(data)).arrayBuffer())
     const latin1 = buf.toString("latin1")
     assert.ok(latin1.includes("Campaign Dates: From 01/02/2026 to 30/11/2026"))
-    assert.ok(latin1.includes("Dates as edited in the plan"))
-    assert.ok(latin1.includes("not yet saved"))
+    assert.equal(latin1.includes("Dates as edited in the plan"), false)
+    assert.equal(latin1.includes("not yet saved"), false)
+  })
+
+  it("datesUnsaved true does not change PDF bytes when campaign dates match", async () => {
+    const a = Buffer.from(
+      await (await generateMBA(fixtureMbaData())).arrayBuffer()
+    )
+    const b = Buffer.from(
+      await (await generateMBA(fixtureMbaData({ datesUnsaved: true }))).arrayBuffer()
+    )
+    assert.ok(a.equals(b), "datesUnsaved must not draw or advance the y-cursor")
   })
 
   it("omits the watermark and stays byte-identical when datesUnsaved is absent", async () => {
@@ -346,15 +357,9 @@ describe("edit page sends live dates only on Generate, never on save-time upload
   })
 })
 
-describe("generateMBA draws the watermark under Campaign Dates", () => {
-  it("checks datesUnsaved immediately after the Campaign Dates line", () => {
-    assert.match(
-      generateMbaSrc,
-      /Campaign Dates: From \$\{mbaData\.campaign\.date_start\}[\s\S]{0,250}datesUnsaved/
-    )
-    assert.match(
-      generateMbaSrc,
-      /Dates as edited in the plan/
-    )
+describe("generateMBA does not draw an unsaved-dates line", () => {
+  it("the unsaved-dates string is absent from generateMBA.ts", () => {
+    assert.equal(generateMbaSrc.includes("Dates as edited in the plan"), false)
+    assert.equal(generateMbaSrc.includes("not yet saved"), false)
   })
 })
