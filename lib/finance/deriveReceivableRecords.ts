@@ -157,6 +157,8 @@ export function derivePlanReceivableBillingRecordsForMonth(
       )
     )
     overlayClientPaysFromPlanLines(mergedMediaLines, version)
+    // C-95: refuse the media component only. Assembled fee stays on the month
+    // header (`serviceAmounts.assembledFee`) and is never dropped with the row.
     const droppedClientPays = mergedMediaLines.filter((li) => li.clientPaysMedia === true)
     const financeMediaLines = mergedMediaLines.filter((li) => li.clientPaysMedia !== true)
     if (droppedClientPays.length > 0) {
