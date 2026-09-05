@@ -6,15 +6,17 @@
  * POST /api/mediaplans/versions/[id]/documents/regenerate). Never mutates
  * approved_slice, published_at, schedule_months, or line items.
  *
- * `--out <dir>` with `--mba` and `--version` writes the three files to disk
+ * `--out <dir>` with `--mba` and `--version` writes the selected kinds to disk
  * and makes no Blob upload and no Postgres write. The selected version may
  * be a historic published cut (not the master's published_version_id);
  * isVersionPublished still gates generate.
+ * `--kinds media_plan,aa_media_plan,mba_pdf` defaults to all three.
  *
  * Usage:
  *   npm run docs:backfill              # dry-run (default)
  *   npm run docs:backfill -- --apply
  *   npm run docs:backfill -- --mba glenda008
+ *   npm run docs:backfill -- --kinds mba_pdf
  *   npm run docs:backfill -- --out tmp/parity --mba PENFOLD001 --version 16
  *   npm run docs:backfill -- --apply --force
  */
@@ -25,6 +27,8 @@ import { join } from "node:path"
 import { and, eq, isNotNull, isNull, or, sql } from "drizzle-orm"
 
 import {
+  countMissingByKind,
+  missingRequestedKinds,
   parseBackfillPlanDocumentsArgs,
   planDocumentOutFilenames,
   storedPlanDocumentOutFilenames,
@@ -48,28 +52,30 @@ type Candidate = {
   aaMediaPlanFile: unknown
 }
 
-function hasFile(value: unknown): boolean {
-  return value != null && typeof value === "object" && !Array.isArray(value)
-}
-
-function missingKinds(row: Candidate): string[] {
-  const missing: string[] = []
-  if (!hasFile(row.mbaPdfFile)) missing.push("mba_pdf")
-  if (!hasFile(row.mediaPlanFile)) missing.push("media_plan")
-  if (!hasFile(row.aaMediaPlanFile)) missing.push("aa_media_plan")
-  return missing
+function missingKinds(
+  row: Candidate,
+  kinds: PlanDocumentKind[],
+): PlanDocumentKind[] {
+  return missingRequestedKinds(
+    {
+      mba_pdf: row.mbaPdfFile,
+      media_plan: row.mediaPlanFile,
+      aa_media_plan: row.aaMediaPlanFile,
+    },
+    kinds,
+  )
 }
 
 function pad(value: unknown, width: number): string {
   return String(value ?? "").padEnd(width)
 }
 
-function printCandidateList(rows: Candidate[]) {
+function printCandidateList(rows: Candidate[], kinds: PlanDocumentKind[]) {
   console.log("mba              v     version_id  missing")
   console.log("----------------  ----  ----------  --------------------------------")
   for (const row of rows) {
     console.log(
-      `${pad(row.mbaNumber, 16)}  ${pad(row.versionNumber, 4)}  ${pad(row.versionId, 10)}  ${missingKinds(row).join(", ")}`,
+      `${pad(row.mbaNumber, 16)}  ${pad(row.versionNumber, 4)}  ${pad(row.versionId, 10)}  ${missingKinds(row, kinds).join(", ")}`,
     )
   }
 }
@@ -129,6 +135,7 @@ async function writeOutDocuments(args: {
   mba: string
   version: number
   outDir: string
+  kinds: PlanDocumentKind[]
 }) {
   const { closeDb, getDb, schema } = await import("@/db")
   const db = getDb()
@@ -175,6 +182,7 @@ async function writeOutDocuments(args: {
     const rendered = await renderPlanVersionDocuments({
       mbaNumber: row.mbaNumber,
       versionNumber: row.versionNumber,
+      kinds: args.kinds,
       now: row.publishedAt ? new Date(row.publishedAt) : new Date(),
     })
     if (rendered.status === "not_published") {
@@ -196,7 +204,7 @@ async function writeOutDocuments(args: {
     }
 
     console.log(
-      `OUT ${args.outDir}  ${row.mbaNumber} v${row.versionNumber}  version_id=${row.versionId}  (no Blob, no Postgres)`,
+      `OUT ${args.outDir}  ${row.mbaNumber} v${row.versionNumber}  version_id=${row.versionId}  kinds=${args.kinds.join(",")}  (no Blob, no Postgres)`,
     )
     console.log("kind            status          from        file")
     console.log("--------------  --------------  ----------  --------------------------------")
@@ -218,7 +226,7 @@ async function writeOutDocuments(args: {
 
     console.log("")
     console.log("stored originals (Xano / Blob url):")
-    for (const kind of ["mba_pdf", "media_plan", "aa_media_plan"] as const) {
+    for (const kind of args.kinds) {
       const dest = join(args.outDir, storedNames[kind])
       try {
         const buf = await fetchStoredPlanFile(storedFiles[kind], row.publishedAt)
@@ -254,12 +262,13 @@ async function main() {
       mba: parsed.mba,
       version: parsed.version,
       outDir: parsed.outDir,
+      kinds: parsed.kinds,
     })
     return
   }
 
   const { closeDb, getDb, schema } = await import("@/db")
-  const { apply, force, mba } = parsed
+  const { apply, force, mba, kinds } = parsed
   const db = getDb()
 
   try {
@@ -284,11 +293,16 @@ async function main() {
       schema.mediaPlanMasters.publishedVersionId,
       schema.mediaPlanVersions.id,
     )
-    const fileMissing = or(
-      isNull(schema.mediaPlanVersions.mbaPdfFile),
-      isNull(schema.mediaPlanVersions.mediaPlanFile),
-      isNull(schema.mediaPlanVersions.aaMediaPlanFile),
-    )
+    const columnForKind = {
+      mba_pdf: schema.mediaPlanVersions.mbaPdfFile,
+      media_plan: schema.mediaPlanVersions.mediaPlanFile,
+      aa_media_plan: schema.mediaPlanVersions.aaMediaPlanFile,
+    } as const
+    const missingClauses = kinds.map((kind) => isNull(columnForKind[kind]))
+    const fileMissing =
+      missingClauses.length === 1
+        ? missingClauses[0]!
+        : or(...missingClauses)
     const missingWhere = filter
       ? and(isNotNull(schema.mediaPlanVersions.publishedAt), fileMissing, filter)
       : and(isNotNull(schema.mediaPlanVersions.publishedAt), fileMissing)
@@ -320,19 +334,33 @@ async function main() {
       .where(unpublishedWhere)
       .orderBy(schema.mediaPlanMasters.mbaNumber, schema.mediaPlanVersions.versionNumber)
 
+    const kindsLabel = ` --kinds ${kinds.join(",")}`
     console.log(
       apply
-        ? `APPLY${force ? " --force" : ""}${mba ? ` --mba ${mba}` : ""}`
-        : `DRY-RUN${mba ? ` --mba ${mba}` : ""} (pass --apply to write Blob + jsonb)`,
+        ? `APPLY${force ? " --force" : ""}${mba ? ` --mba ${mba}` : ""}${kindsLabel}`
+        : `DRY-RUN${mba ? ` --mba ${mba}` : ""}${kindsLabel} (pass --apply to write Blob + jsonb)`,
     )
     console.log("")
+    const missingCounts = countMissingByKind(
+      missingFiles.map((row) => ({
+        mba_pdf: row.mbaPdfFile,
+        media_plan: row.mediaPlanFile,
+        aa_media_plan: row.aaMediaPlanFile,
+      })),
+      kinds,
+    )
+    console.log("Missing by kind:")
+    for (const kind of kinds) {
+      console.log(`  ${pad(kind, 16)}  ${missingCounts[kind]}`)
+    }
+    console.log("")
     console.log(
-      `Published versions missing at least one file (${missingFiles.length}):`,
+      `Published versions missing at least one requested kind (${missingFiles.length}):`,
     )
     if (missingFiles.length === 0) {
       console.log("  (none)")
     } else {
-      printCandidateList(missingFiles)
+      printCandidateList(missingFiles, kinds)
     }
 
     console.log("")
@@ -371,6 +399,7 @@ async function main() {
       try {
         const result = await regeneratePlanVersionDocuments({
           versionId: row.versionId,
+          kinds,
         })
         if (result.status === "not_found") {
           error = "not_found"

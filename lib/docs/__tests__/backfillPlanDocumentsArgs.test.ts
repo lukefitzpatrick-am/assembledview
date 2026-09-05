@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import { describe, it } from "node:test"
 
 import {
+  countMissingByKind,
   parseBackfillPlanDocumentsArgs,
   planDocumentOutFilenames,
 } from "@/lib/docs/backfillPlanDocumentsArgs"
@@ -43,6 +44,43 @@ describe("parseBackfillPlanDocumentsArgs", () => {
     assert.equal(parsed.version, null)
     assert.equal(parsed.apply, false)
     assert.equal(parsed.force, false)
+    assert.deepEqual(parsed.kinds, ["mba_pdf", "media_plan", "aa_media_plan"])
+  })
+
+  it("parses --kinds as a comma list; default is all three", () => {
+    assert.deepEqual(parseBackfillPlanDocumentsArgs([]).kinds, [
+      "mba_pdf",
+      "media_plan",
+      "aa_media_plan",
+    ])
+    assert.deepEqual(
+      parseBackfillPlanDocumentsArgs(["--kinds", "mba_pdf"]).kinds,
+      ["mba_pdf"],
+    )
+    assert.deepEqual(
+      parseBackfillPlanDocumentsArgs([
+        "--kinds",
+        "media_plan,aa_media_plan,mba_pdf",
+      ]).kinds,
+      ["media_plan", "aa_media_plan", "mba_pdf"],
+    )
+    assert.deepEqual(
+      parseBackfillPlanDocumentsArgs(["--kinds=mba_pdf,mba_pdf"]).kinds,
+      ["mba_pdf"],
+    )
+  })
+})
+
+describe("countMissingByKind", () => {
+  it("counts missing file columns among the requested kinds only", () => {
+    const rows = [
+      { mba_pdf: null, media_plan: {}, aa_media_plan: null },
+      { mba_pdf: {}, media_plan: null, aa_media_plan: null },
+    ]
+    const counts = countMissingByKind(rows, ["mba_pdf", "media_plan"])
+    assert.equal(counts.mba_pdf, 1)
+    assert.equal(counts.media_plan, 1)
+    assert.equal(counts.aa_media_plan, 0)
   })
 })
 
