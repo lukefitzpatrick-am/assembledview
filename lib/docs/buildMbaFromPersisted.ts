@@ -33,6 +33,7 @@ import {
 } from "@/lib/docs/mbaRenderFilters"
 import { MEDIA_TYPE_LABELS } from "@/lib/media/mediaTypes"
 import { roundMoney2 } from "@/lib/format/money"
+import { deriveMbaScope, mbaDocumentFilename } from "@/lib/docs/mbaScope"
 import type { MBAData } from "@/lib/generateMBA"
 import {
   computeSnapshotChecksum,
@@ -405,6 +406,13 @@ export async function buildMbaFromPersisted(args: {
 
   const dateLabel = mbaHeaderDateLabel(args.now ?? new Date())
 
+  const scope = deriveMbaScope({
+    scheduleRows,
+    filters,
+    grossMedia: gross_media,
+    includedMonths: finalBilling.map((b) => b.monthYear),
+  })
+
   const mbaData: MBAData = {
     date: dateLabel,
     mba_number: version.mbaNumber,
@@ -435,11 +443,15 @@ export async function buildMbaFromPersisted(args: {
     },
     billingSchedule: finalBilling,
     checksumFooter: footer,
+    scope,
   }
 
-  const safeClient = (client.name || "client").replace(/[^\w\-]+/g, "_")
-  const safeCampaign = (mbaData.campaign_name || "campaign").replace(/[^\w\-]+/g, "_")
-  const filename = `MBA_${safeClient}_${safeCampaign}_v${versionNumber}.pdf`
+  const filename = mbaDocumentFilename({
+    clientName: client.name,
+    campaignName: mbaData.campaign_name,
+    versionNumber,
+    partial: scope.partial,
+  })
 
   return {
     mbaData,

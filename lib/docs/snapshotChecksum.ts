@@ -3,7 +3,8 @@
  *
  * hash = sha256(canonical JSON of schedule_months + approved_slice + fee snapshot).
  * Footer uses hash8 = first 8 hex chars. Same input ⇒ same hash.
- * Header `Date:` (Melbourne generation day) is not in the payload — do not add it.
+ * Header `Date:` (Melbourne generation day) and the Partial MBA scope line
+ * are not in the payload — do not add them.
  */
 
 import { createHash } from "node:crypto"

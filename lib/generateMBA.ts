@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import { formatAUD } from "./format/money";
+import { formatMbaScopeLine } from "./docs/mbaScope";
 
 // Keep your existing MBAData interface
 export interface MBAData {
@@ -40,6 +41,16 @@ export interface MBAData {
   billingSchedule: { monthYear: string; totalAmount: string }[];
   /** PC3 checksum footer: `v{n} · {hash8}` — drawn on every page. */
   checksumFooter?: string;
+  /** Coverage of a partial MBA. Omitted or `partial: false` → no scope line. */
+  scope?: {
+    partial: boolean;
+    includedMediaTypes: string[];
+    excludedMediaTypes: string[];
+    includedMonths: string[];
+    excludedMonths: string[];
+    includedLineCount: number;
+    totalLineCount: number;
+  };
 }
 
 const parseCurrency = (value: string | number | null | undefined): number => {
@@ -151,6 +162,11 @@ export async function generateMBA(mbaData: MBAData): Promise<Blob> {
   doc.text(`PO Number: ${mbaData.po_number}`, margin.left, y);
   doc.text(`Media Plan Version: ${mbaData.media_plan_version}`, margin.left + pageW, y, { align: 'right' });
   y += lineHeight;
+  const scopeLine = formatMbaScopeLine(mbaData.scope);
+  if (scopeLine) {
+    doc.text(scopeLine, margin.left, y);
+    y += lineHeight;
+  }
   y += lineHeight * 2;
   
   // Client Address
