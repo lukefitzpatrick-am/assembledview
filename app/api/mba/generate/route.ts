@@ -17,6 +17,8 @@ export const maxDuration = 60
  * { mba_number, version_number } plus optional live selection keys
  * (selectedMonthYears, approvedLineItemIds) and optional liveCampaignDates.
  * Totals stay forbidden. Admin only. Published version (`published_at`).
+ * Historic cuts with no fee snapshot, no fee schedule rows, and no
+ * approved_slice → 422 NO_FEE_BASIS (never render fee = 0).
  */
 export async function POST(req: NextRequest) {
   const gate = await requireRole(req, ["admin"])

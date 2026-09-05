@@ -55,11 +55,47 @@ export class PersistedDocError extends Error {
       | "NOT_FOUND"
       | "NOT_APPROVED"
       | "MISSING_SLICE"
-      | "BAD_REQUEST",
+      | "BAD_REQUEST"
+      | "NO_FEE_BASIS",
     message: string
   ) {
     super(message)
     this.name = "PersistedDocError"
+  }
+}
+
+export const NO_FEE_BASIS_MESSAGE =
+  "This version was published before fee snapshots; use the saved document"
+
+export type MbaFeeBasisInput = {
+  hasFeeSnapshotRow: boolean
+  scheduleRows: ReadonlyArray<{ component: string }>
+  approvedSlice: unknown
+}
+
+function approvedSlicePresent(slice: unknown): boolean {
+  return (
+    slice != null &&
+    typeof slice === "object" &&
+    Array.isArray((slice as { lines?: unknown }).lines)
+  )
+}
+
+/** True when MBA fee can be justified from snapshot, fee rows, or a frozen slice. */
+export function hasPersistedFeeBasis(args: MbaFeeBasisInput): boolean {
+  if (args.hasFeeSnapshotRow) return true
+  if (args.scheduleRows.some((r) => r.component === "fee")) return true
+  if (approvedSlicePresent(args.approvedSlice)) return true
+  return false
+}
+
+/**
+ * Live MBA render must not invent a $0 fee for historic cuts that have no
+ * snapshot, no fee-component schedule_months, and no approved_slice.
+ */
+export function assertPersistedMbaFeeBasis(args: MbaFeeBasisInput): void {
+  if (!hasPersistedFeeBasis(args)) {
+    throw new PersistedDocError("NO_FEE_BASIS", NO_FEE_BASIS_MESSAGE)
   }
 }
 
@@ -194,7 +230,8 @@ export type PersistedMbaRender = {
 
 /**
  * Load version + schedule_months + approved_slice + fee snapshot and build MBAData.
- * Throws PersistedDocError for 404 / 422 conditions.
+ * Throws PersistedDocError for 404 / 422 conditions, including NO_FEE_BASIS
+ * when the cut has no snapshot, no fee schedule rows, and no approved_slice.
  */
 export async function buildMbaFromPersisted(args: {
   mbaNumber: string
@@ -278,6 +315,12 @@ export async function buildMbaFromPersisted(args: {
 
   const rowsByVersion = await loadScheduleMonthRowsForVersions([version.id])
   const scheduleRows = rowsByVersion.get(version.id) ?? []
+
+  assertPersistedMbaFeeBasis({
+    hasFeeSnapshotRow: feeRow != null,
+    scheduleRows,
+    approvedSlice: version.approvedSlice,
+  })
 
   const versionAsRecord: Record<string, unknown> = {
     id: version.id,
