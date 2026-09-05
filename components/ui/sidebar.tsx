@@ -26,10 +26,18 @@ const SIDEBAR_WIDTH_MOBILE = "18rem"
 const SIDEBAR_WIDTH_ICON = "3rem"
 const SIDEBAR_KEYBOARD_SHORTCUT = "b"
 
+type SidebarSetOpenOptions = {
+  /** When false, skip the `sidebar:state` cookie. Wizard collapse uses this. */
+  persist?: boolean
+}
+
 type SidebarContext = {
   state: "expanded" | "collapsed"
   open: boolean
-  setOpen: (open: boolean) => void
+  setOpen: (
+    open: boolean | ((value: boolean) => boolean),
+    options?: SidebarSetOpenOptions
+  ) => void
   openMobile: boolean
   setOpenMobile: (open: boolean) => void
   isMobile: boolean
@@ -74,19 +82,24 @@ const SidebarProvider = React.forwardRef<
     // We use openProp and setOpenProp for control from outside the component.
     const [_open, _setOpen] = React.useState(defaultOpen)
     const open = openProp ?? _open
+    const openRef = React.useRef(open)
+    openRef.current = open
     const setOpen = React.useCallback(
-      (value: boolean | ((value: boolean) => boolean)) => {
-        const openState = typeof value === "function" ? value(open) : value
+      (
+        value: boolean | ((value: boolean) => boolean),
+        options?: SidebarSetOpenOptions
+      ) => {
+        const openState = typeof value === "function" ? value(openRef.current) : value
         if (setOpenProp) {
           setOpenProp(openState)
         } else {
           _setOpen(openState)
         }
 
-        // This sets the cookie to keep the sidebar state.
+        if (options?.persist === false) return
         document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`
       },
-      [setOpenProp, open]
+      [setOpenProp]
     )
 
     // Helper to toggle the sidebar.

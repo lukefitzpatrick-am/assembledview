@@ -72,8 +72,10 @@ export function PlanWizardShell({
   bottomBar,
   children,
 }: PlanWizardShellProps) {
-  const { setOpen: setSidebarOpen, isMobile: isSidebarMobile } = useSidebar()
-  const didCollapseSidebar = useRef(false)
+  const { open, setOpen: setSidebarOpen, isMobile: isSidebarMobile } = useSidebar()
+  const capturedOpenRef = useRef(open)
+  const setSidebarOpenRef = useRef(setSidebarOpen)
+  setSidebarOpenRef.current = setSidebarOpen
 
   const [internalActiveStep, setInternalActiveStep] = useState(steps[0]?.id ?? "")
   const [activeRailItemId, setActiveRailItemId] = useState<string | null>(null)
@@ -110,11 +112,19 @@ export function PlanWizardShell({
   }, [])
 
   useEffect(() => {
-    if (!didCollapseSidebar.current && !isSidebarMobile) {
-      setSidebarOpen(false)
-      didCollapseSidebar.current = true
+    if (isSidebarMobile) return
+
+    // Capture the pre-wizard preference. Cleanup restores that captured value,
+    // not whatever the user toggled while the wizard was mounted.
+    capturedOpenRef.current = open
+    setSidebarOpenRef.current(false, { persist: false })
+
+    return () => {
+      setSidebarOpenRef.current(capturedOpenRef.current)
     }
-  }, [isSidebarMobile, setSidebarOpen])
+    // `open` is snapshotted on this run only — do not re-collapse when it changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSidebarMobile])
 
   const scrollToTarget = useCallback((targetId: string) => {
     if (typeof window === "undefined") return
