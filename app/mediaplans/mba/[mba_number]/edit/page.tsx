@@ -12123,22 +12123,28 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       >
           <Form {...form}>
           <form className="space-y-6">
-            <section id="campaign-setup" className="scroll-mt-[18px]">
+            <section id="campaign-setup" className="scroll-mt-[18px] rounded-frame border border-border bg-card p-4 shadow-e1 sm:p-5">
+            <div className="mb-5 flex flex-col gap-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Step 01</p>
+              <h2 className="text-xl font-semibold text-foreground">Campaign setup</h2>
+              <p className="text-sm text-muted-foreground">Set the core campaign details and planning model before allocating channels.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-6">
             <div
               id="builder-section-campaign"
-              className="flex h-full min-w-0 flex-col gap-4 overflow-hidden rounded-xl border border-border/50 bg-card shadow-sm scroll-mt-24"
+              className="flex h-full min-w-0 flex-col gap-4 overflow-visible rounded-card border border-border bg-surface-panel shadow-e0 scroll-mt-24"
             >
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Campaign Details</h3>
-              <CampaignDatePresetBar
-                onApply={({ start, end }) => {
-                  form.setValue("mp_campaigndates_start", start, { shouldDirty: true, shouldValidate: true })
-                  form.setValue("mp_campaigndates_end", end, { shouldDirty: true, shouldValidate: true })
-                  markUnsavedChanges()
-                }}
-              />
-            </div>
-            <div className="grid w-full flex-1 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border/40 bg-muted/20 px-6 pb-3 pt-5">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Campaign Details</h3>
+                <CampaignDatePresetBar
+                  onApply={({ start, end }) => {
+                    form.setValue("mp_campaigndates_start", start, { shouldDirty: true, shouldValidate: true })
+                    form.setValue("mp_campaigndates_end", end, { shouldDirty: true, shouldValidate: true })
+                    markUnsavedChanges()
+                  }}
+                />
+              </div>
+              <div className="grid w-full flex-1 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-4">
               <FormField
                 control={form.control}
                 name="mp_clientname"
@@ -12262,7 +12268,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                 )}
               />
 
-              <div id="builder-field-campaign-dates" className="scroll-mt-24 sm:col-span-2">
+              <div id="builder-field-campaign-dates" className="sm:col-span-2 scroll-mt-24">
                 <div className="grid gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
@@ -12400,8 +12406,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
                   </FormItem>
                 )}
               />
+              </div>
             </div>
-          </div>
+            </div>
             </section>
 
             <section id="channel-allocation" className="scroll-mt-[18px] space-y-6">

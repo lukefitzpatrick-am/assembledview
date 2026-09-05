@@ -502,6 +502,45 @@ describe("create + edit assembly twins (shared helpers)", () => {
     assert.match(editSrc, /<CampaignStatusControl[\s\S]*?persisted=\{true\}/)
   })
 
+  it("create and edit #campaign-setup share the Step 01 frame and 4-column field grid", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    const innerCard =
+      'className="flex h-full min-w-0 flex-col gap-4 overflow-visible rounded-card border border-border bg-surface-panel shadow-e0 scroll-mt-24"'
+    const fieldGrid =
+      'className="grid w-full flex-1 grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-4"'
+
+    assert.match(
+      createSrc,
+      /id="campaign-setup" data-create-step className="scroll-mt-\[18px\] rounded-frame border border-border bg-card p-4 shadow-e1 sm:p-5"/,
+    )
+    assert.match(
+      editSrc,
+      /id="campaign-setup" className="scroll-mt-\[18px\] rounded-frame border border-border bg-card p-4 shadow-e1 sm:p-5"/,
+    )
+    assert.doesNotMatch(editSrc, /id="campaign-setup"[^>\n]*data-create-step/)
+
+    for (const src of [createSrc, editSrc]) {
+      assert.match(src, /id="builder-section-campaign"/)
+      assert.equal(src.includes(innerCard), true)
+      assert.equal(src.includes(fieldGrid), true)
+      assert.match(
+        src,
+        /<p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Step 01<\/p>/,
+      )
+      assert.match(
+        src,
+        /<h2 className="text-xl font-semibold text-foreground">Campaign setup<\/h2>/,
+      )
+    }
+    const editCampaignSetup = editSrc.slice(
+      editSrc.indexOf('id="campaign-setup"'),
+      editSrc.indexOf('id="channel-allocation"'),
+    )
+    assert.equal(editCampaignSetup.includes("xl:grid-cols-3"), false)
+    assert.doesNotMatch(editSrc, /PlannerCreateTargetsStrip/)
+  })
+
   it("edit overwrite toast is explicit (not a version-cut message) + uiMode→mode guard comment", () => {
     const editSrc = readFileSync(EDIT_PAGE, "utf8")
     assert.match(
