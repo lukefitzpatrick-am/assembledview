@@ -10779,16 +10779,6 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
       })
 
       const followAuto = billingLineItemsFollowAutoRef.current
-      // MB-30: log container id fields alongside template ids (lib logs template.progBvod[].id).
-      console.warn(
-        "[MB-30 append] progBvod container id fields",
-        (progBvodMediaLineItems ?? []).map((li: any, i: number) => ({
-          index: i,
-          line_item_id: li?.line_item_id ?? null,
-          id: li?.id ?? null,
-          billingStable: billingStableLineItemId("progBvod", li, i),
-        }))
-      )
       const merged = appendAutoReferenceIntoWorkingBilling(
         source,
         autoRef,

@@ -414,14 +414,6 @@ export function appendAutoLineItemTemplateIntoWorking(
 ): BillingMonth[] {
   if (!templateWithLineItems.length) return workingMonths
 
-  // MB-30 instrumentation — one line; distinguishes new-N ghost vs id-field drift.
-  const templateProgBvodIds = (
-    (templateWithLineItems[0]?.lineItems?.progBvod as BillingLineItem[] | undefined) ?? []
-  ).map((li) => String(li.id ?? ""))
-  if (templateProgBvodIds.length > 0) {
-    console.warn("[MB-30 append] template.lineItems.progBvod[].id", templateProgBvodIds)
-  }
-
   const oldByKey = new Map(workingMonths.map((m) => [m.monthYear, m]))
   const allCampaignMonthKeys = templateWithLineItems.map((m) => m.monthYear)
   const combinedRows = appendMissingMonthsOnly(workingMonths, templateWithLineItems)
@@ -447,6 +439,9 @@ export function appendAutoLineItemTemplateIntoWorking(
   })
 
   if (allCollapses.length > 0) {
+    const templateProgBvodIds = (
+      (templateWithLineItems[0]?.lineItems?.progBvod as BillingLineItem[] | undefined) ?? []
+    ).map((li) => String(li.id ?? ""))
     console.warn("[MB-30] canonical dedupe collapsed working billing lines", {
       collapses: allCollapses,
       templateProgBvodIds,
