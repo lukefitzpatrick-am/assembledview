@@ -132,7 +132,7 @@ Repo scripts: `npm run snowflake:migrate:pacing`, `npm run pacing:backfill:searc
 
 ### Feature flags (client)
 
-- `NEXT_PUBLIC_PLAN_DRAFTS=on|off` (default **off**) — PC7 autosave chrome (3s IndexedDB / 15s server, soft Save draft, pill secondary). Turning **off** does **not** delete `plan_working_drafts`: rows stay in Postgres; Stage 2b load offer and save-on-published working draft remain reachable. Local: set in [env.local.example](env.local.example) / `.env.local` and restart `next dev`. Prod: Luke sets Vercel at merge — not from Cursor.
+- `NEXT_PUBLIC_PLAN_DRAFTS=on|off` (default **off**) — PC7 autosave chrome (3s IndexedDB / 15s server, soft Save draft, pill secondary). Turning **off** does **not** delete `plan_working_drafts`: rows stay in Postgres; Stage 2b load offer (Resume · Compare · Discard) remains reachable. **Interim `SAVE_PUBLISHES_IMMEDIATELY`:** Save publishes (no working-draft save path). Local: set in [env.local.example](env.local.example) / `.env.local` and restart `next dev`. Prod: Luke sets Vercel at merge — not from Cursor.
 
 ---
 

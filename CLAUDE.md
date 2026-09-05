@@ -34,7 +34,7 @@ The app is deeply interconnected and uncoordinated changes cause regressions in 
 - **`bursts` shape** (`serializeBurstsJson.ts` / `formatBurstsForPersist.ts`) and **`line_item_id`** (`lineItemIds.ts`) are cross-domain contracts — pacing, billing, finance, Snowflake, dashboards and exports all parse them. Change every consumer or none.
 - **Published version = `media_plan_masters.published_version_id`** and `media_plan_versions.published_at`. Never `max(version_number)`, never inferred from `campaign_status`.
 - **`approved_slice` is frozen at publish.** Never mutate it afterwards.
-- **ZERO-$ LAW:** ad-serving and CM360 surfaces never compute or display spend pacing.
+- **ZERO-$ LAW:** CM360 surfaces carry no spend UNLESS the line's `delivery_source_map` row sets `derive_spend_from_plan`, in which case the figure is modelled from the plan rate, capped at the planned total, and labelled as modelled. The flag is OFF for all Direct Booked Digital, so `lib/pacing/ad-serving/*` and `lib/pacing/overview/mapOverviewItems.ts` keep their no-spend row shapes.
 - **`NaN`** from deliverable math is a "no recompute" sentinel, not a zero.
 - The **`PacingStatus` ladder order** mirrors a Snowflake view — do not reorder.
 - **The twin pages:** any change to `app/mediaplans/create/page.tsx` likely needs the same change in `app/mediaplans/mba/[mba_number]/edit/page.tsx`, and vice versa.

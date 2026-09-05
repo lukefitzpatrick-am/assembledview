@@ -24,7 +24,7 @@ Code: `app/finance/`, `components/finance/`, `lib/finance/`, `lib/billing/`, `li
 
 Six channel views under `/pacing` — overview, direct, programmatic, social, search, ad-serving — plus an admin tool for reassigning platform line items that failed to match a plan line.
 
-**Be careful of:** the status ladder order mirrors a Snowflake view and must not be reordered. Ad-serving and CM360 surfaces never show spend pacing. Results are cached for four hours, so a change may not appear immediately.
+**Be careful of:** the status ladder order mirrors a Snowflake view and must not be reordered. CM360 surfaces carry no spend unless `derive_spend_from_plan` is on (modelled from the plan rate, capped, labelled modelled). The flag is off for Direct Booked Digital, so ad-serving and overview stay no-spend. Results are cached for four hours, so a change may not appear immediately.
 
 Code: `app/pacing/`, `lib/pacing/`, `lib/snowflake/`.
 

@@ -92,7 +92,7 @@ Adding or altering a channel touches, at minimum:
 
 **Shape** Snowflake fact tables joined to plan line items on `line_item_id`. Facts: `MART.PACING_FACT`, `MART.SEARCH_PACING_FACT`, `MART.SOCIAL_PACING_FACT`, `MART.FIXED_COST_*_FACT`. The plan side is pushed into `MART.XANO_LINE_ITEMS_SNAPSHOT` nightly by `/api/cron/xano-line-item-sync` (19:00 UTC) — the table keeps its historic name; the source is now Postgres (`lib/snowflake/syncPgLineItems.ts`, `LINE_ITEM_SNAPSHOT_SOURCE`).
 
-**Two laws.** `PacingStatus` ladder order mirrors the Snowflake view — never reorder. ZERO-$ LAW: ad-serving and CM360 surfaces never compute or display spend pacing.
+**Two laws.** `PacingStatus` ladder order mirrors the Snowflake view — never reorder. ZERO-$ LAW: CM360 surfaces carry no spend UNLESS the line's `delivery_source_map` row sets `derive_spend_from_plan`, in which case the figure is modelled from the plan rate, capped at the planned total, and labelled as modelled. The flag is OFF for all Direct Booked Digital, so `lib/pacing/ad-serving/*` and `lib/pacing/overview/mapOverviewItems.ts` keep their no-spend row shapes. Programmatic Display/Video keep a line when `delivery_source_map` has an active row (`lib/delivery/deliverySourceMap.ts` until 0063 is applied).
 
 Cached 4h via `unstable_cache` tag `pacing-campaigns`.
 

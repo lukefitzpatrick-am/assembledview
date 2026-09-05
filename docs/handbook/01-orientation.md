@@ -18,7 +18,7 @@ Delivery data lands in Snowflake from the ad platforms. The plan lands in Snowfl
 
 That single key is why pacing works at all. It is also why its format is frozen.
 
-Pacing pages show, per channel, what was planned against what was delivered, with a status band. One rule matters: ad-serving and CM360 surfaces never show spend pacing, because their numbers are not spend.
+Pacing pages show, per channel, what was planned against what was delivered, with a status band. One rule matters: CM360 surfaces carry no spend unless that line's delivery-source row sets `derive_spend_from_plan` — then the figure is modelled from the plan rate, capped at the planned total, and labelled as modelled. The flag is off for all Direct Booked Digital, so ad-serving and overview keep their no-spend rows.
 
 ## 3. It runs finance
 
