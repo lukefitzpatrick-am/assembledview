@@ -18,6 +18,7 @@
     "test:campaign-dashboard-range": "tsx --test lib/dashboard/__tests__/campaignDateRange.test.ts lib/dashboard/__tests__/campaignSummaryRowProps.test.ts && node --experimental-test-module-mocks --import ./scripts/test-shims/register-server-only.mjs --require ./scripts/test-shims/mock-server-only.cjs --import tsx --test lib/delivery/__tests__/getDeliveredTotalsForCampaign.range.test.ts",
     "test:delivery-ui": "vitest run components/dashboard/delivery/__tests__/ChannelSection.render.test.tsx",
     "test:search-delivery-tiles": "tsx --test components/dashboard/delivery/channels/__tests__/searchAdapter.revenueTiles.test.ts",
+    "test:programmatic-delivery": "tsx --test lib/delivery/__tests__/deriveSpendFromPlanRate.test.ts lib/delivery/programmatic/__tests__/mapCombinedRowToDv360.test.ts components/dashboard/delivery/channels/__tests__/programmaticAdapter.deliverySourceMap.test.ts",
     "build:learning": "node --loader ts-node/esm scripts/build-learning-terms.ts",
     "test:solver": "tsx --test tests/learning/solver.test.ts",
     "test:utm": "tsx --test tests/learning/utm.test.ts",

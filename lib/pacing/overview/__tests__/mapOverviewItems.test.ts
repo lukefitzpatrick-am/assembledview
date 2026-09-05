@@ -97,6 +97,8 @@ test("direct Radio/OOH-style lines map into overview bands", () => {
 });
 
 test("ad serving is delivery-only (never spend over-pacing)", () => {
+  // ZERO-$ LAW: derive_spend_from_plan is OFF for all Direct Booked Digital,
+  // so mapAdServingRowToOverviewItem keeps no-spend row shapes.
   const serving = mapAdServingRowToOverviewItem({
     clientName: "Krusty",
     campaignName: "krusty002",
@@ -106,6 +108,7 @@ test("ad serving is delivery-only (never spend over-pacing)", () => {
   });
   assert.equal(serving.status, "on-track");
   assert.equal(serving.budget, null);
+  assert.equal(serving.spendToDate, null);
 });
 
 test("summarizeOverviewItems builds separate underperforming and over-pacing lists", () => {

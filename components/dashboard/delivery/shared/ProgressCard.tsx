@@ -1,12 +1,15 @@
 import { cn } from "@/lib/utils"
 import { Sparkline } from "@/components/charts/system"
 import { reshapeSparkline } from "@/components/dashboard/dashboardChartReshape"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { StatusPill } from "./StatusPill"
 import { VarianceRibbon } from "./VarianceRibbon"
 import { statusBg, type DeliveryStatus } from "./statusColours"
 
 export interface ProgressCardProps {
   title: string
+  /** Hover copy for the title (e.g. modelled-spend explanation). */
+  titleTooltip?: string
   /** Big number, already formatted (e.g. "$35,763.47"). */
   value: string
   /** Subtext, e.g. "Delivered $35,763.47 · Planned $70,093.00". */
@@ -31,6 +34,7 @@ function clamp01(n: number): number {
 
 export function ProgressCard({
   title,
+  titleTooltip,
   value,
   detail,
   progress,
@@ -42,6 +46,9 @@ export function ProgressCard({
   className,
 }: ProgressCardProps) {
   const p = clamp01(progress)
+  const titleEl = (
+    <p className={cn("text-sm text-muted-foreground", dense && "text-xs")}>{title}</p>
+  )
   return (
     <div
       className={cn(
@@ -53,7 +60,18 @@ export function ProgressCard({
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <p className={cn("text-sm text-muted-foreground", dense && "text-xs")}>{title}</p>
+            {titleTooltip ? (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex min-w-0 cursor-help">{titleEl}</span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">{titleTooltip}</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              titleEl
+            )}
             <StatusPill status={status} />
           </div>
           <p
