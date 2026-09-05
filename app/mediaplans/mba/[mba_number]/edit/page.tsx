@@ -45,6 +45,7 @@ import { cn } from "@/lib/utils"
 import { CampaignExportsSection } from "@/components/dashboard/CampaignExportsSection"
 import { PlanWizardHeader, PlanWizardVersionChrome } from "@/components/mediaplans/PlanWizardHeader"
 import { MediaPlanEditorHeroActions } from "@/components/mediaplans/MediaPlanEditorHeroActions"
+import { PlanPresenceBanner } from "@/components/mediaplans/PlanPresenceBanner"
 import { PlanWizardShell } from "@/components/mediaplans/PlanWizardShell"
 import { PlanWizardSaveMessages } from "@/components/mediaplans/PlanWizardSaveMessages"
 import { SplitActionButton } from "@/components/mediaplans/SplitActionButton"
@@ -11884,6 +11885,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="mx-auto w-full max-w-[1920px] px-4 sm:px-5 md:px-6 xl:px-8 2xl:px-10 pt-0 pb-24 space-y-6">
+          <PlanPresenceBanner line={planDraft.presenceLine} />
           <PlanWizardHeader
             title="Edit Campaign"
             breadcrumbCurrent="Edit Campaign"
@@ -12066,7 +12068,9 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
 
       <PlanWizardShell
         header={
-          <PlanWizardHeader
+          <>
+            <PlanPresenceBanner line={planDraft.presenceLine} />
+            <PlanWizardHeader
             title="Edit Campaign"
             breadcrumbCurrent="Edit Campaign"
             subtitle={<p>Update campaign settings, media types, and line item details.</p>}
@@ -12127,6 +12131,7 @@ export default function EditMediaPlan({ params }: { params: Promise<{ mba_number
               />
             }
           />
+          </>
         }
         steps={createCampaignSteps.map((step) => ({
           id: step.id,

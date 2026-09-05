@@ -211,6 +211,12 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
       if (url.includes("/api/plans/drafts") && init?.method === "DELETE") {
         return new Response(JSON.stringify({ ok: true }), { status: 200 })
       }
+      if (url.includes("/api/plans/presence")) {
+        return new Response(JSON.stringify({ ok: true, others: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
       return new Response("not found", { status: 404 })
     })
     vi.stubGlobal("fetch", fetchMock)
@@ -426,6 +432,12 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
           headers: { "Content-Type": "application/json" },
         })
       }
+      if (url.includes("/api/plans/presence")) {
+        return new Response(JSON.stringify({ ok: true, others: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
       return new Response("not found", { status: 404 })
     })
     await renderProbe(true)
@@ -437,6 +449,44 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
     expect(latest?.activeDraft).toBeNull()
     expect(latest?.loadKind).toBe("none")
     expect(restored).toEqual([])
+  })
+
+  it("presence banner names the other editor and leaving POST fires on unmount", async () => {
+    fetchMock.mockImplementation(async (input: RequestInfo, init?: RequestInit) => {
+      const url = String(input)
+      if (url.includes("/api/plans/drafts")) {
+        return new Response(JSON.stringify({ draft: null, others: [] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      }
+      if (url.includes("/api/plans/presence") && init?.method === "POST") {
+        const body = JSON.parse(String(init.body ?? "{}")) as { leaving?: boolean }
+        if (body.leaving) {
+          return new Response(JSON.stringify({ ok: true }), { status: 200 })
+        }
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            others: [
+              {
+                userLabel: "Sarah Chen",
+                lastSeenAt: new Date(Date.now() - 120_000).toISOString(),
+                page: "edit",
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } }
+        )
+      }
+      return new Response("not found", { status: 404 })
+    })
+    await renderProbe(true)
+    await waitUntil(() => Boolean(latest?.presenceLine))
+    expect(latest?.presenceLine).toBe(
+      "Sarah Chen also has this campaign open (2 min ago)"
+    )
+    expect(latest?.presenceLine).not.toMatch(/@|lock|takeover/i)
   })
 })
 

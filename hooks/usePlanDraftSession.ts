@@ -39,6 +39,12 @@ import {
   noteAuthenticatedWriteOk,
   throwIfWriteUnauthorized,
 } from "@/lib/auth/writeSessionExpiry"
+import {
+  formatPlanPresenceBanner,
+  PLAN_PRESENCE_HEARTBEAT_MS,
+  shouldArmPresenceInterval,
+  type PlanPresenceOther,
+} from "@/lib/mediaplan/drafts/presence"
 
 type OtherDraft = {
   userId: string
@@ -92,6 +98,7 @@ export function usePlanDraftSession(args: {
   const [activeDraft, setActiveDraft] = useState<ActiveDraftSession | null>(null)
   const [offer, setOffer] = useState<RecoveryOffer | null>(null)
   const [others, setOthers] = useState<OtherDraft[]>([])
+  const [presenceOthers, setPresenceOthers] = useState<PlanPresenceOther[]>([])
   const [compareOpen, setCompareOpen] = useState(false)
   const [payloadBytes, setPayloadBytes] = useState<number | null>(null)
   const [staleCompare, setStaleCompare] = useState<unknown>(null)
@@ -174,6 +181,45 @@ export function usePlanDraftSession(args: {
     return run
   }, [])
 
+  const masterIdRef = useRef(args.masterId)
+  masterIdRef.current = args.masterId
+
+  const beatPresence = useCallback(async (opts?: { leaving?: boolean }) => {
+    const masterId = masterIdRef.current
+    if (masterId == null) return
+    if (
+      opts?.leaving !== true &&
+      typeof document !== "undefined" &&
+      document.visibilityState !== "visible"
+    ) {
+      return
+    }
+    try {
+      const res = await fetch("/api/plans/presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          masterId,
+          page: "edit",
+          ...(opts?.leaving ? { leaving: true } : {}),
+        }),
+        keepalive: opts?.leaving === true,
+      })
+      if (opts?.leaving) {
+        setPresenceOthers([])
+        return
+      }
+      if (!res.ok) return
+      const json = (await res.json()) as { others?: PlanPresenceOther[] }
+      if (Array.isArray(json.others)) setPresenceOthers(json.others)
+    } catch {
+      /* Presence is informational — never block Save or Publish. */
+    }
+  }, [])
+
+  const beatPresenceRef = useRef(beatPresence)
+  beatPresenceRef.current = beatPresence
+
   const persistLocal = useCallback(
     async (opts?: { force?: boolean }) => {
       return enqueuePersist(async () => {
@@ -195,6 +241,9 @@ export function usePlanDraftSession(args: {
 
   const persistServer = useCallback(
     async (opts?: { force?: boolean }) => {
+      // Ride the 15s autosave timeout when it is armed — do not start a
+      // second timer for presence.
+      void beatPresenceRef.current()
       return enqueuePersist(async () => {
         if ((!autosaveEnabled && !opts?.force) || args.masterId == null || !userId) return
         const state = getSnapshotRef.current()
@@ -253,6 +302,44 @@ export function usePlanDraftSession(args: {
       window.removeEventListener("blur", onBlur)
     }
   }, [autosaveEnabled, args.dirty, args.masterId, persistServer])
+
+  // Presence heartbeat: immediate on mount, leave on unmount. Interval only
+  // when the 15s autosave timeout is not armed.
+  useEffect(() => {
+    if (args.masterId == null) return
+    const masterId = args.masterId
+    void beatPresenceRef.current()
+    const onVis = () => {
+      if (document.visibilityState === "visible") void beatPresenceRef.current()
+    }
+    document.addEventListener("visibilitychange", onVis)
+    return () => {
+      document.removeEventListener("visibilitychange", onVis)
+      void fetch("/api/plans/presence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ masterId, leaving: true }),
+        keepalive: true,
+      })
+      setPresenceOthers([])
+    }
+  }, [args.masterId])
+
+  useEffect(() => {
+    if (
+      !shouldArmPresenceInterval({
+        masterId: args.masterId,
+        autosaveEnabled,
+        dirty: args.dirty,
+      })
+    ) {
+      return
+    }
+    const id = window.setInterval(() => {
+      void beatPresenceRef.current()
+    }, PLAN_PRESENCE_HEARTBEAT_MS)
+    return () => window.clearInterval(id)
+  }, [args.masterId, autosaveEnabled, args.dirty])
 
   const commitApply = useCallback(
     (state: PlanDraftStateV1, updatedAt: string, headline?: string) => {
@@ -478,6 +565,11 @@ export function usePlanDraftSession(args: {
     setLastAutosaveAt(null)
   }, [args.masterId, args.mbaNumber, userId])
 
+  const presenceLine = useMemo(
+    () => formatPlanPresenceBanner(presenceOthers),
+    [presenceOthers]
+  )
+
   const loadKind: DraftLoadKind = activeDraft
     ? "auto"
     : recovery
@@ -504,6 +596,7 @@ export function usePlanDraftSession(args: {
     loadKind,
     diffLive,
     others,
+    presenceLine,
     compareOpen,
     setCompareOpen,
     staleCompare,
