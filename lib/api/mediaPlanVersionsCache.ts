@@ -1,5 +1,6 @@
 import { fetchAllXanoPagesWithCompleteness } from "@/lib/api/xanoPagination"
 import { parseXanoListPayload, peekXanoEnv, xanoUrl } from "@/lib/api/xano"
+import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 
 /**
  * Shared coalesced cache for the dashboard's latest media_plan_versions list.
@@ -96,9 +97,9 @@ async function fetchUpstream(): Promise<any[]> {
     ])
     const latestByMba = new Map<string, any>()
     for (const plan of all) {
-      const mba = plan?.mba_number
-      if (!mba) continue
-      const existing = latestByMba.get(String(mba))
+      const key = mbaJoinKey(plan?.mba_number)
+      if (!key) continue
+      const existing = latestByMba.get(key)
       const planVn = Number(plan.version_number) || 0
       const existingVn = Number(existing?.version_number) || 0
       if (
@@ -106,7 +107,7 @@ async function fetchUpstream(): Promise<any[]> {
         existingVn < planVn ||
         (existingVn === planVn && Number(existing?.id || 0) < Number(plan.id || 0))
       ) {
-        latestByMba.set(String(mba), plan)
+        latestByMba.set(key, plan)
       }
     }
     const latest = Array.from(latestByMba.values()).map(stripScheduleFields)

@@ -6,12 +6,12 @@ import {
   billingMonthsInAustralianFinancialYear,
   referenceDateForFyStartYear,
 } from '@/lib/finance/months'
+import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import { publishedVersionFromMaster } from '@/lib/mediaplan/publishedVersionGuard'
 import {
   apiClient,
   getTzParts,
   getAustralianFinancialYearWindow,
-  normalizeMbaKey,
   normalizeSchedule,
   parseMonthYear,
   getMonthYearValue,
@@ -88,27 +88,26 @@ export async function getFinanceHubScheduleFytdTotals(
 
   const publishedByMba = new Map<string, number>()
   for (const master of mastersRaw || []) {
-    const key = normalizeMbaKey(master?.mba_number ?? master?.mbaNumber)
+    const key = mbaJoinKey(master?.mba_number ?? master?.mbaNumber)
     if (!key) continue
     const published = publishedVersionFromMaster(master)
     if (published > 0) publishedByMba.set(key, published)
   }
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
-    const mbaNumber = version?.mba_number
-    if (!mbaNumber) return acc
-    acc[mbaNumber] = acc[mbaNumber] || []
-    acc[mbaNumber].push(version)
+    const key = mbaJoinKey(version?.mba_number)
+    if (!key) return acc
+    acc[key] = acc[key] || []
+    acc[key].push(version)
     return acc
   }, {} as Record<string, any[]>)
 
   // VC1-5: tip = master.version_number (publishedVersionNumber); commercial = BAC on that tip.
   const highestApprovedVersionByMBA = Object.entries(versionsByMBA).reduce(
-    (acc: Record<string, any>, [mbaNumber, versions]: [string, any[]]) => {
-      const mbaKey = normalizeMbaKey(mbaNumber) || String(mbaNumber)
+    (acc: Record<string, any>, [mbaKey, versions]: [string, any[]]) => {
       const published = publishedByMba.get(mbaKey)
       const chosen = resolveDashboardCommercialLiveVersionRow(versions, published)
-      if (chosen) acc[mbaNumber] = chosen
+      if (chosen) acc[mbaKey] = chosen
       return acc
     },
     {} as Record<string, any>

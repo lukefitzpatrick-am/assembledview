@@ -2,7 +2,7 @@ import "server-only"
 
 import { readPlanMasters, readPlanVersions } from "@/lib/data/readMediaPlans"
 import { publishedVersionFromMaster } from "@/lib/mediaplan/publishedVersionGuard"
-import { normalizeMbaKey } from "./shared"
+import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import {
   buildPlannedToDateByMba,
   type PlannedToDateFy,
@@ -24,7 +24,7 @@ export async function fetchPlannedToDateByMba(
   const publishedByMba = new Map<string, number>()
   const mastersByMba = new Map<string, { campaign_status?: unknown }>()
   for (const master of masters) {
-    const key = normalizeMbaKey(master?.mba_number)
+    const key = mbaJoinKey(master?.mba_number)
     if (!key) continue
     const published = publishedVersionFromMaster(master)
     if (published > 0) publishedByMba.set(key, published)

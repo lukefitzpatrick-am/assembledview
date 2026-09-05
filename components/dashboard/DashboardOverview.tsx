@@ -22,6 +22,7 @@ import { format } from "date-fns"
 import { safeFormatDate } from "@/lib/dashboard/safeFormatDate"
 import { formatMoney, formatMoneyCompact } from "@/lib/format/money"
 import { isPlannedBasisCampaignStatus } from "@/lib/dashboard/plannedSpendConsistency"
+import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import { CampaignStatusBadge } from "@/components/campaign/CampaignStatusBadge"
 import { usePathname, useRouter } from "next/navigation"
 import { AuthPageLoading } from "@/components/AuthLoadingState"
@@ -260,9 +261,11 @@ const getTodayBounds = () => {
 const getLatestPlanVersions = (plans: MediaPlan[]): MediaPlan[] => {
   const latestVersionsMap = new Map<string, MediaPlan>()
   plans.forEach((plan) => {
-    const existing = latestVersionsMap.get(plan.mp_mba_number)
+    const key = mbaJoinKey(plan.mp_mba_number)
+    if (!key) return
+    const existing = latestVersionsMap.get(key)
     if (!existing || plan.mp_version > existing.mp_version) {
-      latestVersionsMap.set(plan.mp_mba_number, plan)
+      latestVersionsMap.set(key, plan)
     }
   })
   return Array.from(latestVersionsMap.values())
@@ -282,9 +285,8 @@ const getLatestPlanVersions = (plans: MediaPlan[]): MediaPlan[] => {
 function getHighestBookedApprovedCompletedVersionPerMba(plans: MediaPlan[]): MediaPlan[] {
   const byMba = new Map<string, MediaPlan[]>()
   for (const plan of plans) {
-    const mba = plan.mp_mba_number
-    if (mba == null || String(mba).trim() === "") continue
-    const key = String(mba)
+    const key = mbaJoinKey(plan.mp_mba_number)
+    if (!key) continue
     const list = byMba.get(key) ?? []
     list.push(plan)
     byMba.set(key, list)
@@ -1731,7 +1733,8 @@ export default function DashboardOverview({
         if (!mbaNumber) throw new Error("MBA number is required.")
 
         const latestPlans = getLatestPlanVersions(mediaPlans)
-        const match = latestPlans.find((p) => String(p.mp_mba_number) === mbaNumber)
+        const matchKey = mbaJoinKey(mbaNumber)
+        const match = latestPlans.find((p) => mbaJoinKey(p.mp_mba_number) === matchKey)
         const clientSlug =
           value && typeof value === "object" && typeof value.clientSlug === "string"
             ? value.clientSlug
@@ -1755,7 +1758,8 @@ export default function DashboardOverview({
         if (!mbaNumber) throw new Error("MBA number is required.")
 
         const latestPlans = getLatestPlanVersions(mediaPlans)
-        const match = latestPlans.find((p) => String(p.mp_mba_number) === mbaNumber)
+        const matchKey = mbaJoinKey(mbaNumber)
+        const match = latestPlans.find((p) => mbaJoinKey(p.mp_mba_number) === matchKey)
         const version =
           value && typeof value === "object" && (typeof value.version === "number" || typeof value.version === "string")
             ? value.version

@@ -3,6 +3,7 @@
  * KPI tiles must use the same filtered row sets as the Live Campaigns / Live Scopes panels.
  */
 
+import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import { matchText, normalizeSearchText } from "@/lib/search/matchText"
 
 export type DashboardViewFilters = {
@@ -148,17 +149,21 @@ export type HomeMediaSpendTile = {
 
 /**
  * Sum planned-to-date dollars for the filtered live-campaign set.
- * Missing map keys contribute 0. No clamp, filter, or pro-rata — the endpoint
- * already clamped to the FY and the array is already filtered.
+ * Join keys are `mbaJoinKey` (trim + lowercase). Missing map keys contribute 0.
+ * Duplicate campaign rows that differ only by MBA case are counted once.
+ * No clamp, filter, or pro-rata — the endpoint already clamped to the FY and
+ * the array is already filtered.
  */
 export function sumPlannedToDateForCampaigns(
   campaigns: Array<{ mp_mba_number?: string | null }>,
   byMba: Record<string, number>,
 ): number {
   let total = 0
+  const seen = new Set<string>()
   for (const campaign of campaigns) {
-    const key = String(campaign.mp_mba_number ?? "").trim()
-    if (!key) continue
+    const key = mbaJoinKey(campaign.mp_mba_number)
+    if (!key || seen.has(key)) continue
+    seen.add(key)
     const amount = byMba[key]
     total += typeof amount === "number" && Number.isFinite(amount) ? amount : 0
   }

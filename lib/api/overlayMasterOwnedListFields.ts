@@ -9,6 +9,8 @@
  * Keep both callers on this helper — DI-9 / DI-9b drifted when only one path overlaid.
  */
 
+import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
+
 export const MEDIA_PLANS_LIST_MASTER_OWNED_STRING_FIELDS = [
   "mp_client_name",
 ] as const
@@ -40,8 +42,9 @@ export function overlayMasterOwnedListFields(
 
 /**
  * Apply {@link overlayMasterOwnedListFields} to each version row, joining masters
- * by `mba_number`. Rows without a master are kept (empty master-owned strings).
- * Does not rewrite `version_number` or other version-owned fields.
+ * by case-insensitive `mbaJoinKey`. Rows without a master are kept (empty
+ * master-owned strings). Does not rewrite `mba_number`, `version_number`, or
+ * other version-owned fields.
  */
 export function applyMasterOwnedOverlayByMba(
   versionRows: Array<Record<string, unknown> | null | undefined>,
@@ -49,17 +52,14 @@ export function applyMasterOwnedOverlayByMba(
 ): Record<string, unknown>[] {
   const masterMap = new Map<string, Record<string, unknown>>()
   for (const master of masters) {
-    const mba = master?.mba_number
-    if (mba == null || String(mba).trim() === "") continue
-    masterMap.set(String(mba), master as Record<string, unknown>)
+    const key = mbaJoinKey(master?.mba_number)
+    if (!key) continue
+    masterMap.set(key, master as Record<string, unknown>)
   }
 
   return versionRows.map((row) => {
-    const mba = row?.mba_number
-    const master =
-      mba != null && String(mba).trim() !== ""
-        ? masterMap.get(String(mba))
-        : undefined
+    const key = mbaJoinKey(row?.mba_number)
+    const master = key ? masterMap.get(key) : undefined
     return overlayMasterOwnedListFields(row, master)
   })
 }

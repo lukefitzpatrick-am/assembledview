@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { buildPlannedToDateByMba } from "@/lib/api/dashboard/plannedToDate"
 import {
   applyDashboardTableFiltersToPlans,
   applyDashboardTableFiltersToScopes,
@@ -10,6 +11,27 @@ import {
   isLiveScopeStatus,
   sumPlannedToDateForCampaigns,
 } from "@/lib/dashboard/homeDashboardFilters"
+
+function typesShapeEntry(monthYear: string, amount: string) {
+  return {
+    monthYear,
+    mediaTypes: [{ mediaType: "Television", lineItems: [{ amount }] }],
+  }
+}
+
+function plannedToDateVersion(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    mba_number: "inside001",
+    version_number: 1,
+    campaign_status: "booked",
+    campaign_name: "Inside FY",
+    campaign_start_date: "2025-08-01",
+    campaign_end_date: "2025-08-31",
+    published_at: "2025-08-01T00:00:00.000Z",
+    deliverySchedule: [typesShapeEntry("August 2025", "$2,000.00")],
+    ...overrides,
+  }
+}
 
 const plans = [
   {
@@ -141,5 +163,42 @@ describe("home media spend to date", () => {
 
   it("ready state may be a true zero after a successful fetch", () => {
     expect(homeMediaSpendTile("ready", plans, {})).toEqual({ show: true, amount: 0 })
+  })
+
+  it("resolves a map built from a mixed-case MBA when the campaign row carries that same mixed-case number", () => {
+    const byMba = buildPlannedToDateByMba([plannedToDateVersion({ mba_number: "Boss001" })], {
+      fy: 2025,
+    })
+    // Join keys are case-insensitive; displayed/stored mba_number is unchanged.
+    expect(Object.keys(byMba)).toEqual(["boss001"])
+    expect(
+      sumPlannedToDateForCampaigns([{ mp_mba_number: "Boss001" }], byMba),
+    ).toBe(2000)
+  })
+
+  it("sums the mixed-case campaign set to every campaign, not a case-matched subset", () => {
+    const byMba = buildPlannedToDateByMba(
+      [
+        plannedToDateVersion({
+          mba_number: "jayco003",
+          deliverySchedule: [typesShapeEntry("August 2025", "$10,000.00")],
+        }),
+        plannedToDateVersion({
+          mba_number: "Boss001",
+          deliverySchedule: [typesShapeEntry("August 2025", "$2,500.00")],
+        }),
+        plannedToDateVersion({
+          mba_number: "PENFOLD016",
+          deliverySchedule: [typesShapeEntry("August 2025", "$7,500.00")],
+        }),
+      ],
+      { fy: 2025 },
+    )
+    const mixedCampaigns = [
+      { mp_mba_number: "jayco003" },
+      { mp_mba_number: "Boss001" },
+      { mp_mba_number: "penfold016" },
+    ]
+    expect(sumPlannedToDateForCampaigns(mixedCampaigns, byMba)).toBe(20_000)
   })
 })

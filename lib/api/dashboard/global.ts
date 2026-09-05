@@ -11,6 +11,7 @@ import {
   fetchDashboardMonthlyClientSpendFromPostgres,
   fetchDashboardMonthlyPublisherSpendFromPostgres,
 } from '@/lib/data/dashboardMonthlySpend'
+import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import { getCachedClients } from '@/lib/finance/xanoReferenceCache'
 import {
   apiClient,
@@ -53,10 +54,10 @@ export async function getGlobalMonthlySpend(): Promise<GlobalMonthlySpend[]> {
   const { data: allVersions } = await getCachedMediaPlanVersions()
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
-    const mbaNumber = version?.mba_number
-    if (!mbaNumber) return acc
-    acc[mbaNumber] = acc[mbaNumber] || []
-    acc[mbaNumber].push(version)
+    const key = mbaJoinKey(version?.mba_number)
+    if (!key) return acc
+    acc[key] = acc[key] || []
+    acc[key].push(version)
     return acc
   }, {} as Record<string, any[]>)
 
@@ -112,10 +113,10 @@ export async function getGlobalMonthlyPublisherSpendLegacy(): Promise<GlobalMont
   const { data: allVersions } = await getCachedMediaPlanVersions()
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
-    const mbaNumber = version?.mba_number
-    if (!mbaNumber) return acc
-    acc[mbaNumber] = acc[mbaNumber] || []
-    acc[mbaNumber].push(version)
+    const key = mbaJoinKey(version?.mba_number)
+    if (!key) return acc
+    acc[key] = acc[key] || []
+    acc[key].push(version)
     return acc
   }, {} as Record<string, any[]>)
 
@@ -227,10 +228,10 @@ export async function getGlobalMonthlyClientSpendLegacy(): Promise<{
   const { data: allVersions } = await getCachedMediaPlanVersions()
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
-    const mbaNumber = version?.mba_number
-    if (!mbaNumber) return acc
-    acc[mbaNumber] = acc[mbaNumber] || []
-    acc[mbaNumber].push(version)
+    const key = mbaJoinKey(version?.mba_number)
+    if (!key) return acc
+    acc[key] = acc[key] || []
+    acc[key].push(version)
     return acc
   }, {} as Record<string, any[]>)
 

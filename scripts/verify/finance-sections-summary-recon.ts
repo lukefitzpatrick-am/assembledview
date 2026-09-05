@@ -57,6 +57,7 @@ async function legacyReceivablesByMba(fy: number): Promise<{
   const { parseXanoListPayload } = await import("../../lib/api/xano")
   const { xanoMediaPlansUrl } = await import("../../lib/api/xanoClients")
   const { fetchAllXanoPages } = await import("../../lib/api/xanoPagination")
+  const { mbaJoinKey } = await import("../../lib/mediaplan/mbaNumber")
   const { publishedVersionFromMaster } = await import(
     "../../lib/mediaplan/publishedVersionGuard"
   )
@@ -65,7 +66,6 @@ async function legacyReceivablesByMba(fy: number): Promise<{
     getTzParts,
     getAustralianFinancialYearWindow,
     isBookedApprovedCompleted,
-    normalizeMbaKey,
     normalizeSchedule,
     parseMonthYear,
     getMonthYearValue,
@@ -118,7 +118,7 @@ async function legacyReceivablesByMba(fy: number): Promise<{
   const publishedByMba = new Map<string, number>()
   for (const master of mastersRaw || []) {
     const m = master as Record<string, unknown>
-    const key = normalizeMbaKey(m?.mba_number ?? m?.mbaNumber)
+    const key = mbaJoinKey(m?.mba_number ?? m?.mbaNumber)
     if (!key) continue
     const published = publishedVersionFromMaster(m)
     if (published > 0) publishedByMba.set(key, published)
@@ -127,9 +127,10 @@ async function legacyReceivablesByMba(fy: number): Promise<{
   const versionsByMBA = (allVersions as Record<string, unknown>[]).reduce(
     (acc: Record<string, Record<string, unknown>[]>, version) => {
       const mbaNumber = version?.mba_number
-      if (!mbaNumber || typeof mbaNumber !== "string") return acc
-      acc[mbaNumber] = acc[mbaNumber] || []
-      acc[mbaNumber]!.push(version)
+      const key = mbaJoinKey(mbaNumber)
+      if (!key) return acc
+      acc[key] = acc[key] || []
+      acc[key]!.push(version)
       return acc
     },
     {} as Record<string, Record<string, unknown>[]>
@@ -140,7 +141,7 @@ async function legacyReceivablesByMba(fy: number): Promise<{
 
   for (const [mbaNumber, versionsRaw] of Object.entries(versionsByMBA)) {
     const versions = versionsRaw as Record<string, unknown>[]
-    const mbaKey = normalizeMbaKey(mbaNumber) || String(mbaNumber)
+    const mbaKey = mbaJoinKey(mbaNumber) || String(mbaNumber)
     const published = publishedByMba.get(mbaKey)
     const candidatePool =
       published != null && published > 0

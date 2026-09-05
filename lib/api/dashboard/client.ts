@@ -11,6 +11,7 @@ import { resolveClientGroup } from '@/lib/clients/clientGroup'
 import { getClientDisplayName, slugifyClientNameForUrl } from '@/lib/clients/slug'
 import { hasNonEmptyClientBrain, omitClientBrain } from '@/lib/clients/omitClientBrain'
 import { findClientRawByDashboardSlug } from '@/lib/clients/xanoClientSlugMatch'
+import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import { expectedSpendToDateFromDeliveryScheduleMonthly } from '@/lib/spend/monthlyPlanCalendar'
 import { normalizeDateToMelbourneISO } from '@/lib/dates/normalizeCampaignDateISO'
 import { parseDateNativeSafe } from '@/lib/dates/parseDateNativeSafe'
@@ -30,7 +31,6 @@ import {
   apiClient,
   isDashboardDebug,
   normalizeStatus,
-  normalizeMbaKey,
   resolveDashboardLiveVersionRow,
   isBookedApprovedCompleted,
   hasBookedApprovedCompletedTag,
@@ -511,7 +511,7 @@ export function buildClientDashboardDataFromVersions(
 
     // VC1-5: tip = master tip / published_at (never campaign_status). Commercial filter is separate below.
     const versionsByMBA = clientVersions.reduce((acc: Record<string, any[]>, version: any) => {
-      const key = normalizeMbaKey(version.mba_number)
+      const key = mbaJoinKey(version.mba_number)
       if (!key) return acc
       acc[key] = acc[key] || []
       acc[key].push(version)
@@ -584,7 +584,7 @@ export function buildClientDashboardDataFromVersions(
           : 0
 
       return {
-        mbaNumber: normalizeMbaKey(version.mba_number) ?? '',
+        mbaNumber: String(version.mba_number ?? "").trim(),
         campaignName: version.campaign_name || '',
         versionNumber: `v${version.version_number || 1}`,
         version_number: Number.isFinite(vn) && vn > 0 ? vn : 1,
@@ -677,7 +677,7 @@ export function buildClientDashboardDataFromVersions(
     }
 
     bookedApprovedCampaigns.forEach((campaign) => {
-      const mbaKey = normalizeMbaKey(campaign.mbaNumber)
+      const mbaKey = mbaJoinKey(campaign.mbaNumber)
       const schedule = mbaKey ? deliveryScheduleByMBA[mbaKey] : undefined
       if (!schedule || !Array.isArray(schedule)) return
 
@@ -899,7 +899,7 @@ export async function getClientDashboardData(
       const ytdMap = buildYtdCountBySlugFromMaster(masterPlans, fyWindow)
       totalCampaignsYTDFromMaster = sumYtdAcrossSlugs(ytdMap, targetSlugs)
       for (const master of masterPlans) {
-        const key = normalizeMbaKey(master?.mba_number)
+        const key = mbaJoinKey(master?.mba_number)
         if (!key) continue
         const published = publishedVersionFromMaster(master)
         if (published > 0) publishedByMba.set(key, published)
@@ -969,7 +969,7 @@ export async function getClientHubSummaries(rawClients: any[]): Promise<ClientHu
   const ytdMap = buildYtdCountBySlugFromMaster(masterPlans, fyWindow)
   const publishedByMba = new Map<string, number>()
   for (const master of masterPlans) {
-    const key = normalizeMbaKey(master?.mba_number)
+    const key = mbaJoinKey(master?.mba_number)
     if (!key) continue
     const published = publishedVersionFromMaster(master)
     if (published > 0) publishedByMba.set(key, published)

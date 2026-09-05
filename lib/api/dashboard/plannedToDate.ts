@@ -21,12 +21,23 @@ import {
   campaignOverlapsAuFinancialYear,
 } from "@/lib/dates/auFinancialYear"
 import { normalizeDateToMelbourneISO } from "@/lib/dates/normalizeCampaignDateISO"
+import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import {
   isBookedApprovedCompleted,
-  normalizeMbaKey,
   parseMonthYear,
   resolveDashboardLiveVersionRow,
 } from "./shared"
+
+function lowerKeyedMap<V>(input?: Map<string, V>): Map<string, V> | undefined {
+  if (!input) return input
+  const out = new Map<string, V>()
+  for (const [raw, value] of input) {
+    const key = mbaJoinKey(raw)
+    if (!key) continue
+    out.set(key, value)
+  }
+  return out
+}
 
 export type PlannedToDateFy = number | "all"
 
@@ -113,13 +124,23 @@ export function buildPlannedToDateByMba(
   versions: unknown[],
   options: BuildPlannedToDateOptions,
 ): Record<string, number> {
-  const { fy, publishedByMba, mastersByMba, allowedMbaKeys } = options
+  const { fy } = options
+  const publishedByMba = lowerKeyedMap(options.publishedByMba)
+  const mastersByMba = lowerKeyedMap(options.mastersByMba)
+  const allowedMbaKeys = options.allowedMbaKeys
+    ? new Set(
+        [...options.allowedMbaKeys].flatMap((raw) => {
+          const key = mbaJoinKey(raw)
+          return key ? [key] : []
+        }),
+      )
+    : undefined
   const byMba: Record<string, unknown[]> = {}
 
   for (const raw of versions) {
     if (!raw || typeof raw !== "object") continue
     const version = raw as Record<string, unknown>
-    const key = normalizeMbaKey(version.mba_number ?? version.mp_mba_number)
+    const key = mbaJoinKey(version.mba_number ?? version.mp_mba_number)
     if (!key) continue
     if (allowedMbaKeys && !allowedMbaKeys.has(key)) continue
     ;(byMba[key] ??= []).push(version)

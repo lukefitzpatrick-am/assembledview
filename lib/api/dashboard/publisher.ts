@@ -10,6 +10,7 @@ import {
   parseMoney,
   resolveDashboardCommercialLiveVersionRow,
 } from './shared'
+import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import { lineItemMatchesPublisher } from './lineItemMatchesPublisher'
 
 function lineItemIsFixedCostMedia(li: any): boolean {
@@ -54,10 +55,10 @@ export async function getPublisherDashboardData(publisher: Publisher): Promise<P
   )
 
   const versionsByMBA = allVersions.reduce((acc: Record<string, any[]>, version: any) => {
-    const mbaNumber = version?.mba_number
-    if (!mbaNumber) return acc
-    acc[mbaNumber] = acc[mbaNumber] || []
-    acc[mbaNumber].push(version)
+    const key = mbaJoinKey(version?.mba_number)
+    if (!key) return acc
+    acc[key] = acc[key] || []
+    acc[key].push(version)
     return acc
   }, {} as Record<string, any[]>)
 

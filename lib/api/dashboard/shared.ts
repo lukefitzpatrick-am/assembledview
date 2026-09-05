@@ -42,7 +42,7 @@ export function normalizeStatus(status: any): string {
   return String(status).trim().toLowerCase()
 }
 
-/** Collapse MBA variants (trim, string) so one logical plan does not create duplicate dashboard cards. */
+/** Trim MBA identifiers for display. Join maps use `mbaJoinKey` (lowercase). */
 export function normalizeMbaKey(raw: unknown): string | null {
   if (raw === null || raw === undefined) return null
   const s = String(raw).trim()

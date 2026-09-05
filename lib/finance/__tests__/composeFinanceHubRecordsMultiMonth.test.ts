@@ -285,3 +285,21 @@ test("payables multi-month ≡ flatMap of single-month", () => {
   // Publisher grouping intact.
   assert.ok(single.every((r) => r.line_items.every((li) => li.publisher_name === "Google")))
 })
+
+test("selectRelevantVersionsForMonth matches master to version when mba_number differs only by case", () => {
+  const mixedMasters = [{ id: 10, mba_number: "Boss001", version_number: 2 }]
+  const mixedVersions = [
+    {
+      id: 1,
+      mba_number: "boss001",
+      version_number: 2,
+      media_plan_master_id: 10,
+      campaign_start_date: "2026-05-01",
+      campaign_end_date: "2026-05-31",
+    },
+  ]
+  const map = buildMbaToLatestVersionMap(mixedMasters)
+  const relevant = selectRelevantVersionsForMonth(mixedVersions, map, 2026, 5)
+  assert.equal(relevant.length, 1)
+  assert.equal(relevant[0]!.mba_number, "boss001")
+})

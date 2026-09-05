@@ -44,9 +44,9 @@ test("parsePlannedToDateFyParam rejects missing and junk", () => {
   assert.equal(parsePlannedToDateFyParam("2014"), null)
 })
 
-test("keys by the trimmed mba_number Home rows carry (not lowercased)", () => {
+test("keys by lowercased trimmed mba_number (join key; stored value unchanged)", () => {
   const byMba = buildPlannedToDateByMba([version({ mba_number: " Boss001 " })], { fy: 2025 })
-  assert.deepEqual(Object.keys(byMba), ["Boss001"])
+  assert.deepEqual(Object.keys(byMba), ["boss001"])
 })
 
 test("a campaign wholly inside the FY contributes expected-spend-to-date", () => {

@@ -60,6 +60,15 @@ describe("mediaPlanVersionsCache master-owned overlay (DI-9b)", () => {
     assert.equal(rows[0].mp_client_name, "")
   })
 
+  it("overlays mp_client_name when master and version mba_number differ only by case", () => {
+    const rows = applyMasterOwnedOverlayByMba(
+      [{ id: 1, mba_number: "boss001", version_number: 1 }],
+      [{ mba_number: "Boss001", mp_client_name: "Boss" }],
+    )
+    assert.equal(rows[0].mp_client_name, "Boss")
+    assert.equal(rows[0].mba_number, "boss001")
+  })
+
   it("shares the same overlay primitive as mediaPlansListCache", () => {
     const version = { id: 1, mba_number: "jayco001" }
     const master = { mba_number: "jayco001", mp_client_name: "Jayco" }

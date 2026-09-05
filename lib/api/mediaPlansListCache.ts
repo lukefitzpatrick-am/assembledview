@@ -8,6 +8,7 @@ import {
 } from "@/lib/api/xano"
 import { getCachedMediaPlanVersions } from "@/lib/api/mediaPlanVersionsCache"
 import { overlayMasterOwnedListFields } from "@/lib/api/overlayMasterOwnedListFields"
+import { mbaJoinKey } from "@/lib/mediaplan/mbaNumber"
 import {
   parseVersionNumber,
   publishedVersionFromMaster,
@@ -140,17 +141,16 @@ async function mergeLatestVersionsWithMasters(
 ): Promise<any[]> {
   const masterMap = new Map<string, any>()
   for (const master of mastersData) {
-    if (master?.mba_number) {
-      masterMap.set(master.mba_number, master)
-    }
+    const key = mbaJoinKey(master?.mba_number)
+    if (key) masterMap.set(key, master)
   }
 
   // Reduce to unique MBA: highest version_number, tie-break highest id.
   const latestByMba = new Map<string, any>()
   for (const plan of versionsData) {
-    const mbaNumber = plan?.mba_number
-    if (!mbaNumber) continue
-    const existing = latestByMba.get(mbaNumber)
+    const key = mbaJoinKey(plan?.mba_number)
+    if (!key) continue
+    const existing = latestByMba.get(key)
     const planVersion = plan.version_number || 0
     const existingVersion = existing?.version_number || 0
     if (
@@ -158,7 +158,7 @@ async function mergeLatestVersionsWithMasters(
       existingVersion < planVersion ||
       (existingVersion === planVersion && (existing.id || 0) < (plan.id || 0))
     ) {
-      latestByMba.set(mbaNumber, plan)
+      latestByMba.set(key, plan)
     }
   }
 
@@ -167,7 +167,7 @@ async function mergeLatestVersionsWithMasters(
   // resolve the published row instead of rewriting the number on staged content.
   const merged = await Promise.all(
     Array.from(latestByMba.values()).map(async (versionPlan) => {
-      const masterData = masterMap.get(versionPlan.mba_number)
+      const masterData = masterMap.get(mbaJoinKey(versionPlan.mba_number) ?? "")
       if (!masterData || masterData.version_number === undefined) {
         return overlayMasterOwnedListFields(versionPlan, masterData)
       }
@@ -258,7 +258,8 @@ export async function fetchMediaPlansListFallback(): Promise<any[]> {
   try {
     const masters = await fetchMasters()
     for (const master of masters) {
-      if (master?.mba_number) masterMap.set(master.mba_number, master)
+      const key = mbaJoinKey(master?.mba_number)
+      if (key) masterMap.set(key, master)
     }
   } catch (masterError) {
     console.log("Could not fetch masters for version number:", masterError)
@@ -270,7 +271,8 @@ export async function fetchMediaPlansListFallback(): Promise<any[]> {
       })
       const masters = parseXanoListPayload(masterResponse.data)
       for (const master of masters) {
-        if (master?.mba_number) masterMap.set(master.mba_number, master)
+        const key = mbaJoinKey(master?.mba_number)
+        if (key) masterMap.set(key, master)
       }
     } catch {
       // ignore
@@ -296,9 +298,9 @@ export async function fetchMediaPlansListFallback(): Promise<any[]> {
 
   const latestByMba = new Map<string, any>()
   for (const plan of fallbackData) {
-    const mbaNumber = plan?.mba_number
-    if (!mbaNumber) continue
-    const existing = latestByMba.get(mbaNumber)
+    const key = mbaJoinKey(plan?.mba_number)
+    if (!key) continue
+    const existing = latestByMba.get(key)
     const planVersion = plan.version_number || 0
     const existingVersion = existing?.version_number || 0
     if (
@@ -306,14 +308,14 @@ export async function fetchMediaPlansListFallback(): Promise<any[]> {
       existingVersion < planVersion ||
       (existingVersion === planVersion && (existing.id || 0) < (plan.id || 0))
     ) {
-      latestByMba.set(mbaNumber, stripScheduleFields(plan))
+      latestByMba.set(key, stripScheduleFields(plan))
     }
   }
 
   return (
     await Promise.all(
       Array.from(latestByMba.values()).map(async (plan) => {
-        const masterData = masterMap.get(plan.mba_number)
+        const masterData = masterMap.get(mbaJoinKey(plan.mba_number) ?? "")
         if (!masterData || masterData.version_number === undefined) {
           return overlayMasterOwnedListFields(plan, masterData)
         }
