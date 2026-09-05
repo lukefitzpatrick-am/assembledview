@@ -9,7 +9,7 @@ L0  PLATFORM      Vercel (project avmediaplan, regions iad1/syd1/sin1) · 13 cro
 L1  IDENTITY      Auth0 v4 → middleware.ts (authN only) → lib/rbac.ts (roles) → per-route gates
 L2  DATA          Supabase Postgres (Sydney) via Drizzle  db/  ← system of record
                   Snowflake ASSEMBLEDVIEW.MART.*         lib/snowflake/  ← delivery facts, read-only
-                  Vercel Blob                            ← exports, creative, reports, sheets
+                  Vercel Blob                            ← exports, creative, reports, sheets, plan documents
 L3  DOMAIN LIB    lib/<domain>/  ← all business rules. Nothing in app/ or components/ may re-derive them.
 L4  API           app/api/**/route.ts  (196 handlers) ← own auth + own tenant check, always
 L5  UI            app/**/page.tsx (70) → components/<domain>/
@@ -62,7 +62,7 @@ Adding or altering a channel touches, at minimum:
 
 `BLAST-RADIUS.md` carries the full ~12-map list. Complete all of them or the channel half-works.
 
-**Save path** `POST /api/plans/save` → `lib/data/savePlan.ts` → one transaction writing `media_plan_versions` + `line_items` + `schedule_months` + `mba_fee_snapshots`. After that commit, when `ingestStageId` is present, `completeStagedIngestAfterSave` writes panels / `ingest_runs` / retain — never inside `savePlanVersion`. `WRITE_BACKEND=postgres`. Working drafts live in `plan_working_drafts` (unique `(master_id, user_id)`; identity email else `sub`, never `"unknown"`). `NEXT_PUBLIC_PLAN_DRAFTS` gates autosave chrome; persistence + offer are always on. Presence (`plan_presence`, GET/POST `/api/plans/presence`) is who else has the edit page open — information, not a lock; same identity helper; 0064 AUTHOR ONLY.
+**Save path** `POST /api/plans/save` → `lib/data/savePlan.ts` → one transaction writing `media_plan_versions` + `line_items` + `schedule_months` + `mba_fee_snapshots`. After that commit, when `ingestStageId` is present, `completeStagedIngestAfterSave` writes panels / `ingest_runs` / retain — never inside `savePlanVersion`. `WRITE_BACKEND=postgres`. Working drafts live in `plan_working_drafts` (unique `(master_id, user_id)`; identity email else `sub`, never `"unknown"`). `NEXT_PUBLIC_PLAN_DRAFTS` gates autosave chrome; persistence + offer are always on. Presence (`plan_presence`, GET/POST `/api/plans/presence`) is who else has the edit page open — information, not a lock; same identity helper; 0064 AUTHOR ONLY. Published MBA / media-plan / AA files are private Vercel Blob objects (`plans/{mba}/v{n}/{kind}/{filename}`) plus jsonb pointers on the version (`mba_pdf_file` / `media_plan_file` / `aa_media_plan_file`); `POST /api/mediaplans/versions/[id]/documents` writes them after publish.
 
 **Read path** `GET /api/mediaplans/mba/[mba_number]` (1,588 lines) → `lib/data/readMbaPlanDetail.ts`. One query set, no fallback: a failure is a 500 `PLAN_DETAIL_POSTGRES_FAILED`, deliberately.
 

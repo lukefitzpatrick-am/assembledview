@@ -22,6 +22,8 @@ export const maxDuration = 60
  * Tenant: checkClientMbaAccess on the version's MBA (admin unscoped in the
  * helper). Client-role callers may download their own campaign files.
  * Missing url/path → 404 `{ code: "NOT_SAVED" }` — never generate on the fly.
+ * Vercel Blob urls stream via getPrivateBlob; http(s) Xano vault urls stay a
+ * fetch pass-through. Content-Disposition uses the stored `name`.
  */
 export async function GET(
   request: NextRequest,

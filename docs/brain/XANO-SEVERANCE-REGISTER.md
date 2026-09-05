@@ -185,7 +185,7 @@ SQL used (Postgres):
 | `/api/mediaplans/mba/[mba_number]` | GET | `readMbaPlanDetail` only; `xano` → 410 | DATA_BACKEND_PLAN_DETAIL (default postgres) | edit/create/dashboard/trafficking | DUAL-DONE (X2 postgres-only) |
 | `/api/mediaplans/mba/[mba_number]` | PUT/PATCH | Xano tables + publish | always-xano / WRITE_BACKEND for pg save path | edit/create | PORT |
 | `/api/mediaplans/versions/[id]/billing-schedule` | PATCH | `writeBillingSchedule` → PG `legacy_schedules` + billing `schedule_months` | PG (X3) | ActionBar, inline schedule | DUAL-DONE (ported) |
-| `/api/mediaplans/versions/[id]/documents` | POST | `XANO_MEDIA_PLANS` + `XANO_SAVE_FILE_BASE_URL` | always-xano | `lib/api.ts` | PORT |
+| `/api/mediaplans/versions/[id]/documents` | POST | PG jsonb + private Vercel Blob (`storePlanVersionDocuments`) | PG + Blob | `lib/api.ts` | DUAL-DONE (PG + Blob) |
 | `/api/pacing/campaigns` | GET | search lines Xano + masters/versions dual | DATA_BACKEND_PACING partial | `CampaignsClient.tsx` | PORT |
 | `/api/pacing/programmatic-campaigns` | GET | prog lines Xano + dual masters | DATA_BACKEND_PACING partial | `ProgrammaticCampaignsClient.tsx` | PORT |
 | `/api/pacing/social-campaigns` | GET | social lines Xano + dual masters | DATA_BACKEND_PACING partial | `SocialCampaignsClient.tsx` | PORT |

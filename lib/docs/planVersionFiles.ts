@@ -1,8 +1,14 @@
 /**
  * Plan-version document jsonb (`media_plan_file` / `mba_pdf_file` /
- * `aa_media_plan_file`). ETL rows are Xano Public File objects (`path`, `name`,
- * `mime`, …) with no `url` or `uploadedAt`. A http(s) `path` is the downloadable
- * location; `savedAt` falls back to the version `published_at`.
+ * `aa_media_plan_file`).
+ *
+ * Two stored shapes:
+ * - Vercel Blob (DOC-1): `{ url, pathname, name, size, mime, uploadedAt, source: "vercel-blob" }`
+ * - ETL / pre-DOC-1 Xano Public File: `{ path, name, mime, … }` with no `url` or
+ *   `uploadedAt`. A http(s) `path` is the downloadable location; `savedAt`
+ *   falls back to the version `published_at`.
+ *
+ * Parser prefers `url` then http(s) `path`, and `uploadedAt` then `published_at`.
  */
 
 export type PlanDocumentKind = "mba_pdf" | "media_plan" | "aa_media_plan"
