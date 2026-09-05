@@ -35,6 +35,9 @@ export type StorePlanVersionDocumentsInput = {
   }
   source?: PlanDocumentBlobJson["source"]
   generatedFrom?: PlanDocumentBlobJson["generatedFrom"]
+  generatedFromByKind?: Partial<
+    Record<PlanDocumentKind, PlanDocumentBlobJson["generatedFrom"]>
+  >
 }
 
 export type StorePlanVersionDocumentsResult =
@@ -139,7 +142,8 @@ export async function storePlanVersionDocuments(
       mime,
       uploadedAt,
       source: input.source,
-      generatedFrom: input.generatedFrom,
+      generatedFrom:
+        input.generatedFromByKind?.[kind] ?? input.generatedFrom,
     })
     files[kind] = json
     patch[KIND_COLUMN[kind]] = json

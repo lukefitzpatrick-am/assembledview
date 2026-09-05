@@ -198,8 +198,8 @@ async function writeOutDocuments(args: {
     console.log(
       `OUT ${args.outDir}  ${row.mbaNumber} v${row.versionNumber}  version_id=${row.versionId}  (no Blob, no Postgres)`,
     )
-    console.log("kind            status          file")
-    console.log("--------------  --------------  --------------------------------")
+    console.log("kind            status          from        file")
+    console.log("--------------  --------------  ----------  --------------------------------")
 
     let errors = 0
     for (const result of rendered.results) {
@@ -212,7 +212,7 @@ async function writeOutDocuments(args: {
         errors++
       }
       console.log(
-        `${pad(result.kind, 14)}  ${pad(result.status, 14)}  ${path || result.error || ""}`,
+        `${pad(result.kind, 14)}  ${pad(result.status, 14)}  ${pad(rendered.generatedFrom[result.kind] ?? "", 10)}  ${path || result.error || ""}`,
       )
     }
 

@@ -214,6 +214,16 @@ function parsePdfTotals(text: string): Map<string, number> {
   return out
 }
 
+export function extractMbaPdfTotals(
+  text: string,
+): Array<{ label: string; value: number }> {
+  const parsed = parsePdfTotals(text)
+  return PDF_TOTAL_LABELS.flatMap((label) => {
+    const value = parsed.get(label)
+    return value == null ? [] : [{ label, value }]
+  })
+}
+
 export function compareMbaPdfTotals(
   expectedText: string,
   actualText: string,

@@ -7,6 +7,7 @@
 import { eq } from "drizzle-orm"
 
 import { getDb, schema } from "@/db"
+import type { PlanDocumentGeneratedFrom } from "@/lib/docs/planDocumentBlob"
 import { renderPlanVersionDocuments } from "@/lib/docs/renderPlanVersionDocuments"
 import {
   storePlanVersionDocuments,
@@ -114,6 +115,9 @@ export async function regeneratePlanVersionDocuments(
     }
   }
 
+  let generatedFromByKind:
+    | Partial<Record<PlanDocumentKind, PlanDocumentGeneratedFrom>>
+    | undefined
   if (kindsToRender.length > 0) {
     const rendered = await renderPlanVersionDocuments({
       mbaNumber: row.mbaNumber,
@@ -124,6 +128,7 @@ export async function regeneratePlanVersionDocuments(
     if (rendered.status === "not_published") {
       return { status: "not_published", code: "NOT_PUBLISHED" }
     }
+    generatedFromByKind = rendered.generatedFrom
     for (const result of rendered.results) {
       results.push(result)
       const file = rendered.files[result.kind]
@@ -142,7 +147,7 @@ export async function regeneratePlanVersionDocuments(
       versionId: row.versionId,
       files: toWrite,
       source: "regenerated",
-      generatedFrom: "persisted",
+      generatedFromByKind,
     })
     if (stored.status === "ok") {
       for (const result of results) {

@@ -15,6 +15,11 @@ import {
 } from "@/lib/docs/buildMbaFromPersisted"
 import { buildMediaItemsFromPersisted } from "@/lib/docs/buildMediaItemsFromPersisted"
 import {
+  buildMbaDataFromExplodeAdapter,
+  explodeMbaFilename,
+} from "@/lib/docs/mbaDataFromExplode"
+import type { PlanDocumentGeneratedFrom } from "@/lib/docs/planDocumentBlob"
+import {
   advertisingAssociatesFilteredPlanHasLineItems,
   filterMediaItemsForAdvertisingAssociates,
   planHasAdvertisingAssociatesLineItem,
@@ -47,6 +52,7 @@ export type RenderPlanVersionDocumentsResult =
       status: "ok"
       results: RenderKindResult[]
       files: Partial<Record<PlanDocumentKind, RenderedPlanDocumentFile>>
+      generatedFrom: Partial<Record<PlanDocumentKind, PlanDocumentGeneratedFrom>>
     }
 
 function mediaPlanFilename(
@@ -81,6 +87,9 @@ export async function renderPlanVersionDocuments(input: {
   const kinds = parseRegenerateKinds(input.kinds)
   const results: RenderKindResult[] = []
   const files: Partial<Record<PlanDocumentKind, RenderedPlanDocumentFile>> = {}
+  const generatedFrom: Partial<
+    Record<PlanDocumentKind, PlanDocumentGeneratedFrom>
+  > = {}
   const now = input.now ?? new Date()
 
   let adapter: Awaited<ReturnType<typeof buildMediaItemsFromPersisted>> | null =
@@ -98,20 +107,46 @@ export async function renderPlanVersionDocuments(input: {
   for (const kind of kinds) {
     try {
       if (kind === "mba_pdf") {
-        const rendered = await buildMbaFromPersisted({
-          mbaNumber: input.mbaNumber,
-          versionNumber: input.versionNumber,
-          now,
-        })
-        const pdf = await generateMBA(rendered.mbaData)
-        files.mba_pdf = {
-          kind,
-          filename: rendered.filename,
-          mime: "application/pdf",
-          buffer: await toBuffer(pdf),
+        try {
+          const rendered = await buildMbaFromPersisted({
+            mbaNumber: input.mbaNumber,
+            versionNumber: input.versionNumber,
+            now,
+          })
+          const pdf = await generateMBA(rendered.mbaData)
+          files.mba_pdf = {
+            kind,
+            filename: rendered.filename,
+            mime: "application/pdf",
+            buffer: await toBuffer(pdf),
+          }
+          generatedFrom.mba_pdf = "persisted"
+          results.push({ kind, status: "written" })
+          continue
+        } catch (err) {
+          if (
+            !(err instanceof PersistedDocError) ||
+            err.code !== "NO_FEE_BASIS"
+          ) {
+            throw err
+          }
+          const built = await loadAdapter()
+          const mbaData = buildMbaDataFromExplodeAdapter({
+            header: built.header,
+            mbaData: built.mbaData,
+            now,
+          })
+          const pdf = await generateMBA(mbaData)
+          files.mba_pdf = {
+            kind,
+            filename: explodeMbaFilename(built.header),
+            mime: "application/pdf",
+            buffer: await toBuffer(pdf),
+          }
+          generatedFrom.mba_pdf = "explode"
+          results.push({ kind, status: "written" })
+          continue
         }
-        results.push({ kind, status: "written" })
-        continue
       }
 
       const built = await loadAdapter()
@@ -137,6 +172,7 @@ export async function renderPlanVersionDocuments(input: {
           buffer,
         }
         results.push({ kind, status: "written" })
+        generatedFrom.media_plan = "persisted"
         continue
       }
 
@@ -177,6 +213,7 @@ export async function renderPlanVersionDocuments(input: {
         mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         buffer,
       }
+      generatedFrom.aa_media_plan = "persisted"
       results.push({ kind, status: "written" })
     } catch (err) {
       if (err instanceof PersistedDocError && err.code === "NOT_APPROVED") {
@@ -192,5 +229,5 @@ export async function renderPlanVersionDocuments(input: {
     }
   }
 
-  return { status: "ok", results, files }
+  return { status: "ok", results, files, generatedFrom }
 }

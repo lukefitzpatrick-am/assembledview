@@ -5,7 +5,8 @@
  * Stored shapes:
  * - Vercel Blob (DOC-1 upload): `{ url, pathname, name, size, mime, uploadedAt, source: "vercel-blob" }`
  * - Regenerated (DOC-2): same Blob keys plus `source: "regenerated"` and
- *   `generatedFrom: "persisted"`
+ *   `generatedFrom: "persisted"` (slice/Excel adapter) or `"explode"` (MBA
+ *   PDF when `buildMbaFromPersisted` throws `NO_FEE_BASIS`)
  * - ETL / pre-DOC-1 Xano Public File: `{ path, name, mime, … }` with no `url` or
  *   `uploadedAt`. A http(s) `path` is the downloadable location; `savedAt`
  *   falls back to the version `published_at`.

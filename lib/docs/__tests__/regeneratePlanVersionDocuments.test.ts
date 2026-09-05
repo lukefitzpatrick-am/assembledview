@@ -27,6 +27,21 @@ describe("parseRegenerateKinds", () => {
 })
 
 describe("planDocumentBlobJson regenerated source", () => {
+  it("stores source regenerated and generatedFrom explode", () => {
+    const json = planDocumentBlobJson({
+      url: "https://abc.blob.vercel-storage.com/plans/PENFOLD001/v16/mba_pdf/MBA.pdf",
+      pathname: "plans/PENFOLD001/v16/mba_pdf/MBA.pdf",
+      name: "MBA.pdf",
+      size: 10,
+      mime: "application/pdf",
+      uploadedAt: "2026-02-26T23:33:41.957Z",
+      source: "regenerated",
+      generatedFrom: "explode",
+    })
+    assert.equal(json.source, "regenerated")
+    assert.equal(json.generatedFrom, "explode")
+  })
+
   it("stores source regenerated and generatedFrom persisted", () => {
     const json = planDocumentBlobJson({
       url: "https://abc.blob.vercel-storage.com/plans/glenda008/v6/mba_pdf/MBA.pdf",

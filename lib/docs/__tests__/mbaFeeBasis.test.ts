@@ -391,3 +391,32 @@ describe("POST /api/mba/generate NO_FEE_BASIS", () => {
     assert.doesNotMatch(src, /NO_FEE_BASIS[\s\S]{0,80}status:\s*200/)
   })
 })
+
+describe("regenerate NO_FEE_BASIS explode path", () => {
+  it("render falls back to explode MBAData; live generate stays 422", () => {
+    const renderSrc = readFileSync(
+      join(here, "../renderPlanVersionDocuments.ts"),
+      "utf8",
+    )
+    assert.match(renderSrc, /err\.code !== "NO_FEE_BASIS"/)
+    assert.match(renderSrc, /buildMbaDataFromExplodeAdapter/)
+    assert.match(renderSrc, /generatedFrom\.mba_pdf = "explode"/)
+    assert.match(renderSrc, /generatedFrom\.mba_pdf = "persisted"/)
+
+    const regenerateSrc = readFileSync(
+      join(here, "../regeneratePlanVersionDocuments.ts"),
+      "utf8",
+    )
+    assert.match(regenerateSrc, /generatedFromByKind/)
+    assert.doesNotMatch(
+      regenerateSrc,
+      /generatedFrom:\s*"persisted"/,
+    )
+
+    const generateSrc = readFileSync(
+      join(here, "../../../app/api/mba/generate/route.ts"),
+      "utf8",
+    )
+    assert.doesNotMatch(generateSrc, /buildMbaDataFromExplodeAdapter/)
+  })
+})
