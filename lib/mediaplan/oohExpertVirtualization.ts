@@ -14,7 +14,9 @@ import type { OohExpertScheduleRow } from "@/lib/mediaplan/expertModeWeeklySched
  * ExpertGrid. Must match `--eg-body-row-height` on the cells (not only the
  * `<tr>` — `max-height` does not apply to table-row, and `height` is only a
  * minimum) and `estimateSize` on the virtualizer. Pixel, not rem: `html`
- * font-size is 80% so Tailwind `h-8` is not 32 CSS px.
+ * font-size is 80% so Tailwind `h-8` is not 32 CSS px. The schedule table is
+ * `border-separate` so the row's getBoundingClientRect height includes each
+ * cell's own 1px borders (collapsed tables measured 39px).
  *
  * Dev builds assert the first mounted body row via
  * {@link assertExpertGridBodyRowHeightPx}.

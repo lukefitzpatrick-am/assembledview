@@ -185,6 +185,11 @@ export type ExpertGridChannelConfig<TRow extends ExpertScheduleRowCommon> = {
    * Must be CSS pixels, not rem — `html { font-size: 80% }` desyncs `h-8`.
    */
   bodyRowHeightPx?: number
+  /**
+   * Required when {@link bodyRowHeightPx} is set to a value other than the
+   * shared ExpertGrid default (41px). Per-channel drift is otherwise silent.
+   */
+  bodyRowHeightPxReason?: string
   /** Publisher fuzzy-match field (Search/Prog: platform; OOH: network). */
   publisherField: ExpertGridPublisherField
   /**

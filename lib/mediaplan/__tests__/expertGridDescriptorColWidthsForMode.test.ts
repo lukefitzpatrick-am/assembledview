@@ -8,6 +8,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { expertGridDescriptorStickySpanWidthPx } from "@/components/media-containers/expertGridSticky"
+import { EXPERT_GRID_BODY_ROW_HEIGHT_PX } from "@/lib/mediaplan/oohExpertVirtualization"
 import {
   BVOD_EXPERT_CHANNEL_CONFIG,
   CINEMA_EXPERT_CHANNEL_CONFIG,
@@ -155,6 +156,19 @@ test("every channel config has a rowLabelKey in its grid surface fields", () => 
     assert.ok(
       surfaceKeys.has(config.rowLabelKey),
       `${label} rowLabelKey "${config.rowLabelKey}" is not a grid surface field`
+    )
+  }
+})
+
+test("every channel bodyRowHeightPx is the shared 41 unless it states why", () => {
+  assert.equal(ALL_CONFIGS.length, 20)
+  for (const { label, config } of ALL_CONFIGS) {
+    const h = config.bodyRowHeightPx
+    if (h == null || h === EXPERT_GRID_BODY_ROW_HEIGHT_PX) continue
+    const reason = config.bodyRowHeightPxReason?.trim() ?? ""
+    assert.ok(
+      reason.length > 0,
+      `${label} bodyRowHeightPx=${h} (shared is ${EXPERT_GRID_BODY_ROW_HEIGHT_PX}) needs bodyRowHeightPxReason`
     )
   }
 })

@@ -373,6 +373,8 @@
  * ExpertGrid schedule body rows: height is enforced on the cells, not only
  * the <tr>. `max-height` does not apply to table-row; `height` is a minimum.
  * `--eg-body-row-height` is set in px on [data-expert-grid] from JS.
+ * The schedule table is `border-separate` / `border-spacing: 0` so each cell
+ * owns its border-b/border-r; collapsed borders made <tr> measure 39px.
  */
 [data-expert-grid] tbody tr[data-search-expert-row-index] > td,
 [data-expert-grid] tbody tr[data-search-expert-row-index] > th {

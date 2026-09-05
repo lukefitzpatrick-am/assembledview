@@ -100,6 +100,7 @@ import {
   expertGridStickyThWeek,
   expertGridStickyZeroWidthClass,
   EXPERT_GRID_ROW_CLASS,
+  EXPERT_GRID_TABLE_CLASS,
   EXPERT_GRID_WEEK_BODY_Z,
 } from "@/components/media-containers/expertGridSticky"
 import { ExpertGridWeekResizeHandle } from "@/components/media-containers/ExpertGridWeekResizeHandle"
@@ -3320,7 +3321,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
                 data-search-expert-grid-scroll=""
                 data-eg-descriptor-mode={descriptorMode}
               >
-                <table className="w-max min-w-full border-collapse text-sm">
+                <table className={EXPERT_GRID_TABLE_CLASS}>
                   <thead ref={theadRef} className="[&_tr]:border-b-0">
                     <tr>
                       <ExpertGridRowReorderHeaderCell

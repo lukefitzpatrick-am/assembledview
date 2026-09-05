@@ -31,11 +31,15 @@ export const EXPERT_GRID_ROW_CLASS =
 /** Week body cells sit below sticky-left descriptors. */
 export const EXPERT_GRID_WEEK_BODY_Z = "relative z-0"
 
+/** Schedule table: separate borders so each cell owns border-b/border-r. */
+export const EXPERT_GRID_TABLE_CLASS =
+  "w-max min-w-full border-separate border-spacing-0 text-sm"
+
 const STICKY_TH_CORNER_BASE =
-  "sticky top-0 z-eg-sticky border-b border-r bg-background px-1.5 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))] motion-safe:transition-[width,min-width,max-width,left] motion-safe:duration-150"
+  "sticky top-0 z-eg-sticky border-b border-r bg-background px-1.5 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground motion-safe:transition-[width,min-width,max-width,left] motion-safe:duration-150"
 
 const STICKY_TH_WEEK_BASE =
-  "sticky top-0 z-eg-sticky-week border-b border-r bg-background px-1 py-3.5 text-center text-muted-foreground shadow-[0_1px_0_0_hsl(var(--border))] align-middle"
+  "sticky top-0 z-eg-sticky-week border-b border-r bg-background px-1 py-3.5 text-center text-muted-foreground align-middle"
 
 const STICKY_TD_BASE = cn(
   "border-b border-r bg-background px-1 py-0 align-middle overflow-hidden",
