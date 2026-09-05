@@ -20,7 +20,7 @@ import {
   upsertWorkingDraft,
 } from "@/lib/mediaplan/drafts/serverStore.js"
 import { summarizeDraftOffer } from "@/lib/mediaplan/drafts/pill.js"
-import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode.js"
+import { resolvePostgresSaveMode, SAVE_PUBLISHES_IMMEDIATELY } from "@/lib/mediaplan/resolvePostgresSaveMode.js"
 import type { PlanDraftStateV1 } from "@/lib/mediaplan/drafts/types.js"
 
 loadEnvLocal()
@@ -172,7 +172,7 @@ async function countVersions(masterId: number): Promise<number> {
   return rows.length
 }
 
-test("VC2b resolver: published save → working_draft; unpublished → overwrite; publish intent → increment", () => {
+test("VC2b resolver: published save → working_draft; unpublished → overwrite; publish intent → increment", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
   assert.deepEqual(
     resolvePostgresSaveMode({
       forceIncrement: false,
@@ -190,6 +190,37 @@ test("VC2b resolver: published save → working_draft; unpublished → overwrite
       tipPublishedAt: null,
     }),
     { mode: "draft", versionNumber: 1, uiMode: "overwrite" }
+  )
+  assert.deepEqual(
+    resolvePostgresSaveMode({
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 1,
+      tipPublishedAt: "2026-01-01T00:00:00.000Z",
+      intent: "publish",
+    }),
+    { mode: "publish", versionNumber: 2, uiMode: "increment" }
+  )
+})
+
+test("VC2b resolver interim: every save intent publishes next", { skip: !SAVE_PUBLISHES_IMMEDIATELY }, () => {
+  assert.deepEqual(
+    resolvePostgresSaveMode({
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 1,
+      tipPublishedAt: "2026-01-01T00:00:00.000Z",
+    }),
+    { mode: "publish", versionNumber: 2, uiMode: "increment" }
+  )
+  assert.deepEqual(
+    resolvePostgresSaveMode({
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 1,
+      tipPublishedAt: null,
+    }),
+    { mode: "publish", versionNumber: 2, uiMode: "increment" }
   )
   assert.deepEqual(
     resolvePostgresSaveMode({
@@ -230,7 +261,12 @@ test("VC2b: save on published → working draft row; version checksum byte-ident
     versionRowCount: versionsBefore,
     tipPublishedAt: before.publishedAt,
   })
-  assert.equal(mode.uiMode, "working_draft")
+  if (SAVE_PUBLISHES_IMMEDIATELY) {
+    assert.equal(mode.uiMode, "increment")
+    assert.equal(mode.mode, "publish")
+  } else {
+    assert.equal(mode.uiMode, "working_draft")
+  }
 
   const row = await upsertWorkingDraft({
     masterId,
@@ -277,7 +313,7 @@ test("VC2b: save on unpublished tip → overwrite in place; no draft row; no new
       versionRowCount: versionsBefore,
       tipPublishedAt: null,
     }).uiMode,
-    "overwrite"
+    SAVE_PUBLISHES_IMMEDIATELY ? "increment" : "overwrite"
   )
 
   await savePlanVersion(

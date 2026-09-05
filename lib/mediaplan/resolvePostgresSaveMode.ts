@@ -2,6 +2,20 @@ import type { SavePlanMode } from "@/lib/data/savePlan"
 import { nextMbaVersionNumber } from "@/lib/mediaplan/nextMbaVersionNumber"
 import { isVersionPublished } from "@/lib/mediaplan/versionPublication"
 
+/**
+ * Interim: Save cuts a new version and stamps `published_at` in the same
+ * operation. Revert to `false` when the real publish flow ships — that
+ * restores working_draft, unpublished overwrite, NV-1 unpublished cut,
+ * and the explicit Publish button.
+ */
+export const SAVE_PUBLISHES_IMMEDIATELY = true
+
+/** Hide the explicit Publish button while Save already publishes. */
+export function showExplicitPublishButton(isPublished: boolean): boolean {
+  if (SAVE_PUBLISHES_IMMEDIATELY) return false
+  return isPublished
+}
+
 export type ResolvePostgresSaveModeInput = {
   /**
    * @deprecated VC Stage 1 — no longer used for overwrite vs publish.
@@ -80,6 +94,10 @@ export type ResolvePostgresSaveModeResult =
 /**
  * Map create/edit save intent onto T4a modes / Stage 2b working draft.
  *
+ * While `SAVE_PUBLISHES_IMMEDIATELY` is on, every intent returns
+ * `{ mode: "publish", uiMode: "increment" }` at `nextMbaVersionNumber`.
+ * Flip the constant to restore the table below.
+ *
  * `publishedVersionNumber` is the NEWEST version. `editingVersionNumber` is the
  * version currently loaded in the editor. They are not interchangeable.
  *
@@ -111,6 +129,16 @@ export function resolvePostgresSaveMode(
   const intent = input.intent === "publish" ? "publish" : "save"
   const editing = Number(input.editingVersionNumber) || 0
   const isOlderVersion = editing > 0 && published > 0 && editing < published
+
+  // Interim: every save intent cuts and publishes. Flag-off restores the
+  // four-way table below (overwrite / working_draft / new_version / publish).
+  if (SAVE_PUBLISHES_IMMEDIATELY) {
+    return {
+      mode: "publish",
+      versionNumber: nextMbaVersionNumber(rowCount, published),
+      uiMode: "increment",
+    }
+  }
 
   if (isOlderVersion && intent === "save") {
     return {

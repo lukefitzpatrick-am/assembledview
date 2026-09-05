@@ -1126,9 +1126,12 @@ export async function savePlanVersion(
         // draft / new_version never reach this block.
         // CS-B: commercial status is a master fact (PATCH /status). Do not
         // write campaign_status onto the version or master from this payload.
+        // Stamp created_at and published_at from the same now() so they are
+        // equal to the microsecond (smoke S5 / unit assertion).
         await tx
           .update(schema.mediaPlanVersions)
           .set({
+            createdAt: sql`now()`,
             publishedAt: sql`now()`,
             publishedBy: normalisePublishedByEmail(input.publishedByEmail),
           })

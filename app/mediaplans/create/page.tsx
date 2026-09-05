@@ -257,7 +257,10 @@ import {
   isSaveAllowedAfterHydration,
 } from "@/lib/mediaplan/channelHydrationGate"
 import { useWriteBackend } from "@/lib/data/WriteBackendContext"
-import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
+import {
+  resolvePostgresSaveMode,
+  SAVE_PUBLISHES_IMMEDIATELY,
+} from "@/lib/mediaplan/resolvePostgresSaveMode"
 import { shouldRunDeferredMasterPublish } from "@/lib/mediaplan/publishVersionIntegrityClient"
 import { mapCampaignStatusForPersist } from "@/lib/mediaplan/campaignStatusGuard"
 import {
@@ -5508,6 +5511,8 @@ function CreateMediaPlan() {
 
         updateSaveStatus("Save plan (transactional)", "pending")
         const budgetCents = dollarsToCampaignBudgetCents(fv.mp_campaignbudget)
+        // Guard: under SAVE_PUBLISHES_IMMEDIATELY this is unreachable on a
+        // save intent. Keep the throw — if it fires, the resolver is wrong.
         if (modeResolved.mode == null) {
           throw new Error("working_draft must not POST /api/plans/save")
         }
@@ -7376,7 +7381,11 @@ const handleSaveAll = async (opts?: { intent?: "save" | "publish" }) => {
           }
           className="h-9 shrink-0 rounded-pill px-4 py-2 focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {isWizardSaving ? "Saving..." : planDraft.enabled ? "Save" : "Save draft"}
+          {isWizardSaving
+            ? "Saving..."
+            : SAVE_PUBLISHES_IMMEDIATELY || planDraft.enabled
+              ? "Save"
+              : "Save draft"}
         </Button>
         {planDraft.enabled ? (
           <Button

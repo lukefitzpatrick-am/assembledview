@@ -31,7 +31,7 @@ import {
   assignStableLineItemNumbers,
   reassignLineItemNumbers,
 } from "@/lib/mediaplan/lineItemOrder"
-import { resolvePostgresSaveMode } from "@/lib/mediaplan/resolvePostgresSaveMode"
+import { resolvePostgresSaveMode, SAVE_PUBLISHES_IMMEDIATELY } from "@/lib/mediaplan/resolvePostgresSaveMode"
 
 const CREATE_PAGE = join(process.cwd(), "app/mediaplans/create/page.tsx")
 const EDIT_PAGE = join(
@@ -98,7 +98,7 @@ describe("1. masterId = masters.id (never version row id)", () => {
 })
 
 describe("2. version resolution with versions[] UNLOADED", () => {
-  it("leave-draft (Booked) + versionRowCount=0 + tip published → working_draft on save", () => {
+  it("leave-draft (Booked) + versionRowCount=0 + tip published → working_draft on save", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const { mode, label } = footerLabelFromMode({
       campaignStatus: "Booked",
       forceIncrement: false,
@@ -112,6 +112,22 @@ describe("2. version resolution with versions[] UNLOADED", () => {
       uiMode: "working_draft",
     })
     assert.equal(label, "Working draft of v1")
+  })
+
+  it("leave-draft (Booked) + versionRowCount=0 + tip published → publish increment on save (interim)", { skip: !SAVE_PUBLISHES_IMMEDIATELY }, () => {
+    const { mode, label } = footerLabelFromMode({
+      campaignStatus: "Booked",
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 0,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
+    })
+    assert.deepEqual(mode, {
+      mode: "publish",
+      versionNumber: 2,
+      uiMode: "increment",
+    })
+    assert.equal(label, "Will create v2")
   })
 
   it("leave-draft (Booked) + intent publish → publish next", () => {
@@ -131,7 +147,7 @@ describe("2. version resolution with versions[] UNLOADED", () => {
     assert.equal(label, "Will create v2")
   })
 
-  it("draft overwrite still works when history is lazy-empty (same helpers)", () => {
+  it("draft overwrite still works when history is lazy-empty (same helpers)", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const { mode, label } = footerLabelFromMode({
       campaignStatus: "Draft",
       forceIncrement: false,
@@ -465,6 +481,19 @@ describe("create + edit assembly twins (shared helpers)", () => {
     )
     assert.match(editSrc, /"overwrite"\s*→\s*mode "draft"/)
     assert.match(editSrc, /"working_draft"\s*→\s*never reaches here/)
+  })
+
+  it("interim: create keeps mode==null throw; edit hides Publish via helper", () => {
+    const createSrc = readFileSync(CREATE_PAGE, "utf8")
+    const editSrc = readFileSync(EDIT_PAGE, "utf8")
+    assert.match(
+      createSrc,
+      /if \(modeResolved\.mode == null\) \{\s*throw new Error\("working_draft must not POST \/api\/plans\/save"\)/
+    )
+    assert.match(editSrc, /showExplicitPublishButton\(isPublished\)/)
+    const bar = sliceBottomBar(editSrc)
+    assert.match(bar, /showExplicitPublishButton\(isPublished\)/)
+    assert.match(bar, /SAVE_PUBLISHES_IMMEDIATELY/)
   })
 })
 

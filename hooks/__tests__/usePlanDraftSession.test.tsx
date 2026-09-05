@@ -83,7 +83,9 @@ describe("usePlanDraftSession disabled path (NEXT_PUBLIC_PLAN_DRAFTS off)", () =
     mount(0)
     expect(latest?.enabled).toBe(false)
     // Pill always comes from describePlanSavePill (mode primary); autosave chrome stays off.
-    expect(latest?.pill?.primary).toMatch(/Draft of v2|Working draft|Publish will create/i)
+    expect(latest?.pill?.primary).toMatch(
+      /Draft of v2|Working draft|Publish will create|Save will create/i
+    )
 
     const modeAfterMount = latest?.modeResolved
     const pillAfterMount = latest?.pill
@@ -371,7 +373,7 @@ describe("usePlanDraftSession auto-load + stale guard", () => {
     }
     vi.spyOn(localStore, "readLocalDraft").mockResolvedValue({
       key: "mba: ::luke",
-      updatedAt: "2026-08-13T00:00:00.000Z",
+      updatedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
       state: meaningful,
     })
     await renderCreateProbe()

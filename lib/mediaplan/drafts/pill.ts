@@ -3,7 +3,10 @@
  * Pill text is driven by the SAME `resolvePostgresSaveMode` mapping as T4c.
  */
 
-import type { ResolvePostgresSaveModeResult } from "@/lib/mediaplan/resolvePostgresSaveMode"
+import {
+  SAVE_PUBLISHES_IMMEDIATELY,
+  type ResolvePostgresSaveModeResult,
+} from "@/lib/mediaplan/resolvePostgresSaveMode"
 
 export type PlanSavePill = {
   primary: string
@@ -19,13 +22,21 @@ export function describePlanSavePill(args: {
   const { modeResolved: m } = args
   let primary: string
   if (args.editingUnpublishedDraft) {
-    primary = `Editing v${m.versionNumber} — unpublished draft`
+    // Resolver versionNumber is the save target. Under save-equals-publish
+    // that is next, but this label names the unpublished version in the editor.
+    const loaded =
+      SAVE_PUBLISHES_IMMEDIATELY && m.uiMode === "increment" && m.versionNumber > 1
+        ? m.versionNumber - 1
+        : m.versionNumber
+    primary = `Editing v${loaded} — unpublished draft`
   } else if (m.uiMode === "overwrite") {
     primary = `Draft of v${m.versionNumber} — publish overwrites v${m.versionNumber}`
   } else if (m.uiMode === "working_draft") {
     primary = `Working draft of v${m.versionNumber} — publish creates next version`
   } else if (m.uiMode === "increment_unpublished") {
     primary = `Will cut v${m.versionNumber} (stays unpublished)`
+  } else if (SAVE_PUBLISHES_IMMEDIATELY) {
+    primary = `Save will create v${m.versionNumber}`
   } else {
     primary = `Publish will create v${m.versionNumber}`
   }

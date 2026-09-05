@@ -18,9 +18,12 @@ import { requireRole } from "@/lib/requireRole"
 import {
   countVersionLines,
   deleteWorkingDraft,
+  getWorkingDraft,
   resolvePublishedVersionId,
 } from "@/lib/mediaplan/drafts/serverStore"
 import { buildStaleBaseCompare } from "@/lib/mediaplan/drafts/pill"
+import { SAVE_PUBLISHES_IMMEDIATELY } from "@/lib/mediaplan/resolvePostgresSaveMode"
+import { shouldClearWorkingDraftAfterSave } from "@/lib/mediaplan/shouldClearWorkingDraftAfterSave"
 import { createAdServingRateResolver } from "@/lib/billing/adServingRateResolver"
 import {
   normalisePublishedByEmail,
@@ -286,11 +289,26 @@ export async function POST(request: NextRequest) {
     }
 
     // PC7 / Stage 2b: clear server working draft once tier 3 (save/publish) lands.
-    // Always run — working drafts are load-bearing even when NEXT_PUBLIC_PLAN_DRAFTS is off.
+    // Flag off: every save clears. Flag on: only matching-base (the draft whose
+    // base_version_id is the version just saved from). Stale-base rows stay.
     try {
       const g = gate as { session?: { user?: { email?: string; sub?: string } } }
       const uid = String(g.session?.user?.email || g.session?.user?.sub || "")
-      if (uid) await deleteWorkingDraft({ masterId: body.masterId, userId: uid })
+      if (uid) {
+        const draft = await getWorkingDraft({
+          masterId: body.masterId,
+          userId: uid,
+        })
+        if (
+          shouldClearWorkingDraftAfterSave({
+            savePublishesImmediately: SAVE_PUBLISHES_IMMEDIATELY,
+            draftBaseVersionId: draft?.baseVersionId,
+            savedFromBaseVersionId: body.baseVersionId,
+          })
+        ) {
+          await deleteWorkingDraft({ masterId: body.masterId, userId: uid })
+        }
+      }
     } catch (err) {
       console.warn("[PC7] clear working draft after save failed", err)
     }

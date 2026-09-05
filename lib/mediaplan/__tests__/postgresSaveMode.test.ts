@@ -3,10 +3,13 @@ import { describe, it } from "node:test"
 
 import { mapUiMediaTypeToLineChannel } from "../mapUiMediaTypeToLineChannel"
 import {
+  SAVE_PUBLISHES_IMMEDIATELY,
   buildSaveModeInput,
   resolvePostgresSaveMode,
+  showExplicitPublishButton,
   type ResolvePostgresSaveModeInput,
 } from "../resolvePostgresSaveMode"
+import { shouldClearWorkingDraftAfterSave } from "../shouldClearWorkingDraftAfterSave"
 
 describe("mapUiMediaTypeToLineChannel", () => {
   it("maps editor keys and aliases onto LINE_CHANNELS", () => {
@@ -28,7 +31,7 @@ describe("mapUiMediaTypeToLineChannel", () => {
 })
 
 describe("resolvePostgresSaveMode", () => {
-  it("unpublished tip → overwrite / T4a draft (in-place)", () => {
+  it("unpublished tip → overwrite / T4a draft (in-place)", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "Draft",
       forceIncrement: false,
@@ -43,7 +46,7 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  it("unpublished tip + forceIncrement → new_version / increment_unpublished (NV-1)", () => {
+  it("unpublished tip + forceIncrement → new_version / increment_unpublished (NV-1)", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "draft",
       forceIncrement: true,
@@ -89,7 +92,7 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  it("VC Stage 2b: published tip + save intent → working_draft (no version cut)", () => {
+  it("VC Stage 2b: published tip + save intent → working_draft (no version cut)", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "Approved",
       forceIncrement: false,
@@ -149,7 +152,7 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  it("unpublished overwrite still works when version history is lazy-empty", () => {
+  it("unpublished overwrite still works when version history is lazy-empty", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "Draft",
       forceIncrement: false,
@@ -165,7 +168,7 @@ describe("resolvePostgresSaveMode", () => {
   })
 
   // VC1-3 / Stage 2b — save on published tip writes working draft; publish is explicit
-  it("VC1-3: published + status 'draft' + save → working_draft", () => {
+  it("VC1-3: published + status 'draft' + save → working_draft", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "draft",
       forceIncrement: false,
@@ -178,7 +181,7 @@ describe("resolvePostgresSaveMode", () => {
     assert.equal(r.mode, null)
   })
 
-  it("VC1-3: published + status 'planned' + save → working_draft", () => {
+  it("VC1-3: published + status 'planned' + save → working_draft", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "planned",
       forceIncrement: false,
@@ -190,7 +193,7 @@ describe("resolvePostgresSaveMode", () => {
     assert.equal(r.versionNumber, 1)
   })
 
-  it("VC1-3: published + status 'approved' + save → working_draft", () => {
+  it("VC1-3: published + status 'approved' + save → working_draft", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "approved",
       forceIncrement: false,
@@ -202,7 +205,7 @@ describe("resolvePostgresSaveMode", () => {
     assert.equal(r.versionNumber, 1)
   })
 
-  it("VC1-3: unpublished (draft) -> save OVERWRITES in place", () => {
+  it("VC1-3: unpublished (draft) -> save OVERWRITES in place", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "draft",
       forceIncrement: false,
@@ -217,7 +220,7 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  it("returns new_version only for unpublished-tip forceIncrement (NV-1)", () => {
+  it("returns new_version only for unpublished-tip forceIncrement (NV-1)", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const unpublishedForce = resolvePostgresSaveMode({
       campaignStatus: "draft",
       forceIncrement: true,
@@ -262,7 +265,7 @@ describe("resolvePostgresSaveMode", () => {
     assert.equal(intentPublish.mode, "publish")
   })
 
-  it("editing older + save → new_version / increment_unpublished at newest+1", () => {
+  it("editing older + save → new_version / increment_unpublished at newest+1", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "draft",
       forceIncrement: false,
@@ -279,7 +282,7 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  it("editing older + save on a published newest still cuts next unpublished (not working_draft)", () => {
+  it("editing older + save on a published newest still cuts next unpublished (not working_draft)", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "approved",
       forceIncrement: false,
@@ -346,7 +349,7 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  it("S2 regression: editing newest + save, unpublished → overwrite", () => {
+  it("S2 regression: editing newest + save, unpublished → overwrite", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "draft",
       forceIncrement: false,
@@ -363,7 +366,7 @@ describe("resolvePostgresSaveMode", () => {
     })
   })
 
-  it("S3 regression: editing newest + save, published → working_draft", () => {
+  it("S3 regression: editing newest + save, published → working_draft", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const r = resolvePostgresSaveMode({
       campaignStatus: "approved",
       forceIncrement: false,
@@ -456,7 +459,7 @@ describe("resolvePostgresSaveMode", () => {
     }
   })
 
-  it("editingVersionNumber > published (impossible) → treated as newest, not older", () => {
+  it("editingVersionNumber > published (impossible) → treated as newest, not older", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
     const unpublished = resolvePostgresSaveMode({
       campaignStatus: "draft",
       forceIncrement: false,
@@ -530,5 +533,149 @@ describe("buildSaveModeInput", () => {
     })
     assert.equal(input.publishedVersionNumber, 5)
     assert.equal(input.editingVersionNumber, 2)
+  })
+})
+
+
+describe("SAVE_PUBLISHES_IMMEDIATELY (interim)", () => {
+  it("unpublished tip save increments and publishes", { skip: !SAVE_PUBLISHES_IMMEDIATELY }, () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "Draft",
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 1,
+      tipPublishedAt: null,
+    })
+    assert.deepEqual(r, {
+      mode: "publish",
+      versionNumber: 2,
+      uiMode: "increment",
+    })
+  })
+
+  it("published tip save increments and publishes (not working_draft)", { skip: !SAVE_PUBLISHES_IMMEDIATELY }, () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "Approved",
+      forceIncrement: false,
+      publishedVersionNumber: 1,
+      versionRowCount: 1,
+      tipPublishedAt: "2026-01-15T00:00:00.000Z",
+    })
+    assert.deepEqual(r, {
+      mode: "publish",
+      versionNumber: 2,
+      uiMode: "increment",
+    })
+  })
+
+  it("unpublished forceIncrement publishes (not NV-1 unpublished cut)", { skip: !SAVE_PUBLISHES_IMMEDIATELY }, () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "draft",
+      forceIncrement: true,
+      publishedVersionNumber: 2,
+      versionRowCount: 2,
+      tipPublishedAt: null,
+    })
+    assert.deepEqual(r, {
+      mode: "publish",
+      versionNumber: 3,
+      uiMode: "increment",
+    })
+  })
+
+  it("save from older version publishes next (not increment_unpublished)", { skip: !SAVE_PUBLISHES_IMMEDIATELY }, () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "approved",
+      forceIncrement: false,
+      publishedVersionNumber: 5,
+      editingVersionNumber: 3,
+      versionRowCount: 5,
+      tipPublishedAt: "2026-08-01T00:00:00.000Z",
+      intent: "save",
+    })
+    assert.deepEqual(r, {
+      mode: "publish",
+      versionNumber: 6,
+      uiMode: "increment",
+    })
+  })
+
+  it("first create still publishes v1", { skip: !SAVE_PUBLISHES_IMMEDIATELY }, () => {
+    const r = resolvePostgresSaveMode({
+      campaignStatus: "Draft",
+      forceIncrement: false,
+      publishedVersionNumber: 0,
+      versionRowCount: 0,
+      tipPublishedAt: null,
+    })
+    assert.deepEqual(r, {
+      mode: "publish",
+      versionNumber: 1,
+      uiMode: "increment",
+    })
+  })
+
+  it("hides the explicit Publish button", { skip: !SAVE_PUBLISHES_IMMEDIATELY }, () => {
+    assert.equal(showExplicitPublishButton(true), false)
+    assert.equal(showExplicitPublishButton(false), false)
+  })
+
+  it("flag-off still shows Publish on a published plan", { skip: SAVE_PUBLISHES_IMMEDIATELY }, () => {
+    assert.equal(showExplicitPublishButton(true), true)
+    assert.equal(showExplicitPublishButton(false), false)
+  })
+})
+
+describe("shouldClearWorkingDraftAfterSave", () => {
+  it("flag off: every save clears", () => {
+    assert.equal(
+      shouldClearWorkingDraftAfterSave({
+        savePublishesImmediately: false,
+        draftBaseVersionId: 99,
+        savedFromBaseVersionId: 1,
+      }),
+      true
+    )
+  })
+
+  it("flag on: matching-base draft clears", () => {
+    assert.equal(
+      shouldClearWorkingDraftAfterSave({
+        savePublishesImmediately: true,
+        draftBaseVersionId: 41,
+        savedFromBaseVersionId: 41,
+      }),
+      true
+    )
+  })
+
+  it("flag on: stale-base draft is kept", () => {
+    assert.equal(
+      shouldClearWorkingDraftAfterSave({
+        savePublishesImmediately: true,
+        draftBaseVersionId: 99,
+        savedFromBaseVersionId: 41,
+      }),
+      false
+    )
+  })
+
+  it("flag on: missing base ids do not clear", () => {
+    assert.equal(
+      shouldClearWorkingDraftAfterSave({
+        savePublishesImmediately: true,
+        draftBaseVersionId: 41,
+        savedFromBaseVersionId: null,
+      }),
+      false
+    )
+    assert.equal(
+      shouldClearWorkingDraftAfterSave({
+        savePublishesImmediately: true,
+        draftBaseVersionId: null,
+        savedFromBaseVersionId: 41,
+      }),
+      false
+    )
   })
 })

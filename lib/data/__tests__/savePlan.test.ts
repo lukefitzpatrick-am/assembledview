@@ -1614,6 +1614,11 @@ test("VC Stage 1: publish stamps published_at (server now) + lowercased publishe
     stampedMs >= beforeMs - 5_000 && stampedMs <= afterMs + 5_000,
     `published_at within ~5s of now (got ${snap.version!.publishedAt})`
   )
+  assert.equal(
+    String(snap.version!.publishedAt),
+    String(snap.version!.createdAt),
+    "published_at must equal created_at (same-statement stamp)"
+  )
   assert.equal(snap.version?.publishedBy, "luke@assembled.media")
 })
 
