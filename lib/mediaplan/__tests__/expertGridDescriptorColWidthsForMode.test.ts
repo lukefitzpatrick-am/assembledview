@@ -7,7 +7,11 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 
-import { expertGridDescriptorStickySpanWidthPx } from "@/components/media-containers/expertGridSticky"
+import { EXPERT_REORDER_COL_WIDTH_PX } from "@/components/media-containers/ExpertGridRowReorderCell"
+import {
+  cumulativeLeftOffsets,
+  expertGridDescriptorStickySpanWidthPx,
+} from "@/components/media-containers/expertGridSticky"
 import { EXPERT_GRID_BODY_ROW_HEIGHT_PX } from "@/lib/mediaplan/oohExpertVirtualization"
 import {
   BVOD_EXPERT_CHANNEL_CONFIG,
@@ -170,5 +174,132 @@ test("every channel bodyRowHeightPx is the shared 41 unless it states why", () =
       reason.length > 0,
       `${label} bodyRowHeightPx=${h} (shared is ${EXPERT_GRID_BODY_ROW_HEIGHT_PX}) needs bodyRowHeightPxReason`
     )
+  }
+})
+
+function assertTrailingStickyGeometry(
+  label: string,
+  config: ExpertGridChannelConfig<ExpertScheduleRowCommon>,
+  expectedTrailing: readonly [number, number, number]
+) {
+  const keys = expertGridDescriptorKeys(config, false)
+  const widths = expertGridDescriptorColWidths(config, false)
+  assert.equal(widths.length, keys.length + 3, `${label} width count`)
+  assert.deepEqual(
+    widths.slice(-3),
+    [...expectedTrailing],
+    `${label} trailing widths`
+  )
+  const lefts = cumulativeLeftOffsets(widths)
+  const grossCol = keys.length
+  const actionsCol = keys.length + 1
+  const sigmaCol = keys.length + 2
+  assert.equal(typeof lefts[grossCol], "number", `${label} grossCol left`)
+  assert.ok(
+    (lefts[actionsCol] ?? 0) > (lefts[grossCol] ?? 0),
+    `${label} actionsCol left increasing`
+  )
+  assert.ok(
+    (lefts[sigmaCol] ?? 0) > (lefts[actionsCol] ?? 0),
+    `${label} sigmaCol left increasing`
+  )
+  return { keys, widths, lefts, grossCol, actionsCol, sigmaCol }
+}
+
+test("every channel expanded widths include three trailing cols with increasing lefts", () => {
+  for (const { label, config } of ALL_CONFIGS) {
+    const keys = expertGridDescriptorKeys(config, false)
+    const widths = expertGridDescriptorColWidths(config, false)
+    assert.equal(widths.length, keys.length + 3, label)
+    const last3 = widths.slice(-3)
+    assert.ok(
+      last3.every((w) => w > 0),
+      `${label} trailing ${last3.join(",")}`
+    )
+    const lefts = cumulativeLeftOffsets(widths)
+    const grossCol = keys.length
+    const actionsCol = keys.length + 1
+    const sigmaCol = keys.length + 2
+    assert.equal(typeof lefts[grossCol], "number", `${label} grossCol`)
+    assert.ok(
+      (lefts[actionsCol] ?? 0) > (lefts[grossCol] ?? 0),
+      `${label} actionsCol`
+    )
+    assert.ok(
+      (lefts[sigmaCol] ?? 0) > (lefts[actionsCol] ?? 0),
+      `${label} sigmaCol`
+    )
+  }
+})
+
+test("OOH trailing sticky widths and lefts (legacy trailingColWidthsPx)", () => {
+  const { lefts, grossCol, actionsCol, sigmaCol } = assertTrailingStickyGeometry(
+    "OOH",
+    OOH_EXPERT_CHANNEL_CONFIG,
+    [100, 76, 68]
+  )
+  assert.ok(lefts[grossCol]! > 0)
+  assert.equal(lefts[actionsCol]! - lefts[grossCol]!, 100)
+  assert.equal(lefts[sigmaCol]! - lefts[actionsCol]!, 76)
+})
+
+test("Radio trailing sticky widths 88/72/64 and increasing lefts", () => {
+  const { lefts, grossCol, actionsCol, sigmaCol } = assertTrailingStickyGeometry(
+    "Radio",
+    RADIO_EXPERT_CHANNEL_CONFIG,
+    [88, 72, 64]
+  )
+  assert.equal(lefts[actionsCol]! - lefts[grossCol]!, 88)
+  assert.equal(lefts[sigmaCol]! - lefts[actionsCol]!, 72)
+  assert.equal(EXPERT_REORDER_COL_WIDTH_PX + lefts[grossCol]!, 1056)
+  assert.equal(EXPERT_REORDER_COL_WIDTH_PX + lefts[actionsCol]!, 1144)
+  assert.equal(EXPERT_REORDER_COL_WIDTH_PX + lefts[sigmaCol]!, 1216)
+})
+
+test("Television trailing sticky widths 88/72/64 and increasing lefts", () => {
+  assertTrailingStickyGeometry(
+    "Television",
+    TELEVISION_EXPERT_CHANNEL_CONFIG,
+    [88, 72, 64]
+  )
+})
+
+test("Radio compact keeps net media / Σ", () => {
+  assertCompactShape(RADIO_EXPERT_CHANNEL_CONFIG, false)
+  const keys = expertGridDescriptorWidthKeys(RADIO_EXPERT_CHANNEL_CONFIG, false)
+  const compact = expertGridDescriptorColWidthsForMode(
+    RADIO_EXPERT_CHANNEL_CONFIG,
+    false,
+    "compact"
+  )
+  assert.equal(compact[keys.indexOf("netMedia")], 88)
+  assert.equal(compact[keys.indexOf("sumQty")], 64)
+  assert.equal(compact[keys.indexOf("actions")], 0)
+})
+
+test("Television compact keeps net media / Σ", () => {
+  assertCompactShape(TELEVISION_EXPERT_CHANNEL_CONFIG, false)
+  const keys = expertGridDescriptorWidthKeys(
+    TELEVISION_EXPERT_CHANNEL_CONFIG,
+    false
+  )
+  const compact = expertGridDescriptorColWidthsForMode(
+    TELEVISION_EXPERT_CHANNEL_CONFIG,
+    false,
+    "compact"
+  )
+  assert.equal(compact[keys.indexOf("netMedia")], 88)
+  assert.equal(compact[keys.indexOf("sumQty")], 64)
+})
+
+test("every channel compact keeps rowLabelKey / net media or total cost / Σ", () => {
+  for (const { label, config } of ALL_CONFIGS) {
+    const keys = expertGridDescriptorWidthKeys(config, false)
+    assert.ok(
+      keys.includes("netMedia") || keys.includes("totalCost"),
+      `${label} missing trailing net/total key`
+    )
+    assertCompactShape(config, false)
+    assertCompactShape(config, true)
   }
 })

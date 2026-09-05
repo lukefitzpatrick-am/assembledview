@@ -221,9 +221,9 @@ export type ExpertGridChannelConfig<TRow extends ExpertScheduleRowCommon> = {
    */
   trailingHeaderLabels: readonly string[]
   /**
-   * Sticky widths for trailing computed cols (Net Media / actions / Σ qty).
-   * Included in {@link expertGridDescriptorColWidths} so sticky offsets stay correct.
-   * @deprecated Prefer {@link trailingColumns} `.widthPx`.
+   * @deprecated Prefer {@link trailingColumns} `.widthPx`. Sticky widths now
+   * come from {@link getExpertTrailingColumns}; this field is only the
+   * back-compat fallback (OOH still sets it).
    */
   trailingColWidthsPx?: readonly number[]
   createEmptyRow: (
@@ -1602,7 +1602,7 @@ export function expertGridDescriptorColWidths(
 ): number[] {
   const gridCols = getExpertGridSurfaceFields(config)
   const widths = gridCols.map((c) => c.widthPx)
-  const trailing = config.trailingColWidthsPx ?? []
+  const trailing = getExpertTrailingColumns(config).map((c) => c.widthPx)
   return showBillingCols
     ? [...config.billingFlagWidthsPx, ...widths, ...trailing]
     : [...widths, ...trailing]
@@ -1615,17 +1615,14 @@ const COMPACT_DESCRIPTOR_KEEP = new Set(["netMedia", "totalCost", "sumQty"])
 
 /**
  * Keys aligned 1:1 with {@link expertGridDescriptorColWidths} (billing +
- * grid surface + trailing that is actually in the widths array).
+ * grid surface + trailing from {@link getExpertTrailingColumns}).
  */
 export function expertGridDescriptorWidthKeys(
   config: ExpertGridChannelConfig<ExpertScheduleRowCommon>,
   showBillingCols: boolean
 ): string[] {
   const gridCols = getExpertGridSurfaceFields(config)
-  const trailingWidths = config.trailingColWidthsPx ?? []
-  const trailingKeys = getExpertTrailingColumns(config)
-    .slice(0, trailingWidths.length)
-    .map((c) => c.key)
+  const trailingKeys = getExpertTrailingColumns(config).map((c) => c.key)
   return showBillingCols
     ? [...config.billingFlagKeys, ...gridCols.map((c) => c.key), ...trailingKeys]
     : [...gridCols.map((c) => c.key), ...trailingKeys]
