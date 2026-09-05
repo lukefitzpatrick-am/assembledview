@@ -171,3 +171,51 @@ test("row-height assertion is silent when height matches the virtualiser", () =>
     console.error = orig
   }
 })
+
+test("row-height assertion prefers offsetHeight over a scaled getBoundingClientRect", () => {
+  const errors: string[] = []
+  const orig = console.error
+  console.error = (...args: unknown[]) => {
+    errors.push(args.map(String).join(" "))
+  }
+  try {
+    assertExpertGridBodyRowHeightPx(
+      {
+        offsetHeight: 41,
+        getBoundingClientRect: () => ({ height: 38.95 }),
+        tagName: "TR",
+      },
+      EXPERT_GRID_BODY_ROW_HEIGHT_PX,
+      "Radio"
+    )
+    assert.equal(errors.length, 0)
+  } finally {
+    console.error = orig
+  }
+})
+
+test("row-height assertion logs when offsetHeight is short, even if getBoundingClientRect is 41", () => {
+  const errors: string[] = []
+  const orig = console.error
+  console.error = (...args: unknown[]) => {
+    errors.push(args.map(String).join(" "))
+  }
+  try {
+    assertExpertGridBodyRowHeightPx(
+      {
+        offsetHeight: 39,
+        getBoundingClientRect: () => ({ height: 41 }),
+        tagName: "TR",
+      },
+      EXPERT_GRID_BODY_ROW_HEIGHT_PX,
+      "Radio"
+    )
+    assert.equal(errors.length, 1)
+    assert.match(
+      errors[0]!,
+      /\[expert-grid\] Radio body row measured 39px, virtualiser assumes 41px \(shorter\)/
+    )
+  } finally {
+    console.error = orig
+  }
+})

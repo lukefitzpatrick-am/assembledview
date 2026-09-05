@@ -15,8 +15,10 @@ import type { OohExpertScheduleRow } from "@/lib/mediaplan/expertModeWeeklySched
  * `<tr>` — `max-height` does not apply to table-row, and `height` is only a
  * minimum) and `estimateSize` on the virtualizer. Pixel, not rem: `html`
  * font-size is 80% so Tailwind `h-8` is not 32 CSS px. The schedule table is
- * `border-separate` so the row's getBoundingClientRect height includes each
- * cell's own 1px borders (collapsed tables measured 39px).
+ * `border-separate` so the row's layout height includes each cell's own 1px
+ * borders (collapsed tables measured 39px). Measure with `offsetHeight`,
+ * not `getBoundingClientRect` — DialogContent zooms from scale(0.95) and
+ * that transform shrinks the rect; ResizeObserver does not re-fire for it.
  *
  * Dev builds assert the first mounted body row via
  * {@link assertExpertGridBodyRowHeightPx}.
@@ -34,6 +36,8 @@ export const OOH_EXPERT_ROW_HEIGHT_PX = EXPERT_GRID_BODY_ROW_HEIGHT_PX
 export const EXPERT_GRID_THEAD_HEIGHT_ESTIMATE_PX = 76
 
 export type ExpertGridBodyRowMeasureTarget = {
+  /** Layout height (transform-free). Preferred over getBoundingClientRect. */
+  offsetHeight?: number
   getBoundingClientRect(): { height: number }
   tagName?: string
   getAttribute?: (name: string) => string | null
@@ -62,7 +66,8 @@ export function assertExpertGridBodyRowHeightPx(
   channelLabel: string = "expert"
 ): void {
   if (process.env.NODE_ENV === "production") return
-  const height = row.getBoundingClientRect().height
+  const height =
+    row.offsetHeight ?? row.getBoundingClientRect().height
   if (!Number.isFinite(height) || height <= 0) return
   const rounded = Math.round(height)
   if (rounded !== expectedPx) {

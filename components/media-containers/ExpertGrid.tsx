@@ -1202,7 +1202,7 @@ export function ExpertGrid<TRow extends ExpertScheduleRowCommon>({
     const el = theadRef.current
     if (!el) return
     const measure = () => {
-      const h = el.getBoundingClientRect().height
+      const h = el.offsetHeight
       if (h > 0) setTheadHeightPx((prev) => (prev === h ? prev : h))
     }
     measure()

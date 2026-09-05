@@ -90,3 +90,23 @@ test("zero-width compact cells stay width-0 with no right border (SM-13)", () =>
 test("virtualiser height stays the shared 41px constant", () => {
   assert.equal(EXPERT_GRID_BODY_ROW_HEIGHT_PX, 41)
 })
+
+test("thead measure uses offsetHeight, not getBoundingClientRect (transform-safe)", () => {
+  const src = fs.readFileSync(
+    path.join(REPO_ROOT, "components/media-containers/ExpertGrid.tsx"),
+    "utf8"
+  )
+  const hookSrc = fs.readFileSync(
+    path.join(
+      REPO_ROOT,
+      "components/media-containers/useExpertGridRowVirtualizer.tsx"
+    ),
+    "utf8"
+  )
+  assert.match(src, /const measure = \(\) => \{\s*const h = el\.offsetHeight/)
+  assert.doesNotMatch(
+    src,
+    /const measure = \(\) => \{\s*const h = el\.getBoundingClientRect\(\)\.height/
+  )
+  assert.doesNotMatch(hookSrc, /getBoundingClientRect/)
+})
