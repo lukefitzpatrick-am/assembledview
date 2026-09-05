@@ -1,16 +1,12 @@
 /**
- * Client ABN / legal name / PO-required for invoicing row blockers.
+ * Client ABN / legal name for invoicing row blockers.
  * GET /api/clients already exists — do not add an endpoint. Raw legal name
  * (no display-name fallback) so `clientMissingBlockers` can see empties.
+ * There is no `po_required` column; do not re-read one (C-84).
  */
 
 import { clientApiRowToFinanceExcelMeta } from "@/lib/finance/excelFinanceExport"
 import type { InvoicingClientBlockerMeta } from "@/lib/finance/sections/invoicingRowPresentation"
-
-function poRequiredFromRow(row: Record<string, unknown>): boolean {
-  const v = row.po_required ?? row.poRequired ?? row.porequired
-  return v === true || v === "true" || v === 1 || v === "1"
-}
 
 export async function loadInvoicingClientBlockerMeta(): Promise<
   Map<number, InvoicingClientBlockerMeta>
@@ -32,7 +28,6 @@ export async function loadInvoicingClientBlockerMeta(): Promise<
       out.set(id, {
         abn: parsed.abn,
         legalBusinessName: parsed.legalBusinessName,
-        poRequired: poRequiredFromRow(row),
       })
     }
     return out

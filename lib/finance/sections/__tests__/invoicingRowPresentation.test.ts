@@ -50,23 +50,90 @@ test("blocked row reuses clientMissingBlockers and surfaces the reason", () => {
     name: "BIC",
     abn: "",
     legalBusinessName: "",
-    poRequired: true,
-    poNumber: "",
   })
   const viaRow = invoicingRowBlockers({
     clientsId: 9,
     clientName: "BIC",
     record: rec({ clients_id: 9, client_name: "BIC", po_number: "" }),
-    clientMeta: { abn: "", legalBusinessName: "", poRequired: true },
+    clientMeta: { abn: "", legalBusinessName: "" },
   })
   assert.deepEqual(
     viaRow.map((b) => b.kind).sort(),
     viaPredicate.map((b) => b.kind).sort()
   )
-  assert.ok(viaRow.some((b) => b.kind === "missing_abn"))
-  assert.ok(viaRow.some((b) => b.kind === "missing_legal_name"))
-  assert.ok(viaRow.some((b) => b.kind === "missing_po"))
+  // No PO column / no PO data → missing_po is not a blocker. Full list so a
+  // wider deletion (ABN / legal name) fails this test.
+  assert.deepEqual(viaRow.map((b) => b.kind).sort(), [
+    "missing_abn",
+    "missing_legal_name",
+  ])
   assert.ok(viaRow.some((b) => /missing ABN/i.test(b.detail)))
+})
+
+test("each remaining blocker fires on its own fixture", () => {
+  const abnOnly = invoicingRowBlockers({
+    clientsId: 9,
+    clientName: "BIC",
+    record: rec({ clients_id: 9, client_name: "BIC" }),
+    clientMeta: { abn: "", legalBusinessName: "Ok Co Pty Ltd" },
+  })
+  assert.deepEqual(
+    abnOnly.map((b) => b.kind),
+    ["missing_abn"]
+  )
+
+  const legalOnly = invoicingRowBlockers({
+    clientsId: 9,
+    clientName: "BIC",
+    record: rec({ clients_id: 9, client_name: "BIC" }),
+    clientMeta: { abn: "11 111 111 111", legalBusinessName: "" },
+  })
+  assert.deepEqual(
+    legalOnly.map((b) => b.kind),
+    ["missing_legal_name"]
+  )
+
+  const sowZero = invoicingRowBlockers({
+    clientsId: 9,
+    clientName: "BIC",
+    record: rec({
+      clients_id: 9,
+      client_name: "BIC",
+      billing_type: "sow",
+      billing_month: "2026-07",
+      total: 0,
+    }),
+    clientMeta: { abn: "11 111 111 111", legalBusinessName: "Ok Co Pty Ltd" },
+  })
+  assert.deepEqual(
+    sowZero.map((b) => b.kind),
+    ["unapproved_scheduled"]
+  )
+
+  const sowMissingMonth = invoicingRowBlockers({
+    clientsId: 9,
+    clientName: "BIC",
+    record: rec({
+      clients_id: 9,
+      client_name: "BIC",
+      billing_type: "sow",
+      billing_month: "",
+      total: 100,
+    }),
+    clientMeta: { abn: "11 111 111 111", legalBusinessName: "Ok Co Pty Ltd" },
+  })
+  assert.deepEqual(
+    sowMissingMonth.map((b) => b.kind),
+    ["unapproved_scheduled"]
+  )
+
+  const noPoData = invoicingRowBlockers({
+    clientsId: 9,
+    clientName: "BIC",
+    record: rec({ clients_id: 9, client_name: "BIC", po_number: "" }),
+    clientMeta: { abn: "11 111 111 111", legalBusinessName: "Ok Co Pty Ltd" },
+  })
+  assert.deepEqual(noPoData.map((b) => b.kind), [])
 })
 
 test("a sow with $0 or missing month is a row blocker", () => {

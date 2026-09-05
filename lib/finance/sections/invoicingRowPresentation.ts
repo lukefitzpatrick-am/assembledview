@@ -26,7 +26,6 @@ export type MediaTypeRollup = {
 export type InvoicingClientBlockerMeta = {
   abn: string
   legalBusinessName: string
-  poRequired: boolean
 }
 
 /**
@@ -104,7 +103,7 @@ export function scopeMonthBlocker(record: {
 export function invoicingRowBlockers(input: {
   clientsId: number
   clientName: string
-  record: Pick<BillingRecord, "billing_type" | "billing_month" | "total" | "po_number" | "client_name" | "clients_id">
+  record: Pick<BillingRecord, "billing_type" | "billing_month" | "total" | "client_name" | "clients_id">
   clientMeta?: InvoicingClientBlockerMeta | null
 }): PreRunBlocker[] {
   const out: PreRunBlocker[] = []
@@ -115,8 +114,6 @@ export function invoicingRowBlockers(input: {
         name: input.clientName,
         abn: input.clientMeta.abn,
         legalBusinessName: input.clientMeta.legalBusinessName,
-        poRequired: input.clientMeta.poRequired,
-        poNumber: input.record.po_number,
       })
     )
   }

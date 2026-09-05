@@ -162,7 +162,7 @@ describe("InvoicingPlanRow primary action", () => {
           mp={mp}
           kind="media"
           refetch={() => undefined}
-          clientMeta={{ abn: "", legalBusinessName: "Ok Co Pty Ltd", poRequired: false }}
+          clientMeta={{ abn: "", legalBusinessName: "Ok Co Pty Ltd" }}
         />,
       )
     })
